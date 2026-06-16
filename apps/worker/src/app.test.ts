@@ -49,6 +49,18 @@ function telegramUpdate(updateId: number, text: string) {
 }
 
 describe("worker app", () => {
+  it("redirects www and http custom-domain traffic to the canonical apex", async () => {
+    const app = createApp({ repository: new InMemoryRepository() });
+
+    const wwwResponse = await app.request("https://www.lownoise.news/demo", {}, env());
+    expect(wwwResponse.status).toBe(301);
+    expect(wwwResponse.headers.get("location")).toBe("https://lownoise.news/demo");
+
+    const httpResponse = await app.request("http://lownoise.news/feed/personal", {}, env());
+    expect(httpResponse.status).toBe(301);
+    expect(httpResponse.headers.get("location")).toBe("https://lownoise.news/feed/personal");
+  });
+
   it("detects disabled Telegram sources without queueing processing", async () => {
     const repo = new InMemoryRepository();
     const briefing = await repo.ensureDefaultBriefing();

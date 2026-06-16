@@ -41,6 +41,16 @@ export function createApp(options: AppOptions = {}) {
   const queueFor = (c: { env: Env }) => options.queue ?? c.env.PROCESSING_QUEUE;
   const fetcher = options.fetcher ?? fetch;
 
+  app.use("*", async (c, next) => {
+    const url = new URL(c.req.url);
+    if (url.hostname === "www.lownoise.news" || (url.hostname === "lownoise.news" && url.protocol === "http:")) {
+      url.protocol = "https:";
+      url.hostname = "lownoise.news";
+      return c.redirect(url.toString(), 301);
+    }
+    return next();
+  });
+
   app.get("/api/admin/session", async (c) => {
     const repo = repoFor(c);
     const setupRequired = !(await repo.getSetting("admin_password_hash"));
