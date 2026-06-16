@@ -88,16 +88,37 @@ function AdminPage() {
   const [error, setError] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const [feedSettingsOpen, setFeedSettingsOpen] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const [scopedDataReady, setScopedDataReady] = useState(false);
+  const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const selectedBriefingIdRef = useRef<string | null>(null);
+  const briefingsRef = useRef<BriefingConfig[]>([]);
+  const autosaveTimerRef = useRef<number | null>(null);
+  const autosaveRunRef = useRef(0);
 
   const account = session?.account ?? null;
   const briefing = briefings.find((item) => item.id === selectedBriefingId) ?? null;
   const orderedBriefings = sortBriefings(briefings);
-  const previewSlug = briefing ? deriveBriefingSlug(briefings, briefing.title, briefing.id) : "";
 
   useEffect(() => {
     selectedBriefingIdRef.current = selectedBriefingId;
   }, [selectedBriefingId]);
+
+  useEffect(() => {
+    briefingsRef.current = briefings;
+  }, [briefings]);
+
+  useEffect(() => {
+    if (!account) return;
+    setOnboardingDismissed(localStorage.getItem(onboardingStorageKey(account.id)) === "1");
+  }, [account?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     getSession()
@@ -113,9 +134,10 @@ function AdminPage() {
 
   useEffect(() => {
     if (!selectedBriefingId || !session?.authenticated) return;
+    setScopedDataReady(false);
     loadScopedData(selectedBriefingId).catch((cause) =>
       setError(cause instanceof Error ? cause.message : String(cause))
-    );
+    ).finally(() => setScopedDataReady(true));
   }, [selectedBriefingId, session?.authenticated]);
 
   async function refreshSession() {
@@ -140,19 +162,39 @@ function AdminPage() {
     setHealth(nextHealth);
   }
 
-  async function persistBriefing(nextBriefing: BriefingConfig, nextStatus = "saved"): Promise<BriefingConfig> {
+  async function persistBriefing(nextBriefing: BriefingConfig, nextStatus = "saved", busyKey: string | null = "save-feed"): Promise<BriefingConfig> {
     setError("");
     setStatus("saving");
-    setBusyAction("save-feed");
+    if (busyKey) setBusyAction(busyKey);
     try {
-      const saved = await saveBriefing(prepareBriefingForSave(nextBriefing, briefings));
+      const saved = await saveBriefing(prepareBriefingForSave(nextBriefing, briefingsRef.current));
       setBriefings((current) => updateBriefingList(current, saved));
-      setSelectedBriefingId(saved.id);
+      if (busyKey !== null || selectedBriefingIdRef.current === saved.id) setSelectedBriefingId(saved.id);
       setStatus(nextStatus);
       return saved;
     } finally {
-      setBusyAction(null);
+      if (busyKey) setBusyAction((current) => (current === busyKey ? null : current));
     }
+  }
+
+  function scheduleBriefingAutosave(nextBriefing: BriefingConfig) {
+    if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+    const runId = autosaveRunRef.current + 1;
+    autosaveRunRef.current = runId;
+    setAutosaveState("saving");
+    setStatus("saving");
+    autosaveTimerRef.current = window.setTimeout(async () => {
+      try {
+        await persistBriefing(nextBriefing, "saved", null);
+        if (autosaveRunRef.current === runId) setAutosaveState("saved");
+      } catch (cause) {
+        if (autosaveRunRef.current === runId) {
+          setAutosaveState("error");
+          setStatus("");
+          setError(cause instanceof Error ? cause.message : String(cause));
+        }
+      }
+    }, 650);
   }
 
   async function createBriefing() {
@@ -163,6 +205,7 @@ function AdminPage() {
       const draft = createBriefingDraft(briefings, account);
       const created = await persistBriefing(draft, "feed created");
       await loadBriefings(created.id);
+      setFeedSettingsOpen(true);
     } finally {
       setBusyAction(null);
     }
@@ -179,6 +222,7 @@ function AdminPage() {
 
   async function handleLogout() {
     setAccountDialogOpen(false);
+    setFeedSettingsOpen(false);
     await logout();
     setSession({ authenticated: false, setupRequired: false });
     setBriefings([]);
@@ -204,11 +248,73 @@ function AdminPage() {
     />
   ) : null;
 
-  function patchSelectedBriefing(patch: Partial<BriefingConfig>) {
+  const onboardingOpen = Boolean(
+    account &&
+      briefing &&
+      scopedDataReady &&
+      sources.length === 0 &&
+      !onboardingDismissed &&
+      isFirstRunBriefing(briefing)
+  );
+
+  async function dismissOnboarding() {
+    if (account) localStorage.setItem(onboardingStorageKey(account.id), "1");
+    setOnboardingDismissed(true);
+  }
+
+  async function completeOnboarding(input: {
+    username: string;
+    title: string;
+    interestProfile: string;
+    sourceUrl: string;
+  }) {
+    if (!account || !briefing) return;
+    setError("");
+    setBusyAction("setup-feed");
+    try {
+      let nextAccount = account;
+      let nextBriefings = briefingsRef.current;
+      if (slugify(input.username) !== account.username) {
+        const result = await updateAccount({ username: input.username });
+        nextAccount = result.account;
+        nextBriefings = result.briefings;
+        setSession((current) => (current ? { ...current, account: result.account } : current));
+        setBriefings(result.briefings);
+      }
+      const latestBriefing =
+        nextBriefings.find((item) => item.id === briefing.id) ??
+        { ...briefing, ownerUsername: nextAccount.username };
+      const saved = await persistBriefing(
+        {
+          ...latestBriefing,
+          ownerUsername: nextAccount.username,
+          title: input.title,
+          interestProfile: input.interestProfile,
+          publicFeedEnabled: true
+        },
+        "setup saved",
+        "setup-feed"
+      );
+      if (input.sourceUrl.trim()) {
+        setSourceStatus("fetching the public Telegram page and queuing matching posts");
+        const response = await addPublicTelegramSource(saved.id, input.sourceUrl);
+        applySourceResponse(response);
+        void pollHealthUntilSettled(saved.id, response.health);
+      }
+      await dismissOnboarding();
+      if (nextAccount.role === "admin") setAccounts(await listAccounts());
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  function patchSelectedBriefing(patch: Partial<BriefingConfig>, autosave = true) {
     if (!briefing) return;
+    const next = prepareBriefingForSave({ ...briefing, ...patch }, briefingsRef.current);
     setBriefings((current) =>
-      current.map((item) => (item.id === briefing.id ? { ...item, ...patch } : item))
+      current.map((item) => (item.id === briefing.id ? next : item))
     );
+    if (autosave) scheduleBriefingAutosave(next);
   }
 
   if (!session) {
@@ -268,16 +374,18 @@ function AdminPage() {
     <>
       <Shell title="admin" onAccount={() => setAccountDialogOpen(true)} feed={briefing}>
         <div className="admin-stack">
-          <section className="section">
+          <section className="section feed-section">
             <div className="section-title">
               <Globe size={16} aria-hidden />
               <h2>feeds</h2>
             </div>
             <div className="actions">
-              <button type="button" disabled={busyAction === "create-feed"} onClick={() => createBriefing()}>
+              <button type="button" className="primary-button" disabled={busyAction === "create-feed"} onClick={() => createBriefing()}>
                 <Plus size={15} aria-hidden /> new feed
               </button>
-              {status ? <span className="muted">{status}</span> : null}
+              {status || autosaveState !== "idle" ? (
+                <span className={`save-state ${autosaveState === "error" ? "error" : ""}`}>{formatAutosaveStatus(autosaveState, status)}</span>
+              ) : null}
             </div>
             <div className="feed-list">
               {orderedBriefings.map((item) => (
@@ -291,139 +399,94 @@ function AdminPage() {
                     <span className="pill">{item.publicFeedEnabled ? "public" : "private"}</span>
                     {item.paused ? <span className="pill">paused</span> : null}
                   </div>
-                  <a className="button-link" href={`/${item.ownerUsername}/${item.slug}/`}>open</a>
-                  <button type="button" disabled={!item.publicFeedEnabled} onClick={() => copyPublicFeedUrl(item)}>
-                    <Copy size={15} aria-hidden /> copy url
-                  </button>
+                  <div className="row-actions">
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`feed settings for ${item.title}`}
+                      title="settings"
+                      onClick={() => {
+                        setSelectedBriefingId(item.id);
+                        setFeedSettingsOpen(true);
+                      }}
+                    >
+                      <Settings size={15} aria-hidden />
+                    </button>
+                    {item.publicFeedEnabled ? (
+                      <a className="button-link icon-button" href={`/${item.ownerUsername}/${item.slug}/`} aria-label={`open ${item.title}`} title="open">
+                        <ExternalLink size={15} aria-hidden />
+                      </a>
+                    ) : (
+                      <button type="button" className="icon-button" aria-label={`${item.title} is private`} title="private" disabled>
+                        <ExternalLink size={15} aria-hidden />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`copy public URL for ${item.title}`}
+                      title="copy url"
+                      disabled={!item.publicFeedEnabled}
+                      onClick={() => copyPublicFeedUrl(item)}
+                    >
+                      <Copy size={15} aria-hidden />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </section>
 
-          <div className="admin-grid">
-            <form
-              className="section"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                try {
-                  await persistBriefing(briefing);
-                } catch (cause) {
-                  setStatus("");
-                  setError(cause instanceof Error ? cause.message : String(cause));
-                }
-              }}
-            >
-            <div className="section-title">
-              <Settings size={16} aria-hidden />
-              <h2>setup</h2>
-            </div>
-            <label>
-              title
-              <input dir="ltr" value={briefing.title} onChange={(event) => patchSelectedBriefing({ title: event.target.value })} />
-            </label>
-            <div className="field-group">
-              <span>slug</span>
-              <code className="generated-slug">/{briefing.ownerUsername}/{previewSlug}/</code>
-            </div>
-            <div className="field-group">
-              <span>language</span>
-              <div className="segmented" role="group" aria-label="feed language">
-                {(["en", "fr", "ar"] as const).map((language) => (
-                  <button
-                    key={language}
-                    type="button"
-                    className={briefing.language === language ? "active" : ""}
-                    onClick={() => patchSelectedBriefing({ language })}
-                  >
-                    <Languages size={15} aria-hidden /> {languageLabel(language)}
-                  </button>
-                ))}
+          <section className="section source-panel">
+            <div className="source-header">
+              <div className="section-title">
+                <RefreshCw size={16} aria-hidden />
+                <h2>sources</h2>
               </div>
-            </div>
-            <label>
-              interest profile
-              <textarea
-                dir="ltr"
-                required
-                rows={6}
-                value={briefing.interestProfile}
-                onChange={(event) => patchSelectedBriefing({ interestProfile: event.target.value })}
-              />
-            </label>
-            <label>
-              style instruction
-              <textarea
-                dir="ltr"
-                rows={3}
-                value={briefing.styleInstruction ?? ""}
-                onChange={(event) => patchSelectedBriefing({ styleInstruction: event.target.value })}
-              />
-            </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={briefing.publicFeedEnabled}
-                onChange={(event) => patchSelectedBriefing({ publicFeedEnabled: event.target.checked })}
-              />
-              public feed
-            </label>
-            <details>
-              <summary>advanced</summary>
-              <label>
-                retention days
-                <input
-                  type="number"
-                  min={1}
-                  max={90}
-                  value={briefing.retentionDays}
-                  onChange={(event) => patchSelectedBriefing({ retentionDays: Number(event.target.value) })}
-                />
-              </label>
-            </details>
-            <div className="actions">
-              <button type="submit"><Save size={15} aria-hidden /> save</button>
-              <button
-                type="button"
-                disabled={busyAction === "pause-feed"}
-                onClick={async () => {
-                  try {
-                    await persistBriefing({ ...briefing, paused: !briefing.paused }, briefing.paused ? "feed resumed" : "feed paused");
-                  } catch (cause) {
-                    setStatus("");
-                    setError(cause instanceof Error ? cause.message : String(cause));
-                  }
-                }}
-              >
-                {briefing.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
-                {briefing.paused ? "resume feed" : "pause feed"}
-              </button>
-              <a className="button-link" href={`/${briefing.ownerUsername}/${briefing.slug}/`}>open feed</a>
-              <button type="button" disabled={!briefing.publicFeedEnabled} onClick={() => copyPublicFeedUrl(briefing)}>
-                <Copy size={15} aria-hidden /> copy public url
-              </button>
-              <button
-                type="button"
-                className="danger-button"
-                disabled={briefings.length <= 1 || busyAction === "delete-feed"}
-                onClick={async () => {
-                  if (briefings.length <= 1) return;
-                  if (!window.confirm(`Delete "${briefing.title}" and all of its sources and published items?`)) return;
-                  const remaining = await deleteBriefing(briefing.id);
-                  setBriefings(remaining);
-                  setSelectedBriefingId(remaining[0]?.id ?? null);
-                  setStatus("feed deleted");
-                }}
-              >
-                <Trash2 size={15} aria-hidden /> delete feed
-              </button>
-            </div>
-            {error ? <p className="error">{error}</p> : null}
-            </form>
-
-            <section className="section">
-            <div className="section-title">
-              <RefreshCw size={16} aria-hidden />
-              <h2>sources</h2>
+              <div className="row-actions">
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="fetch latest"
+                  title="fetch latest"
+                  disabled={briefing.paused || busyAction === "refresh-source"}
+                  onClick={async () => {
+                    setError("");
+                    try {
+                      setBusyAction("refresh-source");
+                      setSourceStatus("fetching enabled channels");
+                      const response = await refreshPublicTelegramSources(briefing.id);
+                      applySourceResponse(response);
+                      setStatus("latest fetched");
+                      void pollHealthUntilSettled(briefing.id, response.health);
+                    } catch (cause) {
+                      setStatus("");
+                      setError(cause instanceof Error ? cause.message : String(cause));
+                      setSourceStatus("");
+                    } finally {
+                      setBusyAction(null);
+                    }
+                  }}
+                >
+                  <RefreshCw size={15} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="retry processing"
+                  title="retry processing"
+                  disabled={busyAction === "retry-processing"}
+                  onClick={async () => {
+                    setBusyAction("retry-processing");
+                    const response = await retryProcessing(briefing.id);
+                    setHealth(response.health);
+                    setStatus(response.retried > 0 ? `retried ${response.retried} job(s)` : "no stale jobs to retry");
+                    setBusyAction(null);
+                  }}
+                >
+                  <RefreshCw size={15} aria-hidden />
+                </button>
+              </div>
             </div>
             <div className="source-add">
               <label>
@@ -432,6 +495,7 @@ function AdminPage() {
               </label>
               <button
                 type="button"
+                className="primary-button"
                 disabled={!sourceUrl.trim() || briefing.paused || busyAction === "add-source"}
                 onClick={async () => {
                   setError("");
@@ -455,51 +519,8 @@ function AdminPage() {
                 <Plus size={15} aria-hidden /> add
               </button>
             </div>
-            <div className="actions">
-              <button
-                type="button"
-                disabled={briefing.paused || busyAction === "refresh-source"}
-                onClick={async () => {
-                  setError("");
-                  try {
-                    setBusyAction("refresh-source");
-                    setSourceStatus("fetching enabled channels");
-                    const response = await refreshPublicTelegramSources(briefing.id);
-                    applySourceResponse(response);
-                    setStatus("latest fetched");
-                    void pollHealthUntilSettled(briefing.id, response.health);
-                  } catch (cause) {
-                    setStatus("");
-                    setError(cause instanceof Error ? cause.message : String(cause));
-                    setSourceStatus("");
-                  } finally {
-                    setBusyAction(null);
-                  }
-                }}
-              >
-                <RefreshCw size={15} aria-hidden /> fetch latest
-              </button>
-              <button
-                type="button"
-                disabled={busyAction === "retry-processing"}
-                onClick={async () => {
-                  setBusyAction("retry-processing");
-                  const response = await retryProcessing(briefing.id);
-                  setHealth(response.health);
-                  setStatus(response.retried > 0 ? `retried ${response.retried} job(s)` : "no stale jobs to retry");
-                  setBusyAction(null);
-                }}
-              >
-                <RefreshCw size={15} aria-hidden /> retry processing
-              </button>
-            </div>
             {sourceStatus ? <p className="muted section-note">{sourceStatus}</p> : null}
-            <div className="health">
-              <StatusLine label="processing" value={`queued ${health?.processing.queued ?? 0} / failed ${health?.processing.failed ?? 0}`} />
-              <StatusLine label="last source event" value={health?.lastTelegramEventAt ?? "none"} />
-              <StatusLine label="latest published" value={health?.latestPublishedAt ? formatTime(health.latestPublishedAt, briefing.language) : "none"} />
-              <StatusLine label="status" value={briefing.paused ? "paused" : "live"} />
-            </div>
+            <HealthSummary briefing={briefing} health={health} />
             <div className="source-list">
               {sources.length === 0 ? <p className="muted">add Telegram channel URLs</p> : null}
               {sources.map((source) => (
@@ -534,8 +555,7 @@ function AdminPage() {
                 </div>
               ))}
             </div>
-            </section>
-          </div>
+          </section>
 
           {account.role === "admin" ? (
             <AdminAccountsSection
@@ -546,6 +566,44 @@ function AdminPage() {
         </div>
       </Shell>
       {accountDialog}
+      {feedSettingsOpen ? (
+        <FeedSettingsSheet
+          briefing={briefing}
+          briefings={briefings}
+          autosaveState={autosaveState}
+          status={status}
+          canDelete={briefings.length > 1}
+          onClose={() => setFeedSettingsOpen(false)}
+          onPatch={(patch) => patchSelectedBriefing(patch)}
+          onCopy={() => copyPublicFeedUrl(briefing)}
+          onPauseToggle={async () => {
+            try {
+              await persistBriefing({ ...briefing, paused: !briefing.paused }, briefing.paused ? "feed resumed" : "feed paused", "pause-feed");
+            } catch (cause) {
+              setStatus("");
+              setError(cause instanceof Error ? cause.message : String(cause));
+            }
+          }}
+          onDelete={async () => {
+            if (briefings.length <= 1) return;
+            if (!window.confirm(`Delete "${briefing.title}" and all of its sources and published items?`)) return;
+            const remaining = await deleteBriefing(briefing.id);
+            setBriefings(remaining);
+            setSelectedBriefingId(remaining[0]?.id ?? null);
+            setFeedSettingsOpen(false);
+            setStatus("feed deleted");
+          }}
+        />
+      ) : null}
+      {onboardingOpen && account && briefing ? (
+        <FirstRunSetupSheet
+          account={account}
+          briefing={briefing}
+          busy={busyAction === "setup-feed"}
+          onClose={() => void dismissOnboarding()}
+          onComplete={completeOnboarding}
+        />
+      ) : null}
     </>
   );
 
@@ -708,6 +766,236 @@ function ResetPasswordPage(props: { token: string }) {
   );
 }
 
+function Sheet(props: {
+  title: string;
+  closeLabel: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  onClose: () => void;
+  wide?: boolean;
+}) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") props.onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [props.onClose]);
+
+  return (
+    <div
+      className="modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) props.onClose();
+      }}
+    >
+      <section className={`sheet${props.wide ? " sheet-wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={`${slugify(props.title)}-sheet-title`}>
+        <div className="sheet-head">
+          <div className="section-title">
+            {props.icon}
+            <h2 id={`${slugify(props.title)}-sheet-title`}>{props.title}</h2>
+          </div>
+          <button type="button" className="icon-button" aria-label={props.closeLabel} onClick={props.onClose}>
+            <X size={16} aria-hidden />
+          </button>
+        </div>
+        {props.children}
+      </section>
+    </div>
+  );
+}
+
+function FeedSettingsSheet(props: {
+  briefing: BriefingConfig;
+  briefings: BriefingConfig[];
+  autosaveState: "idle" | "saving" | "saved" | "error";
+  status: string;
+  canDelete: boolean;
+  onClose: () => void;
+  onPatch: (patch: Partial<BriefingConfig>) => void;
+  onCopy: () => Promise<void>;
+  onPauseToggle: () => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const previewSlug = deriveBriefingSlug(props.briefings, props.briefing.title, props.briefing.id);
+  const titleRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
+
+  return (
+    <Sheet title="feed settings" closeLabel="close feed settings" icon={<Settings size={16} aria-hidden />} onClose={props.onClose} wide>
+      <div className="sheet-status">
+        <span className={props.autosaveState === "error" ? "error" : "muted"}>{formatAutosaveStatus(props.autosaveState, props.status)}</span>
+      </div>
+      <div className="settings-grid">
+        <label>
+          title
+          <input ref={titleRef} dir="ltr" value={props.briefing.title} onChange={(event) => props.onPatch({ title: event.target.value })} />
+        </label>
+        <div className="field-group">
+          <span>slug</span>
+          <code className="generated-slug">/{props.briefing.ownerUsername}/{previewSlug}/</code>
+        </div>
+        <div className="field-group">
+          <span>language</span>
+          <div className="segmented" role="group" aria-label="feed language">
+            {(["en", "fr", "ar"] as const).map((language) => (
+              <button
+                key={language}
+                type="button"
+                className={props.briefing.language === language ? "active" : ""}
+                aria-pressed={props.briefing.language === language}
+                onClick={() => props.onPatch({ language })}
+              >
+                <Languages size={15} aria-hidden /> {languageLabel(language)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label>
+          interest profile
+          <textarea
+            dir="ltr"
+            required
+            rows={6}
+            value={props.briefing.interestProfile}
+            onChange={(event) => props.onPatch({ interestProfile: event.target.value })}
+          />
+        </label>
+        <label>
+          style instruction
+          <textarea
+            dir="ltr"
+            rows={3}
+            value={props.briefing.styleInstruction ?? ""}
+            onChange={(event) => props.onPatch({ styleInstruction: event.target.value })}
+          />
+        </label>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={props.briefing.publicFeedEnabled}
+            onChange={(event) => props.onPatch({ publicFeedEnabled: event.target.checked })}
+          />
+          public feed
+        </label>
+        <details>
+          <summary>advanced</summary>
+          <label>
+            retention days
+            <input
+              type="number"
+              min={1}
+              max={90}
+              value={props.briefing.retentionDays}
+              onChange={(event) => props.onPatch({ retentionDays: Number(event.target.value) })}
+            />
+          </label>
+        </details>
+      </div>
+      <div className="sheet-actions">
+        <button type="button" onClick={() => void props.onPauseToggle()}>
+          {props.briefing.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
+          {props.briefing.paused ? "resume feed" : "pause feed"}
+        </button>
+        {props.briefing.publicFeedEnabled ? (
+          <a className="button-link" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`}>
+            <ExternalLink size={15} aria-hidden /> open feed
+          </a>
+        ) : null}
+        <button type="button" disabled={!props.briefing.publicFeedEnabled} onClick={() => void props.onCopy()}>
+          <Copy size={15} aria-hidden /> copy public url
+        </button>
+        <button type="button" className="danger-button" disabled={!props.canDelete} onClick={() => void props.onDelete()}>
+          <Trash2 size={15} aria-hidden /> delete feed
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
+function FirstRunSetupSheet(props: {
+  account: AccountRecord;
+  briefing: BriefingConfig;
+  busy: boolean;
+  onClose: () => void;
+  onComplete: (input: { username: string; title: string; interestProfile: string; sourceUrl: string }) => Promise<void>;
+}) {
+  const [username, setUsername] = useState(props.account.username);
+  const [title, setTitle] = useState(props.briefing.title);
+  const [interestProfile, setInterestProfile] = useState(props.briefing.interestProfile);
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [error, setError] = useState("");
+  const usernameRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    usernameRef.current?.focus();
+  }, []);
+
+  return (
+    <Sheet title="setup feed" closeLabel="skip feed setup" icon={<Globe size={16} aria-hidden />} onClose={props.onClose} wide>
+      <form
+        className="settings-grid"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setError("");
+          try {
+            await props.onComplete({ username, title, interestProfile, sourceUrl });
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : String(cause));
+          }
+        }}
+      >
+        <label>
+          username
+          <input ref={usernameRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
+        </label>
+        <label>
+          feed name
+          <input dir="ltr" required value={title} onChange={(event) => setTitle(event.target.value)} />
+        </label>
+        <label>
+          interest profile
+          <textarea
+            dir="ltr"
+            required
+            rows={6}
+            value={interestProfile}
+            onChange={(event) => setInterestProfile(event.target.value)}
+          />
+        </label>
+        <label>
+          first source
+          <input dir="ltr" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://t.me/LebUpdate" />
+        </label>
+        <div className="sheet-actions">
+          <button type="submit" className="primary-button" disabled={props.busy || !title.trim() || !interestProfile.trim()}>
+            <Save size={15} aria-hidden /> finish setup
+          </button>
+          <button type="button" onClick={props.onClose}>skip</button>
+        </div>
+        {error ? <p className="error">{error}</p> : null}
+      </form>
+    </Sheet>
+  );
+}
+
+function HealthSummary(props: { briefing: BriefingConfig; health: HealthStatus | null }) {
+  return (
+    <details className="health-summary">
+      <summary>{formatHealthSummary(props.briefing, props.health)}</summary>
+      <div className="health">
+        <StatusLine label="processing" value={`queued ${props.health?.processing.queued ?? 0} / failed ${props.health?.processing.failed ?? 0}`} />
+        <StatusLine label="last source event" value={props.health?.lastTelegramEventAt ?? "none"} />
+        <StatusLine label="latest published" value={props.health?.latestPublishedAt ? formatTime(props.health.latestPublishedAt, props.briefing.language) : "none"} />
+        <StatusLine label="status" value={props.briefing.paused ? "paused" : "live"} />
+      </div>
+    </details>
+  );
+}
+
 function AccountDialog(props: {
   account: AccountRecord;
   onClose: () => void;
@@ -728,125 +1016,103 @@ function AccountDialog(props: {
 
   useEffect(() => {
     usernameFieldRef.current?.focus();
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") props.onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [props.onClose]);
+  }, []);
 
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) props.onClose();
-      }}
-    >
-      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title">
-        <div className="modal-head">
-          <div className="section-title">
-            <User size={16} aria-hidden />
-            <h2 id="account-dialog-title">account</h2>
-          </div>
-          <button type="button" className="icon-button" aria-label="close account settings" onClick={props.onClose}>
-            <X size={16} aria-hidden />
-          </button>
-        </div>
+    <Sheet title="account" closeLabel="close account settings" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
+      <div className="account-meta">
+        <span>{props.account.email}</span>
+        <span>{props.account.role}</span>
+      </div>
 
-        <div className="account-meta">
-          <span>{props.account.email}</span>
-          <span>{props.account.role}</span>
-        </div>
+      <form
+        className="account-form"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setError("");
+          setMessage("");
+          setBusy("username");
+          try {
+            const result = await updateAccount({ username });
+            await props.onSaved(result.account, result.briefings, "username saved");
+            setMessage("username saved");
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : String(cause));
+          } finally {
+            setBusy(null);
+          }
+        }}
+      >
+        <label>
+          username
+          <input ref={usernameFieldRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
+        </label>
+        <button type="submit" disabled={busy === "username"}>
+          <Save size={15} aria-hidden /> save username
+        </button>
+      </form>
 
-        <form
-          className="account-form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            setError("");
-            setMessage("");
-            setBusy("username");
-            try {
-              const result = await updateAccount({ username });
-              await props.onSaved(result.account, result.briefings, "username saved");
-              setMessage("username saved");
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause));
-            } finally {
-              setBusy(null);
-            }
+      <form
+        className="account-form"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setError("");
+          setMessage("");
+          setBusy("password");
+          try {
+            const result = await updateAccount({ currentPassword, newPassword });
+            await props.onSaved(result.account, result.briefings, "password changed");
+            setCurrentPassword("");
+            setNewPassword("");
+            setMessage("password changed");
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : String(cause));
+          } finally {
+            setBusy(null);
+          }
+        }}
+      >
+        <label>
+          current password
+          <input
+            type="password"
+            autoComplete="current-password"
+            required
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+          />
+        </label>
+        <label>
+          new password
+          <input
+            type="password"
+            autoComplete="new-password"
+            minLength={8}
+            required
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+          />
+        </label>
+        <button type="submit" disabled={busy === "password"}>
+          <Save size={15} aria-hidden /> change password
+        </button>
+      </form>
+
+      <div className="account-actions">
+        <button
+          type="button"
+          disabled={busy === "logout"}
+          onClick={async () => {
+            setBusy("logout");
+            await props.onLogout();
           }}
         >
-          <label>
-            username
-            <input ref={usernameFieldRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
-          </label>
-          <button type="submit" disabled={busy === "username"}>
-            <Save size={15} aria-hidden /> save username
-          </button>
-        </form>
-
-        <form
-          className="account-form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            setError("");
-            setMessage("");
-            setBusy("password");
-            try {
-              const result = await updateAccount({ currentPassword, newPassword });
-              await props.onSaved(result.account, result.briefings, "password changed");
-              setCurrentPassword("");
-              setNewPassword("");
-              setMessage("password changed");
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause));
-            } finally {
-              setBusy(null);
-            }
-          }}
-        >
-          <label>
-            current password
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-            />
-          </label>
-          <label>
-            new password
-            <input
-              type="password"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
-          </label>
-          <button type="submit" disabled={busy === "password"}>
-            <Save size={15} aria-hidden /> change password
-          </button>
-        </form>
-
-        <div className="account-actions">
-          <button
-            type="button"
-            disabled={busy === "logout"}
-            onClick={async () => {
-              setBusy("logout");
-              await props.onLogout();
-            }}
-          >
-            <LogOut size={15} aria-hidden /> logout
-          </button>
-          {message ? <p className="muted">{message}</p> : null}
-          {error ? <p className="error">{error}</p> : null}
-        </div>
-      </section>
-    </div>
+          <LogOut size={15} aria-hidden /> logout
+        </button>
+        {message ? <p className="muted">{message}</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+      </div>
+    </Sheet>
   );
 }
 
@@ -912,12 +1178,7 @@ function AdminAccountDialog(props: {
 
   useEffect(() => {
     usernameFieldRef.current?.focus();
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") props.onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [props.onClose]);
+  }, []);
 
   async function updateAccountAndRefresh(input: { username?: string; role?: "admin" | "user"; disabled?: boolean }, nextMessage: string) {
     setError("");
@@ -928,36 +1189,75 @@ function AdminAccountDialog(props: {
   }
 
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) props.onClose();
-      }}
-    >
-      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="admin-account-dialog-title">
-        <div className="modal-head">
-          <div className="section-title">
-            <User size={16} aria-hidden />
-            <h2 id="admin-account-dialog-title">manage account</h2>
+    <Sheet title="manage account" closeLabel="close account management" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
+      <div className="account-meta">
+        <span>{props.account.email}</span>
+        <span>{props.account.disabledAt ? "disabled" : props.account.emailVerifiedAt ? "verified" : "unverified"}</span>
+        <span>{props.account.briefingCount} feed{props.account.briefingCount === 1 ? "" : "s"}</span>
+      </div>
+
+      <form
+        className="account-form"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setBusy("username");
+          try {
+            await updateAccountAndRefresh({ username }, "username saved");
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : String(cause));
+          } finally {
+            setBusy(null);
+          }
+        }}
+      >
+        <label>
+          username
+          <input ref={usernameFieldRef} value={username} onChange={(event) => setUsername(event.target.value)} />
+        </label>
+        <button type="submit" disabled={busy === "username"}>
+          <Save size={15} aria-hidden /> save username
+        </button>
+      </form>
+
+      <div className="account-form">
+        <div className="field-group">
+          <span>role</span>
+          <div className="segmented" role="group" aria-label={`role for ${props.account.username}`}>
+            {(["user", "admin"] as const).map((role) => (
+              <button
+                key={role}
+                type="button"
+                className={props.account.role === role ? "active" : ""}
+                disabled={busy === "role"}
+                aria-pressed={props.account.role === role}
+                onClick={async () => {
+                  if (props.account.role === role) return;
+                  setBusy("role");
+                  try {
+                    await updateAccountAndRefresh({ role }, `role changed to ${role}`);
+                  } catch (cause) {
+                    setError(cause instanceof Error ? cause.message : String(cause));
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                {role}
+              </button>
+            ))}
           </div>
-          <button type="button" className="icon-button" aria-label="close account management" onClick={props.onClose}>
-            <X size={16} aria-hidden />
-          </button>
         </div>
-
-        <div className="account-meta">
-          <span>{props.account.email}</span>
-          <span>{props.account.disabledAt ? "disabled" : props.account.emailVerifiedAt ? "verified" : "unverified"}</span>
-          <span>{props.account.briefingCount} feed{props.account.briefingCount === 1 ? "" : "s"}</span>
-        </div>
-
-        <form
-          className="account-form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            setBusy("username");
+        <button
+          type="button"
+          className={props.account.disabledAt ? "" : "danger-button"}
+          disabled={busy === "disabled"}
+          onClick={async () => {
+            setBusy("disabled");
             try {
-              await updateAccountAndRefresh({ username }, "username saved");
+              await updateAccountAndRefresh(
+                { disabled: !props.account.disabledAt },
+                props.account.disabledAt ? "account enabled" : "account disabled"
+              );
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : String(cause));
             } finally {
@@ -965,69 +1265,13 @@ function AdminAccountDialog(props: {
             }
           }}
         >
-          <label>
-            username
-            <input ref={usernameFieldRef} value={username} onChange={(event) => setUsername(event.target.value)} />
-          </label>
-          <button type="submit" disabled={busy === "username"}>
-            <Save size={15} aria-hidden /> save username
-          </button>
-        </form>
+          {props.account.disabledAt ? "enable account" : "disable account"}
+        </button>
+      </div>
 
-        <div className="account-form">
-          <div className="field-group">
-            <span>role</span>
-            <div className="segmented" role="group" aria-label={`role for ${props.account.username}`}>
-              {(["user", "admin"] as const).map((role) => (
-                <button
-                  key={role}
-                  type="button"
-                  className={props.account.role === role ? "active" : ""}
-                  disabled={busy === "role"}
-                  aria-pressed={props.account.role === role}
-                  onClick={async () => {
-                    if (props.account.role === role) return;
-                    setBusy("role");
-                    try {
-                      await updateAccountAndRefresh({ role }, `role changed to ${role}`);
-                    } catch (cause) {
-                      setError(cause instanceof Error ? cause.message : String(cause));
-                    } finally {
-                      setBusy(null);
-                    }
-                  }}
-                >
-                  {role}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button
-            type="button"
-            className={props.account.disabledAt ? "" : "danger-button"}
-            disabled={busy === "disabled"}
-            onClick={async () => {
-              setBusy("disabled");
-              try {
-                await updateAccountAndRefresh(
-                  { disabled: !props.account.disabledAt },
-                  props.account.disabledAt ? "account enabled" : "account disabled"
-                );
-              } catch (cause) {
-                setError(cause instanceof Error ? cause.message : String(cause));
-              } finally {
-                setBusy(null);
-              }
-            }}
-          >
-            {props.account.disabledAt ? "enable account" : "disable account"}
-          </button>
-        </div>
-
-        {message ? <p className="muted">{message}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-      </section>
-    </div>
+      {message ? <p className="muted">{message}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
+    </Sheet>
   );
 }
 
@@ -1378,6 +1622,34 @@ function formatSourceRefreshResults(results: SourceIngestResult[]): string {
   if (totals.fetched === 0) return "no enabled channel URLs to refresh";
   if (totals.imported === 0 && totals.skipped > 0) return `checked ${totals.fetched}, no new posts`;
   return `fetched ${totals.fetched}, queued ${totals.queued}`;
+}
+
+function formatHealthSummary(briefing: BriefingConfig, health: HealthStatus | null): string {
+  const feedState = briefing.paused ? "paused" : "live";
+  const latest = health?.latestPublishedAt ? formatTime(health.latestPublishedAt, briefing.language) : "no published items";
+  const queued = health?.processing.queued ?? 0;
+  const failed = health?.processing.failed ?? 0;
+  const queueState = failed > 0 ? `failed ${failed}` : queued > 0 ? `queued ${queued}` : "queue clear";
+  return `${feedState} · last update ${latest} · ${queueState}`;
+}
+
+function formatAutosaveStatus(state: "idle" | "saving" | "saved" | "error", status: string): string {
+  if (state === "saving") return "saving";
+  if (state === "saved") return "saved";
+  if (state === "error") return "could not save";
+  return status || "ready";
+}
+
+function onboardingStorageKey(accountId: string): string {
+  return `ln_onboarding:${accountId}`;
+}
+
+function isFirstRunBriefing(briefing: BriefingConfig): boolean {
+  return (
+    briefing.slug === personalNewsBriefing.slug &&
+    briefing.title === personalNewsBriefing.title &&
+    briefing.interestProfile === personalNewsBriefing.interestProfile
+  );
 }
 
 async function wait(milliseconds: number): Promise<void> {

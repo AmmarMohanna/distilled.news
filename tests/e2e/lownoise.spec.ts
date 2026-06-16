@@ -38,6 +38,14 @@ const item = {
   ]
 };
 
+const firstRunBriefing = {
+  ...briefing,
+  publicFeedEnabled: false,
+  interestProfile:
+    "Track Lebanese security, economy, infrastructure, public safety, and major regional events. Ignore routine political statements unless they change concrete facts.",
+  styleInstruction: "Use calm, balanced wording."
+};
+
 test("public signup asks for email, username, and password", async ({ page }) => {
   await page.route("**/api/auth/session", async (route) => {
     await route.fulfill({
@@ -118,6 +126,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
 });
 
 test("admin setup keeps account settings tucked behind subtle controls", async ({ page }) => {
+  const savedBriefings: Array<typeof briefing> = [];
   await page.route("**/api/auth/session", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -136,6 +145,7 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
   });
   await page.route("**/api/me/briefings", async (route) => {
     if (route.request().method() === "POST") {
+      savedBriefings.push(JSON.parse(route.request().postData() ?? "{}"));
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ briefing: JSON.parse(route.request().postData() ?? "{}") })
@@ -194,7 +204,13 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "admin" })).toBeVisible();
+  await expect(page.getByLabel("interest profile")).toHaveCount(0);
+  await page.getByRole("button", { name: "feed settings for Personal Briefing" }).click();
+  await expect(page.getByRole("dialog", { name: "feed settings" })).toBeVisible();
   await expect(page.getByLabel("interest profile")).toBeVisible();
+  await page.getByLabel("title").fill("Local Briefing");
+  await expect.poll(() => savedBriefings.some((saved) => saved.title === "Local Briefing")).toBe(true);
+  await page.getByRole("button", { name: "close feed settings" }).click();
   await expect(page.getByLabel("username")).toHaveCount(0);
   await page.getByRole("button", { name: "account settings" }).click();
   await expect(page.getByRole("dialog", { name: "account" })).toBeVisible();
@@ -202,13 +218,111 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
   await expect(page.getByLabel("current password")).toBeVisible();
   await expect(page.getByLabel("new password")).toBeVisible();
   await page.getByRole("button", { name: "close account settings" }).click();
-  await expect(page.getByRole("link", { name: "open", exact: true })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "open Local Briefing", exact: true })).toHaveAttribute(
     "href",
-    "/ammar-mohanna/personal/"
+    "/ammar-mohanna/local-briefing/"
   );
   await expect(page.getByText("Beirut Local")).toBeVisible();
   await expect(page.getByRole("heading", { name: "accounts" })).toBeVisible();
   await page.getByRole("button", { name: "manage ammar-mohanna" }).click();
   await expect(page.getByRole("dialog", { name: "manage account" })).toBeVisible();
   await expect(page.getByRole("button", { name: "disable account" })).toBeVisible();
+});
+
+test("first-run setup sheet creates the first feed and source", async ({ page }) => {
+  let savedBriefing: typeof briefing | undefined;
+  let sourceBody: { briefingId: string; url: string } | undefined;
+
+  await page.route("**/api/auth/session", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        authenticated: true,
+        setupRequired: false,
+        account: {
+          id: "account_1",
+          email: "ammar@example.com",
+          username: "ammar-mohanna",
+          role: "user",
+          emailVerifiedAt: "2026-06-16T08:00:00.000Z"
+        }
+      })
+    });
+  });
+  await page.route("**/api/me/briefings", async (route) => {
+    if (route.request().method() === "POST") {
+      savedBriefing = JSON.parse(route.request().postData() ?? "{}");
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ briefing: savedBriefing }) });
+      return;
+    }
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ briefings: [firstRunBriefing] }) });
+  });
+  await page.route("**/api/me/account", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        account: {
+          id: "account_1",
+          email: "ammar@example.com",
+          username: "ammar-news",
+          role: "user",
+          emailVerifiedAt: "2026-06-16T08:00:00.000Z"
+        },
+        briefings: [{ ...firstRunBriefing, ownerUsername: "ammar-news" }]
+      })
+    });
+  });
+  await page.route("**/api/me/sources**", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ sources: [] }) });
+      return;
+    }
+    sourceBody = JSON.parse(route.request().postData() ?? "{}");
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        sources: [
+          {
+            id: "telegram_-100123",
+            briefingId: "briefing_default",
+            title: "Beirut Local",
+            type: "channel",
+            enabled: true,
+            lastSeenAt: "2026-06-16T08:00:00.000Z"
+          }
+        ],
+        health: {
+          lastTelegramEventAt: "2026-06-16T08:00:00.000Z",
+          latestPublishedAt: undefined,
+          processing: { queued: 1, completed: 0, failed: 0 }
+        }
+      })
+    });
+  });
+  await page.route("**/api/me/health?briefingId=briefing_default", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        health: {
+          lastTelegramEventAt: undefined,
+          latestPublishedAt: undefined,
+          processing: { queued: 0, completed: 0, failed: 0 }
+        }
+      })
+    });
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByRole("dialog", { name: "setup feed" })).toBeVisible();
+  await page.getByLabel("username").fill("Ammar News");
+  await page.getByLabel("feed name").fill("City Watch");
+  await page.getByLabel("interest profile").fill("Track Beirut infrastructure and public safety.");
+  await page.getByLabel("first source").fill("https://t.me/LebUpdate");
+  await page.getByRole("button", { name: "finish setup" }).click();
+
+  await expect.poll(() => savedBriefing?.title).toBe("City Watch");
+  expect(savedBriefing?.publicFeedEnabled).toBe(true);
+  expect(sourceBody).toEqual({ briefingId: "briefing_default", url: "https://t.me/LebUpdate" });
+  await expect(page.getByRole("dialog", { name: "setup feed" })).toHaveCount(0);
 });
