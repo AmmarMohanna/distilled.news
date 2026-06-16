@@ -45,7 +45,7 @@ function App() {
 
 function getPageMeta(title: string): string {
   if (title === "demo") return "Tune an interest profile and watch noisy source posts become a short briefing.";
-  if (title === "admin") return "Connect Telegram, define what matters, and keep the briefing private by default.";
+  if (title === "admin") return "Connect Telegram and define what matters.";
   if (title === "briefing") return "A retained news line from published items only.";
   if (title.includes("Briefing")) return "A retained news line from published items only.";
   return "Self-hosted filtering for calmer news intake.";
