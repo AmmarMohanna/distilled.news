@@ -640,15 +640,34 @@ function AuthPanel(props: { setupRequired: boolean; onAuthenticated: () => Promi
 }
 
 function VerifyEmailPage(props: { token: string }) {
-  const [message, setMessage] = useState("verifying");
-  useEffect(() => {
-    verifyEmail(props.token)
-      .then(() => setMessage("email verified"))
-      .catch((cause) => setMessage(cause instanceof Error ? cause.message : String(cause)));
-  }, [props.token]);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
   return (
     <Shell title="verify email">
-      <section className="section notice"><p>{message}</p><a className="button-link" href="/">admin</a></section>
+      <section className="section notice">
+        <p>{message || "confirm this email address"}</p>
+        <div className="actions">
+          <button
+            type="button"
+            disabled={busy || !props.token}
+            onClick={async () => {
+              setBusy(true);
+              setMessage("");
+              try {
+                await verifyEmail(props.token);
+                setMessage("email verified");
+              } catch (cause) {
+                setMessage(cause instanceof Error ? cause.message : String(cause));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            verify email
+          </button>
+          <a className="button-link" href="/">admin</a>
+        </div>
+      </section>
     </Shell>
   );
 }

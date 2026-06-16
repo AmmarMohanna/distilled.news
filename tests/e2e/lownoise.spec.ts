@@ -58,6 +58,34 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   await expect(page.getByText("check your email to verify your account")).toBeVisible();
 });
 
+test("email verification waits for an explicit user action", async ({ page }) => {
+  let verifyCalls = 0;
+  await page.route("**/api/auth/verify-email", async (route) => {
+    verifyCalls += 1;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        account: {
+          id: "account_1",
+          email: "ammar@example.com",
+          username: "ammar-mohanna",
+          role: "user",
+          emailVerifiedAt: "2026-06-16T08:00:00.000Z"
+        }
+      })
+    });
+  });
+
+  await page.goto("/verify-email?token=test-token");
+
+  await expect(page.getByRole("button", { name: "verify email" })).toBeVisible();
+  expect(verifyCalls).toBe(0);
+
+  await page.getByRole("button", { name: "verify email" }).click();
+  await expect(page.getByText("email verified")).toBeVisible();
+  expect(verifyCalls).toBe(1);
+});
+
 test("feed uses username-scoped URL while exposing evidence, refresh, and search", async ({ page }) => {
   await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
     await route.fulfill({
