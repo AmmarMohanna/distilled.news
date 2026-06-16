@@ -1,22 +1,27 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ChevronDown,
   ChevronRight,
+  Copy,
   ExternalLink,
+  Globe,
+  Languages,
   LogIn,
+  LogOut,
   Moon,
+  Pause,
+  Play,
   Plus,
   RefreshCw,
   Save,
   Search,
   Settings,
-  SlidersHorizontal,
   Sun,
   Trash2
 } from "lucide-react";
 import type { BriefingConfig, BriefingItem } from "@lownoise/core";
-import { demoMessages, personalNewsBriefing } from "@lownoise/core";
+import { personalNewsBriefing } from "@lownoise/core";
 import {
   addPublicTelegramSource,
   deleteSource,
@@ -26,26 +31,24 @@ import {
   getSession,
   getSources,
   login,
+  logout,
   refreshPublicTelegramSources,
-  registerWebhook,
   saveBriefing,
   searchFeed,
   setSourceEnabled
 } from "./api";
-import { buildDemoOutput } from "./demoModel";
+import { formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
 import type { FeedPayload, HealthStatus, SessionStatus, TelegramSourceRecord } from "./types";
 import "./styles.css";
 
 function App() {
   const path = window.location.pathname;
-  if (path === "/demo") return <DemoPage />;
   if (path.startsWith("/feed/")) return <FeedPage slug={decodeURIComponent(path.replace("/feed/", ""))} />;
   return <AdminPage />;
 }
 
 function getPageMeta(title: string): string {
-  if (title === "demo") return "Tune an interest profile and watch noisy source posts become a short briefing.";
-  if (title === "admin") return "Connect Telegram and define what matters.";
+  if (title === "admin") return "Choose a feed, define what matters, and share the public line when ready.";
   if (title === "briefing") return "A retained news line from published items only.";
   if (title.includes("Briefing")) return "A retained news line from published items only.";
   return "Self-hosted filtering for calmer news intake.";
@@ -53,18 +56,28 @@ function getPageMeta(title: string): string {
 
 function AdminPage() {
   const [session, setSession] = useState<SessionStatus | null>(null);
-  const [briefing, setBriefing] = useState<BriefingConfig | null>(null);
+  const [briefings, setBriefings] = useState<BriefingConfig[]>([]);
+  const [selectedBriefingId, setSelectedBriefingId] = useState<string | null>(null);
   const [sources, setSources] = useState<TelegramSourceRecord[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [status, setStatus] = useState("");
-  const [webhookUrl, setWebhookUrl] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [error, setError] = useState("");
 
-  async function loadAdmin() {
-    setError("");
-    const [briefings, nextSources, nextHealth] = await Promise.all([getBriefings(), getSources(), getHealth()]);
-    setBriefing(briefings[0] ?? personalNewsBriefing);
+  const briefing = briefings.find((item) => item.id === selectedBriefingId) ?? null;
+
+  async function loadBriefings(preferredId?: string) {
+    const nextBriefings = await getBriefings();
+    setBriefings(nextBriefings);
+    const activeId =
+      preferredId && nextBriefings.some((item) => item.id === preferredId)
+        ? preferredId
+        : nextBriefings[0]?.id ?? null;
+    setSelectedBriefingId(activeId);
+  }
+
+  async function loadScopedData(briefingId: string) {
+    const [nextSources, nextHealth] = await Promise.all([getSources(briefingId), getHealth(briefingId)]);
     setSources(nextSources);
     setHealth(nextHealth);
   }
@@ -73,20 +86,73 @@ function AdminPage() {
     getSession()
       .then(async (nextSession) => {
         setSession(nextSession);
-        if (nextSession.authenticated) await loadAdmin();
+        if (nextSession.authenticated) await loadBriefings();
       })
       .catch((cause) => setError(String(cause)));
   }, []);
 
-  if (!session && error) {
+  useEffect(() => {
+    if (!selectedBriefingId || !session?.authenticated) return;
+    loadScopedData(selectedBriefingId).catch((cause) =>
+      setError(cause instanceof Error ? cause.message : String(cause))
+    );
+  }, [selectedBriefingId, session?.authenticated]);
+
+  async function persistBriefing(nextBriefing: BriefingConfig, nextStatus = "saved"): Promise<BriefingConfig> {
+    setError("");
+    setStatus("saving");
+    const saved = await saveBriefing({ ...nextBriefing, slug: slugify(nextBriefing.slug) });
+    setBriefings((current) => updateBriefingList(current, saved));
+    setSelectedBriefingId(saved.id);
+    setStatus(nextStatus);
+    return saved;
+  }
+
+  async function createBriefing() {
+    const draft = createBriefingDraft(briefings);
+    const created = await persistBriefing(draft, "feed created");
+    await loadBriefings(created.id);
+  }
+
+  async function copyPublicFeedUrl(nextBriefing: BriefingConfig) {
+    if (!nextBriefing.publicFeedEnabled) {
+      setStatus("enable public feed first");
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      setError("Clipboard access is not available in this browser.");
+      return;
+    }
+    await navigator.clipboard.writeText(publicFeedUrl(nextBriefing.slug));
+    setStatus("public feed url copied");
+  }
+
+  async function handleLogout() {
+    await logout();
+    setSession({ authenticated: false, setupRequired: false });
+    setBriefings([]);
+    setSelectedBriefingId(null);
+    setSources([]);
+    setHealth(null);
+    setStatus("");
+    setSourceUrl("");
+  }
+
+  function patchSelectedBriefing(patch: Partial<BriefingConfig>) {
+    if (!briefing) return;
+    setBriefings((current) =>
+      current.map((item) => (item.id === briefing.id ? { ...item, ...patch } : item))
+    );
+  }
+
+  if (!session) {
     return (
       <Shell title="admin">
-        <RuntimeNotice />
+        <p className="muted">loading</p>
       </Shell>
     );
   }
 
-  if (!session) return <Shell title="admin"><p className="muted">loading</p></Shell>;
   if (!session.authenticated) {
     return (
       <Shell title="LowNoise.news">
@@ -95,7 +161,7 @@ function AdminPage() {
           onLogin={async () => {
             const nextSession = await getSession();
             setSession(nextSession);
-            await loadAdmin();
+            await loadBriefings();
           }}
         />
         {error ? <p className="error">{error}</p> : null}
@@ -103,205 +169,290 @@ function AdminPage() {
     );
   }
 
-  if (!briefing) return <Shell title="LowNoise.news"><p>loading setup</p></Shell>;
+  if (!briefing) {
+    return (
+      <Shell title="admin" onLogout={handleLogout}>
+        <section className="section">
+          <div className="section-title">
+            <Globe size={16} aria-hidden />
+            <h2>feeds</h2>
+          </div>
+          <button type="button" onClick={() => createBriefing()}>
+            <Plus size={15} aria-hidden /> new feed
+          </button>
+        </section>
+      </Shell>
+    );
+  }
 
   return (
-    <Shell title="admin">
-      <form
-        className="admin-grid"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          setStatus("saving");
-          setBriefing(await saveBriefing(briefing));
-          setStatus("saved");
-        }}
-      >
+    <Shell title="admin" onLogout={handleLogout} feedSlug={briefing.slug}>
+      <div className="admin-stack">
         <section className="section">
           <div className="section-title">
-            <Settings size={16} aria-hidden />
-            <h2>setup</h2>
+            <Globe size={16} aria-hidden />
+            <h2>feeds</h2>
           </div>
-          <label>
-            title
-            <input
-              value={briefing.title}
-              onChange={(event) => setBriefing({ ...briefing, title: event.target.value })}
-            />
-          </label>
-          <label>
-            interest profile
-            <textarea
-              required
-              rows={6}
-              value={briefing.interestProfile}
-              onChange={(event) => setBriefing({ ...briefing, interestProfile: event.target.value })}
-            />
-          </label>
-          <label>
-            style instruction
-            <textarea
-              rows={3}
-              value={briefing.styleInstruction ?? ""}
-              onChange={(event) => setBriefing({ ...briefing, styleInstruction: event.target.value })}
-            />
-          </label>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={briefing.publicFeedEnabled}
-              onChange={(event) => setBriefing({ ...briefing, publicFeedEnabled: event.target.checked })}
-            />
-            public feed
-          </label>
-          <details>
-            <summary><SlidersHorizontal size={14} aria-hidden /> advanced</summary>
-            <label>
-              retention days
-              <input
-                type="number"
-                min={1}
-                max={90}
-                value={briefing.retentionDays}
-                onChange={(event) => setBriefing({ ...briefing, retentionDays: Number(event.target.value) })}
-              />
-            </label>
-          </details>
           <div className="actions">
-            <button type="submit"><Save size={15} aria-hidden /> save</button>
-            <a className="button-link" href={`/feed/${briefing.slug}`}>open feed</a>
+            <button type="button" onClick={() => createBriefing()}>
+              <Plus size={15} aria-hidden /> new feed
+            </button>
             {status ? <span className="muted">{status}</span> : null}
           </div>
-        </section>
-
-        <section className="section">
-          <div className="section-title">
-            <RefreshCw size={16} aria-hidden />
-            <h2>sources</h2>
-          </div>
-          <div
-            className="source-add"
-          >
-            <label>
-              telegram channel url
-              <input
-                value={sourceUrl}
-                onChange={(event) => setSourceUrl(event.target.value)}
-                placeholder="https://t.me/LebUpdate"
-              />
-            </label>
-            <button
-              type="button"
-              disabled={!sourceUrl.trim()}
-              onClick={async () => {
-                setError("");
-                try {
-                  setStatus("adding source");
-                  setSources(await addPublicTelegramSource(sourceUrl));
-                  setSourceUrl("");
-                  setHealth(await getHealth());
-                  setStatus("source added");
-                } catch (cause) {
-                  setStatus("");
-                  setError(cause instanceof Error ? cause.message : String(cause));
-                }
-              }}
-            >
-              <Plus size={15} aria-hidden /> add
-            </button>
-          </div>
-          <div className="actions">
-            <button
-              type="button"
-              onClick={async () => {
-                setError("");
-                try {
-                  setStatus("fetching latest");
-                  setSources(await refreshPublicTelegramSources());
-                  setHealth(await getHealth());
-                  setStatus("latest fetched");
-                } catch (cause) {
-                  setStatus("");
-                  setError(cause instanceof Error ? cause.message : String(cause));
-                }
-              }}
-            >
-              <RefreshCw size={15} aria-hidden /> fetch latest
-            </button>
-            <StatusLine
-              label="processing"
-              value={`queued ${health?.processing.queued ?? 0} / failed ${health?.processing.failed ?? 0}`}
-            />
-          </div>
-          {error ? <p className="error">{error}</p> : null}
-          <div className="source-list">
-            {sources.length === 0 ? <p className="muted">add public Telegram channel URLs to feed this briefing</p> : null}
-            {sources.map((source) => (
-              <div key={source.id} className="source-row">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={source.enabled}
-                    onChange={async (event) => {
-                      setSources(await setSourceEnabled(source.id, event.target.checked));
-                    }}
-                  />
-                  <span>{source.title}</span>
-                </label>
-                <span className="pill">{source.mode}</span>
-                {source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.username ?? "open"}</a> : null}
+          <div className="feed-list">
+            {briefings.map((item) => (
+              <div
+                key={item.id}
+                className={`feed-row${item.id === briefing.id ? " active" : ""}`}
+              >
                 <button
                   type="button"
-                  className="icon-button"
-                  aria-label={`remove ${source.title}`}
-                  onClick={async () => {
-                    setError("");
-                    try {
-                      setSources(await deleteSource(source.id));
-                      setStatus("source removed");
-                    } catch (cause) {
-                      setStatus("");
-                      setError(cause instanceof Error ? cause.message : String(cause));
-                    }
-                  }}
+                  className="feed-select"
+                  onClick={() => setSelectedBriefingId(item.id)}
                 >
-                  <Trash2 size={15} aria-hidden />
+                  <span className="feed-title">{item.title}</span>
+                  <span className="muted">/{item.slug}</span>
+                </button>
+                <div className="feed-flags">
+                  <span className="pill">{item.language === "ar" ? "arabic" : "english"}</span>
+                  <span className="pill">{item.publicFeedEnabled ? "public" : "private"}</span>
+                  {item.paused ? <span className="pill">paused</span> : null}
+                </div>
+                <a className="button-link" href={`/feed/${item.slug}`}>open</a>
+                <button
+                  type="button"
+                  disabled={!item.publicFeedEnabled}
+                  onClick={() => copyPublicFeedUrl(item)}
+                >
+                  <Copy size={15} aria-hidden /> copy url
                 </button>
               </div>
             ))}
           </div>
-          <details>
-            <summary><SlidersHorizontal size={14} aria-hidden /> private bot fallback</summary>
-            <button
-              type="button"
-              onClick={async () => {
-                setStatus("registering webhook");
-                setWebhookUrl(await registerWebhook());
-                setStatus("webhook registered");
-                setHealth(await getHealth());
-              }}
-            >
-              <RefreshCw size={15} aria-hidden /> register webhook
-            </button>
-            {webhookUrl ? (
-              <p className="webhook-url">
-                <span className="muted">registered</span>
-                <span>{webhookUrl}</span>
-              </p>
-            ) : null}
-            <div className="health">
-              <StatusLine label="bot token" value={health?.tokenConfigured ? "configured" : "missing"} />
-              <StatusLine label="webhook" value={health?.webhookRegistered ? "registered" : "not registered"} />
-              <StatusLine label="last event" value={health?.lastTelegramEventAt ?? "none"} />
-            </div>
-          </details>
-          <div className="health">
-            <StatusLine
-              label="last source event"
-              value={health?.lastTelegramEventAt ?? "none"}
-            />
-          </div>
         </section>
-      </form>
+
+        <div className="admin-grid">
+          <form
+            className="section"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              try {
+                await persistBriefing(briefing);
+              } catch (cause) {
+                setStatus("");
+                setError(cause instanceof Error ? cause.message : String(cause));
+              }
+            }}
+          >
+            <div className="section-title">
+              <Settings size={16} aria-hidden />
+              <h2>setup</h2>
+            </div>
+            <label>
+              title
+              <input
+                dir={briefing.language === "ar" ? "rtl" : "ltr"}
+                value={briefing.title}
+                onChange={(event) => patchSelectedBriefing({ title: event.target.value })}
+              />
+            </label>
+            <label>
+              slug
+              <input
+                dir="ltr"
+                value={briefing.slug}
+                onChange={(event) => patchSelectedBriefing({ slug: event.target.value })}
+              />
+            </label>
+            <div className="field-group">
+              <span>language</span>
+              <div className="segmented" role="group" aria-label="feed language">
+                <button
+                  type="button"
+                  className={briefing.language === "en" ? "active" : ""}
+                  onClick={() => patchSelectedBriefing({ language: "en" })}
+                >
+                  <Languages size={15} aria-hidden /> english
+                </button>
+                <button
+                  type="button"
+                  className={briefing.language === "ar" ? "active" : ""}
+                  onClick={() => patchSelectedBriefing({ language: "ar" })}
+                >
+                  <Languages size={15} aria-hidden /> arabic
+                </button>
+              </div>
+            </div>
+            <label>
+              interest profile
+              <textarea
+                dir={briefing.language === "ar" ? "rtl" : "ltr"}
+                required
+                rows={6}
+                value={briefing.interestProfile}
+                onChange={(event) => patchSelectedBriefing({ interestProfile: event.target.value })}
+              />
+            </label>
+            <label>
+              style instruction
+              <textarea
+                dir={briefing.language === "ar" ? "rtl" : "ltr"}
+                rows={3}
+                value={briefing.styleInstruction ?? ""}
+                onChange={(event) => patchSelectedBriefing({ styleInstruction: event.target.value })}
+              />
+            </label>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={briefing.publicFeedEnabled}
+                onChange={(event) => patchSelectedBriefing({ publicFeedEnabled: event.target.checked })}
+              />
+              public feed
+            </label>
+            <details>
+              <summary>advanced</summary>
+              <label>
+                retention days
+                <input
+                  type="number"
+                  min={1}
+                  max={90}
+                  value={briefing.retentionDays}
+                  onChange={(event) => patchSelectedBriefing({ retentionDays: Number(event.target.value) })}
+                />
+              </label>
+            </details>
+            <div className="actions">
+              <button type="submit"><Save size={15} aria-hidden /> save</button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await persistBriefing({ ...briefing, paused: !briefing.paused }, briefing.paused ? "feed resumed" : "feed paused");
+                  } catch (cause) {
+                    setStatus("");
+                    setError(cause instanceof Error ? cause.message : String(cause));
+                  }
+                }}
+              >
+                {briefing.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
+                {briefing.paused ? "resume feed" : "pause feed"}
+              </button>
+              <a className="button-link" href={`/feed/${briefing.slug}`}>open feed</a>
+              <button
+                type="button"
+                disabled={!briefing.publicFeedEnabled}
+                onClick={() => copyPublicFeedUrl(briefing)}
+              >
+                <Copy size={15} aria-hidden /> copy public url
+              </button>
+            </div>
+            {error ? <p className="error">{error}</p> : null}
+          </form>
+
+          <section className="section">
+            <div className="section-title">
+              <RefreshCw size={16} aria-hidden />
+              <h2>sources</h2>
+            </div>
+            <div className="source-add">
+              <label>
+                telegram channel url
+                <input
+                  dir="ltr"
+                  value={sourceUrl}
+                  onChange={(event) => setSourceUrl(event.target.value)}
+                  placeholder="https://t.me/LebUpdate"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={!sourceUrl.trim() || briefing.paused}
+                onClick={async () => {
+                  setError("");
+                  try {
+                    setStatus("adding source");
+                    setSources(await addPublicTelegramSource(briefing.id, sourceUrl));
+                    setSourceUrl("");
+                    setHealth(await getHealth(briefing.id));
+                    setStatus("source added");
+                  } catch (cause) {
+                    setStatus("");
+                    setError(cause instanceof Error ? cause.message : String(cause));
+                  }
+                }}
+              >
+                <Plus size={15} aria-hidden /> add
+              </button>
+            </div>
+            <div className="actions">
+              <button
+                type="button"
+                disabled={briefing.paused}
+                onClick={async () => {
+                  setError("");
+                  try {
+                    setStatus("fetching latest");
+                    setSources(await refreshPublicTelegramSources(briefing.id));
+                    setHealth(await getHealth(briefing.id));
+                    setStatus("latest fetched");
+                  } catch (cause) {
+                    setStatus("");
+                    setError(cause instanceof Error ? cause.message : String(cause));
+                  }
+                }}
+              >
+                <RefreshCw size={15} aria-hidden /> fetch latest
+              </button>
+            </div>
+            <div className="health">
+              <StatusLine label="processing" value={`queued ${health?.processing.queued ?? 0} / failed ${health?.processing.failed ?? 0}`} />
+              <StatusLine label="last source event" value={health?.lastTelegramEventAt ?? "none"} />
+              <StatusLine label="status" value={briefing.paused ? "paused" : "live"} />
+            </div>
+            <div className="source-list">
+              {sources.length === 0 ? <p className="muted">add public Telegram channel URLs to feed this briefing</p> : null}
+              {sources.map((source) => (
+                <div key={source.id} className="source-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={source.enabled}
+                      onChange={async (event) => {
+                        setSources(await setSourceEnabled(briefing.id, source.id, event.target.checked));
+                      }}
+                    />
+                    <span dir="auto">{source.title}</span>
+                  </label>
+                  {source.url ? (
+                    <a href={source.url} target="_blank" rel="noreferrer">
+                      {source.username ?? "open"}
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label={`remove ${source.title}`}
+                    onClick={async () => {
+                      setError("");
+                      try {
+                        setSources(await deleteSource(briefing.id, source.id));
+                        setStatus("source removed");
+                      } catch (cause) {
+                        setStatus("");
+                        setError(cause instanceof Error ? cause.message : String(cause));
+                      }
+                    }}
+                  >
+                    <Trash2 size={15} aria-hidden />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
     </Shell>
   );
 }
@@ -352,6 +503,7 @@ function FeedPage(props: { slug: string }) {
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
 
   async function refresh() {
     setError("");
@@ -363,6 +515,15 @@ function FeedPage(props: { slug: string }) {
   useEffect(() => {
     refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
   }, [props.slug]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(`ln_read:${props.slug}`);
+    setReadIds(new Set(raw ? (JSON.parse(raw) as string[]) : []));
+  }, [props.slug]);
+
+  useEffect(() => {
+    localStorage.setItem(`ln_read:${props.slug}`, JSON.stringify(Array.from(readIds)));
+  }, [props.slug, readIds]);
 
   useEffect(() => {
     if (!payload) return;
@@ -384,8 +545,12 @@ function FeedPage(props: { slug: string }) {
     };
   }, [payload, props.slug, query]);
 
+  const unreadItems = items.filter((item) => !readIds.has(item.id));
+  const archivedReadItems = items.filter((item) => readIds.has(item.id));
+  const language = payload?.briefing.language ?? "en";
+
   return (
-    <Shell title={payload?.briefing.title ?? "briefing"}>
+    <Shell title={payload?.briefing.title ?? "briefing"} feedSlug={props.slug}>
       <div className="feed-tools">
         <button onClick={() => refresh()}><RefreshCw size={15} aria-hidden /> refresh</button>
         <form
@@ -406,50 +571,101 @@ function FeedPage(props: { slug: string }) {
       </div>
       {error ? <FeedNotice message={error} /> : null}
       <div className="news-line">
-        {items.map((item) => {
-          const isExpanded = expanded.has(item.id);
-          return (
-            <article key={item.id} className="news-item">
-              <button
-                className="expand"
-                aria-expanded={isExpanded}
-                aria-label={`show evidence for ${item.summary}`}
-                onClick={() => {
-                  const next = new Set(expanded);
-                  if (next.has(item.id)) next.delete(item.id);
-                  else next.add(item.id);
-                  setExpanded(next);
-                }}
-              >
-                {isExpanded ? <ChevronDown size={15} aria-hidden /> : <ChevronRight size={15} aria-hidden />}
-              </button>
-              <time dateTime={item.itemAt}>{formatTime(item.itemAt)}</time>
-              <p>{item.summary}</p>
-              {isExpanded ? <EvidenceList item={item} /> : null}
-            </article>
-          );
-        })}
-        {items.length === 0 && !error ? (
+        {unreadItems.map((item) => (
+          <FeedItemRow
+            key={item.id}
+            item={item}
+            language={language}
+            isExpanded={expanded.has(item.id)}
+            isRead={false}
+            onToggleExpanded={() => toggleSetValue(expanded, setExpanded, item.id)}
+            onToggleRead={() => toggleRead(readIds, setReadIds, item.id, true)}
+          />
+        ))}
+        {unreadItems.length === 0 && !error ? (
           <div className="empty-state">
-            <strong>no published items</strong>
-            <p className="muted">The briefing line fills after enabled Telegram sources publish matching items.</p>
+            <strong>{archivedReadItems.length > 0 ? "all visible items are read" : "no published items"}</strong>
+            <p className="muted">
+              {archivedReadItems.length > 0
+                ? "Open the read section below to revisit archived lines."
+                : "The briefing line fills after enabled Telegram sources publish matching items."}
+            </p>
           </div>
         ) : null}
       </div>
+      {archivedReadItems.length > 0 ? (
+        <details className="section read-section">
+          <summary>read {archivedReadItems.length}</summary>
+          <div className="news-line news-line-read">
+            {archivedReadItems.map((item) => (
+              <FeedItemRow
+                key={item.id}
+                item={item}
+                language={language}
+                isExpanded={expanded.has(item.id)}
+                isRead={true}
+                onToggleExpanded={() => toggleSetValue(expanded, setExpanded, item.id)}
+                onToggleRead={() => toggleRead(readIds, setReadIds, item.id, false)}
+              />
+            ))}
+          </div>
+        </details>
+      ) : null}
     </Shell>
   );
 }
 
-function EvidenceList(props: { item: BriefingItem }) {
+function FeedItemRow(props: {
+  item: BriefingItem;
+  language: "en" | "ar";
+  isExpanded: boolean;
+  isRead: boolean;
+  onToggleExpanded: () => void;
+  onToggleRead: () => void;
+}) {
+  return (
+    <article className="news-item">
+      <button
+        type="button"
+        className="read-button"
+        aria-label={props.isRead ? `mark ${props.item.summary} unread` : `mark ${props.item.summary} read`}
+        onClick={props.onToggleRead}
+      >
+        {props.isRead ? "unread" : "read"}
+      </button>
+      <button
+        type="button"
+        className="expand"
+        aria-expanded={props.isExpanded}
+        aria-label={`show evidence for ${props.item.summary}`}
+        onClick={props.onToggleExpanded}
+      >
+        {props.isExpanded ? <ChevronDown size={15} aria-hidden /> : <ChevronRight size={15} aria-hidden />}
+      </button>
+      <div className="news-copy" dir={props.language === "ar" ? "rtl" : "ltr"} lang={props.language}>
+        <div className="news-meta">
+          <time dateTime={props.item.itemAt} dir="ltr">{formatTime(props.item.itemAt, props.language)}</time>
+          {props.item.mergedUpdateCount > 0 ? (
+            <span className="muted">updates {props.item.mergedUpdateCount + 1}</span>
+          ) : null}
+        </div>
+        <p className="news-summary">{props.item.summary}</p>
+        {props.isExpanded ? <EvidenceList item={props.item} language={props.language} /> : null}
+      </div>
+    </article>
+  );
+}
+
+function EvidenceList(props: { item: BriefingItem; language: "en" | "ar" }) {
   return (
     <div className="evidence">
       {props.item.evidence.map((entry) => (
         <div key={entry.messageId} className="evidence-row">
-          <div>
-            <strong>{entry.sourceTitle}</strong>
-            <time dateTime={entry.postedAt}>{formatTime(entry.postedAt)}</time>
+          <div className="evidence-head">
+            <strong dir="auto">{entry.sourceTitle}</strong>
+            <time dateTime={entry.postedAt} dir="ltr">{formatTime(entry.postedAt, props.language)}</time>
           </div>
-          <p>{entry.text}</p>
+          <p dir="auto">{entry.text}</p>
           <div className="evidence-links">
             {entry.sourceUrl ? (
               <a href={entry.sourceUrl} target="_blank" rel="noreferrer">
@@ -477,125 +693,30 @@ function EvidenceList(props: { item: BriefingItem }) {
   );
 }
 
-function DemoPage() {
-  const [interestProfile, setInterestProfile] = useState(personalNewsBriefing.interestProfile);
-  const [enabledSourceIds, setEnabledSourceIds] = useState(() =>
-    Array.from(new Set(demoMessages.map((message) => message.source.id)))
-  );
-  const output = useMemo(() => buildDemoOutput(interestProfile, enabledSourceIds), [interestProfile, enabledSourceIds]);
-  const sourceIds = Array.from(new Set(demoMessages.map((message) => message.source.id)));
-
-  return (
-    <Shell title="demo">
-      <div className="demo-strip" aria-label="demo flow">
-        <span><strong>{output.inputMessages.length}</strong> source posts</span>
-        <span><strong>{output.suppressedCount}</strong> filtered</span>
-        <span><strong>{output.items.length}</strong> briefing item</span>
-      </div>
-      <section className="section">
-        <div className="section-title">
-          <SlidersHorizontal size={16} aria-hidden />
-          <h2>tune filter</h2>
-        </div>
-        <label>
-          interest profile
-          <textarea rows={5} value={interestProfile} onChange={(event) => setInterestProfile(event.target.value)} />
-        </label>
-        <div className="source-list">
-          {sourceIds.map((sourceId) => {
-            const source = demoMessages.find((message) => message.source.id === sourceId)!.source;
-            return (
-              <label key={sourceId} className="source-row">
-                <input
-                  type="checkbox"
-                  checked={enabledSourceIds.includes(sourceId)}
-                  onChange={(event) => {
-                    setEnabledSourceIds((current) =>
-                      event.target.checked ? [...current, sourceId] : current.filter((id) => id !== sourceId)
-                    );
-                  }}
-                />
-                <span>{source.title}</span>
-              </label>
-            );
-          })}
-        </div>
-      </section>
-      <div className="demo-grid">
-        <section className="section demo-panel noisy-panel">
-          <div className="section-title">
-            <h2>source posts</h2>
-            <span className="pill">{output.inputMessages.length}</span>
-          </div>
-          {output.inputMessages.map((message) => (
-            <article key={message.id} className="raw-message">
-              <span>{message.source.title}</span>
-              <p>{message.text}</p>
-            </article>
-          ))}
-        </section>
-        <section className="section demo-panel briefing-panel">
-          <div className="section-title">
-            <h2>published briefing</h2>
-            <span className="pill">{output.items.length}</span>
-          </div>
-          {output.items.map((item) => (
-            <article key={item.id} className="demo-item">
-              <time dateTime={item.itemAt}>{formatTime(item.itemAt)}</time>
-              <p>{item.summary}</p>
-            </article>
-          ))}
-          <p className="muted">suppressed {output.suppressedCount}</p>
-        </section>
-      </div>
-    </Shell>
-  );
-}
-
 function StatusLine(props: { label: string; value: string }) {
   return (
-    <p>
-      <span className="muted">{props.label}</span>
-      <span>{props.value}</span>
+    <p className="status-line">
+      <span className="status-label">{props.label}</span>
+      <span className="status-value">{props.value}</span>
     </p>
   );
 }
 
-function RuntimeNotice() {
-  return (
-    <section className="section notice">
-      <h2>worker api not connected</h2>
-      <p>
-        The admin page runs against the Cloudflare Worker API. This local preview is serving the web
-        app only, so the static demo is the usable page here.
-      </p>
-      <div className="actions">
-        <a className="button-link" href="/demo">open demo</a>
-        <code>npx pnpm@10.12.1 dev</code>
-      </div>
-    </section>
-  );
-}
-
 function FeedNotice(props: { message: string }) {
-  const isApiMissing =
-    props.message.includes("Worker API is not available") ||
-    props.message.includes("Unexpected token") ||
-    props.message.includes("Request failed");
-  const text = isApiMissing
-    ? "The feed needs the Worker API and published retained items. In this static preview, use the demo page."
-    : props.message;
-
   return (
     <section className="section notice">
       <h2>feed unavailable</h2>
-      <p>{text}</p>
-      <a className="button-link" href="/demo">open demo</a>
+      <p>{props.message}</p>
     </section>
   );
 }
 
-function Shell(props: { title: string; children: React.ReactNode }) {
+function Shell(props: {
+  title: string;
+  children: React.ReactNode;
+  feedSlug?: string;
+  onLogout?: () => Promise<void>;
+}) {
   const [theme, setTheme] = useState(() => localStorage.getItem("ln_theme") ?? "dark");
 
   useEffect(() => {
@@ -606,12 +727,18 @@ function Shell(props: { title: string; children: React.ReactNode }) {
   return (
     <main className="shell">
       <header>
-        <a href="/" className="brand">LowNoise.news</a>
+        <div className="header-primary">
+          {props.onLogout ? (
+            <button type="button" onClick={() => void props.onLogout?.()}>
+              <LogOut size={15} aria-hidden /> logout
+            </button>
+          ) : null}
+          <a href="/" className="brand">LowNoise.news</a>
+        </div>
         <div className="header-actions">
           <nav>
             <a href="/">admin</a>
-            <a href="/demo">demo</a>
-            <a href="/feed/personal">feed</a>
+            {props.feedSlug ? <a href={`/feed/${props.feedSlug}`}>feed</a> : null}
           </nav>
           <button
             type="button"
@@ -632,13 +759,47 @@ function Shell(props: { title: string; children: React.ReactNode }) {
   );
 }
 
-function formatTime(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
+function updateBriefingList(current: BriefingConfig[], next: BriefingConfig): BriefingConfig[] {
+  const exists = current.some((item) => item.id === next.id);
+  if (!exists) return [...current, next];
+  return current.map((item) => (item.id === next.id ? next : item));
+}
+
+function createBriefingDraft(existing: BriefingConfig[]): BriefingConfig {
+  const nextIndex = existing.length + 1;
+  const slugBase = nextIndex === 1 ? "personal" : `feed-${nextIndex}`;
+  return {
+    ...personalNewsBriefing,
+    id: `briefing_${crypto.randomUUID()}`,
+    slug: uniqueSlug(existing, slugBase),
+    title: nextIndex === 1 ? "Personal Briefing" : `Briefing ${nextIndex}`,
+    publicFeedEnabled: false,
+    paused: false,
+    language: "en"
+  };
+}
+
+function toggleSetValue(
+  current: Set<string>,
+  setValue: React.Dispatch<React.SetStateAction<Set<string>>>,
+  id: string
+) {
+  const next = new Set(current);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  setValue(next);
+}
+
+function toggleRead(
+  current: Set<string>,
+  setValue: React.Dispatch<React.SetStateAction<Set<string>>>,
+  id: string,
+  read: boolean
+) {
+  const next = new Set(current);
+  if (read) next.add(id);
+  else next.delete(id);
+  setValue(next);
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

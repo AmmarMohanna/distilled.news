@@ -17,6 +17,8 @@ interface BriefingRow {
   interest_profile: string;
   style_instruction: string | null;
   public_feed_enabled: number;
+  paused?: number;
+  language?: "en" | "ar" | null;
   retention_days: number;
 }
 
@@ -81,7 +83,7 @@ export class D1Repository implements Repository {
   async listBriefings(): Promise<BriefingConfig[]> {
     const rows = await all<BriefingRow>(
       this.db.prepare(
-        "SELECT id, slug, title, interest_profile, style_instruction, public_feed_enabled, retention_days FROM briefings ORDER BY created_at ASC"
+        "SELECT id, slug, title, interest_profile, style_instruction, public_feed_enabled, paused, language, retention_days FROM briefings ORDER BY created_at ASC"
       )
     );
     return rows.map(rowToBriefing);
@@ -91,7 +93,7 @@ export class D1Repository implements Repository {
     const row = await first<BriefingRow>(
       this.db
         .prepare(
-          "SELECT id, slug, title, interest_profile, style_instruction, public_feed_enabled, retention_days FROM briefings WHERE id = ?"
+          "SELECT id, slug, title, interest_profile, style_instruction, public_feed_enabled, paused, language, retention_days FROM briefings WHERE id = ?"
         )
         .bind(id)
     );
@@ -102,7 +104,7 @@ export class D1Repository implements Repository {
     const row = await first<BriefingRow>(
       this.db
         .prepare(
-          "SELECT id, slug, title, interest_profile, style_instruction, public_feed_enabled, retention_days FROM briefings WHERE slug = ?"
+          "SELECT id, slug, title, interest_profile, style_instruction, public_feed_enabled, paused, language, retention_days FROM briefings WHERE slug = ?"
         )
         .bind(slug)
     );
@@ -114,14 +116,16 @@ export class D1Repository implements Repository {
     await this.db
       .prepare(
         `INSERT INTO briefings (
-          id, slug, title, interest_profile, style_instruction, public_feed_enabled, retention_days, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, slug, title, interest_profile, style_instruction, public_feed_enabled, paused, language, retention_days, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           slug = excluded.slug,
           title = excluded.title,
           interest_profile = excluded.interest_profile,
           style_instruction = excluded.style_instruction,
           public_feed_enabled = excluded.public_feed_enabled,
+          paused = excluded.paused,
+          language = excluded.language,
           retention_days = excluded.retention_days,
           updated_at = excluded.updated_at`
       )
@@ -132,6 +136,8 @@ export class D1Repository implements Repository {
         input.interestProfile,
         input.styleInstruction ?? null,
         input.publicFeedEnabled ? 1 : 0,
+        input.paused ? 1 : 0,
+        input.language,
         input.retentionDays,
         timestamp,
         timestamp
@@ -178,6 +184,18 @@ export class D1Repository implements Repository {
     message: NormalizedMessage,
     now = new Date()
   ): Promise<TelegramSourceRecord> {
+    const existingSourceId = await first<{ id: string }>(
+      this.db
+        .prepare(
+          `SELECT id
+          FROM telegram_sources
+          WHERE briefing_id = ?
+            AND ((username IS NOT NULL AND username = ?) OR title = ?)
+          LIMIT 1`
+        )
+        .bind(briefingId, message.source.username ?? null, message.source.title)
+    );
+    const sourceId = existingSourceId?.id ?? scopedSourceId(briefingId, message.source.id);
     const timestamp = now.toISOString();
     await this.db
       .prepare(
@@ -192,7 +210,7 @@ export class D1Repository implements Repository {
           updated_at = excluded.updated_at`
       )
       .bind(
-        message.source.id,
+        sourceId,
         briefingId,
         message.source.title,
         message.source.type,
@@ -365,17 +383,25 @@ export class D1Repository implements Repository {
     return this.getExistingItems(briefing.id, now);
   }
 
-  async getHealth(env: Pick<Env, "TELEGRAM_BOT_TOKEN">): Promise<HealthStatus> {
-    const webhookRegistered = (await this.getSetting("telegram_webhook_registered")) === "true";
-    const lastTelegramEventAt = (await this.getSetting("last_telegram_event_at")) ?? undefined;
-    const rows = await all<{ state: "queued" | "completed" | "failed"; count: number }>(
-      this.db.prepare("SELECT state, COUNT(*) as count FROM processing_jobs GROUP BY state")
-    );
+  async getHealth(briefingId?: string): Promise<HealthStatus> {
+    const lastTelegramEventAt =
+      (briefingId
+        ? await this.getSetting(`last_telegram_event_at:${briefingId}`)
+        : null) ??
+      (await this.getSetting("last_telegram_event_at")) ??
+      undefined;
+    const rows = briefingId
+      ? await all<{ state: "queued" | "completed" | "failed"; count: number }>(
+          this.db
+            .prepare("SELECT state, COUNT(*) as count FROM processing_jobs WHERE briefing_id = ? GROUP BY state")
+            .bind(briefingId)
+        )
+      : await all<{ state: "queued" | "completed" | "failed"; count: number }>(
+          this.db.prepare("SELECT state, COUNT(*) as count FROM processing_jobs GROUP BY state")
+        );
     const processing = { queued: 0, completed: 0, failed: 0 };
     for (const row of rows) processing[row.state] = row.count;
     return {
-      tokenConfigured: Boolean(env.TELEGRAM_BOT_TOKEN),
-      webhookRegistered,
       lastTelegramEventAt,
       processing
     };
@@ -425,7 +451,7 @@ export class InMemoryRepository implements Repository {
   briefings = new Map<string, BriefingConfig>();
   sources = new Map<string, TelegramSourceRecord>();
   rawMessages = new Map<string, NormalizedMessage>();
-  items = new Map<string, BriefingItem>();
+  itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
   jobs = new Map<string, { id: string; briefingId: string; rawMessageId: string; state: "queued" | "completed" | "failed"; error?: string }>();
   settings = new Map<string, string>();
 
@@ -475,15 +501,18 @@ export class InMemoryRepository implements Repository {
   }
 
   async upsertSourceFromMessage(briefingId: string, message: NormalizedMessage): Promise<TelegramSourceRecord> {
-    const existing = this.sources.get(message.source.id);
+    const existing = Array.from(this.sources.values()).find(
+      (source) =>
+        source.briefingId === briefingId &&
+        ((source.username && source.username === message.source.username) || source.title === message.source.title)
+    );
     const source: TelegramSourceRecord = {
-      id: message.source.id,
+      id: existing?.id ?? scopedSourceId(briefingId, message.source.id),
       briefingId,
       title: message.source.title,
       type: message.source.type,
       username: message.source.username,
       url: message.source.username ? `https://t.me/${message.source.username}` : undefined,
-      mode: message.source.id.startsWith("telegram_public_") ? "public" : "bot",
       enabled: existing?.enabled ?? false,
       lastSeenAt: message.receivedAt
     };
@@ -519,14 +548,15 @@ export class InMemoryRepository implements Repository {
   }
 
   async getExistingItems(briefingId: string, now = new Date()): Promise<BriefingItem[]> {
-    return Array.from(this.items.values()).filter((item) => {
-      const briefing = this.briefings.get(briefingId);
-      return Boolean(briefing) && new Date(item.expiresAt).getTime() > now.getTime();
-    });
+    return Array.from(this.itemsByBriefing.get(briefingId)?.values() ?? []).filter(
+      (item) => new Date(item.expiresAt).getTime() > now.getTime()
+    );
   }
 
-  async saveBriefingItems(_briefingId: string, items: BriefingItem[]): Promise<void> {
-    for (const item of items) this.items.set(item.id, structuredClone(item));
+  async saveBriefingItems(briefingId: string, items: BriefingItem[]): Promise<void> {
+    const scoped = this.itemsByBriefing.get(briefingId) ?? new Map<string, BriefingItem>();
+    for (const item of items) scoped.set(item.id, structuredClone(item));
+    this.itemsByBriefing.set(briefingId, scoped);
   }
 
   async listFeedItems(slug: string, includePrivate: boolean, now = new Date()): Promise<BriefingItem[]> {
@@ -536,13 +566,15 @@ export class InMemoryRepository implements Repository {
     return this.getExistingItems(briefing.id, now);
   }
 
-  async getHealth(env: Pick<Env, "TELEGRAM_BOT_TOKEN">): Promise<HealthStatus> {
+  async getHealth(briefingId?: string): Promise<HealthStatus> {
     const processing = { queued: 0, completed: 0, failed: 0 };
-    for (const job of this.jobs.values()) processing[job.state] += 1;
+    for (const job of this.jobs.values()) {
+      if (!briefingId || job.briefingId === briefingId) processing[job.state] += 1;
+    }
     return {
-      tokenConfigured: Boolean(env.TELEGRAM_BOT_TOKEN),
-      webhookRegistered: this.settings.get("telegram_webhook_registered") === "true",
-      lastTelegramEventAt: this.settings.get("last_telegram_event_at"),
+      lastTelegramEventAt:
+        (briefingId ? this.settings.get(`last_telegram_event_at:${briefingId}`) : undefined) ??
+        this.settings.get("last_telegram_event_at"),
       processing
     };
   }
@@ -563,11 +595,17 @@ export class InMemoryRepository implements Repository {
         deleted += 1;
       }
     }
-    for (const [id, item] of this.items) {
-      if (new Date(item.expiresAt).getTime() <= now.getTime()) this.items.delete(id);
+    for (const items of this.itemsByBriefing.values()) {
+      for (const [id, item] of items) {
+        if (new Date(item.expiresAt).getTime() <= now.getTime()) items.delete(id);
+      }
     }
     return deleted;
   }
+}
+
+function scopedSourceId(briefingId: string, sourceId: string): string {
+  return `${briefingId}::${sourceId}`;
 }
 
 function rowToBriefing(row: BriefingRow): BriefingConfig {
@@ -578,6 +616,8 @@ function rowToBriefing(row: BriefingRow): BriefingConfig {
     interestProfile: row.interest_profile,
     styleInstruction: row.style_instruction ?? undefined,
     publicFeedEnabled: row.public_feed_enabled === 1,
+    paused: row.paused === 1,
+    language: row.language === "ar" ? "ar" : "en",
     retentionDays: row.retention_days
   };
 }
@@ -590,7 +630,6 @@ function rowToSource(row: SourceRow): TelegramSourceRecord {
     type: row.type,
     username: row.username ?? undefined,
     url: row.username ? `https://t.me/${row.username}` : undefined,
-    mode: row.id.startsWith("telegram_public_") ? "public" : "bot",
     enabled: row.enabled === 1,
     lastSeenAt: row.last_seen_at
   };

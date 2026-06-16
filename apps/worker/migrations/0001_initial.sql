@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS briefings (
   interest_profile TEXT NOT NULL,
   style_instruction TEXT,
   public_feed_enabled INTEGER NOT NULL DEFAULT 0,
+  paused INTEGER NOT NULL DEFAULT 0,
+  language TEXT NOT NULL DEFAULT 'en',
   retention_days INTEGER NOT NULL DEFAULT 15,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

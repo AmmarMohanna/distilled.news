@@ -7,14 +7,11 @@ export interface TelegramSourceRecord {
   type: "channel" | "group";
   username?: string;
   url?: string;
-  mode: "public" | "bot";
   enabled: boolean;
   lastSeenAt: string;
 }
 
 export interface HealthStatus {
-  tokenConfigured: boolean;
-  webhookRegistered: boolean;
   lastTelegramEventAt?: string;
   processing: {
     queued: number;

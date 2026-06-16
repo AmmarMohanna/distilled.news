@@ -44,17 +44,6 @@ export interface NormalizationOptions {
   rawPayloadKey?: string;
 }
 
-export interface TelegramRegisterWebhookInput {
-  botToken: string;
-  webhookUrl: string;
-  secretToken: string;
-}
-
-export interface TelegramRegisterWebhookResult {
-  ok: boolean;
-  description?: string;
-}
-
 export interface PublicTelegramChannel {
   username: string;
   publicUrl: string;
@@ -174,34 +163,6 @@ export function parsePublicTelegramChannelPage(
 
 export function publicTelegramSourceId(username: string): string {
   return `telegram_public_${username.toLowerCase()}`;
-}
-
-export function validateTelegramWebhookSecret(
-  requestSecret: string | null | undefined,
-  expectedSecret: string
-): boolean {
-  return Boolean(expectedSecret) && requestSecret === expectedSecret;
-}
-
-export async function registerTelegramWebhook(
-  input: TelegramRegisterWebhookInput,
-  fetcher: typeof fetch = fetch
-): Promise<TelegramRegisterWebhookResult> {
-  const response = await fetcher(`https://api.telegram.org/bot${input.botToken}/setWebhook`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      url: input.webhookUrl,
-      secret_token: input.secretToken,
-      allowed_updates: ["message", "channel_post", "edited_message", "edited_channel_post"]
-    })
-  });
-
-  const payload = (await response.json().catch(() => ({}))) as TelegramRegisterWebhookResult;
-  return {
-    ok: response.ok && payload.ok !== false,
-    description: payload.description
-  };
 }
 
 function isSupportedChat(chat: TelegramChat): boolean {

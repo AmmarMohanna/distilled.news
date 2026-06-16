@@ -11,8 +11,6 @@ export interface Env {
   PROCESSING_QUEUE: Queue<ProcessingJobMessage>;
   VECTORIZE?: VectorizeIndex;
   ASSETS?: Fetcher;
-  TELEGRAM_BOT_TOKEN?: string;
-  TELEGRAM_WEBHOOK_SECRET?: string;
   ADMIN_SESSION_SECRET?: string;
   ADMIN_SETUP_TOKEN?: string;
   INTERNAL_MAINTENANCE_SECRET?: string;
@@ -39,14 +37,11 @@ export interface TelegramSourceRecord {
   type: SourceType;
   username?: string;
   url?: string;
-  mode: "public" | "bot";
   enabled: boolean;
   lastSeenAt: string;
 }
 
 export interface HealthStatus {
-  tokenConfigured: boolean;
-  webhookRegistered: boolean;
   lastTelegramEventAt?: string;
   processing: {
     queued: number;
@@ -74,7 +69,7 @@ export interface Repository {
   getExistingItems(briefingId: string, now?: Date): Promise<BriefingItem[]>;
   saveBriefingItems(briefingId: string, items: BriefingItem[], now?: Date): Promise<void>;
   listFeedItems(slug: string, includePrivate: boolean, now?: Date): Promise<BriefingItem[]>;
-  getHealth(env: Pick<Env, "TELEGRAM_BOT_TOKEN">, now?: Date): Promise<HealthStatus>;
+  getHealth(briefingId?: string, now?: Date): Promise<HealthStatus>;
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string, now?: Date): Promise<void>;
   deleteExpired(now?: Date): Promise<number>;

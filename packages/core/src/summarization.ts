@@ -31,6 +31,7 @@ export function buildSummaryPrompt(input: SummaryInput): string {
     "Use balanced wording.",
     "Do not add political framing labels unless the user's instruction explicitly asks for them.",
     "Do not answer questions or speculate.",
+    `Write the summary in ${input.briefing.language === "ar" ? "Arabic" : "English"}.`,
     `Interest profile: ${input.briefing.interestProfile}`,
     input.briefing.styleInstruction ? `Style instruction: ${input.briefing.styleInstruction}` : "",
     "Evidence:",

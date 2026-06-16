@@ -109,7 +109,10 @@ function createBriefingItem(
       slug: "summary",
       title: "Summary",
       interestProfile: "",
+      styleInstruction: undefined,
       publicFeedEnabled: false,
+      paused: false,
+      language: "en",
       retentionDays
     },
     evidence

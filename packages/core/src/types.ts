@@ -7,6 +7,8 @@ export interface BriefingConfig {
   interestProfile: string;
   styleInstruction?: string;
   publicFeedEnabled: boolean;
+  paused: boolean;
+  language: "en" | "ar";
   retentionDays: number;
 }
 

@@ -2,29 +2,28 @@
 
 LowNoise.news is a Cloudflare-first, self-hostable personal news briefing filter.
 
-V1 ingests public Telegram channel URLs, filters noisy posts against an interest profile, merges repeated updates, and publishes a calm monospace briefing with expandable evidence links. A Telegram bot webhook remains as an optional fallback for private channels/groups where the admin can add the bot. It does not include chatbot or Q&A behavior.
+V1 ingests public Telegram channel URLs, filters noisy posts against an interest profile, merges repeated updates, and publishes a calm monospace briefing with expandable evidence links. It does not include chatbot or Q&A behavior.
 
 ## What V1 Does
 
 - Private-by-default admin and feed.
-- One self-hosted briefing with a plain-language interest profile.
+- Multiple self-hosted briefings with plain-language interest profiles.
 - Telegram source setup by public `https://t.me/...` channel URL.
-- Optional Telegram bot fallback for private channels/groups.
 - Rule-first filtering with optional OpenAI summaries through Cloudflare AI Gateway.
 - Expandable evidence for each briefing item.
 - Search over retained published briefing items and their evidence only.
 - 15-day default retention for active news/media context.
-- Static no-login demo at `/demo`.
+- Per-feed pause/resume and language selection.
 
 ## Stack
 
-- Cloudflare Workers for API, Telegram webhook, queue consumer, and web asset serving.
+- Cloudflare Workers for API, scheduled source refresh, queue consumer, and web asset serving.
 - Cloudflare D1 for app data.
 - Cloudflare R2 for raw Telegram payload archives.
 - Cloudflare Queues for processing jobs.
 - Cloudflare Vectorize indexes published briefing items when AI Gateway embedding secrets are configured.
 - Cloudflare AI Gateway routing to OpenAI for production summaries.
-- React + Vite for the admin/feed/demo UI.
+- React + Vite for the admin/feed UI.
 - Hono for Worker routes.
 - Vitest and Playwright for tests.
 
@@ -61,8 +60,6 @@ See `.env.example` for descriptions.
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_AI_GATEWAY_ID`
 - `OPENAI_API_KEY`
-- `TELEGRAM_BOT_TOKEN` (optional; private bot fallback only)
-- `TELEGRAM_WEBHOOK_SECRET` (optional; private bot fallback only)
 - `ADMIN_SESSION_SECRET`
 - `ADMIN_SETUP_TOKEN`
 
@@ -78,12 +75,8 @@ See `.env.example` for descriptions.
 6. Use `fetch latest` once to validate ingestion.
 7. Keep the feed private or explicitly enable public feed.
 
-For private channels/groups, create a Telegram bot with BotFather, add it to the private source, then use the collapsed private bot fallback section to register the webhook.
-
 ## Routes
 
-- `POST /telegram/webhook/:briefingId/:secret`
-- `POST /api/admin/telegram/register-webhook`
 - `GET /api/admin/briefings`
 - `POST /api/admin/briefings`
 - `GET /api/admin/sources`
@@ -93,7 +86,6 @@ For private channels/groups, create a Telegram bot with BotFather, add it to the
 - `GET /api/admin/health`
 - `GET /api/feed/:briefingSlug`
 - `GET /api/feed/:briefingSlug/search?q=...`
-- `GET /demo`
 
 There is intentionally no `/api/ask` endpoint.
 

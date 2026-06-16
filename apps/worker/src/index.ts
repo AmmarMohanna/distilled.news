@@ -30,11 +30,15 @@ export default {
 
 async function refreshEnabledPublicSources(env: Env): Promise<void> {
   const repo = new D1Repository(env.DB);
-  const briefing = await repo.ensureDefaultBriefing();
-  await refreshPublicTelegramSources({
-    briefing,
-    repo,
-    bucket: env.RAW_ARCHIVE,
-    queue: env.PROCESSING_QUEUE
-  });
+  const briefings = await repo.listBriefings();
+  if (briefings.length === 0) briefings.push(await repo.ensureDefaultBriefing());
+
+  for (const briefing of briefings) {
+    await refreshPublicTelegramSources({
+      briefing,
+      repo,
+      bucket: env.RAW_ARCHIVE,
+      queue: env.PROCESSING_QUEUE
+    });
+  }
 }

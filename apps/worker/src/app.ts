@@ -1,10 +1,4 @@
 import { searchBriefingItems, type BriefingConfig } from "@lownoise/core";
-import {
-  normalizeTelegramUpdate,
-  registerTelegramWebhook,
-  validateTelegramWebhookSecret,
-  type TelegramUpdate
-} from "@lownoise/connectors";
 import { Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
@@ -31,18 +25,26 @@ const briefingInputSchema = z.object({
   interestProfile: z.string().min(1),
   styleInstruction: z.string().optional(),
   publicFeedEnabled: z.boolean().default(false),
+  paused: z.boolean().default(false),
+  language: z.enum(["en", "ar"]).default("en"),
   retentionDays: z.number().int().min(1).max(90).default(15)
 });
 
 const sourceInputSchema = z.union([
   z.object({
+    briefingId: z.string().min(1),
     url: z.string().min(1)
   }),
   z.object({
+    briefingId: z.string().min(1),
     sourceId: z.string().min(1),
     enabled: z.boolean()
   })
 ]);
+
+const healthInputSchema = z.object({
+  briefingId: z.string().min(1).optional()
+});
 
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -116,7 +118,7 @@ export function createApp(options: AppOptions = {}) {
 
   app.get("/api/admin/briefings", async (c) => {
     const repo = c.get("repo");
-    await repo.ensureDefaultBriefing();
+    if ((await repo.listBriefings()).length === 0) await repo.ensureDefaultBriefing();
     return c.json({ briefings: await repo.listBriefings() });
   });
 
@@ -129,16 +131,18 @@ export function createApp(options: AppOptions = {}) {
 
   app.get("/api/admin/sources", async (c) => {
     const repo = c.get("repo");
-    const briefing = await repo.ensureDefaultBriefing();
+    const briefing = await resolveBriefing(repo, c.req.query("briefingId"));
+    if (!briefing) return c.json({ error: "briefing not found" }, 404);
     return c.json({ sources: await repo.listSources(briefing.id) });
   });
 
   app.post("/api/admin/sources", async (c) => {
     const repo = c.get("repo");
-    const briefing = await repo.ensureDefaultBriefing();
     const parsed = sourceInputSchema.safeParse(await c.req.json().catch(() => ({})));
     if (!parsed.success) return c.json({ error: "Enter a Telegram channel URL or source toggle." }, 400);
     const body = parsed.data;
+    const briefing = await resolveBriefing(repo, body.briefingId);
+    if (!briefing) return c.json({ error: "briefing not found" }, 404);
 
     if ("url" in body) {
       let result;
@@ -163,7 +167,10 @@ export function createApp(options: AppOptions = {}) {
 
   app.post("/api/admin/sources/refresh", async (c) => {
     const repo = c.get("repo");
-    const briefing = await repo.ensureDefaultBriefing();
+    const parsed = healthInputSchema.safeParse(await c.req.json().catch(() => ({})));
+    if (!parsed.success) return c.json({ error: "briefing not found" }, 400);
+    const briefing = await resolveBriefing(repo, parsed.data.briefingId);
+    if (!briefing) return c.json({ error: "briefing not found" }, 404);
     const results = await refreshPublicTelegramSources({
       briefing,
       repo,
@@ -176,72 +183,17 @@ export function createApp(options: AppOptions = {}) {
 
   app.delete("/api/admin/sources/:sourceId", async (c) => {
     const repo = c.get("repo");
-    const briefing = await repo.ensureDefaultBriefing();
     await repo.deleteSource(c.req.param("sourceId"));
+    const briefing = await resolveBriefing(repo, c.req.query("briefingId"));
+    if (!briefing) return c.json({ error: "briefing not found" }, 404);
     return c.json({ sources: await repo.listSources(briefing.id) });
   });
 
   app.get("/api/admin/health", async (c) => {
     const repo = c.get("repo");
-    return c.json({ health: await repo.getHealth(c.env) });
-  });
-
-  app.post("/api/admin/telegram/register-webhook", async (c) => {
-    const repo = c.get("repo");
-    const briefing = await repo.ensureDefaultBriefing();
-    if (!c.env.TELEGRAM_BOT_TOKEN || !c.env.TELEGRAM_WEBHOOK_SECRET) {
-      return c.json({ error: "Telegram bot token or webhook secret is not configured" }, 400);
-    }
-
-    const apiBase = c.env.PUBLIC_API_BASE_URL ?? new URL(c.req.url).origin;
-    const webhookUrl = `${apiBase}/telegram/webhook/${briefing.id}/${c.env.TELEGRAM_WEBHOOK_SECRET}`;
-    const result = await registerTelegramWebhook(
-      {
-        botToken: c.env.TELEGRAM_BOT_TOKEN,
-        webhookUrl,
-        secretToken: c.env.TELEGRAM_WEBHOOK_SECRET
-      },
-      fetcher
-    );
-
-    if (result.ok) await repo.setSetting("telegram_webhook_registered", "true");
-    return c.json({ result, webhookUrl });
-  });
-
-  app.post("/telegram/webhook/:briefingId/:secret", async (c) => {
-    const repo = repoFor(c);
-    const expectedSecret = c.env.TELEGRAM_WEBHOOK_SECRET ?? "";
-    if (
-      c.req.param("secret") !== expectedSecret ||
-      !validateTelegramWebhookSecret(c.req.header("X-Telegram-Bot-Api-Secret-Token"), expectedSecret)
-    ) {
-      return c.json({ error: "invalid webhook secret" }, 401);
-    }
-
-    const briefing = await repo.getBriefingById(c.req.param("briefingId"));
+    const briefing = await resolveBriefing(repo, c.req.query("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
-
-    const update = (await c.req.json()) as TelegramUpdate;
-    const rawPayloadKey = `telegram/${briefing.id}/${update.update_id}.json`;
-    await bucketFor(c).put(rawPayloadKey, JSON.stringify(update), {
-      httpMetadata: { contentType: "application/json" }
-    });
-
-    const normalized = normalizeTelegramUpdate(update, {
-      rawPayloadKey,
-      retentionDays: briefing.retentionDays
-    });
-    if (!normalized) return c.json({ ok: true, ignored: true });
-
-    const source = await repo.upsertSourceFromMessage(briefing.id, normalized);
-    await repo.saveRawMessage(briefing.id, normalized);
-    await repo.setSetting("last_telegram_event_at", normalized.receivedAt);
-
-    if (!source.enabled) return c.json({ ok: true, queued: false, sourceDetected: true });
-
-    const jobId = await repo.createProcessingJob(briefing.id, normalized.id);
-    await queueFor(c).send({ jobId, briefingId: briefing.id, rawMessageId: normalized.id });
-    return c.json({ ok: true, queued: true, jobId });
+    return c.json({ health: await repo.getHealth(briefing.id) });
   });
 
   app.get("/api/feed/:briefingSlug", async (c) => {
@@ -274,6 +226,8 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
+  app.all("/telegram/*", (c) => c.json({ error: "not found" }, 404));
+  app.get("/demo", (c) => c.redirect("/", 302));
 
   app.all("*", async (c) => {
     if (c.env.ASSETS) {
@@ -308,6 +262,13 @@ function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interes
     slug: briefing.slug,
     title: briefing.title,
     publicFeedEnabled: briefing.publicFeedEnabled,
+    paused: briefing.paused,
+    language: briefing.language,
     retentionDays: briefing.retentionDays
   };
+}
+
+async function resolveBriefing(repo: Repository, briefingId?: string): Promise<BriefingConfig | null> {
+  if (briefingId) return repo.getBriefingById(briefingId);
+  return repo.ensureDefaultBriefing();
 }

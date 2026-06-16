@@ -32,6 +32,12 @@ export async function login(username: string, password: string, setupToken?: str
   });
 }
 
+export async function logout(): Promise<void> {
+  await requestJson("/api/admin/session", {
+    method: "DELETE"
+  });
+}
+
 export async function getBriefings(): Promise<BriefingConfig[]> {
   const payload = await requestJson<{ briefings: BriefingConfig[] }>("/api/admin/briefings");
   return payload.briefings;
@@ -45,50 +51,55 @@ export async function saveBriefing(briefing: BriefingConfig): Promise<BriefingCo
   return payload.briefing;
 }
 
-export async function getSources(): Promise<TelegramSourceRecord[]> {
-  const payload = await requestJson<{ sources: TelegramSourceRecord[] }>("/api/admin/sources");
+export async function getSources(briefingId: string): Promise<TelegramSourceRecord[]> {
+  const payload = await requestJson<{ sources: TelegramSourceRecord[] }>(
+    `/api/admin/sources?briefingId=${encodeURIComponent(briefingId)}`
+  );
   return payload.sources;
 }
 
-export async function addPublicTelegramSource(url: string): Promise<TelegramSourceRecord[]> {
+export async function addPublicTelegramSource(briefingId: string, url: string): Promise<TelegramSourceRecord[]> {
   const payload = await requestJson<{ sources: TelegramSourceRecord[] }>("/api/admin/sources", {
     method: "POST",
-    body: JSON.stringify({ url })
+    body: JSON.stringify({ briefingId, url })
   });
   return payload.sources;
 }
 
-export async function setSourceEnabled(sourceId: string, enabled: boolean): Promise<TelegramSourceRecord[]> {
+export async function setSourceEnabled(
+  briefingId: string,
+  sourceId: string,
+  enabled: boolean
+): Promise<TelegramSourceRecord[]> {
   const payload = await requestJson<{ sources: TelegramSourceRecord[] }>("/api/admin/sources", {
     method: "POST",
-    body: JSON.stringify({ sourceId, enabled })
+    body: JSON.stringify({ briefingId, sourceId, enabled })
   });
   return payload.sources;
 }
 
-export async function refreshPublicTelegramSources(): Promise<TelegramSourceRecord[]> {
+export async function refreshPublicTelegramSources(briefingId: string): Promise<TelegramSourceRecord[]> {
   const payload = await requestJson<{ sources: TelegramSourceRecord[] }>("/api/admin/sources/refresh", {
-    method: "POST"
+    method: "POST",
+    body: JSON.stringify({ briefingId })
   });
   return payload.sources;
 }
 
-export async function deleteSource(sourceId: string): Promise<TelegramSourceRecord[]> {
-  const payload = await requestJson<{ sources: TelegramSourceRecord[] }>(`/api/admin/sources/${encodeURIComponent(sourceId)}`, {
-    method: "DELETE"
-  });
+export async function deleteSource(briefingId: string, sourceId: string): Promise<TelegramSourceRecord[]> {
+  const payload = await requestJson<{ sources: TelegramSourceRecord[] }>(
+    `/api/admin/sources/${encodeURIComponent(sourceId)}?briefingId=${encodeURIComponent(briefingId)}`,
+    {
+      method: "DELETE"
+    }
+  );
   return payload.sources;
 }
 
-export async function registerWebhook(): Promise<string> {
-  const payload = await requestJson<{ webhookUrl: string }>("/api/admin/telegram/register-webhook", {
-    method: "POST"
-  });
-  return payload.webhookUrl;
-}
-
-export async function getHealth(): Promise<HealthStatus> {
-  const payload = await requestJson<{ health: HealthStatus }>("/api/admin/health");
+export async function getHealth(briefingId: string): Promise<HealthStatus> {
+  const payload = await requestJson<{ health: HealthStatus }>(
+    `/api/admin/health?briefingId=${encodeURIComponent(briefingId)}`
+  );
   return payload.health;
 }
 

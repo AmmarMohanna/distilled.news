@@ -1,4 +1,4 @@
-import type { BriefingConfig, NormalizedMessage } from "@lownoise/core";
+import type { BriefingConfig } from "@lownoise/core";
 import {
   parsePublicTelegramChannelPage,
   parsePublicTelegramChannelUrl,
@@ -59,22 +59,31 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
 
   for (const message of messages) {
     source = await input.repo.upsertSourceFromMessage(input.briefing.id, message);
+    const persistedMessage = {
+      ...message,
+      id: scopedRawMessageId(input.briefing.id, message.id),
+      source: {
+        ...message.source,
+        id: source.id
+      }
+    };
     await input.repo.setSourceEnabled(source.id, true, now);
 
-    const existing = await input.repo.getRawMessage(message.id);
+    const existing = await input.repo.getRawMessage(persistedMessage.id);
     if (existing) {
       skipped += 1;
       continue;
     }
 
-    await input.repo.saveRawMessage(input.briefing.id, message, now);
-    const jobId = await input.repo.createProcessingJob(input.briefing.id, message.id, now);
-    await input.queue.send({ jobId, briefingId: input.briefing.id, rawMessageId: message.id });
+    await input.repo.saveRawMessage(input.briefing.id, persistedMessage, now);
+    const jobId = await input.repo.createProcessingJob(input.briefing.id, persistedMessage.id, now);
+    await input.queue.send({ jobId, briefingId: input.briefing.id, rawMessageId: persistedMessage.id });
     imported += 1;
     queued += 1;
   }
 
   await input.repo.setSetting("last_telegram_event_at", now.toISOString(), now);
+  await input.repo.setSetting(`last_telegram_event_at:${input.briefing.id}`, now.toISOString(), now);
 
   return {
     sourceId: source?.id ?? publicTelegramSourceId(channel.username),
@@ -88,12 +97,16 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
 }
 
 export async function refreshPublicTelegramSources(input: Omit<PublicTelegramIngestInput, "url">): Promise<PublicTelegramIngestResult[]> {
-  const sources = (await input.repo.listSources(input.briefing.id)).filter(
-    (source) => source.enabled && source.mode === "public" && source.url
-  );
+  if (input.briefing.paused) return [];
+
+  const sources = (await input.repo.listSources(input.briefing.id)).filter((source) => source.enabled && source.url);
   const results: PublicTelegramIngestResult[] = [];
   for (const source of sources) {
     results.push(await ingestPublicTelegramChannel({ ...input, url: source.url! }));
   }
   return results;
+}
+
+function scopedRawMessageId(briefingId: string, rawMessageId: string): string {
+  return `${briefingId}::${rawMessageId}`;
 }

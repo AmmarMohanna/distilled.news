@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { personalNewsBriefing } from "@lownoise/core";
 import { createApp } from "./app";
 import { processQueueMessage } from "./processor";
 import { InMemoryRepository } from "./repository";
@@ -22,30 +23,11 @@ class FakeQueue {
 
 function env(): Env {
   return {
-    TELEGRAM_BOT_TOKEN: "telegram-token",
-    TELEGRAM_WEBHOOK_SECRET: "webhook-secret",
     ADMIN_SESSION_SECRET: "admin-secret",
     ADMIN_SETUP_TOKEN: "setup-token",
     INTERNAL_MAINTENANCE_SECRET: "internal-secret",
     PUBLIC_API_BASE_URL: "https://worker.test"
   } as Env;
-}
-
-function telegramUpdate(updateId: number, text: string) {
-  return {
-    update_id: updateId,
-    channel_post: {
-      message_id: updateId,
-      date: 1_781_612_800 + updateId,
-      chat: {
-        id: -100123,
-        type: "channel",
-        title: "Beirut Local",
-        username: "beirutlocal"
-      },
-      text
-    }
-  };
 }
 
 const publicTelegramHtml = `
@@ -61,42 +43,17 @@ describe("worker app", () => {
   it("redirects www and http custom-domain traffic to the canonical apex", async () => {
     const app = createApp({ repository: new InMemoryRepository() });
 
-    const wwwResponse = await app.request("https://www.lownoise.news/demo", {}, env());
+    const wwwResponse = await app.request("https://www.lownoise.news/feed/personal", {}, env());
     expect(wwwResponse.status).toBe(301);
-    expect(wwwResponse.headers.get("location")).toBe("https://lownoise.news/demo");
+    expect(wwwResponse.headers.get("location")).toBe("https://lownoise.news/feed/personal");
 
     const httpResponse = await app.request("http://lownoise.news/feed/personal", {}, env());
     expect(httpResponse.status).toBe(301);
     expect(httpResponse.headers.get("location")).toBe("https://lownoise.news/feed/personal");
-  });
 
-  it("detects disabled Telegram sources without queueing processing", async () => {
-    const repo = new InMemoryRepository();
-    const briefing = await repo.ensureDefaultBriefing();
-    const bucket = new FakeBucket();
-    const queue = new FakeQueue();
-    const app = createApp({ repository: repo, bucket, queue });
-
-    const response = await app.request(
-      `/telegram/webhook/${briefing.id}/webhook-secret`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "X-Telegram-Bot-Api-Secret-Token": "webhook-secret"
-        },
-        body: JSON.stringify(telegramUpdate(1, "Electricite du Liban announced two extra hours of power supply."))
-      },
-      env()
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, queued: false, sourceDetected: true });
-    expect(bucket.objects.has(`telegram/${briefing.id}/1.json`)).toBe(true);
-    expect(queue.messages).toHaveLength(0);
-    expect(await repo.listSources(briefing.id)).toEqual([
-      expect.objectContaining({ title: "Beirut Local", enabled: false })
-    ]);
+    const demoResponse = await app.request("/demo", {}, env());
+    expect(demoResponse.status).toBe(302);
+    expect(demoResponse.headers.get("location")).toBe("/");
   });
 
   it("adds a public Telegram channel URL as an enabled source and queues posts", async () => {
@@ -105,6 +62,7 @@ describe("worker app", () => {
     const queue = new FakeQueue();
     const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
     const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+    const briefing = await repo.ensureDefaultBriefing();
 
     const response = await app.request(
       "/api/admin/sources",
@@ -114,32 +72,75 @@ describe("worker app", () => {
           "content-type": "application/json",
           "x-lownoise-admin": "admin-secret"
         },
-        body: JSON.stringify({ url: "https://t.me/LebUpdate" })
+        body: JSON.stringify({ briefingId: briefing.id, url: "https://t.me/LebUpdate" })
       },
       env()
     );
 
     expect(response.status).toBe(200);
     const payload = (await response.json()) as {
-      sources: Array<{ id: string; title: string; mode: string; url: string; enabled: boolean }>;
+      sources: Array<{ id: string; title: string; url?: string; enabled: boolean }>;
       result: { fetched: number; queued: number };
     };
     expect(fetcher).toHaveBeenCalledWith("https://t.me/s/LebUpdate", expect.any(Object));
     expect(payload.sources).toEqual([
       expect.objectContaining({
-        id: "telegram_public_lebupdate",
+        id: `${briefing.id}::telegram_public_lebupdate`,
         title: "Lebanon Updates",
-        mode: "public",
         url: "https://t.me/LebUpdate",
         enabled: true
       })
     ]);
     expect(payload.result).toMatchObject({ fetched: 1, queued: 1 });
     expect(queue.messages).toHaveLength(1);
-    expect(Array.from(bucket.objects.keys())[0]).toContain("telegram-public/briefing_default/LebUpdate/");
+    expect(Array.from(bucket.objects.keys())[0]).toContain(`telegram-public/${briefing.id}/LebUpdate/`);
   });
 
-  it("skips queued posts when a source is disabled before processing", async () => {
+  it("scopes the same public channel independently across multiple briefings", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+    const first = await repo.ensureDefaultBriefing();
+    const second = await repo.upsertBriefing({
+      ...personalNewsBriefing,
+      id: "briefing_second",
+      slug: "second",
+      title: "Second Briefing"
+    });
+
+    for (const briefing of [first, second]) {
+      const response = await app.request(
+        "/api/admin/sources",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-lownoise-admin": "admin-secret"
+          },
+          body: JSON.stringify({ briefingId: briefing.id, url: "https://t.me/LebUpdate" })
+        },
+        env()
+      );
+      expect(response.status).toBe(200);
+    }
+
+    const firstSources = await repo.listSources(first.id);
+    const secondSources = await repo.listSources(second.id);
+    expect(firstSources).toHaveLength(1);
+    expect(secondSources).toHaveLength(1);
+    expect(firstSources[0].id).not.toBe(secondSources[0].id);
+
+    const firstResult = await processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:00:00.000Z"));
+    const secondResult = await processQueueMessage(repo, queue.messages[1], new Date("2026-06-16T08:01:00.000Z"));
+    expect(firstResult?.publishedItems).toHaveLength(1);
+    expect(secondResult?.publishedItems).toHaveLength(1);
+    expect(await repo.getExistingItems(first.id)).toHaveLength(1);
+    expect(await repo.getExistingItems(second.id)).toHaveLength(1);
+  });
+
+  it("skips refresh and processing when a briefing is paused", async () => {
     const repo = new InMemoryRepository();
     const bucket = new FakeBucket();
     const queue = new FakeQueue();
@@ -148,6 +149,19 @@ describe("worker app", () => {
     const briefing = await repo.ensureDefaultBriefing();
 
     await app.request(
+      "/api/admin/briefings",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-lownoise-admin": "admin-secret"
+        },
+        body: JSON.stringify({ ...briefing, paused: true })
+      },
+      env()
+    );
+
+    await app.request(
       "/api/admin/sources",
       {
         method: "POST",
@@ -155,18 +169,38 @@ describe("worker app", () => {
           "content-type": "application/json",
           "x-lownoise-admin": "admin-secret"
         },
-        body: JSON.stringify({ url: "https://t.me/LebUpdate" })
+        body: JSON.stringify({ briefingId: briefing.id, url: "https://t.me/LebUpdate" })
       },
       env()
     );
 
-    await repo.setSourceEnabled("telegram_public_lebupdate", false);
-    const result = await processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:00:00.000Z"));
+    const refreshResponse = await app.request(
+      "/api/admin/sources/refresh",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-lownoise-admin": "admin-secret"
+        },
+        body: JSON.stringify({ briefingId: briefing.id })
+      },
+      env()
+    );
+    expect(await refreshResponse.json()).toMatchObject({ sources: [expect.any(Object)], results: [] });
 
+    const result = await processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:00:00.000Z"));
     expect(result).toBeUndefined();
     expect(await repo.getExistingItems(briefing.id)).toHaveLength(0);
-    expect(await repo.getHealth(env())).toMatchObject({
-      processing: { queued: 0, completed: 1, failed: 0 }
+
+    const healthResponse = await app.request(
+      `/api/admin/health?briefingId=${briefing.id}`,
+      { headers: { "x-lownoise-admin": "admin-secret" } },
+      env()
+    );
+    expect(await healthResponse.json()).toMatchObject({
+      health: {
+        processing: { queued: 0, completed: 1, failed: 0 }
+      }
     });
   });
 
@@ -175,21 +209,8 @@ describe("worker app", () => {
     const briefing = await repo.ensureDefaultBriefing();
     const bucket = new FakeBucket();
     const queue = new FakeQueue();
-    const app = createApp({ repository: repo, bucket, queue });
-    const runtimeEnv = env();
-
-    await app.request(
-      `/telegram/webhook/${briefing.id}/webhook-secret`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "X-Telegram-Bot-Api-Secret-Token": "webhook-secret"
-        },
-        body: JSON.stringify(telegramUpdate(1, "Electricite du Liban announced two extra hours of power supply."))
-      },
-      runtimeEnv
-    );
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
 
     await app.request(
       "/api/admin/sources",
@@ -199,32 +220,14 @@ describe("worker app", () => {
           "content-type": "application/json",
           "x-lownoise-admin": "admin-secret"
         },
-        body: JSON.stringify({ sourceId: "telegram_-100123", enabled: true })
+        body: JSON.stringify({ briefingId: briefing.id, url: "https://t.me/LebUpdate" })
       },
-      runtimeEnv
+      env()
     );
-
-    const webhookResponse = await app.request(
-      `/telegram/webhook/${briefing.id}/webhook-secret`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "X-Telegram-Bot-Api-Secret-Token": "webhook-secret"
-        },
-        body: JSON.stringify(
-          telegramUpdate(2, "Electricite du Liban confirmed two extra hours of power supply tonight.")
-        )
-      },
-      runtimeEnv
-    );
-
-    expect(await webhookResponse.json()).toMatchObject({ ok: true, queued: true });
-    expect(queue.messages).toHaveLength(1);
 
     await processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:00:00.000Z"));
 
-    const privateFeedResponse = await app.request(`/api/feed/${briefing.slug}`, {}, runtimeEnv);
+    const privateFeedResponse = await app.request(`/api/feed/${briefing.slug}`, {}, env());
     expect(privateFeedResponse.status).toBe(401);
 
     await app.request(
@@ -237,57 +240,25 @@ describe("worker app", () => {
         },
         body: JSON.stringify({ ...briefing, publicFeedEnabled: true })
       },
-      runtimeEnv
+      env()
     );
 
-    const feedResponse = await app.request(`/api/feed/${briefing.slug}`, {}, runtimeEnv);
+    const feedResponse = await app.request(`/api/feed/${briefing.slug}`, {}, env());
     expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as { items: Array<{ summary: string; evidence: Array<{ sourceTitle: string; sourceUrl: string }> }> };
+    const feed = (await feedResponse.json()) as {
+      items: Array<{ summary: string; evidence: Array<{ sourceTitle: string; sourceUrl: string }> }>;
+    };
     expect(feed.items).toHaveLength(1);
     expect(feed.items[0].summary).toContain("Electricite du Liban");
     expect(feed.items[0].evidence[0]).toMatchObject({
-      sourceTitle: "Beirut Local",
-      sourceUrl: "https://t.me/beirutlocal/2"
+      sourceTitle: "Lebanon Updates",
+      sourceUrl: "https://t.me/LebUpdate/10"
     });
     expect(JSON.stringify(feed)).not.toMatch(/confidence|sourceCount|chatbot|Q&A/i);
 
-    const searchResponse = await app.request(`/api/feed/${briefing.slug}/search?q=power%20supply`, {}, runtimeEnv);
+    const searchResponse = await app.request(`/api/feed/${briefing.slug}/search?q=power%20supply`, {}, env());
     const search = (await searchResponse.json()) as { items: unknown[] };
     expect(search.items).toHaveLength(1);
-  });
-
-  it("registers Telegram webhook and reports setup health", async () => {
-    const repo = new InMemoryRepository();
-    await repo.ensureDefaultBriefing();
-    const fetcher = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
-    const app = createApp({ repository: repo, fetcher: fetcher as unknown as typeof fetch });
-
-    const response = await app.request(
-      "/api/admin/telegram/register-webhook",
-      {
-        method: "POST",
-        headers: { "x-lownoise-admin": "admin-secret" }
-      },
-      env()
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      result: { ok: true },
-      webhookUrl: "https://worker.test/telegram/webhook/briefing_default/webhook-secret"
-    });
-
-    const healthResponse = await app.request(
-      "/api/admin/health",
-      { headers: { "x-lownoise-admin": "admin-secret" } },
-      env()
-    );
-    expect(await healthResponse.json()).toMatchObject({
-      health: {
-        tokenConfigured: true,
-        webhookRegistered: true
-      }
-    });
   });
 
   it("supports admin username and password login", async () => {
@@ -328,11 +299,14 @@ describe("worker app", () => {
     expect(loginResponse.status).toBe(200);
   });
 
-  it("does not expose an ask or chatbot API", async () => {
+  it("does not expose removed webhook or ask endpoints", async () => {
     const app = createApp({ repository: new InMemoryRepository() });
-    const response = await app.request("/api/ask/personal", {}, env());
 
-    expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({ error: "not found" });
+    const askResponse = await app.request("/api/ask/personal", {}, env());
+    expect(askResponse.status).toBe(404);
+    expect(await askResponse.json()).toEqual({ error: "not found" });
+
+    const webhookResponse = await app.request("/telegram/webhook/briefing_default/secret", { method: "POST" }, env());
+    expect(webhookResponse.status).toBe(404);
   });
 });

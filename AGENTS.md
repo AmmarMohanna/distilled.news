@@ -4,14 +4,14 @@ This repository should be guided by the following product and implementation pla
 
 ## Summary
 
-Build LowNoise.news as a Cloudflare-first, self-hostable Telegram newsroom. V1 lets one admin add public Telegram channel URLs, filter noisy incoming posts, generate neutral summaries, and publish a calm monospace personal briefing. A Telegram bot webhook remains as an optional fallback for private channels/groups where the admin can add the bot.
+Build LowNoise.news as a Cloudflare-first, self-hostable Telegram newsroom. V1 lets one admin create one or more briefings, add public Telegram channel URLs, filter noisy incoming posts, generate neutral summaries, and publish a calm monospace personal briefing.
 
 Use `lownoise.news` as the project and brand domain. Reserve `app.lownoise.news` and `api.lownoise.news` for the future hosted SaaS.
 
 ## Key Direction
 
 - Keep Cloudflare as the only supported V1 deployment target.
-- Use Workers for the API, Telegram webhooks, and public feed.
+- Use Workers for the API, scheduled source refresh, and public feed.
 - Use Queues for async ingestion and LLM processing.
 - Use D1 for app data.
 - Use R2 for raw Telegram payload archives.
@@ -57,13 +57,15 @@ Public feed:
 Admin setup:
 
 - One page only.
+- Support multiple briefings from the same admin surface.
 - Add public Telegram channel URL.
-- Telegram bot token/webhook status in a collapsed private-source fallback section.
 - Interest profile, written as a simple plain-language instruction.
 - Style instruction, if needed, secondary to the interest profile.
+- Feed language toggle for English or Arabic.
 - Public feed on/off.
+- Pause/resume feed.
 - Save.
-- Setup health showing bot token validity, webhook registration, last Telegram event received, and queue/processing status.
+- Setup health showing last Telegram event received and queue/processing status.
 - Advanced rules are collapsed behind one advanced control.
 - Do not require admins to maintain a formal source registry or source-independence metadata in V1.
 
@@ -82,13 +84,6 @@ Public Telegram ingestion:
 - Worker fetches the public `https://t.me/s/<channel>` page, archives the fetched HTML to R2, normalizes supported posts, stores them in D1, and enqueues processing.
 - Scheduled refresh runs enabled public sources every few minutes.
 - V1 supports public Telegram channel post text, links, and media references when available from the public page.
-
-Private Telegram bot fallback:
-
-- Admin creates a Telegram bot and adds it to private channels/groups when public URLs are not enough.
-- Dashboard registers webhook to the deployed Worker.
-- Worker validates the webhook secret, archives raw payload to R2, normalizes supported messages, stores them in D1, and enqueues processing only for enabled sources.
-- Bot fallback supports text, captions, links, and channel/group posts.
 
 Processing:
 
@@ -109,8 +104,6 @@ No chatbot:
 
 Public/API routes:
 
-- `POST /telegram/webhook/:briefingId/:secret`
-- `POST /api/admin/telegram/register-webhook`
 - `GET /api/admin/briefings`
 - `POST /api/admin/briefings`
 - `GET /api/admin/sources`
@@ -124,15 +117,12 @@ Public/API routes:
 Open-source adoption:
 
 - Prioritize one-command deployment and example configuration.
-- Provide a no-login hosted demo or playground where visitors can tune interest/source-like inputs in the browser and immediately see how LowNoise filters a sample news stream.
-- The demo should create the quick validation effect: someone can press a link, try the concept instantly, and understand why they would self-host it.
 - The main public website may point primarily to GitHub unless a hosted SaaS is intentionally introduced later.
 
 ## Test Plan
 
 Unit tests:
 
-- Telegram payload normalization.
 - Public Telegram channel URL and page normalization.
 - Publication rule evaluation.
 - Interest-profile relevance filtering.
@@ -142,11 +132,11 @@ Unit tests:
 
 Integration tests:
 
-- Telegram webhook to queue to published item.
+- Public Telegram channel fetch to queue to published item.
 - Public feed exposes only published items.
 - Expanded detail view shows linked evidence and media links.
 - Feed search returns matching retained published briefing items and evidence without searching raw unpublished messages or expired context.
-- Admin health reports webhook and processing status.
+- Admin health reports processing status per briefing.
 
 UI acceptance:
 
@@ -154,7 +144,6 @@ UI acceptance:
 - Feed has very few visible controls.
 - Expand evidence is accessible by pointer and keyboard.
 - Live refresh and direct search are available without making the feed feel like a dashboard.
-- No-login demo gives immediate validation from sample/tunable inputs.
 - Fixed-width font is used across public and admin surfaces.
 
 ## Assumptions

@@ -1,10 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   normalizeTelegramUpdate,
   parsePublicTelegramChannelPage,
-  parsePublicTelegramChannelUrl,
-  registerTelegramWebhook,
-  validateTelegramWebhookSecret
+  parsePublicTelegramChannelUrl
 } from "../src";
 
 describe("normalizeTelegramUpdate", () => {
@@ -103,37 +101,5 @@ describe("public Telegram channel pages", () => {
     expect(messages[0].links).toEqual(["https://example.test"]);
     expect(messages[0].media).toEqual([{ type: "photo", url: "https://cdn.test/photo.jpg", label: "Telegram photo" }]);
     expect(messages[1].text).toContain("اعتراضات صاروخية");
-  });
-});
-
-describe("webhook helpers", () => {
-  it("validates Telegram webhook secret token", () => {
-    expect(validateTelegramWebhookSecret("secret", "secret")).toBe(true);
-    expect(validateTelegramWebhookSecret("wrong", "secret")).toBe(false);
-    expect(validateTelegramWebhookSecret(null, "secret")).toBe(false);
-  });
-
-  it("registers Telegram webhook with secret token", async () => {
-    const fetcher = vi.fn(async () => {
-      return new Response(JSON.stringify({ ok: true }), { status: 200 });
-    });
-
-    const result = await registerTelegramWebhook(
-      {
-        botToken: "token",
-        webhookUrl: "https://worker.test/telegram/webhook/briefing/secret",
-        secretToken: "secret"
-      },
-      fetcher as unknown as typeof fetch
-    );
-
-    expect(result.ok).toBe(true);
-    expect(fetcher).toHaveBeenCalledWith(
-      "https://api.telegram.org/bottoken/setWebhook",
-      expect.objectContaining({
-        method: "POST",
-        body: expect.stringContaining("secret_token")
-      })
-    );
   });
 });
