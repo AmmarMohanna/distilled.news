@@ -11,6 +11,11 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     ...init
   });
 
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    throw new Error("Worker API is not available from this web preview.");
+  }
+
   const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok) throw new Error(payload.error ?? `Request failed: ${response.status}`);
   return payload;

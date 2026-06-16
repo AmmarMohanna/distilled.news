@@ -33,8 +33,8 @@ test("demo runs without backend API calls", async ({ page }) => {
   await page.goto("/demo");
 
   await expect(page.getByRole("heading", { name: "demo" })).toBeVisible();
-  await expect(page.getByText("input stream")).toBeVisible();
-  await expect(page.getByText("briefing")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "source posts" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "published briefing" })).toBeVisible();
   await expect(page.getByText(/suppressed/)).toBeVisible();
   expect(apiCalls).toBe(0);
 });

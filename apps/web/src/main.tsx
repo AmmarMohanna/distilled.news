@@ -36,6 +36,14 @@ function App() {
   return <AdminPage />;
 }
 
+function getPageMeta(title: string): string {
+  if (title === "demo") return "Tune an interest profile and watch noisy source posts become a short briefing.";
+  if (title === "admin") return "Connect Telegram, define what matters, and keep the briefing private by default.";
+  if (title === "briefing") return "A retained news line from published items only.";
+  if (title.includes("Briefing")) return "A retained news line from published items only.";
+  return "Self-hosted filtering for calmer news intake.";
+}
+
 function AdminPage() {
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [briefing, setBriefing] = useState<BriefingConfig | null>(null);
@@ -61,7 +69,15 @@ function AdminPage() {
       .catch((cause) => setError(String(cause)));
   }, []);
 
-  if (!session) return <Shell title="LowNoise.news"><p>loading</p></Shell>;
+  if (!session && error) {
+    return (
+      <Shell title="admin">
+        <RuntimeNotice />
+      </Shell>
+    );
+  }
+
+  if (!session) return <Shell title="admin"><p className="muted">loading</p></Shell>;
   if (!session.authenticated) {
     return (
       <Shell title="LowNoise.news">
@@ -261,7 +277,7 @@ function FeedPage(props: { slug: string }) {
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="search published briefing" />
         </form>
       </div>
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <FeedNotice message={error} /> : null}
       <div className="news-line">
         {items.map((item) => {
           const isExpanded = expanded.has(item.id);
@@ -286,7 +302,12 @@ function FeedPage(props: { slug: string }) {
             </article>
           );
         })}
-        {items.length === 0 && !error ? <p className="muted">no retained briefing items</p> : null}
+        {items.length === 0 && !error ? (
+          <div className="empty-state">
+            <strong>no published items</strong>
+            <p className="muted">The briefing line fills after enabled Telegram sources publish matching items.</p>
+          </div>
+        ) : null}
       </div>
     </Shell>
   );
@@ -339,7 +360,16 @@ function DemoPage() {
 
   return (
     <Shell title="demo">
+      <div className="demo-strip" aria-label="demo flow">
+        <span><strong>{output.inputMessages.length}</strong> source posts</span>
+        <span><strong>{output.suppressedCount}</strong> filtered</span>
+        <span><strong>{output.items.length}</strong> briefing item</span>
+      </div>
       <section className="section">
+        <div className="section-title">
+          <SlidersHorizontal size={16} aria-hidden />
+          <h2>tune filter</h2>
+        </div>
         <label>
           interest profile
           <textarea rows={5} value={interestProfile} onChange={(event) => setInterestProfile(event.target.value)} />
@@ -365,14 +395,23 @@ function DemoPage() {
         </div>
       </section>
       <div className="demo-grid">
-        <section className="section">
-          <h2>input stream</h2>
+        <section className="section demo-panel noisy-panel">
+          <div className="section-title">
+            <h2>source posts</h2>
+            <span className="pill">{output.inputMessages.length}</span>
+          </div>
           {output.inputMessages.map((message) => (
-            <p key={message.id} className="raw-message">{message.text}</p>
+            <article key={message.id} className="raw-message">
+              <span>{message.source.title}</span>
+              <p>{message.text}</p>
+            </article>
           ))}
         </section>
-        <section className="section">
-          <h2>briefing</h2>
+        <section className="section demo-panel briefing-panel">
+          <div className="section-title">
+            <h2>published briefing</h2>
+            <span className="pill">{output.items.length}</span>
+          </div>
           {output.items.map((item) => (
             <article key={item.id} className="demo-item">
               <time dateTime={item.itemAt}>{formatTime(item.itemAt)}</time>
@@ -395,17 +434,55 @@ function StatusLine(props: { label: string; value: string }) {
   );
 }
 
+function RuntimeNotice() {
+  return (
+    <section className="section notice">
+      <h2>worker api not connected</h2>
+      <p>
+        The admin page runs against the Cloudflare Worker API. This local preview is serving the web
+        app only, so the static demo is the usable page here.
+      </p>
+      <div className="actions">
+        <a className="button-link" href="/demo">open demo</a>
+        <code>npx pnpm@10.12.1 dev</code>
+      </div>
+    </section>
+  );
+}
+
+function FeedNotice(props: { message: string }) {
+  const isApiMissing =
+    props.message.includes("Worker API is not available") ||
+    props.message.includes("Unexpected token") ||
+    props.message.includes("Request failed");
+  const text = isApiMissing
+    ? "The feed needs the Worker API and published retained items. In this static preview, use the demo page."
+    : props.message;
+
+  return (
+    <section className="section notice">
+      <h2>feed unavailable</h2>
+      <p>{text}</p>
+      <a className="button-link" href="/demo">open demo</a>
+    </section>
+  );
+}
+
 function Shell(props: { title: string; children: React.ReactNode }) {
   return (
     <main className="shell">
       <header>
         <a href="/" className="brand">LowNoise.news</a>
         <nav>
+          <a href="/">admin</a>
           <a href="/demo">demo</a>
           <a href="/feed/personal">feed</a>
         </nav>
       </header>
-      <h1>{props.title}</h1>
+      <div className="page-heading">
+        <h1>{props.title}</h1>
+        <p>{getPageMeta(props.title)}</p>
+      </div>
       {props.children}
     </main>
   );
