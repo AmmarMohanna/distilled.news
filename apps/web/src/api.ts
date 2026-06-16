@@ -25,10 +25,10 @@ export async function getSession(): Promise<SessionStatus> {
   return requestJson<SessionStatus>("/api/admin/session");
 }
 
-export async function login(password: string, setupToken?: string): Promise<void> {
+export async function login(username: string, password: string, setupToken?: string): Promise<void> {
   await requestJson("/api/admin/session", {
     method: "POST",
-    body: JSON.stringify({ password, setupToken })
+    body: JSON.stringify({ username, password, setupToken })
   });
 }
 

@@ -50,6 +50,7 @@ function AdminPage() {
   const [sources, setSources] = useState<TelegramSourceRecord[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [status, setStatus] = useState("");
+  const [webhookUrl, setWebhookUrl] = useState("");
   const [error, setError] = useState("");
 
   async function loadAdmin() {
@@ -172,12 +173,20 @@ function AdminPage() {
           <button
             type="button"
             onClick={async () => {
-              setStatus(`registered ${await registerWebhook()}`);
+              setStatus("registering webhook");
+              setWebhookUrl(await registerWebhook());
+              setStatus("webhook registered");
               setHealth(await getHealth());
             }}
           >
             <RefreshCw size={15} aria-hidden /> register webhook
           </button>
+          {webhookUrl ? (
+            <p className="webhook-url">
+              <span className="muted">registered</span>
+              <span>{webhookUrl}</span>
+            </p>
+          ) : null}
           <div className="health">
             <StatusLine label="bot token" value={health?.tokenConfigured ? "configured" : "missing"} />
             <StatusLine label="webhook" value={health?.webhookRegistered ? "registered" : "not registered"} />
@@ -187,8 +196,9 @@ function AdminPage() {
               value={`queued ${health?.processing.queued ?? 0} / failed ${health?.processing.failed ?? 0}`}
             />
           </div>
+          <TelegramSetupHelp />
           <div className="source-list">
-            {sources.length === 0 ? <p className="muted">sources appear here after the bot receives posts</p> : null}
+            {sources.length === 0 ? <p className="muted">no detected Telegram sources yet</p> : null}
             {sources.map((source) => (
               <label key={source.id} className="source-row">
                 <input
@@ -210,6 +220,7 @@ function AdminPage() {
 }
 
 function LoginForm(props: { setupRequired: boolean; onLogin: () => Promise<void> }) {
+  const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [setupToken, setSetupToken] = useState("");
   const [error, setError] = useState("");
@@ -221,7 +232,7 @@ function LoginForm(props: { setupRequired: boolean; onLogin: () => Promise<void>
         event.preventDefault();
         setError("");
         try {
-          await login(password, props.setupRequired ? setupToken : undefined);
+          await login(username, password, props.setupRequired ? setupToken : undefined);
           await props.onLogin();
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : String(cause));
@@ -235,12 +246,30 @@ function LoginForm(props: { setupRequired: boolean; onLogin: () => Promise<void>
         </label>
       ) : null}
       <label>
+        admin username
+        <input value={username} onChange={(event) => setUsername(event.target.value)} />
+      </label>
+      <label>
         admin password
         <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
       </label>
       <button type="submit"><LogIn size={15} aria-hidden /> enter</button>
       {error ? <p className="error">{error}</p> : null}
     </form>
+  );
+}
+
+function TelegramSetupHelp() {
+  return (
+    <div className="setup-steps">
+      <p className="muted">to add news sources</p>
+      <ol>
+        <li>Add the bot to a channel as an admin, or to a group with message access.</li>
+        <li>Send a new post in that channel or group.</li>
+        <li>Refresh this page, then enable the detected source.</li>
+        <li>Only new posts after enabling are processed into the briefing.</li>
+      </ol>
+    </div>
   );
 }
 

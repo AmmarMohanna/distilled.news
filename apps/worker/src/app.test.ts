@@ -198,6 +198,44 @@ describe("worker app", () => {
     });
   });
 
+  it("supports admin username and password login", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+
+    const setupResponse = await app.request(
+      "/api/admin/session",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: "admin", setupToken: "setup-token" })
+      },
+      env()
+    );
+    expect(setupResponse.status).toBe(200);
+
+    const wrongUsernameResponse = await app.request(
+      "/api/admin/session",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: "root", password: "admin" })
+      },
+      env()
+    );
+    expect(wrongUsernameResponse.status).toBe(401);
+
+    const loginResponse = await app.request(
+      "/api/admin/session",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: "admin" })
+      },
+      env()
+    );
+    expect(loginResponse.status).toBe(200);
+  });
+
   it("does not expose an ask or chatbot API", async () => {
     const app = createApp({ repository: new InMemoryRepository() });
     const response = await app.request("/api/ask/personal", {}, env());

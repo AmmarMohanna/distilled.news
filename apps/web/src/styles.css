@@ -202,6 +202,12 @@ nav a:hover {
   align-items: start;
 }
 
+.admin-grid > *,
+.demo-grid > *,
+.section {
+  min-width: 0;
+}
+
 .section {
   display: grid;
   gap: 16px;
@@ -262,8 +268,45 @@ nav a:hover {
   padding-bottom: 5px;
 }
 
+.health p span:last-child {
+  overflow-wrap: anywhere;
+  text-align: right;
+  word-break: break-word;
+}
+
 .muted {
   color: var(--muted);
+}
+
+.actions .muted,
+.webhook-url {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.webhook-url,
+.setup-steps {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #30343b;
+  border-radius: 8px;
+  background: #15171b;
+  padding: 10px;
+}
+
+.webhook-url span:last-child {
+  color: #c9ccd2;
+  font-size: 12px;
+}
+
+.setup-steps ol {
+  margin: 0;
+  padding-left: 20px;
+  color: #c9ccd2;
+}
+
+.setup-steps li + li {
+  margin-top: 5px;
 }
 
 .error {

@@ -54,6 +54,7 @@ export function createApp(options: AppOptions = {}) {
   app.post("/api/admin/session", async (c) => {
     const repo = repoFor(c);
     const body = (await c.req.json().catch(() => ({}))) as {
+      username?: string;
       password?: string;
       setupToken?: string;
     };
@@ -63,12 +64,18 @@ export function createApp(options: AppOptions = {}) {
     }
 
     const existingHash = await repo.getSetting("admin_password_hash");
+    const requestedUsername = body.username?.trim();
     if (!existingHash) {
       const expectedSetupToken = c.env.ADMIN_SETUP_TOKEN ?? c.env.ADMIN_SESSION_SECRET;
       if (body.setupToken !== expectedSetupToken) return c.json({ error: "invalid setup token" }, 401);
+      await repo.setSetting("admin_username", requestedUsername || "admin");
       await repo.setSetting("admin_password_hash", await hashPassword(body.password));
-    } else if ((await hashPassword(body.password)) !== existingHash) {
-      return c.json({ error: "invalid password" }, 401);
+    } else {
+      const expectedUsername = (await repo.getSetting("admin_username")) ?? "admin";
+      if (requestedUsername && requestedUsername !== expectedUsername) return c.json({ error: "invalid username" }, 401);
+      if ((await hashPassword(body.password)) !== existingHash) {
+        return c.json({ error: "invalid password" }, 401);
+      }
     }
 
     setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET));
