@@ -1,0 +1,38 @@
+name = "lownoise-news"
+main = "src/index.ts"
+compatibility_date = "2026-06-16"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+
+[vars]
+PUBLIC_API_BASE_URL = "http://127.0.0.1:8787"
+PUBLIC_WEB_BASE_URL = "http://127.0.0.1:8787"
+CLOUDFLARE_AI_GATEWAY_ID = ""
+OPENAI_MODEL = "gpt-4.1-mini"
+OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lownoise"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "RAW_ARCHIVE"
+bucket_name = "lownoise-raw"
+
+[[queues.producers]]
+binding = "PROCESSING_QUEUE"
+queue = "lownoise-processing"
+
+[[queues.consumers]]
+queue = "lownoise-processing"
+max_batch_size = 10
+max_batch_timeout = 5
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "lownoise-published"

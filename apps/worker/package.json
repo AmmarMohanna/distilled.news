@@ -1,0 +1,28 @@
+{
+  "name": "@lownoise/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply lownoise --local",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.7.0",
+    "@lownoise/connectors": "workspace:*",
+    "@lownoise/core": "workspace:*",
+    "hono": "^4.8.2",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.66",
+    "@cloudflare/workers-types": "^4.20250614.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.20.5"
+  }
+}

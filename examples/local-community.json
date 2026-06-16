@@ -1,0 +1,8 @@
+{
+  "title": "Community Briefing",
+  "slug": "community",
+  "interestProfile": "Track local public safety, road closures, utilities, weather disruptions, school or municipal notices, and events that materially affect residents. Ignore routine greetings, repeated reminders, and opinion posts.",
+  "styleInstruction": "Keep summaries practical and calm.",
+  "publicFeedEnabled": false,
+  "retentionDays": 15
+}

@@ -1,0 +1,8 @@
+{
+  "title": "Tech Briefing",
+  "slug": "tech",
+  "interestProfile": "Track meaningful AI, software infrastructure, security, open-source, developer tooling, and cloud platform updates. Ignore launch hype, funding rumors, and repeated commentary unless there is a concrete product or security change.",
+  "styleInstruction": "Prefer precise technical wording and avoid marketing language.",
+  "publicFeedEnabled": false,
+  "retentionDays": 15
+}

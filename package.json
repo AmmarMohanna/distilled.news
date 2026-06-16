@@ -1,0 +1,24 @@
+{
+  "name": "lownoise-news",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare-first, self-hostable personal news briefing filter.",
+  "type": "module",
+  "packageManager": "pnpm@10.12.1",
+  "scripts": {
+    "dev": "pnpm --filter @lownoise/worker dev",
+    "build": "pnpm --filter @lownoise/core build && pnpm --filter @lownoise/connectors build && pnpm --filter @lownoise/web build && pnpm --filter @lownoise/worker build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:e2e": "playwright test",
+    "deploy": "pnpm --filter @lownoise/worker deploy",
+    "db:migrate": "pnpm --filter @lownoise/worker db:migrate",
+    "setup": "node scripts/setup.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
