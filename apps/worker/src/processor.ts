@@ -15,6 +15,12 @@ export async function processQueueMessage(
       return undefined;
     }
 
+    const source = await repo.getSource(rawMessage.source.id);
+    if (!source?.enabled) {
+      await repo.completeProcessingJob(message.jobId, now);
+      return undefined;
+    }
+
     const existingItems = await repo.getExistingItems(briefing.id, now);
     const result = processMessages({
       briefing,

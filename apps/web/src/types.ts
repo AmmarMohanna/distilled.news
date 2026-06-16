@@ -6,6 +6,8 @@ export interface TelegramSourceRecord {
   title: string;
   type: "channel" | "group";
   username?: string;
+  url?: string;
+  mode: "public" | "bot";
   enabled: boolean;
   lastSeenAt: string;
 }

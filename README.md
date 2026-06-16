@@ -2,13 +2,14 @@
 
 LowNoise.news is a Cloudflare-first, self-hostable personal news briefing filter.
 
-V1 ingests Telegram channels/groups through a bot, filters noisy posts against an interest profile, merges repeated updates, and publishes a calm monospace briefing with expandable evidence links. It does not include chatbot or Q&A behavior.
+V1 ingests public Telegram channel URLs, filters noisy posts against an interest profile, merges repeated updates, and publishes a calm monospace briefing with expandable evidence links. A Telegram bot webhook remains as an optional fallback for private channels/groups where the admin can add the bot. It does not include chatbot or Q&A behavior.
 
 ## What V1 Does
 
 - Private-by-default admin and feed.
 - One self-hosted briefing with a plain-language interest profile.
-- Telegram source auto-detection after the bot receives channel/group posts.
+- Telegram source setup by public `https://t.me/...` channel URL.
+- Optional Telegram bot fallback for private channels/groups.
 - Rule-first filtering with optional OpenAI summaries through Cloudflare AI Gateway.
 - Expandable evidence for each briefing item.
 - Search over retained published briefing items and their evidence only.
@@ -50,7 +51,7 @@ npx pnpm@10.12.1 setup
 npx pnpm@10.12.1 deploy
 ```
 
-Update `apps/worker/wrangler.toml` with real Cloudflare resource IDs before production deploy.
+Update `apps/worker/wrangler.toml` with real Cloudflare resource IDs before production deploy. Public Telegram sources are refreshed by the Worker cron trigger.
 
 ## Required External Values
 
@@ -60,8 +61,8 @@ See `.env.example` for descriptions.
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_AI_GATEWAY_ID`
 - `OPENAI_API_KEY`
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_BOT_TOKEN` (optional; private bot fallback only)
+- `TELEGRAM_WEBHOOK_SECRET` (optional; private bot fallback only)
 - `ADMIN_SESSION_SECRET`
 - `ADMIN_SETUP_TOKEN`
 
@@ -69,16 +70,15 @@ See `.env.example` for descriptions.
 
 ## First Self-Hosted Setup
 
-1. Create a Telegram bot with BotFather.
-2. Add the bot to the channels/groups you want to ingest.
-3. Deploy the Worker.
-4. Open the admin page.
-5. Use `ADMIN_SETUP_TOKEN` once to create an admin password.
-6. Register the Telegram webhook.
-7. Send or wait for a test post in a channel/group so LowNoise can auto-detect the source.
-8. Enable the detected source.
-9. Write the interest profile and save.
-10. Keep the feed private or explicitly enable public feed.
+1. Deploy the Worker.
+2. Open the admin page.
+3. Use `ADMIN_SETUP_TOKEN` once to create an admin password.
+4. Add public Telegram channel URLs such as `https://t.me/LebUpdate`.
+5. Write the interest profile and save.
+6. Use `fetch latest` once to validate ingestion.
+7. Keep the feed private or explicitly enable public feed.
+
+For private channels/groups, create a Telegram bot with BotFather, add it to the private source, then use the collapsed private bot fallback section to register the webhook.
 
 ## Routes
 
@@ -88,6 +88,8 @@ See `.env.example` for descriptions.
 - `POST /api/admin/briefings`
 - `GET /api/admin/sources`
 - `POST /api/admin/sources`
+- `POST /api/admin/sources/refresh`
+- `DELETE /api/admin/sources/:sourceId`
 - `GET /api/admin/health`
 - `GET /api/feed/:briefingSlug`
 - `GET /api/feed/:briefingSlug/search?q=...`

@@ -50,10 +50,32 @@ export async function getSources(): Promise<TelegramSourceRecord[]> {
   return payload.sources;
 }
 
+export async function addPublicTelegramSource(url: string): Promise<TelegramSourceRecord[]> {
+  const payload = await requestJson<{ sources: TelegramSourceRecord[] }>("/api/admin/sources", {
+    method: "POST",
+    body: JSON.stringify({ url })
+  });
+  return payload.sources;
+}
+
 export async function setSourceEnabled(sourceId: string, enabled: boolean): Promise<TelegramSourceRecord[]> {
   const payload = await requestJson<{ sources: TelegramSourceRecord[] }>("/api/admin/sources", {
     method: "POST",
     body: JSON.stringify({ sourceId, enabled })
+  });
+  return payload.sources;
+}
+
+export async function refreshPublicTelegramSources(): Promise<TelegramSourceRecord[]> {
+  const payload = await requestJson<{ sources: TelegramSourceRecord[] }>("/api/admin/sources/refresh", {
+    method: "POST"
+  });
+  return payload.sources;
+}
+
+export async function deleteSource(sourceId: string): Promise<TelegramSourceRecord[]> {
+  const payload = await requestJson<{ sources: TelegramSourceRecord[] }>(`/api/admin/sources/${encodeURIComponent(sourceId)}`, {
+    method: "DELETE"
   });
   return payload.sources;
 }

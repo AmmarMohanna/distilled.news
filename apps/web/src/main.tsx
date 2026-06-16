@@ -5,21 +5,28 @@ import {
   ChevronRight,
   ExternalLink,
   LogIn,
+  Moon,
+  Plus,
   RefreshCw,
   Save,
   Search,
   Settings,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Sun,
+  Trash2
 } from "lucide-react";
 import type { BriefingConfig, BriefingItem } from "@lownoise/core";
 import { demoMessages, personalNewsBriefing } from "@lownoise/core";
 import {
+  addPublicTelegramSource,
+  deleteSource,
   getBriefings,
   getFeed,
   getHealth,
   getSession,
   getSources,
   login,
+  refreshPublicTelegramSources,
   registerWebhook,
   saveBriefing,
   searchFeed,
@@ -51,6 +58,7 @@ function AdminPage() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [status, setStatus] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [error, setError] = useState("");
 
   async function loadAdmin() {
@@ -168,50 +176,129 @@ function AdminPage() {
         <section className="section">
           <div className="section-title">
             <RefreshCw size={16} aria-hidden />
-            <h2>telegram</h2>
+            <h2>sources</h2>
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-              setStatus("registering webhook");
-              setWebhookUrl(await registerWebhook());
-              setStatus("webhook registered");
-              setHealth(await getHealth());
-            }}
+          <div
+            className="source-add"
           >
-            <RefreshCw size={15} aria-hidden /> register webhook
-          </button>
-          {webhookUrl ? (
-            <p className="webhook-url">
-              <span className="muted">registered</span>
-              <span>{webhookUrl}</span>
-            </p>
-          ) : null}
-          <div className="health">
-            <StatusLine label="bot token" value={health?.tokenConfigured ? "configured" : "missing"} />
-            <StatusLine label="webhook" value={health?.webhookRegistered ? "registered" : "not registered"} />
-            <StatusLine label="last event" value={health?.lastTelegramEventAt ?? "none"} />
+            <label>
+              telegram channel url
+              <input
+                value={sourceUrl}
+                onChange={(event) => setSourceUrl(event.target.value)}
+                placeholder="https://t.me/LebUpdate"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!sourceUrl.trim()}
+              onClick={async () => {
+                setError("");
+                try {
+                  setStatus("adding source");
+                  setSources(await addPublicTelegramSource(sourceUrl));
+                  setSourceUrl("");
+                  setHealth(await getHealth());
+                  setStatus("source added");
+                } catch (cause) {
+                  setStatus("");
+                  setError(cause instanceof Error ? cause.message : String(cause));
+                }
+              }}
+            >
+              <Plus size={15} aria-hidden /> add
+            </button>
+          </div>
+          <div className="actions">
+            <button
+              type="button"
+              onClick={async () => {
+                setError("");
+                try {
+                  setStatus("fetching latest");
+                  setSources(await refreshPublicTelegramSources());
+                  setHealth(await getHealth());
+                  setStatus("latest fetched");
+                } catch (cause) {
+                  setStatus("");
+                  setError(cause instanceof Error ? cause.message : String(cause));
+                }
+              }}
+            >
+              <RefreshCw size={15} aria-hidden /> fetch latest
+            </button>
             <StatusLine
               label="processing"
               value={`queued ${health?.processing.queued ?? 0} / failed ${health?.processing.failed ?? 0}`}
             />
           </div>
-          <TelegramSetupHelp />
+          {error ? <p className="error">{error}</p> : null}
           <div className="source-list">
-            {sources.length === 0 ? <p className="muted">no detected Telegram sources yet</p> : null}
+            {sources.length === 0 ? <p className="muted">add public Telegram channel URLs to feed this briefing</p> : null}
             {sources.map((source) => (
-              <label key={source.id} className="source-row">
-                <input
-                  type="checkbox"
-                  checked={source.enabled}
-                  onChange={async (event) => {
-                    setSources(await setSourceEnabled(source.id, event.target.checked));
+              <div key={source.id} className="source-row">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={source.enabled}
+                    onChange={async (event) => {
+                      setSources(await setSourceEnabled(source.id, event.target.checked));
+                    }}
+                  />
+                  <span>{source.title}</span>
+                </label>
+                <span className="pill">{source.mode}</span>
+                {source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.username ?? "open"}</a> : null}
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={`remove ${source.title}`}
+                  onClick={async () => {
+                    setError("");
+                    try {
+                      setSources(await deleteSource(source.id));
+                      setStatus("source removed");
+                    } catch (cause) {
+                      setStatus("");
+                      setError(cause instanceof Error ? cause.message : String(cause));
+                    }
                   }}
-                />
-                <span>{source.title}</span>
-                <span className="muted">{source.type}</span>
-              </label>
+                >
+                  <Trash2 size={15} aria-hidden />
+                </button>
+              </div>
             ))}
+          </div>
+          <details>
+            <summary><SlidersHorizontal size={14} aria-hidden /> private bot fallback</summary>
+            <button
+              type="button"
+              onClick={async () => {
+                setStatus("registering webhook");
+                setWebhookUrl(await registerWebhook());
+                setStatus("webhook registered");
+                setHealth(await getHealth());
+              }}
+            >
+              <RefreshCw size={15} aria-hidden /> register webhook
+            </button>
+            {webhookUrl ? (
+              <p className="webhook-url">
+                <span className="muted">registered</span>
+                <span>{webhookUrl}</span>
+              </p>
+            ) : null}
+            <div className="health">
+              <StatusLine label="bot token" value={health?.tokenConfigured ? "configured" : "missing"} />
+              <StatusLine label="webhook" value={health?.webhookRegistered ? "registered" : "not registered"} />
+              <StatusLine label="last event" value={health?.lastTelegramEventAt ?? "none"} />
+            </div>
+          </details>
+          <div className="health">
+            <StatusLine
+              label="last source event"
+              value={health?.lastTelegramEventAt ?? "none"}
+            />
           </div>
         </section>
       </form>
@@ -259,20 +346,6 @@ function LoginForm(props: { setupRequired: boolean; onLogin: () => Promise<void>
   );
 }
 
-function TelegramSetupHelp() {
-  return (
-    <div className="setup-steps">
-      <p className="muted">to add news sources</p>
-      <ol>
-        <li>Add the bot to a channel as an admin, or to a group with message access.</li>
-        <li>Send a new post in that channel or group.</li>
-        <li>Refresh this page, then enable the detected source.</li>
-        <li>Only new posts after enabling are processed into the briefing.</li>
-      </ol>
-    </div>
-  );
-}
-
 function FeedPage(props: { slug: string }) {
   const [payload, setPayload] = useState<FeedPayload | null>(null);
   const [items, setItems] = useState<BriefingItem[]>([]);
@@ -291,6 +364,26 @@ function FeedPage(props: { slug: string }) {
     refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
   }, [props.slug]);
 
+  useEffect(() => {
+    if (!payload) return;
+
+    let active = true;
+    const timeout = window.setTimeout(async () => {
+      try {
+        setError("");
+        const nextItems = query.trim() ? await searchFeed(props.slug, query) : payload.items;
+        if (active) setItems(nextItems);
+      } catch (cause) {
+        if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [payload, props.slug, query]);
+
   return (
     <Shell title={payload?.briefing.title ?? "briefing"}>
       <div className="feed-tools">
@@ -303,7 +396,12 @@ function FeedPage(props: { slug: string }) {
           }}
         >
           <Search size={15} aria-hidden />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="search published briefing" />
+          <input
+            aria-label="search published briefing"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="search published briefing"
+          />
         </form>
       </div>
       {error ? <FeedNotice message={error} /> : null}
@@ -498,15 +596,32 @@ function FeedNotice(props: { message: string }) {
 }
 
 function Shell(props: { title: string; children: React.ReactNode }) {
+  const [theme, setTheme] = useState(() => localStorage.getItem("ln_theme") ?? "dark");
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("ln_theme", theme);
+  }, [theme]);
+
   return (
     <main className="shell">
       <header>
         <a href="/" className="brand">LowNoise.news</a>
-        <nav>
-          <a href="/">admin</a>
-          <a href="/demo">demo</a>
-          <a href="/feed/personal">feed</a>
-        </nav>
+        <div className="header-actions">
+          <nav>
+            <a href="/">admin</a>
+            <a href="/demo">demo</a>
+            <a href="/feed/personal">feed</a>
+          </nav>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={`switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+          >
+            {theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
+          </button>
+        </div>
       </header>
       <div className="page-heading">
         <h1>{props.title}</h1>

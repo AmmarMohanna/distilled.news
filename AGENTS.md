@@ -4,7 +4,7 @@ This repository should be guided by the following product and implementation pla
 
 ## Summary
 
-Build LowNoise.news as a Cloudflare-first, self-hostable Telegram newsroom. V1 lets one admin connect Telegram channels/groups, filter noisy incoming posts, generate neutral summaries, and publish a calm monospace personal briefing.
+Build LowNoise.news as a Cloudflare-first, self-hostable Telegram newsroom. V1 lets one admin add public Telegram channel URLs, filter noisy incoming posts, generate neutral summaries, and publish a calm monospace personal briefing. A Telegram bot webhook remains as an optional fallback for private channels/groups where the admin can add the bot.
 
 Use `lownoise.news` as the project and brand domain. Reserve `app.lownoise.news` and `api.lownoise.news` for the future hosted SaaS.
 
@@ -21,7 +21,7 @@ Use `lownoise.news` as the project and brand domain. Reserve `app.lownoise.news`
 Use a monorepo layout:
 
 - `apps/web`: minimal admin UI and public feed.
-- `apps/worker`: Cloudflare Worker routes and queue consumers.
+- `apps/worker`: Cloudflare Worker routes, scheduled public-source refresh, and queue consumers.
 - `packages/core`: clustering, relevance filtering, update merging, and prompts.
 - `packages/connectors`: Telegram connector.
 
@@ -57,8 +57,8 @@ Public feed:
 Admin setup:
 
 - One page only.
-- Telegram bot token/webhook status.
-- Add Telegram source.
+- Add public Telegram channel URL.
+- Telegram bot token/webhook status in a collapsed private-source fallback section.
 - Interest profile, written as a simple plain-language instruction.
 - Style instruction, if needed, secondary to the interest profile.
 - Public feed on/off.
@@ -76,12 +76,19 @@ Mental-distress reduction:
 
 ## Implementation Details
 
-Telegram ingestion:
+Public Telegram ingestion:
 
-- Admin creates a Telegram bot and adds it to channels/groups.
+- Admin enters public channel URLs such as `https://t.me/LebUpdate`.
+- Worker fetches the public `https://t.me/s/<channel>` page, archives the fetched HTML to R2, normalizes supported posts, stores them in D1, and enqueues processing.
+- Scheduled refresh runs enabled public sources every few minutes.
+- V1 supports public Telegram channel post text, links, and media references when available from the public page.
+
+Private Telegram bot fallback:
+
+- Admin creates a Telegram bot and adds it to private channels/groups when public URLs are not enough.
 - Dashboard registers webhook to the deployed Worker.
-- Worker validates the webhook secret, archives raw payload to R2, normalizes supported messages, stores them in D1, and enqueues processing.
-- V1 supports text, captions, links, and channel/group posts.
+- Worker validates the webhook secret, archives raw payload to R2, normalizes supported messages, stores them in D1, and enqueues processing only for enabled sources.
+- Bot fallback supports text, captions, links, and channel/group posts.
 
 Processing:
 
@@ -108,6 +115,8 @@ Public/API routes:
 - `POST /api/admin/briefings`
 - `GET /api/admin/sources`
 - `POST /api/admin/sources`
+- `POST /api/admin/sources/refresh`
+- `DELETE /api/admin/sources/:sourceId`
 - `GET /api/admin/health`
 - `GET /api/feed/:briefingSlug`
 - `GET /api/feed/:briefingSlug/search`
@@ -124,6 +133,7 @@ Open-source adoption:
 Unit tests:
 
 - Telegram payload normalization.
+- Public Telegram channel URL and page normalization.
 - Publication rule evaluation.
 - Interest-profile relevance filtering.
 - Duplicate detection.

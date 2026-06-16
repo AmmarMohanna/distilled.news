@@ -151,11 +151,26 @@ export class D1Repository implements Repository {
     return rows.map(rowToSource);
   }
 
+  async getSource(sourceId: string): Promise<TelegramSourceRecord | null> {
+    const row = await first<SourceRow>(
+      this.db
+        .prepare(
+          "SELECT id, briefing_id, title, type, username, enabled, last_seen_at FROM telegram_sources WHERE id = ?"
+        )
+        .bind(sourceId)
+    );
+    return row ? rowToSource(row) : null;
+  }
+
   async setSourceEnabled(sourceId: string, enabled: boolean, now = new Date()): Promise<void> {
     await this.db
       .prepare("UPDATE telegram_sources SET enabled = ?, updated_at = ? WHERE id = ?")
       .bind(enabled ? 1 : 0, now.toISOString(), sourceId)
       .run();
+  }
+
+  async deleteSource(sourceId: string): Promise<void> {
+    await this.db.prepare("DELETE FROM telegram_sources WHERE id = ?").bind(sourceId).run();
   }
 
   async upsertSourceFromMessage(
@@ -442,9 +457,21 @@ export class InMemoryRepository implements Repository {
     return Array.from(this.sources.values()).filter((source) => source.briefingId === briefingId);
   }
 
+  async getSource(sourceId: string): Promise<TelegramSourceRecord | null> {
+    const source = this.sources.get(sourceId);
+    return source ? { ...source } : null;
+  }
+
   async setSourceEnabled(sourceId: string, enabled: boolean): Promise<void> {
     const source = this.sources.get(sourceId);
     if (source) source.enabled = enabled;
+  }
+
+  async deleteSource(sourceId: string): Promise<void> {
+    this.sources.delete(sourceId);
+    for (const [id, message] of this.rawMessages) {
+      if (message.source.id === sourceId) this.rawMessages.delete(id);
+    }
   }
 
   async upsertSourceFromMessage(briefingId: string, message: NormalizedMessage): Promise<TelegramSourceRecord> {
@@ -455,6 +482,8 @@ export class InMemoryRepository implements Repository {
       title: message.source.title,
       type: message.source.type,
       username: message.source.username,
+      url: message.source.username ? `https://t.me/${message.source.username}` : undefined,
+      mode: message.source.id.startsWith("telegram_public_") ? "public" : "bot",
       enabled: existing?.enabled ?? false,
       lastSeenAt: message.receivedAt
     };
@@ -560,6 +589,8 @@ function rowToSource(row: SourceRow): TelegramSourceRecord {
     title: row.title,
     type: row.type,
     username: row.username ?? undefined,
+    url: row.username ? `https://t.me/${row.username}` : undefined,
+    mode: row.id.startsWith("telegram_public_") ? "public" : "bot",
     enabled: row.enabled === 1,
     lastSeenAt: row.last_seen_at
   };

@@ -9,6 +9,7 @@ import { Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
 import { adminAuth, clearSessionCookie, createSession, hashPassword, setSessionCookie, verifySession } from "./auth";
+import { ingestPublicTelegramChannel, refreshPublicTelegramSources } from "./publicTelegram";
 import { D1Repository } from "./repository";
 import type { Env, ProcessingJobMessage, Repository } from "./types";
 
@@ -32,6 +33,16 @@ const briefingInputSchema = z.object({
   publicFeedEnabled: z.boolean().default(false),
   retentionDays: z.number().int().min(1).max(90).default(15)
 });
+
+const sourceInputSchema = z.union([
+  z.object({
+    url: z.string().min(1)
+  }),
+  z.object({
+    sourceId: z.string().min(1),
+    enabled: z.boolean()
+  })
+]);
 
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -124,12 +135,49 @@ export function createApp(options: AppOptions = {}) {
 
   app.post("/api/admin/sources", async (c) => {
     const repo = c.get("repo");
-    const body = (await c.req.json()) as { sourceId?: string; enabled?: boolean };
-    if (!body.sourceId || typeof body.enabled !== "boolean") {
-      return c.json({ error: "sourceId and enabled are required" }, 400);
-    }
-    await repo.setSourceEnabled(body.sourceId, body.enabled);
     const briefing = await repo.ensureDefaultBriefing();
+    const parsed = sourceInputSchema.safeParse(await c.req.json().catch(() => ({})));
+    if (!parsed.success) return c.json({ error: "Enter a Telegram channel URL or source toggle." }, 400);
+    const body = parsed.data;
+
+    if ("url" in body) {
+      let result;
+      try {
+        result = await ingestPublicTelegramChannel({
+          briefing,
+          url: body.url,
+          repo,
+          bucket: bucketFor(c),
+          queue: queueFor(c),
+          fetcher
+        });
+      } catch (error) {
+        return c.json({ error: error instanceof Error ? error.message : "Could not add Telegram source" }, 400);
+      }
+      return c.json({ sources: await repo.listSources(briefing.id), result });
+    }
+
+    await repo.setSourceEnabled(body.sourceId, body.enabled);
+    return c.json({ sources: await repo.listSources(briefing.id) });
+  });
+
+  app.post("/api/admin/sources/refresh", async (c) => {
+    const repo = c.get("repo");
+    const briefing = await repo.ensureDefaultBriefing();
+    const results = await refreshPublicTelegramSources({
+      briefing,
+      repo,
+      bucket: bucketFor(c),
+      queue: queueFor(c),
+      fetcher
+    });
+    return c.json({ sources: await repo.listSources(briefing.id), results });
+  });
+
+  app.delete("/api/admin/sources/:sourceId", async (c) => {
+    const repo = c.get("repo");
+    const briefing = await repo.ensureDefaultBriefing();
+    await repo.deleteSource(c.req.param("sourceId"));
     return c.json({ sources: await repo.listSources(briefing.id) });
   });
 

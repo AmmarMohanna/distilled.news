@@ -2,15 +2,19 @@ name = "lownoise-news"
 main = "src/index.ts"
 compatibility_date = "2026-06-16"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 [assets]
 directory = "../web/dist"
 binding = "ASSETS"
+run_worker_first = true
 
 [vars]
-PUBLIC_API_BASE_URL = "http://127.0.0.1:8787"
-PUBLIC_WEB_BASE_URL = "http://127.0.0.1:8787"
-CLOUDFLARE_AI_GATEWAY_ID = ""
+# Optional. If omitted, webhook registration uses the current Worker origin.
+# PUBLIC_API_BASE_URL = "https://your-domain.example"
+# PUBLIC_WEB_BASE_URL = "https://your-domain.example"
+CLOUDFLARE_ACCOUNT_ID = ""
+CLOUDFLARE_AI_GATEWAY_ID = "default"
 OPENAI_MODEL = "gpt-4.1-mini"
 OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
 
@@ -32,6 +36,9 @@ queue = "lownoise-processing"
 queue = "lownoise-processing"
 max_batch_size = 10
 max_batch_timeout = 5
+
+[triggers]
+crons = ["*/3 * * * *"]
 
 [[vectorize]]
 binding = "VECTORIZE"

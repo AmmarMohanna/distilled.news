@@ -48,6 +48,15 @@ function telegramUpdate(updateId: number, text: string) {
   };
 }
 
+const publicTelegramHtml = `
+  <meta property="og:title" content="Lebanon Updates">
+  <main>
+    <div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="LebUpdate/10">
+      <div class="tgme_widget_message_text js-message_text" dir="auto">Electricite du Liban announced two extra hours of power supply tonight.</div>
+      <a class="tgme_widget_message_date" href="https://t.me/LebUpdate/10"><time datetime="2026-06-15T18:16:37+00:00" class="time">18:16</time></a>
+    </div></div>
+  </main>`;
+
 describe("worker app", () => {
   it("redirects www and http custom-domain traffic to the canonical apex", async () => {
     const app = createApp({ repository: new InMemoryRepository() });
@@ -88,6 +97,77 @@ describe("worker app", () => {
     expect(await repo.listSources(briefing.id)).toEqual([
       expect.objectContaining({ title: "Beirut Local", enabled: false })
     ]);
+  });
+
+  it("adds a public Telegram channel URL as an enabled source and queues posts", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+
+    const response = await app.request(
+      "/api/admin/sources",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-lownoise-admin": "admin-secret"
+        },
+        body: JSON.stringify({ url: "https://t.me/LebUpdate" })
+      },
+      env()
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      sources: Array<{ id: string; title: string; mode: string; url: string; enabled: boolean }>;
+      result: { fetched: number; queued: number };
+    };
+    expect(fetcher).toHaveBeenCalledWith("https://t.me/s/LebUpdate", expect.any(Object));
+    expect(payload.sources).toEqual([
+      expect.objectContaining({
+        id: "telegram_public_lebupdate",
+        title: "Lebanon Updates",
+        mode: "public",
+        url: "https://t.me/LebUpdate",
+        enabled: true
+      })
+    ]);
+    expect(payload.result).toMatchObject({ fetched: 1, queued: 1 });
+    expect(queue.messages).toHaveLength(1);
+    expect(Array.from(bucket.objects.keys())[0]).toContain("telegram-public/briefing_default/LebUpdate/");
+  });
+
+  it("skips queued posts when a source is disabled before processing", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+    const briefing = await repo.ensureDefaultBriefing();
+
+    await app.request(
+      "/api/admin/sources",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-lownoise-admin": "admin-secret"
+        },
+        body: JSON.stringify({ url: "https://t.me/LebUpdate" })
+      },
+      env()
+    );
+
+    await repo.setSourceEnabled("telegram_public_lebupdate", false);
+    const result = await processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:00:00.000Z"));
+
+    expect(result).toBeUndefined();
+    expect(await repo.getExistingItems(briefing.id)).toHaveLength(0);
+    expect(await repo.getHealth(env())).toMatchObject({
+      processing: { queued: 0, completed: 1, failed: 0 }
+    });
   });
 
   it("processes enabled sources into published briefing items with evidence and search", async () => {

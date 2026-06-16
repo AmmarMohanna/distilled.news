@@ -55,6 +55,18 @@ export interface TelegramRegisterWebhookResult {
   description?: string;
 }
 
+export interface PublicTelegramChannel {
+  username: string;
+  publicUrl: string;
+  widgetUrl: string;
+}
+
+export interface PublicTelegramParseOptions {
+  username: string;
+  receivedAt?: Date;
+  retentionDays?: number;
+}
+
 export function normalizeTelegramUpdate(
   update: TelegramUpdate,
   options: NormalizationOptions = {}
@@ -91,6 +103,77 @@ export function normalizeTelegramUpdate(
     rawPayloadKey: options.rawPayloadKey,
     expiresAt: expiresAt.toISOString()
   };
+}
+
+export function parsePublicTelegramChannelUrl(input: string): PublicTelegramChannel {
+  const trimmed = input.trim();
+  const candidate = trimmed.startsWith("@")
+    ? trimmed.slice(1)
+    : trimmed.match(/^https?:\/\/t\.me\/(?:s\/)?([^/?#]+)(?:[/?#].*)?$/i)?.[1] ?? trimmed;
+
+  const username = candidate.replace(/^@/, "");
+  if (!/^[A-Za-z0-9_]{5,32}$/.test(username)) {
+    throw new Error("Enter a public Telegram channel URL like https://t.me/LebUpdate");
+  }
+
+  return {
+    username,
+    publicUrl: `https://t.me/${username}`,
+    widgetUrl: `https://t.me/s/${username}`
+  };
+}
+
+export function parsePublicTelegramChannelPage(
+  html: string,
+  options: PublicTelegramParseOptions
+): NormalizedMessage[] {
+  const receivedAt = options.receivedAt ?? new Date();
+  const retentionDays = options.retentionDays ?? 15;
+  const sourceTitle = extractChannelTitle(html) ?? `@${options.username}`;
+  const source: MessageSource = {
+    id: publicTelegramSourceId(options.username),
+    title: sourceTitle,
+    type: "channel",
+    username: options.username
+  };
+  const messages: NormalizedMessage[] = [];
+
+  for (const block of html.matchAll(/<div class="tgme_widget_message[\s\S]*?data-post="([^"]+)"[\s\S]*?(?=<div class="tgme_widget_message_wrap|\s*<\/main>)/g)) {
+    const post = block[1];
+    const [, postUsername, messageId] = post.match(/^([^/]+)\/(\d+)$/) ?? [];
+    if (!postUsername || !messageId || postUsername.toLowerCase() !== options.username.toLowerCase()) continue;
+
+    const textHtml = block[0].match(/<div class="tgme_widget_message_text js-message_text"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? "";
+    const text = htmlToText(textHtml);
+    const media = extractPublicTelegramMedia(block[0]);
+    if (!text && media.length === 0) continue;
+
+    const postedAt = block[0].match(/<time datetime="([^"]+)"/)?.[1];
+    if (!postedAt) continue;
+
+    const postedDate = new Date(postedAt);
+    const expiresAt = new Date(postedDate);
+    expiresAt.setUTCDate(expiresAt.getUTCDate() + retentionDays);
+
+    messages.push({
+      id: `telegram_public_${options.username}_${messageId}`,
+      source,
+      messageId,
+      text,
+      links: extractPublicTelegramLinks(block[0], text),
+      media,
+      postedAt: postedDate.toISOString(),
+      receivedAt: receivedAt.toISOString(),
+      sourceUrl: `https://t.me/${options.username}/${messageId}`,
+      expiresAt: expiresAt.toISOString()
+    });
+  }
+
+  return messages;
+}
+
+export function publicTelegramSourceId(username: string): string {
+  return `telegram_public_${username.toLowerCase()}`;
 }
 
 export function validateTelegramWebhookSecret(
@@ -184,4 +267,55 @@ function extractMedia(message: TelegramMessage): MediaReference[] {
   if (message.voice) media.push({ type: "voice", fileId: message.voice.file_id, label: "Telegram voice" });
 
   return media;
+}
+
+function extractChannelTitle(html: string): string | undefined {
+  const title =
+    html.match(/<meta property="og:title" content="([^"]+)"/)?.[1] ??
+    html.match(/<div class="tgme_channel_info_header_title"[^>]*>\s*<span[^>]*>([\s\S]*?)<\/span>/)?.[1];
+  return title ? htmlToText(title).replace(/\s+\(@[^)]+\)$/, "").trim() : undefined;
+}
+
+function extractPublicTelegramLinks(block: string, text: string): string[] {
+  const links = new Set<string>();
+  for (const match of text.matchAll(/https?:\/\/[^\s)]+/g)) links.add(match[0]);
+  for (const match of block.matchAll(/<a\b[^>]*href="(https?:\/\/[^"]+)"/g)) {
+    const href = decodeHtml(match[1]);
+    if (!href.includes("t.me/") && !href.includes("telegram.org/")) links.add(href);
+  }
+  return Array.from(links);
+}
+
+function extractPublicTelegramMedia(block: string): MediaReference[] {
+  const media: MediaReference[] = [];
+  const photoUrl = block.match(/tgme_widget_message_photo_wrap[^>]*background-image:url\('([^']+)'\)/)?.[1];
+  if (photoUrl) media.push({ type: "photo", url: absoluteTelegramAssetUrl(photoUrl), label: "Telegram photo" });
+  return media;
+}
+
+function absoluteTelegramAssetUrl(url: string): string {
+  if (url.startsWith("//")) return `https:${url}`;
+  return url;
+}
+
+function htmlToText(html: string): string {
+  return decodeHtml(
+    html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
 }

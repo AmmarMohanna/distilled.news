@@ -38,6 +38,8 @@ export interface TelegramSourceRecord {
   title: string;
   type: SourceType;
   username?: string;
+  url?: string;
+  mode: "public" | "bot";
   enabled: boolean;
   lastSeenAt: string;
 }
@@ -60,7 +62,9 @@ export interface Repository {
   getBriefingBySlug(slug: string): Promise<BriefingConfig | null>;
   upsertBriefing(input: BriefingConfig, now?: Date): Promise<BriefingConfig>;
   listSources(briefingId: string): Promise<TelegramSourceRecord[]>;
+  getSource(sourceId: string): Promise<TelegramSourceRecord | null>;
   setSourceEnabled(sourceId: string, enabled: boolean, now?: Date): Promise<void>;
+  deleteSource(sourceId: string): Promise<void>;
   upsertSourceFromMessage(briefingId: string, message: NormalizedMessage, now?: Date): Promise<TelegramSourceRecord>;
   saveRawMessage(briefingId: string, message: NormalizedMessage, now?: Date): Promise<void>;
   getRawMessage(id: string): Promise<NormalizedMessage | null>;
