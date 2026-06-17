@@ -481,6 +481,39 @@ nav a:hover {
   gap: 14px;
 }
 
+.auth-copy {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 2px;
+}
+
+.auth-copy strong {
+  font-size: 18px;
+}
+
+.auth-copy p,
+.field-help {
+  color: var(--muted);
+}
+
+.field-help {
+  font-size: 13px;
+}
+
+.auth-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.turnstile-slot {
+  min-height: 65px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
 .explore-section {
   box-shadow: none;
 }
@@ -940,6 +973,12 @@ summary {
 .evidence {
   display: grid;
   gap: 12px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.evidence-loading {
   margin-top: 6px;
   padding-top: 10px;
   border-top: 1px solid var(--line);

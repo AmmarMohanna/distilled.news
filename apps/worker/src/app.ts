@@ -198,7 +198,7 @@ export function createApp(options: AppOptions = {}) {
     try {
       account = await createAccountOrError(repo, {
         email: input.email,
-        username: input.username ?? "admin",
+        username: input.username ?? "owner",
         password: input.password,
         role: "admin",
         verified: true
@@ -511,9 +511,16 @@ export function createApp(options: AppOptions = {}) {
     const voterId = await getVoterId(c);
     return c.json({
       briefing: publicBriefing(briefing),
-      items: await repo.listFeedItems(account.id, briefing.slug, true),
+      items: await repo.listFeedItems(account.id, briefing.slug, false),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
     });
+  });
+
+  app.get("/api/feed/:username/:briefingSlug/items/:itemId/evidence", async (c) => {
+    const resolved = await resolvePublicFeed(c);
+    if (resolved instanceof Response) return resolved;
+    const { repo, briefing } = resolved;
+    return c.json({ evidence: await repo.getFeedItemEvidence(briefing.id, c.req.param("itemId")) });
   });
 
   app.get("/api/feed/:username/:briefingSlug/search", async (c) => {

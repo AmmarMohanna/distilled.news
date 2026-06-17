@@ -1,4 +1,5 @@
 import type { BriefingConfig } from "@lownoise/core";
+import type { BriefingEvidence } from "@lownoise/core";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, TelegramSourceRecord } from "./types";
 
 export interface SourceIngestResult {
@@ -69,6 +70,7 @@ export async function register(input: {
   email: string;
   username: string;
   password: string;
+  turnstileToken?: string;
 }): Promise<void> {
   await requestJson("/api/auth/register", {
     method: "POST",
@@ -84,10 +86,10 @@ export async function verifyEmail(token: string): Promise<AccountRecord> {
   return payload.account;
 }
 
-export async function login(email: string, password: string): Promise<AccountRecord> {
+export async function login(email: string, password: string, turnstileToken?: string): Promise<AccountRecord> {
   const payload = await requestJson<{ account: AccountRecord }>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email, password, turnstileToken })
   });
   return payload.account;
 }
@@ -98,10 +100,10 @@ export async function logout(): Promise<void> {
   });
 }
 
-export async function forgotPassword(email: string): Promise<void> {
+export async function forgotPassword(email: string, turnstileToken?: string): Promise<void> {
   await requestJson("/api/auth/password/forgot", {
     method: "POST",
-    body: JSON.stringify({ email })
+    body: JSON.stringify({ email, turnstileToken })
   });
 }
 
@@ -222,6 +224,13 @@ export async function updateAdminAccount(
 
 export async function getFeed(username: string, slug: string): Promise<FeedPayload> {
   return requestJson<FeedPayload>(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`);
+}
+
+export async function getFeedItemEvidence(username: string, slug: string, itemId: string): Promise<BriefingEvidence[]> {
+  const payload = await requestJson<{ evidence: BriefingEvidence[] }>(
+    `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/items/${encodeURIComponent(itemId)}/evidence`
+  );
+  return payload.evidence;
 }
 
 export async function getExploreFeeds(): Promise<PublicBriefing[]> {

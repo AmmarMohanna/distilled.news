@@ -84,12 +84,14 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "explore" })).toBeVisible();
   await expect(page.getByRole("link", { name: /City Watch/ })).toHaveAttribute("href", "/city-user/city-watch/");
-  await page.getByRole("button", { name: "register" }).click();
+  await page.getByRole("button", { name: "new account" }).click();
+  await expect(page.getByRole("button", { name: /^create account$/ })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /^register$/ })).toHaveCount(0);
   await page.getByLabel("email").fill("ammar@example.com");
   await page.getByLabel("username").fill("Ammar Mohanna");
   await page.getByLabel("password").fill("password123");
-  await page.getByRole("button", { name: /^register$/ }).first().click();
-  await expect(page.getByText("check your email to verify your account")).toBeVisible();
+  await page.getByRole("button", { name: /^create account$/ }).click();
+  await expect(page.getByText(/verification email sent/i)).toBeVisible();
 });
 
 test("email verification waits for an explicit user action", async ({ page }) => {
@@ -131,10 +133,13 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
       contentType: "application/json",
       body: JSON.stringify({
         briefing,
-        items: [item],
+        items: [{ ...item, evidence: [] }],
         viewerHasStarred: false
       })
     });
+  });
+  await page.route("**/api/feed/ammar-mohanna/personal/items/item_1/evidence", async (route) => {
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ evidence: item.evidence }) });
   });
   await page.route("**/api/feed/ammar-mohanna/personal/search?q=power%20supply", async (route) => {
     await route.fulfill({ contentType: "application/json", body: JSON.stringify({ items: [item] }) });
@@ -248,7 +253,7 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
 
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "admin" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "create feed" })).toBeVisible();
   await expect(page.getByText("define the feed and add sources.")).toBeVisible();
   await expect(page.getByLabel("interest profile")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "account settings" })).toHaveAttribute("title", "account settings");

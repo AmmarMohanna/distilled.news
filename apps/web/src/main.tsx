@@ -36,6 +36,7 @@ import {
   getBriefings,
   getExploreFeeds,
   getFeed,
+  getFeedItemEvidence,
   getHealth,
   getSession,
   getSources,
@@ -60,6 +61,24 @@ import {
 import { deriveBriefingSlug, formatArabicTimeParts, formatTime, publicFeedUrl, slugify } from "./helpers";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, TelegramSourceRecord } from "./types";
 import "./styles.css";
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: HTMLElement,
+        options: {
+          sitekey: string;
+          callback: (token: string) => void;
+          "expired-callback": () => void;
+          "error-callback": () => void;
+        }
+      ) => string;
+      reset: (widgetId?: string) => void;
+      remove: (widgetId: string) => void;
+    };
+  }
+}
 
 function App() {
   const path = window.location.pathname;
@@ -216,8 +235,14 @@ function AdminPage() {
   }
 
   async function copyFeedUrl(nextBriefing: BriefingConfig) {
-    await navigator.clipboard.writeText(publicFeedUrl(nextBriefing.ownerUsername, nextBriefing.slug));
-    setStatus("feed url copied");
+    try {
+      await navigator.clipboard.writeText(publicFeedUrl(nextBriefing.ownerUsername, nextBriefing.slug));
+      setStatus("feed url copied");
+      setError("");
+    } catch {
+      setStatus("");
+      setError("could not copy feed url");
+    }
   }
 
   async function handleLogout() {
@@ -320,7 +345,7 @@ function AdminPage() {
 
   if (!session) {
     return (
-      <Shell title="admin">
+      <Shell title="create feed">
         <p className="muted">loading</p>
       </Shell>
     );
@@ -332,6 +357,7 @@ function AdminPage() {
         <div className="auth-layout">
           <AuthPanel
             setupRequired={session.setupRequired}
+            turnstileSiteKey={session.turnstileSiteKey}
             onAuthenticated={async () => {
               const next = await refreshSession();
               if (next.authenticated) {
@@ -349,7 +375,7 @@ function AdminPage() {
 
   if (!account) {
     return (
-      <Shell title="admin" onLogout={handleLogout}>
+      <Shell title="create feed" onLogout={handleLogout}>
         <p className="error">session account unavailable</p>
       </Shell>
     );
@@ -358,7 +384,7 @@ function AdminPage() {
   if (!briefing) {
     return (
       <>
-        <Shell title="admin" onAccount={() => setAccountDialogOpen(true)}>
+        <Shell title="create feed" onAccount={() => setAccountDialogOpen(true)}>
           <section className="section">
             <div className="section-title">
               <Globe size={16} aria-hidden />
@@ -376,7 +402,7 @@ function AdminPage() {
 
   return (
     <>
-      <Shell title="admin" onAccount={() => setAccountDialogOpen(true)} feed={briefing}>
+      <Shell title="create feed" onAccount={() => setAccountDialogOpen(true)} feed={briefing}>
         <div className="admin-stack">
           <section className="section feed-section">
             <div className="section-title">
@@ -637,14 +663,26 @@ function AdminPage() {
   }
 }
 
-function AuthPanel(props: { setupRequired: boolean; onAuthenticated: () => Promise<void> }) {
+function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
   const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired ? "register" : "login");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [setupToken, setSetupToken] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const copy = getAuthPanelCopy(props.setupRequired, mode);
+  const submitLabel = getAuthSubmitLabel(props.setupRequired, mode);
+  const requiresTurnstile = Boolean(props.turnstileSiteKey && !props.setupRequired);
+  const usernamePreview = username.trim() ? slugify(username) : "";
+
+  function resetTurnstile() {
+    if (!requiresTurnstile) return;
+    setTurnstileToken("");
+    setTurnstileResetSignal((value) => value + 1);
+  }
 
   return (
     <form
@@ -654,61 +692,168 @@ function AuthPanel(props: { setupRequired: boolean; onAuthenticated: () => Promi
         setError("");
         setMessage("");
         try {
+          if (requiresTurnstile && !turnstileToken) {
+            setError("complete the verification check");
+            return;
+          }
           if (props.setupRequired) {
             await setupAdmin({ email, username, password, setupToken });
             await props.onAuthenticated();
             return;
           }
           if (mode === "register") {
-            await register({ email, username, password });
-            setMessage("check your email to verify your account");
+            await register({ email, username, password, turnstileToken });
+            setPassword("");
+            setMessage("verification email sent. Check your inbox and spam folder. The link expires in 24 hours.");
+            resetTurnstile();
             return;
           }
           if (mode === "forgot") {
-            await forgotPassword(email);
+            await forgotPassword(email, turnstileToken);
             setMessage("if the account exists, a reset email was sent");
+            resetTurnstile();
             return;
           }
-          await login(email, password);
+          await login(email, password, turnstileToken);
           await props.onAuthenticated();
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : String(cause));
+          resetTurnstile();
         }
       }}
     >
+      <div className="auth-copy">
+        <strong>{copy.title}</strong>
+        <p>{copy.description}</p>
+      </div>
       {props.setupRequired ? (
         <label>
           setup token
-          <input value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
+          <input autoComplete="one-time-code" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
         </label>
       ) : null}
       <label>
         email
-        <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
       {(mode === "register" || props.setupRequired) ? (
         <label>
           username
-          <input value={username} onChange={(event) => setUsername(event.target.value)} />
+          <input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} />
+          <span className="field-help">{usernamePreview ? `your feed URLs start with /${usernamePreview}/` : "letters and numbers become your feed URL name"}</span>
         </label>
       ) : null}
       {mode !== "forgot" ? (
         <label>
           password
-          <input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} />
+          <input
+            type="password"
+            autoComplete={mode === "register" || props.setupRequired ? "new-password" : "current-password"}
+            minLength={8}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <span className="field-help">at least 8 characters</span>
         </label>
       ) : null}
-      <button type="submit" title={props.setupRequired ? "create admin" : mode}><LogIn size={15} aria-hidden /> {props.setupRequired ? "create admin" : mode}</button>
+      {requiresTurnstile && props.turnstileSiteKey ? (
+        <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
+      ) : null}
+      <button type="submit" className="primary-button" title={submitLabel}><LogIn size={15} aria-hidden /> {submitLabel}</button>
       {!props.setupRequired ? (
-        <div className="actions">
-          <button type="button" title="login" onClick={() => setMode("login")}>login</button>
-          <button type="button" title="register" onClick={() => setMode("register")}>register</button>
-          <button type="button" title="forgot password" onClick={() => setMode("forgot")}>forgot password</button>
+        <div className="auth-switch">
+          {mode !== "login" ? <button type="button" title="login" onClick={() => setMode("login")}>login</button> : null}
+          {mode !== "register" ? <button type="button" title="new account" onClick={() => setMode("register")}>new account</button> : null}
+          {mode !== "forgot" ? <button type="button" title="forgot password" onClick={() => setMode("forgot")}>forgot password</button> : null}
         </div>
       ) : null}
       {message ? <p className="muted">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
     </form>
+  );
+}
+
+function getAuthPanelCopy(setupRequired: boolean, mode: "login" | "register" | "forgot"): { title: string; description: string } {
+  if (setupRequired) {
+    return {
+      title: "create the first account",
+      description: "This account can create feeds and manage the service."
+    };
+  }
+  if (mode === "register") {
+    return {
+      title: "create your feed",
+      description: "Choose a username, then verify your email before signing in."
+    };
+  }
+  if (mode === "forgot") {
+    return {
+      title: "reset password",
+      description: "Enter your email and we will send a reset link if the account exists."
+    };
+  }
+  return {
+    title: "sign in",
+    description: "Open your feeds, sources, and account settings."
+  };
+}
+
+function getAuthSubmitLabel(setupRequired: boolean, mode: "login" | "register" | "forgot"): string {
+  if (setupRequired) return "create first account";
+  if (mode === "register") return "create account";
+  if (mode === "forgot") return "send reset link";
+  return "login";
+}
+
+function TurnstileField(props: { siteKey: string; resetSignal: number; onToken: (token: string) => void }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const widgetIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    function renderWidget() {
+      if (cancelled || !containerRef.current || !window.turnstile || widgetIdRef.current) return;
+      widgetIdRef.current = window.turnstile.render(containerRef.current, {
+        sitekey: props.siteKey,
+        callback: props.onToken,
+        "expired-callback": () => props.onToken(""),
+        "error-callback": () => props.onToken("")
+      });
+    }
+
+    if (window.turnstile) {
+      renderWidget();
+    } else {
+      const scriptId = "cf-turnstile-script";
+      let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+      if (!script) {
+        script = document.createElement("script");
+        script.id = scriptId;
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+      script.addEventListener("load", renderWidget);
+    }
+
+    return () => {
+      cancelled = true;
+      if (widgetIdRef.current && window.turnstile) window.turnstile.remove(widgetIdRef.current);
+      widgetIdRef.current = null;
+    };
+  }, [props.onToken, props.siteKey]);
+
+  useEffect(() => {
+    props.onToken("");
+    if (widgetIdRef.current && window.turnstile) window.turnstile.reset(widgetIdRef.current);
+  }, [props.resetSignal]);
+
+  return (
+    <div className="turnstile-slot">
+      <div ref={containerRef} />
+    </div>
   );
 }
 
@@ -802,7 +947,7 @@ function VerifyEmailPage(props: { token: string }) {
           >
             verify email
           </button>
-          <a className="button-link" href="/" title="admin">admin</a>
+          <a className="button-link" href="/" title="create feed">create feed</a>
         </div>
       </section>
     </Shell>
@@ -1387,6 +1532,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [starBusy, setStarBusy] = useState(false);
   const [exploreOpen, setExploreOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [evidenceBusyIds, setEvidenceBusyIds] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
 
   async function refresh() {
@@ -1394,6 +1540,8 @@ function FeedPage(props: { username: string; slug: string }) {
     const next = await getFeed(props.username, props.slug);
     setPayload(next);
     setItems(next.items);
+    setExpanded(new Set());
+    setEvidenceBusyIds(new Set());
   }
 
   useEffect(() => {
@@ -1431,6 +1579,38 @@ function FeedPage(props: { username: string; slug: string }) {
   const archivedReadItems = items.filter((item) => readIds.has(item.id));
   const language = payload?.briefing.language ?? "en";
   const canStar = Boolean(payload);
+
+  async function toggleItemExpanded(item: BriefingItem) {
+    if (expanded.has(item.id)) {
+      toggleSetValue(expanded, setExpanded, item.id);
+      return;
+    }
+
+    toggleSetValue(expanded, setExpanded, item.id);
+    if (!payload || item.evidence.length > 0) return;
+
+    setEvidenceBusyIds((current) => new Set(current).add(item.id));
+    try {
+      const evidence = await getFeedItemEvidence(props.username, props.slug, item.id);
+      setItems((current) => current.map((entry) => (entry.id === item.id ? { ...entry, evidence } : entry)));
+      setPayload((current) =>
+        current
+          ? {
+              ...current,
+              items: current.items.map((entry) => (entry.id === item.id ? { ...entry, evidence } : entry))
+            }
+          : current
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setEvidenceBusyIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  }
 
   return (
     <Shell
@@ -1490,8 +1670,9 @@ function FeedPage(props: { username: string; slug: string }) {
             item={item}
             language={language}
             isExpanded={expanded.has(item.id)}
+            isEvidenceLoading={evidenceBusyIds.has(item.id)}
             isRead={false}
-            onToggleExpanded={() => toggleSetValue(expanded, setExpanded, item.id)}
+            onToggleExpanded={() => void toggleItemExpanded(item)}
             onToggleRead={() => toggleRead(readIds, setReadIds, item.id, true)}
           />
         ))}
@@ -1514,8 +1695,9 @@ function FeedPage(props: { username: string; slug: string }) {
                 item={item}
                 language={language}
                 isExpanded={expanded.has(item.id)}
+                isEvidenceLoading={evidenceBusyIds.has(item.id)}
                 isRead={true}
-                onToggleExpanded={() => toggleSetValue(expanded, setExpanded, item.id)}
+                onToggleExpanded={() => void toggleItemExpanded(item)}
                 onToggleRead={() => toggleRead(readIds, setReadIds, item.id, false)}
               />
             ))}
@@ -1530,6 +1712,7 @@ function FeedItemRow(props: {
   item: BriefingItem;
   language: "en" | "ar" | "fr";
   isExpanded: boolean;
+  isEvidenceLoading: boolean;
   isRead: boolean;
   onToggleExpanded: () => void;
   onToggleRead: () => void;
@@ -1555,14 +1738,16 @@ function FeedItemRow(props: {
           {props.item.mergedUpdateCount > 0 ? <span className="muted">updates {props.item.mergedUpdateCount + 1}</span> : null}
         </div>
         <p className="news-summary" dir={textDir}><bdi dir={textDir}>{props.item.summary}</bdi></p>
-        {props.isExpanded ? <EvidenceList item={props.item} language={props.language} /> : null}
+        {props.isExpanded ? <EvidenceList item={props.item} language={props.language} loading={props.isEvidenceLoading} /> : null}
       </div>
     </article>
   );
 }
 
-function EvidenceList(props: { item: BriefingItem; language: "en" | "ar" | "fr" }) {
+function EvidenceList(props: { item: BriefingItem; language: "en" | "ar" | "fr"; loading: boolean }) {
   const textDir = textDirection(props.language);
+  if (props.loading) return <p className="muted evidence-loading">loading evidence</p>;
+  if (props.item.evidence.length === 0) return <p className="muted evidence-loading">no evidence available</p>;
   return (
     <div className="evidence">
       {props.item.evidence.map((entry) => (
@@ -1665,7 +1850,7 @@ function Shell(props: {
         </div>
         <div className="header-actions">
           <nav>
-            <a href="/">admin</a>
+            <a href="/" title="create feed">create feed</a>
             {props.feed ? <a href={`/${props.feed.ownerUsername}/${props.feed.slug}/`}>feed</a> : null}
           </nav>
           <div className="header-controls">
@@ -1691,7 +1876,7 @@ function Shell(props: {
 }
 
 function getPageMeta(title: string): string {
-  if (title === "admin") return "define the feed and add sources.";
+  if (title === "create feed") return "define the feed and add sources.";
   if (title === "briefing") return "Published briefing items only.";
   if (title.includes("Briefing")) return "Published briefing items only.";
   if (title === "verify email") return "Account verification.";

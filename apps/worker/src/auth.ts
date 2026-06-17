@@ -170,10 +170,7 @@ export function adminAuth(repoForContext: (c: Context<AppEnv>) => Repository): M
       }
     }
 
-    if (c.req.header("x-lownoise-admin") !== secret) return c.json({ error: "unauthorized" }, 401);
-    const account = (await repo.listAccounts()).find((item) => item.role === "admin" && !item.disabledAt);
-    if (account) c.set("account", account);
-    await next();
+    return c.json({ error: "unauthorized" }, 401);
   };
 }
 

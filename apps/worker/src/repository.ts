@@ -68,6 +68,7 @@ interface BriefingRow {
   paused?: number;
   language?: "en" | "ar" | "fr" | null;
   retention_days: number;
+  created_at?: string;
 }
 
 interface SourceRow {
@@ -347,7 +348,7 @@ export class D1Repository implements Repository {
       FROM briefings
       JOIN accounts ON accounts.id = briefings.owner_account_id` +
       (accountId ? " WHERE briefings.owner_account_id = ?" : "") +
-      " ORDER BY briefings.stars DESC, briefings.created_at ASC";
+      " ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC";
     const rows = accountId
       ? await all<BriefingRow>(this.db.prepare(sql).bind(accountId))
       : await all<BriefingRow>(this.db.prepare(sql));
@@ -363,7 +364,7 @@ export class D1Repository implements Repository {
           FROM briefings
           JOIN accounts ON accounts.id = briefings.owner_account_id
           WHERE accounts.disabled_at IS NULL AND briefings.stars > 0
-          ORDER BY briefings.stars DESC, briefings.created_at ASC
+          ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ?`
         )
         .bind(limit)
@@ -659,6 +660,10 @@ export class D1Repository implements Repository {
   }
 
   async getExistingItems(briefingId: string, now = new Date()): Promise<BriefingItem[]> {
+    return this.listBriefingItems(briefingId, true, now);
+  }
+
+  private async listBriefingItems(briefingId: string, includeEvidence: boolean, now = new Date()): Promise<BriefingItem[]> {
     const rows = await all<BriefingItemRow>(
       this.db
         .prepare(
@@ -668,7 +673,7 @@ export class D1Repository implements Repository {
     );
     const items: BriefingItem[] = [];
     for (const row of rows) {
-      items.push({ ...rowToBriefingItem(row), evidence: await this.getEvidence(row.id) });
+      items.push({ ...rowToBriefingItem(row), evidence: includeEvidence ? await this.getEvidence(row.id) : [] });
     }
     return items;
   }
@@ -742,10 +747,27 @@ export class D1Repository implements Repository {
       .run();
   }
 
-  async listFeedItems(ownerAccountId: string, slug: string, _includePrivate: boolean, now = new Date()): Promise<BriefingItem[]> {
+  async listFeedItems(ownerAccountId: string, slug: string, includeEvidence: boolean, now = new Date()): Promise<BriefingItem[]> {
     const briefing = await this.getBriefingBySlug(ownerAccountId, slug);
     if (!briefing) return [];
-    return this.getExistingItems(briefing.id, now);
+    return this.listBriefingItems(briefing.id, includeEvidence, now);
+  }
+
+  async getFeedItemEvidence(briefingId: string, itemId: string, now = new Date()): Promise<BriefingEvidence[]> {
+    const rows = await all<EvidenceRow>(
+      this.db
+        .prepare(
+          `SELECT raw_message_id, source_id, source_title, source_type, source_url, posted_at, text, links_json, media_json
+          FROM briefing_item_evidence
+          JOIN briefing_items ON briefing_items.id = briefing_item_evidence.briefing_item_id
+          WHERE briefing_item_evidence.briefing_item_id = ?
+            AND briefing_items.briefing_id = ?
+            AND briefing_items.expires_at > ?
+          ORDER BY posted_at ASC`
+        )
+        .bind(itemId, briefingId, now.toISOString())
+    );
+    return rows.map(rowToEvidence);
   }
 
   async getHealth(briefingId?: string): Promise<HealthStatus> {
@@ -837,6 +859,7 @@ export class InMemoryRepository implements Repository {
   tokens = new Map<string, AuthTokenRecord>();
   attempts: Array<{ key: string; action: string; createdAt: string }> = [];
   briefings = new Map<string, BriefingConfig>();
+  briefingCreatedAt = new Map<string, string>();
   sources = new Map<string, TelegramSourceRecord>();
   rawMessages = new Map<string, NormalizedMessage>();
   itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
@@ -989,7 +1012,7 @@ export class InMemoryRepository implements Repository {
     this.attempts.push({ ...input, createdAt: now.toISOString() });
   }
 
-  async ensureDefaultBriefing(account: AccountRecord): Promise<BriefingConfig> {
+  async ensureDefaultBriefing(account: AccountRecord, now = new Date()): Promise<BriefingConfig> {
     const existing = await this.getBriefingBySlug(account.id, personalNewsBriefing.slug);
     if (existing) return existing;
     const briefing = {
@@ -998,26 +1021,24 @@ export class InMemoryRepository implements Repository {
       ownerAccountId: account.id,
       ownerUsername: account.username
     };
-    this.briefings.set(briefing.id, briefing);
-    return { ...briefing };
+    return this.upsertBriefing(briefing, now);
   }
 
   async listBriefings(accountId?: string): Promise<BriefingConfig[]> {
     return Array.from(this.briefings.values())
       .filter((briefing) => !accountId || briefing.ownerAccountId === accountId)
-      .map((briefing, index) => ({ briefing: this.withCurrentBriefingOwner(briefing), index }))
-      .sort((a, b) => b.briefing.stars - a.briefing.stars || a.index - b.index)
-      .map(({ briefing }) => briefing);
+      .map((briefing) => this.withCurrentBriefingOwner(briefing))
+      .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
+      .map((briefing) => briefing);
   }
 
   async listExploreBriefings(limit: number): Promise<BriefingConfig[]> {
     if (limit <= 0) return [];
     return Array.from(this.briefings.values())
       .filter((briefing) => briefing.stars > 0 && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
-      .map((briefing, index) => ({ briefing: this.withCurrentBriefingOwner(briefing), index }))
-      .sort((a, b) => b.briefing.stars - a.briefing.stars || a.index - b.index)
-      .slice(0, limit)
-      .map(({ briefing }) => briefing);
+      .map((briefing) => this.withCurrentBriefingOwner(briefing))
+      .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
+      .slice(0, limit);
   }
 
   async getBriefingById(id: string): Promise<BriefingConfig | null> {
@@ -1047,8 +1068,9 @@ export class InMemoryRepository implements Repository {
     return votes.size;
   }
 
-  async upsertBriefing(input: BriefingConfig): Promise<BriefingConfig> {
+  async upsertBriefing(input: BriefingConfig, now = new Date()): Promise<BriefingConfig> {
     const account = this.accounts.get(input.ownerAccountId);
+    if (!this.briefingCreatedAt.has(input.id)) this.briefingCreatedAt.set(input.id, now.toISOString());
     this.briefings.set(input.id, {
       ...input,
       retentionDays: FIXED_RETENTION_DAYS,
@@ -1064,6 +1086,7 @@ export class InMemoryRepository implements Repository {
 
   async deleteBriefing(id: string): Promise<void> {
     this.briefings.delete(id);
+    this.briefingCreatedAt.delete(id);
 
     for (const [sourceId, source] of this.sources) {
       if (source.briefingId === id) this.sources.delete(sourceId);
@@ -1195,10 +1218,17 @@ export class InMemoryRepository implements Repository {
     this.itemsByBriefing.set(briefingId, scoped);
   }
 
-  async listFeedItems(ownerAccountId: string, slug: string, _includePrivate: boolean, now = new Date()): Promise<BriefingItem[]> {
+  async listFeedItems(ownerAccountId: string, slug: string, includeEvidence: boolean, now = new Date()): Promise<BriefingItem[]> {
     const briefing = await this.getBriefingBySlug(ownerAccountId, slug);
     if (!briefing) return [];
-    return this.getExistingItems(briefing.id, now);
+    const items = await this.getExistingItems(briefing.id, now);
+    return includeEvidence ? items : items.map((item) => ({ ...item, evidence: [] }));
+  }
+
+  async getFeedItemEvidence(briefingId: string, itemId: string, now = new Date()): Promise<BriefingEvidence[]> {
+    const item = this.itemsByBriefing.get(briefingId)?.get(itemId);
+    if (!item || new Date(item.expiresAt).getTime() <= now.getTime()) return [];
+    return structuredClone(item.evidence);
   }
 
   async getHealth(briefingId?: string): Promise<HealthStatus> {
@@ -1242,6 +1272,18 @@ export class InMemoryRepository implements Repository {
 
 function scopedSourceId(briefingId: string, sourceId: string): string {
   return `${briefingId}::${sourceId}`;
+}
+
+function compareBriefingsByStarsAndAge(
+  left: BriefingConfig,
+  right: BriefingConfig,
+  createdAt: Map<string, string>
+): number {
+  if (left.stars !== right.stars) return right.stars - left.stars;
+  const leftCreatedAt = createdAt.get(left.id) ?? "";
+  const rightCreatedAt = createdAt.get(right.id) ?? "";
+  if (leftCreatedAt !== rightCreatedAt) return leftCreatedAt.localeCompare(rightCreatedAt);
+  return left.id.localeCompare(right.id);
 }
 
 function rowToAccount(row: AccountRow): AccountRecord {

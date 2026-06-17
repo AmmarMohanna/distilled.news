@@ -23,9 +23,9 @@ class FakeQueue {
 }
 
 class FakeEmail {
-  messages: Array<{ to: string; subject: string; text?: string; html?: string }> = [];
+  messages: Array<{ to: string; from?: string | { email: string; name?: string }; subject: string; text?: string; html?: string }> = [];
 
-  async send(message: { to: string; subject: string; text?: string; html?: string }): Promise<void> {
+  async send(message: { to: string; from?: string | { email: string; name?: string }; subject: string; text?: string; html?: string }): Promise<void> {
     this.messages.push(message);
   }
 }
@@ -42,7 +42,7 @@ function env(email = new FakeEmail()): Env {
     ADMIN_SETUP_TOKEN: "setup-token",
     INTERNAL_MAINTENANCE_SECRET: "internal-secret",
     PUBLIC_WEB_BASE_URL: "https://lownoise.news",
-    EMAIL_FROM: "LowNoise.news <noreply@lownoise.news>",
+    EMAIL_FROM: "Low Noise News Feed <noreply@lownoise.news>",
     EMAIL: email
   } as unknown as Env;
 }
@@ -179,6 +179,7 @@ describe("worker app accounts", () => {
       },
       env(email)
     );
+    expect(email.messages[0].from).toEqual({ email: "noreply@lownoise.news", name: "Low Noise News Feed" });
 
     const rejectedLogin = await app.request(
       "/api/auth/login",
@@ -359,9 +360,14 @@ describe("worker app accounts", () => {
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as { items: Array<{ summary: string; evidence: Array<{ sourceUrl: string }> }> };
+    const feed = (await feedResponse.json()) as { items: Array<{ id: string; summary: string; evidence: Array<{ sourceUrl: string }> }> };
     expect(feed.items[0].summary).toContain("Electricite du Liban");
-    expect(feed.items[0].evidence[0].sourceUrl).toBe("https://t.me/LebUpdate/10");
+    expect(feed.items[0].evidence).toEqual([]);
+
+    const evidenceResponse = await app.request(`/api/feed/feed-owner/personal/items/${feed.items[0].id}/evidence`, {}, env());
+    expect(evidenceResponse.status).toBe(200);
+    const evidence = (await evidenceResponse.json()) as { evidence: Array<{ sourceUrl: string }> };
+    expect(evidence.evidence[0].sourceUrl).toBe("https://t.me/LebUpdate/10");
 
     const oldRoute = await app.request("/api/feed/personal", {}, env());
     expect(oldRoute.status).toBe(404);
@@ -416,15 +422,16 @@ describe("worker app accounts", () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
 
-    const owners = await Promise.all([
-      createVerifiedUser(app, repo, "older@test.com", "Older Owner"),
-      createVerifiedUser(app, repo, "newer@test.com", "Newer Owner"),
-      createVerifiedUser(app, repo, "top@test.com", "Top Owner"),
-      createVerifiedUser(app, repo, "disabled@test.com", "Disabled Owner"),
-      ...Array.from({ length: 8 }, (_, index) =>
+    const older = await createVerifiedUser(app, repo, "older@test.com", "Older Owner");
+    const newer = await createVerifiedUser(app, repo, "newer@test.com", "Newer Owner");
+    const top = await createVerifiedUser(app, repo, "top@test.com", "Top Owner");
+    const disabled = await createVerifiedUser(app, repo, "disabled@test.com", "Disabled Owner");
+    const lowerOwners = await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
         createVerifiedUser(app, repo, `lower-${index}@test.com`, `Lower Owner ${index}`)
       )
-    ]);
+    );
+    const owners = [older, newer, top, disabled, ...lowerOwners];
 
     const updates = [
       { owner: owners[0], title: "Older Tie", stars: 5 },
@@ -541,6 +548,13 @@ describe("worker app accounts", () => {
     expect(accountsResponse.status).toBe(200);
     const accounts = (await accountsResponse.json()) as { accounts: Array<{ id: string; email: string }> };
     expect(accounts.accounts.map((account) => account.email)).toContain("user@test.com");
+
+    const legacySecretResponse = await app.request(
+      "/api/admin/accounts",
+      { headers: { "x-lownoise-admin": "admin-secret" } },
+      env()
+    );
+    expect(legacySecretResponse.status).toBe(401);
 
     const disabled = await app.request(
       `/api/admin/accounts/${user.account.id}`,

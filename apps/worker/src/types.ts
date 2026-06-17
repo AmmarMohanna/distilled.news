@@ -1,5 +1,6 @@
 import type {
   BriefingConfig,
+  BriefingEvidence,
   BriefingItem,
   NormalizedMessage,
   SourceType
@@ -160,7 +161,8 @@ export interface Repository {
   requeueProcessingJob(jobId: string, now?: Date): Promise<void>;
   getExistingItems(briefingId: string, now?: Date): Promise<BriefingItem[]>;
   saveBriefingItems(briefingId: string, items: BriefingItem[], now?: Date): Promise<void>;
-  listFeedItems(ownerAccountId: string, slug: string, includePrivate: boolean, now?: Date): Promise<BriefingItem[]>;
+  listFeedItems(ownerAccountId: string, slug: string, includeEvidence: boolean, now?: Date): Promise<BriefingItem[]>;
+  getFeedItemEvidence(briefingId: string, itemId: string, now?: Date): Promise<BriefingEvidence[]>;
   getHealth(briefingId?: string, now?: Date): Promise<HealthStatus>;
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string, now?: Date): Promise<void>;
