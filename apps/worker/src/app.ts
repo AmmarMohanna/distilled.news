@@ -498,6 +498,12 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ briefings: await repo.listBriefings() });
   });
 
+  app.get("/api/explore/feeds", async (c) => {
+    const repo = repoFor(c);
+    const feeds = await repo.listExploreBriefings(10);
+    return c.json({ feeds: feeds.map(publicBriefing) });
+  });
+
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;

@@ -43,8 +43,10 @@ export interface SessionStatus {
   turnstileSiteKey?: string;
 }
 
+export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInstruction">;
+
 export interface FeedPayload {
-  briefing: Omit<BriefingConfig, "interestProfile" | "styleInstruction">;
+  briefing: PublicBriefing;
   items: BriefingItem[];
   viewerHasStarred: boolean;
 }

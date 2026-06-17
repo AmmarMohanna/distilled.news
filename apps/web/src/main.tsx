@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import {
   ChevronDown,
   ChevronRight,
+  Compass,
   Copy,
   ExternalLink,
   Globe,
@@ -33,6 +34,7 @@ import {
   deleteSource,
   forgotPassword,
   getBriefings,
+  getExploreFeeds,
   getFeed,
   getHealth,
   getSession,
@@ -56,7 +58,7 @@ import {
   type SourceRefreshResult
 } from "./api";
 import { deriveBriefingSlug, formatArabicTimeParts, formatTime, publicFeedUrl, slugify } from "./helpers";
-import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, SessionStatus, TelegramSourceRecord } from "./types";
+import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, TelegramSourceRecord } from "./types";
 import "./styles.css";
 
 function App() {
@@ -327,16 +329,19 @@ function AdminPage() {
   if (!session.authenticated) {
     return (
       <Shell title="LowNoise.news">
-        <AuthPanel
-          setupRequired={session.setupRequired}
-          onAuthenticated={async () => {
-            const next = await refreshSession();
-            if (next.authenticated) {
-              await loadBriefings();
-              if (next.account?.role === "admin") setAccounts(await listAccounts());
-            }
-          }}
-        />
+        <div className="auth-layout">
+          <AuthPanel
+            setupRequired={session.setupRequired}
+            onAuthenticated={async () => {
+              const next = await refreshSession();
+              if (next.authenticated) {
+                await loadBriefings();
+                if (next.account?.role === "admin") setAccounts(await listAccounts());
+              }
+            }}
+          />
+          {!session.setupRequired ? <ExploreFeedsPanel /> : null}
+        </div>
         {error ? <p className="error">{error}</p> : null}
       </Shell>
     );
@@ -359,7 +364,7 @@ function AdminPage() {
               <Globe size={16} aria-hidden />
               <h2>feeds</h2>
             </div>
-            <button type="button" onClick={() => createBriefing()}>
+            <button type="button" title="new feed" onClick={() => createBriefing()}>
               <Plus size={15} aria-hidden /> new feed
             </button>
           </section>
@@ -379,7 +384,7 @@ function AdminPage() {
               <h2>feeds</h2>
             </div>
             <div className="actions">
-              <button type="button" className="primary-button" disabled={busyAction === "create-feed"} onClick={() => createBriefing()}>
+              <button type="button" className="primary-button" title="new feed" disabled={busyAction === "create-feed"} onClick={() => createBriefing()}>
                 <Plus size={15} aria-hidden /> new feed
               </button>
               {status || autosaveState !== "idle" ? (
@@ -389,7 +394,7 @@ function AdminPage() {
             <div className="feed-list">
               {orderedBriefings.map((item) => (
                 <div key={item.id} className={`feed-row${item.id === briefing.id ? " active" : ""}`}>
-                  <button type="button" className="feed-select" onClick={() => setSelectedBriefingId(item.id)}>
+                  <button type="button" className="feed-select" title={`select ${item.title}`} onClick={() => setSelectedBriefingId(item.id)}>
                     <span className="feed-title">{item.title}</span>
                   </button>
                   <div className="feed-flags">
@@ -402,7 +407,7 @@ function AdminPage() {
                       type="button"
                       className="icon-button"
                       aria-label={`feed settings for ${item.title}`}
-                      title="settings"
+                      title="feed settings"
                       onClick={() => {
                         setSelectedBriefingId(item.id);
                         setFeedSettingsOpen(true);
@@ -410,14 +415,14 @@ function AdminPage() {
                     >
                       <Settings size={15} aria-hidden />
                     </button>
-                    <a className="button-link icon-button" href={`/${item.ownerUsername}/${item.slug}/`} aria-label={`open ${item.title}`} title="open">
+                    <a className="button-link icon-button" href={`/${item.ownerUsername}/${item.slug}/`} aria-label={`open ${item.title}`} title="open feed">
                       <ExternalLink size={15} aria-hidden />
                     </a>
                     <button
                       type="button"
                       className="icon-button"
                       aria-label={`copy URL for ${item.title}`}
-                      title="copy url"
+                      title="copy feed url"
                       onClick={() => copyFeedUrl(item)}
                     >
                       <Copy size={15} aria-hidden />
@@ -439,7 +444,7 @@ function AdminPage() {
                   type="button"
                   className="icon-button"
                   aria-label="feed help"
-                  title="help"
+                  title="feed help"
                   onClick={() => setHelpOpen(true)}
                 >
                   <HelpCircle size={15} aria-hidden />
@@ -448,7 +453,7 @@ function AdminPage() {
                   type="button"
                   className="icon-button"
                   aria-label="fetch latest"
-                  title="fetch latest"
+                  title="refresh"
                   disabled={briefing.paused || busyAction === "refresh-source"}
                   onClick={async () => {
                     setError("");
@@ -480,6 +485,7 @@ function AdminPage() {
               <button
                 type="button"
                 className="primary-button"
+                title="add source"
                 disabled={!sourceUrl.trim() || briefing.paused || busyAction === "add-source"}
                 onClick={async () => {
                   setError("");
@@ -503,10 +509,10 @@ function AdminPage() {
                 <Plus size={15} aria-hidden /> add
               </button>
             </div>
-            {sourceStatus ? <p className="muted section-note">{sourceStatus}</p> : null}
             <HealthSummary
               briefing={briefing}
               health={health}
+              activity={sourceStatus}
               retryBusy={busyAction === "retry-processing"}
               onRetryProcessing={async () => {
                 setBusyAction("retry-processing");
@@ -541,6 +547,7 @@ function AdminPage() {
                     type="button"
                     className="icon-button"
                     aria-label={`remove ${source.title}`}
+                    title="remove source"
                     onClick={async () => {
                       const response = await deleteSource(briefing.id, source.id);
                       setSources(response.sources);
@@ -691,17 +698,80 @@ function AuthPanel(props: { setupRequired: boolean; onAuthenticated: () => Promi
           <input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} />
         </label>
       ) : null}
-      <button type="submit"><LogIn size={15} aria-hidden /> {props.setupRequired ? "create admin" : mode}</button>
+      <button type="submit" title={props.setupRequired ? "create admin" : mode}><LogIn size={15} aria-hidden /> {props.setupRequired ? "create admin" : mode}</button>
       {!props.setupRequired ? (
         <div className="actions">
-          <button type="button" onClick={() => setMode("login")}>login</button>
-          <button type="button" onClick={() => setMode("register")}>register</button>
-          <button type="button" onClick={() => setMode("forgot")}>forgot password</button>
+          <button type="button" title="login" onClick={() => setMode("login")}>login</button>
+          <button type="button" title="register" onClick={() => setMode("register")}>register</button>
+          <button type="button" title="forgot password" onClick={() => setMode("forgot")}>forgot password</button>
         </div>
       ) : null}
       {message ? <p className="muted">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
     </form>
+  );
+}
+
+function ExploreFeedsPanel() {
+  return (
+    <section className="section explore-section" aria-labelledby="explore-feeds-title">
+      <div className="section-title">
+        <Compass size={16} aria-hidden />
+        <h2 id="explore-feeds-title">explore</h2>
+      </div>
+      <ExploreFeedList />
+    </section>
+  );
+}
+
+function ExploreFeedsSheet(props: { currentFeed?: PublicBriefing; onClose: () => void }) {
+  return (
+    <Sheet title="explore" closeLabel="close explore" icon={<Compass size={16} aria-hidden />} onClose={props.onClose}>
+      <ExploreFeedList currentFeed={props.currentFeed} />
+    </Sheet>
+  );
+}
+
+function ExploreFeedList(props: { currentFeed?: PublicBriefing }) {
+  const [feeds, setFeeds] = useState<PublicBriefing[] | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    getExploreFeeds()
+      .then((nextFeeds) => {
+        if (active) setFeeds(nextFeeds);
+      })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (error) return <p className="error">{error}</p>;
+  if (!feeds) return <p className="muted">loading feeds</p>;
+  if (feeds.length === 0) return <p className="muted">no starred feeds yet</p>;
+
+  return (
+    <div className="explore-list">
+      {feeds.map((feed) => {
+        const href = `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
+        const isCurrent = props.currentFeed?.id === feed.id;
+        return (
+          <a key={feed.id} className={`explore-row${isCurrent ? " active" : ""}`} href={href} aria-current={isCurrent ? "page" : undefined}>
+            <span className="explore-copy">
+              <strong className="explore-title"><bdi>{feed.title}</bdi></strong>
+              <span className="explore-meta">@{feed.ownerUsername}</span>
+            </span>
+            <span className="explore-stars" aria-label={`${feed.stars} stars`}>
+              <Star size={13} aria-hidden /> {feed.stars}
+            </span>
+          </a>
+        );
+      })}
+    </div>
   );
 }
 
@@ -715,6 +785,7 @@ function VerifyEmailPage(props: { token: string }) {
         <div className="actions">
           <button
             type="button"
+            title="verify email"
             disabled={busy || !props.token}
             onClick={async () => {
               setBusy(true);
@@ -731,7 +802,7 @@ function VerifyEmailPage(props: { token: string }) {
           >
             verify email
           </button>
-          <a className="button-link" href="/">admin</a>
+          <a className="button-link" href="/" title="admin">admin</a>
         </div>
       </section>
     </Shell>
@@ -757,7 +828,7 @@ function ResetPasswordPage(props: { token: string }) {
           new password
           <input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} />
         </label>
-        <button type="submit"><Save size={15} aria-hidden /> save password</button>
+        <button type="submit" title="save password"><Save size={15} aria-hidden /> save password</button>
         {message ? <p className="muted">{message}</p> : null}
         {error ? <p className="error">{error}</p> : null}
       </form>
@@ -794,7 +865,7 @@ function Sheet(props: {
             {props.icon}
             <h2 id={`${slugify(props.title)}-sheet-title`}>{props.title}</h2>
           </div>
-          <button type="button" className="icon-button" aria-label={props.closeLabel} onClick={props.onClose}>
+          <button type="button" className="icon-button" aria-label={props.closeLabel} title={props.closeLabel} onClick={props.onClose}>
             <X size={16} aria-hidden />
           </button>
         </div>
@@ -846,6 +917,7 @@ function FeedSettingsSheet(props: {
                 type="button"
                 className={props.briefing.language === language ? "active" : ""}
                 aria-pressed={props.briefing.language === language}
+                title={languageLabel(language)}
                 onClick={() => props.onPatch({ language })}
               >
                 <Languages size={15} aria-hidden /> {languageLabel(language)}
@@ -874,17 +946,17 @@ function FeedSettingsSheet(props: {
         </label>
       </div>
       <div className="sheet-actions">
-        <button type="button" onClick={() => void props.onPauseToggle()}>
+        <button type="button" title={props.briefing.paused ? "resume feed" : "pause feed"} onClick={() => void props.onPauseToggle()}>
           {props.briefing.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
           {props.briefing.paused ? "resume feed" : "pause feed"}
         </button>
-        <a className="button-link" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`}>
+        <a className="button-link" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title="open feed">
           <ExternalLink size={15} aria-hidden /> open feed
         </a>
-        <button type="button" onClick={() => void props.onCopy()}>
+        <button type="button" title="copy feed url" onClick={() => void props.onCopy()}>
           <Copy size={15} aria-hidden /> copy url
         </button>
-        <button type="button" className="danger-button" disabled={!props.canDelete} onClick={() => void props.onDelete()}>
+        <button type="button" className="danger-button" title="delete feed" disabled={!props.canDelete} onClick={() => void props.onDelete()}>
           <Trash2 size={15} aria-hidden /> delete feed
         </button>
       </div>
@@ -972,10 +1044,10 @@ function FirstRunSetupSheet(props: {
           <input dir="ltr" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://t.me/LebUpdate" />
         </label>
         <div className="sheet-actions">
-          <button type="submit" className="primary-button" disabled={props.busy || !title.trim() || !interestProfile.trim()}>
+          <button type="submit" className="primary-button" title="finish setup" disabled={props.busy || !title.trim() || !interestProfile.trim()}>
             <Save size={15} aria-hidden /> finish setup
           </button>
-          <button type="button" onClick={props.onClose}>skip</button>
+          <button type="button" title="skip setup" onClick={props.onClose}>skip</button>
         </div>
         {error ? <p className="error">{error}</p> : null}
       </form>
@@ -986,24 +1058,21 @@ function FirstRunSetupSheet(props: {
 function HealthSummary(props: {
   briefing: BriefingConfig;
   health: HealthStatus | null;
+  activity: string;
   retryBusy: boolean;
   onRetryProcessing: () => Promise<void>;
 }) {
   const summary = getHealthSummaryParts(props.briefing, props.health);
   const failedJobs = props.health?.processing.failed ?? 0;
+  const isPaused = props.briefing.paused;
   return (
     <details className="health-summary">
-      <summary className="health-summary-line" dir="ltr">
-        <span>{summary.feedState}</span>
-        <span aria-hidden>·</span>
-        <span>last update</span>
-        {props.health?.latestPublishedAt ? (
-          <Timestamp value={props.health.latestPublishedAt} language={props.briefing.language} />
-        ) : (
-          <span>{summary.latest}</span>
-        )}
-        <span aria-hidden>·</span>
-        <span>{summary.queueState}</span>
+      <summary className="health-summary-line" title="source status">
+        <span className={`status-dot ${isPaused ? "paused" : "live"}`} aria-hidden />
+        <span className="health-summary-copy">
+          <strong>{summary.feedState}</strong>
+          <span>{props.activity || `${summary.latest} · ${summary.queueState}`}</span>
+        </span>
       </summary>
       <div className="health">
         <StatusLine label="processing" value={`queued ${props.health?.processing.queued ?? 0} / failed ${props.health?.processing.failed ?? 0}`} />
@@ -1016,7 +1085,7 @@ function HealthSummary(props: {
         <StatusLine label="status" value={props.briefing.paused ? "paused" : "live"} />
         {failedJobs > 0 ? (
           <div className="health-actions">
-            <button type="button" disabled={props.retryBusy} onClick={() => void props.onRetryProcessing()}>
+            <button type="button" title="retry processing" disabled={props.retryBusy} onClick={() => void props.onRetryProcessing()}>
               <RefreshCw size={15} aria-hidden /> retry processing
             </button>
           </div>
@@ -1077,7 +1146,7 @@ function AccountDialog(props: {
           username
           <input ref={usernameFieldRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
         </label>
-        <button type="submit" disabled={busy === "username"}>
+        <button type="submit" title="save username" disabled={busy === "username"}>
           <Save size={15} aria-hidden /> save username
         </button>
       </form>
@@ -1123,7 +1192,7 @@ function AccountDialog(props: {
             onChange={(event) => setNewPassword(event.target.value)}
           />
         </label>
-        <button type="submit" disabled={busy === "password"}>
+        <button type="submit" title="change password" disabled={busy === "password"}>
           <Save size={15} aria-hidden /> change password
         </button>
       </form>
@@ -1131,6 +1200,7 @@ function AccountDialog(props: {
       <div className="account-actions">
         <button
           type="button"
+          title="logout"
           disabled={busy === "logout"}
           onClick={async () => {
             setBusy("logout");
@@ -1155,11 +1225,12 @@ function AdminAccountsSection(props: {
 
   return (
     <>
-      <section className="section">
-        <div className="section-title">
+      <details className="section accounts-section">
+        <summary className="section-title accounts-summary" title="accounts">
           <User size={16} aria-hidden />
           <h2>accounts</h2>
-        </div>
+          <span className="pill">{props.accounts.length}</span>
+        </summary>
         <div className="source-list">
           {props.accounts.map((account) => (
             <div key={account.id} className="source-row">
@@ -1172,6 +1243,7 @@ function AdminAccountsSection(props: {
                 type="button"
                 className="icon-button"
                 aria-label={`manage ${account.username}`}
+                title="manage account"
                 onClick={() => setManagedAccountId(account.id)}
               >
                 <Settings size={15} aria-hidden />
@@ -1179,7 +1251,7 @@ function AdminAccountsSection(props: {
             </div>
           ))}
         </div>
-      </section>
+      </details>
       {managedAccount ? (
         <AdminAccountDialog
           account={managedAccount}
@@ -1244,7 +1316,7 @@ function AdminAccountDialog(props: {
           username
           <input ref={usernameFieldRef} value={username} onChange={(event) => setUsername(event.target.value)} />
         </label>
-        <button type="submit" disabled={busy === "username"}>
+        <button type="submit" title="save username" disabled={busy === "username"}>
           <Save size={15} aria-hidden /> save username
         </button>
       </form>
@@ -1260,6 +1332,7 @@ function AdminAccountDialog(props: {
                 className={props.account.role === role ? "active" : ""}
                 disabled={busy === "role"}
                 aria-pressed={props.account.role === role}
+                title={`set role ${role}`}
                 onClick={async () => {
                   if (props.account.role === role) return;
                   setBusy("role");
@@ -1280,6 +1353,7 @@ function AdminAccountDialog(props: {
         <button
           type="button"
           className={props.account.disabledAt ? "" : "danger-button"}
+          title={props.account.disabledAt ? "enable account" : "disable account"}
           disabled={busy === "disabled"}
           onClick={async () => {
             setBusy("disabled");
@@ -1311,6 +1385,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [starBusy, setStarBusy] = useState(false);
+  const [exploreOpen, setExploreOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
 
@@ -1358,13 +1433,19 @@ function FeedPage(props: { username: string; slug: string }) {
   const canStar = Boolean(payload);
 
   return (
-    <Shell title={payload?.briefing.title ?? "briefing"} feed={payload?.briefing} pageLanguage={language}>
+    <Shell
+      title={payload?.briefing.title ?? "briefing"}
+      meta={payload ? <>by <bdi>{payload.briefing.ownerUsername}</bdi></> : "loading feed"}
+      feed={payload?.briefing}
+      pageLanguage={language}
+    >
       <div className="feed-tools">
         <div className="feed-actions">
-          <button onClick={() => refresh()}><RefreshCw size={15} aria-hidden /> refresh</button>
+          <button type="button" title="refresh" onClick={() => refresh()}><RefreshCw size={15} aria-hidden /> refresh</button>
           <button
             type="button"
             className={`star-vote${payload?.viewerHasStarred ? " is-starred" : ""}`}
+            title={payload?.viewerHasStarred ? "remove star" : "star feed"}
             disabled={!canStar || starBusy || !payload}
             aria-pressed={payload?.viewerHasStarred ?? false}
             onClick={async () => {
@@ -1386,17 +1467,21 @@ function FeedPage(props: { username: string; slug: string }) {
             {payload?.viewerHasStarred ? "starred" : "star"} {payload?.briefing.stars ?? 0}
           </button>
         </div>
-        <form
-          className="search"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            setItems(query.trim() ? await searchFeed(props.username, props.slug, query) : payload?.items ?? []);
-          }}
-        >
-          <Search size={15} aria-hidden />
-          <input aria-label="search published briefing" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="search published briefing" />
-        </form>
+        <div className="feed-side-actions">
+          <button type="button" title="explore feeds" onClick={() => setExploreOpen(true)}><Compass size={15} aria-hidden /> Explore</button>
+          <form
+            className="search"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setItems(query.trim() ? await searchFeed(props.username, props.slug, query) : payload?.items ?? []);
+            }}
+          >
+            <Search size={15} aria-hidden />
+            <input aria-label="search published briefing" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="search published briefing" />
+          </form>
+        </div>
       </div>
+      {exploreOpen ? <ExploreFeedsSheet currentFeed={payload?.briefing} onClose={() => setExploreOpen(false)} /> : null}
       {error ? <FeedNotice message={error} /> : null}
       <div className="news-line">
         {unreadItems.map((item) => (
@@ -1452,10 +1537,16 @@ function FeedItemRow(props: {
   const textDir = textDirection(props.language);
   return (
     <article className="news-item">
-      <button type="button" className="read-button" aria-label={props.isRead ? `mark ${props.item.summary} unread` : `mark ${props.item.summary} read`} onClick={props.onToggleRead}>
+      <button
+        type="button"
+        className="read-button"
+        title={props.isRead ? "mark unread" : "mark read"}
+        aria-label={props.isRead ? `mark ${props.item.summary} unread` : `mark ${props.item.summary} read`}
+        onClick={props.onToggleRead}
+      >
         {props.isRead ? "unread" : "read"}
       </button>
-      <button type="button" className="expand" aria-expanded={props.isExpanded} aria-label={`show evidence for ${props.item.summary}`} onClick={props.onToggleExpanded}>
+      <button type="button" className="expand" title="show evidence" aria-expanded={props.isExpanded} aria-label={`show evidence for ${props.item.summary}`} onClick={props.onToggleExpanded}>
         {props.isExpanded ? <ChevronDown size={15} aria-hidden /> : <ChevronRight size={15} aria-hidden />}
       </button>
       <div className="news-copy" lang={props.language} dir={textDir}>
@@ -1538,6 +1629,7 @@ function FeedNotice(props: { message: string }) {
 function Shell(props: {
   title: string;
   children: React.ReactNode;
+  meta?: React.ReactNode;
   feed?: Pick<BriefingConfig, "ownerUsername" | "slug" | "title">;
   onAccount?: () => void;
   onLogout?: () => Promise<void>;
@@ -1565,8 +1657,8 @@ function Shell(props: {
       <header>
         <div className="header-primary">
           <div className="brand-lockup">
-            <a href="/" className="brand">LowNoise.news</a>
-            <a href="https://github.com/AmmarMohanna/lownoise.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository">
+            <a href="/" className="brand">Low Noise News Feed</a>
+            <a href="https://github.com/AmmarMohanna/lownoise.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository" title="open GitHub repository">
               <Github size={16} aria-hidden />
             </a>
           </div>
@@ -1578,20 +1670,20 @@ function Shell(props: {
           </nav>
           <div className="header-controls">
             {props.onAccount ? (
-              <button type="button" className="icon-button" aria-label="account settings" onClick={props.onAccount}>
+              <button type="button" className="icon-button" aria-label="account settings" title="account settings" onClick={props.onAccount}>
                 <Settings size={16} aria-hidden />
               </button>
             ) : null}
-            <button type="button" className="icon-button" aria-label={`switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}>
+            <button type="button" className="icon-button" aria-label={`switch to ${theme === "dark" ? "light" : "dark"} mode`} title="switch theme" onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}>
               {theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
             </button>
-            {props.onLogout ? <button type="button" onClick={() => void props.onLogout?.()}><LogOut size={15} aria-hidden /> logout</button> : null}
+            {props.onLogout ? <button type="button" title="logout" onClick={() => void props.onLogout?.()}><LogOut size={15} aria-hidden /> logout</button> : null}
           </div>
         </div>
       </header>
       <div className="page-heading">
         <h1>{props.title}</h1>
-        <p>{getPageMeta(props.title)}</p>
+        <p>{props.meta ?? getPageMeta(props.title)}</p>
       </div>
       {props.children}
     </main>
@@ -1599,7 +1691,7 @@ function Shell(props: {
 }
 
 function getPageMeta(title: string): string {
-  if (title === "admin") return "Define the feed and review sources.";
+  if (title === "admin") return "define the feed and add sources.";
   if (title === "briefing") return "Published briefing items only.";
   if (title.includes("Briefing")) return "Published briefing items only.";
   if (title === "verify email") return "Account verification.";

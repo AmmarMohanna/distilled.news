@@ -135,6 +135,7 @@ export interface Repository {
   recordAuthAttempt(input: { key: string; action: string }, now?: Date): Promise<void>;
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;
   listBriefings(accountId?: string): Promise<BriefingConfig[]>;
+  listExploreBriefings(limit: number): Promise<BriefingConfig[]>;
   getBriefingById(id: string): Promise<BriefingConfig | null>;
   getBriefingBySlug(ownerAccountId: string, slug: string): Promise<BriefingConfig | null>;
   hasBriefingStar(briefingId: string, voterId: string): Promise<boolean>;

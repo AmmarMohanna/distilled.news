@@ -412,6 +412,43 @@ describe("worker app accounts", () => {
     expect(starResponse.status).toBe(200);
   });
 
+  it("lists top explored feeds by stars and oldest tie", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+
+    const owners = await Promise.all([
+      createVerifiedUser(app, repo, "older@test.com", "Older Owner"),
+      createVerifiedUser(app, repo, "newer@test.com", "Newer Owner"),
+      createVerifiedUser(app, repo, "top@test.com", "Top Owner"),
+      createVerifiedUser(app, repo, "disabled@test.com", "Disabled Owner"),
+      ...Array.from({ length: 8 }, (_, index) =>
+        createVerifiedUser(app, repo, `lower-${index}@test.com`, `Lower Owner ${index}`)
+      )
+    ]);
+
+    const updates = [
+      { owner: owners[0], title: "Older Tie", stars: 5 },
+      { owner: owners[1], title: "Newer Tie", stars: 5 },
+      { owner: owners[2], title: "Top Feed", stars: 9 },
+      { owner: owners[3], title: "Disabled Feed", stars: 99 },
+      ...owners.slice(4).map((owner, index) => ({ owner, title: `Lower Feed ${index}`, stars: 4 - (index % 4) }))
+    ];
+
+    for (const update of updates) {
+      const briefing = await repo.getBriefingBySlug(update.owner.account.id, "personal");
+      expect(briefing).not.toBeNull();
+      await repo.upsertBriefing({ ...briefing!, title: update.title, stars: update.stars });
+    }
+    await repo.updateAccount({ id: owners[3].account.id, disabled: true });
+
+    const response = await app.request("/api/explore/feeds", {}, env());
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as { feeds: Array<{ title: string; stars: number }> };
+    expect(payload.feeds).toHaveLength(10);
+    expect(payload.feeds.map((feed) => feed.title).slice(0, 3)).toEqual(["Top Feed", "Older Tie", "Newer Tie"]);
+    expect(payload.feeds.some((feed) => feed.title === "Disabled Feed")).toBe(false);
+  });
+
   it("redirects reserved old usernames after username changes", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });

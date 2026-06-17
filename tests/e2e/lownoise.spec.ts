@@ -38,6 +38,27 @@ const item = {
   ]
 };
 
+const exploreFeeds = [
+  {
+    ...briefing,
+    id: "briefing_city_watch",
+    ownerAccountId: "account_city",
+    ownerUsername: "city-user",
+    slug: "city-watch",
+    title: "City Watch",
+    stars: 12
+  },
+  {
+    ...briefing,
+    id: "briefing_regional",
+    ownerAccountId: "account_regional",
+    ownerUsername: "regional-user",
+    slug: "regional-briefing",
+    title: "Regional Briefing",
+    stars: 7
+  }
+];
+
 const firstRunBriefing = {
   ...briefing,
   publicFeedEnabled: false,
@@ -56,8 +77,13 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   await page.route("**/api/auth/register", async (route) => {
     await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
   });
+  await page.route("**/api/explore/feeds", async (route) => {
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ feeds: exploreFeeds }) });
+  });
 
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "explore" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /City Watch/ })).toHaveAttribute("href", "/city-user/city-watch/");
   await page.getByRole("button", { name: "register" }).click();
   await page.getByLabel("email").fill("ammar@example.com");
   await page.getByLabel("username").fill("Ammar Mohanna");
@@ -113,10 +139,18 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await page.route("**/api/feed/ammar-mohanna/personal/search?q=power%20supply", async (route) => {
     await route.fulfill({ contentType: "application/json", body: JSON.stringify({ items: [item] }) });
   });
+  await page.route("**/api/explore/feeds", async (route) => {
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ feeds: exploreFeeds }) });
+  });
 
   await page.goto("/ammar-mohanna/personal/");
 
+  await expect(page.getByRole("link", { name: "Low Noise News Feed" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Personal Briefing" })).toBeVisible();
+  await expect(page.getByText("by ammar-mohanna")).toBeVisible();
   await expect(page.getByRole("button", { name: /refresh/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /explore/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /explore/i })).toHaveAttribute("title", "explore feeds");
   expect(sessionRequests).toBe(0);
   await expect(page.getByPlaceholder("search published briefing")).toBeVisible();
   await expect(page.locator(".news-item").filter({ hasText: item.summary }).first()).toBeVisible();
@@ -129,6 +163,11 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await page.getByPlaceholder("search published briefing").fill("power supply");
   await page.keyboard.press("Enter");
   await expect(page.locator(".news-item").filter({ hasText: item.summary }).first()).toBeVisible();
+
+  await page.getByRole("button", { name: /explore/i }).click();
+  await expect(page.getByRole("dialog", { name: "explore" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /City Watch/ })).toHaveAttribute("href", "/city-user/city-watch/");
+  expect(sessionRequests).toBe(0);
 });
 
 test("admin setup keeps account settings tucked behind subtle controls", async ({ page }) => {
@@ -210,8 +249,13 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "admin" })).toBeVisible();
+  await expect(page.getByText("define the feed and add sources.")).toBeVisible();
   await expect(page.getByLabel("interest profile")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "account settings" })).toHaveAttribute("title", "account settings");
+  await expect(page.getByRole("button", { name: "feed settings for Personal Briefing" })).toHaveAttribute("title", "feed settings");
   await expect(page.getByRole("button", { name: "fetch latest" })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "fetch latest" })).toHaveAttribute("title", "refresh");
+  await expect(page.locator(".health-summary .status-dot.live")).toBeVisible();
   await expect(page.getByRole("button", { name: "retry processing" })).toHaveCount(0);
   await page.locator(".health-summary > summary").click();
   await expect(page.getByRole("button", { name: "retry processing" })).toBeVisible();
@@ -241,6 +285,8 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
   await page.getByRole("button", { name: "close feed help" }).click();
   await expect(page.getByText("Beirut Local")).toBeVisible();
   await expect(page.getByRole("heading", { name: "accounts" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "manage ammar-mohanna" })).toHaveCount(0);
+  await page.locator(".accounts-summary").click();
   await page.getByRole("button", { name: "manage ammar-mohanna" }).click();
   await expect(page.getByRole("dialog", { name: "manage account" })).toBeVisible();
   await expect(page.getByRole("button", { name: "disable account" })).toBeVisible();

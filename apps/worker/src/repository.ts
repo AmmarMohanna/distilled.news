@@ -354,6 +354,23 @@ export class D1Repository implements Repository {
     return rows.map(rowToBriefing);
   }
 
+  async listExploreBriefings(limit: number): Promise<BriefingConfig[]> {
+    if (limit <= 0) return [];
+    const rows = await all<BriefingRow>(
+      this.db
+        .prepare(
+          `SELECT briefings.*, accounts.username as owner_username
+          FROM briefings
+          JOIN accounts ON accounts.id = briefings.owner_account_id
+          WHERE accounts.disabled_at IS NULL AND briefings.stars > 0
+          ORDER BY briefings.stars DESC, briefings.created_at ASC
+          LIMIT ?`
+        )
+        .bind(limit)
+    );
+    return rows.map(rowToBriefing);
+  }
+
   async getBriefingById(id: string): Promise<BriefingConfig | null> {
     const row = await first<BriefingRow>(
       this.db
@@ -988,17 +1005,31 @@ export class InMemoryRepository implements Repository {
   async listBriefings(accountId?: string): Promise<BriefingConfig[]> {
     return Array.from(this.briefings.values())
       .filter((briefing) => !accountId || briefing.ownerAccountId === accountId)
-      .map((briefing) => ({ ...briefing }));
+      .map((briefing, index) => ({ briefing: this.withCurrentBriefingOwner(briefing), index }))
+      .sort((a, b) => b.briefing.stars - a.briefing.stars || a.index - b.index)
+      .map(({ briefing }) => briefing);
+  }
+
+  async listExploreBriefings(limit: number): Promise<BriefingConfig[]> {
+    if (limit <= 0) return [];
+    return Array.from(this.briefings.values())
+      .filter((briefing) => briefing.stars > 0 && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
+      .map((briefing, index) => ({ briefing: this.withCurrentBriefingOwner(briefing), index }))
+      .sort((a, b) => b.briefing.stars - a.briefing.stars || a.index - b.index)
+      .slice(0, limit)
+      .map(({ briefing }) => briefing);
   }
 
   async getBriefingById(id: string): Promise<BriefingConfig | null> {
-    return this.briefings.get(id) ?? null;
+    const briefing = this.briefings.get(id);
+    return briefing ? this.withCurrentBriefingOwner(briefing) : null;
   }
 
   async getBriefingBySlug(ownerAccountId: string, slug: string): Promise<BriefingConfig | null> {
-    return Array.from(this.briefings.values()).find(
+    const briefing = Array.from(this.briefings.values()).find(
       (briefing) => briefing.ownerAccountId === ownerAccountId && briefing.slug === slug
-    ) ?? null;
+    );
+    return briefing ? this.withCurrentBriefingOwner(briefing) : null;
   }
 
   async hasBriefingStar(briefingId: string, voterId: string): Promise<boolean> {
@@ -1024,6 +1055,11 @@ export class InMemoryRepository implements Repository {
       ownerUsername: account?.username ?? input.ownerUsername
     });
     return { ...this.briefings.get(input.id)! };
+  }
+
+  private withCurrentBriefingOwner(briefing: BriefingConfig): BriefingConfig {
+    const account = this.accounts.get(briefing.ownerAccountId);
+    return { ...briefing, ownerUsername: account?.username ?? briefing.ownerUsername };
   }
 
   async deleteBriefing(id: string): Promise<void> {

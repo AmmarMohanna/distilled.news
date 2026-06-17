@@ -1,5 +1,5 @@
 import type { BriefingConfig } from "@lownoise/core";
-import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, SessionStatus, TelegramSourceRecord } from "./types";
+import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, TelegramSourceRecord } from "./types";
 
 export interface SourceIngestResult {
   sourceId: string;
@@ -222,6 +222,11 @@ export async function updateAdminAccount(
 
 export async function getFeed(username: string, slug: string): Promise<FeedPayload> {
   return requestJson<FeedPayload>(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`);
+}
+
+export async function getExploreFeeds(): Promise<PublicBriefing[]> {
+  const payload = await requestJson<{ feeds: PublicBriefing[] }>("/api/explore/feeds");
+  return payload.feeds;
 }
 
 export async function searchFeed(username: string, slug: string, query: string): Promise<FeedPayload["items"]> {

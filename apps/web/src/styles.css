@@ -468,10 +468,86 @@ nav a:hover {
   color: var(--danger);
 }
 
+.auth-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+}
+
 .login {
   width: min(420px, 100%);
   display: grid;
   gap: 14px;
+}
+
+.explore-section {
+  box-shadow: none;
+}
+
+.explore-list {
+  display: grid;
+  gap: 8px;
+}
+
+.explore-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-quiet);
+  color: var(--text);
+  text-decoration: none;
+  transition:
+    background-color var(--motion),
+    border-color var(--motion),
+    transform var(--motion);
+}
+
+.explore-row:hover,
+.explore-row:focus-visible,
+.explore-row.active {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.explore-row:hover,
+.explore-row:focus-visible {
+  transform: translateY(-1px);
+}
+
+.explore-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.explore-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explore-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explore-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .feed-list,
@@ -613,18 +689,59 @@ details {
 .health-summary {
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 10px;
+  padding: 0;
   background: var(--surface-quiet);
+  overflow: hidden;
 }
 
 .health-summary[open] {
   display: grid;
-  gap: 10px;
 }
 
 .health-summary-line {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
   max-width: 100%;
+  padding: 12px;
+}
+
+.health-summary-line::-webkit-details-marker,
+.accounts-summary::-webkit-details-marker {
+  display: none;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.status-dot.live {
+  background: #6ed28a;
+  color: #6ed28a;
+}
+
+.status-dot.paused {
+  background: var(--danger);
+  color: var(--danger);
+}
+
+.health-summary-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.health-summary-copy span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.health-summary .health {
+  padding: 0 12px 12px;
 }
 
 .health-summary-line time,
@@ -646,6 +763,7 @@ summary {
   align-items: center;
   gap: 6px;
   cursor: pointer;
+  list-style: none;
 }
 
 .source-add {
@@ -679,6 +797,19 @@ summary {
   padding-top: 2px;
 }
 
+.accounts-section {
+  padding: 18px;
+}
+
+.accounts-section[open] {
+  gap: 16px;
+}
+
+.accounts-summary {
+  width: 100%;
+  justify-content: space-between;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -708,6 +839,15 @@ summary {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+
+.feed-side-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 1;
+  min-width: min(420px, 100%);
 }
 
 .star-vote.is-starred {
@@ -882,6 +1022,10 @@ summary {
     grid-template-columns: 1fr;
   }
 
+  .auth-layout {
+    grid-template-columns: 1fr;
+  }
+
   .feed-row {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: stretch;
@@ -987,14 +1131,25 @@ summary {
     align-items: stretch;
   }
 
+  .feed-side-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    min-width: 0;
+  }
+
   .feed-actions button,
   .feed-actions .button-link {
     width: 100%;
   }
 
-  .source-add,
-  .search {
+  .source-add {
     grid-template-columns: 1fr;
+    max-width: none;
+  }
+
+  .search {
+    grid-template-columns: auto minmax(0, 1fr);
     max-width: none;
   }
 
