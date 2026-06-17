@@ -38,6 +38,16 @@ const item = {
   ]
 };
 
+const feedItems = Array.from({ length: 25 }, (_, index) => ({
+  ...item,
+  id: `item_${index + 1}`,
+  clusterId: `cluster_${index + 1}`,
+  summary: `Published briefing item ${index + 1}.`,
+  itemAt: new Date(Date.UTC(2026, 5, 16, 8, 0 - index, 0)).toISOString(),
+  updatedAt: new Date(Date.UTC(2026, 5, 16, 8, 2 - index, 0)).toISOString(),
+  evidence: []
+}));
+
 const exploreFeeds = [
   {
     ...briefing,
@@ -82,6 +92,7 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   });
 
   await page.goto("/");
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe("light");
   await expect(page.getByRole("heading", { name: "explore" })).toBeVisible();
   await expect(page.getByRole("link", { name: /City Watch/ })).toHaveAttribute("href", "/city-user/city-watch/");
   await page.getByRole("button", { name: "new account" }).click();
@@ -173,6 +184,37 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.getByRole("dialog", { name: "explore" })).toBeVisible();
   await expect(page.getByRole("link", { name: /City Watch/ })).toHaveAttribute("href", "/city-user/city-watch/");
   expect(sessionRequests).toBe(0);
+});
+
+test("feed shows twenty unread items and backfills when one is read", async ({ page }) => {
+  await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        briefing,
+        items: feedItems,
+        viewerHasStarred: false
+      })
+    });
+  });
+  await page.route("**/api/explore/feeds", async (route) => {
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ feeds: exploreFeeds }) });
+  });
+
+  await page.goto("/ammar-mohanna/personal/");
+
+  const visibleUnread = page.locator(".news-line:not(.news-line-read) .news-item");
+  await expect(visibleUnread).toHaveCount(20);
+  await expect(page.getByText("Published briefing item 20.")).toBeVisible();
+  await expect(page.getByText("Published briefing item 21.")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "load more" })).toBeVisible();
+
+  await visibleUnread.first().getByRole("button", { name: /mark .* read/i }).click();
+  await expect(visibleUnread).toHaveCount(20);
+  await expect(page.getByText("Published briefing item 21.")).toBeVisible();
+
+  await page.getByRole("button", { name: "load more" }).click();
+  await expect(page.getByText("Published briefing item 25.")).toBeVisible();
 });
 
 test("admin setup keeps account settings tucked behind subtle controls", async ({ page }) => {

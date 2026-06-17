@@ -10,7 +10,7 @@
 
         try {
           const theme = localStorage.getItem("ln_theme");
-          if (theme === "light" || theme === "dark") root.dataset.theme = theme;
+          root.dataset.theme = theme === "dark" ? "dark" : "light";
         } catch {}
 
         const reveal = () => root.classList.remove("app-pending");
@@ -60,29 +60,29 @@
     <style>
       html {
         min-height: 100%;
-        background: #111214;
-        color-scheme: dark;
-      }
-
-      html[data-theme="light"] {
         background: #f4f1eb;
         color-scheme: light;
+      }
+
+      html[data-theme="dark"] {
+        background: #111214;
+        color-scheme: dark;
       }
 
       body {
         margin: 0;
         min-height: 100vh;
         min-height: 100dvh;
-        background: #111214;
-        color: #eeeef0;
+        background: #f4f1eb;
+        color: #191a1c;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         font-size: 15px;
         line-height: 1.45;
       }
 
-      html[data-theme="light"] body {
-        background: #f4f1eb;
-        color: #191a1c;
+      html[data-theme="dark"] body {
+        background: #111214;
+        color: #eeeef0;
       }
 
       #root {
@@ -108,14 +108,14 @@
         justify-content: space-between;
         gap: 12px;
         padding: 10px 12px;
-        border: 1px solid #30343b;
+        border: 1px solid #d6d0c5;
         border-radius: 12px;
-        background: rgba(22, 24, 27, 0.86);
+        background: rgba(255, 253, 248, 0.86);
       }
 
-      html[data-theme="light"] header {
-        border-color: #d6d0c5;
-        background: rgba(255, 253, 248, 0.86);
+      html[data-theme="dark"] header {
+        border-color: #30343b;
+        background: rgba(22, 24, 27, 0.86);
       }
 
       .header-primary,
@@ -151,11 +151,9 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="LowNoise.news" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f1eb" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111111" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f1eb" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#f4f1eb" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: light)" href="/favicon-dark.svg" />
-    <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: dark)" href="/favicon-light.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>LowNoise.news</title>

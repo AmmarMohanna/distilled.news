@@ -62,6 +62,8 @@ import { deriveBriefingSlug, formatArabicTimeParts, formatTime, publicFeedUrl, s
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, TelegramSourceRecord } from "./types";
 import "./styles.css";
 
+const FEED_BATCH_SIZE = 20;
+
 declare global {
   interface Window {
     turnstile?: {
@@ -1534,6 +1536,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [evidenceBusyIds, setEvidenceBusyIds] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
 
   async function refresh() {
     setError("");
@@ -1542,6 +1545,7 @@ function FeedPage(props: { username: string; slug: string }) {
     setItems(next.items);
     setExpanded(new Set());
     setEvidenceBusyIds(new Set());
+    setVisibleUnreadCount(FEED_BATCH_SIZE);
   }
 
   useEffect(() => {
@@ -1564,7 +1568,10 @@ function FeedPage(props: { username: string; slug: string }) {
       try {
         setError("");
         const nextItems = query.trim() ? await searchFeed(props.username, props.slug, query) : payload.items;
-        if (active) setItems(nextItems);
+        if (active) {
+          setItems(nextItems);
+          setVisibleUnreadCount(FEED_BATCH_SIZE);
+        }
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : String(cause));
       }
@@ -1576,6 +1583,8 @@ function FeedPage(props: { username: string; slug: string }) {
   }, [payload, props.username, props.slug, query]);
 
   const unreadItems = items.filter((item) => !readIds.has(item.id));
+  const visibleUnreadItems = unreadItems.slice(0, visibleUnreadCount);
+  const hiddenUnreadCount = Math.max(0, unreadItems.length - visibleUnreadItems.length);
   const archivedReadItems = items.filter((item) => readIds.has(item.id));
   const language = payload?.briefing.language ?? "en";
   const canStar = Boolean(payload);
@@ -1654,6 +1663,7 @@ function FeedPage(props: { username: string; slug: string }) {
             onSubmit={async (event) => {
               event.preventDefault();
               setItems(query.trim() ? await searchFeed(props.username, props.slug, query) : payload?.items ?? []);
+              setVisibleUnreadCount(FEED_BATCH_SIZE);
             }}
           >
             <Search size={15} aria-hidden />
@@ -1664,7 +1674,7 @@ function FeedPage(props: { username: string; slug: string }) {
       {exploreOpen ? <ExploreFeedsSheet currentFeed={payload?.briefing} onClose={() => setExploreOpen(false)} /> : null}
       {error ? <FeedNotice message={error} /> : null}
       <div className="news-line">
-        {unreadItems.map((item) => (
+        {visibleUnreadItems.map((item) => (
           <FeedItemRow
             key={item.id}
             item={item}
@@ -1676,6 +1686,14 @@ function FeedPage(props: { username: string; slug: string }) {
             onToggleRead={() => toggleRead(readIds, setReadIds, item.id, true)}
           />
         ))}
+        {hiddenUnreadCount > 0 ? (
+          <div className="load-more-row">
+            <button type="button" title="load more news" onClick={() => setVisibleUnreadCount((count) => count + FEED_BATCH_SIZE)}>
+              load more
+            </button>
+            <span className="muted">{hiddenUnreadCount} more</span>
+          </div>
+        ) : null}
         {unreadItems.length === 0 && !error ? (
           <div className="empty-state">
             <strong>{archivedReadItems.length > 0 ? "all visible items are read" : "no published items"}</strong>
@@ -1820,7 +1838,7 @@ function Shell(props: {
   onLogout?: () => Promise<void>;
   pageLanguage?: "en" | "ar" | "fr";
 }) {
-  const [theme, setTheme] = useState(() => localStorage.getItem("ln_theme") ?? "dark");
+  const [theme, setTheme] = useState(() => (localStorage.getItem("ln_theme") === "dark" ? "dark" : "light"));
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("ln_theme", theme);
@@ -1842,7 +1860,9 @@ function Shell(props: {
       <header>
         <div className="header-primary">
           <div className="brand-lockup">
-            <a href="/" className="brand">Low Noise News Feed</a>
+            <a href="/" className="brand" aria-label="Low Noise News Feed" title="Low Noise News Feed">
+              <img className="brand-logo" src="/logo.svg" alt="" />
+            </a>
             <a href="https://github.com/AmmarMohanna/lownoise.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository" title="open GitHub repository">
               <Github size={16} aria-hidden />
             </a>
