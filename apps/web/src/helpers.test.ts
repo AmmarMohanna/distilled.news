@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { BriefingConfig } from "@lownoise/core";
+import type { BriefingConfig } from "@distilled/core";
 import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
 
 const baseBriefing: BriefingConfig = {
@@ -14,6 +14,7 @@ const baseBriefing: BriefingConfig = {
   publicFeedEnabled: false,
   paused: false,
   language: "en",
+  intensity: "low",
   retentionDays: 15
 };
 
@@ -34,20 +35,17 @@ describe("web helpers", () => {
   });
 
   it("builds shareable public feed URLs", () => {
-    expect(publicFeedUrl("ammar-mohanna", "personal", "https://lownoise.news")).toBe("https://lownoise.news/ammar-mohanna/personal/");
+    expect(publicFeedUrl("ammar-mohanna", "personal", "https://distilled.news")).toBe("https://distilled.news/ammar-mohanna/personal/");
   });
 
-  it("formats timestamps in 24-hour time for all supported languages", () => {
+  it("formats timestamps consistently for all supported languages", () => {
     const english = formatTime("2026-06-16T10:58:00.000Z", "en");
     const arabic = formatTime("2026-06-16T10:58:00.000Z", "ar");
     const french = formatTime("2026-06-16T10:58:00.000Z", "fr");
 
-    expect(english).toMatch(/\b\d{2}:\d{2}\b/);
-    expect(arabic).toMatch(/\b\d{2}:\d{2}\b/);
-    expect(arabic).toMatch(/^حزيران \d{1,2}، \d{2}:\d{2}$/);
-    expect(french).toMatch(/\b\d{2}:\d{2}\b/);
+    expect(english).toMatch(/^[A-Z][a-z]+ \d{1,2}, \d{2}:\d{2}$/);
+    expect(arabic).toBe(english);
+    expect(french).toBe(english);
     expect(english).not.toMatch(/am|pm/i);
-    expect(arabic).not.toMatch(/am|pm/i);
-    expect(french).not.toMatch(/am|pm/i);
   });
 });

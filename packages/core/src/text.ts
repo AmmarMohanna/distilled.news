@@ -42,10 +42,80 @@ const STOP_WORDS = new Set([
   "with"
 ]);
 
+const EVENT_STOP_WORDS = new Set([
+  ...STOP_WORDS,
+  "breaking",
+  "news",
+  "update",
+  "updates",
+  "lbcinews",
+  "lbci",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "2024",
+  "2025",
+  "2026",
+  "في",
+  "من",
+  "عن",
+  "على",
+  "علي",
+  "الى",
+  "إلى",
+  "الي",
+  "مع",
+  "هذا",
+  "هذه",
+  "ذلك",
+  "تلك",
+  "كل",
+  "جميع",
+  "عبر",
+  "بعد",
+  "قبل",
+  "خلال",
+  "اليوم",
+  "أمس",
+  "غدا",
+  "غداً"
+]);
+
+const ARABIC_DIACRITICS = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/gu;
+
 export function normalizeText(text: string): string {
   return text
     .toLowerCase()
     .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function normalizeEventText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2},?\s+\d{4}\s+at\s+\d{1,2}:\d{2}\s*(?:am|pm)?\b/gi, " ")
+    .replace(/\b\d{1,2}:\d{2}\s*(?:am|pm)?\b/gi, " ")
+    .replace(/@\w+/g, " ")
+    .replace(/#\p{L}[\p{L}\p{N}_-]*/gu, " ")
+    .normalize("NFKD")
+    .replace(ARABIC_DIACRITICS, "")
+    .replace(/ـ/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/(^|\s)(?:سوف\s+|سي|سأ|سا)(?=\p{L}{3,})/gu, "$1")
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -61,6 +131,20 @@ export function significantTokens(text: string): string[] {
         .split(" ")
         .map((token) => token.trim())
         .filter((token) => token.length > 2 && !STOP_WORDS.has(token))
+    )
+  );
+}
+
+export function eventTokens(text: string): string[] {
+  const normalized = normalizeEventText(text);
+  if (!normalized) return [];
+
+  return Array.from(
+    new Set(
+      normalized
+        .split(" ")
+        .map((token) => token.trim())
+        .filter((token) => token.length > 2 && !EVENT_STOP_WORDS.has(token))
     )
   );
 }

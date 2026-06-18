@@ -1,6 +1,6 @@
-import type { BriefingConfig } from "@lownoise/core";
-import type { BriefingEvidence } from "@lownoise/core";
-import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, TelegramSourceRecord } from "./types";
+import type { BriefingConfig } from "@distilled/core";
+import type { BriefingEvidence } from "@distilled/core";
+import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 
 export interface SourceIngestResult {
   sourceId: string;
@@ -10,10 +10,11 @@ export interface SourceIngestResult {
   imported: number;
   queued: number;
   skipped: number;
+  runStarted?: boolean;
 }
 
 export interface SourceRefreshResult {
-  sources: TelegramSourceRecord[];
+  sources: SourceRecord[];
   health: HealthStatus;
   results?: SourceIngestResult[];
   result?: SourceIngestResult;
@@ -148,8 +149,8 @@ export async function deleteBriefing(briefingId: string): Promise<BriefingConfig
   return payload.briefings;
 }
 
-export async function getSources(briefingId: string): Promise<TelegramSourceRecord[]> {
-  const payload = await requestJson<{ sources: TelegramSourceRecord[] }>(
+export async function getSources(briefingId: string): Promise<SourceRecord[]> {
+  const payload = await requestJson<{ sources: SourceRecord[] }>(
     `/api/me/sources?briefingId=${encodeURIComponent(briefingId)}`
   );
   return payload.sources;
@@ -158,7 +159,7 @@ export async function getSources(briefingId: string): Promise<TelegramSourceReco
 export async function addPublicTelegramSource(briefingId: string, url: string): Promise<SourceRefreshResult> {
   return requestJson<SourceRefreshResult>("/api/me/sources", {
     method: "POST",
-    body: JSON.stringify({ briefingId, url })
+    body: JSON.stringify({ briefingId, input: url })
   });
 }
 
@@ -166,7 +167,7 @@ export async function setSourceEnabled(
   briefingId: string,
   sourceId: string,
   enabled: boolean
-): Promise<TelegramSourceRecord[]> {
+): Promise<SourceRecord[]> {
   const payload = await requestJson<SourceRefreshResult>("/api/me/sources", {
     method: "POST",
     body: JSON.stringify({ briefingId, sourceId, enabled })

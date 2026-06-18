@@ -1,7 +1,19 @@
 import { clusterMessages } from "./clustering";
-import { classifyNoise, findDuplicate, isRelevantToInterest } from "./filtering";
-import { createEvidenceOnlySummary } from "./summarization";
-import { jaccardSimilarity, normalizeText, significantTokens, stableHash } from "./text";
+import {
+  areSameEventDeterministic,
+  collapseDuplicateBriefingItems,
+  primaryEventKeyForEvidence
+} from "./events";
+import {
+  classifyNoise,
+  findDuplicate,
+  hasAuthoritySignal,
+  hasConcreteFact,
+  isImportantToInterest,
+  isRelevantToInterest
+} from "./filtering";
+import { createEvidenceOnlySummary, isLowInformationSummary } from "./summarization";
+import { eventTokens, jaccardSimilarity, normalizeEventText, normalizeText, significantTokens, stableHash } from "./text";
 import type {
   BriefingEvidence,
   BriefingItem,
@@ -12,20 +24,22 @@ import type {
   SuppressedMessage
 } from "./types";
 
-const UPDATE_MERGE_THRESHOLD = 0.32;
+const UPDATE_MERGE_THRESHOLD = 0.42;
 
 export function processMessages(input: ProcessingInput): ProcessingResult {
   const accepted: NormalizedMessage[] = [];
   const suppressed: SuppressedMessage[] = [];
+  const importantMessageIds = new Set(input.importantMessageIds ?? []);
 
   for (const message of input.messages) {
+    const important = importantMessageIds.has(message.id) || isImportantToInterest(message, input.briefing);
     const noise = classifyNoise(message);
     if (noise) {
       suppressed.push(noise);
       continue;
     }
 
-    if (!isRelevantToInterest(message, input.briefing)) {
+    if (!important && !isRelevantToInterest(message, input.briefing)) {
       suppressed.push({
         messageId: message.id,
         reason: "not_relevant",
@@ -35,7 +49,7 @@ export function processMessages(input: ProcessingInput): ProcessingResult {
     }
 
     const duplicate = findDuplicate(message, accepted);
-    if (duplicate) {
+    if (duplicate && !shouldKeepDuplicateAsEvidence(message, duplicate, important)) {
       suppressed.push({
         messageId: message.id,
         reason: "duplicate",
@@ -51,22 +65,42 @@ export function processMessages(input: ProcessingInput): ProcessingResult {
   const newItems: BriefingItem[] = [];
 
   for (const cluster of clusterMessages(accepted)) {
+    if (!clusterIsImportant(cluster, input.briefing, importantMessageIds) && !passesIntensity(cluster, input.briefing.intensity)) {
+      for (const message of cluster.messages) {
+        suppressed.push({
+          messageId: message.id,
+          reason: "not_relevant",
+          detail: "Message needs stronger support at the current feed intensity."
+        });
+      }
+      continue;
+    }
+
     const evidence = cluster.messages.map(toEvidence);
-    const existing = findMergeTarget(cluster, existingItems, newItems);
+    const importantCluster = clusterIsImportant(cluster, input.briefing, importantMessageIds);
+    const existing = findMergeTarget(cluster, existingItems, newItems, importantCluster);
 
     if (existing) {
-      mergeIntoItem(existing, evidence, cluster.messages);
+      mergeIntoItem(input.briefing, existing, evidence, cluster.messages);
       continue;
     }
 
     const item = createBriefingItem(input.briefing, cluster, evidence);
-    if (item.summary) newItems.push(item);
+    if (item.summary) {
+      newItems.push(item);
+    } else {
+      for (const message of cluster.messages) {
+        suppressed.push({
+          messageId: message.id,
+          reason: "no_clear_information",
+          detail: "Message did not contain a clear standalone factual update."
+        });
+      }
+    }
   }
 
   return {
-    publishedItems: [...existingItems, ...newItems].sort((left, right) =>
-      right.itemAt.localeCompare(left.itemAt)
-    ),
+    publishedItems: collapseDuplicateBriefingItems([...existingItems, ...newItems], input.briefing),
     suppressed
   };
 }
@@ -99,6 +133,7 @@ export function searchBriefingItems(items: BriefingItem[], query: string, now = 
 function createBriefingItem(briefing: ProcessingInput["briefing"], cluster: ClusterCandidate, evidence: BriefingEvidence[]): BriefingItem {
   const itemAt = latestDate(cluster.messages.map((message) => message.postedAt));
   const expiresAt = addDays(itemAt, briefing.retentionDays);
+  const eventKey = primaryEventKeyForEvidence(evidence);
   const summary = createEvidenceOnlySummary(
     {
       id: "summary",
@@ -112,14 +147,16 @@ function createBriefingItem(briefing: ProcessingInput["briefing"], cluster: Clus
       publicFeedEnabled: true,
       paused: false,
       language: briefing.language,
+      intensity: briefing.intensity,
       retentionDays: briefing.retentionDays
     },
     evidence
   );
 
   return {
-    id: `item_${stableHash(`${cluster.id}:${summary}`)}`,
-    clusterId: cluster.id,
+    id: `item_${stableHash(`${briefing.id}:${eventKey}`)}`,
+    clusterId: `cluster_${stableHash(eventKey)}`,
+    eventKey,
     summary,
     itemAt,
     updatedAt: itemAt,
@@ -135,6 +172,8 @@ function toEvidence(message: NormalizedMessage): BriefingEvidence {
     sourceId: message.source.id,
     sourceTitle: message.source.title,
     sourceType: message.source.type,
+    sourceProvider: message.source.provider,
+    sourceKind: message.source.kind,
     sourceUrl: message.sourceUrl,
     postedAt: message.postedAt,
     text: message.text,
@@ -143,35 +182,59 @@ function toEvidence(message: NormalizedMessage): BriefingEvidence {
   };
 }
 
+function passesIntensity(cluster: ClusterCandidate, intensity: ProcessingInput["briefing"]["intensity"]): boolean {
+  if (intensity === "high" || intensity === "medium") return true;
+
+  const distinctSources = new Set(cluster.messages.map((message) => message.source.id));
+  if (distinctSources.size >= 2) return true;
+
+  const [message] = cluster.messages;
+  if (!message) return false;
+
+  if (!hasConcreteFact(message.text)) return false;
+  if (hasAuthoritySignal(message.text)) return true;
+
+  return message.source.kind === "google_news" || message.source.kind === "rss_feed";
+}
+
 function findMergeTarget(
   cluster: ClusterCandidate,
   existingItems: BriefingItem[],
-  newItems: BriefingItem[]
+  newItems: BriefingItem[],
+  importantCluster: boolean
 ): BriefingItem | undefined {
   const candidates = [...existingItems, ...newItems];
   const clusterTexts = cluster.messages.map((message) => message.text);
-  const clusterTokens = significantTokens(clusterTexts.join(" "));
+  const clusterTokens = eventTokens(clusterTexts.join(" "));
+  const clusterEvidence = cluster.messages.map(toEvidence);
 
   return candidates.find((item) => {
+    if (areSameEventDeterministic(clusterEvidence, item.evidence)) return true;
+
     const itemTexts = [item.summary, ...item.evidence.map((evidence) => evidence.text)];
-    const itemTokens = significantTokens(itemTexts.join(" "));
+    const itemTokens = eventTokens(itemTexts.join(" "));
 
     if (
       clusterTexts.some((text) =>
-        itemTexts.some((candidate) => normalizeText(candidate) === normalizeText(text))
+        itemTexts.some((candidate) => normalizeText(candidate) === normalizeText(text) || normalizeEventText(candidate) === normalizeEventText(text))
       )
     ) {
       return true;
     }
 
-    return Math.max(
+    const strongestSimilarity = Math.max(
       jaccardSimilarity(clusterTokens, itemTokens),
       strongestTextSimilarity(clusterTexts, itemTexts)
-    ) >= UPDATE_MERGE_THRESHOLD;
+    );
+    if (importantCluster) {
+      return strongestSimilarity >= 0.72 || strongestTextContainment(clusterTexts, itemTexts) >= 0.75;
+    }
+    return strongestSimilarity >= UPDATE_MERGE_THRESHOLD;
   });
 }
 
 function mergeIntoItem(
+  briefing: ProcessingInput["briefing"],
   item: BriefingItem,
   evidence: BriefingEvidence[],
   messages: NormalizedMessage[]
@@ -179,21 +242,62 @@ function mergeIntoItem(
   const existingMessageIds = new Set(item.evidence.map((entry) => entry.messageId));
   const nextEvidence = evidence.filter((entry) => !existingMessageIds.has(entry.messageId));
   item.evidence.push(...nextEvidence);
-  item.mergedUpdateCount += nextEvidence.length;
+  item.mergedUpdateCount = Math.max(0, item.evidence.length - 1);
+  item.eventKey = item.eventKey ?? primaryEventKeyForEvidence(item.evidence);
   item.updatedAt = latestDate([...messages.map((message) => message.postedAt), item.updatedAt]);
+  const refreshedSummary = createEvidenceOnlySummary(briefing, item.evidence);
+  if (refreshedSummary && !isLowInformationSummary(refreshedSummary)) item.summary = refreshedSummary;
 }
 
 function strongestTextSimilarity(left: string[], right: string[]): number {
   let strongest = 0;
 
   for (const leftText of left) {
-    const leftTokens = significantTokens(leftText);
+    const leftTokens = eventTokens(leftText);
     for (const rightText of right) {
-      strongest = Math.max(strongest, jaccardSimilarity(leftTokens, significantTokens(rightText)));
+      strongest = Math.max(strongest, jaccardSimilarity(leftTokens, eventTokens(rightText)));
     }
   }
 
   return strongest;
+}
+
+function strongestTextContainment(left: string[], right: string[]): number {
+  let strongest = 0;
+  for (const leftText of left) {
+    const leftTokens = eventTokens(leftText);
+    for (const rightText of right) {
+      strongest = Math.max(strongest, tokenContainment(leftTokens, eventTokens(rightText)));
+    }
+  }
+  return strongest;
+}
+
+function tokenContainment(left: string[], right: string[]): number {
+  if (left.length === 0 || right.length === 0) return 0;
+  const a = new Set(left);
+  const b = new Set(right);
+  const intersection = Array.from(a).filter((token) => b.has(token)).length;
+  return intersection / Math.min(a.size, b.size);
+}
+
+function clusterIsImportant(
+  cluster: ClusterCandidate,
+  briefing: ProcessingInput["briefing"],
+  importantMessageIds: Set<string>
+): boolean {
+  return cluster.messages.some((message) => importantMessageIds.has(message.id) || isImportantToInterest(message, briefing));
+}
+
+function shouldKeepDuplicateAsEvidence(
+  message: NormalizedMessage,
+  duplicate: NormalizedMessage,
+  important: boolean
+): boolean {
+  if (!important) return false;
+  if (message.id === duplicate.id) return false;
+  if (message.sourceUrl && duplicate.sourceUrl && message.sourceUrl === duplicate.sourceUrl) return false;
+  return message.source.id !== duplicate.source.id || message.links.some((link) => !duplicate.links.includes(link));
 }
 
 function latestDate(dates: string[]): string {

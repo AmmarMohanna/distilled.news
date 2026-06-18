@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { hashPassword } from "./auth";
 import { processQueueMessage } from "./processor";
+import { ingestPublicTelegramChannel } from "./publicTelegram";
 import { InMemoryRepository } from "./repository";
-import type { BriefingItem } from "@lownoise/core";
+import { pollApifySourceRuns } from "./sources";
+import type { BriefingItem, EventReviewAdapter, NormalizedMessage } from "@distilled/core";
 import type { Env, ProcessingJobMessage } from "./types";
 
 class FakeBucket {
@@ -41,8 +43,8 @@ function env(email = new FakeEmail()): Env {
     ADMIN_SESSION_SECRET: "admin-secret",
     ADMIN_SETUP_TOKEN: "setup-token",
     INTERNAL_MAINTENANCE_SECRET: "internal-secret",
-    PUBLIC_WEB_BASE_URL: "https://lownoise.news",
-    EMAIL_FROM: "Low Noise News Feed <noreply@lownoise.news>",
+    PUBLIC_WEB_BASE_URL: "https://distilled.news",
+    EMAIL_FROM: "Distilled.news <noreply@distilled.news>",
     EMAIL: email
   } as unknown as Env;
 }
@@ -77,7 +79,7 @@ describe("worker app accounts", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie")).toContain("ln_session=");
+    expect(response.headers.get("set-cookie")).toContain("dn_session=");
     expect(await response.json()).toMatchObject({
       account: {
         email: "admin@example.com",
@@ -179,7 +181,7 @@ describe("worker app accounts", () => {
       },
       env(email)
     );
-    expect(email.messages[0].from).toEqual({ email: "noreply@lownoise.news", name: "Low Noise News Feed" });
+    expect(email.messages[0].from).toEqual({ email: "noreply@distilled.news", name: "Distilled.news" });
 
     const rejectedLogin = await app.request(
       "/api/auth/login",
@@ -339,7 +341,7 @@ describe("worker app accounts", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json", cookie: user.cookie },
-        body: JSON.stringify({ ...briefings[0], title: "Personal Briefing", interestProfile: "Track Lebanese infrastructure", publicFeedEnabled: true, paused: false, language: "en", retentionDays: 15, stars: 0 })
+        body: JSON.stringify({ ...briefings[0], title: "Personal Briefing", interestProfile: "Track Lebanese infrastructure", publicFeedEnabled: true, paused: false, language: "en", intensity: "medium", retentionDays: 15, stars: 0 })
       },
       env()
     );
@@ -371,6 +373,386 @@ describe("worker app accounts", () => {
 
     const oldRoute = await app.request("/api/feed/personal", {}, env());
     expect(oldRoute.status).toBe(404);
+  });
+
+  it("keeps a manually paused Telegram source paused across later ingest passes", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+
+    const addResponse = await app.request(
+      "/api/me/sources",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: user.cookie },
+        body: JSON.stringify({ briefingId: briefing!.id, input: "https://t.me/LebUpdate" })
+      },
+      env()
+    );
+    expect(addResponse.status).toBe(200);
+    let sources = await repo.listSources(briefing!.id);
+    expect(sources[0].enabled).toBe(true);
+
+    const pauseResponse = await app.request(
+      "/api/me/sources",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: user.cookie },
+        body: JSON.stringify({ briefingId: briefing!.id, sourceId: sources[0].id, enabled: false })
+      },
+      env()
+    );
+    expect(pauseResponse.status).toBe(200);
+    sources = await repo.listSources(briefing!.id);
+    expect(sources[0].enabled).toBe(false);
+
+    await ingestPublicTelegramChannel({
+      briefing: briefing!,
+      url: "https://t.me/LebUpdate",
+      repo,
+      bucket,
+      queue,
+      fetcher: fetcher as unknown as typeof fetch,
+      now: new Date("2026-06-16T08:02:00.000Z")
+    });
+
+    sources = await repo.listSources(briefing!.id);
+    expect(sources[0].enabled).toBe(false);
+  });
+
+  it("does not publish a new item when the summary adapter returns no-post", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+    await repo.upsertBriefing({ ...briefing!, interestProfile: "Track Lebanese infrastructure", intensity: "medium" });
+
+    const sourceResponse = await app.request(
+      "/api/me/sources",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: user.cookie },
+        body: JSON.stringify({ briefingId: briefing!.id, input: "t: LebUpdate" })
+      },
+      env()
+    );
+    expect(sourceResponse.status).toBe(200);
+    expect(queue.messages).toHaveLength(1);
+
+    await processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:00:00.000Z"), {
+      summarize: async () => "NO_POST"
+    });
+
+    const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
+    expect(feedResponse.status).toBe(200);
+    const feed = (await feedResponse.json()) as { items: Array<{ summary: string }> };
+    expect(feed.items).toHaveLength(0);
+  });
+
+  it("keeps one published item when later AI summaries differ for the same event", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+    await repo.upsertBriefing({ ...briefing!, interestProfile: "Track Lebanese regional and public safety news", intensity: "medium" });
+
+    const firstMessage: NormalizedMessage = {
+      id: `${briefing!.id}::msg_ai_drift_1`,
+      source: { id: "src_lbci", title: "LBCI_NEWS", type: "channel", provider: "telegram", kind: "telegram_channel", username: "LBCI_NEWS" },
+      messageId: "303821",
+      text: "وزير الخارجية الإسرائيلي: قطع جميع الاتصالات مع مسؤولة السياسة الخارجية في الاتحاد الأوروبي",
+      links: ["https://twitter.com/LBCI_NEWS/status/2067527301990900181"],
+      media: [],
+      postedAt: "2026-06-18T08:38:00.000Z",
+      receivedAt: "2026-06-18T08:38:10.000Z",
+      sourceUrl: "https://t.me/LBCI_NEWS/303821",
+      expiresAt: "2026-07-03T08:38:00.000Z"
+    };
+    const secondMessage: NormalizedMessage = {
+      ...firstMessage,
+      id: `${briefing!.id}::msg_ai_drift_2`,
+      messageId: "303822",
+      text: "وزير الخارجية الإسرائيليّ: سأقطع الاتصالات مع مسؤولة السياسة الخارجية في الاتحاد الأوروبيّ",
+      links: ["https://twitter.com/LBCI_NEWS/status/2067527529599062343"],
+      postedAt: "2026-06-18T08:43:00.000Z",
+      receivedAt: "2026-06-18T08:43:10.000Z",
+      sourceUrl: "https://t.me/LBCI_NEWS/303822"
+    };
+
+    const source = await repo.upsertSourceFromMessage(briefing!.id, firstMessage);
+    await repo.setSourceEnabled(source.id, true);
+    const persistedFirst = { ...firstMessage, source: { ...firstMessage.source, id: source.id } };
+    const persistedSecond = { ...secondMessage, source: { ...secondMessage.source, id: source.id } };
+    await repo.saveRawMessage(briefing!.id, persistedFirst);
+    const firstJobId = await repo.createProcessingJob(briefing!.id, persistedFirst.id);
+    await processQueueMessage(repo, { jobId: firstJobId, briefingId: briefing!.id, rawMessageId: persistedFirst.id }, new Date("2026-06-18T08:40:00.000Z"), {
+      summarize: async () => "أعلن وزير الخارجية الإسرائيلي قطع الاتصالات مع مسؤولة السياسة الخارجية الأوروبية."
+    });
+
+    await repo.saveRawMessage(briefing!.id, persistedSecond);
+    const secondJobId = await repo.createProcessingJob(briefing!.id, persistedSecond.id);
+    await processQueueMessage(repo, { jobId: secondJobId, briefingId: briefing!.id, rawMessageId: persistedSecond.id }, new Date("2026-06-18T08:44:00.000Z"), {
+      summarize: async () => "وزير الخارجية الإسرائيلي: قطع جميع الاتصالات مع مسؤولة السياسة الخارجية في الاتحاد الأوروبي"
+    });
+
+    const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
+    expect(feedItems).toHaveLength(1);
+    expect(feedItems[0].evidence.map((entry) => entry.messageId)).toEqual([
+      persistedFirst.id,
+      persistedSecond.id
+    ]);
+  });
+
+  it.each([
+    [true, 1],
+    [false, 2]
+  ])("uses LLM event equivalence review result %s when deterministic matching is inconclusive", async (sameEvent, expectedCount) => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+    await repo.upsertBriefing({ ...briefing!, interestProfile: "Track central bank and economy news", intensity: "medium" });
+
+    const existing: BriefingItem = {
+      id: "item_existing_bank",
+      clusterId: "cluster_existing_bank",
+      summary: "Central bank ordered banks to limit cash withdrawals.",
+      itemAt: "2026-06-18T08:00:00.000Z",
+      updatedAt: "2026-06-18T08:00:00.000Z",
+      expiresAt: "2026-07-03T08:00:00.000Z",
+      mergedUpdateCount: 0,
+      evidence: [
+        {
+          messageId: `${briefing!.id}::existing_bank_raw`,
+          sourceId: "src_existing_bank",
+          sourceTitle: "Banking Wire",
+          sourceType: "channel",
+          sourceProvider: "rss",
+          sourceKind: "rss_feed",
+          postedAt: "2026-06-18T08:00:00.000Z",
+          text: "Central bank ordered banks to limit cash withdrawals.",
+          links: [],
+          media: []
+        }
+      ]
+    };
+    await repo.saveBriefingItems(briefing!.id, [existing]);
+
+    const message: NormalizedMessage = {
+      id: `${briefing!.id}::bank_review_raw`,
+      source: { id: "src_bank_review", title: "Economy News", type: "channel", provider: "telegram", kind: "telegram_channel" },
+      messageId: "bank-review",
+      text: "Central bank announced new withdrawal caps for commercial banks.",
+      links: [],
+      media: [],
+      postedAt: "2026-06-18T08:05:00.000Z",
+      receivedAt: "2026-06-18T08:05:10.000Z",
+      sourceUrl: "https://t.me/economy/1",
+      expiresAt: "2026-07-03T08:05:00.000Z"
+    };
+    const source = await repo.upsertSourceFromMessage(briefing!.id, message);
+    await repo.setSourceEnabled(source.id, true);
+    const persisted = { ...message, source: { ...message.source, id: source.id } };
+    await repo.saveRawMessage(briefing!.id, persisted);
+    const jobId = await repo.createProcessingJob(briefing!.id, persisted.id);
+    const reviewAdapter: EventReviewAdapter = {
+      areSameEvent: async () => sameEvent,
+      isImportant: async () => false
+    };
+
+    await processQueueMessage(repo, { jobId, briefingId: briefing!.id, rawMessageId: persisted.id }, new Date("2026-06-18T08:06:00.000Z"), null, reviewAdapter);
+
+    const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
+    expect(feedItems).toHaveLength(expectedCount);
+  });
+
+  it("returns a clear error when Apify sources are added without a token", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo, bucket: new FakeBucket(), queue: new FakeQueue() });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+
+    const response = await app.request(
+      "/api/me/sources",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: user.cookie },
+        body: JSON.stringify({ briefingId: briefing!.id, input: "news: lebanon power" })
+      },
+      env()
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "APIFY_API_TOKEN is not configured." });
+  });
+
+  it("starts, polls, imports, and processes an Apify Google News source", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async (request: RequestInfo | URL) => {
+      const url = String(request);
+      if (url.includes("/actors/groupoject~google-news-scraper/runs")) {
+        return new Response(JSON.stringify({
+          data: {
+            id: "run_1",
+            status: "RUNNING",
+            defaultDatasetId: "dataset_1",
+            startedAt: "2026-06-16T08:00:00.000Z"
+          }
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("/actor-runs/run_1")) {
+        return new Response(JSON.stringify({
+          data: {
+            id: "run_1",
+            status: "SUCCEEDED",
+            defaultDatasetId: "dataset_1"
+          }
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("/datasets/dataset_1/items")) {
+        return new Response(JSON.stringify([
+          {
+            title: "Central bank announced a new circular",
+            source: "Reuters",
+            googleNewsUrl: "https://news.google.com/read/bank-circular",
+            snippet: "The official circular changes reporting rules.",
+            publishedAt: "2026-06-16T08:01:00.000Z",
+            fetchedAt: "2026-06-16T09:01:00.000Z"
+          }
+        ]), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response("not found", { status: 404 });
+    });
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+    await repo.upsertBriefing({ ...briefing!, interestProfile: "Track central bank and economy news", intensity: "low" });
+
+    const addResponse = await app.request(
+      "/api/me/sources",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: user.cookie },
+        body: JSON.stringify({ briefingId: briefing!.id, input: "news: central bank lebanon" })
+      },
+      { ...env(), APIFY_API_TOKEN: "token" } as Env
+    );
+    expect(addResponse.status).toBe(200);
+    expect(queue.messages).toHaveLength(0);
+
+    await pollApifySourceRuns({
+      repo,
+      bucket,
+      queue,
+      env: { ...env(), APIFY_API_TOKEN: "token" } as Env,
+      fetcher: fetcher as unknown as typeof fetch
+    });
+
+    expect(queue.messages).toHaveLength(1);
+    expect(Array.from(bucket.objects.keys()).some((key) => key.includes("apify/"))).toBe(true);
+    await processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:05:00.000Z"));
+
+    const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
+    expect(feedResponse.status).toBe(200);
+    const feed = (await feedResponse.json()) as { items: Array<{ id: string; summary: string }> };
+    expect(feed.items[0].summary).toContain("Central bank");
+
+    const evidenceResponse = await app.request(
+      `/api/feed/feed-owner/personal/items/${encodeURIComponent(feed.items[0].id)}/evidence`,
+      {},
+      env()
+    );
+    expect(evidenceResponse.status).toBe(200);
+    const evidence = (await evidenceResponse.json()) as { evidence: Array<{ sourceTitle: string }> };
+    expect(evidence.evidence[0].sourceTitle).toBe("Reuters");
+  });
+
+  it("marks Apify demo placeholder datasets as source errors", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(request);
+      if (url.includes("/actors/kaitoeasyapi~twitter-x-data-tweet-scraper-pay-per-result-cheapest/runs")) {
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          searchTerms: ["from:ALJADEEDNEWS"],
+          sort: "Latest"
+        });
+        return new Response(JSON.stringify({
+          data: {
+            id: "run_x",
+            status: "RUNNING",
+            defaultDatasetId: "dataset_x",
+            startedAt: "2026-06-16T08:00:00.000Z"
+          }
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("/actor-runs/run_x")) {
+        return new Response(JSON.stringify({
+          data: {
+            id: "run_x",
+            status: "SUCCEEDED",
+            defaultDatasetId: "dataset_x"
+          }
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("/datasets/dataset_x/items")) {
+        return new Response(JSON.stringify([{ demo: true }, { demo: true }]), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      return new Response("not found", { status: 404 });
+    });
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+
+    const addResponse = await app.request(
+      "/api/me/sources",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: user.cookie },
+        body: JSON.stringify({ briefingId: briefing!.id, input: "x: @ALJADEEDNEWS" })
+      },
+      { ...env(), APIFY_API_TOKEN: "token" } as Env
+    );
+    expect(addResponse.status).toBe(200);
+
+    await pollApifySourceRuns({
+      repo,
+      bucket,
+      queue,
+      env: { ...env(), APIFY_API_TOKEN: "token" } as Env,
+      fetcher: fetcher as unknown as typeof fetch
+    });
+
+    const sources = await repo.listSources(briefing!.id);
+    const source = sources.find((item) => item.kind === "x_profile");
+    expect(source?.lastError).toContain("demo placeholders");
+    const runs = await repo.listSourceRuns({ sourceId: source!.id });
+    expect(runs[0]).toMatchObject({
+      state: "failed",
+      itemCount: 0
+    });
+    expect(runs[0].error).toContain("paid Apify plan");
+    expect(queue.messages).toHaveLength(0);
   });
 
   it("serves feed links without auth even when an old row has the removed private flag", async () => {
@@ -416,6 +798,49 @@ describe("worker app accounts", () => {
       env()
     );
     expect(starResponse.status).toBe(200);
+  });
+
+  it("merges saved items that reuse the same raw evidence", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+
+    const evidence = {
+      messageId: `${briefing!.id}::raw_duplicate`,
+      sourceId: "src_duplicate",
+      sourceTitle: "LBCI_NEWS",
+      sourceType: "channel" as const,
+      sourceProvider: "telegram" as const,
+      sourceKind: "telegram_channel" as const,
+      sourceUrl: "https://t.me/LBCI_NEWS/303821",
+      postedAt: "2026-06-18T08:38:00.000Z",
+      text: "وزير الخارجية الإسرائيلي: قطع جميع الاتصالات مع مسؤولة السياسة الخارجية في الاتحاد الأوروبي",
+      links: ["https://twitter.com/LBCI_NEWS/status/2067527301990900181"],
+      media: []
+    };
+    const first: BriefingItem = {
+      id: "item_duplicate_a",
+      clusterId: "cluster_duplicate_a",
+      summary: "first summary",
+      itemAt: "2026-06-18T08:38:00.000Z",
+      updatedAt: "2026-06-18T08:38:00.000Z",
+      expiresAt: "2026-07-03T08:38:00.000Z",
+      mergedUpdateCount: 0,
+      evidence: [evidence]
+    };
+    const second: BriefingItem = {
+      ...first,
+      id: "item_duplicate_b",
+      clusterId: "cluster_duplicate_b",
+      summary: "second summary"
+    };
+
+    await repo.saveBriefingItems(briefing!.id, [first, second]);
+    const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
+    expect(feedItems).toHaveLength(1);
+    expect(feedItems[0].evidence).toHaveLength(1);
   });
 
   it("lists top explored feeds by stars and oldest tie", async () => {
@@ -488,6 +913,18 @@ describe("worker app accounts", () => {
     expect(redirect.headers.get("location")).toBe("http://localhost/api/feed/new-name/personal");
   });
 
+  it("redirects legacy domains to the canonical Distilled domain", async () => {
+    const app = createApp({ repository: new InMemoryRepository() });
+
+    const legacy = await app.request("https://lownoise.news/ammar-mohanna/personal/?q=power", {}, env());
+    expect(legacy.status).toBe(301);
+    expect(legacy.headers.get("location")).toBe("https://distilled.news/ammar-mohanna/personal/?q=power");
+
+    const canonicalWww = await app.request("https://www.distilled.news/", {}, env());
+    expect(canonicalWww.status).toBe(301);
+    expect(canonicalWww.headers.get("location")).toBe("https://distilled.news/");
+  });
+
   it("requires the current password before changing account passwords", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
@@ -551,7 +988,7 @@ describe("worker app accounts", () => {
 
     const legacySecretResponse = await app.request(
       "/api/admin/accounts",
-      { headers: { "x-lownoise-admin": "admin-secret" } },
+      { headers: { "x-distilled-admin": "admin-secret" } },
       env()
     );
     expect(legacySecretResponse.status).toBe(401);

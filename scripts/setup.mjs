@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 console.log(`
-LowNoise.news setup
+Distilled.news setup
 
-1. Copy .env.example to .env and fill in Cloudflare, Telegram, and OpenAI values.
+1. Copy .env.example to .env and fill in Cloudflare, OpenAI, and optional Apify values.
 2. Run: pnpm install
 3. Run: pnpm db:migrate
 4. Run: pnpm deploy

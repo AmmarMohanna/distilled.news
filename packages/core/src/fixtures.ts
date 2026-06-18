@@ -13,6 +13,7 @@ export const personalNewsBriefing: BriefingConfig = {
   publicFeedEnabled: true,
   paused: false,
   language: "en",
+  intensity: "medium",
   retentionDays: 15
 };
 

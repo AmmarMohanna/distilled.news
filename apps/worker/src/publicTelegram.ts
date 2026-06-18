@@ -1,10 +1,10 @@
-import type { BriefingConfig } from "@lownoise/core";
+import type { BriefingConfig } from "@distilled/core";
 import {
   parsePublicTelegramChannelPage,
   parsePublicTelegramChannelUrl,
   publicTelegramSourceId
-} from "@lownoise/connectors";
-import type { ProcessingJobMessage, Repository, TelegramSourceRecord } from "./types";
+} from "@distilled/connectors";
+import type { ProcessingJobMessage, Repository, SourceRecord } from "./types";
 
 export interface PublicTelegramIngestResult {
   sourceId: string;
@@ -22,6 +22,7 @@ export interface PublicTelegramIngestInput {
   repo: Repository;
   bucket: { put(key: string, value: string, options?: unknown): Promise<unknown> };
   queue: { send(message: ProcessingJobMessage): Promise<unknown> };
+  activateSource?: boolean;
   fetcher?: typeof fetch;
   now?: Date;
 }
@@ -32,7 +33,7 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
   const channel = parsePublicTelegramChannelUrl(input.url);
   const response = await fetcher(channel.widgetUrl, {
     headers: {
-      "user-agent": "LowNoise.news public Telegram source reader"
+      "user-agent": "Distilled.news public Telegram source reader"
     }
   });
 
@@ -52,7 +53,7 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
     retentionDays: input.briefing.retentionDays
   }).map((message) => ({ ...message, rawPayloadKey }));
 
-  let source: TelegramSourceRecord | undefined;
+  let source: SourceRecord | undefined;
   let imported = 0;
   let queued = 0;
   let skipped = 0;
@@ -67,7 +68,10 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
         id: source.id
       }
     };
-    await input.repo.setSourceEnabled(source.id, true, now);
+    if (input.activateSource) {
+      await input.repo.setSourceEnabled(source.id, true, now);
+      source = { ...source, enabled: true };
+    }
 
     const existing = await input.repo.getRawMessage(persistedMessage.id);
     if (existing) {
@@ -82,6 +86,8 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
     queued += 1;
   }
 
+  await input.repo.setSetting("last_source_event_at", now.toISOString(), now);
+  await input.repo.setSetting(`last_source_event_at:${input.briefing.id}`, now.toISOString(), now);
   await input.repo.setSetting("last_telegram_event_at", now.toISOString(), now);
   await input.repo.setSetting(`last_telegram_event_at:${input.briefing.id}`, now.toISOString(), now);
 
@@ -99,7 +105,9 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
 export async function refreshPublicTelegramSources(input: Omit<PublicTelegramIngestInput, "url">): Promise<PublicTelegramIngestResult[]> {
   if (input.briefing.paused) return [];
 
-  const sources = (await input.repo.listSources(input.briefing.id)).filter((source) => source.enabled && source.url);
+  const sources = (await input.repo.listSources(input.briefing.id)).filter(
+    (source) => source.enabled && source.provider === "telegram" && source.url
+  );
   const results: PublicTelegramIngestResult[] = [];
   for (const source of sources) {
     results.push(await ingestPublicTelegramChannel({ ...input, url: source.url! }));

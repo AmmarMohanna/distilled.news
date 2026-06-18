@@ -1,5 +1,17 @@
 export type SourceType = "channel" | "group";
 export type BriefingLanguage = "en" | "ar" | "fr";
+export type BriefingIntensity = "low" | "medium" | "high";
+export type SourceProvider = "telegram" | "rss" | "apify";
+export type SourceKind =
+  | "telegram_channel"
+  | "telegram_group"
+  | "rss_feed"
+  | "google_news"
+  | "x_profile"
+  | "x_search"
+  | "linkedin_company"
+  | "linkedin_profile"
+  | "apify_actor";
 
 export interface BriefingConfig {
   id: string;
@@ -13,6 +25,7 @@ export interface BriefingConfig {
   publicFeedEnabled: boolean;
   paused: boolean;
   language: BriefingLanguage;
+  intensity: BriefingIntensity;
   retentionDays: number;
 }
 
@@ -20,6 +33,8 @@ export interface MessageSource {
   id: string;
   title: string;
   type: SourceType;
+  provider?: SourceProvider;
+  kind?: SourceKind;
   username?: string;
 }
 
@@ -49,6 +64,8 @@ export interface BriefingEvidence {
   sourceId: string;
   sourceTitle: string;
   sourceType: SourceType;
+  sourceProvider?: SourceProvider;
+  sourceKind?: SourceKind;
   sourceUrl?: string;
   postedAt: string;
   text: string;
@@ -59,6 +76,7 @@ export interface BriefingEvidence {
 export interface BriefingItem {
   id: string;
   clusterId: string;
+  eventKey?: string;
   summary: string;
   itemAt: string;
   updatedAt: string;
@@ -75,6 +93,7 @@ export interface SuppressedMessage {
     | "not_relevant"
     | "rumor"
     | "fluff"
+    | "no_clear_information"
     | "non_authoritative_prediction"
     | "political_statement_without_new_facts"
     | "repeated_update";
@@ -91,6 +110,7 @@ export interface ProcessingInput {
   briefing: BriefingConfig;
   messages: NormalizedMessage[];
   existingItems?: BriefingItem[];
+  importantMessageIds?: string[];
   now?: Date;
 }
 
@@ -106,4 +126,20 @@ export interface SummaryInput {
 
 export interface SummaryAdapter {
   summarize(input: SummaryInput): Promise<string>;
+}
+
+export interface EventEquivalenceInput {
+  briefing: BriefingConfig;
+  left: BriefingEvidence[];
+  right: BriefingEvidence[];
+}
+
+export interface ImportanceReviewInput {
+  briefing: BriefingConfig;
+  message: NormalizedMessage;
+}
+
+export interface EventReviewAdapter {
+  areSameEvent(input: EventEquivalenceInput): Promise<boolean>;
+  isImportant(input: ImportanceReviewInput): Promise<boolean>;
 }

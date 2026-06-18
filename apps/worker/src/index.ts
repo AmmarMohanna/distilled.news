@@ -1,8 +1,8 @@
 import { createApp } from "./app";
-import { createSummaryAdapterFromEnv } from "./ai";
+import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
 import { processQueueMessage } from "./processor";
-import { refreshPublicTelegramSources } from "./publicTelegram";
 import { D1Repository } from "./repository";
+import { pollApifySourceRuns, refreshEnabledSources } from "./sources";
 import type { Env, ProcessingJobMessage } from "./types";
 import { upsertPublishedItemsToVectorize } from "./vectorize";
 
@@ -16,9 +16,10 @@ export default {
   async queue(batch: MessageBatch<ProcessingJobMessage>, env: Env): Promise<void> {
     const repo = new D1Repository(env.DB);
     const summaryAdapter = createSummaryAdapterFromEnv(env);
+    const reviewAdapter = createEventReviewAdapterFromEnv(env);
     for (const message of batch.messages) {
       try {
-        const result = await processQueueMessage(repo, message.body, new Date(), summaryAdapter);
+        const result = await processQueueMessage(repo, message.body, new Date(), summaryAdapter, reviewAdapter);
         if (result) await upsertPublishedItemsToVectorize(env, result.publishedItems);
         message.ack();
       } catch {
@@ -30,14 +31,22 @@ export default {
 
 async function refreshEnabledPublicSources(env: Env): Promise<void> {
   const repo = new D1Repository(env.DB);
+  await pollApifySourceRuns({
+    repo,
+    bucket: env.RAW_ARCHIVE,
+    queue: env.PROCESSING_QUEUE,
+    env
+  });
+
   const briefings = await repo.listBriefings();
 
   for (const briefing of briefings) {
-    await refreshPublicTelegramSources({
+    await refreshEnabledSources({
       briefing,
       repo,
       bucket: env.RAW_ARCHIVE,
-      queue: env.PROCESSING_QUEUE
+      queue: env.PROCESSING_QUEUE,
+      env
     });
   }
 }

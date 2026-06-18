@@ -1,5 +1,5 @@
 import type { BriefingConfig, NormalizedMessage, SuppressedMessage } from "./types";
-import { jaccardSimilarity, normalizeText, significantTokens } from "./text";
+import { eventTokens, jaccardSimilarity, normalizeEventText, normalizeText, significantTokens } from "./text";
 
 const RUMOR_PATTERNS = [
   /\brumou?rs?\b/i,
@@ -11,6 +11,7 @@ const RUMOR_PATTERNS = [
 
 const PREDICTION_PATTERNS = [
   /\bi think\b/i,
+  /\bwhat if\b/i,
   /\bwill probably\b/i,
   /\bcould happen\b/i,
   /\bmay happen\b/i,
@@ -30,7 +31,17 @@ const POLITICAL_SPEECH_PATTERNS = [
 const FACT_PATTERNS = [
   /\b(deploy|deployed|strike|strikes|hit|killed|injured|arrested|closed|opened|approved|signed|launched|resumed|halted|evacuated|entered|left|announced)\b/i,
   /\b\d+([.,]\d+)?\b/,
-  /\b(percent|%|usd|dollar|lira|euro|km|people|soldiers|civilians|hours|minutes)\b/i
+  /\b(percent|%|usd|dollar|lira|euro|km|people|soldiers|civilians|hours|minutes)\b/i,
+  /(?:أعلن|اعلن|أكد|اكد|أفاد|افاد|وقّع|وقع|سيوقع|قتل|استشهد|أصيب|اصيب|جرح|اعتقل|أقر|اقر|وافق|افتتح|أغلق|اغلق|استهدف|قصف|غارة|غاره|انفجار|انسحب|بدأ|بدا|استأنف|استانف|قطع|أوقف|اوقف|علّق|علق|جريح|جريحين|جريحان|جرحى|قتيل|قتلى)/u
+];
+
+const IMPORTANT_PATTERNS = [
+  /\b(minister|official|government|army|police|court|central bank|reuters|associated press|ap news|afp)\b/i,
+  /\b(killed|injured|casualties|strike|missile|explosion|evacuated|closed|halted|resumed|cut all contact|sanction|approved|signed|announced)\b/i,
+  /\b(currency|central bank|lira|dollar|euro|inflation|fuel|electricity|power|water|airport|port|border)\b/i,
+  /(?:وزير|مسؤول|الحكومة|الجيش|الشرطة|قوى الامن|مصرف لبنان|رويترز|فرانس برس)/u,
+  /(?:قتل|قتيل|قتلى|استشهد|شهيد|شهداء|جرح|جريح|جرحى|أصيب|اصيب|غارة|قصف|انفجار|إخلاء|اخلاء|اغلاق|أغلق|قطع|عقوبات|وقّع|وقع|أعلن|اعلن|أكد|اكد)/u,
+  /(?:كهرباء|مياه|مطار|مرفأ|حدود|دولار|ليرة|مصرف|وقود)/u
 ];
 
 const FLUFF_PATTERNS = [
@@ -39,7 +50,12 @@ const FLUFF_PATTERNS = [
   /\bwatch now\b/i,
   /\byou won't believe\b/i,
   /\bshocking\b/i,
-  /\bmust watch\b/i
+  /\bmust watch\b/i,
+  /آخر تصريحات/u,
+  /شاهد(?:وا)?/u,
+  /للمزيد/u,
+  /للتفاصيل/u,
+  /التفاصيل/u
 ];
 
 const NO_UPDATE_PATTERNS = [
@@ -153,9 +169,9 @@ export function classifyNoise(message: NormalizedMessage): SuppressedMessage | n
     };
   }
 
-  const hasConcreteFact = FACT_PATTERNS.some((pattern) => pattern.test(text));
+  const concreteFact = hasConcreteFact(text);
 
-  if (FLUFF_PATTERNS.some((pattern) => pattern.test(text)) && text.length < 180 && !hasConcreteFact) {
+  if (FLUFF_PATTERNS.some((pattern) => pattern.test(text)) && text.length < 180 && !concreteFact) {
     return {
       messageId: message.id,
       reason: "fluff",
@@ -164,8 +180,8 @@ export function classifyNoise(message: NormalizedMessage): SuppressedMessage | n
   }
 
   const hasPrediction = PREDICTION_PATTERNS.some((pattern) => pattern.test(text));
-  const hasAuthoritySignal = /\bminister|agency|central bank|army|police|court|company|official|government\b/i.test(text);
-  if (hasPrediction && !hasAuthoritySignal) {
+  const authoritySignal = hasAuthoritySignal(text);
+  if (hasPrediction && !authoritySignal) {
     return {
       messageId: message.id,
       reason: "non_authoritative_prediction",
@@ -174,7 +190,7 @@ export function classifyNoise(message: NormalizedMessage): SuppressedMessage | n
   }
 
   const politicalSpeech = POLITICAL_SPEECH_PATTERNS.some((pattern) => pattern.test(text));
-  if (politicalSpeech && !hasConcreteFact) {
+  if (politicalSpeech && !concreteFact) {
     return {
       messageId: message.id,
       reason: "political_statement_without_new_facts",
@@ -193,16 +209,52 @@ export function classifyNoise(message: NormalizedMessage): SuppressedMessage | n
   return null;
 }
 
+export function hasConcreteFact(text: string): boolean {
+  return FACT_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function hasAuthoritySignal(text: string): boolean {
+  return /\bminister|agency|central bank|army|police|court|company|official|government|reuters|associated press|ap news|afp\b/i.test(text) ||
+    /(?:وزير|وكالة|مصرف لبنان|الجيش|الشرطة|قوى الامن|محكمة|شركة|مسؤول|الحكومة|رويترز|فرانس برس)/u.test(text);
+}
+
+export function hasImportantSignal(text: string): boolean {
+  return IMPORTANT_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function isImportantToInterest(message: NormalizedMessage, briefing: BriefingConfig): boolean {
+  if (!hasConcreteFact(message.text) || !hasImportantSignal(message.text)) return false;
+  return isRelevantToInterest(message, briefing) || interestOverlap(message.text, briefing.interestProfile) > 0;
+}
+
+export function isImportantReviewCandidate(message: NormalizedMessage, briefing: BriefingConfig): boolean {
+  if (!hasConcreteFact(message.text) && !hasImportantSignal(message.text)) return false;
+  return isRelevantToInterest(message, briefing) || interestOverlap(message.text, briefing.interestProfile) > 0;
+}
+
 export function findDuplicate(
   message: NormalizedMessage,
   acceptedMessages: NormalizedMessage[]
 ): NormalizedMessage | undefined {
   const normalized = normalizeText(message.text);
   if (!normalized) return undefined;
+  const eventNormalized = normalizeEventText(message.text);
+  const tokens = eventTokens(message.text);
 
   return acceptedMessages.find((candidate) => {
     if (normalizeText(candidate.text) === normalized) return true;
-    const similarity = jaccardSimilarity(significantTokens(candidate.text), significantTokens(message.text));
+    if (normalizeEventText(candidate.text) === eventNormalized) return true;
+    const similarity = Math.max(
+      jaccardSimilarity(significantTokens(candidate.text), significantTokens(message.text)),
+      jaccardSimilarity(eventTokens(candidate.text), tokens)
+    );
     return similarity >= 0.92;
   });
+}
+
+function interestOverlap(text: string, interestProfile: string): number {
+  const profileTokens = expandInterestTokens(significantTokens(interestProfile));
+  if (profileTokens.length === 0) return 1;
+  const messageTokens = new Set(expandInterestTokens(significantTokens(text)));
+  return profileTokens.filter((token) => messageTokens.has(token)).length;
 }

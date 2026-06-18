@@ -1,4 +1,4 @@
-import { searchBriefingItems, type BriefingConfig } from "@lownoise/core";
+import { searchBriefingItems, type BriefingConfig } from "@distilled/core";
 import { Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
@@ -14,19 +14,23 @@ import {
   normalizeEmail,
   normalizeUsername,
   randomToken,
+  SESSION_COOKIE,
   setSessionCookie,
   verifyPassword,
   verifySession
 } from "./auth";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./mailer";
-import { ingestPublicTelegramChannel, refreshPublicTelegramSources } from "./publicTelegram";
 import { D1Repository } from "./repository";
+import { addSourceFromInput, refreshEnabledSources } from "./sources";
 import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
 
 type Variables = {
   repo: Repository;
   account?: AccountRecord;
 };
+
+const CANONICAL_HOST = "distilled.news";
+const LEGACY_HOSTS = new Set(["lownoise.news", "www.lownoise.news"]);
 
 export interface AppOptions {
   repository?: Repository;
@@ -90,13 +94,19 @@ const briefingInputSchema = z.object({
   publicFeedEnabled: z.boolean().default(true),
   paused: z.boolean().default(false),
   language: z.enum(["en", "ar", "fr"]).default("en"),
+  intensity: z.enum(["low", "medium", "high"]).default("medium"),
   retentionDays: z.number().int().min(1).max(90).default(FIXED_RETENTION_DAYS)
 });
 
 const sourceInputSchema = z.union([
   z.object({
     briefingId: z.string().min(1),
-    url: z.string().min(1)
+    url: z.string().min(1),
+    input: z.string().min(1).optional()
+  }),
+  z.object({
+    briefingId: z.string().min(1),
+    input: z.string().min(1)
   }),
   z.object({
     briefingId: z.string().min(1),
@@ -163,9 +173,9 @@ export function createApp(options: AppOptions = {}) {
 
   app.use("*", async (c, next) => {
     const url = new URL(c.req.url);
-    if (url.hostname === "www.lownoise.news" || (url.hostname === "lownoise.news" && url.protocol === "http:")) {
+    if (url.hostname === `www.${CANONICAL_HOST}` || LEGACY_HOSTS.has(url.hostname) || (url.hostname === CANONICAL_HOST && url.protocol === "http:")) {
       url.protocol = "https:";
-      url.hostname = "lownoise.news";
+      url.hostname = CANONICAL_HOST;
       return c.redirect(url.toString(), 301);
     }
     return next();
@@ -174,7 +184,7 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/auth/session", async (c) => {
     const repo = repoFor(c);
     const setupRequired = (await repo.countAdmins()) === 0;
-    const claims = await verifySession(getCookie(c, "ln_session"), c.env.ADMIN_SESSION_SECRET ?? "");
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
     const account = claims ? await repo.getAccountById(claims.sub) : null;
     const authenticated = Boolean(account && !account.disabledAt);
     return c.json({
@@ -347,6 +357,7 @@ export function createApp(options: AppOptions = {}) {
       slug,
       stars: existing?.stars ?? input.stars,
       publicFeedEnabled: true,
+      intensity: input.intensity,
       retentionDays: FIXED_RETENTION_DAYS
     });
     return c.json({ briefing });
@@ -373,24 +384,25 @@ export function createApp(options: AppOptions = {}) {
   app.post("/api/me/sources", async (c) => {
     const repo = c.get("repo");
     const parsed = sourceInputSchema.safeParse(await c.req.json().catch(() => ({})));
-    if (!parsed.success) return c.json({ error: "Enter a Telegram channel URL or source toggle." }, 400);
+    if (!parsed.success) return c.json({ error: "Enter a source URL, source query, or source toggle." }, 400);
     const body = parsed.data;
     const briefing = await getOwnedBriefing(repo, c.get("account")!, body.briefingId);
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
 
-    if ("url" in body) {
+    if ("url" in body || "input" in body) {
       let result;
       try {
-        result = await ingestPublicTelegramChannel({
+        result = await addSourceFromInput({
           briefing,
-          url: body.url,
+          sourceInput: ("input" in body ? body.input : undefined) ?? ("url" in body ? body.url : ""),
           repo,
           bucket: bucketFor(c),
           queue: queueFor(c),
+          env: c.env,
           fetcher
         });
       } catch (error) {
-        return c.json({ error: error instanceof Error ? error.message : "Could not add Telegram source" }, 400);
+        return c.json({ error: error instanceof Error ? error.message : "Could not add source" }, 400);
       }
       return c.json({
         sources: await repo.listSources(briefing.id),
@@ -414,11 +426,12 @@ export function createApp(options: AppOptions = {}) {
     if (!parsed.success) return c.json({ error: "briefing not found" }, 400);
     const briefing = await getOwnedBriefing(repo, c.get("account")!, parsed.data.briefingId);
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
-    const results = await refreshPublicTelegramSources({
+    const results = await refreshEnabledSources({
       briefing,
       repo,
       bucket: bucketFor(c),
       queue: queueFor(c),
+      env: c.env,
       fetcher
     });
     return c.json({
@@ -554,7 +567,7 @@ export function createApp(options: AppOptions = {}) {
 
     let manifest = buildManifestPayload({
       id: "/",
-      title: "LowNoise.news",
+      title: "Distilled.news",
       description: "A quiet personal news briefing.",
       startUrl: "/"
     });
@@ -581,7 +594,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.post("/api/internal/retention/run", async (c) => {
-    if (c.req.header("x-lownoise-internal") !== c.env.INTERNAL_MAINTENANCE_SECRET) {
+    if (c.req.header("x-distilled-internal") !== c.env.INTERNAL_MAINTENANCE_SECRET) {
       return c.json({ error: "unauthorized" }, 401);
     }
     const repo = repoFor(c);
@@ -610,7 +623,7 @@ export function createApp(options: AppOptions = {}) {
       indexUrl.search = "";
       return c.env.ASSETS.fetch(new Request(indexUrl, c.req.raw));
     }
-    return c.text("LowNoise.news Worker is running. Build apps/web to serve the UI.", 200);
+    return c.text("Distilled.news Worker is running. Build apps/web to serve the UI.", 200);
   });
 
   async function resolvePublicFeed(c: Context<{ Bindings: Env; Variables: Variables }>) {
@@ -809,6 +822,7 @@ function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interes
     publicFeedEnabled: true,
     paused: briefing.paused,
     language: briefing.language,
+    intensity: briefing.intensity,
     retentionDays: FIXED_RETENTION_DAYS
   };
 }

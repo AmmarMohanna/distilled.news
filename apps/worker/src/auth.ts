@@ -2,9 +2,9 @@ import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { AccountRecord, AccountRole, Env, Repository } from "./types";
 
-export const SESSION_COOKIE = "ln_session";
+export const SESSION_COOKIE = "dn_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
-const VOTER_COOKIE = "ln_voter";
+const VOTER_COOKIE = "dn_voter";
 const VOTER_TTL_SECONDS = 60 * 60 * 24 * 365;
 const PASSWORD_ITERATIONS = 100_000;
 type AppEnv = { Bindings: Env; Variables: { repo: Repository; account?: AccountRecord } };

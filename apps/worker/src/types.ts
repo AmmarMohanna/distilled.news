@@ -3,10 +3,13 @@ import type {
   BriefingEvidence,
   BriefingItem,
   NormalizedMessage,
+  SourceKind,
+  SourceProvider,
   SourceType
-} from "@lownoise/core";
+} from "@distilled/core";
 
 export type ProcessingJobState = "queued" | "completed" | "failed";
+export type SourceRunState = "queued" | "running" | "succeeded" | "failed";
 export type AccountRole = "admin" | "user";
 export type AuthTokenPurpose = "email_verification" | "password_reset";
 
@@ -72,6 +75,11 @@ export interface Env {
   OPENAI_API_KEY?: string;
   OPENAI_MODEL?: string;
   OPENAI_EMBEDDING_MODEL?: string;
+  APIFY_API_TOKEN?: string;
+  APIFY_GOOGLE_NEWS_ACTOR_ID?: string;
+  APIFY_X_ACTOR_ID?: string;
+  APIFY_LINKEDIN_COMPANY_ACTOR_ID?: string;
+  APIFY_LINKEDIN_PROFILE_ACTOR_ID?: string;
 }
 
 export interface ProcessingJobMessage {
@@ -80,19 +88,45 @@ export interface ProcessingJobMessage {
   rawMessageId: string;
 }
 
-export interface TelegramSourceRecord {
+export interface SourceRecord {
   id: string;
   briefingId: string;
   title: string;
   type: SourceType;
+  provider: SourceProvider;
+  kind: SourceKind;
   username?: string;
+  input?: string;
   url?: string;
+  sourceUrl?: string;
+  actorId?: string;
+  actorInput?: unknown;
+  cursor?: unknown;
   enabled: boolean;
   lastSeenAt: string;
+  lastCheckedAt?: string;
+  lastError?: string;
+}
+
+export interface SourceRunRecord {
+  id: string;
+  sourceId: string;
+  briefingId: string;
+  provider: SourceProvider;
+  actorId?: string;
+  actorRunId?: string;
+  datasetId?: string;
+  state: SourceRunState;
+  itemCount: number;
+  archiveKey?: string;
+  error?: string;
+  startedAt: string;
+  completedAt?: string;
+  updatedAt: string;
 }
 
 export interface HealthStatus {
-  lastTelegramEventAt?: string;
+  lastSourceEventAt?: string;
   latestPublishedAt?: string;
   processing: {
     queued: number;
@@ -143,13 +177,39 @@ export interface Repository {
   setBriefingStar(briefingId: string, voterId: string, starred: boolean, now?: Date): Promise<number>;
   upsertBriefing(input: BriefingConfig, now?: Date): Promise<BriefingConfig>;
   deleteBriefing(id: string, now?: Date): Promise<void>;
-  listSources(briefingId: string): Promise<TelegramSourceRecord[]>;
-  getSource(sourceId: string): Promise<TelegramSourceRecord | null>;
+  listSources(briefingId: string): Promise<SourceRecord[]>;
+  getSource(sourceId: string): Promise<SourceRecord | null>;
   setSourceEnabled(sourceId: string, enabled: boolean, now?: Date): Promise<void>;
   deleteSource(sourceId: string): Promise<void>;
-  upsertSourceFromMessage(briefingId: string, message: NormalizedMessage, now?: Date): Promise<TelegramSourceRecord>;
+  upsertConfiguredSource(input: {
+    briefingId: string;
+    title: string;
+    type?: SourceType;
+    provider: SourceProvider;
+    kind: SourceKind;
+    username?: string;
+    input?: string;
+    url?: string;
+    sourceUrl?: string;
+    actorId?: string;
+    actorInput?: unknown;
+    enabled?: boolean;
+  }, now?: Date): Promise<SourceRecord>;
+  updateSourceState(input: {
+    sourceId: string;
+    title?: string;
+    username?: string;
+    url?: string;
+    sourceUrl?: string;
+    lastSeenAt?: string;
+    lastCheckedAt?: string;
+    lastError?: string;
+    cursor?: unknown;
+  }, now?: Date): Promise<void>;
+  upsertSourceFromMessage(briefingId: string, message: NormalizedMessage, now?: Date): Promise<SourceRecord>;
   saveRawMessage(briefingId: string, message: NormalizedMessage, now?: Date): Promise<void>;
   getRawMessage(id: string): Promise<NormalizedMessage | null>;
+  listRecentRawMessages(briefingId: string, now?: Date, limit?: number): Promise<NormalizedMessage[]>;
   createProcessingJob(briefingId: string, rawMessageId: string, now?: Date): Promise<string>;
   completeProcessingJob(jobId: string, now?: Date): Promise<void>;
   failProcessingJob(jobId: string, error: string, now?: Date): Promise<void>;
@@ -161,9 +221,36 @@ export interface Repository {
   requeueProcessingJob(jobId: string, now?: Date): Promise<void>;
   getExistingItems(briefingId: string, now?: Date): Promise<BriefingItem[]>;
   saveBriefingItems(briefingId: string, items: BriefingItem[], now?: Date): Promise<void>;
+  repairDuplicateBriefingItems(briefingId: string, now?: Date): Promise<number>;
   listFeedItems(ownerAccountId: string, slug: string, includeEvidence: boolean, now?: Date): Promise<BriefingItem[]>;
   getFeedItemEvidence(briefingId: string, itemId: string, now?: Date): Promise<BriefingEvidence[]>;
   getHealth(briefingId?: string, now?: Date): Promise<HealthStatus>;
+  createSourceRun(input: {
+    sourceId: string;
+    briefingId: string;
+    provider: SourceProvider;
+    actorId?: string;
+    actorRunId?: string;
+    datasetId?: string;
+    state: SourceRunState;
+    startedAt?: string;
+  }, now?: Date): Promise<SourceRunRecord>;
+  updateSourceRun(input: {
+    id: string;
+    actorRunId?: string;
+    datasetId?: string;
+    state?: SourceRunState;
+    itemCount?: number;
+    archiveKey?: string;
+    error?: string;
+    completedAt?: string;
+  }, now?: Date): Promise<void>;
+  listSourceRuns(input?: {
+    briefingId?: string;
+    sourceId?: string;
+    states?: SourceRunState[];
+    limit?: number;
+  }): Promise<SourceRunRecord[]>;
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string, now?: Date): Promise<void>;
   deleteExpired(now?: Date): Promise<number>;

@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "LowNoise.news",
-  "short_name": "LowNoise",
+  "name": "Distilled.news",
+  "short_name": "Distilled",
   "description": "A quiet personal news briefing.",
   "display": "standalone",
   "orientation": "portrait",

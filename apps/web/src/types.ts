@@ -1,4 +1,4 @@
-import type { BriefingConfig, BriefingItem } from "@lownoise/core";
+import type { BriefingConfig, BriefingItem, SourceKind, SourceProvider } from "@distilled/core";
 
 export type AccountRole = "admin" | "user";
 
@@ -15,19 +15,26 @@ export interface AccountWithStats extends AccountRecord {
   briefingCount: number;
 }
 
-export interface TelegramSourceRecord {
+export interface SourceRecord {
   id: string;
   briefingId: string;
   title: string;
   type: "channel" | "group";
+  provider: SourceProvider;
+  kind: SourceKind;
   username?: string;
+  input?: string;
   url?: string;
+  sourceUrl?: string;
+  actorId?: string;
   enabled: boolean;
   lastSeenAt: string;
+  lastCheckedAt?: string;
+  lastError?: string;
 }
 
 export interface HealthStatus {
-  lastTelegramEventAt?: string;
+  lastSourceEventAt?: string;
   latestPublishedAt?: string;
   processing: {
     queued: number;

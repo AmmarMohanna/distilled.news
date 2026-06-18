@@ -1,18 +1,18 @@
 {
-  "name": "lownoise-news",
+  "name": "distilled-news",
   "version": "0.1.0",
   "private": true,
   "description": "Cloudflare-first, self-hostable personal news briefing filter.",
   "type": "module",
   "packageManager": "pnpm@10.12.1",
   "scripts": {
-    "dev": "pnpm --filter @lownoise/worker dev",
-    "build": "pnpm --filter @lownoise/core build && pnpm --filter @lownoise/connectors build && pnpm --filter @lownoise/web build && pnpm --filter @lownoise/worker build",
+    "dev": "pnpm --filter @distilled/worker dev",
+    "build": "pnpm --filter @distilled/core build && pnpm --filter @distilled/connectors build && pnpm --filter @distilled/web build && pnpm --filter @distilled/worker build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:e2e": "playwright test",
-    "deploy": "pnpm --filter @lownoise/worker deploy",
-    "db:migrate": "pnpm --filter @lownoise/worker db:migrate",
+    "deploy": "pnpm --filter @distilled/worker run deploy",
+    "db:migrate": "pnpm --filter @distilled/worker db:migrate",
     "setup": "node scripts/setup.mjs"
   },
   "devDependencies": {

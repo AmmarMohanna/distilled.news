@@ -1,11 +1,19 @@
 import {
+  collapseDuplicateBriefingItems,
+  eventKeysForItem,
+  mergeBriefingItem,
   personalNewsBriefing,
+  primaryEventKeyForEvidence,
+  sanitizeSummary,
   type BriefingConfig,
   type BriefingEvidence,
   type BriefingItem,
   type MediaReference,
-  type NormalizedMessage
-} from "@lownoise/core";
+  type NormalizedMessage,
+  type SourceKind,
+  type SourceProvider,
+  type SourceType
+} from "@distilled/core";
 import type {
   AccountRecord,
   AccountRole,
@@ -16,7 +24,9 @@ import type {
   ProcessingJobRecord,
   ProcessingJobState,
   Repository,
-  TelegramSourceRecord,
+  SourceRecord,
+  SourceRunRecord,
+  SourceRunState,
   UsernameAliasRecord
 } from "./types";
 
@@ -67,6 +77,7 @@ interface BriefingRow {
   public_feed_enabled: number;
   paused?: number;
   language?: "en" | "ar" | "fr" | null;
+  intensity?: "low" | "medium" | "high" | null;
   retention_days: number;
   created_at?: string;
 }
@@ -76,14 +87,28 @@ interface SourceRow {
   briefing_id: string;
   title: string;
   type: "channel" | "group";
+  provider?: SourceProvider | null;
+  kind?: SourceKind | null;
   username: string | null;
+  input?: string | null;
+  source_url?: string | null;
+  actor_id?: string | null;
+  actor_input_json?: string | null;
+  cursor_json?: string | null;
   enabled: number;
   last_seen_at: string;
+  last_checked_at?: string | null;
+  last_error?: string | null;
 }
 
 interface RawMessageRow {
   id: string;
   source_id: string;
+  message_source_title?: string | null;
+  message_source_type?: "channel" | "group" | null;
+  message_source_provider?: SourceProvider | null;
+  message_source_kind?: SourceKind | null;
+  message_source_username?: string | null;
   message_id: string;
   text: string;
   links_json: string;
@@ -95,12 +120,15 @@ interface RawMessageRow {
   expires_at: string;
   title: string;
   type: "channel" | "group";
+  provider?: SourceProvider | null;
+  kind?: SourceKind | null;
   username: string | null;
 }
 
 interface BriefingItemRow {
   id: string;
   cluster_id: string;
+  event_key?: string | null;
   summary: string;
   item_at: string;
   updated_at: string;
@@ -113,11 +141,30 @@ interface EvidenceRow {
   source_id: string;
   source_title: string;
   source_type: "channel" | "group";
+  source_provider?: SourceProvider | null;
+  source_kind?: SourceKind | null;
   source_url: string | null;
   posted_at: string;
   text: string;
   links_json: string;
   media_json: string;
+}
+
+interface SourceRunRow {
+  id: string;
+  source_id: string;
+  briefing_id: string;
+  provider: SourceProvider;
+  actor_id: string | null;
+  actor_run_id: string | null;
+  dataset_id: string | null;
+  state: SourceRunState;
+  item_count: number;
+  archive_key: string | null;
+  error: string | null;
+  started_at: string;
+  completed_at: string | null;
+  updated_at: string;
 }
 
 interface ProcessingJobRow {
@@ -443,8 +490,8 @@ export class D1Repository implements Repository {
       .prepare(
         `INSERT INTO briefings (
           id, owner_account_id, slug, title, stars, interest_profile, style_instruction,
-          public_feed_enabled, paused, language, retention_days, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          public_feed_enabled, paused, language, intensity, retention_days, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           slug = excluded.slug,
           title = excluded.title,
@@ -454,6 +501,7 @@ export class D1Repository implements Repository {
           public_feed_enabled = excluded.public_feed_enabled,
           paused = excluded.paused,
           language = excluded.language,
+          intensity = excluded.intensity,
           retention_days = excluded.retention_days,
           updated_at = excluded.updated_at`
       )
@@ -468,6 +516,7 @@ export class D1Repository implements Repository {
         input.publicFeedEnabled ? 1 : 0,
         input.paused ? 1 : 0,
         input.language,
+        input.intensity,
         FIXED_RETENTION_DAYS,
         timestamp,
         timestamp
@@ -481,22 +530,29 @@ export class D1Repository implements Repository {
     await this.db.prepare("DELETE FROM briefings WHERE id = ?").bind(id).run();
   }
 
-  async listSources(briefingId: string): Promise<TelegramSourceRecord[]> {
+  async listSources(briefingId: string): Promise<SourceRecord[]> {
     const rows = await all<SourceRow>(
       this.db
         .prepare(
-          "SELECT id, briefing_id, title, type, username, enabled, last_seen_at FROM telegram_sources WHERE briefing_id = ? ORDER BY last_seen_at DESC"
+          `SELECT id, briefing_id, title, type, provider, kind, username, input, source_url,
+            actor_id, actor_input_json, cursor_json, enabled, last_seen_at, last_checked_at, last_error
+          FROM sources
+          WHERE briefing_id = ?
+          ORDER BY last_seen_at DESC`
         )
         .bind(briefingId)
     );
     return rows.map(rowToSource);
   }
 
-  async getSource(sourceId: string): Promise<TelegramSourceRecord | null> {
+  async getSource(sourceId: string): Promise<SourceRecord | null> {
     const row = await first<SourceRow>(
       this.db
         .prepare(
-          "SELECT id, briefing_id, title, type, username, enabled, last_seen_at FROM telegram_sources WHERE id = ?"
+          `SELECT id, briefing_id, title, type, provider, kind, username, input, source_url,
+            actor_id, actor_input_json, cursor_json, enabled, last_seen_at, last_checked_at, last_error
+          FROM sources
+          WHERE id = ?`
         )
         .bind(sourceId)
     );
@@ -505,42 +561,157 @@ export class D1Repository implements Repository {
 
   async setSourceEnabled(sourceId: string, enabled: boolean, now = new Date()): Promise<void> {
     await this.db
-      .prepare("UPDATE telegram_sources SET enabled = ?, updated_at = ? WHERE id = ?")
+      .prepare("UPDATE sources SET enabled = ?, updated_at = ? WHERE id = ?")
       .bind(enabled ? 1 : 0, now.toISOString(), sourceId)
       .run();
   }
 
   async deleteSource(sourceId: string): Promise<void> {
-    await this.db.prepare("DELETE FROM telegram_sources WHERE id = ?").bind(sourceId).run();
+    await this.db.prepare("DELETE FROM sources WHERE id = ?").bind(sourceId).run();
+  }
+
+  async upsertConfiguredSource(input: {
+    briefingId: string;
+    title: string;
+    type?: SourceType;
+    provider: SourceProvider;
+    kind: SourceKind;
+    username?: string;
+    input?: string;
+    url?: string;
+    sourceUrl?: string;
+    actorId?: string;
+    actorInput?: unknown;
+    enabled?: boolean;
+  }, now = new Date()): Promise<SourceRecord> {
+    const sourceId = scopedSourceId(
+      input.briefingId,
+      stableSourceKey(input.provider, input.kind, input.username ?? input.sourceUrl ?? input.input ?? input.title)
+    );
+    const timestamp = now.toISOString();
+    await this.db
+      .prepare(
+        `INSERT INTO sources (
+          id, briefing_id, title, type, provider, kind, username, input, source_url,
+          actor_id, actor_input_json, enabled, last_seen_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title,
+          type = excluded.type,
+          provider = excluded.provider,
+          kind = excluded.kind,
+          username = excluded.username,
+          input = excluded.input,
+          source_url = excluded.source_url,
+          actor_id = excluded.actor_id,
+          actor_input_json = excluded.actor_input_json,
+          enabled = excluded.enabled,
+          updated_at = excluded.updated_at`
+      )
+      .bind(
+        sourceId,
+        input.briefingId,
+        input.title,
+        input.type ?? "channel",
+        input.provider,
+        input.kind,
+        input.username ?? null,
+        input.input ?? null,
+        input.sourceUrl ?? input.url ?? null,
+        input.actorId ?? null,
+        input.actorInput === undefined ? null : JSON.stringify(input.actorInput),
+        input.enabled === false ? 0 : 1,
+        timestamp,
+        timestamp,
+        timestamp
+      )
+      .run();
+    const source = await this.getSource(sourceId);
+    if (!source) throw new Error("Failed to upsert source");
+    return source;
+  }
+
+  async updateSourceState(input: {
+    sourceId: string;
+    title?: string;
+    username?: string;
+    url?: string;
+    sourceUrl?: string;
+    lastSeenAt?: string;
+    lastCheckedAt?: string;
+    lastError?: string;
+    cursor?: unknown;
+  }, now = new Date()): Promise<void> {
+    await this.db
+      .prepare(
+        `UPDATE sources
+        SET title = COALESCE(?, title),
+          username = COALESCE(?, username),
+          source_url = COALESCE(?, source_url),
+          last_seen_at = COALESCE(?, last_seen_at),
+          last_checked_at = COALESCE(?, last_checked_at),
+          last_error = ?,
+          cursor_json = COALESCE(?, cursor_json),
+          updated_at = ?
+        WHERE id = ?`
+      )
+      .bind(
+        input.title ?? null,
+        input.username ?? null,
+        input.sourceUrl ?? input.url ?? null,
+        input.lastSeenAt ?? null,
+        input.lastCheckedAt ?? null,
+        input.lastError ?? null,
+        input.cursor === undefined ? null : JSON.stringify(input.cursor),
+        now.toISOString(),
+        input.sourceId
+      )
+      .run();
   }
 
   async upsertSourceFromMessage(
     briefingId: string,
     message: NormalizedMessage,
     now = new Date()
-  ): Promise<TelegramSourceRecord> {
+  ): Promise<SourceRecord> {
     const existingSourceId = await first<{ id: string }>(
       this.db
         .prepare(
           `SELECT id
-          FROM telegram_sources
+          FROM sources
           WHERE briefing_id = ?
-            AND ((username IS NOT NULL AND username = ?) OR title = ?)
+            AND (id = ? OR (
+              provider = ?
+              AND kind = ?
+              AND ((username IS NOT NULL AND username = ?) OR source_url = ? OR title = ?)
+            ))
           LIMIT 1`
         )
-        .bind(briefingId, message.source.username ?? null, message.source.title)
+        .bind(
+          briefingId,
+          message.source.id,
+          message.source.provider ?? "telegram",
+          message.source.kind ?? (message.source.type === "group" ? "telegram_group" : "telegram_channel"),
+          message.source.username ?? null,
+          message.sourceUrl ?? null,
+          message.source.title
+        )
     );
     const sourceId = existingSourceId?.id ?? scopedSourceId(briefingId, message.source.id);
     const timestamp = now.toISOString();
     await this.db
       .prepare(
-        `INSERT INTO telegram_sources (
-          id, briefing_id, title, type, username, enabled, last_seen_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)
+        `INSERT INTO sources (
+          id, briefing_id, title, type, provider, kind, username, input, source_url,
+          enabled, last_seen_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
-          title = excluded.title,
+          title = CASE WHEN sources.provider = 'apify' THEN sources.title ELSE excluded.title END,
           type = excluded.type,
-          username = excluded.username,
+          provider = excluded.provider,
+          kind = excluded.kind,
+          username = CASE WHEN sources.provider = 'apify' THEN sources.username ELSE excluded.username END,
+          source_url = COALESCE(excluded.source_url, source_url),
           last_seen_at = excluded.last_seen_at,
           updated_at = excluded.updated_at`
       )
@@ -549,7 +720,11 @@ export class D1Repository implements Repository {
         briefingId,
         message.source.title,
         message.source.type,
+        message.source.provider ?? "telegram",
+        message.source.kind ?? (message.source.type === "group" ? "telegram_group" : "telegram_channel"),
         message.source.username ?? null,
+        message.source.username ? `https://t.me/${message.source.username}` : message.sourceUrl ?? message.source.title,
+        message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : null),
         message.receivedAt,
         timestamp,
         timestamp
@@ -565,14 +740,20 @@ export class D1Repository implements Repository {
     await this.db
       .prepare(
         `INSERT OR IGNORE INTO raw_messages (
-          id, briefing_id, source_id, message_id, text, links_json, media_json, posted_at,
+          id, briefing_id, source_id, source_title, source_type, source_provider, source_kind, source_username,
+          message_id, text, links_json, media_json, posted_at,
           received_at, source_url, raw_payload_key, expires_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         message.id,
         briefingId,
         message.source.id,
+        message.source.title,
+        message.source.type,
+        message.source.provider ?? null,
+        message.source.kind ?? null,
+        message.source.username ?? null,
         message.messageId,
         message.text,
         JSON.stringify(message.links),
@@ -591,14 +772,42 @@ export class D1Repository implements Repository {
     const row = await first<RawMessageRow>(
       this.db
         .prepare(
-          `SELECT raw_messages.*, telegram_sources.title, telegram_sources.type, telegram_sources.username
+          `SELECT raw_messages.*,
+            COALESCE(raw_messages.source_title, sources.title) as message_source_title,
+            COALESCE(raw_messages.source_type, sources.type) as message_source_type,
+            COALESCE(raw_messages.source_provider, sources.provider) as message_source_provider,
+            COALESCE(raw_messages.source_kind, sources.kind) as message_source_kind,
+            COALESCE(raw_messages.source_username, sources.username) as message_source_username,
+            sources.title, sources.type, sources.provider, sources.kind, sources.username
           FROM raw_messages
-          JOIN telegram_sources ON telegram_sources.id = raw_messages.source_id
+          JOIN sources ON sources.id = raw_messages.source_id
           WHERE raw_messages.id = ?`
         )
         .bind(id)
     );
     return row ? rowToRawMessage(row) : null;
+  }
+
+  async listRecentRawMessages(briefingId: string, now = new Date(), limit = 50): Promise<NormalizedMessage[]> {
+    const rows = await all<RawMessageRow>(
+      this.db
+        .prepare(
+          `SELECT raw_messages.*,
+            COALESCE(raw_messages.source_title, sources.title) as message_source_title,
+            COALESCE(raw_messages.source_type, sources.type) as message_source_type,
+            COALESCE(raw_messages.source_provider, sources.provider) as message_source_provider,
+            COALESCE(raw_messages.source_kind, sources.kind) as message_source_kind,
+            COALESCE(raw_messages.source_username, sources.username) as message_source_username,
+            sources.title, sources.type, sources.provider, sources.kind, sources.username
+          FROM raw_messages
+          JOIN sources ON sources.id = raw_messages.source_id
+          WHERE raw_messages.briefing_id = ? AND raw_messages.expires_at > ?
+          ORDER BY raw_messages.posted_at DESC
+          LIMIT ?`
+        )
+        .bind(briefingId, now.toISOString(), limit)
+    );
+    return rows.map(rowToRawMessage);
   }
 
   async createProcessingJob(briefingId: string, rawMessageId: string, now = new Date()): Promise<string> {
@@ -663,88 +872,68 @@ export class D1Repository implements Repository {
     return this.listBriefingItems(briefingId, true, now);
   }
 
-  private async listBriefingItems(briefingId: string, includeEvidence: boolean, now = new Date()): Promise<BriefingItem[]> {
+  private async listBriefingItems(
+    briefingId: string,
+    includeEvidence: boolean,
+    now = new Date(),
+    collapseDuplicates = true
+  ): Promise<BriefingItem[]> {
     const rows = await all<BriefingItemRow>(
       this.db
         .prepare(
-          "SELECT id, cluster_id, summary, item_at, updated_at, expires_at, merged_update_count FROM briefing_items WHERE briefing_id = ? AND expires_at > ? ORDER BY item_at DESC"
+          "SELECT id, cluster_id, event_key, summary, item_at, updated_at, expires_at, merged_update_count FROM briefing_items WHERE briefing_id = ? AND expires_at > ? ORDER BY item_at DESC"
         )
         .bind(briefingId, now.toISOString())
     );
     const items: BriefingItem[] = [];
     for (const row of rows) {
-      items.push({ ...rowToBriefingItem(row), evidence: includeEvidence ? await this.getEvidence(row.id) : [] });
+      items.push({ ...rowToBriefingItem(row), evidence: await this.getEvidence(row.id) });
     }
-    return items;
+    const briefing = collapseDuplicates ? await this.getBriefingById(briefingId) : null;
+    const nextItems = briefing ? collapseDuplicateBriefingItems(items, briefing) : items;
+    return includeEvidence ? nextItems : nextItems.map((item) => ({ ...item, evidence: [] }));
   }
 
   async saveBriefingItems(briefingId: string, items: BriefingItem[], now = new Date()): Promise<void> {
     const timestamp = now.toISOString();
-    for (const item of items) {
-      await this.db
-        .prepare(
-          `INSERT INTO clusters (id, briefing_id, status, first_seen_at, last_updated_at, expires_at)
-          VALUES (?, ?, 'published', ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            status = 'published',
-            last_updated_at = excluded.last_updated_at,
-            expires_at = excluded.expires_at`
-        )
-        .bind(item.clusterId, briefingId, item.itemAt, item.updatedAt, item.expiresAt)
-        .run();
-
-      await this.db
-        .prepare(
-          `INSERT INTO briefing_items (
-            id, briefing_id, cluster_id, summary, item_at, updated_at, expires_at, merged_update_count
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            summary = excluded.summary,
-            updated_at = excluded.updated_at,
-            expires_at = excluded.expires_at,
-            merged_update_count = excluded.merged_update_count`
-        )
-        .bind(
-          item.id,
-          briefingId,
-          item.clusterId,
-          item.summary,
-          item.itemAt,
-          item.updatedAt,
-          item.expiresAt,
-          item.mergedUpdateCount
-        )
-        .run();
-
-      for (const evidence of item.evidence) {
-        await this.db
-          .prepare(
-            `INSERT OR IGNORE INTO briefing_item_evidence (
-              id, briefing_item_id, raw_message_id, source_id, source_title, source_type,
-              source_url, posted_at, text, links_json, media_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          )
-          .bind(
-            `evidence_${item.id}_${evidence.messageId}`,
-            item.id,
-            evidence.messageId,
-            evidence.sourceId,
-            evidence.sourceTitle,
-            evidence.sourceType,
-            evidence.sourceUrl ?? null,
-            evidence.postedAt,
-            evidence.text,
-            JSON.stringify(evidence.links),
-            JSON.stringify(evidence.media)
-          )
-          .run();
-      }
+    const briefing = await this.getBriefingById(briefingId);
+    for (const inputItem of collapseDuplicateBriefingItems(items, briefing ?? undefined)) {
+      const item = await this.resolveDuplicateTarget(briefingId, inputItem, briefing ?? undefined, now);
+      await this.writeBriefingItem(briefingId, item, timestamp);
     }
 
     await this.db
       .prepare("UPDATE raw_messages SET processed_at = ? WHERE id IN (SELECT raw_message_id FROM briefing_item_evidence)")
       .bind(timestamp)
       .run();
+
+    await this.repairDuplicateBriefingItems(briefingId, now);
+  }
+
+  async repairDuplicateBriefingItems(briefingId: string, now = new Date()): Promise<number> {
+    const briefing = await this.getBriefingById(briefingId);
+    const items = await this.listBriefingItems(briefingId, true, now, false);
+    const survivors: BriefingItem[] = [];
+    const loserIds: string[] = [];
+
+    for (const item of items) {
+      const existing = survivors.find((candidate) =>
+        eventKeysForItem(candidate).some((key) => eventKeysForItem(item).includes(key))
+      );
+      const match = existing ?? survivors.find((candidate) => collapseDuplicateBriefingItems([candidate, item], briefing ?? undefined).length === 1);
+      if (match) {
+        mergeBriefingItem(match, item, briefing ?? undefined);
+        loserIds.push(item.id);
+      } else {
+        survivors.push(item);
+      }
+    }
+
+    if (loserIds.length === 0) return 0;
+    await this.deleteBriefingItems(loserIds);
+    const timestamp = now.toISOString();
+    for (const survivor of survivors) await this.writeBriefingItem(briefingId, survivor, timestamp);
+    return loserIds.length;
   }
 
   async listFeedItems(ownerAccountId: string, slug: string, includeEvidence: boolean, now = new Date()): Promise<BriefingItem[]> {
@@ -757,7 +946,8 @@ export class D1Repository implements Repository {
     const rows = await all<EvidenceRow>(
       this.db
         .prepare(
-          `SELECT raw_message_id, source_id, source_title, source_type, source_url, posted_at, text, links_json, media_json
+          `SELECT raw_message_id, source_id, source_title, source_type, source_provider, source_kind,
+            source_url, posted_at, text, links_json, media_json
           FROM briefing_item_evidence
           JOIN briefing_items ON briefing_items.id = briefing_item_evidence.briefing_item_id
           WHERE briefing_item_evidence.briefing_item_id = ?
@@ -771,10 +961,14 @@ export class D1Repository implements Repository {
   }
 
   async getHealth(briefingId?: string): Promise<HealthStatus> {
-    const lastTelegramEventAt =
+    const lastSourceEventAt =
+      (briefingId
+        ? await this.getSetting(`last_source_event_at:${briefingId}`)
+        : null) ??
       (briefingId
         ? await this.getSetting(`last_telegram_event_at:${briefingId}`)
         : null) ??
+      (await this.getSetting("last_source_event_at")) ??
       (await this.getSetting("last_telegram_event_at")) ??
       undefined;
     const rows = briefingId
@@ -802,10 +996,118 @@ export class D1Repository implements Repository {
             .bind(new Date().toISOString())
         );
     return {
-      lastTelegramEventAt,
+      lastSourceEventAt,
       latestPublishedAt: latestPublishedRow?.latest_published_at ?? undefined,
       processing
     };
+  }
+
+  async createSourceRun(input: {
+    sourceId: string;
+    briefingId: string;
+    provider: SourceProvider;
+    actorId?: string;
+    actorRunId?: string;
+    datasetId?: string;
+    state: SourceRunState;
+    startedAt?: string;
+  }, now = new Date()): Promise<SourceRunRecord> {
+    const id = `source_run_${crypto.randomUUID()}`;
+    const timestamp = now.toISOString();
+    await this.db
+      .prepare(
+        `INSERT INTO source_runs (
+          id, source_id, briefing_id, provider, actor_id, actor_run_id, dataset_id,
+          state, started_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        id,
+        input.sourceId,
+        input.briefingId,
+        input.provider,
+        input.actorId ?? null,
+        input.actorRunId ?? null,
+        input.datasetId ?? null,
+        input.state,
+        input.startedAt ?? timestamp,
+        timestamp,
+        timestamp
+      )
+      .run();
+    const run = (await this.listSourceRuns({ sourceId: input.sourceId, limit: 1 })).find((item) => item.id === id);
+    if (!run) throw new Error("Failed to create source run");
+    return run;
+  }
+
+  async updateSourceRun(input: {
+    id: string;
+    actorRunId?: string;
+    datasetId?: string;
+    state?: SourceRunState;
+    itemCount?: number;
+    archiveKey?: string;
+    error?: string;
+    completedAt?: string;
+  }, now = new Date()): Promise<void> {
+    await this.db
+      .prepare(
+        `UPDATE source_runs
+        SET actor_run_id = COALESCE(?, actor_run_id),
+          dataset_id = COALESCE(?, dataset_id),
+          state = COALESCE(?, state),
+          item_count = COALESCE(?, item_count),
+          archive_key = COALESCE(?, archive_key),
+          error = ?,
+          completed_at = COALESCE(?, completed_at),
+          updated_at = ?
+        WHERE id = ?`
+      )
+      .bind(
+        input.actorRunId ?? null,
+        input.datasetId ?? null,
+        input.state ?? null,
+        input.itemCount ?? null,
+        input.archiveKey ?? null,
+        input.error ?? null,
+        input.completedAt ?? null,
+        now.toISOString(),
+        input.id
+      )
+      .run();
+  }
+
+  async listSourceRuns(input?: {
+    briefingId?: string;
+    sourceId?: string;
+    states?: SourceRunState[];
+    limit?: number;
+  }): Promise<SourceRunRecord[]> {
+    const values: DbValue[] = [];
+    let sql =
+      `SELECT id, source_id, briefing_id, provider, actor_id, actor_run_id, dataset_id,
+        state, item_count, archive_key, error, started_at, completed_at, updated_at
+      FROM source_runs
+      WHERE 1 = 1`;
+
+    if (input?.briefingId) {
+      sql += " AND briefing_id = ?";
+      values.push(input.briefingId);
+    }
+    if (input?.sourceId) {
+      sql += " AND source_id = ?";
+      values.push(input.sourceId);
+    }
+    if (input?.states?.length) {
+      sql += ` AND state IN (${input.states.map(() => "?").join(", ")})`;
+      values.push(...input.states);
+    }
+
+    sql += " ORDER BY updated_at DESC LIMIT ?";
+    values.push(input?.limit ?? 50);
+
+    const rows = await all<SourceRunRow>(this.db.prepare(sql).bind(...values));
+    return rows.map(rowToSourceRun);
   }
 
   async getSetting(key: string): Promise<string | null> {
@@ -830,6 +1132,9 @@ export class D1Repository implements Repository {
       .run();
     await this.db.prepare("DELETE FROM briefing_items WHERE expires_at <= ?").bind(timestamp).run();
     await this.db.prepare("DELETE FROM clusters WHERE expires_at <= ?").bind(timestamp).run();
+    await this.db
+      .prepare("DELETE FROM briefing_item_event_keys WHERE briefing_item_id NOT IN (SELECT id FROM briefing_items)")
+      .run();
     await this.db.prepare("DELETE FROM auth_tokens WHERE expires_at <= ?").bind(timestamp).run();
     await this.db
       .prepare("DELETE FROM auth_attempts WHERE created_at <= ?")
@@ -842,7 +1147,8 @@ export class D1Repository implements Repository {
     const rows = await all<EvidenceRow>(
       this.db
         .prepare(
-          `SELECT raw_message_id, source_id, source_title, source_type, source_url, posted_at, text, links_json, media_json
+          `SELECT raw_message_id, source_id, source_title, source_type, source_provider, source_kind,
+            source_url, posted_at, text, links_json, media_json
           FROM briefing_item_evidence
           WHERE briefing_item_id = ?
           ORDER BY posted_at ASC`
@@ -850,6 +1156,178 @@ export class D1Repository implements Repository {
         .bind(itemId)
     );
     return rows.map(rowToEvidence);
+  }
+
+  private async resolveDuplicateTarget(
+    briefingId: string,
+    inputItem: BriefingItem,
+    briefing: BriefingConfig | undefined,
+    now: Date
+  ): Promise<BriefingItem> {
+    const item = {
+      ...inputItem,
+      eventKey: inputItem.eventKey ?? primaryEventKeyForEvidence(inputItem.evidence)
+    };
+    const targetId = await this.findDuplicateItemId(briefingId, item);
+    if (!targetId || targetId === item.id) return item;
+    const target = await this.getBriefingItemById(briefingId, targetId, now);
+    return target ? mergeBriefingItem(target, item, briefing) : item;
+  }
+
+  private async findDuplicateItemId(briefingId: string, item: BriefingItem): Promise<string | undefined> {
+    const rawMessageIds = Array.from(new Set(item.evidence.map((entry) => entry.messageId)));
+    if (rawMessageIds.length > 0) {
+      const placeholders = rawMessageIds.map(() => "?").join(", ");
+      const row = await first<{ briefing_item_id: string }>(
+        this.db
+          .prepare(
+            `SELECT briefing_item_evidence.briefing_item_id
+             FROM briefing_item_evidence
+             JOIN briefing_items ON briefing_items.id = briefing_item_evidence.briefing_item_id
+             WHERE briefing_items.briefing_id = ?
+               AND briefing_item_evidence.raw_message_id IN (${placeholders})
+             ORDER BY briefing_items.item_at DESC
+             LIMIT 1`
+          )
+          .bind(briefingId, ...rawMessageIds)
+      );
+      if (row?.briefing_item_id) return row.briefing_item_id;
+    }
+
+    const eventKeys = eventKeysForItem(item);
+    if (eventKeys.length === 0) return undefined;
+    const placeholders = eventKeys.map(() => "?").join(", ");
+    const row = await first<{ briefing_item_id: string }>(
+      this.db
+        .prepare(
+          `SELECT briefing_item_id
+           FROM briefing_item_event_keys
+           WHERE briefing_id = ?
+             AND event_key IN (${placeholders})
+           LIMIT 1`
+        )
+        .bind(briefingId, ...eventKeys)
+    );
+    return row?.briefing_item_id;
+  }
+
+  private async getBriefingItemById(
+    briefingId: string,
+    itemId: string,
+    now = new Date()
+  ): Promise<BriefingItem | null> {
+    const row = await first<BriefingItemRow>(
+      this.db
+        .prepare(
+          `SELECT id, cluster_id, event_key, summary, item_at, updated_at, expires_at, merged_update_count
+           FROM briefing_items
+           WHERE briefing_id = ?
+             AND id = ?
+             AND expires_at > ?`
+        )
+        .bind(briefingId, itemId, now.toISOString())
+    );
+    return row ? { ...rowToBriefingItem(row), evidence: await this.getEvidence(row.id) } : null;
+  }
+
+  private async writeBriefingItem(
+    briefingId: string,
+    inputItem: BriefingItem,
+    timestamp: string
+  ): Promise<void> {
+    const item = {
+      ...inputItem,
+      eventKey: inputItem.eventKey ?? primaryEventKeyForEvidence(inputItem.evidence),
+      mergedUpdateCount: Math.max(0, inputItem.evidence.length - 1)
+    };
+
+    await this.db
+      .prepare(
+        `INSERT INTO clusters (id, briefing_id, status, first_seen_at, last_updated_at, expires_at)
+        VALUES (?, ?, 'published', ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = 'published',
+          last_updated_at = excluded.last_updated_at,
+          expires_at = excluded.expires_at`
+      )
+      .bind(item.clusterId, briefingId, item.itemAt, item.updatedAt, item.expiresAt)
+      .run();
+
+    await this.db
+      .prepare(
+        `INSERT INTO briefing_items (
+          id, briefing_id, cluster_id, event_key, summary, item_at, updated_at, expires_at, merged_update_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          cluster_id = excluded.cluster_id,
+          event_key = excluded.event_key,
+          summary = excluded.summary,
+          item_at = excluded.item_at,
+          updated_at = excluded.updated_at,
+          expires_at = excluded.expires_at,
+          merged_update_count = excluded.merged_update_count`
+      )
+      .bind(
+        item.id,
+        briefingId,
+        item.clusterId,
+        item.eventKey,
+        item.summary,
+        item.itemAt,
+        item.updatedAt,
+        item.expiresAt,
+        item.mergedUpdateCount
+      )
+      .run();
+
+    await this.db
+      .prepare("DELETE FROM briefing_item_event_keys WHERE briefing_item_id = ?")
+      .bind(item.id)
+      .run();
+
+    for (const eventKey of eventKeysForItem(item)) {
+      await this.db
+        .prepare(
+          `INSERT OR IGNORE INTO briefing_item_event_keys (briefing_id, event_key, briefing_item_id, created_at)
+           VALUES (?, ?, ?, ?)`
+        )
+        .bind(briefingId, eventKey, item.id, timestamp)
+        .run();
+    }
+
+    for (const evidence of item.evidence) {
+      await this.db
+        .prepare(
+          `INSERT OR IGNORE INTO briefing_item_evidence (
+            id, briefing_item_id, raw_message_id, source_id, source_title, source_type,
+            source_provider, source_kind, source_url, posted_at, text, links_json, media_json
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          `evidence_${item.id}_${evidence.messageId}`,
+          item.id,
+          evidence.messageId,
+          evidence.sourceId,
+          evidence.sourceTitle,
+          evidence.sourceType,
+          evidence.sourceProvider ?? null,
+          evidence.sourceKind ?? null,
+          evidence.sourceUrl ?? null,
+          evidence.postedAt,
+          evidence.text,
+          JSON.stringify(evidence.links),
+          JSON.stringify(evidence.media)
+        )
+        .run();
+    }
+  }
+
+  private async deleteBriefingItems(itemIds: string[]): Promise<void> {
+    if (itemIds.length === 0) return;
+    const placeholders = itemIds.map(() => "?").join(", ");
+    await this.db.prepare(`DELETE FROM briefing_item_event_keys WHERE briefing_item_id IN (${placeholders})`).bind(...itemIds).run();
+    await this.db.prepare(`DELETE FROM briefing_item_evidence WHERE briefing_item_id IN (${placeholders})`).bind(...itemIds).run();
+    await this.db.prepare(`DELETE FROM briefing_items WHERE id IN (${placeholders})`).bind(...itemIds).run();
   }
 }
 
@@ -860,7 +1338,8 @@ export class InMemoryRepository implements Repository {
   attempts: Array<{ key: string; action: string; createdAt: string }> = [];
   briefings = new Map<string, BriefingConfig>();
   briefingCreatedAt = new Map<string, string>();
-  sources = new Map<string, TelegramSourceRecord>();
+  sources = new Map<string, SourceRecord>();
+  sourceRuns = new Map<string, SourceRunRecord>();
   rawMessages = new Map<string, NormalizedMessage>();
   itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
   starsByBriefing = new Map<string, Set<string>>();
@@ -1104,11 +1583,11 @@ export class InMemoryRepository implements Repository {
     }
   }
 
-  async listSources(briefingId: string): Promise<TelegramSourceRecord[]> {
+  async listSources(briefingId: string): Promise<SourceRecord[]> {
     return Array.from(this.sources.values()).filter((source) => source.briefingId === briefingId);
   }
 
-  async getSource(sourceId: string): Promise<TelegramSourceRecord | null> {
+  async getSource(sourceId: string): Promise<SourceRecord | null> {
     const source = this.sources.get(sourceId);
     return source ? { ...source } : null;
   }
@@ -1120,26 +1599,108 @@ export class InMemoryRepository implements Repository {
 
   async deleteSource(sourceId: string): Promise<void> {
     this.sources.delete(sourceId);
+    for (const [runId, run] of this.sourceRuns) {
+      if (run.sourceId === sourceId) this.sourceRuns.delete(runId);
+    }
     for (const [id, message] of this.rawMessages) {
       if (message.source.id === sourceId) this.rawMessages.delete(id);
     }
   }
 
-  async upsertSourceFromMessage(briefingId: string, message: NormalizedMessage): Promise<TelegramSourceRecord> {
+  async upsertConfiguredSource(input: {
+    briefingId: string;
+    title: string;
+    type?: SourceType;
+    provider: SourceProvider;
+    kind: SourceKind;
+    username?: string;
+    input?: string;
+    url?: string;
+    sourceUrl?: string;
+    actorId?: string;
+    actorInput?: unknown;
+    enabled?: boolean;
+  }, now = new Date()): Promise<SourceRecord> {
+    const id = scopedSourceId(
+      input.briefingId,
+      stableSourceKey(input.provider, input.kind, input.username ?? input.sourceUrl ?? input.input ?? input.title)
+    );
+    const existing = this.sources.get(id);
+    const source: SourceRecord = {
+      id,
+      briefingId: input.briefingId,
+      title: input.title,
+      type: input.type ?? "channel",
+      provider: input.provider,
+      kind: input.kind,
+      username: input.username,
+      input: input.input,
+      url: input.url ?? input.sourceUrl,
+      sourceUrl: input.sourceUrl ?? input.url,
+      actorId: input.actorId,
+      actorInput: input.actorInput,
+      enabled: input.enabled ?? true,
+      lastSeenAt: existing?.lastSeenAt ?? now.toISOString(),
+      lastCheckedAt: existing?.lastCheckedAt,
+      lastError: existing?.lastError,
+      cursor: existing?.cursor
+    };
+    this.sources.set(id, source);
+    return { ...source };
+  }
+
+  async updateSourceState(input: {
+    sourceId: string;
+    title?: string;
+    username?: string;
+    url?: string;
+    sourceUrl?: string;
+    lastSeenAt?: string;
+    lastCheckedAt?: string;
+    lastError?: string;
+    cursor?: unknown;
+  }): Promise<void> {
+    const source = this.sources.get(input.sourceId);
+    if (!source) return;
+    if (input.title) source.title = input.title;
+    if (input.username) source.username = input.username;
+    if (input.url || input.sourceUrl) {
+      source.url = input.url ?? input.sourceUrl;
+      source.sourceUrl = input.sourceUrl ?? input.url;
+    }
+    if (input.lastSeenAt) source.lastSeenAt = input.lastSeenAt;
+    if (input.lastCheckedAt) source.lastCheckedAt = input.lastCheckedAt;
+    source.lastError = input.lastError;
+    if (input.cursor !== undefined) source.cursor = input.cursor;
+  }
+
+  async upsertSourceFromMessage(briefingId: string, message: NormalizedMessage): Promise<SourceRecord> {
     const existing = Array.from(this.sources.values()).find(
       (source) =>
         source.briefingId === briefingId &&
-        ((source.username && source.username === message.source.username) || source.title === message.source.title)
+        (source.id === message.source.id ||
+          (source.provider === (message.source.provider ?? "telegram") &&
+            source.kind === (message.source.kind ?? (message.source.type === "group" ? "telegram_group" : "telegram_channel")) &&
+            ((source.username && source.username === message.source.username) || source.sourceUrl === message.sourceUrl || source.title === message.source.title)))
     );
-    const source: TelegramSourceRecord = {
+    const source: SourceRecord = {
       id: existing?.id ?? scopedSourceId(briefingId, message.source.id),
       briefingId,
-      title: message.source.title,
+      title: existing?.provider === "apify" ? existing.title : message.source.title,
       type: message.source.type,
-      username: message.source.username,
-      url: message.source.username ? `https://t.me/${message.source.username}` : undefined,
+      provider: message.source.provider ?? "telegram",
+      kind: message.source.kind ?? (message.source.type === "group" ? "telegram_group" : "telegram_channel"),
+      username: existing?.provider === "apify" ? existing.username : message.source.username,
+      input: message.source.username ? `https://t.me/${message.source.username}` : message.sourceUrl ?? message.source.title,
+      url: message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : undefined),
+      sourceUrl: message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : undefined),
+      actorId: existing?.actorId,
+      actorInput: existing?.actorInput,
+      cursor: existing?.cursor,
       enabled: existing?.enabled ?? false,
-      lastSeenAt: message.receivedAt
+      lastSeenAt: message.receivedAt,
+      lastCheckedAt: existing?.lastCheckedAt,
+      lastError: existing?.lastError
     };
     this.sources.set(source.id, source);
     return source;
@@ -1151,6 +1712,13 @@ export class InMemoryRepository implements Repository {
 
   async getRawMessage(id: string): Promise<NormalizedMessage | null> {
     return this.rawMessages.get(id) ?? null;
+  }
+
+  async listRecentRawMessages(briefingId: string, now = new Date(), limit = 50): Promise<NormalizedMessage[]> {
+    return Array.from(this.rawMessages.values())
+      .filter((message) => message.id.startsWith(`${briefingId}::`) && new Date(message.expiresAt).getTime() > now.getTime())
+      .sort((left, right) => right.postedAt.localeCompare(left.postedAt))
+      .slice(0, limit);
   }
 
   async createProcessingJob(briefingId: string, rawMessageId: string, now = new Date()): Promise<string> {
@@ -1207,15 +1775,51 @@ export class InMemoryRepository implements Repository {
   }
 
   async getExistingItems(briefingId: string, now = new Date()): Promise<BriefingItem[]> {
-    return Array.from(this.itemsByBriefing.get(briefingId)?.values() ?? []).filter(
+    const briefing = await this.getBriefingById(briefingId);
+    const items = Array.from(this.itemsByBriefing.get(briefingId)?.values() ?? []).filter(
       (item) => new Date(item.expiresAt).getTime() > now.getTime()
     );
+    return collapseDuplicateBriefingItems(items, briefing ?? undefined);
   }
 
-  async saveBriefingItems(briefingId: string, items: BriefingItem[]): Promise<void> {
+  async saveBriefingItems(briefingId: string, items: BriefingItem[], now = new Date()): Promise<void> {
+    const briefing = await this.getBriefingById(briefingId);
     const scoped = this.itemsByBriefing.get(briefingId) ?? new Map<string, BriefingItem>();
-    for (const item of items) scoped.set(item.id, structuredClone(item));
+    for (const item of collapseDuplicateBriefingItems(items, briefing ?? undefined)) {
+      const match = Array.from(scoped.values()).find((candidate) =>
+        eventKeysForItem(candidate).some((key) => eventKeysForItem(item).includes(key))
+      );
+      if (match && match.id !== item.id) {
+        scoped.set(match.id, structuredClone(mergeBriefingItem(match, item, briefing ?? undefined)));
+      } else {
+        scoped.set(item.id, structuredClone({
+          ...item,
+          eventKey: item.eventKey ?? primaryEventKeyForEvidence(item.evidence),
+          mergedUpdateCount: Math.max(0, item.evidence.length - 1)
+        }));
+      }
+    }
     this.itemsByBriefing.set(briefingId, scoped);
+    await this.repairDuplicateBriefingItems(briefingId, now);
+  }
+
+  async repairDuplicateBriefingItems(briefingId: string, now = new Date()): Promise<number> {
+    const briefing = await this.getBriefingById(briefingId);
+    const scoped = this.itemsByBriefing.get(briefingId) ?? new Map<string, BriefingItem>();
+    const active = Array.from(scoped.values()).filter((item) => new Date(item.expiresAt).getTime() > now.getTime());
+    const collapsed = collapseDuplicateBriefingItems(active, briefing ?? undefined);
+    const collapsedIds = new Set(collapsed.map((item) => item.id));
+    let deleted = 0;
+    for (const id of Array.from(scoped.keys())) {
+      const item = scoped.get(id);
+      if (item && new Date(item.expiresAt).getTime() > now.getTime() && !collapsedIds.has(id)) {
+        scoped.delete(id);
+        deleted += 1;
+      }
+    }
+    for (const item of collapsed) scoped.set(item.id, structuredClone(item));
+    this.itemsByBriefing.set(briefingId, scoped);
+    return deleted;
   }
 
   async listFeedItems(ownerAccountId: string, slug: string, includeEvidence: boolean, now = new Date()): Promise<BriefingItem[]> {
@@ -1237,12 +1841,79 @@ export class InMemoryRepository implements Repository {
       if (!briefingId || job.briefingId === briefingId) processing[job.state] += 1;
     }
     return {
-      lastTelegramEventAt:
+      lastSourceEventAt:
+        (briefingId ? this.settings.get(`last_source_event_at:${briefingId}`) : undefined) ??
         (briefingId ? this.settings.get(`last_telegram_event_at:${briefingId}`) : undefined) ??
+        this.settings.get("last_source_event_at") ??
         this.settings.get("last_telegram_event_at"),
       latestPublishedAt: latestPublishedAt(this.itemsByBriefing, briefingId),
       processing
     };
+  }
+
+  async createSourceRun(input: {
+    sourceId: string;
+    briefingId: string;
+    provider: SourceProvider;
+    actorId?: string;
+    actorRunId?: string;
+    datasetId?: string;
+    state: SourceRunState;
+    startedAt?: string;
+  }, now = new Date()): Promise<SourceRunRecord> {
+    const run: SourceRunRecord = {
+      id: `source_run_${this.sourceRuns.size + 1}`,
+      sourceId: input.sourceId,
+      briefingId: input.briefingId,
+      provider: input.provider,
+      actorId: input.actorId,
+      actorRunId: input.actorRunId,
+      datasetId: input.datasetId,
+      state: input.state,
+      itemCount: 0,
+      startedAt: input.startedAt ?? now.toISOString(),
+      updatedAt: now.toISOString()
+    };
+    this.sourceRuns.set(run.id, run);
+    return { ...run };
+  }
+
+  async updateSourceRun(input: {
+    id: string;
+    actorRunId?: string;
+    datasetId?: string;
+    state?: SourceRunState;
+    itemCount?: number;
+    archiveKey?: string;
+    error?: string;
+    completedAt?: string;
+  }, now = new Date()): Promise<void> {
+    const run = this.sourceRuns.get(input.id);
+    if (!run) return;
+    if (input.actorRunId) run.actorRunId = input.actorRunId;
+    if (input.datasetId) run.datasetId = input.datasetId;
+    if (input.state) run.state = input.state;
+    if (input.itemCount !== undefined) run.itemCount = input.itemCount;
+    if (input.archiveKey) run.archiveKey = input.archiveKey;
+    run.error = input.error;
+    if (input.completedAt) run.completedAt = input.completedAt;
+    run.updatedAt = now.toISOString();
+  }
+
+  async listSourceRuns(input?: {
+    briefingId?: string;
+    sourceId?: string;
+    states?: SourceRunState[];
+    limit?: number;
+  }): Promise<SourceRunRecord[]> {
+    const states = input?.states ? new Set(input.states) : null;
+    return Array.from(this.sourceRuns.values())
+      .filter((run) => !input?.briefingId || run.briefingId === input.briefingId)
+      .filter((run) => !input?.sourceId || run.sourceId === input.sourceId)
+      .filter((run) => !states || states.has(run.state))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .slice(0, input?.limit ?? 50)
+      .map((run) => ({ ...run }));
   }
 
   async getSetting(key: string): Promise<string | null> {
@@ -1272,6 +1943,10 @@ export class InMemoryRepository implements Repository {
 
 function scopedSourceId(briefingId: string, sourceId: string): string {
   return `${briefingId}::${sourceId}`;
+}
+
+function stableSourceKey(provider: SourceProvider, kind: SourceKind, value: string): string {
+  return `${provider}_${kind}_${stableHash(value.toLowerCase().trim())}`;
 }
 
 function compareBriefingsByStarsAndAge(
@@ -1340,20 +2015,32 @@ function rowToBriefing(row: BriefingRow): BriefingConfig {
     publicFeedEnabled: row.public_feed_enabled === 1,
     paused: row.paused === 1,
     language: row.language === "ar" || row.language === "fr" ? row.language : "en",
+    intensity: row.intensity === "low" || row.intensity === "high" ? row.intensity : "medium",
     retentionDays: FIXED_RETENTION_DAYS
   };
 }
 
-function rowToSource(row: SourceRow): TelegramSourceRecord {
+function rowToSource(row: SourceRow): SourceRecord {
+  const provider = row.provider ?? "telegram";
+  const kind = row.kind ?? (row.type === "group" ? "telegram_group" : "telegram_channel");
   return {
     id: row.id,
     briefingId: row.briefing_id,
     title: row.title,
     type: row.type,
+    provider,
+    kind,
     username: row.username ?? undefined,
-    url: row.username ? `https://t.me/${row.username}` : undefined,
+    input: row.input ?? undefined,
+    url: row.source_url ?? (row.username ? `https://t.me/${row.username}` : undefined),
+    sourceUrl: row.source_url ?? (row.username ? `https://t.me/${row.username}` : undefined),
+    actorId: row.actor_id ?? undefined,
+    actorInput: parseJson<unknown | undefined>(row.actor_input_json ?? "", undefined),
+    cursor: parseJson<unknown | undefined>(row.cursor_json ?? "", undefined),
     enabled: row.enabled === 1,
-    lastSeenAt: row.last_seen_at
+    lastSeenAt: row.last_seen_at,
+    lastCheckedAt: row.last_checked_at ?? undefined,
+    lastError: row.last_error ?? undefined
   };
 }
 
@@ -1362,9 +2049,11 @@ function rowToRawMessage(row: RawMessageRow): NormalizedMessage {
     id: row.id,
     source: {
       id: row.source_id,
-      title: row.title,
-      type: row.type,
-      username: row.username ?? undefined
+      title: row.message_source_title ?? row.title,
+      type: row.message_source_type ?? row.type,
+      provider: row.message_source_provider ?? row.provider ?? "telegram",
+      kind: row.message_source_kind ?? row.kind ?? (row.type === "group" ? "telegram_group" : "telegram_channel"),
+      username: row.message_source_username ?? row.username ?? undefined
     },
     messageId: row.message_id,
     text: row.text,
@@ -1382,7 +2071,8 @@ function rowToBriefingItem(row: BriefingItemRow): Omit<BriefingItem, "evidence">
   return {
     id: row.id,
     clusterId: row.cluster_id,
-    summary: row.summary,
+    eventKey: row.event_key ?? undefined,
+    summary: sanitizeSummary(row.summary) || row.summary,
     itemAt: row.item_at,
     updatedAt: row.updated_at,
     expiresAt: row.expires_at,
@@ -1396,11 +2086,32 @@ function rowToEvidence(row: EvidenceRow): BriefingEvidence {
     sourceId: row.source_id,
     sourceTitle: row.source_title,
     sourceType: row.source_type,
+    sourceProvider: row.source_provider ?? undefined,
+    sourceKind: row.source_kind ?? undefined,
     sourceUrl: row.source_url ?? undefined,
     postedAt: row.posted_at,
     text: row.text,
     links: parseJson<string[]>(row.links_json, []),
     media: parseJson<MediaReference[]>(row.media_json, [])
+  };
+}
+
+function rowToSourceRun(row: SourceRunRow): SourceRunRecord {
+  return {
+    id: row.id,
+    sourceId: row.source_id,
+    briefingId: row.briefing_id,
+    provider: row.provider,
+    actorId: row.actor_id ?? undefined,
+    actorRunId: row.actor_run_id ?? undefined,
+    datasetId: row.dataset_id ?? undefined,
+    state: row.state,
+    itemCount: row.item_count,
+    archiveKey: row.archive_key ?? undefined,
+    error: row.error ?? undefined,
+    startedAt: row.started_at,
+    completedAt: row.completed_at ?? undefined,
+    updatedAt: row.updated_at
   };
 }
 
@@ -1445,6 +2156,14 @@ function parseJson<T>(value: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function stableHash(input: string): string {
+  let hash = 5381;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 33) ^ input.charCodeAt(index);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 async function first<T>(statement: D1PreparedStatement): Promise<T | null> {

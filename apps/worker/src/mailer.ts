@@ -5,10 +5,10 @@ type EmailAddressInput = string | { email: string; name: string };
 export async function sendVerificationEmail(env: Env, account: AccountRecord, token: string): Promise<void> {
   await sendAuthEmail(env, {
     to: account.email,
-    subject: "Verify your email for Low Noise News Feed",
+    subject: "Verify your email for Distilled.news",
     path: `/verify-email?token=${encodeURIComponent(token)}`,
     action: "Verify email",
-    text: "Verify your email to finish setting up your Low Noise News Feed account.",
+    text: "Verify your email to finish setting up your Distilled.news account.",
     expires: "This verification link expires in 24 hours."
   });
 }
@@ -16,10 +16,10 @@ export async function sendVerificationEmail(env: Env, account: AccountRecord, to
 export async function sendPasswordResetEmail(env: Env, account: AccountRecord, token: string): Promise<void> {
   await sendAuthEmail(env, {
     to: account.email,
-    subject: "Reset your Low Noise News Feed password",
+    subject: "Reset your Distilled.news password",
     path: `/reset-password?token=${encodeURIComponent(token)}`,
     action: "Reset password",
-    text: "Use this link to choose a new Low Noise News Feed password.",
+    text: "Use this link to choose a new Distilled.news password.",
     expires: "This reset link expires in 30 minutes."
   });
 }
@@ -38,14 +38,14 @@ async function sendAuthEmail(
   if (!env.EMAIL) throw new Error("Cloudflare Email binding is not configured");
   if (!env.EMAIL_FROM) throw new Error("EMAIL_FROM is not configured");
 
-  const url = new URL(input.path, env.PUBLIC_WEB_BASE_URL || "https://lownoise.news").toString();
+  const url = new URL(input.path, env.PUBLIC_WEB_BASE_URL || "https://distilled.news").toString();
   const footer = "If you did not request this email, you can ignore it.";
   await env.EMAIL.send({
     to: input.to,
     from: parseEmailAddress(env.EMAIL_FROM),
     subject: input.subject,
     text: [
-      "Low Noise News Feed",
+      "Distilled.news",
       "",
       input.text,
       "",
@@ -56,7 +56,7 @@ async function sendAuthEmail(
     ].join("\n"),
     html: [
       "<div style=\"font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.5; color: #111;\">",
-      "<h1 style=\"font-size: 18px; margin: 0 0 16px;\">Low Noise News Feed</h1>",
+      "<h1 style=\"font-size: 18px; margin: 0 0 16px;\">Distilled.news</h1>",
       `<p>${escapeHtml(input.text)}</p>`,
       `<p><a href="${escapeHtml(url)}" style="display: inline-block; padding: 10px 14px; border: 1px solid #111; border-radius: 6px; color: #111; text-decoration: none;">${escapeHtml(input.action)}</a></p>`,
       `<p style="word-break: break-all;"><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`,

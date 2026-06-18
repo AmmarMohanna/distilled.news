@@ -23,7 +23,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@lownoise/core':
+      '@distilled/core':
         specifier: workspace:*
         version: link:../../packages/core
       lucide-react:
@@ -63,10 +63,10 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.7.0
         version: 0.7.6(hono@4.12.25)(zod@3.25.76)
-      '@lownoise/connectors':
+      '@distilled/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
-      '@lownoise/core':
+      '@distilled/core':
         specifier: workspace:*
         version: link:../../packages/core
       hono:
@@ -94,7 +94,7 @@ importers:
 
   packages/connectors:
     dependencies:
-      '@lownoise/core':
+      '@distilled/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:

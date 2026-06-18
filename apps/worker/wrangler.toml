@@ -11,13 +11,17 @@ not_found_handling = "single-page-application"
 run_worker_first = true
 
 [vars]
-PUBLIC_API_BASE_URL = "https://lownoise.news"
-PUBLIC_WEB_BASE_URL = "https://lownoise.news"
+PUBLIC_API_BASE_URL = "https://distilled.news"
+PUBLIC_WEB_BASE_URL = "https://distilled.news"
 CLOUDFLARE_ACCOUNT_ID = "9cd5e9612de11953c367cbdec84ed662"
 CLOUDFLARE_AI_GATEWAY_ID = "default"
 OPENAI_MODEL = "gpt-4.1-mini"
 OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
-EMAIL_FROM = "Low Noise News Feed <noreply@mail.lownoise.news>"
+EMAIL_FROM = "Distilled.news <noreply@mail.distilled.news>"
+APIFY_GOOGLE_NEWS_ACTOR_ID = "groupoject/google-news-scraper"
+APIFY_X_ACTOR_ID = "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
+APIFY_LINKEDIN_COMPANY_ACTOR_ID = "harvestapi/linkedin-company-posts"
+APIFY_LINKEDIN_PROFILE_ACTOR_ID = "harvestapi/linkedin-profile-posts"
 
 [[d1_databases]]
 binding = "DB"
@@ -47,6 +51,14 @@ crons = ["*/2 * * * *"]
 [[vectorize]]
 binding = "VECTORIZE"
 index_name = "lownoise-published"
+
+[[routes]]
+pattern = "distilled.news"
+custom_domain = true
+
+[[routes]]
+pattern = "www.distilled.news"
+custom_domain = true
 
 [[routes]]
 pattern = "lownoise.news"

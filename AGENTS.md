@@ -1,12 +1,12 @@
-# LowNoise.news Project Blueprint
+# Distilled.news Project Blueprint
 
 This repository should be guided by the following product and implementation plan. Treat it as project direction, not as already implemented behavior.
 
 ## Summary
 
-Build LowNoise.news as a Cloudflare-first, self-hostable Telegram newsroom. V1 lets one admin create one or more briefings, add public Telegram channel URLs, filter noisy incoming posts, generate neutral summaries, and publish a calm monospace personal briefing.
+Build Distilled.news as a Cloudflare-first, self-hostable Telegram newsroom. V1 lets one admin create one or more briefings, add public Telegram channel URLs, filter noisy incoming posts, generate neutral summaries, and publish a calm monospace personal briefing.
 
-Use `lownoise.news` as the project and brand domain. Reserve `app.lownoise.news` and `api.lownoise.news` for the future hosted SaaS.
+Use `distilled.news` as the project and brand domain. Reserve `app.distilled.news` and `api.distilled.news` for the future hosted SaaS. Keep `lownoise.news` only as a legacy redirect to `https://distilled.news`.
 
 ## Key Direction
 
@@ -25,16 +25,16 @@ Use a monorepo layout:
 - `packages/core`: clustering, relevance filtering, update merging, and prompts.
 - `packages/connectors`: Telegram connector.
 
-V1 is single-admin and self-hosted, but schema and code should be tenant-ready for later hosted LowNoise accounts.
+V1 is single-admin and self-hosted, but schema and code should be tenant-ready for later hosted Distilled accounts.
 
-LowNoise is primarily a filter. Summarization, clustering, source evidence, and publishing all serve filtering. The user's interest profile is a core input, not an advanced feature. Do not introduce a chatbot or open-ended Q&A surface in V1.
+Distilled is primarily a filter. Summarization, clustering, source evidence, and publishing all serve filtering. The user's interest profile is a core input, not an advanced feature. Do not introduce a chatbot or open-ended Q&A surface in V1.
 
 ## Product And UI Requirements
 
 Brand/name:
 
-- Product name: LowNoise.news.
-- UI copy should use LowNoise sparingly and avoid marketing language inside the app.
+- Product name: Distilled.news.
+- UI copy should use Distilled sparingly and avoid marketing language inside the app.
 
 Visual style:
 
@@ -89,9 +89,9 @@ Processing:
 
 - Extract candidate facts/events from normalized messages.
 - Cluster similar items with embeddings.
-- Filter clusters by interest-profile relevance, recency, evidence support, duplicate suppression, and low-noise rules.
+- Filter clusters by interest-profile relevance, recency, evidence support, duplicate suppression, and default distillation rules.
 - Allow trusted single-source items in narrow cases, but do not expose a confidence score.
-- Publish only clusters that pass default low-noise rules.
+- Publish only clusters that pass default distillation rules.
 - Summaries must be generated only from accepted cluster evidence.
 - Repeated updates should merge into an existing briefing item instead of creating unnecessary new feed items.
 - Expanded item views should show the evidence history for merged updates.
@@ -151,5 +151,6 @@ UI acceptance:
 - V1 supports Cloudflare only; no VPS or Docker deployment path yet.
 - V1 supports Telegram channels/groups only.
 - OpenAI through Cloudflare AI Gateway is the default model path.
-- `lownoise.news` is the project domain; self-hosters can use their own domain or Workers URL.
-- Hosted SaaS is planned later under `app.lownoise.news`, but signup, billing, and multi-user management are out of scope for V1.
+- `distilled.news` is the project domain; self-hosters can use their own domain or Workers URL.
+- `lownoise.news` is a legacy redirect domain and should not be used as the primary app domain.
+- Hosted SaaS is planned later under `app.distilled.news`, but signup, billing, and multi-user management are out of scope for V1.

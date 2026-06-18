@@ -1,4 +1,4 @@
-import type { BriefingItem } from "@lownoise/core";
+import type { BriefingItem } from "@distilled/core";
 import type { Env } from "./types";
 
 export async function upsertPublishedItemsToVectorize(env: Env, items: BriefingItem[]): Promise<void> {

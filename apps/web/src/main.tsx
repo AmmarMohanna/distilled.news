@@ -26,8 +26,8 @@ import {
   User,
   X
 } from "lucide-react";
-import type { BriefingConfig, BriefingItem } from "@lownoise/core";
-import { personalNewsBriefing } from "@lownoise/core";
+import type { BriefingConfig, BriefingItem } from "@distilled/core";
+import { personalNewsBriefing } from "@distilled/core";
 import {
   addPublicTelegramSource,
   deleteBriefing,
@@ -58,8 +58,8 @@ import {
   type SourceIngestResult,
   type SourceRefreshResult
 } from "./api";
-import { deriveBriefingSlug, formatArabicTimeParts, formatTime, publicFeedUrl, slugify } from "./helpers";
-import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, TelegramSourceRecord } from "./types";
+import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify } from "./helpers";
+import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
 
 const FEED_BATCH_SIZE = 20;
@@ -103,11 +103,12 @@ function AdminPage() {
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [briefings, setBriefings] = useState<BriefingConfig[]>([]);
   const [selectedBriefingId, setSelectedBriefingId] = useState<string | null>(null);
-  const [sources, setSources] = useState<TelegramSourceRecord[]>([]);
+  const [sources, setSources] = useState<SourceRecord[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [accounts, setAccounts] = useState<AccountWithStats[]>([]);
   const [status, setStatus] = useState("");
   const [sourceStatus, setSourceStatus] = useState("");
+  const [sourceToggleBusyId, setSourceToggleBusyId] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [error, setError] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -318,13 +319,14 @@ function AdminPage() {
           title: input.title,
           interestProfile: input.interestProfile,
           publicFeedEnabled: true,
+          intensity: latestBriefing.intensity ?? "medium",
           retentionDays: 15
         },
         "setup saved",
         "setup-feed"
       );
       if (input.sourceUrl.trim()) {
-        setSourceStatus("fetching the public Telegram page and queuing matching posts");
+        setSourceStatus("checking the source and queuing matching posts");
         const response = await addPublicTelegramSource(saved.id, input.sourceUrl);
         applySourceResponse(response);
         void pollHealthUntilSettled(saved.id, response.health);
@@ -355,7 +357,7 @@ function AdminPage() {
 
   if (!session.authenticated) {
     return (
-      <Shell title="LowNoise.news">
+      <Shell title="Distilled.news">
         <div className="auth-layout">
           <AuthPanel
             setupRequired={session.setupRequired}
@@ -487,7 +489,7 @@ function AdminPage() {
                     setError("");
                     try {
                       setBusyAction("refresh-source");
-                      setSourceStatus("fetching enabled channels");
+                      setSourceStatus("checking enabled sources");
                       const response = await refreshPublicTelegramSources(briefing.id);
                       applySourceResponse(response);
                       setStatus("latest fetched");
@@ -507,8 +509,8 @@ function AdminPage() {
             </div>
             <div className="source-add">
               <label>
-                telegram channel url
-                <input dir="ltr" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://t.me/LebUpdate" />
+                source
+                <input dir="ltr" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="t: LebUpdate · news: Lebanon Electricity · x: NASA" />
               </label>
               <button
                 type="button"
@@ -519,7 +521,7 @@ function AdminPage() {
                   setError("");
                   try {
                     setBusyAction("add-source");
-                    setSourceStatus("fetching the public Telegram page and queuing matching posts");
+                    setSourceStatus("checking the source and queuing matching posts");
                     const response = await addPublicTelegramSource(briefing.id, sourceUrl);
                     applySourceResponse(response);
                     setSourceUrl("");
@@ -554,7 +556,7 @@ function AdminPage() {
               }}
             />
             <div className="source-list">
-              {sources.length === 0 ? <p className="muted">add Telegram channel URLs</p> : null}
+              {sources.length === 0 ? <p className="muted">add source URLs or queries</p> : null}
               {sources.map((source) => (
                 <div key={source.id} className="source-row">
                   <div className="source-copy">
@@ -562,14 +564,33 @@ function AdminPage() {
                       <input
                         type="checkbox"
                         checked={source.enabled}
+                        disabled={sourceToggleBusyId === source.id}
                         onChange={async (event) => {
-                          setSources(await setSourceEnabled(briefing.id, source.id, event.target.checked));
-                          setSourceStatus(event.target.checked ? "source enabled" : "source paused");
+                          const enabled = event.target.checked;
+                          const previousSources = sources;
+                          setError("");
+                          setSourceToggleBusyId(source.id);
+                          setSources((current) => current.map((item) => (item.id === source.id ? { ...item, enabled } : item)));
+                          try {
+                            const nextSources = await setSourceEnabled(briefing.id, source.id, enabled);
+                            const updatedSource = nextSources.find((item) => item.id === source.id);
+                            setSources(nextSources);
+                            setStatus((updatedSource ? updatedSource.enabled : enabled) ? "source enabled" : "source paused");
+                            setSourceStatus("");
+                          } catch (cause) {
+                            setSources(previousSources);
+                            setStatus("");
+                            setError(cause instanceof Error ? cause.message : String(cause));
+                          } finally {
+                            setSourceToggleBusyId((current) => (current === source.id ? null : current));
+                          }
                         }}
                       />
                       <span className="source-title" title={source.title}><bdi>{source.title}</bdi></span>
                     </label>
-                    {source.url ? <a className="source-link" href={source.url} target="_blank" rel="noreferrer" dir="ltr">{source.username ?? "open"}</a> : null}
+                    <span className="source-link" dir="ltr">{sourceProviderLabel(source)}</span>
+                    {source.url || source.sourceUrl ? <a className="source-link" href={source.url ?? source.sourceUrl} target="_blank" rel="noreferrer" dir="ltr">{source.username ?? "open"}</a> : null}
+                    {source.lastError ? <span className="source-error" title={source.lastError}>{source.lastError}</span> : null}
                   </div>
                   <button
                     type="button"
@@ -1072,6 +1093,23 @@ function FeedSettingsSheet(props: {
             ))}
           </div>
         </div>
+        <div className="field-group">
+          <span>intensity</span>
+          <div className="segmented" role="group" aria-label="feed intensity">
+            {(["low", "medium", "high"] as const).map((intensity) => (
+              <button
+                key={intensity}
+                type="button"
+                className={props.briefing.intensity === intensity ? "active" : ""}
+                aria-pressed={props.briefing.intensity === intensity}
+                title={`${intensity} intensity`}
+                onClick={() => props.onPatch({ intensity })}
+              >
+                {intensity}
+              </button>
+            ))}
+          </div>
+        </div>
         <label>
           interest profile
           <textarea
@@ -1125,7 +1163,7 @@ function FeedHelpSheet(props: { onClose: () => void }) {
         </li>
         <li>
           <strong>sources</strong>
-          <span>Add public Telegram channel URLs, then fetch latest.</span>
+          <span>Add Telegram, RSS, Google News, or X sources, then fetch latest.</span>
         </li>
         <li>
           <strong>share</strong>
@@ -1188,7 +1226,7 @@ function FirstRunSetupSheet(props: {
         </label>
         <label>
           first source
-          <input dir="ltr" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://t.me/LebUpdate" />
+          <input dir="ltr" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="t: LebUpdate · news: Beirut power" />
         </label>
         <div className="sheet-actions">
           <button type="submit" className="primary-button" title="finish setup" disabled={props.busy || !title.trim() || !interestProfile.trim()}>
@@ -1212,18 +1250,23 @@ function HealthSummary(props: {
   const summary = getHealthSummaryParts(props.briefing, props.health);
   const failedJobs = props.health?.processing.failed ?? 0;
   const isPaused = props.briefing.paused;
+  const activity = isHealthActivity(props.activity) ? props.activity : `${summary.latest} · ${summary.queueState}`;
   return (
     <details className="health-summary">
       <summary className="health-summary-line" title="source status">
         <span className={`status-dot ${isPaused ? "paused" : "live"}`} aria-hidden />
         <span className="health-summary-copy">
           <strong>{summary.feedState}</strong>
-          <span>{props.activity || `${summary.latest} · ${summary.queueState}`}</span>
+          <span>{activity}</span>
         </span>
       </summary>
       <div className="health">
         <StatusLine label="processing" value={`queued ${props.health?.processing.queued ?? 0} / failed ${props.health?.processing.failed ?? 0}`} />
-        <StatusLine label="last source event" value={props.health?.lastTelegramEventAt ?? "none"} />
+        <StatusLine
+          label="last source event"
+          value={props.health?.lastSourceEventAt ? <Timestamp value={props.health.lastSourceEventAt} language={props.briefing.language} /> : "none"}
+          valueDir="ltr"
+        />
         <StatusLine
           label="latest published"
           value={props.health?.latestPublishedAt ? <Timestamp value={props.health.latestPublishedAt} language={props.briefing.language} /> : "none"}
@@ -1588,6 +1631,12 @@ function FeedPage(props: { username: string; slug: string }) {
   const archivedReadItems = items.filter((item) => readIds.has(item.id));
   const language = payload?.briefing.language ?? "en";
   const canStar = Boolean(payload);
+  const feedTitle = payload ? (
+    <span className="feed-page-title">
+      <span className={`status-dot ${payload.briefing.paused ? "paused" : "live"}`} aria-hidden />
+      <span>{payload.briefing.title}</span>
+    </span>
+  ) : "briefing";
 
   async function toggleItemExpanded(item: BriefingItem) {
     if (expanded.has(item.id)) {
@@ -1623,7 +1672,8 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
-      title={payload?.briefing.title ?? "briefing"}
+      title={feedTitle}
+      titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>by <bdi>{payload.briefing.ownerUsername}</bdi></> : "loading feed"}
       feed={payload?.briefing}
       pageLanguage={language}
@@ -1698,7 +1748,7 @@ function FeedPage(props: { username: string; slug: string }) {
           <div className="empty-state">
             <strong>{archivedReadItems.length > 0 ? "all visible items are read" : "no published items"}</strong>
             <p className="muted">
-              {archivedReadItems.length > 0 ? "Open the read section below to revisit archived lines." : "The briefing line fills after enabled Telegram sources publish matching items."}
+              {archivedReadItems.length > 0 ? "Open the read section below to revisit archived lines." : "The briefing line fills after enabled sources publish matching items."}
             </p>
           </div>
         ) : null}
@@ -1796,15 +1846,6 @@ function EvidenceList(props: { item: BriefingItem; language: "en" | "ar" | "fr";
 
 function Timestamp(props: { value: string; language: "en" | "ar" | "fr" }) {
   const label = formatTime(props.value, props.language);
-  if (props.language === "ar") {
-    const parts = formatArabicTimeParts(props.value);
-    return (
-      <time className="timestamp-ar" dateTime={props.value} lang="ar" dir="ltr" aria-label={label}>
-        <span dir="rtl">{parts.month}</span>
-        <span dir="ltr">{parts.day}، {parts.time}</span>
-      </time>
-    );
-  }
   return <time dateTime={props.value} dir="ltr">{label}</time>;
 }
 
@@ -1830,7 +1871,8 @@ function FeedNotice(props: { message: string }) {
 }
 
 function Shell(props: {
-  title: string;
+  title: React.ReactNode;
+  titleText?: string;
   children: React.ReactNode;
   meta?: React.ReactNode;
   feed?: Pick<BriefingConfig, "ownerUsername" | "slug" | "title">;
@@ -1838,32 +1880,33 @@ function Shell(props: {
   onLogout?: () => Promise<void>;
   pageLanguage?: "en" | "ar" | "fr";
 }) {
-  const [theme, setTheme] = useState(() => (localStorage.getItem("ln_theme") === "dark" ? "dark" : "light"));
+  const [theme, setTheme] = useState(() => (localStorage.getItem("dn_theme") === "dark" ? "dark" : "light"));
+  const titleText = props.titleText ?? (typeof props.title === "string" ? props.title : "briefing");
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("ln_theme", theme);
+    localStorage.setItem("dn_theme", theme);
   }, [theme]);
 
   useEffect(() => {
     document.documentElement.lang = props.pageLanguage ?? "en";
-    document.title = props.title === "LowNoise.news" ? "LowNoise.news" : `${props.title} · LowNoise.news`;
+    document.title = titleText === "Distilled.news" ? "Distilled.news" : `${titleText} · Distilled.news`;
     const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     if (manifest) {
       manifest.href = props.feed
         ? `/manifest.webmanifest?user=${encodeURIComponent(props.feed.ownerUsername)}&feed=${encodeURIComponent(props.feed.slug)}`
         : "/manifest.webmanifest";
     }
-  }, [props.feed, props.pageLanguage, props.title]);
+  }, [props.feed, props.pageLanguage, titleText]);
 
   return (
     <main className="shell">
       <header>
         <div className="header-primary">
           <div className="brand-lockup">
-            <a href="/" className="brand" aria-label="Low Noise News Feed" title="Low Noise News Feed">
+            <a href="/" className="brand" aria-label="Distilled.news" title="Distilled.news">
               <img className="brand-logo" src="/logo.svg" alt="" />
             </a>
-            <a href="https://github.com/AmmarMohanna/lownoise.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository" title="open GitHub repository">
+            <a href="https://github.com/AmmarMohanna/distilled.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository" title="open GitHub repository">
               <Github size={16} aria-hidden />
             </a>
           </div>
@@ -1889,7 +1932,7 @@ function Shell(props: {
       </header>
       <div className="page-heading">
         <h1>{props.title}</h1>
-        <p>{props.meta ?? getPageMeta(props.title)}</p>
+        <p>{props.meta ?? getPageMeta(titleText)}</p>
       </div>
       {props.children}
     </main>
@@ -1924,6 +1967,7 @@ function createBriefingDraft(existing: BriefingConfig[], account: AccountRecord)
     publicFeedEnabled: true,
     paused: false,
     language: "en",
+    intensity: "medium",
     retentionDays: 15,
     stars: 0
   };
@@ -1953,6 +1997,7 @@ function toggleRead(
 }
 
 function formatSourceIngestResult(result: SourceIngestResult): string {
+  if (result.runStarted) return "source run started";
   if (result.imported === 0 && result.skipped > 0) return `checked ${result.fetched}, no new posts`;
   return `fetched ${result.fetched}, queued ${result.queued}`;
 }
@@ -1967,9 +2012,22 @@ function formatSourceRefreshResults(results: SourceIngestResult[]): string {
     }),
     { fetched: 0, imported: 0, queued: 0, skipped: 0 }
   );
-  if (totals.fetched === 0) return "no enabled channel URLs to refresh";
+  if (results.some((result) => result.runStarted)) return "source run started";
+  if (totals.fetched === 0) return "no enabled sources to refresh";
   if (totals.imported === 0 && totals.skipped > 0) return `checked ${totals.fetched}, no new posts`;
   return `fetched ${totals.fetched}, queued ${totals.queued}`;
+}
+
+function sourceProviderLabel(source: SourceRecord): string {
+  if (source.kind === "google_news") return "google news";
+  if (source.kind === "x_profile" || source.kind === "x_search") return "x";
+  if (source.kind === "rss_feed") return "rss";
+  if (source.kind === "linkedin_company" || source.kind === "linkedin_profile") return "linkedin";
+  return source.provider;
+}
+
+function isHealthActivity(activity: string): boolean {
+  return /^(checking|processing|source run started)/.test(activity);
 }
 
 function getHealthSummaryParts(briefing: BriefingConfig, health: HealthStatus | null): {

@@ -1,16 +1,17 @@
-# LowNoise.news
+# Distilled.news
 
-LowNoise.news is a Cloudflare-first, self-hostable personal news briefing filter.
+Distilled.news is a Cloudflare-first, self-hostable personal news briefing filter.
 
-V1 ingests public Telegram channel URLs, filters noisy posts against an interest profile, merges repeated updates, and publishes a calm monospace briefing with expandable evidence links. It does not include chatbot or Q&A behavior.
+V1 ingests public Telegram channel URLs plus optional RSS, Google News, and X sources, filters noisy posts against an interest profile, merges repeated updates, and publishes a calm monospace briefing with expandable evidence links. It does not include chatbot or Q&A behavior.
 
 ## What V1 Does
 
 - Public email signup with verified accounts, password login/reset, and admin oversight.
 - User-owned briefings with plain-language interest profiles.
 - Username-scoped public feed URLs such as `/ammar-mohanna/my-sports-feed/`.
-- Telegram source setup by public `https://t.me/...` channel URL.
+- Source setup by one simple field: `t: channel`, public `https://t.me/...` URLs, `rss: https://...`, `news: query`, or `x: handle`.
 - Rule-first filtering with optional OpenAI summaries through Cloudflare AI Gateway.
+- Feed intensity toggle for low, medium, or high publishing strictness.
 - Expandable evidence for each briefing item.
 - Search over retained published briefing items and their evidence only.
 - 15-day default retention for active news/media context.
@@ -20,11 +21,12 @@ V1 ingests public Telegram channel URLs, filters noisy posts against an interest
 
 - Cloudflare Workers for API, scheduled source refresh, queue consumer, and web asset serving.
 - Cloudflare D1 for app data.
-- Cloudflare R2 for raw Telegram payload archives.
+- Cloudflare R2 for raw source payload archives.
 - Cloudflare Queues for processing jobs.
 - Cloudflare Vectorize indexes published briefing items when AI Gateway embedding secrets are configured.
 - Cloudflare Email Service for account verification and password reset email.
 - Cloudflare AI Gateway routing to OpenAI for production summaries.
+- Apify Actors for optional Google News, X, and advanced LinkedIn/source scraping.
 - React + Vite for the admin/feed UI.
 - Hono for Worker routes.
 - Vitest and Playwright for tests.
@@ -41,7 +43,7 @@ For local Worker development:
 
 ```sh
 cp .env.example .env
-npx pnpm@10.12.1 --filter @lownoise/worker db:migrate
+npx pnpm@10.12.1 --filter @distilled/worker db:migrate
 npx pnpm@10.12.1 dev
 ```
 
@@ -49,10 +51,12 @@ For deployment:
 
 ```sh
 npx pnpm@10.12.1 setup
-npx pnpm@10.12.1 deploy
+npx pnpm@10.12.1 run deploy
 ```
 
-Update `apps/worker/wrangler.toml` with real Cloudflare resource IDs before production deploy. Public Telegram sources are refreshed by the Worker cron trigger.
+Update `apps/worker/wrangler.toml` with real Cloudflare resource IDs before production deploy. Enabled sources are refreshed by the Worker cron trigger.
+
+`distilled.news` is the canonical production domain. `lownoise.news` and `www.lownoise.news` are kept as legacy routes that redirect to `https://distilled.news`.
 
 ## Required External Values
 
@@ -62,6 +66,7 @@ See `.env.example` for descriptions.
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_AI_GATEWAY_ID`
 - `OPENAI_API_KEY`
+- `APIFY_API_TOKEN` if using `news:`, `x:`, `linkedin:`, or `apify:` sources
 - `ADMIN_SESSION_SECRET`
 - `ADMIN_SETUP_TOKEN`
 - `EMAIL_FROM`
@@ -74,10 +79,18 @@ See `.env.example` for descriptions.
 1. Deploy the Worker.
 2. Open the admin page.
 3. Use `ADMIN_SETUP_TOKEN` once to create the first verified admin account.
-4. Add public Telegram channel URLs such as `https://t.me/LebUpdate`.
+4. Add sources such as `t: LebUpdate`, `rss: https://example.com/feed.xml`, `news: Lebanon Electricity`, or `x: NASA`.
 5. Write the interest profile and save.
 6. Use `fetch latest` once to validate ingestion.
 7. Keep the feed private or explicitly enable public feed.
+
+Default Apify actors:
+
+- Google News: `groupoject/google-news-scraper`
+- X: `kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest`
+- LinkedIn company/profile sources are advanced-only defaults: `harvestapi/linkedin-company-posts` and `harvestapi/linkedin-profile-posts`
+
+RSS is fetched directly by the Worker instead of through Apify.
 
 Public users can sign up after setup. Each email can have only one account.
 Usernames are normalized into slugs, can be changed later, and previous

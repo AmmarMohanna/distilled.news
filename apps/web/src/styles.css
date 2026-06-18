@@ -12,6 +12,8 @@ html {
   color: #191a1c;
   background: #f4f1eb;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-variant-caps: all-small-caps;
+  font-feature-settings: "c2sc", "smcp";
   font-size: 15px;
   line-height: 1.45;
   --page: #f4f1eb;
@@ -316,6 +318,25 @@ nav a:hover {
 .page-heading p {
   color: var(--muted);
   max-width: 70ch;
+}
+
+.feed-page-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.feed-page-title span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-page-title .status-dot {
+  flex: 0 0 auto;
 }
 
 .header-controls {
@@ -694,6 +715,11 @@ nav a:hover {
   text-overflow: ellipsis;
 }
 
+.source-error {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
 .source-row input {
   width: auto;
 }
@@ -803,14 +829,6 @@ details {
   unicode-bidi: isolate;
 }
 
-.timestamp-ar {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 1ch;
-  direction: ltr;
-}
-
 summary {
   display: inline-flex;
   align-items: center;
@@ -828,7 +846,7 @@ summary {
 
 .status-line {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: 14px;
   align-items: start;
   padding-bottom: 5px;
@@ -837,6 +855,7 @@ summary {
 
 .status-label {
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .status-value {

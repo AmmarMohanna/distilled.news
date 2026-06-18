@@ -1,5 +1,5 @@
 {
-  "name": "@lownoise/connectors",
+  "name": "@distilled/connectors",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@lownoise/core": "workspace:*"
+    "@distilled/core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

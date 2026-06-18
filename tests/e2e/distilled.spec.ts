@@ -12,6 +12,7 @@ const briefing = {
   publicFeedEnabled: true,
   paused: false,
   language: "en",
+  intensity: "low",
   retentionDays: 15
 };
 
@@ -135,6 +136,7 @@ test("email verification waits for an explicit user action", async ({ page }) =>
 
 test("feed uses username-scoped URL while exposing evidence, refresh, and search", async ({ page }) => {
   let sessionRequests = 0;
+  let feedPaused = false;
   await page.route("**/api/auth/session", async (route) => {
     sessionRequests += 1;
     await route.abort();
@@ -143,7 +145,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
-        briefing,
+        briefing: { ...briefing, paused: feedPaused },
         items: [{ ...item, evidence: [] }],
         viewerHasStarred: false
       })
@@ -161,8 +163,12 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
 
   await page.goto("/ammar-mohanna/personal/");
 
-  await expect(page.getByRole("link", { name: "Low Noise News Feed" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Distilled.news" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Personal Briefing" })).toBeVisible();
+  await expect(page.locator(".page-heading .status-dot.live")).toBeVisible();
+  feedPaused = true;
+  await page.getByRole("button", { name: /^refresh$/i }).click();
+  await expect(page.locator(".page-heading .status-dot.paused")).toBeVisible();
   await expect(page.getByText("by ammar-mohanna")).toBeVisible();
   await expect(page.getByRole("button", { name: /refresh/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /explore/i })).toBeVisible();
@@ -256,6 +262,8 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
             briefingId: "briefing_default",
             title: "Beirut Local",
             type: "channel",
+            provider: "telegram",
+            kind: "telegram_channel",
             enabled: false,
             lastSeenAt: "2026-06-16T08:00:00.000Z"
           }
@@ -268,7 +276,7 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
       contentType: "application/json",
       body: JSON.stringify({
         health: {
-          lastTelegramEventAt: "2026-06-16T08:00:00.000Z",
+          lastSourceEventAt: "2026-06-16T08:00:00.000Z",
           latestPublishedAt: "2026-06-16T08:05:00.000Z",
           processing: { queued: 0, completed: 1, failed: 1 }
         }
@@ -341,7 +349,7 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
 
 test("first-run setup sheet creates the first feed and source", async ({ page }) => {
   let savedBriefing: typeof briefing | undefined;
-  let sourceBody: { briefingId: string; url: string } | undefined;
+  let sourceBody: { briefingId: string; input: string } | undefined;
 
   await page.route("**/api/auth/session", async (route) => {
     await route.fulfill({
@@ -397,12 +405,14 @@ test("first-run setup sheet creates the first feed and source", async ({ page })
             briefingId: "briefing_default",
             title: "Beirut Local",
             type: "channel",
+            provider: "telegram",
+            kind: "telegram_channel",
             enabled: true,
             lastSeenAt: "2026-06-16T08:00:00.000Z"
           }
         ],
         health: {
-          lastTelegramEventAt: "2026-06-16T08:00:00.000Z",
+          lastSourceEventAt: "2026-06-16T08:00:00.000Z",
           latestPublishedAt: undefined,
           processing: { queued: 1, completed: 0, failed: 0 }
         }
@@ -414,7 +424,7 @@ test("first-run setup sheet creates the first feed and source", async ({ page })
       contentType: "application/json",
       body: JSON.stringify({
         health: {
-          lastTelegramEventAt: undefined,
+          lastSourceEventAt: undefined,
           latestPublishedAt: undefined,
           processing: { queued: 0, completed: 0, failed: 0 }
         }
@@ -428,11 +438,11 @@ test("first-run setup sheet creates the first feed and source", async ({ page })
   await page.getByLabel("username").fill("Ammar News");
   await page.getByLabel("feed name").fill("City Watch");
   await page.getByLabel("interest profile").fill("Track Beirut infrastructure and public safety.");
-  await page.getByLabel("first source").fill("https://t.me/LebUpdate");
+  await page.getByLabel("first source").fill("t: LebUpdate");
   await page.getByRole("button", { name: "finish setup" }).click();
 
   await expect.poll(() => savedBriefing?.title).toBe("City Watch");
   expect(savedBriefing?.publicFeedEnabled).toBe(true);
-  expect(sourceBody).toEqual({ briefingId: "briefing_default", url: "https://t.me/LebUpdate" });
+  expect(sourceBody).toEqual({ briefingId: "briefing_default", input: "t: LebUpdate" });
   await expect(page.getByRole("dialog", { name: "setup feed" })).toHaveCount(0);
 });

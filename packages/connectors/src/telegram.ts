@@ -1,4 +1,4 @@
-import type { MediaReference, MessageSource, NormalizedMessage, SourceType } from "@lownoise/core";
+import type { MediaReference, MessageSource, NormalizedMessage, SourceType } from "@distilled/core";
 
 export interface TelegramChat {
   id: number;
@@ -123,6 +123,8 @@ export function parsePublicTelegramChannelPage(
     id: publicTelegramSourceId(options.username),
     title: sourceTitle,
     type: "channel",
+    provider: "telegram",
+    kind: "telegram_channel",
     username: options.username
   };
   const messages: NormalizedMessage[] = [];
@@ -175,6 +177,8 @@ function toMessageSource(chat: TelegramChat): MessageSource {
     id: `telegram_${chat.id}`,
     title: chat.title ?? chat.username ?? String(chat.id),
     type,
+    provider: "telegram",
+    kind: type === "channel" ? "telegram_channel" : "telegram_group",
     username: chat.username
   };
 }
