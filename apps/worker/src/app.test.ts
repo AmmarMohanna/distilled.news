@@ -481,6 +481,44 @@ describe("worker app accounts", () => {
     expect(feed.items).toHaveLength(0);
   });
 
+  it("completes queue jobs with the deterministic summary when AI summary fails", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+    await repo.upsertBriefing({ ...briefing!, interestProfile: "Track Lebanese infrastructure", intensity: "medium" });
+
+    const sourceResponse = await app.request(
+      "/api/me/sources",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: user.cookie },
+        body: JSON.stringify({ briefingId: briefing!.id, input: "t: LebUpdate" })
+      },
+      env()
+    );
+    expect(sourceResponse.status).toBe(200);
+    expect(queue.messages).toHaveLength(1);
+
+    await expect(processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:00:00.000Z"), {
+      summarize: async () => {
+        throw new Error("summary timeout");
+      }
+    })).resolves.toBeDefined();
+
+    const jobs = await repo.listProcessingJobs({ briefingId: briefing!.id, states: ["completed"] });
+    expect(jobs).toHaveLength(1);
+    const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
+    expect(feedResponse.status).toBe(200);
+    const feed = (await feedResponse.json()) as { items: Array<{ summary: string }> };
+    expect(feed.items).toHaveLength(1);
+    expect(feed.items[0].summary).toContain("Electricite du Liban");
+  });
+
   it("keeps one published item when later AI summaries differ for the same event", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
@@ -598,6 +636,65 @@ describe("worker app accounts", () => {
 
     const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
     expect(feedItems).toHaveLength(expectedCount);
+  });
+
+  it("does not rerun advisory importance review for every recent message in each queue job", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+    await repo.upsertBriefing({ ...briefing!, interestProfile: "Track economy updates", intensity: "medium" });
+
+    const baseMessage: NormalizedMessage = {
+      id: `${briefing!.id}::economy_current`,
+      source: { id: "src_economy_review", title: "Economy Wire", type: "channel", provider: "telegram", kind: "telegram_channel" },
+      messageId: "economy-current",
+      text: "Economy index reached 2 today.",
+      links: [],
+      media: [],
+      postedAt: "2026-06-18T08:05:00.000Z",
+      receivedAt: "2026-06-18T08:05:10.000Z",
+      sourceUrl: "https://t.me/economy/10",
+      expiresAt: "2026-07-03T08:05:00.000Z"
+    };
+    const source = await repo.upsertSourceFromMessage(briefing!.id, baseMessage);
+    await repo.setSourceEnabled(source.id, true);
+
+    for (let index = 0; index < 5; index += 1) {
+      await repo.saveRawMessage(briefing!.id, {
+        ...baseMessage,
+        id: `${briefing!.id}::economy_recent_${index}`,
+        source: { ...baseMessage.source, id: source.id },
+        messageId: `economy-recent-${index}`,
+        text: `Economy index reached ${index + 3} today.`,
+        postedAt: `2026-06-18T08:0${index}:00.000Z`,
+        receivedAt: `2026-06-18T08:0${index}:10.000Z`,
+        sourceUrl: `https://t.me/economy/${index}`
+      });
+    }
+
+    const persistedCurrent = { ...baseMessage, source: { ...baseMessage.source, id: source.id } };
+    await repo.saveRawMessage(briefing!.id, persistedCurrent);
+    const jobId = await repo.createProcessingJob(briefing!.id, persistedCurrent.id);
+    const isImportant = vi.fn(async () => false);
+    const reviewAdapter: EventReviewAdapter = {
+      areSameEvent: async () => false,
+      isImportant
+    };
+
+    await processQueueMessage(
+      repo,
+      { jobId, briefingId: briefing!.id, rawMessageId: persistedCurrent.id },
+      new Date("2026-06-18T08:06:00.000Z"),
+      null,
+      reviewAdapter
+    );
+
+    expect(isImportant).toHaveBeenCalledTimes(1);
+    expect(isImportant).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.objectContaining({ id: persistedCurrent.id })
+    }));
   });
 
   it("returns a clear error when Apify sources are added without a token", async () => {

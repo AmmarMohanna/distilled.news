@@ -46,7 +46,7 @@ export async function processQueueMessage(
     const existingItemIds = new Set(existingItems.map((item) => item.id));
     const recentMessages = await repo.listRecentRawMessages(briefing.id, now, 80);
     const messages = uniqueMessagesById([rawMessage, ...recentMessages]);
-    const importantMessageIds = await findImportantMessageIds(briefing, messages, reviewAdapter);
+    const importantMessageIds = await findImportantMessageIds(briefing, messages, rawMessage.id, reviewAdapter);
     const result = processMessages({
       briefing,
       messages,
@@ -65,10 +65,14 @@ export async function processQueueMessage(
       for (const item of result.publishedItems) {
         if (item.evidence.some((evidence) => evidence.messageId === rawMessage.id)) {
           const fallbackSummary = item.summary;
-          const candidateSummary = sanitizeSummary(await summaryAdapter.summarize({ briefing, evidence: item.evidence }));
-          if (candidateSummary) item.summary = candidateSummary;
-          else if (!existingItemIds.has(item.id)) item.summary = "";
-          else item.summary = fallbackSummary;
+          try {
+            const candidateSummary = sanitizeSummary(await summaryAdapter.summarize({ briefing, evidence: item.evidence }));
+            if (candidateSummary) item.summary = candidateSummary;
+            else if (!existingItemIds.has(item.id)) item.summary = "";
+            else item.summary = fallbackSummary;
+          } catch {
+            item.summary = fallbackSummary;
+          }
         }
       }
     }
@@ -104,6 +108,7 @@ function uniqueMessagesById<T extends { id: string }>(messages: T[]): T[] {
 async function findImportantMessageIds(
   briefing: BriefingConfig,
   messages: NormalizedMessage[],
+  currentMessageId: string,
   reviewAdapter?: EventReviewAdapter | null
 ): Promise<string[]> {
   const important = new Set<string>();
@@ -112,9 +117,11 @@ async function findImportantMessageIds(
       important.add(message.id);
       continue;
     }
-    if (!reviewAdapter || !isImportantReviewCandidate(message, briefing)) continue;
+  }
+  const currentMessage = messages.find((message) => message.id === currentMessageId);
+  if (reviewAdapter && currentMessage && !important.has(currentMessage.id) && isImportantReviewCandidate(currentMessage, briefing)) {
     try {
-      if (await reviewAdapter.isImportant({ briefing, message })) important.add(message.id);
+      if (await reviewAdapter.isImportant({ briefing, message: currentMessage })) important.add(currentMessage.id);
     } catch {
       // Review calls are advisory; deterministic filtering remains the fallback.
     }

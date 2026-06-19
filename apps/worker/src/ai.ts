@@ -10,6 +10,8 @@ import {
 import { estimateOpenAiCostUsd } from "./costs";
 import type { Env, Repository } from "./types";
 
+const AI_GATEWAY_REQUEST_TIMEOUT_MS = 20_000;
+
 type LlmUsagePurpose = "summary" | "importance_review" | "event_review";
 type LlmUsageRecorder = (input: {
   briefingId: string;
@@ -36,7 +38,7 @@ export class OpenAIGatewaySummaryAdapter implements SummaryAdapter {
 
   async summarize(input: SummaryInput): Promise<string> {
     const fetcher = this.options.fetcher ?? fetch;
-    const response = await fetcher(
+    const response = await fetchWithTimeout(fetcher,
       `https://gateway.ai.cloudflare.com/v1/${this.options.accountId}/${this.options.gatewayId}/openai/chat/completions`,
       {
         method: "POST",
@@ -59,7 +61,8 @@ export class OpenAIGatewaySummaryAdapter implements SummaryAdapter {
             { role: "user", content: buildSummaryPrompt(input) }
           ]
         })
-      }
+      },
+      AI_GATEWAY_REQUEST_TIMEOUT_MS
     );
 
     if (!response.ok) {
@@ -132,7 +135,7 @@ export class OpenAIGatewayEventReviewAdapter implements EventReviewAdapter {
     purpose: LlmUsagePurpose
   ): Promise<{ same_event?: boolean; important?: boolean }> {
     const fetcher = this.options.fetcher ?? fetch;
-    const response = await fetcher(
+    const response = await fetchWithTimeout(fetcher,
       `https://gateway.ai.cloudflare.com/v1/${this.options.accountId}/${this.options.gatewayId}/openai/chat/completions`,
       {
         method: "POST",
@@ -156,7 +159,8 @@ export class OpenAIGatewayEventReviewAdapter implements EventReviewAdapter {
             { role: "user", content: prompt }
           ]
         })
-      }
+      },
+      AI_GATEWAY_REQUEST_TIMEOUT_MS
     );
 
     if (!response.ok) throw new Error(`AI Gateway review request failed: ${response.status}`);
@@ -235,6 +239,21 @@ interface OpenAIUsagePayload {
   completion_tokens?: number;
   input_tokens?: number;
   output_tokens?: number;
+}
+
+async function fetchWithTimeout(
+  fetcher: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetcher(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function formatEvidence(evidence: EventEquivalenceInput["left"]): string {
