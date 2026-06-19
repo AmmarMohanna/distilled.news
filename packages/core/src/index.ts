@@ -1,4 +1,6 @@
 export * from "./clustering";
+export * from "./cadence";
+export * from "./editions";
 export * from "./events";
 export * from "./filtering";
 export * from "./fixtures";

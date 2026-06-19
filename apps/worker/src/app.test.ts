@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { hashPassword } from "./auth";
+import { publishDueBriefingEditions } from "./editions";
 import { processQueueMessage } from "./processor";
 import { ingestPublicTelegramChannel } from "./publicTelegram";
 import { InMemoryRepository } from "./repository";
 import { pollApifySourceRuns } from "./sources";
-import type { BriefingItem, EventReviewAdapter, NormalizedMessage } from "@distilled/core";
+import type { BriefingEdition, BriefingItem, EventReviewAdapter, NormalizedMessage } from "@distilled/core";
 import type { Env, ProcessingJobMessage } from "./types";
 
 class FakeBucket {
@@ -356,26 +357,31 @@ describe("worker app accounts", () => {
       env()
     );
     expect(sourceResponse.status).toBe(200);
-    expect(queue.messages).toHaveLength(1);
-
-    await processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:00:00.000Z"));
+    expect(queue.messages).toHaveLength(0);
+    const savedBriefing = await repo.getBriefingById(briefingId);
+    expect(savedBriefing).not.toBeNull();
+    await publishDueBriefingEditions({
+      repo,
+      briefings: [{ ...savedBriefing!, nextBriefingAt: "2026-06-15T19:00:00.000Z" }],
+      now: new Date("2026-06-15T19:00:00.000Z")
+    });
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as { items: Array<{ id: string; summary: string; evidence: Array<{ sourceUrl: string }> }> };
-    expect(feed.items[0].summary).toContain("Electricite du Liban");
-    expect(feed.items[0].evidence).toEqual([]);
+    const feed = (await feedResponse.json()) as { editions: Array<{ id: string; summary: string; sections: unknown[] }> };
+    expect(feed.editions[0].summary).toContain("1 meaningful update");
+    expect(feed.editions[0].sections).toEqual([]);
 
-    const evidenceResponse = await app.request(`/api/feed/feed-owner/personal/items/${feed.items[0].id}/evidence`, {}, env());
-    expect(evidenceResponse.status).toBe(200);
-    const evidence = (await evidenceResponse.json()) as { evidence: Array<{ sourceUrl: string }> };
-    expect(evidence.evidence[0].sourceUrl).toBe("https://t.me/LebUpdate/10");
+    const editionResponse = await app.request(`/api/feed/feed-owner/personal/editions/${feed.editions[0].id}`, {}, env());
+    expect(editionResponse.status).toBe(200);
+    const edition = (await editionResponse.json()) as { edition: { sections: Array<{ evidence: Array<{ sourceUrl: string }> }> } };
+    expect(edition.edition.sections[0].evidence[0].sourceUrl).toBe("https://t.me/LebUpdate/10");
 
     const oldRoute = await app.request("/api/feed/personal", {}, env());
     expect(oldRoute.status).toBe(404);
   });
 
-  it("saves and reloads a feed daily budget", async () => {
+  it("saves and reloads feed briefing cadence", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
@@ -387,15 +393,25 @@ describe("worker app accounts", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json", cookie: user.cookie },
-        body: JSON.stringify({ ...briefing!, dailyBudgetUsd: 2.5 })
+        body: JSON.stringify({
+          ...briefing!,
+          briefingCadence: "daily",
+          briefingTimeOfDay: "08:30",
+          briefingTimezone: "Asia/Beirut"
+        })
       },
       env()
     );
     expect(saveResponse.status).toBe(200);
 
     const listResponse = await app.request("/api/me/briefings", { headers: { cookie: user.cookie } }, env());
-    const payload = (await listResponse.json()) as { briefings: Array<{ dailyBudgetUsd: number }> };
-    expect(payload.briefings[0].dailyBudgetUsd).toBe(2.5);
+    const payload = (await listResponse.json()) as {
+      briefings: Array<{ briefingCadence: string; briefingTimeOfDay: string; briefingTimezone: string; nextBriefingAt?: string }>;
+    };
+    expect(payload.briefings[0].briefingCadence).toBe("daily");
+    expect(payload.briefings[0].briefingTimeOfDay).toBe("08:30");
+    expect(payload.briefings[0].briefingTimezone).toBe("Asia/Beirut");
+    expect(payload.briefings[0].nextBriefingAt).toBeTruthy();
   });
 
   it("keeps a manually paused Telegram source paused across later ingest passes", async () => {
@@ -439,7 +455,6 @@ describe("worker app accounts", () => {
       url: "https://t.me/LebUpdate",
       repo,
       bucket,
-      queue,
       fetcher: fetcher as unknown as typeof fetch,
       now: new Date("2026-06-16T08:02:00.000Z")
     });
@@ -469,16 +484,22 @@ describe("worker app accounts", () => {
       env()
     );
     expect(sourceResponse.status).toBe(200);
-    expect(queue.messages).toHaveLength(1);
+    expect(queue.messages).toHaveLength(0);
 
-    await processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:00:00.000Z"), {
+    const rawMessages = await repo.listRawMessagesForWindow(
+      briefing!.id,
+      "2026-06-15T18:00:00.000Z",
+      "2026-06-15T19:00:00.000Z"
+    );
+    expect(rawMessages).toHaveLength(1);
+    const jobId = await repo.createProcessingJob(briefing!.id, rawMessages[0].id);
+
+    await processQueueMessage(repo, { jobId, briefingId: briefing!.id, rawMessageId: rawMessages[0].id }, new Date("2026-06-15T19:00:00.000Z"), {
       summarize: async () => "NO_POST"
     });
 
-    const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
-    expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as { items: Array<{ summary: string }> };
-    expect(feed.items).toHaveLength(0);
+    const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
+    expect(feedItems).toHaveLength(0);
   });
 
   it("completes queue jobs with the deterministic summary when AI summary fails", async () => {
@@ -502,9 +523,17 @@ describe("worker app accounts", () => {
       env()
     );
     expect(sourceResponse.status).toBe(200);
-    expect(queue.messages).toHaveLength(1);
+    expect(queue.messages).toHaveLength(0);
 
-    await expect(processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:00:00.000Z"), {
+    const rawMessages = await repo.listRawMessagesForWindow(
+      briefing!.id,
+      "2026-06-15T18:00:00.000Z",
+      "2026-06-15T19:00:00.000Z"
+    );
+    expect(rawMessages).toHaveLength(1);
+    const jobId = await repo.createProcessingJob(briefing!.id, rawMessages[0].id);
+
+    await expect(processQueueMessage(repo, { jobId, briefingId: briefing!.id, rawMessageId: rawMessages[0].id }, new Date("2026-06-15T19:00:00.000Z"), {
       summarize: async () => {
         throw new Error("summary timeout");
       }
@@ -512,11 +541,9 @@ describe("worker app accounts", () => {
 
     const jobs = await repo.listProcessingJobs({ briefingId: briefing!.id, states: ["completed"] });
     expect(jobs).toHaveLength(1);
-    const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
-    expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as { items: Array<{ summary: string }> };
-    expect(feed.items).toHaveLength(1);
-    expect(feed.items[0].summary).toContain("Electricite du Liban");
+    const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
+    expect(feedItems).toHaveLength(1);
+    expect(feedItems[0].summary).toContain("Electricite du Liban");
   });
 
   it("keeps one published item when later AI summaries differ for the same event", async () => {
@@ -725,7 +752,7 @@ describe("worker app accounts", () => {
     const fetcher = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
       const url = String(request);
       if (url.includes("/actors/groupoject~google-news-scraper/runs")) {
-        expect(new URL(url).searchParams.get("maxItems")).toBe("15");
+        expect(new URL(url).searchParams.get("maxItems")).toBe("40");
         expect(JSON.parse(String(init?.body))).toMatchObject({
           queries: ["central bank lebanon"],
           maxItemsPerQuery: 15
@@ -788,24 +815,30 @@ describe("worker app accounts", () => {
       fetcher: fetcher as unknown as typeof fetch
     });
 
-    expect(queue.messages).toHaveLength(1);
+    expect(queue.messages).toHaveLength(0);
     expect(Array.from(bucket.objects.keys()).some((key) => key.includes("apify/"))).toBe(true);
-    await processQueueMessage(repo, queue.messages[0], new Date("2026-06-16T08:05:00.000Z"));
+    const savedBriefing = await repo.getBriefingById(briefing!.id);
+    expect(savedBriefing).not.toBeNull();
+    await publishDueBriefingEditions({
+      repo,
+      briefings: [{ ...savedBriefing!, nextBriefingAt: "2026-06-16T09:00:00.000Z" }],
+      now: new Date("2026-06-16T09:00:00.000Z")
+    });
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as { briefing: { dailyBudgetUsd?: number }; items: Array<{ id: string; summary: string }> };
-    expect(feed.briefing.dailyBudgetUsd).toBeUndefined();
-    expect(feed.items[0].summary).toContain("Central bank");
+    const feed = (await feedResponse.json()) as { briefing: { briefingCadence?: string }; editions: Array<{ id: string; summary: string }> };
+    expect(feed.briefing.briefingCadence).toBe("hourly");
+    expect(feed.editions[0].summary).toContain("1 meaningful update");
 
-    const evidenceResponse = await app.request(
-      `/api/feed/feed-owner/personal/items/${encodeURIComponent(feed.items[0].id)}/evidence`,
+    const editionResponse = await app.request(
+      `/api/feed/feed-owner/personal/editions/${encodeURIComponent(feed.editions[0].id)}`,
       {},
       env()
     );
-    expect(evidenceResponse.status).toBe(200);
-    const evidence = (await evidenceResponse.json()) as { evidence: Array<{ sourceTitle: string }> };
-    expect(evidence.evidence[0].sourceTitle).toBe("Reuters");
+    expect(editionResponse.status).toBe(200);
+    const edition = (await editionResponse.json()) as { edition: { sections: Array<{ evidence: Array<{ sourceTitle: string }> }> } };
+    expect(edition.edition.sections[0].evidence[0].sourceTitle).toBe("Reuters");
   });
 
   it("marks Apify demo placeholder datasets as source errors", async () => {
@@ -815,7 +848,7 @@ describe("worker app accounts", () => {
     const fetcher = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
       const url = String(request);
       if (url.includes("/actors/kaitoeasyapi~twitter-x-data-tweet-scraper-pay-per-result-cheapest/runs")) {
-        expect(new URL(url).searchParams.get("maxItems")).toBe("20");
+        expect(new URL(url).searchParams.get("maxItems")).toBe("112");
         expect(JSON.parse(String(init?.body))).toMatchObject({
           searchTerms: ["from:ALJADEEDNEWS"],
           sort: "Latest",
@@ -891,27 +924,37 @@ describe("worker app accounts", () => {
     expect(briefing).not.toBeNull();
     await repo.upsertBriefing({ ...briefing!, publicFeedEnabled: false, retentionDays: 60 });
 
-    const item: BriefingItem = {
-      id: "item_old_private",
-      clusterId: "cluster_old_private",
+    const edition: BriefingEdition = {
+      id: "edition_old_private",
+      briefingId: briefing!.id,
+      cadence: "hourly",
+      windowStart: "2026-06-16T07:00:00.000Z",
+      windowEnd: "2026-06-16T08:00:00.000Z",
+      title: "Hourly briefing",
       summary: "Old private rows now serve through normal feed links.",
-      itemAt: "2026-06-16T08:00:00.000Z",
-      updatedAt: "2026-06-16T08:00:00.000Z",
-      expiresAt: "2026-07-01T08:00:00.000Z",
-      mergedUpdateCount: 1,
-      evidence: []
+      sections: [
+        {
+          title: "Update",
+          summary: "Old private rows now serve through normal feed links.",
+          evidence: []
+        }
+      ],
+      status: "published",
+      publishedAt: "2026-06-16T08:00:00.000Z",
+      createdAt: "2026-06-16T08:00:00.000Z",
+      updatedAt: "2026-06-16T08:00:00.000Z"
     };
-    await repo.saveBriefingItems(briefing!.id, [item]);
+    await repo.saveBriefingEdition(edition);
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
     const feed = (await feedResponse.json()) as {
       briefing: { publicFeedEnabled: boolean; retentionDays: number };
-      items: Array<{ summary: string }>;
+      editions: Array<{ summary: string }>;
     };
     expect(feed.briefing.publicFeedEnabled).toBe(true);
     expect(feed.briefing.retentionDays).toBe(15);
-    expect(feed.items[0].summary).toContain("Old private rows");
+    expect(feed.editions[0].summary).toContain("Old private rows");
 
     const searchResponse = await app.request("/api/feed/feed-owner/personal/search?q=private", {}, env());
     expect(searchResponse.status).toBe(200);

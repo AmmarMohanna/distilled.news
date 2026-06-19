@@ -1,5 +1,4 @@
-import type { BriefingConfig } from "@distilled/core";
-import type { BriefingEvidence } from "@distilled/core";
+import type { BriefingConfig, BriefingEdition } from "@distilled/core";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 
 export interface SourceIngestResult {
@@ -227,11 +226,11 @@ export async function getFeed(username: string, slug: string): Promise<FeedPaylo
   return requestJson<FeedPayload>(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`);
 }
 
-export async function getFeedItemEvidence(username: string, slug: string, itemId: string): Promise<BriefingEvidence[]> {
-  const payload = await requestJson<{ evidence: BriefingEvidence[] }>(
-    `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/items/${encodeURIComponent(itemId)}/evidence`
+export async function getFeedEdition(username: string, slug: string, editionId: string): Promise<BriefingEdition> {
+  const payload = await requestJson<{ edition: BriefingEdition }>(
+    `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/editions/${encodeURIComponent(editionId)}`
   );
-  return payload.evidence;
+  return payload.edition;
 }
 
 export async function getExploreFeeds(): Promise<PublicBriefing[]> {
@@ -239,11 +238,11 @@ export async function getExploreFeeds(): Promise<PublicBriefing[]> {
   return payload.feeds;
 }
 
-export async function searchFeed(username: string, slug: string, query: string): Promise<FeedPayload["items"]> {
-  const payload = await requestJson<{ items: FeedPayload["items"] }>(
+export async function searchFeed(username: string, slug: string, query: string): Promise<FeedPayload["editions"]> {
+  const payload = await requestJson<{ editions: FeedPayload["editions"] }>(
     `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/search?q=${encodeURIComponent(query)}`
   );
-  return payload.items;
+  return payload.editions;
 }
 
 export async function setFeedStar(username: string, slug: string, starred: boolean): Promise<FeedStarResult> {

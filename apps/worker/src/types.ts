@@ -1,5 +1,6 @@
 import type {
   BriefingConfig,
+  BriefingEdition,
   BriefingEvidence,
   BriefingItem,
   NormalizedMessage,
@@ -134,7 +135,7 @@ export interface SourceRunRecord {
 export interface HealthStatus {
   lastSourceEventAt?: string;
   latestPublishedAt?: string;
-  costStatus?: string;
+  nextBriefingAt?: string;
   processing: {
     queued: number;
     completed: number;
@@ -217,6 +218,7 @@ export interface Repository {
   saveRawMessage(briefingId: string, message: NormalizedMessage, now?: Date): Promise<void>;
   getRawMessage(id: string): Promise<NormalizedMessage | null>;
   listRecentRawMessages(briefingId: string, now?: Date, limit?: number): Promise<NormalizedMessage[]>;
+  listRawMessagesForWindow(briefingId: string, windowStart: string, windowEnd: string, limit?: number): Promise<NormalizedMessage[]>;
   createProcessingJob(briefingId: string, rawMessageId: string, now?: Date): Promise<string>;
   completeProcessingJob(jobId: string, now?: Date): Promise<void>;
   failProcessingJob(jobId: string, error: string, now?: Date): Promise<void>;
@@ -231,6 +233,9 @@ export interface Repository {
   repairDuplicateBriefingItems(briefingId: string, now?: Date): Promise<number>;
   listFeedItems(ownerAccountId: string, slug: string, includeEvidence: boolean, now?: Date): Promise<BriefingItem[]>;
   getFeedItemEvidence(briefingId: string, itemId: string, now?: Date): Promise<BriefingEvidence[]>;
+  saveBriefingEdition(edition: BriefingEdition, now?: Date): Promise<void>;
+  listBriefingEditions(briefingId: string, includeSections: boolean, now?: Date, limit?: number): Promise<BriefingEdition[]>;
+  getBriefingEdition(briefingId: string, editionId: string, now?: Date): Promise<BriefingEdition | null>;
   getHealth(briefingId?: string, now?: Date): Promise<HealthStatus>;
   createSourceRun(input: {
     sourceId: string;

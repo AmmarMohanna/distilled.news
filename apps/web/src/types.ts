@@ -1,4 +1,4 @@
-import type { BriefingConfig, BriefingItem, SourceKind, SourceProvider } from "@distilled/core";
+import type { BriefingConfig, BriefingEdition, SourceKind, SourceProvider } from "@distilled/core";
 
 export type AccountRole = "admin" | "user";
 
@@ -36,7 +36,7 @@ export interface SourceRecord {
 export interface HealthStatus {
   lastSourceEventAt?: string;
   latestPublishedAt?: string;
-  costStatus?: string;
+  nextBriefingAt?: string;
   processing: {
     queued: number;
     completed: number;
@@ -51,10 +51,10 @@ export interface SessionStatus {
   turnstileSiteKey?: string;
 }
 
-export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInstruction" | "dailyBudgetUsd">;
+export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInstruction">;
 
 export interface FeedPayload {
   briefing: PublicBriefing;
-  items: BriefingItem[];
+  editions: BriefingEdition[];
   viewerHasStarred: boolean;
 }

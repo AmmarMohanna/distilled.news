@@ -1,5 +1,6 @@
 import {
   collapseDuplicateBriefingItems,
+  defaultNextBriefingAt,
   eventKeysForItem,
   mergeBriefingItem,
   personalNewsBriefing,
@@ -7,6 +8,8 @@ import {
   sanitizeSummary,
   type BriefingConfig,
   type BriefingEvidence,
+  type BriefingEdition,
+  type BriefingEditionSection,
   type BriefingItem,
   type MediaReference,
   type NormalizedMessage,
@@ -79,9 +82,27 @@ interface BriefingRow {
   paused?: number;
   language?: "en" | "ar" | "fr" | null;
   intensity?: "low" | "medium" | "high" | null;
-  daily_budget_usd?: number | null;
+  briefing_cadence?: "hourly" | "daily" | "weekly" | "monthly" | null;
+  briefing_time_of_day?: string | null;
+  briefing_timezone?: string | null;
+  next_briefing_at?: string | null;
   retention_days: number;
   created_at?: string;
+}
+
+interface BriefingEditionRow {
+  id: string;
+  briefing_id: string;
+  cadence: "hourly" | "daily" | "weekly" | "monthly";
+  window_start: string;
+  window_end: string;
+  title: string;
+  summary: string;
+  sections_json: string;
+  status: "published" | "empty";
+  published_at: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface SourceRow {
@@ -391,7 +412,8 @@ export class D1Repository implements Repository {
         ...personalNewsBriefing,
         id: `briefing_${account.id}_personal`,
         ownerAccountId: account.id,
-        ownerUsername: account.username
+        ownerUsername: account.username,
+        nextBriefingAt: defaultNextBriefingAt({ now })
       },
       now
     );
@@ -498,8 +520,9 @@ export class D1Repository implements Repository {
       .prepare(
         `INSERT INTO briefings (
           id, owner_account_id, slug, title, stars, interest_profile, style_instruction,
-          public_feed_enabled, paused, language, intensity, daily_budget_usd, retention_days, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          public_feed_enabled, paused, language, intensity, briefing_cadence, briefing_time_of_day,
+          briefing_timezone, next_briefing_at, retention_days, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           slug = excluded.slug,
           title = excluded.title,
@@ -510,7 +533,10 @@ export class D1Repository implements Repository {
           paused = excluded.paused,
           language = excluded.language,
           intensity = excluded.intensity,
-          daily_budget_usd = excluded.daily_budget_usd,
+          briefing_cadence = excluded.briefing_cadence,
+          briefing_time_of_day = excluded.briefing_time_of_day,
+          briefing_timezone = excluded.briefing_timezone,
+          next_briefing_at = excluded.next_briefing_at,
           retention_days = excluded.retention_days,
           updated_at = excluded.updated_at`
       )
@@ -526,7 +552,10 @@ export class D1Repository implements Repository {
         input.paused ? 1 : 0,
         input.language,
         input.intensity,
-        normalizedDailyBudgetUsd(input.dailyBudgetUsd),
+        normalizedBriefingCadence(input.briefingCadence),
+        normalizedTimeOfDay(input.briefingTimeOfDay),
+        input.briefingTimezone || "UTC",
+        input.nextBriefingAt ?? null,
         FIXED_RETENTION_DAYS,
         timestamp,
         timestamp
@@ -820,6 +849,36 @@ export class D1Repository implements Repository {
     return rows.map(rowToRawMessage);
   }
 
+  async listRawMessagesForWindow(
+    briefingId: string,
+    windowStart: string,
+    windowEnd: string,
+    limit = 500
+  ): Promise<NormalizedMessage[]> {
+    const rows = await all<RawMessageRow>(
+      this.db
+        .prepare(
+          `SELECT raw_messages.*,
+            COALESCE(raw_messages.source_title, sources.title) as message_source_title,
+            COALESCE(raw_messages.source_type, sources.type) as message_source_type,
+            COALESCE(raw_messages.source_provider, sources.provider) as message_source_provider,
+            COALESCE(raw_messages.source_kind, sources.kind) as message_source_kind,
+            COALESCE(raw_messages.source_username, sources.username) as message_source_username,
+            sources.title, sources.type, sources.provider, sources.kind, sources.username
+          FROM raw_messages
+          JOIN sources ON sources.id = raw_messages.source_id
+          WHERE raw_messages.briefing_id = ?
+            AND raw_messages.posted_at >= ?
+            AND raw_messages.posted_at < ?
+            AND raw_messages.expires_at > ?
+          ORDER BY raw_messages.posted_at ASC
+          LIMIT ?`
+        )
+        .bind(briefingId, windowStart, windowEnd, new Date().toISOString(), limit)
+    );
+    return rows.map(rowToRawMessage);
+  }
+
   async createProcessingJob(briefingId: string, rawMessageId: string, now = new Date()): Promise<string> {
     const id = `job_${crypto.randomUUID()}`;
     const timestamp = now.toISOString();
@@ -982,6 +1041,77 @@ export class D1Repository implements Repository {
     return rows.map(rowToEvidence);
   }
 
+  async saveBriefingEdition(edition: BriefingEdition, now = new Date()): Promise<void> {
+    const timestamp = now.toISOString();
+    await this.db
+      .prepare(
+        `INSERT INTO briefing_editions (
+          id, briefing_id, cadence, window_start, window_end, title, summary,
+          sections_json, status, published_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(briefing_id, cadence, window_start, window_end) DO UPDATE SET
+          title = excluded.title,
+          summary = excluded.summary,
+          sections_json = excluded.sections_json,
+          status = excluded.status,
+          published_at = excluded.published_at,
+          updated_at = excluded.updated_at`
+      )
+      .bind(
+        edition.id,
+        edition.briefingId,
+        edition.cadence,
+        edition.windowStart,
+        edition.windowEnd,
+        edition.title,
+        edition.summary,
+        JSON.stringify(edition.sections),
+        edition.status,
+        edition.publishedAt,
+        edition.createdAt,
+        timestamp
+      )
+      .run();
+  }
+
+  async listBriefingEditions(
+    briefingId: string,
+    includeSections: boolean,
+    now = new Date(),
+    limit = 50
+  ): Promise<BriefingEdition[]> {
+    const rows = await all<BriefingEditionRow>(
+      this.db
+        .prepare(
+          `SELECT id, briefing_id, cadence, window_start, window_end, title, summary,
+            sections_json, status, published_at, created_at, updated_at
+          FROM briefing_editions
+          WHERE briefing_id = ?
+            AND published_at <= ?
+          ORDER BY published_at DESC
+          LIMIT ?`
+        )
+        .bind(briefingId, now.toISOString(), limit)
+    );
+    return rows.map((row) => rowToBriefingEdition(row, includeSections));
+  }
+
+  async getBriefingEdition(briefingId: string, editionId: string, now = new Date()): Promise<BriefingEdition | null> {
+    const row = await first<BriefingEditionRow>(
+      this.db
+        .prepare(
+          `SELECT id, briefing_id, cadence, window_start, window_end, title, summary,
+            sections_json, status, published_at, created_at, updated_at
+          FROM briefing_editions
+          WHERE briefing_id = ?
+            AND id = ?
+            AND published_at <= ?`
+        )
+        .bind(briefingId, editionId, now.toISOString())
+    );
+    return row ? rowToBriefingEdition(row, true) : null;
+  }
+
   async getHealth(briefingId?: string): Promise<HealthStatus> {
     const lastSourceEventAt =
       (briefingId
@@ -1008,19 +1138,23 @@ export class D1Repository implements Repository {
       ? await first<{ latest_published_at: string | null }>(
           this.db
             .prepare(
-              "SELECT MAX(item_at) as latest_published_at FROM briefing_items WHERE briefing_id = ? AND expires_at > ?"
+              `SELECT MAX(published_at) as latest_published_at
+              FROM briefing_editions
+              WHERE briefing_id = ?
+                AND published_at <= ?`
             )
             .bind(briefingId, new Date().toISOString())
         )
       : await first<{ latest_published_at: string | null }>(
           this.db
-            .prepare("SELECT MAX(item_at) as latest_published_at FROM briefing_items WHERE expires_at > ?")
+            .prepare("SELECT MAX(published_at) as latest_published_at FROM briefing_editions WHERE published_at <= ?")
             .bind(new Date().toISOString())
         );
+    const briefing = briefingId ? await this.getBriefingById(briefingId) : null;
     return {
       lastSourceEventAt,
       latestPublishedAt: latestPublishedRow?.latest_published_at ?? undefined,
-      costStatus: briefingId ? (await this.getSetting(`cost_status:${briefingId}`)) ?? undefined : undefined,
+      nextBriefingAt: briefing?.nextBriefingAt,
       processing
     };
   }
@@ -1468,6 +1602,7 @@ export class InMemoryRepository implements Repository {
   }> = [];
   rawMessages = new Map<string, NormalizedMessage>();
   itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
+  editionsByBriefing = new Map<string, Map<string, BriefingEdition>>();
   starsByBriefing = new Map<string, Set<string>>();
   jobs = new Map<string, {
     id: string;
@@ -1624,7 +1759,8 @@ export class InMemoryRepository implements Repository {
       ...personalNewsBriefing,
       id: `briefing_${account.id}_personal`,
       ownerAccountId: account.id,
-      ownerUsername: account.username
+      ownerUsername: account.username,
+      nextBriefingAt: defaultNextBriefingAt({ now })
     };
     return this.upsertBriefing(briefing, now);
   }
@@ -1678,7 +1814,9 @@ export class InMemoryRepository implements Repository {
     if (!this.briefingCreatedAt.has(input.id)) this.briefingCreatedAt.set(input.id, now.toISOString());
     this.briefings.set(input.id, {
       ...input,
-      dailyBudgetUsd: normalizedDailyBudgetUsd(input.dailyBudgetUsd),
+      briefingCadence: normalizedBriefingCadence(input.briefingCadence),
+      briefingTimeOfDay: normalizedTimeOfDay(input.briefingTimeOfDay),
+      briefingTimezone: input.briefingTimezone || "UTC",
       retentionDays: FIXED_RETENTION_DAYS,
       ownerUsername: account?.username ?? input.ownerUsername
     });
@@ -1703,6 +1841,7 @@ export class InMemoryRepository implements Repository {
     }
 
     this.itemsByBriefing.delete(id);
+    this.editionsByBriefing.delete(id);
     this.starsByBriefing.delete(id);
 
     for (const [jobId, job] of this.jobs) {
@@ -1848,6 +1987,23 @@ export class InMemoryRepository implements Repository {
       .slice(0, limit);
   }
 
+  async listRawMessagesForWindow(
+    briefingId: string,
+    windowStart: string,
+    windowEnd: string,
+    limit = 500
+  ): Promise<NormalizedMessage[]> {
+    return Array.from(this.rawMessages.values())
+      .filter((message) =>
+        message.id.startsWith(`${briefingId}::`) &&
+        message.postedAt >= windowStart &&
+        message.postedAt < windowEnd &&
+        new Date(message.expiresAt).getTime() > new Date(windowEnd).getTime()
+      )
+      .sort((left, right) => left.postedAt.localeCompare(right.postedAt))
+      .slice(0, limit);
+  }
+
   async createProcessingJob(briefingId: string, rawMessageId: string, now = new Date()): Promise<string> {
     const id = `job_${this.jobs.size + 1}`;
     this.jobs.set(id, { id, briefingId, rawMessageId, state: "queued", updatedAt: now.toISOString() });
@@ -1961,6 +2117,36 @@ export class InMemoryRepository implements Repository {
     return structuredClone(item.evidence);
   }
 
+  async saveBriefingEdition(edition: BriefingEdition): Promise<void> {
+    const scoped = this.editionsByBriefing.get(edition.briefingId) ?? new Map<string, BriefingEdition>();
+    const existing = Array.from(scoped.values()).find((candidate) =>
+      candidate.cadence === edition.cadence &&
+      candidate.windowStart === edition.windowStart &&
+      candidate.windowEnd === edition.windowEnd
+    );
+    scoped.set(existing?.id ?? edition.id, structuredClone({ ...edition, id: existing?.id ?? edition.id }));
+    this.editionsByBriefing.set(edition.briefingId, scoped);
+  }
+
+  async listBriefingEditions(
+    briefingId: string,
+    includeSections: boolean,
+    now = new Date(),
+    limit = 50
+  ): Promise<BriefingEdition[]> {
+    return Array.from(this.editionsByBriefing.get(briefingId)?.values() ?? [])
+      .filter((edition) => new Date(edition.publishedAt).getTime() <= now.getTime())
+      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
+      .slice(0, limit)
+      .map((edition) => includeSections ? structuredClone(edition) : { ...structuredClone(edition), sections: [] });
+  }
+
+  async getBriefingEdition(briefingId: string, editionId: string, now = new Date()): Promise<BriefingEdition | null> {
+    const edition = this.editionsByBriefing.get(briefingId)?.get(editionId);
+    if (!edition || new Date(edition.publishedAt).getTime() > now.getTime()) return null;
+    return structuredClone(edition);
+  }
+
   async getHealth(briefingId?: string): Promise<HealthStatus> {
     const processing = { queued: 0, completed: 0, failed: 0 };
     for (const job of this.jobs.values()) {
@@ -1972,8 +2158,8 @@ export class InMemoryRepository implements Repository {
         (briefingId ? this.settings.get(`last_telegram_event_at:${briefingId}`) : undefined) ??
         this.settings.get("last_source_event_at") ??
         this.settings.get("last_telegram_event_at"),
-      latestPublishedAt: latestPublishedAt(this.itemsByBriefing, briefingId),
-      costStatus: briefingId ? this.settings.get(`cost_status:${briefingId}`) : undefined,
+      latestPublishedAt: latestEditionPublishedAt(this.editionsByBriefing, briefingId),
+      nextBriefingAt: briefingId ? this.briefings.get(briefingId)?.nextBriefingAt : undefined,
       processing
     };
   }
@@ -2181,8 +2367,28 @@ function rowToBriefing(row: BriefingRow): BriefingConfig {
     paused: row.paused === 1,
     language: row.language === "ar" || row.language === "fr" ? row.language : "en",
     intensity: row.intensity === "low" || row.intensity === "high" ? row.intensity : "medium",
-    dailyBudgetUsd: normalizedDailyBudgetUsd(row.daily_budget_usd ?? undefined),
+    briefingCadence: normalizedBriefingCadence(row.briefing_cadence ?? undefined),
+    briefingTimeOfDay: normalizedTimeOfDay(row.briefing_time_of_day ?? undefined),
+    briefingTimezone: row.briefing_timezone || "UTC",
+    nextBriefingAt: row.next_briefing_at ?? undefined,
     retentionDays: FIXED_RETENTION_DAYS
+  };
+}
+
+function rowToBriefingEdition(row: BriefingEditionRow, includeSections: boolean): BriefingEdition {
+  return {
+    id: row.id,
+    briefingId: row.briefing_id,
+    cadence: row.cadence,
+    windowStart: row.window_start,
+    windowEnd: row.window_end,
+    title: row.title,
+    summary: row.summary,
+    sections: includeSections ? parseJson<BriefingEditionSection[]>(row.sections_json, []) : [],
+    status: row.status,
+    publishedAt: row.published_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -2295,8 +2501,12 @@ function rowToSourceRun(row: SourceRunRow): SourceRunRecord {
   };
 }
 
-function normalizedDailyBudgetUsd(value: number | undefined): number {
-  return value !== undefined && Number.isFinite(value) && value >= 0 ? Math.round(value * 100) / 100 : DEFAULT_DAILY_BUDGET_USD;
+function normalizedBriefingCadence(value: string | undefined): BriefingConfig["briefingCadence"] {
+  return value === "daily" || value === "weekly" || value === "monthly" ? value : "hourly";
+}
+
+function normalizedTimeOfDay(value: string | undefined): string {
+  return typeof value === "string" && /^\d{1,2}:\d{2}$/.test(value) ? value : "00:00";
 }
 
 function rowToProcessingJob(row: ProcessingJobRow): ProcessingJobRecord {
@@ -2319,6 +2529,16 @@ function latestPublishedAt(
     : Array.from(itemsByBriefing.values()).flatMap((items) => Array.from(items.values()));
   const latest = values.map((item) => item.itemAt).sort().at(-1);
   return latest ?? undefined;
+}
+
+function latestEditionPublishedAt(
+  editionsByBriefing: Map<string, Map<string, BriefingEdition>>,
+  briefingId?: string
+): string | undefined {
+  const values = briefingId
+    ? Array.from(editionsByBriefing.get(briefingId)?.values() ?? [])
+    : Array.from(editionsByBriefing.values()).flatMap((editions) => Array.from(editions.values()));
+  return values.map((edition) => edition.publishedAt).sort().at(-1);
 }
 
 function rowlessAccount(account: AccountRecord & { passwordHash: string }): AccountRecord {

@@ -6,17 +6,18 @@ import {
   parseRssFeed,
   type DetectedSourceInput
 } from "@distilled/connectors";
-import {
-  createPaidSourceBudgetContext,
-  decidePaidSourceRefresh,
-  isBudgetedApifySource,
-  paidSourceBudgetStatus,
-  type PaidSourceBudgetContext
-} from "./costs";
 import { ingestPublicTelegramChannel, type PublicTelegramIngestResult } from "./publicTelegram";
 import type { Env, ProcessingJobMessage, Repository, SourceRecord, SourceRunRecord } from "./types";
 
 const RSS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const X_MAX_ITEMS = 20;
+const GOOGLE_NEWS_MAX_ITEMS_PER_QUERY = 15;
+// Apify rejects pay-per-result run-level caps below its minimum run charge.
+// Actor input still keeps the requested product caps at 15 Google results and 20 X tweets.
+const APIFY_MINIMUM_RUN_CHARGE_USD = 0.02;
+const GOOGLE_NEWS_PRICE_PER_1000_RESULTS_USD = 0.5;
+const X_PRICE_PER_1000_TWEETS_USD = 0.18;
 
 export type SourceIngestResult = PublicTelegramIngestResult & {
   provider?: SourceRecord["provider"];
@@ -45,17 +46,8 @@ export async function addSourceFromInput(input: SourceRefreshInput & { sourceInp
     return ingestRssSource({ ...input, source });
   }
 
-  const enabledSources = (await input.repo.listSources(input.briefing.id)).filter((item) => item.enabled);
   const now = input.now ?? new Date();
-  const context = await createPaidSourceBudgetContext({
-    briefingId: input.briefing.id,
-    dailyBudgetUsd: input.briefing.dailyBudgetUsd,
-    paidSources: enabledSources.filter(isBudgetedApifySource),
-    repo: input.repo,
-    now
-  });
-  await input.repo.setSetting(`cost_status:${input.briefing.id}`, paidSourceBudgetStatus(context) ?? "", now);
-  return (await startBudgetedApifySourceRun({ ...input, source, now, context })) ?? skippedApifySourceRun(source);
+  return (await startCappedApifySourceRun({ ...input, source, now })) ?? skippedApifySourceRun(source);
 }
 
 export async function refreshEnabledSources(input: SourceRefreshInput): Promise<SourceIngestResult[]> {
@@ -63,14 +55,6 @@ export async function refreshEnabledSources(input: SourceRefreshInput): Promise<
 
   const now = input.now ?? new Date();
   const sources = (await input.repo.listSources(input.briefing.id)).filter((source) => source.enabled);
-  const budgetContext = await createPaidSourceBudgetContext({
-    briefingId: input.briefing.id,
-    dailyBudgetUsd: input.briefing.dailyBudgetUsd,
-    paidSources: sources.filter(isBudgetedApifySource),
-    repo: input.repo,
-    now
-  });
-  await input.repo.setSetting(`cost_status:${input.briefing.id}`, paidSourceBudgetStatus(budgetContext) ?? "", now);
   const results: SourceIngestResult[] = [];
 
   for (const source of sources) {
@@ -85,13 +69,14 @@ export async function refreshEnabledSources(input: SourceRefreshInput): Promise<
     }
 
     if (source.provider === "apify") {
+      if (!isDue(source.lastCheckedAt, now, apifyRefreshIntervalMs(input.briefing))) continue;
       const active = await input.repo.listSourceRuns({
         sourceId: source.id,
         states: ["queued", "running"],
         limit: 1
       });
       if (active.length === 0) {
-        const result = await startBudgetedApifySourceRun({ ...input, source, now, context: budgetContext });
+        const result = await startCappedApifySourceRun({ ...input, source, now });
         if (result) results.push(result);
       }
     }
@@ -198,20 +183,14 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
   };
 }
 
-async function startBudgetedApifySourceRun(input: SourceRefreshInput & {
+async function startCappedApifySourceRun(input: SourceRefreshInput & {
   source: SourceRecord;
-  context: PaidSourceBudgetContext;
 }): Promise<SourceIngestResult | undefined> {
-  const decision = decidePaidSourceRefresh({
-    source: input.source,
-    context: input.context,
-    env: input.env
-  });
-  if (!decision.shouldStart) return undefined;
+  const maxItems = apifyRunMaxItems(input.source);
+  if (maxItems === undefined) return undefined;
   return startApifySourceRun({
     ...input,
-    estimatedCostUsd: decision.estimatedCostUsd,
-    maxItems: decision.maxItems
+    maxItems
   });
 }
 
@@ -380,7 +359,7 @@ async function persistMessages(input: SourceRefreshInput & {
   now: Date;
 }): Promise<Omit<SourceIngestResult, "sourceId" | "url">> {
   let imported = 0;
-  let queued = 0;
+  const queued = 0;
   let skipped = 0;
 
   for (const message of input.messages) {
@@ -400,10 +379,7 @@ async function persistMessages(input: SourceRefreshInput & {
     }
 
     await input.repo.saveRawMessage(input.briefing.id, persistedMessage, input.now);
-    const jobId = await input.repo.createProcessingJob(input.briefing.id, persistedMessage.id, input.now);
-    await input.queue.send({ jobId, briefingId: input.briefing.id, rawMessageId: persistedMessage.id });
     imported += 1;
-    queued += 1;
   }
 
   return {
@@ -473,6 +449,36 @@ function isDue(lastCheckedAt: string | undefined, now: Date, intervalMs: number)
   return now.getTime() - new Date(lastCheckedAt).getTime() >= intervalMs;
 }
 
+function apifyRefreshIntervalMs(briefing: BriefingConfig): number {
+  if (briefing.briefingCadence === "daily") return 6 * HOUR_MS;
+  if (briefing.briefingCadence === "weekly" || briefing.briefingCadence === "monthly") return 24 * HOUR_MS;
+  return HOUR_MS;
+}
+
+function apifyRunMaxItems(source: SourceRecord): number | undefined {
+  const input = recordValue(source.actorInput);
+  if (source.kind === "google_news") {
+    const queries = Array.isArray(input.queries) ? input.queries.length : 1;
+    const maxQueries = Math.max(1, Math.min(numberValue(input.maxQueries, queries), queries || 1));
+    const perQuery = Math.min(numberValue(input.maxItemsPerQuery, GOOGLE_NEWS_MAX_ITEMS_PER_QUERY), GOOGLE_NEWS_MAX_ITEMS_PER_QUERY);
+    return Math.max(
+      minimumApifyRunItems(GOOGLE_NEWS_PRICE_PER_1000_RESULTS_USD),
+      Math.max(1, Math.floor(perQuery * maxQueries))
+    );
+  }
+  if (source.kind === "x_profile" || source.kind === "x_search") {
+    return Math.max(
+      minimumApifyRunItems(X_PRICE_PER_1000_TWEETS_USD),
+      Math.max(1, Math.floor(Math.min(numberValue(input.maxItems, X_MAX_ITEMS), X_MAX_ITEMS)))
+    );
+  }
+  return undefined;
+}
+
+function minimumApifyRunItems(pricePer1000ItemsUsd: number): number {
+  return Math.ceil((APIFY_MINIMUM_RUN_CHARGE_USD / pricePer1000ItemsUsd) * 1000);
+}
+
 function scopedRawMessageId(briefingId: string, rawMessageId: string): string {
   return `${briefingId}::${rawMessageId}`;
 }
@@ -493,6 +499,19 @@ function skippedApifySourceRun(source: SourceRecord): SourceIngestResult {
 
 function nullError(): undefined {
   return undefined;
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function numberValue(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  }
+  return fallback;
 }
 
 interface ApifyRunPayload {

@@ -148,7 +148,10 @@ function createBriefingItem(briefing: ProcessingInput["briefing"], cluster: Clus
       paused: false,
       language: briefing.language,
       intensity: briefing.intensity,
-      dailyBudgetUsd: briefing.dailyBudgetUsd,
+      briefingCadence: briefing.briefingCadence,
+      briefingTimeOfDay: briefing.briefingTimeOfDay,
+      briefingTimezone: briefing.briefingTimezone,
+      nextBriefingAt: briefing.nextBriefingAt,
       retentionDays: briefing.retentionDays
     },
     evidence

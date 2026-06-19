@@ -15,7 +15,9 @@ const baseBriefing: BriefingConfig = {
   paused: false,
   language: "en",
   intensity: "low",
-  dailyBudgetUsd: 1,
+  briefingCadence: "hourly",
+  briefingTimeOfDay: "00:00",
+  briefingTimezone: "UTC",
   retentionDays: 15
 };
 

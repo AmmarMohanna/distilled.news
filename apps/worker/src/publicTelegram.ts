@@ -4,7 +4,7 @@ import {
   parsePublicTelegramChannelUrl,
   publicTelegramSourceId
 } from "@distilled/connectors";
-import type { ProcessingJobMessage, Repository, SourceRecord } from "./types";
+import type { Repository, SourceRecord } from "./types";
 
 export interface PublicTelegramIngestResult {
   sourceId: string;
@@ -21,7 +21,6 @@ export interface PublicTelegramIngestInput {
   url: string;
   repo: Repository;
   bucket: { put(key: string, value: string, options?: unknown): Promise<unknown> };
-  queue: { send(message: ProcessingJobMessage): Promise<unknown> };
   activateSource?: boolean;
   fetcher?: typeof fetch;
   now?: Date;
@@ -55,7 +54,7 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
 
   let source: SourceRecord | undefined;
   let imported = 0;
-  let queued = 0;
+  const queued = 0;
   let skipped = 0;
 
   for (const message of messages) {
@@ -80,10 +79,7 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
     }
 
     await input.repo.saveRawMessage(input.briefing.id, persistedMessage, now);
-    const jobId = await input.repo.createProcessingJob(input.briefing.id, persistedMessage.id, now);
-    await input.queue.send({ jobId, briefingId: input.briefing.id, rawMessageId: persistedMessage.id });
     imported += 1;
-    queued += 1;
   }
 
   await input.repo.setSetting("last_source_event_at", now.toISOString(), now);

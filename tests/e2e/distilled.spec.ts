@@ -13,7 +13,10 @@ const briefing = {
   paused: false,
   language: "en",
   intensity: "low",
-  dailyBudgetUsd: 1,
+  briefingCadence: "hourly",
+  briefingTimeOfDay: "09:00",
+  briefingTimezone: "Asia/Beirut",
+  nextBriefingAt: "2026-06-16T09:00:00.000Z",
   retentionDays: 15
 };
 
@@ -40,14 +43,36 @@ const item = {
   ]
 };
 
-const feedItems = Array.from({ length: 25 }, (_, index) => ({
-  ...item,
-  id: `item_${index + 1}`,
-  clusterId: `cluster_${index + 1}`,
+const edition = {
+  id: "edition_1",
+  briefingId: "briefing_default",
+  cadence: "hourly",
+  windowStart: "2026-06-16T07:00:00.000Z",
+  windowEnd: "2026-06-16T08:00:00.000Z",
+  title: "Hourly briefing",
+  summary: item.summary,
+  sections: [
+    {
+      title: "Infrastructure",
+      summary: item.summary,
+      evidence: item.evidence
+    }
+  ],
+  status: "published",
+  publishedAt: "2026-06-16T08:00:00.000Z",
+  createdAt: "2026-06-16T08:02:00.000Z",
+  updatedAt: "2026-06-16T08:02:00.000Z"
+};
+
+const feedEditions = Array.from({ length: 25 }, (_, index) => ({
+  ...edition,
+  id: `edition_${index + 1}`,
   summary: `Published briefing item ${index + 1}.`,
-  itemAt: new Date(Date.UTC(2026, 5, 16, 8, 0 - index, 0)).toISOString(),
+  windowStart: new Date(Date.UTC(2026, 5, 16, 7, 0 - index, 0)).toISOString(),
+  windowEnd: new Date(Date.UTC(2026, 5, 16, 8, 0 - index, 0)).toISOString(),
+  publishedAt: new Date(Date.UTC(2026, 5, 16, 8, 0 - index, 0)).toISOString(),
   updatedAt: new Date(Date.UTC(2026, 5, 16, 8, 2 - index, 0)).toISOString(),
-  evidence: []
+  sections: []
 }));
 
 const exploreFeeds = [
@@ -147,16 +172,16 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
       contentType: "application/json",
       body: JSON.stringify({
         briefing: { ...briefing, paused: feedPaused },
-        items: [{ ...item, evidence: [] }],
+        editions: [{ ...edition, sections: [] }],
         viewerHasStarred: false
       })
     });
   });
-  await page.route("**/api/feed/ammar-mohanna/personal/items/item_1/evidence", async (route) => {
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ evidence: item.evidence }) });
+  await page.route("**/api/feed/ammar-mohanna/personal/editions/edition_1", async (route) => {
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ edition }) });
   });
   await page.route("**/api/feed/ammar-mohanna/personal/search?q=power%20supply", async (route) => {
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ items: [item] }) });
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ editions: [edition] }) });
   });
   await page.route("**/api/explore/feeds", async (route) => {
     await route.fulfill({ contentType: "application/json", body: JSON.stringify({ feeds: exploreFeeds }) });
@@ -179,7 +204,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.locator(".news-item").filter({ hasText: item.summary }).first()).toBeVisible();
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
 
-  await page.getByLabel(/show evidence/i).click();
+  await page.getByRole("button", { name: /show .*briefing/i }).first().click();
   await expect(page.getByText("Beirut Local")).toBeVisible();
   await expect(page.getByRole("link", { name: /original/i })).toHaveAttribute("href", item.evidence[0].sourceUrl);
 
@@ -199,7 +224,7 @@ test("feed shows twenty unread items and backfills when one is read", async ({ p
       contentType: "application/json",
       body: JSON.stringify({
         briefing,
-        items: feedItems,
+        editions: feedEditions,
         viewerHasStarred: false
       })
     });

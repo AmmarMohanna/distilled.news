@@ -1,4 +1,4 @@
-import { searchBriefingItems, type BriefingConfig } from "@distilled/core";
+import { defaultNextBriefingAt, searchBriefingEditions, type BriefingConfig } from "@distilled/core";
 import { Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
@@ -83,7 +83,6 @@ const adminAccountUpdateSchema = z.object({
 });
 
 const FIXED_RETENTION_DAYS = 15;
-const DEFAULT_DAILY_BUDGET_USD = 1;
 
 const briefingInputSchema = z.object({
   id: z.string().min(1).default(() => `briefing_${crypto.randomUUID()}`),
@@ -96,7 +95,10 @@ const briefingInputSchema = z.object({
   paused: z.boolean().default(false),
   language: z.enum(["en", "ar", "fr"]).default("en"),
   intensity: z.enum(["low", "medium", "high"]).default("medium"),
-  dailyBudgetUsd: z.number().min(0).max(100).default(DEFAULT_DAILY_BUDGET_USD),
+  briefingCadence: z.enum(["hourly", "daily", "weekly", "monthly"]).default("hourly"),
+  briefingTimeOfDay: z.string().regex(/^\d{1,2}:\d{2}$/).default("00:00"),
+  briefingTimezone: z.string().min(1).default("UTC"),
+  nextBriefingAt: z.string().optional(),
   retentionDays: z.number().int().min(1).max(90).default(FIXED_RETENTION_DAYS)
 });
 
@@ -352,6 +354,17 @@ export function createApp(options: AppOptions = {}) {
     const slug = normalizeUsername(input.slug || input.title);
     const existingSlug = await repo.getBriefingBySlug(account.id, slug);
     if (existingSlug && existingSlug.id !== input.id) return c.json({ error: "feed slug is already used" }, 409);
+    const scheduleChanged = !existing ||
+      existing.briefingCadence !== input.briefingCadence ||
+      existing.briefingTimeOfDay !== input.briefingTimeOfDay ||
+      existing.briefingTimezone !== input.briefingTimezone;
+    const nextBriefingAt = scheduleChanged
+      ? defaultNextBriefingAt({
+          cadence: input.briefingCadence,
+          timeOfDay: input.briefingTimeOfDay,
+          timezone: input.briefingTimezone
+        })
+      : input.nextBriefingAt ?? existing.nextBriefingAt;
     const briefing = await repo.upsertBriefing({
       ...input,
       ownerAccountId: account.id,
@@ -360,7 +373,7 @@ export function createApp(options: AppOptions = {}) {
       stars: existing?.stars ?? input.stars,
       publicFeedEnabled: true,
       intensity: input.intensity,
-      dailyBudgetUsd: input.dailyBudgetUsd,
+      nextBriefingAt,
       retentionDays: FIXED_RETENTION_DAYS
     });
     return c.json({ briefing });
@@ -523,13 +536,22 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
-    const { repo, account, briefing } = resolved;
+    const { repo, briefing } = resolved;
     const voterId = await getVoterId(c);
     return c.json({
       briefing: publicBriefing(briefing),
-      items: await repo.listFeedItems(account.id, briefing.slug, false),
+      editions: await repo.listBriefingEditions(briefing.id, false),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
     });
+  });
+
+  app.get("/api/feed/:username/:briefingSlug/editions/:editionId", async (c) => {
+    const resolved = await resolvePublicFeed(c);
+    if (resolved instanceof Response) return resolved;
+    const { repo, briefing } = resolved;
+    const edition = await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
+    if (!edition) return c.json({ error: "edition not found" }, 404);
+    return c.json({ edition });
   });
 
   app.get("/api/feed/:username/:briefingSlug/items/:itemId/evidence", async (c) => {
@@ -542,8 +564,13 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/feed/:username/:briefingSlug/search", async (c) => {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
-    const { repo, account, briefing } = resolved;
-    return c.json({ items: searchBriefingItems(await repo.listFeedItems(account.id, briefing.slug, true), c.req.query("q") ?? "") });
+    const { repo, briefing } = resolved;
+    return c.json({
+      editions: searchBriefingEditions(
+        await repo.listBriefingEditions(briefing.id, true, new Date(), 100),
+        c.req.query("q") ?? ""
+      )
+    });
   });
 
   app.post("/api/feed/:username/:briefingSlug/star", async (c) => {
@@ -814,7 +841,7 @@ function publicAccount(account: AccountRecord) {
   };
 }
 
-function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interestProfile" | "styleInstruction" | "dailyBudgetUsd"> {
+function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interestProfile" | "styleInstruction"> {
   return {
     id: briefing.id,
     ownerAccountId: briefing.ownerAccountId,
@@ -826,6 +853,10 @@ function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interes
     paused: briefing.paused,
     language: briefing.language,
     intensity: briefing.intensity,
+    briefingCadence: briefing.briefingCadence,
+    briefingTimeOfDay: briefing.briefingTimeOfDay,
+    briefingTimezone: briefing.briefingTimezone,
+    nextBriefingAt: briefing.nextBriefingAt,
     retentionDays: FIXED_RETENTION_DAYS
   };
 }

@@ -2,6 +2,7 @@ export type SourceType = "channel" | "group";
 export type BriefingLanguage = "en" | "ar" | "fr";
 export type BriefingIntensity = "low" | "medium" | "high";
 export type SourceProvider = "telegram" | "rss" | "apify";
+export type BriefingCadence = "hourly" | "daily" | "weekly" | "monthly";
 export type SourceKind =
   | "telegram_channel"
   | "telegram_group"
@@ -26,7 +27,10 @@ export interface BriefingConfig {
   paused: boolean;
   language: BriefingLanguage;
   intensity: BriefingIntensity;
-  dailyBudgetUsd: number;
+  briefingCadence: BriefingCadence;
+  briefingTimeOfDay: string;
+  briefingTimezone: string;
+  nextBriefingAt?: string;
   retentionDays: number;
 }
 
@@ -84,6 +88,27 @@ export interface BriefingItem {
   expiresAt: string;
   mergedUpdateCount: number;
   evidence: BriefingEvidence[];
+}
+
+export interface BriefingEditionSection {
+  title: string;
+  summary: string;
+  evidence: BriefingEvidence[];
+}
+
+export interface BriefingEdition {
+  id: string;
+  briefingId: string;
+  cadence: BriefingCadence;
+  windowStart: string;
+  windowEnd: string;
+  title: string;
+  summary: string;
+  sections: BriefingEditionSection[];
+  status: "published" | "empty";
+  publishedAt: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SuppressedMessage {
