@@ -375,6 +375,29 @@ describe("worker app accounts", () => {
     expect(oldRoute.status).toBe(404);
   });
 
+  it("saves and reloads a feed daily budget", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+
+    const saveResponse = await app.request(
+      "/api/me/briefings",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: user.cookie },
+        body: JSON.stringify({ ...briefing!, dailyBudgetUsd: 2.5 })
+      },
+      env()
+    );
+    expect(saveResponse.status).toBe(200);
+
+    const listResponse = await app.request("/api/me/briefings", { headers: { cookie: user.cookie } }, env());
+    const payload = (await listResponse.json()) as { briefings: Array<{ dailyBudgetUsd: number }> };
+    expect(payload.briefings[0].dailyBudgetUsd).toBe(2.5);
+  });
+
   it("keeps a manually paused Telegram source paused across later ingest passes", async () => {
     const repo = new InMemoryRepository();
     const bucket = new FakeBucket();
@@ -602,9 +625,14 @@ describe("worker app accounts", () => {
     const repo = new InMemoryRepository();
     const bucket = new FakeBucket();
     const queue = new FakeQueue();
-    const fetcher = vi.fn(async (request: RequestInfo | URL) => {
+    const fetcher = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
       const url = String(request);
       if (url.includes("/actors/groupoject~google-news-scraper/runs")) {
+        expect(new URL(url).searchParams.get("maxItems")).toBe("15");
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          queries: ["central bank lebanon"],
+          maxItemsPerQuery: 15
+        });
         return new Response(JSON.stringify({
           data: {
             id: "run_1",
@@ -669,7 +697,8 @@ describe("worker app accounts", () => {
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as { items: Array<{ id: string; summary: string }> };
+    const feed = (await feedResponse.json()) as { briefing: { dailyBudgetUsd?: number }; items: Array<{ id: string; summary: string }> };
+    expect(feed.briefing.dailyBudgetUsd).toBeUndefined();
     expect(feed.items[0].summary).toContain("Central bank");
 
     const evidenceResponse = await app.request(
@@ -689,9 +718,11 @@ describe("worker app accounts", () => {
     const fetcher = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
       const url = String(request);
       if (url.includes("/actors/kaitoeasyapi~twitter-x-data-tweet-scraper-pay-per-result-cheapest/runs")) {
+        expect(new URL(url).searchParams.get("maxItems")).toBe("20");
         expect(JSON.parse(String(init?.body))).toMatchObject({
           searchTerms: ["from:ALJADEEDNEWS"],
-          sort: "Latest"
+          sort: "Latest",
+          maxItems: 20
         });
         return new Response(JSON.stringify({
           data: {

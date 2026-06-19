@@ -15,8 +15,8 @@ export default {
   },
   async queue(batch: MessageBatch<ProcessingJobMessage>, env: Env): Promise<void> {
     const repo = new D1Repository(env.DB);
-    const summaryAdapter = createSummaryAdapterFromEnv(env);
-    const reviewAdapter = createEventReviewAdapterFromEnv(env);
+    const summaryAdapter = createSummaryAdapterFromEnv(env, repo);
+    const reviewAdapter = createEventReviewAdapterFromEnv(env, repo);
     for (const message of batch.messages) {
       try {
         const result = await processQueueMessage(repo, message.body, new Date(), summaryAdapter, reviewAdapter);

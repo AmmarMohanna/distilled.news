@@ -320,6 +320,7 @@ function AdminPage() {
           interestProfile: input.interestProfile,
           publicFeedEnabled: true,
           intensity: latestBriefing.intensity ?? "medium",
+          dailyBudgetUsd: latestBriefing.dailyBudgetUsd ?? 1,
           retentionDays: 15
         },
         "setup saved",
@@ -1111,6 +1112,20 @@ function FeedSettingsSheet(props: {
           </div>
         </div>
         <label>
+          daily cost limit
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={props.briefing.dailyBudgetUsd}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              props.onPatch({ dailyBudgetUsd: Number.isFinite(value) ? value : 0 });
+            }}
+          />
+        </label>
+        <label>
           interest profile
           <textarea
             dir="ltr"
@@ -1273,6 +1288,7 @@ function HealthSummary(props: {
           valueDir="ltr"
         />
         <StatusLine label="status" value={props.briefing.paused ? "paused" : "live"} />
+        {props.health?.costStatus ? <StatusLine label="cost" value={props.health.costStatus} /> : null}
         {failedJobs > 0 ? (
           <div className="health-actions">
             <button type="button" title="retry processing" disabled={props.retryBusy} onClick={() => void props.onRetryProcessing()}>
@@ -1968,6 +1984,7 @@ function createBriefingDraft(existing: BriefingConfig[], account: AccountRecord)
     paused: false,
     language: "en",
     intensity: "medium",
+    dailyBudgetUsd: 1,
     retentionDays: 15,
     stars: 0
   };
@@ -2072,7 +2089,7 @@ async function wait(milliseconds: number): Promise<void> {
 
 function prepareBriefingForSave(briefing: BriefingConfig, existing: BriefingConfig[]): BriefingConfig {
   const nextSlug = deriveBriefingSlug(existing, briefing.title, briefing.id);
-  return { ...briefing, slug: slugify(nextSlug), publicFeedEnabled: true, retentionDays: 15 };
+  return { ...briefing, slug: slugify(nextSlug), publicFeedEnabled: true, dailyBudgetUsd: briefing.dailyBudgetUsd ?? 1, retentionDays: 15 };
 }
 
 function sortBriefings(briefings: BriefingConfig[]): BriefingConfig[] {

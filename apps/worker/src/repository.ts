@@ -33,6 +33,7 @@ import type {
 type DbValue = string | number | null;
 
 const FIXED_RETENTION_DAYS = 15;
+const DEFAULT_DAILY_BUDGET_USD = 1;
 
 interface AccountRow {
   id: string;
@@ -78,6 +79,7 @@ interface BriefingRow {
   paused?: number;
   language?: "en" | "ar" | "fr" | null;
   intensity?: "low" | "medium" | "high" | null;
+  daily_budget_usd?: number | null;
   retention_days: number;
   created_at?: string;
 }
@@ -164,6 +166,8 @@ interface SourceRunRow {
   dataset_id: string | null;
   state: SourceRunState;
   item_count: number;
+  estimated_cost_usd?: number | null;
+  actual_cost_usd?: number | null;
   archive_key: string | null;
   error: string | null;
   started_at: string;
@@ -494,8 +498,8 @@ export class D1Repository implements Repository {
       .prepare(
         `INSERT INTO briefings (
           id, owner_account_id, slug, title, stars, interest_profile, style_instruction,
-          public_feed_enabled, paused, language, intensity, retention_days, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          public_feed_enabled, paused, language, intensity, daily_budget_usd, retention_days, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           slug = excluded.slug,
           title = excluded.title,
@@ -506,6 +510,7 @@ export class D1Repository implements Repository {
           paused = excluded.paused,
           language = excluded.language,
           intensity = excluded.intensity,
+          daily_budget_usd = excluded.daily_budget_usd,
           retention_days = excluded.retention_days,
           updated_at = excluded.updated_at`
       )
@@ -521,6 +526,7 @@ export class D1Repository implements Repository {
         input.paused ? 1 : 0,
         input.language,
         input.intensity,
+        normalizedDailyBudgetUsd(input.dailyBudgetUsd),
         FIXED_RETENTION_DAYS,
         timestamp,
         timestamp
@@ -1008,6 +1014,7 @@ export class D1Repository implements Repository {
     return {
       lastSourceEventAt,
       latestPublishedAt: latestPublishedRow?.latest_published_at ?? undefined,
+      costStatus: briefingId ? (await this.getSetting(`cost_status:${briefingId}`)) ?? undefined : undefined,
       processing
     };
   }
@@ -1020,6 +1027,7 @@ export class D1Repository implements Repository {
     actorRunId?: string;
     datasetId?: string;
     state: SourceRunState;
+    estimatedCostUsd?: number;
     startedAt?: string;
   }, now = new Date()): Promise<SourceRunRecord> {
     const id = `source_run_${crypto.randomUUID()}`;
@@ -1028,8 +1036,8 @@ export class D1Repository implements Repository {
       .prepare(
         `INSERT INTO source_runs (
           id, source_id, briefing_id, provider, actor_id, actor_run_id, dataset_id,
-          state, started_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          state, estimated_cost_usd, started_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -1040,6 +1048,7 @@ export class D1Repository implements Repository {
         input.actorRunId ?? null,
         input.datasetId ?? null,
         input.state,
+        input.estimatedCostUsd ?? null,
         input.startedAt ?? timestamp,
         timestamp,
         timestamp
@@ -1056,6 +1065,8 @@ export class D1Repository implements Repository {
     datasetId?: string;
     state?: SourceRunState;
     itemCount?: number;
+    estimatedCostUsd?: number;
+    actualCostUsd?: number;
     archiveKey?: string;
     error?: string;
     completedAt?: string;
@@ -1067,6 +1078,8 @@ export class D1Repository implements Repository {
           dataset_id = COALESCE(?, dataset_id),
           state = COALESCE(?, state),
           item_count = COALESCE(?, item_count),
+          estimated_cost_usd = COALESCE(?, estimated_cost_usd),
+          actual_cost_usd = COALESCE(?, actual_cost_usd),
           archive_key = COALESCE(?, archive_key),
           error = ?,
           completed_at = COALESCE(?, completed_at),
@@ -1078,6 +1091,8 @@ export class D1Repository implements Repository {
         input.datasetId ?? null,
         input.state ?? null,
         input.itemCount ?? null,
+        input.estimatedCostUsd ?? null,
+        input.actualCostUsd ?? null,
         input.archiveKey ?? null,
         input.error ?? null,
         input.completedAt ?? null,
@@ -1096,7 +1111,7 @@ export class D1Repository implements Repository {
     const values: DbValue[] = [];
     let sql =
       `SELECT id, source_id, briefing_id, provider, actor_id, actor_run_id, dataset_id,
-        state, item_count, archive_key, error, started_at, completed_at, updated_at
+        state, item_count, estimated_cost_usd, actual_cost_usd, archive_key, error, started_at, completed_at, updated_at
       FROM source_runs
       WHERE 1 = 1`;
 
@@ -1118,6 +1133,64 @@ export class D1Repository implements Repository {
 
     const rows = await all<SourceRunRow>(this.db.prepare(sql).bind(...values));
     return rows.map(rowToSourceRun);
+  }
+
+  async sumSourceRunCosts(input: {
+    briefingId: string;
+    sourceId?: string;
+    since: string;
+  }): Promise<number> {
+    const values: DbValue[] = [input.briefingId, input.since];
+    let sql =
+      `SELECT SUM(COALESCE(actual_cost_usd, estimated_cost_usd, 0)) as total
+      FROM source_runs
+      WHERE briefing_id = ?
+        AND started_at >= ?`;
+    if (input.sourceId) {
+      sql += " AND source_id = ?";
+      values.push(input.sourceId);
+    }
+    const row = await first<{ total: number | null }>(this.db.prepare(sql).bind(...values));
+    return Number(row?.total ?? 0);
+  }
+
+  async recordLlmUsage(input: {
+    briefingId: string;
+    model: string;
+    purpose: "summary" | "importance_review" | "event_review";
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number;
+  }, now = new Date()): Promise<void> {
+    await this.db
+      .prepare(
+        `INSERT INTO llm_usage_events (
+          id, briefing_id, model, purpose, input_tokens, output_tokens, estimated_cost_usd, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        `llm_usage_${crypto.randomUUID()}`,
+        input.briefingId,
+        input.model,
+        input.purpose,
+        input.inputTokens,
+        input.outputTokens,
+        input.estimatedCostUsd,
+        now.toISOString()
+      )
+      .run();
+  }
+
+  async sumLlmUsageCost(input: {
+    briefingId: string;
+    since: string;
+  }): Promise<number> {
+    const row = await first<{ total: number | null }>(
+      this.db
+        .prepare("SELECT SUM(estimated_cost_usd) as total FROM llm_usage_events WHERE briefing_id = ? AND created_at >= ?")
+        .bind(input.briefingId, input.since)
+    );
+    return Number(row?.total ?? 0);
   }
 
   async getSetting(key: string): Promise<string | null> {
@@ -1378,6 +1451,15 @@ export class InMemoryRepository implements Repository {
   briefingCreatedAt = new Map<string, string>();
   sources = new Map<string, SourceRecord>();
   sourceRuns = new Map<string, SourceRunRecord>();
+  llmUsageEvents: Array<{
+    briefingId: string;
+    model: string;
+    purpose: "summary" | "importance_review" | "event_review";
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number;
+    createdAt: string;
+  }> = [];
   rawMessages = new Map<string, NormalizedMessage>();
   itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
   starsByBriefing = new Map<string, Set<string>>();
@@ -1590,6 +1672,7 @@ export class InMemoryRepository implements Repository {
     if (!this.briefingCreatedAt.has(input.id)) this.briefingCreatedAt.set(input.id, now.toISOString());
     this.briefings.set(input.id, {
       ...input,
+      dailyBudgetUsd: normalizedDailyBudgetUsd(input.dailyBudgetUsd),
       retentionDays: FIXED_RETENTION_DAYS,
       ownerUsername: account?.username ?? input.ownerUsername
     });
@@ -1885,6 +1968,7 @@ export class InMemoryRepository implements Repository {
         this.settings.get("last_source_event_at") ??
         this.settings.get("last_telegram_event_at"),
       latestPublishedAt: latestPublishedAt(this.itemsByBriefing, briefingId),
+      costStatus: briefingId ? this.settings.get(`cost_status:${briefingId}`) : undefined,
       processing
     };
   }
@@ -1897,6 +1981,7 @@ export class InMemoryRepository implements Repository {
     actorRunId?: string;
     datasetId?: string;
     state: SourceRunState;
+    estimatedCostUsd?: number;
     startedAt?: string;
   }, now = new Date()): Promise<SourceRunRecord> {
     const run: SourceRunRecord = {
@@ -1909,6 +1994,7 @@ export class InMemoryRepository implements Repository {
       datasetId: input.datasetId,
       state: input.state,
       itemCount: 0,
+      estimatedCostUsd: input.estimatedCostUsd,
       startedAt: input.startedAt ?? now.toISOString(),
       updatedAt: now.toISOString()
     };
@@ -1922,6 +2008,8 @@ export class InMemoryRepository implements Repository {
     datasetId?: string;
     state?: SourceRunState;
     itemCount?: number;
+    estimatedCostUsd?: number;
+    actualCostUsd?: number;
     archiveKey?: string;
     error?: string;
     completedAt?: string;
@@ -1932,6 +2020,8 @@ export class InMemoryRepository implements Repository {
     if (input.datasetId) run.datasetId = input.datasetId;
     if (input.state) run.state = input.state;
     if (input.itemCount !== undefined) run.itemCount = input.itemCount;
+    if (input.estimatedCostUsd !== undefined) run.estimatedCostUsd = input.estimatedCostUsd;
+    if (input.actualCostUsd !== undefined) run.actualCostUsd = input.actualCostUsd;
     if (input.archiveKey) run.archiveKey = input.archiveKey;
     run.error = input.error;
     if (input.completedAt) run.completedAt = input.completedAt;
@@ -1952,6 +2042,38 @@ export class InMemoryRepository implements Repository {
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
       .slice(0, input?.limit ?? 50)
       .map((run) => ({ ...run }));
+  }
+
+  async sumSourceRunCosts(input: {
+    briefingId: string;
+    sourceId?: string;
+    since: string;
+  }): Promise<number> {
+    return Array.from(this.sourceRuns.values())
+      .filter((run) => run.briefingId === input.briefingId)
+      .filter((run) => !input.sourceId || run.sourceId === input.sourceId)
+      .filter((run) => run.startedAt >= input.since)
+      .reduce((total, run) => total + (run.actualCostUsd ?? run.estimatedCostUsd ?? 0), 0);
+  }
+
+  async recordLlmUsage(input: {
+    briefingId: string;
+    model: string;
+    purpose: "summary" | "importance_review" | "event_review";
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number;
+  }, now = new Date()): Promise<void> {
+    this.llmUsageEvents.push({ ...input, createdAt: now.toISOString() });
+  }
+
+  async sumLlmUsageCost(input: {
+    briefingId: string;
+    since: string;
+  }): Promise<number> {
+    return this.llmUsageEvents
+      .filter((event) => event.briefingId === input.briefingId && event.createdAt >= input.since)
+      .reduce((total, event) => total + event.estimatedCostUsd, 0);
   }
 
   async getSetting(key: string): Promise<string | null> {
@@ -2054,6 +2176,7 @@ function rowToBriefing(row: BriefingRow): BriefingConfig {
     paused: row.paused === 1,
     language: row.language === "ar" || row.language === "fr" ? row.language : "en",
     intensity: row.intensity === "low" || row.intensity === "high" ? row.intensity : "medium",
+    dailyBudgetUsd: normalizedDailyBudgetUsd(row.daily_budget_usd ?? undefined),
     retentionDays: FIXED_RETENTION_DAYS
   };
 }
@@ -2157,12 +2280,18 @@ function rowToSourceRun(row: SourceRunRow): SourceRunRecord {
     datasetId: row.dataset_id ?? undefined,
     state: row.state,
     itemCount: row.item_count,
+    estimatedCostUsd: row.estimated_cost_usd ?? undefined,
+    actualCostUsd: row.actual_cost_usd ?? undefined,
     archiveKey: row.archive_key ?? undefined,
     error: row.error ?? undefined,
     startedAt: row.started_at,
     completedAt: row.completed_at ?? undefined,
     updatedAt: row.updated_at
   };
+}
+
+function normalizedDailyBudgetUsd(value: number | undefined): number {
+  return value !== undefined && Number.isFinite(value) && value >= 0 ? Math.round(value * 100) / 100 : DEFAULT_DAILY_BUDGET_USD;
 }
 
 function rowToProcessingJob(row: ProcessingJobRow): ProcessingJobRecord {

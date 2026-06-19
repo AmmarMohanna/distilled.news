@@ -6,11 +6,17 @@ import {
   parseRssFeed,
   type DetectedSourceInput
 } from "@distilled/connectors";
+import {
+  createPaidSourceBudgetContext,
+  decidePaidSourceRefresh,
+  isBudgetedApifySource,
+  paidSourceBudgetStatus,
+  type PaidSourceBudgetContext
+} from "./costs";
 import { ingestPublicTelegramChannel, type PublicTelegramIngestResult } from "./publicTelegram";
 import type { Env, ProcessingJobMessage, Repository, SourceRecord, SourceRunRecord } from "./types";
 
 const RSS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-const APIFY_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 
 export type SourceIngestResult = PublicTelegramIngestResult & {
   provider?: SourceRecord["provider"];
@@ -39,7 +45,17 @@ export async function addSourceFromInput(input: SourceRefreshInput & { sourceInp
     return ingestRssSource({ ...input, source });
   }
 
-  return startApifySourceRun({ ...input, source });
+  const enabledSources = (await input.repo.listSources(input.briefing.id)).filter((item) => item.enabled);
+  const now = input.now ?? new Date();
+  const context = await createPaidSourceBudgetContext({
+    briefingId: input.briefing.id,
+    dailyBudgetUsd: input.briefing.dailyBudgetUsd,
+    paidSources: enabledSources.filter(isBudgetedApifySource),
+    repo: input.repo,
+    now
+  });
+  await input.repo.setSetting(`cost_status:${input.briefing.id}`, paidSourceBudgetStatus(context) ?? "", now);
+  return (await startBudgetedApifySourceRun({ ...input, source, now, context })) ?? skippedApifySourceRun(source);
 }
 
 export async function refreshEnabledSources(input: SourceRefreshInput): Promise<SourceIngestResult[]> {
@@ -47,6 +63,14 @@ export async function refreshEnabledSources(input: SourceRefreshInput): Promise<
 
   const now = input.now ?? new Date();
   const sources = (await input.repo.listSources(input.briefing.id)).filter((source) => source.enabled);
+  const budgetContext = await createPaidSourceBudgetContext({
+    briefingId: input.briefing.id,
+    dailyBudgetUsd: input.briefing.dailyBudgetUsd,
+    paidSources: sources.filter(isBudgetedApifySource),
+    repo: input.repo,
+    now
+  });
+  await input.repo.setSetting(`cost_status:${input.briefing.id}`, paidSourceBudgetStatus(budgetContext) ?? "", now);
   const results: SourceIngestResult[] = [];
 
   for (const source of sources) {
@@ -60,13 +84,16 @@ export async function refreshEnabledSources(input: SourceRefreshInput): Promise<
       continue;
     }
 
-    if (source.provider === "apify" && isDue(source.lastCheckedAt, now, APIFY_REFRESH_INTERVAL_MS)) {
+    if (source.provider === "apify") {
       const active = await input.repo.listSourceRuns({
         sourceId: source.id,
         states: ["queued", "running"],
         limit: 1
       });
-      if (active.length === 0) results.push(await startApifySourceRun({ ...input, source, now }));
+      if (active.length === 0) {
+        const result = await startBudgetedApifySourceRun({ ...input, source, now, context: budgetContext });
+        if (result) results.push(result);
+      }
     }
   }
 
@@ -171,12 +198,35 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
   };
 }
 
-async function startApifySourceRun(input: SourceRefreshInput & { source: SourceRecord }): Promise<SourceIngestResult> {
+async function startBudgetedApifySourceRun(input: SourceRefreshInput & {
+  source: SourceRecord;
+  context: PaidSourceBudgetContext;
+}): Promise<SourceIngestResult | undefined> {
+  const decision = decidePaidSourceRefresh({
+    source: input.source,
+    context: input.context,
+    env: input.env
+  });
+  if (!decision.shouldStart) return undefined;
+  return startApifySourceRun({
+    ...input,
+    estimatedCostUsd: decision.estimatedCostUsd,
+    maxItems: decision.maxItems
+  });
+}
+
+async function startApifySourceRun(input: SourceRefreshInput & {
+  source: SourceRecord;
+  estimatedCostUsd?: number;
+  maxItems?: number;
+}): Promise<SourceIngestResult> {
   const now = input.now ?? new Date();
   if (!input.env?.APIFY_API_TOKEN) throw new Error("APIFY_API_TOKEN is not configured.");
   if (!input.source.actorId) throw new Error("Apify actor is not configured for this source.");
 
-  const actorRun = await runApifyActor(input.source.actorId, input.source.actorInput ?? {}, input.env.APIFY_API_TOKEN, input.fetcher);
+  const actorRun = await runApifyActor(input.source.actorId, input.source.actorInput ?? {}, input.env.APIFY_API_TOKEN, input.fetcher, {
+    maxItems: input.maxItems
+  });
   await input.repo.createSourceRun({
     sourceId: input.source.id,
     briefingId: input.briefing.id,
@@ -185,6 +235,7 @@ async function startApifySourceRun(input: SourceRefreshInput & { source: SourceR
     actorRunId: actorRun.id,
     datasetId: actorRun.defaultDatasetId,
     state: "running",
+    estimatedCostUsd: input.estimatedCostUsd,
     startedAt: actorRun.startedAt ?? now.toISOString()
   }, now);
   await input.repo.updateSourceState({
@@ -230,6 +281,7 @@ async function pollApifySourceRun(input: SourceRefreshInput & {
       id: input.run.id,
       state: "failed",
       datasetId: actorRun.defaultDatasetId,
+      actualCostUsd: actorRun.usageTotalUsd,
       error: `Apify run ${actorRun.status.toLowerCase()}`,
       completedAt: now.toISOString()
     }, now);
@@ -264,6 +316,7 @@ async function pollApifySourceRun(input: SourceRefreshInput & {
       datasetId,
       itemCount: 0,
       archiveKey: rawPayloadKey,
+      actualCostUsd: actorRun.usageTotalUsd,
       error: unusableDataset.message,
       completedAt: now.toISOString()
     }, now);
@@ -281,6 +334,7 @@ async function pollApifySourceRun(input: SourceRefreshInput & {
     datasetId,
     itemCount: items.length,
     archiveKey: rawPayloadKey,
+    actualCostUsd: actorRun.usageTotalUsd,
     error: nullError(),
     completedAt: now.toISOString()
   }, now);
@@ -370,9 +424,12 @@ async function runApifyActor(
   actorId: string,
   actorInput: unknown,
   token: string,
-  fetcher = fetch
+  fetcher = fetch,
+  options: { maxItems?: number } = {}
 ): Promise<ApifyRunPayload> {
-  const response = await fetcher(`https://api.apify.com/v2/actors/${encodeApifyActorId(actorId)}/runs`, {
+  const url = new URL(`https://api.apify.com/v2/actors/${encodeApifyActorId(actorId)}/runs`);
+  if (options.maxItems !== undefined) url.searchParams.set("maxItems", String(options.maxItems));
+  const response = await fetcher(url.toString(), {
     method: "POST",
     headers: {
       authorization: `Bearer ${token}`,
@@ -420,6 +477,20 @@ function scopedRawMessageId(briefingId: string, rawMessageId: string): string {
   return `${briefingId}::${rawMessageId}`;
 }
 
+function skippedApifySourceRun(source: SourceRecord): SourceIngestResult {
+  return {
+    sourceId: source.id,
+    title: source.title,
+    url: source.sourceUrl ?? source.url ?? source.input ?? source.id,
+    fetched: 0,
+    imported: 0,
+    queued: 0,
+    skipped: 0,
+    provider: "apify",
+    kind: source.kind
+  };
+}
+
 function nullError(): undefined {
   return undefined;
 }
@@ -429,4 +500,5 @@ interface ApifyRunPayload {
   status: "READY" | "RUNNING" | "SUCCEEDED" | "FAILED" | "TIMED-OUT" | "ABORTED";
   defaultDatasetId?: string;
   startedAt?: string;
+  usageTotalUsd?: number;
 }

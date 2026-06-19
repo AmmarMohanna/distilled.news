@@ -15,6 +15,7 @@ const baseBriefing: BriefingConfig = {
   paused: false,
   language: "en",
   intensity: "low",
+  dailyBudgetUsd: 1,
   retentionDays: 15
 };
 

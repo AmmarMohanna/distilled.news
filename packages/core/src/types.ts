@@ -26,6 +26,7 @@ export interface BriefingConfig {
   paused: boolean;
   language: BriefingLanguage;
   intensity: BriefingIntensity;
+  dailyBudgetUsd: number;
   retentionDays: number;
 }
 

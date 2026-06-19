@@ -28,7 +28,7 @@ describe("detectSourceInput", () => {
       actorInput: {
         queries: ["lebanon power"],
         geo: "US",
-        maxItemsPerQuery: 30
+        maxItemsPerQuery: 15
       }
     });
 
@@ -38,7 +38,8 @@ describe("detectSourceInput", () => {
       username: "NASA",
       actorInput: {
         searchTerms: ["from:NASA"],
-        sort: "Latest"
+        sort: "Latest",
+        maxItems: 20
       }
     });
 

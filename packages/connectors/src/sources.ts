@@ -91,7 +91,7 @@ export function detectSourceInput(input: string): DetectedSourceInput {
         queries: [query],
         geo: "US",
         language: "en",
-        maxItemsPerQuery: 30,
+        maxItemsPerQuery: 15,
         maxQueries: 1,
         dedupe: true,
         requestDelayMs: 0,
@@ -166,7 +166,7 @@ function detectXInput(value: string, original: string): DetectedSourceInput {
     actorInput: {
       searchTerms: [value],
       sort: "Latest",
-      maxItems: 30
+      maxItems: 20
     }
   };
 }
@@ -182,7 +182,7 @@ function xProfileInput(handle: string, original: string): DetectedSourceInput {
     actorInput: {
       searchTerms: [`from:${handle}`],
       sort: "Latest",
-      maxItems: 30
+      maxItems: 20
     }
   };
 }

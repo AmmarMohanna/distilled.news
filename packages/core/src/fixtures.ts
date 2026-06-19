@@ -14,6 +14,7 @@ export const personalNewsBriefing: BriefingConfig = {
   paused: false,
   language: "en",
   intensity: "medium",
+  dailyBudgetUsd: 1,
   retentionDays: 15
 };
 

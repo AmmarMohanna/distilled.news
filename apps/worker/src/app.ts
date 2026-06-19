@@ -83,6 +83,7 @@ const adminAccountUpdateSchema = z.object({
 });
 
 const FIXED_RETENTION_DAYS = 15;
+const DEFAULT_DAILY_BUDGET_USD = 1;
 
 const briefingInputSchema = z.object({
   id: z.string().min(1).default(() => `briefing_${crypto.randomUUID()}`),
@@ -95,6 +96,7 @@ const briefingInputSchema = z.object({
   paused: z.boolean().default(false),
   language: z.enum(["en", "ar", "fr"]).default("en"),
   intensity: z.enum(["low", "medium", "high"]).default("medium"),
+  dailyBudgetUsd: z.number().min(0).max(100).default(DEFAULT_DAILY_BUDGET_USD),
   retentionDays: z.number().int().min(1).max(90).default(FIXED_RETENTION_DAYS)
 });
 
@@ -358,6 +360,7 @@ export function createApp(options: AppOptions = {}) {
       stars: existing?.stars ?? input.stars,
       publicFeedEnabled: true,
       intensity: input.intensity,
+      dailyBudgetUsd: input.dailyBudgetUsd,
       retentionDays: FIXED_RETENTION_DAYS
     });
     return c.json({ briefing });
@@ -811,7 +814,7 @@ function publicAccount(account: AccountRecord) {
   };
 }
 
-function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interestProfile" | "styleInstruction"> {
+function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interestProfile" | "styleInstruction" | "dailyBudgetUsd"> {
   return {
     id: briefing.id,
     ownerAccountId: briefing.ownerAccountId,

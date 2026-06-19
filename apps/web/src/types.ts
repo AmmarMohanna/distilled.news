@@ -36,6 +36,7 @@ export interface SourceRecord {
 export interface HealthStatus {
   lastSourceEventAt?: string;
   latestPublishedAt?: string;
+  costStatus?: string;
   processing: {
     queued: number;
     completed: number;
@@ -50,7 +51,7 @@ export interface SessionStatus {
   turnstileSiteKey?: string;
 }
 
-export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInstruction">;
+export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInstruction" | "dailyBudgetUsd">;
 
 export interface FeedPayload {
   briefing: PublicBriefing;

@@ -7,7 +7,18 @@ import {
   type SummaryAdapter,
   type SummaryInput
 } from "@distilled/core";
-import type { Env } from "./types";
+import { estimateOpenAiCostUsd } from "./costs";
+import type { Env, Repository } from "./types";
+
+type LlmUsagePurpose = "summary" | "importance_review" | "event_review";
+type LlmUsageRecorder = (input: {
+  briefingId: string;
+  model: string;
+  purpose: LlmUsagePurpose;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+}) => Promise<void>;
 
 export class OpenAIGatewaySummaryAdapter implements SummaryAdapter {
   constructor(
@@ -17,6 +28,8 @@ export class OpenAIGatewaySummaryAdapter implements SummaryAdapter {
       apiKey: string;
       gatewayAuthToken?: string;
       model: string;
+      usageRecorder?: LlmUsageRecorder;
+      env?: Partial<Env>;
       fetcher?: typeof fetch;
     }
   ) {}
@@ -55,7 +68,14 @@ export class OpenAIGatewaySummaryAdapter implements SummaryAdapter {
 
     const payload = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: OpenAIUsagePayload;
     };
+    await recordUsage(this.options.usageRecorder, this.options.env, {
+      briefingId: input.briefing.id,
+      model: this.options.model,
+      purpose: "summary",
+      usage: payload.usage
+    });
     const content = payload.choices?.[0]?.message?.content?.trim();
     if (!content) throw new Error("AI Gateway returned an empty summary");
     return sanitizeSummary(content);
@@ -70,6 +90,8 @@ export class OpenAIGatewayEventReviewAdapter implements EventReviewAdapter {
       apiKey: string;
       gatewayAuthToken?: string;
       model: string;
+      usageRecorder?: LlmUsageRecorder;
+      env?: Partial<Env>;
       fetcher?: typeof fetch;
     }
   ) {}
@@ -84,7 +106,7 @@ export class OpenAIGatewayEventReviewAdapter implements EventReviewAdapter {
       formatEvidence(input.left),
       "Right evidence:",
       formatEvidence(input.right)
-    ].join("\n"));
+    ].join("\n"), input.briefing.id, "event_review");
     return result.same_event === true;
   }
 
@@ -100,11 +122,15 @@ export class OpenAIGatewayEventReviewAdapter implements EventReviewAdapter {
       `Time: ${input.message.postedAt}`,
       `Text: ${input.message.text}`,
       `Links: ${input.message.links.join(" ")}`
-    ].join("\n"));
+    ].join("\n"), input.briefing.id, "importance_review");
     return result.important === true;
   }
 
-  private async reviewJson(prompt: string): Promise<{ same_event?: boolean; important?: boolean }> {
+  private async reviewJson(
+    prompt: string,
+    briefingId: string,
+    purpose: LlmUsagePurpose
+  ): Promise<{ same_event?: boolean; important?: boolean }> {
     const fetcher = this.options.fetcher ?? fetch;
     const response = await fetcher(
       `https://gateway.ai.cloudflare.com/v1/${this.options.accountId}/${this.options.gatewayId}/openai/chat/completions`,
@@ -134,33 +160,81 @@ export class OpenAIGatewayEventReviewAdapter implements EventReviewAdapter {
     );
 
     if (!response.ok) throw new Error(`AI Gateway review request failed: ${response.status}`);
-    const payload = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const payload = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: OpenAIUsagePayload;
+    };
+    await recordUsage(this.options.usageRecorder, this.options.env, {
+      briefingId,
+      model: this.options.model,
+      purpose,
+      usage: payload.usage
+    });
     const content = payload.choices?.[0]?.message?.content?.trim();
     if (!content) throw new Error("AI Gateway returned an empty review");
     return JSON.parse(content) as { same_event?: boolean; important?: boolean };
   }
 }
 
-export function createSummaryAdapterFromEnv(env: Env): OpenAIGatewaySummaryAdapter | null {
+export function createSummaryAdapterFromEnv(env: Env, repo?: Repository): OpenAIGatewaySummaryAdapter | null {
   if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_AI_GATEWAY_ID || !env.OPENAI_API_KEY) return null;
   return new OpenAIGatewaySummaryAdapter({
     accountId: env.CLOUDFLARE_ACCOUNT_ID,
     gatewayId: env.CLOUDFLARE_AI_GATEWAY_ID,
     apiKey: env.OPENAI_API_KEY,
     gatewayAuthToken: env.CLOUDFLARE_AI_GATEWAY_TOKEN,
-    model: env.OPENAI_MODEL ?? "gpt-4.1-mini"
+    model: env.OPENAI_MODEL ?? "gpt-4.1-mini",
+    usageRecorder: repo ? (input) => repo.recordLlmUsage(input) : undefined,
+    env
   });
 }
 
-export function createEventReviewAdapterFromEnv(env: Env): OpenAIGatewayEventReviewAdapter | null {
+export function createEventReviewAdapterFromEnv(env: Env, repo?: Repository): OpenAIGatewayEventReviewAdapter | null {
   if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_AI_GATEWAY_ID || !env.OPENAI_API_KEY) return null;
   return new OpenAIGatewayEventReviewAdapter({
     accountId: env.CLOUDFLARE_ACCOUNT_ID,
     gatewayId: env.CLOUDFLARE_AI_GATEWAY_ID,
     apiKey: env.OPENAI_API_KEY,
     gatewayAuthToken: env.CLOUDFLARE_AI_GATEWAY_TOKEN,
-    model: env.OPENAI_MODEL ?? "gpt-4.1-mini"
+    model: env.OPENAI_MODEL ?? "gpt-4.1-mini",
+    usageRecorder: repo ? (input) => repo.recordLlmUsage(input) : undefined,
+    env
   });
+}
+
+async function recordUsage(
+  recorder: LlmUsageRecorder | undefined,
+  env: Partial<Env> | undefined,
+  input: {
+    briefingId: string;
+    model: string;
+    purpose: LlmUsagePurpose;
+    usage?: OpenAIUsagePayload;
+  }
+): Promise<void> {
+  if (!recorder || !input.usage) return;
+  const inputTokens = input.usage.prompt_tokens ?? input.usage.input_tokens ?? 0;
+  const outputTokens = input.usage.completion_tokens ?? input.usage.output_tokens ?? 0;
+  if (inputTokens <= 0 && outputTokens <= 0) return;
+  try {
+    await recorder({
+      briefingId: input.briefingId,
+      model: input.model,
+      purpose: input.purpose,
+      inputTokens,
+      outputTokens,
+      estimatedCostUsd: estimateOpenAiCostUsd({ inputTokens, outputTokens, env })
+    });
+  } catch {
+    // Usage recording should never block feed processing.
+  }
+}
+
+interface OpenAIUsagePayload {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  input_tokens?: number;
+  output_tokens?: number;
 }
 
 function formatEvidence(evidence: EventEquivalenceInput["left"]): string {

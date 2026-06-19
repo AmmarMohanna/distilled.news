@@ -75,11 +75,15 @@ export interface Env {
   OPENAI_API_KEY?: string;
   OPENAI_MODEL?: string;
   OPENAI_EMBEDDING_MODEL?: string;
+  OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS?: string;
+  OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS?: string;
   APIFY_API_TOKEN?: string;
   APIFY_GOOGLE_NEWS_ACTOR_ID?: string;
   APIFY_X_ACTOR_ID?: string;
   APIFY_LINKEDIN_COMPANY_ACTOR_ID?: string;
   APIFY_LINKEDIN_PROFILE_ACTOR_ID?: string;
+  APIFY_GOOGLE_NEWS_PRICE_USD_PER_1000_RESULTS?: string;
+  APIFY_X_PRICE_USD_PER_1000_RESULTS?: string;
 }
 
 export interface ProcessingJobMessage {
@@ -118,6 +122,8 @@ export interface SourceRunRecord {
   datasetId?: string;
   state: SourceRunState;
   itemCount: number;
+  estimatedCostUsd?: number;
+  actualCostUsd?: number;
   archiveKey?: string;
   error?: string;
   startedAt: string;
@@ -128,6 +134,7 @@ export interface SourceRunRecord {
 export interface HealthStatus {
   lastSourceEventAt?: string;
   latestPublishedAt?: string;
+  costStatus?: string;
   processing: {
     queued: number;
     completed: number;
@@ -233,6 +240,7 @@ export interface Repository {
     actorRunId?: string;
     datasetId?: string;
     state: SourceRunState;
+    estimatedCostUsd?: number;
     startedAt?: string;
   }, now?: Date): Promise<SourceRunRecord>;
   updateSourceRun(input: {
@@ -241,6 +249,8 @@ export interface Repository {
     datasetId?: string;
     state?: SourceRunState;
     itemCount?: number;
+    estimatedCostUsd?: number;
+    actualCostUsd?: number;
     archiveKey?: string;
     error?: string;
     completedAt?: string;
@@ -251,6 +261,23 @@ export interface Repository {
     states?: SourceRunState[];
     limit?: number;
   }): Promise<SourceRunRecord[]>;
+  sumSourceRunCosts(input: {
+    briefingId: string;
+    sourceId?: string;
+    since: string;
+  }): Promise<number>;
+  recordLlmUsage(input: {
+    briefingId: string;
+    model: string;
+    purpose: "summary" | "importance_review" | "event_review";
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number;
+  }, now?: Date): Promise<void>;
+  sumLlmUsageCost(input: {
+    briefingId: string;
+    since: string;
+  }): Promise<number>;
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string, now?: Date): Promise<void>;
   deleteExpired(now?: Date): Promise<number>;
