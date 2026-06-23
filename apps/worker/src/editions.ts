@@ -12,7 +12,7 @@ import {
 import type { Repository } from "./types";
 
 const MAX_WINDOW_MESSAGES = 500;
-export const BRIEFING_PUBLICATION_DELAY_MS = 7 * 60 * 1000;
+export const BRIEFING_PUBLICATION_DELAY_MS = 0;
 const MAX_CATCH_UP_WINDOWS = 24 * 15;
 
 export async function publishDueBriefingEditions(input: {

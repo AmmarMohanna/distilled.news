@@ -405,7 +405,7 @@ describe("worker app accounts", () => {
     expect(saved?.nextBriefingAt).toBe("2026-06-16T10:00:00.000Z");
   });
 
-  it("waits for source settling before closing a scheduled window", async () => {
+  it("closes a scheduled window at the briefing boundary", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
@@ -429,18 +429,10 @@ describe("worker app accounts", () => {
       expiresAt: "2026-07-01T08:30:00.000Z"
     });
 
-    const early = await publishDueBriefingEditions({
-      repo,
-      briefings: [scheduledBriefing],
-      now: new Date("2026-06-16T09:05:00.000Z")
-    });
-    expect(early).toBe(0);
-    expect((await repo.getBriefingById(scheduledBriefing.id))?.nextBriefingAt).toBe("2026-06-16T09:00:00.000Z");
-
     const published = await publishDueBriefingEditions({
       repo,
       briefings: [scheduledBriefing],
-      now: new Date("2026-06-16T09:08:00.000Z")
+      now: new Date("2026-06-16T09:00:00.000Z")
     });
     expect(published).toBe(1);
     expect((await repo.getBriefingById(scheduledBriefing.id))?.nextBriefingAt).toBe("2026-06-16T10:00:00.000Z");
