@@ -28,6 +28,17 @@ export default {
 async function refreshEnabledPublicSources(env: Env): Promise<void> {
   const repo = new D1Repository(env.DB);
   try {
+    await publishDueBriefingEditions({
+      repo,
+      briefings: await repo.listBriefings(),
+      now: new Date(),
+      summaryAdapter: createSummaryAdapterFromEnv(env, repo)
+    });
+  } catch (error) {
+    console.error("Could not publish briefing editions", error);
+  }
+
+  try {
     await pollApifySourceRuns({
       repo,
       bucket: env.RAW_ARCHIVE,
@@ -52,16 +63,5 @@ async function refreshEnabledPublicSources(env: Env): Promise<void> {
     } catch (error) {
       console.warn(`Could not refresh sources for briefing ${briefing.id}`, error);
     }
-  }
-
-  try {
-    await publishDueBriefingEditions({
-      repo,
-      briefings: await repo.listBriefings(),
-      now: new Date(),
-      summaryAdapter: createSummaryAdapterFromEnv(env, repo)
-    });
-  } catch (error) {
-    console.error("Could not publish briefing editions", error);
   }
 }
