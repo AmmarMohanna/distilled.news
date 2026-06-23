@@ -227,14 +227,15 @@ function editionTitle(cadence: BriefingConfig["briefingCadence"], language: Brie
     if (cadence === "daily") return "الموجز اليومي";
     if (cadence === "weekly") return "الموجز الأسبوعي";
     if (cadence === "monthly") return "الموجز الشهري";
-    return "موجز الساعة";
+    return "تحديثات موثوقة";
   }
   if (language === "fr") {
     if (cadence === "daily") return "Brief quotidien";
     if (cadence === "weekly") return "Brief hebdomadaire";
     if (cadence === "monthly") return "Brief mensuel";
-    return "Brief horaire";
+    return "Mises à jour vérifiées";
   }
+  if (cadence === "hourly") return "Verified updates";
   return `${capitalize(cadenceLabel(cadence))} brief`;
 }
 
@@ -245,21 +246,21 @@ function editionSummary(
 ): string {
   const label = cadenceLabel(cadence);
   if (language === "ar") {
-    if (itemCount === 0) return `لا توجد تحديثات موثوقة في ${arabicCadencePhrase(cadence)}.`;
-    if (itemCount === 1) return `تحديث واحد في ${arabicCadencePhrase(cadence)}.`;
-    if (itemCount === 2) return `تحديثان في ${arabicCadencePhrase(cadence)}.`;
-    return `${itemCount} تحديثات في ${arabicCadencePhrase(cadence)}.`;
+    if (itemCount === 0) return cadence === "hourly" ? "لا توجد تحديثات موثوقة في هذه النافذة." : `لا توجد تحديثات موثوقة في ${arabicCadencePhrase(cadence)}.`;
+    if (itemCount === 1) return cadence === "hourly" ? "تحديث موثوق واحد." : `تحديث واحد في ${arabicCadencePhrase(cadence)}.`;
+    if (itemCount === 2) return cadence === "hourly" ? "تحديثان موثوقان." : `تحديثان في ${arabicCadencePhrase(cadence)}.`;
+    return cadence === "hourly" ? `${itemCount} تحديثات موثوقة.` : `${itemCount} تحديثات في ${arabicCadencePhrase(cadence)}.`;
   }
   if (language === "fr") {
-    if (itemCount === 0) return `Aucune mise à jour vérifiée dans ce brief ${frenchCadenceAdjective(cadence)}.`;
-    return `${itemCount} mise${itemCount === 1 ? "" : "s"} à jour dans ce brief ${frenchCadenceAdjective(cadence)}.`;
+    if (itemCount === 0) return cadence === "hourly" ? "Aucune mise à jour vérifiée dans cette fenêtre." : `Aucune mise à jour vérifiée dans ce brief ${frenchCadenceAdjective(cadence)}.`;
+    return cadence === "hourly" ? `${itemCount} mise${itemCount === 1 ? "" : "s"} à jour vérifiée${itemCount === 1 ? "" : "s"}.` : `${itemCount} mise${itemCount === 1 ? "" : "s"} à jour dans ce brief ${frenchCadenceAdjective(cadence)}.`;
   }
-  if (itemCount === 0) return `No verified updates in this ${label} brief.`;
-  return `${itemCount} update${itemCount === 1 ? "" : "s"} in this ${label} brief.`;
+  if (itemCount === 0) return cadence === "hourly" ? "No verified updates in this window." : `No verified updates in this ${label} brief.`;
+  return cadence === "hourly" ? `${itemCount} verified update${itemCount === 1 ? "" : "s"}.` : `${itemCount} update${itemCount === 1 ? "" : "s"} in this ${label} brief.`;
 }
 
 function englishNarrativeIntro(cadence: BriefingConfig["briefingCadence"]): string {
-  if (cadence === "hourly") return "This hour:";
+  if (cadence === "hourly") return "Verified updates:";
   return `This ${cadenceLabel(cadence)} brief:`;
 }
 
@@ -274,7 +275,7 @@ function lowerLeadingEnglishArticle(update: string): string {
 }
 
 function arabicNarrativeIntro(cadence: BriefingConfig["briefingCadence"]): string {
-  if (cadence === "hourly") return "في هذه الساعة:";
+  if (cadence === "hourly") return "تحديثات موثوقة:";
   return `في ${arabicCadencePhrase(cadence)}:`;
 }
 
@@ -285,7 +286,7 @@ function arabicNarrativeConnector(index: number): string {
 }
 
 function frenchNarrativeIntro(cadence: BriefingConfig["briefingCadence"]): string {
-  if (cadence === "hourly") return "Cette heure-ci :";
+  if (cadence === "hourly") return "Mises à jour vérifiées :";
   return `Dans ce brief ${frenchCadenceAdjective(cadence)} :`;
 }
 

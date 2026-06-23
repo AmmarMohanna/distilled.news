@@ -66,8 +66,8 @@ describe("briefing editions", () => {
     });
 
     expect(edition.status).toBe("published");
-    expect(edition.title).toBe("Hourly brief");
-    expect(edition.summary).toBe("This hour: Electricite du Liban announced two extra hours of power supply tonight [1].");
+    expect(edition.title).toBe("Verified updates");
+    expect(edition.summary).toBe("Verified updates: Electricite du Liban announced two extra hours of power supply tonight [1].");
     expect(edition.sections).toHaveLength(1);
     expect(edition.sections[0].evidence[0].messageId).toBe(message.id);
   });
@@ -81,8 +81,8 @@ describe("briefing editions", () => {
       now: new Date("2026-06-16T09:00:10.000Z")
     });
 
-    expect(edition.title).toBe("موجز الساعة");
-    expect(edition.summary).toBe("لا توجد تحديثات موثوقة في موجز الساعة.");
+    expect(edition.title).toBe("تحديثات موثوقة");
+    expect(edition.summary).toBe("لا توجد تحديثات موثوقة في هذه النافذة.");
     expect(edition.sections[0].title).toBe("لا تحديثات");
   });
 
@@ -105,7 +105,7 @@ describe("briefing editions", () => {
     );
 
     expect(summary).toBe(
-      "This hour: Electricite du Liban announced two extra hours of power supply tonight [1]. Also, the army reopened the coastal road after a security incident [2]."
+      "Verified updates: Electricite du Liban announced two extra hours of power supply tonight [1]. Also, the army reopened the coastal road after a security incident [2]."
     );
   });
 
@@ -174,6 +174,37 @@ describe("briefing editions", () => {
     });
 
     expect(edition.status).toBe("empty");
-    expect(edition.summary).toBe("No verified updates in this hourly brief.");
+    expect(edition.summary).toBe("No verified updates in this window.");
+  });
+
+  it("treats Lebanese local security incidents as relevant without an explicit Lebanon token", () => {
+    const message: NormalizedMessage = {
+      id: "briefing_default::nabatieh_security",
+      source: { id: "src_local", title: "Local Wire", type: "channel", provider: "telegram", kind: "telegram_channel" },
+      messageId: "nabatieh-security",
+      text: "مراسل الجديد: مسيرة إسرائيلية تلقي قنبلة صوتية في كفرتبنيت قضاء النبطية",
+      links: [],
+      media: [],
+      postedAt: "2026-06-23T07:08:50.000Z",
+      receivedAt: "2026-06-23T08:06:45.000Z",
+      sourceUrl: "https://t.me/local/1",
+      expiresAt: "2026-07-08T07:08:50.000Z"
+    };
+
+    const edition = buildBriefingEdition({
+      briefing: {
+        ...personalNewsBriefing,
+        language: "ar",
+        interestProfile: "Track Lebanese security, economy, infrastructure, public safety, and major regional events."
+      },
+      messages: [message],
+      windowStart: "2026-06-23T07:00:00.000Z",
+      windowEnd: "2026-06-23T08:00:00.000Z",
+      now: new Date("2026-06-23T08:08:00.000Z")
+    });
+
+    expect(edition.status).toBe("published");
+    expect(edition.summary).toContain("تحديثات موثوقة:");
+    expect(edition.sections[0].summary).toContain("قنبلة صوتية");
   });
 });

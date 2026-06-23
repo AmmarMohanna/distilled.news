@@ -12,6 +12,8 @@ import {
 import type { Repository } from "./types";
 
 const MAX_WINDOW_MESSAGES = 500;
+export const BRIEFING_PUBLICATION_DELAY_MS = 7 * 60 * 1000;
+const MAX_CATCH_UP_WINDOWS = 24 * 15;
 
 export async function publishDueBriefingEditions(input: {
   repo: Repository;
@@ -24,7 +26,7 @@ export async function publishDueBriefingEditions(input: {
 
   for (const briefing of input.briefings) {
     if (briefing.paused) continue;
-    const window = getDueBriefingWindow(briefing, now);
+    const window = latestSettledDueWindow(briefing, now);
     if (!window) continue;
 
     const messages = await input.repo.listRawMessagesForWindow(
@@ -52,6 +54,20 @@ export async function publishDueBriefingEditions(input: {
   }
 
   return published;
+}
+
+function latestSettledDueWindow(briefing: BriefingConfig, now: Date) {
+  const settledNow = new Date(now.getTime() - BRIEFING_PUBLICATION_DELAY_MS);
+  let latest = getDueBriefingWindow(briefing, settledNow);
+  if (!latest) return null;
+
+  for (let index = 0; index < MAX_CATCH_UP_WINDOWS; index += 1) {
+    const next = getDueBriefingWindow({ ...briefing, nextBriefingAt: latest.nextBriefingAt }, settledNow);
+    if (!next) break;
+    latest = next;
+  }
+
+  return latest;
 }
 
 async function localizeEdition(

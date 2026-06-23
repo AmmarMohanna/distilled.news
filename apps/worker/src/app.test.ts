@@ -363,13 +363,13 @@ describe("worker app accounts", () => {
     await publishDueBriefingEditions({
       repo,
       briefings: [{ ...savedBriefing!, nextBriefingAt: "2026-06-15T19:00:00.000Z" }],
-      now: new Date("2026-06-15T19:00:00.000Z")
+      now: new Date("2026-06-15T19:08:00.000Z")
     });
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
     const feed = (await feedResponse.json()) as { editions: Array<{ id: string; summary: string; sections: unknown[] }> };
-    expect(feed.editions[0].summary).toContain("This hour:");
+    expect(feed.editions[0].summary).toContain("Verified updates:");
     expect(feed.editions[0].summary).toContain("[1]");
     expect(feed.editions[0].sections).toEqual([]);
 
@@ -392,13 +392,86 @@ describe("worker app accounts", () => {
     const published = await publishDueBriefingEditions({
       repo,
       briefings: [{ ...briefing!, nextBriefingAt: "2026-06-16T09:00:00.000Z" }],
-      now: new Date("2026-06-16T09:00:00.000Z")
+      now: new Date("2026-06-16T09:08:00.000Z")
     });
 
     expect(published).toBe(0);
     expect(await repo.listBriefingEditions(briefing!.id, true)).toEqual([]);
     const saved = await repo.getBriefingById(briefing!.id);
     expect(saved?.nextBriefingAt).toBe("2026-06-16T10:00:00.000Z");
+  });
+
+  it("waits for source settling before closing a scheduled window", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+    const scheduledBriefing = await repo.upsertBriefing({
+      ...briefing!,
+      nextBriefingAt: "2026-06-16T09:00:00.000Z"
+    });
+
+    await repo.saveRawMessage(scheduledBriefing.id, {
+      id: `${scheduledBriefing.id}::power_update`,
+      source: { id: "src_power", title: "Power Wire", type: "channel", provider: "telegram", kind: "telegram_channel" },
+      messageId: "power-update",
+      text: "Electricite du Liban confirmed two extra hours of power supply tonight.",
+      links: [],
+      media: [],
+      postedAt: "2026-06-16T08:30:00.000Z",
+      receivedAt: "2026-06-16T09:04:00.000Z",
+      sourceUrl: "https://t.me/power/1",
+      expiresAt: "2026-07-01T08:30:00.000Z"
+    });
+
+    const early = await publishDueBriefingEditions({
+      repo,
+      briefings: [scheduledBriefing],
+      now: new Date("2026-06-16T09:05:00.000Z")
+    });
+    expect(early).toBe(0);
+    expect((await repo.getBriefingById(scheduledBriefing.id))?.nextBriefingAt).toBe("2026-06-16T09:00:00.000Z");
+
+    const published = await publishDueBriefingEditions({
+      repo,
+      briefings: [scheduledBriefing],
+      now: new Date("2026-06-16T09:08:00.000Z")
+    });
+    expect(published).toBe(1);
+    expect((await repo.getBriefingById(scheduledBriefing.id))?.nextBriefingAt).toBe("2026-06-16T10:00:00.000Z");
+  });
+
+  it("skips stale catch-up windows and publishes the latest settled window", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+
+    await repo.saveRawMessage(briefing!.id, {
+      id: `${briefing!.id}::latest_power_update`,
+      source: { id: "src_power", title: "Power Wire", type: "channel", provider: "telegram", kind: "telegram_channel" },
+      messageId: "latest-power-update",
+      text: "Electricite du Liban confirmed two extra hours of power supply tonight.",
+      links: [],
+      media: [],
+      postedAt: "2026-06-16T08:30:00.000Z",
+      receivedAt: "2026-06-16T09:04:00.000Z",
+      sourceUrl: "https://t.me/power/1",
+      expiresAt: "2026-07-01T08:30:00.000Z"
+    });
+
+    const published = await publishDueBriefingEditions({
+      repo,
+      briefings: [{ ...briefing!, nextBriefingAt: "2026-06-16T03:00:00.000Z" }],
+      now: new Date("2026-06-16T09:08:00.000Z")
+    });
+
+    expect(published).toBe(1);
+    const editions = await repo.listBriefingEditions(briefing!.id, true);
+    expect(editions[0].windowEnd).toBe("2026-06-16T09:00:00.000Z");
+    expect((await repo.getBriefingById(briefing!.id))?.nextBriefingAt).toBe("2026-06-16T10:00:00.000Z");
   });
 
   it("hides existing empty editions from public feed and search", async () => {
@@ -540,7 +613,7 @@ describe("worker app accounts", () => {
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
     const feed = (await feedResponse.json()) as { editions: Array<{ summary: string; sections: unknown[] }> };
-    expect(feed.editions[0].summary).toContain("This hour:");
+    expect(feed.editions[0].summary).toContain("Verified updates:");
     expect(feed.editions[0].summary).toContain("[1]");
     expect(feed.editions[0].summary).not.toContain("2 updates in this hourly brief");
     expect(feed.editions[0].sections).toEqual([]);
@@ -585,14 +658,14 @@ describe("worker app accounts", () => {
     await publishDueBriefingEditions({
       repo,
       briefings: [{ ...savedBriefing!, nextBriefingAt: "2026-06-16T09:00:00.000Z" }],
-      now: new Date("2026-06-16T09:00:00.000Z"),
+      now: new Date("2026-06-16T09:08:00.000Z"),
       summaryAdapter
     });
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
     const feed = (await feedResponse.json()) as { editions: Array<{ id: string; summary: string }> };
-    expect(feed.editions[0].summary).toContain("في هذه الساعة:");
+    expect(feed.editions[0].summary).toContain("تحديثات موثوقة:");
     expect(feed.editions[0].summary).toContain("أعلنت كهرباء لبنان");
     expect(feed.editions[0].summary).not.toContain("Electricite du Liban");
 
@@ -670,7 +743,7 @@ describe("worker app accounts", () => {
     await publishDueBriefingEditions({
       repo,
       briefings: [{ ...savedBriefing!, nextBriefingAt: "2026-06-16T09:00:00.000Z" }],
-      now: new Date("2026-06-16T09:00:00.000Z")
+      now: new Date("2026-06-16T09:08:00.000Z")
     });
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
@@ -1090,14 +1163,14 @@ describe("worker app accounts", () => {
     await publishDueBriefingEditions({
       repo,
       briefings: [{ ...savedBriefing!, nextBriefingAt: "2026-06-16T09:00:00.000Z" }],
-      now: new Date("2026-06-16T09:00:00.000Z")
+      now: new Date("2026-06-16T09:08:00.000Z")
     });
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
     const feed = (await feedResponse.json()) as { briefing: { briefingCadence?: string }; editions: Array<{ id: string; summary: string }> };
     expect(feed.briefing.briefingCadence).toBe("hourly");
-    expect(feed.editions[0].summary).toContain("This hour:");
+    expect(feed.editions[0].summary).toContain("Verified updates:");
     expect(feed.editions[0].summary).toContain("[1]");
 
     const editionResponse = await app.request(

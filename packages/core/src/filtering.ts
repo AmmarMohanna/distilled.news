@@ -32,7 +32,7 @@ const FACT_PATTERNS = [
   /\b(deploy|deployed|strike|strikes|hit|killed|injured|arrested|closed|opened|approved|signed|launched|resumed|halted|evacuated|entered|left|announced)\b/i,
   /\b\d+([.,]\d+)?\b/,
   /\b(percent|%|usd|dollar|lira|euro|km|people|soldiers|civilians|hours|minutes)\b/i,
-  /(?:أعلن|اعلن|أكد|اكد|أفاد|افاد|وقّع|وقع|سيوقع|قتل|استشهد|أصيب|اصيب|جرح|اعتقل|أقر|اقر|وافق|افتتح|أغلق|اغلق|استهدف|قصف|غارة|غاره|انفجار|انسحب|بدأ|بدا|استأنف|استانف|قطع|أوقف|اوقف|علّق|علق|جريح|جريحين|جريحان|جرحى|قتيل|قتلى)/u
+  /(?:أعلن|اعلن|أكد|اكد|أفاد|افاد|وقّع|وقع|سيوقع|قتل|استشهد|أصيب|اصيب|جرح|اعتقل|أقر|اقر|وافق|افتتح|أغلق|اغلق|استهدف|قصف|غارة|غاره|انفجار|انسحب|انسحاب|بدأ|بدا|استأنف|استانف|قطع|أوقف|اوقف|علّق|علق|أطلق|اطلق|إطلاق|اطلاق|ألقى|القى|تلقي|قنبلة|مسيّرة|مسيرة|جريح|جريحين|جريحان|جرحى|قتيل|قتلى)/u
 ];
 
 const IMPORTANT_PATTERNS = [
@@ -40,7 +40,7 @@ const IMPORTANT_PATTERNS = [
   /\b(killed|injured|casualties|strike|missile|explosion|evacuated|closed|halted|resumed|cut all contact|sanction|approved|signed|announced)\b/i,
   /\b(currency|central bank|lira|dollar|euro|inflation|fuel|electricity|power|water|airport|port|border)\b/i,
   /(?:وزير|مسؤول|الحكومة|الجيش|الشرطة|قوى الامن|مصرف لبنان|رويترز|فرانس برس)/u,
-  /(?:قتل|قتيل|قتلى|استشهد|شهيد|شهداء|جرح|جريح|جرحى|أصيب|اصيب|غارة|قصف|انفجار|إخلاء|اخلاء|اغلاق|أغلق|قطع|عقوبات|وقّع|وقع|أعلن|اعلن|أكد|اكد)/u,
+  /(?:قتل|قتيل|قتلى|استشهد|شهيد|شهداء|جرح|جريح|جرحى|أصيب|اصيب|غارة|قصف|انفجار|إخلاء|اخلاء|اغلاق|أغلق|قطع|عقوبات|وقّع|وقع|أعلن|اعلن|أكد|اكد|استهداف|قنبلة|مسيّرة|مسيرة|انسحاب)/u,
   /(?:كهرباء|مياه|مطار|مرفأ|حدود|دولار|ليرة|مصرف|وقود)/u
 ];
 
@@ -83,9 +83,9 @@ export function isRelevantToInterest(message: NormalizedMessage, briefing: Brief
 function expandInterestTokens(tokens: string[]): string[] {
   const expanded = new Set(tokens);
   const synonyms: Record<string, string[]> = {
-    lebanese: ["lebanon", "liban", "beirut", "لبنان", "لبناني", "بيروت"],
-    lebanon: ["lebanese", "liban", "beirut", "لبنان", "لبناني", "بيروت"],
-    liban: ["lebanon", "lebanese", "لبنان", "لبناني"],
+    lebanese: ["lebanon", "liban", "beirut", "south", "لبنان", "لبناني", "بيروت", "الجنوب", "جنوب", "النبطية", "صيدا", "صور", "طرابلس", "بعلبك"],
+    lebanon: ["lebanese", "liban", "beirut", "south", "لبنان", "لبناني", "بيروت", "الجنوب", "جنوب", "النبطية", "صيدا", "صور", "طرابلس", "بعلبك"],
+    liban: ["lebanon", "lebanese", "لبنان", "لبناني", "بيروت", "الجنوب", "النبطية"],
     beirut: ["lebanon", "lebanese", "بيروت", "لبنان"],
     economy: ["economic", "currency", "bank", "lira", "dollar", "economy", "اقتصاد", "اقتصادي", "عملة", "بنك", "مصرف", "ليرة", "دولار", "نفط", "برنت"],
     infrastructure: [
@@ -131,8 +131,8 @@ function expandInterestTokens(tokens: string[]): string[] {
     safety: ["safety", "incident", "accident", "injury", "أمن", "سلامة", "حادث", "تصادم", "إصابة", "جريح", "جريحان"],
     regional: ["regional", "region", "middleeast", "iran", "syria", "israel", "إقليمي", "المنطقة", "إيران", "إيراني", "سوريا", "إسرائيل", "أميركي", "الولايات"],
     events: ["event", "events", "developments", "تطور", "تطورات", "حدث", "أحداث"],
-    لبنان: ["lebanon", "lebanese", "liban", "beirut", "لبناني", "بيروت"],
-    لبناني: ["lebanon", "lebanese", "لبنان", "بيروت"],
+    لبنان: ["lebanon", "lebanese", "liban", "beirut", "south", "لبناني", "بيروت", "الجنوب", "جنوب", "النبطية", "صيدا", "صور", "طرابلس", "بعلبك"],
+    لبناني: ["lebanon", "lebanese", "لبنان", "بيروت", "الجنوب", "النبطية"],
     بيروت: ["beirut", "lebanon", "lebanese", "لبنان"],
     اقتصاد: ["economy", "economic", "currency", "bank", "lira", "dollar", "اقتصادي", "عملة", "بنك", "مصرف", "ليرة", "دولار"],
     أمني: ["security", "safety", "incident", "army", "border", "أمن", "الجيش", "حادث", "غارة", "ضربة"],

@@ -49,7 +49,7 @@ const edition = {
   cadence: "hourly",
   windowStart: "2026-06-16T07:00:00.000Z",
   windowEnd: "2026-06-16T08:00:00.000Z",
-  title: "Hourly brief",
+  title: "Verified updates",
   summary: item.summary,
   sections: [
     {
@@ -86,8 +86,8 @@ const arabicBriefing = {
 
 const arabicEdition = {
   ...edition,
-  title: "موجز الساعة",
-  summary: "في هذه الساعة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة [1].",
+  title: "تحديثات موثوقة",
+  summary: "تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة [1].",
   sections: [
     {
       title: "بنية تحتية",
@@ -225,7 +225,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.getByRole("link", { name: "Distilled.news" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Personal Briefing" })).toBeVisible();
   await expect(page.locator(".page-heading .status-dot.live")).toBeVisible();
-  await expect(page.getByText("waiting for the next accepted hourly brief.")).toBeVisible();
+  await expect(page.getByText("waiting for the next accepted update.")).toBeVisible();
   feedPaused = true;
   await page.getByRole("button", { name: /^refresh$/i }).click();
   await expect(page.locator(".page-heading .status-dot.paused")).toBeVisible();
@@ -241,7 +241,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.getByText("A third operational note stays in the full brief")).toHaveCount(0);
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
 
-  await page.getByRole("button", { name: /show .*brief/i }).first().click();
+  await page.getByRole("button", { name: /show .*updates/i }).first().click();
   await expect(page.getByText("A third operational note stays in the full brief").first()).toBeVisible();
   await expect(page.locator(".reference-digest-row").first()).toBeVisible();
   await expect(page.locator(".brief-synthesis-text")).toHaveCount(0);
@@ -286,11 +286,11 @@ test("arabic feed keeps public chrome localized and summary stable on expand", a
   await expect(page.getByRole("button", { name: /استكشاف/ })).toBeVisible();
   await expect(page.getByPlaceholder("ابحث في الموجز المنشور")).toBeVisible();
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
-  await expect(page.getByText("في هذه الساعة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
+  await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
 
-  await page.getByRole("button", { name: /عرض موجز الساعة/i }).click();
-  await expect(page.getByText("في هذه الساعة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
-  await expect(page.locator(".news-summary").filter({ hasText: "في هذه الساعة" })).toHaveCount(1);
+  await page.getByRole("button", { name: /عرض تحديثات موثوقة/i }).click();
+  await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
+  await expect(page.locator(".news-summary").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
   await expect(page.getByText("المراجع")).toBeVisible();
   await expect(page.getByText("refresh")).toHaveCount(0);
   await expect(page.getByText("Explore")).toHaveCount(0);

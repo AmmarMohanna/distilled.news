@@ -2539,9 +2539,9 @@ function awaitingAcceptedBriefMessage(
   cadence: BriefingConfig["briefingCadence"],
   language: "en" | "ar" | "fr"
 ): string {
-  if (language === "ar") return `بانتظار الموجز المقبول التالي (${cadenceMetaLabel(cadence, language)}).`;
-  if (language === "fr") return `en attente du prochain brief ${cadenceMetaLabel(cadence, language)} accepté.`;
-  return `waiting for the next accepted ${cadence} brief.`;
+  if (language === "ar") return cadence === "hourly" ? "بانتظار التحديث المقبول التالي." : `بانتظار الموجز المقبول التالي (${cadenceMetaLabel(cadence, language)}).`;
+  if (language === "fr") return cadence === "hourly" ? "en attente de la prochaine mise à jour acceptée." : `en attente du prochain brief ${cadenceMetaLabel(cadence, language)} accepté.`;
+  return cadence === "hourly" ? "waiting for the next accepted update." : `waiting for the next accepted ${cadence} brief.`;
 }
 
 function uniqueSourceTitles(evidence: BriefingEvidence[]): string[] {
@@ -2662,14 +2662,15 @@ function cadenceMetaLabel(cadence: BriefingConfig["briefingCadence"], language: 
     if (cadence === "daily") return "يومي";
     if (cadence === "weekly") return "أسبوعي";
     if (cadence === "monthly") return "شهري";
-    return "كل ساعة";
+    return "تحديثات";
   }
   if (language === "fr") {
     if (cadence === "daily") return "quotidien";
     if (cadence === "weekly") return "hebdomadaire";
     if (cadence === "monthly") return "mensuel";
-    return "horaire";
+    return "mises à jour";
   }
+  if (cadence === "hourly") return "updates";
   return cadence;
 }
 
@@ -2678,9 +2679,9 @@ function nextBriefingText(
   countdown: string,
   language: "en" | "ar" | "fr"
 ): string {
-  if (language === "ar") return `الموجز التالي ${countdown}`;
+  if (language === "ar") return cadence === "hourly" ? `الفحص التالي ${countdown}` : `الموجز التالي ${countdown}`;
   if (language === "fr") return `prochain brief ${cadenceMetaLabel(cadence, language)} ${countdown}`;
-  return `next ${cadence} brief ${countdown}`;
+  return cadence === "hourly" ? `next check ${countdown}` : `next ${cadence} brief ${countdown}`;
 }
 
 function noReferencesLabel(language: "en" | "ar" | "fr"): string {
