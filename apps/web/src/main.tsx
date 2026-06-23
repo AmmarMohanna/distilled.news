@@ -2223,7 +2223,7 @@ function Shell(props: {
           <div className="header-controls">
             {props.onAccount ? (
               <button type="button" className="icon-button" aria-label="account settings" title="account settings" onClick={props.onAccount}>
-                <Settings size={16} aria-hidden />
+                <User size={16} aria-hidden />
               </button>
             ) : null}
             <button type="button" className="icon-button" aria-label={`switch to ${theme === "dark" ? "light" : "dark"} mode`} title="switch theme" onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}>
@@ -2248,7 +2248,7 @@ function getPageMeta(title: string): string {
   if (title.includes("Briefing")) return "Published briefing items only.";
   if (title === "verify email") return "Account verification.";
   if (title === "reset password") return "Account recovery.";
-  return "Self-hosted news filtering.";
+  return "Less clutter. Personalized news, to the point.";
 }
 
 function createNavLabel(language: "en" | "ar" | "fr"): string {

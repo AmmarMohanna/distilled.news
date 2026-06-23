@@ -4,50 +4,50 @@
 
 html {
   min-height: 100%;
-  background: #f5f5f5;
+  background: #faf8f1;
   color-scheme: light;
 }
 
 :root {
-  color: #191a1c;
-  background: #f5f5f5;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  color: #171717;
+  background: #faf8f1;
+  font-family: "IBM Plex Mono", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 15px;
-  line-height: 1.45;
-  --page: #f5f5f5;
-  --surface: #ffffff;
-  --surface-quiet: #fbfbfb;
-  --surface-hover: #eeeeee;
-  --line: #d8d8d8;
-  --line-strong: #bcbcbc;
-  --text: #191a1c;
-  --muted: #666666;
-  --accent: #222222;
-  --accent-soft: #4a4a4a;
-  --danger: #a13737;
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.08);
+  line-height: 1.55;
+  --page: #faf8f1;
+  --surface: #fffdf8;
+  --surface-quiet: #f7f1e6;
+  --surface-hover: #f1e8d8;
+  --line: #e8dcc7;
+  --line-strong: #d4c1a3;
+  --text: #171717;
+  --muted: #737373;
+  --accent: #fc7100;
+  --accent-soft: #b45309;
+  --danger: #9f2d20;
+  --shadow: none;
   --motion: 170ms ease;
 }
 
 :root[data-theme="dark"] {
-  color: #eeeef0;
-  background: #111214;
-  --page: #111214;
-  --surface: #1b1d21;
-  --surface-quiet: #15171b;
-  --surface-hover: #202329;
-  --line: #30343b;
-  --line-strong: #4b4f58;
-  --text: #eeeef0;
-  --muted: #8b8f97;
-  --accent: #a8c7ff;
-  --accent-soft: #d8ff9f;
-  --danger: #ff8b8b;
-  --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  color: #f2efe8;
+  background: #151412;
+  --page: #151412;
+  --surface: #1d1b18;
+  --surface-quiet: #1a1815;
+  --surface-hover: #27231d;
+  --line: #383226;
+  --line-strong: #5b4a35;
+  --text: #f2efe8;
+  --muted: #aaa298;
+  --accent: #ff9a3d;
+  --accent-soft: #ffc18a;
+  --danger: #e07f72;
+  --shadow: none;
 }
 
 html[data-theme="dark"] {
-  background: #111214;
+  background: #151412;
   color-scheme: dark;
 }
 
@@ -76,7 +76,7 @@ button,
   min-height: 36px;
   padding: 6px 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--surface);
   color: var(--text);
   text-decoration: none;
@@ -84,21 +84,18 @@ button,
   transition:
     background-color var(--motion),
     border-color var(--motion),
-    transform var(--motion),
-    box-shadow var(--motion);
+    color var(--motion);
 }
 
 button:hover,
 .button-link:hover {
   background: var(--surface-hover);
   border-color: var(--accent);
-  transform: translateY(-1px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  color: var(--text);
 }
 
 button:active,
 .button-link:active {
-  transform: translateY(0);
   box-shadow: none;
 }
 
@@ -130,6 +127,7 @@ button:disabled,
 
 .primary-button {
   border-color: var(--accent);
+  color: var(--accent-soft);
 }
 
 .danger-button {
@@ -154,9 +152,9 @@ input,
 textarea {
   width: 100%;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: 4px;
   padding: 9px 10px;
-  background: #101114;
+  background: var(--surface-quiet);
   color: var(--text);
   transition:
     border-color var(--motion),
@@ -173,7 +171,7 @@ input:focus,
 textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(168, 199, 255, 0.12);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 textarea {
@@ -193,17 +191,17 @@ p {
 }
 
 h1 {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 500;
 }
 
 h2 {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .shell {
-  width: min(1160px, 100%);
+  width: min(980px, 100%);
   min-height: 100dvh;
   margin: 0 auto;
   padding:
@@ -224,16 +222,17 @@ header {
   position: sticky;
   top: max(12px, env(safe-area-inset-top));
   z-index: 2;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(22, 24, 27, 0.86);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+  min-height: 4.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
 }
 
 :root:not([data-theme="dark"]) header {
-  background: rgba(251, 251, 251, 0.88);
+  background: transparent;
 }
 
 .header-primary,
@@ -247,6 +246,7 @@ header {
 .header-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 12px;
 }
 
 .brand-lockup {
@@ -262,27 +262,32 @@ header {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
   text-decoration: none;
+}
+
+.brand-icon:hover {
+  border-color: var(--line);
+  background: var(--surface-hover);
 }
 
 nav {
   display: flex;
-  gap: 6px;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #111214;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 :root:not([data-theme="dark"]) nav {
-  background: var(--surface-quiet);
+  background: transparent;
 }
 
 nav a {
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 4px 0;
+  border-radius: 0;
   color: var(--muted);
   text-decoration: none;
 }
@@ -291,14 +296,18 @@ nav a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--line-strong);
-  padding: 0 2px;
+  width: 1px;
+  min-height: 1.15em;
+  margin: 0 2px;
+  padding: 0;
+  background: var(--line-strong);
+  color: transparent;
   user-select: none;
 }
 
 nav a:hover {
-  background: var(--surface-hover);
-  color: var(--text);
+  background: transparent;
+  color: var(--accent);
 }
 
 .brand {
@@ -311,7 +320,7 @@ nav a:hover {
 .brand-logo {
   display: block;
   width: auto;
-  height: 42px;
+  height: 44px;
   max-width: 124px;
   object-fit: contain;
 }
@@ -358,6 +367,15 @@ nav a:hover {
   flex-shrink: 0;
 }
 
+.header-controls::before {
+  content: "";
+  align-self: center;
+  width: 1px;
+  height: 24px;
+  margin-inline-end: 4px;
+  background: var(--line);
+}
+
 .admin-stack {
   display: grid;
   gap: 18px;
@@ -376,8 +394,8 @@ nav a:hover {
   min-width: 0;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
   box-shadow: var(--shadow);
 }
 
@@ -399,7 +417,7 @@ nav a:hover {
     calc(24px + env(safe-area-inset-bottom))
     calc(18px + env(safe-area-inset-left));
   overflow-y: auto;
-  background: rgba(0, 0, 0, 0.54);
+  background: color-mix(in srgb, var(--text) 28%, transparent);
   backdrop-filter: blur(4px);
 }
 
@@ -412,7 +430,7 @@ nav a:hover {
   gap: 16px;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -583,14 +601,13 @@ nav a:hover {
   min-width: 0;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-quiet);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
   color: var(--text);
   text-decoration: none;
   transition:
     background-color var(--motion),
-    border-color var(--motion),
-    transform var(--motion);
+    border-color var(--motion);
 }
 
 .explore-row:hover,
@@ -599,11 +616,6 @@ nav a:hover {
   background: var(--surface-hover);
   border-color: var(--accent);
   color: var(--text);
-}
-
-.explore-row:hover,
-.explore-row:focus-visible {
-  transform: translateY(-1px);
 }
 
 .explore-copy {
@@ -649,12 +661,13 @@ nav a:hover {
   gap: 10px;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-quiet);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
 }
 
 .feed-row.active {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+  background: color-mix(in srgb, var(--accent) 3%, var(--surface));
 }
 
 .feed-select {
@@ -682,8 +695,8 @@ nav a:hover {
   gap: 10px;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-quiet);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
 }
 
 .source-copy {
@@ -726,6 +739,10 @@ nav a:hover {
   text-overflow: ellipsis;
 }
 
+.source-link:hover {
+  color: var(--accent);
+}
+
 .source-error {
   color: var(--danger);
   overflow-wrap: anywhere;
@@ -742,7 +759,7 @@ nav a:hover {
   gap: 4px;
   padding: 3px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--surface-quiet);
 }
 
@@ -753,7 +770,7 @@ nav a:hover {
   min-height: 40px;
   padding: 9px 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: 4px;
   background: var(--surface-quiet);
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -767,8 +784,9 @@ nav a:hover {
 }
 
 .segmented button.active {
-  background: var(--surface);
-  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border-color: var(--accent);
+  color: var(--text);
 }
 
 details {
@@ -778,9 +796,9 @@ details {
 
 .health-summary {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 0;
-  background: var(--surface-quiet);
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
   overflow: hidden;
 }
 
@@ -805,13 +823,15 @@ details {
 .status-dot {
   width: 10px;
   height: 10px;
-  border-radius: 999px;
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 2px var(--page),
+    0 0 0 3px color-mix(in srgb, currentColor 28%, var(--line));
 }
 
 .status-dot.live {
-  background: #6ed28a;
-  color: #6ed28a;
+  background: var(--accent);
+  color: var(--accent);
 }
 
 .status-dot.paused {
@@ -929,16 +949,16 @@ summary {
   height: 22px;
   padding: 0 8px;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: #2b3037;
-  color: var(--accent-soft);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  color: var(--muted);
   font-size: 12px;
 }
 
 :root:not([data-theme="dark"]) .pill {
-  background: #edf2e2;
-  border-color: #c8d5ac;
-  color: #456a10;
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--muted);
 }
 
 .feed-tools {
@@ -967,7 +987,7 @@ summary {
 }
 
 .star-vote.is-starred {
-  border-color: color-mix(in srgb, var(--accent-soft) 50%, var(--line-strong));
+  border-color: var(--accent);
   color: var(--accent-soft);
 }
 
@@ -988,11 +1008,11 @@ summary {
 
 .news-item {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr);
   align-items: start;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
-  padding: 0 0 22px;
+  padding: 0 0 18px;
   transition: background-color var(--motion);
 }
 
@@ -1011,8 +1031,8 @@ summary {
 .news-rail::before {
   content: "";
   position: absolute;
-  top: 19px;
-  bottom: -22px;
+  top: 18px;
+  bottom: -18px;
   width: 1px;
   background: var(--line);
 }
@@ -1024,11 +1044,11 @@ summary {
 .news-node {
   position: relative;
   z-index: 1;
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
   margin-top: 16px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line-strong));
+  border-radius: 2px;
   background: var(--surface);
 }
 
@@ -1051,19 +1071,18 @@ summary {
 
 .quiet-icon:hover,
 .quiet-icon:focus-visible {
-  border-color: var(--line-strong);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong));
   background: var(--surface-hover);
   box-shadow: none;
 }
 
 .news-copy {
   display: grid;
-  gap: 8px;
+  gap: 9px;
   min-width: 0;
-  padding: 13px 14px 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
+  padding: 12px 0 16px;
+  border-top: 1px solid var(--line);
+  background: transparent;
   text-align: left;
   transition:
     border-color var(--motion),
@@ -1072,8 +1091,8 @@ summary {
 
 .news-item:hover .news-copy,
 .news-item:focus-within .news-copy {
-  border-color: var(--line-strong);
-  background: var(--surface-quiet);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line-strong));
+  background: transparent;
 }
 
 .news-item.is-read .news-copy {
@@ -1134,7 +1153,7 @@ summary {
   display: -webkit-box;
   margin: 0;
   color: var(--text);
-  line-height: 1.7;
+  line-height: 1.65;
   -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -1143,9 +1162,11 @@ summary {
 .brief-synthesis {
   display: grid;
   gap: 14px;
-  margin-top: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
 .full-brief-block {
@@ -1172,6 +1193,10 @@ summary {
   color: var(--muted);
 }
 
+.brief-list-head > span:first-child {
+  color: var(--accent-soft);
+}
+
 .report-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1186,7 +1211,7 @@ summary {
   margin: 0 2px;
   padding: 0 3px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
   box-shadow: none;
   color: var(--text);
@@ -1457,6 +1482,10 @@ summary {
     justify-content: flex-end;
   }
 
+  .header-controls::before {
+    height: 28px;
+  }
+
   .modal-backdrop {
     place-items: end center;
     padding:
@@ -1471,7 +1500,7 @@ summary {
     width: 100%;
     max-height: calc(100dvh - 28px);
     border-bottom: 0;
-    border-radius: 12px 12px 0 0;
+    border-radius: 6px 6px 0 0;
   }
 
   .sheet-actions {
@@ -1549,7 +1578,7 @@ summary {
   }
 
   .news-copy {
-    padding: 12px;
+    padding: 12px 0 14px;
   }
 
   .news-topline {

@@ -158,8 +158,8 @@ function buildManifestPayload(input: {
     orientation: "portrait",
     scope: "/",
     start_url: input.startUrl,
-    background_color: "#f4f1eb",
-    theme_color: "#f4f1eb",
+    background_color: "#faf8f1",
+    theme_color: "#faf8f1",
     icons: [
       {
         src: "/icon-192.png",
