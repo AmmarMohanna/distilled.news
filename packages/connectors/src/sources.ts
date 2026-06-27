@@ -1,4 +1,5 @@
 import type { SourceKind, SourceProvider } from "@distilled/core";
+import { buildGoogleNewsRssUrl } from "./rss";
 import { parsePublicTelegramChannelUrl } from "./telegram";
 
 export type DetectedSourceInput =
@@ -18,11 +19,11 @@ export type DetectedSourceInput =
       sourceUrl: string;
     }
   | {
-      provider: "apify";
+      provider: "rss";
       kind: "google_news";
       input: string;
       title: string;
-      actorInput: Record<string, unknown>;
+      sourceUrl: string;
     }
   | {
       provider: "apify";
@@ -106,12 +107,10 @@ export function detectSourceInput(input: string): DetectedSourceInput {
 }
 
 export function defaultActorIdForKind(kind: SourceKind, env: {
-  APIFY_GOOGLE_NEWS_ACTOR_ID?: string;
   APIFY_X_ACTOR_ID?: string;
   APIFY_LINKEDIN_COMPANY_ACTOR_ID?: string;
   APIFY_LINKEDIN_PROFILE_ACTOR_ID?: string;
 }): string | undefined {
-  if (kind === "google_news") return env.APIFY_GOOGLE_NEWS_ACTOR_ID ?? "groupoject/google-news-scraper";
   if (kind === "x_profile" || kind === "x_search") {
     return env.APIFY_X_ACTOR_ID ?? "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest";
   }
@@ -160,20 +159,11 @@ function detectXInput(value: string, original: string): DetectedSourceInput {
 
 function googleNewsInput(query: string, original: string): DetectedSourceInput {
   return {
-    provider: "apify",
+    provider: "rss",
     kind: "google_news",
     input: original,
     title: `Google News: ${query}`,
-    actorInput: {
-      queries: [query],
-      geo: "US",
-      language: "en",
-      maxItemsPerQuery: 15,
-      maxQueries: 1,
-      dedupe: true,
-      requestDelayMs: 0,
-      maxConcurrency: 1
-    }
+    sourceUrl: buildGoogleNewsRssUrl(query, { geo: "US", language: "en" })
   };
 }
 

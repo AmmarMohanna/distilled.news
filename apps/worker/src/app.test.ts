@@ -5,7 +5,7 @@ import { publishDueBriefingEditions } from "./editions";
 import { processQueueMessage } from "./processor";
 import { ingestPublicTelegramChannel } from "./publicTelegram";
 import { InMemoryRepository } from "./repository";
-import { enqueueDueSourceRefreshJobs, pollApifySourceRuns } from "./sources";
+import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
 import type { BriefingEdition, BriefingItem, EventReviewAdapter, NormalizedMessage, SummaryAdapter } from "@distilled/core";
 import type { DistilledQueueMessage, Env, ProcessingJobMessage } from "./types";
 
@@ -1163,7 +1163,7 @@ describe("worker app accounts", () => {
     }));
   });
 
-  it("returns a clear error when Apify sources are added without a token", async () => {
+  it("returns a clear error when Apify-backed X sources are added without a token", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo, bucket: new FakeBucket(), queue: new FakeQueue() });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
@@ -1175,7 +1175,7 @@ describe("worker app accounts", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json", cookie: user.cookie },
-        body: JSON.stringify({ briefingId: briefing!.id, input: "news: lebanon power" })
+        body: JSON.stringify({ briefingId: briefing!.id, input: "x: @ALJADEEDNEWS" })
       },
       env()
     );
@@ -1223,47 +1223,29 @@ describe("worker app accounts", () => {
     expect(leased?.lastCheckedAt).toBe("2026-06-18T08:05:00.000Z");
   });
 
-  it("starts, polls, imports, and processes an Apify Google News source", async () => {
+  it("fetches, imports, and processes a Google News RSS source without Apify", async () => {
     const repo = new InMemoryRepository();
     const bucket = new FakeBucket();
     const queue = new FakeQueue();
-    const fetcher = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
+    const fetcher = vi.fn(async (request: RequestInfo | URL) => {
       const url = String(request);
-      if (url.includes("/actors/groupoject~google-news-scraper/runs")) {
-        expect(new URL(url).searchParams.get("maxItems")).toBe("40");
-        expect(JSON.parse(String(init?.body))).toMatchObject({
-          queries: ["central bank lebanon"],
-          maxItemsPerQuery: 15
-        });
-        return new Response(JSON.stringify({
-          data: {
-            id: "run_1",
-            status: "RUNNING",
-            defaultDatasetId: "dataset_1",
-            startedAt: "2026-06-16T08:00:00.000Z"
-          }
-        }), { status: 200, headers: { "content-type": "application/json" } });
-      }
-      if (url.includes("/actor-runs/run_1")) {
-        return new Response(JSON.stringify({
-          data: {
-            id: "run_1",
-            status: "SUCCEEDED",
-            defaultDatasetId: "dataset_1"
-          }
-        }), { status: 200, headers: { "content-type": "application/json" } });
-      }
-      if (url.includes("/datasets/dataset_1/items")) {
-        return new Response(JSON.stringify([
-          {
-            title: "Central bank announced a new circular",
-            source: "Reuters",
-            googleNewsUrl: "https://news.google.com/read/bank-circular",
-            snippet: "The official circular changes reporting rules.",
-            publishedAt: "2026-06-16T08:01:00.000Z",
-            fetchedAt: "2026-06-16T09:01:00.000Z"
-          }
-        ]), { status: 200, headers: { "content-type": "application/json" } });
+      if (url.startsWith("https://news.google.com/rss/search")) {
+        expect(new URL(url).searchParams.get("q")).toBe("central bank lebanon");
+        return new Response(
+          `<?xml version="1.0"?>
+          <rss><channel>
+            <title>"central bank lebanon" - Google News</title>
+            <item>
+              <title>Central bank announced a new circular - Reuters</title>
+              <link>https://news.google.com/rss/articles/bank-circular?oc=5</link>
+              <guid isPermaLink="false">bank-circular</guid>
+              <pubDate>Tue, 16 Jun 2026 08:01:00 GMT</pubDate>
+              <description>&lt;a href="https://news.google.com/rss/articles/bank-circular?oc=5"&gt;Central bank announced a new circular&lt;/a&gt;&amp;nbsp;&amp;nbsp;&lt;font&gt;Reuters&lt;/font&gt;</description>
+              <source url="https://www.reuters.com">Reuters</source>
+            </item>
+          </channel></rss>`,
+          { status: 200, headers: { "content-type": "application/rss+xml" } }
+        );
       }
       return new Response("not found", { status: 404 });
     });
@@ -1280,21 +1262,16 @@ describe("worker app accounts", () => {
         headers: { "content-type": "application/json", cookie: user.cookie },
         body: JSON.stringify({ briefingId: briefing!.id, input: "news: central bank lebanon" })
       },
-      { ...env(), APIFY_API_TOKEN: "token" } as Env
+      env()
     );
     expect(addResponse.status).toBe(200);
-    expect(queue.messages).toHaveLength(0);
-
-    await pollApifySourceRuns({
-      repo,
-      bucket,
-      queue,
-      env: { ...env(), APIFY_API_TOKEN: "token" } as Env,
-      fetcher: fetcher as unknown as typeof fetch
-    });
-
     expect(queue.messages).toHaveLength(1);
-    expect(Array.from(bucket.objects.keys()).some((key) => key.includes("apify/"))).toBe(true);
+    expect(Array.from(bucket.objects.keys()).some((key) => key.includes("google-news/"))).toBe(true);
+    const sources = await repo.listSources(briefing!.id);
+    expect(sources.find((source) => source.kind === "google_news")).toMatchObject({
+      provider: "rss",
+      title: "Google News: central bank lebanon"
+    });
     const savedBriefing = await repo.getBriefingById(briefing!.id);
     expect(savedBriefing).not.toBeNull();
     await publishDueBriefingEditions({
@@ -1318,6 +1295,65 @@ describe("worker app accounts", () => {
     expect(editionResponse.status).toBe(200);
     const edition = (await editionResponse.json()) as { edition: { sections: Array<{ evidence: Array<{ sourceTitle: string }> }> } };
     expect(edition.edition.sections[0].evidence[0].sourceTitle).toBe("Reuters");
+  });
+
+  it("refreshes legacy Apify Google News sources through RSS", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async (request: RequestInfo | URL) => {
+      const url = String(request);
+      if (url.startsWith("https://news.google.com/rss/search")) {
+        expect(new URL(url).searchParams.get("q")).toBe("lebanon electricity");
+        return new Response(
+          `<?xml version="1.0"?>
+          <rss><channel>
+            <title>"lebanon electricity" - Google News</title>
+            <item>
+              <title>Power grid repairs completed - Daily Wire</title>
+              <link>https://news.google.com/rss/articles/power-grid?oc=5</link>
+              <guid isPermaLink="false">power-grid</guid>
+              <pubDate>Tue, 16 Jun 2026 08:10:00 GMT</pubDate>
+              <source url="https://example.com">Daily Wire</source>
+            </item>
+          </channel></rss>`,
+          { status: 200, headers: { "content-type": "application/rss+xml" } }
+        );
+      }
+      return new Response("not found", { status: 404 });
+    });
+    const user = await createVerifiedUser(createApp({ repository: repo }), repo, "owner@test.com", "Feed Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+    const source = await repo.upsertConfiguredSource({
+      briefingId: briefing!.id,
+      title: "Google News: lebanon electricity",
+      provider: "apify",
+      kind: "google_news",
+      actorId: "groupoject/google-news-scraper",
+      actorInput: { queries: ["lebanon electricity"], geo: "US", language: "en" },
+      enabled: true
+    });
+
+    await refreshSourceById({
+      briefing: briefing!,
+      sourceId: source.id,
+      repo,
+      bucket,
+      queue,
+      env: env(),
+      fetcher: fetcher as unknown as typeof fetch,
+      now: new Date("2026-06-16T08:15:00.000Z")
+    });
+
+    expect(queue.messages).toHaveLength(1);
+    expect(Array.from(bucket.objects.keys()).some((key) => key.includes("google-news/"))).toBe(true);
+    const refreshedSource = await repo.getSource(source.id);
+    expect(refreshedSource).toMatchObject({
+      title: "Google News: lebanon electricity",
+      provider: "rss",
+      kind: "google_news"
+    });
   });
 
   it("marks Apify demo placeholder datasets as source errors", async () => {

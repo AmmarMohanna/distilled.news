@@ -37,23 +37,17 @@ describe("detectSourceInput", () => {
     });
 
     expect(detectSourceInput("news: lebanon power")).toMatchObject({
-      provider: "apify",
+      provider: "rss",
       kind: "google_news",
-      actorInput: {
-        queries: ["lebanon power"],
-        geo: "US",
-        maxItemsPerQuery: 15
-      }
+      sourceUrl: "https://news.google.com/rss/search?q=lebanon+power&hl=en-US&gl=US&ceid=US%3Aen"
     });
 
     expect(detectSourceInput("lebanon power")).toMatchObject({
-      provider: "apify",
+      provider: "rss",
       kind: "google_news",
       input: "lebanon power",
       title: "Google News: lebanon power",
-      actorInput: {
-        queries: ["lebanon power"]
-      }
+      sourceUrl: "https://news.google.com/rss/search?q=lebanon+power&hl=en-US&gl=US&ceid=US%3Aen"
     });
 
     expect(detectSourceInput("x: @NASA")).toMatchObject({

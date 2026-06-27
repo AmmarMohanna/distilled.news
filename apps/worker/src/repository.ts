@@ -745,12 +745,12 @@ export class D1Repository implements Repository {
           enabled, last_seen_at, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
-          title = CASE WHEN sources.provider = 'apify' THEN sources.title ELSE excluded.title END,
+          title = CASE WHEN sources.provider = 'apify' OR sources.kind = 'google_news' THEN sources.title ELSE excluded.title END,
           type = excluded.type,
           provider = excluded.provider,
           kind = excluded.kind,
-          username = CASE WHEN sources.provider = 'apify' THEN sources.username ELSE excluded.username END,
-          source_url = COALESCE(excluded.source_url, source_url),
+          username = CASE WHEN sources.provider = 'apify' OR sources.kind = 'google_news' THEN sources.username ELSE excluded.username END,
+          source_url = CASE WHEN sources.kind = 'google_news' THEN sources.source_url ELSE COALESCE(excluded.source_url, source_url) END,
           last_seen_at = excluded.last_seen_at,
           updated_at = excluded.updated_at`
       )
@@ -1983,14 +1983,14 @@ export class InMemoryRepository implements Repository {
     const source: SourceRecord = {
       id: existing?.id ?? scopedSourceId(briefingId, message.source.id),
       briefingId,
-      title: existing?.provider === "apify" ? existing.title : message.source.title,
+      title: existing?.provider === "apify" || existing?.kind === "google_news" ? existing.title : message.source.title,
       type: message.source.type,
       provider: message.source.provider ?? "telegram",
       kind: message.source.kind ?? (message.source.type === "group" ? "telegram_group" : "telegram_channel"),
-      username: existing?.provider === "apify" ? existing.username : message.source.username,
-      input: message.source.username ? `https://t.me/${message.source.username}` : message.sourceUrl ?? message.source.title,
-      url: message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : undefined),
-      sourceUrl: message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : undefined),
+      username: existing?.provider === "apify" || existing?.kind === "google_news" ? existing.username : message.source.username,
+      input: existing?.kind === "google_news" ? existing.input : message.source.username ? `https://t.me/${message.source.username}` : message.sourceUrl ?? message.source.title,
+      url: existing?.kind === "google_news" ? existing.url : message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : undefined),
+      sourceUrl: existing?.kind === "google_news" ? existing.sourceUrl : message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : undefined),
       actorId: existing?.actorId,
       actorInput: existing?.actorInput,
       cursor: existing?.cursor,

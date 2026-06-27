@@ -1,35 +1,87 @@
-import type { MessageSource, NormalizedMessage } from "@distilled/core";
+import type { MessageSource, NormalizedMessage, SourceKind, SourceProvider } from "@distilled/core";
 
 export interface RssParseOptions {
   sourceId: string;
   sourceTitle: string;
   sourceUrl: string;
+  provider?: SourceProvider;
+  kind?: SourceKind;
   receivedAt?: Date;
   retentionDays?: number;
   rawPayloadKey?: string;
 }
 
 export function parseRssFeed(xml: string, options: RssParseOptions): NormalizedMessage[] {
+  return parseRssLikeFeed(xml, options);
+}
+
+export function parseGoogleNewsRssFeed(xml: string, options: RssParseOptions): NormalizedMessage[] {
+  return parseRssLikeFeed(xml, {
+    ...options,
+    provider: "rss",
+    kind: "google_news"
+  }, {
+    idPrefix: "google_news",
+    itemSourceTitle: (block) => htmlToText(tagValue(block, "source") ?? "") || undefined,
+    itemText: (block, sourceTitle) => {
+      const title = stripGoogleNewsSourceFromTitle(htmlToText(tagValue(block, "title") ?? ""), sourceTitle);
+      return title || htmlToText(
+        tagValue(block, "description") ??
+          tagValue(block, "summary") ??
+          tagValue(block, "content") ??
+          tagValue(block, "content:encoded") ??
+          ""
+      );
+    }
+  });
+}
+
+export function buildGoogleNewsRssUrl(query: string, options: {
+  geo?: string;
+  language?: string;
+} = {}): string {
+  const geo = normalizeRegion(options.geo);
+  const language = normalizeLanguage(options.language);
+  const url = new URL("https://news.google.com/rss/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set("hl", `${language}-${geo}`);
+  url.searchParams.set("gl", geo);
+  url.searchParams.set("ceid", `${geo}:${language}`);
+  return url.toString();
+}
+
+function parseRssLikeFeed(
+  xml: string,
+  options: RssParseOptions,
+  behavior: {
+    idPrefix?: string;
+    itemSourceTitle?: (block: string) => string | undefined;
+    itemText?: (block: string, sourceTitle: string) => string;
+  } = {}
+): NormalizedMessage[] {
   const receivedAt = options.receivedAt ?? new Date();
   const retentionDays = options.retentionDays ?? 15;
   const source: MessageSource = {
     id: options.sourceId,
     title: extractFeedTitle(xml) ?? options.sourceTitle,
     type: "channel",
-    provider: "rss",
-    kind: "rss_feed"
+    provider: options.provider ?? "rss",
+    kind: options.kind ?? "rss_feed"
   };
 
   const blocks = [...extractBlocks(xml, "item"), ...extractBlocks(xml, "entry")];
   return blocks.flatMap((block, index) => {
-    const title = htmlToText(tagValue(block, "title") ?? "");
-    const description = htmlToText(
-      tagValue(block, "description") ??
-        tagValue(block, "summary") ??
-        tagValue(block, "content") ??
-        tagValue(block, "content:encoded") ??
-        ""
-    );
+    const sourceTitle = behavior.itemSourceTitle?.(block) ?? source.title;
+    const title = behavior.itemText?.(block, sourceTitle) ?? htmlToText(tagValue(block, "title") ?? "");
+    const description = behavior.itemText
+      ? ""
+      : htmlToText(
+        tagValue(block, "description") ??
+          tagValue(block, "summary") ??
+          tagValue(block, "content") ??
+          tagValue(block, "content:encoded") ??
+          ""
+      );
     const text = [title, description].filter(Boolean).join(". ").trim();
     const link = extractItemLink(block);
     const postedAt = parseDate(
@@ -47,8 +99,8 @@ export function parseRssFeed(xml: string, options: RssParseOptions): NormalizedM
     const mediaUrl = extractMediaUrl(block);
 
     return [{
-      id: `rss_${stableHash(`${options.sourceId}:${stableId}`)}`,
-      source,
+      id: `${behavior.idPrefix ?? "rss"}_${stableHash(`${options.sourceId}:${stableId}`)}`,
+      source: { ...source, title: sourceTitle },
       messageId: String(stableHash(stableId)),
       text,
       links: link ? [link] : [],
@@ -118,6 +170,20 @@ function decodeHtml(value: string): string {
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
+}
+
+function stripGoogleNewsSourceFromTitle(title: string, sourceTitle: string): string {
+  const suffix = ` - ${sourceTitle}`;
+  return sourceTitle && title.endsWith(suffix) ? title.slice(0, -suffix.length).trim() : title;
+}
+
+function normalizeRegion(value: string | undefined): string {
+  return /^[A-Za-z]{2}$/.test(value ?? "") ? value!.toUpperCase() : "US";
+}
+
+function normalizeLanguage(value: string | undefined): string {
+  const language = value?.match(/^[A-Za-z]{2}/)?.[0];
+  return language ? language.toLowerCase() : "en";
 }
 
 function stableHash(input: string): string {

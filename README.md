@@ -25,7 +25,7 @@ Distilled.news ingests public Telegram channel URLs plus optional RSS, Google Ne
 - Cloudflare Queues for processing jobs.
 - Cloudflare Email Service for account verification and password reset email.
 - Cloudflare AI Gateway routing to OpenAI for production summaries.
-- Apify Actors for optional Google News, X, and advanced LinkedIn/source scraping.
+- Apify Actors for optional X and advanced LinkedIn/source scraping.
 - React + Vite for the admin/feed UI.
 - Hono for Worker routes.
 - Vitest and Playwright for tests.
@@ -64,7 +64,7 @@ See `.env.example` for descriptions.
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_AI_GATEWAY_ID`
 - `OPENAI_API_KEY`
-- `APIFY_API_TOKEN` if using `news:`, `x:`, `linkedin:`, or `apify:` sources
+- `APIFY_API_TOKEN` if using `x:`, `linkedin:`, or `apify:` sources
 - `ADMIN_SESSION_SECRET`
 - `ADMIN_SETUP_TOKEN`
 - `EMAIL_FROM`
@@ -88,11 +88,10 @@ destination addresses in the Cloudflare account.
 
 Default Apify actors:
 
-- Google News: `groupoject/google-news-scraper`
 - X: `kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest`
 - LinkedIn company/profile sources are advanced-only defaults: `harvestapi/linkedin-company-posts` and `harvestapi/linkedin-profile-posts`
 
-RSS is fetched directly by the Worker instead of through Apify.
+RSS and Google News are fetched directly by the Worker instead of through Apify.
 
 Public users can sign up after setup. Each email can have only one account.
 Usernames are normalized into slugs, can be changed later, and previous

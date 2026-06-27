@@ -38,11 +38,9 @@ const runtimeVarKeys = [
   "OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS",
   "EMAIL_FROM",
   "TURNSTILE_SITE_KEY",
-  "APIFY_GOOGLE_NEWS_ACTOR_ID",
   "APIFY_X_ACTOR_ID",
   "APIFY_LINKEDIN_COMPANY_ACTOR_ID",
   "APIFY_LINKEDIN_PROFILE_ACTOR_ID",
-  "APIFY_GOOGLE_NEWS_PRICE_USD_PER_1000_RESULTS",
   "APIFY_X_PRICE_USD_PER_1000_RESULTS"
 ];
 
@@ -308,7 +306,6 @@ function writeWranglerConfig(path, resources, env) {
     CLOUDFLARE_AI_GATEWAY_ID: env.get("CLOUDFLARE_AI_GATEWAY_ID") || "default",
     OPENAI_MODEL: env.get("OPENAI_MODEL") || "gpt-4.1-mini",
     EMAIL_FROM: env.get("EMAIL_FROM") || "Distilled.news <noreply@example.com>",
-    APIFY_GOOGLE_NEWS_ACTOR_ID: env.get("APIFY_GOOGLE_NEWS_ACTOR_ID") || "groupoject/google-news-scraper",
     APIFY_X_ACTOR_ID: env.get("APIFY_X_ACTOR_ID") || "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest",
     APIFY_LINKEDIN_COMPANY_ACTOR_ID: env.get("APIFY_LINKEDIN_COMPANY_ACTOR_ID") || "harvestapi/linkedin-company-posts",
     APIFY_LINKEDIN_PROFILE_ACTOR_ID: env.get("APIFY_LINKEDIN_PROFILE_ACTOR_ID") || "harvestapi/linkedin-profile-posts"
