@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { hashPassword } from "./auth";
 import { publishDueBriefingEditions, publishManualBriefingEdition } from "./editions";
@@ -72,6 +72,12 @@ const publicTelegramHtml = `
       <a class="tgme_widget_message_date" href="https://t.me/LebUpdate/10"><time datetime="2026-06-15T18:16:37+00:00" class="time">18:16</time></a>
     </div></div>
   </main>`;
+
+const FIXTURE_NOW = new Date("2026-06-25T00:00:00.000Z");
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("worker app accounts", () => {
   it("sets up the first verified admin account and session", async () => {
@@ -1089,7 +1095,7 @@ describe("worker app accounts", () => {
       summarize: async () => "NO_POST"
     });
 
-    const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
+    const feedItems = await repo.listFeedItems(user.account.id, "personal", true, FIXTURE_NOW);
     expect(feedItems).toHaveLength(0);
   });
 
@@ -1132,7 +1138,7 @@ describe("worker app accounts", () => {
 
     const jobs = await repo.listProcessingJobs({ briefingId: briefing!.id, states: ["completed"] });
     expect(jobs).toHaveLength(1);
-    const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
+    const feedItems = await repo.listFeedItems(user.account.id, "personal", true, FIXTURE_NOW);
     expect(feedItems).toHaveLength(1);
     expect(feedItems[0].summary).toContain("Electricite du Liban");
   });
@@ -1184,7 +1190,7 @@ describe("worker app accounts", () => {
       summarize: async () => "وزير الخارجية الإسرائيلي: قطع جميع الاتصالات مع مسؤولة السياسة الخارجية في الاتحاد الأوروبي"
     });
 
-    const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
+    const feedItems = await repo.listFeedItems(user.account.id, "personal", true, FIXTURE_NOW);
     expect(feedItems).toHaveLength(1);
     expect(feedItems[0].evidence.map((entry) => entry.messageId)).toEqual([
       persistedFirst.id,
@@ -1252,7 +1258,7 @@ describe("worker app accounts", () => {
 
     await processQueueMessage(repo, { jobId, briefingId: briefing!.id, rawMessageId: persisted.id }, new Date("2026-06-18T08:06:00.000Z"), null, reviewAdapter);
 
-    const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
+    const feedItems = await repo.listFeedItems(user.account.id, "personal", true, FIXTURE_NOW);
     expect(feedItems).toHaveLength(expectedCount);
   });
 
@@ -1927,7 +1933,7 @@ describe("worker app accounts", () => {
     };
 
     await repo.saveBriefingItems(briefing!.id, [first, second]);
-    const feedItems = await repo.listFeedItems(user.account.id, "personal", true);
+    const feedItems = await repo.listFeedItems(user.account.id, "personal", true, FIXTURE_NOW);
     expect(feedItems).toHaveLength(1);
     expect(feedItems[0].evidence).toHaveLength(1);
   });
@@ -2077,6 +2083,9 @@ describe("worker app accounts", () => {
   });
 
   it("fails closed for retention cleanup and deletes expired R2 archives when authorized", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(FIXTURE_NOW);
+
     const repo = new InMemoryRepository();
     const bucket = new FakeBucket();
     const app = createApp({ repository: repo, bucket, queue: new FakeQueue() });
@@ -2123,6 +2132,9 @@ describe("worker app accounts", () => {
   });
 
   it("keeps shared R2 archives while any referencing raw message is still active", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(FIXTURE_NOW);
+
     const repo = new InMemoryRepository();
     const bucket = new FakeBucket();
     const app = createApp({ repository: repo, bucket, queue: new FakeQueue() });
