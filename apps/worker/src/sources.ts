@@ -588,6 +588,10 @@ async function persistMessages(input: SourceRefreshInput & {
   let skipped = 0;
 
   for (const message of input.messages) {
+    if (new Date(message.expiresAt).getTime() <= input.now.getTime()) {
+      skipped += 1;
+      continue;
+    }
     const source = await input.repo.upsertSourceFromMessage(input.briefing.id, message);
     const persistedMessage = {
       ...message,

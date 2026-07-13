@@ -503,7 +503,8 @@ export function createApp(options: AppOptions = {}) {
           bucket: bucketFor(c),
           queue: queueFor(c),
           env: c.env,
-          fetcher
+          fetcher,
+          now: nowFor()
         });
       } catch (error) {
         return c.json({ error: error instanceof Error ? error.message : "Could not add source" }, 400);
