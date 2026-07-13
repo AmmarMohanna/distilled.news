@@ -13,6 +13,9 @@
     "test:e2e": "playwright test",
     "deploy": "pnpm --filter @distilled/worker run deploy",
     "db:migrate": "pnpm --filter @distilled/worker db:migrate",
+    "canary:seed": "wrangler d1 execute lownoise --config apps/worker/wrangler.toml --remote --file scripts/synthetic/seed.sql",
+    "canary:audit": "wrangler d1 execute lownoise --config apps/worker/wrangler.toml --remote --file scripts/synthetic/audit.sql",
+    "canary:remove": "wrangler d1 execute lownoise --config apps/worker/wrangler.toml --remote --file scripts/synthetic/remove.sql",
     "setup": "node scripts/setup.mjs"
   },
   "devDependencies": {
