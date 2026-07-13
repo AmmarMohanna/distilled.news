@@ -59,7 +59,7 @@ function parseRssLikeFeed(xml: string, options: RssParseOptions, googleNews: boo
 
   const receivedAt = options.receivedAt ?? new Date();
   const retentionDays = options.retentionDays ?? 15;
-  const feedTitle = text(channel.title ?? feed.title) || options.sourceTitle;
+  const feedTitle = htmlToText(text(channel.title ?? feed.title)) || options.sourceTitle;
   const source: MessageSource = {
     id: options.sourceId,
     title: feedTitle,
@@ -135,7 +135,9 @@ function resolveUrl(value: string | undefined, base: string): string | undefined
   try { const url = new URL(value, base); return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : undefined; } catch { return undefined; }
 }
 function parseDate(value: string): string | undefined { const timestamp = Date.parse(value); return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined; }
-function htmlToText(value: string): string { return value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
+function htmlToText(value: string): string {
+  return value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16))).replace(/&#(\d+);/g, (_, decimal: string) => String.fromCodePoint(Number.parseInt(decimal, 10))).replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/\s+/g, " ").trim();
+}
 function stripGoogleNewsSourceFromTitle(title: string, sourceTitle: string): string { const suffix = ` - ${sourceTitle}`; return sourceTitle && title.endsWith(suffix) ? title.slice(0, -suffix.length).trim() : title; }
 function normalizeRegion(value: string | undefined): string { return /^[A-Za-z]{2}$/.test(value ?? "") ? value!.toUpperCase() : "US"; }
 function normalizeLanguage(value: string | undefined): string { const language = value?.match(/^[A-Za-z]{2}/)?.[0]; return language ? language.toLowerCase() : "en"; }
