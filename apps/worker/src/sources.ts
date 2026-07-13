@@ -35,6 +35,9 @@ const GOOGLE_NEWS_APIFY_FALLBACK_BRIEFING_DAILY_COST_LIMIT_USD = 0.40;
 const PROCESSING_BACKLOG_REFRESH_PAUSE_LIMIT = 500;
 const X_MAX_ITEMS = 20;
 const X_PRICE_PER_1000_TWEETS_USD = 0.18;
+const RSS_FETCH_TIMEOUT_MS = 10_000;
+const RSS_MAX_RESPONSE_BYTES = 2_000_000;
+const RSS_MAX_REDIRECTS = 3;
 
 export type SourceIngestResult = PublicTelegramIngestResult & {
   provider?: SourceRecord["provider"];
@@ -214,9 +217,16 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
   const url = isGoogleNews ? googleNewsSourceUrl(input.source) : input.source.sourceUrl ?? input.source.url;
   if (!url) throw new Error(isGoogleNews ? "Google News RSS source URL is missing." : "RSS source URL is missing.");
 
-  const response = await fetcher(url, {
-    headers: rssRequestHeaders(isGoogleNews)
-  });
+  const cursor = sourceFetchCursor(input.source.cursor);
+  const headers = new Headers(rssRequestHeaders(isGoogleNews));
+  if (cursor.etag) headers.set("if-none-match", cursor.etag);
+  if (cursor.lastModified) headers.set("if-modified-since", cursor.lastModified);
+  const response = await fetchRssResponse(fetcher, url, headers);
+  if (response.status === 304) {
+    await input.repo.updateSourceState({ sourceId: input.source.id, lastCheckedAt: now.toISOString(), lastError: nullError() }, now);
+    await markSourceFetch(input.repo, input.briefing.id, now);
+    return { sourceId: input.source.id, title: input.source.title, url, fetched: 0, imported: 0, queued: 0, skipped: 0, provider: "rss", kind: isGoogleNews ? "google_news" : "rss_feed" };
+  }
   if (!response.ok) {
     const message = `Could not fetch ${isGoogleNews ? "Google News RSS" : "RSS"} source: ${response.status}`;
     if (isGoogleNews && isRetryableGoogleNewsStatus(response.status)) {
@@ -226,7 +236,19 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
     throw new Error(message);
   }
 
-  const xml = await response.text();
+  const xml = await readBoundedText(response, RSS_MAX_RESPONSE_BYTES);
+  if (looksLikeHtml(xml)) throw new Error(`Could not parse ${isGoogleNews ? "Google News RSS" : "RSS"} source: upstream returned HTML instead of a feed`);
+  const payloadHash = await sha256(xml);
+  if (cursor.payloadHash === payloadHash) {
+    await input.repo.updateSourceState({
+      sourceId: input.source.id,
+      lastCheckedAt: now.toISOString(),
+      lastError: nullError(),
+      cursor: { ...cursor, etag: response.headers.get("etag") ?? cursor.etag, lastModified: response.headers.get("last-modified") ?? cursor.lastModified, payloadHash }
+    }, now);
+    await markSourceFetch(input.repo, input.briefing.id, now);
+    return { sourceId: input.source.id, title: input.source.title, url, fetched: 0, imported: 0, queued: 0, skipped: 0, provider: "rss", kind: isGoogleNews ? "google_news" : "rss_feed" };
+  }
   const rawPayloadKey = `${isGoogleNews ? "google-news" : "rss"}/${input.briefing.id}/${input.source.id}/${now.getTime()}.xml`;
   await input.bucket.put(rawPayloadKey, xml, {
     httpMetadata: { contentType: "application/rss+xml; charset=utf-8" }
@@ -249,7 +271,12 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
     lastCheckedAt: now.toISOString(),
     lastError: nullError(),
     lastSeenAt: messages[0]?.receivedAt ?? now.toISOString(),
-    sourceUrl: url
+    sourceUrl: response.url || url,
+    cursor: {
+      etag: response.headers.get("etag") ?? undefined,
+      lastModified: response.headers.get("last-modified") ?? undefined,
+      payloadHash
+    }
   }, now);
 
   return {
@@ -261,6 +288,65 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
     kind: isGoogleNews ? "google_news" : "rss_feed"
   };
 }
+
+async function fetchRssResponse(fetcher: typeof fetch, initialUrl: string, headers: Headers): Promise<Response> {
+  let current = assertSafePublicUrl(initialUrl);
+  for (let redirect = 0; redirect <= RSS_MAX_REDIRECTS; redirect += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), RSS_FETCH_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetcher(current, { headers, redirect: "manual", signal: controller.signal });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") throw new Error(`Timed out fetching RSS source after ${RSS_FETCH_TIMEOUT_MS / 1000} seconds`);
+      throw error;
+    } finally { clearTimeout(timeout); }
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+    const location = response.headers.get("location");
+    if (!location) throw new Error("RSS source redirected without a location");
+    if (redirect >= RSS_MAX_REDIRECTS) throw new Error("RSS source redirected too many times");
+    current = assertSafePublicUrl(new URL(location, current).toString());
+  }
+  throw new Error("RSS source redirected too many times");
+}
+
+function assertSafePublicUrl(value: string): string {
+  const url = new URL(value);
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("RSS source must use HTTP or HTTPS");
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host === "::1" || host === "0.0.0.0" || host.startsWith("127.") || host.startsWith("169.254.") || host.startsWith("10.") || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^fc|^fd|^fe80:/i.test(host)) {
+    throw new Error("RSS source resolves to a private or local address");
+  }
+  url.username = "";
+  url.password = "";
+  return url.toString();
+}
+
+async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (declared > maxBytes) throw new Error(`RSS source response exceeds ${Math.floor(maxBytes / 1_000_000)} MB`);
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) { await reader.cancel(); throw new Error(`RSS source response exceeds ${Math.floor(maxBytes / 1_000_000)} MB`); }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder().decode(bytes);
+}
+
+function sourceFetchCursor(value: unknown): { etag?: string; lastModified?: string; payloadHash?: string } {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as { etag?: string; lastModified?: string; payloadHash?: string } : {};
+}
+function looksLikeHtml(value: string): boolean { return /^\s*(?:<!doctype\s+html|<html\b)/i.test(value); }
+async function sha256(value: string): Promise<string> { const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)); return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join(""); }
 
 async function startCappedApifySourceRun(input: SourceRefreshInput & {
   source: SourceRecord;

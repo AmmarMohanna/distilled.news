@@ -34,8 +34,9 @@ import { publishManualBriefingEdition } from "./editions";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./mailer";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
-import { addSourceFromInput, refreshEnabledSources } from "./sources";
-import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
+import { addSourceFromInput, enqueueDueSourceRefreshJobs } from "./sources";
+import { suggestSources } from "./sourceSuggestions";
+import type { AccountRecord, AccountRole, DistilledQueueMessage, Env, ProcessingJobMessage, Repository } from "./types";
 
 type Variables = {
   repo: Repository;
@@ -51,7 +52,7 @@ export interface AppOptions {
     put(key: string, value: string, options?: unknown): Promise<unknown>;
     delete(key: string): Promise<unknown>;
   };
-  queue?: { send(message: ProcessingJobMessage): Promise<unknown> };
+  queue?: { send(message: DistilledQueueMessage): Promise<unknown> };
   fetcher?: typeof fetch;
   now?: () => Date;
 }
@@ -75,6 +76,11 @@ const tokenInputSchema = z.object({
 });
 
 const passwordResetRequestSchema = z.object({
+  email: z.string().email(),
+  turnstileToken: z.string().optional()
+});
+
+const verificationResendSchema = z.object({
   email: z.string().email(),
   turnstileToken: z.string().optional()
 });
@@ -146,6 +152,12 @@ const sourceInputSchema = z.union([
   })
 ]);
 
+const sourceSuggestionSchema = z.object({
+  briefingId: z.string().min(1),
+  interestProfile: z.string().min(3).max(1000),
+  language: z.enum(["en", "ar", "fr"])
+});
+
 const healthInputSchema = z.object({
   briefingId: z.string().min(1).optional()
 });
@@ -192,6 +204,10 @@ export function createApp(options: AppOptions = {}) {
   app.onError((error, c) => {
     if (error instanceof z.ZodError) {
       return c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
+    }
+    if (error instanceof RateLimitError) {
+      c.header("retry-after", String(error.retryAfterSeconds));
+      return c.json({ error: "too many attempts" }, 429);
     }
     console.error(error);
     return c.json({ error: "internal server error" }, 500);
@@ -258,7 +274,8 @@ export function createApp(options: AppOptions = {}) {
     const input = authInputSchema.parse(await c.req.json().catch(() => ({})));
     const email = normalizeEmail(input.email);
     await assertRateLimit(repo, `register:${email}`, "register", 5, 60 * 60 * 1000);
-    if (!(await verifyTurnstileIfConfigured(c, input.turnstileToken))) return c.json({ error: "verification failed" }, 400);
+    await assertRateLimit(repo, `register-ip:${clientIp(c)}`, "register", 20, 60 * 60 * 1000);
+    if (!(await verifyTurnstileIfConfigured(c, input.turnstileToken, fetcher))) return c.json({ error: "verification failed" }, 400);
 
     let account: AccountRecord;
     try {
@@ -296,12 +313,28 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ account: publicAccount(verified) });
   });
 
+  app.post("/api/auth/verification/resend", async (c) => {
+    const repo = repoFor(c);
+    const input = verificationResendSchema.parse(await c.req.json().catch(() => ({})));
+    const email = normalizeEmail(input.email);
+    await assertRateLimit(repo, `verify-resend:${email}`, "verification_resend", 3, 60 * 60 * 1000);
+    await assertRateLimit(repo, `verify-resend-ip:${clientIp(c)}`, "verification_resend", 15, 60 * 60 * 1000);
+    if (!(await verifyTurnstileIfConfigured(c, input.turnstileToken, fetcher))) return c.json({ ok: true });
+    const account = await repo.getAccountByEmail(email);
+    if (account && !account.emailVerifiedAt && !account.disabledAt) {
+      try { await sendVerificationToken(repo, c.env, account); }
+      catch (error) { logAuthEmailFailure("verification resend", account, c.env, error); }
+    }
+    return c.json({ ok: true });
+  });
+
   app.post("/api/auth/login", async (c) => {
     const repo = repoFor(c);
     const input = loginInputSchema.parse(await c.req.json().catch(() => ({})));
     const email = normalizeEmail(input.email);
     await assertRateLimit(repo, `login:${email}`, "login", 10, 15 * 60 * 1000);
-    if (!(await verifyTurnstileIfConfigured(c, input.turnstileToken))) return c.json({ error: "verification failed" }, 400);
+    await assertRateLimit(repo, `login-ip:${clientIp(c)}`, "login", 50, 15 * 60 * 1000);
+    if (!(await verifyTurnstileIfConfigured(c, input.turnstileToken, fetcher))) return c.json({ error: "verification failed" }, 400);
     if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
 
     const account = await repo.getAccountByEmail(email);
@@ -323,7 +356,8 @@ export function createApp(options: AppOptions = {}) {
     const input = passwordResetRequestSchema.parse(await c.req.json().catch(() => ({})));
     const email = normalizeEmail(input.email);
     await assertRateLimit(repo, `forgot:${email}`, "password_reset_request", 5, 60 * 60 * 1000);
-    if (!(await verifyTurnstileIfConfigured(c, input.turnstileToken))) return c.json({ ok: true });
+    await assertRateLimit(repo, `forgot-ip:${clientIp(c)}`, "password_reset_request", 20, 60 * 60 * 1000);
+    if (!(await verifyTurnstileIfConfigured(c, input.turnstileToken, fetcher))) return c.json({ ok: true });
     const account = await repo.getAccountByEmail(email);
     if (account && account.emailVerifiedAt && !account.disabledAt) {
       try {
@@ -436,6 +470,21 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ sources: await repo.listSources(briefing.id) });
   });
 
+  app.post("/api/me/source-suggestions", async (c) => {
+    const repo = c.get("repo");
+    const input = sourceSuggestionSchema.parse(await c.req.json().catch(() => ({})));
+    const briefing = await getOwnedBriefing(repo, c.get("account")!, input.briefingId);
+    if (!briefing) return c.json({ error: "briefing not found" }, 404);
+    return c.json(await suggestSources({
+      briefing,
+      interestProfile: input.interestProfile,
+      language: input.language,
+      existingSources: await repo.listSources(briefing.id),
+      env: c.env,
+      fetcher
+    }));
+  });
+
   app.post("/api/me/sources", async (c) => {
     const repo = c.get("repo");
     const parsed = sourceInputSchema.safeParse(await c.req.json().catch(() => ({})));
@@ -481,20 +530,19 @@ export function createApp(options: AppOptions = {}) {
     if (!parsed.success) return c.json({ error: "briefing not found" }, 400);
     const briefing = await getOwnedBriefing(repo, c.get("account")!, parsed.data.briefingId);
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
-    const results = await refreshEnabledSources({
+    const queued = await enqueueDueSourceRefreshJobs({
       briefing,
       repo,
-      bucket: bucketFor(c),
       queue: queueFor(c),
-      env: c.env,
-      fetcher,
       force: true
     });
     return c.json({
+      refreshId: `refresh_${crypto.randomUUID()}`,
+      queued,
+      status: "queued",
       sources: await repo.listSources(briefing.id),
-      results,
       health: await repo.getHealth(briefing.id)
-    });
+    }, 202);
   });
 
   app.delete("/api/me/sources/:sourceId", async (c) => {
@@ -886,9 +934,15 @@ async function assertRateLimit(
 ): Promise<void> {
   const since = new Date(Date.now() - windowMs).toISOString();
   if ((await repo.countRecentAuthAttempts({ key, action, since })) >= limit) {
-    throw new Error("too many attempts");
+    throw new RateLimitError(Math.ceil(windowMs / 1000));
   }
   await repo.recordAuthAttempt({ key, action });
+}
+
+class RateLimitError extends Error {
+  constructor(readonly retryAfterSeconds: number) {
+    super("too many attempts");
+  }
 }
 
 async function manualSummaryRateLimitKey(
@@ -903,7 +957,8 @@ async function manualSummaryRateLimitKey(
 
 async function verifyTurnstileIfConfigured(
   c: Context<{ Bindings: Env; Variables: Variables }>,
-  token: string | undefined
+  token: string | undefined,
+  fetcher: typeof fetch = fetch
 ): Promise<boolean> {
   if (!c.env.TURNSTILE_SECRET_KEY) return true;
   if (!token) return false;
@@ -911,12 +966,19 @@ async function verifyTurnstileIfConfigured(
   body.set("secret", c.env.TURNSTILE_SECRET_KEY);
   body.set("response", token);
   body.set("remoteip", c.req.header("cf-connecting-ip") ?? "");
-  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST",
-    body
-  });
-  const payload = (await response.json()) as { success?: boolean };
-  return Boolean(payload.success);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetcher("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body, signal: controller.signal });
+    if (!response.ok) return false;
+    const payload = (await response.json()) as { success?: boolean };
+    return Boolean(payload.success);
+  } catch { return false; }
+  finally { clearTimeout(timeout); }
+}
+
+function clientIp(c: Context<{ Bindings: Env; Variables: Variables }>): string {
+  return c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 }
 
 async function getOwnedBriefing(

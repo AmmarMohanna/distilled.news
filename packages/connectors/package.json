@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@distilled/core": "workspace:*"
+    "@distilled/core": "workspace:*",
+    "fast-xml-parser": "^5.10.0"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

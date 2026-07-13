@@ -79,4 +79,19 @@ describe("parseRssFeed", () => {
       "https://news.google.com/rss/search?q=lebanon+power&hl=en-US&gl=US&ceid=US%3Aen"
     );
   });
+
+  it("parses Atom namespaces, relative links, CDATA, media, and missing dates", () => {
+    const messages = parseRssFeed(`<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+      <title>أخبار العلوم</title><entry><id>story-1</id><title><![CDATA[اكتشاف جديد]]></title>
+      <link rel="alternate" href="/story/1"/><summary><![CDATA[<b>تفاصيل</b> مهمة]]></summary><media:thumbnail url="/image.jpg"/></entry></feed>`, {
+      sourceId: "science", sourceTitle: "Science", sourceUrl: "https://example.com/feed.atom", receivedAt: new Date("2026-07-13T00:00:00Z")
+    });
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ postedAt: "2026-07-13T00:00:00.000Z", sourceUrl: "https://example.com/story/1", text: "اكتشاف جديد. تفاصيل مهمة" });
+    expect(messages[0].media[0]?.url).toBe("https://example.com/image.jpg");
+  });
+
+  it("rejects non-feed documents instead of reporting an empty healthy fetch", () => {
+    expect(() => parseRssFeed("<html><body>challenge</body></html>", { sourceId: "x", sourceTitle: "X", sourceUrl: "https://example.com/rss" })).toThrow(/not an RSS or Atom feed/);
+  });
 });

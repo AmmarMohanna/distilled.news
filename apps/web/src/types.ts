@@ -46,6 +46,22 @@ export interface HealthStatus {
   };
 }
 
+export interface SourceSuggestion {
+  id: string;
+  title: string;
+  description: string;
+  provider: "rss";
+  kind: "rss_feed" | "google_news";
+  input: string;
+  homepageUrl: string;
+  language: "en" | "ar" | "fr";
+  region: string;
+  reason: string;
+  origin: "curated" | "brave" | "google_news";
+  confidence: "high" | "medium";
+  alreadyAdded: boolean;
+}
+
 export interface SessionStatus {
   authenticated: boolean;
   setupRequired: boolean;

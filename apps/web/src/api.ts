@@ -1,5 +1,5 @@
 import type { BriefingConfig, BriefingEdition } from "@distilled/core";
-import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
+import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord, SourceSuggestion } from "./types";
 
 export interface SourceIngestResult {
   sourceId: string;
@@ -15,8 +15,19 @@ export interface SourceIngestResult {
 export interface SourceRefreshResult {
   sources: SourceRecord[];
   health: HealthStatus;
+  refreshId?: string;
+  status?: "queued";
+  queued?: number;
   results?: SourceIngestResult[];
   result?: SourceIngestResult;
+}
+
+export async function getSourceSuggestions(input: {
+  briefingId: string;
+  interestProfile: string;
+  language: "en" | "ar" | "fr";
+}): Promise<{ suggestions: SourceSuggestion[]; degraded: boolean }> {
+  return requestJson("/api/me/source-suggestions", { method: "POST", body: JSON.stringify(input) });
 }
 
 export interface RetryProcessingResult {

@@ -65,6 +65,7 @@ See `.env.example` for descriptions.
 - `CLOUDFLARE_AI_GATEWAY_ID`
 - `OPENAI_API_KEY`
 - `APIFY_API_TOKEN` if using `x:`, `linkedin:`, `apify:` sources, or the optional Google News fallback
+- `BRAVE_SEARCH_API_KEY` for fresh interest-based source suggestions; the trusted built-in catalog works without it
 - `ADMIN_SESSION_SECRET`
 - `ADMIN_SETUP_TOKEN`
 - `EMAIL_FROM`
@@ -82,6 +83,7 @@ destination addresses in the Cloudflare account.
 3. Open the admin page.
 4. Use `ADMIN_SETUP_TOKEN` once to create the first verified admin account.
 5. Add sources such as `t: LebUpdate`, `rss: https://example.com/feed.xml`, `news: Lebanon Electricity`, or `x: NASA`.
+   The app can also suggest trusted and recent sources from the feed's interest profile.
 6. Write the interest profile and save.
 7. Use `fetch latest` once to validate ingestion.
 8. Share the username-scoped public feed URL when ready.
