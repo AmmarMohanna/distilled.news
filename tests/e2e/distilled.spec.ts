@@ -137,7 +137,7 @@ const firstRunBriefing = {
   styleInstruction: "Use calm, balanced wording."
 };
 
-test("public signup asks for email, username, and password", async ({ page }) => {
+test("homepage starts with an interest and carries it into signup", async ({ page }) => {
   await page.route("**/api/auth/session", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -153,10 +153,12 @@ test("public signup asks for email, username, and password", async ({ page }) =>
 
   await page.goto("/");
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe("light");
-  await expect(page.getByRole("link", { name: "create" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "explore" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "briefings" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Know what matters. Skip everything else." })).toBeVisible();
+  await expect(page.getByLabel("What do you want to follow?")).toBeVisible();
   await expect(page.getByRole("link", { name: /City Watch/ })).toHaveAttribute("href", "/city-user/city-watch/");
-  await page.getByRole("button", { name: "new account" }).click();
+  await page.getByLabel("What do you want to follow?").fill("AI research and regulation");
+  await page.getByRole("button", { name: "Create my briefing" }).click();
   await expect(page.getByRole("button", { name: /^create account$/ })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /^register$/ })).toHaveCount(0);
   await page.getByLabel("email").fill("ammar@example.com");
@@ -164,6 +166,7 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   await page.getByLabel("password").fill("password123");
   await page.getByRole("button", { name: /^create account$/ }).click();
   await expect(page.getByText(/verification email sent/i)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("dn_pending_interest"))).toBe("AI research and regulation");
 });
 
 test("email verification waits for an explicit user action", async ({ page }) => {
@@ -236,6 +239,10 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
 
   await expect(page.getByRole("link", { name: "Distilled.news" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Personal Briefing" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Digest" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Timeline" }).click();
+  await expect(page.getByRole("button", { name: "Timeline" })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("dn_reading_mode:ammar-mohanna:personal"))).toBe("timeline");
   await expect(page.locator(".page-heading .status-dot.live")).toBeVisible();
   await expect(page.getByText("waiting for the next accepted update.")).toBeVisible();
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveAttribute("title", "create a brief since the last one");
@@ -424,8 +431,8 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
 
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "create" })).toBeVisible();
-  await expect(page.getByText("define the feed and add sources.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "briefings" })).toBeVisible();
+  await expect(page.getByText("Manage your feeds and sources.")).toBeVisible();
   await expect(page.getByLabel("interest profile")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "account settings" })).toHaveAttribute("title", "account settings");
   await expect(page.getByRole("button", { name: "feed settings for Personal Briefing" })).toHaveAttribute("title", "feed settings");
