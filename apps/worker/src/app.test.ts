@@ -398,7 +398,7 @@ describe("worker app accounts", () => {
     const bucket = new FakeBucket();
     const queue = new FakeQueue();
     const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
-    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch, now: () => FIXTURE_NOW });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
 
     const briefingsResponse = await app.request("/api/me/briefings", { headers: { cookie: user.cookie } }, env());
@@ -1436,6 +1436,19 @@ describe("worker app accounts", () => {
     await expect(refreshSourceById({ briefing: briefing!, sourceId: source.id, repo, bucket: new FakeBucket(), queue: new FakeQueue(), fetcher: vi.fn() as unknown as typeof fetch, now: FIXTURE_NOW })).rejects.toThrow(/private or local address/);
   });
 
+  it("drops expired feed items before D1 and queue work", async () => {
+    const repo = new InMemoryRepository();
+    const queue = new FakeQueue();
+    const app = createApp({ repository: repo, bucket: new FakeBucket(), queue });
+    const user = await createVerifiedUser(app, repo, "stale-owner@test.com", "Stale Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    const source = await repo.upsertConfiguredSource({ briefingId: briefing!.id, title: "Old RSS", provider: "rss", kind: "rss_feed", sourceUrl: "https://example.com/old.xml", enabled: true }, FIXTURE_NOW);
+    const oldXml = `<rss><channel><title>Old</title><item><guid>old</guid><title>Very old story</title><pubDate>Wed, 1 Jan 2020 00:00:00 GMT</pubDate></item></channel></rss>`;
+    const result = await refreshSourceById({ briefing: briefing!, sourceId: source.id, repo, bucket: new FakeBucket(), queue, fetcher: (async () => new Response(oldXml)) as typeof fetch, now: FIXTURE_NOW });
+    expect(result).toMatchObject({ fetched: 1, imported: 0, queued: 0, skipped: 1 });
+    expect(queue.messages).toHaveLength(0);
+  });
+
   it("skips scheduled source refreshes while a feed has a large processing backlog", async () => {
     const repo = new InMemoryRepository();
     const queue = new FakeDistilledQueue();
@@ -1551,7 +1564,7 @@ describe("worker app accounts", () => {
       }
       return new Response("not found", { status: 404 });
     });
-    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch });
+    const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch, now: () => FIXTURE_NOW });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
     const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
     expect(briefing).not.toBeNull();
