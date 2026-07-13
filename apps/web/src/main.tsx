@@ -394,7 +394,17 @@ function AdminPage() {
   if (!session.authenticated) {
     return (
       <Shell title="Distilled.news">
-        <div className="auth-layout">
+        <section className="marketing-hero">
+          <span className="eyebrow">A calmer way to follow the news</span>
+          <h1>The news you care about, distilled into a briefing.</h1>
+          <p>Describe what matters. Choose trustworthy sources. Distilled removes repetition and gives you the updates worth your time.</p>
+          <div className="marketing-steps" aria-label="How Distilled works">
+            <span><b>1</b> Describe your interests</span>
+            <span><b>2</b> Pick suggested sources</span>
+            <span><b>3</b> Read one calm briefing</span>
+          </div>
+        </section>
+        <div className="auth-layout auth-layout-polished">
           <AuthPanel
             setupRequired={session.setupRequired}
             turnstileSiteKey={session.turnstileSiteKey}
