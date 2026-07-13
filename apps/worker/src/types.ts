@@ -69,6 +69,7 @@ export interface Env {
   PUBLIC_WEB_BASE_URL?: string;
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_SITE_KEY?: string;
+  BRAVE_SEARCH_API_KEY?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
   CLOUDFLARE_AI_GATEWAY_ID?: string;
   CLOUDFLARE_AI_GATEWAY_TOKEN?: string;

@@ -522,6 +522,13 @@ test("first-run setup sheet creates the first feed and source", async ({ page })
       })
     });
   });
+  await page.route("**/api/me/source-suggestions", async (route) => {
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ degraded: false, suggestions: [{
+      id: "beirut-local", title: "Beirut Local", description: "Local infrastructure reporting.", provider: "rss", kind: "rss_feed",
+      input: "rss: https://example.com/beirut.xml", homepageUrl: "https://example.com", language: "en", region: "LB",
+      reason: "Strong local coverage", origin: "curated", confidence: "high", alreadyAdded: false
+    }] }) });
+  });
   await page.route("**/api/me/sources**", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({ contentType: "application/json", body: JSON.stringify({ sources: [] }) });
@@ -566,15 +573,18 @@ test("first-run setup sheet creates the first feed and source", async ({ page })
 
   await page.goto("/");
 
-  await expect(page.getByRole("dialog", { name: "setup feed" })).toBeVisible();
-  await page.getByLabel("username").fill("Ammar News");
+  await expect(page.getByRole("dialog", { name: "create your feed" })).toBeVisible();
+  await page.getByLabel("interests").fill("Track Beirut infrastructure and public safety.");
+  await page.getByRole("button", { name: "Find sources" }).click();
+  await expect(page.getByText("Beirut Local")).toBeVisible();
+  await page.getByLabel("add another source").fill("https://t.me/LebUpdate");
+  await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("feed name").fill("City Watch");
-  await page.getByLabel("interest profile").fill("Track Beirut infrastructure and public safety.");
-  await page.getByLabel("first source").fill("https://t.me/LebUpdate");
-  await page.getByRole("button", { name: "finish setup" }).click();
+  await page.getByLabel("username").fill("Ammar News");
+  await page.getByRole("button", { name: "Create feed" }).click();
 
   await expect.poll(() => savedBriefing?.title).toBe("City Watch");
   expect(savedBriefing?.publicFeedEnabled).toBe(true);
   expect(sourceBody).toEqual({ briefingId: "briefing_default", input: "https://t.me/LebUpdate" });
-  await expect(page.getByRole("dialog", { name: "setup feed" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "create your feed" })).toHaveCount(0);
 });

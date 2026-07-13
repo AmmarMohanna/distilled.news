@@ -2601,3 +2601,32 @@ html[dir="rtl"] .news-copy {
     grid-template-columns: 38px minmax(0, 1fr);
   }
 }
+.source-discovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  margin: 10px 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent));
+}
+.source-discovery p { margin: 5px 0 0; }
+.suggest-button { white-space: nowrap; }
+.suggestion-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.suggestion-card { display: flex; flex-direction: column; gap: 10px; min-height: 190px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 4%); }
+.suggestion-card p { margin: 0; line-height: 1.45; }
+.suggestion-card small { color: var(--muted); }
+.suggestion-card > button { margin-top: auto; justify-content: center; }
+.suggestion-card-heading, .suggestion-card-heading > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+@media (max-width: 620px) { .source-discovery { align-items: stretch; flex-direction: column; } .suggest-button { justify-content: center; width: 100%; } }
+.onboarding-flow { gap: 18px; }
+.onboarding-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.onboarding-steps span { padding: 8px 10px; border-bottom: 2px solid var(--line); color: var(--muted); font-size: .82rem; text-align: center; }
+.onboarding-steps span.active { border-color: var(--accent); color: var(--text); }
+.onboarding-intro h3 { margin: 0 0 6px; font-size: 1.35rem; letter-spacing: -.02em; }
+.onboarding-intro p { margin: 0; }
+.suggestion-card.selectable { cursor: pointer; min-height: 160px; }
+.suggestion-card.selectable input { align-self: flex-end; }
+.suggestion-card.selectable.selected { border-color: var(--accent); background: color-mix(in srgb, var(--surface) 90%, var(--accent)); }

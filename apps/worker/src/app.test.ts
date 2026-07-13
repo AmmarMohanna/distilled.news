@@ -80,6 +80,25 @@ afterEach(() => {
 });
 
 describe("worker app accounts", () => {
+  it("suggests sources for an owned feed and queues manual refresh asynchronously", async () => {
+    const repo = new InMemoryRepository();
+    const queue = new FakeDistilledQueue();
+    const app = createApp({ repository: repo, queue });
+    const setup = await app.request("/api/auth/setup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "owner@example.com", username: "owner", password: "password123", setupToken: "setup-token" }) }, env());
+    const cookie = setup.headers.get("set-cookie")?.split(";")[0] ?? "";
+    const account = await repo.getAccountByEmail("owner@example.com");
+    const briefing = (await repo.listBriefings(account!.id))[0];
+    const suggestions = await app.request("/api/me/source-suggestions", { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ briefingId: briefing.id, interestProfile: "Lebanon economy and energy", language: "en" }) }, env());
+    expect(suggestions.status).toBe(200);
+    expect(await suggestions.json()).toMatchObject({ degraded: false, suggestions: expect.arrayContaining([expect.objectContaining({ region: "MENA" })]) });
+
+    await repo.upsertConfiguredSource({ briefingId: briefing.id, title: "Example", provider: "rss", kind: "rss_feed", input: "rss: https://example.com/rss.xml", sourceUrl: "https://example.com/rss.xml", enabled: true }, FIXTURE_NOW);
+    const refresh = await app.request("/api/me/sources/refresh", { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ briefingId: briefing.id }) }, env());
+    expect(refresh.status).toBe(202);
+    expect(await refresh.json()).toMatchObject({ queued: 1, status: "queued", refreshId: expect.stringMatching(/^refresh_/) });
+    expect(queue.messages).toEqual([expect.objectContaining({ type: "refresh_source", briefingId: briefing.id })]);
+  });
+
   it("sets up the first verified admin account and session", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
@@ -1379,6 +1398,42 @@ describe("worker app accounts", () => {
       { type: "refresh_source", briefingId: briefing!.id, sourceId: source.id, force: undefined }
     ]);
     expect(leased?.lastCheckedAt).toBe("2026-06-18T08:05:00.000Z");
+  });
+
+  it("uses RSS validators and avoids duplicate archives and jobs for unchanged feeds", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const app = createApp({ repository: repo, bucket, queue });
+    const user = await createVerifiedUser(app, repo, "rss-owner@test.com", "RSS Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    const source = await repo.upsertConfiguredSource({ briefingId: briefing!.id, title: "Example RSS", provider: "rss", kind: "rss_feed", sourceUrl: "https://example.com/feed.xml", enabled: true }, FIXTURE_NOW);
+    const xml = `<rss><channel><title>Example</title><item><guid>one</guid><title>One concrete update</title><pubDate>Wed, 25 Jun 2026 00:00:00 GMT</pubDate><link>https://example.com/one</link></item></channel></rss>`;
+    let calls = 0;
+    const fetcher = async (_url: string | URL | Request, init?: RequestInit) => {
+      calls += 1;
+      const headers = new Headers(init?.headers);
+      if (calls === 2) {
+        expect(headers.get("if-none-match")).toBe('"v1"');
+        return new Response(null, { status: 304 });
+      }
+      return new Response(xml, { headers: { "content-type": "application/rss+xml", etag: '"v1"' } });
+    };
+    const first = await refreshSourceById({ briefing: briefing!, sourceId: source.id, repo, bucket, queue, fetcher: fetcher as typeof fetch, now: FIXTURE_NOW });
+    const second = await refreshSourceById({ briefing: briefing!, sourceId: source.id, repo, bucket, queue, fetcher: fetcher as typeof fetch, now: new Date(FIXTURE_NOW.getTime() + 300_000) });
+    expect(first).toMatchObject({ imported: 1, queued: 1 });
+    expect(second).toMatchObject({ imported: 0, queued: 0 });
+    expect(bucket.objects.size).toBe(1);
+    expect(queue.messages).toHaveLength(1);
+  });
+
+  it("blocks RSS requests to local and private destinations", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo, bucket: new FakeBucket(), queue: new FakeQueue() });
+    const user = await createVerifiedUser(app, repo, "safe-owner@test.com", "Safe Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    const source = await repo.upsertConfiguredSource({ briefingId: briefing!.id, title: "Unsafe", provider: "rss", kind: "rss_feed", sourceUrl: "http://127.0.0.1/feed.xml", enabled: true }, FIXTURE_NOW);
+    await expect(refreshSourceById({ briefing: briefing!, sourceId: source.id, repo, bucket: new FakeBucket(), queue: new FakeQueue(), fetcher: vi.fn() as unknown as typeof fetch, now: FIXTURE_NOW })).rejects.toThrow(/private or local address/);
   });
 
   it("skips scheduled source refreshes while a feed has a large processing backlog", async () => {

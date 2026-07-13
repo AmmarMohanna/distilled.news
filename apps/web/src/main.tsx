@@ -53,6 +53,7 @@ import {
   getFeedEdition,
   getHealth,
   getSession,
+  getSourceSuggestions,
   getSources,
   listAdminBriefings,
   listAccounts,
@@ -76,7 +77,7 @@ import {
   type SourceRefreshResult
 } from "./api";
 import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify } from "./helpers";
-import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
+import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord, SourceSuggestion } from "./types";
 import "./styles.css";
 
 const FEED_BATCH_SIZE = 20;
@@ -138,6 +139,8 @@ function AdminPage() {
   const [sourceStatus, setSourceStatus] = useState("");
   const [sourceToggleBusyId, setSourceToggleBusyId] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
+  const [sourceSuggestions, setSourceSuggestions] = useState<SourceSuggestion[]>([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [error, setError] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
@@ -322,7 +325,7 @@ function AdminPage() {
     username: string;
     title: string;
     interestProfile: string;
-    sourceUrl: string;
+    sourceInputs: string[];
   }) {
     if (!account || !briefing) return;
     setError("");
@@ -353,11 +356,16 @@ function AdminPage() {
         "setup saved",
         "setup-feed"
       );
-      if (input.sourceUrl.trim()) {
-        setSourceStatus("checking the source and saving matching posts");
-        const response = await addSource(saved.id, input.sourceUrl);
-        applySourceResponse(response);
-        void pollHealthUntilSettled(saved.id, response.health);
+      if (input.sourceInputs.length > 0) {
+        setSourceStatus(`Adding ${input.sourceInputs.length} selected source(s)`);
+        for (const sourceInput of input.sourceInputs) {
+          try {
+            const response = await addSource(saved.id, sourceInput);
+            applySourceResponse(response);
+          } catch (cause) {
+            setError(`Feed created, but one source could not be added: ${cause instanceof Error ? cause.message : String(cause)}`);
+          }
+        }
       }
       await dismissOnboarding();
       if (nextAccount.role === "admin") setAccounts(await listAccounts());
@@ -545,6 +553,68 @@ function AdminPage() {
                 </button>
               </div>
             </div>
+            <div className="source-discovery">
+              <div>
+                <strong>Find the right sources</strong>
+                <p className="muted">Suggestions are based on this feed’s interests. You choose what gets added.</p>
+              </div>
+              <button
+                type="button"
+                className="suggest-button"
+                disabled={busyAction === "suggest-sources" || !briefing.interestProfile.trim()}
+                onClick={async () => {
+                  setError("");
+                  setBusyAction("suggest-sources");
+                  try {
+                    const result = await getSourceSuggestions({ briefingId: briefing.id, interestProfile: briefing.interestProfile, language: briefing.language });
+                    setSourceSuggestions(result.suggestions);
+                    setSuggestionsOpen(true);
+                    setSourceStatus(result.degraded ? "Showing trusted suggestions; live discovery is temporarily unavailable." : "Suggestions ready");
+                  } catch (cause) {
+                    setError(cause instanceof Error ? cause.message : String(cause));
+                  } finally {
+                    setBusyAction(null);
+                  }
+                }}
+              >
+                <Sparkles size={15} aria-hidden /> {busyAction === "suggest-sources" ? "Finding…" : "Suggest sources"}
+              </button>
+            </div>
+            {suggestionsOpen ? (
+              <div className="suggestion-grid" aria-label="suggested sources">
+                {sourceSuggestions.map((suggestion) => (
+                  <article key={suggestion.id} className="suggestion-card">
+                    <div className="suggestion-card-heading">
+                      <div>
+                        <strong><bdi>{suggestion.title}</bdi></strong>
+                        <span className="pill">{suggestion.origin === "curated" ? "trusted" : suggestion.origin === "brave" ? "recent" : "broad"}</span>
+                      </div>
+                      <a href={suggestion.homepageUrl} target="_blank" rel="noreferrer" aria-label={`Open ${suggestion.title}`}><ExternalLink size={14} /></a>
+                    </div>
+                    <p>{suggestion.description}</p>
+                    <small>{suggestion.reason}</small>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={suggestion.alreadyAdded || busyAction === `suggestion-${suggestion.id}`}
+                      onClick={async () => {
+                        setBusyAction(`suggestion-${suggestion.id}`);
+                        try {
+                          const response = await addSource(briefing.id, suggestion.input);
+                          applySourceResponse(response);
+                          setSourceSuggestions((current) => current.map((item) => item.id === suggestion.id ? { ...item, alreadyAdded: true } : item));
+                          setStatus(`${suggestion.title} added`);
+                        } catch (cause) {
+                          setError(cause instanceof Error ? cause.message : String(cause));
+                        } finally { setBusyAction(null); }
+                      }}
+                    >
+                      {suggestion.alreadyAdded ? <><CircleCheck size={14} /> Added</> : <><Plus size={14} /> Add</>}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : null}
             <div className="source-add">
               <label>
                 source
@@ -1317,12 +1387,16 @@ function FirstRunSetupSheet(props: {
   briefing: BriefingConfig;
   busy: boolean;
   onClose: () => void;
-  onComplete: (input: { username: string; title: string; interestProfile: string; sourceUrl: string }) => Promise<void>;
+  onComplete: (input: { username: string; title: string; interestProfile: string; sourceInputs: string[] }) => Promise<void>;
 }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [username, setUsername] = useState(props.account.username);
   const [title, setTitle] = useState(props.briefing.title);
   const [interestProfile, setInterestProfile] = useState(props.briefing.interestProfile);
   const [sourceUrl, setSourceUrl] = useState("");
+  const [suggestions, setSuggestions] = useState<SourceSuggestion[]>([]);
+  const [selectedInputs, setSelectedInputs] = useState<string[]>([]);
+  const [finding, setFinding] = useState(false);
   const [error, setError] = useState("");
   const usernameRef = useRef<HTMLInputElement | null>(null);
 
@@ -1331,62 +1405,44 @@ function FirstRunSetupSheet(props: {
   }, []);
 
   return (
-    <Sheet title="setup feed" closeLabel="skip feed setup" icon={<Globe size={16} aria-hidden />} onClose={props.onClose} wide>
+    <Sheet title="create your feed" closeLabel="skip feed setup" icon={<Sparkles size={16} aria-hidden />} onClose={props.onClose} wide>
       <form
-        className="settings-grid"
+        className="settings-grid onboarding-flow"
         onSubmit={async (event) => {
           event.preventDefault();
           setError("");
           try {
-            await props.onComplete({ username, title, interestProfile, sourceUrl });
+            await props.onComplete({ username, title, interestProfile, sourceInputs: [...selectedInputs, ...(sourceUrl.trim() ? [sourceUrl.trim()] : [])] });
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : String(cause));
           }
         }}
       >
-        <label>
-          username
-          <input ref={usernameRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
-        </label>
-        <label>
-          feed name
-          <input dir="ltr" required value={title} onChange={(event) => setTitle(event.target.value)} />
-        </label>
-        <label>
-          interest profile
-          <textarea
-            dir="ltr"
-            required
-            rows={6}
-            value={interestProfile}
-            onChange={(event) => setInterestProfile(event.target.value)}
-          />
-        </label>
-        <label>
-          first source
-          <input
-            dir="ltr"
-            value={sourceUrl}
-            onChange={(event) => setSourceUrl(event.target.value)}
-            placeholder="https://t.me/LebUpdate, https://x.com/NASA, or Beirut power"
-          />
-        </label>
-        <div className="source-examples" aria-label="source examples">
-          {sourceInputExamples.map((example) => (
-            <button
-              key={example.label}
-              type="button"
-              title={example.value}
-              onClick={() => setSourceUrl(example.value)}
-            >
-              {example.label}
-            </button>
-          ))}
-        </div>
+        <div className="onboarding-steps" aria-label="setup progress"><span className={step >= 1 ? "active" : ""}>1 Interests</span><span className={step >= 2 ? "active" : ""}>2 Sources</span><span className={step >= 3 ? "active" : ""}>3 Publish</span></div>
+        {step === 1 ? <>
+          <div className="onboarding-intro"><h3>What do you want to stay informed about?</h3><p className="muted">Be specific. Distilled will use this to find sources and filter out noise.</p></div>
+          <label>interests<textarea autoFocus dir="auto" required rows={7} value={interestProfile} onChange={(event) => setInterestProfile(event.target.value)} placeholder="Lebanese economy, energy, public policy, and decisions that affect daily life" /></label>
+          <div className="source-examples"><button type="button" onClick={() => setInterestProfile("Lebanese economy, energy, public policy, and infrastructure")}>Lebanon</button><button type="button" onClick={() => setInterestProfile("Artificial intelligence research, model releases, safety, and regulation")}>AI</button><button type="button" onClick={() => setInterestProfile("Climate science, clean energy, and major environmental policy")}>Climate</button></div>
+        </> : null}
+        {step === 2 ? <>
+          <div className="onboarding-intro"><h3>Choose your coverage</h3><p className="muted">We found sources for your interests. Add as many or as few as you like.</p></div>
+          {finding ? <p className="muted">Finding trusted and recent sources…</p> : <div className="suggestion-grid">{suggestions.map((suggestion) => {
+            const checked = selectedInputs.includes(suggestion.input);
+            return <label key={suggestion.id} className={`suggestion-card selectable${checked ? " selected" : ""}`}><input type="checkbox" checked={checked} onChange={() => setSelectedInputs((current) => checked ? current.filter((value) => value !== suggestion.input) : [...current, suggestion.input])} /><strong>{suggestion.title}</strong><p>{suggestion.description}</p><small>{suggestion.reason}</small></label>;
+          })}</div>}
+          <label>add another source<input dir="ltr" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="RSS, Telegram, X, or a search topic" /></label>
+        </> : null}
+        {step === 3 ? <>
+          <div className="onboarding-intro"><h3>Make it yours</h3><p className="muted">Your feed will be public at /{username}/{slugify(title)}/.</p></div>
+          <label>feed name<input dir="auto" required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label>username<input ref={usernameRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /></label>
+          <p className="muted">{selectedInputs.length + (sourceUrl.trim() ? 1 : 0)} source(s) selected · summaries in {languageLabel(props.briefing.language)}</p>
+        </> : null}
         <div className="sheet-actions">
-          <button type="submit" className="primary-button" title="finish setup" disabled={props.busy || !title.trim() || !interestProfile.trim()}>
-            <Save size={15} aria-hidden /> finish setup
-          </button>
+          {step > 1 ? <button type="button" onClick={() => setStep((step - 1) as 1 | 2)}>Back</button> : null}
+          {step === 1 ? <button type="button" className="primary-button" disabled={!interestProfile.trim() || finding} onClick={async () => { setFinding(true); setError(""); try { const result = await getSourceSuggestions({ briefingId: props.briefing.id, interestProfile, language: props.briefing.language }); setSuggestions(result.suggestions); setSelectedInputs(result.suggestions.filter((item) => item.confidence === "high" && item.origin === "curated").slice(0, 4).map((item) => item.input)); setStep(2); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setFinding(false); } }}>Find sources <ChevronRight size={15} /></button> : null}
+          {step === 2 ? <button type="button" className="primary-button" onClick={() => setStep(3)}>Continue <ChevronRight size={15} /></button> : null}
+          {step === 3 ? <button type="submit" className="primary-button" title="create feed" disabled={props.busy || !title.trim() || !interestProfile.trim()}><Sparkles size={15} aria-hidden /> {props.busy ? "Creating…" : "Create feed"}</button> : null}
           <button type="button" title="skip setup" onClick={props.onClose}>skip</button>
         </div>
         {error ? <p className="error">{error}</p> : null}
