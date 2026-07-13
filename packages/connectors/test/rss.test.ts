@@ -94,4 +94,9 @@ describe("parseRssFeed", () => {
   it("rejects non-feed documents instead of reporting an empty healthy fetch", () => {
     expect(() => parseRssFeed("<html><body>challenge</body></html>", { sourceId: "x", sourceTitle: "X", sourceUrl: "https://example.com/rss" })).toThrow(/not an RSS or Atom feed/);
   });
+
+  it("decodes numeric entities in feed titles", () => {
+    const [message] = parseRssFeed(`<rss><channel><title>News &#8211; World</title><item><title>Update</title><guid>1</guid><pubDate>Sun, 13 Jul 2026 00:00:00 GMT</pubDate></item></channel></rss>`, { sourceId: "x", sourceTitle: "X", sourceUrl: "https://example.com/rss" });
+    expect(message.source.title).toBe("News – World");
+  });
 });
