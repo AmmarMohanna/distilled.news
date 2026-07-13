@@ -2630,10 +2630,10 @@ html[dir="rtl"] .news-copy {
 .suggestion-card.selectable { cursor: pointer; min-height: 160px; }
 .suggestion-card.selectable input { align-self: flex-end; }
 .suggestion-card.selectable.selected { border-color: var(--accent); background: color-mix(in srgb, var(--surface) 90%, var(--accent)); }
-.marketing-hero { max-width: 860px; padding: 52px 0 34px; }
-.marketing-hero h1 { max-width: 780px; margin: 10px 0 14px; font-size: clamp(2.35rem, 6vw, 4.9rem); line-height: .98; letter-spacing: -.065em; }
+.marketing-hero { width: 100%; max-width: 860px; padding: 52px 0 34px; overflow: hidden; }
+.marketing-hero h1 { width: 100%; max-width: 780px; margin: 10px 0 14px; font-size: clamp(2.35rem, 5vw, 3.8rem); line-height: 1.02; letter-spacing: -.055em; overflow-wrap: anywhere; }
 .marketing-hero > p { max-width: 670px; margin: 0; color: var(--muted); font-size: 1.08rem; line-height: 1.6; }
-.marketing-steps { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.marketing-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 28px; }
 .marketing-steps span { display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--surface) 92%, transparent); }
 .marketing-steps b { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; background: var(--text); color: var(--page); font-size: .72rem; }
 .auth-layout-polished { align-items: start; }
