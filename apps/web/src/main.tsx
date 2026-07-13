@@ -149,6 +149,8 @@ function AdminPage() {
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [scopedDataReady, setScopedDataReady] = useState(false);
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [homeInterest, setHomeInterest] = useState(() => localStorage.getItem("dn_pending_interest") ?? "");
+  const [homeAuthMode, setHomeAuthMode] = useState<"login" | "register" | null>(null);
   const selectedBriefingIdRef = useRef<string | null>(null);
   const briefingsRef = useRef<BriefingConfig[]>([]);
   const autosaveTimerRef = useRef<number | null>(null);
@@ -368,6 +370,7 @@ function AdminPage() {
         }
       }
       await dismissOnboarding();
+      localStorage.removeItem("dn_pending_interest");
       if (nextAccount.role === "admin") setAccounts(await listAccounts());
     } finally {
       setBusyAction(null);
@@ -385,7 +388,7 @@ function AdminPage() {
 
   if (!session) {
     return (
-      <Shell title="create">
+      <Shell title="briefings">
         <p className="muted">loading</p>
       </Shell>
     );
@@ -394,30 +397,75 @@ function AdminPage() {
   if (!session.authenticated) {
     return (
       <Shell title="Distilled.news">
-        <section className="marketing-hero">
-          <span className="eyebrow">A calmer way to follow the news</span>
-          <h1>The news you care about, distilled into a briefing.</h1>
-          <p>Describe what matters. Choose trustworthy sources. Distilled removes repetition and gives you the updates worth your time.</p>
-          <div className="marketing-steps" aria-label="How Distilled works">
-            <span><b>1</b> Describe your interests</span>
-            <span><b>2</b> Pick suggested sources</span>
-            <span><b>3</b> Read one calm briefing</span>
+        <section className="home-hero">
+          <div className="home-hero-copy">
+            <span className="home-kicker">Your news, without the noise</span>
+            <h1>Know what matters.<br />Skip everything else.</h1>
+            <p>Tell Distilled what you care about. It finds relevant sources, removes repetition, and turns the updates into one clear briefing.</p>
+            <form
+              className="interest-start"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!homeInterest.trim()) return;
+                localStorage.setItem("dn_pending_interest", homeInterest.trim());
+                setHomeAuthMode("register");
+              }}
+            >
+              <label htmlFor="home-interest">What do you want to follow?</label>
+              <div className="interest-start-control">
+                <input
+                  id="home-interest"
+                  dir="auto"
+                  value={homeInterest}
+                  onChange={(event) => setHomeInterest(event.target.value)}
+                  placeholder="AI research, Lebanon, climate policy…"
+                  autoComplete="off"
+                />
+                <button type="submit" className="primary-button" disabled={!homeInterest.trim()}>
+                  Create my briefing <ChevronRight size={17} aria-hidden />
+                </button>
+              </div>
+            </form>
+            <div className="home-secondary-actions">
+              <span>Already have a briefing?</span>
+              <button type="button" className="text-button" onClick={() => setHomeAuthMode("login")}>Sign in</button>
+            </div>
           </div>
+          <HomeBriefingPreview />
         </section>
-        <div className="auth-layout auth-layout-polished">
-          <AuthPanel
-            setupRequired={session.setupRequired}
-            turnstileSiteKey={session.turnstileSiteKey}
-            onAuthenticated={async () => {
-              const next = await refreshSession();
-              if (next.authenticated) {
-                await loadBriefings();
-                if (next.account?.role === "admin") setAccounts(await listAccounts());
-              }
-            }}
-          />
-          {!session.setupRequired ? <ExploreFeedsPanel /> : null}
-        </div>
+        <section className="home-how" aria-label="How Distilled works">
+          <div><span>1</span><strong>Describe your interests</strong><p>Use plain language. Be as broad or specific as you like.</p></div>
+          <div><span>2</span><strong>Choose your sources</strong><p>Pick from suggestions or add any source you already trust.</p></div>
+          <div><span>3</span><strong>Read your way</strong><p>Switch between a calm digest and a chronological timeline.</p></div>
+        </section>
+        {homeAuthMode || session.setupRequired ? (
+          <section className="home-auth" aria-label="Account access">
+            <div className="home-auth-copy">
+              <span className="home-kicker">{homeAuthMode === "login" ? "Welcome back" : "Save your briefing"}</span>
+              <h2>{homeAuthMode === "login" ? "Continue where you left off." : "One quick step, then choose your sources."}</h2>
+              <p>{homeAuthMode === "login" ? "Sign in to manage your feeds and sources." : "Create a free account. Your published briefing will have a simple public link you can share."}</p>
+            </div>
+            <AuthPanel
+              key={homeAuthMode ?? "setup"}
+              initialMode={homeAuthMode ?? undefined}
+              setupRequired={session.setupRequired}
+              turnstileSiteKey={session.turnstileSiteKey}
+              onAuthenticated={async () => {
+                const next = await refreshSession();
+                if (next.authenticated) {
+                  await loadBriefings();
+                  if (next.account?.role === "admin") setAccounts(await listAccounts());
+                }
+              }}
+            />
+          </section>
+        ) : null}
+        {!session.setupRequired ? (
+          <section className="home-explore">
+            <div className="home-section-heading"><span className="home-kicker">Public briefings</span><h2>See what people are following.</h2></div>
+            <ExploreFeedsPanel />
+          </section>
+        ) : null}
         {error ? <p className="error">{error}</p> : null}
       </Shell>
     );
@@ -425,7 +473,7 @@ function AdminPage() {
 
   if (!account) {
     return (
-      <Shell title="create" onLogout={handleLogout}>
+      <Shell title="briefings" onLogout={handleLogout}>
         <p className="error">session account unavailable</p>
       </Shell>
     );
@@ -434,7 +482,7 @@ function AdminPage() {
   if (!briefing) {
     return (
       <>
-        <Shell title="create" onAccount={() => setAccountDialogOpen(true)}>
+        <Shell title="briefings" onAccount={() => setAccountDialogOpen(true)}>
           <section className="section">
             <div className="section-title">
               <Globe size={16} aria-hidden />
@@ -452,7 +500,7 @@ function AdminPage() {
 
   return (
     <>
-      <Shell title="create" onAccount={() => setAccountDialogOpen(true)} feed={briefing}>
+      <Shell title="briefings" onAccount={() => setAccountDialogOpen(true)} feed={briefing}>
         <div className="admin-stack">
           <AdminCommandPanel
             briefing={briefing}
@@ -890,8 +938,36 @@ function AdminCommandPanel(props: {
   );
 }
 
-function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
-  const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired ? "register" : "login");
+function HomeBriefingPreview() {
+  return (
+    <div className="home-preview" aria-label="Example Distilled briefing">
+      <div className="home-preview-topline">
+        <div><span className="preview-mark" aria-hidden /><strong>Morning briefing</strong></div>
+        <span>8:30 AM</span>
+      </div>
+      <div className="home-preview-summary">
+        <span className="home-kicker">In two minutes</span>
+        <h2>Three updates worth your attention today.</h2>
+      </div>
+      <article className="preview-story">
+        <span>01</span>
+        <div><strong>Policy moved from discussion to a concrete vote.</strong><p>What changed, why it matters, and what happens next—without the repeated headlines.</p></div>
+      </article>
+      <article className="preview-story">
+        <span>02</span>
+        <div><strong>A new research result changes the near-term picture.</strong><p>Distilled links every conclusion back to the original reporting.</p></div>
+      </article>
+      <article className="preview-story preview-story-muted">
+        <span>03</span>
+        <div><strong>The rest can wait.</strong><p>Low-signal updates and duplicates stay out of your briefing.</p></div>
+      </article>
+      <div className="home-preview-footer"><ShieldCheck size={16} aria-hidden /> Sources remain visible. You stay in control.</div>
+    </div>
+  );
+}
+
+function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; initialMode?: "login" | "register"; onAuthenticated: () => Promise<void> }) {
+  const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired ? "register" : props.initialMode ?? "login");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -1402,7 +1478,7 @@ function FirstRunSetupSheet(props: {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [username, setUsername] = useState(props.account.username);
   const [title, setTitle] = useState(props.briefing.title);
-  const [interestProfile, setInterestProfile] = useState(props.briefing.interestProfile);
+  const [interestProfile, setInterestProfile] = useState(() => localStorage.getItem("dn_pending_interest") ?? props.briefing.interestProfile);
   const [sourceUrl, setSourceUrl] = useState("");
   const [suggestions, setSuggestions] = useState<SourceSuggestion[]>([]);
   const [selectedInputs, setSelectedInputs] = useState<string[]>([]);
@@ -1977,6 +2053,10 @@ function FeedPage(props: { username: string; slug: string }) {
   const [payload, setPayload] = useState<FeedPayload | null>(null);
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
   const [query, setQuery] = useState("");
+  const [readingMode, setReadingMode] = useState<"digest" | "timeline">(() => {
+    const stored = localStorage.getItem(`dn_reading_mode:${props.username}:${props.slug}`);
+    return stored === "timeline" ? "timeline" : "digest";
+  });
   const [error, setError] = useState("");
   const [starBusy, setStarBusy] = useState(false);
   const [summaryBusy, setSummaryBusy] = useState(false);
@@ -2032,6 +2112,10 @@ function FeedPage(props: { username: string; slug: string }) {
   useEffect(() => {
     localStorage.setItem(`ln_read:${props.username}:${props.slug}`, JSON.stringify(Array.from(readIds)));
   }, [props.username, props.slug, readIds]);
+
+  useEffect(() => {
+    localStorage.setItem(`dn_reading_mode:${props.username}:${props.slug}`, readingMode);
+  }, [props.username, props.slug, readingMode]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -2137,6 +2221,14 @@ function FeedPage(props: { username: string; slug: string }) {
         />
       ) : null}
       <div className="feed-tools" dir={pageDir}>
+        <div className="reading-mode" role="group" aria-label={readingModeGroupLabel(language)}>
+          <button type="button" className={readingMode === "digest" ? "active" : ""} aria-pressed={readingMode === "digest"} onClick={() => setReadingMode("digest")}>
+            <Newspaper size={15} aria-hidden /> {digestModeLabel(language)}
+          </button>
+          <button type="button" className={readingMode === "timeline" ? "active" : ""} aria-pressed={readingMode === "timeline"} onClick={() => setReadingMode("timeline")}>
+            <ListChecks size={15} aria-hidden /> {timelineModeLabel(language)}
+          </button>
+        </div>
         <div className="feed-actions">
           <button type="button" title={refreshControlLabel(language)} onClick={() => refresh()}><RefreshCw size={15} aria-hidden /> {refreshControlLabel(language)}</button>
           <button
@@ -2213,7 +2305,7 @@ function FeedPage(props: { username: string; slug: string }) {
           <bdi dir={pageDir}>{feedStatusMessage}</bdi>
         </p>
       ) : null}
-      <div className="news-line">
+      <div className={`news-line ${readingMode === "digest" ? "digest-view" : "timeline-view"}`}>
         {visibleUnreadEditions.map((edition) => (
           <FeedEditionRow
             key={edition.id}
@@ -2248,7 +2340,7 @@ function FeedPage(props: { username: string; slug: string }) {
       {archivedReadEditions.length > 0 ? (
         <details className="section read-section">
           <summary>{readSectionLabel(archivedReadEditions.length, language)}</summary>
-          <div className="news-line news-line-read">
+          <div className={`news-line news-line-read ${readingMode === "digest" ? "digest-view" : "timeline-view"}`}>
             {archivedReadEditions.map((edition) => (
               <FeedEditionRow
                 key={edition.id}
@@ -2663,7 +2755,7 @@ function Shell(props: {
 }
 
 function getPageMeta(title: string): string {
-  if (title === "create") return "define the feed and add sources.";
+  if (title === "briefings") return "Manage your feeds and sources.";
   if (title === "briefing") return "Published briefing items only.";
   if (title.includes("Briefing")) return "Published briefing items only.";
   if (title === "verify email") return "Account verification.";
@@ -2672,9 +2764,9 @@ function getPageMeta(title: string): string {
 }
 
 function createNavLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "إنشاء";
-  if (language === "fr") return "créer";
-  return "create";
+  if (language === "ar") return "موجزاتي";
+  if (language === "fr") return "mes briefs";
+  return "briefings";
 }
 
 function feedNavLabel(language: "en" | "ar" | "fr"): string {
@@ -3287,6 +3379,24 @@ function mediaDisplayLabel(media: BriefingEvidence["media"][number], language: "
 
 function onboardingStorageKey(accountId: string): string {
   return `ln_onboarding:${accountId}`;
+}
+
+function readingModeGroupLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "طريقة عرض الموجز";
+  if (language === "fr") return "mode de lecture";
+  return "reading mode";
+}
+
+function digestModeLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "موجز";
+  if (language === "fr") return "synthèse";
+  return "Digest";
+}
+
+function timelineModeLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "التسلسل الزمني";
+  if (language === "fr") return "chronologie";
+  return "Timeline";
 }
 
 function isFirstRunBriefing(briefing: BriefingConfig): boolean {
