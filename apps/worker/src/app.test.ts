@@ -996,11 +996,20 @@ describe("worker app accounts", () => {
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as { editions: unknown[] };
-    expect(feed.editions).toEqual([expect.objectContaining({ id: "edition_empty", status: "empty" })]);
+    const feed = (await feedResponse.json()) as { editions: Array<{ id: string; status: string; summary: string }> };
+    expect(feed.editions).toEqual([expect.objectContaining({
+      id: "edition_empty",
+      status: "empty",
+      summary: "No relevant updates in this window."
+    })]);
+    expect(feed.editions[0].summary).not.toContain("[1]");
 
     const detailResponse = await app.request("/api/feed/feed-owner/personal/editions/edition_empty", {}, env());
     expect(detailResponse.status).toBe(200);
+    const detail = (await detailResponse.json()) as { edition: { summary: string; sections: Array<{ evidence: unknown[] }> } };
+    expect(detail.edition.summary).toBe("No relevant updates in this window.");
+    expect(detail.edition.summary).not.toContain("[1]");
+    expect(detail.edition.sections[0].evidence).toEqual([]);
 
     const searchResponse = await app.request("/api/feed/feed-owner/personal/search?q=verified", {}, env());
     expect(searchResponse.status).toBe(200);
