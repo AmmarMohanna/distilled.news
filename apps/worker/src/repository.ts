@@ -1911,6 +1911,7 @@ export class D1Repository implements Repository {
   async listSourceRuns(input?: {
     briefingId?: string;
     sourceId?: string;
+    provider?: SourceProvider;
     states?: SourceRunState[];
     limit?: number;
   }): Promise<SourceRunRecord[]> {
@@ -1928,6 +1929,10 @@ export class D1Repository implements Repository {
     if (input?.sourceId) {
       sql += " AND source_id = ?";
       values.push(input.sourceId);
+    }
+    if (input?.provider) {
+      sql += " AND provider = ?";
+      values.push(input.provider);
     }
     if (input?.states?.length) {
       sql += ` AND state IN (${input.states.map(() => "?").join(", ")})`;
@@ -3350,6 +3355,7 @@ export class InMemoryRepository implements Repository {
   async listSourceRuns(input?: {
     briefingId?: string;
     sourceId?: string;
+    provider?: SourceProvider;
     states?: SourceRunState[];
     limit?: number;
   }): Promise<SourceRunRecord[]> {
@@ -3357,6 +3363,7 @@ export class InMemoryRepository implements Repository {
     return Array.from(this.sourceRuns.values())
       .filter((run) => !input?.briefingId || run.briefingId === input.briefingId)
       .filter((run) => !input?.sourceId || run.sourceId === input.sourceId)
+      .filter((run) => !input?.provider || run.provider === input.provider)
       .filter((run) => !states || states.has(run.state))
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
       .slice(0, input?.limit ?? 50)

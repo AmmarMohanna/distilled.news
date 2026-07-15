@@ -1780,6 +1780,54 @@ describe("worker app accounts", () => {
     expect(await response.json()).toEqual({ error: "APIFY_API_TOKEN is not configured." });
   });
 
+  it("does not poll an in-flight direct source run as an Apify actor", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "direct-run@test.com", "Direct Run");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+    expect(briefing).not.toBeNull();
+    const source = await repo.upsertConfiguredSource({
+      briefingId: briefing!.id,
+      title: "Direct Telegram",
+      provider: "telegram",
+      kind: "telegram_channel",
+      username: "DirectTelegram",
+      url: "https://t.me/DirectTelegram",
+      enabled: true
+    }, FIXTURE_NOW);
+    const run = await repo.createSourceRun({
+      sourceId: source.id,
+      briefingId: briefing!.id,
+      provider: "telegram",
+      actorId: "telegram-public-html",
+      state: "running",
+      estimatedCostUsd: 0,
+      startedAt: FIXTURE_NOW.toISOString()
+    }, FIXTURE_NOW);
+    const fetcher = vi.fn();
+
+    await pollApifySourceRuns({
+      repo,
+      bucket: new FakeBucket(),
+      queue: new FakeQueue(),
+      env: env(),
+      fetcher: fetcher as unknown as typeof fetch,
+      now: FIXTURE_NOW
+    });
+
+    expect(fetcher).not.toHaveBeenCalled();
+    const runs = await repo.listSourceRuns({ sourceId: source.id });
+    expect(runs).toEqual([
+      expect.objectContaining({ id: run.id, provider: "telegram", state: "running" })
+    ]);
+    expect(runs[0]?.error).toBeUndefined();
+    expect(await repo.getSource(source.id)).toMatchObject({
+      healthState: "healthy",
+      consecutiveFailures: 0,
+      lastError: undefined
+    });
+  });
+
   it("claims a dispatch lease before enqueueing and suppresses duplicate cron delivery", async () => {
     const repo = new InMemoryRepository();
     const queue = new FakeDistilledQueue();

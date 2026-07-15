@@ -391,6 +391,7 @@ export interface Repository {
   listSourceRuns(input?: {
     briefingId?: string;
     sourceId?: string;
+    provider?: SourceProvider;
     states?: SourceRunState[];
     limit?: number;
   }): Promise<SourceRunRecord[]>;
