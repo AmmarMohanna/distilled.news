@@ -111,7 +111,7 @@ INSERT INTO sources (
   ('source_canary_fr_climate', 'briefing_canary_fr_03_climate', 'Climat et énergie', 'channel', 'rss', 'google_news', NULL, 'news: climat énergie propre politique environnementale', 'https://news.google.com/rss/search?q=climat+%C3%A9nergie+propre+politique+environnementale&hl=fr&gl=FR&ceid=FR:fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_fr_health', 'briefing_canary_fr_03_health', 'Santé publique', 'channel', 'rss', 'google_news', NULL, 'news: santé publique recherche médicale politique', 'https://news.google.com/rss/search?q=sant%C3%A9+publique+recherche+m%C3%A9dicale+politique&hl=fr&gl=FR&ceid=FR:fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_fixture_en', 'briefing_canary_en_02_technology', 'Synthetic canary fixture', 'channel', 'rss', 'rss_feed', NULL, 'synthetic:canary-fixture', 'https://example.invalid/canary/en', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
-  ('source_canary_fixture_ar', 'briefing_canary_ar_01_middle_east', 'اختبار اصطناعي', 'channel', 'rss', 'rss_feed', NULL, 'synthetic:canary-fixture', 'https://example.invalid/canary/ar', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
+  ('source_canary_fixture_ar_02', 'briefing_canary_ar_02_lebanon', 'اختبار اصطناعي', 'channel', 'rss', 'rss_feed', NULL, 'synthetic:canary-fixture', 'https://example.invalid/canary/ar', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_fixture_fr', 'briefing_canary_fr_02_technology', 'Canari synthétique', 'channel', 'rss', 'rss_feed', NULL, 'synthetic:canary-fixture', 'https://example.invalid/canary/fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now'))
 ON CONFLICT(id) DO UPDATE SET
   briefing_id = excluded.briefing_id,
@@ -150,7 +150,7 @@ WHERE id LIKE 'source_canary_%';
 
 UPDATE sources
 SET input = 'synthetic:canary-fixture'
-WHERE id IN ('source_canary_fixture_en', 'source_canary_fixture_ar', 'source_canary_fixture_fr');
+WHERE id IN ('source_canary_fixture_en', 'source_canary_fixture_ar_02', 'source_canary_fixture_fr');
 
 UPDATE sources
 SET actor_id = 'xquik/x-tweet-scraper',

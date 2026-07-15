@@ -21,8 +21,8 @@ const SYNTHETIC_CANARIES: SyntheticCanary[] = [
     text: "Synthetic canary validation: the English technology pipeline received a labelled test bulletin to verify hourly collection, filtering, citations, and publication. This is not real news."
   },
   {
-    briefingId: "briefing_canary_ar_01_middle_east",
-    sourceId: "source_canary_fixture_ar",
+    briefingId: "briefing_canary_ar_02_lebanon",
+    sourceId: "source_canary_fixture_ar_02",
     title: "اختبار اصطناعي",
     sourceUrl: "https://example.invalid/canary/ar",
     text: "اختبار مراقبة اصطناعي: استقبل مسار الأمن والدبلوماسية والاقتصاد في الشرق الأوسط نشرة اختبار واضحة للتحقق من الجمع والتصفية والاستشهاد والنشر كل ساعة. هذه ليست أخباراً حقيقية."
@@ -51,6 +51,9 @@ export async function enqueueScheduledSyntheticCanaryFixtures(input: {
   let enqueued = 0;
 
   for (const canary of SYNTHETIC_CANARIES) {
+    const briefing = await input.repo.getBriefingById(canary.briefingId);
+    if (!briefing || briefing.paused || briefing.briefingCadence !== "hourly") continue;
+
     const source = await ensureSyntheticCanarySource(input.repo, canary, now);
     const suffix = windowEnd.replace(/[-:.TZ]/g, "");
     const rawMessageId = `${canary.briefingId}::synthetic_hourly_${suffix}`;
