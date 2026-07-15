@@ -12,7 +12,7 @@ export interface SourceSuggestion {
   language: "en" | "ar" | "fr";
   region: string;
   reason: string;
-  origin: "curated" | "brave" | "google_news";
+  origin: "curated" | "gdelt" | "google_news";
   confidence: "high" | "medium";
   alreadyAdded: boolean;
 }
@@ -47,7 +47,7 @@ export async function suggestSources(input: {
     .slice(0, 6)
     .map(({ entry, score }) => toSuggestion(entry, existing, score));
 
-  const discovered = await braveSuggestions(input, existing).catch(() => null);
+  const discovered = input.fetcher ? await gdeltSuggestions(input, existing).catch(() => null) : [];
   const google: SourceSuggestion = {
     id: `google-${stableHash(input.interestProfile)}`,
     title: `Google News: ${input.interestProfile}`,
@@ -64,31 +64,32 @@ export async function suggestSources(input: {
     alreadyAdded: existing.has(`news: ${input.interestProfile}`)
   };
 
-  return { suggestions: dedupe([...curated, ...(discovered ?? []), google]).slice(0, 10), degraded: Boolean(input.env.BRAVE_SEARCH_API_KEY) && discovered === null };
+  return { suggestions: dedupe([...curated, ...(discovered ?? []), google]).slice(0, 10), degraded: discovered === null };
 }
 
-async function braveSuggestions(input: Parameters<typeof suggestSources>[0], existing: Set<string>): Promise<SourceSuggestion[]> {
-  if (!input.env.BRAVE_SEARCH_API_KEY) return [];
-  const url = new URL("https://api.search.brave.com/res/v1/news/search");
+async function gdeltSuggestions(input: Parameters<typeof suggestSources>[0], existing: Set<string>): Promise<SourceSuggestion[]> {
+  const url = new URL("https://api.gdeltproject.org/api/v2/doc/doc");
   url.searchParams.set("q", input.interestProfile);
-  url.searchParams.set("count", "6");
-  url.searchParams.set("search_lang", input.language);
+  url.searchParams.set("mode", "artlist");
+  url.searchParams.set("maxrecords", "12");
+  url.searchParams.set("sort", "datedesc");
+  url.searchParams.set("format", "json");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3500);
   try {
-    const response = await (input.fetcher ?? fetch)(url, { headers: { accept: "application/json", "x-subscription-token": input.env.BRAVE_SEARCH_API_KEY }, signal: controller.signal });
-    if (!response.ok) throw new Error(`Brave discovery failed: ${response.status}`);
-    const body = await response.json() as { results?: Array<{ title?: string; url?: string; description?: string; meta_url?: { hostname?: string } }> };
-    return (body.results ?? []).flatMap((result) => {
-      if (!result.url || !result.title) return [];
-      const parsed = safeHttpUrl(result.url);
+    const response = await input.fetcher!(url, { headers: { accept: "application/json" }, signal: controller.signal });
+    if (!response.ok) throw new Error(`GDELT discovery failed: ${response.status}`);
+    const body = await response.json() as { articles?: Array<{ title?: string; url?: string; domain?: string }> };
+    return (body.articles ?? []).flatMap((article) => {
+      if (!article.url || !article.title) return [];
+      const parsed = safeHttpUrl(article.url);
       if (!parsed) return [];
-      const hostname = result.meta_url?.hostname ?? parsed.hostname.replace(/^www\./, "");
+      const hostname = article.domain ?? parsed.hostname.replace(/^www\./, "");
       return [{
-        id: `brave-${stableHash(parsed.origin)}`, title: hostname, description: result.description?.slice(0, 180) || result.title,
+        id: `gdelt-${stableHash(parsed.origin)}`, title: hostname, description: article.title.slice(0, 180),
         provider: "rss" as const, kind: "google_news" as const, input: `news: site:${hostname} ${input.interestProfile}`,
         homepageUrl: parsed.origin, language: input.language, region: "GLOBAL", reason: `Recent reporting relevant to ${input.interestProfile}`,
-        origin: "brave" as const, confidence: "medium" as const, alreadyAdded: existing.has(`news: site:${hostname} ${input.interestProfile}`)
+        origin: "gdelt" as const, confidence: "medium" as const, alreadyAdded: existing.has(`news: site:${hostname} ${input.interestProfile}`)
       }];
     });
   } finally { clearTimeout(timer); }

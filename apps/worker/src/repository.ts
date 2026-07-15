@@ -21,17 +21,24 @@ import type {
   AccountRecord,
   AccountRole,
   AccountWithStats,
+  BriefingWindowClaim,
   AuthTokenPurpose,
   AuthTokenRecord,
   HealthStatus,
   ProcessingJobRecord,
+  ProcessingJobClaim,
   ProcessingJobState,
+  RecoverableBriefingWindow,
   Repository,
   SourceRecord,
   SourceRunRecord,
   SourceRunState,
   UsernameAliasRecord
 } from "./types";
+import { visibleNextBriefingAt } from "./editions";
+
+const ORPHANED_PROCESSING_JOB_STALE_MS = 2 * 60 * 1000;
+const ENQUEUED_PROCESSING_JOB_STALE_MS = 2 * 60 * 60 * 1000;
 
 type DbValue = string | number | null;
 
@@ -101,6 +108,7 @@ interface BriefingEditionRow {
   summary: string;
   sections_json: string;
   status: "published" | "empty";
+  generation_mode?: "ai" | "deterministic" | null;
   published_at: string;
   created_at: string;
   updated_at: string;
@@ -123,6 +131,13 @@ interface SourceRow {
   last_seen_at: string;
   last_checked_at?: string | null;
   last_error?: string | null;
+  health_state?: "healthy" | "degraded" | "backoff" | "disabled_by_user" | null;
+  failure_class?: string | null;
+  consecutive_failures?: number | null;
+  last_success_at?: string | null;
+  last_new_item_at?: string | null;
+  next_retry_at?: string | null;
+  canonical_key?: string | null;
 }
 
 interface RawMessageRow {
@@ -203,6 +218,12 @@ interface ProcessingJobRow {
   raw_message_id: string;
   state: ProcessingJobState;
   error: string | null;
+  lease_token?: string | null;
+  lease_until?: string | null;
+  attempt_count?: number | null;
+  available_at?: string | null;
+  completed_at?: string | null;
+  last_enqueued_at?: string | null;
   updated_at: string;
 }
 
@@ -575,7 +596,9 @@ export class D1Repository implements Repository {
       this.db
         .prepare(
           `SELECT id, briefing_id, title, type, provider, kind, username, input, source_url,
-            actor_id, actor_input_json, cursor_json, enabled, last_seen_at, last_checked_at, last_error
+            actor_id, actor_input_json, cursor_json, enabled, last_seen_at, last_checked_at, last_error,
+            health_state, failure_class, consecutive_failures, last_success_at, last_new_item_at, next_retry_at,
+            canonical_key
           FROM sources
           WHERE briefing_id = ?
           ORDER BY last_seen_at DESC`
@@ -590,7 +613,9 @@ export class D1Repository implements Repository {
       this.db
         .prepare(
           `SELECT id, briefing_id, title, type, provider, kind, username, input, source_url,
-            actor_id, actor_input_json, cursor_json, enabled, last_seen_at, last_checked_at, last_error
+            actor_id, actor_input_json, cursor_json, enabled, last_seen_at, last_checked_at, last_error,
+            health_state, failure_class, consecutive_failures, last_success_at, last_new_item_at, next_retry_at,
+            canonical_key
           FROM sources
           WHERE id = ?`
         )
@@ -601,8 +626,13 @@ export class D1Repository implements Repository {
 
   async setSourceEnabled(sourceId: string, enabled: boolean, now = new Date()): Promise<void> {
     await this.db
-      .prepare("UPDATE sources SET enabled = ?, updated_at = ? WHERE id = ?")
-      .bind(enabled ? 1 : 0, now.toISOString(), sourceId)
+      .prepare(`UPDATE sources SET enabled = ?, health_state = ?,
+        failure_class = CASE WHEN ? = 1 THEN NULL ELSE failure_class END,
+        consecutive_failures = CASE WHEN ? = 1 THEN 0 ELSE consecutive_failures END,
+        last_error = CASE WHEN ? = 1 THEN NULL ELSE last_error END,
+        next_retry_at = NULL, updated_at = ? WHERE id = ?`)
+      .bind(enabled ? 1 : 0, enabled ? "healthy" : "disabled_by_user",
+        enabled ? 1 : 0, enabled ? 1 : 0, enabled ? 1 : 0, now.toISOString(), sourceId)
       .run();
   }
 
@@ -629,12 +659,17 @@ export class D1Repository implements Repository {
       stableSourceKey(input.provider, input.kind, input.username ?? input.sourceUrl ?? input.input ?? input.title)
     );
     const timestamp = now.toISOString();
+    const canonicalKey = canonicalSourceKey(
+      input.provider,
+      input.kind,
+      input.username ?? input.sourceUrl ?? input.url ?? input.input ?? input.title
+    );
     await this.db
       .prepare(
         `INSERT INTO sources (
           id, briefing_id, title, type, provider, kind, username, input, source_url,
-          actor_id, actor_input_json, enabled, last_seen_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          actor_id, actor_input_json, enabled, last_seen_at, created_at, updated_at, canonical_key
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           title = excluded.title,
           type = excluded.type,
@@ -645,6 +680,7 @@ export class D1Repository implements Repository {
           source_url = excluded.source_url,
           actor_id = excluded.actor_id,
           actor_input_json = excluded.actor_input_json,
+          canonical_key = excluded.canonical_key,
           enabled = excluded.enabled,
           updated_at = excluded.updated_at`
       )
@@ -663,7 +699,8 @@ export class D1Repository implements Repository {
         input.enabled === false ? 0 : 1,
         timestamp,
         timestamp,
-        timestamp
+        timestamp,
+        canonicalKey
       )
       .run();
     const source = await this.getSource(sourceId);
@@ -690,7 +727,7 @@ export class D1Repository implements Repository {
           source_url = COALESCE(?, source_url),
           last_seen_at = COALESCE(?, last_seen_at),
           last_checked_at = COALESCE(?, last_checked_at),
-          last_error = ?,
+          last_error = COALESCE(?, last_error),
           cursor_json = COALESCE(?, cursor_json),
           updated_at = ?
         WHERE id = ?`
@@ -707,6 +744,180 @@ export class D1Repository implements Repository {
         input.sourceId
       )
       .run();
+  }
+
+  async recordSourceSuccess(sourceId: string, newItemAt?: string, now = new Date()): Promise<void> {
+    const timestamp = now.toISOString();
+    await this.db
+      .prepare(
+        `UPDATE sources
+        SET health_state = 'healthy', failure_class = NULL, consecutive_failures = 0,
+          last_error = NULL, last_success_at = ?, last_new_item_at = COALESCE(?, last_new_item_at),
+          next_retry_at = NULL, updated_at = ?
+        WHERE id = ? AND enabled = 1`
+      )
+      .bind(timestamp, newItemAt ?? null, timestamp, sourceId)
+      .run();
+  }
+
+  async recordSourceFailure(input: {
+    sourceId: string;
+    error: string;
+    failureClass: string;
+    nextRetryAt: string;
+  }, now = new Date()): Promise<void> {
+    await this.db
+      .prepare(
+        `UPDATE sources
+        SET health_state = CASE WHEN consecutive_failures >= 1 THEN 'backoff' ELSE 'degraded' END,
+          failure_class = ?, consecutive_failures = consecutive_failures + 1,
+          last_error = ?, next_retry_at = ?, last_checked_at = ?, updated_at = ?
+        WHERE id = ? AND enabled = 1`
+      )
+      .bind(
+        input.failureClass,
+        input.error,
+        input.nextRetryAt,
+        now.toISOString(),
+        now.toISOString(),
+        input.sourceId
+      )
+      .run();
+  }
+
+  async listEquivalentSources(sourceId: string): Promise<SourceRecord[]> {
+    const rows = await all<SourceRow>(this.db.prepare(
+      `SELECT equivalent.id, equivalent.briefing_id, equivalent.title, equivalent.type, equivalent.provider,
+        equivalent.kind, equivalent.username, equivalent.input, equivalent.source_url, equivalent.actor_id,
+        equivalent.actor_input_json, equivalent.cursor_json, equivalent.enabled, equivalent.last_seen_at,
+        equivalent.last_checked_at, equivalent.last_error, equivalent.health_state, equivalent.failure_class,
+        equivalent.consecutive_failures, equivalent.last_success_at, equivalent.last_new_item_at,
+        equivalent.next_retry_at, equivalent.canonical_key
+      FROM sources source
+      JOIN sources equivalent ON equivalent.canonical_key = source.canonical_key
+      WHERE source.id = ? AND equivalent.enabled = 1`
+    ).bind(sourceId));
+    return rows.map(rowToSource);
+  }
+
+  async claimCanonicalSourceRefresh(sourceId: string, intervalMs: number, leaseMs: number, now = new Date()): Promise<string | null> {
+    const source = await this.getSource(sourceId);
+    if (!source?.canonicalKey) return null;
+    const leaseToken = crypto.randomUUID();
+    const nowIso = now.toISOString();
+    const leaseUntil = new Date(now.getTime() + leaseMs).toISOString();
+    await this.db.prepare(
+      `INSERT OR IGNORE INTO canonical_source_refreshes (canonical_key, next_refresh_at, updated_at)
+      VALUES (?, ?, ?)`
+    ).bind(source.canonicalKey, new Date(now.getTime() - intervalMs).toISOString(), nowIso).run();
+    const result = await this.db.prepare(
+      `UPDATE canonical_source_refreshes SET lease_token = ?, lease_until = ?, updated_at = ?
+      WHERE canonical_key = ? AND COALESCE(next_refresh_at, ?) <= ?
+        AND (lease_until IS NULL OR lease_until <= ?)`
+    ).bind(leaseToken, leaseUntil, nowIso, source.canonicalKey, nowIso, nowIso, nowIso).run();
+    return Number(result.meta.changes ?? 0) > 0 ? leaseToken : null;
+  }
+
+  async activateCanonicalSourceRefresh(sourceId: string, dispatchLeaseToken: string, leaseMs: number, now = new Date()): Promise<string | null> {
+    const source = await this.getSource(sourceId);
+    if (!source?.canonicalKey) return null;
+    const executionLeaseToken = crypto.randomUUID();
+    const nowIso = now.toISOString();
+    const result = await this.db.prepare(
+      `UPDATE canonical_source_refreshes SET lease_token = ?, lease_until = ?, updated_at = ?
+      WHERE canonical_key = ? AND lease_token = ? AND lease_until > ?`
+    ).bind(
+      executionLeaseToken,
+      new Date(now.getTime() + leaseMs).toISOString(),
+      nowIso,
+      source.canonicalKey,
+      dispatchLeaseToken,
+      nowIso
+    ).run();
+    return Number(result.meta.changes ?? 0) > 0 ? executionLeaseToken : null;
+  }
+
+  async releaseCanonicalSourceRefresh(sourceId: string, leaseToken: string, now = new Date()): Promise<void> {
+    const source = await this.getSource(sourceId);
+    if (!source?.canonicalKey) return;
+    await this.db.prepare(
+      `UPDATE canonical_source_refreshes SET lease_token = NULL, lease_until = NULL, updated_at = ?
+      WHERE canonical_key = ? AND lease_token = ?`
+    ).bind(now.toISOString(), source.canonicalKey, leaseToken).run();
+  }
+
+  async completeCanonicalSourceRefresh(
+    sourceId: string,
+    leaseToken: string,
+    nextRefreshAt: string,
+    newItemAt?: string,
+    now = new Date(),
+    markHealthy = true
+  ): Promise<void> {
+    const source = await this.getSource(sourceId);
+    if (!source?.canonicalKey) return;
+    const result = await this.db.prepare(
+      `UPDATE canonical_source_refreshes SET lease_token = NULL, lease_until = NULL, next_refresh_at = ?,
+        last_success_at = ?, last_error = NULL, updated_at = ?
+      WHERE canonical_key = ? AND lease_token = ?`
+    ).bind(nextRefreshAt, now.toISOString(), now.toISOString(), source.canonicalKey, leaseToken).run();
+    if (Number(result.meta.changes ?? 0) === 0) return;
+    if (!markHealthy) {
+      await this.db.prepare(
+        `UPDATE sources SET last_checked_at = ?, updated_at = ?
+        WHERE canonical_key = ? AND enabled = 1`
+      ).bind(now.toISOString(), now.toISOString(), source.canonicalKey).run();
+      return;
+    }
+    await this.db.prepare(
+      `UPDATE sources SET health_state = 'healthy', failure_class = NULL, consecutive_failures = 0,
+        last_error = NULL, last_success_at = ?, last_new_item_at = COALESCE(?, last_new_item_at),
+        last_checked_at = ?, next_retry_at = NULL, updated_at = ?
+      WHERE canonical_key = ? AND enabled = 1`
+    ).bind(now.toISOString(), newItemAt ?? null, now.toISOString(), now.toISOString(), source.canonicalKey).run();
+  }
+
+  async failCanonicalSourceRefresh(
+    sourceId: string,
+    leaseToken: string,
+    error: string,
+    failureClass: string,
+    backoffMs: number,
+    now = new Date()
+  ): Promise<void> {
+    const source = await this.getSource(sourceId);
+    if (!source?.canonicalKey) return;
+    const nextRetryAt = new Date(now.getTime() + backoffMs).toISOString();
+    const result = await this.db.prepare(
+      `UPDATE canonical_source_refreshes SET lease_token = NULL, lease_until = NULL, next_refresh_at = ?,
+        last_error = ?, updated_at = ? WHERE canonical_key = ? AND lease_token = ?`
+    ).bind(nextRetryAt, error, now.toISOString(), source.canonicalKey, leaseToken).run();
+    if (Number(result.meta.changes ?? 0) === 0) return;
+    await this.db.prepare(
+      `UPDATE sources SET health_state = CASE WHEN consecutive_failures >= 1 THEN 'backoff' ELSE 'degraded' END,
+        failure_class = ?, consecutive_failures = consecutive_failures + 1, last_error = ?, next_retry_at = ?,
+        last_checked_at = ?, updated_at = ? WHERE canonical_key = ? AND enabled = 1`
+      ).bind(failureClass, error, nextRetryAt, now.toISOString(), now.toISOString(), source.canonicalKey).run();
+  }
+
+  async rescheduleCanonicalSourceRefresh(
+    sourceId: string,
+    nextRefreshAt: string,
+    error?: string,
+    now = new Date()
+  ): Promise<void> {
+    const source = await this.getSource(sourceId);
+    if (!source?.canonicalKey) return;
+    await this.db.prepare(
+      `INSERT INTO canonical_source_refreshes (canonical_key, next_refresh_at, last_error, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(canonical_key) DO UPDATE SET
+        lease_token = NULL,
+        lease_until = NULL,
+        next_refresh_at = excluded.next_refresh_at,
+        last_error = excluded.last_error,
+        updated_at = excluded.updated_at`
+    ).bind(source.canonicalKey, nextRefreshAt, error ?? null, now.toISOString()).run();
   }
 
   async upsertSourceFromMessage(
@@ -739,19 +950,28 @@ export class D1Repository implements Repository {
     );
     const sourceId = existingSourceId?.id ?? scopedSourceId(briefingId, message.source.id);
     const timestamp = now.toISOString();
+    const sourceProvider = message.source.provider ?? "telegram";
+    const sourceKind = message.source.kind ?? (message.source.type === "group" ? "telegram_group" : "telegram_channel");
+    const canonicalKey = canonicalSourceKey(
+      sourceProvider,
+      sourceKind,
+      message.source.username ?? message.sourceUrl ?? message.source.title
+    );
     await this.db
       .prepare(
         `INSERT INTO sources (
           id, briefing_id, title, type, provider, kind, username, input, source_url,
-          enabled, last_seen_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+          enabled, last_seen_at, created_at, updated_at, canonical_key
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
-          title = CASE WHEN sources.provider = 'apify' OR sources.kind = 'google_news' THEN sources.title ELSE excluded.title END,
-          type = excluded.type,
-          provider = excluded.provider,
-          kind = excluded.kind,
-          username = CASE WHEN sources.provider = 'apify' OR sources.kind = 'google_news' THEN sources.username ELSE excluded.username END,
-          source_url = CASE WHEN sources.kind = 'google_news' THEN sources.source_url ELSE COALESCE(excluded.source_url, source_url) END,
+          title = sources.title,
+          type = sources.type,
+          provider = CASE WHEN sources.kind = 'google_news' THEN excluded.provider ELSE sources.provider END,
+          kind = sources.kind,
+          username = sources.username,
+          input = sources.input,
+          source_url = sources.source_url,
+          canonical_key = sources.canonical_key,
           last_seen_at = excluded.last_seen_at,
           updated_at = excluded.updated_at`
       )
@@ -760,14 +980,15 @@ export class D1Repository implements Repository {
         briefingId,
         message.source.title,
         message.source.type,
-        message.source.provider ?? "telegram",
-        message.source.kind ?? (message.source.type === "group" ? "telegram_group" : "telegram_channel"),
+        sourceProvider,
+        sourceKind,
         message.source.username ?? null,
         message.source.username ? `https://t.me/${message.source.username}` : message.sourceUrl ?? message.source.title,
         message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : null),
         message.receivedAt,
         timestamp,
-        timestamp
+        timestamp,
+        canonicalKey
       )
       .run();
 
@@ -777,18 +998,20 @@ export class D1Repository implements Repository {
   }
 
   async saveRawMessage(briefingId: string, message: NormalizedMessage, now = new Date()): Promise<void> {
-    await this.db
+    const result = await this.db
       .prepare(
         `INSERT OR IGNORE INTO raw_messages (
           id, briefing_id, source_id, source_title, source_type, source_provider, source_kind, source_username,
           message_id, text, links_json, media_json, posted_at,
           received_at, source_url, raw_payload_key, expires_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        SELECT ?, briefings.id, sources.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        FROM briefings
+        JOIN sources ON sources.briefing_id = briefings.id
+        WHERE briefings.id = ? AND sources.id = ?`
       )
       .bind(
         message.id,
-        briefingId,
-        message.source.id,
         message.source.title,
         message.source.type,
         message.source.provider ?? null,
@@ -803,9 +1026,86 @@ export class D1Repository implements Repository {
         message.sourceUrl ?? null,
         message.rawPayloadKey ?? null,
         message.expiresAt,
-        now.toISOString()
+        now.toISOString(),
+        briefingId,
+        message.source.id
       )
       .run();
+    if (Number(result.meta.changes ?? 0) > 0) return;
+
+    const existing = await first<{ id: string }>(
+      this.db.prepare("SELECT id FROM raw_messages WHERE id = ? AND briefing_id = ?").bind(message.id, briefingId)
+    );
+    if (!existing) {
+      throw new Error(`Could not save raw message because its briefing or source is unavailable (briefing=${briefingId}, source=${message.source.id}, message=${message.id})`);
+    }
+  }
+
+  async saveRawMessageAndCreateProcessingJob(
+    briefingId: string,
+    message: NormalizedMessage,
+    now = new Date()
+  ): Promise<string> {
+    const jobId = `job_${crypto.randomUUID()}`;
+    const timestamp = now.toISOString();
+    const results = await this.db.batch([
+      this.db
+        .prepare(
+          `INSERT OR IGNORE INTO raw_messages (
+            id, briefing_id, source_id, source_title, source_type, source_provider, source_kind, source_username,
+            message_id, text, links_json, media_json, posted_at,
+            received_at, source_url, raw_payload_key, expires_at, created_at
+          )
+          SELECT ?, briefings.id, sources.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          FROM briefings
+          JOIN sources ON sources.briefing_id = briefings.id
+          WHERE briefings.id = ? AND sources.id = ?`
+        )
+        .bind(
+          message.id,
+          message.source.title,
+          message.source.type,
+          message.source.provider ?? null,
+          message.source.kind ?? null,
+          message.source.username ?? null,
+          message.messageId,
+          message.text,
+          JSON.stringify(message.links),
+          JSON.stringify(message.media),
+          message.postedAt,
+          message.receivedAt,
+          message.sourceUrl ?? null,
+          message.rawPayloadKey ?? null,
+          message.expiresAt,
+          timestamp,
+          briefingId,
+          message.source.id
+        ),
+      this.db
+        .prepare(
+          `INSERT OR IGNORE INTO processing_jobs (id, briefing_id, raw_message_id, state, created_at, updated_at)
+          SELECT ?, ?, raw_messages.id, 'queued', ?, ?
+          FROM raw_messages
+          WHERE raw_messages.id = ? AND raw_messages.briefing_id = ?`
+        )
+        .bind(jobId, briefingId, timestamp, timestamp, message.id, briefingId),
+      this.db
+        .prepare(
+          `SELECT id
+          FROM processing_jobs
+          WHERE raw_message_id = ? AND briefing_id = ?
+          ORDER BY created_at ASC
+          LIMIT 1`
+        )
+        .bind(message.id, briefingId)
+    ]);
+    const persistedJob = (results[2]?.results as Array<{ id: string }> | undefined)?.[0];
+    if (!persistedJob?.id) {
+      throw new Error(
+        `Could not atomically save raw message and processing job (briefing=${briefingId}, source=${message.source.id}, message=${message.id})`
+      );
+    }
+    return persistedJob.id;
   }
 
   async getRawMessage(id: string): Promise<NormalizedMessage | null> {
@@ -880,30 +1180,131 @@ export class D1Repository implements Repository {
     return rows.map(rowToRawMessage);
   }
 
+  async listRawMessagesReceivedBetween(
+    briefingId: string,
+    receivedAfter: string,
+    receivedThrough: string,
+    postedAfter: string,
+    limit = 500
+  ): Promise<NormalizedMessage[]> {
+    const rows = await all<RawMessageRow>(
+      this.db
+        .prepare(
+          `SELECT raw_messages.*,
+            COALESCE(raw_messages.source_title, sources.title) as message_source_title,
+            COALESCE(raw_messages.source_type, sources.type) as message_source_type,
+            COALESCE(raw_messages.source_provider, sources.provider) as message_source_provider,
+            COALESCE(raw_messages.source_kind, sources.kind) as message_source_kind,
+            COALESCE(raw_messages.source_username, sources.username) as message_source_username,
+            sources.title, sources.type, sources.provider, sources.kind, sources.username
+          FROM raw_messages
+          JOIN sources ON sources.id = raw_messages.source_id
+          WHERE raw_messages.briefing_id = ?
+            AND raw_messages.received_at > ?
+            AND raw_messages.received_at <= ?
+            AND raw_messages.posted_at >= ?
+            AND raw_messages.expires_at > ?
+          ORDER BY raw_messages.received_at ASC, raw_messages.posted_at ASC
+          LIMIT ?`
+        )
+        .bind(briefingId, receivedAfter, receivedThrough, postedAfter, receivedThrough, limit)
+    );
+    return rows.map(rowToRawMessage);
+  }
+
   async createProcessingJob(briefingId: string, rawMessageId: string, now = new Date()): Promise<string> {
     const id = `job_${crypto.randomUUID()}`;
     const timestamp = now.toISOString();
-    await this.db
+    const result = await this.db
       .prepare(
-        "INSERT INTO processing_jobs (id, briefing_id, raw_message_id, state, created_at, updated_at) VALUES (?, ?, ?, 'queued', ?, ?)"
+        `INSERT INTO processing_jobs (id, briefing_id, raw_message_id, state, created_at, updated_at)
+        SELECT ?, ?, raw_messages.id, 'queued', ?, ?
+        FROM raw_messages
+        WHERE raw_messages.id = ? AND raw_messages.briefing_id = ?`
       )
-      .bind(id, briefingId, rawMessageId, timestamp, timestamp)
+      .bind(id, briefingId, timestamp, timestamp, rawMessageId, briefingId)
       .run();
+    if (Number(result.meta.changes ?? 0) === 0) {
+      throw new Error(`Could not create processing job because the raw message is unavailable (briefing=${briefingId}, message=${rawMessageId})`);
+    }
     return id;
   }
 
-  async completeProcessingJob(jobId: string, now = new Date()): Promise<void> {
-    await this.db
-      .prepare("UPDATE processing_jobs SET state = 'completed', updated_at = ? WHERE id = ?")
-      .bind(now.toISOString(), jobId)
+  async claimProcessingJob(jobId: string, leaseMs: number, now = new Date()): Promise<ProcessingJobClaim | null> {
+    const leaseToken = crypto.randomUUID();
+    const nowIso = now.toISOString();
+    const leaseUntil = new Date(now.getTime() + leaseMs).toISOString();
+    const result = await this.db
+      .prepare(
+        `UPDATE processing_jobs
+        SET lease_token = ?, lease_until = ?, attempt_count = attempt_count + 1,
+          error = NULL, updated_at = ?
+        WHERE id = ? AND state = 'queued'
+          AND (lease_until IS NULL OR lease_until <= ?)`
+      )
+      .bind(leaseToken, leaseUntil, nowIso, jobId, nowIso)
       .run();
+    if (Number(result.meta.changes ?? 0) === 0) return null;
+
+    const row = await first<ProcessingJobRow>(
+      this.db.prepare(
+        `SELECT id, briefing_id, raw_message_id, state, error, lease_token, lease_until,
+          attempt_count, available_at, completed_at, last_enqueued_at, updated_at
+        FROM processing_jobs WHERE id = ? AND lease_token = ?`
+      ).bind(jobId, leaseToken)
+    );
+    if (!row?.lease_token || !row.lease_until) return null;
+    await this.db.prepare(
+      `INSERT INTO processing_attempts (
+        id, job_id, lease_token, attempt_number, state, started_at
+      )
+      SELECT ?, id, ?, attempt_count, 'running', ?
+      FROM processing_jobs
+      WHERE id = ? AND lease_token = ?`
+    ).bind(`attempt_${crypto.randomUUID()}`, leaseToken, nowIso, jobId, leaseToken).run();
+    return rowToProcessingJob(row) as ProcessingJobClaim;
   }
 
-  async failProcessingJob(jobId: string, error: string, now = new Date()): Promise<void> {
+  async completeProcessingJob(jobId: string, now = new Date(), leaseToken?: string): Promise<void> {
+    const condition = leaseToken ? " AND lease_token = ?" : "";
+    const bindings: DbValue[] = [now.toISOString(), now.toISOString(), jobId];
+    if (leaseToken) bindings.push(leaseToken);
     await this.db
-      .prepare("UPDATE processing_jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ?")
-      .bind(error, now.toISOString(), jobId)
+      .prepare(`UPDATE processing_jobs SET state = 'completed', completed_at = ?, lease_token = NULL, lease_until = NULL, updated_at = ? WHERE id = ?${condition}`)
+      .bind(...bindings)
       .run();
+    if (leaseToken) {
+      await this.db.prepare("UPDATE processing_attempts SET state = 'completed', completed_at = ? WHERE job_id = ? AND lease_token = ? AND state = 'running'")
+        .bind(now.toISOString(), jobId, leaseToken).run();
+    }
+  }
+
+  async failProcessingJob(jobId: string, error: string, now = new Date(), leaseToken?: string): Promise<void> {
+    const condition = leaseToken ? " AND lease_token = ?" : "";
+    const bindings: DbValue[] = [error, now.toISOString(), jobId];
+    if (leaseToken) bindings.push(leaseToken);
+    await this.db
+      .prepare(`UPDATE processing_jobs SET state = 'failed', error = ?, lease_token = NULL, lease_until = NULL, updated_at = ? WHERE id = ?${condition}`)
+      .bind(...bindings)
+      .run();
+    if (leaseToken) {
+      await this.db.prepare("UPDATE processing_attempts SET state = 'failed', error = ?, completed_at = ? WHERE job_id = ? AND lease_token = ? AND state = 'running'")
+        .bind(error, now.toISOString(), jobId, leaseToken).run();
+    }
+  }
+
+  async releaseProcessingJob(jobId: string, error: string, delayMs: number, now = new Date(), leaseToken?: string): Promise<void> {
+    const condition = leaseToken ? " AND lease_token = ?" : "";
+    const bindings: DbValue[] = [error, new Date(now.getTime() + delayMs).toISOString(), now.toISOString(), jobId];
+    if (leaseToken) bindings.push(leaseToken);
+    await this.db.prepare(
+      `UPDATE processing_jobs SET state = 'queued', error = ?, available_at = ?, lease_token = NULL,
+        lease_until = NULL, updated_at = ? WHERE id = ?${condition}`
+    ).bind(...bindings).run();
+    if (leaseToken) {
+      await this.db.prepare("UPDATE processing_attempts SET state = 'released', error = ?, completed_at = ? WHERE job_id = ? AND lease_token = ? AND state = 'running'")
+        .bind(error, now.toISOString(), jobId, leaseToken).run();
+    }
   }
 
   async listProcessingJobs(input?: {
@@ -917,7 +1318,8 @@ export class D1Repository implements Repository {
     const placeholders = states.map(() => "?").join(", ");
     const values: DbValue[] = [...states];
     let sql =
-      `SELECT id, briefing_id, raw_message_id, state, error, updated_at
+      `SELECT id, briefing_id, raw_message_id, state, error, lease_token, lease_until,
+        attempt_count, available_at, completed_at, last_enqueued_at, updated_at
        FROM processing_jobs
        WHERE state IN (${placeholders})`;
 
@@ -942,6 +1344,202 @@ export class D1Repository implements Repository {
       .prepare("UPDATE processing_jobs SET state = 'queued', error = NULL, updated_at = ? WHERE id = ?")
       .bind(now.toISOString(), jobId)
       .run();
+  }
+
+  async markProcessingJobEnqueued(jobId: string, now = new Date()): Promise<void> {
+    const timestamp = now.toISOString();
+    await this.db.prepare(`UPDATE processing_jobs SET last_enqueued_at = ?,
+      lease_token = CASE WHEN lease_until IS NOT NULL AND lease_until <= ? THEN NULL ELSE lease_token END,
+      lease_until = CASE WHEN lease_until IS NOT NULL AND lease_until <= ? THEN NULL ELSE lease_until END,
+      updated_at = ? WHERE id = ? AND state = 'queued'`)
+      .bind(timestamp, timestamp, timestamp, timestamp, jobId).run();
+    await this.db.prepare(`UPDATE processing_attempts
+      SET state = 'released', error = COALESCE(error, 'Lease expired; job re-enqueued.'), completed_at = ?
+      WHERE job_id = ? AND state = 'running'
+        AND lease_token != COALESCE((SELECT lease_token FROM processing_jobs WHERE id = ?), '')`)
+      .bind(timestamp, jobId, jobId).run();
+  }
+
+  async listRecoverableProcessingJobs(input: {
+    orphanedBefore: string;
+    enqueuedBefore: string;
+    abandonedLeaseBefore: string;
+    limit: number;
+  }): Promise<ProcessingJobRecord[]> {
+    const rows = await all<ProcessingJobRow>(this.db.prepare(`
+      SELECT id, briefing_id, raw_message_id, state, error, lease_token, lease_until,
+        attempt_count, available_at, completed_at, last_enqueued_at, updated_at
+      FROM processing_jobs
+      WHERE state = 'queued'
+        AND (
+          (lease_until IS NOT NULL AND lease_until < ?)
+          OR (lease_until IS NULL AND last_enqueued_at IS NULL AND updated_at < ?)
+          OR (lease_until IS NULL AND last_enqueued_at IS NOT NULL AND last_enqueued_at < ?)
+        )
+      ORDER BY updated_at ASC
+      LIMIT ?
+    `).bind(input.abandonedLeaseBefore, input.orphanedBefore, input.enqueuedBefore, input.limit));
+    return rows.map(rowToProcessingJob);
+  }
+
+  async claimBriefingWindow(input: {
+    briefingId: string;
+    cadence: "hourly" | "daily" | "weekly" | "monthly";
+    windowStart: string;
+    windowEnd: string;
+    leaseMs: number;
+  }, now = new Date()) {
+    const id = `window_${crypto.randomUUID()}`;
+    const leaseToken = crypto.randomUUID();
+    const timestamp = now.toISOString();
+    const leaseUntil = new Date(now.getTime() + input.leaseMs).toISOString();
+    await this.db.prepare(
+      `INSERT OR IGNORE INTO briefing_windows (
+        id, briefing_id, cadence, window_start, window_end, state, lease_token, lease_until, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?)`
+    ).bind(
+      id, input.briefingId, input.cadence, input.windowStart, input.windowEnd,
+      leaseToken, leaseUntil, timestamp, timestamp
+    ).run();
+
+    let row = await first<{
+      id: string; briefing_id: string; cadence: "hourly" | "daily" | "weekly" | "monthly";
+      window_start: string; window_end: string; lease_token: string | null; lease_until: string | null;
+    }>(this.db.prepare(
+      `SELECT id, briefing_id, cadence, window_start, window_end, lease_token, lease_until
+      FROM briefing_windows
+      WHERE briefing_id = ? AND cadence = ? AND window_start = ? AND window_end = ? AND lease_token = ?`
+    ).bind(input.briefingId, input.cadence, input.windowStart, input.windowEnd, leaseToken));
+
+    if (!row) {
+      const takeover = await this.db.prepare(
+        `UPDATE briefing_windows SET state = 'running', lease_token = ?, lease_until = ?, error = NULL, updated_at = ?
+        WHERE briefing_id = ? AND cadence = ? AND window_start = ? AND window_end = ?
+          AND (state = 'failed' OR (state = 'running' AND lease_until <= ?))`
+      ).bind(
+        leaseToken, leaseUntil, timestamp, input.briefingId, input.cadence,
+        input.windowStart, input.windowEnd, timestamp
+      ).run();
+      if (Number(takeover.meta.changes ?? 0) === 0) return null;
+      row = await first(this.db.prepare(
+        `SELECT id, briefing_id, cadence, window_start, window_end, lease_token, lease_until
+        FROM briefing_windows WHERE briefing_id = ? AND cadence = ? AND window_start = ? AND window_end = ? AND lease_token = ?`
+      ).bind(input.briefingId, input.cadence, input.windowStart, input.windowEnd, leaseToken));
+    }
+    if (!row?.lease_token || !row.lease_until) return null;
+    return {
+      id: row.id,
+      briefingId: row.briefing_id,
+      cadence: row.cadence,
+      windowStart: row.window_start,
+      windowEnd: row.window_end,
+      leaseToken: row.lease_token,
+      leaseUntil: row.lease_until
+    };
+  }
+
+  async completeBriefingWindow(input: {
+    id: string;
+    leaseToken: string;
+    state: "published" | "empty";
+    messageCount: number;
+    editionId?: string;
+    contentCutoffAt: string;
+    qualityState: "ready" | "degraded";
+  }, now = new Date()): Promise<void> {
+    await this.db.prepare(
+      `UPDATE briefing_windows SET state = ?, message_count = ?, edition_id = ?, lease_token = NULL,
+        lease_until = NULL, error = NULL, content_cutoff_at = ?, quality_state = ?, prepared_at = ?,
+        completed_at = ?, updated_at = ?
+      WHERE id = ? AND state = 'running' AND lease_token = ?`
+    ).bind(
+      input.state, input.messageCount, input.editionId ?? null, input.contentCutoffAt, input.qualityState,
+      now.toISOString(), now.toISOString(), now.toISOString(),
+      input.id, input.leaseToken
+    ).run();
+  }
+
+  async getLatestBriefingWindowCutoff(
+    briefingId: string,
+    cadence: "hourly" | "daily" | "weekly" | "monthly",
+    beforeWindowEnd: string
+  ): Promise<string | undefined> {
+    const row = await first<{ content_cutoff_at: string | null }>(this.db.prepare(
+      `SELECT content_cutoff_at
+      FROM briefing_windows
+      WHERE briefing_id = ? AND cadence = ? AND window_end <= ?
+        AND state IN ('published', 'empty') AND content_cutoff_at IS NOT NULL
+      ORDER BY window_end DESC
+      LIMIT 1`
+    ).bind(briefingId, cadence, beforeWindowEnd));
+    return row?.content_cutoff_at ?? undefined;
+  }
+
+  async listRecoverableEmptyBriefingWindows(
+    briefingId: string,
+    cadence: "hourly" | "daily" | "weekly" | "monthly",
+    sinceWindowEnd: string,
+    limit = 2
+  ): Promise<RecoverableBriefingWindow[]> {
+    const rows = await all<{
+      id: string; briefing_id: string; cadence: RecoverableBriefingWindow["cadence"];
+      window_start: string; window_end: string; content_cutoff_at: string; message_count: number;
+    }>(this.db.prepare(
+      `SELECT id, briefing_id, cadence, window_start, window_end, content_cutoff_at, message_count
+      FROM briefing_windows
+      WHERE briefing_id = ? AND cadence = ? AND state = 'empty' AND edition_id IS NULL
+        AND message_count > 0 AND content_cutoff_at IS NOT NULL
+        AND recovery_attempted_at IS NULL AND window_end >= ?
+      ORDER BY window_end ASC
+      LIMIT ?`
+    ).bind(briefingId, cadence, sinceWindowEnd, limit));
+    return rows.map((row) => ({
+      id: row.id,
+      briefingId: row.briefing_id,
+      cadence: row.cadence,
+      windowStart: row.window_start,
+      windowEnd: row.window_end,
+      contentCutoffAt: row.content_cutoff_at,
+      messageCount: row.message_count
+    }));
+  }
+
+  async claimRecoverableEmptyBriefingWindow(id: string, leaseMs: number, now = new Date()) {
+    const leaseToken = crypto.randomUUID();
+    const timestamp = now.toISOString();
+    const leaseUntil = new Date(now.getTime() + leaseMs).toISOString();
+    const claimed = await this.db.prepare(
+      `UPDATE briefing_windows
+      SET state = 'running', lease_token = ?, lease_until = ?, error = NULL,
+        recovery_attempted_at = ?, updated_at = ?
+      WHERE id = ? AND state = 'empty' AND edition_id IS NULL
+        AND message_count > 0 AND recovery_attempted_at IS NULL`
+    ).bind(leaseToken, leaseUntil, timestamp, timestamp, id).run();
+    if (Number(claimed.meta.changes ?? 0) === 0) return null;
+    const row = await first<{
+      id: string; briefing_id: string; cadence: BriefingWindowClaim["cadence"];
+      window_start: string; window_end: string; lease_token: string | null; lease_until: string | null;
+    }>(this.db.prepare(
+      `SELECT id, briefing_id, cadence, window_start, window_end, lease_token, lease_until
+      FROM briefing_windows WHERE id = ? AND lease_token = ?`
+    ).bind(id, leaseToken));
+    if (!row?.lease_token || !row.lease_until) return null;
+    return {
+      id: row.id,
+      briefingId: row.briefing_id,
+      cadence: row.cadence,
+      windowStart: row.window_start,
+      windowEnd: row.window_end,
+      leaseToken: row.lease_token,
+      leaseUntil: row.lease_until
+    };
+  }
+
+  async failBriefingWindow(id: string, leaseToken: string, error: string, now = new Date()): Promise<void> {
+    await this.db.prepare(
+      `UPDATE briefing_windows SET state = 'failed', error = ?, lease_token = NULL, lease_until = NULL,
+        completed_at = ?, updated_at = ? WHERE id = ? AND state = 'running' AND lease_token = ?`
+    ).bind(error, now.toISOString(), now.toISOString(), id, leaseToken).run();
   }
 
   async getExistingItems(briefingId: string, now = new Date()): Promise<BriefingItem[]> {
@@ -1057,13 +1655,14 @@ export class D1Repository implements Repository {
       .prepare(
         `INSERT INTO briefing_editions (
           id, briefing_id, cadence, window_start, window_end, title, summary,
-          sections_json, status, published_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          sections_json, status, generation_mode, published_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(briefing_id, cadence, window_start, window_end) DO UPDATE SET
           title = excluded.title,
           summary = excluded.summary,
           sections_json = excluded.sections_json,
           status = excluded.status,
+          generation_mode = excluded.generation_mode,
           published_at = excluded.published_at,
           updated_at = excluded.updated_at`
       )
@@ -1077,6 +1676,7 @@ export class D1Repository implements Repository {
         edition.summary,
         JSON.stringify(edition.sections),
         edition.status,
+        edition.generationMode ?? "deterministic",
         edition.publishedAt,
         edition.createdAt,
         timestamp
@@ -1094,7 +1694,7 @@ export class D1Repository implements Repository {
       this.db
         .prepare(
           `SELECT id, briefing_id, cadence, window_start, window_end, title, summary,
-            sections_json, status, published_at, created_at, updated_at
+            sections_json, status, generation_mode, published_at, created_at, updated_at
           FROM briefing_editions
           WHERE briefing_id = ?
             AND published_at <= ?
@@ -1111,7 +1711,7 @@ export class D1Repository implements Repository {
       this.db
         .prepare(
           `SELECT id, briefing_id, cadence, window_start, window_end, title, summary,
-            sections_json, status, published_at, created_at, updated_at
+            sections_json, status, generation_mode, published_at, created_at, updated_at
           FROM briefing_editions
           WHERE briefing_id = ?
             AND id = ?
@@ -1122,7 +1722,7 @@ export class D1Repository implements Repository {
     return row ? rowToBriefingEdition(row, true) : null;
   }
 
-  async getHealth(briefingId?: string): Promise<HealthStatus> {
+  async getHealth(briefingId?: string, now = new Date()): Promise<HealthStatus> {
     const lastImportedMessageAt =
       (briefingId
         ? await this.getSetting(`last_imported_message_at:${briefingId}`)
@@ -1146,17 +1746,56 @@ export class D1Repository implements Repository {
       (await this.getSetting("last_source_event_at")) ??
       (await this.getSetting("last_telegram_event_at")) ??
       undefined;
+    const recentSince = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
     const rows = briefingId
       ? await all<{ state: "queued" | "completed" | "failed"; count: number }>(
           this.db
-            .prepare("SELECT state, COUNT(*) as count FROM processing_jobs WHERE briefing_id = ? GROUP BY state")
-            .bind(briefingId)
+            .prepare("SELECT state, COUNT(*) as count FROM processing_jobs WHERE briefing_id = ? AND (state = 'queued' OR updated_at >= ?) GROUP BY state")
+            .bind(briefingId, recentSince)
         )
       : await all<{ state: "queued" | "completed" | "failed"; count: number }>(
-          this.db.prepare("SELECT state, COUNT(*) as count FROM processing_jobs GROUP BY state")
+          this.db.prepare("SELECT state, COUNT(*) as count FROM processing_jobs WHERE state = 'queued' OR updated_at >= ? GROUP BY state").bind(recentSince)
         );
-    const processing = { queued: 0, completed: 0, failed: 0 };
+    const processing = { queued: 0, completed: 0, failed: 0, staleQueued: 0 };
     for (const row of rows) processing[row.state] = row.count;
+    const orphanedBefore = new Date(now.getTime() - ORPHANED_PROCESSING_JOB_STALE_MS).toISOString();
+    const enqueuedBefore = new Date(now.getTime() - ENQUEUED_PROCESSING_JOB_STALE_MS).toISOString();
+    const abandonedLeaseBefore = new Date(now.getTime() - 60 * 1000).toISOString();
+    const staleRow = briefingId
+      ? await first<{ count: number }>(this.db.prepare(
+          `SELECT COUNT(*) as count FROM processing_jobs WHERE briefing_id = ? AND state = 'queued'
+            AND ((lease_until IS NOT NULL AND lease_until < ?)
+              OR (lease_until IS NULL AND last_enqueued_at IS NULL AND updated_at < ?)
+              OR (lease_until IS NULL AND last_enqueued_at IS NOT NULL AND last_enqueued_at < ?))`
+        ).bind(briefingId, abandonedLeaseBefore, orphanedBefore, enqueuedBefore))
+      : await first<{ count: number }>(this.db.prepare(
+          `SELECT COUNT(*) as count FROM processing_jobs WHERE state = 'queued'
+            AND ((lease_until IS NOT NULL AND lease_until < ?)
+              OR (lease_until IS NULL AND last_enqueued_at IS NULL AND updated_at < ?)
+              OR (lease_until IS NULL AND last_enqueued_at IS NOT NULL AND last_enqueued_at < ?))`
+        ).bind(abandonedLeaseBefore, orphanedBefore, enqueuedBefore));
+    processing.staleQueued = Number(staleRow?.count ?? 0);
+    const sourceRows = briefingId
+      ? await all<{ health_state: string; enabled: number; count: number }>(this.db.prepare(
+          "SELECT health_state, enabled, COUNT(*) as count FROM sources WHERE briefing_id = ? GROUP BY health_state, enabled"
+        ).bind(briefingId))
+      : await all<{ health_state: string; enabled: number; count: number }>(this.db.prepare(
+          "SELECT health_state, enabled, COUNT(*) as count FROM sources GROUP BY health_state, enabled"
+        ));
+    const sources = { enabled: 0, degraded: 0, backoff: 0, disabled: 0 };
+    for (const row of sourceRows) {
+      if (row.enabled === 0) sources.disabled += row.count;
+      else {
+        sources.enabled += row.count;
+        if (row.health_state === "degraded") sources.degraded += row.count;
+        if (row.health_state === "backoff") sources.backoff += row.count;
+      }
+    }
+    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+    const spendToday = {
+      llmUsd: await this.sumLlmUsageCost({ briefingId, since: dayStart }),
+      collectionUsd: await this.sumSourceRunCosts({ briefingId, since: dayStart })
+    };
     const latestPublishedRow = briefingId
       ? await first<{ latest_published_at: string | null }>(
           this.db
@@ -1166,12 +1805,12 @@ export class D1Repository implements Repository {
               WHERE briefing_id = ?
                 AND published_at <= ?`
             )
-            .bind(briefingId, new Date().toISOString())
+            .bind(briefingId, now.toISOString())
         )
       : await first<{ latest_published_at: string | null }>(
           this.db
             .prepare("SELECT MAX(published_at) as latest_published_at FROM briefing_editions WHERE published_at <= ?")
-            .bind(new Date().toISOString())
+            .bind(now.toISOString())
         );
     const briefing = briefingId ? await this.getBriefingById(briefingId) : null;
     return {
@@ -1179,8 +1818,10 @@ export class D1Repository implements Repository {
       lastSourceFetchAt,
       lastImportedMessageAt,
       latestPublishedAt: latestPublishedRow?.latest_published_at ?? undefined,
-      nextBriefingAt: briefing?.nextBriefingAt,
-      processing
+      nextBriefingAt: briefing ? visibleNextBriefingAt(briefing, now) : undefined,
+      processing,
+      sources,
+      spendToday
     };
   }
 
@@ -1301,19 +1942,27 @@ export class D1Repository implements Repository {
   }
 
   async sumSourceRunCosts(input: {
-    briefingId: string;
+    briefingId?: string;
     sourceId?: string;
+    actorId?: string;
     since: string;
   }): Promise<number> {
-    const values: DbValue[] = [input.briefingId, input.since];
+    const values: DbValue[] = [input.since];
     let sql =
       `SELECT SUM(COALESCE(actual_cost_usd, estimated_cost_usd, 0)) as total
       FROM source_runs
-      WHERE briefing_id = ?
-        AND started_at >= ?`;
+      WHERE started_at >= ?`;
+    if (input.briefingId) {
+      sql += " AND briefing_id = ?";
+      values.push(input.briefingId);
+    }
     if (input.sourceId) {
       sql += " AND source_id = ?";
       values.push(input.sourceId);
+    }
+    if (input.actorId) {
+      sql += " AND actor_id = ?";
+      values.push(input.actorId);
     }
     const row = await first<{ total: number | null }>(this.db.prepare(sql).bind(...values));
     return Number(row?.total ?? 0);
@@ -1322,7 +1971,7 @@ export class D1Repository implements Repository {
   async recordLlmUsage(input: {
     briefingId: string;
     model: string;
-    purpose: "summary" | "importance_review" | "event_review";
+    purpose: "summary" | "importance_review" | "event_review" | "edition_summary";
     inputTokens: number;
     outputTokens: number;
     estimatedCostUsd: number;
@@ -1347,14 +1996,16 @@ export class D1Repository implements Repository {
   }
 
   async sumLlmUsageCost(input: {
-    briefingId: string;
+    briefingId?: string;
     since: string;
   }): Promise<number> {
-    const row = await first<{ total: number | null }>(
-      this.db
-        .prepare("SELECT SUM(estimated_cost_usd) as total FROM llm_usage_events WHERE briefing_id = ? AND created_at >= ?")
-        .bind(input.briefingId, input.since)
-    );
+    const row = input.briefingId
+      ? await first<{ total: number | null }>(this.db.prepare(
+          "SELECT SUM(estimated_cost_usd) as total FROM llm_usage_events WHERE briefing_id = ? AND created_at >= ?"
+        ).bind(input.briefingId, input.since))
+      : await first<{ total: number | null }>(this.db.prepare(
+          "SELECT SUM(estimated_cost_usd) as total FROM llm_usage_events WHERE created_at >= ?"
+        ).bind(input.since));
     return Number(row?.total ?? 0);
   }
 
@@ -1593,12 +2244,14 @@ export class D1Repository implements Repository {
           `INSERT OR IGNORE INTO briefing_item_evidence (
             id, briefing_item_id, raw_message_id, source_id, source_title, source_type,
             source_provider, source_kind, source_url, posted_at, text, links_json, media_json
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          SELECT ?, briefing_items.id, raw_messages.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          FROM briefing_items
+          JOIN raw_messages ON raw_messages.id = ?
+          WHERE briefing_items.id = ?`
         )
         .bind(
           `evidence_${item.id}_${evidence.messageId}`,
-          item.id,
-          evidence.messageId,
           evidence.sourceId,
           evidence.sourceTitle,
           evidence.sourceType,
@@ -1608,7 +2261,9 @@ export class D1Repository implements Repository {
           evidence.postedAt,
           evidence.text,
           JSON.stringify(evidence.links),
-          JSON.stringify(evidence.media)
+          JSON.stringify(evidence.media),
+          evidence.messageId,
+          item.id
         )
         .run();
     }
@@ -1632,10 +2287,16 @@ export class InMemoryRepository implements Repository {
   briefingCreatedAt = new Map<string, string>();
   sources = new Map<string, SourceRecord>();
   sourceRuns = new Map<string, SourceRunRecord>();
+  canonicalRefreshes = new Map<string, {
+    leaseToken?: string;
+    leaseUntil?: string;
+    nextRefreshAt?: string;
+    lastError?: string;
+  }>();
   llmUsageEvents: Array<{
     briefingId: string;
     model: string;
-    purpose: "summary" | "importance_review" | "event_review";
+    purpose: "summary" | "importance_review" | "event_review" | "edition_summary";
     inputTokens: number;
     outputTokens: number;
     estimatedCostUsd: number;
@@ -1651,7 +2312,30 @@ export class InMemoryRepository implements Repository {
     rawMessageId: string;
     state: "queued" | "completed" | "failed";
     error?: string;
+    leaseToken?: string;
+    leaseUntil?: string;
+    attemptCount: number;
+    availableAt?: string;
+    completedAt?: string;
+    lastEnqueuedAt?: string;
     updatedAt: string;
+  }>();
+  briefingWindows = new Map<string, {
+    id: string;
+    briefingId: string;
+    cadence: "hourly" | "daily" | "weekly" | "monthly";
+    windowStart: string;
+    windowEnd: string;
+    state: "running" | "published" | "empty" | "failed";
+    leaseToken?: string;
+    leaseUntil?: string;
+    messageCount: number;
+    editionId?: string;
+    contentCutoffAt?: string;
+    qualityState?: "ready" | "degraded";
+    preparedAt?: string;
+    recoveryAttemptedAt?: string;
+    error?: string;
   }>();
   settings = new Map<string, string>();
 
@@ -1901,7 +2585,16 @@ export class InMemoryRepository implements Repository {
 
   async setSourceEnabled(sourceId: string, enabled: boolean): Promise<void> {
     const source = this.sources.get(sourceId);
-    if (source) source.enabled = enabled;
+    if (source) {
+      source.enabled = enabled;
+      source.healthState = enabled ? "healthy" : "disabled_by_user";
+      source.nextRetryAt = undefined;
+      if (enabled) {
+        source.failureClass = undefined;
+        source.consecutiveFailures = 0;
+        source.lastError = undefined;
+      }
+    }
   }
 
   async deleteSource(sourceId: string): Promise<void> {
@@ -1950,7 +2643,18 @@ export class InMemoryRepository implements Repository {
       lastSeenAt: existing?.lastSeenAt ?? now.toISOString(),
       lastCheckedAt: existing?.lastCheckedAt,
       lastError: existing?.lastError,
-      cursor: existing?.cursor
+      cursor: existing?.cursor,
+      healthState: existing?.healthState ?? "healthy",
+      failureClass: existing?.failureClass,
+      consecutiveFailures: existing?.consecutiveFailures ?? 0,
+      lastSuccessAt: existing?.lastSuccessAt,
+      lastNewItemAt: existing?.lastNewItemAt,
+      nextRetryAt: existing?.nextRetryAt,
+      canonicalKey: existing?.canonicalKey ?? canonicalSourceKey(
+        input.provider,
+        input.kind,
+        input.username ?? input.sourceUrl ?? input.url ?? input.input ?? input.title
+      )
     };
     this.sources.set(id, source);
     return { ...source };
@@ -1966,7 +2670,7 @@ export class InMemoryRepository implements Repository {
     lastCheckedAt?: string;
     lastError?: string;
     cursor?: unknown;
-  }): Promise<void> {
+  }, _now = new Date()): Promise<void> {
     const source = this.sources.get(input.sourceId);
     if (!source) return;
     if (input.title) source.title = input.title;
@@ -1977,8 +2681,133 @@ export class InMemoryRepository implements Repository {
     }
     if (input.lastSeenAt) source.lastSeenAt = input.lastSeenAt;
     if (input.lastCheckedAt) source.lastCheckedAt = input.lastCheckedAt;
-    source.lastError = input.lastError;
+    if (input.lastError !== undefined) source.lastError = input.lastError;
     if (input.cursor !== undefined) source.cursor = input.cursor;
+  }
+
+  async recordSourceSuccess(sourceId: string, newItemAt?: string, now = new Date()): Promise<void> {
+    const source = this.sources.get(sourceId);
+    if (!source?.enabled) return;
+    source.healthState = "healthy";
+    source.failureClass = undefined;
+    source.consecutiveFailures = 0;
+    source.lastError = undefined;
+    source.lastSuccessAt = now.toISOString();
+    source.lastNewItemAt = newItemAt ?? source.lastNewItemAt;
+    source.nextRetryAt = undefined;
+  }
+
+  async recordSourceFailure(input: {
+    sourceId: string;
+    error: string;
+    failureClass: string;
+    nextRetryAt: string;
+  }, _now = new Date()): Promise<void> {
+    const source = this.sources.get(input.sourceId);
+    if (!source?.enabled) return;
+    source.healthState = (source.consecutiveFailures ?? 0) >= 1 ? "backoff" : "degraded";
+    source.failureClass = input.failureClass;
+    source.consecutiveFailures = (source.consecutiveFailures ?? 0) + 1;
+    source.lastError = input.error;
+    source.nextRetryAt = input.nextRetryAt;
+  }
+
+  async listEquivalentSources(sourceId: string): Promise<SourceRecord[]> {
+    const source = this.sources.get(sourceId);
+    if (!source) return [];
+    return Array.from(this.sources.values())
+      .filter((candidate) => candidate.enabled && candidate.canonicalKey === source.canonicalKey)
+      .map((candidate) => ({ ...candidate }));
+  }
+
+  async claimCanonicalSourceRefresh(sourceId: string, intervalMs: number, leaseMs: number, now = new Date()): Promise<string | null> {
+    const source = this.sources.get(sourceId);
+    if (!source?.canonicalKey) return null;
+    const row = this.canonicalRefreshes.get(source.canonicalKey) ?? {
+      nextRefreshAt: new Date(now.getTime() - intervalMs).toISOString()
+    };
+    if (row.nextRefreshAt && row.nextRefreshAt > now.toISOString()) return null;
+    if (row.leaseUntil && row.leaseUntil > now.toISOString()) return null;
+    row.leaseToken = crypto.randomUUID();
+    row.leaseUntil = new Date(now.getTime() + leaseMs).toISOString();
+    this.canonicalRefreshes.set(source.canonicalKey, row);
+    return row.leaseToken;
+  }
+
+  async activateCanonicalSourceRefresh(sourceId: string, dispatchLeaseToken: string, leaseMs: number, now = new Date()): Promise<string | null> {
+    const source = this.sources.get(sourceId);
+    if (!source?.canonicalKey) return null;
+    const row = this.canonicalRefreshes.get(source.canonicalKey);
+    if (!row || row.leaseToken !== dispatchLeaseToken || !row.leaseUntil || row.leaseUntil <= now.toISOString()) return null;
+    row.leaseToken = crypto.randomUUID();
+    row.leaseUntil = new Date(now.getTime() + leaseMs).toISOString();
+    return row.leaseToken;
+  }
+
+  async releaseCanonicalSourceRefresh(sourceId: string, leaseToken: string): Promise<void> {
+    const source = this.sources.get(sourceId);
+    if (!source?.canonicalKey) return;
+    const row = this.canonicalRefreshes.get(source.canonicalKey);
+    if (!row || row.leaseToken !== leaseToken) return;
+    row.leaseToken = undefined;
+    row.leaseUntil = undefined;
+  }
+
+  async completeCanonicalSourceRefresh(
+    sourceId: string,
+    leaseToken: string,
+    nextRefreshAt: string,
+    newItemAt?: string,
+    now = new Date(),
+    markHealthy = true
+  ): Promise<void> {
+    const source = this.sources.get(sourceId);
+    if (!source?.canonicalKey) return;
+    const row = this.canonicalRefreshes.get(source.canonicalKey);
+    if (!row || row.leaseToken !== leaseToken) return;
+    row.leaseToken = undefined;
+    row.leaseUntil = undefined;
+    row.nextRefreshAt = nextRefreshAt;
+    row.lastError = undefined;
+    for (const equivalent of await this.listEquivalentSources(sourceId)) {
+      const stored = this.sources.get(equivalent.id);
+      if (stored) stored.lastCheckedAt = now.toISOString();
+      if (markHealthy) await this.recordSourceSuccess(equivalent.id, newItemAt, now);
+    }
+  }
+
+  async failCanonicalSourceRefresh(sourceId: string, leaseToken: string, error: string, failureClass: string, backoffMs: number, now = new Date()): Promise<void> {
+    const source = this.sources.get(sourceId);
+    if (!source?.canonicalKey) return;
+    const row = this.canonicalRefreshes.get(source.canonicalKey);
+    if (!row || row.leaseToken !== leaseToken) return;
+    row.leaseToken = undefined;
+    row.leaseUntil = undefined;
+    row.nextRefreshAt = new Date(now.getTime() + backoffMs).toISOString();
+    row.lastError = error;
+    for (const equivalent of await this.listEquivalentSources(sourceId)) {
+      await this.recordSourceFailure({
+        sourceId: equivalent.id,
+        error,
+        failureClass,
+        nextRetryAt: row.nextRefreshAt
+      }, now);
+    }
+  }
+
+  async rescheduleCanonicalSourceRefresh(
+    sourceId: string,
+    nextRefreshAt: string,
+    error?: string
+  ): Promise<void> {
+    const source = this.sources.get(sourceId);
+    if (!source?.canonicalKey) return;
+    const row = this.canonicalRefreshes.get(source.canonicalKey) ?? {};
+    row.leaseToken = undefined;
+    row.leaseUntil = undefined;
+    row.nextRefreshAt = nextRefreshAt;
+    row.lastError = error;
+    this.canonicalRefreshes.set(source.canonicalKey, row);
   }
 
   async upsertSourceFromMessage(briefingId: string, message: NormalizedMessage): Promise<SourceRecord> {
@@ -1993,21 +2822,34 @@ export class InMemoryRepository implements Repository {
     const source: SourceRecord = {
       id: existing?.id ?? scopedSourceId(briefingId, message.source.id),
       briefingId,
-      title: existing?.provider === "apify" || existing?.kind === "google_news" ? existing.title : message.source.title,
-      type: message.source.type,
-      provider: message.source.provider ?? "telegram",
-      kind: message.source.kind ?? (message.source.type === "group" ? "telegram_group" : "telegram_channel"),
-      username: existing?.provider === "apify" || existing?.kind === "google_news" ? existing.username : message.source.username,
-      input: existing?.kind === "google_news" ? existing.input : message.source.username ? `https://t.me/${message.source.username}` : message.sourceUrl ?? message.source.title,
-      url: existing?.kind === "google_news" ? existing.url : message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : undefined),
-      sourceUrl: existing?.kind === "google_news" ? existing.sourceUrl : message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : undefined),
+      title: existing?.title ?? message.source.title,
+      type: existing?.type ?? message.source.type,
+      provider: existing?.kind === "google_news"
+        ? message.source.provider ?? existing.provider
+        : existing?.provider ?? message.source.provider ?? "telegram",
+      kind: existing?.kind ?? message.source.kind ?? (message.source.type === "group" ? "telegram_group" : "telegram_channel"),
+      username: existing?.username ?? message.source.username,
+      input: existing?.input ?? (message.source.username ? `https://t.me/${message.source.username}` : message.sourceUrl ?? message.source.title),
+      url: existing?.url ?? message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : undefined),
+      sourceUrl: existing?.sourceUrl ?? message.sourceUrl ?? (message.source.username ? `https://t.me/${message.source.username}` : undefined),
       actorId: existing?.actorId,
       actorInput: existing?.actorInput,
       cursor: existing?.cursor,
       enabled: existing?.enabled ?? false,
       lastSeenAt: message.receivedAt,
       lastCheckedAt: existing?.lastCheckedAt,
-      lastError: existing?.lastError
+      lastError: existing?.lastError,
+      healthState: existing?.healthState ?? "healthy",
+      failureClass: existing?.failureClass,
+      consecutiveFailures: existing?.consecutiveFailures ?? 0,
+      lastSuccessAt: existing?.lastSuccessAt,
+      lastNewItemAt: existing?.lastNewItemAt,
+      nextRetryAt: existing?.nextRetryAt,
+      canonicalKey: existing?.canonicalKey ?? canonicalSourceKey(
+            message.source.provider ?? "telegram",
+            message.source.kind ?? (message.source.type === "group" ? "telegram_group" : "telegram_channel"),
+            message.source.username ?? message.sourceUrl ?? message.source.title
+          )
     };
     this.sources.set(source.id, source);
     return source;
@@ -2015,6 +2857,17 @@ export class InMemoryRepository implements Repository {
 
   async saveRawMessage(_briefingId: string, message: NormalizedMessage): Promise<void> {
     this.rawMessages.set(message.id, message);
+  }
+
+  async saveRawMessageAndCreateProcessingJob(
+    briefingId: string,
+    message: NormalizedMessage,
+    now = new Date()
+  ): Promise<string> {
+    this.rawMessages.set(message.id, message);
+    const existing = Array.from(this.jobs.values()).find((job) => job.rawMessageId === message.id);
+    if (existing) return existing.id;
+    return this.createProcessingJob(briefingId, message.id, now);
   }
 
   async getRawMessage(id: string): Promise<NormalizedMessage | null> {
@@ -2045,27 +2898,76 @@ export class InMemoryRepository implements Repository {
       .slice(0, limit);
   }
 
+  async listRawMessagesReceivedBetween(
+    briefingId: string,
+    receivedAfter: string,
+    receivedThrough: string,
+    postedAfter: string,
+    limit = 500
+  ): Promise<NormalizedMessage[]> {
+    return Array.from(this.rawMessages.values())
+      .filter((message) =>
+        message.id.startsWith(`${briefingId}::`) &&
+        message.receivedAt > receivedAfter &&
+        message.receivedAt <= receivedThrough &&
+        message.postedAt >= postedAfter &&
+        message.expiresAt > receivedThrough
+      )
+      .sort((left, right) => left.receivedAt.localeCompare(right.receivedAt) || left.postedAt.localeCompare(right.postedAt))
+      .slice(0, limit);
+  }
+
   async createProcessingJob(briefingId: string, rawMessageId: string, now = new Date()): Promise<string> {
     const id = `job_${this.jobs.size + 1}`;
-    this.jobs.set(id, { id, briefingId, rawMessageId, state: "queued", updatedAt: now.toISOString() });
+    this.jobs.set(id, {
+      id, briefingId, rawMessageId, state: "queued", attemptCount: 0,
+      availableAt: now.toISOString(), updatedAt: now.toISOString()
+    });
     return id;
   }
 
-  async completeProcessingJob(jobId: string, now = new Date()): Promise<void> {
+  async claimProcessingJob(jobId: string, leaseMs: number, now = new Date()): Promise<ProcessingJobClaim | null> {
     const job = this.jobs.get(jobId);
-    if (job) {
+    if (!job || job.state !== "queued") return null;
+    if (job.leaseUntil && job.leaseUntil > now.toISOString()) return null;
+    job.leaseToken = crypto.randomUUID();
+    job.leaseUntil = new Date(now.getTime() + leaseMs).toISOString();
+    job.attemptCount += 1;
+    job.updatedAt = now.toISOString();
+    return { ...job, leaseToken: job.leaseToken, leaseUntil: job.leaseUntil };
+  }
+
+  async completeProcessingJob(jobId: string, now = new Date(), leaseToken?: string): Promise<void> {
+    const job = this.jobs.get(jobId);
+    if (job && (!leaseToken || job.leaseToken === leaseToken)) {
       job.state = "completed";
+      job.completedAt = now.toISOString();
+      job.leaseToken = undefined;
+      job.leaseUntil = undefined;
       job.updatedAt = now.toISOString();
     }
   }
 
-  async failProcessingJob(jobId: string, error: string, now = new Date()): Promise<void> {
+  async failProcessingJob(jobId: string, error: string, now = new Date(), leaseToken?: string): Promise<void> {
     const job = this.jobs.get(jobId);
-    if (job) {
+    if (job && (!leaseToken || job.leaseToken === leaseToken)) {
       job.state = "failed";
       job.error = error;
+      job.leaseToken = undefined;
+      job.leaseUntil = undefined;
       job.updatedAt = now.toISOString();
     }
+  }
+
+  async releaseProcessingJob(jobId: string, error: string, delayMs: number, now = new Date(), leaseToken?: string): Promise<void> {
+    const job = this.jobs.get(jobId);
+    if (!job || (leaseToken && job.leaseToken !== leaseToken)) return;
+    job.state = "queued";
+    job.error = error;
+    job.availableAt = new Date(now.getTime() + delayMs).toISOString();
+    job.leaseToken = undefined;
+    job.leaseUntil = undefined;
+    job.updatedAt = now.toISOString();
   }
 
   async listProcessingJobs(input?: {
@@ -2088,8 +2990,32 @@ export class InMemoryRepository implements Repository {
         rawMessageId: job.rawMessageId,
         state: job.state,
         error: job.error,
+        leaseToken: job.leaseToken,
+        leaseUntil: job.leaseUntil,
+        attemptCount: job.attemptCount,
+        availableAt: job.availableAt,
+        completedAt: job.completedAt,
+        lastEnqueuedAt: job.lastEnqueuedAt,
         updatedAt: job.updatedAt
       }));
+  }
+
+  async listRecoverableProcessingJobs(input: {
+    orphanedBefore: string;
+    enqueuedBefore: string;
+    abandonedLeaseBefore: string;
+    limit: number;
+  }): Promise<ProcessingJobRecord[]> {
+    return Array.from(this.jobs.values())
+      .filter((job) => job.state === "queued")
+      .filter((job) =>
+        (Boolean(job.leaseUntil) && job.leaseUntil! < input.abandonedLeaseBefore) ||
+        (!job.leaseUntil && !job.lastEnqueuedAt && job.updatedAt < input.orphanedBefore) ||
+        (!job.leaseUntil && Boolean(job.lastEnqueuedAt) && job.lastEnqueuedAt! < input.enqueuedBefore)
+      )
+      .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt))
+      .slice(0, input.limit)
+      .map((job) => ({ ...job }));
   }
 
   async requeueProcessingJob(jobId: string, now = new Date()): Promise<void> {
@@ -2099,6 +3025,134 @@ export class InMemoryRepository implements Repository {
       delete job.error;
       job.updatedAt = now.toISOString();
     }
+  }
+
+  async markProcessingJobEnqueued(jobId: string, now = new Date()): Promise<void> {
+    const job = this.jobs.get(jobId);
+    if (job?.state === "queued") {
+      job.lastEnqueuedAt = now.toISOString();
+      if (job.leaseUntil && job.leaseUntil <= now.toISOString()) {
+        delete job.leaseToken;
+        delete job.leaseUntil;
+      }
+      job.updatedAt = now.toISOString();
+    }
+  }
+
+  async claimBriefingWindow(input: {
+    briefingId: string;
+    cadence: "hourly" | "daily" | "weekly" | "monthly";
+    windowStart: string;
+    windowEnd: string;
+    leaseMs: number;
+  }, now = new Date()) {
+    const key = `${input.briefingId}:${input.cadence}:${input.windowStart}:${input.windowEnd}`;
+    const existing = this.briefingWindows.get(key);
+    if (existing && existing.state !== "failed" && !(existing.state === "running" && (existing.leaseUntil ?? "") <= now.toISOString())) return null;
+    const leaseToken = crypto.randomUUID();
+    const leaseUntil = new Date(now.getTime() + input.leaseMs).toISOString();
+    const row = {
+      id: existing?.id ?? `window_${this.briefingWindows.size + 1}`,
+      briefingId: input.briefingId,
+      cadence: input.cadence,
+      windowStart: input.windowStart,
+      windowEnd: input.windowEnd,
+      state: "running" as const,
+      leaseToken,
+      leaseUntil,
+      messageCount: 0
+    };
+    this.briefingWindows.set(key, row);
+    return { ...row, leaseToken, leaseUntil };
+  }
+
+  async completeBriefingWindow(input: {
+    id: string;
+    leaseToken: string;
+    state: "published" | "empty";
+    messageCount: number;
+    editionId?: string;
+    contentCutoffAt: string;
+    qualityState: "ready" | "degraded";
+  }, now = new Date()): Promise<void> {
+    const row = Array.from(this.briefingWindows.values()).find((entry) => entry.id === input.id);
+    if (!row || row.leaseToken !== input.leaseToken) return;
+    row.state = input.state;
+    row.messageCount = input.messageCount;
+    row.editionId = input.editionId;
+    row.contentCutoffAt = input.contentCutoffAt;
+    row.qualityState = input.qualityState;
+    row.preparedAt = now.toISOString();
+    row.leaseToken = undefined;
+    row.leaseUntil = undefined;
+  }
+
+  async getLatestBriefingWindowCutoff(
+    briefingId: string,
+    cadence: "hourly" | "daily" | "weekly" | "monthly",
+    beforeWindowEnd: string
+  ): Promise<string | undefined> {
+    return Array.from(this.briefingWindows.values())
+      .filter((row) =>
+        row.briefingId === briefingId && row.cadence === cadence && row.windowEnd <= beforeWindowEnd &&
+        (row.state === "published" || row.state === "empty") && Boolean(row.contentCutoffAt)
+      )
+      .sort((left, right) => right.windowEnd.localeCompare(left.windowEnd))[0]?.contentCutoffAt;
+  }
+
+  async listRecoverableEmptyBriefingWindows(
+    briefingId: string,
+    cadence: "hourly" | "daily" | "weekly" | "monthly",
+    sinceWindowEnd: string,
+    limit = 2
+  ): Promise<RecoverableBriefingWindow[]> {
+    return Array.from(this.briefingWindows.values())
+      .filter((row) =>
+        row.briefingId === briefingId && row.cadence === cadence && row.state === "empty" &&
+        !row.editionId && row.messageCount > 0 && Boolean(row.contentCutoffAt) &&
+        !row.recoveryAttemptedAt && row.windowEnd >= sinceWindowEnd
+      )
+      .sort((left, right) => left.windowEnd.localeCompare(right.windowEnd))
+      .slice(0, limit)
+      .map((row) => ({
+        id: row.id,
+        briefingId: row.briefingId,
+        cadence: row.cadence,
+        windowStart: row.windowStart,
+        windowEnd: row.windowEnd,
+        contentCutoffAt: row.contentCutoffAt!,
+        messageCount: row.messageCount
+      }));
+  }
+
+  async claimRecoverableEmptyBriefingWindow(id: string, leaseMs: number, now = new Date()) {
+    const row = Array.from(this.briefingWindows.values()).find((entry) => entry.id === id);
+    if (!row || row.state !== "empty" || row.editionId || row.messageCount === 0 || row.recoveryAttemptedAt) return null;
+    const leaseToken = crypto.randomUUID();
+    const leaseUntil = new Date(now.getTime() + leaseMs).toISOString();
+    row.state = "running";
+    row.leaseToken = leaseToken;
+    row.leaseUntil = leaseUntil;
+    row.recoveryAttemptedAt = now.toISOString();
+    row.error = undefined;
+    return {
+      id: row.id,
+      briefingId: row.briefingId,
+      cadence: row.cadence,
+      windowStart: row.windowStart,
+      windowEnd: row.windowEnd,
+      leaseToken,
+      leaseUntil
+    };
+  }
+
+  async failBriefingWindow(id: string, leaseToken: string, error: string): Promise<void> {
+    const row = Array.from(this.briefingWindows.values()).find((entry) => entry.id === id);
+    if (!row || row.leaseToken !== leaseToken) return;
+    row.state = "failed";
+    row.error = error;
+    row.leaseToken = undefined;
+    row.leaseUntil = undefined;
   }
 
   async getExistingItems(briefingId: string, now = new Date()): Promise<BriefingItem[]> {
@@ -2191,11 +3245,23 @@ export class InMemoryRepository implements Repository {
     return structuredClone(edition);
   }
 
-  async getHealth(briefingId?: string): Promise<HealthStatus> {
-    const processing = { queued: 0, completed: 0, failed: 0 };
+  async getHealth(briefingId?: string, now = new Date()): Promise<HealthStatus> {
+    const processing = { queued: 0, completed: 0, failed: 0, staleQueued: 0 };
     for (const job of this.jobs.values()) {
-      if (!briefingId || job.briefingId === briefingId) processing[job.state] += 1;
+      if (briefingId && job.briefingId !== briefingId) continue;
+      if (job.state === "queued" || job.updatedAt >= new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()) processing[job.state] += 1;
+      const orphaned = !job.lastEnqueuedAt && job.updatedAt < new Date(now.getTime() - ORPHANED_PROCESSING_JOB_STALE_MS).toISOString();
+      const abandoned = Boolean(job.lastEnqueuedAt && job.lastEnqueuedAt < new Date(now.getTime() - ENQUEUED_PROCESSING_JOB_STALE_MS).toISOString());
+      if (job.state === "queued" && (orphaned || abandoned) && (!job.leaseUntil || job.leaseUntil < now.toISOString())) processing.staleQueued += 1;
     }
+    const scopedSources = Array.from(this.sources.values()).filter((source) => !briefingId || source.briefingId === briefingId);
+    const sources = {
+      enabled: scopedSources.filter((source) => source.enabled).length,
+      degraded: scopedSources.filter((source) => source.enabled && source.healthState === "degraded").length,
+      backoff: scopedSources.filter((source) => source.enabled && source.healthState === "backoff").length,
+      disabled: scopedSources.filter((source) => !source.enabled).length
+    };
+    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
     return {
       lastSourceEventAt:
         (briefingId ? this.settings.get(`last_imported_message_at:${briefingId}`) : undefined) ??
@@ -2211,8 +3277,18 @@ export class InMemoryRepository implements Repository {
         (briefingId ? this.settings.get(`last_imported_message_at:${briefingId}`) : undefined) ??
         this.settings.get("last_imported_message_at"),
       latestPublishedAt: latestEditionPublishedAt(this.editionsByBriefing, briefingId),
-      nextBriefingAt: briefingId ? this.briefings.get(briefingId)?.nextBriefingAt : undefined,
-      processing
+      nextBriefingAt: briefingId
+        ? (() => {
+            const briefing = this.briefings.get(briefingId);
+            return briefing ? visibleNextBriefingAt(briefing, now) : undefined;
+          })()
+        : undefined,
+      processing,
+      sources,
+      spendToday: {
+        llmUsd: await this.sumLlmUsageCost({ briefingId, since: dayStart }),
+        collectionUsd: await this.sumSourceRunCosts({ briefingId, since: dayStart })
+      }
     };
   }
 
@@ -2288,13 +3364,15 @@ export class InMemoryRepository implements Repository {
   }
 
   async sumSourceRunCosts(input: {
-    briefingId: string;
+    briefingId?: string;
     sourceId?: string;
+    actorId?: string;
     since: string;
   }): Promise<number> {
     return Array.from(this.sourceRuns.values())
-      .filter((run) => run.briefingId === input.briefingId)
+      .filter((run) => !input.briefingId || run.briefingId === input.briefingId)
       .filter((run) => !input.sourceId || run.sourceId === input.sourceId)
+      .filter((run) => !input.actorId || run.actorId === input.actorId)
       .filter((run) => run.startedAt >= input.since)
       .reduce((total, run) => total + (run.actualCostUsd ?? run.estimatedCostUsd ?? 0), 0);
   }
@@ -2302,7 +3380,7 @@ export class InMemoryRepository implements Repository {
   async recordLlmUsage(input: {
     briefingId: string;
     model: string;
-    purpose: "summary" | "importance_review" | "event_review";
+    purpose: "summary" | "importance_review" | "event_review" | "edition_summary";
     inputTokens: number;
     outputTokens: number;
     estimatedCostUsd: number;
@@ -2311,11 +3389,11 @@ export class InMemoryRepository implements Repository {
   }
 
   async sumLlmUsageCost(input: {
-    briefingId: string;
+    briefingId?: string;
     since: string;
   }): Promise<number> {
     return this.llmUsageEvents
-      .filter((event) => event.briefingId === input.briefingId && event.createdAt >= input.since)
+      .filter((event) => (!input.briefingId || event.briefingId === input.briefingId) && event.createdAt >= input.since)
       .reduce((total, event) => total + event.estimatedCostUsd, 0);
   }
 
@@ -2362,6 +3440,21 @@ function scopedSourceId(briefingId: string, sourceId: string): string {
 
 function stableSourceKey(provider: SourceProvider, kind: SourceKind, value: string): string {
   return `${provider}_${kind}_${stableHash(value.toLowerCase().trim())}`;
+}
+
+function canonicalSourceKey(provider: SourceProvider, kind: SourceKind, value: string): string {
+  if (kind === "google_news") {
+    try {
+      const url = new URL(value);
+      const rawQuery = url.search.match(/(?:^|[?&])q=([^&]+)/i)?.[1];
+      const language = url.searchParams.get("hl")?.match(/^[A-Za-z]{2}/)?.[0]?.toLowerCase() ?? "en";
+      if (rawQuery) return `apify|google_news|${language}|${rawQuery.toLowerCase()}`;
+    } catch {
+      // Fall back to the normalized source value for legacy records.
+    }
+    return `apify|google_news|${value.toLowerCase().trim().replace(/\/$/, "")}`;
+  }
+  return `${provider}|${kind}|${value.toLowerCase().trim().replace(/\/$/, "")}`;
 }
 
 function compareBriefingsByStarsAndAge(
@@ -2450,6 +3543,7 @@ function rowToBriefingEdition(row: BriefingEditionRow, includeSections: boolean)
     summary: row.summary,
     sections: includeSections ? parseJson<BriefingEditionSection[]>(row.sections_json, []) : [],
     status: row.status,
+    generationMode: row.generation_mode ?? "deterministic",
     publishedAt: row.published_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -2476,7 +3570,14 @@ function rowToSource(row: SourceRow): SourceRecord {
     enabled: row.enabled === 1,
     lastSeenAt: row.last_seen_at,
     lastCheckedAt: row.last_checked_at ?? undefined,
-    lastError: row.last_error ?? undefined
+    lastError: row.last_error ?? undefined,
+    healthState: row.health_state ?? (row.enabled === 1 ? "healthy" : "disabled_by_user"),
+    failureClass: row.failure_class ?? undefined,
+    consecutiveFailures: row.consecutive_failures ?? 0,
+    lastSuccessAt: row.last_success_at ?? undefined,
+    lastNewItemAt: row.last_new_item_at ?? undefined,
+    nextRetryAt: row.next_retry_at ?? undefined,
+    canonicalKey: row.canonical_key ?? undefined
   };
 }
 
@@ -2580,6 +3681,12 @@ function rowToProcessingJob(row: ProcessingJobRow): ProcessingJobRecord {
     rawMessageId: row.raw_message_id,
     state: row.state,
     error: row.error ?? undefined,
+    leaseToken: row.lease_token ?? undefined,
+    leaseUntil: row.lease_until ?? undefined,
+    attemptCount: row.attempt_count ?? 0,
+    availableAt: row.available_at ?? undefined,
+    completedAt: row.completed_at ?? undefined,
+    lastEnqueuedAt: row.last_enqueued_at ?? undefined,
     updatedAt: row.updated_at
   };
 }

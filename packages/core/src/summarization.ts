@@ -16,7 +16,10 @@ const INVALID_SUMMARY_PATTERNS = [
   /^NO_POST$/i,
   /لا توجد معلومات جديدة/u,
   /لا يوجد(?:\s+\S+){0,4}\s+(?:معلومات|تحديثات|تطورات)/u,
-  /لا تتوفر(?:\s+\S+){0,4}\s+(?:معلومات|تحديثات|تطورات)/u
+  /لا تتوفر(?:\s+\S+){0,4}\s+(?:معلومات|تحديثات|تطورات)/u,
+  /ـ\s*[./]/u,
+  /(?:^|\s)\/\s*[\u0600-\u06FF]/u,
+  /[\u0600-\u06FF]\d[\u0600-\u06FF]/u
 ];
 
 const LOW_INFORMATION_SUMMARY_PATTERNS = [
@@ -25,6 +28,11 @@ const LOW_INFORMATION_SUMMARY_PATTERNS = [
   /للتفاصيل/u,
   /للمزيد/u,
   /شاهد(?:وا)?/u,
+  /^(?:will|would|could|should|can|is|are|does|do|did|what|why|how|when|where|who)\b/i,
+  /(?:^|[:–—-]\s*)(?:what|why|how|when|where|who)\b/i,
+  /\b(?:what to know|predictions?|ahead of the (?:match|game|semifinal|final)|where to watch)\b/i,
+  /^(?:est-ce|pourquoi|comment|quand|où|qui|quel(?:le|s|les)?)(?=$|[^\p{L}\p{N}_])/iu,
+  /^(?:هل|لماذا|كيف|متى|أين|اين|مَن)(?:\s|$)/u,
   /^قبل\s+(?:توقيع|بدء|انطلاق|اجتماع|جلسة|زيارة|لقاء)(?:\s|$|[.،,])/u,
   /^بعد\s+(?:توقيع|بدء|انتهاء|انطلاق|اجتماع|جلسة|زيارة|لقاء)(?:\s|$|[.،,])/u
 ];
@@ -45,7 +53,8 @@ const CONTEXT_ONLY_SUMMARY_PATTERNS = [
 const INFORMATION_SIGNAL_PATTERNS = [
   /[:：]/,
   /\b\d+([.,]\d+)?\b/,
-  /\b(?:confirmed|reported|said|signed|approved|announced|opened|closed|killed|injured|arrested|launched|halted|resumed|affected|damaged|disrupted|improved|increased|decreased|rose|fell)\b/i,
+  /\b(?:confirmed|reported|said|signed|approved|authorized|cleared|announced|opened|closed|killed|injured|arrested|launched|released|introduced|adds?|added|halted|resumed|ended|expired|renewed|cancell?ed|affected|damaged|disrupted|improved|increased|decreased|rose|fell)\b/i,
+  /(?:^|[^\p{L}\p{N}_])(?:a |ont )?(?:confirmé|rapporté|déclaré|signé|approuvé|autorisé|annoncé|ouvert|fermé|tué|blessé|arrêté|lancé|publié|introduit|ajouté|suspendu|repris|terminé|expiré|renouvelé|annulé|affecté|endommagé|perturbé|amélioré|augmenté|diminué)(?=$|[^\p{L}\p{N}_])/iu,
   /(?:أعلن|اعلن|أكد|اكد|أفاد|افاد|وقّع|وقع|سيوقع|قتل|استشهد|أصيب|اصيب|جرح|اعتقل|أقر|اقر|وافق|افتتح|أغلق|اغلق|استهدف|قصف|غارة|غاره|انفجار|انسحب|بدأ|بدا|استأنف|استانف|قطع|أوقف|اوقف|جريح|جريحين|جريحان|جرحى|قتيل|قتلى)/u,
   /(?:جريح|جريحان|جرحى|قتيل|قتلى|شهيد|شهداء)(?:\s+\S+){0,8}\s+(?:نتيجة|جراء|بسبب|إثر|اثر|تصادم|استهداف|غارة|قصف|إطلاق|انفجار|حريق)/u
 ];
@@ -89,7 +98,8 @@ export function buildSummaryPrompt(input: SummaryInput): string {
     "Only publish when the evidence contains a clear, standalone factual update with concrete informational value.",
     "Do not turn teasers, cliffhangers, headlines that require opening a link, vague reactions, or details-below captions into briefing items.",
     "If the evidence does not contain enough clear information/value to publish, return exactly NO_POST.",
-    "If publishing, write one short standalone sentence that states the useful fact.",
+    "If publishing, write one or two concise standalone sentences: state the useful fact, then add only essential evidence-supported context.",
+    "Name the actor or subject and its action, decision, event, or measurable change. Do not replace a named subject with generic phrases such as it was announced, reports indicate, or this development.",
     "Do not end mid-word or with an incomplete sentence; if a source appears truncated, summarize only the complete verified facts.",
     "Do not include URLs, social handles, hashtags, emoji markers, or source-channel prefixes.",
     "For Arabic briefings, do not include English translations copied from bilingual source posts.",
@@ -166,7 +176,11 @@ function isArtifactSentence(sentence: string): boolean {
 export function sanitizeEvidenceText(text: string, language?: BriefingConfig["language"]): string {
   const withoutArtifacts = stripSummaryArtifacts(text);
   const languageCleaned = language === "ar" ? stripLatinTranslationFragments(withoutArtifacts) : withoutArtifacts;
-  return languageCleaned
+  const punctuationCleaned = language === "ar"
+    ? repairArabicSourceObfuscation(languageCleaned).replace(/\s*&\s*/gu, " ")
+    : languageCleaned;
+  return punctuationCleaned
+    .replace(/([\u0600-\u06FF])&(?=\s|[\u0600-\u06FF])/gu, "$1 ")
     .replace(/\s+([,.;:!?؟،])/gu, "$1")
     .replace(/([:؛،,])\s*([.!؟?])/gu, "$2")
     .replace(/[ \t]+/g, " ")
@@ -174,9 +188,21 @@ export function sanitizeEvidenceText(text: string, language?: BriefingConfig["la
     .trim();
 }
 
+/** Remove publisher-inserted punctuation only when it splits one Arabic word. */
+function repairArabicSourceObfuscation(text: string): string {
+  return text
+    .replace(/([\u0600-\u06FF])(?:ـ|\/){1,3}\s*(?=[\u0600-\u06FF])/gu, "$1")
+    .replace(/([\u0600-\u06FF]{2,})\.([\u0600-\u06FF])(?=\s|[،؛.!؟]|$)/gu, "$1$2");
+}
+
 function stripSummaryArtifacts(summary: string): string {
-  return stripBoilerplateLines(summary)
+  return stripBoilerplateLines(decodeTextEntities(summary))
+    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu, "")
+    .replace(/(?:[,،؛;]\s*)?(?:(?:دون|من دون|بدون)\s+تفاصيل(?:\s+إضافية)?|(?:لم ترد|لا توجد|لا تتوفر)\s+تفاصيل(?:\s+إضافية)?)[^.!؟?]*([.!؟?]|$)/gu, "$1")
+    .replace(/(?:[,;]\s*)?(?:with\s+)?(?:no|without)\s+(?:further\s+|additional\s+)?(?:details|information|context)[^.!?]*([.!?]|$)/giu, "$1")
+    .replace(/(?:[,;]\s*)?sans\s+(?:autres?\s+|plus\s+de\s+)?détails?[^.!?]*([.!?]|$)/giu, "$1")
     .replace(/\bBREAKING:?\s*/gi, "")
+    .replace(/(\p{N})\.\s+(\p{N})/gu, "$1.$2")
     .replace(/https?:\/\/[A-Za-z0-9_-]+\.\s+[A-Za-z0-9._~:/?#[\]@!$&'()*+,;=%-]+/gi, " ")
     .replace(/https?:\/\/[^\s]+/gi, " ")
     .replace(/\b(?:t|x|twitter)\s*\.\s*(?:co|com)\/\S+/gi, " ")
@@ -189,11 +215,37 @@ function stripSummaryArtifacts(summary: string): string {
     .replace(/@[A-Za-z0-9_]{2,30}/g, " ")
     .replace(/[\p{Extended_Pictographic}\uFE0F\u200D\u{1F1E6}-\u{1F1FF}]+/gu, " ")
     .replace(/^\s*[\p{L}\p{N}_ .-]{2,48}\|/u, "")
-    .replace(/\s*[ـ_]{4,}\s*[^.!؟?\n]{0,180}/gu, " ")
-    .replace(/\s*(?:قناة\s+)?موقع\s+بنت\s+جبيل\s+على\s+واتساب/gu, " ")
+    .replace(/\s*[ـ_─━—-]{4,}\s*[^.!؟?\n]{0,180}/gu, " ")
+    .replace(/\s*(?:قناة\s+)?(?:موقع\s+)?بنت\s+جبيل\s+على\s+واتساب/gu, " ")
     .replace(/^[\s|:؛،,.-]+/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function decodeTextEntities(value: string): string {
+  const named: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    lrm: "",
+    nbsp: " ",
+    quot: '"',
+    rlm: ""
+  };
+  let decoded = value;
+  for (let pass = 0; pass < 2; pass += 1) {
+    decoded = decoded
+      .replace(/&([a-z]+);/giu, (match, name: string) => named[name.toLowerCase()] ?? match)
+      .replace(/&#(x[0-9a-f]+|\d+);/giu, (match, code: string) => {
+        const value = code.toLowerCase().startsWith("x")
+          ? Number.parseInt(code.slice(1), 16)
+          : Number.parseInt(code, 10);
+        if (!Number.isFinite(value) || value <= 0 || value > 0x10ffff) return match;
+        return String.fromCodePoint(value);
+      });
+  }
+  return decoded;
 }
 
 function stripBoilerplateLines(text: string): string {
@@ -209,7 +261,7 @@ function isBoilerplateLine(line: string): boolean {
   if (!cleaned) return true;
   return [
     /^[ـ_\-–—\s]{4,}$/u,
-    /^(?:قناة\s+)?موقع\s+بنت\s+جبيل\s+على\s+واتساب/u,
+    /^(?:قناة\s+)?(?:موقع\s+)?بنت\s+جبيل\s+على\s+واتساب/u,
     /\b(?:download telegram|view in telegram|join channel|subscribe)\b/i,
     /\b(?:read more|source|watch)\b/i,
     /^(?:انضم|تابعونا|لمتابعة|للمزيد|للتفاصيل)(?:\s|$)/u

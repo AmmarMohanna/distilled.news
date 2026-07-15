@@ -24,6 +24,35 @@ export async function sendPasswordResetEmail(env: Env, account: AccountRecord, t
   });
 }
 
+export async function sendEmailDeliveryTest(env: Env, account: AccountRecord, sentAt = new Date()): Promise<void> {
+  if (!env.EMAIL) throw new Error("Cloudflare Email binding is not configured");
+  if (!env.EMAIL_FROM) throw new Error("EMAIL_FROM is not configured");
+
+  const timestamp = sentAt.toISOString();
+  const text = [
+    "Distilled.news",
+    "",
+    "Email delivery is working.",
+    "",
+    `Production test sent at ${timestamp}.`,
+    "No action is required."
+  ].join("\n");
+  await env.EMAIL.send({
+    to: account.email,
+    from: parseEmailAddress(env.EMAIL_FROM),
+    subject: "Distilled.news email delivery test",
+    text,
+    html: [
+      "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.5; color: #111;\">",
+      "<h1 style=\"font-size: 18px; margin: 0 0 16px;\">Distilled.news</h1>",
+      "<p>Email delivery is working.</p>",
+      `<p style="color: #666;">Production test sent at ${escapeHtml(timestamp)}.</p>`,
+      "<p>No action is required.</p>",
+      "</div>"
+    ].join("")
+  });
+}
+
 async function sendAuthEmail(
   env: Env,
   input: {

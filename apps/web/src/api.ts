@@ -40,11 +40,6 @@ export interface FeedStarResult {
   viewerHasStarred: boolean;
 }
 
-export interface FeedSummaryRequestResult {
-  edition: BriefingEdition | null;
-  message: string;
-}
-
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     credentials: "include",
@@ -225,6 +220,23 @@ export async function listAccounts(): Promise<AccountWithStats[]> {
   return payload.accounts;
 }
 
+export async function sendAdminEmailTest(): Promise<{ ok: true; recipientDomain: string; sentAt: string }> {
+  return requestJson<{ ok: true; recipientDomain: string; sentAt: string }>("/api/admin/email/test", {
+    method: "POST"
+  });
+}
+
+export interface AdminEmailStatus {
+  configured: boolean;
+  senderDomain?: string;
+  lastSuccessAt?: string;
+  lastFailureAt?: string;
+}
+
+export async function getAdminEmailStatus(): Promise<AdminEmailStatus> {
+  return requestJson<AdminEmailStatus>("/api/admin/email/status");
+}
+
 export async function updateAdminAccount(
   accountId: string,
   input: { username?: string; role?: "admin" | "user"; disabled?: boolean }
@@ -299,13 +311,6 @@ export async function searchFeed(username: string, slug: string, query: string):
     `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/search?q=${encodeURIComponent(query)}`
   );
   return payload.editions;
-}
-
-export async function requestFeedSummary(username: string, slug: string): Promise<FeedSummaryRequestResult> {
-  return requestJson<FeedSummaryRequestResult>(
-    `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/request-summary`,
-    { method: "POST" }
-  );
 }
 
 export async function setFeedStar(username: string, slug: string, starred: boolean): Promise<FeedStarResult> {

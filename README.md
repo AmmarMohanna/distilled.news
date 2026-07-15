@@ -64,8 +64,10 @@ See `.env.example` for descriptions.
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_AI_GATEWAY_ID`
 - `OPENAI_API_KEY`
-- `APIFY_API_TOKEN` if using `x:`, `linkedin:`, `apify:` sources, or the optional Google News fallback
-- `BRAVE_SEARCH_API_KEY` for fresh interest-based source suggestions; the trusted built-in catalog works without it
+- `APIFY_API_TOKEN` if using Google News, `x:`, `linkedin:`, or `apify:` sources
+- `BRAVE_SEARCH_API_KEY` only for the optional budget-capped secondary news fallback; use a Brave plan that explicitly grants storage rights
+- `BRAVE_SEARCH_DAILY_BUDGET_USD` to cap that fallback independently (defaults to `0.50` USD/day)
+- `BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED=true` only after confirming that the subscribed Brave plan permits retaining results in published briefs
 - `ADMIN_SESSION_SECRET`
 - `ADMIN_SETUP_TOKEN`
 - `EMAIL_FROM`
@@ -90,11 +92,12 @@ destination addresses in the Cloudflare account.
 
 Default Apify actors:
 
-- Google News fallback: `groupoject/google-news-scraper`
-- X: `kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest`
+- Google News primary: `groupoject/google-news-scraper`
+- Google News fallback after a primary failure: `solidcode/google-news-scraper`
+- X: `xquik/x-tweet-scraper`
 - LinkedIn company/profile sources are advanced-only defaults: `harvestapi/linkedin-company-posts` and `harvestapi/linkedin-profile-posts`
 
-RSS and Google News are fetched directly by the Worker first. If Google News RSS returns a retryable Worker-side 429/5xx response and `APIFY_API_TOKEN` is configured, Google News can fall back to a capped Apify actor run.
+Telegram public channels and ordinary RSS feeds are fetched directly by the Worker at no API cost. Google News and X use the single configured Apify account, with bounded per-run and daily collection budgets.
 
 Public users can sign up after setup. Each email can have only one account.
 Usernames are normalized into slugs, can be changed later, and previous

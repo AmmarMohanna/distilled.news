@@ -1,6 +1,10 @@
 import {
+  buildEditionSynthesisPrompt,
   buildSummaryPrompt,
   sanitizeSummary,
+  type EditionSynthesisAdapter,
+  type EditionSynthesisInput,
+  type EditionSynthesisResult,
   type EventEquivalenceInput,
   type EventReviewAdapter,
   type ImportanceReviewInput,
@@ -11,8 +15,11 @@ import { estimateOpenAiCostUsd } from "./costs";
 import type { Env, Repository } from "./types";
 
 const AI_GATEWAY_REQUEST_TIMEOUT_MS = 4_000;
+const EDITION_PRIMARY_TIMEOUT_MS = 10_000;
+const EDITION_FALLBACK_TIMEOUT_MS = 20_000;
+const DEFAULT_GLOBAL_LLM_DAILY_BUDGET_USD = 1;
 
-type LlmUsagePurpose = "summary" | "importance_review" | "event_review";
+type LlmUsagePurpose = "summary" | "importance_review" | "event_review" | "edition_summary";
 type LlmUsageRecorder = (input: {
   briefingId: string;
   model: string;
@@ -22,7 +29,7 @@ type LlmUsageRecorder = (input: {
   estimatedCostUsd: number;
 }) => Promise<void>;
 
-export class OpenAIGatewaySummaryAdapter implements SummaryAdapter {
+export class OpenAIGatewaySummaryAdapter implements SummaryAdapter, EditionSynthesisAdapter {
   constructor(
     private readonly options: {
       accountId: string;
@@ -30,13 +37,17 @@ export class OpenAIGatewaySummaryAdapter implements SummaryAdapter {
       apiKey: string;
       gatewayAuthToken?: string;
       model: string;
+      editionModel?: string;
+      editionFallbackModel?: string;
       usageRecorder?: LlmUsageRecorder;
+      usageBudgetGuard?: () => Promise<boolean>;
       env?: Partial<Env>;
       fetcher?: typeof fetch;
     }
   ) {}
 
   async summarize(input: SummaryInput): Promise<string> {
+    await assertWithinLlmBudget(this.options.usageBudgetGuard);
     const fetcher = this.options.fetcher ?? fetch;
     const response = await fetchWithTimeout(fetcher,
       `https://gateway.ai.cloudflare.com/v1/${this.options.accountId}/${this.options.gatewayId}/openai/chat/completions`,
@@ -83,6 +94,69 @@ export class OpenAIGatewaySummaryAdapter implements SummaryAdapter {
     if (!content) throw new Error("AI Gateway returned an empty summary");
     return sanitizeSummary(content, input.briefing.language);
   }
+
+  async synthesize(input: EditionSynthesisInput): Promise<EditionSynthesisResult> {
+    const primaryModel = this.options.editionModel ?? this.options.model;
+    try {
+      return await this.requestEditionSynthesis(input, primaryModel, EDITION_PRIMARY_TIMEOUT_MS);
+    } catch (primaryError) {
+      const fallbackModel = this.options.editionFallbackModel;
+      if (!fallbackModel || fallbackModel === primaryModel) throw primaryError;
+      return this.requestEditionSynthesis(input, fallbackModel, EDITION_FALLBACK_TIMEOUT_MS);
+    }
+  }
+
+  private async requestEditionSynthesis(
+    input: EditionSynthesisInput,
+    model: string,
+    timeoutMs: number
+  ): Promise<EditionSynthesisResult> {
+    await assertWithinLlmBudget(this.options.usageBudgetGuard);
+    const fetcher = this.options.fetcher ?? fetch;
+    const response = await fetchWithTimeout(fetcher,
+      `https://gateway.ai.cloudflare.com/v1/${this.options.accountId}/${this.options.gatewayId}/openai/chat/completions`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${this.options.apiKey}`,
+          ...(this.options.gatewayAuthToken
+            ? { "cf-aig-authorization": `Bearer ${this.options.gatewayAuthToken}` }
+            : {}),
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0.1,
+          max_completion_tokens: 1_600,
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are the evidence-bound edition editor for Distilled.news. Return only strict JSON in the requested language and shape. Never add facts, analysis, markdown, or citation markers."
+            },
+            { role: "user", content: buildEditionSynthesisPrompt(input) }
+          ]
+        })
+      },
+      timeoutMs
+    );
+
+    if (!response.ok) throw new Error(`AI Gateway edition synthesis request failed: ${response.status}`);
+    const payload = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: OpenAIUsagePayload;
+    };
+    await recordUsage(this.options.usageRecorder, this.options.env, {
+      briefingId: input.briefing.id,
+      model,
+      purpose: "edition_summary",
+      usage: payload.usage
+    });
+    const content = payload.choices?.[0]?.message?.content?.trim();
+    if (!content) throw new Error("AI Gateway returned an empty edition synthesis");
+    return JSON.parse(content) as EditionSynthesisResult;
+  }
 }
 
 export class OpenAIGatewayEventReviewAdapter implements EventReviewAdapter {
@@ -94,6 +168,7 @@ export class OpenAIGatewayEventReviewAdapter implements EventReviewAdapter {
       gatewayAuthToken?: string;
       model: string;
       usageRecorder?: LlmUsageRecorder;
+      usageBudgetGuard?: () => Promise<boolean>;
       env?: Partial<Env>;
       fetcher?: typeof fetch;
     }
@@ -134,6 +209,7 @@ export class OpenAIGatewayEventReviewAdapter implements EventReviewAdapter {
     briefingId: string,
     purpose: LlmUsagePurpose
   ): Promise<{ same_event?: boolean; important?: boolean }> {
+    await assertWithinLlmBudget(this.options.usageBudgetGuard);
     const fetcher = this.options.fetcher ?? fetch;
     const response = await fetchWithTimeout(fetcher,
       `https://gateway.ai.cloudflare.com/v1/${this.options.accountId}/${this.options.gatewayId}/openai/chat/completions`,
@@ -188,7 +264,10 @@ export function createSummaryAdapterFromEnv(env: Env, repo?: Repository): OpenAI
     apiKey: env.OPENAI_API_KEY,
     gatewayAuthToken: env.CLOUDFLARE_AI_GATEWAY_TOKEN,
     model: env.OPENAI_MODEL ?? "gpt-4.1-mini",
+    editionModel: env.OPENAI_EDITION_MODEL,
+    editionFallbackModel: env.OPENAI_EDITION_FALLBACK_MODEL,
     usageRecorder: repo ? (input) => repo.recordLlmUsage(input) : undefined,
+    usageBudgetGuard: repo ? createLlmBudgetGuard(repo, env) : undefined,
     env
   });
 }
@@ -202,8 +281,27 @@ export function createEventReviewAdapterFromEnv(env: Env, repo?: Repository): Op
     gatewayAuthToken: env.CLOUDFLARE_AI_GATEWAY_TOKEN,
     model: env.OPENAI_MODEL ?? "gpt-4.1-mini",
     usageRecorder: repo ? (input) => repo.recordLlmUsage(input) : undefined,
+    usageBudgetGuard: repo ? createLlmBudgetGuard(repo, env) : undefined,
     env
   });
+}
+
+function createLlmBudgetGuard(repo: Repository, env: Partial<Env>): () => Promise<boolean> {
+  return async () => {
+    const budget = positiveNumber(env.GLOBAL_LLM_DAILY_BUDGET_USD, DEFAULT_GLOBAL_LLM_DAILY_BUDGET_USD);
+    const now = new Date();
+    const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+    return (await repo.sumLlmUsageCost({ since })) < budget;
+  };
+}
+
+async function assertWithinLlmBudget(guard: (() => Promise<boolean>) | undefined): Promise<void> {
+  if (guard && !(await guard())) throw new Error("Global LLM daily budget reached; using deterministic fallback");
+}
+
+function positiveNumber(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 async function recordUsage(

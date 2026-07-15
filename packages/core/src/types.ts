@@ -94,6 +94,7 @@ export interface BriefingEditionSection {
   title: string;
   summary: string;
   evidence: BriefingEvidence[];
+  tier?: "top" | "additional";
 }
 
 export interface BriefingEdition {
@@ -106,6 +107,7 @@ export interface BriefingEdition {
   summary: string;
   sections: BriefingEditionSection[];
   status: "published" | "empty";
+  generationMode?: "ai" | "deterministic";
   publishedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -152,6 +154,33 @@ export interface SummaryInput {
 
 export interface SummaryAdapter {
   summarize(input: SummaryInput): Promise<string>;
+}
+
+export interface EditionSynthesisInput {
+  briefing: BriefingConfig;
+  cadence: BriefingCadence;
+  sections: BriefingEditionSection[];
+}
+
+export interface EditionSynthesisPoint {
+  text: string;
+  sectionIndexes: number[];
+}
+
+export interface EditionSynthesisSection {
+  sectionIndexes: number[];
+  title: string;
+  summary: string;
+}
+
+export interface EditionSynthesisResult {
+  overview: EditionSynthesisPoint[];
+  topSectionIndexes: number[];
+  sections: EditionSynthesisSection[];
+}
+
+export interface EditionSynthesisAdapter {
+  synthesize(input: EditionSynthesisInput): Promise<EditionSynthesisResult>;
 }
 
 export interface EventEquivalenceInput {

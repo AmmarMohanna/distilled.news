@@ -66,10 +66,35 @@ describe("briefing editions", () => {
     });
 
     expect(edition.status).toBe("published");
-    expect(edition.title).toBe("Verified updates");
-    expect(edition.summary).toBe("Verified updates: Electricite du Liban announced two extra hours of power supply tonight [1].");
+    expect(edition.title).toBe("Updates");
+    expect(edition.summary).toBe("Electricite du Liban announced two extra hours of power supply tonight [1].");
     expect(edition.sections).toHaveLength(1);
     expect(edition.sections[0].evidence[0].messageId).toBe(message.id);
+  });
+
+  it("does not mislabel a technology story as economy because its evidence mentions market appetite", () => {
+    const message: NormalizedMessage = {
+      id: "technology::starship",
+      source: { id: "src_technology", title: "Tech source", type: "channel", provider: "rss", kind: "rss_feed" },
+      messageId: "starship",
+      text: "SpaceX cleared to fly Starship again after a booster failure in May. The test will show the market's appetite for the company's development approach.",
+      links: [],
+      media: [],
+      postedAt: "2026-07-13T14:19:44.000Z",
+      receivedAt: "2026-07-13T14:20:00.000Z",
+      sourceUrl: "https://example.com/starship",
+      expiresAt: "2026-07-28T14:19:44.000Z"
+    };
+
+    const edition = buildBriefingEdition({
+      briefing: { ...personalNewsBriefing, interestProfile: "technology SpaceX", intensity: "high" },
+      messages: [message],
+      windowStart: "2026-07-13T14:00:00.000Z",
+      windowEnd: "2026-07-13T15:00:00.000Z",
+      now: new Date("2026-07-13T15:00:10.000Z")
+    });
+
+    expect(edition.sections[0].title).toBe("Update");
   });
 
   it("localizes edition chrome for Arabic feeds", () => {
@@ -81,8 +106,8 @@ describe("briefing editions", () => {
       now: new Date("2026-06-16T09:00:10.000Z")
     });
 
-    expect(edition.title).toBe("تحديثات موثوقة");
-    expect(edition.summary).toBe("لا توجد تحديثات موثوقة في هذه النافذة.");
+    expect(edition.title).toBe("التحديثات");
+    expect(edition.summary).toBe("لا توجد تحديثات ذات صلة في هذه النافذة.");
     expect(edition.sections[0].title).toBe("لا تحديثات");
   });
 
@@ -108,7 +133,7 @@ describe("briefing editions", () => {
       now: new Date("2026-06-23T10:00:00.000Z")
     });
 
-    expect(edition.summary).toBe("تحديثات موثوقة: نتنياهو: وجهنا ضربة إلى إيران ووكلائها في المنطقة وهي عملية لم تنته بعد [1].");
+    expect(edition.summary).toBe("نتنياهو: وجهنا ضربة إلى إيران ووكلائها في المنطقة وهي عملية لم تنته بعد [1].");
     expect(edition.sections[0].summary).toBe("نتنياهو: وجهنا ضربة إلى إيران ووكلائها في المنطقة وهي عملية لم تنته بعد");
     expect(edition.sections[0].evidence[0].text).toBe("نتنياهو: وجهنا ضربة إلى إيران ووكلائها في المنطقة وهي عملية لم تنته بعد");
   });
@@ -162,7 +187,7 @@ describe("briefing editions", () => {
     );
 
     expect(summary).toBe(
-      "Verified updates: Electricite du Liban announced two extra hours of power supply tonight [1]. Also, the army reopened the coastal road after a security incident [2]."
+      "Electricite du Liban announced two extra hours of power supply tonight [1]. The army reopened the coastal road after a security incident [2]."
     );
   });
 
@@ -231,7 +256,7 @@ describe("briefing editions", () => {
     });
 
     expect(edition.status).toBe("empty");
-    expect(edition.summary).toBe("No verified updates in this window.");
+    expect(edition.summary).toBe("No relevant updates in this window.");
   });
 
   it("treats Lebanese local security incidents as relevant without an explicit Lebanon token", () => {
@@ -261,7 +286,39 @@ describe("briefing editions", () => {
     });
 
     expect(edition.status).toBe("published");
-    expect(edition.summary).toContain("تحديثات موثوقة:");
+    expect(edition.summary).toContain("قنبلة صوتية");
     expect(edition.sections[0].summary).toContain("قنبلة صوتية");
+  });
+
+  it("normalizes Arabic topic forms for concrete Lebanese local incidents", () => {
+    const message: NormalizedMessage = {
+      id: "briefing_default::bint-jbeil-demolition",
+      source: { id: "src_nna", title: "الوكالة الوطنية", type: "channel", provider: "rss", kind: "rss_feed" },
+      messageId: "bint-jbeil-demolition",
+      text: "الوكالة الوطنية: الجيش الإسرائيلي نفذ تفجيراً كبيراً في بلدة كونين قضاء بنت جبيل.",
+      links: [],
+      media: [],
+      postedAt: "2026-07-14T04:50:18.000Z",
+      receivedAt: "2026-07-14T04:51:12.000Z",
+      sourceUrl: "https://example.com/bint-jbeil-demolition",
+      expiresAt: "2026-07-29T04:50:18.000Z"
+    };
+
+    const edition = buildBriefingEdition({
+      briefing: {
+        ...personalNewsBriefing,
+        title: "Lebanese News",
+        language: "ar",
+        intensity: "low",
+        interestProfile: "تابع الأخبار اللبنانية المهمة: الأمن، الجنوب، الحدود، الاقتصاد، البنية التحتية، الكهرباء، القرارات الرسمية، السلامة العامة، والأحداث الإقليمية التي تؤثر مباشرة على لبنان."
+      },
+      messages: [message],
+      windowStart: "2026-07-14T04:00:00.000Z",
+      windowEnd: "2026-07-14T05:00:00.000Z",
+      now: new Date("2026-07-14T04:58:15.000Z")
+    });
+
+    expect(edition.status).toBe("published");
+    expect(edition.sections[0].summary).toContain("تفجيراً");
   });
 });

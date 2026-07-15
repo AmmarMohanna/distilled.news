@@ -1,8 +1,10 @@
 import {
   defaultNextBriefingAt,
+  editionSummaryReferencesAreValid,
   searchBriefingEditions,
   sanitizeEditionSectionForLanguage,
   sanitizeEvidenceText,
+  sectionSummaryMatchesFeedLanguage,
   selectEditionReferenceSections,
   synthesizeEditionNarrativeSummary,
   type BriefingEvidence,
@@ -12,7 +14,6 @@ import {
 import { Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
-import { createSummaryAdapterFromEnv } from "./ai";
 import {
   accountAuth,
   adminAuth,
@@ -30,10 +31,10 @@ import {
   verifyPassword,
   verifySession
 } from "./auth";
-import { publishManualBriefingEdition } from "./editions";
-import { sendPasswordResetEmail, sendVerificationEmail } from "./mailer";
+import { sendEmailDeliveryTest, sendPasswordResetEmail, sendVerificationEmail } from "./mailer";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
+import { visibleNextBriefingAt } from "./editions";
 import { addSourceFromInput, enqueueDueSourceRefreshJobs } from "./sources";
 import { suggestSources } from "./sourceSuggestions";
 import type { AccountRecord, AccountRole, DistilledQueueMessage, Env, ProcessingJobMessage, Repository } from "./types";
@@ -215,7 +216,8 @@ export function createApp(options: AppOptions = {}) {
 
   const repoFor = (c: { env: Env }): Repository => options.repository ?? new D1Repository(c.env.DB);
   const bucketFor = (c: { env: Env }) => options.bucket ?? c.env.RAW_ARCHIVE;
-  const queueFor = (c: { env: Env }) => options.queue ?? c.env.PROCESSING_QUEUE;
+  const processingQueueFor = (c: { env: Env }) => options.queue ?? c.env.PROCESSING_QUEUE;
+  const sourceQueueFor = (c: { env: Env }) => options.queue ?? c.env.SOURCE_QUEUE ?? c.env.PROCESSING_QUEUE;
   const fetcher = options.fetcher ?? fetch;
   const nowFor = options.now ?? (() => new Date());
 
@@ -226,8 +228,22 @@ export function createApp(options: AppOptions = {}) {
       url.hostname = CANONICAL_HOST;
       return c.redirect(url.toString(), 301);
     }
-    return next();
+    if (isSensitiveProbePath(url.pathname)) return c.text("not found", 404);
+    await next();
+    c.header("content-security-policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests");
+    c.header("cross-origin-opener-policy", "same-origin-allow-popups");
+    c.header("cross-origin-resource-policy", "same-origin");
+    c.header("permissions-policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+    c.header("referrer-policy", "strict-origin-when-cross-origin");
+    c.header("strict-transport-security", "max-age=31536000; includeSubDomains; preload");
+    c.header("x-content-type-options", "nosniff");
+    c.header("x-frame-options", "DENY");
   });
+
+  app.get("/robots.txt", (c) => c.text("User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin\n", 200, {
+    "cache-control": "public, max-age=86400",
+    "content-type": "text/plain; charset=utf-8"
+  }));
 
   app.get("/api/auth/session", async (c) => {
     const repo = repoFor(c);
@@ -501,7 +517,7 @@ export function createApp(options: AppOptions = {}) {
           sourceInput: ("input" in body ? body.input : undefined) ?? ("url" in body ? body.url : ""),
           repo,
           bucket: bucketFor(c),
-          queue: queueFor(c),
+          queue: processingQueueFor(c),
           env: c.env,
           fetcher,
           now: nowFor()
@@ -534,7 +550,7 @@ export function createApp(options: AppOptions = {}) {
     const queued = await enqueueDueSourceRefreshJobs({
       briefing,
       repo,
-      queue: queueFor(c),
+      queue: sourceQueueFor(c),
       force: true
     });
     return c.json({
@@ -563,7 +579,11 @@ export function createApp(options: AppOptions = {}) {
     const repo = c.get("repo");
     const briefing = await getOwnedBriefing(repo, c.get("account")!, c.req.query("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
-    return c.json({ health: await repo.getHealth(briefing.id) });
+    return c.json({
+      health: await repo.getHealth(briefing.id),
+      recentCollectionRuns: await repo.listSourceRuns({ briefingId: briefing.id, limit: 50 }),
+      release: c.env.CF_VERSION_METADATA
+    });
   });
 
   app.post("/api/me/processing/retry", async (c) => {
@@ -572,13 +592,43 @@ export function createApp(options: AppOptions = {}) {
     if (!parsed.success) return c.json({ error: "briefing not found" }, 400);
     const briefing = await getOwnedBriefing(repo, c.get("account")!, parsed.data.briefingId);
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
-    const retried = await retryProcessingJobs(repo, queueFor(c), briefing.id);
+    const retried = await retryProcessingJobs(repo, processingQueueFor(c), briefing.id);
     return c.json({ retried, health: await repo.getHealth(briefing.id) });
   });
 
   app.get("/api/admin/accounts", async (c) => {
     const repo = c.get("repo");
     return c.json({ accounts: await repo.listAccounts() });
+  });
+
+  app.post("/api/admin/email/test", async (c) => {
+    const repo = c.get("repo");
+    const account = c.get("account")!;
+    await assertRateLimit(repo, `email-test:${account.id}`, "email_delivery_test", 3, 60 * 60 * 1000);
+    const sentAt = nowFor();
+    try {
+      await sendEmailDeliveryTest(c.env, account, sentAt);
+    } catch (error) {
+      await repo.setSetting("email_delivery_last_failure_at", sentAt.toISOString(), sentAt);
+      logAuthEmailFailure("admin delivery test", account, c.env, error);
+      return c.json({ error: "could not send test email" }, 502);
+    }
+    await repo.setSetting("email_delivery_last_success_at", sentAt.toISOString(), sentAt);
+    return c.json({
+      ok: true,
+      recipientDomain: account.email.split("@").at(-1),
+      sentAt: sentAt.toISOString()
+    });
+  });
+
+  app.get("/api/admin/email/status", async (c) => {
+    const repo = c.get("repo");
+    return c.json({
+      configured: Boolean(c.env.EMAIL && c.env.EMAIL_FROM),
+      senderDomain: emailDomainFromAddress(c.env.EMAIL_FROM),
+      lastSuccessAt: (await repo.getSetting("email_delivery_last_success_at")) || undefined,
+      lastFailureAt: (await repo.getSetting("email_delivery_last_failure_at")) || undefined
+    });
   });
 
   app.patch("/api/admin/accounts/:accountId", async (c) => {
@@ -646,7 +696,8 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/explore/feeds", async (c) => {
     const repo = repoFor(c);
     const feeds = await repo.listExploreBriefings(10);
-    return c.json({ feeds: feeds.map(publicBriefing) });
+    const now = nowFor();
+    return c.json({ feeds: feeds.map((briefing) => publicBriefing(briefing, now)) });
   });
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
@@ -657,7 +708,7 @@ export function createApp(options: AppOptions = {}) {
     const editions = (await repo.listBriefingEditions(briefing.id, true))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
-      briefing: publicBriefing(briefing),
+      briefing: publicBriefing(briefing, nowFor()),
       editions: editions.map((edition) => publicEdition(edition, briefing, false)),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
     });
@@ -696,34 +747,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.post("/api/feed/:username/:briefingSlug/request-summary", async (c) => {
-    const resolved = await resolvePublicFeed(c);
-    if (resolved instanceof Response) return resolved;
-    const { repo, briefing } = resolved;
-    if (briefing.paused) return c.json({ error: "feed is paused" }, 409);
-
-    try {
-      await assertRateLimit(
-        repo,
-        await manualSummaryRateLimitKey(c, briefing.id),
-        "manual_summary",
-        6,
-        60 * 60 * 1000
-      );
-    } catch (error) {
-      if (!(error instanceof Error) || error.message !== "too many attempts") throw error;
-      return c.json({ error: "too many summary requests" }, 429);
-    }
-
-    const edition = await publishManualBriefingEdition({
-      repo,
-      briefing,
-      now: nowFor(),
-      summaryAdapter: createSummaryAdapterFromEnv(c.env, repo)
-    });
-    return c.json({
-      edition: edition ? publicEdition(edition, briefing, false) : null,
-      message: edition ? "new brief published" : "no new accepted updates"
-    });
+    return c.json({ error: "Hourly briefs publish automatically; manual briefing is retired." }, 410);
   });
 
   app.post("/api/feed/:username/:briefingSlug/star", async (c) => {
@@ -829,6 +853,13 @@ export function createApp(options: AppOptions = {}) {
   }
 
   return app;
+}
+
+function isSensitiveProbePath(pathname: string): boolean {
+  const normalized = pathname.toLowerCase();
+  return /(?:^|\/)\.(?:env|git|svn|hg)(?:\/|$)/.test(normalized) ||
+    /(?:^|\/)(?:wp-admin|wp-content|wp-includes|wordpress|phpmyadmin)(?:\/|$)/.test(normalized) ||
+    /(?:^|\/)(?:xmlrpc\.php|wp-login\.php)$/.test(normalized);
 }
 
 async function createAccountOrError(
@@ -946,16 +977,6 @@ class RateLimitError extends Error {
   }
 }
 
-async function manualSummaryRateLimitKey(
-  c: Context<{ Bindings: Env; Variables: Variables }>,
-  briefingId: string
-): Promise<string> {
-  const voterId = await getOrCreateVoterId(c);
-  if (voterId) return `summary:${briefingId}:voter:${voterId}`;
-  const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  return `summary:${briefingId}:ip:${ip}`;
-}
-
 async function verifyTurnstileIfConfigured(
   c: Context<{ Bindings: Env; Variables: Variables }>,
   token: string | undefined,
@@ -999,12 +1020,18 @@ async function retryProcessingJobs(
   briefingId: string
 ): Promise<number> {
   const queuedStaleBefore = new Date(Date.now() - 5 * 60 * 1000).getTime();
+  const failedRecentSince = new Date(Date.now() - 24 * 60 * 60 * 1000).getTime();
+  const now = Date.now();
   const retryableJobs = (await repo.listProcessingJobs({
     briefingId,
     states: ["failed", "queued"],
     limit: 50
   })).filter(
-    (job) => job.state === "failed" || new Date(job.updatedAt).getTime() <= queuedStaleBefore
+    (job) =>
+      (job.state === "failed" && new Date(job.updatedAt).getTime() >= failedRecentSince) ||
+      (job.state === "queued" &&
+        new Date(job.updatedAt).getTime() <= queuedStaleBefore &&
+        (!job.leaseUntil || new Date(job.leaseUntil).getTime() <= now))
   );
 
   for (const job of retryableJobs) {
@@ -1014,6 +1041,7 @@ async function retryProcessingJobs(
       briefingId: job.briefingId,
       rawMessageId: job.rawMessageId
     });
+    await repo.markProcessingJobEnqueued(job.id);
   }
 
   return retryableJobs.length;
@@ -1060,7 +1088,10 @@ function errorProperty(error: unknown, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interestProfile" | "styleInstruction"> {
+function publicBriefing(
+  briefing: BriefingConfig,
+  now = new Date()
+): Omit<BriefingConfig, "interestProfile" | "styleInstruction"> {
   return {
     id: briefing.id,
     ownerAccountId: briefing.ownerAccountId,
@@ -1075,7 +1106,7 @@ function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interes
     briefingCadence: briefing.briefingCadence,
     briefingTimeOfDay: briefing.briefingTimeOfDay,
     briefingTimezone: briefing.briefingTimezone,
-    nextBriefingAt: briefing.nextBriefingAt,
+    nextBriefingAt: visibleNextBriefingAt(briefing, now),
     retentionDays: FIXED_RETENTION_DAYS
   };
 }
@@ -1094,7 +1125,8 @@ function publicEdition(
 }
 
 function isPublicEditionVisible(edition: BriefingEdition, language: BriefingConfig["language"]): boolean {
-  return edition.status === "published" && publicEditionSections(edition, language).length > 0;
+  return (edition.status === "published" || edition.status === "empty") &&
+    publicEditionSections(edition, language).length > 0;
 }
 
 function publicEditionSections(
@@ -1125,7 +1157,20 @@ function editionSummaryForLanguage(
   sections = publicEditionSections(edition, language)
 ): string {
   if (sections.length === 0) return synthesizeEditionNarrativeSummary([], edition.cadence, language);
-  return synthesizeEditionNarrativeSummary(sections, edition.cadence, language);
+  const savedSummary = sanitizeEvidenceText(edition.summary, language);
+  if (
+    sections.length === edition.sections.length &&
+    sectionSummaryMatchesFeedLanguage(savedSummary, language) &&
+    editionSummaryReferencesAreValid(savedSummary, sections.length)
+  ) {
+    return savedSummary;
+  }
+  const topSections = sections.filter((section) => section.tier === "top");
+  return synthesizeEditionNarrativeSummary(
+    topSections.length > 0 ? topSections : sections.slice(0, 3),
+    edition.cadence,
+    language
+  );
 }
 
 function localizedPublicSectionTitle(title: string, language: BriefingConfig["language"]): string {
