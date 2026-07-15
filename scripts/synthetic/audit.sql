@@ -20,6 +20,19 @@ GROUP BY b.language
 ORDER BY b.language;
 
 SELECT
+  'source_provider_health' AS report,
+  s.provider,
+  s.kind,
+  COUNT(*) AS sources,
+  SUM(CASE WHEN s.enabled = 1 THEN 1 ELSE 0 END) AS enabled,
+  SUM(CASE WHEN s.last_error IS NOT NULL THEN 1 ELSE 0 END) AS with_errors,
+  MAX(s.last_checked_at) AS latest_check
+FROM sources s
+WHERE s.id LIKE 'source_canary_%'
+GROUP BY s.provider, s.kind
+ORDER BY s.provider, s.kind;
+
+SELECT
   'feed_health' AS report,
   a.username,
   b.slug,
@@ -41,6 +54,40 @@ WHERE b.id LIKE 'briefing_canary_%'
 GROUP BY b.id
 ORDER BY b.language, a.username, b.slug;
 
+-- Hourly publication ledger. A completed window may be published or legitimately empty,
+-- but it must have an immutable cutoff and must not remain running or failed.
+SELECT
+  'hourly_window_health' AS report,
+  b.language,
+  a.username,
+  b.slug,
+  b.next_briefing_at,
+  COUNT(w.id) AS windows_last_24h,
+  SUM(CASE WHEN w.state = 'published' THEN 1 ELSE 0 END) AS published_windows,
+  SUM(CASE WHEN w.state = 'empty' THEN 1 ELSE 0 END) AS empty_windows,
+  SUM(CASE WHEN w.state = 'running' THEN 1 ELSE 0 END) AS running_windows,
+  SUM(CASE WHEN w.state = 'failed' THEN 1 ELSE 0 END) AS failed_windows,
+  SUM(CASE WHEN w.id IS NOT NULL AND w.content_cutoff_at IS NULL THEN 1 ELSE 0 END) AS legacy_windows_without_cutoff,
+  SUM(CASE WHEN w.id IS NOT NULL AND w.content_cutoff_at IS NULL AND w.window_end >= (
+    SELECT MIN(w2.window_end)
+    FROM briefing_windows w2
+    WHERE w2.briefing_id = b.id
+      AND w2.cadence = 'hourly'
+      AND w2.content_cutoff_at IS NOT NULL
+  ) THEN 1 ELSE 0 END) AS missing_cutoffs_since_cutover,
+  SUM(CASE WHEN w.state = 'published' AND w.edition_id IS NULL THEN 1 ELSE 0 END) AS missing_editions,
+  MAX(w.window_end) AS latest_completed_window,
+  MAX(w.prepared_at) AS latest_prepared_at
+FROM briefings b
+JOIN accounts a ON a.id = b.owner_account_id
+LEFT JOIN briefing_windows w
+  ON w.briefing_id = b.id
+  AND w.cadence = 'hourly'
+  AND w.window_end >= strftime('%Y-%m-%dT%H:00:00.000Z', 'now', '-24 hours')
+WHERE b.id LIKE 'briefing_canary_%'
+GROUP BY b.id
+ORDER BY b.language, a.username, b.slug;
+
 SELECT
   'source_errors' AS report,
   b.language,
@@ -48,6 +95,7 @@ SELECT
   s.title AS source_title,
   s.provider,
   s.kind,
+  s.enabled,
   s.last_checked_at,
   s.last_error
 FROM sources s
@@ -84,7 +132,7 @@ WHERE b.id LIKE 'briefing_canary_%'
     e.summary LIKE '%&#%'
     OR e.summary LIKE '%<script%'
     OR e.summary LIKE '%<style%'
-    OR e.summary LIKE '%____%'
+    OR instr(e.summary, '____') > 0
     OR e.summary LIKE '%����%'
     OR length(trim(e.summary)) < 20
   )
@@ -106,4 +154,3 @@ JOIN accounts a ON a.id = b.owner_account_id
 WHERE b.id LIKE 'briefing_canary_%'
   AND e.published_at = (SELECT MAX(e2.published_at) FROM briefing_editions e2 WHERE e2.briefing_id = b.id)
 ORDER BY b.language, a.username, b.slug;
-

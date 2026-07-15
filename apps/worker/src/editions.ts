@@ -1,144 +1,235 @@
 import {
+  applyEditionSynthesis,
+  assignFallbackEditionTiers,
   buildBriefingEdition,
+  editionSynthesisRejectionReason,
   getDueBriefingWindow,
   sanitizeSummary,
   sectionSummaryMatchesFeedLanguage,
   selectEditionReferenceSections,
   synthesizeEditionNarrativeSummary,
-  type BriefingWindow,
   type BriefingConfig,
   type BriefingEdition,
+  type EditionSynthesisAdapter,
   type SummaryAdapter
 } from "@distilled/core";
 import type { Repository } from "./types";
 
 const MAX_WINDOW_MESSAGES = 500;
-export const BRIEFING_PUBLICATION_DELAY_MS = 0;
-const MAX_CATCH_UP_WINDOWS = 24 * 15;
+export const BRIEFING_PREPARATION_LEAD_MS = 0;
+const BRIEFING_WINDOW_LEASE_MS = 90 * 1000;
+const MAX_SOURCE_POST_AGE_MS = 2 * 60 * 60 * 1000;
+export const EMPTY_WINDOW_RECOVERY_HORIZON_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Edition preparation advances the stored schedule before the publication
+ * boundary so the scheduler cannot enqueue the same slot every minute. Keep
+ * exposing that prepared boundary until it actually arrives.
+ */
+export function visibleNextBriefingAt(
+  briefing: Pick<BriefingConfig, "briefingCadence" | "briefingTimeOfDay" | "briefingTimezone" | "nextBriefingAt">,
+  now = new Date()
+): string | undefined {
+  if (!briefing.nextBriefingAt) return undefined;
+  const storedNext = new Date(briefing.nextBriefingAt);
+  if (Number.isNaN(storedNext.getTime())) return briefing.nextBriefingAt;
+  const storedWindow = getDueBriefingWindow(briefing as BriefingConfig, storedNext);
+  const preparedBoundary = storedWindow ? new Date(storedWindow.windowStart) : null;
+  if (preparedBoundary && preparedBoundary.getTime() > now.getTime() &&
+    preparedBoundary.getTime() - now.getTime() <= BRIEFING_PREPARATION_LEAD_MS) {
+    return preparedBoundary.toISOString();
+  }
+  return briefing.nextBriefingAt;
+}
 
 export async function publishDueBriefingEditions(input: {
   repo: Repository;
   briefings: BriefingConfig[];
   now?: Date;
   summaryAdapter?: SummaryAdapter | null;
+  editionSynthesisAdapter?: EditionSynthesisAdapter | null;
+  editionSynthesisMode?: string;
 }): Promise<number> {
   const now = input.now ?? new Date();
   let published = 0;
 
   for (const briefing of input.briefings) {
     if (briefing.paused) continue;
-    const window = latestSettledDueWindow(briefing, now);
-    if (!window) continue;
-    const contentWindow = await unsummarizedScheduledWindow(input.repo, briefing, window, now);
-
-    const messages = contentWindow
-      ? await input.repo.listRawMessagesForWindow(
-          briefing.id,
-          contentWindow.windowStart,
-          contentWindow.windowEnd,
-          MAX_WINDOW_MESSAGES
-        )
-      : [];
-    const edition = await localizeEdition(
-      buildBriefingEdition({
-        briefing,
-        messages,
-        windowStart: contentWindow?.windowStart ?? window.windowEnd,
-        windowEnd: contentWindow?.windowEnd ?? window.windowEnd,
-        now
-      }),
+    published += await recoverRecentEmptyWindows({
       briefing,
-      input.summaryAdapter
+      repo: input.repo,
+      now,
+      summaryAdapter: input.summaryAdapter,
+      editionSynthesisAdapter: input.editionSynthesisAdapter,
+      editionSynthesisMode: input.editionSynthesisMode
+    });
+    const window = getDueBriefingWindow(
+      briefing,
+      new Date(now.getTime() + BRIEFING_PREPARATION_LEAD_MS)
     );
-    await input.repo.upsertBriefing({ ...briefing, nextBriefingAt: window.nextBriefingAt }, now);
-    if (edition.status !== "published") continue;
+    if (!window) continue;
+    const claim = await input.repo.claimBriefingWindow({
+      briefingId: briefing.id,
+      cadence: briefing.briefingCadence,
+      windowStart: window.windowStart,
+      windowEnd: window.windowEnd,
+      leaseMs: BRIEFING_WINDOW_LEASE_MS
+    }, now);
+    if (!claim) continue;
 
-    await input.repo.saveBriefingEdition(edition, now);
-    published += 1;
+    try {
+      const contentCutoffAt = new Date(Math.min(now.getTime(), new Date(window.windowEnd).getTime())).toISOString();
+      const previousCutoffAt = await input.repo.getLatestBriefingWindowCutoff(
+        briefing.id,
+        briefing.briefingCadence,
+        window.windowEnd
+      ) ?? window.windowStart;
+      const postedAfter = new Date(new Date(window.windowStart).getTime() - MAX_SOURCE_POST_AGE_MS).toISOString();
+      const messages = await input.repo.listRawMessagesReceivedBetween(
+        briefing.id,
+        previousCutoffAt,
+        contentCutoffAt,
+        postedAfter,
+        MAX_WINDOW_MESSAGES
+      );
+      const edition = await localizeEdition(
+        buildBriefingEdition({
+          briefing,
+          messages,
+          windowStart: window.windowStart,
+          windowEnd: window.windowEnd,
+          now
+        }),
+        briefing,
+        input.summaryAdapter,
+        input.editionSynthesisAdapter,
+        input.editionSynthesisMode
+      );
+      const enabledSources = (await input.repo.listSources(briefing.id)).filter((source) => source.enabled);
+      const healthySourceCount = enabledSources.filter(
+        (source) => !source.healthState || source.healthState === "healthy"
+      ).length;
+      const qualityState = enabledSources.length > 0 && healthySourceCount > 0 ? "ready" : "degraded";
+
+      await input.repo.saveBriefingEdition(edition, now);
+      if (edition.status === "published") published += 1;
+      await input.repo.completeBriefingWindow({
+        id: claim.id,
+        leaseToken: claim.leaseToken,
+        state: edition.status === "published" ? "published" : "empty",
+        messageCount: messages.length,
+        editionId: edition.id,
+        contentCutoffAt,
+        qualityState
+      }, now);
+      await input.repo.upsertBriefing({ ...briefing, nextBriefingAt: window.nextBriefingAt }, now);
+    } catch (error) {
+      await input.repo.failBriefingWindow(
+        claim.id,
+        claim.leaseToken,
+        error instanceof Error ? error.message : String(error),
+        now
+      );
+      throw error;
+    }
   }
 
   return published;
 }
 
-export async function publishManualBriefingEdition(input: {
-  repo: Repository;
+/**
+ * A window with collected source material should get one safe retry when a
+ * previously deployed relevance rule rejected everything. This is bounded to
+ * recent slots and permanently records the recovery attempt, so an ordinary
+ * quiet hour cannot create recurring model work.
+ */
+async function recoverRecentEmptyWindows(input: {
   briefing: BriefingConfig;
-  now?: Date;
+  repo: Repository;
+  now: Date;
   summaryAdapter?: SummaryAdapter | null;
-}): Promise<BriefingEdition | null> {
-  const now = input.now ?? new Date();
-  const windowEnd = now.toISOString();
-  const windowStart = await manualWindowStart(input.repo, input.briefing, now);
-  if (new Date(windowStart).getTime() >= now.getTime()) return null;
-
-  const messages = await input.repo.listRawMessagesForWindow(
+  editionSynthesisAdapter?: EditionSynthesisAdapter | null;
+  editionSynthesisMode?: string;
+}): Promise<number> {
+  const sinceWindowEnd = new Date(input.now.getTime() - EMPTY_WINDOW_RECOVERY_HORIZON_MS).toISOString();
+  const recoverable = await input.repo.listRecoverableEmptyBriefingWindows(
     input.briefing.id,
-    windowStart,
-    windowEnd,
-    MAX_WINDOW_MESSAGES
+    input.briefing.briefingCadence,
+    sinceWindowEnd
   );
-  const edition = await localizeEdition(
-    buildBriefingEdition({
-      briefing: input.briefing,
-      messages,
-      windowStart,
-      windowEnd,
-      now
-    }),
-    input.briefing,
-    input.summaryAdapter
-  );
-  if (edition.status !== "published") return null;
+  let published = 0;
 
-  await input.repo.saveBriefingEdition(edition, now);
-  return edition;
-}
+  for (const window of recoverable) {
+    const claim = await input.repo.claimRecoverableEmptyBriefingWindow(window.id, BRIEFING_WINDOW_LEASE_MS, input.now);
+    if (!claim) continue;
 
-function latestSettledDueWindow(briefing: BriefingConfig, now: Date) {
-  const settledNow = new Date(now.getTime() - BRIEFING_PUBLICATION_DELAY_MS);
-  let latest = getDueBriefingWindow(briefing, settledNow);
-  if (!latest) return null;
-
-  for (let index = 0; index < MAX_CATCH_UP_WINDOWS; index += 1) {
-    const next = getDueBriefingWindow({ ...briefing, nextBriefingAt: latest.nextBriefingAt }, settledNow);
-    if (!next) break;
-    latest = next;
+    try {
+      const previousCutoffAt = await input.repo.getLatestBriefingWindowCutoff(
+        input.briefing.id,
+        input.briefing.briefingCadence,
+        window.windowStart
+      ) ?? window.windowStart;
+      const postedAfter = new Date(new Date(window.windowStart).getTime() - MAX_SOURCE_POST_AGE_MS).toISOString();
+      const messages = await input.repo.listRawMessagesReceivedBetween(
+        input.briefing.id,
+        previousCutoffAt,
+        window.contentCutoffAt,
+        postedAfter,
+        MAX_WINDOW_MESSAGES
+      );
+      const edition = await localizeEdition(
+        buildBriefingEdition({
+          briefing: input.briefing,
+          messages,
+          windowStart: window.windowStart,
+          windowEnd: window.windowEnd,
+          now: input.now
+        }),
+        input.briefing,
+        input.summaryAdapter,
+        input.editionSynthesisAdapter,
+        input.editionSynthesisMode
+      );
+      const qualityState = await briefingWindowQuality(input.repo, input.briefing.id);
+      await input.repo.saveBriefingEdition(edition, input.now);
+      if (edition.status === "published") published += 1;
+      await input.repo.completeBriefingWindow({
+        id: claim.id,
+        leaseToken: claim.leaseToken,
+        state: edition.status === "published" ? "published" : "empty",
+        messageCount: messages.length,
+        editionId: edition.id,
+        contentCutoffAt: window.contentCutoffAt,
+        qualityState
+      }, input.now);
+    } catch (error) {
+      await input.repo.failBriefingWindow(
+        claim.id,
+        claim.leaseToken,
+        error instanceof Error ? error.message : String(error),
+        input.now
+      );
+      throw error;
+    }
   }
 
-  return latest;
+  return published;
 }
 
-async function unsummarizedScheduledWindow(
-  repo: Repository,
-  briefing: BriefingConfig,
-  window: BriefingWindow,
-  now: Date
-): Promise<Pick<BriefingWindow, "windowStart" | "windowEnd"> | null> {
-  const [latestEdition] = await repo.listBriefingEditions(briefing.id, false, now, 1);
-  if (!latestEdition) return window;
-
-  const latestEnd = new Date(latestEdition.windowEnd).getTime();
-  const windowStart = new Date(window.windowStart).getTime();
-  const windowEnd = new Date(window.windowEnd).getTime();
-  if (!Number.isFinite(latestEnd) || !Number.isFinite(windowStart) || !Number.isFinite(windowEnd)) return window;
-  if (latestEnd <= windowStart) return window;
-  if (latestEnd >= windowEnd) return null;
-  return { windowStart: latestEdition.windowEnd, windowEnd: window.windowEnd };
-}
-
-async function manualWindowStart(repo: Repository, briefing: BriefingConfig, now: Date): Promise<string> {
-  const [latestEdition] = await repo.listBriefingEditions(briefing.id, false, now, 1);
-  const latestEnd = latestEdition ? new Date(latestEdition.windowEnd).getTime() : Number.NaN;
-  if (Number.isFinite(latestEnd) && latestEnd < now.getTime()) return latestEdition!.windowEnd;
-
-  const fallback = getDueBriefingWindow({ ...briefing, nextBriefingAt: now.toISOString() }, now);
-  return fallback?.windowStart ?? new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+async function briefingWindowQuality(repo: Repository, briefingId: string): Promise<"ready" | "degraded"> {
+  const enabledSources = (await repo.listSources(briefingId)).filter((source) => source.enabled);
+  const healthySourceCount = enabledSources.filter(
+    (source) => !source.healthState || source.healthState === "healthy"
+  ).length;
+  return enabledSources.length > 0 && healthySourceCount > 0 ? "ready" : "degraded";
 }
 
 async function localizeEdition(
   edition: BriefingEdition,
   briefing: BriefingConfig,
-  summaryAdapter?: SummaryAdapter | null
+  summaryAdapter?: SummaryAdapter | null,
+  editionSynthesisAdapter?: EditionSynthesisAdapter | null,
+  editionSynthesisMode = "all"
 ): Promise<BriefingEdition> {
   if (edition.status !== "published") return edition;
 
@@ -158,7 +249,10 @@ async function localizeEdition(
 
     if (summaryAdapter) {
       try {
-        const summary = sanitizeSummary(await summaryAdapter.summarize({ briefing, evidence: section.evidence }));
+        const summary = sanitizeSummary(
+          await summaryAdapter.summarize({ briefing, evidence: section.evidence }),
+          briefing.language
+        );
         if (summary && sectionSummaryMatchesFeedLanguage(summary, briefing.language)) {
           sections.push({ ...section, summary });
           continue;
@@ -171,19 +265,64 @@ async function localizeEdition(
 
   const publicSections = selectEditionReferenceSections(sections, edition.cadence, briefing.language, { strictLanguage: true });
   const normalizedStatus = publicSections.length > 0 ? edition.status : "empty";
+  let finalSections = assignFallbackEditionTiers(publicSections);
+  let generationMode: BriefingEdition["generationMode"] = "deterministic";
+  let finalSummary = synthesizeEditionNarrativeSummary(
+    finalSections.filter((section) => section.tier === "top"),
+    edition.cadence,
+    briefing.language
+  );
+
+  if (
+    normalizedStatus === "published" &&
+    publicSections.length >= 1 &&
+    editionSynthesisAdapter &&
+    editionSynthesisEnabled(editionSynthesisMode, briefing)
+  ) {
+    try {
+      const synthesisInput = { briefing, cadence: edition.cadence, sections: publicSections };
+      const synthesisDraft = await editionSynthesisAdapter.synthesize(synthesisInput);
+      const synthesis = applyEditionSynthesis(synthesisInput, synthesisDraft);
+      if (synthesis) {
+        finalSections = synthesis.sections;
+        finalSummary = synthesis.summary;
+        generationMode = "ai";
+      } else {
+        console.warn("Rejected invalid edition synthesis", {
+          briefingId: briefing.id,
+          language: briefing.language,
+          reason: editionSynthesisRejectionReason(synthesisDraft, synthesisInput)
+        });
+      }
+    } catch (error) {
+      console.warn("Edition synthesis failed; using deterministic fallback", {
+        briefingId: briefing.id,
+        language: briefing.language,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
   return {
     ...edition,
-    sections: publicSections,
-    summary: synthesizeEditionNarrativeSummary(publicSections, edition.cadence, briefing.language),
-    status: normalizedStatus
+    sections: finalSections,
+    summary: finalSummary,
+    status: normalizedStatus,
+    generationMode
   };
+}
+
+function editionSynthesisEnabled(mode: string, briefing: BriefingConfig): boolean {
+  const normalized = mode.trim().toLowerCase();
+  if (normalized === "all") return true;
+  if (normalized === "canary") return briefing.ownerUsername.startsWith("canary-");
+  return false;
 }
 
 function shouldLocalizeSectionSummary(summary: string, language: BriefingConfig["language"]): boolean {
   const hasArabic = /[\u0600-\u06FF]/u.test(summary);
-  const hasLatin = /[A-Za-z]/.test(summary);
-  if (language === "ar") return !hasArabic && hasLatin;
-  if (language === "en") return hasArabic && !hasLatin;
-  if (language === "fr") return hasArabic && !hasLatin;
+  const hasLatin = /[A-Za-zÀ-ÖØ-öø-ÿ]/u.test(summary);
+  if (sectionSummaryMatchesFeedLanguage(summary, language)) return false;
+  if (language === "ar") return hasLatin;
+  if (language === "en" || language === "fr") return hasArabic;
   return false;
 }

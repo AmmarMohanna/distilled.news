@@ -37,6 +37,8 @@ const runtimeVarKeys = [
   "OPENAI_MODEL",
   "OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS",
   "OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS",
+  "BRAVE_SEARCH_DAILY_BUDGET_USD",
+  "BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED",
   "EMAIL_FROM",
   "TURNSTILE_SITE_KEY",
   "APIFY_X_ACTOR_ID",
@@ -307,7 +309,8 @@ function writeWranglerConfig(path, resources, env) {
     CLOUDFLARE_AI_GATEWAY_ID: env.get("CLOUDFLARE_AI_GATEWAY_ID") || "default",
     OPENAI_MODEL: env.get("OPENAI_MODEL") || "gpt-4.1-mini",
     EMAIL_FROM: env.get("EMAIL_FROM") || "Distilled.news <noreply@example.com>",
-    APIFY_X_ACTOR_ID: env.get("APIFY_X_ACTOR_ID") || "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest",
+    APIFY_X_ACTOR_ID: env.get("APIFY_X_ACTOR_ID") || "xquik/x-tweet-scraper",
+    APIFY_X_PRICE_USD_PER_1000_RESULTS: env.get("APIFY_X_PRICE_USD_PER_1000_RESULTS") || "0.15",
     APIFY_LINKEDIN_COMPANY_ACTOR_ID: env.get("APIFY_LINKEDIN_COMPANY_ACTOR_ID") || "harvestapi/linkedin-company-posts",
     APIFY_LINKEDIN_PROFILE_ACTOR_ID: env.get("APIFY_LINKEDIN_PROFILE_ACTOR_ID") || "harvestapi/linkedin-profile-posts"
   };

@@ -18,6 +18,14 @@ import type { ProcessingJobMessage, Repository } from "./types";
 
 const RECENT_MESSAGE_CONTEXT_LIMIT = 30;
 const EXISTING_ITEM_CONTEXT_LIMIT = 80;
+const PROCESSING_LEASE_MS = 4 * 60 * 1000;
+
+export class ProcessingJobError extends Error {
+  constructor(message: string, readonly jobId: string, readonly leaseToken: string) {
+    super(message);
+    this.name = "ProcessingJobError";
+  }
+}
 
 export async function processQueueMessage(
   repo: Repository,
@@ -26,22 +34,24 @@ export async function processQueueMessage(
   summaryAdapter?: SummaryAdapter | null,
   reviewAdapter?: EventReviewAdapter | null
 ): Promise<ProcessingResult | undefined> {
+  const claim = await repo.claimProcessingJob(message.jobId, PROCESSING_LEASE_MS, now);
+  if (!claim) return undefined;
   try {
     const briefing = await repo.getBriefingById(message.briefingId);
     const rawMessage = await repo.getRawMessage(message.rawMessageId);
     if (!briefing || !rawMessage) {
-      await repo.failProcessingJob(message.jobId, "Briefing or raw message not found", now);
+      await repo.failProcessingJob(message.jobId, "Briefing or raw message not found", now, claim.leaseToken);
       return undefined;
     }
 
     if (briefing.paused) {
-      await repo.completeProcessingJob(message.jobId, now);
+      await repo.completeProcessingJob(message.jobId, now, claim.leaseToken);
       return undefined;
     }
 
     const source = await repo.getSource(rawMessage.source.id);
     if (!source?.enabled) {
-      await repo.completeProcessingJob(message.jobId, now);
+      await repo.completeProcessingJob(message.jobId, now, claim.leaseToken);
       return undefined;
     }
 
@@ -84,15 +94,14 @@ export async function processQueueMessage(
       Boolean(item.summary) && item.evidence.some((evidence) => evidence.messageId === rawMessage.id)
     );
     await repo.saveBriefingItems(briefing.id, changedItems, now);
-    await repo.completeProcessingJob(message.jobId, now);
+    await repo.completeProcessingJob(message.jobId, now, claim.leaseToken);
     return result;
   } catch (error) {
-    await repo.failProcessingJob(
-      message.jobId,
+    throw new ProcessingJobError(
       error instanceof Error ? error.message : "Unknown processing error",
-      now
+      message.jobId,
+      claim.leaseToken
     );
-    throw error;
   }
 }
 

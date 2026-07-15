@@ -19,7 +19,7 @@ INSERT OR IGNORE INTO accounts (id, email, normalized_email, username, role, pas
 INSERT OR IGNORE INTO username_aliases (username, account_id, is_current, created_at)
 SELECT username, id, 1, datetime('now') FROM accounts WHERE id LIKE 'account_canary_%';
 
--- Two public daily feeds per account: 10 English, 8 Arabic, 6 French.
+-- Two public hourly feeds per account: 10 English, 8 Arabic, 6 French.
 -- A $0.03 daily model budget per feed caps the full cohort at $0.72/day.
 INSERT OR IGNORE INTO briefings (
   id, owner_account_id, slug, title, stars, interest_profile, style_instruction,
@@ -54,8 +54,24 @@ INSERT OR IGNORE INTO briefings (
   ('briefing_canary_fr_03_climate', 'account_canary_fr_03', 'climat', '[Canari] Climat', 0, 'Science du climat, adaptation, énergie propre et politique environnementale.', 'Privilégier les résultats mesurés.', 1, 0, 'fr', 15, 'low', 0.03, 'daily', '10:00', 'Europe/Paris', NULL, datetime('now'), datetime('now')),
   ('briefing_canary_fr_03_health', 'account_canary_fr_03', 'sante-publique', '[Canari] Santé publique', 0, 'Santé publique, épidémies, politique sanitaire et preuves médicales.', 'Ne pas fournir de conseil médical personnel.', 1, 0, 'fr', 15, 'low', 0.03, 'daily', '16:00', 'Europe/Paris', NULL, datetime('now'), datetime('now'));
 
--- Thirty sources: direct RSS, Google News RSS, and one public Telegram channel.
-INSERT OR IGNORE INTO sources (
+-- Keep reruns idempotent for existing cohorts and schedule the first hourly
+-- edition at the next UTC hour boundary.
+UPDATE briefings
+SET briefing_cadence = 'hourly',
+    paused = 0,
+    next_briefing_at = CASE
+      WHEN next_briefing_at IS NULL OR next_briefing_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        THEN strftime('%Y-%m-%dT%H:00:00.000Z', 'now', '+1 hour')
+      ELSE next_briefing_at
+    END,
+    updated_at = datetime('now')
+WHERE owner_account_id IN (
+  SELECT id FROM accounts WHERE username LIKE 'canary-%'
+);
+
+-- Thirty-three external sources: direct RSS, Google News RSS, Telegram, and X,
+-- plus three internal synthetic fixtures.
+INSERT INTO sources (
   id, briefing_id, title, type, provider, kind, username, input, source_url,
   actor_id, actor_input_json, enabled, last_seen_at, created_at, updated_at
 ) VALUES
@@ -68,6 +84,7 @@ INSERT OR IGNORE INTO sources (
   ('source_canary_en_science_nature', 'briefing_canary_en_03_science', 'Nature', 'channel', 'rss', 'rss_feed', NULL, 'rss: https://www.nature.com/nature.rss', 'https://www.nature.com/nature.rss', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_en_health', 'briefing_canary_en_03_health', 'Google News: public health', 'channel', 'rss', 'google_news', NULL, 'news: public health policy medical research', 'https://news.google.com/rss/search?q=public+health+policy+medical+research&hl=en-US&gl=US&ceid=US:en', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_en_ai', 'briefing_canary_en_04_ai', 'Google News: AI research', 'channel', 'rss', 'google_news', NULL, 'news: AI research model evaluation regulation', 'https://news.google.com/rss/search?q=AI+research+model+evaluation+regulation&hl=en-US&gl=US&ceid=US:en', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
+  ('source_canary_en_ai_x', 'briefing_canary_en_04_ai', '@OpenAI', 'channel', 'apify', 'x_profile', 'OpenAI', 'x: @OpenAI', 'https://x.com/OpenAI', 'xquik/x-tweet-scraper', '{"searchTerms":["from:OpenAI"],"queryType":"Latest","maxItems":20}', 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_en_climate', 'briefing_canary_en_04_climate', 'Google News: climate policy', 'channel', 'rss', 'google_news', NULL, 'news: climate science clean energy policy', 'https://news.google.com/rss/search?q=climate+science+clean+energy+policy&hl=en-US&gl=US&ceid=US:en', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_en_energy', 'briefing_canary_en_05_energy', 'Google News: energy transition', 'channel', 'rss', 'google_news', NULL, 'news: electricity grid renewable energy batteries', 'https://news.google.com/rss/search?q=electricity+grid+renewable+energy+batteries&hl=en-US&gl=US&ceid=US:en', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_en_lebanon', 'briefing_canary_en_05_lebanon', 'Google News: Lebanon economy', 'channel', 'rss', 'google_news', NULL, 'news: Lebanon economy energy infrastructure', 'https://news.google.com/rss/search?q=Lebanon+economy+energy+infrastructure&hl=en-US&gl=US&ceid=US:en', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
@@ -75,8 +92,9 @@ INSERT OR IGNORE INTO sources (
   ('source_canary_ar_world_f24', 'briefing_canary_ar_01_world', 'فرانس 24 عربي', 'channel', 'rss', 'rss_feed', NULL, 'rss: https://www.france24.com/ar/rss', 'https://www.france24.com/ar/rss', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_ar_world_bbc', 'briefing_canary_ar_01_world', 'BBC عربي', 'channel', 'rss', 'rss_feed', NULL, 'rss: https://feeds.bbci.co.uk/arabic/rss.xml', 'https://feeds.bbci.co.uk/arabic/rss.xml', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_ar_me', 'briefing_canary_ar_01_middle_east', 'أخبار الشرق الأوسط', 'channel', 'rss', 'google_news', NULL, 'news: الشرق الأوسط سياسة اقتصاد أمن', 'https://news.google.com/rss/search?q=%D8%A7%D9%84%D8%B4%D8%B1%D9%82+%D8%A7%D9%84%D8%A3%D9%88%D8%B3%D8%B7+%D8%B3%D9%8A%D8%A7%D8%B3%D8%A9+%D8%A7%D9%82%D8%AA%D8%B5%D8%A7%D8%AF&hl=ar&gl=LB&ceid=LB:ar', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
-  ('source_canary_ar_lebanon_tg', 'briefing_canary_ar_02_lebanon', 'LebUpdate', 'channel', 'telegram', 'telegram_channel', 'LebUpdate', 'https://t.me/LebUpdate', 'https://t.me/LebUpdate', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
+  ('source_canary_ar_lebanon_tg', 'briefing_canary_ar_02_lebanon', 'LBCI_NEWS Telegram', 'channel', 'telegram', 'telegram_channel', 'LBCI_NEWS', 'https://t.me/LBCI_NEWS', 'https://t.me/LBCI_NEWS', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_ar_lebanon_google', 'briefing_canary_ar_02_lebanon', 'أخبار لبنان', 'channel', 'rss', 'google_news', NULL, 'news: لبنان اقتصاد كهرباء بنوك', 'https://news.google.com/rss/search?q=%D9%84%D8%A8%D9%86%D8%A7%D9%86+%D8%A7%D9%82%D8%AA%D8%B5%D8%A7%D8%AF+%D9%83%D9%87%D8%B1%D8%A8%D8%A7%D8%A1+%D8%A8%D9%86%D9%88%D9%83&hl=ar&gl=LB&ceid=LB:ar', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
+  ('source_canary_ar_lebanon_x', 'briefing_canary_ar_02_lebanon', '@LBCI_NEWS', 'channel', 'apify', 'x_profile', 'LBCI_NEWS', 'x: @LBCI_NEWS', 'https://x.com/LBCI_NEWS', 'xquik/x-tweet-scraper', '{"searchTerms":["from:LBCI_NEWS"],"queryType":"Latest","maxItems":20}', 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_ar_economy', 'briefing_canary_ar_02_economy', 'الاقتصاد العربي', 'channel', 'rss', 'google_news', NULL, 'news: الاقتصاد العربي أسواق سياسة مالية', 'https://news.google.com/rss/search?q=%D8%A7%D9%84%D8%A7%D9%82%D8%AA%D8%B5%D8%A7%D8%AF+%D8%A7%D9%84%D8%B9%D8%B1%D8%A8%D9%8A+%D8%A3%D8%B3%D9%88%D8%A7%D9%82&hl=ar&gl=AE&ceid=AE:ar', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_ar_ai', 'briefing_canary_ar_03_ai', 'الذكاء الاصطناعي', 'channel', 'rss', 'google_news', NULL, 'news: الذكاء الاصطناعي أبحاث نماذج تنظيم', 'https://news.google.com/rss/search?q=%D8%A7%D9%84%D8%B0%D9%83%D8%A7%D8%A1+%D8%A7%D9%84%D8%A7%D8%B5%D8%B7%D9%86%D8%A7%D8%B9%D9%8A+%D8%A3%D8%A8%D8%AD%D8%A7%D8%AB+%D9%86%D9%85%D8%A7%D8%B0%D8%AC&hl=ar&gl=AE&ceid=AE:ar', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_ar_science', 'briefing_canary_ar_03_science', 'علوم وتقنية', 'channel', 'rss', 'google_news', NULL, 'news: علوم تقنية أبحاث جديدة', 'https://news.google.com/rss/search?q=%D8%B9%D9%84%D9%88%D9%85+%D8%AA%D9%82%D9%86%D9%8A%D8%A9+%D8%A3%D8%A8%D8%AD%D8%A7%D8%AB&hl=ar&gl=AE&ceid=AE:ar', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
@@ -85,12 +103,54 @@ INSERT OR IGNORE INTO sources (
 
   ('source_canary_fr_world_f24', 'briefing_canary_fr_01_world', 'France 24', 'channel', 'rss', 'rss_feed', NULL, 'rss: https://www.france24.com/fr/rss', 'https://www.france24.com/fr/rss', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_fr_world_google', 'briefing_canary_fr_01_world', 'Actualité mondiale', 'channel', 'rss', 'google_news', NULL, 'news: actualité mondiale diplomatie élections', 'https://news.google.com/rss/search?q=actualit%C3%A9+mondiale+diplomatie+%C3%A9lections&hl=fr&gl=FR&ceid=FR:fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
+  ('source_canary_fr_world_x', 'briefing_canary_fr_01_world', '@France24_fr', 'channel', 'apify', 'x_profile', 'France24_fr', 'x: @France24_fr', 'https://x.com/France24_fr', 'xquik/x-tweet-scraper', '{"searchTerms":["from:France24_fr"],"queryType":"Latest","maxItems":20}', 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_fr_lebanon', 'briefing_canary_fr_01_lebanon', 'Actualité du Liban', 'channel', 'rss', 'google_news', NULL, 'news: Liban économie énergie politique', 'https://news.google.com/rss/search?q=Liban+%C3%A9conomie+%C3%A9nergie+politique&hl=fr&gl=FR&ceid=FR:fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_fr_science', 'briefing_canary_fr_02_science', 'Science et recherche', 'channel', 'rss', 'google_news', NULL, 'news: science recherche santé publique', 'https://news.google.com/rss/search?q=science+recherche+sant%C3%A9+publique&hl=fr&gl=FR&ceid=FR:fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_fr_science_nature', 'briefing_canary_fr_02_science', 'Nature', 'channel', 'rss', 'rss_feed', NULL, 'rss: https://www.nature.com/nature.rss', 'https://www.nature.com/nature.rss', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_fr_tech', 'briefing_canary_fr_02_technology', 'Technologie et IA', 'channel', 'rss', 'google_news', NULL, 'news: technologie intelligence artificielle cybersécurité', 'https://news.google.com/rss/search?q=technologie+intelligence+artificielle+cybers%C3%A9curit%C3%A9&hl=fr&gl=FR&ceid=FR:fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
   ('source_canary_fr_climate', 'briefing_canary_fr_03_climate', 'Climat et énergie', 'channel', 'rss', 'google_news', NULL, 'news: climat énergie propre politique environnementale', 'https://news.google.com/rss/search?q=climat+%C3%A9nergie+propre+politique+environnementale&hl=fr&gl=FR&ceid=FR:fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
-  ('source_canary_fr_health', 'briefing_canary_fr_03_health', 'Santé publique', 'channel', 'rss', 'google_news', NULL, 'news: santé publique recherche médicale politique', 'https://news.google.com/rss/search?q=sant%C3%A9+publique+recherche+m%C3%A9dicale+politique&hl=fr&gl=FR&ceid=FR:fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now'));
+  ('source_canary_fr_health', 'briefing_canary_fr_03_health', 'Santé publique', 'channel', 'rss', 'google_news', NULL, 'news: santé publique recherche médicale politique', 'https://news.google.com/rss/search?q=sant%C3%A9+publique+recherche+m%C3%A9dicale+politique&hl=fr&gl=FR&ceid=FR:fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
+  ('source_canary_fixture_en', 'briefing_canary_en_02_technology', 'Synthetic canary fixture', 'channel', 'rss', 'rss_feed', NULL, 'synthetic:canary-fixture', 'https://example.invalid/canary/en', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
+  ('source_canary_fixture_ar', 'briefing_canary_ar_01_middle_east', 'اختبار اصطناعي', 'channel', 'rss', 'rss_feed', NULL, 'synthetic:canary-fixture', 'https://example.invalid/canary/ar', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now')),
+  ('source_canary_fixture_fr', 'briefing_canary_fr_02_technology', 'Canari synthétique', 'channel', 'rss', 'rss_feed', NULL, 'synthetic:canary-fixture', 'https://example.invalid/canary/fr', NULL, NULL, 1, datetime('now'), datetime('now'), datetime('now'))
+ON CONFLICT(id) DO UPDATE SET
+  briefing_id = excluded.briefing_id,
+  title = excluded.title,
+  type = excluded.type,
+  provider = excluded.provider,
+  kind = excluded.kind,
+  username = excluded.username,
+  input = excluded.input,
+  source_url = excluded.source_url,
+  actor_id = excluded.actor_id,
+  actor_input_json = excluded.actor_input_json,
+  enabled = 1,
+  updated_at = datetime('now');
+
+UPDATE sources
+SET enabled = 1,
+    canonical_key = lower(provider || '|' || kind || '|' || rtrim(trim(COALESCE(username, source_url, input, title)), '/')),
+    last_error = NULL,
+    health_state = 'healthy',
+    failure_class = NULL,
+    consecutive_failures = 0,
+    next_retry_at = NULL,
+    updated_at = datetime('now')
+WHERE id LIKE 'source_canary_%';
+
+UPDATE sources
+SET input = 'synthetic:canary-fixture'
+WHERE id IN ('source_canary_fixture_en', 'source_canary_fixture_ar', 'source_canary_fixture_fr');
+
+UPDATE sources
+SET actor_id = 'xquik/x-tweet-scraper',
+    actor_input_json = CASE id
+      WHEN 'source_canary_en_ai_x' THEN '{"searchTerms":["from:OpenAI"],"queryType":"Latest","maxItems":20}'
+      WHEN 'source_canary_ar_lebanon_x' THEN '{"searchTerms":["from:LBCI_NEWS"],"queryType":"Latest","maxItems":20}'
+      WHEN 'source_canary_fr_world_x' THEN '{"searchTerms":["from:France24_fr"],"queryType":"Latest","maxItems":20}'
+    END,
+    updated_at = datetime('now')
+WHERE id IN ('source_canary_en_ai_x', 'source_canary_ar_lebanon_x', 'source_canary_fr_world_x');
 
 SELECT
   (SELECT COUNT(*) FROM accounts WHERE id LIKE 'account_canary_%') AS accounts,

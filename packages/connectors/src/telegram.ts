@@ -135,7 +135,8 @@ export function parsePublicTelegramChannelPage(
     if (!postUsername || !messageId || postUsername.toLowerCase() !== options.username.toLowerCase()) continue;
 
     const textHtml = block[0].match(/<div class="tgme_widget_message_text js-message_text"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? "";
-    const text = htmlToText(textHtml);
+    const rawText = htmlToText(textHtml);
+    const text = cleanPublicTelegramText(rawText);
     const media = extractPublicTelegramMedia(block[0]);
     if (!text && media.length === 0) continue;
 
@@ -151,7 +152,7 @@ export function parsePublicTelegramChannelPage(
       source,
       messageId,
       text,
-      links: extractPublicTelegramLinks(block[0], text),
+      links: extractPublicTelegramLinks(block[0], rawText),
       media,
       postedAt: postedDate.toISOString(),
       receivedAt: receivedAt.toISOString(),
@@ -249,6 +250,20 @@ function extractPublicTelegramLinks(block: string, text: string): string[] {
     if (!href.includes("t.me/") && !href.includes("telegram.org/")) links.add(href);
   }
   return Array.from(links);
+}
+
+function cleanPublicTelegramText(text: string): string {
+  const withoutMirrorFooter = text.replace(
+    /\n\s*https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[^\s/]+\/status\/\d+\s*\n\s*(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\s+at\s+\d{1,2}:\d{2}\s*(?:AM|PM)\s*$/i,
+    ""
+  );
+  const withoutTrackingLinks = withoutMirrorFooter.replace(/https?:\/\/t\.co\/[A-Za-z0-9_-]+/gi, "");
+  const cleaned = withoutTrackingLinks
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return cleaned || text.trim();
 }
 
 function extractPublicTelegramMedia(block: string): MediaReference[] {

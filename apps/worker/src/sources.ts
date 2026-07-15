@@ -5,10 +5,12 @@ import {
   detectSourceInput,
   normalizeApifyDatasetItems,
   parseGoogleNewsRssFeed,
+  parseJsonNewsFeed,
   parseRssFeed,
   type DetectedSourceInput
 } from "@distilled/connectors";
 import { ingestPublicTelegramChannel, type PublicTelegramIngestResult } from "./publicTelegram";
+import { isMessageWithinIngestHorizon } from "./sourceFreshness";
 import type {
   Env,
   ProcessingJobMessage,
@@ -20,24 +22,27 @@ import type {
 
 const RSS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const TELEGRAM_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-const GOOGLE_NEWS_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+const GOOGLE_NEWS_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
-const GOOGLE_NEWS_ERROR_BACKOFF_MS = 6 * HOUR_MS;
-// Apify rejects pay-per-result run-level caps below its minimum run charge.
-// Actor input still keeps the requested product cap at 20 X tweets.
 const APIFY_MINIMUM_RUN_CHARGE_USD = 0.02;
-const GOOGLE_NEWS_APIFY_FALLBACK_ACTOR_ID = "groupoject/google-news-scraper";
-const GOOGLE_NEWS_APIFY_FALLBACK_INTERVAL_MS = 3 * HOUR_MS;
-const GOOGLE_NEWS_APIFY_FALLBACK_MAX_ITEMS = 20;
-const GOOGLE_NEWS_APIFY_FALLBACK_ESTIMATED_COST_USD = APIFY_MINIMUM_RUN_CHARGE_USD;
-const GOOGLE_NEWS_APIFY_FALLBACK_SOURCE_DAILY_COST_LIMIT_USD = 0.08;
-const GOOGLE_NEWS_APIFY_FALLBACK_BRIEFING_DAILY_COST_LIMIT_USD = 0.40;
-const PROCESSING_BACKLOG_REFRESH_PAUSE_LIMIT = 500;
+const PROCESSING_BACKLOG_REFRESH_PAUSE_LIMIT = 40;
+const DEFAULT_GLOBAL_COLLECTION_DAILY_BUDGET_USD = 0.75;
+const DEFAULT_BRAVE_SEARCH_DAILY_BUDGET_USD = 0.5;
+const BRAVE_NEWS_SEARCH_COST_USD = 0.005;
+const BRAVE_NEWS_ACTOR_ID = "brave-news-search";
 const X_MAX_ITEMS = 20;
-const X_PRICE_PER_1000_TWEETS_USD = 0.18;
+const GOOGLE_NEWS_MAX_ITEMS = 10;
+const DEFAULT_X_PRICE_PER_1000_TWEETS_USD = 0.15;
+const DEFAULT_GOOGLE_NEWS_ACTOR_ID = "groupoject/google-news-scraper";
+const DEFAULT_GOOGLE_NEWS_FALLBACK_ACTOR_ID = "solidcode/google-news-scraper";
+const DEFAULT_GOOGLE_NEWS_PRICE_PER_1000_RESULTS_USD = 0.5;
+const DEFAULT_GOOGLE_NEWS_FALLBACK_PRICE_PER_1000_RESULTS_USD = 1;
+const APIFY_ACTOR_START_CHARGE_USD = 0.00005;
 const RSS_FETCH_TIMEOUT_MS = 10_000;
 const RSS_MAX_RESPONSE_BYTES = 2_000_000;
 const RSS_MAX_REDIRECTS = 3;
+const CANONICAL_SOURCE_DISPATCH_LEASE_MS = 10 * 60 * 1000;
+const CANONICAL_SOURCE_EXECUTION_LEASE_MS = 2 * 60 * 1000;
 
 export type SourceIngestResult = PublicTelegramIngestResult & {
   provider?: SourceRecord["provider"];
@@ -54,6 +59,7 @@ export interface SourceRefreshInput {
   fetcher?: typeof fetch;
   now?: Date;
   force?: boolean;
+  canonicalLeaseToken?: string;
 }
 
 export interface SourceRefreshDispatchInput {
@@ -70,7 +76,7 @@ export async function addSourceFromInput(input: SourceRefreshInput & { sourceInp
     return ingestPublicTelegramChannel({ ...input, url: detected.sourceUrl, activateSource: true });
   }
 
-  const source = await upsertDetectedSource(input.repo, input.briefing.id, detected, input.env ?? {}, input.now);
+  const source = await upsertDetectedSource(input.repo, input.briefing, detected, input.env ?? {}, input.now);
   if (detected.provider === "rss") {
     return ingestRssSource({ ...input, source });
   }
@@ -87,6 +93,8 @@ export async function refreshEnabledSources(input: SourceRefreshInput): Promise<
   const results: SourceIngestResult[] = [];
 
   for (const source of sources) {
+    if (isSyntheticCanaryFixture(source)) continue;
+    if (!input.force && source.nextRetryAt && source.nextRetryAt > now.toISOString()) continue;
     if (!input.force && !isSourceRefreshDue(input.briefing, source, now)) continue;
     const result = await refreshSource({ ...input, source, now });
     if (result) results.push(result);
@@ -104,20 +112,35 @@ export async function enqueueDueSourceRefreshJobs(input: SourceRefreshDispatchIn
   let enqueued = 0;
 
   for (const source of sources) {
+    if (isSyntheticCanaryFixture(source)) continue;
+    if (!input.force && source.nextRetryAt && source.nextRetryAt > now.toISOString()) continue;
     if (!input.force && !isSourceRefreshDue(input.briefing, source, now)) continue;
     if ((source.provider === "apify" || source.kind === "google_news") && await hasActiveApifyRun(input.repo, source.id)) continue;
 
-    await input.repo.updateSourceState({
-      sourceId: source.id,
-      lastCheckedAt: now.toISOString(),
-      lastError: nullError()
-    }, now);
-    await input.queue.send({
-      type: "refresh_source",
-      briefingId: input.briefing.id,
-      sourceId: source.id,
-      force: input.force || undefined
-    });
+    const dispatchLeaseToken = input.force
+      ? null
+      : await input.repo.claimCanonicalSourceRefresh(
+        source.id,
+        sourceRefreshIntervalMs(input.briefing, source),
+        CANONICAL_SOURCE_DISPATCH_LEASE_MS,
+        now
+      );
+    if (!input.force && !dispatchLeaseToken) continue;
+
+    try {
+      await input.queue.send({
+        type: "refresh_source",
+        briefingId: input.briefing.id,
+        sourceId: source.id,
+        force: input.force || undefined,
+        canonicalLeaseToken: dispatchLeaseToken ?? undefined
+      });
+    } catch (error) {
+      if (dispatchLeaseToken) {
+        await input.repo.releaseCanonicalSourceRefresh(source.id, dispatchLeaseToken, now);
+      }
+      throw error;
+    }
     enqueued += 1;
   }
 
@@ -132,28 +155,117 @@ export async function refreshSourceById(input: SourceRefreshInput & { sourceId: 
 
 async function refreshSource(input: SourceRefreshInput & { source: SourceRecord }): Promise<SourceIngestResult | undefined> {
   if (input.briefing.paused || !input.source.enabled) return undefined;
+  if (isSyntheticCanaryFixture(input.source)) return undefined;
   const now = input.now ?? new Date();
+  const intervalMs = sourceRefreshIntervalMs(input.briefing, input.source);
+  const leaseToken = input.force
+    ? null
+    : input.canonicalLeaseToken
+      ? await input.repo.activateCanonicalSourceRefresh(
+        input.source.id,
+        input.canonicalLeaseToken,
+        CANONICAL_SOURCE_EXECUTION_LEASE_MS,
+        now
+      )
+      : await input.repo.claimCanonicalSourceRefresh(input.source.id, intervalMs, CANONICAL_SOURCE_EXECUTION_LEASE_MS, now);
+  if (!input.force && !leaseToken) return undefined;
+  const directRun = input.source.provider === "apify"
+    ? null
+    : await input.repo.createSourceRun({
+      sourceId: input.source.id,
+      briefingId: input.briefing.id,
+      provider: input.source.provider,
+      actorId: input.source.provider === "telegram" ? "telegram-public-html" : "rss-direct",
+      state: "running",
+      estimatedCostUsd: 0,
+      startedAt: now.toISOString()
+    }, now);
 
-  if (input.source.provider === "telegram") {
-    if (!input.source.url) throw new Error("Telegram source URL is missing.");
-    return ingestPublicTelegramChannel({ ...input, source: input.source, url: input.source.url, now });
+  try {
+    let result: SourceIngestResult | undefined;
+    if (input.source.provider === "telegram") {
+      if (!input.source.url) throw new Error("Telegram source URL is missing.");
+      result = await ingestPublicTelegramChannel({ ...input, source: input.source, url: input.source.url, now });
+    } else if (input.source.kind === "google_news" && input.source.provider === "apify") {
+      if (await hasActiveApifyRun(input.repo, input.source.id)) return undefined;
+      result = await startCappedApifySourceRun({ ...input, source: input.source, now });
+    } else if (input.source.kind === "google_news") {
+      // Compatibility for self-hosters that have not applied the Apify
+      // migration yet. Production Google News sources use Apify.
+      result = await ingestRssSource({ ...input, source: input.source, now });
+    } else if (input.source.provider === "rss") {
+      if (!input.source.sourceUrl && !input.source.url) throw new Error("RSS source URL is missing.");
+      result = await ingestRssSource({ ...input, source: input.source, now });
+    } else if (input.source.provider === "apify") {
+      if (await hasActiveApifyRun(input.repo, input.source.id)) return undefined;
+      result = await startCappedApifySourceRun({ ...input, source: input.source, now });
+    } else {
+      throw new Error(`Unsupported source provider: ${input.source.provider}`);
+    }
+
+    if (leaseToken) {
+      await input.repo.completeCanonicalSourceRefresh(
+        input.source.id,
+        leaseToken,
+        nextSourceRefreshAt(input.briefing, input.source, now),
+        result && result.imported > 0 ? now.toISOString() : undefined,
+        now,
+        input.source.provider !== "apify"
+      );
+    } else if (input.source.provider !== "apify") {
+      await recordSourceGroupSuccess(
+        input.repo,
+        input.source,
+        result && result.imported > 0 ? now.toISOString() : undefined,
+        now
+      );
+    }
+    if (directRun) {
+      await input.repo.updateSourceRun({
+        id: directRun.id,
+        state: "succeeded",
+        itemCount: result?.fetched ?? 0,
+        actualCostUsd: 0,
+        completedAt: now.toISOString()
+      }, now);
+    }
+    return result;
+  } catch (error) {
+    if (directRun) {
+      await input.repo.updateSourceRun({
+        id: directRun.id,
+        state: "failed",
+        itemCount: 0,
+        actualCostUsd: 0,
+        error: error instanceof Error ? error.message : String(error),
+        completedAt: now.toISOString()
+      }, now);
+    }
+    if (leaseToken) {
+      await input.repo.failCanonicalSourceRefresh(
+        input.source.id,
+        leaseToken,
+        error instanceof Error ? error.message : String(error),
+        sourceFailureClass(error, input.source),
+        sourceFailureBackoffMs(input.source),
+        now
+      );
+    } else {
+      await recordSourceGroupFailure(
+        input.repo,
+        input.source,
+        error instanceof Error ? error.message : String(error),
+        sourceFailureClass(error, input.source),
+        new Date(now.getTime() + sourceFailureBackoffMs(input.source)).toISOString(),
+        now
+      );
+    }
+    throw error;
   }
+}
 
-  if (input.source.kind === "google_news") {
-    return ingestRssSource({ ...input, source: input.source, now });
-  }
-
-  if (input.source.provider === "rss") {
-    if (!input.source.sourceUrl && !input.source.url) throw new Error("RSS source URL is missing.");
-    return ingestRssSource({ ...input, source: input.source, now });
-  }
-
-  if (input.source.provider === "apify") {
-    if (await hasActiveApifyRun(input.repo, input.source.id)) return undefined;
-    return startCappedApifySourceRun({ ...input, source: input.source, now });
-  }
-
-  throw new Error(`Unsupported source provider: ${input.source.provider}`);
+function isSyntheticCanaryFixture(source: SourceRecord): boolean {
+  return source.id.startsWith("source_canary_fixture_") || source.input === "synthetic:canary-fixture";
 }
 
 export async function pollApifySourceRuns(input: Omit<SourceRefreshInput, "briefing">): Promise<void> {
@@ -176,27 +288,46 @@ export async function pollApifySourceRuns(input: Omit<SourceRefreshInput, "brief
         error: message,
         completedAt: new Date().toISOString()
       });
-      await input.repo.updateSourceState({ sourceId: source.id, lastError: message });
+      const now = new Date();
+      await recordSourceGroupFailure(
+        input.repo,
+        source,
+        message,
+        "apify_poll",
+        new Date(now.getTime() + sourceFailureBackoffMs(source)).toISOString(),
+        now
+      );
     }
   }
 }
 
 async function upsertDetectedSource(
   repo: Repository,
-  briefingId: string,
+  briefing: BriefingConfig,
   detected: DetectedSourceInput,
   env: Partial<Env>,
   now = new Date()
 ): Promise<SourceRecord> {
-  const actorId = detected.provider === "apify"
+  let actorId = detected.provider === "apify"
     ? ("actorId" in detected ? detected.actorId : undefined) ?? defaultActorIdForKind(detected.kind, env)
     : undefined;
+  if (detected.kind === "google_news") {
+    const query = googleNewsQueryFromDetectedSource(detected);
+    if (!query) throw new Error("Google News source query is missing.");
+    const locale = googleNewsLocale(briefing.language);
+    actorId ??= env.APIFY_GOOGLE_NEWS_ACTOR_ID ?? DEFAULT_GOOGLE_NEWS_ACTOR_ID;
+    detected = {
+      ...detected,
+      sourceUrl: buildGoogleNewsRssUrl(query, locale),
+      actorInput: googleNewsActorInput(query, locale.language, locale.geo, GOOGLE_NEWS_MAX_ITEMS, actorId)
+    };
+  }
   if (detected.provider === "apify" && !actorId) {
     throw new Error(`No Apify actor is configured for ${detected.kind}.`);
   }
 
   return repo.upsertConfiguredSource({
-    briefingId,
+    briefingId: briefing.id,
     title: detected.title,
     provider: detected.provider,
     kind: detected.kind,
@@ -221,47 +352,59 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
   const headers = new Headers(rssRequestHeaders(isGoogleNews));
   if (cursor.etag) headers.set("if-none-match", cursor.etag);
   if (cursor.lastModified) headers.set("if-modified-since", cursor.lastModified);
-  const response = await fetchRssResponse(fetcher, url, headers);
+  let response = await fetchRssResponse(fetcher, url, headers);
+  if (response.status === 403 || response.status === 406 ||
+    (isGoogleNews && [429, 500, 502, 503, 504].includes(response.status))) {
+    response = await fetchRssResponse(fetcher, url, browserCompatibleRssHeaders(headers));
+  }
   if (response.status === 304) {
-    await input.repo.updateSourceState({ sourceId: input.source.id, lastCheckedAt: now.toISOString(), lastError: nullError() }, now);
+    await input.repo.updateSourceState({ sourceId: input.source.id, lastCheckedAt: now.toISOString() }, now);
     await markSourceFetch(input.repo, input.briefing.id, now);
+    await input.repo.recordSourceSuccess(input.source.id, undefined, now);
     return { sourceId: input.source.id, title: input.source.title, url, fetched: 0, imported: 0, queued: 0, skipped: 0, provider: "rss", kind: isGoogleNews ? "google_news" : "rss_feed" };
   }
   if (!response.ok) {
-    const message = `Could not fetch ${isGoogleNews ? "Google News RSS" : "RSS"} source: ${response.status}`;
-    if (isGoogleNews && isRetryableGoogleNewsStatus(response.status)) {
-      const fallback = await startGoogleNewsApifyFallback({ ...input, source: input.source, now, rssError: message });
-      if (fallback) return fallback;
+    if (isGoogleNews && input.env?.BRAVE_SEARCH_API_KEY &&
+      input.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED?.trim().toLowerCase() === "true") {
+      return ingestBraveNewsSource({ ...input, sourceUrl: url, now });
     }
+    const message = `Could not fetch ${isGoogleNews ? "Google News RSS" : "RSS"} source: ${response.status}`;
     throw new Error(message);
   }
 
-  const xml = await readBoundedText(response, RSS_MAX_RESPONSE_BYTES);
-  if (looksLikeHtml(xml)) throw new Error(`Could not parse ${isGoogleNews ? "Google News RSS" : "RSS"} source: upstream returned HTML instead of a feed`);
-  const payloadHash = await sha256(xml);
+  let payload = await readBoundedText(response, RSS_MAX_RESPONSE_BYTES);
+  if (looksLikeHtml(payload)) {
+    response = await fetchRssResponse(fetcher, url, browserCompatibleRssHeaders(headers));
+    if (!response.ok) throw new Error(`Could not fetch ${isGoogleNews ? "Google News RSS" : "RSS"} source: ${response.status}`);
+    payload = await readBoundedText(response, RSS_MAX_RESPONSE_BYTES);
+  }
+  if (looksLikeHtml(payload)) throw new Error(`Could not parse ${isGoogleNews ? "Google News RSS" : "RSS"} source: upstream returned HTML instead of a feed`);
+  const isJsonFeed = !isGoogleNews && (response.headers.get("content-type")?.toLowerCase().includes("json") || /^[\s\r\n]*[\[{]/.test(payload));
+  const payloadHash = await sha256(payload);
   if (cursor.payloadHash === payloadHash) {
     await input.repo.updateSourceState({
       sourceId: input.source.id,
       lastCheckedAt: now.toISOString(),
-      lastError: nullError(),
       cursor: { ...cursor, etag: response.headers.get("etag") ?? cursor.etag, lastModified: response.headers.get("last-modified") ?? cursor.lastModified, payloadHash }
     }, now);
     await markSourceFetch(input.repo, input.briefing.id, now);
+    await input.repo.recordSourceSuccess(input.source.id, undefined, now);
     return { sourceId: input.source.id, title: input.source.title, url, fetched: 0, imported: 0, queued: 0, skipped: 0, provider: "rss", kind: isGoogleNews ? "google_news" : "rss_feed" };
   }
-  const rawPayloadKey = `${isGoogleNews ? "google-news" : "rss"}/${input.briefing.id}/${input.source.id}/${now.getTime()}.xml`;
-  await input.bucket.put(rawPayloadKey, xml, {
-    httpMetadata: { contentType: "application/rss+xml; charset=utf-8" }
+  const rawPayloadKey = `${isGoogleNews ? "google-news" : isJsonFeed ? "json-feed" : "rss"}/${input.briefing.id}/${input.source.id}/${now.getTime()}.${isJsonFeed ? "json" : "xml"}`;
+  await input.bucket.put(rawPayloadKey, payload, {
+    httpMetadata: { contentType: isJsonFeed ? "application/json; charset=utf-8" : "application/rss+xml; charset=utf-8" }
   });
 
-  const parser = isGoogleNews ? parseGoogleNewsRssFeed : parseRssFeed;
-  const messages = parser(xml, {
+  const parser = isGoogleNews ? parseGoogleNewsRssFeed : isJsonFeed ? parseJsonNewsFeed : parseRssFeed;
+  const messages = parser(payload, {
     sourceId: input.source.id,
     sourceTitle: input.source.title,
     sourceUrl: url,
     receivedAt: now,
     retentionDays: input.briefing.retentionDays,
-    rawPayloadKey
+    rawPayloadKey,
+    publisherTimeZone: isJsonFeed ? directPublisherTimeZone(url) : undefined
   });
   const result = await persistMessages({ ...input, messages, now });
   await markSourceFetch(input.repo, input.briefing.id, now);
@@ -269,7 +412,6 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
   await input.repo.updateSourceState({
     sourceId: input.source.id,
     lastCheckedAt: now.toISOString(),
-    lastError: nullError(),
     lastSeenAt: messages[0]?.receivedAt ?? now.toISOString(),
     sourceUrl: response.url || url,
     cursor: {
@@ -278,6 +420,7 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
       payloadHash
     }
   }, now);
+  await input.repo.recordSourceSuccess(input.source.id, result.imported > 0 ? now.toISOString() : undefined, now);
 
   return {
     ...result,
@@ -287,6 +430,199 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
     provider: "rss",
     kind: isGoogleNews ? "google_news" : "rss_feed"
   };
+}
+
+/**
+ * A publisher API without an ISO offset needs an explicit source contract.
+ * Keep this small, reviewed registry rather than guessing from a country's
+ * hostname or changing timestamps based on the server clock.
+ */
+function directPublisherTimeZone(sourceUrl: string): string | undefined {
+  try {
+    const hostname = new URL(sourceUrl).hostname.toLowerCase();
+    if (hostname === "mtv.com.lb" || hostname.endsWith(".mtv.com.lb")) return "Asia/Beirut";
+  } catch {
+    // The URL was already validated by source ingestion; leave unknown APIs
+    // on the existing UTC-safe fallback if it is malformed.
+  }
+  return undefined;
+}
+
+async function ingestBraveNewsSource(input: SourceRefreshInput & {
+  source: SourceRecord;
+  sourceUrl: string;
+  now: Date;
+}): Promise<SourceIngestResult> {
+  const token = input.env?.BRAVE_SEARCH_API_KEY;
+  if (!token) throw new Error("BRAVE_SEARCH_API_KEY is not configured.");
+  const query = googleNewsQueryFromSource(input.source);
+  if (!query) throw new Error("Google News source query is missing.");
+
+  const dailyBudget = positiveNumber(
+    input.env?.BRAVE_SEARCH_DAILY_BUDGET_USD,
+    DEFAULT_BRAVE_SEARCH_DAILY_BUDGET_USD
+  );
+  const dailySpend = await input.repo.sumSourceRunCosts({
+    actorId: BRAVE_NEWS_ACTOR_ID,
+    since: startOfUtcDay(input.now).toISOString()
+  });
+  if (dailySpend + BRAVE_NEWS_SEARCH_COST_USD > dailyBudget) {
+    throw new Error(
+      `Brave News fallback budget reached (${dailySpend.toFixed(3)} of ${dailyBudget.toFixed(2)} USD today)`
+    );
+  }
+
+  const url = new URL("https://api.search.brave.com/res/v1/news/search");
+  url.searchParams.set("q", query.slice(0, 400));
+  url.searchParams.set("count", "20");
+  url.searchParams.set("country", "ALL");
+  url.searchParams.set("search_lang", input.briefing.language);
+  url.searchParams.set("freshness", "pd");
+  url.searchParams.set("safesearch", "moderate");
+  const fetcher = input.fetcher ?? fetch;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RSS_FETCH_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetcher(url, {
+      headers: {
+        accept: "application/json",
+        "x-subscription-token": token,
+        "user-agent": "Distilled.news news source reader"
+      },
+      signal: controller.signal
+    });
+  } catch (error) {
+    await recordBraveSearchRun(input, "failed", 0, undefined, error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Timed out fetching Brave News source after ${RSS_FETCH_TIMEOUT_MS / 1000} seconds`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+  if (!response.ok) {
+    await recordBraveSearchRun(input, "failed", 0, undefined, `Brave News returned ${response.status}`);
+    throw new Error(`Could not fetch Brave News source: ${response.status}`);
+  }
+
+  const payload = await response.json() as BraveNewsResponse;
+  const rawPayloadKey = `brave-news/${input.briefing.id}/${input.source.id}/${input.now.getTime()}.json`;
+  await input.bucket.put(rawPayloadKey, JSON.stringify(payload), {
+    httpMetadata: { contentType: "application/json; charset=utf-8" }
+  });
+  const messages = (payload.results ?? []).slice(0, 20).flatMap((item): NormalizedMessage[] => {
+    const resultUrl = safePublicResultUrl(item.url);
+    const title = plainSearchText(item.title);
+    if (!resultUrl || !title) return [];
+    const description = plainSearchText(item.description);
+    const postedAt = validSearchDate(item.page_age) ?? validSearchDate(item.page_fetched) ?? input.now.toISOString();
+    const expiresAt = new Date(postedAt);
+    expiresAt.setUTCDate(expiresAt.getUTCDate() + input.briefing.retentionDays);
+    const hostname = item.meta_url?.hostname ?? new URL(resultUrl).hostname.replace(/^www\./, "");
+    const messageKey = stableSourceHash(`${input.source.canonicalKey ?? input.source.id}|${resultUrl}`).toString(36);
+    return [{
+      id: `brave_news_${messageKey}`,
+      source: {
+        id: input.source.id,
+        title: hostname,
+        type: "channel",
+        provider: "rss",
+        kind: "google_news"
+      },
+      messageId: messageKey,
+      text: [title, description].filter(Boolean).join(". "),
+      links: [resultUrl],
+      media: [],
+      postedAt,
+      receivedAt: input.now.toISOString(),
+      sourceUrl: resultUrl,
+      rawPayloadKey,
+      expiresAt: expiresAt.toISOString()
+    }];
+  });
+  const result = await persistMessages({ ...input, messages });
+  await recordBraveSearchRun(input, "succeeded", messages.length, rawPayloadKey);
+  await input.repo.updateSourceState({
+    sourceId: input.source.id,
+    lastCheckedAt: input.now.toISOString(),
+    lastSeenAt: messages[0]?.receivedAt ?? input.now.toISOString()
+  }, input.now);
+  await markSourceFetch(input.repo, input.briefing.id, input.now);
+  if (result.imported > 0) await markImportedMessage(input.repo, input.briefing.id, input.now);
+  return {
+    ...result,
+    sourceId: input.source.id,
+    title: input.source.title,
+    url: input.sourceUrl,
+    provider: "rss",
+    kind: "google_news"
+  };
+}
+
+interface BraveNewsResponse {
+  results?: Array<{
+    title?: string;
+    url?: string;
+    description?: string;
+    page_age?: string;
+    page_fetched?: string;
+    meta_url?: { hostname?: string };
+  }>;
+}
+
+async function recordBraveSearchRun(
+  input: SourceRefreshInput & { source: SourceRecord; now: Date },
+  state: "succeeded" | "failed",
+  itemCount: number,
+  archiveKey?: string,
+  error?: string
+): Promise<void> {
+  const run = await input.repo.createSourceRun({
+    sourceId: input.source.id,
+    briefingId: input.briefing.id,
+    provider: "rss",
+    actorId: BRAVE_NEWS_ACTOR_ID,
+    state,
+    estimatedCostUsd: BRAVE_NEWS_SEARCH_COST_USD,
+    startedAt: input.now.toISOString()
+  }, input.now);
+  await input.repo.updateSourceRun({
+    id: run.id,
+    state,
+    itemCount,
+    actualCostUsd: BRAVE_NEWS_SEARCH_COST_USD,
+    archiveKey,
+    error,
+    completedAt: input.now.toISOString()
+  }, input.now);
+}
+
+function safePublicResultUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    return assertSafePublicUrl(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function plainSearchText(value: string | undefined): string {
+  return (value ?? "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function validSearchDate(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
 }
 
 async function fetchRssResponse(fetcher: typeof fetch, initialUrl: string, headers: Headers): Promise<Response> {
@@ -353,64 +689,28 @@ async function startCappedApifySourceRun(input: SourceRefreshInput & {
 }): Promise<SourceIngestResult | undefined> {
   const maxItems = apifyRunMaxItems(input.source);
   if (maxItems === undefined) return undefined;
-  return startApifySourceRun({
-    ...input,
-    maxItems
-  });
-}
-
-async function startGoogleNewsApifyFallback(input: SourceRefreshInput & {
-  source: SourceRecord;
-  now: Date;
-  rssError: string;
-}): Promise<SourceIngestResult | undefined> {
-  if (!input.env?.APIFY_API_TOKEN) return undefined;
-  if (await hasActiveApifyRun(input.repo, input.source.id)) {
-    return updateGoogleNewsFallbackState(input, undefined, true);
-  }
-
-  const actorInput = googleNewsApifyActorInput(input.source);
-  if (!actorInput) return undefined;
-
-  const skipReason = await googleNewsApifyFallbackSkipReason(input);
-  if (skipReason) {
-    return updateGoogleNewsFallbackState(input, `${input.rssError}; ${skipReason}`, skipReason === "Apify fallback recently started");
-  }
-
+  const now = input.now ?? new Date();
+  const actorId = apifyActorIdForRefresh(input.source, input.env);
+  const estimatedCostUsd = apifyEstimatedCostUsd(input.source, input.env, actorId, maxItems);
   try {
     return await startApifySourceRun({
       ...input,
-      actorId: input.source.actorId ?? input.env.APIFY_GOOGLE_NEWS_ACTOR_ID ?? GOOGLE_NEWS_APIFY_FALLBACK_ACTOR_ID,
-      actorInput,
-      estimatedCostUsd: GOOGLE_NEWS_APIFY_FALLBACK_ESTIMATED_COST_USD
+      actorId,
+      actorInput: apifyActorInputForRefresh(input.source, input.briefing, now, maxItems, actorId),
+      maxItems,
+      estimatedCostUsd
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown Apify fallback error";
-    throw new Error(`${input.rssError}; Apify fallback failed: ${message}`);
+    const fallbackActorId = googleNewsFallbackActorId(input.source, input.env);
+    if (!fallbackActorId || fallbackActorId === actorId || !shouldTryGoogleNewsFallback(error)) throw error;
+    return startApifySourceRun({
+      ...input,
+      actorId: fallbackActorId,
+      actorInput: apifyActorInputForRefresh(input.source, input.briefing, now, maxItems, fallbackActorId),
+      maxItems,
+      estimatedCostUsd: apifyEstimatedCostUsd(input.source, input.env, fallbackActorId, maxItems)
+    });
   }
-}
-
-async function updateGoogleNewsFallbackState(input: SourceRefreshInput & {
-  source: SourceRecord;
-  now: Date;
-}, lastError: string | undefined, runStarted: boolean): Promise<SourceIngestResult> {
-  await input.repo.updateSourceState({
-    sourceId: input.source.id,
-    lastCheckedAt: input.now.toISOString(),
-    lastError
-  }, input.now);
-  return {
-    sourceId: input.source.id,
-    title: input.source.title,
-    url: googleNewsSourceUrl(input.source) ?? input.source.sourceUrl ?? input.source.url ?? input.source.input ?? input.source.id,
-    fetched: 0,
-    imported: 0,
-    queued: 0,
-    skipped: 0,
-    provider: "apify",
-    kind: "google_news",
-    runStarted
-  };
 }
 
 async function startApifySourceRun(input: SourceRefreshInput & {
@@ -422,6 +722,12 @@ async function startApifySourceRun(input: SourceRefreshInput & {
 }): Promise<SourceIngestResult> {
   const now = input.now ?? new Date();
   if (!input.env?.APIFY_API_TOKEN) throw new Error("APIFY_API_TOKEN is not configured.");
+  const globalBudget = positiveNumber(input.env.GLOBAL_COLLECTION_DAILY_BUDGET_USD, DEFAULT_GLOBAL_COLLECTION_DAILY_BUDGET_USD);
+  const globalSpend = await input.repo.sumSourceRunCosts({ since: startOfUtcDay(now).toISOString() });
+  const estimatedCost = input.estimatedCostUsd ?? APIFY_MINIMUM_RUN_CHARGE_USD;
+  if (globalSpend + estimatedCost > globalBudget) {
+    throw new Error(`Global collection budget reached (${globalSpend.toFixed(4)} of ${globalBudget.toFixed(2)} USD today)`);
+  }
   const actorId = input.actorId ?? input.source.actorId;
   const actorInput = input.actorInput ?? input.source.actorInput ?? {};
   if (!actorId) throw new Error("Apify actor is not configured for this source.");
@@ -442,8 +748,7 @@ async function startApifySourceRun(input: SourceRefreshInput & {
   }, now);
   await input.repo.updateSourceState({
     sourceId: input.source.id,
-    lastCheckedAt: now.toISOString(),
-    lastError: nullError()
+    lastCheckedAt: now.toISOString()
   }, now);
   await markSourceFetch(input.repo, input.briefing.id, now);
 
@@ -480,18 +785,23 @@ async function pollApifySourceRun(input: SourceRefreshInput & {
   }
 
   if (actorRun.status !== "SUCCEEDED") {
+    const error = `Apify run ${actorRun.status.toLowerCase()}`;
     await input.repo.updateSourceRun({
       id: input.run.id,
       state: "failed",
       datasetId: actorRun.defaultDatasetId,
       actualCostUsd: actorRun.usageTotalUsd,
-      error: `Apify run ${actorRun.status.toLowerCase()}`,
+      error,
       completedAt: now.toISOString()
     }, now);
-    await input.repo.updateSourceState({
-      sourceId: input.source.id,
-      lastError: `Apify run ${actorRun.status.toLowerCase()}`
-    }, now);
+    await recordSourceGroupFailure(
+      input.repo,
+      input.source,
+      error,
+      "apify_run",
+      new Date(now.getTime() + sourceFailureBackoffMs(input.source)).toISOString(),
+      now
+    );
     return;
   }
 
@@ -523,10 +833,18 @@ async function pollApifySourceRun(input: SourceRefreshInput & {
       error: unusableDataset.message,
       completedAt: now.toISOString()
     }, now);
-    await input.repo.updateSourceState({
-      sourceId: input.source.id,
-      lastError: unusableDataset.message
-    }, now);
+    if (unusableDataset.failed) {
+      await recordSourceGroupFailure(
+        input.repo,
+        input.source,
+        unusableDataset.message,
+        "apify_dataset",
+        new Date(now.getTime() + sourceFailureBackoffMs(input.source)).toISOString(),
+        now
+      );
+    } else {
+      await recordSourceGroupSuccess(input.repo, input.source, undefined, now);
+    }
     return;
   }
 
@@ -544,13 +862,21 @@ async function pollApifySourceRun(input: SourceRefreshInput & {
   await input.repo.updateSourceState({
     sourceId: input.source.id,
     lastSeenAt: messages[0]?.receivedAt ?? now.toISOString(),
-    lastError: nullError()
+    cursor: nextApifyCursor(input.source, messages)
   }, now);
+  for (const equivalent of await input.repo.listEquivalentSources(input.source.id)) {
+    if (equivalent.id === input.source.id) continue;
+    await input.repo.updateSourceState({
+      sourceId: equivalent.id,
+      cursor: nextApifyCursor(equivalent, messages)
+    }, now);
+  }
+  await recordSourceGroupSuccess(input.repo, input.source, result.imported > 0 ? now.toISOString() : undefined, now);
   await markSourceFetch(input.repo, input.briefing.id, now);
   if (result.imported > 0) await markImportedMessage(input.repo, input.briefing.id, now);
 }
 
-function describeUnusableApifyDataset(
+export function describeUnusableApifyDataset(
   items: unknown[],
   normalizedCount: number
 ): { message: string; failed: boolean } | null {
@@ -572,6 +898,12 @@ function describeUnusableApifyDataset(
       failed: false
     };
   }
+  if (records.every((item) => item.resultType === "diagnostic" && item.status === "zero-output")) {
+    return {
+      message: "Apify returned no results for this X source input.",
+      failed: false
+    };
+  }
 
   return {
     message: "Apify returned items, but none matched the expected source schema.",
@@ -580,38 +912,54 @@ function describeUnusableApifyDataset(
 }
 
 async function persistMessages(input: SourceRefreshInput & {
+  source: SourceRecord;
   messages: NormalizedMessage[];
   now: Date;
 }): Promise<Omit<SourceIngestResult, "sourceId" | "url">> {
   let imported = 0;
   let queued = 0;
   let skipped = 0;
+  const equivalentSources = await input.repo.listEquivalentSources(input.source.id);
+  const targets = equivalentSources.length > 0 ? equivalentSources : [input.source];
 
   for (const message of input.messages) {
     if (new Date(message.expiresAt).getTime() <= input.now.getTime()) {
       skipped += 1;
       continue;
     }
-    const source = await input.repo.upsertSourceFromMessage(input.briefing.id, message);
-    const persistedMessage = {
-      ...message,
-      id: scopedRawMessageId(input.briefing.id, message.id),
-      source: {
-        ...message.source,
-        id: source.id
+    const canonicalMessageId = `canonical_${(await sha256(`${input.source.canonicalKey ?? input.source.id}|${message.messageId}`)).slice(0, 32)}`;
+    for (const target of targets) {
+      const briefing = await input.repo.getBriefingById(target.briefingId);
+      if (!briefing || briefing.paused || !target.enabled) continue;
+      if (!isMessageWithinIngestHorizon(briefing, message.postedAt, input.now)) {
+        skipped += 1;
+        continue;
       }
-    };
-    const existing = await input.repo.getRawMessage(persistedMessage.id);
-    if (existing) {
-      skipped += 1;
-      continue;
-    }
+      const targetMessage = {
+        ...message,
+        source: { ...message.source, id: target.id }
+      };
+      const resolvedTarget = await input.repo.upsertSourceFromMessage(target.briefingId, targetMessage, input.now);
+      const persistedMessage = {
+        ...targetMessage,
+        id: scopedRawMessageId(target.briefingId, canonicalMessageId),
+        source: {
+          ...targetMessage.source,
+          id: resolvedTarget.id
+        }
+      };
+      const existing = await input.repo.getRawMessage(persistedMessage.id);
+      if (existing) {
+        skipped += 1;
+        continue;
+      }
 
-    await input.repo.saveRawMessage(input.briefing.id, persistedMessage, input.now);
-    const jobId = await input.repo.createProcessingJob(input.briefing.id, persistedMessage.id, input.now);
-    await input.queue.send({ jobId, briefingId: input.briefing.id, rawMessageId: persistedMessage.id });
-    imported += 1;
-    queued += 1;
+      const jobId = await input.repo.saveRawMessageAndCreateProcessingJob(target.briefingId, persistedMessage, input.now);
+      await input.queue.send({ jobId, briefingId: target.briefingId, rawMessageId: persistedMessage.id });
+      await input.repo.markProcessingJobEnqueued(jobId, input.now);
+      imported += 1;
+      queued += 1;
+    }
   }
 
   return {
@@ -654,7 +1002,7 @@ async function runApifyActor(
   });
   const payload = await response.json().catch(() => ({})) as { data?: ApifyRunPayload; error?: { message?: string } };
   if (!response.ok || !payload.data) {
-    throw new Error(payload.error?.message ?? `Apify actor run failed to start: ${response.status}`);
+    throw new Error(`Apify actor run failed to start: ${payload.error?.message ?? response.status}`);
   }
   return payload.data;
 }
@@ -683,21 +1031,30 @@ function encodeApifyActorId(actorId: string): string {
   return encodeURIComponent(actorId.replace("/", "~"));
 }
 
-function isDue(lastCheckedAt: string | undefined, now: Date, intervalMs: number): boolean {
-  if (!lastCheckedAt) return true;
-  return now.getTime() - new Date(lastCheckedAt).getTime() >= intervalMs;
+function isSourceRefreshDue(briefing: BriefingConfig, source: SourceRecord, now: Date): boolean {
+  if (source.nextRetryAt) return source.nextRetryAt <= now.toISOString();
+  if (source.provider === "telegram") return Boolean(source.url);
+  if (source.provider === "rss") return Boolean(source.sourceUrl ?? source.url);
+  if (source.provider === "apify") return true;
+  return !briefing.paused;
 }
 
-function isSourceRefreshDue(briefing: BriefingConfig, source: SourceRecord, now: Date): boolean {
-  if (source.kind === "google_news") {
-    if (isQuarantinedSourceError(source.lastError)) return false;
-    const interval = isGoogleNewsFetchError(source.lastError) ? GOOGLE_NEWS_ERROR_BACKOFF_MS : GOOGLE_NEWS_REFRESH_INTERVAL_MS;
-    return isDue(source.lastCheckedAt, now, interval);
-  }
-  if (source.provider === "telegram") return Boolean(source.url) && isDue(source.lastCheckedAt, now, TELEGRAM_REFRESH_INTERVAL_MS);
-  if (source.provider === "rss") return Boolean(source.sourceUrl ?? source.url) && isDue(source.lastCheckedAt, now, RSS_REFRESH_INTERVAL_MS);
-  if (source.provider === "apify") return isDue(source.lastCheckedAt, now, apifyRefreshIntervalMs(briefing));
-  return false;
+function sourceRefreshIntervalMs(briefing: BriefingConfig, source: SourceRecord): number {
+  if (source.kind === "google_news") return GOOGLE_NEWS_REFRESH_INTERVAL_MS;
+  if (source.provider === "telegram") return TELEGRAM_REFRESH_INTERVAL_MS;
+  if (source.provider === "rss") return RSS_REFRESH_INTERVAL_MS;
+  if (source.provider === "apify") return apifyRefreshIntervalMs(briefing);
+  return HOUR_MS;
+}
+
+function sourceFailureBackoffMs(source: SourceRecord): number {
+  const retryMinutes = [2, 5, 15, 30, 60];
+  const baseMs = retryMinutes[Math.min(source.consecutiveFailures ?? 0, retryMinutes.length - 1)] * 60 * 1000;
+  const jitterWindowMs = source.kind === "google_news"
+    ? GOOGLE_NEWS_REFRESH_INTERVAL_MS
+    : 4 * 60 * 1000;
+  const jitterMs = stableSourceHash(sourceRefreshIdentity(source)) % jitterWindowMs;
+  return baseMs + jitterMs;
 }
 
 async function hasActiveApifyRun(repo: Repository, sourceId: string): Promise<boolean> {
@@ -718,56 +1075,246 @@ async function hasLargeProcessingBacklog(repo: Repository, briefingId: string): 
   return jobs.length >= PROCESSING_BACKLOG_REFRESH_PAUSE_LIMIT;
 }
 
-async function googleNewsApifyFallbackSkipReason(input: SourceRefreshInput & {
-  source: SourceRecord;
-  now: Date;
-}): Promise<string | null> {
-  const recentRuns = await input.repo.listSourceRuns({ sourceId: input.source.id, limit: 10 });
-  const recentCutoff = input.now.getTime() - GOOGLE_NEWS_APIFY_FALLBACK_INTERVAL_MS;
-  if (recentRuns.some((run) => new Date(run.startedAt).getTime() >= recentCutoff)) {
-    return "Apify fallback recently started";
-  }
-
-  const since = startOfUtcDay(input.now).toISOString();
-  const sourceCost = await input.repo.sumSourceRunCosts({
-    briefingId: input.briefing.id,
-    sourceId: input.source.id,
-    since
-  });
-  if (sourceCost + GOOGLE_NEWS_APIFY_FALLBACK_ESTIMATED_COST_USD > GOOGLE_NEWS_APIFY_FALLBACK_SOURCE_DAILY_COST_LIMIT_USD) {
-    return "Apify fallback daily source cap reached";
-  }
-
-  const briefingCost = await input.repo.sumSourceRunCosts({
-    briefingId: input.briefing.id,
-    since
-  });
-  if (briefingCost + GOOGLE_NEWS_APIFY_FALLBACK_ESTIMATED_COST_USD > GOOGLE_NEWS_APIFY_FALLBACK_BRIEFING_DAILY_COST_LIMIT_USD) {
-    return "Apify fallback daily feed cap reached";
-  }
-
-  return null;
-}
-
 function apifyRefreshIntervalMs(briefing: BriefingConfig): number {
   if (briefing.briefingCadence === "daily") return 6 * HOUR_MS;
   if (briefing.briefingCadence === "weekly" || briefing.briefingCadence === "monthly") return 24 * HOUR_MS;
   return HOUR_MS;
 }
 
+function nextSourceRefreshAt(briefing: BriefingConfig, source: SourceRecord, now: Date): string {
+  if (source.provider === "apify" && briefing.briefingCadence === "hourly") {
+    const next = new Date(now);
+    next.setUTCMinutes(45, 0, 0);
+    if (next.getTime() <= now.getTime()) next.setUTCHours(next.getUTCHours() + 1);
+    return next.toISOString();
+  }
+  const intervalMs = sourceRefreshIntervalMs(briefing, source);
+  return nextStaggeredSourceRefreshAt(source, now, intervalMs).toISOString();
+}
+
+function nextStaggeredSourceRefreshAt(source: SourceRecord, now: Date, intervalMs: number): Date {
+  const intervalMinutes = Math.max(1, Math.round(intervalMs / 60_000));
+  const offset = stableSourceHash(sourceRefreshIdentity(source)) % intervalMinutes;
+  const nowMinute = Math.floor(now.getTime() / 60_000);
+  const base = Math.floor(nowMinute / intervalMinutes) * intervalMinutes;
+  let candidateMinute = base + offset;
+  if (candidateMinute <= nowMinute) candidateMinute += intervalMinutes;
+  const candidate = new Date(candidateMinute * 60_000);
+  return candidate;
+}
+
+function sourceRefreshIdentity(source: SourceRecord): string {
+  return source.canonicalKey ?? source.sourceUrl ?? source.url ?? source.input ?? source.id;
+}
+
+function stableSourceHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
+  return hash >>> 0;
+}
+
+function sourceFailureClass(error: unknown, source: SourceRecord): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const status = message.match(/(?:source|channel|fetch)[^:]*:\s*(\d{3})/i)?.[1];
+  if (status) return `upstream_${status}`;
+  if (/timed out|abort/i.test(message)) return "timeout";
+  if (/budget/i.test(message)) return "budget";
+  if (source.provider === "telegram") return "telegram_transport";
+  if (source.kind === "google_news") return "google_news_transport";
+  if (source.provider === "apify") return "apify_start";
+  return "source_transport";
+}
+
+async function recordSourceGroupSuccess(
+  repo: Repository,
+  source: SourceRecord,
+  newItemAt: string | undefined,
+  now: Date
+): Promise<void> {
+  const sources = await repo.listEquivalentSources(source.id);
+  for (const equivalent of sources.length > 0 ? sources : [source]) {
+    await repo.recordSourceSuccess(equivalent.id, newItemAt, now);
+  }
+}
+
+async function recordSourceGroupFailure(
+  repo: Repository,
+  source: SourceRecord,
+  error: string,
+  failureClass: string,
+  nextRetryAt: string,
+  now: Date
+): Promise<void> {
+  const sources = await repo.listEquivalentSources(source.id);
+  for (const equivalent of sources.length > 0 ? sources : [source]) {
+    await repo.recordSourceFailure({ sourceId: equivalent.id, error, failureClass, nextRetryAt }, now);
+  }
+  await repo.rescheduleCanonicalSourceRefresh(source.id, nextRetryAt, error, now);
+}
+
 function apifyRunMaxItems(source: SourceRecord): number | undefined {
   const input = recordValue(source.actorInput);
-  if (source.kind === "x_profile" || source.kind === "x_search") {
-    return Math.max(
-      minimumApifyRunItems(X_PRICE_PER_1000_TWEETS_USD),
-      Math.max(1, Math.floor(Math.min(numberValue(input.maxItems, X_MAX_ITEMS), X_MAX_ITEMS)))
-    );
+  if (source.kind === "google_news") {
+    return Math.max(1, Math.floor(Math.min(
+      numberValue(input.maxResults ?? input.maxItemsPerQuery ?? input.maxItems, GOOGLE_NEWS_MAX_ITEMS),
+      GOOGLE_NEWS_MAX_ITEMS
+    )));
+  }
+  if (isXSource(source)) {
+    return Math.max(1, Math.floor(Math.min(numberValue(input.maxItems, X_MAX_ITEMS), X_MAX_ITEMS)));
   }
   return undefined;
 }
 
-function minimumApifyRunItems(pricePer1000ItemsUsd: number): number {
-  return Math.ceil((APIFY_MINIMUM_RUN_CHARGE_USD / pricePer1000ItemsUsd) * 1000);
+function apifyActorIdForRefresh(source: SourceRecord, env: Partial<Env> | undefined): string | undefined {
+  if (source.kind !== "google_news") return source.actorId;
+  const primaryActorId = source.actorId ?? env?.APIFY_GOOGLE_NEWS_ACTOR_ID ?? DEFAULT_GOOGLE_NEWS_ACTOR_ID;
+  const fallbackActorId = googleNewsFallbackActorId(source, env);
+  return (source.consecutiveFailures ?? 0) > 0 && fallbackActorId !== primaryActorId
+    ? fallbackActorId
+    : primaryActorId;
+}
+
+function googleNewsFallbackActorId(source: SourceRecord, env: Partial<Env> | undefined): string | undefined {
+  if (source.kind !== "google_news") return undefined;
+  return env?.APIFY_GOOGLE_NEWS_FALLBACK_ACTOR_ID ?? DEFAULT_GOOGLE_NEWS_FALLBACK_ACTOR_ID;
+}
+
+function apifyEstimatedCostUsd(
+  source: SourceRecord,
+  env: Partial<Env> | undefined,
+  actorId: string | undefined,
+  maxItems: number
+): number {
+  if (source.kind !== "google_news") {
+    return APIFY_ACTOR_START_CHARGE_USD + (maxItems / 1000) * positiveNumber(
+      env?.APIFY_X_PRICE_USD_PER_1000_RESULTS,
+      DEFAULT_X_PRICE_PER_1000_TWEETS_USD
+    );
+  }
+  const fallbackActorId = googleNewsFallbackActorId(source, env);
+  const pricePerThousand = actorId === fallbackActorId
+    ? positiveNumber(
+      env?.APIFY_GOOGLE_NEWS_FALLBACK_PRICE_USD_PER_1000_RESULTS,
+      DEFAULT_GOOGLE_NEWS_FALLBACK_PRICE_PER_1000_RESULTS_USD
+    )
+    : positiveNumber(
+      env?.APIFY_GOOGLE_NEWS_PRICE_USD_PER_1000_RESULTS,
+      DEFAULT_GOOGLE_NEWS_PRICE_PER_1000_RESULTS_USD
+    );
+  return APIFY_ACTOR_START_CHARGE_USD + (maxItems / 1000) * pricePerThousand;
+}
+
+function shouldTryGoogleNewsFallback(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith("Apify actor run failed to start:");
+}
+
+function apifyActorInputForRefresh(
+  source: SourceRecord,
+  briefing: BriefingConfig,
+  now: Date,
+  maxItems: number,
+  actorId = source.actorId
+): Record<string, unknown> {
+  if (source.kind === "google_news") {
+    const query = googleNewsQueryFromSource(source);
+    if (!query) throw new Error("Google News source query is missing.");
+    const locale = googleNewsLocale(briefing.language);
+    return googleNewsActorInput(query, locale.language, locale.geo, maxItems, actorId);
+  }
+
+  const actorInput: Record<string, unknown> = { ...recordValue(source.actorInput), maxItems };
+  if (!isXSource(source)) return actorInput;
+  const cursor = recordValue(source.cursor);
+  const previousPostedAt = stringValue(cursor.latestPostedAt);
+  const previousTime = previousPostedAt ? Date.parse(previousPostedAt) : Number.NaN;
+  const lowerBound = Math.max(
+    Number.isFinite(previousTime) ? previousTime - 10 * 60 * 1000 : 0,
+    now.getTime() - 2 * HOUR_MS
+  );
+  actorInput.since_time = String(Math.floor(lowerBound / 1000));
+  actorInput.until_time = String(Math.floor(now.getTime() / 1000));
+  const latestMessageId = stringValue(cursor.latestMessageId);
+  if (latestMessageId && /^\d+$/.test(latestMessageId)) actorInput.since_id = latestMessageId;
+  return actorInput;
+}
+
+function googleNewsActorInput(
+  query: string,
+  language: string,
+  country: string,
+  maxResults = GOOGLE_NEWS_MAX_ITEMS,
+  actorId = DEFAULT_GOOGLE_NEWS_ACTOR_ID
+): Record<string, unknown> {
+  if (actorId === DEFAULT_GOOGLE_NEWS_ACTOR_ID || actorId.includes("groupoject/google-news-scraper")) {
+    return {
+      queries: [query],
+      geo: country,
+      language,
+      postedWithinDays: 1,
+      maxItemsPerQuery: maxResults,
+      maxQueries: 1,
+      dedupe: true,
+      monitoringMode: true,
+      monitorKey: `distilled-${stableSourceHash(`${language}|${country}|${query.toLowerCase()}`).toString(36)}`,
+      monitoringInitialRun: "emit",
+      enableAnalysis: false,
+      requestDelayMs: 0,
+      maxConcurrency: 1
+    };
+  }
+  return {
+    keywords: [query],
+    timeFilter: "hour",
+    language,
+    country: country === "LB" ? "any" : country,
+    includeAuthor: false,
+    resolvePublisherUrls: false,
+    sortBy: "date",
+    deduplicateAcrossKeywords: true,
+    expandedSearch: false,
+    maxResults,
+    maxRequestsPerKeyword: 2
+  };
+}
+
+function googleNewsLocale(language: BriefingConfig["language"]): { language: string; geo: string } {
+  if (language === "fr") return { language: "fr", geo: "FR" };
+  if (language === "ar") return { language: "ar", geo: "LB" };
+  return { language: "en", geo: "US" };
+}
+
+function googleNewsQueryFromDetectedSource(source: DetectedSourceInput): string | undefined {
+  if (source.kind !== "google_news") return undefined;
+  const actorInput = recordValue(source.actorInput);
+  return firstString(Array.isArray(actorInput.keywords) ? actorInput.keywords : undefined) ??
+    firstString(Array.isArray(actorInput.queries) ? actorInput.queries : undefined) ??
+    googleNewsQueryFromUrl(source.sourceUrl) ??
+    source.input.replace(/^news:\s*/i, "").trim();
+}
+
+function nextApifyCursor(source: SourceRecord, messages: NormalizedMessage[]): Record<string, unknown> {
+  const existing = recordValue(source.cursor);
+  if (messages.length === 0) return existing;
+  const latest = [...messages].sort((left, right) => right.postedAt.localeCompare(left.postedAt))[0];
+  if (!latest) return existing;
+  return {
+    ...existing,
+    latestPostedAt: latest.postedAt,
+    latestMessageId: latest.messageId
+  };
+}
+
+function isXSource(source: SourceRecord): boolean {
+  return source.kind === "x_profile" || source.kind === "x_search";
 }
 
 function scopedRawMessageId(briefingId: string, rawMessageId: string): string {
@@ -806,16 +1353,13 @@ function rssRequestHeaders(isGoogleNews: boolean): HeadersInit {
   };
 }
 
-function isRetryableGoogleNewsStatus(status: number): boolean {
-  return status === 429 || status >= 500;
-}
-
-function isGoogleNewsFetchError(error: string | undefined): boolean {
-  return Boolean(error && /Google News RSS source: (?:429|5\d\d)/i.test(error));
-}
-
-function isQuarantinedSourceError(error: string | undefined): boolean {
-  return Boolean(error && /^(Quarantined after repeated queue failures|Paused after repeated source failures):/i.test(error));
+function browserCompatibleRssHeaders(existing: Headers): Headers {
+  const headers = new Headers(existing);
+  headers.set("accept", "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, text/html;q=0.5, */*;q=0.1");
+  headers.set("accept-language", "en-US,en;q=0.9");
+  headers.set("cache-control", "no-cache");
+  headers.set("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36 Distilled.news/1.0");
+  return headers;
 }
 
 function recordValue(value: unknown): Record<string, unknown> {
@@ -829,6 +1373,11 @@ function numberValue(value: unknown, fallback: number): number {
     if (Number.isFinite(parsed) && parsed >= 0) return parsed;
   }
   return fallback;
+}
+
+function positiveNumber(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function startOfUtcDay(date: Date): Date {
@@ -849,26 +1398,10 @@ function googleNewsSourceUrl(source: SourceRecord): string | undefined {
   });
 }
 
-function googleNewsApifyActorInput(source: SourceRecord): Record<string, unknown> | null {
-  const input = recordValue(source.actorInput);
-  const query = googleNewsQueryFromSource(source);
-  if (!query) return null;
-
-  return {
-    ...input,
-    queries: [query],
-    geo: stringValue(input.geo) ?? "US",
-    language: stringValue(input.language) ?? "en",
-    maxItemsPerQuery: Math.max(
-      1,
-      Math.floor(Math.min(numberValue(input.maxItemsPerQuery, GOOGLE_NEWS_APIFY_FALLBACK_MAX_ITEMS), GOOGLE_NEWS_APIFY_FALLBACK_MAX_ITEMS))
-    )
-  };
-}
-
 function googleNewsQueryFromSource(source: SourceRecord): string | undefined {
   const actorInput = recordValue(source.actorInput);
-  return firstString(Array.isArray(actorInput.queries) ? actorInput.queries : undefined) ??
+  return firstString(Array.isArray(actorInput.keywords) ? actorInput.keywords : undefined) ??
+    firstString(Array.isArray(actorInput.queries) ? actorInput.queries : undefined) ??
     stringValue(actorInput.query) ??
     googleNewsQueryFromUrl(source.sourceUrl ?? source.url) ??
     source.input?.replace(/^news:\s*/i, "").trim();

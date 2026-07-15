@@ -102,4 +102,23 @@ describe("public Telegram channel pages", () => {
     expect(messages[0].media).toEqual([{ type: "photo", url: "https://cdn.test/photo.jpg", label: "Telegram photo" }]);
     expect(messages[1].text).toContain("اعتراضات صاروخية");
   });
+
+  it("removes mirrored X transport footers while retaining their evidence link", () => {
+    const html = `
+      <meta property="og:title" content="LBCI_NEWS">
+      <main>
+        <div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="LBCI_NEWS/308200">
+          <div class="tgme_widget_message_text js-message_text" dir="auto">اقرار اقتراح قانون التقاعد<br/> <a href="https://twitter.com/LBCI_NEWS/status/2077330010038280259">https://twitter.com/LBCI_NEWS/status/2077330010038280259</a><br/>July 15, 2026 at 11:50AM</div>
+          <a class="tgme_widget_message_date" href="https://t.me/LBCI_NEWS/308200"><time datetime="2026-07-15T09:58:30+00:00" class="time">09:58</time></a>
+        </div></div>
+      </main>`;
+
+    const [message] = parsePublicTelegramChannelPage(html, {
+      username: "LBCI_NEWS",
+      receivedAt: new Date("2026-07-15T10:00:00.000Z")
+    });
+
+    expect(message.text).toBe("اقرار اقتراح قانون التقاعد");
+    expect(message.links).toContain("https://twitter.com/LBCI_NEWS/status/2077330010038280259");
+  });
 });

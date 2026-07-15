@@ -19,11 +19,12 @@ export type DetectedSourceInput =
       sourceUrl: string;
     }
   | {
-      provider: "rss";
+      provider: "apify";
       kind: "google_news";
       input: string;
       title: string;
       sourceUrl: string;
+      actorInput: Record<string, unknown>;
     }
   | {
       provider: "apify";
@@ -107,12 +108,16 @@ export function detectSourceInput(input: string): DetectedSourceInput {
 }
 
 export function defaultActorIdForKind(kind: SourceKind, env: {
+  APIFY_GOOGLE_NEWS_ACTOR_ID?: string;
   APIFY_X_ACTOR_ID?: string;
   APIFY_LINKEDIN_COMPANY_ACTOR_ID?: string;
   APIFY_LINKEDIN_PROFILE_ACTOR_ID?: string;
 }): string | undefined {
+  if (kind === "google_news") {
+    return env.APIFY_GOOGLE_NEWS_ACTOR_ID ?? "groupoject/google-news-scraper";
+  }
   if (kind === "x_profile" || kind === "x_search") {
-    return env.APIFY_X_ACTOR_ID ?? "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest";
+    return env.APIFY_X_ACTOR_ID ?? "xquik/x-tweet-scraper";
   }
   if (kind === "linkedin_company") return env.APIFY_LINKEDIN_COMPANY_ACTOR_ID ?? "harvestapi/linkedin-company-posts";
   if (kind === "linkedin_profile") return env.APIFY_LINKEDIN_PROFILE_ACTOR_ID ?? "harvestapi/linkedin-profile-posts";
@@ -151,7 +156,7 @@ function detectXInput(value: string, original: string): DetectedSourceInput {
     title: `X: ${value}`,
     actorInput: {
       searchTerms: [value],
-      sort: "Latest",
+      queryType: "Latest",
       maxItems: 20
     }
   };
@@ -159,11 +164,25 @@ function detectXInput(value: string, original: string): DetectedSourceInput {
 
 function googleNewsInput(query: string, original: string): DetectedSourceInput {
   return {
-    provider: "rss",
+    provider: "apify",
     kind: "google_news",
     input: original,
     title: `Google News: ${query}`,
-    sourceUrl: buildGoogleNewsRssUrl(query, { geo: "US", language: "en" })
+    sourceUrl: buildGoogleNewsRssUrl(query, { geo: "US", language: "en" }),
+    actorInput: {
+      queries: [query],
+      geo: "US",
+      language: "en",
+      postedWithinDays: 1,
+      maxItemsPerQuery: 10,
+      maxQueries: 1,
+      dedupe: true,
+      monitoringMode: true,
+      monitoringInitialRun: "emit",
+      enableAnalysis: false,
+      requestDelayMs: 0,
+      maxConcurrency: 1
+    }
   };
 }
 
@@ -177,7 +196,7 @@ function xProfileInput(handle: string, original: string): DetectedSourceInput {
     sourceUrl: `https://x.com/${handle}`,
     actorInput: {
       searchTerms: [`from:${handle}`],
-      sort: "Latest",
+      queryType: "Latest",
       maxItems: 20
     }
   };

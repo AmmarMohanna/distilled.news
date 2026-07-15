@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGoogleNewsRssUrl, parseGoogleNewsRssFeed, parseRssFeed } from "../src";
+import { buildGoogleNewsRssUrl, parseGoogleNewsRssFeed, parseJsonNewsFeed, parseRssFeed } from "../src";
 
 describe("parseRssFeed", () => {
   it("normalizes RSS items with publisher evidence links", () => {
@@ -98,5 +98,31 @@ describe("parseRssFeed", () => {
   it("decodes numeric entities in feed titles", () => {
     const [message] = parseRssFeed(`<rss><channel><title>News &#8211; World</title><item><title>Update</title><guid>1</guid><pubDate>Sun, 13 Jul 2026 00:00:00 GMT</pubDate></item></channel></rss>`, { sourceId: "x", sourceTitle: "X", sourceUrl: "https://example.com/rss" });
     expect(message.source.title).toBe("News – World");
+  });
+
+  it("normalizes direct publisher JSON articles without timezone or HTML artifacts", () => {
+    const [message] = parseJsonNewsFeed(JSON.stringify([{
+      articleid: 1717046,
+      title: "تحديث من بيروت",
+      publishDate: "2026-07-14T01:57:50.04",
+      Url: "/news/local/1717046/update",
+      MediaUrl: "https://images.example/update.jpg",
+      SmallDescription: "",
+      Text: "<p><strong>أعلنت الجهة الرسمية بدء التنفيذ.&nbsp;</strong></p>"
+    }]), {
+      sourceId: "mtv-lebanon",
+      sourceTitle: "MTV Lebanon",
+      sourceUrl: "https://www.mtv.com.lb/api/articles?start=0&end=20&type=&removeAds=true",
+      receivedAt: new Date("2026-07-14T02:00:00.000Z"),
+      publisherTimeZone: "Asia/Beirut"
+    });
+
+    expect(message).toMatchObject({
+      source: { id: "mtv-lebanon", title: "MTV Lebanon", provider: "rss", kind: "rss_feed" },
+      postedAt: "2026-07-13T22:57:50.040Z",
+      sourceUrl: "https://www.mtv.com.lb/news/local/1717046/update",
+      text: "تحديث من بيروت. أعلنت الجهة الرسمية بدء التنفيذ."
+    });
+    expect(message.media[0]?.url).toBe("https://images.example/update.jpg");
   });
 });

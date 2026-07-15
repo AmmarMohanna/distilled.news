@@ -115,6 +115,12 @@ export function canonicalUrl(value: string | undefined): string | undefined {
     const url = new URL(value);
     const host = url.hostname.toLowerCase().replace(/^www\./, "").replace(/^twitter\.com$/, "x.com");
     const path = url.pathname.replace(/\/+$/, "");
+    const segments = path.split("/").filter(Boolean);
+    if (segments.length === 0) return undefined;
+    if (host === "whatsapp.com" && segments[0] === "channel") return undefined;
+    if (host === "t.me" && segments.length < 2) return undefined;
+    if (host === "x.com" && !segments.includes("status")) return undefined;
+    if (host === "instagram.com" && !["p", "reel", "tv"].includes(segments[0] ?? "")) return undefined;
     return `${host}${path}`;
   } catch {
     return undefined;

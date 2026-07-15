@@ -31,6 +31,12 @@ export interface SourceRecord {
   lastSeenAt: string;
   lastCheckedAt?: string;
   lastError?: string;
+  healthState?: "healthy" | "degraded" | "backoff" | "disabled_by_user";
+  failureClass?: string;
+  consecutiveFailures?: number;
+  lastSuccessAt?: string;
+  lastNewItemAt?: string;
+  nextRetryAt?: string;
 }
 
 export interface HealthStatus {
@@ -43,7 +49,10 @@ export interface HealthStatus {
     queued: number;
     completed: number;
     failed: number;
+    staleQueued: number;
   };
+  sources: { enabled: number; degraded: number; backoff: number; disabled: number };
+  spendToday: { llmUsd: number; collectionUsd: number };
 }
 
 export interface SourceSuggestion {
@@ -57,7 +66,7 @@ export interface SourceSuggestion {
   language: "en" | "ar" | "fr";
   region: string;
   reason: string;
-  origin: "curated" | "brave" | "google_news";
+  origin: "curated" | "gdelt" | "google_news";
   confidence: "high" | "medium";
   alreadyAdded: boolean;
 }

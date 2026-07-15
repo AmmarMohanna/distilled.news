@@ -16,20 +16,20 @@ describe("source suggestions", () => {
     expect(result.suggestions.at(-1)).toMatchObject({ origin: "google_news", kind: "google_news" });
   });
 
-  it("enriches with Brave, deduplicates domains, and marks existing inputs", async () => {
-    const fetcher = async () => new Response(JSON.stringify({ results: [
-      { title: "A", url: "https://example.com/a", description: "Lebanon energy update", meta_url: { hostname: "example.com" } },
-      { title: "B", url: "https://example.com/b", description: "More coverage", meta_url: { hostname: "example.com" } }
+  it("enriches with free GDELT discovery, deduplicates domains, and marks existing inputs", async () => {
+    const fetcher = async () => new Response(JSON.stringify({ articles: [
+      { title: "Lebanon energy update", url: "https://example.com/a", domain: "example.com" },
+      { title: "More coverage", url: "https://example.com/b", domain: "example.com" }
     ] }), { headers: { "content-type": "application/json" } });
     const existingInput = `news: site:example.com ${briefing.interestProfile}`;
-    const result = await suggestSources({ briefing, interestProfile: briefing.interestProfile, language: "en", env: { BRAVE_SEARCH_API_KEY: "test" }, fetcher: fetcher as typeof fetch,
+    const result = await suggestSources({ briefing, interestProfile: briefing.interestProfile, language: "en", env: {}, fetcher: fetcher as typeof fetch,
       existingSources: [{ id: "source_1", briefingId: briefing.id, title: "Example", type: "channel", provider: "rss", kind: "google_news", input: existingInput, enabled: true, lastSeenAt: new Date().toISOString() }] });
-    expect(result.suggestions.filter((item) => item.origin === "brave")).toHaveLength(1);
-    expect(result.suggestions.find((item) => item.origin === "brave")?.alreadyAdded).toBe(true);
+    expect(result.suggestions.filter((item) => item.origin === "gdelt")).toHaveLength(1);
+    expect(result.suggestions.find((item) => item.origin === "gdelt")?.alreadyAdded).toBe(true);
   });
 
-  it("falls back to curated results when Brave fails", async () => {
-    const result = await suggestSources({ briefing, interestProfile: briefing.interestProfile, language: "en", existingSources: [], env: { BRAVE_SEARCH_API_KEY: "test" }, fetcher: (async () => new Response("unavailable", { status: 503 })) as typeof fetch });
+  it("falls back to curated results when GDELT fails", async () => {
+    const result = await suggestSources({ briefing, interestProfile: briefing.interestProfile, language: "en", existingSources: [], env: {}, fetcher: (async () => new Response("unavailable", { status: 503 })) as typeof fetch });
     expect(result.degraded).toBe(true);
     expect(result.suggestions.some((item) => item.origin === "curated")).toBe(true);
   });
