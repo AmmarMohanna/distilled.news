@@ -35,12 +35,21 @@ const runtimeVarKeys = [
   "CLOUDFLARE_ACCOUNT_ID",
   "CLOUDFLARE_AI_GATEWAY_ID",
   "OPENAI_MODEL",
+  "OPENAI_EDITION_MODEL",
+  "OPENAI_EDITION_FALLBACK_MODEL",
+  "EDITION_SYNTHESIS_MODE",
   "OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS",
   "OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS",
+  "GLOBAL_LLM_DAILY_BUDGET_USD",
+  "GLOBAL_COLLECTION_DAILY_BUDGET_USD",
   "BRAVE_SEARCH_DAILY_BUDGET_USD",
   "BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED",
   "EMAIL_FROM",
   "TURNSTILE_SITE_KEY",
+  "APIFY_GOOGLE_NEWS_ACTOR_ID",
+  "APIFY_GOOGLE_NEWS_PRICE_USD_PER_1000_RESULTS",
+  "APIFY_GOOGLE_NEWS_FALLBACK_ACTOR_ID",
+  "APIFY_GOOGLE_NEWS_FALLBACK_PRICE_USD_PER_1000_RESULTS",
   "APIFY_X_ACTOR_ID",
   "APIFY_LINKEDIN_COMPANY_ACTOR_ID",
   "APIFY_LINKEDIN_PROFILE_ACTOR_ID",
@@ -54,14 +63,21 @@ const resourceKeys = [
   "DISTILLED_R2_BUCKET_NAME",
   "DISTILLED_PROCESSING_QUEUE_NAME",
   "DISTILLED_PROCESSING_DEAD_LETTER_QUEUE_NAME",
+  "DISTILLED_SOURCE_QUEUE_NAME",
+  "DISTILLED_SOURCE_DEAD_LETTER_QUEUE_NAME",
+  "DISTILLED_EDITION_QUEUE_NAME",
+  "DISTILLED_EDITION_DEAD_LETTER_QUEUE_NAME",
   "DISTILLED_CUSTOM_DOMAINS"
 ];
+
+const setupConfigKeys = ["RAW_ARCHIVE_RETENTION_DAYS"];
 
 const persistedEnvKeys = [
   "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_ACCOUNT_ID",
   "CLOUDFLARE_ZONE_ID",
   ...resourceKeys,
+  ...setupConfigKeys,
   ...runtimeVarKeys,
   ...runtimeSecretKeys
 ];
@@ -104,8 +120,13 @@ function main() {
       writeEnvFile(envPath, env);
     }
     ensureR2Bucket(resources.r2BucketName, env);
+    ensureR2Lifecycle(resources.r2BucketName, env);
     ensureQueue(resources.processingQueueName, env);
-    ensureQueue(resources.deadLetterQueueName, env);
+    ensureQueue(resources.processingDeadLetterQueueName, env);
+    ensureQueue(resources.sourceQueueName, env);
+    ensureQueue(resources.sourceDeadLetterQueueName, env);
+    ensureQueue(resources.editionQueueName, env);
+    ensureQueue(resources.editionDeadLetterQueueName, env);
     writeWranglerConfig(workerConfigPath, readResourceConfig(env), env);
     console.log(`- wrote ${relative(workerConfigPath)}`);
   } else if (args.has("--write-wrangler")) {
@@ -205,7 +226,11 @@ function ensureResourceDefaults(env) {
     DISTILLED_D1_DATABASE_NAME: "distilled-news",
     DISTILLED_R2_BUCKET_NAME: "distilled-news-raw",
     DISTILLED_PROCESSING_QUEUE_NAME: "distilled-news-processing",
-    DISTILLED_PROCESSING_DEAD_LETTER_QUEUE_NAME: "distilled-news-processing-dlq"
+    DISTILLED_PROCESSING_DEAD_LETTER_QUEUE_NAME: "distilled-news-processing-dlq",
+    DISTILLED_SOURCE_QUEUE_NAME: "distilled-news-sources",
+    DISTILLED_SOURCE_DEAD_LETTER_QUEUE_NAME: "distilled-news-sources-dlq",
+    DISTILLED_EDITION_QUEUE_NAME: "distilled-news-editions",
+    DISTILLED_EDITION_DEAD_LETTER_QUEUE_NAME: "distilled-news-editions-dlq"
   };
   for (const [key, value] of Object.entries(defaults)) {
     if (!env.get(key)) {
@@ -224,7 +249,11 @@ function readResourceConfig(env) {
     d1DatabaseId: env.get("DISTILLED_D1_DATABASE_ID"),
     r2BucketName: env.get("DISTILLED_R2_BUCKET_NAME"),
     processingQueueName: env.get("DISTILLED_PROCESSING_QUEUE_NAME"),
-    deadLetterQueueName: env.get("DISTILLED_PROCESSING_DEAD_LETTER_QUEUE_NAME"),
+    processingDeadLetterQueueName: env.get("DISTILLED_PROCESSING_DEAD_LETTER_QUEUE_NAME"),
+    sourceQueueName: env.get("DISTILLED_SOURCE_QUEUE_NAME"),
+    sourceDeadLetterQueueName: env.get("DISTILLED_SOURCE_DEAD_LETTER_QUEUE_NAME"),
+    editionQueueName: env.get("DISTILLED_EDITION_QUEUE_NAME"),
+    editionDeadLetterQueueName: env.get("DISTILLED_EDITION_DEAD_LETTER_QUEUE_NAME"),
     customDomains: splitCsv(env.get("DISTILLED_CUSTOM_DOMAINS"))
   };
 }
@@ -276,6 +305,30 @@ function ensureR2Bucket(name, env) {
   throwCommandError(result, `Could not create R2 bucket ${name}`);
 }
 
+function ensureR2Lifecycle(name, env) {
+  const configuredDays = Number(env.get("RAW_ARCHIVE_RETENTION_DAYS"));
+  const retentionDays = Number.isInteger(configuredDays) && configuredDays > 0 ? configuredDays : 30;
+  const ruleName = `raw-archive-${retentionDays}-days`;
+  const existing = runWranglerCapture(["r2", "bucket", "lifecycle", "list", name], env, { optional: true });
+  if (
+    existing.status === 0 &&
+    existing.stdout.includes(`name:     ${ruleName}`) &&
+    existing.stdout.includes(`Expire objects after ${retentionDays} days`)
+  ) {
+    console.log(`- R2 lifecycle ${ruleName}: ready`);
+    return;
+  }
+  const result = runWranglerCapture([
+    "r2", "bucket", "lifecycle", "add", name, ruleName,
+    "--expire-days", String(retentionDays), "--force"
+  ], env, { optional: true });
+  if (result.status === 0) {
+    console.log(`- R2 lifecycle ${ruleName}: ready`);
+    return;
+  }
+  throwCommandError(result, `Could not configure R2 lifecycle ${ruleName}`);
+}
+
 function ensureQueue(name, env) {
   const result = runWranglerCapture(["queues", "create", name], env, { optional: true });
   if (result.status === 0 || alreadyExists(result)) {
@@ -308,7 +361,21 @@ function writeWranglerConfig(path, resources, env) {
     CLOUDFLARE_ACCOUNT_ID: envValue(env, "CLOUDFLARE_ACCOUNT_ID"),
     CLOUDFLARE_AI_GATEWAY_ID: env.get("CLOUDFLARE_AI_GATEWAY_ID") || "default",
     OPENAI_MODEL: env.get("OPENAI_MODEL") || "gpt-4.1-mini",
+    OPENAI_EDITION_MODEL: env.get("OPENAI_EDITION_MODEL") || "gpt-4.1-mini",
+    OPENAI_EDITION_FALLBACK_MODEL: env.get("OPENAI_EDITION_FALLBACK_MODEL") || "gpt-4.1-nano",
+    EDITION_SYNTHESIS_MODE: env.get("EDITION_SYNTHESIS_MODE") || "all",
+    OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS: env.get("OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS") || "0.40",
+    OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS: env.get("OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS") || "1.60",
+    GLOBAL_LLM_DAILY_BUDGET_USD: env.get("GLOBAL_LLM_DAILY_BUDGET_USD") || "1.00",
     EMAIL_FROM: env.get("EMAIL_FROM") || "Distilled.news <noreply@example.com>",
+    GLOBAL_COLLECTION_DAILY_BUDGET_USD: env.get("GLOBAL_COLLECTION_DAILY_BUDGET_USD") || "2.50",
+    BRAVE_SEARCH_DAILY_BUDGET_USD: env.get("BRAVE_SEARCH_DAILY_BUDGET_USD") || "0.50",
+    BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED: env.get("BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED") || "false",
+    TURNSTILE_SITE_KEY: env.get("TURNSTILE_SITE_KEY") || "",
+    APIFY_GOOGLE_NEWS_ACTOR_ID: env.get("APIFY_GOOGLE_NEWS_ACTOR_ID") || "groupoject/google-news-scraper",
+    APIFY_GOOGLE_NEWS_PRICE_USD_PER_1000_RESULTS: env.get("APIFY_GOOGLE_NEWS_PRICE_USD_PER_1000_RESULTS") || "0.50",
+    APIFY_GOOGLE_NEWS_FALLBACK_ACTOR_ID: env.get("APIFY_GOOGLE_NEWS_FALLBACK_ACTOR_ID") || "solidcode/google-news-scraper",
+    APIFY_GOOGLE_NEWS_FALLBACK_PRICE_USD_PER_1000_RESULTS: env.get("APIFY_GOOGLE_NEWS_FALLBACK_PRICE_USD_PER_1000_RESULTS") || "1.00",
     APIFY_X_ACTOR_ID: env.get("APIFY_X_ACTOR_ID") || "xquik/x-tweet-scraper",
     APIFY_X_PRICE_USD_PER_1000_RESULTS: env.get("APIFY_X_PRICE_USD_PER_1000_RESULTS") || "0.15",
     APIFY_LINKEDIN_COMPANY_ACTOR_ID: env.get("APIFY_LINKEDIN_COMPANY_ACTOR_ID") || "harvestapi/linkedin-company-posts",
@@ -327,6 +394,9 @@ function writeWranglerConfig(path, resources, env) {
     `binding = "ASSETS"`,
     `not_found_handling = "single-page-application"`,
     `run_worker_first = true`,
+    "",
+    "[version_metadata]",
+    `binding = "CF_VERSION_METADATA"`,
     "",
     "[vars]",
     ...Object.entries(vars)
@@ -350,13 +420,61 @@ function writeWranglerConfig(path, resources, env) {
     `binding = "PROCESSING_QUEUE"`,
     `queue = ${tomlString(resources.processingQueueName)}`,
     "",
+    "[[queues.producers]]",
+    `binding = "SOURCE_QUEUE"`,
+    `queue = ${tomlString(resources.sourceQueueName)}`,
+    "",
+    "[[queues.producers]]",
+    `binding = "EDITION_QUEUE"`,
+    `queue = ${tomlString(resources.editionQueueName)}`,
+    "",
     "[[queues.consumers]]",
     `queue = ${tomlString(resources.processingQueueName)}`,
     `max_batch_size = 1`,
     `max_batch_timeout = 5`,
+    `max_concurrency = 6`,
     `max_retries = 4`,
     `retry_delay = 60`,
-    `dead_letter_queue = ${tomlString(resources.deadLetterQueueName)}`,
+    `dead_letter_queue = ${tomlString(resources.processingDeadLetterQueueName)}`,
+    "",
+    "[[queues.consumers]]",
+    `queue = ${tomlString(resources.sourceQueueName)}`,
+    `max_batch_size = 1`,
+    `max_batch_timeout = 5`,
+    `max_concurrency = 5`,
+    `max_retries = 4`,
+    `retry_delay = 60`,
+    `dead_letter_queue = ${tomlString(resources.sourceDeadLetterQueueName)}`,
+    "",
+    "[[queues.consumers]]",
+    `queue = ${tomlString(resources.editionQueueName)}`,
+    `max_batch_size = 1`,
+    `max_batch_timeout = 5`,
+    `max_concurrency = 10`,
+    `max_retries = 3`,
+    `retry_delay = 60`,
+    `dead_letter_queue = ${tomlString(resources.editionDeadLetterQueueName)}`,
+    "",
+    "[[queues.consumers]]",
+    `queue = ${tomlString(resources.processingDeadLetterQueueName)}`,
+    `max_batch_size = 10`,
+    `max_batch_timeout = 5`,
+    `max_concurrency = 1`,
+    `max_retries = 0`,
+    "",
+    "[[queues.consumers]]",
+    `queue = ${tomlString(resources.sourceDeadLetterQueueName)}`,
+    `max_batch_size = 10`,
+    `max_batch_timeout = 5`,
+    `max_concurrency = 1`,
+    `max_retries = 0`,
+    "",
+    "[[queues.consumers]]",
+    `queue = ${tomlString(resources.editionDeadLetterQueueName)}`,
+    `max_batch_size = 10`,
+    `max_batch_timeout = 5`,
+    `max_concurrency = 1`,
+    `max_retries = 0`,
     "",
     "[observability]",
     `enabled = true`,

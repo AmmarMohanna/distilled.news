@@ -127,6 +127,16 @@ ON CONFLICT(id) DO UPDATE SET
   enabled = 1,
   updated_at = datetime('now');
 
+-- Google News uses the same Apify account as X. The public Google News URL is
+-- retained only as the readable query/locale carrier.
+UPDATE sources
+SET provider = 'apify',
+    actor_id = 'groupoject/google-news-scraper',
+    actor_input_json = NULL,
+    updated_at = datetime('now')
+WHERE id LIKE 'source_canary_%'
+  AND kind = 'google_news';
+
 UPDATE sources
 SET enabled = 1,
     canonical_key = lower(provider || '|' || kind || '|' || rtrim(trim(COALESCE(username, source_url, input, title)), '/')),
