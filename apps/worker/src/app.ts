@@ -1156,6 +1156,9 @@ function editionSummaryForLanguage(
   language: BriefingConfig["language"],
   sections = publicEditionSections(edition, language)
 ): string {
+  if (edition.status === "empty") {
+    return synthesizeEditionNarrativeSummary([], edition.cadence, language);
+  }
   if (sections.length === 0) return synthesizeEditionNarrativeSummary([], edition.cadence, language);
   const savedSummary = sanitizeEvidenceText(edition.summary, language);
   if (
