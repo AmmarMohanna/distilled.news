@@ -54,6 +54,8 @@ npx pnpm@10.12.1 run setup -- --provision-cloudflare --apply-remote-migrations -
 
 `npx pnpm@10.12.1 run setup` creates local `.env` and Worker `.dev.vars` files when needed and generates missing app secrets. With `-- --provision-cloudflare`, it also creates or verifies the D1 database, R2 bucket, processing queue, dead-letter queue, writes `apps/worker/wrangler.toml`, uploads Worker secrets, applies migrations when requested, and deploys when requested. Run `npx pnpm@10.12.1 run setup -- --check` to verify Wrangler auth and dry-run deployment.
 
+Provisioning also applies a 30-day expiration lifecycle to raw R2 payloads by default. Set `RAW_ARCHIVE_RETENTION_DAYS` to change that bounded debugging-retention window.
+
 `distilled.news` is the canonical production domain. `lownoise.news` and `www.lownoise.news` are kept as legacy routes that redirect to `https://distilled.news`.
 
 ## Required External Values

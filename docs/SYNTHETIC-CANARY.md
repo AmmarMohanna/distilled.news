@@ -6,7 +6,7 @@ This cohort exercises Distilled.news continuously without pretending to be real 
 
 - 12 accounts: five English, four Arabic, three French.
 - 24 public feeds: 10 English, 8 Arabic, 6 French.
-- 33 external sources across direct RSS, Google News RSS, an active LBCI public Telegram channel, and three X profiles through Apify, plus three clearly labelled internal fixtures (one each in English, Arabic, and French).
+- 33 external sources across direct RSS, Google News through Apify, an active LBCI public Telegram channel fetched without a paid API, and three X profiles through Apify, plus three clearly labelled internal fixtures (one each in English, Arabic, and French).
 - Two feeds per account, hourly publishing, 15-day retention, low processing intensity.
 - `$0.03` daily LLM budget per feed; the cohort ceiling is `$0.72/day` before non-LLM infrastructure costs.
 - Every account, feed, source, username, title, and email is visibly marked as canary data.
