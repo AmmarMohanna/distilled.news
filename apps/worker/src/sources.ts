@@ -221,25 +221,27 @@ async function refreshSource(input: SourceRefreshInput & { source: SourceRecord 
       );
     }
     if (directRun) {
+      const completedAt = new Date();
       await input.repo.updateSourceRun({
         id: directRun.id,
         state: "succeeded",
         itemCount: result?.fetched ?? 0,
         actualCostUsd: 0,
-        completedAt: now.toISOString()
-      }, now);
+        completedAt: completedAt.toISOString()
+      }, completedAt);
     }
     return result;
   } catch (error) {
     if (directRun) {
+      const completedAt = new Date();
       await input.repo.updateSourceRun({
         id: directRun.id,
         state: "failed",
         itemCount: 0,
         actualCostUsd: 0,
         error: error instanceof Error ? error.message : String(error),
-        completedAt: now.toISOString()
-      }, now);
+        completedAt: completedAt.toISOString()
+      }, completedAt);
     }
     if (leaseToken) {
       await input.repo.failCanonicalSourceRefresh(
@@ -269,7 +271,7 @@ function isSyntheticCanaryFixture(source: SourceRecord): boolean {
 }
 
 export async function pollApifySourceRuns(input: Omit<SourceRefreshInput, "briefing">): Promise<void> {
-  const runs = await input.repo.listSourceRuns({ states: ["queued", "running"], limit: 25 });
+  const runs = await input.repo.listSourceRuns({ provider: "apify", states: ["queued", "running"], limit: 25 });
   for (const run of runs) {
     const source = await input.repo.getSource(run.sourceId);
     const briefing = await input.repo.getBriefingById(run.briefingId);
