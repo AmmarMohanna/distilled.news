@@ -25,14 +25,14 @@ const SYNTHETIC_CANARIES: SyntheticCanary[] = [
     sourceId: "source_canary_fixture_ar_02",
     title: "اختبار اصطناعي",
     sourceUrl: "https://example.invalid/canary/ar",
-    text: "اختبار مراقبة اصطناعي: استقبل مسار الأمن والدبلوماسية والاقتصاد في الشرق الأوسط نشرة اختبار واضحة للتحقق من الجمع والتصفية والاستشهاد والنشر كل ساعة. هذه ليست أخباراً حقيقية."
+    text: "اختبار مراقبة اصطناعي في لبنان: أعلن نظام الاختبار التقني استقبال نشرة واضحة عن الأمن والاقتصاد والبنية التحتية للتحقق من الجمع والتصفية والاستشهاد والنشر كل ساعة. هذه ليست أخباراً حقيقية."
   },
   {
     briefingId: "briefing_canary_fr_02_technology",
     sourceId: "source_canary_fixture_fr",
     title: "Canari synthétique",
     sourceUrl: "https://example.invalid/canary/fr",
-    text: "Validation synthétique : le flux français d’intelligence artificielle et de cybersécurité a reçu un bulletin de test clairement signalé afin de vérifier la collecte, le filtrage, les citations et la publication horaire. Ce n’est pas une actualité réelle."
+    text: "Validation synthétique : le système a annoncé la réception d’un bulletin clairement signalé sur l’intelligence artificielle et la cybersécurité afin de vérifier la collecte, le filtrage, les citations et la publication horaire. Ce test n’est pas une actualité réelle."
   }
 ];
 
