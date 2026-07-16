@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { personalNewsBriefing } from "@distilled/core";
+import { personalNewsBriefing, processMessages } from "@distilled/core";
 import { InMemoryRepository } from "./repository";
 import { enqueueScheduledSyntheticCanaryFixtures } from "./syntheticCanary";
 import type { ProcessingJobMessage } from "./types";
@@ -31,6 +31,12 @@ describe("scheduled synthetic canary fixtures", () => {
       const raw = await repo.getRawMessage(message.rawMessageId);
       expect(raw?.text).toMatch(/synthetic|اصطناعي|synthétique/i);
       expect((await repo.getSource(raw!.source.id))?.enabled).toBe(true);
+
+      const briefing = await repo.getBriefingById(message.briefingId);
+      expect(briefing).not.toBeNull();
+      const result = processMessages({ briefing: briefing!, messages: [raw!] });
+      expect(result.suppressed).toEqual([]);
+      expect(result.publishedItems).toHaveLength(1);
     }
   });
 
@@ -73,9 +79,30 @@ describe("scheduled synthetic canary fixtures", () => {
 
 async function seedSyntheticCanaryBriefings(repo: InMemoryRepository, paused = false): Promise<void> {
   const canaries = [
-    { id: "briefing_canary_en_02_technology", ownerUsername: "canary-en-02", slug: "technology-watch", language: "en" as const },
-    { id: "briefing_canary_ar_02_lebanon", ownerUsername: "canary-ar-02", slug: "lebanon-now", language: "ar" as const },
-    { id: "briefing_canary_fr_02_technology", ownerUsername: "canary-fr-02", slug: "technologie", language: "fr" as const }
+    {
+      id: "briefing_canary_en_02_technology",
+      ownerUsername: "canary-en-02",
+      slug: "technology-watch",
+      language: "en" as const,
+      interestProfile: "AI tech products company SpaceX Waze privacy surveillance software cybersecurity technology updates.",
+      intensity: "high" as const
+    },
+    {
+      id: "briefing_canary_ar_02_lebanon",
+      ownerUsername: "canary-ar-02",
+      slug: "lebanon-now",
+      language: "ar" as const,
+      interestProfile: "الاقتصاد والطاقة والبنية التحتية والأمن والقرارات التي تؤثر في الحياة اليومية في لبنان.",
+      intensity: "low" as const
+    },
+    {
+      id: "briefing_canary_fr_02_technology",
+      ownerUsername: "canary-fr-02",
+      slug: "technologie",
+      language: "fr" as const,
+      interestProfile: "Intelligence artificielle, cybersécurité, logiciels et réglementation numérique.",
+      intensity: "low" as const
+    }
   ];
   for (const canary of canaries) {
     await repo.upsertBriefing({
