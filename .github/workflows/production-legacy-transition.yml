@@ -1,0 +1,351 @@
+name: One-time production legacy hardening transition
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type "transition production from 74a97cf8-1361-41c8-bc7d-6d0b87b55151"
+        type: string
+        required: true
+      canary_attestation:
+        description: Signed same-SHA 24-hour staging canary attestation
+        type: string
+        required: true
+      paid_cohort_review_digest:
+        description: Reviewed production paid-cohort SHA-256 digest
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+
+concurrency:
+  group: distilled-news-cloudflare-mutation
+  cancel-in-progress: false
+
+jobs:
+  transition:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      inputs.confirmation == 'transition production from 74a97cf8-1361-41c8-bc7d-6d0b87b55151' &&
+      inputs.paid_cohort_review_digest == '53cd2818eae085885fc9e37991cdf8babd43ec4e296dc2605c06269a1860c0ae'
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Verify protected GitHub deployment controls
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_GITHUB_ENVIRONMENT: production
+        run: node scripts/release/verify-github-protection.mjs
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check -- --e2e --audit
+      - name: Reconfirm backward-compatible legacy migration fixture
+        run: pnpm ci:migrations
+      - name: Prepare protected hardening secret bindings
+        env:
+          ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET }}
+          ADMIN_SETUP_TOKEN: ${{ secrets.ADMIN_SETUP_TOKEN }}
+          INTERNAL_MAINTENANCE_SECRET: ${{ secrets.INTERNAL_MAINTENANCE_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          EMAIL_CANARY_RECIPIENT: ${{ secrets.EMAIL_CANARY_RECIPIENT }}
+        run: |
+          node scripts/release/write-secrets-file.mjs \
+            --output "$RUNNER_TEMP/production-transition-secrets.json" \
+            --github-env "$GITHUB_ENV" \
+            -- \
+            ADMIN_SESSION_SECRET \
+            ADMIN_SETUP_TOKEN \
+            INTERNAL_MAINTENANCE_SECRET \
+            OPENAI_API_KEY \
+            TURNSTILE_SECRET_KEY \
+            APIFY_API_TOKEN \
+            EMAIL_CANARY_RECIPIENT
+      - name: Prepare protected reviewed paid-cohort manifest
+        env:
+          PRODUCTION_PAID_COHORT_MANIFEST: ${{ secrets.PRODUCTION_PAID_COHORT_MANIFEST }}
+        run: |
+          node scripts/release/write-paid-cohort-manifest.mjs \
+            --output "$RUNNER_TEMP/production-paid-cohort-manifest.json" \
+            --github-env "$GITHUB_ENV"
+      - name: Verify hardened deployment bindings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/doctor.mjs --ci --deployment --environment production
+      - name: Verify live Apify capacity and pinned actor contracts
+        env:
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          APIFY_READINESS_TOKEN: ${{ secrets.APIFY_READINESS_TOKEN }}
+        run: node scripts/release/check-apify.mjs production
+      - name: Verify same-SHA 24-hour canary evidence
+        env:
+          CANARY_ATTESTATION: ${{ inputs.canary_attestation }}
+          CANARY_ATTESTATION_PUBLIC_KEY: ${{ secrets.CANARY_ATTESTATION_PUBLIC_KEY }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: pnpm canary:verify-attestation
+      - name: Verify exact frozen legacy production state
+        id: legacy_preflight
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ github.sha }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:legacy-transition:preflight:74a97cf8-1361-41c8-bc7d-6d0b87b55151
+        run: |
+          node scripts/release/production-legacy-transition.mjs preflight \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/legacy-preflight.json" \
+            --github-env "$GITHUB_ENV"
+      - name: Capture reviewed pre-migration paid-cohort inventory
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PAID_COHORT_REVIEW_DIGEST: ${{ inputs.paid_cohort_review_digest }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:legacy-transition:cohort-inventory:74a97cf8-1361-41c8-bc7d-6d0b87b55151
+        run: |
+          node scripts/release/production-legacy-transition.mjs cohort-inventory \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/paid-cohort-inventory.json" \
+            --github-env "$GITHUB_ENV"
+      - name: Retain pinned legacy preflight evidence before mutation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-legacy-preflight-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/distilled-release-evidence/legacy-preflight.json
+            ${{ runner.temp }}/distilled-release-evidence/paid-cohort-inventory.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Export frozen legacy production D1
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CONFIRM_PRODUCTION_EXPORT: distilled-news:production:export:777782fe-6c8f-45c1-826d-365c40bc1210
+        run: pnpm backup:production
+      - name: Verify legacy export is locally restorable
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          backup_sql="$(find backups/production -maxdepth 1 -type f -name 'd1-*.sql' -print | sort | tail -n 1)"
+          test -n "$backup_sql"
+          test -s "$backup_sql"
+          echo "PRODUCTION_BACKUP_SQL=$backup_sql" >> "$GITHUB_ENV"
+          pnpm backup:verify -- --file "$backup_sql" --evidence backups/release-artifact/restore-verification.json
+      - name: Encrypt and verify the legacy backup package
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          umask 077
+          mkdir -p backups/release-artifact
+          backup_name="$(basename "$PRODUCTION_BACKUP_SQL")"
+          encrypted_path="$RUNNER_TEMP/${backup_name}.enc"
+          node scripts/backup/encrypt-d1.mjs \
+            --file "$PRODUCTION_BACKUP_SQL" \
+            --output "$encrypted_path" \
+            --evidence backups/release-artifact/encryption-verification.json
+          echo "PRODUCTION_BACKUP_ENCRYPTED=$encrypted_path" >> "$GITHUB_ENV"
+      - name: Store encrypted legacy pre-migration backup in private R2
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ github.sha }}
+          CONFIRM_PRODUCTION_BACKUP_STORE: distilled-news:production:backup-store:distilled-news-production-backups
+        run: |
+          node scripts/backup/private-store.mjs put \
+            --file "$PRODUCTION_BACKUP_ENCRYPTED" \
+            --evidence backups/release-artifact/private-store-verification.json
+      - name: Retain non-sensitive legacy backup evidence
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-legacy-d1-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: backups/release-artifact/*.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove plaintext backup material
+        if: always() && env.LEGACY_TRANSITION_STATE == 'legacy'
+        run: |
+          find backups/production -maxdepth 1 -type f -delete 2>/dev/null || true
+          rm -f "$RUNNER_TEMP"/*.enc "$RUNNER_TEMP"/*.restore-check 2>/dev/null || true
+      - name: Reconcile paid-provider rows without deleting payload references
+        id: paid_cohort_reconcile
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PAID_COHORT_REVIEW_DIGEST: ${{ inputs.paid_cohort_review_digest }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:legacy-transition:cohort-reconcile:74a97cf8-1361-41c8-bc7d-6d0b87b55151
+        run: |
+          node scripts/release/production-legacy-transition.mjs cohort-reconcile \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/paid-cohort-reconciliation.json"
+      - name: Retain payload-safe paid-cohort reconciliation evidence
+        if: always() && steps.paid_cohort_reconcile.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-paid-cohort-reconciliation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/distilled-release-evidence/paid-cohort-reconciliation.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Apply backward-compatible production migrations
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:migrate
+        run: node scripts/release/migrate.mjs production
+      - name: Enforce the post-migration four-seat invariant
+        id: paid_seat_verify
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PAID_COHORT_REVIEW_DIGEST: ${{ inputs.paid_cohort_review_digest }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:legacy-transition:verify-seats:74a97cf8-1361-41c8-bc7d-6d0b87b55151
+        run: |
+          node scripts/release/production-legacy-transition.mjs verify-seats \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/paid-seat-verification.json"
+      - name: Retain post-migration paid-seat evidence
+        if: always() && steps.paid_seat_verify.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-paid-seat-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/distilled-release-evidence/paid-seat-verification.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Prepare hardened closed-registration D1 state
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:legacy-transition:prepare:74a97cf8-1361-41c8-bc7d-6d0b87b55151
+        run: node scripts/release/production-legacy-transition.mjs prepare
+      - name: Deploy the hardened closed production baseline
+        id: transition_deploy
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_PREFLIGHT_SHA: ${{ github.sha }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:deploy
+          APIFY_READINESS_TOKEN: ${{ secrets.APIFY_READINESS_TOKEN }}
+        run: node scripts/release/deploy.mjs production --preflight-verified
+      - name: Smoke the hardened closed production baseline
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: node scripts/release/smoke.mjs production
+      - name: Delete reviewed legacy canaries through payload-safe hardened cleanup
+        id: legacy_canary_cleanup
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ github.sha }}
+          INTERNAL_MAINTENANCE_SECRET: ${{ secrets.INTERNAL_MAINTENANCE_SECRET }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:legacy-canary-cleanup:${{ github.sha }}
+        run: |
+          node scripts/release/run-legacy-canary-cleanup.mjs \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/legacy-canary-cleanup.json"
+      - name: Retain payload-safe legacy canary cleanup evidence
+        if: always() && steps.legacy_canary_cleanup.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-legacy-canary-cleanup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/distilled-release-evidence/legacy-canary-cleanup.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Run bounded authenticated retention cleanup
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          INTERNAL_MAINTENANCE_SECRET: ${{ secrets.INTERNAL_MAINTENANCE_SECRET }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:retention
+        run: node scripts/release/run-retention.mjs production
+      - name: Verify D1 and R2 retention controls
+        if: env.LEGACY_TRANSITION_STATE == 'legacy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CONFIRM_PRODUCTION_READ: distilled-news:production:retention-read
+        run: pnpm retention:verify -- --environment production
+      - name: Finalize the one-time legacy transition
+        id: transition_finalize
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ github.sha }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:legacy-transition:finalize:${{ github.sha }}
+        run: |
+          node scripts/release/production-legacy-transition.mjs finalize \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/legacy-transition-result.json"
+      - name: Capture the first strict hardened rollback baseline
+        id: hardened_baseline
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node scripts/release/capture-rollback-baseline.mjs production \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/hardened-rollback-baseline.json"
+      - name: Retain finalized transition evidence
+        if: always() && steps.transition_finalize.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-hardened-transition-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/distilled-release-evidence/legacy-transition-result.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain first strict hardened rollback baseline
+        if: always() && steps.hardened_baseline.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-hardened-baseline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/distilled-release-evidence/hardened-rollback-baseline.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Restore the exact frozen legacy version after transition failure
+        id: legacy_rollback
+        if: >-
+          failure() &&
+          steps.legacy_preflight.outcome == 'success' &&
+          env.LEGACY_TRANSITION_STATE == 'legacy' &&
+          steps.transition_finalize.outcome != 'success'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FAILED_RELEASE_SHA: ${{ github.sha }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:legacy-transition:rollback:74a97cf8-1361-41c8-bc7d-6d0b87b55151
+        run: |
+          node scripts/release/production-legacy-transition.mjs rollback \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/legacy-rollback-result.json"
+      - name: Retain explicit legacy rollback result
+        if: failure() && steps.legacy_rollback.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-legacy-rollback-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/distilled-release-evidence/legacy-rollback-result.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove ephemeral transition secret material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/production-transition-secrets.json"
+          rm -f "$RUNNER_TEMP/production-paid-cohort-manifest.json"

@@ -15,19 +15,24 @@ import type {
   Env,
   ProcessingJobMessage,
   Repository,
+  SourceQuota,
+  SourceRefreshCandidate,
   SourceRecord,
   SourceRefreshJobMessage,
   SourceRunRecord
 } from "./types";
 
-const RSS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-const TELEGRAM_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const RSS_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+const TELEGRAM_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const GOOGLE_NEWS_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const APIFY_MINIMUM_RUN_CHARGE_USD = 0.02;
 const PROCESSING_BACKLOG_REFRESH_PAUSE_LIMIT = 40;
-const DEFAULT_GLOBAL_COLLECTION_DAILY_BUDGET_USD = 0.75;
-const DEFAULT_BRAVE_SEARCH_DAILY_BUDGET_USD = 0.5;
+const DEFAULT_GLOBAL_COLLECTION_DAILY_BUDGET_USD = 15;
+const DEFAULT_GLOBAL_COLLECTION_MONTHLY_BUDGET_USD = 450;
+const DEFAULT_TOTAL_MONTHLY_BUDGET_USD = 600;
+const HOSTED_COLLECTION_DAILY_BUDGET_USD = 0.25;
+const HOSTED_COLLECTION_MONTHLY_BUDGET_USD = 5;
 const BRAVE_NEWS_SEARCH_COST_USD = 0.005;
 const BRAVE_NEWS_ACTOR_ID = "brave-news-search";
 const X_MAX_ITEMS = 20;
@@ -35,12 +40,18 @@ const GOOGLE_NEWS_MAX_ITEMS = 10;
 const DEFAULT_X_PRICE_PER_1000_TWEETS_USD = 0.15;
 const DEFAULT_GOOGLE_NEWS_ACTOR_ID = "groupoject/google-news-scraper";
 const DEFAULT_GOOGLE_NEWS_FALLBACK_ACTOR_ID = "solidcode/google-news-scraper";
+const DEFAULT_X_ACTOR_BUILD = "1.1.3";
+const DEFAULT_GOOGLE_NEWS_ACTOR_BUILD = "1.1.1";
+const DEFAULT_GOOGLE_NEWS_FALLBACK_ACTOR_BUILD = "1.0.10";
 const DEFAULT_GOOGLE_NEWS_PRICE_PER_1000_RESULTS_USD = 0.5;
-const DEFAULT_GOOGLE_NEWS_FALLBACK_PRICE_PER_1000_RESULTS_USD = 1;
+const DEFAULT_GOOGLE_NEWS_FALLBACK_PRICE_PER_1000_RESULTS_USD = 1.2;
 const APIFY_ACTOR_START_CHARGE_USD = 0.00005;
 const RSS_FETCH_TIMEOUT_MS = 10_000;
 const RSS_MAX_RESPONSE_BYTES = 2_000_000;
 const RSS_MAX_REDIRECTS = 3;
+const APIFY_CONTROL_MAX_RESPONSE_BYTES = 256_000;
+const APIFY_DATASET_MAX_RESPONSE_BYTES = 2_000_000;
+const APIFY_FETCH_TIMEOUT_MS = 12_000;
 const CANONICAL_SOURCE_DISPATCH_LEASE_MS = 10 * 60 * 1000;
 const CANONICAL_SOURCE_EXECUTION_LEASE_MS = 2 * 60 * 1000;
 
@@ -60,6 +71,7 @@ export interface SourceRefreshInput {
   now?: Date;
   force?: boolean;
   canonicalLeaseToken?: string;
+  sourceQuota?: SourceQuota;
 }
 
 export interface SourceRefreshDispatchInput {
@@ -70,13 +82,33 @@ export interface SourceRefreshDispatchInput {
   force?: boolean;
 }
 
+export interface DueSourceRefreshDispatchInput {
+  candidates: SourceRefreshCandidate[];
+  repo: Repository;
+  queue: { send(message: SourceRefreshJobMessage): Promise<unknown> };
+  now?: Date;
+}
+
 export async function addSourceFromInput(input: SourceRefreshInput & { sourceInput: string }): Promise<SourceIngestResult> {
   const detected = detectSourceInput(input.sourceInput);
+  await assertDetectedSourceEnabled(input.repo, input.env ?? {}, detected);
+  const source = await upsertDetectedSource(
+    input.repo,
+    input.briefing,
+    detected,
+    input.env ?? {},
+    input.now,
+    input.sourceQuota
+  );
   if (detected.provider === "telegram") {
-    return ingestPublicTelegramChannel({ ...input, url: detected.sourceUrl, activateSource: true });
+    return ingestPublicTelegramChannel({
+      ...input,
+      source,
+      url: detected.sourceUrl,
+      activateSource: true
+    });
   }
 
-  const source = await upsertDetectedSource(input.repo, input.briefing, detected, input.env ?? {}, input.now);
   if (detected.provider === "rss") {
     return ingestRssSource({ ...input, source });
   }
@@ -115,17 +147,16 @@ export async function enqueueDueSourceRefreshJobs(input: SourceRefreshDispatchIn
     if (isSyntheticCanaryFixture(source)) continue;
     if (!input.force && source.nextRetryAt && source.nextRetryAt > now.toISOString()) continue;
     if (!input.force && !isSourceRefreshDue(input.briefing, source, now)) continue;
-    if ((source.provider === "apify" || source.kind === "google_news") && await hasActiveApifyRun(input.repo, source.id)) continue;
+    if ((source.provider === "apify" || source.kind === "google_news") &&
+      await input.repo.hasActiveCanonicalSourceRun(source.id)) continue;
 
-    const dispatchLeaseToken = input.force
-      ? null
-      : await input.repo.claimCanonicalSourceRefresh(
-        source.id,
-        sourceRefreshIntervalMs(input.briefing, source),
-        CANONICAL_SOURCE_DISPATCH_LEASE_MS,
-        now
-      );
-    if (!input.force && !dispatchLeaseToken) continue;
+    const dispatchLeaseToken = await input.repo.claimCanonicalSourceRefresh(
+      source.id,
+      input.force ? 15 * 60 * 1000 : sourceRefreshIntervalMs(input.briefing, source),
+      CANONICAL_SOURCE_DISPATCH_LEASE_MS,
+      now
+    );
+    if (!dispatchLeaseToken) continue;
 
     try {
       await input.queue.send({
@@ -133,7 +164,7 @@ export async function enqueueDueSourceRefreshJobs(input: SourceRefreshDispatchIn
         briefingId: input.briefing.id,
         sourceId: source.id,
         force: input.force || undefined,
-        canonicalLeaseToken: dispatchLeaseToken ?? undefined
+        canonicalLeaseToken: dispatchLeaseToken
       });
     } catch (error) {
       if (dispatchLeaseToken) {
@@ -147,6 +178,37 @@ export async function enqueueDueSourceRefreshJobs(input: SourceRefreshDispatchIn
   return enqueued;
 }
 
+export async function enqueueDueSourceRefreshCandidates(input: DueSourceRefreshDispatchInput): Promise<number> {
+  const now = input.now ?? new Date();
+  let enqueued = 0;
+  for (const candidate of input.candidates) {
+    const dispatchLeaseToken = await input.repo.claimCanonicalSourceRefresh(
+      candidate.sourceId,
+      sourceRefreshIntervalFor(
+        candidate.briefingCadence,
+        candidate.provider,
+        candidate.kind
+      ),
+      CANONICAL_SOURCE_DISPATCH_LEASE_MS,
+      now
+    );
+    if (!dispatchLeaseToken) continue;
+    try {
+      await input.queue.send({
+        type: "refresh_source",
+        briefingId: candidate.briefingId,
+        sourceId: candidate.sourceId,
+        canonicalLeaseToken: dispatchLeaseToken
+      });
+    } catch (error) {
+      await input.repo.releaseCanonicalSourceRefresh(candidate.sourceId, dispatchLeaseToken, now);
+      throw error;
+    }
+    enqueued += 1;
+  }
+  return enqueued;
+}
+
 export async function refreshSourceById(input: SourceRefreshInput & { sourceId: string }): Promise<SourceIngestResult | undefined> {
   const source = await input.repo.getSource(input.sourceId);
   if (!source) throw new Error("Source not found.");
@@ -154,21 +216,40 @@ export async function refreshSourceById(input: SourceRefreshInput & { sourceId: 
 }
 
 async function refreshSource(input: SourceRefreshInput & { source: SourceRecord }): Promise<SourceIngestResult | undefined> {
-  if (input.briefing.paused || !input.source.enabled) return undefined;
+  if (input.briefing.paused || !input.briefing.publicFeedEnabled || !input.source.enabled) return undefined;
+  const owner = await input.repo.getAccountById(input.briefing.ownerAccountId);
+  if (!owner || owner.disabledAt) return undefined;
   if (isSyntheticCanaryFixture(input.source)) return undefined;
   const now = input.now ?? new Date();
   const intervalMs = sourceRefreshIntervalMs(input.briefing, input.source);
-  const leaseToken = input.force
-    ? null
-    : input.canonicalLeaseToken
-      ? await input.repo.activateCanonicalSourceRefresh(
+  try {
+    await assertSourceEnabled(input.repo, input.env ?? {}, input.source);
+  } catch (error) {
+    if (isProviderDisabledError(error)) {
+      await input.repo.rescheduleCanonicalSourceRefresh(
+        input.source.id,
+        new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+        "Provider disabled by deployment policy.",
+        now
+      );
+      return undefined;
+    }
+    throw error;
+  }
+  const leaseToken = input.canonicalLeaseToken
+    ? await input.repo.activateCanonicalSourceRefresh(
         input.source.id,
         input.canonicalLeaseToken,
         CANONICAL_SOURCE_EXECUTION_LEASE_MS,
         now
       )
-      : await input.repo.claimCanonicalSourceRefresh(input.source.id, intervalMs, CANONICAL_SOURCE_EXECUTION_LEASE_MS, now);
-  if (!input.force && !leaseToken) return undefined;
+    : await input.repo.claimCanonicalSourceRefresh(
+        input.source.id,
+        input.force ? 15 * 60 * 1000 : intervalMs,
+        CANONICAL_SOURCE_EXECUTION_LEASE_MS,
+        now
+      );
+  if (!leaseToken) return undefined;
   const directRun = input.source.provider === "apify"
     ? null
     : await input.repo.createSourceRun({
@@ -187,7 +268,7 @@ async function refreshSource(input: SourceRefreshInput & { source: SourceRecord 
       if (!input.source.url) throw new Error("Telegram source URL is missing.");
       result = await ingestPublicTelegramChannel({ ...input, source: input.source, url: input.source.url, now });
     } else if (input.source.kind === "google_news" && input.source.provider === "apify") {
-      if (await hasActiveApifyRun(input.repo, input.source.id)) return undefined;
+      if (await input.repo.hasActiveCanonicalSourceRun(input.source.id)) return undefined;
       result = await startCappedApifySourceRun({ ...input, source: input.source, now });
     } else if (input.source.kind === "google_news") {
       // Compatibility for self-hosters that have not applied the Apify
@@ -197,29 +278,20 @@ async function refreshSource(input: SourceRefreshInput & { source: SourceRecord 
       if (!input.source.sourceUrl && !input.source.url) throw new Error("RSS source URL is missing.");
       result = await ingestRssSource({ ...input, source: input.source, now });
     } else if (input.source.provider === "apify") {
-      if (await hasActiveApifyRun(input.repo, input.source.id)) return undefined;
+      if (await input.repo.hasActiveCanonicalSourceRun(input.source.id)) return undefined;
       result = await startCappedApifySourceRun({ ...input, source: input.source, now });
     } else {
       throw new Error(`Unsupported source provider: ${input.source.provider}`);
     }
 
-    if (leaseToken) {
-      await input.repo.completeCanonicalSourceRefresh(
-        input.source.id,
-        leaseToken,
-        nextSourceRefreshAt(input.briefing, input.source, now),
-        result && result.imported > 0 ? now.toISOString() : undefined,
-        now,
-        input.source.provider !== "apify"
-      );
-    } else if (input.source.provider !== "apify") {
-      await recordSourceGroupSuccess(
-        input.repo,
-        input.source,
-        result && result.imported > 0 ? now.toISOString() : undefined,
-        now
-      );
-    }
+    await input.repo.completeCanonicalSourceRefresh(
+      input.source.id,
+      leaseToken,
+      nextSourceRefreshAt(input.briefing, input.source, now),
+      result && result.imported > 0 ? now.toISOString() : undefined,
+      now,
+      input.source.provider !== "apify"
+    );
     if (directRun) {
       const completedAt = new Date();
       await input.repo.updateSourceRun({
@@ -243,24 +315,19 @@ async function refreshSource(input: SourceRefreshInput & { source: SourceRecord 
         completedAt: completedAt.toISOString()
       }, completedAt);
     }
-    if (leaseToken) {
-      await input.repo.failCanonicalSourceRefresh(
-        input.source.id,
-        leaseToken,
+    const budgetPause = isCollectionBudgetError(error);
+    const backoffMs = budgetPause ? millisecondsUntilNextUtcDay(now) : sourceFailureBackoffMs(input.source);
+    await input.repo.failCanonicalSourceRefresh(
+      input.source.id,
+      leaseToken,
+      budgetPause ? "Collection budget reached; paused until the next UTC budget window." :
         error instanceof Error ? error.message : String(error),
-        sourceFailureClass(error, input.source),
-        sourceFailureBackoffMs(input.source),
-        now
-      );
-    } else {
-      await recordSourceGroupFailure(
-        input.repo,
-        input.source,
-        error instanceof Error ? error.message : String(error),
-        sourceFailureClass(error, input.source),
-        new Date(now.getTime() + sourceFailureBackoffMs(input.source)).toISOString(),
-        now
-      );
+      budgetPause ? "budget_pause" : sourceFailureClass(error, input.source),
+      backoffMs,
+      now
+    );
+    if (budgetPause) {
+      return undefined;
     }
     throw error;
   }
@@ -279,11 +346,25 @@ export async function pollApifySourceRuns(input: Omit<SourceRefreshInput, "brief
       await input.repo.updateSourceRun({ id: run.id, state: "failed", error: "Source or briefing not found", completedAt: new Date().toISOString() });
       continue;
     }
+    const owner = await input.repo.getAccountById(briefing.ownerAccountId);
+    if (!owner || owner.disabledAt || briefing.paused || !briefing.publicFeedEnabled || !source.enabled) {
+      const completedAt = new Date();
+      await settleSourceRunSpend(input.repo, run, run.estimatedCostUsd, completedAt);
+      await input.repo.updateSourceRun({
+        id: run.id,
+        state: "failed",
+        actualCostUsd: run.estimatedCostUsd,
+        error: "Source refresh stopped because the account or feed is disabled.",
+        completedAt: completedAt.toISOString()
+      }, completedAt);
+      continue;
+    }
 
     try {
       await pollApifySourceRun({ ...input, briefing, source, run });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown Apify polling error";
+      await settleSourceRunSpend(input.repo, run, run.estimatedCostUsd, new Date());
       await input.repo.updateSourceRun({
         id: run.id,
         state: "failed",
@@ -308,7 +389,8 @@ async function upsertDetectedSource(
   briefing: BriefingConfig,
   detected: DetectedSourceInput,
   env: Partial<Env>,
-  now = new Date()
+  now = new Date(),
+  quota?: SourceQuota
 ): Promise<SourceRecord> {
   let actorId = detected.provider === "apify"
     ? ("actorId" in detected ? detected.actorId : undefined) ?? defaultActorIdForKind(detected.kind, env)
@@ -340,7 +422,7 @@ async function upsertDetectedSource(
     actorId,
     actorInput: "actorInput" in detected ? detected.actorInput : undefined,
     enabled: true
-  }, now);
+  }, now, quota);
 }
 
 async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecord }): Promise<SourceIngestResult> {
@@ -457,22 +539,45 @@ async function ingestBraveNewsSource(input: SourceRefreshInput & {
 }): Promise<SourceIngestResult> {
   const token = input.env?.BRAVE_SEARCH_API_KEY;
   if (!token) throw new Error("BRAVE_SEARCH_API_KEY is not configured.");
+  if (isHostedEnvironment(input.env) || !(await runtimeProviderEnabled(input.repo, input.env ?? {}, "brave"))) {
+    throw new Error("Brave News is disabled on this deployment.");
+  }
   const query = googleNewsQueryFromSource(input.source);
   if (!query) throw new Error("Google News source query is missing.");
 
-  const dailyBudget = positiveNumber(
-    input.env?.BRAVE_SEARCH_DAILY_BUDGET_USD,
-    DEFAULT_BRAVE_SEARCH_DAILY_BUDGET_USD
+  const idempotencyKey = paidOperationKey(
+    "brave",
+    input.source.canonicalKey ?? input.source.id,
+    query,
+    input.now,
+    HOUR_MS
   );
-  const dailySpend = await input.repo.sumSourceRunCosts({
-    actorId: BRAVE_NEWS_ACTOR_ID,
-    since: startOfUtcDay(input.now).toISOString()
-  });
-  if (dailySpend + BRAVE_NEWS_SEARCH_COST_USD > dailyBudget) {
-    throw new Error(
-      `Brave News fallback budget reached (${dailySpend.toFixed(3)} of ${dailyBudget.toFixed(2)} USD today)`
-    );
+  const reservation = await input.repo.reserveSpend({
+    idempotencyKey,
+    accountId: input.briefing.ownerAccountId,
+    briefingId: input.briefing.id,
+    category: "collection",
+    provider: "brave",
+    amountUsd: BRAVE_NEWS_SEARCH_COST_USD,
+    limits: collectionSpendLimits(input.env),
+    metadata: { sourceId: input.source.id, actorId: BRAVE_NEWS_ACTOR_ID }
+  }, input.now);
+  if (reservation.status === "denied") {
+    throw new Error(`Brave News budget reached (${reservation.reason ?? "limit"})`);
   }
+  if (reservation.status === "duplicate") {
+    throw new Error("Brave News request already reserved for this source window.");
+  }
+  const run = await input.repo.createSourceRun({
+    sourceId: input.source.id,
+    briefingId: input.briefing.id,
+    provider: "rss",
+    actorId: BRAVE_NEWS_ACTOR_ID,
+    state: "queued",
+    estimatedCostUsd: BRAVE_NEWS_SEARCH_COST_USD,
+    idempotencyKey,
+    startedAt: input.now.toISOString()
+  }, input.now);
 
   const url = new URL("https://api.search.brave.com/res/v1/news/search");
   url.searchParams.set("q", query.slice(0, 400));
@@ -495,7 +600,15 @@ async function ingestBraveNewsSource(input: SourceRefreshInput & {
       signal: controller.signal
     });
   } catch (error) {
-    await recordBraveSearchRun(input, "failed", 0, undefined, error instanceof Error ? error.message : String(error));
+    await input.repo.settleSpend({ idempotencyKey, actualUsd: BRAVE_NEWS_SEARCH_COST_USD }, input.now);
+    await input.repo.updateSourceRun({
+      id: run.id,
+      state: "failed",
+      itemCount: 0,
+      actualCostUsd: BRAVE_NEWS_SEARCH_COST_USD,
+      error: error instanceof Error ? error.message : String(error),
+      completedAt: input.now.toISOString()
+    }, input.now);
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error(`Timed out fetching Brave News source after ${RSS_FETCH_TIMEOUT_MS / 1000} seconds`);
     }
@@ -504,11 +617,19 @@ async function ingestBraveNewsSource(input: SourceRefreshInput & {
     clearTimeout(timeout);
   }
   if (!response.ok) {
-    await recordBraveSearchRun(input, "failed", 0, undefined, `Brave News returned ${response.status}`);
+    await input.repo.settleSpend({ idempotencyKey, actualUsd: BRAVE_NEWS_SEARCH_COST_USD }, input.now);
+    await input.repo.updateSourceRun({
+      id: run.id,
+      state: "failed",
+      itemCount: 0,
+      actualCostUsd: BRAVE_NEWS_SEARCH_COST_USD,
+      error: `Brave News returned ${response.status}`,
+      completedAt: input.now.toISOString()
+    }, input.now);
     throw new Error(`Could not fetch Brave News source: ${response.status}`);
   }
 
-  const payload = await response.json() as BraveNewsResponse;
+  const payload = await readBoundedJson<BraveNewsResponse>(response, APIFY_CONTROL_MAX_RESPONSE_BYTES, "Brave News");
   const rawPayloadKey = `brave-news/${input.briefing.id}/${input.source.id}/${input.now.getTime()}.json`;
   await input.bucket.put(rawPayloadKey, JSON.stringify(payload), {
     httpMetadata: { contentType: "application/json; charset=utf-8" }
@@ -544,7 +665,15 @@ async function ingestBraveNewsSource(input: SourceRefreshInput & {
     }];
   });
   const result = await persistMessages({ ...input, messages });
-  await recordBraveSearchRun(input, "succeeded", messages.length, rawPayloadKey);
+  await input.repo.settleSpend({ idempotencyKey, actualUsd: BRAVE_NEWS_SEARCH_COST_USD }, input.now);
+  await input.repo.updateSourceRun({
+    id: run.id,
+    state: "succeeded",
+    itemCount: messages.length,
+    actualCostUsd: BRAVE_NEWS_SEARCH_COST_USD,
+    archiveKey: rawPayloadKey,
+    completedAt: input.now.toISOString()
+  }, input.now);
   await input.repo.updateSourceState({
     sourceId: input.source.id,
     lastCheckedAt: input.now.toISOString(),
@@ -571,33 +700,6 @@ interface BraveNewsResponse {
     page_fetched?: string;
     meta_url?: { hostname?: string };
   }>;
-}
-
-async function recordBraveSearchRun(
-  input: SourceRefreshInput & { source: SourceRecord; now: Date },
-  state: "succeeded" | "failed",
-  itemCount: number,
-  archiveKey?: string,
-  error?: string
-): Promise<void> {
-  const run = await input.repo.createSourceRun({
-    sourceId: input.source.id,
-    briefingId: input.briefing.id,
-    provider: "rss",
-    actorId: BRAVE_NEWS_ACTOR_ID,
-    state,
-    estimatedCostUsd: BRAVE_NEWS_SEARCH_COST_USD,
-    startedAt: input.now.toISOString()
-  }, input.now);
-  await input.repo.updateSourceRun({
-    id: run.id,
-    state,
-    itemCount,
-    actualCostUsd: BRAVE_NEWS_SEARCH_COST_USD,
-    archiveKey,
-    error,
-    completedAt: input.now.toISOString()
-  }, input.now);
 }
 
 function safePublicResultUrl(value: string | undefined): string | undefined {
@@ -661,8 +763,16 @@ function assertSafePublicUrl(value: string): string {
 }
 
 async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
+  return readBoundedResponseText(response, maxBytes, "RSS source");
+}
+
+async function readBoundedResponseText(
+  response: Response,
+  maxBytes: number,
+  label: string
+): Promise<string> {
   const declared = Number(response.headers.get("content-length") ?? 0);
-  if (declared > maxBytes) throw new Error(`RSS source response exceeds ${Math.floor(maxBytes / 1_000_000)} MB`);
+  if (declared > maxBytes) throw new Error(`${label} response exceeds ${maxBytes} bytes`);
   if (!response.body) return "";
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -671,13 +781,45 @@ async function readBoundedText(response: Response, maxBytes: number): Promise<st
     const { done, value } = await reader.read();
     if (done) break;
     total += value.byteLength;
-    if (total > maxBytes) { await reader.cancel(); throw new Error(`RSS source response exceeds ${Math.floor(maxBytes / 1_000_000)} MB`); }
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error(`${label} response exceeds ${maxBytes} bytes`);
+    }
     chunks.push(value);
   }
   const bytes = new Uint8Array(total);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
   return new TextDecoder().decode(bytes);
+}
+
+async function readBoundedJson<T>(response: Response, maxBytes: number, label: string): Promise<T> {
+  const text = await readBoundedResponseText(response, maxBytes, label);
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`${label} returned invalid JSON`);
+  }
+}
+
+async function fetchWithTimeout(
+  fetcher: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetcher(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Timed out fetching upstream after ${timeoutMs / 1000} seconds`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function sourceFetchCursor(value: unknown): { etag?: string; lastModified?: string; payloadHash?: string } {
@@ -693,11 +835,13 @@ async function startCappedApifySourceRun(input: SourceRefreshInput & {
   if (maxItems === undefined) return undefined;
   const now = input.now ?? new Date();
   const actorId = apifyActorIdForRefresh(input.source, input.env);
+  const actorBuild = apifyActorBuildForRefresh(input.source, input.env, actorId);
   const estimatedCostUsd = apifyEstimatedCostUsd(input.source, input.env, actorId, maxItems);
   try {
     return await startApifySourceRun({
       ...input,
       actorId,
+      actorBuild,
       actorInput: apifyActorInputForRefresh(input.source, input.briefing, now, maxItems, actorId),
       maxItems,
       estimatedCostUsd
@@ -708,6 +852,7 @@ async function startCappedApifySourceRun(input: SourceRefreshInput & {
     return startApifySourceRun({
       ...input,
       actorId: fallbackActorId,
+      actorBuild: apifyActorBuildForRefresh(input.source, input.env, fallbackActorId),
       actorInput: apifyActorInputForRefresh(input.source, input.briefing, now, maxItems, fallbackActorId),
       maxItems,
       estimatedCostUsd: apifyEstimatedCostUsd(input.source, input.env, fallbackActorId, maxItems)
@@ -718,35 +863,75 @@ async function startCappedApifySourceRun(input: SourceRefreshInput & {
 async function startApifySourceRun(input: SourceRefreshInput & {
   source: SourceRecord;
   actorId?: string;
+  actorBuild?: string;
   actorInput?: unknown;
   estimatedCostUsd?: number;
   maxItems?: number;
 }): Promise<SourceIngestResult> {
   const now = input.now ?? new Date();
   if (!input.env?.APIFY_API_TOKEN) throw new Error("APIFY_API_TOKEN is not configured.");
-  const globalBudget = positiveNumber(input.env.GLOBAL_COLLECTION_DAILY_BUDGET_USD, DEFAULT_GLOBAL_COLLECTION_DAILY_BUDGET_USD);
-  const globalSpend = await input.repo.sumSourceRunCosts({ since: startOfUtcDay(now).toISOString() });
-  const estimatedCost = input.estimatedCostUsd ?? APIFY_MINIMUM_RUN_CHARGE_USD;
-  if (globalSpend + estimatedCost > globalBudget) {
-    throw new Error(`Global collection budget reached (${globalSpend.toFixed(4)} of ${globalBudget.toFixed(2)} USD today)`);
-  }
+  const estimatedCost = Math.max(APIFY_MINIMUM_RUN_CHARGE_USD, input.estimatedCostUsd ?? 0);
   const actorId = input.actorId ?? input.source.actorId;
   const actorInput = input.actorInput ?? input.source.actorInput ?? {};
   if (!actorId) throw new Error("Apify actor is not configured for this source.");
-
-  const actorRun = await runApifyActor(actorId, actorInput, input.env.APIFY_API_TOKEN, input.fetcher, {
-    maxItems: input.maxItems
-  });
-  await input.repo.createSourceRun({
+  const actorBuild = input.actorBuild ?? apifyActorBuildForRefresh(input.source, input.env, actorId);
+  const idempotencyKey = paidOperationKey(
+    "apify",
+    input.source.canonicalKey ?? input.source.id,
+    `${actorId}@${actorBuild}`,
+    now,
+    sourceRefreshIntervalMs(input.briefing, input.source)
+  );
+  const reservation = await input.repo.reserveSpend({
+    idempotencyKey,
+    accountId: input.briefing.ownerAccountId,
+    briefingId: input.briefing.id,
+    category: "collection",
+    provider: "apify",
+    amountUsd: estimatedCost,
+    limits: collectionSpendLimits(input.env),
+    metadata: { sourceId: input.source.id, actorId, actorBuild, maxItems: input.maxItems }
+  }, now);
+  if (reservation.status === "denied") {
+    throw new Error(`Collection budget reached (${reservation.reason ?? "limit"})`);
+  }
+  if (reservation.status === "duplicate") {
+    return skippedApifySourceRun(input.source);
+  }
+  const sourceRun = await input.repo.createSourceRun({
     sourceId: input.source.id,
     briefingId: input.briefing.id,
     provider: "apify",
     actorId,
+    state: "queued",
+    estimatedCostUsd: estimatedCost,
+    idempotencyKey,
+    startedAt: now.toISOString()
+  }, now);
+
+  let actorRun: ApifyRunPayload;
+  try {
+    actorRun = await runApifyActor(actorId, actorInput, input.env.APIFY_API_TOKEN, input.fetcher, {
+      maxItems: input.maxItems,
+      build: actorBuild,
+      maxTotalChargeUsd: estimatedCost
+    });
+  } catch (error) {
+    await input.repo.settleSpend({ idempotencyKey, actualUsd: estimatedCost }, now);
+    await input.repo.updateSourceRun({
+      id: sourceRun.id,
+      state: "failed",
+      actualCostUsd: estimatedCost,
+      error: error instanceof Error ? error.message : String(error),
+      completedAt: now.toISOString()
+    }, now);
+    throw error;
+  }
+  await input.repo.updateSourceRun({
+    id: sourceRun.id,
     actorRunId: actorRun.id,
     datasetId: actorRun.defaultDatasetId,
-    state: "running",
-    estimatedCostUsd: input.estimatedCostUsd,
-    startedAt: actorRun.startedAt ?? now.toISOString()
+    state: "running"
   }, now);
   await input.repo.updateSourceState({
     sourceId: input.source.id,
@@ -788,6 +973,7 @@ async function pollApifySourceRun(input: SourceRefreshInput & {
 
   if (actorRun.status !== "SUCCEEDED") {
     const error = `Apify run ${actorRun.status.toLowerCase()}`;
+    await settleSourceRunSpend(input.repo, input.run, actorRun.usageTotalUsd, now);
     await input.repo.updateSourceRun({
       id: input.run.id,
       state: "failed",
@@ -825,6 +1011,7 @@ async function pollApifySourceRun(input: SourceRefreshInput & {
   });
   const unusableDataset = describeUnusableApifyDataset(items, messages.length);
   if (unusableDataset) {
+    await settleSourceRunSpend(input.repo, input.run, actorRun.usageTotalUsd, now);
     await input.repo.updateSourceRun({
       id: input.run.id,
       state: unusableDataset.failed ? "failed" : "succeeded",
@@ -851,6 +1038,7 @@ async function pollApifySourceRun(input: SourceRefreshInput & {
   }
 
   const result = await persistMessages({ ...input, messages, now });
+  await settleSourceRunSpend(input.repo, input.run, actorRun.usageTotalUsd, now);
   await input.repo.updateSourceRun({
     id: input.run.id,
     state: "succeeded",
@@ -932,7 +1120,9 @@ async function persistMessages(input: SourceRefreshInput & {
     const canonicalMessageId = `canonical_${(await sha256(`${input.source.canonicalKey ?? input.source.id}|${message.messageId}`)).slice(0, 32)}`;
     for (const target of targets) {
       const briefing = await input.repo.getBriefingById(target.briefingId);
-      if (!briefing || briefing.paused || !target.enabled) continue;
+      if (!briefing || briefing.paused || !briefing.publicFeedEnabled || !target.enabled) continue;
+      const owner = await input.repo.getAccountById(briefing.ownerAccountId);
+      if (!owner || owner.disabledAt) continue;
       if (!isMessageWithinIngestHorizon(briefing, message.postedAt, input.now)) {
         skipped += 1;
         continue;
@@ -990,19 +1180,26 @@ async function runApifyActor(
   actorInput: unknown,
   token: string,
   fetcher = fetch,
-  options: { maxItems?: number } = {}
+  options: { maxItems?: number; build: string; maxTotalChargeUsd: number }
 ): Promise<ApifyRunPayload> {
   const url = new URL(`https://api.apify.com/v2/actors/${encodeApifyActorId(actorId)}/runs`);
   if (options.maxItems !== undefined) url.searchParams.set("maxItems", String(options.maxItems));
-  const response = await fetcher(url.toString(), {
+  url.searchParams.set("build", options.build);
+  url.searchParams.set("maxTotalChargeUsd", options.maxTotalChargeUsd.toFixed(6));
+  const response = await fetchWithTimeout(fetcher, url.toString(), {
     method: "POST",
     headers: {
       authorization: `Bearer ${token}`,
       "content-type": "application/json"
     },
     body: JSON.stringify(actorInput ?? {})
-  });
-  const payload = await response.json().catch(() => ({})) as { data?: ApifyRunPayload; error?: { message?: string } };
+  }, APIFY_FETCH_TIMEOUT_MS);
+  const payload: { data?: ApifyRunPayload; error?: { message?: string } } =
+    await readBoundedJson<{ data?: ApifyRunPayload; error?: { message?: string } }>(
+    response,
+    APIFY_CONTROL_MAX_RESPONSE_BYTES,
+    "Apify actor start"
+  ).catch(() => ({}));
   if (!response.ok || !payload.data) {
     throw new Error(`Apify actor run failed to start: ${payload.error?.message ?? response.status}`);
   }
@@ -1010,10 +1207,15 @@ async function runApifyActor(
 }
 
 async function getApifyRun(runId: string, token: string, fetcher = fetch): Promise<ApifyRunPayload> {
-  const response = await fetcher(`https://api.apify.com/v2/actor-runs/${encodeURIComponent(runId)}`, {
+  const response = await fetchWithTimeout(fetcher, `https://api.apify.com/v2/actor-runs/${encodeURIComponent(runId)}`, {
     headers: { authorization: `Bearer ${token}` }
-  });
-  const payload = await response.json().catch(() => ({})) as { data?: ApifyRunPayload; error?: { message?: string } };
+  }, APIFY_FETCH_TIMEOUT_MS);
+  const payload: { data?: ApifyRunPayload; error?: { message?: string } } =
+    await readBoundedJson<{ data?: ApifyRunPayload; error?: { message?: string } }>(
+    response,
+    APIFY_CONTROL_MAX_RESPONSE_BYTES,
+    "Apify run status"
+  ).catch(() => ({}));
   if (!response.ok || !payload.data) {
     throw new Error(payload.error?.message ?? `Could not fetch Apify run: ${response.status}`);
   }
@@ -1021,11 +1223,20 @@ async function getApifyRun(runId: string, token: string, fetcher = fetch): Promi
 }
 
 async function getApifyDatasetItems(datasetId: string, token: string, fetcher = fetch): Promise<unknown[]> {
-  const response = await fetcher(`https://api.apify.com/v2/datasets/${encodeURIComponent(datasetId)}/items?clean=true&format=json`, {
+  const response = await fetchWithTimeout(
+    fetcher,
+    `https://api.apify.com/v2/datasets/${encodeURIComponent(datasetId)}/items?clean=true&format=json&limit=50`,
+    {
     headers: { authorization: `Bearer ${token}` }
-  });
+    },
+    APIFY_FETCH_TIMEOUT_MS
+  );
   if (!response.ok) throw new Error(`Could not fetch Apify dataset items: ${response.status}`);
-  const payload = await response.json();
+  const payload = await readBoundedJson<unknown>(
+    response,
+    APIFY_DATASET_MAX_RESPONSE_BYTES,
+    "Apify dataset"
+  );
   return Array.isArray(payload) ? payload : [];
 }
 
@@ -1042,10 +1253,22 @@ function isSourceRefreshDue(briefing: BriefingConfig, source: SourceRecord, now:
 }
 
 function sourceRefreshIntervalMs(briefing: BriefingConfig, source: SourceRecord): number {
-  if (source.kind === "google_news") return GOOGLE_NEWS_REFRESH_INTERVAL_MS;
-  if (source.provider === "telegram") return TELEGRAM_REFRESH_INTERVAL_MS;
-  if (source.provider === "rss") return RSS_REFRESH_INTERVAL_MS;
-  if (source.provider === "apify") return apifyRefreshIntervalMs(briefing);
+  return sourceRefreshIntervalFor(
+    briefing.briefingCadence,
+    source.provider,
+    source.kind
+  );
+}
+
+function sourceRefreshIntervalFor(
+  cadence: BriefingConfig["briefingCadence"],
+  provider: SourceRecord["provider"],
+  kind: SourceRecord["kind"]
+): number {
+  if (kind === "google_news") return apifyRefreshIntervalForCadence(cadence);
+  if (provider === "telegram") return TELEGRAM_REFRESH_INTERVAL_MS;
+  if (provider === "rss") return RSS_REFRESH_INTERVAL_MS;
+  if (provider === "apify") return apifyRefreshIntervalForCadence(cadence);
   return HOUR_MS;
 }
 
@@ -1059,15 +1282,6 @@ function sourceFailureBackoffMs(source: SourceRecord): number {
   return baseMs + jitterMs;
 }
 
-async function hasActiveApifyRun(repo: Repository, sourceId: string): Promise<boolean> {
-  const active = await repo.listSourceRuns({
-    sourceId,
-    states: ["queued", "running"],
-    limit: 1
-  });
-  return active.length > 0;
-}
-
 async function hasLargeProcessingBacklog(repo: Repository, briefingId: string): Promise<boolean> {
   const jobs = await repo.listProcessingJobs({
     briefingId,
@@ -1078,8 +1292,12 @@ async function hasLargeProcessingBacklog(repo: Repository, briefingId: string): 
 }
 
 function apifyRefreshIntervalMs(briefing: BriefingConfig): number {
-  if (briefing.briefingCadence === "daily") return 6 * HOUR_MS;
-  if (briefing.briefingCadence === "weekly" || briefing.briefingCadence === "monthly") return 24 * HOUR_MS;
+  return apifyRefreshIntervalForCadence(briefing.briefingCadence);
+}
+
+function apifyRefreshIntervalForCadence(cadence: BriefingConfig["briefingCadence"]): number {
+  if (cadence === "daily") return 6 * HOUR_MS;
+  if (cadence === "weekly" || cadence === "monthly") return 24 * HOUR_MS;
   return HOUR_MS;
 }
 
@@ -1133,6 +1351,21 @@ function sourceFailureClass(error: unknown, source: SourceRecord): string {
   if (source.kind === "google_news") return "google_news_transport";
   if (source.provider === "apify") return "apify_start";
   return "source_transport";
+}
+
+function isProviderDisabledError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /provider is disabled|disabled on hosted Distilled\.news|disabled on this deployment/i.test(message);
+}
+
+function isCollectionBudgetError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /(?:Collection|Brave News) budget reached/i.test(message);
+}
+
+function millisecondsUntilNextUtcDay(now: Date): number {
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  return Math.max(60_000, next - now.getTime());
 }
 
 async function recordSourceGroupSuccess(
@@ -1364,6 +1597,138 @@ function browserCompatibleRssHeaders(existing: Headers): Headers {
   return headers;
 }
 
+async function assertDetectedSourceEnabled(
+  repo: Repository,
+  env: Partial<Env>,
+  source: DetectedSourceInput
+): Promise<void> {
+  const runtimeProvider = runtimeProviderForKind(source.kind);
+  if (isHostedEnvironment(env) &&
+    (runtimeProvider === "linkedin" || runtimeProvider === "generic_apify")) {
+    throw new Error(`${runtimeProvider === "linkedin" ? "LinkedIn" : "Generic Apify"} sources are not available on hosted Distilled.news.`);
+  }
+  if (!(await runtimeProviderEnabled(repo, env, runtimeProvider))) {
+    throw new Error(`${runtimeProvider} provider is disabled.`);
+  }
+}
+
+async function assertSourceEnabled(
+  repo: Repository,
+  env: Partial<Env>,
+  source: SourceRecord
+): Promise<void> {
+  const runtimeProvider = runtimeProviderForKind(source.kind);
+  if (isHostedEnvironment(env) &&
+    (runtimeProvider === "linkedin" || runtimeProvider === "generic_apify")) {
+    throw new Error(`${runtimeProvider} provider is disabled on hosted Distilled.news.`);
+  }
+  if (!(await runtimeProviderEnabled(repo, env, runtimeProvider))) {
+    throw new Error(`${runtimeProvider} provider is disabled.`);
+  }
+}
+
+function runtimeProviderForKind(kind: SourceRecord["kind"]): "rss" | "telegram" | "google_news" | "x" | "linkedin" | "generic_apify" {
+  if (kind === "rss_feed") return "rss";
+  if (kind === "telegram_channel" || kind === "telegram_group") return "telegram";
+  if (kind === "google_news") return "google_news";
+  if (kind === "x_profile" || kind === "x_search") return "x";
+  if (kind === "linkedin_company" || kind === "linkedin_profile") return "linkedin";
+  return "generic_apify";
+}
+
+async function runtimeProviderEnabled(
+  repo: Repository,
+  env: Partial<Env>,
+  provider: "rss" | "telegram" | "google_news" | "x" | "linkedin" | "generic_apify" | "brave"
+): Promise<boolean> {
+  const envValue = {
+    rss: env.PROVIDER_RSS_ENABLED,
+    telegram: env.PROVIDER_TELEGRAM_ENABLED,
+    google_news: env.PROVIDER_GOOGLE_NEWS_ENABLED,
+    x: env.PROVIDER_X_ENABLED,
+    linkedin: env.PROVIDER_LINKEDIN_ENABLED,
+    generic_apify: env.PROVIDER_GENERIC_APIFY_ENABLED,
+    brave: env.PROVIDER_BRAVE_ENABLED
+  }[provider];
+  const envEnabled = booleanSetting(envValue);
+  if (envEnabled === false) return false;
+  if (envEnabled === undefined && isHostedEnvironment(env)) return false;
+  const override = booleanSetting(await repo.getSetting(`provider_enabled:${provider}`) ?? undefined);
+  return override ?? true;
+}
+
+function booleanSetting(value: string | undefined): boolean | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") return true;
+  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") return false;
+  return undefined;
+}
+
+function isHostedEnvironment(env: Partial<Env> | undefined): boolean {
+  const value = env?.ENVIRONMENT?.trim().toLowerCase();
+  return value === "production" || value === "staging";
+}
+
+function collectionSpendLimits(env: Partial<Env> | undefined) {
+  return {
+    accountDailyUsd: isHostedEnvironment(env) ? HOSTED_COLLECTION_DAILY_BUDGET_USD : 1_000_000,
+    accountMonthlyUsd: isHostedEnvironment(env) ? HOSTED_COLLECTION_MONTHLY_BUDGET_USD : 1_000_000,
+    globalDailyUsd: nonNegativeNumber(
+      env?.GLOBAL_COLLECTION_DAILY_BUDGET_USD,
+      DEFAULT_GLOBAL_COLLECTION_DAILY_BUDGET_USD
+    ),
+    globalMonthlyUsd: nonNegativeNumber(
+      env?.GLOBAL_COLLECTION_MONTHLY_BUDGET_USD,
+      DEFAULT_GLOBAL_COLLECTION_MONTHLY_BUDGET_USD
+    ),
+    totalMonthlyUsd: nonNegativeNumber(env?.TOTAL_MONTHLY_BUDGET_USD, DEFAULT_TOTAL_MONTHLY_BUDGET_USD)
+  };
+}
+
+function paidOperationKey(
+  provider: "apify" | "brave",
+  sourceId: string,
+  operation: string,
+  now: Date,
+  intervalMs: number
+): string {
+  const windowStart = Math.floor(now.getTime() / Math.max(60_000, intervalMs)) * Math.max(60_000, intervalMs);
+  return `${provider}:${sourceId}:${stableSourceHash(operation).toString(36)}:${windowStart}`;
+}
+
+function apifyActorBuildForRefresh(
+  source: SourceRecord,
+  env: Partial<Env> | undefined,
+  actorId: string | undefined
+): string {
+  if (!actorId) throw new Error("Apify actor is not configured for this source.");
+  if (isXSource(source)) return env?.APIFY_X_ACTOR_BUILD?.trim() || DEFAULT_X_ACTOR_BUILD;
+  const fallbackActorId = googleNewsFallbackActorId(source, env);
+  if (source.kind === "google_news" && actorId === fallbackActorId) {
+    return env?.APIFY_GOOGLE_NEWS_FALLBACK_ACTOR_BUILD?.trim() || DEFAULT_GOOGLE_NEWS_FALLBACK_ACTOR_BUILD;
+  }
+  if (source.kind === "google_news") {
+    return env?.APIFY_GOOGLE_NEWS_ACTOR_BUILD?.trim() || DEFAULT_GOOGLE_NEWS_ACTOR_BUILD;
+  }
+  const actorInput = recordValue(source.actorInput);
+  const pinned = stringValue(actorInput.actorBuild ?? actorInput.build);
+  if (!pinned) throw new Error("A pinned Apify actor build is required for this source.");
+  return pinned;
+}
+
+async function settleSourceRunSpend(
+  repo: Repository,
+  run: SourceRunRecord,
+  actualUsd: number | undefined,
+  now: Date
+): Promise<void> {
+  if (!run.idempotencyKey) return;
+  await repo.settleSpend({
+    idempotencyKey: run.idempotencyKey,
+    actualUsd: actualUsd ?? run.estimatedCostUsd ?? 0
+  }, now);
+}
+
 function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -1382,8 +1747,10 @@ function positiveNumber(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function startOfUtcDay(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+function nonNegativeNumber(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === "") return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function googleNewsSourceUrl(source: SourceRecord): string | undefined {

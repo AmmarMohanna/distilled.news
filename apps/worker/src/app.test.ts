@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { hashPassword } from "./auth";
 import { publishDueBriefingEditions } from "./editions";
@@ -6,18 +6,45 @@ import { processQueueMessage } from "./processor";
 import { ingestPublicTelegramChannel } from "./publicTelegram";
 import { InMemoryRepository } from "./repository";
 import { describeUnusableApifyDataset, enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
-import type { BriefingEdition, BriefingItem, EditionSynthesisAdapter, EventReviewAdapter, NormalizedMessage, SummaryAdapter } from "@distilled/core";
+import {
+  HOSTED_LEGAL_VERSIONS,
+  type BriefingEdition,
+  type BriefingItem,
+  type EditionSynthesisAdapter,
+  type EventReviewAdapter,
+  type NormalizedMessage,
+  type SummaryAdapter
+} from "@distilled/core";
 import type { DistilledQueueMessage, Env, ProcessingJobMessage } from "./types";
 
 class FakeBucket {
   objects = new Map<string, string>();
+  putCalls: string[] = [];
 
   async put(key: string, value: string): Promise<void> {
+    this.putCalls.push(key);
     this.objects.set(key, value);
   }
 
-  async delete(key: string): Promise<void> {
-    this.objects.delete(key);
+  async delete(key: string | string[]): Promise<void> {
+    for (const item of Array.isArray(key) ? key : [key]) this.objects.delete(item);
+  }
+
+  async get(key: string): Promise<{ text(): Promise<string> } | null> {
+    const value = this.objects.get(key);
+    return value === undefined ? null : { text: async () => value };
+  }
+}
+
+class FailingBatchBucket extends FakeBucket {
+  deleteCalls: string[][] = [];
+  failAtCall?: number;
+
+  override async delete(key: string | string[]): Promise<void> {
+    const batch = Array.isArray(key) ? key : [key];
+    this.deleteCalls.push([...batch]);
+    if (this.failAtCall === this.deleteCalls.length) throw new Error("injected R2 batch failure");
+    await super.delete(batch);
   }
 }
 
@@ -75,11 +102,64 @@ const publicTelegramHtml = `
 
 const FIXTURE_NOW = new Date("2026-06-25T00:00:00.000Z");
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(FIXTURE_NOW);
+});
+
 afterEach(() => {
   vi.useRealTimers();
 });
 
 describe("worker app accounts", () => {
+  it("reports shared hosted paid-provider capacity and the $5 monthly account collection cap", async () => {
+    const repo = new InMemoryRepository();
+    for (let index = 0; index < 2; index += 1) {
+      const account = await repo.createAccount({
+        email: `capability-paid-${index}@example.com`,
+        username: `capability-paid-${index}`,
+        role: "user",
+        passwordHash: "hash",
+        emailVerifiedAt: FIXTURE_NOW.toISOString()
+      }, FIXTURE_NOW);
+      const briefing = await repo.ensureDefaultBriefing(account, FIXTURE_NOW);
+      await repo.upsertConfiguredSource({
+        briefingId: briefing.id,
+        title: `Google News ${index}`,
+        provider: "apify",
+        kind: "google_news",
+        sourceUrl: `https://news.google.com/rss/search?q=capacity-${index}`,
+        actorId: "groupoject/google-news-scraper",
+        enabled: true
+      }, FIXTURE_NOW);
+    }
+    const app = createApp({ repository: repo });
+    const response = await app.request("/api/capabilities", undefined, {
+      ...env(),
+      ENVIRONMENT: "production",
+      REGISTRATION_MODE: "closed",
+      HOSTED_ACCOUNT_CAP: "50",
+      HOSTED_PENDING_ACCOUNT_CAP: "10"
+    } as Env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      hosted: true,
+      paidProviderBeta: {
+        accountCap: 4,
+        claimedAccounts: 2,
+        remainingAccounts: 2,
+        capacityReached: false
+      },
+      limits: {
+        paidSourcesPerAccount: 2,
+        budgets: {
+          collection: { dayUsd: 0.25, monthUsd: 5 },
+          llm: { dayUsd: 0.1, monthUsd: 2 }
+        }
+      }
+    });
+  });
+
   it("keeps a configured feed identity when an imported item has an article title and URL", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
@@ -187,6 +267,73 @@ describe("worker app accounts", () => {
     expect((await repo.listProcessingJobs({ briefingId: briefing.id }))[0]).toMatchObject({ state: "completed", attemptCount: 1 });
   });
 
+  it("keeps live launch-canary connector messages outside the controlled model envelope", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "canary-envelope@test.com", "Canary Envelope");
+    const original = (await repo.getBriefingBySlug(user.account.id, "personal"))!;
+    await repo.deleteBriefing(original.id);
+    const briefing = await repo.upsertBriefing({
+      ...original,
+      id: "launch_canary_briefing_envelope_test",
+      interestProfile: "distilledcanarycheckpoint",
+      intensity: "low"
+    });
+    const source = await repo.upsertConfiguredSource({
+      briefingId: briefing.id,
+      title: "External technology feed",
+      provider: "rss",
+      kind: "rss_feed",
+      sourceUrl: "https://example.com/live.xml",
+      enabled: true
+    }, FIXTURE_NOW);
+    const message: NormalizedMessage = {
+      id: `${briefing.id}::external-live-message`,
+      source: {
+        id: source.id,
+        title: source.title,
+        type: "channel",
+        provider: "rss",
+        kind: "rss_feed"
+      },
+      messageId: "external-live-message",
+      text: "The government announced a major distilledcanarycheckpoint technology and security policy update.",
+      links: ["https://example.com/update"],
+      media: [],
+      postedAt: "2026-06-25T00:00:00.000Z",
+      receivedAt: "2026-06-25T00:00:01.000Z",
+      expiresAt: "2026-07-10T00:00:00.000Z"
+    };
+    const jobId = await repo.saveRawMessageAndCreateProcessingJob(
+      briefing.id,
+      message,
+      FIXTURE_NOW
+    );
+    const summarize = vi.fn(async () => "This should not run.");
+    const isImportant = vi.fn(async () => true);
+    const areSameEvent = vi.fn(async () => true);
+
+    await processQueueMessage(
+      repo,
+      { jobId, briefingId: briefing.id, rawMessageId: message.id },
+      FIXTURE_NOW,
+      { summarize },
+      { isImportant, areSameEvent }
+    );
+
+    expect(summarize).not.toHaveBeenCalled();
+    expect(isImportant).not.toHaveBeenCalled();
+    expect(areSameEvent).not.toHaveBeenCalled();
+    expect(await repo.listFeedItems(user.account.id, "personal", true, FIXTURE_NOW)).toEqual([
+      expect.objectContaining({
+        summary: expect.not.stringContaining("This should not run.")
+      })
+    ]);
+    expect((await repo.listProcessingJobs({ briefingId: briefing.id }))[0]).toMatchObject({
+      state: "completed"
+    });
+  });
+
   it("suggests sources for an owned feed and queues manual refresh asynchronously", async () => {
     const repo = new InMemoryRepository();
     const queue = new FakeDistilledQueue();
@@ -199,12 +346,12 @@ describe("worker app accounts", () => {
     const cookie = setup.headers.get("set-cookie")?.split(";")[0] ?? "";
     const account = await repo.getAccountByEmail("owner@example.com");
     const briefing = (await repo.listBriefings(account!.id))[0];
-    const suggestions = await app.request("/api/me/source-suggestions", { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ briefingId: briefing.id, interestProfile: "Lebanon economy and energy", language: "en" }) }, env());
+    const suggestions = await app.request("/api/me/source-suggestions", { method: "POST", headers: { "content-type": "application/json", cookie, origin: "http://localhost" }, body: JSON.stringify({ briefingId: briefing.id, interestProfile: "Lebanon economy and energy", language: "en" }) }, env());
     expect(suggestions.status).toBe(200);
     expect(await suggestions.json()).toMatchObject({ degraded: false, suggestions: expect.arrayContaining([expect.objectContaining({ region: "MENA" })]) });
 
     await repo.upsertConfiguredSource({ briefingId: briefing.id, title: "Example", provider: "rss", kind: "rss_feed", input: "rss: https://example.com/rss.xml", sourceUrl: "https://example.com/rss.xml", enabled: true }, FIXTURE_NOW);
-    const refresh = await app.request("/api/me/sources/refresh", { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ briefingId: briefing.id }) }, env());
+    const refresh = await app.request("/api/me/sources/refresh", { method: "POST", headers: { "content-type": "application/json", cookie, origin: "http://localhost" }, body: JSON.stringify({ briefingId: briefing.id }) }, env());
     expect(refresh.status).toBe(202);
     expect(await refresh.json()).toMatchObject({ queued: 1, status: "queued", refreshId: expect.stringMatching(/^refresh_/) });
     expect(queue.messages).toEqual([expect.objectContaining({ type: "refresh_source", briefingId: briefing.id })]);
@@ -256,6 +403,13 @@ describe("worker app accounts", () => {
       env(email)
     );
     expect(first.status).toBe(200);
+    expect(email.messages[0].text).toContain("This verification link expires in 24 hours.");
+    expect(await repo.getAccountByEmail("user@test.com")).toMatchObject({
+      termsAcceptedAt: undefined,
+      termsVersion: undefined,
+      privacyVersion: undefined,
+      acceptableUseVersion: undefined
+    });
 
     const duplicateEmail = await app.request(
       "/api/auth/register",
@@ -278,6 +432,410 @@ describe("worker app accounts", () => {
       env(email)
     );
     expect(duplicateUsername.status).toBe(409);
+  });
+
+  it("requires and records versioned legal acceptance for hosted registration", async () => {
+    const repo = new InMemoryRepository();
+    const email = new FakeEmail();
+    await repo.setSetting("registration_enabled", "true");
+    const app = createApp({
+      repository: repo,
+      fetcher: (async () => new Response(JSON.stringify({
+        success: true,
+        hostname: "distilled.news",
+        action: "register"
+      }), { headers: { "content-type": "application/json" } })) as typeof fetch
+    });
+    const hosted = {
+      ...env(email),
+      ENVIRONMENT: "production",
+      REGISTRATION_MODE: "open",
+      TURNSTILE_SECRET_KEY: "turnstile-secret",
+      TURNSTILE_SITE_KEY: "turnstile-site",
+      TURNSTILE_EXPECTED_HOSTNAMES: "distilled.news",
+      TURNSTILE_EXPECTED_ACTION: "register"
+    } as Env;
+    const requestBody = {
+      email: "legal@example.com",
+      username: "legal-user",
+      password: "password123",
+      turnstileToken: "verified-token"
+    };
+
+    const rejected = await app.request(
+      "/api/auth/register",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(requestBody)
+      },
+      hosted
+    );
+    expect(rejected.status).toBe(400);
+    expect(await repo.getAccountByEmail("legal@example.com")).toBeNull();
+
+    const accepted = await app.request(
+      "/api/auth/register",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...requestBody,
+          termsAccepted: true,
+          termsVersion: HOSTED_LEGAL_VERSIONS.terms,
+          privacyVersion: HOSTED_LEGAL_VERSIONS.privacy,
+          acceptableUseVersion: HOSTED_LEGAL_VERSIONS.acceptableUse
+        })
+      },
+      hosted
+    );
+    expect(accepted.status).toBe(200);
+    expect(email.messages[0].text).toContain("This verification link expires in 60 minutes.");
+    expect(await repo.getAccountByEmail("legal@example.com")).toMatchObject({
+      termsAcceptedAt: FIXTURE_NOW.toISOString(),
+      termsVersion: HOSTED_LEGAL_VERSIONS.terms,
+      privacyVersion: HOSTED_LEGAL_VERSIONS.privacy,
+      acceptableUseVersion: HOSTED_LEGAL_VERSIONS.acceptableUse
+    });
+  });
+
+  it("gates existing hosted account, feed, source, and star mutations until current policies are accepted", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const acceptanceNow = new Date("2026-07-29T12:00:00.000Z");
+    const app = createApp({ repository: repo, bucket, now: () => acceptanceNow });
+    const user = await createVerifiedUser(app, repo, "stale-legal@example.com", "Stale Legal");
+    const briefing = (await repo.listBriefings(user.account.id))[0]!;
+    const hosted = { ...env(), ENVIRONMENT: "production" } as Env;
+    const authenticatedHeaders = {
+      "content-type": "application/json",
+      cookie: user.cookie,
+      origin: "http://localhost"
+    };
+
+    const session = await app.request(
+      "/api/auth/session",
+      { headers: { cookie: user.cookie } },
+      hosted
+    );
+    expect(session.status).toBe(200);
+    expect(await session.json()).toMatchObject({
+      authenticated: true,
+      legalAcceptance: {
+        required: true,
+        currentTermsVersion: HOSTED_LEGAL_VERSIONS.terms,
+        currentPrivacyVersion: HOSTED_LEGAL_VERSIONS.privacy,
+        currentAcceptableUseVersion: HOSTED_LEGAL_VERSIONS.acceptableUse
+      }
+    });
+
+    for (const mutation of [
+      {
+        path: "/api/me/account",
+        method: "PATCH",
+        body: { username: "stale-legal-updated" }
+      },
+      {
+        path: "/api/me/briefings",
+        method: "POST",
+        body: {}
+      },
+      {
+        path: "/api/me/sources",
+        method: "POST",
+        body: {}
+      }
+    ]) {
+      const response = await app.request(
+        mutation.path,
+        {
+          method: mutation.method,
+          headers: authenticatedHeaders,
+          body: JSON.stringify(mutation.body)
+        },
+        hosted
+      );
+      expect(response.status).toBe(428);
+      expect(await response.json()).toMatchObject({
+        code: "legal_acceptance_required",
+        legalAcceptance: { required: true }
+      });
+    }
+
+    const star = await app.request(
+      `/api/feed/${user.account.username}/${briefing.slug}/star`,
+      {
+        method: "POST",
+        headers: authenticatedHeaders,
+        body: JSON.stringify({ starred: true })
+      },
+      hosted
+    );
+    expect(star.status).toBe(428);
+    expect(await star.json()).toMatchObject({
+      code: "legal_acceptance_required",
+      legalAcceptance: { required: true }
+    });
+    expect((await repo.getBriefingById(briefing.id))?.stars).toBe(0);
+
+    const crossOriginAcceptance = await app.request(
+      "/api/me/legal-acceptance",
+      {
+        method: "POST",
+        headers: {
+          ...authenticatedHeaders,
+          origin: "https://attacker.example"
+        },
+        body: JSON.stringify(currentLegalAcceptancePayload())
+      },
+      hosted
+    );
+    expect(crossOriginAcceptance.status).toBe(403);
+    expect((await repo.getAccountById(user.account.id))?.termsAcceptedAt).toBeUndefined();
+
+    const staleVersionAcceptance = await app.request(
+      "/api/me/legal-acceptance",
+      {
+        method: "POST",
+        headers: authenticatedHeaders,
+        body: JSON.stringify({
+          ...currentLegalAcceptancePayload(),
+          acceptableUseVersion: "2026-07-28"
+        })
+      },
+      hosted
+    );
+    expect(staleVersionAcceptance.status).toBe(400);
+    expect((await repo.getAccountById(user.account.id))?.termsAcceptedAt).toBeUndefined();
+
+    const accepted = await app.request(
+      "/api/me/legal-acceptance",
+      {
+        method: "POST",
+        headers: authenticatedHeaders,
+        body: JSON.stringify(currentLegalAcceptancePayload())
+      },
+      hosted
+    );
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toMatchObject({
+      legalAcceptance: {
+        required: false,
+        acceptedAt: acceptanceNow.toISOString()
+      }
+    });
+    expect(await repo.getAccountById(user.account.id)).toMatchObject({
+      termsAcceptedAt: acceptanceNow.toISOString(),
+      termsVersion: HOSTED_LEGAL_VERSIONS.terms,
+      privacyVersion: HOSTED_LEGAL_VERSIONS.privacy,
+      acceptableUseVersion: HOSTED_LEGAL_VERSIONS.acceptableUse
+    });
+
+    const accountMutation = await app.request(
+      "/api/me/account",
+      {
+        method: "PATCH",
+        headers: authenticatedHeaders,
+        body: JSON.stringify({ username: "stale-legal-updated" })
+      },
+      hosted
+    );
+    expect(accountMutation.status).toBe(200);
+    expect(await accountMutation.json()).toMatchObject({
+      account: { username: "stale-legal-updated" }
+    });
+
+    const currentSession = await app.request(
+      "/api/auth/session",
+      { headers: { cookie: user.cookie } },
+      hosted
+    );
+    expect(await currentSession.json()).toMatchObject({
+      legalAcceptance: {
+        required: false,
+        acceptedAt: acceptanceNow.toISOString()
+      }
+    });
+  });
+
+  it("requires re-consent when only the hosted Acceptable Use Policy version is stale", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const account = await repo.createAccount({
+      email: "aup-stale@example.com",
+      username: "aup-stale",
+      role: "user",
+      passwordHash: await hashPassword("password123"),
+      emailVerifiedAt: FIXTURE_NOW.toISOString(),
+      termsAcceptedAt: FIXTURE_NOW.toISOString(),
+      termsVersion: HOSTED_LEGAL_VERSIONS.terms,
+      privacyVersion: HOSTED_LEGAL_VERSIONS.privacy,
+      acceptableUseVersion: "2026-07-28"
+    }, FIXTURE_NOW);
+    await repo.ensureDefaultBriefing(account, FIXTURE_NOW);
+    const login = await app.request(
+      "/api/auth/login",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: account.email, password: "password123" })
+      },
+      env()
+    );
+    const cookie = login.headers.get("set-cookie")?.split(";")[0] ?? "";
+    const hosted = { ...env(), ENVIRONMENT: "production" } as Env;
+
+    const session = await app.request(
+      "/api/auth/session",
+      { headers: { cookie } },
+      hosted
+    );
+    expect(await session.json()).toMatchObject({
+      legalAcceptance: {
+        required: true,
+        currentAcceptableUseVersion: HOSTED_LEGAL_VERSIONS.acceptableUse
+      }
+    });
+    const mutation = await app.request(
+      "/api/me/sources",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          origin: "http://localhost"
+        },
+        body: JSON.stringify({})
+      },
+      hosted
+    );
+    expect(mutation.status).toBe(428);
+  });
+
+  it("allows stale hosted accounts to log out or permanently delete their account", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const app = createApp({ repository: repo, bucket });
+    const logoutUser = await createVerifiedUser(app, repo, "stale-logout@example.com", "Stale Logout");
+    const deleteUser = await createVerifiedUser(app, repo, "stale-delete@example.com", "Stale Delete");
+    const hosted = { ...env(), ENVIRONMENT: "production" } as Env;
+
+    const logoutResponse = await app.request(
+      "/api/auth/logout",
+      {
+        method: "POST",
+        headers: {
+          cookie: logoutUser.cookie,
+          origin: "http://localhost"
+        }
+      },
+      hosted
+    );
+    expect(logoutResponse.status).toBe(200);
+    expect(logoutResponse.headers.get("set-cookie")).toContain("dn_session=");
+
+    const deleteResponse = await app.request(
+      "/api/me/account",
+      {
+        method: "DELETE",
+        headers: {
+          "content-type": "application/json",
+          cookie: deleteUser.cookie,
+          origin: "http://localhost"
+        },
+        body: JSON.stringify({ currentPassword: "password123" })
+      },
+      hosted
+    );
+    expect(deleteResponse.status).toBe(200);
+    expect(await deleteResponse.json()).toMatchObject({ ok: true });
+    expect(await repo.getAccountById(deleteUser.account.id)).toBeNull();
+  });
+
+  it("expires bounded hosted pending leases before admitting the next verified Turnstile request", async () => {
+    const repo = new InMemoryRepository();
+    const email = new FakeEmail();
+    const staleCreatedAt = new Date(FIXTURE_NOW.getTime() - 61 * 60 * 1000);
+    for (let index = 0; index < 10; index += 1) {
+      await repo.createAccount({
+        email: `stale-pending-${index}@example.com`,
+        username: `stale-pending-${index}`,
+        role: "user",
+        passwordHash: "hash"
+      }, staleCreatedAt, { maxAccounts: 50, maxPendingAccounts: 10 });
+    }
+    await repo.setSetting("registration_enabled", "true");
+    const app = createApp({
+      repository: repo,
+      now: () => FIXTURE_NOW,
+      fetcher: (async () => new Response(JSON.stringify({
+        success: true,
+        hostname: "distilled.news",
+        action: "register"
+      }), { headers: { "content-type": "application/json" } })) as typeof fetch
+    });
+    const hosted = {
+      ...env(email),
+      ENVIRONMENT: "production",
+      REGISTRATION_MODE: "open",
+      HOSTED_ACCOUNT_CAP: "50",
+      HOSTED_PENDING_ACCOUNT_CAP: "10",
+      TURNSTILE_SECRET_KEY: "turnstile-secret",
+      TURNSTILE_SITE_KEY: "turnstile-site",
+      TURNSTILE_EXPECTED_HOSTNAMES: "distilled.news",
+      TURNSTILE_EXPECTED_ACTION: "register"
+    } as Env;
+
+    const response = await app.request("/api/auth/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "cf-connecting-ip": "203.0.113.20"
+      },
+      body: JSON.stringify({
+        email: "next-in-line@example.com",
+        username: "next-in-line",
+        password: "password123",
+        turnstileToken: "verified-token",
+        termsAccepted: true,
+        termsVersion: HOSTED_LEGAL_VERSIONS.terms,
+        privacyVersion: HOSTED_LEGAL_VERSIONS.privacy,
+        acceptableUseVersion: HOSTED_LEGAL_VERSIONS.acceptableUse
+      })
+    }, hosted);
+
+    expect(response.status).toBe(200);
+    expect(await repo.countPendingAccounts()).toBe(1);
+    expect(await repo.getAccountByEmail("next-in-line@example.com")).not.toBeNull();
+    const capabilities = await app.request("/api/capabilities", {}, hosted);
+    expect(await capabilities.json()).toMatchObject({
+      registration: {
+        pendingAccountCap: 10,
+        pendingRemaining: 9,
+        pendingLeaseMinutes: 60
+      }
+    });
+  });
+
+  it("rate-limits cache-miss search enumeration before an unknown feed reaches repeated D1 lookups", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const hosted = { ...env(), ENVIRONMENT: "production" } as Env;
+    for (let index = 0; index < 30; index += 1) {
+      const response = await app.request(
+        `/api/feed/unknown-${index}/personal/search?q=${index}`,
+        { headers: { "cf-connecting-ip": "203.0.113.44" } },
+        hosted
+      );
+      expect(response.status).toBe(404);
+    }
+    const limited = await app.request(
+      "/api/feed/unknown-overflow/personal/search?q=overflow",
+      { headers: { "cf-connecting-ip": "203.0.113.44" } },
+      hosted
+    );
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBe("60");
   });
 
   it("returns JSON validation errors for invalid signup payloads", async () => {
@@ -318,12 +876,31 @@ describe("worker app accounts", () => {
       expect(response.headers.get("content-type")).toContain("application/json");
       expect(await response.json()).toEqual({ error: "could not send verification email" });
       expect(await repo.getAccountByEmail("failed@test.com")).toBeNull();
+      expect(await repo.isUsernameRetired("failed-user")).toBe(false);
       expect(errorSpy).toHaveBeenCalledWith("Could not send verification email", {
         accountId: "account_1",
         emailDomain: "test.com",
         senderDomain: "distilled.news",
         errorCode: "E_SENDER_DOMAIN_NOT_AVAILABLE",
-        error: "Domain not available for sending"
+        errorClass: "Error"
+      });
+
+      const retry = await app.request(
+        "/api/auth/register",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: "retry@test.com",
+            username: "Failed User",
+            password: "password123"
+          })
+        },
+        env(new FakeEmail())
+      );
+      expect(retry.status).toBe(200);
+      expect(await repo.getAccountByEmail("retry@test.com")).toMatchObject({
+        username: "failed-user"
       });
     } finally {
       errorSpy.mockRestore();
@@ -345,6 +922,8 @@ describe("worker app accounts", () => {
       env(email)
     );
     expect(email.messages[0].from).toEqual({ email: "noreply@distilled.news", name: "Distilled.news" });
+    expect(email.messages[0].text).toContain("/verify-email#token=");
+    expect(email.messages[0].text).not.toContain("/verify-email?token=");
 
     const rejectedLogin = await app.request(
       "/api/auth/login",
@@ -395,6 +974,8 @@ describe("worker app accounts", () => {
       },
       env(email)
     );
+    expect(email.messages[1].text).toContain("/reset-password#token=");
+    expect(email.messages[1].text).not.toContain("/reset-password?token=");
     const resetToken = tokenFromMessage(email.messages[1].text);
     const resetResponse = await app.request(
       "/api/auth/password/reset",
@@ -419,18 +1000,65 @@ describe("worker app accounts", () => {
     expect(loginResponse.status).toBe(200);
   });
 
+  it("rate-limits password reset consumption before expensive password hashing", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const deriveBits = vi.spyOn(crypto.subtle, "deriveBits");
+    try {
+      for (let index = 0; index < 5; index += 1) {
+        const response = await app.request(
+          "/api/auth/password/reset",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "cf-connecting-ip": "203.0.113.9"
+            },
+            body: JSON.stringify({
+              token: `invalid-token-${index}`,
+              password: "newpassword123"
+            })
+          },
+          env()
+        );
+        expect(response.status).toBe(400);
+      }
+      expect(deriveBits).toHaveBeenCalledTimes(5);
+
+      const blocked = await app.request(
+        "/api/auth/password/reset",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "cf-connecting-ip": "203.0.113.9"
+          },
+          body: JSON.stringify({
+            token: "invalid-token-after-limit",
+            password: "newpassword123"
+          })
+        },
+        env()
+      );
+      expect(blocked.status).toBe(429);
+      expect(deriveBits).toHaveBeenCalledTimes(5);
+    } finally {
+      deriveBits.mockRestore();
+    }
+  });
+
   it("scopes user feed management to the logged-in account", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const first = await createVerifiedUser(app, repo, "first@test.com", "First User");
     const second = await createVerifiedUser(app, repo, "second@test.com", "Second User");
 
-    const firstBriefings = await app.request("/api/me/briefings", { headers: { cookie: first.cookie } }, env());
+    const firstBriefings = await app.request("/api/me/briefings", { headers: { cookie: first.cookie, origin: "http://localhost" } }, env());
     const firstPayload = (await firstBriefings.json()) as { briefings: Array<{ id: string }> };
 
     const forbidden = await app.request(
       `/api/me/sources?briefingId=${encodeURIComponent(firstPayload.briefings[0].id)}`,
-      { headers: { cookie: second.cookie } },
+      { headers: { cookie: second.cookie, origin: "http://localhost" } },
       env()
     );
     expect(forbidden.status).toBe(404);
@@ -442,8 +1070,8 @@ describe("worker app accounts", () => {
     const first = await createVerifiedUser(app, repo, "first@test.com", "First User");
     const second = await createVerifiedUser(app, repo, "second@test.com", "Second User");
 
-    const firstBriefingsResponse = await app.request("/api/me/briefings", { headers: { cookie: first.cookie } }, env());
-    const secondBriefingsResponse = await app.request("/api/me/briefings", { headers: { cookie: second.cookie } }, env());
+    const firstBriefingsResponse = await app.request("/api/me/briefings", { headers: { cookie: first.cookie, origin: "http://localhost" } }, env());
+    const secondBriefingsResponse = await app.request("/api/me/briefings", { headers: { cookie: second.cookie, origin: "http://localhost" } }, env());
     const firstBriefings = (await firstBriefingsResponse.json()) as { briefings: Array<{ id: string }> };
     const secondBriefings = (await secondBriefingsResponse.json()) as { briefings: Array<{ id: string }> };
     const firstSource = await repo.upsertSourceFromMessage(firstBriefings.briefings[0].id, {
@@ -463,7 +1091,7 @@ describe("worker app accounts", () => {
       "/api/me/sources",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: second.cookie },
+        headers: { "content-type": "application/json", cookie: second.cookie, origin: "http://localhost" },
         body: JSON.stringify({
           briefingId: secondBriefings.briefings[0].id,
           sourceId: firstSource.id,
@@ -476,7 +1104,7 @@ describe("worker app accounts", () => {
 
     const deleteOtherSource = await app.request(
       `/api/me/sources/${encodeURIComponent(firstSource.id)}?briefingId=${encodeURIComponent(secondBriefings.briefings[0].id)}`,
-      { method: "DELETE", headers: { cookie: second.cookie } },
+      { method: "DELETE", headers: { cookie: second.cookie, origin: "http://localhost" } },
       env()
     );
     expect(deleteOtherSource.status).toBe(404);
@@ -486,7 +1114,7 @@ describe("worker app accounts", () => {
       "/api/me/briefings",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: first.cookie },
+        headers: { "content-type": "application/json", cookie: first.cookie, origin: "http://localhost" },
         body: JSON.stringify({
           id: "briefing_collision",
           slug: "personal",
@@ -508,11 +1136,11 @@ describe("worker app accounts", () => {
     const repo = new InMemoryRepository();
     const bucket = new FakeBucket();
     const queue = new FakeQueue();
-    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200, headers: { "content-type": "text/html" } }));
     const app = createApp({ repository: repo, bucket, queue, fetcher: fetcher as unknown as typeof fetch, now: () => FIXTURE_NOW });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
 
-    const briefingsResponse = await app.request("/api/me/briefings", { headers: { cookie: user.cookie } }, env());
+    const briefingsResponse = await app.request("/api/me/briefings", { headers: { cookie: user.cookie, origin: "http://localhost" } }, env());
     const { briefings } = (await briefingsResponse.json()) as { briefings: Array<{ id: string; slug: string }> };
     const briefingId = briefings[0].id;
 
@@ -520,7 +1148,7 @@ describe("worker app accounts", () => {
       "/api/me/briefings",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ ...briefings[0], title: "Personal Briefing", interestProfile: "Track Lebanese infrastructure", publicFeedEnabled: true, paused: false, language: "en", intensity: "medium", retentionDays: 15, stars: 0 })
       },
       env()
@@ -530,7 +1158,7 @@ describe("worker app accounts", () => {
       "/api/me/sources",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ briefingId, url: "https://t.me/LebUpdate" })
       },
       env()
@@ -572,7 +1200,7 @@ describe("worker app accounts", () => {
     const fetcher = vi.fn(async (request: RequestInfo | URL) => {
       const host = new URL(String(request)).hostname;
       if (host === "telegram.me") return new Response("upstream unavailable", { status: 530 });
-      if (host === "telegram.dog") return new Response(publicTelegramHtml, { status: 200 });
+      if (host === "telegram.dog") return new Response(publicTelegramHtml, { status: 200, headers: { "content-type": "text/html" } });
       return new Response("unexpected host", { status: 500 });
     });
     const app = createApp({ repository: repo });
@@ -592,11 +1220,178 @@ describe("worker app accounts", () => {
     });
 
     expect(result.imported).toBe(1);
-    expect(new Set(fetcher.mock.calls.map(([request]) => new URL(String(request)).hostname))).toEqual(new Set([
+    expect(fetcher.mock.calls.map(([request]) => new URL(String(request)).hostname)).toEqual([
       "telegram.me",
-      "telegram.dog",
-      "t.me"
-    ]));
+      "telegram.dog"
+    ]);
+  });
+
+  it("falls back when a Telegram mirror returns a 200 challenge page", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async (request: RequestInfo | URL) => {
+      const host = new URL(String(request)).hostname;
+      if (host === "telegram.me") {
+        return new Response("<html><title>Just a moment...</title><script src=\"/challenge-platform/x.js\"></script></html>", {
+          status: 200,
+          headers: { "content-type": "text/html" }
+        });
+      }
+      if (host === "telegram.dog") {
+        return new Response(publicTelegramHtml, { status: 200, headers: { "content-type": "text/html" } });
+      }
+      return new Response("unexpected host", { status: 500 });
+    });
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "challenge-owner@test.com", "Challenge Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+
+    const result = await ingestPublicTelegramChannel({
+      briefing: briefing!,
+      url: "https://t.me/LebUpdate",
+      repo,
+      bucket,
+      queue,
+      activateSource: true,
+      fetcher: fetcher as unknown as typeof fetch,
+      now: FIXTURE_NOW
+    });
+
+    expect(result.imported).toBe(1);
+    expect(fetcher.mock.calls.map(([request]) => new URL(String(request)).hostname)).toEqual([
+      "telegram.me",
+      "telegram.dog"
+    ]);
+  });
+
+  it("does not report arbitrary 200 HTML as a healthy Telegram fetch", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = vi.fn(async () => new Response("<html><body>Sign in to continue</body></html>", {
+      status: 200,
+      headers: { "content-type": "text/html" }
+    }));
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "invalid-mirror@test.com", "Invalid Mirror");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+
+    await expect(ingestPublicTelegramChannel({
+      briefing: briefing!,
+      url: "https://t.me/LebUpdate",
+      repo,
+      bucket,
+      queue,
+      activateSource: true,
+      fetcher: fetcher as unknown as typeof fetch,
+      now: FIXTURE_NOW
+    })).rejects.toThrow("did not contain a public channel structure");
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(await repo.getSetting(`last_source_fetch_at:${briefing!.id}`)).toBeNull();
+  });
+
+  it("accepts a structurally valid public channel with no current messages", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const emptyChannelHtml = `
+      <meta property="og:title" content="Quiet Channel">
+      <main><div class="tgme_channel_info"><div class="tgme_page_title">Quiet Channel</div></div></main>`;
+    const fetcher = vi.fn(async () => new Response(emptyChannelHtml, {
+      status: 200,
+      headers: { "content-type": "text/html" }
+    }));
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "quiet-channel@test.com", "Quiet Channel");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+
+    const result = await ingestPublicTelegramChannel({
+      briefing: briefing!,
+      url: "https://t.me/QuietChannel",
+      repo,
+      bucket,
+      queue,
+      activateSource: true,
+      fetcher: fetcher as unknown as typeof fetch,
+      now: FIXTURE_NOW
+    });
+
+    expect(result).toMatchObject({ fetched: 0, imported: 0, queued: 0 });
+    expect(await repo.getSetting(`last_source_fetch_at:${briefing!.id}`)).toBe(FIXTURE_NOW.toISOString());
+  });
+
+  it("uses Telegram response validators and treats a verified 304 as success", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    let requestCount = 0;
+    const fetcher = vi.fn(async (_request: RequestInfo | URL, init?: RequestInit) => {
+      requestCount += 1;
+      if (requestCount === 1) {
+        return new Response(publicTelegramHtml, {
+          status: 200,
+          headers: {
+            "content-type": "text/html",
+            etag: "\"telegram-v1\"",
+            "last-modified": "Wed, 24 Jun 2026 23:30:00 GMT"
+          }
+        });
+      }
+      const headers = new Headers(init?.headers);
+      if (requestCount === 2) {
+        expect(headers.get("if-none-match")).toBe("\"telegram-v1\"");
+        expect(headers.get("if-modified-since")).toBe("Wed, 24 Jun 2026 23:30:00 GMT");
+        return new Response(null, { status: 304 });
+      }
+      expect(headers.get("if-none-match")).toBeNull();
+      expect(headers.get("if-modified-since")).toBeNull();
+      return new Response(publicTelegramHtml, {
+        status: 200,
+        headers: { "content-type": "text/html", etag: "\"telegram-v1\"" }
+      });
+    });
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "etag-owner@test.com", "ETag Owner");
+    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
+
+    await ingestPublicTelegramChannel({
+      briefing: briefing!,
+      url: "https://t.me/LebUpdate",
+      repo,
+      bucket,
+      queue,
+      activateSource: true,
+      fetcher: fetcher as unknown as typeof fetch,
+      now: FIXTURE_NOW
+    });
+    const [source] = await repo.listSources(briefing!.id);
+    const second = await ingestPublicTelegramChannel({
+      briefing: briefing!,
+      url: "https://t.me/LebUpdate",
+      source,
+      repo,
+      bucket,
+      queue,
+      fetcher: fetcher as unknown as typeof fetch,
+      now: new Date("2026-06-25T00:05:00.000Z")
+    });
+
+    expect(second).toMatchObject({ fetched: 0, imported: 0, queued: 0 });
+    const secondUser = await createVerifiedUser(app, repo, "etag-second-owner@test.com", "Second ETag Owner");
+    const secondBriefing = await repo.getBriefingBySlug(secondUser.account.id, "personal");
+    const secondAccountResult = await ingestPublicTelegramChannel({
+      briefing: secondBriefing!,
+      url: "https://t.me/LebUpdate",
+      repo,
+      bucket,
+      queue,
+      activateSource: true,
+      fetcher: fetcher as unknown as typeof fetch,
+      now: new Date("2026-06-25T00:06:00.000Z")
+    });
+    expect(secondAccountResult.imported).toBe(1);
+    expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
   it("advances scheduled windows and publishes an explicit empty hourly slot", async () => {
@@ -966,7 +1761,7 @@ describe("worker app accounts", () => {
     expect((await repo.getBriefingById(briefing!.id))?.nextBriefingAt).toBe("2026-06-16T04:00:00.000Z");
   });
 
-  it("shows explicit empty editions in the public feed and detail", async () => {
+  it("keeps empty editions internal and omits them from public feed surfaces", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
@@ -997,24 +1792,66 @@ describe("worker app accounts", () => {
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
     expect(feedResponse.status).toBe(200);
     const feed = (await feedResponse.json()) as { editions: Array<{ id: string; status: string; summary: string }> };
-    expect(feed.editions).toEqual([expect.objectContaining({
-      id: "edition_empty",
-      status: "empty",
-      summary: "No relevant updates in this window."
-    })]);
-    expect(feed.editions[0].summary).not.toContain("[1]");
+    expect(feed.editions).toEqual([]);
 
     const detailResponse = await app.request("/api/feed/feed-owner/personal/editions/edition_empty", {}, env());
-    expect(detailResponse.status).toBe(200);
-    const detail = (await detailResponse.json()) as { edition: { summary: string; sections: Array<{ evidence: unknown[] }> } };
-    expect(detail.edition.summary).toBe("No relevant updates in this window.");
-    expect(detail.edition.summary).not.toContain("[1]");
-    expect(detail.edition.sections[0].evidence).toEqual([]);
+    expect(detailResponse.status).toBe(404);
 
     const searchResponse = await app.request("/api/feed/feed-owner/personal/search?q=verified", {}, env());
     expect(searchResponse.status).toBe(200);
     const search = (await searchResponse.json()) as { editions: unknown[] };
-    expect(search.editions).toEqual([expect.objectContaining({ id: "edition_empty", status: "empty" })]);
+    expect(search.editions).toEqual([]);
+  });
+
+  it("deduplicates public snapshots, replaces malformed data, and expires fallback after 24 hours", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const app = createApp({ repository: repo, bucket });
+    const user = await createVerifiedUser(app, repo, "snapshot@test.com", "Snapshot Owner");
+    const briefing = (await repo.getBriefingBySlug(user.account.id, "personal"))!;
+    await repo.saveBriefingEdition({
+      id: "edition_snapshot",
+      briefingId: briefing.id,
+      cadence: "hourly",
+      windowStart: "2026-06-24T22:00:00.000Z",
+      windowEnd: "2026-06-24T23:00:00.000Z",
+      title: "Snapshot update",
+      summary: "A verified snapshot update was published [1].",
+      sections: [{
+        title: "Snapshot update",
+        summary: "A verified snapshot update was published.",
+        evidence: []
+      }],
+      status: "published",
+      publishedAt: "2026-06-24T23:00:00.000Z",
+      createdAt: "2026-06-24T23:00:00.000Z",
+      updatedAt: "2026-06-24T23:00:00.000Z"
+    });
+    const snapshotKey = "public-snapshots/feeds/snapshot-owner/personal.json";
+    bucket.objects.set(snapshotKey, "{malformed");
+
+    const first = await app.request("/api/feed/snapshot-owner/personal", {}, env());
+    expect(first.status).toBe(200);
+    const stored = bucket.objects.get(snapshotKey);
+    expect(() => JSON.parse(stored!)).not.toThrow();
+    expect(bucket.putCalls.filter((key) => key === snapshotKey)).toHaveLength(1);
+
+    const second = await app.request("/api/feed/snapshot-owner/personal", {}, env());
+    expect(second.status).toBe(200);
+    expect(bucket.objects.get(snapshotKey)).toBe(stored);
+    expect(bucket.putCalls.filter((key) => key === snapshotKey)).toHaveLength(1);
+
+    repo.listBriefingEditions = async () => {
+      throw new Error("D1 unavailable");
+    };
+    const fallback = await app.request("/api/feed/snapshot-owner/personal", {}, env());
+    expect(fallback.status).toBe(200);
+    expect(fallback.headers.get("x-distilled-snapshot")).toBe("stale");
+    expect(await fallback.json()).toMatchObject({ snapshotFallback: true });
+
+    vi.setSystemTime(new Date(FIXTURE_NOW.getTime() + 24 * 60 * 60 * 1_000 + 1));
+    const expired = await app.request("/api/feed/snapshot-owner/personal", {}, env());
+    expect(expired.status).toBe(503);
   });
 
   it("saves supported feed cadence while keeping briefing time internal", async () => {
@@ -1028,7 +1865,7 @@ describe("worker app accounts", () => {
       "/api/me/briefings",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({
           ...briefing!,
           briefingCadence: "daily",
@@ -1040,7 +1877,7 @@ describe("worker app accounts", () => {
     );
     expect(saveResponse.status).toBe(200);
 
-    const listResponse = await app.request("/api/me/briefings", { headers: { cookie: user.cookie } }, env());
+    const listResponse = await app.request("/api/me/briefings", { headers: { cookie: user.cookie, origin: "http://localhost" } }, env());
     const payload = (await listResponse.json()) as {
       briefings: Array<{ briefingCadence: string; briefingTimeOfDay: string; briefingTimezone: string; nextBriefingAt?: string }>;
     };
@@ -1061,7 +1898,7 @@ describe("worker app accounts", () => {
       "/api/me/briefings",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({
           ...briefing!,
           briefingCadence: "monthly",
@@ -1159,7 +1996,7 @@ describe("worker app accounts", () => {
     expect(payload.edition.sections.map((section) => section.tier)).toEqual(["top", "top", "additional"]);
   });
 
-  it("publishes a deterministic tiered fallback when edition synthesis fails", async () => {
+  it("rejects invalid edition synthesis and records model health as failed", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
@@ -1180,16 +2017,35 @@ describe("worker app accounts", () => {
         sourceUrl: `https://t.me/public/${id}`, expiresAt: "2026-07-01T08:00:00.000Z"
       });
     }
-    const synthesisAdapter: EditionSynthesisAdapter = { synthesize: vi.fn(async () => { throw new Error("timeout"); }) };
+    const synthesisAdapter: EditionSynthesisAdapter = {
+      synthesize: vi.fn(async () => ({
+        overview: [{ text: "Unsupported synthetic claim.", sectionIndexes: [99] }],
+        topSectionIndexes: [99],
+        sections: []
+      }))
+    };
 
     expect(await publishDueBriefingEditions({
       repo, briefings: [scheduled], now: new Date("2026-06-16T09:08:00.000Z"),
-      editionSynthesisAdapter: synthesisAdapter, editionSynthesisMode: "all"
+      editionSynthesisAdapter: synthesisAdapter, editionSynthesisMode: "all",
+      releaseSha: "release-validation-test"
     })).toBe(1);
     const [edition] = await repo.listBriefingEditions(scheduled.id, true, new Date("2026-06-16T09:02:00.000Z"), 1);
     expect(edition.summary).toContain("Electricite du Liban");
     expect(edition.sections).toHaveLength(2);
     expect(edition.sections.every((section) => section.tier === "top")).toBe(true);
+    const [latestModelEvent] = await repo.listOperationalEvents({
+      since: "2026-06-01T00:00:00.000Z",
+      category: "model",
+      limit: 10
+    });
+    expect(latestModelEvent).toMatchObject({
+      subsystem: "edition_synthesis_validation",
+      status: "failed",
+      bodyId: scheduled.id,
+      releaseSha: "release-validation-test"
+    });
+    expect(latestModelEvent.detail).toContain("invalid_synthesis");
   });
 
   it("uses edition synthesis to make a single story standalone", async () => {
@@ -1233,7 +2089,8 @@ describe("worker app accounts", () => {
       briefings: [scheduled],
       now: new Date("2026-06-16T09:08:00.000Z"),
       editionSynthesisAdapter: { synthesize },
-      editionSynthesisMode: "all"
+      editionSynthesisMode: "all",
+      releaseSha: "release-validation-test"
     })).toBe(1);
     const [edition] = await repo.listBriefingEditions(
       scheduled.id,
@@ -1249,6 +2106,19 @@ describe("worker app accounts", () => {
     expect(edition.sections[0].summary).toBe(
       "Electricite du Liban confirmed two extra hours of power supply tonight after fuel deliveries arrived."
     );
+    expect(await repo.listOperationalEvents({
+      since: "2026-06-01T00:00:00.000Z",
+      category: "model",
+      limit: 10
+    })).toEqual([
+      expect.objectContaining({
+        subsystem: "edition_synthesis_validation",
+        status: "succeeded",
+        bodyId: scheduled.id,
+        releaseSha: "release-validation-test",
+        detail: "validated_synthesis"
+      })
+    ]);
   });
 
   it("uses the summary adapter to localize scheduled Arabic edition sections", async () => {
@@ -1443,7 +2313,7 @@ describe("worker app accounts", () => {
     const repo = new InMemoryRepository();
     const bucket = new FakeBucket();
     const queue = new FakeQueue();
-    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200, headers: { "content-type": "text/html" } }));
     const app = createApp({
       repository: repo,
       bucket,
@@ -1459,7 +2329,7 @@ describe("worker app accounts", () => {
       "/api/me/sources",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ briefingId: briefing!.id, input: "https://t.me/LebUpdate" })
       },
       env()
@@ -1472,7 +2342,7 @@ describe("worker app accounts", () => {
       "/api/me/sources",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ briefingId: briefing!.id, sourceId: sources[0].id, enabled: false })
       },
       env()
@@ -1499,7 +2369,7 @@ describe("worker app accounts", () => {
     const repo = new InMemoryRepository();
     const bucket = new FakeBucket();
     const queue = new FakeQueue();
-    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200, headers: { "content-type": "text/html" } }));
     const app = createApp({
       repository: repo,
       bucket,
@@ -1516,7 +2386,7 @@ describe("worker app accounts", () => {
       "/api/me/sources",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ briefingId: briefing!.id, input: "t: LebUpdate" })
       },
       env()
@@ -1544,7 +2414,7 @@ describe("worker app accounts", () => {
     const repo = new InMemoryRepository();
     const bucket = new FakeBucket();
     const queue = new FakeQueue();
-    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200 }));
+    const fetcher = vi.fn(async () => new Response(publicTelegramHtml, { status: 200, headers: { "content-type": "text/html" } }));
     const app = createApp({
       repository: repo,
       bucket,
@@ -1561,7 +2431,7 @@ describe("worker app accounts", () => {
       "/api/me/sources",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ briefingId: briefing!.id, input: "t: LebUpdate" })
       },
       env()
@@ -1779,7 +2649,7 @@ describe("worker app accounts", () => {
       "/api/me/sources",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ briefingId: briefing!.id, input: "x: @ALJADEEDNEWS" })
       },
       env()
@@ -1831,7 +2701,8 @@ describe("worker app accounts", () => {
     ]);
     expect(runs[0]?.error).toBeUndefined();
     expect(await repo.getSource(source.id)).toMatchObject({
-      healthState: "healthy",
+      healthState: "degraded",
+      failureClass: "pending_first_success",
       consecutiveFailures: 0,
       lastError: undefined
     });
@@ -2063,7 +2934,7 @@ describe("worker app accounts", () => {
       return new Response(xml, { headers: { "content-type": "application/rss+xml", etag: '"v1"' } });
     };
     const first = await refreshSourceById({ briefing: briefing!, sourceId: source.id, repo, bucket, queue, fetcher: fetcher as typeof fetch, now: FIXTURE_NOW });
-    const second = await refreshSourceById({ briefing: briefing!, sourceId: source.id, repo, bucket, queue, fetcher: fetcher as typeof fetch, now: new Date(FIXTURE_NOW.getTime() + 300_000), force: true });
+    const second = await refreshSourceById({ briefing: briefing!, sourceId: source.id, repo, bucket, queue, fetcher: fetcher as typeof fetch, now: new Date(FIXTURE_NOW.getTime() + 15 * 60_000), force: true });
     expect(first).toMatchObject({ imported: 1, queued: 1 });
     expect(second).toMatchObject({ imported: 0, queued: 0 });
     expect(bucket.objects.size).toBe(1);
@@ -2166,7 +3037,7 @@ describe("worker app accounts", () => {
       bucket,
       queue,
       fetcher: (async () => new Response(xml, { headers: { "content-type": "application/rss+xml" } })) as typeof fetch,
-      now: new Date("2026-06-25T00:04:00.000Z"),
+      now: new Date("2026-06-25T00:20:00.000Z"),
       force: true
     });
 
@@ -2378,7 +3249,7 @@ describe("worker app accounts", () => {
       "/api/me/sources",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ briefingId: briefing!.id, input: "news: central bank lebanon" })
       },
       { ...env(), APIFY_API_TOKEN: "token", APIFY_GOOGLE_NEWS_ACTOR_ID: "groupoject/google-news-scraper" } as Env
@@ -2414,7 +3285,8 @@ describe("worker app accounts", () => {
       now: new Date(FIXTURE_NOW.getTime() + 5 * 60 * 1000),
       force: true
     });
-    expect(repeated).toMatchObject({ imported: 0, queued: 0, runStarted: true });
+    expect(repeated).toMatchObject({ imported: 0, queued: 0 });
+    expect(repeated).not.toHaveProperty("runStarted");
     expect(queue.messages).toHaveLength(1);
     expect((await repo.getSource(googleNewsSource.id))?.canonicalKey).toBe(canonicalKey);
     const savedBriefing = await repo.getBriefingById(briefing!.id);
@@ -2480,7 +3352,7 @@ describe("worker app accounts", () => {
       "/api/me/sources",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ briefingId: briefing!.id, input: "news: lebanon economy" })
       },
       {
@@ -2494,14 +3366,18 @@ describe("worker app accounts", () => {
     expect(response.status).toBe(200);
     const source = (await repo.listSources(briefing!.id)).find((candidate) => candidate.kind === "google_news");
     expect(source).toMatchObject({ actorId: "groupoject/google-news-scraper" });
-    expect(await repo.listSourceRuns({ sourceId: source!.id })).toEqual([
+    expect(await repo.listSourceRuns({ sourceId: source!.id })).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        actorId: "groupoject/google-news-scraper",
+        state: "failed"
+      }),
       expect.objectContaining({
         actorId: "solidcode/google-news-scraper",
         actorRunId: "run_google_fallback",
         state: "running",
-        estimatedCostUsd: 0.01005
+        estimatedCostUsd: 0.02
       })
-    ]);
+    ]));
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
@@ -2833,7 +3709,7 @@ describe("worker app accounts", () => {
       "/api/me/sources",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ briefingId: briefing!.id, input: "x: @ALJADEEDNEWS" })
       },
       {
@@ -2877,13 +3753,13 @@ describe("worker app accounts", () => {
     });
   });
 
-  it("serves feed links without auth even when an old row has the removed private flag", async () => {
+  it("keeps legacy private-flag rows archived from public feed surfaces", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
     const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
     expect(briefing).not.toBeNull();
-    await repo.upsertBriefing({ ...briefing!, publicFeedEnabled: false, retentionDays: 60 });
+    repo.briefings.set(briefing!.id, { ...briefing!, publicFeedEnabled: false, retentionDays: 60 });
 
     const edition: BriefingEdition = {
       id: "edition_old_private",
@@ -2908,17 +3784,10 @@ describe("worker app accounts", () => {
     await repo.saveBriefingEdition(edition);
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
-    expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as {
-      briefing: { publicFeedEnabled: boolean; retentionDays: number };
-      editions: Array<{ summary: string }>;
-    };
-    expect(feed.briefing.publicFeedEnabled).toBe(true);
-    expect(feed.briefing.retentionDays).toBe(15);
-    expect(feed.editions[0].summary).toContain("Old private rows");
+    expect(feedResponse.status).toBe(404);
 
     const searchResponse = await app.request("/api/feed/feed-owner/personal/search?q=private", {}, env());
-    expect(searchResponse.status).toBe(200);
+    expect(searchResponse.status).toBe(404);
 
     const starResponse = await app.request(
       "/api/feed/feed-owner/personal/star",
@@ -2929,7 +3798,7 @@ describe("worker app accounts", () => {
       },
       env()
     );
-    expect(starResponse.status).toBe(200);
+    expect(starResponse.status).toBe(404);
   });
 
   it("merges saved items that reuse the same raw evidence", async () => {
@@ -3002,6 +3871,35 @@ describe("worker app accounts", () => {
       const briefing = await repo.getBriefingBySlug(update.owner.account.id, "personal");
       expect(briefing).not.toBeNull();
       await repo.upsertBriefing({ ...briefing!, title: update.title, stars: update.stars });
+      await repo.upsertConfiguredSource({
+        briefingId: briefing!.id,
+        title: `${update.title} source`,
+        provider: "rss",
+        kind: "rss_feed",
+        sourceUrl: `https://example.com/${briefing!.id}.xml`,
+        enabled: true
+      });
+      for (const voter of owners.slice(0, update.stars)) {
+        await repo.setBriefingStar(briefing!.id, voter.account.id, true);
+      }
+      await repo.saveBriefingEdition({
+        id: `edition_${briefing!.id}`,
+        briefingId: briefing!.id,
+        cadence: "hourly",
+        windowStart: "2026-06-24T22:00:00.000Z",
+        windowEnd: "2026-06-24T23:00:00.000Z",
+        title: update.title,
+        summary: `${update.title} published a verified update.`,
+        sections: [{
+          title: "Update",
+          summary: `${update.title} published a verified update.`,
+          evidence: []
+        }],
+        status: "published",
+        publishedAt: "2026-06-24T23:00:00.000Z",
+        createdAt: "2026-06-24T23:00:00.000Z",
+        updatedAt: "2026-06-24T23:00:00.000Z"
+      });
     }
     await repo.updateAccount({ id: owners[3].account.id, disabled: true });
 
@@ -3017,13 +3915,13 @@ describe("worker app accounts", () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Old Name");
-    const briefingsResponse = await app.request("/api/me/briefings", { headers: { cookie: user.cookie } }, env());
+    const briefingsResponse = await app.request("/api/me/briefings", { headers: { cookie: user.cookie, origin: "http://localhost" } }, env());
     const { briefings } = (await briefingsResponse.json()) as { briefings: Array<Record<string, unknown>> };
     await app.request(
       "/api/me/briefings",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ ...briefings[0], publicFeedEnabled: true })
       },
       env()
@@ -3033,7 +3931,7 @@ describe("worker app accounts", () => {
       "/api/me/account",
       {
         method: "PATCH",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ username: "New Name" })
       },
       env()
@@ -3043,6 +3941,104 @@ describe("worker app accounts", () => {
     const redirect = await app.request("/api/feed/old-name/personal", {}, env());
     expect(redirect.status).toBe(301);
     expect(redirect.headers.get("location")).toBe("http://localhost/api/feed/new-name/personal");
+
+    const renameBack = await app.request(
+      "/api/me/account",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
+        body: JSON.stringify({ username: "Old Name" })
+      },
+      env()
+    );
+    expect(renameBack.status).toBe(200);
+    const reverseRedirect = await app.request("/api/feed/new-name/personal", {}, env());
+    expect(reverseRedirect.status).toBe(301);
+    expect(reverseRedirect.headers.get("location")).toBe("http://localhost/api/feed/old-name/personal");
+  });
+
+  it("permanently blocks takeover of current and historical public usernames after account deletion", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo, bucket: new FakeBucket() });
+    const owner = await createVerifiedUser(app, repo, "retired-owner@test.com", "Public Original");
+
+    const rename = await app.request(
+      "/api/me/account",
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          cookie: owner.cookie,
+          origin: "http://localhost"
+        },
+        body: JSON.stringify({ username: "Public Current" })
+      },
+      env()
+    );
+    expect(rename.status).toBe(200);
+
+    const deleted = await app.request(
+      "/api/me/account",
+      {
+        method: "DELETE",
+        headers: {
+          "content-type": "application/json",
+          cookie: owner.cookie,
+          origin: "http://localhost"
+        },
+        body: JSON.stringify({ currentPassword: "password123" })
+      },
+      env()
+    );
+    expect(deleted.status).toBe(200);
+    expect(await repo.isUsernameRetired("Public Original")).toBe(true);
+    expect(await repo.isUsernameRetired("public-current")).toBe(true);
+    expect(await repo.resolveUsernameAlias("public-original")).toBeNull();
+    expect(await repo.resolveUsernameAlias("public-current")).toBeNull();
+
+    const challenger = await createVerifiedUser(
+      app,
+      repo,
+      "retired-challenger@test.com",
+      "Challenger"
+    );
+    for (const username of ["Public Original", "Public Current"]) {
+      const takeover = await app.request(
+        "/api/me/account",
+        {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            cookie: challenger.cookie,
+            origin: "http://localhost"
+          },
+          body: JSON.stringify({ username })
+        },
+        env()
+      );
+      expect(takeover.status, username).toBe(409);
+      expect(await takeover.json()).toEqual({
+        error: "username is permanently unavailable"
+      });
+    }
+
+    const registration = await app.request(
+      "/api/auth/register",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "retired-registration@test.com",
+          username: "Public Current",
+          password: "password123"
+        })
+      },
+      env(new FakeEmail())
+    );
+    expect(registration.status).toBe(409);
+    expect(await registration.json()).toEqual({
+      error: "username is permanently unavailable"
+    });
   });
 
   it("redirects legacy domains to the canonical Distilled domain", async () => {
@@ -3055,6 +4051,104 @@ describe("worker app accounts", () => {
     const canonicalWww = await app.request("https://www.distilled.news/", {}, env());
     expect(canonicalWww.status).toBe(301);
     expect(canonicalWww.headers.get("location")).toBe("https://distilled.news/");
+  });
+
+  it("serves stable, conditional staging canary fixtures and rotates them by UTC hour", async () => {
+    let now = new Date("2026-06-25T00:05:00.000Z");
+    const app = createApp({ repository: new InMemoryRepository(), now: () => now });
+    const staging = { ...env(), ENVIRONMENT: "staging" } as Env;
+    const origin = "https://staging.distilled.news";
+
+    const production = await app.request(`${origin}/canary-fixture.xml?source=route&epoch=${FIXTURE_NOW.getTime()}`, {}, env());
+    expect(production.status).toBe(404);
+    const missingEpoch = await app.request(`${origin}/canary-fixture.xml?source=route`, {}, staging);
+    expect(missingEpoch.status).toBe(400);
+
+    const staticUrl = `${origin}/canary-fixture.xml?source=route&epoch=${FIXTURE_NOW.getTime()}`;
+    const firstStatic = await app.request(staticUrl, {}, staging);
+    const staticBody = await firstStatic.text();
+    const etag = firstStatic.headers.get("etag");
+    expect(firstStatic.status).toBe(200);
+    expect(etag).toMatch(/^"sha256-[a-f0-9]{64}"$/);
+    expect(staticBody).toContain(`<link>${origin}/canary-fixture.xml?source=route&amp;epoch=${FIXTURE_NOW.getTime()}</link>`);
+    expect(staticBody).toContain("<pubDate>Thu, 25 Jun 2026 00:00:00 GMT</pubDate>");
+
+    now = new Date("2026-06-25T01:05:00.000Z");
+    const secondStatic = await app.request(staticUrl, {}, staging);
+    expect(await secondStatic.text()).toBe(staticBody);
+    expect(secondStatic.headers.get("etag")).toBe(etag);
+    const notModified = await app.request(staticUrl, { headers: { "if-none-match": etag! } }, staging);
+    expect(notModified.status).toBe(304);
+    expect(await notModified.text()).toBe("");
+
+    now = new Date("2026-06-25T00:05:00.000Z");
+    const firstRotating = await app.request(`${origin}/canary-fixture.xml?source=route&rotating=1`, {}, staging);
+    const firstRotatingBody = await firstRotating.text();
+    now = new Date("2026-06-25T01:05:00.000Z");
+    const secondRotating = await app.request(`${origin}/canary-fixture.xml?source=route&rotating=1`, {}, staging);
+    const secondRotatingBody = await secondRotating.text();
+    expect(firstRotatingBody).not.toBe(secondRotatingBody);
+    expect(firstRotatingBody).toContain("2026-06-25T00:00:00.000Z");
+    expect(secondRotatingBody).toContain("2026-06-25T01:00:00.000Z");
+    expect(secondRotatingBody).toContain(`<link>${origin}/canary-fixture.xml?source=route&amp;rotating=1</link>`);
+
+    now = new Date("2026-06-25T01:05:00.000Z");
+    const firstFourHourly = await app.request(`${origin}/canary-fixture.xml?source=daily&rotating=4`, {}, staging);
+    const firstFourHourlyBody = await firstFourHourly.text();
+    now = new Date("2026-06-25T03:59:00.000Z");
+    const sameFourHourly = await app.request(`${origin}/canary-fixture.xml?source=daily&rotating=4`, {}, staging);
+    now = new Date("2026-06-25T04:00:00.000Z");
+    const nextFourHourly = await app.request(`${origin}/canary-fixture.xml?source=daily&rotating=4`, {}, staging);
+    expect(await sameFourHourly.text()).toBe(firstFourHourlyBody);
+    expect(firstFourHourlyBody).toContain("2026-06-25T00:00:00.000Z");
+    expect(await nextFourHourly.text()).toContain("2026-06-25T04:00:00.000Z");
+  });
+
+  it("imports consecutive rotating staging fixture hours as distinct RSS messages", async () => {
+    let now = new Date("2026-06-25T00:05:00.000Z");
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo, now: () => now });
+    const staging = { ...env(), ENVIRONMENT: "staging" } as Env;
+    const user = await createVerifiedUser(app, repo, "fixture@test.com", "Fixture Owner");
+    const briefing = (await repo.getBriefingBySlug(user.account.id, "personal"))!;
+    const sourceUrl = "https://staging.distilled.news/canary-fixture.xml?source=ingest&rotating=1";
+    const source = await repo.upsertConfiguredSource({
+      briefingId: briefing.id,
+      title: "Staging fixture",
+      provider: "rss",
+      kind: "rss_feed",
+      sourceUrl,
+      enabled: true
+    }, now);
+    const bucket = new FakeBucket();
+    const queue = new FakeQueue();
+    const fetcher = (async (request: RequestInfo | URL, init?: RequestInit) =>
+      app.request(String(request), init, staging)) as typeof fetch;
+
+    const first = await refreshSourceById({
+      briefing,
+      sourceId: source.id,
+      repo,
+      bucket,
+      queue,
+      fetcher,
+      now
+    });
+    now = new Date("2026-06-25T01:05:00.000Z");
+    const second = await refreshSourceById({
+      briefing,
+      sourceId: source.id,
+      repo,
+      bucket,
+      queue,
+      fetcher,
+      now
+    });
+
+    expect(first).toMatchObject({ imported: 1, queued: 1 });
+    expect(second).toMatchObject({ imported: 1, queued: 1 });
+    expect(queue.messages).toHaveLength(2);
+    expect(new Set(queue.messages.map((message) => message.rawMessageId)).size).toBe(2);
   });
 
   it("returns security headers and rejects common sensitive-path probes", async () => {
@@ -3074,6 +4168,203 @@ describe("worker app accounts", () => {
     expect(await robots.text()).toContain("Disallow: /api/");
   });
 
+  it("uses the configured public origin for hosted and self-hosted feed metadata", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "metadata@test.com", "Metadata Owner");
+    const briefing = (await repo.getBriefingBySlug(user.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...briefing, publicFeedEnabled: true });
+    const html = `<!doctype html><html><head><title>Distilled.news</title></head><body></body></html>`;
+    const assets = {
+      fetch: async (request: Request) => new URL(request.url).pathname === "/"
+        ? new Response(html, { headers: { "content-type": "text/html" } })
+        : new Response("not found", { status: 404 })
+    };
+    const path = `/${user.account.username}/${briefing.slug}/`;
+
+    const production = await app.request(`https://distilled.news${path}`, {
+      headers: { accept: "text/html" }
+    }, { ...env(), ENVIRONMENT: "production", ASSETS: assets } as unknown as Env);
+    expect(await production.text()).toContain(
+      `<link rel="canonical" href="https://distilled.news${path}" />`
+    );
+    expect(production.headers.get("x-robots-tag")).toBeNull();
+
+    const selfHosted = await app.request(`https://worker.internal${path}`, {
+      headers: { accept: "text/html" }
+    }, {
+      ...env(),
+      ENVIRONMENT: "self-hosted",
+      PUBLIC_WEB_BASE_URL: "https://briefs.example.org/site?ignored=1",
+      ASSETS: assets
+    } as unknown as Env);
+    expect(await selfHosted.text()).toContain(
+      `<link rel="canonical" href="https://briefs.example.org${path}" />`
+    );
+
+    const invalidConfiguredOrigin = await app.request(`https://fallback.example${path}`, {
+      headers: { accept: "text/html" }
+    }, {
+      ...env(),
+      ENVIRONMENT: "self-hosted",
+      PUBLIC_WEB_BASE_URL: "javascript:alert(1)",
+      ASSETS: assets
+    } as unknown as Env);
+    expect(await invalidConfiguredOrigin.text()).toContain(
+      `<link rel="canonical" href="https://fallback.example${path}" />`
+    );
+  });
+
+  it("keeps staging out of search indexes and canonicalizes only to staging", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "staging-metadata@test.com", "Staging Owner");
+    const briefing = (await repo.getBriefingBySlug(user.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...briefing, publicFeedEnabled: true });
+    const assets = {
+      fetch: async (request: Request) => new URL(request.url).pathname === "/"
+        ? new Response("<html><head><title>Distilled.news</title></head><body></body></html>")
+        : new Response("not found", { status: 404 })
+    };
+    const staging = {
+      ...env(),
+      ENVIRONMENT: "staging",
+      PUBLIC_WEB_BASE_URL: "https://staging.distilled.news",
+      ASSETS: assets
+    } as unknown as Env;
+    const path = `/${user.account.username}/${briefing.slug}/`;
+    const page = await app.request(`https://staging.distilled.news${path}`, {
+      headers: { accept: "text/html" }
+    }, staging);
+    expect(await page.text()).toContain(
+      `<link rel="canonical" href="https://staging.distilled.news${path}" />`
+    );
+    expect(page.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive");
+
+    const robots = await app.request("https://staging.distilled.news/robots.txt", {}, staging);
+    expect(await robots.text()).toBe("User-agent: *\nDisallow: /\n");
+    expect(robots.headers.get("cache-control")).toBe("no-store");
+    expect(robots.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive");
+    const rejectedProbe = await app.request("https://staging.distilled.news/.env", {}, staging);
+    expect(rejectedProbe.status).toBe(404);
+    expect(rejectedProbe.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive");
+  });
+
+  it("uses the self-hosted public origin in sitemap URLs", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "sitemap@test.com", "Sitemap Owner");
+    const briefing = (await repo.getBriefingBySlug(user.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...briefing, publicFeedEnabled: true });
+    await repo.upsertConfiguredSource({
+      briefingId: briefing.id,
+      title: "Sitemap source",
+      provider: "rss",
+      kind: "rss_feed",
+      sourceUrl: "https://example.com/sitemap.xml",
+      enabled: true
+    });
+    await repo.saveBriefingEdition({
+      id: "edition_sitemap",
+      briefingId: briefing.id,
+      cadence: "hourly",
+      windowStart: "2026-06-24T22:00:00.000Z",
+      windowEnd: "2026-06-24T23:00:00.000Z",
+      title: "Sitemap update",
+      summary: "A verified update.",
+      sections: [{ title: "Update", summary: "A verified update.", evidence: [] }],
+      status: "published",
+      publishedAt: "2026-06-24T23:30:00.000Z",
+      createdAt: "2026-06-24T23:30:00.000Z",
+      updatedAt: "2026-06-24T23:30:00.000Z"
+    });
+    const response = await app.request("https://worker.internal/sitemap.xml", {}, {
+      ...env(),
+      ENVIRONMENT: "self-hosted",
+      PUBLIC_WEB_BASE_URL: "https://briefs.example.org/base"
+    } as Env);
+    const sitemap = await response.text();
+    expect(sitemap).toContain("<loc>https://briefs.example.org/</loc>");
+    expect(sitemap).toContain("<loc>https://briefs.example.org/status</loc>");
+    expect(sitemap).toContain(
+      `<loc>https://briefs.example.org/${user.account.username}/${briefing.slug}/</loc>`
+    );
+    expect(sitemap).not.toContain("https://distilled.news");
+  });
+
+  it("serves the legal SPA routes with or without a trailing slash", async () => {
+    const app = createApp({ repository: new InMemoryRepository() });
+    for (const path of ["/privacy", "/privacy/", "/terms", "/terms/", "/acceptable-use", "/acceptable-use/"]) {
+      const response = await app.request(path, {}, env());
+      expect(response.status, path).toBe(200);
+    }
+  });
+
+  it("reports model synthesis health from the latest validated outcome", async () => {
+    let now = FIXTURE_NOW;
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo, now: () => now });
+    const environment = {
+      ...env(),
+      CLOUDFLARE_ACCOUNT_ID: "account",
+      CLOUDFLARE_AI_GATEWAY_ID: "gateway",
+      OPENAI_API_KEY: "openai-key",
+      EDITION_SYNTHESIS_MODE: "all"
+    } as Env;
+
+    const awaitingEvidence = await app.request("/api/status", {}, environment);
+    expect(await awaitingEvidence.json()).toMatchObject({
+      status: "degraded",
+      operations: { model: { status: "degraded" } },
+      services: expect.arrayContaining([
+        expect.objectContaining({
+          id: "rss",
+          status: "idle",
+          message: "Enabled, but no source has exercised this provider yet."
+        }),
+        expect.objectContaining({ id: "model_synthesis", status: "degraded" })
+      ])
+    });
+
+    await repo.recordOperationalEvent({
+      category: "model",
+      subsystem: "edition_synthesis_validation",
+      status: "failed",
+      detail: "invalid_synthesis"
+    }, now);
+    const failed = await app.request("/api/status", {}, environment);
+    expect(await failed.json()).toMatchObject({
+      status: "degraded",
+      operations: {
+        model: {
+          status: "degraded",
+          latestFailureAt: now.toISOString()
+        }
+      }
+    });
+
+    now = new Date(now.getTime() + 1);
+    await repo.recordOperationalEvent({
+      category: "model",
+      subsystem: "edition_synthesis_validation",
+      status: "succeeded",
+      detail: "validated_synthesis"
+    }, now);
+    const recovered = await app.request("/api/status", {}, environment);
+    expect(await recovered.json()).toMatchObject({
+      status: "unverified",
+      operations: {
+        model: {
+          status: "operational",
+          latestAt: now.toISOString()
+        }
+      },
+      services: expect.arrayContaining([
+        expect.objectContaining({ id: "model_synthesis", status: "operational" })
+      ])
+    });
+  });
+
   it("requires the current password before changing account passwords", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
@@ -3083,7 +4374,7 @@ describe("worker app accounts", () => {
       "/api/me/account",
       {
         method: "PATCH",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ currentPassword: "wrong-password", newPassword: "newpassword123" })
       },
       env()
@@ -3094,7 +4385,7 @@ describe("worker app accounts", () => {
       "/api/me/account",
       {
         method: "PATCH",
-        headers: { "content-type": "application/json", cookie: user.cookie },
+        headers: { "content-type": "application/json", cookie: user.cookie, origin: "http://localhost" },
         body: JSON.stringify({ currentPassword: "password123", newPassword: "newpassword123" })
       },
       env()
@@ -3124,6 +4415,33 @@ describe("worker app accounts", () => {
     expect(newLogin.status).toBe(200);
   });
 
+  it("fails a hosted privacy-sensitive rename before mutation when R2 is unavailable", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "privacy-order@test.com", "Privacy Order");
+    await repo.acceptLegalTerms({
+      accountId: user.account.id,
+      termsVersion: HOSTED_LEGAL_VERSIONS.terms,
+      privacyVersion: HOSTED_LEGAL_VERSIONS.privacy,
+      acceptableUseVersion: HOSTED_LEGAL_VERSIONS.acceptableUse
+    }, FIXTURE_NOW);
+    const response = await app.request(
+      "/api/me/account",
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          cookie: user.cookie,
+          origin: "http://localhost"
+        },
+        body: JSON.stringify({ username: "renamed-before-r2" })
+      },
+      { ...env(), ENVIRONMENT: "production" } as Env
+    );
+    expect(response.status).toBe(500);
+    expect(await repo.getAccountById(user.account.id)).toMatchObject({ username: "privacy-order" });
+  });
+
   it("treats malformed session cookies as unauthenticated", async () => {
     const app = createApp({ repository: new InMemoryRepository() });
 
@@ -3134,6 +4452,489 @@ describe("worker app accounts", () => {
     );
 
     expect(response.status).toBe(401);
+  });
+
+  it("deletes account R2 objects in retryable batches after invalidating public snapshots", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FailingBatchBucket();
+    const app = createApp({ repository: repo, bucket });
+    const user = await createVerifiedUser(app, repo, "batch-delete@test.com", "Batch Delete");
+    const briefing = (await repo.getBriefingBySlug(user.account.id, "personal"))!;
+    const payloadKeys = Array.from({ length: 2_001 }, (_, index) => `raw/${briefing.id}/${index}.json`);
+    for (const [index, key] of payloadKeys.entries()) {
+      repo.rawMessages.set(`${briefing.id}::batch-${index}`, {
+        id: `${briefing.id}::batch-${index}`,
+        source: {
+          id: "source",
+          title: "Source",
+          type: "channel",
+          provider: "rss",
+          kind: "rss_feed"
+        },
+        messageId: `batch-${index}`,
+        text: "Archived message.",
+        links: [],
+        media: [],
+        postedAt: FIXTURE_NOW.toISOString(),
+        receivedAt: FIXTURE_NOW.toISOString(),
+        rawPayloadKey: key,
+        expiresAt: "2026-08-13T00:00:00.000Z"
+      });
+      bucket.objects.set(key, "{}");
+    }
+    const feedSnapshot = "public-snapshots/feeds/batch-delete/personal.json";
+    const exploreSnapshot = "public-snapshots/explore.json";
+    bucket.objects.set(feedSnapshot, "{}");
+    bucket.objects.set(exploreSnapshot, "{}");
+    bucket.failAtCall = 3;
+    const request = {
+      method: "DELETE",
+      headers: {
+        "content-type": "application/json",
+        cookie: user.cookie,
+        origin: "http://localhost"
+      },
+      body: JSON.stringify({ currentPassword: "password123" })
+    };
+
+    const failed = await app.request("/api/me/account", request, env());
+    expect(failed.status).toBe(500);
+    expect(await repo.getAccountById(user.account.id)).not.toBeNull();
+    expect(bucket.objects.has(feedSnapshot)).toBe(false);
+    expect(bucket.objects.has(exploreSnapshot)).toBe(false);
+    expect(bucket.objects.has(`deletion-manifests/${user.account.id}/pending.json`)).toBe(true);
+
+    bucket.failAtCall = undefined;
+    const retried = await app.request("/api/me/account", request, env());
+    expect(retried.status).toBe(200);
+    expect(await retried.json()).toMatchObject({ deletedPayloadCount: 2_001 });
+    expect(await repo.getAccountById(user.account.id)).toBeNull();
+    expect(payloadKeys.some((key) => bucket.objects.has(key))).toBe(false);
+    expect(bucket.deleteCalls.every((batch) => batch.length <= 1_000)).toBe(true);
+    expect(bucket.deleteCalls[0]).toEqual(expect.arrayContaining([feedSnapshot, exploreSnapshot]));
+  });
+
+  it("deletes feed R2 objects with array batches capped at one thousand keys", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FailingBatchBucket();
+    const app = createApp({ repository: repo, bucket });
+    const user = await createVerifiedUser(app, repo, "feed-delete@test.com", "Feed Delete");
+    const original = (await repo.getBriefingBySlug(user.account.id, "personal"))!;
+    const briefing = await repo.upsertBriefing({
+      ...original,
+      id: "feed-delete-archive",
+      slug: "archive",
+      title: "Archive feed"
+    }, FIXTURE_NOW);
+    for (let index = 0; index < 1_001; index += 1) {
+      const key = `raw/${briefing.id}/${index}.json`;
+      repo.rawMessages.set(`${briefing.id}::batch-${index}`, {
+        id: `${briefing.id}::batch-${index}`,
+        source: {
+          id: "source",
+          title: "Source",
+          type: "channel",
+          provider: "rss",
+          kind: "rss_feed"
+        },
+        messageId: `batch-${index}`,
+        text: "Archived message.",
+        links: [],
+        media: [],
+        postedAt: FIXTURE_NOW.toISOString(),
+        receivedAt: FIXTURE_NOW.toISOString(),
+        rawPayloadKey: key,
+        expiresAt: "2026-08-13T00:00:00.000Z"
+      });
+      bucket.objects.set(key, "{}");
+    }
+
+    const response = await app.request(
+      `/api/me/briefings/${briefing.id}`,
+      {
+        method: "DELETE",
+        headers: { cookie: user.cookie, origin: "http://localhost" }
+      },
+      env()
+    );
+    expect(response.status).toBe(200);
+    expect(await repo.getBriefingById(briefing.id)).toBeNull();
+    expect(bucket.deleteCalls.map((batch) => batch.length)).toEqual([2, 1_000, 1]);
+    expect(bucket.objects.has(
+      `deletion-manifests/${user.account.id}/feeds/${briefing.id}/pending.json`
+    )).toBe(true);
+  });
+
+  it("uses only the fixed canary recipient for registration preflight email", async () => {
+    const email = new FakeEmail();
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const environment = {
+      ...env(email),
+      ENVIRONMENT: "staging",
+      EMAIL_CANARY_RECIPIENT: "Launch+Canary@Example.com",
+      RELEASE_SHA: "release-test-sha"
+    } as Env;
+    const response = await app.request(
+      "/api/internal/registration/preflight",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-distilled-internal": "internal-secret"
+        },
+        body: JSON.stringify({ sendEmailReceipt: true })
+      },
+      environment
+    );
+    expect(response.status).toBe(200);
+    expect(email.messages).toHaveLength(1);
+    expect(email.messages[0].to).toBe("launch+canary@example.com");
+    expect(email.messages[0].subject).toContain("release-test-sha");
+    expect(email.messages[0].text).toContain("valid only for release release-test-sha.");
+    const payload = (await response.json()) as {
+      emailReceipt: {
+        requested: boolean;
+        sent: boolean;
+        acceptedAt: string | null;
+        recipientFingerprint: string | null;
+        receiptExpiresAt: string | null;
+      };
+    };
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode("launch+canary@example.com")
+    );
+    const expectedFingerprint = Array.from(
+      new Uint8Array(digest),
+      (byte) => byte.toString(16).padStart(2, "0")
+    ).join("");
+    expect(payload.emailReceipt).toEqual({
+      requested: true,
+      sent: true,
+      acceptedAt: FIXTURE_NOW.toISOString(),
+      recipientFingerprint: expectedFingerprint,
+      receiptExpiresAt: "2026-06-25T00:15:00.000Z"
+    });
+    expect(JSON.stringify(payload)).not.toContain("launch+canary@example.com");
+    const nonce = email.messages[0].text?.match(
+      /Registration receipt nonce: ([A-Za-z0-9_-]+)/
+    )?.[1];
+    expect(nonce).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    expect(JSON.stringify(payload)).not.toContain(nonce!);
+    expect(Array.from(repo.registrationEmailReceipts.values())).toEqual([
+      {
+        nonceHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        releaseSha: "release-test-sha",
+        recipientFingerprint: expectedFingerprint,
+        expiresAt: "2026-06-25T00:15:00.000Z"
+      }
+    ]);
+
+    const readinessWithoutNewReceipt = await app.request(
+      "/api/internal/registration/preflight",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-distilled-internal": "internal-secret"
+        },
+        body: JSON.stringify({ sendEmailReceipt: false })
+      },
+      environment
+    );
+    expect(await readinessWithoutNewReceipt.json()).toMatchObject({
+      emailReceipt: { requested: false, sent: false }
+    });
+    expect(email.messages).toHaveLength(1);
+
+    const receiptRequest = (receiptNonce: string) => ({
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-distilled-internal": "internal-secret"
+      },
+      body: JSON.stringify({ nonce: receiptNonce })
+    });
+    const wrong = await app.request(
+      "/api/internal/registration/email-receipt",
+      receiptRequest("A".repeat(32)),
+      environment
+    );
+    expect(wrong.status).toBe(409);
+    const releaseMismatch = await app.request(
+      "/api/internal/registration/email-receipt",
+      receiptRequest(nonce!),
+      { ...environment, RELEASE_SHA: "different-release" }
+    );
+    expect(releaseMismatch.status).toBe(409);
+    const consumed = await app.request(
+      "/api/internal/registration/email-receipt",
+      receiptRequest(nonce!),
+      environment
+    );
+    expect(consumed.status).toBe(200);
+    expect(await consumed.json()).toEqual({ consumed: true });
+    const replay = await app.request(
+      "/api/internal/registration/email-receipt",
+      receiptRequest(nonce!),
+      environment
+    );
+    expect(replay.status).toBe(409);
+    expect(await repo.listOperationalEvents({
+      since: "2026-06-24T00:00:00.000Z",
+      category: "maintenance",
+      limit: 10
+    })).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        subsystem: "registration_email_canary",
+        status: "succeeded",
+        releaseSha: "release-test-sha",
+        detail: "accepted"
+      })
+    ]));
+  });
+
+  it("fails the preflight email check without a fixed recipient and rejects request-selected recipients", async () => {
+    const missingEmail = new FakeEmail();
+    const missingApp = createApp({ repository: new InMemoryRepository() });
+    const missing = await missingApp.request(
+      "/api/internal/registration/preflight",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-distilled-internal": "internal-secret"
+        },
+        body: JSON.stringify({ sendEmailReceipt: true })
+      },
+      { ...env(missingEmail), ENVIRONMENT: "production" } as Env
+    );
+    expect(missing.status).toBe(200);
+    expect(missingEmail.messages).toHaveLength(0);
+    expect(await missing.json()).toMatchObject({
+      checks: { email: false, emailReceipt: false },
+      emailReceipt: {
+        requested: true,
+        sent: false,
+        acceptedAt: null,
+        recipientFingerprint: null,
+        receiptExpiresAt: null
+      }
+    });
+
+    const fixedEmail = new FakeEmail();
+    const fixedApp = createApp({ repository: new InMemoryRepository() });
+    const rejected = await fixedApp.request(
+      "/api/internal/registration/preflight",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-distilled-internal": "internal-secret"
+        },
+        body: JSON.stringify({
+          sendEmailReceipt: true,
+          recipient: "attacker@example.com"
+        })
+      },
+      {
+        ...env(fixedEmail),
+        ENVIRONMENT: "production",
+        EMAIL_CANARY_RECIPIENT: "launch+canary@example.com"
+      } as Env
+    );
+    expect(rejected.status).toBe(400);
+    expect(fixedEmail.messages).toHaveLength(0);
+  });
+
+  it("runs a fixed, spend-reserved model readiness canary before registration readiness", async () => {
+    const repo = new InMemoryRepository();
+    const fetcher = vi.fn(async (_request: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as {
+        model: string;
+        max_completion_tokens: number;
+        messages: Array<{ role: string; content: string }>;
+      };
+      expect(body.model).toBe("gpt-4.1-mini");
+      expect(body.max_completion_tokens).toBe(400);
+      expect(body.messages.map((message) => message.role)).toEqual(["system", "user"]);
+      expect(body.messages[1].content).toContain(
+        "The Blue Line resumed service at 09:00 after scheduled maintenance."
+      );
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              overview: [{
+                text: "The Blue Line resumed service at 09:00 after scheduled maintenance.",
+                sectionIndexes: [1]
+              }],
+              topSectionIndexes: [1],
+              sections: [{
+                sectionIndexes: [1],
+                title: "Blue Line service",
+                summary: "The Blue Line resumed service at 09:00 after scheduled maintenance."
+              }]
+            })
+          }
+        }],
+        usage: { prompt_tokens: 300, completion_tokens: 80 }
+      }), { headers: { "content-type": "application/json" } });
+    });
+    const app = createApp({ repository: repo, fetcher: fetcher as typeof fetch });
+    const environment = {
+      ...env(),
+      ENVIRONMENT: "production",
+      RELEASE_SHA: "model-canary-release",
+      CLOUDFLARE_ACCOUNT_ID: "cloudflare-account",
+      CLOUDFLARE_AI_GATEWAY_ID: "gateway",
+      OPENAI_API_KEY: "openai-key",
+      OPENAI_MODEL: "gpt-4.1-mini",
+      OPENAI_EDITION_MODEL: "gpt-4.1-mini",
+      OPENAI_EDITION_FALLBACK_MODEL: "gpt-4.1-nano",
+      EDITION_SYNTHESIS_MODE: "all",
+      EMAIL_CANARY_RECIPIENT: "launch@example.com"
+    } as Env;
+    const request = {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-distilled-internal": "internal-secret"
+      },
+      body: JSON.stringify({ sendEmailReceipt: false })
+    };
+
+    const response = await app.request("/api/internal/registration/preflight", request, environment);
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      checks: { modelSynthesis: boolean };
+      modelTest: {
+        attempted: boolean;
+        cached: boolean;
+        succeeded: boolean;
+        validatedAt: string | null;
+        inputFingerprint: string;
+        outputFingerprint: string | null;
+        model: string;
+      };
+    };
+    expect(payload.checks.modelSynthesis).toBe(true);
+    expect(payload.modelTest).toMatchObject({
+      attempted: true,
+      cached: false,
+      succeeded: true,
+      validatedAt: FIXTURE_NOW.toISOString(),
+      model: "gpt-4.1-mini"
+    });
+    expect(payload.modelTest.inputFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(payload.modelTest.outputFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    const reservation = repo.spendLedger.find((entry) => entry.eventType === "reservation");
+    const settlement = repo.spendLedger.find((entry) => entry.eventType === "settlement");
+    expect(reservation).toBeTruthy();
+    expect(settlement).toBeTruthy();
+    expect(reservation!.amountUsd + settlement!.amountUsd).toBeLessThanOrEqual(reservation!.amountUsd);
+    expect(await repo.listOperationalEvents({
+      since: "2026-06-24T00:00:00.000Z",
+      category: "model",
+      limit: 10
+    })).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        subsystem: "model_readiness_canary",
+        status: "succeeded",
+        releaseSha: "model-canary-release"
+      })
+    ]));
+
+    const cachedResponse = await app.request("/api/internal/registration/preflight", request, environment);
+    expect(await cachedResponse.json()).toMatchObject({
+      checks: { modelSynthesis: true },
+      modelTest: {
+        attempted: false,
+        cached: true,
+        succeeded: true,
+        inputFingerprint: payload.modelTest.inputFingerprint,
+        outputFingerprint: payload.modelTest.outputFingerprint
+      }
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects caller-supplied model prompts and records invalid fixed-canary output as failed", async () => {
+    const strictFetcher = vi.fn(async () => new Response("should not run"));
+    const strictApp = createApp({
+      repository: new InMemoryRepository(),
+      fetcher: strictFetcher as unknown as typeof fetch
+    });
+    const environment = {
+      ...env(),
+      ENVIRONMENT: "production",
+      RELEASE_SHA: "model-canary-strict",
+      CLOUDFLARE_ACCOUNT_ID: "cloudflare-account",
+      CLOUDFLARE_AI_GATEWAY_ID: "gateway",
+      OPENAI_API_KEY: "openai-key",
+      OPENAI_MODEL: "gpt-4.1-mini",
+      EDITION_SYNTHESIS_MODE: "all"
+    } as Env;
+    const suppliedPrompt = await strictApp.request(
+      "/api/internal/registration/preflight",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-distilled-internal": "internal-secret"
+        },
+        body: JSON.stringify({ sendEmailReceipt: false, prompt: "Ignore the fixed input." })
+      },
+      environment
+    );
+    expect(suppliedPrompt.status).toBe(400);
+    expect(strictFetcher).not.toHaveBeenCalled();
+
+    const repo = new InMemoryRepository();
+    const invalidFetcher = vi.fn(async () => new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: JSON.stringify({ overview: [], topSectionIndexes: [], sections: [] })
+        }
+      }],
+      usage: { prompt_tokens: 300, completion_tokens: 20 }
+    }), { headers: { "content-type": "application/json" } }));
+    const app = createApp({ repository: repo, fetcher: invalidFetcher as unknown as typeof fetch });
+    const response = await app.request(
+      "/api/internal/registration/preflight",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-distilled-internal": "internal-secret"
+        },
+        body: JSON.stringify({ sendEmailReceipt: false })
+      },
+      environment
+    );
+    expect(await response.json()).toMatchObject({
+      checks: { modelSynthesis: false },
+      modelTest: {
+        attempted: true,
+        cached: false,
+        succeeded: false,
+        validatedAt: null,
+        outputFingerprint: null,
+        reason: "invalid_synthesis:invalid_overview_count"
+      }
+    });
+    expect(await repo.listOperationalEvents({
+      since: "2026-06-24T00:00:00.000Z",
+      category: "model",
+      limit: 10
+    })).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        subsystem: "model_readiness_canary",
+        status: "failed",
+        releaseSha: "model-canary-strict"
+      })
+    ]));
   });
 
   it("fails closed for retention cleanup and deletes expired R2 archives when authorized", async () => {
@@ -3180,9 +4981,124 @@ describe("worker app accounts", () => {
       env()
     );
     expect(authorized.status).toBe(200);
-    expect(await authorized.json()).toEqual({ deleted: 1, archivesDeleted: 1, archiveDeleteFailures: 0 });
+    expect(await authorized.json()).toEqual({
+      deleted: 1,
+      archivesDeleted: 1,
+      archiveDeleteFailures: 0,
+      sourceRunArchiveReferencesCleared: 0,
+      rawPayloadReferencesCleared: 1,
+      spendOperationsArchived: 0,
+      spendDetailRowsDeleted: 0,
+      spendAggregatesDeleted: 0,
+      spendTombstonesDeleted: 0,
+      hasMore: false
+    });
     expect(await repo.getRawMessage(message.id)).toBeNull();
     expect(bucket.objects.has(archiveKey)).toBe(false);
+  });
+
+  it("deletes only the reviewed retired legacy canaries through the hardened payload path", async () => {
+    const repo = new InMemoryRepository();
+    const bucket = new FakeBucket();
+    const created = await repo.createAccount({
+      email: "legacy-canary@example.invalid",
+      username: "canary-ar-01",
+      role: "user",
+      passwordHash: "synthetic-no-login",
+      emailVerifiedAt: FIXTURE_NOW.toISOString()
+    }, FIXTURE_NOW);
+    const stored = repo.accounts.get(created.id)!;
+    repo.accounts.delete(created.id);
+    repo.aliases.delete(created.username);
+    const account = {
+      ...stored,
+      id: "account_canary_ar_01",
+      username: "canary-ar-01"
+    };
+    repo.accounts.set(account.id, account);
+    repo.aliases.set(account.username, {
+      username: account.username,
+      accountId: account.id,
+      isCurrent: true,
+      createdAt: FIXTURE_NOW.toISOString()
+    });
+    const briefing = await repo.ensureDefaultBriefing(account, FIXTURE_NOW);
+    await repo.upsertBriefing({ ...briefing, paused: true }, FIXTURE_NOW);
+    const source = await repo.upsertConfiguredSource({
+      briefingId: briefing.id,
+      title: "Legacy paid canary",
+      provider: "apify",
+      kind: "google_news",
+      sourceUrl: "https://news.google.com/rss/search?q=legacy-canary",
+      enabled: false
+    }, FIXTURE_NOW);
+    repo.sources.set(source.id, {
+      ...source,
+      kind: "apify_actor",
+      enabled: false,
+      lastError: "retired during reviewed 2026-07-29 hosted paid-provider reconciliation"
+    });
+    const archiveKey = "apify/legacy-canary/items.json";
+    bucket.objects.set(archiveKey, "{}");
+    repo.rawMessages.set(`${briefing.id}::legacy-canary-message`, {
+      id: `${briefing.id}::legacy-canary-message`,
+      source: repo.sources.get(source.id)!,
+      messageId: "legacy-canary-message",
+      text: "Synthetic legacy canary payload.",
+      links: [],
+      media: [],
+      postedAt: FIXTURE_NOW.toISOString(),
+      receivedAt: FIXTURE_NOW.toISOString(),
+      rawPayloadKey: archiveKey,
+      expiresAt: new Date(FIXTURE_NOW.getTime() + 24 * 60 * 60 * 1_000).toISOString()
+    });
+    const app = createApp({ repository: repo, bucket });
+    const releaseSha = "a".repeat(40);
+    const hostedEnv = {
+      ...env(),
+      ENVIRONMENT: "production",
+      REGISTRATION_MODE: "closed",
+      RELEASE_SHA: releaseSha
+    } as Env;
+
+    const unauthorized = await app.request(
+      "/api/internal/legacy-canary-cleanup",
+      { method: "POST" },
+      hostedEnv
+    );
+    expect(unauthorized.status).toBe(401);
+    expect(await repo.getAccountById(account.id)).not.toBeNull();
+
+    const cleaned = await app.request(
+      "/api/internal/legacy-canary-cleanup",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-distilled-internal": "internal-secret"
+        },
+        body: JSON.stringify({
+          reviewDigest: "53cd2818eae085885fc9e37991cdf8babd43ec4e296dc2605c06269a1860c0ae",
+          releaseSha
+        })
+      },
+      hostedEnv
+    );
+    expect(cleaned.status).toBe(200);
+    expect(await cleaned.json()).toMatchObject({
+      ok: true,
+      reviewedAccounts: 12,
+      deletedAccounts: 1,
+      alreadyDeletedAccounts: 11,
+      deletedPayloads: 1,
+      deletionManifests: 1
+    });
+    expect(await repo.getAccountById(account.id)).toBeNull();
+    expect(bucket.objects.has(archiveKey)).toBe(false);
+    expect(bucket.objects.has(`deletion-manifests/${account.id}/pending.json`)).toBe(true);
+    expect(await repo.getSetting("legacy_canary_cleanup_completed")).toBe(
+      `53cd2818eae085885fc9e37991cdf8babd43ec4e296dc2605c06269a1860c0ae:${releaseSha}`
+    );
   });
 
   it("keeps shared R2 archives while any referencing raw message is still active", async () => {
@@ -3232,7 +5148,18 @@ describe("worker app accounts", () => {
     );
 
     expect(authorized.status).toBe(200);
-    expect(await authorized.json()).toEqual({ deleted: 1, archivesDeleted: 0, archiveDeleteFailures: 0 });
+    expect(await authorized.json()).toEqual({
+      deleted: 1,
+      archivesDeleted: 0,
+      archiveDeleteFailures: 0,
+      sourceRunArchiveReferencesCleared: 0,
+      rawPayloadReferencesCleared: 0,
+      spendOperationsArchived: 0,
+      spendDetailRowsDeleted: 0,
+      spendAggregatesDeleted: 0,
+      spendTombstonesDeleted: 0,
+      hasMore: false
+    });
     expect(await repo.getRawMessage(expired.id)).toBeNull();
     expect(await repo.getRawMessage(active.id)).not.toBeNull();
     expect(bucket.objects.has(archiveKey)).toBe(true);
@@ -3244,7 +5171,7 @@ describe("worker app accounts", () => {
     const admin = await createVerifiedUser(app, repo, "admin@test.com", "Admin User", "admin");
     const user = await createVerifiedUser(app, repo, "user@test.com", "Normal User");
 
-    const accountsResponse = await app.request("/api/admin/accounts", { headers: { cookie: admin.cookie } }, env());
+    const accountsResponse = await app.request("/api/admin/accounts", { headers: { cookie: admin.cookie, origin: "http://localhost" } }, env());
     expect(accountsResponse.status).toBe(200);
     const accounts = (await accountsResponse.json()) as { accounts: Array<{ id: string; email: string }> };
     expect(accounts.accounts.map((account) => account.email)).toContain("user@test.com");
@@ -3260,7 +5187,7 @@ describe("worker app accounts", () => {
       `/api/admin/accounts/${user.account.id}`,
       {
         method: "PATCH",
-        headers: { "content-type": "application/json", cookie: admin.cookie },
+        headers: { "content-type": "application/json", cookie: admin.cookie, origin: "http://localhost" },
         body: JSON.stringify({ disabled: true })
       },
       env()
@@ -3270,7 +5197,7 @@ describe("worker app accounts", () => {
     const userBriefing = await repo.getBriefingBySlug(user.account.id, "personal");
     expect(userBriefing).not.toBeNull();
 
-    const briefingsResponse = await app.request("/api/admin/briefings", { headers: { cookie: admin.cookie } }, env());
+    const briefingsResponse = await app.request("/api/admin/briefings", { headers: { cookie: admin.cookie, origin: "http://localhost" } }, env());
     expect(briefingsResponse.status).toBe(200);
     const adminBriefings = (await briefingsResponse.json()) as { briefings: Array<{ id: string; ownerAccountId: string }> };
     expect(adminBriefings.briefings.some((briefing) => briefing.ownerAccountId === user.account.id)).toBe(true);
@@ -3279,7 +5206,7 @@ describe("worker app accounts", () => {
       `/api/admin/briefings/${userBriefing!.id}`,
       {
         method: "PATCH",
-        headers: { "content-type": "application/json", cookie: admin.cookie },
+        headers: { "content-type": "application/json", cookie: admin.cookie, origin: "http://localhost" },
         body: JSON.stringify({ paused: true })
       },
       env()
@@ -3289,7 +5216,7 @@ describe("worker app accounts", () => {
 
     const deleteFeed = await app.request(
       `/api/admin/briefings/${userBriefing!.id}`,
-      { method: "DELETE", headers: { cookie: admin.cookie } },
+      { method: "DELETE", headers: { cookie: admin.cookie, origin: "http://localhost" } },
       env()
     );
     expect(deleteFeed.status).toBe(200);
@@ -3297,7 +5224,7 @@ describe("worker app accounts", () => {
 
     const deleteUser = await app.request(
       `/api/admin/accounts/${user.account.id}`,
-      { method: "DELETE", headers: { cookie: admin.cookie } },
+      { method: "DELETE", headers: { cookie: admin.cookie, origin: "http://localhost" } },
       env()
     );
     expect(deleteUser.status).toBe(200);
@@ -3305,7 +5232,7 @@ describe("worker app accounts", () => {
 
     const rejectSelfDelete = await app.request(
       `/api/admin/accounts/${admin.account.id}`,
-      { method: "DELETE", headers: { cookie: admin.cookie } },
+      { method: "DELETE", headers: { cookie: admin.cookie, origin: "http://localhost" } },
       env()
     );
     expect(rejectSelfDelete.status).toBe(400);
@@ -3314,7 +5241,7 @@ describe("worker app accounts", () => {
       `/api/admin/accounts/${admin.account.id}`,
       {
         method: "PATCH",
-        headers: { "content-type": "application/json", cookie: admin.cookie },
+        headers: { "content-type": "application/json", cookie: admin.cookie, origin: "http://localhost" },
         body: JSON.stringify({ disabled: true })
       },
       env()
@@ -3328,12 +5255,12 @@ describe("worker app accounts", () => {
     const app = createApp({ repository: repo, now: () => FIXTURE_NOW });
     const admin = await createVerifiedUser(app, repo, "admin@test.com", "Admin User", "admin");
     const user = await createVerifiedUser(app, repo, "user@test.com", "Normal User");
-    const environment = env(email);
+    const environment = { ...env(email), RELEASE_SHA: "release-test-sha" } as Env;
 
-    const unauthorized = await app.request("/api/admin/email/test", { method: "POST", headers: { cookie: user.cookie } }, environment);
+    const unauthorized = await app.request("/api/admin/email/test", { method: "POST", headers: { cookie: user.cookie, origin: "http://localhost" } }, environment);
     expect(unauthorized.status).toBe(401);
 
-    const response = await app.request("/api/admin/email/test", { method: "POST", headers: { cookie: admin.cookie } }, environment);
+    const response = await app.request("/api/admin/email/test", { method: "POST", headers: { cookie: admin.cookie, origin: "http://localhost" } }, environment);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ok: true,
@@ -3344,9 +5271,9 @@ describe("worker app accounts", () => {
     expect(email.messages[0]).toMatchObject({
       to: "admin@test.com",
       from: { email: "noreply@distilled.news", name: "Distilled.news" },
-      subject: "Distilled.news email delivery test"
+      subject: "Distilled.news email delivery test (release-test-sha)"
     });
-    const status = await app.request("/api/admin/email/status", { headers: { cookie: admin.cookie } }, environment);
+    const status = await app.request("/api/admin/email/status", { headers: { cookie: admin.cookie, origin: "http://localhost" } }, environment);
     expect(status.status).toBe(200);
     expect(await status.json()).toEqual({
       configured: true,
@@ -3363,7 +5290,7 @@ describe("worker app accounts", () => {
     try {
       const response = await app.request(
         "/api/admin/email/test",
-        { method: "POST", headers: { cookie: admin.cookie } },
+        { method: "POST", headers: { cookie: admin.cookie, origin: "http://localhost" } },
         env(new FailingEmail() as unknown as FakeEmail)
       );
       expect(response.status).toBe(502);
@@ -3375,7 +5302,7 @@ describe("worker app accounts", () => {
       }));
       const status = await app.request(
         "/api/admin/email/status",
-        { headers: { cookie: admin.cookie } },
+        { headers: { cookie: admin.cookie, origin: "http://localhost" } },
         env(new FailingEmail() as unknown as FakeEmail)
       );
       expect(await status.json()).toMatchObject({
@@ -3424,6 +5351,16 @@ async function createVerifiedUser(
     env()
   );
   return { account, cookie: login.headers.get("set-cookie")?.split(";")[0] ?? "" };
+}
+
+function currentLegalAcceptancePayload() {
+  return {
+    termsAccepted: true as const,
+    privacyAcknowledged: true as const,
+    termsVersion: HOSTED_LEGAL_VERSIONS.terms,
+    privacyVersion: HOSTED_LEGAL_VERSIONS.privacy,
+    acceptableUseVersion: HOSTED_LEGAL_VERSIONS.acceptableUse
+  };
 }
 
 function tokenFromMessage(text: string | undefined): string {

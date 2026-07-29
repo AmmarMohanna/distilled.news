@@ -52,7 +52,9 @@ export async function enqueueScheduledSyntheticCanaryFixtures(input: {
 
   for (const canary of SYNTHETIC_CANARIES) {
     const briefing = await input.repo.getBriefingById(canary.briefingId);
-    if (!briefing || briefing.paused || briefing.briefingCadence !== "hourly") continue;
+    const owner = briefing ? await input.repo.getAccountById(briefing.ownerAccountId) : null;
+    if (!briefing || briefing.paused || !briefing.publicFeedEnabled || !owner || owner.disabledAt ||
+      briefing.briefingCadence !== "hourly") continue;
 
     const source = await ensureSyntheticCanarySource(input.repo, canary, now);
     const suffix = windowEnd.replace(/[-:.TZ]/g, "");

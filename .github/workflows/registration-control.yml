@@ -1,0 +1,81 @@
+name: Production registration control
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Test readiness, open, or immediately close public registration
+        type: choice
+        options:
+          - close
+          - preflight
+          - open
+        required: true
+      confirmation:
+        description: Type "preflight registration", "open registration", or "close registration"
+        type: string
+        required: true
+      canary_attestation:
+        description: Signed same-SHA 24-hour canary attestation (required to open)
+        type: string
+        required: false
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+
+concurrency:
+  group: distilled-news-cloudflare-mutation
+  cancel-in-progress: false
+
+jobs:
+  control:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      inputs.confirmation == format('{0} registration', inputs.operation)
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Verify protected GitHub deployment controls
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_GITHUB_ENVIRONMENT: production
+        run: node scripts/release/verify-github-protection.mjs
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Re-run reviewed release gates before opening
+        if: inputs.operation != 'close'
+        run: pnpm release:check -- --audit
+      - name: Verify remote secret bindings
+        if: inputs.operation != 'close'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/doctor.mjs --ci --deployment --environment production
+      - name: Apply protected registration control
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:registration:${{ inputs.operation }}
+          CANARY_ATTESTATION: ${{ inputs.canary_attestation }}
+          CANARY_ATTESTATION_PUBLIC_KEY: ${{ secrets.CANARY_ATTESTATION_PUBLIC_KEY }}
+          PUBLIC_LAUNCH_ATTESTATION: ${{ secrets.PUBLIC_LAUNCH_ATTESTATION }}
+          INTERNAL_MAINTENANCE_SECRET: ${{ secrets.INTERNAL_MAINTENANCE_SECRET }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          APIFY_READINESS_TOKEN: ${{ secrets.APIFY_READINESS_TOKEN }}
+          EMAIL_CANARY_RECIPIENT: ${{ secrets.EMAIL_CANARY_RECIPIENT }}
+          EMAIL_CANARY_RECEIPT_NONCE: ${{ secrets.EMAIL_CANARY_RECEIPT_NONCE }}
+        run: pnpm registration:${{ inputs.operation }}

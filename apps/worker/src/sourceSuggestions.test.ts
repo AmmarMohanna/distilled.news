@@ -33,4 +33,42 @@ describe("source suggestions", () => {
     expect(result.degraded).toBe(true);
     expect(result.suggestions.some((item) => item.origin === "curated")).toBe(true);
   });
+
+  it("rejects oversized chunked GDELT responses before buffering them", async () => {
+    const chunk = new Uint8Array(80_000).fill(32);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(chunk);
+        controller.enqueue(chunk);
+        controller.close();
+      }
+    });
+    const result = await suggestSources({
+      briefing,
+      interestProfile: briefing.interestProfile,
+      language: "en",
+      existingSources: [],
+      env: {},
+      fetcher: (async () => new Response(stream, { headers: { "content-type": "application/json" } })) as typeof fetch
+    });
+    expect(result.degraded).toBe(true);
+    expect(result.suggestions.some((item) => item.origin === "gdelt")).toBe(false);
+  });
+
+  it.each([
+    ["non-JSON content", new Response("<html>challenge</html>", { headers: { "content-type": "text/html" } })],
+    ["an invalid top-level shape", new Response("[]", { headers: { "content-type": "application/json" } })],
+    ["an invalid articles shape", new Response('{"articles":{}}', { headers: { "content-type": "application/json" } })]
+  ])("degrades safely when GDELT returns %s", async (_label, response) => {
+    const result = await suggestSources({
+      briefing,
+      interestProfile: briefing.interestProfile,
+      language: "en",
+      existingSources: [],
+      env: {},
+      fetcher: (async () => response) as typeof fetch
+    });
+    expect(result.degraded).toBe(true);
+    expect(result.suggestions.some((item) => item.origin === "gdelt")).toBe(false);
+  });
 });

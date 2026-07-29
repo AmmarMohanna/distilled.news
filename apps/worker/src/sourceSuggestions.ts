@@ -19,6 +19,8 @@ export interface SourceSuggestion {
 
 type CatalogEntry = Omit<SourceSuggestion, "reason" | "origin" | "confidence" | "alreadyAdded"> & { tags: string[] };
 
+const GDELT_MAX_RESPONSE_BYTES = 128_000;
+
 const CATALOG: CatalogEntry[] = [
   { id: "bbc-world", title: "BBC World", description: "International reporting and explainers.", provider: "rss", kind: "rss_feed", input: "rss: https://feeds.bbci.co.uk/news/world/rss.xml", homepageUrl: "https://www.bbc.com/news/world", language: "en", region: "GLOBAL", tags: ["world", "politics", "science", "technology", "health"] },
   { id: "aljazeera-en", title: "Al Jazeera English", description: "Regional and international coverage with strong Middle East reporting.", provider: "rss", kind: "rss_feed", input: "rss: https://www.aljazeera.com/xml/rss/all.xml", homepageUrl: "https://www.aljazeera.com/", language: "en", region: "MENA", tags: ["middle east", "lebanon", "politics", "security", "world"] },
@@ -27,7 +29,7 @@ const CATALOG: CatalogEntry[] = [
   { id: "france24-fr", title: "France 24", description: "Actualité internationale en français.", provider: "rss", kind: "rss_feed", input: "rss: https://www.france24.com/fr/rss", homepageUrl: "https://www.france24.com/fr/", language: "fr", region: "GLOBAL", tags: ["monde", "liban", "politique", "économie", "technologie"] },
   { id: "techcrunch", title: "TechCrunch", description: "Startups, technology companies, and product news.", provider: "rss", kind: "rss_feed", input: "rss: https://techcrunch.com/feed/", homepageUrl: "https://techcrunch.com/", language: "en", region: "GLOBAL", tags: ["technology", "startups", "ai", "business", "software"] },
   { id: "arstechnica", title: "Ars Technica", description: "Technology, science, and digital policy reporting.", provider: "rss", kind: "rss_feed", input: "rss: https://feeds.arstechnica.com/arstechnica/index", homepageUrl: "https://arstechnica.com/", language: "en", region: "GLOBAL", tags: ["technology", "science", "ai", "software", "security"] },
-  { id: "nature", title: "Nature", description: "Research and science news from Nature.", provider: "rss", kind: "rss_feed", input: "rss: https://www.nature.com/nature.rss", homepageUrl: "https://www.nature.com/", language: "en", region: "GLOBAL", tags: ["science", "research", "health", "climate"] }
+  { id: "science", title: "Science", description: "Research and science news from Science.", provider: "rss", kind: "rss_feed", input: "rss: https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=science", homepageUrl: "https://www.science.org/", language: "en", region: "GLOBAL", tags: ["science", "research", "health", "climate"] }
 ];
 
 export async function suggestSources(input: {
@@ -79,7 +81,7 @@ async function gdeltSuggestions(input: Parameters<typeof suggestSources>[0], exi
   try {
     const response = await input.fetcher!(url, { headers: { accept: "application/json" }, signal: controller.signal });
     if (!response.ok) throw new Error(`GDELT discovery failed: ${response.status}`);
-    const body = await response.json() as { articles?: Array<{ title?: string; url?: string; domain?: string }> };
+    const body = await readGdeltResponse(response);
     return (body.articles ?? []).flatMap((article) => {
       if (!article.url || !article.title) return [];
       const parsed = safeHttpUrl(article.url);
@@ -93,6 +95,63 @@ async function gdeltSuggestions(input: Parameters<typeof suggestSources>[0], exi
       }];
     });
   } finally { clearTimeout(timer); }
+}
+
+async function readGdeltResponse(
+  response: Response
+): Promise<{ articles?: Array<{ title?: string; url?: string; domain?: string }> }> {
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.includes("application/json") && !contentType.includes("+json")) {
+    throw new Error("GDELT discovery returned a non-JSON response");
+  }
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (Number.isFinite(declared) && declared > GDELT_MAX_RESPONSE_BYTES) {
+    throw new Error(`GDELT discovery response exceeds ${GDELT_MAX_RESPONSE_BYTES} bytes`);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("GDELT discovery returned an empty response");
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > GDELT_MAX_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new Error(`GDELT discovery response exceeds ${GDELT_MAX_RESPONSE_BYTES} bytes`);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new Error("GDELT discovery returned invalid JSON");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("GDELT discovery returned an invalid payload");
+  }
+  const articles = (parsed as { articles?: unknown }).articles;
+  if (articles !== undefined && !Array.isArray(articles)) {
+    throw new Error("GDELT discovery returned an invalid articles list");
+  }
+  return {
+    articles: (articles ?? []).flatMap((article) => {
+      if (!article || typeof article !== "object" || Array.isArray(article)) return [];
+      const record = article as Record<string, unknown>;
+      return [{
+        title: typeof record.title === "string" ? record.title : undefined,
+        url: typeof record.url === "string" ? record.url : undefined,
+        domain: typeof record.domain === "string" ? record.domain : undefined
+      }];
+    })
+  };
 }
 
 function scoreEntry(entry: CatalogEntry, tokens: string[], language: string): number {

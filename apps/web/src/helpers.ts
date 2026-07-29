@@ -31,6 +31,11 @@ export function publicFeedUrl(username: string, slug: string, origin = window.lo
   return new URL(`/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/`, origin).toString();
 }
 
+export function verificationEmailSentCopy(hosted: boolean): string {
+  const expiry = hosted ? "60 minutes" : "24 hours";
+  return `verification email sent. Check your inbox and spam folder. The link expires in ${expiry}.`;
+}
+
 export function formatDateTime(value: string, language: "en" | "ar" | "fr" = "en", timezone?: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;

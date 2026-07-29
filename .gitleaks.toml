@@ -1,0 +1,12 @@
+title = "Distilled.news Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Reviewed Apify public account identifiers used for environment pinning"
+targetRules = ["generic-api-key"]
+regexTarget = "line"
+regexes = [
+  '''APIFY_EXPECTED_USER_ID["']?\s*(?::|===)\s*["'](RXAjmHtQRbA38IAbw|5clcKRgkjN3Q9GnDB)["']''',
+]

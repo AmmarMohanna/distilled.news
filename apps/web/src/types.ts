@@ -75,13 +75,33 @@ export interface SessionStatus {
   authenticated: boolean;
   setupRequired: boolean;
   account?: AccountRecord;
+  legalAcceptance?: LegalAcceptanceStatus;
   turnstileSiteKey?: string;
 }
 
-export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInstruction">;
+export interface LegalAcceptanceStatus {
+  required: boolean;
+  currentTermsVersion: string;
+  currentPrivacyVersion: string;
+  currentAcceptableUseVersion: string;
+  acceptedAt?: string;
+}
+
+export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInstruction"> & {
+  /**
+   * Newer self-hosted Workers can expose a publication timestamp in Explore.
+   * Keep the aliases optional so the web client remains compatible with older
+   * deployments that only return the core public briefing shape.
+   */
+  latestPublishedAt?: string;
+  lastPublishedAt?: string;
+  hasPublishedEditions?: boolean;
+};
 
 export interface FeedPayload {
   briefing: PublicBriefing;
   editions: BriefingEdition[];
   viewerHasStarred: boolean;
+  viewerCanStar?: boolean;
+  snapshotFallback?: boolean;
 }

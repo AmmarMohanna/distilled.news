@@ -2,9 +2,16 @@ node_modules/
 dist/
 .wrangler/
 .dev.vars
+.dev.vars.*
+.secrets.*.env
 .env
+.env.*
+!.env.example
 .env.local
 coverage/
 test-results/
 playwright-report/
 *.tsbuildinfo
+backups/
+.canary-observations/
+apps/worker/.wrangler-release-*.jsonc

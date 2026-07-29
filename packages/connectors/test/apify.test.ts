@@ -90,6 +90,59 @@ describe("normalizeApifyDatasetItems", () => {
       },
       sourceUrl: "https://x.com/agency/status/1900"
     });
-    expect(messages[0].links).toContain("https://example.com");
+    expect(messages[0].links).toContain("https://example.com/");
+  });
+
+  it("drops unsafe actor-provided URLs and bounds untrusted fields and item counts", () => {
+    const items = Array.from({ length: 75 }, (_, index) => ({
+      id: `tweet-${index}`,
+      text: `https://example.com/safe ${"x".repeat(10_000)}`,
+      url: index === 0 ? "javascript:alert(1)" : `https://x.com/example/status/${index}`,
+      createdAt: "2026-06-16T09:00:00.000Z",
+      imageUrl: "data:image/svg+xml,<svg onload=alert(1)>",
+      media: [
+        { url: "https://user:password@example.com/private.jpg" },
+        { url: "http://127.0.0.1/internal.jpg" },
+        { url: "https://cdn.example.com/photo.jpg" }
+      ]
+    }));
+    const messages = normalizeApifyDatasetItems(items, {
+      sourceId: "source_x",
+      sourceTitle: "X".repeat(500),
+      kind: "x_profile",
+      receivedAt: new Date("2026-06-16T09:01:00.000Z")
+    });
+
+    expect(messages).toHaveLength(50);
+    expect(messages[0].text.length).toBe(8_000);
+    expect(messages[0].source.title.length).toBeLessThanOrEqual(200);
+    expect(messages[0].sourceUrl).toBeUndefined();
+    expect(messages[0].links).toEqual(["https://example.com/safe"]);
+    expect(messages[0].media).toEqual([{ type: "photo", url: "https://cdn.example.com/photo.jpg", label: "X media" }]);
+  });
+
+  it("requires public HTTP URLs for Google News and LinkedIn evidence", () => {
+    const google = normalizeApifyDatasetItems([{
+      title: "Unsafe link",
+      publisherUrl: "https://user:pass@example.com/story",
+      link: "http://192.168.1.2/story",
+      publishedAt: "2026-06-16T08:30:00.000Z"
+    }], {
+      sourceId: "g",
+      sourceTitle: "Google",
+      kind: "google_news"
+    });
+    expect(google).toEqual([]);
+
+    const linkedIn = normalizeApifyDatasetItems([{
+      text: "Update",
+      url: "data:text/html,unsafe",
+      postedAt: "2026-06-16T08:30:00.000Z"
+    }], {
+      sourceId: "l",
+      sourceTitle: "LinkedIn",
+      kind: "linkedin_profile"
+    });
+    expect(linkedIn).toEqual([]);
   });
 });

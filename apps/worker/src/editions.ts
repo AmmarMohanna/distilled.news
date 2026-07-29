@@ -49,19 +49,22 @@ export async function publishDueBriefingEditions(input: {
   summaryAdapter?: SummaryAdapter | null;
   editionSynthesisAdapter?: EditionSynthesisAdapter | null;
   editionSynthesisMode?: string;
+  releaseSha?: string;
 }): Promise<number> {
   const now = input.now ?? new Date();
   let published = 0;
 
   for (const briefing of input.briefings) {
-    if (briefing.paused) continue;
+    const owner = await input.repo.getAccountById(briefing.ownerAccountId);
+    if (briefing.paused || !briefing.publicFeedEnabled || !owner || owner.disabledAt) continue;
     published += await recoverRecentEmptyWindows({
       briefing,
       repo: input.repo,
       now,
       summaryAdapter: input.summaryAdapter,
       editionSynthesisAdapter: input.editionSynthesisAdapter,
-      editionSynthesisMode: input.editionSynthesisMode
+      editionSynthesisMode: input.editionSynthesisMode,
+      releaseSha: input.releaseSha
     });
     const window = getDueBriefingWindow(
       briefing,
@@ -103,7 +106,9 @@ export async function publishDueBriefingEditions(input: {
         briefing,
         input.summaryAdapter,
         input.editionSynthesisAdapter,
-        input.editionSynthesisMode
+        input.editionSynthesisMode,
+        input.repo,
+        input.releaseSha
       );
       const enabledSources = (await input.repo.listSources(briefing.id)).filter((source) => source.enabled);
       const healthySourceCount = enabledSources.filter(
@@ -150,6 +155,7 @@ async function recoverRecentEmptyWindows(input: {
   summaryAdapter?: SummaryAdapter | null;
   editionSynthesisAdapter?: EditionSynthesisAdapter | null;
   editionSynthesisMode?: string;
+  releaseSha?: string;
 }): Promise<number> {
   const sinceWindowEnd = new Date(input.now.getTime() - EMPTY_WINDOW_RECOVERY_HORIZON_MS).toISOString();
   const recoverable = await input.repo.listRecoverableEmptyBriefingWindows(
@@ -188,7 +194,9 @@ async function recoverRecentEmptyWindows(input: {
         input.briefing,
         input.summaryAdapter,
         input.editionSynthesisAdapter,
-        input.editionSynthesisMode
+        input.editionSynthesisMode,
+        input.repo,
+        input.releaseSha
       );
       const qualityState = await briefingWindowQuality(input.repo, input.briefing.id);
       await input.repo.saveBriefingEdition(edition, input.now);
@@ -229,7 +237,9 @@ async function localizeEdition(
   briefing: BriefingConfig,
   summaryAdapter?: SummaryAdapter | null,
   editionSynthesisAdapter?: EditionSynthesisAdapter | null,
-  editionSynthesisMode = "all"
+  editionSynthesisMode = "all",
+  repo?: Repository,
+  releaseSha?: string
 ): Promise<BriefingEdition> {
   if (edition.status !== "published") return edition;
 
@@ -287,12 +297,43 @@ async function localizeEdition(
         finalSections = synthesis.sections;
         finalSummary = synthesis.summary;
         generationMode = "ai";
+        if (repo) {
+          try {
+            await repo.recordOperationalEvent({
+              category: "model",
+              subsystem: "edition_synthesis_validation",
+              status: "succeeded",
+              bodyType: "edition_summary",
+              bodyId: briefing.id,
+              releaseSha,
+              detail: "validated_synthesis"
+            });
+          } catch {
+            // Model health telemetry must not change publication behavior.
+          }
+        }
       } else {
+        const reason = editionSynthesisRejectionReason(synthesisDraft, synthesisInput);
         console.warn("Rejected invalid edition synthesis", {
           briefingId: briefing.id,
           language: briefing.language,
-          reason: editionSynthesisRejectionReason(synthesisDraft, synthesisInput)
+          reason
         });
+        if (repo) {
+          try {
+            await repo.recordOperationalEvent({
+              category: "model",
+              subsystem: "edition_synthesis_validation",
+              status: "failed",
+              bodyType: "edition_summary",
+              bodyId: briefing.id,
+              releaseSha,
+              detail: `invalid_synthesis:${reason}`.slice(0, 200)
+            });
+          } catch {
+            // Model health telemetry must not change deterministic fallback behavior.
+          }
+        }
       }
     } catch (error) {
       console.warn("Edition synthesis failed; using deterministic fallback", {

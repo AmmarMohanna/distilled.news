@@ -1,0 +1,136 @@
+name: Staging canary heartbeat
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+
+concurrency:
+  group: staging-canary-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    environment: staging-canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Verify frozen protected-main workflow identity
+        env:
+          CANARY_RELEASE_SHA: ${{ vars.CANARY_RELEASE_SHA }}
+          GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: node scripts/release/verify-canary-workflow-identity.mjs
+      - name: Verify protected GitHub deployment controls
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_GITHUB_ENVIRONMENT: staging-canary
+        run: node scripts/release/verify-github-protection.mjs
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Restore evidence from the prior same-workflow run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANARY_STATE_HMAC_KEY: ${{ secrets.CANARY_STATE_HMAC_KEY }}
+          CANARY_RELEASE_SHA: ${{ vars.CANARY_RELEASE_SHA }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          runs_json="$(gh api --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/canary-heartbeat.yml/runs" \
+            -f status=completed \
+            -f per_page=100)"
+          prior_run_id="$(
+            node scripts/canary/select-evidence-run.mjs <<<"$runs_json"
+          )"
+          if [ -z "$prior_run_id" ]; then
+            echo "No prior completed same-SHA heartbeat exists; starting a fresh evidence window."
+            exit 0
+          fi
+
+          artifacts_json="$(gh api --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${prior_run_id}/artifacts" \
+            -f per_page=100)"
+          artifact_count="$(jq \
+            '[.artifacts[]
+              | select(.name == "staging-canary-evidence")
+              | select(.expired == false)]
+             | length' <<<"$artifacts_json")"
+          if [ "$artifact_count" -eq 0 ]; then
+            echo "The latest completed heartbeat has no evidence artifact; restarting the 24-hour window."
+            exit 0
+          fi
+          test "$artifact_count" -eq 1
+          artifact_id="$(jq -r \
+            '.artifacts[]
+             | select(.name == "staging-canary-evidence")
+             | select(.expired == false)
+             | .id' <<<"$artifacts_json")"
+          expected_digest="$(jq -r \
+            '.artifacts[]
+             | select(.name == "staging-canary-evidence")
+             | select(.expired == false)
+             | .digest' <<<"$artifacts_json")"
+          artifact_head_sha="$(jq -r \
+            '.artifacts[]
+             | select(.name == "staging-canary-evidence")
+             | select(.expired == false)
+             | .workflow_run.head_sha' <<<"$artifacts_json")"
+          artifact_size="$(jq \
+            '.artifacts[]
+             | select(.name == "staging-canary-evidence")
+             | select(.expired == false)
+             | .size_in_bytes' <<<"$artifacts_json")"
+          test "$artifact_head_sha" = "$CANARY_RELEASE_SHA"
+          [[ "$expected_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          test "$artifact_size" -gt 0
+          test "$artifact_size" -le 67108864
+
+          artifact_zip="$RUNNER_TEMP/canary-evidence-${artifact_id}.zip"
+          bundle_path="$RUNNER_TEMP/canary-state-${artifact_id}.json"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$artifact_zip"
+          actual_digest="sha256:$(sha256sum "$artifact_zip" | awk '{print $1}')"
+          test "$actual_digest" = "$expected_digest"
+          mapfile -t archive_members < <(unzip -Z1 "$artifact_zip")
+          test "${#archive_members[@]}" -eq 1
+          test "${archive_members[0]}" = "canary-state.json"
+          unzip -p "$artifact_zip" canary-state.json > "$bundle_path"
+          test "$(wc -c < "$bundle_path")" -le 67108864
+          node scripts/canary/state-bundle.mjs restore --input "$bundle_path"
+      - name: Record and, when complete, sign the heartbeat
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_CANARY_READ_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CANARY_ATTESTATION_PRIVATE_KEY: ${{ secrets.CANARY_ATTESTATION_PRIVATE_KEY }}
+        run: pnpm canary:heartbeat
+      - name: Package evidence and post-failure reset state
+        id: package-evidence
+        if: always()
+        env:
+          CANARY_STATE_HMAC_KEY: ${{ secrets.CANARY_STATE_HMAC_KEY }}
+          CANARY_RELEASE_SHA: ${{ vars.CANARY_RELEASE_SHA }}
+        run: |
+          test -d .canary-observations
+          node scripts/canary/state-bundle.mjs pack \
+            --output "$RUNNER_TEMP/canary-state.json"
+      - name: Persist protected evidence state
+        if: always() && steps.package-evidence.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: staging-canary-evidence
+          path: ${{ runner.temp }}/canary-state.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

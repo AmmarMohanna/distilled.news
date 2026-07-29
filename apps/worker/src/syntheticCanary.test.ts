@@ -105,9 +105,17 @@ async function seedSyntheticCanaryBriefings(repo: InMemoryRepository, paused = f
     }
   ];
   for (const canary of canaries) {
+    const account = await repo.createAccount({
+      email: `${canary.ownerUsername}@example.com`,
+      username: canary.ownerUsername,
+      role: "user",
+      passwordHash: "test-only",
+      emailVerifiedAt: new Date("2026-07-14T00:00:00.000Z").toISOString()
+    });
     await repo.upsertBriefing({
       ...personalNewsBriefing,
       ...canary,
+      ownerAccountId: account.id,
       paused,
       briefingCadence: "hourly"
     });

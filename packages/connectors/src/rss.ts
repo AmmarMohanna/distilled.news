@@ -23,20 +23,31 @@ const parser = new XMLParser({
   removeNSPrefix: true,
   trimValues: false,
   parseTagValue: false,
-  processEntities: true,
+  processEntities: false,
   isArray: (name) => ["item", "entry", "link", "enclosure", "content", "thumbnail"].includes(name)
 });
 
+const MAX_FEED_BYTES = 2 * 1024 * 1024;
+const MAX_FEED_ITEMS = 50;
+const MAX_SOURCE_TITLE_LENGTH = 200;
+const MAX_ITEM_TITLE_LENGTH = 500;
+const MAX_ITEM_DESCRIPTION_LENGTH = 8_000;
+const MAX_RAW_TEXT_FIELD_LENGTH = 20_000;
+const MAX_URL_LENGTH = 2_048;
+
 export function parseRssFeed(xml: string, options: RssParseOptions): NormalizedMessage[] {
+  assertBoundedFeedPayload(xml);
   return parseRssLikeFeed(xml, options, false);
 }
 
 export function parseGoogleNewsRssFeed(xml: string, options: RssParseOptions): NormalizedMessage[] {
+  assertBoundedFeedPayload(xml);
   return parseRssLikeFeed(xml, { ...options, provider: "rss", kind: "google_news" }, true);
 }
 
 /** Parse a small, conservative subset shared by JSON Feed and publisher APIs. */
 export function parseJsonNewsFeed(json: string, options: RssParseOptions): NormalizedMessage[] {
+  assertBoundedFeedPayload(json);
   let payload: unknown;
   try {
     payload = JSON.parse(json);
@@ -62,13 +73,14 @@ export function parseJsonNewsFeed(json: string, options: RssParseOptions): Norma
     provider: options.provider ?? "rss",
     kind: options.kind ?? "rss_feed"
   };
-  const messages = entries.flatMap((value, index): NormalizedMessage[] => {
+  const messages = entries.slice(0, MAX_FEED_ITEMS).flatMap((value, index): NormalizedMessage[] => {
     const entry = record(value);
-    const title = htmlToText(text(entry.title ?? entry.headline ?? entry.name));
-    const description = htmlToText(
+    const title = boundedPlainText(text(entry.title ?? entry.headline ?? entry.name), MAX_ITEM_TITLE_LENGTH);
+    const description = boundedPlainText(
       text(entry.description) || text(entry.summary) || text(entry.content_text) ||
-      text(entry.SmallDescription) || text(entry.Text)
-    ).slice(0, 1_200);
+      text(entry.SmallDescription) || text(entry.Text),
+      MAX_ITEM_DESCRIPTION_LENGTH
+    );
     const body = [title, description && description !== title ? description : ""].filter(Boolean).join(". ").trim();
     if (!body) return [];
 
@@ -77,7 +89,9 @@ export function parseJsonNewsFeed(json: string, options: RssParseOptions): Norma
       entry.date_published ?? entry.date_modified ?? entry.publishDate ?? entry.published_at ?? entry.publishedAt
     );
     const postedAt = parseDate(dateText, options.publisherTimeZone) ?? receivedAt.toISOString();
-    const stableId = text(entry.id ?? entry.articleid ?? entry.articleId ?? entry.guid) || link || `${index}:${stableHash(body)}`;
+    const stableId = boundedString(text(entry.id ?? entry.articleid ?? entry.articleId ?? entry.guid), MAX_URL_LENGTH) ||
+      link ||
+      `${index}:${stableHash(body)}`;
     const mediaUrl = resolveUrl(text(entry.image ?? entry.imageUrl ?? entry.MediaUrl), options.sourceUrl);
     const expiresAt = new Date(postedAt);
     expiresAt.setUTCDate(expiresAt.getUTCDate() + retentionDays);
@@ -112,6 +126,9 @@ export function buildGoogleNewsRssUrl(query: string, options: { geo?: string; la
 }
 
 function parseRssLikeFeed(xml: string, options: RssParseOptions, googleNews: boolean): NormalizedMessage[] {
+  if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(xml)) {
+    throw new Error("RSS or Atom DTD and entity declarations are not supported");
+  }
   let document: UnknownRecord;
   try {
     document = record(parser.parse(xml));
@@ -122,14 +139,18 @@ function parseRssLikeFeed(xml: string, options: RssParseOptions, googleNews: boo
   const rdf = record(document.RDF);
   const channel = record(rss.channel ?? rdf.channel);
   const feed = record(document.feed);
-  const entries = [...array(channel.item), ...array(rdf.item), ...array(feed.entry)].map(record);
+  const entries = [...array(channel.item), ...array(rdf.item), ...array(feed.entry)]
+    .slice(0, MAX_FEED_ITEMS)
+    .map(record);
   if (entries.length === 0 && !document.rss && !document.RDF && !document.feed) {
     throw new Error("Response is not an RSS or Atom feed");
   }
 
   const receivedAt = options.receivedAt ?? new Date();
   const retentionDays = options.retentionDays ?? 15;
-  const feedTitle = htmlToText(text(channel.title ?? feed.title)) || options.sourceTitle;
+  const feedTitle =
+    boundedPlainText(text(channel.title ?? feed.title), MAX_SOURCE_TITLE_LENGTH) ||
+    boundedString(options.sourceTitle, MAX_SOURCE_TITLE_LENGTH);
   const source: MessageSource = {
     id: options.sourceId,
     title: feedTitle,
@@ -139,17 +160,26 @@ function parseRssLikeFeed(xml: string, options: RssParseOptions, googleNews: boo
   };
 
   const messages = entries.flatMap((entry, index): NormalizedMessage[] => {
-    const itemPublisher = googleNews ? text(record(entry.source)["#text"] ?? entry.source) : "";
-    const itemTitle = text(entry.title);
+    const itemPublisher = googleNews
+      ? boundedPlainText(text(record(entry.source)["#text"] ?? entry.source), MAX_SOURCE_TITLE_LENGTH)
+      : "";
+    const itemTitle = boundedString(text(entry.title), MAX_ITEM_TITLE_LENGTH);
     const title = googleNews ? stripGoogleNewsSourceFromTitle(itemTitle, itemPublisher) : itemTitle;
-    const description = googleNews ? "" : htmlToText(text(entry.description ?? entry.summary ?? entry.encoded ?? entry.content));
-    const body = [htmlToText(title), description].filter(Boolean).join(". ").trim();
+    const description = googleNews
+      ? ""
+      : boundedPlainText(
+          text(entry.description ?? entry.summary ?? entry.encoded ?? entry.content),
+          MAX_ITEM_DESCRIPTION_LENGTH
+        );
+    const body = [boundedPlainText(title, MAX_ITEM_TITLE_LENGTH), description].filter(Boolean).join(". ").trim();
     if (!body) return [];
 
     const link = resolveUrl(extractLink(entry), options.sourceUrl);
     const dateText = text(entry.pubDate ?? entry.published ?? entry.updated ?? entry.date);
     const postedAt = parseDate(dateText) ?? receivedAt.toISOString();
-    const stableId = text(entry.guid ?? entry.id) || link || `${options.sourceUrl}#${stableHash(body)}`;
+    const stableId = boundedString(text(entry.guid ?? entry.id), MAX_URL_LENGTH) ||
+      link ||
+      `${options.sourceUrl}#${stableHash(body)}`;
     const expiresAt = new Date(postedAt);
     expiresAt.setUTCDate(expiresAt.getUTCDate() + retentionDays);
     const mediaUrl = resolveUrl(extractMedia(entry), options.sourceUrl);
@@ -202,7 +232,15 @@ function extractMedia(entry: UnknownRecord): string | undefined {
 }
 function resolveUrl(value: string | undefined, base: string): string | undefined {
   if (!value) return undefined;
-  try { const url = new URL(value, base); return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : undefined; } catch { return undefined; }
+  if (value.length > MAX_URL_LENGTH) return undefined;
+  try {
+    const url = new URL(value, base);
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password) return undefined;
+    const serialized = url.toString();
+    return serialized.length <= MAX_URL_LENGTH ? serialized : undefined;
+  } catch {
+    return undefined;
+  }
 }
 function parseDate(value: string, publisherTimeZone?: string): string | undefined {
   if (isNaiveIsoDateTime(value)) {
@@ -247,6 +285,17 @@ function offsetForTimeZone(date: Date, timeZone: string): number {
 }
 function htmlToText(value: string): string {
   return value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16))).replace(/&#(\d+);/g, (_, decimal: string) => String.fromCodePoint(Number.parseInt(decimal, 10))).replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/\s+/g, " ").trim();
+}
+function assertBoundedFeedPayload(payload: string): void {
+  if (new TextEncoder().encode(payload).byteLength > MAX_FEED_BYTES) {
+    throw new Error("Feed payload exceeds the 2 MiB normalization limit");
+  }
+}
+function boundedString(value: string, maxLength: number): string {
+  return value.slice(0, maxLength).trim();
+}
+function boundedPlainText(value: string, maxLength: number): string {
+  return htmlToText(value.slice(0, MAX_RAW_TEXT_FIELD_LENGTH)).slice(0, maxLength).trim();
 }
 function stripGoogleNewsSourceFromTitle(title: string, sourceTitle: string): string { const suffix = ` - ${sourceTitle}`; return sourceTitle && title.endsWith(suffix) ? title.slice(0, -suffix.length).trim() : title; }
 function normalizeRegion(value: string | undefined): string { return /^[A-Za-z]{2}$/.test(value ?? "") ? value!.toUpperCase() : "US"; }

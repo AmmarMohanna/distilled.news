@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { BriefingConfig } from "@distilled/core";
-import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
+import {
+  deriveBriefingSlug,
+  formatTime,
+  publicFeedUrl,
+  slugify,
+  uniqueSlug,
+  verificationEmailSentCopy
+} from "./helpers";
 
 const baseBriefing: BriefingConfig = {
   id: "briefing_default",
@@ -39,6 +46,11 @@ describe("web helpers", () => {
 
   it("builds shareable public feed URLs", () => {
     expect(publicFeedUrl("ammar-mohanna", "personal", "https://distilled.news")).toBe("https://distilled.news/ammar-mohanna/personal/");
+  });
+
+  it("matches hosted and self-hosted verification expiry policy", () => {
+    expect(verificationEmailSentCopy(true)).toContain("expires in 60 minutes");
+    expect(verificationEmailSentCopy(false)).toContain("expires in 24 hours");
   });
 
   it("formats timestamps consistently for all supported languages", () => {

@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "build": "wrangler deploy --dry-run --outdir dist",
-    "deploy": "wrangler deploy",
-    "db:migrate": "wrangler d1 migrations apply DB --local",
-    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "dev": "wrangler dev --env staging",
+    "build": "wrangler deploy --dry-run --env production --outdir dist",
+    "deploy": "node ../../scripts/release/deploy.mjs production",
+    "deploy:staging": "node ../../scripts/release/deploy.mjs staging",
+    "db:migrate": "wrangler d1 migrations apply DB --local --env staging",
+    "db:migrate:remote": "node ../../scripts/release/migrate.mjs production",
+    "types:wrangler": "wrangler types worker-configuration.d.ts --env production --env-file /dev/null --include-runtime=false --strict-vars=false",
+    "types:wrangler:check": "wrangler types worker-configuration.d.ts --env production --env-file /dev/null --include-runtime=false --strict-vars=false --check",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -16,14 +19,13 @@
     "@hono/zod-validator": "^0.7.0",
     "@distilled/connectors": "workspace:*",
     "@distilled/core": "workspace:*",
-    "hono": "^4.8.2",
+    "hono": "4.12.27",
     "zod": "^3.25.67"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.8.66",
-    "@cloudflare/workers-types": "^4.20250614.0",
+    "@cloudflare/workers-types": "5.20260729.1",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4",
-    "wrangler": "^4.20.5"
+    "vitest": "4.1.10",
+    "wrangler": "4.115.0"
   }
 }

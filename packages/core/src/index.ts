@@ -5,6 +5,7 @@ export * from "./edition-synthesis";
 export * from "./events";
 export * from "./filtering";
 export * from "./fixtures";
+export * from "./legal";
 export * from "./processing";
 export * from "./summarization";
 export * from "./text";

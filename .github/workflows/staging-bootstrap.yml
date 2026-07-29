@@ -1,0 +1,93 @@
+name: One-time staging bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type "bootstrap staging once"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+
+concurrency:
+  group: distilled-news-cloudflare-mutation
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      inputs.confirmation == 'bootstrap staging once'
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Verify protected GitHub deployment controls
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_GITHUB_ENVIRONMENT: staging
+        run: node scripts/release/verify-github-protection.mjs
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check -- --e2e --audit
+      - name: Prepare ephemeral first-deploy secret bindings
+        env:
+          ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET }}
+          ADMIN_SETUP_TOKEN: ${{ secrets.ADMIN_SETUP_TOKEN }}
+          INTERNAL_MAINTENANCE_SECRET: ${{ secrets.INTERNAL_MAINTENANCE_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+        run: |
+          node scripts/release/write-secrets-file.mjs \
+            --output "$RUNNER_TEMP/staging-bootstrap-secrets.json" \
+            --github-env "$GITHUB_ENV" \
+            -- \
+            ADMIN_SESSION_SECRET \
+            ADMIN_SETUP_TOKEN \
+            INTERNAL_MAINTENANCE_SECRET \
+            OPENAI_API_KEY \
+            TURNSTILE_SECRET_KEY \
+            APIFY_API_TOKEN
+      - name: Verify isolated staging resources and first-deploy bindings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/doctor.mjs --ci --remote --deployment --environment staging
+      - name: Verify live Apify capacity and pinned actor contracts
+        env:
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          APIFY_READINESS_TOKEN: ${{ secrets.APIFY_READINESS_TOKEN }}
+        run: node scripts/release/check-apify.mjs staging
+      - name: Establish and verify the one-time closed staging baseline
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ github.sha }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:staging:bootstrap-once
+          APIFY_READINESS_TOKEN: ${{ secrets.APIFY_READINESS_TOKEN }}
+        run: |
+          node scripts/release/bootstrap-staging.mjs \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/staging-bootstrap-baseline.json" \
+            --github-env "$GITHUB_ENV"
+      - name: Retain verified staging bootstrap baseline
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: staging-bootstrap-baseline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/distilled-release-evidence/staging-bootstrap-baseline.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove ephemeral secret material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/staging-bootstrap-secrets.json"

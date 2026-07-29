@@ -44,7 +44,8 @@ export async function processQueueMessage(
       return undefined;
     }
 
-    if (briefing.paused) {
+    const owner = await repo.getAccountById(briefing.ownerAccountId);
+    if (briefing.paused || !briefing.publicFeedEnabled || !owner || owner.disabledAt) {
       await repo.completeProcessingJob(message.jobId, now, claim.leaseToken);
       return undefined;
     }
@@ -54,12 +55,22 @@ export async function processQueueMessage(
       await repo.completeProcessingJob(message.jobId, now, claim.leaseToken);
       return undefined;
     }
+    const controlledCanaryModelPath =
+      !briefing.id.startsWith("launch_canary_briefing_") ||
+      rawMessage.source.id.startsWith("launch_canary_fixture_");
+    const scopedSummaryAdapter = controlledCanaryModelPath ? summaryAdapter : null;
+    const scopedReviewAdapter = controlledCanaryModelPath ? reviewAdapter : null;
 
     const existingItems = limitExistingItemsForProcessing(await repo.getExistingItems(briefing.id, now));
     const existingItemIds = new Set(existingItems.map((item) => item.id));
     const recentMessages = await repo.listRecentRawMessages(briefing.id, now, RECENT_MESSAGE_CONTEXT_LIMIT);
     const messages = uniqueMessagesById([rawMessage, ...recentMessages]);
-    const importantMessageIds = await findImportantMessageIds(briefing, messages, rawMessage.id, reviewAdapter);
+    const importantMessageIds = await findImportantMessageIds(
+      briefing,
+      messages,
+      rawMessage.id,
+      scopedReviewAdapter
+    );
     const result = processMessages({
       briefing,
       messages,
@@ -71,15 +82,23 @@ export async function processQueueMessage(
       briefing,
       result.publishedItems,
       rawMessage.id,
-      reviewAdapter
+      scopedReviewAdapter
     );
 
-    if (summaryAdapter) {
+    if (scopedSummaryAdapter) {
+      let summarizedCurrentMessage = false;
       for (const item of result.publishedItems) {
-        if (item.evidence.some((evidence) => evidence.messageId === rawMessage.id)) {
+        if (
+          !summarizedCurrentMessage &&
+          item.evidence.some((evidence) => evidence.messageId === rawMessage.id)
+        ) {
+          summarizedCurrentMessage = true;
           const fallbackSummary = item.summary;
           try {
-            const candidateSummary = sanitizeSummary(await summaryAdapter.summarize({ briefing, evidence: item.evidence }), briefing.language);
+            const candidateSummary = sanitizeSummary(
+              await scopedSummaryAdapter.summarize({ briefing, evidence: item.evidence }),
+              briefing.language
+            );
             if (candidateSummary) item.summary = candidateSummary;
             else if (!existingItemIds.has(item.id)) item.summary = "";
             else item.summary = fallbackSummary;
