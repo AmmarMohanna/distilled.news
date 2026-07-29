@@ -1,0 +1,14 @@
+# Public launch remains blocked until a second trusted maintainer is added here
+# and GitHub can enforce review separation.
+* @AmmarMohanna
+
+# Production trust boundaries receive explicit ownership even if more specific
+# paths are added later.
+/.github/workflows/ @AmmarMohanna
+/apps/worker/migrations/ @AmmarMohanna
+/apps/worker/src/auth.ts @AmmarMohanna
+/apps/worker/src/repository.ts @AmmarMohanna
+/scripts/release/ @AmmarMohanna
+/scripts/backup/ @AmmarMohanna
+/docs/legal/ @AmmarMohanna
+/SECURITY.md @AmmarMohanna

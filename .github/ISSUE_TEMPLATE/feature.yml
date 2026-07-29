@@ -1,0 +1,36 @@
+name: Feature proposal
+description: Propose a focused change that fits the public briefing product.
+title: "[Proposal] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What concrete user or operator problem needs solving?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the smallest useful outcome, not only an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Operational tradeoffs
+      description: Note source reliability, Cloudflare resources, retention, security, and expected cost.
+    validations:
+      required: true
+  - type: checkboxes
+    id: direction
+    attributes:
+      label: Product direction
+      options:
+        - label: This keeps published feeds public and does not introduce private-feed promises.
+          required: true
+        - label: This does not introduce a chatbot, open-ended public Q&A, or Vectorize.
+          required: true
