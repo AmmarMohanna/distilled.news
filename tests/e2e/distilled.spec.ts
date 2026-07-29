@@ -973,7 +973,10 @@ test("first-run setup sheet creates the first feed and source", async ({ page })
 
   await expect.poll(() => savedBriefing?.title).toBe("City Watch");
   expect(savedBriefing?.publicFeedEnabled).toBe(true);
-  expect(sourceBody).toEqual({ briefingId: "briefing_default", input: "https://t.me/LebUpdate" });
+  await expect.poll(() => sourceBody).toEqual({
+    briefingId: "briefing_default",
+    input: "https://t.me/LebUpdate"
+  });
   await expect(page.getByRole("dialog", { name: "create your feed" })).toBeVisible();
   await expect(page.getByText("Your feed was saved, but 1 source could not be added. Review the details and retry.")).toBeVisible();
   await expect(page.getByText("source connection temporarily failed")).toBeVisible();
