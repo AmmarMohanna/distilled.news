@@ -1,0 +1,62 @@
+name: Production legacy registration freeze
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type "freeze production at 74a97cf8-1361-41c8-bc7d-6d0b87b55151"
+        type: string
+        required: true
+      hardened_release_sha:
+        description: Optional exact hardened SHA when re-freezing an in-progress transition
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+
+concurrency:
+  group: distilled-news-cloudflare-mutation
+  cancel-in-progress: false
+
+jobs:
+  freeze:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      inputs.confirmation == 'freeze production at 74a97cf8-1361-41c8-bc7d-6d0b87b55151'
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Verify protected GitHub deployment controls
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_GITHUB_ENVIRONMENT: production
+        run: node scripts/release/verify-github-protection.mjs
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install and verify the pinned production registration freeze
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ inputs.hardened_release_sha }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:production:legacy-transition:freeze:74a97cf8-1361-41c8-bc7d-6d0b87b55151
+        run: |
+          node scripts/release/production-legacy-transition.mjs freeze \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/production-freeze.json"
+      - name: Retain freeze evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-registration-freeze-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/distilled-release-evidence/production-freeze.json
+          if-no-files-found: error
+          retention-days: 30

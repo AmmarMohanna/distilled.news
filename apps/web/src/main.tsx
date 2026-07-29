@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -6,22 +7,18 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Circle,
   CircleCheck,
   Compass,
   Copy,
   ExternalLink,
-  Gauge,
   Globe,
   Github,
   HelpCircle,
   Languages,
-  LayoutDashboard,
   ListChecks,
   LogIn,
   LogOut,
   Moon,
-  Newspaper,
   Pause,
   Play,
   Plus,
@@ -29,6 +26,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Send,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -41,30 +39,38 @@ import {
 import type { BriefingConfig, BriefingEdition, BriefingEditionSection, BriefingEvidence } from "@distilled/core";
 import { personalNewsBriefing } from "@distilled/core";
 import {
+  acceptLegalTerms,
   addSource,
   deleteBriefing,
   deleteAdminAccount,
   deleteAdminBriefing,
+  deleteOwnAccount,
   deleteSource,
   forgotPassword,
   getBriefings,
+  getCapabilities,
+  getAdminEmailStatus,
   getExploreFeeds,
   getFeed,
   getFeedEdition,
   getHealth,
+  getPublicStatus,
   getSession,
+  getSourceSuggestions,
   getSources,
+  isApiErrorStatus,
   listAdminBriefings,
   listAccounts,
   login,
   logout,
+  LEGAL_ACCEPTANCE_REQUIRED_EVENT,
   refreshPublicTelegramSources,
   register,
-  requestFeedSummary,
   resetPassword,
   retryProcessing,
   saveBriefing,
   searchFeed,
+  sendAdminEmailTest,
   setFeedStar,
   setSourceEnabled,
   setupAdmin,
@@ -72,16 +78,30 @@ import {
   updateAdminAccount,
   updateAdminBriefing,
   verifyEmail,
+  type AdminEmailStatus,
+  type PublicCapabilities,
+  type PublicStatus,
   type SourceIngestResult,
   type SourceRefreshResult
 } from "./api";
-import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify } from "./helpers";
-import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
+import {
+  deriveBriefingSlug,
+  formatTime,
+  publicFeedUrl,
+  slugify,
+  verificationEmailSentCopy
+} from "./helpers";
+import { legalDocuments, type LegalDocument } from "./legal";
+import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, LegalAcceptanceStatus, PublicBriefing, SessionStatus, SourceRecord, SourceSuggestion } from "./types";
 import "./styles.css";
 
 const FEED_BATCH_SIZE = 20;
+const GITHUB_URL = "https://github.com/AmmarMohanna/distilled.news";
+const SELF_HOST_URL = `${GITHUB_URL}#first-self-hosted-setup`;
+const TRUST_URL = `${GITHUB_URL}#what-it-does`;
 
 const sourceInputExamples = [
+  { label: "RSS URL", value: "https://example.com/feed.xml" },
   { label: "Telegram URL", value: "https://t.me/LebUpdate" },
   { label: "X URL", value: "https://x.com/NASA" },
   { label: "Search topic", value: "Lebanon electricity" }
@@ -92,6 +112,19 @@ type ReportSelection = {
   sectionIndex: number;
 };
 
+type PublicFeedState = "ready" | "collecting" | "delayed" | "needs-attention" | "paused" | "stale";
+type FeedLoadState = "loading" | "ready" | "not-found" | "unavailable";
+type LoadState = "idle" | "loading" | "ready" | "error";
+
+interface OnboardingSourceFailure {
+  input: string;
+  message: string;
+}
+
+interface OnboardingCompleteResult {
+  failedSources: OnboardingSourceFailure[];
+}
+
 declare global {
   interface Window {
     turnstile?: {
@@ -99,6 +132,7 @@ declare global {
         container: HTMLElement,
         options: {
           sitekey: string;
+          action: string;
           callback: (token: string) => void;
           "expired-callback": () => void;
           "error-callback": () => void;
@@ -112,13 +146,25 @@ declare global {
 
 function App() {
   const path = window.location.pathname;
-  if (path === "/verify-email") return <VerifyEmailPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
-  if (path === "/reset-password") return <ResetPasswordPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
+  if (path === "/verify-email") return <VerifyEmailPage token={consumeFragmentToken()} />;
+  if (path === "/reset-password") return <ResetPasswordPage token={consumeFragmentToken()} />;
+  if (path === "/status" || path === "/status/") return <StatusPage />;
+  const legalSlug = path.replace(/^\/|\/$/g, "") as LegalDocument["slug"];
+  if (legalSlug in legalDocuments) return <LegalPage document={legalDocuments[legalSlug]} />;
   const feedMatch = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
   if (feedMatch && !["api", "admin", "auth", "feed"].includes(feedMatch[1])) {
     return <FeedPage username={decodeURIComponent(feedMatch[1])} slug={decodeURIComponent(feedMatch[2])} />;
   }
-  return <AdminPage />;
+  if (path === "/") return <AdminPage />;
+  return <NotFoundPage />;
+}
+
+function consumeFragmentToken(): string {
+  const token = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token") ?? "";
+  if (window.location.hash) {
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+  }
+  return token;
 }
 
 function languageLabel(language: "en" | "ar" | "fr"): string {
@@ -127,9 +173,271 @@ function languageLabel(language: "en" | "ar" | "fr"): string {
   return "english";
 }
 
+function StatusPage() {
+  const [status, setStatus] = useState<PublicStatus | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  async function refreshStatus() {
+    setLoading(true);
+    setError("");
+    try {
+      setStatus(await getPublicStatus());
+    } catch (cause) {
+      setError(
+        isApiErrorStatus(cause, 404)
+          ? "Public status is not available on this self-hosted deployment."
+          : "Status is temporarily unavailable. Try again shortly."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshStatus();
+  }, []);
+
+  const title = status ? overallStatusTitle(status.status) : "Service status";
+  return (
+    <Shell
+      title="status"
+      titleText="status"
+      description="Current availability of Distilled.news public collection and publishing services."
+      canonicalPath="/status"
+    >
+      <section className="section public-status" aria-labelledby="public-status-title" aria-busy={loading}>
+        <div className="public-status-head">
+          <div>
+            <span className={`status-dot ${status?.status === "operational" ? "live" : "paused"}`} aria-hidden />
+            <h2 id="public-status-title">{title}</h2>
+          </div>
+          <button type="button" onClick={() => void refreshStatus()} disabled={loading}>
+            <RefreshCw size={15} aria-hidden /> {loading ? "Checking…" : "Check again"}
+          </button>
+        </div>
+        {loading && !status ? <p className="muted" role="status" aria-live="polite">Checking public services…</p> : null}
+        {error ? (
+          <div className="status-unavailable" role="status">
+            <strong>Needs attention</strong>
+            <p className="muted">{error}</p>
+          </div>
+        ) : null}
+        {status ? (
+          <>
+            <div className="status-service-list">
+              {status.services.map((service) => (
+                <div key={service.id} className="status-service-row">
+                  <span className={`status-dot ${service.status === "operational" ? "live" : "paused"}`} aria-hidden />
+                  <span>
+                    <strong>{service.label}</strong>
+                    {service.message ? <small>{service.message}</small> : null}
+                  </span>
+                  <b>{statusServiceLabel(service.status)}</b>
+                </div>
+              ))}
+            </div>
+            <p className="status-updated">
+              Updated <time dateTime={status.updatedAt}>{relativeTimeLabel(status.updatedAt, "en")}</time>
+              {status.releaseSha ? <> · release <code>{status.releaseSha.slice(0, 8)}</code></> : null}
+            </p>
+          </>
+        ) : null}
+      </section>
+    </Shell>
+  );
+}
+
+function LegalPage(props: { document: LegalDocument }) {
+  return (
+    <Shell
+      title={props.document.title}
+      titleText={props.document.title}
+      description={`${props.document.title} for the hosted Distilled.news service.`}
+      canonicalPath={`/${props.document.slug}`}
+    >
+      <article className="legal-page">
+        <p className="legal-effective">Effective {props.document.effective}</p>
+        <p className="legal-introduction">{props.document.introduction}</p>
+        {props.document.sections.map((section) => (
+          <section key={section.heading}>
+            <h2>{section.heading}</h2>
+            {section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+            {section.bullets ? (
+              <ul>
+                {section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
+              </ul>
+            ) : null}
+          </section>
+        ))}
+        <p className="legal-source-link">
+          The version-controlled policy source is available in the{" "}
+          <a href={`${GITHUB_URL}/tree/main/docs/legal`} target="_blank" rel="noreferrer">public repository</a>.
+        </p>
+      </article>
+    </Shell>
+  );
+}
+
+function LegalReconsentGate(props: {
+  account: AccountRecord;
+  legalAcceptance: LegalAcceptanceStatus;
+  onLogout: () => Promise<void>;
+  onAccepted: (account: AccountRecord, legalAcceptance: LegalAcceptanceStatus) => Promise<void>;
+  onDeleted: () => void;
+}) {
+  const [accepted, setAccepted] = useState(false);
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [busy, setBusy] = useState<"accept" | "delete" | null>(null);
+  const [error, setError] = useState("");
+
+  return (
+    <Shell title="review updated terms" onLogout={props.onLogout}>
+      <section className="legal-reconsent" aria-labelledby="legal-reconsent-title">
+        <div className="legal-reconsent-heading">
+          <ShieldCheck size={28} aria-hidden />
+          <div>
+            <span className="home-kicker">Account action required</span>
+            <h1 id="legal-reconsent-title">Review the current terms</h1>
+          </div>
+        </div>
+        <p>
+          Before you can change your account, feeds, or sources, review and accept the current
+          hosted-service policies. You can still log out or permanently delete your account.
+        </p>
+        <div className="legal-reconsent-documents">
+          <a href="/terms" target="_blank" rel="noreferrer">
+            <strong>Terms of service</strong>
+            <span>Version {props.legalAcceptance.currentTermsVersion}</span>
+          </a>
+          <a href="/acceptable-use" target="_blank" rel="noreferrer">
+            <strong>Acceptable Use Policy</strong>
+            <span>Version {props.legalAcceptance.currentAcceptableUseVersion}</span>
+          </a>
+          <a href="/privacy" target="_blank" rel="noreferrer">
+            <strong>Privacy Notice</strong>
+            <span>Version {props.legalAcceptance.currentPrivacyVersion}</span>
+          </a>
+        </div>
+        <form
+          className="legal-reconsent-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setError("");
+            setBusy("accept");
+            try {
+              const result = await acceptLegalTerms({
+                termsAccepted: true,
+                privacyAcknowledged: true,
+                termsVersion: props.legalAcceptance.currentTermsVersion,
+                privacyVersion: props.legalAcceptance.currentPrivacyVersion,
+                acceptableUseVersion: props.legalAcceptance.currentAcceptableUseVersion
+              });
+              await props.onAccepted(result.account, result.legalAcceptance);
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : String(cause));
+            } finally {
+              setBusy(null);
+            }
+          }}
+        >
+          <label className="legal-consent">
+            <input
+              type="checkbox"
+              checked={accepted}
+              required
+              onChange={(event) => setAccepted(event.target.checked)}
+            />
+            <span>
+              I agree to the current Terms and Acceptable Use Policy, and acknowledge the current
+              Privacy Notice.
+            </span>
+          </label>
+          <button type="submit" className="primary-button" disabled={!accepted || busy !== null}>
+            <CircleCheck size={16} aria-hidden /> {busy === "accept" ? "saving…" : "Accept and continue"}
+          </button>
+        </form>
+        <details className="legal-delete-account">
+          <summary>Delete my account instead</summary>
+          <p>
+            This permanently removes the active account data controlled by Distilled.news. Public
+            copies and provider records may remain under their stated retention periods.
+          </p>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setError("");
+              setBusy("delete");
+              try {
+                await deleteOwnAccount(deletePassword);
+                props.onDeleted();
+              } catch (cause) {
+                setError(cause instanceof Error ? cause.message : String(cause));
+              } finally {
+                setBusy(null);
+              }
+            }}
+          >
+            <label>
+              current password
+              <input
+                type="password"
+                autoComplete="current-password"
+                required
+                value={deletePassword}
+                onChange={(event) => setDeletePassword(event.target.value)}
+              />
+            </label>
+            <label className="legal-consent">
+              <input
+                type="checkbox"
+                checked={deleteConfirmed}
+                required
+                onChange={(event) => setDeleteConfirmed(event.target.checked)}
+              />
+              <span>I understand this permanently deletes my account.</span>
+            </label>
+            <button type="submit" className="danger-button" disabled={!deleteConfirmed || busy !== null}>
+              <Trash2 size={16} aria-hidden /> {busy === "delete" ? "deleting…" : "Permanently delete account"}
+            </button>
+          </form>
+        </details>
+        {error ? <p className="error" role="alert" aria-live="assertive">{error}</p> : null}
+        <p className="legal-reconsent-account">Signed in as {props.account.email}</p>
+      </section>
+    </Shell>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <Shell
+      title="Page not found"
+      titleText="page not found"
+      description="This Distilled.news page could not be found."
+      canonicalPath={window.location.pathname}
+      noIndex
+    >
+      <section className="section notice not-found-state">
+        <span className="home-kicker">404</span>
+        <p className="muted">Check the address, or return to Distilled.news.</p>
+        <a className="button-link primary-button" href="/">Go home</a>
+      </section>
+    </Shell>
+  );
+}
+
 function AdminPage() {
   const [session, setSession] = useState<SessionStatus | null>(null);
+  const [sessionLoadState, setSessionLoadState] = useState<LoadState>("loading");
+  const [sessionError, setSessionError] = useState("");
+  const [capabilities, setCapabilities] = useState<PublicCapabilities | null>(null);
+  const [capabilitiesSettled, setCapabilitiesSettled] = useState(false);
+  const [capabilitiesError, setCapabilitiesError] = useState("");
   const [briefings, setBriefings] = useState<BriefingConfig[]>([]);
+  const [briefingsLoadState, setBriefingsLoadState] = useState<LoadState>("idle");
+  const [briefingsError, setBriefingsError] = useState("");
   const [selectedBriefingId, setSelectedBriefingId] = useState<string | null>(null);
   const [sources, setSources] = useState<SourceRecord[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -138,22 +446,41 @@ function AdminPage() {
   const [sourceStatus, setSourceStatus] = useState("");
   const [sourceToggleBusyId, setSourceToggleBusyId] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
+  const [sourceSuggestions, setSourceSuggestions] = useState<SourceSuggestion[]>([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [error, setError] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [feedSettingsOpen, setFeedSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
-  const [scopedDataReady, setScopedDataReady] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [scopedDataLoadState, setScopedDataLoadState] = useState<LoadState>("idle");
+  const [scopedDataError, setScopedDataError] = useState("");
+  const [scopedBriefingId, setScopedBriefingId] = useState<string | null>(null);
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [homeInterest, setHomeInterest] = useState(() => localStorage.getItem("dn_pending_interest") ?? "");
+  const [homeAuthMode, setHomeAuthMode] = useState<"login" | "register" | null>(() =>
+    new URLSearchParams(window.location.search).get("login") === "1" ? "login" : null
+  );
   const selectedBriefingIdRef = useRef<string | null>(null);
   const briefingsRef = useRef<BriefingConfig[]>([]);
   const autosaveTimerRef = useRef<number | null>(null);
   const autosaveRunRef = useRef(0);
+  const scopedLoadRunRef = useRef(0);
+  const homeAuthSectionRef = useRef<HTMLElement | null>(null);
 
   const account = session?.account ?? null;
   const briefing = briefings.find((item) => item.id === selectedBriefingId) ?? null;
   const orderedBriefings = sortBriefings(briefings);
+  const feedLimit = capabilities?.hosted ? capabilities.limits?.feedsPerAccount : undefined;
+  const feedLimitReached = typeof feedLimit === "number" && briefings.length >= feedLimit;
+  const registrationOpen = Boolean(session?.setupRequired || capabilities?.registrationMode === "open");
+  const registrationAtCapacity = Boolean(
+    capabilities?.registration?.capacityReached || capabilities?.registration?.pendingCapacityReached
+  );
+  const pendingRegistrationAtCapacity = Boolean(capabilities?.registration?.pendingCapacityReached);
+  const paidProviderBeta = capabilities?.paidProviderBeta;
 
   useEffect(() => {
     selectedBriefingIdRef.current = selectedBriefingId;
@@ -165,8 +492,24 @@ function AdminPage() {
 
   useEffect(() => {
     if (!account) return;
-    setOnboardingDismissed(localStorage.getItem(onboardingStorageKey(account.id)) === "1");
+    const dismissed = localStorage.getItem(onboardingStorageKey(account.id)) === "1";
+    setOnboardingDismissed(dismissed);
+    setOnboardingOpen(false);
   }, [account?.id]);
+
+  useEffect(() => {
+    if (
+      account &&
+      briefing &&
+      scopedDataLoadState === "ready" &&
+      scopedBriefingId === briefing.id &&
+      sources.length === 0 &&
+      !onboardingDismissed &&
+      isFirstRunBriefing(briefing)
+    ) {
+      setOnboardingOpen(true);
+    }
+  }, [account?.id, briefing, onboardingDismissed, scopedBriefingId, scopedDataLoadState, sources.length]);
 
   useEffect(() => {
     return () => {
@@ -175,45 +518,144 @@ function AdminPage() {
   }, []);
 
   useEffect(() => {
-    getSession()
-      .then(async (nextSession) => {
-        setSession(nextSession);
-        if (nextSession.authenticated) {
-          await loadBriefings();
-          if (nextSession.account?.role === "admin") setAccounts(await listAccounts());
-        }
-      })
-      .catch((cause) => setError(String(cause)));
+    if (!homeAuthMode) return;
+    const frame = window.requestAnimationFrame(() => {
+      const authSection = homeAuthSectionRef.current;
+      if (!authSection) return;
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      authSection.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+      authSection.querySelector<HTMLInputElement>("input:not([type='hidden'])")?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [homeAuthMode]);
+
+  useEffect(() => {
+    if (!registrationOpen && homeAuthMode === "register") setHomeAuthMode("login");
+  }, [homeAuthMode, registrationOpen]);
+
+  useEffect(() => {
+    void refreshCapabilities();
+    void loadSession();
   }, []);
 
   useEffect(() => {
-    if (!selectedBriefingId || !session?.authenticated) return;
-    setScopedDataReady(false);
-    loadScopedData(selectedBriefingId).catch((cause) =>
-      setError(cause instanceof Error ? cause.message : String(cause))
-    ).finally(() => setScopedDataReady(true));
-  }, [selectedBriefingId, session?.authenticated]);
+    const refreshLegalState = () => {
+      void getSession()
+        .then(setSession)
+        .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
+    };
+    window.addEventListener(LEGAL_ACCEPTANCE_REQUIRED_EVENT, refreshLegalState);
+    return () => window.removeEventListener(LEGAL_ACCEPTANCE_REQUIRED_EVENT, refreshLegalState);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedBriefingId || !session?.authenticated || session.legalAcceptance?.required) {
+      scopedLoadRunRef.current += 1;
+      setSources([]);
+      setHealth(null);
+      setScopedBriefingId(null);
+      setScopedDataError("");
+      setScopedDataLoadState("idle");
+      return;
+    }
+    void loadScopedData(selectedBriefingId).catch(() => undefined);
+  }, [selectedBriefingId, session?.authenticated, session?.legalAcceptance?.required]);
+
+  async function refreshCapabilities() {
+    setCapabilitiesError("");
+    setCapabilitiesSettled(false);
+    try {
+      setCapabilities(await getCapabilities());
+    } catch (cause) {
+      setCapabilities(null);
+      setCapabilitiesError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setCapabilitiesSettled(true);
+    }
+  }
+
+  async function loadSession() {
+    setSessionLoadState("loading");
+    setSessionError("");
+    try {
+      const nextSession = await getSession();
+      setSession(nextSession);
+      setSessionLoadState("ready");
+      if (!nextSession.authenticated || nextSession.legalAcceptance?.required) {
+        setBriefingsLoadState("idle");
+        return;
+      }
+      try {
+        await loadBriefings();
+      } catch {
+        return;
+      }
+      if (nextSession.account?.role === "admin") {
+        try {
+          setAccounts(await listAccounts());
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : String(cause));
+        }
+      }
+    } catch (cause) {
+      setSession(null);
+      setSessionError(cause instanceof Error ? cause.message : String(cause));
+      setSessionLoadState("error");
+    }
+  }
 
   async function refreshSession() {
     const next = await getSession();
     setSession(next);
+    setSessionError("");
+    setSessionLoadState("ready");
     return next;
   }
 
   async function loadBriefings(preferredId?: string) {
-    const nextBriefings = await getBriefings();
-    setBriefings(nextBriefings);
-    const activeId =
-      preferredId && nextBriefings.some((item) => item.id === preferredId)
-        ? preferredId
-        : nextBriefings[0]?.id ?? null;
-    setSelectedBriefingId(activeId);
+    setBriefingsLoadState("loading");
+    setBriefingsError("");
+    try {
+      const nextBriefings = await getBriefings();
+      setBriefings(nextBriefings);
+      const activeId =
+        preferredId && nextBriefings.some((item) => item.id === preferredId)
+          ? preferredId
+          : nextBriefings[0]?.id ?? null;
+      setSelectedBriefingId(activeId);
+      setBriefingsLoadState("ready");
+    } catch (cause) {
+      setBriefingsError(cause instanceof Error ? cause.message : String(cause));
+      setBriefingsLoadState("error");
+      throw cause;
+    }
   }
 
   async function loadScopedData(briefingId: string) {
-    const [nextSources, nextHealth] = await Promise.all([getSources(briefingId), getHealth(briefingId)]);
-    setSources(nextSources);
-    setHealth(nextHealth);
+    const runId = scopedLoadRunRef.current + 1;
+    scopedLoadRunRef.current = runId;
+    setScopedDataLoadState("loading");
+    setScopedDataError("");
+    setScopedBriefingId(null);
+    setSources([]);
+    setHealth(null);
+    setSourceSuggestions([]);
+    setSuggestionsOpen(false);
+    try {
+      const [nextSources, nextHealth] = await Promise.all([getSources(briefingId), getHealth(briefingId)]);
+      if (scopedLoadRunRef.current !== runId || selectedBriefingIdRef.current !== briefingId) return;
+      setSources(nextSources);
+      setHealth(nextHealth);
+      setScopedBriefingId(briefingId);
+      setScopedDataLoadState("ready");
+    } catch (cause) {
+      if (scopedLoadRunRef.current === runId && selectedBriefingIdRef.current === briefingId) {
+        setScopedDataError(cause instanceof Error ? cause.message : String(cause));
+        setScopedBriefingId(null);
+        setScopedDataLoadState("error");
+      }
+      throw cause;
+    }
   }
 
   async function persistBriefing(nextBriefing: BriefingConfig, nextStatus = "saved", busyKey: string | null = "save-feed"): Promise<BriefingConfig> {
@@ -253,6 +695,10 @@ function AdminPage() {
 
   async function createBriefing() {
     if (!account) return;
+    if (feedLimitReached) {
+      setError(`Hosted accounts can create up to ${feedLimit} feeds. Delete one before creating another.`);
+      return;
+    }
     setError("");
     setBusyAction("create-feed");
     try {
@@ -260,6 +706,9 @@ function AdminPage() {
       const created = await persistBriefing(draft, "feed created");
       await loadBriefings(created.id);
       setFeedSettingsOpen(true);
+    } catch (cause) {
+      setStatus("");
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusyAction(null);
     }
@@ -280,12 +729,27 @@ function AdminPage() {
     setAccountDialogOpen(false);
     setFeedSettingsOpen(false);
     await logout();
+    clearAuthenticatedState();
+  }
+
+  function clearAuthenticatedState() {
     setSession({ authenticated: false, setupRequired: false });
+    setSessionLoadState("ready");
     setBriefings([]);
+    setBriefingsLoadState("idle");
+    setBriefingsError("");
     setSelectedBriefingId(null);
     setSources([]);
     setHealth(null);
+    setScopedDataLoadState("idle");
+    setScopedDataError("");
+    setScopedBriefingId(null);
     setAccounts([]);
+    setError("");
+    setAccountDialogOpen(false);
+    setFeedSettingsOpen(false);
+    setHelpOpen(false);
+    setOnboardingOpen(false);
   }
 
   const accountDialog = account && accountDialogOpen ? (
@@ -293,6 +757,7 @@ function AdminPage() {
       account={account}
       onClose={() => setAccountDialogOpen(false)}
       onLogout={handleLogout}
+      onDeleted={clearAuthenticatedState}
       onSaved={async (nextAccount, nextBriefings, message) => {
         setSession((current) => (current ? { ...current, account: nextAccount } : current));
         setBriefings(nextBriefings);
@@ -304,27 +769,19 @@ function AdminPage() {
     />
   ) : null;
 
-  const onboardingOpen = Boolean(
-    account &&
-      briefing &&
-      scopedDataReady &&
-      sources.length === 0 &&
-      !onboardingDismissed &&
-      isFirstRunBriefing(briefing)
-  );
-
   async function dismissOnboarding() {
     if (account) localStorage.setItem(onboardingStorageKey(account.id), "1");
     setOnboardingDismissed(true);
+    setOnboardingOpen(false);
   }
 
   async function completeOnboarding(input: {
     username: string;
     title: string;
     interestProfile: string;
-    sourceUrl: string;
-  }) {
-    if (!account || !briefing) return;
+    sourceInputs: string[];
+  }): Promise<OnboardingCompleteResult> {
+    if (!account || !briefing) return { failedSources: [] };
     setError("");
     setBusyAction("setup-feed");
     try {
@@ -344,6 +801,7 @@ function AdminPage() {
         {
           ...latestBriefing,
           ownerUsername: nextAccount.username,
+          slug: deriveBriefingSlug(nextBriefings, input.title, briefing.id),
           title: input.title,
           interestProfile: input.interestProfile,
           publicFeedEnabled: true,
@@ -353,14 +811,40 @@ function AdminPage() {
         "setup saved",
         "setup-feed"
       );
-      if (input.sourceUrl.trim()) {
-        setSourceStatus("checking the source and saving matching posts");
-        const response = await addSource(saved.id, input.sourceUrl);
-        applySourceResponse(response);
-        void pollHealthUntilSettled(saved.id, response.health);
+      const failedSources: OnboardingSourceFailure[] = [];
+      if (input.sourceInputs.length > 0) {
+        setSourceStatus(`Adding ${input.sourceInputs.length} selected source(s)`);
+        for (const sourceInput of input.sourceInputs) {
+          try {
+            const response = await addSource(saved.id, sourceInput);
+            applySourceResponse(response);
+          } catch (cause) {
+            failedSources.push({
+              input: sourceInput,
+              message: cause instanceof Error ? cause.message : String(cause)
+            });
+          }
+        }
+      }
+      if (failedSources.length > 0) {
+        const addedCount = input.sourceInputs.length - failedSources.length;
+        setSourceStatus(
+          addedCount > 0
+            ? `${addedCount} source(s) added; ${failedSources.length} need attention`
+            : "Feed saved, but its selected sources still need attention"
+        );
+        return { failedSources };
       }
       await dismissOnboarding();
-      if (nextAccount.role === "admin") setAccounts(await listAccounts());
+      localStorage.removeItem("dn_pending_interest");
+      if (nextAccount.role === "admin") {
+        try {
+          setAccounts(await listAccounts());
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : String(cause));
+        }
+      }
+      return { failedSources: [] };
     } finally {
       setBusyAction(null);
     }
@@ -375,10 +859,29 @@ function AdminPage() {
     if (autosave) scheduleBriefingAutosave(next);
   }
 
-  if (!session) {
+  if (sessionLoadState === "loading") {
     return (
-      <Shell title="create">
-        <p className="muted">loading</p>
+      <Shell title="briefings">
+        <section className="feed-load-state" role="status" aria-live="polite" aria-busy="true">
+          <RefreshCw size={18} aria-hidden />
+          <strong>Loading Distilled.news…</strong>
+          <p className="muted">Checking account access and public availability.</p>
+        </section>
+      </Shell>
+    );
+  }
+
+  if (sessionLoadState === "error" || !session) {
+    return (
+      <Shell title="briefings">
+        <section className="section notice unavailable-state" role="alert">
+          <span className="home-kicker">Connection problem</span>
+          <h2>Distilled.news could not be loaded</h2>
+          <p className="muted">{sessionError || "The account service is temporarily unavailable."}</p>
+          <button type="button" className="primary-button" onClick={() => void loadSession()}>
+            <RefreshCw size={15} aria-hidden /> Try again
+          </button>
+        </section>
       </Shell>
     );
   }
@@ -386,46 +889,218 @@ function AdminPage() {
   if (!session.authenticated) {
     return (
       <Shell title="Distilled.news">
-        <div className="auth-layout">
-          <AuthPanel
-            setupRequired={session.setupRequired}
-            turnstileSiteKey={session.turnstileSiteKey}
-            onAuthenticated={async () => {
-              const next = await refreshSession();
-              if (next.authenticated) {
-                await loadBriefings();
-                if (next.account?.role === "admin") setAccounts(await listAccounts());
-              }
-            }}
-          />
-          {!session.setupRequired ? <ExploreFeedsPanel /> : null}
-        </div>
-        {error ? <p className="error">{error}</p> : null}
+        <section className="home-hero">
+          <div className="home-hero-copy">
+            <span className="home-kicker">Your news, without the noise</span>
+            <h1>Know what matters.<br />Skip everything else.</h1>
+            <p>Tell Distilled what you care about. It finds relevant sources, removes repetition, and turns the updates into one clear briefing.</p>
+            <strong className="home-cta-promise">Get one clear brief at the cadence you choose.</strong>
+            {registrationOpen ? (
+              <form
+                className="interest-start"
+                aria-describedby="home-interest-help"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!homeInterest.trim()) return;
+                  localStorage.setItem("dn_pending_interest", homeInterest.trim());
+                  setHomeAuthMode("register");
+                }}
+              >
+                <label htmlFor="home-interest">What do you want to follow?</label>
+                <div className="interest-start-control">
+                  <input
+                    id="home-interest"
+                    dir="auto"
+                    value={homeInterest}
+                    onChange={(event) => setHomeInterest(event.target.value)}
+                    placeholder="AI research, Lebanon, climate policy…"
+                    autoComplete="off"
+                    required
+                  />
+                  <button type="submit" className="primary-button" disabled={!homeInterest.trim()}>
+                    Create my briefing <ChevronRight size={17} aria-hidden />
+                  </button>
+                </div>
+                <span id="home-interest-help" className="field-help">We’ll carry this into source setup after you create or sign in to an account.</span>
+              </form>
+            ) : !capabilitiesSettled ? (
+              <div className="home-registration-notice" role="status">
+                <strong>Checking account availability…</strong>
+                <span>You can still browse public briefings or sign in to an existing account.</span>
+              </div>
+            ) : capabilitiesError ? (
+              <div className="home-registration-notice" role="status">
+                <strong>Account availability could not be checked.</strong>
+                <span>Public briefings and existing-account sign-in still work.</span>
+                <button type="button" onClick={() => void refreshCapabilities()}>
+                  <RefreshCw size={15} aria-hidden /> Check again
+                </button>
+              </div>
+            ) : (
+              <div className="home-registration-notice" role="status">
+                <strong>{
+                  pendingRegistrationAtCapacity
+                    ? "The email-verification queue is temporarily full."
+                    : registrationAtCapacity
+                      ? "The hosted pilot is currently full."
+                      : "New hosted accounts are temporarily closed."
+                }</strong>
+                <span>{
+                  pendingRegistrationAtCapacity
+                    ? `Pending slots expire after ${capabilities?.registration?.pendingLeaseMinutes ?? 60} minutes. Try again shortly; existing accounts can still sign in.`
+                    : "You can still browse public briefings or sign in to an existing account."
+                }</span>
+              </div>
+            )}
+            <div className="home-secondary-actions">
+              <span>Already have a briefing?</span>
+              <button type="button" className="text-button" onClick={() => setHomeAuthMode("login")}>Sign in</button>
+            </div>
+          </div>
+          <HomeBriefingPreview />
+        </section>
+        <section className="home-how" aria-label="How Distilled works">
+          <div><span>1</span><strong>Describe your interests</strong><p>Use plain language. Be as broad or specific as you like.</p></div>
+          <div><span>2</span><strong>Choose your sources</strong><p>Pick from suggestions or add any source you already trust.</p></div>
+          <div><span>3</span><strong>Read a scheduled brief</strong><p>Choose hourly, daily, or weekly updates, then inspect any source when needed.</p></div>
+        </section>
+        {homeAuthMode || session.setupRequired ? (
+          <section ref={homeAuthSectionRef} className="home-auth" aria-label="Account access" tabIndex={-1}>
+            <div className="home-auth-copy">
+              <span className="home-kicker">{homeAuthMode === "login" ? "Welcome back" : "Save your briefing"}</span>
+              <h2>{homeAuthMode === "login" ? "Continue where you left off." : "One quick step, then choose your sources."}</h2>
+              <p>{homeAuthMode === "login" ? "Sign in to manage your feeds and sources." : "Create a free account. Your published briefing will have a simple public link you can share."}</p>
+            </div>
+            <AuthPanel
+              key={homeAuthMode ?? "setup"}
+              initialMode={homeAuthMode ?? undefined}
+              setupRequired={session.setupRequired}
+              registrationOpen={registrationOpen}
+              hosted={capabilities?.hosted === true}
+              turnstileSiteKey={session.turnstileSiteKey}
+              pendingInterest={homeInterest.trim()}
+              onAuthenticated={async () => {
+                const next = await refreshSession();
+                if (next.authenticated && !next.legalAcceptance?.required) {
+                  await loadBriefings();
+                  if (next.account?.role === "admin") setAccounts(await listAccounts());
+                }
+              }}
+            />
+          </section>
+        ) : null}
+        {!session.setupRequired ? (
+          <section id="public-briefings" className="home-explore">
+            <div className="home-section-heading"><span className="home-kicker">Public briefings</span><h2>See what people are following.</h2></div>
+            <ExploreFeedsPanel />
+          </section>
+        ) : null}
+        {error ? <p className="error" role="alert" aria-live="assertive">{error}</p> : null}
       </Shell>
     );
   }
 
   if (!account) {
     return (
-      <Shell title="create" onLogout={handleLogout}>
-        <p className="error">session account unavailable</p>
+      <Shell title="briefings" onLogout={handleLogout}>
+        <p className="error" role="alert">session account unavailable</p>
       </Shell>
+    );
+  }
+
+  if (session.legalAcceptance?.required) {
+    return (
+      <LegalReconsentGate
+        account={account}
+        legalAcceptance={session.legalAcceptance}
+        onLogout={handleLogout}
+        onAccepted={async (nextAccount, legalAcceptance) => {
+          setSession((current) => current
+            ? { ...current, account: nextAccount, legalAcceptance }
+            : current
+          );
+          await loadBriefings();
+          if (nextAccount.role === "admin") setAccounts(await listAccounts());
+        }}
+        onDeleted={clearAuthenticatedState}
+      />
+    );
+  }
+
+  if (briefingsLoadState !== "ready") {
+    const loadFailed = briefingsLoadState === "error";
+    return (
+      <>
+        <Shell title="briefings" onAccount={() => setAccountDialogOpen(true)}>
+          {loadFailed ? (
+            <section className="section notice unavailable-state" role="alert">
+              <span className="home-kicker">Could not load feeds</span>
+              <h2>Your briefings are temporarily unavailable</h2>
+              <p className="muted">{briefingsError || "Try loading your briefings again."}</p>
+              <button type="button" className="primary-button" onClick={() => void loadBriefings().catch(() => undefined)}>
+                <RefreshCw size={15} aria-hidden /> Try again
+              </button>
+            </section>
+          ) : (
+            <section className="feed-load-state" role="status" aria-live="polite" aria-busy="true">
+              <RefreshCw size={18} aria-hidden />
+              <strong>Loading your briefings…</strong>
+              <p className="muted">Checking feeds before showing management controls.</p>
+            </section>
+          )}
+        </Shell>
+        {accountDialog}
+      </>
     );
   }
 
   if (!briefing) {
     return (
       <>
-        <Shell title="create" onAccount={() => setAccountDialogOpen(true)}>
+        <Shell title="briefings" onAccount={() => setAccountDialogOpen(true)}>
+          {error ? <ActionError message={error} onDismiss={() => setError("")} /> : null}
           <section className="section">
             <div className="section-title">
               <Globe size={16} aria-hidden />
               <h2>feeds</h2>
             </div>
-            <button type="button" title="new feed" onClick={() => createBriefing()}>
+            <button
+              type="button"
+              title={feedLimitReached ? `hosted limit: ${feedLimit} feeds` : "new feed"}
+              disabled={feedLimitReached}
+              onClick={() => createBriefing()}
+            >
               <Plus size={15} aria-hidden /> new feed
             </button>
+            {feedLimitReached ? <p className="field-help">Hosted accounts can keep up to {feedLimit} feeds.</p> : null}
           </section>
+        </Shell>
+        {accountDialog}
+      </>
+    );
+  }
+
+  if (scopedDataLoadState !== "ready" || scopedBriefingId !== briefing.id) {
+    const loadFailed = scopedDataLoadState === "error";
+    return (
+      <>
+        <Shell title="briefings" onAccount={() => setAccountDialogOpen(true)} feed={briefing}>
+          {loadFailed ? (
+            <section className="section notice unavailable-state" role="alert">
+              <span className="home-kicker">Feed data unavailable</span>
+              <h2>Sources and health could not be loaded</h2>
+              <p className="muted">{scopedDataError || "No source or queue status is being shown until the check succeeds."}</p>
+              <button type="button" className="primary-button" onClick={() => void loadScopedData(briefing.id).catch(() => undefined)}>
+                <RefreshCw size={15} aria-hidden /> Try again
+              </button>
+            </section>
+          ) : (
+            <section className="feed-load-state" role="status" aria-live="polite" aria-busy="true">
+              <RefreshCw size={18} aria-hidden />
+              <strong>Loading {briefing.title}…</strong>
+              <p className="muted">Checking sources, queue activity, and publication health.</p>
+            </section>
+          )}
         </Shell>
         {accountDialog}
       </>
@@ -434,8 +1109,9 @@ function AdminPage() {
 
   return (
     <>
-      <Shell title="create" onAccount={() => setAccountDialogOpen(true)} feed={briefing}>
+      <Shell title="briefings" onAccount={() => setAccountDialogOpen(true)} feed={briefing}>
         <div className="admin-stack">
+          {error ? <ActionError message={error} onDismiss={() => setError("")} /> : null}
           <AdminCommandPanel
             briefing={briefing}
             sources={sources}
@@ -452,13 +1128,22 @@ function AdminPage() {
               <h2>feeds</h2>
             </div>
             <div className="actions">
-              <button type="button" className="primary-button" title="new feed" disabled={busyAction === "create-feed"} onClick={() => createBriefing()}>
+              <button
+                type="button"
+                className="primary-button"
+                title={feedLimitReached ? `hosted limit: ${feedLimit} feeds` : "new feed"}
+                disabled={busyAction === "create-feed" || feedLimitReached}
+                onClick={() => createBriefing()}
+              >
                 <Plus size={15} aria-hidden /> new feed
               </button>
               {status || autosaveState !== "idle" ? (
-                <span className={`save-state ${autosaveState === "error" ? "error" : ""}`}>{formatAutosaveStatus(autosaveState, status)}</span>
+                <span className={`save-state ${autosaveState === "error" ? "error" : ""}`} role="status" aria-live="polite">
+                  {formatAutosaveStatus(autosaveState, status)}
+                </span>
               ) : null}
             </div>
+            {feedLimitReached ? <p className="field-help">Hosted accounts can keep up to {feedLimit} feeds. Delete one to create another.</p> : null}
             <div className="feed-list">
               {orderedBriefings.map((item) => (
                 <div key={item.id} className={`feed-row${item.id === briefing.id ? " active" : ""}`}>
@@ -483,8 +1168,8 @@ function AdminPage() {
                     >
                       <Settings size={15} aria-hidden />
                     </button>
-                    <a className="button-link icon-button" href={`/${item.ownerUsername}/${item.slug}/`} aria-label={`open ${item.title}`} title="open feed">
-                      <ExternalLink size={15} aria-hidden />
+                    <a className="button-link icon-button feed-open-icon" href={`/${item.ownerUsername}/${item.slug}/`} aria-label={`open ${item.title}`} title="open feed">
+                      <ExternalLink size={18} strokeWidth={2.25} aria-hidden />
                     </a>
                     <button
                       type="button"
@@ -545,6 +1230,83 @@ function AdminPage() {
                 </button>
               </div>
             </div>
+            {paidProviderBeta ? (
+              <div className="source-selection-status" role="status" aria-live="polite">
+                <strong>
+                  {paidProviderBeta.capacityReached
+                    ? `Paid-source beta is full (${paidProviderBeta.claimedAccounts}/${paidProviderBeta.accountCap} account seats)`
+                    : `Paid-source beta: ${paidProviderBeta.remainingAccounts} of ${paidProviderBeta.accountCap} account seats available`}
+                </strong>
+                <span className="muted">
+                  One account seat covers both X and Google News.
+                  {paidProviderBeta.capacityReached
+                    ? " Existing beta accounts keep access; RSS and Telegram remain available."
+                    : ""}
+                </span>
+              </div>
+            ) : null}
+            <div className="source-discovery">
+              <div>
+                <strong>Find the right sources</strong>
+                <p className="muted">Suggestions are based on this feed’s interests. You choose what gets added.</p>
+              </div>
+              <button
+                type="button"
+                className="suggest-button"
+                disabled={busyAction === "suggest-sources" || !briefing.interestProfile.trim()}
+                onClick={async () => {
+                  setError("");
+                  setBusyAction("suggest-sources");
+                  try {
+                    const result = await getSourceSuggestions({ briefingId: briefing.id, interestProfile: briefing.interestProfile, language: briefing.language });
+                    setSourceSuggestions(result.suggestions);
+                    setSuggestionsOpen(true);
+                    setSourceStatus(result.degraded ? "Showing trusted suggestions; live discovery is temporarily unavailable." : "Suggestions ready");
+                  } catch (cause) {
+                    setError(cause instanceof Error ? cause.message : String(cause));
+                  } finally {
+                    setBusyAction(null);
+                  }
+                }}
+              >
+                <Sparkles size={15} aria-hidden /> {busyAction === "suggest-sources" ? "Finding…" : "Suggest sources"}
+              </button>
+            </div>
+            {suggestionsOpen ? (
+              <div className="suggestion-grid" aria-label="suggested sources">
+                {sourceSuggestions.map((suggestion) => (
+                  <article key={suggestion.id} className="suggestion-card">
+                    <div className="suggestion-card-heading">
+                      <div>
+                        <strong><bdi>{suggestion.title}</bdi></strong>
+                        <span className="pill">{suggestion.origin === "curated" ? "trusted" : suggestion.origin === "gdelt" ? "recent" : "broad"}</span>
+                      </div>
+                      <a href={suggestion.homepageUrl} target="_blank" rel="noreferrer" aria-label={`Open ${suggestion.title}`}><ExternalLink size={14} /></a>
+                    </div>
+                    <p>{suggestion.description}</p>
+                    <small>{suggestion.reason}</small>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={suggestion.alreadyAdded || busyAction === `suggestion-${suggestion.id}`}
+                      onClick={async () => {
+                        setBusyAction(`suggestion-${suggestion.id}`);
+                        try {
+                          const response = await addSource(briefing.id, suggestion.input);
+                          applySourceResponse(response);
+                          setSourceSuggestions((current) => current.map((item) => item.id === suggestion.id ? { ...item, alreadyAdded: true } : item));
+                          setStatus(`${suggestion.title} added`);
+                        } catch (cause) {
+                          setError(cause instanceof Error ? cause.message : String(cause));
+                        } finally { setBusyAction(null); }
+                      }}
+                    >
+                      {suggestion.alreadyAdded ? <><CircleCheck size={14} /> Added</> : <><Plus size={14} /> Add</>}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : null}
             <div className="source-add">
               <label>
                 source
@@ -552,7 +1314,7 @@ function AdminPage() {
                   dir="ltr"
                   value={sourceUrl}
                   onChange={(event) => setSourceUrl(event.target.value)}
-                  placeholder="https://t.me/LebUpdate, https://x.com/NASA, or Lebanon electricity"
+                  placeholder="https://example.com/feed.xml, https://t.me/LebUpdate, or Lebanon electricity"
                 />
               </label>
               <div className="source-examples" aria-label="source examples">
@@ -597,14 +1359,19 @@ function AdminPage() {
             <HealthSummary
               briefing={briefing}
               health={health}
+              budgetLimits={capabilities?.limits?.budgets}
               activity={sourceStatus}
               retryBusy={busyAction === "retry-processing"}
               onRetryProcessing={async () => {
+                setError("");
                 setBusyAction("retry-processing");
                 try {
                   const response = await retryProcessing(briefing.id);
                   setHealth(response.health);
                   setStatus(response.retried > 0 ? `retried ${response.retried} job(s)` : "no stale jobs to retry");
+                } catch (cause) {
+                  setStatus("");
+                  setError(cause instanceof Error ? cause.message : String(cause));
                 } finally {
                   setBusyAction(null);
                 }
@@ -652,11 +1419,24 @@ function AdminPage() {
                     className="icon-button"
                     aria-label={`remove ${source.title}`}
                     title="remove source"
+                    disabled={busyAction === `remove-source-${source.id}`}
                     onClick={async () => {
-                      const response = await deleteSource(briefing.id, source.id);
-                      setSources(response.sources);
-                      setHealth(response.health);
-                      setSourceStatus("source removed");
+                      if (!window.confirm(`Remove "${source.title}" from this feed? It will stop collecting new updates from this source.`)) return;
+                      setError("");
+                      setBusyAction(`remove-source-${source.id}`);
+                      try {
+                        const response = await deleteSource(briefing.id, source.id);
+                        setSources(response.sources);
+                        setHealth(response.health);
+                        setSourceStatus("source removed");
+                        setStatus(`${source.title} removed`);
+                        void refreshCapabilities();
+                      } catch (cause) {
+                        setStatus("");
+                        setError(cause instanceof Error ? cause.message : String(cause));
+                      } finally {
+                        setBusyAction(null);
+                      }
                     }}
                   >
                     <Trash2 size={15} aria-hidden />
@@ -679,9 +1459,9 @@ function AdminPage() {
       {feedSettingsOpen ? (
         <FeedSettingsSheet
           briefing={briefing}
-          briefings={briefings}
           autosaveState={autosaveState}
           status={status}
+          actionError={error}
           canDelete={briefings.length > 1}
           onClose={() => setFeedSettingsOpen(false)}
           onPatch={(patch) => patchSelectedBriefing(patch)}
@@ -697,11 +1477,17 @@ function AdminPage() {
           onDelete={async () => {
             if (briefings.length <= 1) return;
             if (!window.confirm(`Delete "${briefing.title}" and all of its sources and published items?`)) return;
-            const remaining = await deleteBriefing(briefing.id);
-            setBriefings(remaining);
-            setSelectedBriefingId(remaining[0]?.id ?? null);
-            setFeedSettingsOpen(false);
-            setStatus("feed deleted");
+            setError("");
+            try {
+              const remaining = await deleteBriefing(briefing.id);
+              setBriefings(remaining);
+              setSelectedBriefingId(remaining[0]?.id ?? null);
+              setFeedSettingsOpen(false);
+              setStatus("feed deleted");
+            } catch (cause) {
+              setStatus("");
+              setError(cause instanceof Error ? cause.message : String(cause));
+            }
           }}
         />
       ) : null}
@@ -710,6 +1496,7 @@ function AdminPage() {
         <FirstRunSetupSheet
           account={account}
           briefing={briefing}
+          paidProviderBeta={paidProviderBeta}
           busy={busyAction === "setup-feed"}
           onClose={() => void dismissOnboarding()}
           onComplete={completeOnboarding}
@@ -721,6 +1508,7 @@ function AdminPage() {
   function applySourceResponse(response: SourceRefreshResult) {
     setSources(response.sources);
     setHealth(response.health);
+    void refreshCapabilities();
     if (response.result) setSourceStatus(formatSourceIngestResult(response.result));
     else if (response.results) setSourceStatus(formatSourceRefreshResults(response.results));
   }
@@ -742,6 +1530,15 @@ function AdminPage() {
   }
 }
 
+function ActionError(props: { message: string; onDismiss: () => void }) {
+  return (
+    <div className="action-error" role="alert" aria-live="assertive">
+      <span>{props.message}</span>
+      <button type="button" onClick={props.onDismiss}>Dismiss</button>
+    </div>
+  );
+}
+
 function AdminCommandPanel(props: {
   briefing: BriefingConfig;
   sources: SourceRecord[];
@@ -752,12 +1549,16 @@ function AdminCommandPanel(props: {
   onCopy: () => Promise<void>;
 }) {
   const enabledSources = props.sources.filter((source) => source.enabled).length;
-  const queuedJobs = props.health?.processing.queued ?? 0;
-  const failedJobs = props.health?.processing.failed ?? 0;
+  const queuedJobs = props.health?.processing.queued;
+  const failedJobs = props.health?.processing.failed;
+  const staleJobs = props.health?.processing.staleQueued;
   const latestPublishedAt = props.health?.latestPublishedAt;
   const nextBriefingAt = props.health?.nextBriefingAt ?? props.briefing.nextBriefingAt;
   const activity = props.sourceStatus || props.status || getHealthSummaryParts(props.briefing, props.health).queueState;
   const sourceCopy = `${enabledSources}/${props.sources.length} enabled`;
+  const queueCopy = props.health
+    ? `${queuedJobs ?? 0} queued${(staleJobs ?? 0) > 0 ? ` / ${staleJobs} stale` : ""} / ${failedJobs ?? 0} failed 24h`
+    : "health unavailable";
 
   return (
     <section className="command-panel" aria-label="feed command center">
@@ -769,8 +1570,8 @@ function AdminCommandPanel(props: {
         </div>
         <code className="command-url">/{props.briefing.ownerUsername}/{props.briefing.slug}/</code>
         <div className="command-actions">
-          <a className="button-link primary-button" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title="open feed">
-            <ExternalLink size={15} aria-hidden /> open feed
+          <a className="button-link primary-button open-feed-button" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title="open feed">
+            <ExternalLink size={19} strokeWidth={2.25} aria-hidden /> open feed
           </a>
           <button type="button" title="feed settings" onClick={props.onOpenSettings}>
             <Settings size={15} aria-hidden /> settings
@@ -794,7 +1595,7 @@ function AdminCommandPanel(props: {
         <div className="metric-tile">
           <Activity size={18} aria-hidden />
           <span>queue</span>
-          <strong>{queuedJobs} queued / {failedJobs} failed</strong>
+          <strong>{queueCopy}</strong>
         </div>
         <div className="metric-tile">
           <Clock3 size={18} aria-hidden />
@@ -810,20 +1611,65 @@ function AdminCommandPanel(props: {
   );
 }
 
-function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
-  const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired ? "register" : "login");
+function HomeBriefingPreview() {
+  return (
+    <div className="home-preview" aria-label="Example Distilled briefing">
+      <div className="home-preview-topline">
+        <div><span className="preview-mark" aria-hidden /><strong>Latest briefing</strong></div>
+        <span>On schedule</span>
+      </div>
+      <div className="home-preview-summary">
+        <span className="home-kicker">In two minutes</span>
+        <h2>Three updates worth your attention.</h2>
+      </div>
+      <article className="preview-story">
+        <span>01</span>
+        <div><strong>Policy moved from discussion to a concrete vote.</strong><p>What changed, why it matters, and what happens next—without the repeated headlines.</p></div>
+      </article>
+      <article className="preview-story">
+        <span>02</span>
+        <div><strong>A new research result changes the near-term picture.</strong><p>Distilled links every conclusion back to the original reporting.</p></div>
+      </article>
+      <article className="preview-story preview-story-muted">
+        <span>03</span>
+        <div><strong>The rest can wait.</strong><p>Low-signal updates and duplicates stay out of your briefing.</p></div>
+      </article>
+      <div className="home-preview-footer"><ShieldCheck size={16} aria-hidden /> Sources remain visible. You stay in control.</div>
+    </div>
+  );
+}
+
+function AuthPanel(props: {
+  setupRequired: boolean;
+  registrationOpen?: boolean;
+  hosted?: boolean;
+  turnstileSiteKey?: string;
+  initialMode?: "login" | "register";
+  pendingInterest?: string;
+  onAuthenticated: () => Promise<void>;
+}) {
+  const registrationOpen = props.registrationOpen !== false;
+  const [mode, setMode] = useState<"login" | "register" | "forgot">(
+    props.setupRequired ? "register" : props.initialMode === "register" && !registrationOpen ? "login" : props.initialMode ?? "login"
+  );
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [setupToken, setSetupToken] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const copy = getAuthPanelCopy(props.setupRequired, mode);
   const submitLabel = getAuthSubmitLabel(props.setupRequired, mode);
   const requiresTurnstile = Boolean(props.turnstileSiteKey && !props.setupRequired);
   const usernamePreview = username.trim() ? slugify(username) : "";
+
+  useEffect(() => {
+    if (!registrationOpen && mode === "register") setMode("login");
+  }, [mode, registrationOpen]);
 
   function resetTurnstile() {
     if (!requiresTurnstile) return;
@@ -838,6 +1684,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         event.preventDefault();
         setError("");
         setMessage("");
+        setSubmitting(true);
         try {
           if (requiresTurnstile && !turnstileToken) {
             setError("complete the verification check");
@@ -849,9 +1696,18 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
             return;
           }
           if (mode === "register") {
-            await register({ email, username, password, turnstileToken });
+            await register({
+              email,
+              username,
+              password,
+              turnstileToken,
+              termsAccepted,
+              termsVersion: legalDocuments.terms.version,
+              privacyVersion: legalDocuments.privacy.version,
+              acceptableUseVersion: legalDocuments["acceptable-use"].version
+            });
             setPassword("");
-            setMessage("verification email sent. Check your inbox and spam folder. The link expires in 24 hours.");
+            setMessage(verificationEmailSentCopy(props.hosted === true));
             resetTurnstile();
             return;
           }
@@ -866,8 +1722,11 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : String(cause));
           resetTurnstile();
+        } finally {
+          setSubmitting(false);
         }
       }}
+      aria-busy={submitting}
     >
       <div className="auth-copy">
         <strong>{copy.title}</strong>
@@ -876,17 +1735,17 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       {props.setupRequired ? (
         <label>
           setup token
-          <input autoComplete="one-time-code" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
+          <input autoComplete="one-time-code" required value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
         </label>
       ) : null}
       <label>
         email
-        <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
       {(mode === "register" || props.setupRequired) ? (
         <label>
           username
-          <input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} />
+          <input autoComplete="username" required value={username} onChange={(event) => setUsername(event.target.value)} />
           <span className="field-help">{usernamePreview ? `your feed URLs start with /${usernamePreview}/` : "letters and numbers become your feed URL name"}</span>
         </label>
       ) : null}
@@ -897,6 +1756,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
             type="password"
             autoComplete={mode === "register" || props.setupRequired ? "new-password" : "current-password"}
             minLength={8}
+            required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
@@ -906,16 +1766,47 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       {requiresTurnstile && props.turnstileSiteKey ? (
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
-      <button type="submit" className="primary-button" title={submitLabel}><LogIn size={15} aria-hidden /> {submitLabel}</button>
+      {!props.setupRequired && mode === "register" ? (
+        <label className="legal-consent">
+          <input
+            type="checkbox"
+            checked={termsAccepted}
+            required
+            onChange={(event) => setTermsAccepted(event.target.checked)}
+          />
+          <span>
+            I agree to the <a href="/terms" target="_blank" rel="noreferrer">Terms</a> and{" "}
+            <a href="/acceptable-use" target="_blank" rel="noreferrer">Acceptable Use Policy</a>, and acknowledge the{" "}
+            <a href="/privacy" target="_blank" rel="noreferrer">Privacy Notice</a>.
+          </span>
+        </label>
+      ) : null}
+      {props.pendingInterest && mode !== "forgot" ? (
+        <p className="pending-interest-note" role="status">
+          Following: <bdi>{props.pendingInterest}</bdi>. We’ll carry this into your first feed.
+        </p>
+      ) : null}
+      <button
+        type="submit"
+        className="primary-button"
+        title={submitLabel}
+        disabled={submitting || (!props.setupRequired && mode === "register" && !termsAccepted)}
+      >
+        <LogIn size={15} aria-hidden /> {submitting ? "working…" : submitLabel}
+      </button>
       {!props.setupRequired ? (
         <div className="auth-switch">
           {mode !== "login" ? <button type="button" title="login" onClick={() => setMode("login")}>login</button> : null}
-          {mode !== "register" ? <button type="button" title="new account" onClick={() => setMode("register")}>new account</button> : null}
+          {registrationOpen && mode !== "register" ? <button type="button" title="new account" onClick={() => setMode("register")}>new account</button> : null}
           {mode !== "forgot" ? <button type="button" title="forgot password" onClick={() => setMode("forgot")}>forgot password</button> : null}
         </div>
       ) : null}
-      {message ? <p className="muted">{message}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
+      <div className="form-announcer" aria-live="polite" aria-atomic="true">
+        {message ? <p className="muted" role="status">{message}</p> : null}
+      </div>
+      <div className="form-announcer" aria-live="assertive" aria-atomic="true">
+        {error ? <p className="error" role="alert">{error}</p> : null}
+      </div>
     </form>
   );
 }
@@ -963,6 +1854,7 @@ function TurnstileField(props: { siteKey: string; resetSignal: number; onToken: 
       if (cancelled || !containerRef.current || !window.turnstile || widgetIdRef.current) return;
       widgetIdRef.current = window.turnstile.render(containerRef.current, {
         sitekey: props.siteKey,
+        action: "register",
         callback: props.onToken,
         "expired-callback": () => props.onToken(""),
         "error-callback": () => props.onToken("")
@@ -1027,14 +1919,18 @@ function ExploreFeedsSheet(props: { currentFeed?: PublicBriefing; language?: "en
 
 function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" | "ar" | "fr" }) {
   const [feeds, setFeeds] = useState<PublicBriefing[] | null>(null);
+  const [snapshotFallback, setSnapshotFallback] = useState(false);
   const [error, setError] = useState("");
   const language = props.language ?? "en";
 
   useEffect(() => {
     let active = true;
     getExploreFeeds()
-      .then((nextFeeds) => {
-        if (active) setFeeds(nextFeeds);
+      .then((result) => {
+        if (active) {
+          setFeeds(result.feeds);
+          setSnapshotFallback(Boolean(result.snapshotFallback));
+        }
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : String(cause));
@@ -1044,29 +1940,57 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
     };
   }, []);
 
-  if (error) return <p className="error">{error}</p>;
-  if (!feeds) return <p className="muted">{loadingFeedsLabel(language)}</p>;
-  if (feeds.length === 0) return <p className="muted">{noStarredFeedsLabel(language)}</p>;
+  if (error) return <p className="error" role="alert">{error}</p>;
+  if (!feeds) return <p className="muted" role="status" aria-live="polite">{loadingFeedsLabel(language)}</p>;
+  if (feeds.length === 0) return <p className="muted empty-state">{noStarredFeedsLabel(language)}</p>;
 
   return (
-    <div className="explore-list">
-      {feeds.map((feed) => {
-        const href = `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
-        const isCurrent = props.currentFeed?.id === feed.id;
-        return (
-          <a key={feed.id} className={`explore-row${isCurrent ? " active" : ""}`} href={href} aria-current={isCurrent ? "page" : undefined}>
-            <span className="explore-copy">
-              <strong className="explore-title"><bdi>{feed.title}</bdi></strong>
-              <span className="explore-meta">@{feed.ownerUsername}</span>
-            </span>
-            <span className="explore-stars" aria-label={`${feed.stars} stars`}>
-              <Star size={13} aria-hidden /> {feed.stars}
-            </span>
-          </a>
-        );
-      })}
-    </div>
+    <>
+      {snapshotFallback ? <p className="muted" role="status">{snapshotFallbackLabel(language)}</p> : null}
+      <div className="explore-list">
+        {feeds.map((feed) => {
+          const href = `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
+          const isCurrent = props.currentFeed?.id === feed.id;
+          return (
+            <a key={feed.id} className={`explore-row${isCurrent ? " active" : ""}`} href={href} aria-current={isCurrent ? "page" : undefined}>
+              <span className="explore-copy" lang={feed.language} dir={textDirection(feed.language)}>
+                <strong className="explore-title"><bdi>{feed.title}</bdi></strong>
+                <span className="explore-meta" dir="ltr">@{feed.ownerUsername}</span>
+                <span className="explore-facts" dir={textDirection(language)}>
+                  <span>{visibleBriefingCadence(feed.briefingCadence)}</span>
+                  <span>{languageLabel(feed.language)}</span>
+                  <ExploreFreshness feed={feed} language={language} />
+                </span>
+              </span>
+              <span className="explore-stars" aria-label={`${feed.stars} stars`}>
+                <Star size={13} aria-hidden /> {feed.stars}
+              </span>
+            </a>
+          );
+        })}
+      </div>
+    </>
   );
+}
+
+function ExploreFreshness(props: { feed: PublicBriefing; language: "en" | "ar" | "fr" }) {
+  if (props.feed.paused) return <span className="explore-freshness paused">{publicStateLabel("paused", props.language)}</span>;
+  const latestPublishedAt = publicBriefingPublishedAt(props.feed);
+  if (latestPublishedAt) {
+    const stale = isPublicationStale(latestPublishedAt, props.feed.briefingCadence);
+    return (
+      <span className={`explore-freshness ${stale ? "stale" : "ready"}`}>
+        {publicStateLabel(stale ? "stale" : "ready", props.language)} ·{" "}
+        <time dateTime={latestPublishedAt} title={new Date(latestPublishedAt).toLocaleString()}>
+          {relativeTimeLabel(latestPublishedAt, props.language)}
+        </time>
+      </span>
+    );
+  }
+  if (props.feed.hasPublishedEditions === false) {
+    return <span className="explore-freshness collecting">{publicStateLabel("collecting", props.language)}</span>;
+  }
+  return <span className="explore-freshness unavailable">{freshnessUnavailableLabel(props.language)}</span>;
 }
 
 function VerifyEmailPage(props: { token: string }) {
@@ -1075,7 +1999,7 @@ function VerifyEmailPage(props: { token: string }) {
   return (
     <Shell title="verify email">
       <section className="section notice">
-        <p>{message || "confirm this email address"}</p>
+        <p role="status" aria-live="polite">{message || "confirm this email address"}</p>
         <div className="actions">
           <button
             type="button"
@@ -1120,14 +2044,62 @@ function ResetPasswordPage(props: { token: string }) {
       }}>
         <label>
           new password
-          <input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} />
+          <input type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} />
         </label>
         <button type="submit" title="save password"><Save size={15} aria-hidden /> save password</button>
-        {message ? <p className="muted">{message}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        {message ? <p className="muted" role="status" aria-live="polite">{message}</p> : null}
+        {error ? <p className="error" role="alert" aria-live="assertive">{error}</p> : null}
       </form>
     </Shell>
   );
+}
+
+const openSheetElements: HTMLElement[] = [];
+let restoreSheetEnvironment: (() => void) | null = null;
+
+function focusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), details > summary, [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true" && element.getClientRects().length > 0);
+}
+
+function lockSheetEnvironment() {
+  if (openSheetElements.length > 1 || restoreSheetEnvironment) return;
+  const root = document.getElementById("root");
+  const previousRootInert = root?.inert ?? false;
+  const previousAriaHidden = root?.getAttribute("aria-hidden");
+  const scrollY = window.scrollY;
+  const previousBodyStyles = {
+    overflow: document.body.style.overflow,
+    position: document.body.style.position,
+    top: document.body.style.top,
+    width: document.body.style.width
+  };
+
+  if (root) {
+    root.inert = true;
+    root.setAttribute("aria-hidden", "true");
+  }
+  document.body.style.overflow = "hidden";
+  document.body.style.position = "fixed";
+  document.body.style.top = `-${scrollY}px`;
+  document.body.style.width = "100%";
+
+  restoreSheetEnvironment = () => {
+    if (root) {
+      root.inert = previousRootInert;
+      if (typeof previousAriaHidden === "string") root.setAttribute("aria-hidden", previousAriaHidden);
+      else root.removeAttribute("aria-hidden");
+    }
+    document.body.style.overflow = previousBodyStyles.overflow;
+    document.body.style.position = previousBodyStyles.position;
+    document.body.style.top = previousBodyStyles.top;
+    document.body.style.width = previousBodyStyles.width;
+    window.scrollTo(0, scrollY);
+    restoreSheetEnvironment = null;
+  };
 }
 
 function Sheet(props: {
@@ -1137,29 +2109,86 @@ function Sheet(props: {
   children: React.ReactNode;
   onClose: () => void;
   wide?: boolean;
+  closeOnBackdrop?: boolean;
+  closeOnEscape?: boolean;
 }) {
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") props.onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [props.onClose]);
+  const titleId = `sheet-${useId().replace(/:/g, "")}-title`;
+  const sheetRef = useRef<HTMLElement | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(props.onClose);
+  onCloseRef.current = props.onClose;
 
-  return (
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    openSheetElements.push(sheet);
+    lockSheetEnvironment();
+    const frame = window.requestAnimationFrame(() => {
+      const preferred = sheet.querySelector<HTMLElement>('[data-sheet-initial-focus="true"], [autofocus]');
+      (preferred ?? focusableElements(sheet)[0] ?? sheet).focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      const index = openSheetElements.lastIndexOf(sheet);
+      if (index >= 0) openSheetElements.splice(index, 1);
+      if (openSheetElements.length === 0) restoreSheetEnvironment?.();
+      const opener = openerRef.current;
+      window.requestAnimationFrame(() => {
+        if (opener?.isConnected) opener.focus({ preventScroll: true });
+      });
+    };
+  }, []);
+
+  const sheet = (
     <div
       className="modal-backdrop"
+      role="presentation"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) props.onClose();
+        if (props.closeOnBackdrop !== false && event.target === event.currentTarget) onCloseRef.current();
       }}
     >
-      <section className={`sheet${props.wide ? " sheet-wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={`${slugify(props.title)}-sheet-title`}>
+      <section
+        ref={sheetRef}
+        className={`sheet${props.wide ? " sheet-wide" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onKeyDown={(event) => {
+          if (openSheetElements.at(-1) !== sheetRef.current) return;
+          if (event.key === "Escape") {
+            if (props.closeOnEscape === false) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onCloseRef.current();
+            return;
+          }
+          if (event.key !== "Tab" || !sheetRef.current) return;
+          const focusable = focusableElements(sheetRef.current);
+          if (focusable.length === 0) {
+            event.preventDefault();
+            sheetRef.current.focus();
+            return;
+          }
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (event.shiftKey && (document.activeElement === first || !sheetRef.current.contains(document.activeElement))) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && (document.activeElement === last || !sheetRef.current.contains(document.activeElement))) {
+            event.preventDefault();
+            first.focus();
+          }
+        }}
+      >
         <div className="sheet-head">
           <div className="section-title">
             {props.icon}
-            <h2 id={`${slugify(props.title)}-sheet-title`}>{props.title}</h2>
+            <h2 id={titleId}>{props.title}</h2>
           </div>
-          <button type="button" className="icon-button" aria-label={props.closeLabel} title={props.closeLabel} onClick={props.onClose}>
+          <button type="button" className="icon-button" aria-label={props.closeLabel} title={props.closeLabel} onClick={() => onCloseRef.current()}>
             <X size={16} aria-hidden />
           </button>
         </div>
@@ -1167,13 +2196,15 @@ function Sheet(props: {
       </section>
     </div>
   );
+
+  return createPortal(sheet, document.body);
 }
 
 function FeedSettingsSheet(props: {
   briefing: BriefingConfig;
-  briefings: BriefingConfig[];
   autosaveState: "idle" | "saving" | "saved" | "error";
   status: string;
+  actionError: string;
   canDelete: boolean;
   onClose: () => void;
   onPatch: (patch: Partial<BriefingConfig>) => void;
@@ -1181,7 +2212,6 @@ function FeedSettingsSheet(props: {
   onPauseToggle: () => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
-  const previewSlug = deriveBriefingSlug(props.briefings, props.briefing.title, props.briefing.id);
   const titleRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -1191,16 +2221,20 @@ function FeedSettingsSheet(props: {
   return (
     <Sheet title="feed settings" closeLabel="close feed settings" icon={<Settings size={16} aria-hidden />} onClose={props.onClose} wide>
       <div className="sheet-status">
-        <span className={props.autosaveState === "error" ? "error" : "muted"}>{formatAutosaveStatus(props.autosaveState, props.status)}</span>
+        <span className={props.autosaveState === "error" ? "error" : "muted"} role="status" aria-live="polite">
+          {formatAutosaveStatus(props.autosaveState, props.status)}
+        </span>
       </div>
+      {props.actionError ? <p className="error" role="alert" aria-live="assertive">{props.actionError}</p> : null}
       <div className="settings-grid">
         <label>
           title
-          <input ref={titleRef} dir="ltr" value={props.briefing.title} onChange={(event) => props.onPatch({ title: event.target.value })} />
+          <input ref={titleRef} data-sheet-initial-focus="true" dir="auto" required value={props.briefing.title} onChange={(event) => props.onPatch({ title: event.target.value })} />
         </label>
         <div className="field-group">
-          <span>slug</span>
-          <code className="generated-slug">/{props.briefing.ownerUsername}/{previewSlug}/</code>
+          <span>public URL</span>
+          <code className="generated-slug">/{props.briefing.ownerUsername}/{props.briefing.slug}/</code>
+          <span className="field-help">Changing the title does not change this shared URL.</span>
         </div>
         <div className="field-group">
           <span>language</span>
@@ -1240,9 +2274,11 @@ function FeedSettingsSheet(props: {
           timezone
           <input
             dir="ltr"
+            required
             value={props.briefing.briefingTimezone}
             onChange={(event) => props.onPatch({ briefingTimezone: event.target.value || "UTC" })}
           />
+          <span className="field-help">Use an IANA timezone such as Asia/Beirut. Daily and weekly briefs run at 00:00 in this timezone.</span>
         </label>
         <div className="field-group">
           <span>next briefing</span>
@@ -1251,7 +2287,7 @@ function FeedSettingsSheet(props: {
         <label>
           interest profile
           <textarea
-            dir="ltr"
+            dir="auto"
             required
             rows={6}
             value={props.briefing.interestProfile}
@@ -1261,7 +2297,7 @@ function FeedSettingsSheet(props: {
         <label>
           style instruction
           <textarea
-            dir="ltr"
+            dir="auto"
             rows={3}
             value={props.briefing.styleInstruction ?? ""}
             onChange={(event) => props.onPatch({ styleInstruction: event.target.value })}
@@ -1273,8 +2309,8 @@ function FeedSettingsSheet(props: {
           {props.briefing.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
           {props.briefing.paused ? "resume feed" : "pause feed"}
         </button>
-        <a className="button-link" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title="open feed">
-          <ExternalLink size={15} aria-hidden /> open feed
+        <a className="button-link open-feed-button" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title="open feed">
+          <ExternalLink size={18} strokeWidth={2.25} aria-hidden /> open feed
         </a>
         <button type="button" title="copy feed url" onClick={() => void props.onCopy()}>
           <Copy size={15} aria-hidden /> copy url
@@ -1293,7 +2329,7 @@ function FeedHelpSheet(props: { onClose: () => void }) {
       <ol className="help-steps">
         <li>
           <strong>name</strong>
-          <span>Choose a short feed name. The URL updates from that name.</span>
+          <span>Choose a short feed name. Renaming it later keeps the same URL.</span>
         </li>
         <li>
           <strong>profile</strong>
@@ -1301,7 +2337,7 @@ function FeedHelpSheet(props: { onClose: () => void }) {
         </li>
         <li>
           <strong>sources</strong>
-          <span>Paste a Telegram or X URL, or type a search topic.</span>
+          <span>Paste an RSS, Telegram, X, or LinkedIn URL, or type a search topic.</span>
         </li>
         <li>
           <strong>share</strong>
@@ -1315,81 +2351,212 @@ function FeedHelpSheet(props: { onClose: () => void }) {
 function FirstRunSetupSheet(props: {
   account: AccountRecord;
   briefing: BriefingConfig;
+  paidProviderBeta?: PublicCapabilities["paidProviderBeta"];
   busy: boolean;
   onClose: () => void;
-  onComplete: (input: { username: string; title: string; interestProfile: string; sourceUrl: string }) => Promise<void>;
+  onComplete: (input: { username: string; title: string; interestProfile: string; sourceInputs: string[] }) => Promise<OnboardingCompleteResult>;
 }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [username, setUsername] = useState(props.account.username);
   const [title, setTitle] = useState(props.briefing.title);
-  const [interestProfile, setInterestProfile] = useState(props.briefing.interestProfile);
+  const [interestProfile, setInterestProfile] = useState(() => localStorage.getItem("dn_pending_interest") ?? props.briefing.interestProfile);
   const [sourceUrl, setSourceUrl] = useState("");
+  const [suggestions, setSuggestions] = useState<SourceSuggestion[]>([]);
+  const [selectedInputs, setSelectedInputs] = useState<string[]>([]);
+  const [confirmedNoSources, setConfirmedNoSources] = useState(false);
+  const [finding, setFinding] = useState(false);
   const [error, setError] = useState("");
-  const usernameRef = useRef<HTMLInputElement | null>(null);
+  const [submissionFailures, setSubmissionFailures] = useState<OnboardingSourceFailure[]>([]);
+  const stepHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const sourceInputs = Array.from(new Set([...selectedInputs, ...(sourceUrl.trim() ? [sourceUrl.trim()] : [])]));
+  const sourceCount = sourceInputs.length;
 
   useEffect(() => {
-    usernameRef.current?.focus();
-  }, []);
+    if (step === 1) return;
+    const frame = window.requestAnimationFrame(() => stepHeadingRef.current?.focus({ preventScroll: true }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [step]);
 
   return (
-    <Sheet title="setup feed" closeLabel="skip feed setup" icon={<Globe size={16} aria-hidden />} onClose={props.onClose} wide>
+    <Sheet
+      title="create your feed"
+      closeLabel="close setup and finish later"
+      icon={<Sparkles size={16} aria-hidden />}
+      onClose={props.onClose}
+      wide
+      closeOnBackdrop={false}
+      closeOnEscape={false}
+    >
       <form
-        className="settings-grid"
+        className="settings-grid onboarding-flow"
+        aria-busy={props.busy || finding}
         onSubmit={async (event) => {
           event.preventDefault();
           setError("");
           try {
-            await props.onComplete({ username, title, interestProfile, sourceUrl });
+            const result = await props.onComplete({ username, title, interestProfile, sourceInputs });
+            if (result.failedSources.length > 0) {
+              setSubmissionFailures(result.failedSources);
+              setSelectedInputs(result.failedSources.map((failure) => failure.input));
+              setSourceUrl("");
+              setError(
+                `Your feed was saved, but ${result.failedSources.length} source${result.failedSources.length === 1 ? "" : "s"} could not be added. Review the details and retry.`
+              );
+            }
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : String(cause));
           }
         }}
       >
-        <label>
-          username
-          <input ref={usernameRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
-        </label>
-        <label>
-          feed name
-          <input dir="ltr" required value={title} onChange={(event) => setTitle(event.target.value)} />
-        </label>
-        <label>
-          interest profile
-          <textarea
-            dir="ltr"
-            required
-            rows={6}
-            value={interestProfile}
-            onChange={(event) => setInterestProfile(event.target.value)}
-          />
-        </label>
-        <label>
-          first source
-          <input
-            dir="ltr"
-            value={sourceUrl}
-            onChange={(event) => setSourceUrl(event.target.value)}
-            placeholder="https://t.me/LebUpdate, https://x.com/NASA, or Beirut power"
-          />
-        </label>
-        <div className="source-examples" aria-label="source examples">
-          {sourceInputExamples.map((example) => (
-            <button
-              key={example.label}
-              type="button"
-              title={example.value}
-              onClick={() => setSourceUrl(example.value)}
-            >
-              {example.label}
-            </button>
-          ))}
+        <div
+          className="onboarding-steps"
+          role="progressbar"
+          aria-label="feed setup progress"
+          aria-valuemin={1}
+          aria-valuemax={3}
+          aria-valuenow={step}
+          aria-valuetext={`Step ${step} of 3`}
+        >
+          <span className={step >= 1 ? "active" : ""} aria-current={step === 1 ? "step" : undefined}>1 Interests</span>
+          <span className={step >= 2 ? "active" : ""} aria-current={step === 2 ? "step" : undefined}>2 Sources</span>
+          <span className={step >= 3 ? "active" : ""} aria-current={step === 3 ? "step" : undefined}>3 Publish</span>
         </div>
+        {step === 1 ? <>
+          <div className="onboarding-intro">
+            <h3>What do you want to stay informed about?</h3>
+            <p className="muted">Be specific. Distilled will use this to find sources and filter out noise.</p>
+          </div>
+          <label>
+            interests
+            <textarea
+              autoFocus
+              data-sheet-initial-focus="true"
+              dir="auto"
+              required
+              rows={7}
+              value={interestProfile}
+              onChange={(event) => setInterestProfile(event.target.value)}
+              placeholder="Lebanese economy, energy, public policy, and decisions that affect daily life"
+            />
+          </label>
+          <div className="source-examples"><button type="button" onClick={() => setInterestProfile("Lebanese economy, energy, public policy, and infrastructure")}>Lebanon</button><button type="button" onClick={() => setInterestProfile("Artificial intelligence research, model releases, safety, and regulation")}>AI</button><button type="button" onClick={() => setInterestProfile("Climate science, clean energy, and major environmental policy")}>Climate</button></div>
+        </> : null}
+        {step === 2 ? <>
+          <div className="onboarding-intro">
+            <h3 ref={stepHeadingRef} tabIndex={-1}>Choose your coverage</h3>
+            <p className="muted">Start with direct sources where possible. Paid beta sources use the self-hoster’s configured Apify budget.</p>
+          </div>
+          <div className="source-tier-guide" aria-label="source cost and reliability guide">
+            <span><b>RSS/JSON</b> Direct · no scraper fee · recommended</span>
+            <span><b>Telegram</b> Best-effort beta · no scraper fee</span>
+            <span><b>Google News</b> Paid beta · Apify-backed</span>
+            <span><b>X</b> Paid beta · Apify-backed</span>
+          </div>
+          {props.paidProviderBeta ? (
+            <div className="source-selection-status" role="status" aria-live="polite">
+              <strong>
+                {props.paidProviderBeta.capacityReached
+                  ? `Paid-source beta is full (${props.paidProviderBeta.claimedAccounts}/${props.paidProviderBeta.accountCap} account seats)`
+                  : `${props.paidProviderBeta.remainingAccounts} of ${props.paidProviderBeta.accountCap} paid-source account seats available`}
+              </strong>
+              <span className="muted">
+                One seat covers both X and Google News.
+                {props.paidProviderBeta.capacityReached ? " RSS and Telegram remain available." : ""}
+              </span>
+            </div>
+          ) : null}
+          {finding ? (
+            <p className="muted" role="status" aria-live="polite">Finding trusted and recent sources…</p>
+          ) : (
+            <div className="suggestion-grid" aria-label="suggested sources">
+              {suggestions.map((suggestion) => {
+                const checked = selectedInputs.includes(suggestion.input);
+                return (
+                  <label key={suggestion.id} className={`suggestion-card selectable${checked ? " selected" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setConfirmedNoSources(false);
+                        setSubmissionFailures([]);
+                        setSelectedInputs((current) => checked
+                          ? current.filter((value) => value !== suggestion.input)
+                          : [...current, suggestion.input]);
+                      }}
+                    />
+                    <strong>{suggestion.title}</strong>
+                    <span className="source-tier-label">{suggestionTierLabel(suggestion)}</span>
+                    <p>{suggestion.description}</p>
+                    <small>{suggestion.reason}</small>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          <label>
+            add another source
+            <input
+              dir="ltr"
+              value={sourceUrl}
+              onChange={(event) => {
+                setSourceUrl(event.target.value);
+                setSubmissionFailures([]);
+                if (event.target.value.trim()) setConfirmedNoSources(false);
+              }}
+              placeholder="RSS, Telegram, X, or a search topic"
+            />
+            {sourceUrl.trim() ? <span className="field-help">{sourceInputTierLabel(sourceUrl)}</span> : null}
+          </label>
+          <div className="source-selection-status" aria-live="polite" aria-atomic="true">
+            <strong>{sourceCount} source{sourceCount === 1 ? "" : "s"} selected</strong>
+            <span className="muted">{sourceCount > 0 ? "You can change these later." : "A feed without sources cannot collect or publish updates."}</span>
+          </div>
+          {sourceCount === 0 ? (
+            <label className="zero-source-choice">
+              <input
+                type="checkbox"
+                checked={confirmedNoSources}
+                onChange={(event) => setConfirmedNoSources(event.target.checked)}
+              />
+              <span>
+                <strong>Continue with no sources</strong>
+                <small>The feed will stay empty until I add one.</small>
+              </span>
+            </label>
+          ) : null}
+        </> : null}
+        {step === 3 ? <>
+          <div className="onboarding-intro">
+            <h3 ref={stepHeadingRef} tabIndex={-1}>{submissionFailures.length > 0 ? "Finish connecting your sources" : "Make it yours"}</h3>
+            <p className="muted">
+              {submissionFailures.length > 0
+                ? "The public feed is saved. Retry the sources below before finishing setup."
+                : `Your feed will be public at /${slugify(username)}/${slugify(title)}/.`}
+            </p>
+          </div>
+          <label>feed name<input dir="auto" required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label>username<input required value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /></label>
+          <p className="muted">{sourceCount} source{sourceCount === 1 ? "" : "s"} selected · summaries in {languageLabel(props.briefing.language)}</p>
+          {sourceCount === 0 ? <p className="source-warning">No sources were selected deliberately. This feed will remain empty until a source is added.</p> : null}
+        </> : null}
         <div className="sheet-actions">
-          <button type="submit" className="primary-button" title="finish setup" disabled={props.busy || !title.trim() || !interestProfile.trim()}>
-            <Save size={15} aria-hidden /> finish setup
-          </button>
-          <button type="button" title="skip setup" onClick={props.onClose}>skip</button>
+          {step > 1 ? <button type="button" onClick={() => { setSubmissionFailures([]); setError(""); setStep((step - 1) as 1 | 2); }}>Back</button> : null}
+          {step === 1 ? <button type="button" className="primary-button" disabled={!interestProfile.trim() || finding} onClick={async () => { setFinding(true); setError(""); setSubmissionFailures([]); try { const result = await getSourceSuggestions({ briefingId: props.briefing.id, interestProfile, language: props.briefing.language }); setSuggestions(result.suggestions); setSelectedInputs(result.suggestions.filter((item) => item.confidence === "high" && item.origin === "curated").slice(0, 4).map((item) => item.input)); setStep(2); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setFinding(false); } }}>Find sources <ChevronRight size={15} /></button> : null}
+          {step === 1 ? <button type="button" disabled={!interestProfile.trim() || finding} onClick={() => { setSuggestions([]); setSelectedInputs([]); setError(""); setStep(2); }}>Add sources manually</button> : null}
+          {step === 2 ? <button type="button" className="primary-button" disabled={sourceCount === 0 && !confirmedNoSources} onClick={() => setStep(3)}>Continue <ChevronRight size={15} /></button> : null}
+          {step === 3 ? <button type="submit" className="primary-button" title={submissionFailures.length > 0 ? "retry failed sources" : "create feed"} disabled={props.busy || !title.trim() || !interestProfile.trim()}><Sparkles size={15} aria-hidden /> {props.busy ? "Working…" : submissionFailures.length > 0 ? "Retry failed sources" : "Create feed"}</button> : null}
+          <button type="button" title="finish setup later" onClick={props.onClose}>Finish later</button>
         </div>
-        {error ? <p className="error">{error}</p> : null}
+        <div aria-live="assertive" aria-atomic="true">
+          {error ? <p className="error" role="alert">{error}</p> : null}
+          {submissionFailures.length > 0 ? (
+            <ul className="onboarding-source-errors">
+              {submissionFailures.map((failure) => (
+                <li key={failure.input}><code>{failure.input}</code><span>{failure.message}</span></li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       </form>
     </Sheet>
   );
@@ -1398,6 +2565,10 @@ function FirstRunSetupSheet(props: {
 function HealthSummary(props: {
   briefing: BriefingConfig;
   health: HealthStatus | null;
+  budgetLimits?: {
+    collection: { dayUsd: number; monthUsd: number };
+    llm: { dayUsd: number; monthUsd: number };
+  };
   activity: string;
   retryBusy: boolean;
   onRetryProcessing: () => Promise<void>;
@@ -1419,11 +2590,31 @@ function HealthSummary(props: {
         <span className={`status-dot ${isPaused ? "paused" : "live"}`} aria-hidden />
         <span className="health-summary-copy">
           <strong>{summary.feedState}</strong>
-          <span>{activity}</span>
+          <span role="status" aria-live="polite">{activity}</span>
         </span>
       </summary>
       <div className="health">
-        <StatusLine label="processing" value={`queued ${props.health?.processing.queued ?? 0} / failed ${props.health?.processing.failed ?? 0}`} />
+        <StatusLine
+          label="processing"
+          value={props.health
+            ? `queued ${props.health.processing.queued ?? 0} / stale ${props.health.processing.staleQueued ?? 0} / failed 24h ${props.health.processing.failed ?? 0}`
+            : "unavailable"}
+        />
+        <StatusLine
+          label="source health"
+          value={props.health?.sources
+            ? `enabled ${props.health.sources.enabled ?? 0} / degraded ${props.health.sources.degraded ?? 0} / backoff ${props.health.sources.backoff ?? 0}`
+            : "unavailable"}
+        />
+        <StatusLine
+          label="today's cost"
+          value={props.health?.spendToday
+            ? [
+                `AI $${props.health.spendToday.llmUsd.toFixed(3)}${props.budgetLimits ? ` / $${props.budgetLimits.llm.dayUsd.toFixed(2)}` : ""}`,
+                `collection $${props.health.spendToday.collectionUsd.toFixed(3)}${props.budgetLimits ? ` / $${props.budgetLimits.collection.dayUsd.toFixed(2)}` : ""}`
+              ].join(" · ")
+            : "unavailable"}
+        />
         <StatusLine
           label="last source check"
           value={props.health?.lastSourceFetchAt ? <Timestamp value={props.health.lastSourceFetchAt} language={props.briefing.language} /> : "none"}
@@ -1461,14 +2652,17 @@ function AccountDialog(props: {
   account: AccountRecord;
   onClose: () => void;
   onLogout: () => Promise<void>;
+  onDeleted: () => void;
   onSaved: (account: AccountRecord, briefings: BriefingConfig[], message: string) => Promise<void>;
 }) {
   const [username, setUsername] = useState(props.account.username);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState<"username" | "password" | "logout" | null>(null);
+  const [busy, setBusy] = useState<"username" | "password" | "delete" | "logout" | null>(null);
   const usernameFieldRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -1492,9 +2686,18 @@ function AccountDialog(props: {
           event.preventDefault();
           setError("");
           setMessage("");
+          const normalizedUsername = slugify(username);
+          if (
+            normalizedUsername !== props.account.username &&
+            !window.confirm(
+              `Change your username from @${props.account.username} to @${normalizedUsername}? Every public feed URL will change and previously shared links will stop working.`
+            )
+          ) {
+            return;
+          }
           setBusy("username");
           try {
-            const result = await updateAccount({ username });
+            const result = await updateAccount({ username: normalizedUsername });
             await props.onSaved(result.account, result.briefings, "username saved");
             setMessage("username saved");
           } catch (cause) {
@@ -1506,7 +2709,8 @@ function AccountDialog(props: {
       >
         <label>
           username
-          <input ref={usernameFieldRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
+          <input ref={usernameFieldRef} data-sheet-initial-focus="true" required value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
+          <span className="field-help">Changing this changes every public feed URL and breaks previously shared links.</span>
         </label>
         <button type="submit" title="save username" disabled={busy === "username"}>
           <Save size={15} aria-hidden /> save username
@@ -1559,20 +2763,74 @@ function AccountDialog(props: {
         </button>
       </form>
 
+      <details className="legal-delete-account account-delete">
+        <summary>Delete account</summary>
+        <p>
+          Permanently remove this account, its feeds, sources, and active service data. Public copies
+          and provider records may remain for their stated retention periods.
+        </p>
+        <form
+          className="account-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setError("");
+            setMessage("");
+            setBusy("delete");
+            try {
+              await deleteOwnAccount(deletePassword);
+              props.onDeleted();
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : String(cause));
+            } finally {
+              setBusy(null);
+            }
+          }}
+        >
+          <label>
+            current password to confirm deletion
+            <input
+              type="password"
+              autoComplete="current-password"
+              required
+              value={deletePassword}
+              onChange={(event) => setDeletePassword(event.target.value)}
+            />
+          </label>
+          <label className="legal-consent">
+            <input
+              type="checkbox"
+              checked={deleteConfirmed}
+              required
+              onChange={(event) => setDeleteConfirmed(event.target.checked)}
+            />
+            <span>I understand this permanently deletes my account.</span>
+          </label>
+          <button type="submit" className="danger-button" disabled={!deleteConfirmed || busy !== null}>
+            <Trash2 size={15} aria-hidden /> {busy === "delete" ? "deleting…" : "Permanently delete account"}
+          </button>
+        </form>
+      </details>
+
       <div className="account-actions">
         <button
           type="button"
           title="logout"
           disabled={busy === "logout"}
           onClick={async () => {
+            setError("");
             setBusy("logout");
-            await props.onLogout();
+            try {
+              await props.onLogout();
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : String(cause));
+              setBusy(null);
+            }
           }}
         >
           <LogOut size={15} aria-hidden /> logout
         </button>
-        {message ? <p className="muted">{message}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        {message ? <p className="muted" role="status" aria-live="polite">{message}</p> : null}
+        {error ? <p className="error" role="alert" aria-live="assertive">{error}</p> : null}
       </div>
     </Sheet>
   );
@@ -1587,6 +2845,9 @@ function AdminAccountsSection(props: {
   const [adminBriefings, setAdminBriefings] = useState<BriefingConfig[]>([]);
   const [loadingFeeds, setLoadingFeeds] = useState(false);
   const [error, setError] = useState("");
+  const [emailTestBusy, setEmailTestBusy] = useState(false);
+  const [emailTestStatus, setEmailTestStatus] = useState("");
+  const [emailDelivery, setEmailDelivery] = useState<AdminEmailStatus | null>(null);
   const managedAccount = props.accounts.find((account) => account.id === managedAccountId) ?? null;
 
   useEffect(() => {
@@ -1595,8 +2856,11 @@ function AdminAccountsSection(props: {
       setLoadingFeeds(true);
       setError("");
       try {
-        const nextBriefings = await listAdminBriefings();
-        if (!cancelled) setAdminBriefings(nextBriefings);
+        const [nextBriefings, nextEmailDelivery] = await Promise.all([listAdminBriefings(), getAdminEmailStatus()]);
+        if (!cancelled) {
+          setAdminBriefings(nextBriefings);
+          setEmailDelivery(nextEmailDelivery);
+        }
       } catch (cause) {
         if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
       } finally {
@@ -1629,8 +2893,40 @@ function AdminAccountsSection(props: {
           <span className="pill">{props.accounts.length}</span>
           <span className="pill">{adminBriefings.length} feeds</span>
         </summary>
-        {loadingFeeds ? <p className="muted">loading feeds</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        {loadingFeeds ? <p className="muted" role="status" aria-live="polite">loading feeds</p> : null}
+        {error ? <p className="error" role="alert" aria-live="assertive">{error}</p> : null}
+        <div className="admin-email-test">
+          <div>
+            <strong>Email delivery</strong>
+            <p className="muted">{emailDeliveryStatusLabel(emailDelivery)}</p>
+          </div>
+          <button
+            type="button"
+            disabled={emailTestBusy}
+            onClick={async () => {
+              setEmailTestBusy(true);
+              setEmailTestStatus("");
+              setError("");
+              try {
+                const result = await sendAdminEmailTest();
+                setEmailTestStatus(`sent to ${result.recipientDomain}`);
+                setEmailDelivery((current) => ({
+                  configured: true,
+                  senderDomain: current?.senderDomain,
+                  lastFailureAt: current?.lastFailureAt,
+                  lastSuccessAt: result.sentAt
+                }));
+              } catch (cause) {
+                setError(cause instanceof Error ? cause.message : String(cause));
+              } finally {
+                setEmailTestBusy(false);
+              }
+            }}
+          >
+            <Send size={14} aria-hidden /> {emailTestBusy ? "sending…" : "send test"}
+          </button>
+          {emailTestStatus ? <span className="save-state" role="status" aria-live="polite">{emailTestStatus}</span> : null}
+        </div>
         <div className="source-list">
           {props.accounts.map((account) => {
             const feedCount = adminBriefings.filter((briefing) => briefing.ownerAccountId === account.id).length;
@@ -1668,6 +2964,18 @@ function AdminAccountsSection(props: {
       ) : null}
     </>
   );
+}
+
+function emailDeliveryStatusLabel(status: AdminEmailStatus | null): string {
+  if (!status) return "Checking delivery status…";
+  if (!status.configured) return "Email sending is not configured.";
+  const lastSuccess = status.lastSuccessAt ? new Date(status.lastSuccessAt).getTime() : Number.NaN;
+  const lastFailure = status.lastFailureAt ? new Date(status.lastFailureAt).getTime() : Number.NaN;
+  if (Number.isFinite(lastFailure) && (!Number.isFinite(lastSuccess) || lastFailure > lastSuccess)) {
+    return `Last test failed ${new Date(status.lastFailureAt!).toLocaleString()}.`;
+  }
+  if (Number.isFinite(lastSuccess)) return `Last test passed ${new Date(status.lastSuccessAt!).toLocaleString()}.`;
+  return `Configured for ${status.senderDomain ?? "the production sender"}; not yet tested.`;
 }
 
 function AdminAccountDialog(props: {
@@ -1782,7 +3090,7 @@ function AdminAccountDialog(props: {
       >
         <label>
           username
-          <input ref={usernameFieldRef} value={username} onChange={(event) => setUsername(event.target.value)} />
+          <input ref={usernameFieldRef} data-sheet-initial-focus="true" required value={username} onChange={(event) => setUsername(event.target.value)} />
         </label>
         <button type="submit" title="save username" disabled={busy === "username"}>
           <Save size={15} aria-hidden /> save username
@@ -1863,8 +3171,8 @@ function AdminAccountDialog(props: {
                       {feed.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
                       {feed.paused ? "resume" : "pause"}
                     </button>
-                    <a className="button-link icon-button" href={`/${feed.ownerUsername}/${feed.slug}/`} aria-label={`open ${feed.title}`} title="open feed">
-                      <ExternalLink size={15} aria-hidden />
+                    <a className="button-link icon-button feed-open-icon" href={`/${feed.ownerUsername}/${feed.slug}/`} aria-label={`open ${feed.title}`} title="open feed">
+                      <ExternalLink size={18} strokeWidth={2.25} aria-hidden />
                     </a>
                     <button
                       type="button"
@@ -1901,8 +3209,8 @@ function AdminAccountDialog(props: {
         </button>
       </div>
 
-      {message ? <p className="muted">{message}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
+      {message ? <p className="muted" role="status" aria-live="polite">{message}</p> : null}
+      {error ? <p className="error" role="alert" aria-live="assertive">{error}</p> : null}
     </Sheet>
   );
 }
@@ -1911,80 +3219,102 @@ function FeedPage(props: { username: string; slug: string }) {
   const [payload, setPayload] = useState<FeedPayload | null>(null);
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
   const [query, setQuery] = useState("");
-  const [error, setError] = useState("");
+  const [loadState, setLoadState] = useState<FeedLoadState>("loading");
+  const [feedError, setFeedError] = useState("");
+  const [searchError, setSearchError] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [emptyIntervalSince, setEmptyIntervalSince] = useState<string | undefined>();
   const [starBusy, setStarBusy] = useState(false);
-  const [summaryBusy, setSummaryBusy] = useState(false);
-  const [summaryMessage, setSummaryMessage] = useState("");
   const [exploreOpen, setExploreOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
-  const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
-  const [clock, setClock] = useState(Date.now());
+  const [visibleEditionCount, setVisibleEditionCount] = useState(FEED_BATCH_SIZE);
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
   const [editionDetails, setEditionDetails] = useState<Map<string, BriefingEdition>>(() => new Map());
+  const payloadRef = useRef<FeedPayload | null>(null);
 
-  async function refresh() {
-    setError("");
-    setSummaryMessage("");
-    const next = await getFeed(props.username, props.slug);
-    setPayload(next);
-    setEditions(next.editions);
-    setExpanded(new Set());
-    setEditionBusyIds(new Set());
-    setEditionDetails(new Map());
-    setVisibleUnreadCount(FEED_BATCH_SIZE);
-    setSelectedReport(null);
-  }
-
-  async function requestSummaryNow() {
-    if (!payload) return;
-    setError("");
-    setSummaryMessage("");
-    setSummaryBusy(true);
+  async function refresh(reset = false) {
+    const hasLoadedPayload = !reset && Boolean(payloadRef.current);
+    if (!hasLoadedPayload) setLoadState("loading");
+    setFeedError("");
     try {
-      const result = await requestFeedSummary(props.username, props.slug);
-      setQuery("");
-      await refresh();
-      setSummaryMessage(result.edition ? summaryPublishedLabel(language) : summaryEmptyLabel(language));
+      const next = await getFeed(props.username, props.slug);
+      const normalized = normalizePublicEditions(next.editions);
+      payloadRef.current = next;
+      setPayload(next);
+      setEditions(normalized.editions);
+      setEmptyIntervalSince(normalized.emptySince);
+      setExpanded(new Set());
+      setEditionBusyIds(new Set());
+      setEditionDetails(new Map());
+      setVisibleEditionCount(FEED_BATCH_SIZE);
+      setSelectedReport(null);
+      setLoadState("ready");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setSummaryBusy(false);
+      if (isApiErrorStatus(cause, 404) && !hasLoadedPayload) {
+        payloadRef.current = null;
+        setPayload(null);
+        setEditions([]);
+        setLoadState("not-found");
+        return;
+      }
+      setFeedError(publicFeedRequestError(cause));
+      setLoadState(hasLoadedPayload ? "ready" : "unavailable");
     }
   }
 
   useEffect(() => {
-    refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
+    payloadRef.current = null;
+    setPayload(null);
+    setEditions([]);
+    setQuery("");
+    setSearchError("");
+    setEmptyIntervalSince(undefined);
+    void refresh(true);
   }, [props.username, props.slug]);
 
   useEffect(() => {
-    const raw = localStorage.getItem(`ln_read:${props.username}:${props.slug}`);
-    setReadIds(new Set(raw ? (JSON.parse(raw) as string[]) : []));
-  }, [props.username, props.slug]);
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") {
+        void refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    window.addEventListener("focus", refreshOnFocus);
 
-  useEffect(() => {
-    localStorage.setItem(`ln_read:${props.username}:${props.slug}`, JSON.stringify(Array.from(readIds)));
-  }, [props.username, props.slug, readIds]);
+    const boundary = payload?.briefing.nextBriefingAt ? new Date(payload.briefing.nextBriefingAt).getTime() : Number.NaN;
+    const delay = Number.isFinite(boundary)
+      ? Math.max(1_000, Math.min(2_147_000_000, boundary + 5_000 - Date.now()))
+      : 60_000;
+    const timeout = window.setTimeout(() => {
+      void refresh();
+    }, delay);
 
-  useEffect(() => {
-    const interval = window.setInterval(() => setClock(Date.now()), 60_000);
-    return () => window.clearInterval(interval);
-  }, []);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+      window.removeEventListener("focus", refreshOnFocus);
+      window.clearTimeout(timeout);
+    };
+  }, [payload?.briefing.nextBriefingAt, props.username, props.slug]);
 
   useEffect(() => {
     if (!payload) return;
     let active = true;
     const timeout = window.setTimeout(async () => {
+      setIsSearching(true);
       try {
-        setError("");
+        setSearchError("");
         const nextEditions = query.trim() ? await searchFeed(props.username, props.slug, query) : payload.editions;
         if (active) {
-          setEditions(nextEditions);
-          setVisibleUnreadCount(FEED_BATCH_SIZE);
+          const normalized = normalizePublicEditions(nextEditions);
+          setEditions(normalized.editions);
+          setEmptyIntervalSince(query.trim() ? undefined : normalized.emptySince);
+          setVisibleEditionCount(FEED_BATCH_SIZE);
         }
       } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : String(cause));
+        if (active) setSearchError(publicFeedRequestError(cause));
+      } finally {
+        if (active) setIsSearching(false);
       }
     }, 250);
     return () => {
@@ -1993,21 +3323,25 @@ function FeedPage(props: { username: string; slug: string }) {
     };
   }, [payload, props.username, props.slug, query]);
 
-  const unreadEditions = editions.filter((edition) => !readIds.has(edition.id));
-  const visibleUnreadEditions = unreadEditions.slice(0, visibleUnreadCount);
-  const hiddenUnreadCount = Math.max(0, unreadEditions.length - visibleUnreadEditions.length);
-  const archivedReadEditions = editions.filter((edition) => readIds.has(edition.id));
+  const visibleEditions = editions.slice(0, visibleEditionCount);
+  const hiddenEditionCount = Math.max(0, editions.length - visibleEditions.length);
   const language = payload?.briefing.language ?? "en";
   const pageDir = textDirection(language);
-  const canStar = Boolean(payload);
-  const feedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language) : "";
+  const canStar = payload?.viewerCanStar === true;
+  const baseEditions = normalizePublicEditions(payload?.editions ?? []).editions;
+  const publicState = payload
+    ? payload.snapshotFallback
+      ? "delayed"
+      : derivePublicFeedState(payload.briefing, baseEditions, Boolean(feedError))
+    : "needs-attention";
   const reportEdition = selectedReport
     ? editionDetails.get(selectedReport.editionId) ?? editions.find((edition) => edition.id === selectedReport.editionId)
     : undefined;
   const reportSection = reportEdition && selectedReport ? reportEdition.sections[selectedReport.sectionIndex] : undefined;
   const feedTitle = payload ? (
     <span className="feed-page-title">
-      <span className={`status-dot ${payload.briefing.paused ? "paused" : "live"}`} aria-hidden />
+      <span className={`status-dot ${publicState === "ready" ? "live" : "paused"}`} aria-hidden />
+      <span className="sr-only">{publicStateLabel(publicState, language)}:</span>
       <span>{payload.briefing.title}</span>
     </span>
   ) : "briefing";
@@ -2026,7 +3360,7 @@ function FeedPage(props: { username: string; slug: string }) {
       setEditionDetails((current) => new Map(current).set(edition.id, detailed));
       return detailed;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setFeedError(isApiErrorStatus(cause, 404) ? detailUnavailableLabel(language) : publicFeedRequestError(cause));
       return null;
     } finally {
       setEditionBusyIds((current) => {
@@ -2053,79 +3387,161 @@ function FeedPage(props: { username: string; slug: string }) {
     setSelectedReport({ editionId: edition.id, sectionIndex });
   }
 
+  const canonicalPath = `/${encodeURIComponent(props.username)}/${encodeURIComponent(props.slug)}/`;
+
+  if (loadState === "loading") {
+    return (
+      <Shell
+        title="briefing"
+        titleText="briefing"
+        meta={loadingFeedLabel("en")}
+        description="Loading a public Distilled.news briefing."
+        canonicalPath={canonicalPath}
+        noIndex
+      >
+        <section className="feed-load-state" role="status" aria-live="polite" aria-busy="true">
+          <RefreshCw size={18} aria-hidden />
+          <strong>Loading briefing…</strong>
+          <p className="muted">Checking the latest published brief and schedule.</p>
+        </section>
+      </Shell>
+    );
+  }
+
+  if (loadState === "not-found") {
+    return (
+      <Shell
+        title="Briefing not found"
+        titleText="briefing not found"
+        description="This public Distilled.news briefing could not be found."
+        canonicalPath={canonicalPath}
+        noIndex
+      >
+        <section className="section notice not-found-state">
+          <span className="home-kicker">404</span>
+          <p className="muted">The owner or feed name may have changed, or this briefing is no longer available.</p>
+          <div className="actions">
+            <a className="button-link primary-button" href="/">Create a briefing</a>
+            <a className="button-link" href="/#public-briefings">Explore public briefings</a>
+          </div>
+        </section>
+      </Shell>
+    );
+  }
+
+  if (loadState === "unavailable" || !payload) {
+    return (
+      <Shell
+        title="briefing unavailable"
+        titleText="briefing unavailable"
+        description="This public Distilled.news briefing is temporarily unavailable."
+        canonicalPath={canonicalPath}
+        noIndex
+      >
+        <section className="section notice unavailable-state" role="alert">
+          <span className="public-state-label needs-attention">Needs attention</span>
+          <h2>Briefing temporarily unavailable</h2>
+          <p className="muted">{feedError || "The public feed could not be loaded."}</p>
+          <button type="button" className="primary-button" onClick={() => void refresh(true)}>
+            <RefreshCw size={15} aria-hidden /> Try again
+          </button>
+        </section>
+      </Shell>
+    );
+  }
+
   return (
     <Shell
       title={feedTitle}
-      titleText={payload?.briefing.title ?? "briefing"}
-      meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : loadingFeedLabel(language)}
-      feed={payload?.briefing}
+      titleText={payload.briefing.title}
+      meta={<>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></>}
+      feed={payload.briefing}
       pageLanguage={language}
+      description={feedMetadataDescription(payload.briefing, language)}
+      canonicalPath={canonicalPath}
     >
-      {payload ? (
-        <FeedSignalPanel
-          briefing={payload.briefing}
-          editionCount={editions.length}
-          unreadCount={unreadEditions.length}
-          language={language}
-          nowMs={clock}
-        />
+      <FeedSignalPanel
+        briefing={payload.briefing}
+        editions={baseEditions}
+        state={publicState}
+        language={language}
+      />
+      {payload.snapshotFallback ? (
+        <FeedNotice message={snapshotFallbackLabel(language)} language={language} state="delayed" />
       ) : null}
-      <div className="feed-tools" dir={pageDir}>
-        <div className="feed-actions">
-          <button type="button" title={refreshControlLabel(language)} onClick={() => refresh()}><RefreshCw size={15} aria-hidden /> {refreshControlLabel(language)}</button>
-          <button
-            type="button"
-            title={summaryRequestTitleLabel(language)}
-            disabled={!payload || summaryBusy}
-            onClick={() => void requestSummaryNow()}
-          >
-            <Newspaper size={15} aria-hidden /> {summaryBusy ? summaryBusyLabel(language) : summaryRequestLabel(language)}
-          </button>
-          <button
-            type="button"
-            className={`star-vote${payload?.viewerHasStarred ? " is-starred" : ""}`}
-            title={starTitleLabel(payload?.viewerHasStarred ?? false, language)}
-            disabled={!canStar || starBusy || !payload}
-            aria-pressed={payload?.viewerHasStarred ?? false}
-            onClick={async () => {
-              if (!payload) return;
-              setStarBusy(true);
-              try {
-                const result = await setFeedStar(props.username, props.slug, !payload.viewerHasStarred);
-                setPayload({
-                  ...payload,
-                  briefing: { ...payload.briefing, stars: result.stars },
-                  viewerHasStarred: result.viewerHasStarred
-                });
-              } finally {
-                setStarBusy(false);
-              }
-            }}
-          >
-            <Star size={15} aria-hidden />
-            {starControlLabel(payload?.viewerHasStarred ?? false, language)} {payload?.briefing.stars ?? 0}
-          </button>
-        </div>
-        <div className="feed-side-actions">
+      <div className="feed-menu-row" dir={pageDir}>
+        <details className="feed-menu">
+          <summary role="button" title={moreOptionsLabel(language)} aria-label={moreOptionsLabel(language)}>
+            <Settings size={16} aria-hidden />
+            <span>{moreOptionsLabel(language)}</span>
+          </summary>
+          <div className="feed-menu-popover">
+            <form
+              className="search"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                setIsSearching(true);
+                setSearchError("");
+                try {
+                  const result = query.trim() ? await searchFeed(props.username, props.slug, query) : payload.editions;
+                  const normalized = normalizePublicEditions(result);
+                  setEditions(normalized.editions);
+                  setEmptyIntervalSince(query.trim() ? undefined : normalized.emptySince);
+                  setVisibleEditionCount(FEED_BATCH_SIZE);
+                } catch (cause) {
+                  setSearchError(publicFeedRequestError(cause));
+                } finally {
+                  setIsSearching(false);
+                }
+              }}
+            >
+              <Search size={15} aria-hidden />
+              <input
+                aria-label={searchPublishedLabel(language)}
+                dir={pageDir}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={searchPublishedLabel(language)}
+              />
+            </form>
+          {canStar ? (
+            <button
+              type="button"
+              className={`star-vote${payload.viewerHasStarred ? " is-starred" : ""}`}
+              title={starTitleLabel(payload.viewerHasStarred, language)}
+              disabled={starBusy}
+              aria-pressed={payload.viewerHasStarred}
+              onClick={async () => {
+                setStarBusy(true);
+                setFeedError("");
+                try {
+                  const result = await setFeedStar(props.username, props.slug, !payload.viewerHasStarred);
+                  const nextPayload = {
+                    ...payload,
+                    briefing: { ...payload.briefing, stars: result.stars },
+                    viewerHasStarred: result.viewerHasStarred
+                  };
+                  payloadRef.current = nextPayload;
+                  setPayload(nextPayload);
+                } catch (cause) {
+                  setFeedError(publicFeedRequestError(cause));
+                } finally {
+                  setStarBusy(false);
+                }
+              }}
+            >
+              <Star size={15} aria-hidden />
+              {starControlLabel(payload.viewerHasStarred, language)} {payload.briefing.stars}
+            </button>
+          ) : (
+            <a className="button-link star-vote" href="/?login=1" title={signInToStarLabel(language)}>
+              <LogIn size={15} aria-hidden />
+              {signInToStarLabel(language)} {payload.briefing.stars}
+            </a>
+          )}
           <button type="button" title={exploreFeedsLabel(language)} onClick={() => setExploreOpen(true)}><Compass size={15} aria-hidden /> {exploreControlLabel(language)}</button>
-          <form
-            className="search"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              setEditions(query.trim() ? await searchFeed(props.username, props.slug, query) : payload?.editions ?? []);
-              setVisibleUnreadCount(FEED_BATCH_SIZE);
-            }}
-          >
-            <Search size={15} aria-hidden />
-            <input
-              aria-label={searchPublishedLabel(language)}
-              dir={pageDir}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={searchPublishedLabel(language)}
-            />
-          </form>
-        </div>
+          </div>
+        </details>
       </div>
       {exploreOpen ? <ExploreFeedsSheet currentFeed={payload?.briefing} language={language} onClose={() => setExploreOpen(false)} /> : null}
       {reportEdition && reportSection ? (
@@ -2136,116 +3552,105 @@ function FeedPage(props: { username: string; slug: string }) {
           onClose={() => setSelectedReport(null)}
         />
       ) : null}
-      {error ? <FeedNotice message={error} language={language} /> : null}
-      {summaryMessage ? (
-        <p className="muted feed-status-message" lang={language} dir={pageDir}>
-          <bdi dir={pageDir}>{summaryMessage}</bdi>
-        </p>
-      ) : null}
-      {feedStatusMessage ? (
-        <p className="muted feed-status-message" lang={language} dir={pageDir}>
-          <bdi dir={pageDir}>{feedStatusMessage}</bdi>
-        </p>
-      ) : null}
-      <div className="news-line">
-        {visibleUnreadEditions.map((edition) => (
+      {feedError ? <FeedNotice message={showingCachedFeedLabel(language)} language={language} state="needs-attention" /> : null}
+      {searchError ? <FeedNotice message={searchError} language={language} state="needs-attention" /> : null}
+      {isSearching ? <p className="feed-status-message muted" role="status" aria-live="polite">{searchingFeedLabel(language)}</p> : null}
+      <div className="news-line hourly-briefs">
+        {emptyIntervalSince && editions.length > 0 && !query.trim() ? (
+          <div className="empty-interval" role="status">
+            <CircleCheck size={16} aria-hidden />
+            <span>{noMaterialUpdatesSinceLabel(emptyIntervalSince, language, payload.briefing.briefingTimezone)}</span>
+          </div>
+        ) : null}
+        {visibleEditions.map((edition) => (
           <FeedEditionRow
             key={edition.id}
             edition={edition}
             detailEdition={editionDetails.get(edition.id) ?? (edition.sections.length > 0 ? edition : undefined)}
             language={language}
+            timezone={payload?.briefing.briefingTimezone ?? "UTC"}
             isExpanded={expanded.has(edition.id)}
             isLoading={editionBusyIds.has(edition.id)}
-            isRead={false}
             onToggleExpanded={() => void toggleEditionExpanded(edition)}
-            onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, true)}
             onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
           />
         ))}
-        {hiddenUnreadCount > 0 ? (
+        {hiddenEditionCount > 0 ? (
           <div className="load-more-row">
-            <button type="button" title={loadMoreLabel(language)} onClick={() => setVisibleUnreadCount((count) => count + FEED_BATCH_SIZE)}>
+            <button type="button" title={loadMoreLabel(language)} onClick={() => setVisibleEditionCount((count) => count + FEED_BATCH_SIZE)}>
               {loadMoreLabel(language)}
             </button>
-            <span className="muted">{moreCountLabel(hiddenUnreadCount, language)}</span>
+            <span className="muted">{moreCountLabel(hiddenEditionCount, language)}</span>
           </div>
         ) : null}
-        {unreadEditions.length === 0 && !error ? (
-          <div className="empty-state">
-            <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>
-            <p className="muted">
-              {emptyFeedMessage(archivedReadEditions.length, language)}
-            </p>
-          </div>
+        {editions.length === 0 && !searchError && !isSearching ? (
+          <FeedEmptyState
+            briefing={payload.briefing}
+            language={language}
+            query={query}
+            state={publicState}
+            since={emptyIntervalSince}
+          />
         ) : null}
       </div>
-      {archivedReadEditions.length > 0 ? (
-        <details className="section read-section">
-          <summary>{readSectionLabel(archivedReadEditions.length, language)}</summary>
-          <div className="news-line news-line-read">
-            {archivedReadEditions.map((edition) => (
-              <FeedEditionRow
-                key={edition.id}
-                edition={edition}
-                detailEdition={editionDetails.get(edition.id) ?? (edition.sections.length > 0 ? edition : undefined)}
-                language={language}
-                isExpanded={expanded.has(edition.id)}
-                isLoading={editionBusyIds.has(edition.id)}
-                isRead={true}
-                onToggleExpanded={() => void toggleEditionExpanded(edition)}
-                onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, false)}
-                onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
-              />
-            ))}
-          </div>
-        </details>
-      ) : null}
     </Shell>
   );
 }
 
 function FeedSignalPanel(props: {
   briefing: PublicBriefing;
-  editionCount: number;
-  unreadCount: number;
+  editions: BriefingEdition[];
+  state: PublicFeedState;
   language: "en" | "ar" | "fr";
-  nowMs: number;
 }) {
   const nextValue = props.briefing.paused
     ? pausedScheduleLabel(props.language)
     : props.briefing.nextBriefingAt
-      ? formatCountdown(props.briefing.nextBriefingAt, props.nowMs, props.language)
+      ? formatTime(props.briefing.nextBriefingAt, props.language, props.briefing.briefingTimezone)
       : summaryPublishedLabel(props.language);
+  const latestPublishedAt = latestEditionPublishedAt(props.editions);
   return (
-    <section className="feed-signal-panel" aria-label="feed signal">
-      <div className="feed-signal-primary">
-        <span className="eyebrow">{cadenceMetaLabel(props.briefing.briefingCadence, props.language)}</span>
-        <strong><bdi>{props.briefing.title}</bdi></strong>
-        <span className="muted">@{props.briefing.ownerUsername}</span>
+    <section className={`feed-signal-panel state-${props.state}`} aria-label={feedStatusAriaLabel(props.language)} dir={textDirection(props.language)}>
+      <div className="feed-state-line">
+        <span className={`status-dot ${props.state === "ready" ? "live" : "paused"}`} aria-hidden />
+        <strong>{publicStateLabel(props.state, props.language)}</strong>
+        <span>{publicStateMessage(props.state, props.language)}</span>
       </div>
-      <div className="feed-signal-grid">
-        <div className="signal-stat">
-          <Sparkles size={17} aria-hidden />
-          <span>{props.unreadCount}</span>
-          <small>{signalMetricLabel("unread", props.language)}</small>
-        </div>
-        <div className="signal-stat">
-          <LayoutDashboard size={17} aria-hidden />
-          <span>{props.editionCount}</span>
-          <small>{signalMetricLabel("published", props.language)}</small>
-        </div>
-        <div className="signal-stat">
-          <Star size={17} aria-hidden />
-          <span>{props.briefing.stars}</span>
-          <small>{signalMetricLabel("stars", props.language)}</small>
-        </div>
-        <div className="signal-stat wide">
-          <Gauge size={17} aria-hidden />
-          <span><bdi>{nextValue}</bdi></span>
-          <small>{signalMetricLabel("next", props.language)}</small>
-        </div>
+      <div className="feed-schedule-line">
+        <Clock3 size={15} aria-hidden />
+        <span>{briefingScheduleLabel(props.briefing.briefingCadence, nextValue, props.briefing.paused, props.language)}</span>
+        {latestPublishedAt ? (
+          <span className="feed-latest">
+            {latestBriefLabel(props.language)} <time dateTime={latestPublishedAt}>{relativeTimeLabel(latestPublishedAt, props.language)}</time>
+          </span>
+        ) : null}
       </div>
     </section>
+  );
+}
+
+function FeedEmptyState(props: {
+  briefing: PublicBriefing;
+  language: "en" | "ar" | "fr";
+  query: string;
+  state: PublicFeedState;
+  since?: string;
+}) {
+  if (props.query.trim()) {
+    return (
+      <div className="empty-state" role="status">
+        <strong>{noSearchResultsTitle(props.language)}</strong>
+        <p className="muted">{noSearchResultsMessage(props.query, props.language)}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`empty-state feed-empty-state state-${props.state}`} role="status">
+      <strong>{publicStateLabel(props.state, props.language)}</strong>
+      <p>{noMaterialUpdatesSinceLabel(props.since, props.language, props.briefing.briefingTimezone)}</p>
+      <p className="muted">{publicEmptyStateMessage(props.state, props.language)}</p>
+    </div>
   );
 }
 
@@ -2253,11 +3658,10 @@ function FeedEditionRow(props: {
   edition: BriefingEdition;
   detailEdition?: BriefingEdition;
   language: "en" | "ar" | "fr";
+  timezone: string;
   isExpanded: boolean;
   isLoading: boolean;
-  isRead: boolean;
   onToggleExpanded: () => void;
-  onToggleRead: () => void;
   onOpenReport: (sectionIndex: number) => void;
 }) {
   const textDir = textDirection(props.language);
@@ -2266,27 +3670,19 @@ function FeedEditionRow(props: {
   const referenceCount = Math.max(detailEdition.sections.length, highestReferenceNumber(props.edition.summary));
   const closedIcon = textDir === "rtl" ? <ChevronLeft size={15} aria-hidden /> : <ChevronRight size={15} aria-hidden />;
   return (
-    <article className={`news-item${props.isRead ? " is-read" : ""}`}>
-      <div className="news-rail" aria-hidden>
-        <span className="news-node" />
-      </div>
+    <article
+      className="news-item"
+      onClick={(event) => {
+        const target = event.target as Element;
+        if (!target.closest("button, a, input, summary")) props.onToggleExpanded();
+      }}
+    >
       <div className="news-copy" lang={props.language} dir={textDir}>
         <div className="news-topline">
           <div className="news-meta" dir={textDir}>
-            <Timestamp value={props.edition.publishedAt} language={props.language} />
-            <span className="muted">{cadenceMetaLabel(props.edition.cadence, props.language)}</span>
+            <Timestamp value={props.edition.publishedAt} language={props.language} timezone={props.timezone} />
           </div>
           <div className="news-row-actions" dir="ltr">
-            <button
-              type="button"
-              className="read-button icon-button quiet-icon"
-              title={readToggleTitle(props.isRead, props.language)}
-              aria-label={readToggleAria(props.edition.title, props.isRead, props.language)}
-              onClick={props.onToggleRead}
-            >
-              {props.isRead ? <Circle size={16} aria-hidden /> : <CircleCheck size={16} aria-hidden />}
-              <span className="sr-only">{readToggleText(props.isRead, props.language)}</span>
-            </button>
             <button
               type="button"
               className="expand icon-button quiet-icon"
@@ -2309,7 +3705,6 @@ function FeedEditionRow(props: {
         {props.isExpanded ? (
           <EditionSections
             edition={detailEdition}
-            surfaceSummary={surfaceSummary}
             language={props.language}
             loading={props.isLoading}
             onOpenReport={props.onOpenReport}
@@ -2322,7 +3717,6 @@ function FeedEditionRow(props: {
 
 function EditionSections(props: {
   edition: BriefingEdition;
-  surfaceSummary: string;
   language: "en" | "ar" | "fr";
   loading: boolean;
   onOpenReport: (sectionIndex: number) => void;
@@ -2330,31 +3724,46 @@ function EditionSections(props: {
   const textDir = textDirection(props.language);
   if (props.loading) return <p className="muted evidence-loading">{loadingBriefingLabel(props.language)}</p>;
   if (props.edition.sections.length === 0) return <p className="muted evidence-loading">{noBriefingDetailLabel(props.language)}</p>;
-  const fullSummary = props.edition.summary.trim();
-  const showFullSummary = Boolean(fullSummary) && normalizeSummary(fullSummary) !== normalizeSummary(props.surfaceSummary);
-  const referenceCount = Math.max(props.edition.sections.length, highestReferenceNumber(props.edition.summary));
+  const tiered = props.edition.sections.some((section) => section.tier === "top" || section.tier === "additional");
+  const indexedSections = props.edition.sections.map((section, sectionIndex) => ({ section, sectionIndex }));
+  const topSections = tiered ? indexedSections.filter(({ section }) => section.tier === "top") : indexedSections;
+  const additionalSections = tiered ? indexedSections.filter(({ section }) => section.tier !== "top") : [];
   return (
     <div className="brief-synthesis">
-      {showFullSummary ? (
-        <div className="full-brief-block">
-          <div className="brief-list-head">
-            <span>{fullBriefLabel(props.language)}</span>
-          </div>
-          <ReferenceParagraph
-            className="full-brief-summary"
-            text={fullSummary}
-            language={props.language}
-            referenceCount={referenceCount}
-            onOpenReference={props.onOpenReport}
-          />
-        </div>
-      ) : null}
       <div className="brief-list-head">
-        <span>{referencesLabel(props.language)}</span>
+        <span>{tiered ? topStoriesLabel(props.language) : referencesLabel(props.language)}</span>
         <span className="muted">{referenceLabel(props.edition.sections.length, props.language)}</span>
       </div>
-      <div className="reference-digest-list" aria-label={referencesLabel(props.language)} dir={textDir}>
-        {props.edition.sections.map((section, sectionIndex) => {
+      <EditionSectionList
+        entries={topSections}
+        language={props.language}
+        textDir={textDir}
+        onOpenReport={props.onOpenReport}
+      />
+      {additionalSections.length > 0 ? (
+        <details className="additional-updates">
+          <summary>{additionalUpdatesLabel(additionalSections.length, props.language)}</summary>
+          <EditionSectionList
+            entries={additionalSections}
+            language={props.language}
+            textDir={textDir}
+            onOpenReport={props.onOpenReport}
+          />
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function EditionSectionList(props: {
+  entries: Array<{ section: BriefingEditionSection; sectionIndex: number }>;
+  language: "en" | "ar" | "fr";
+  textDir: "ltr" | "rtl";
+  onOpenReport: (sectionIndex: number) => void;
+}) {
+  return (
+    <div className="reference-digest-list" aria-label={referencesLabel(props.language)} dir={props.textDir}>
+        {props.entries.map(({ section, sectionIndex }) => {
           const timeRange = referenceTimeRange(section.evidence, props.language);
           return (
             <article
@@ -2376,8 +3785,8 @@ function EditionSections(props: {
                   {timeRange ? <span>{timeRange}</span> : null}
                   {section.evidence.length > 0 ? <span>{referenceLabel(section.evidence.length, props.language)}</span> : null}
                 </div>
-                <p className="reference-digest-summary" dir={textDir}>
-                  <bdi dir={textDir}>{referenceDigestSummary(section.summary)}</bdi>
+                <p className="reference-digest-summary" dir={props.textDir}>
+                  <bdi dir={props.textDir}>{referenceDigestSummary(section.summary)}</bdi>
                 </p>
               </div>
               <button
@@ -2393,7 +3802,6 @@ function EditionSections(props: {
           );
         })}
       </div>
-    </div>
   );
 }
 
@@ -2497,8 +3905,8 @@ function ReportEvidenceRow(props: { entry: BriefingEvidence; language: "en" | "a
   );
 }
 
-function Timestamp(props: { value: string; language: "en" | "ar" | "fr" }) {
-  const label = formatTime(props.value, props.language);
+function Timestamp(props: { value: string; language: "en" | "ar" | "fr"; timezone?: string }) {
+  const label = formatTime(props.value, props.language, props.timezone);
   return <time dateTime={props.value} dir={textDirection(props.language)}>{label}</time>;
 }
 
@@ -2514,10 +3922,10 @@ function StatusLine(props: { label: string; value: React.ReactNode; valueDir?: "
   );
 }
 
-function FeedNotice(props: { message: string; language: "en" | "ar" | "fr" }) {
+function FeedNotice(props: { message: string; language: "en" | "ar" | "fr"; state?: PublicFeedState }) {
   return (
-    <section className="section notice">
-      <h2>{feedUnavailableLabel(props.language)}</h2>
+    <section className={`section notice feed-notice${props.state ? ` state-${props.state}` : ""}`} role="status" aria-live="polite">
+      <h2>{props.state ? publicStateLabel(props.state, props.language) : feedUnavailableLabel(props.language)}</h2>
       <p>{props.message}</p>
     </section>
   );
@@ -2532,12 +3940,25 @@ function Shell(props: {
   onAccount?: () => void;
   onLogout?: () => Promise<void>;
   pageLanguage?: "en" | "ar" | "fr";
+  description?: string;
+  canonicalPath?: string;
+  noIndex?: boolean;
 }) {
-  const [theme, setTheme] = useState(() => (localStorage.getItem("dn_theme") === "dark" ? "dark" : "light"));
+  const [theme, setTheme] = useState(() => {
+    const storedTheme = localStorage.getItem("dn_theme");
+    if (storedTheme === "dark" || storedTheme === "light") return storedTheme;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
   const titleText = props.titleText ?? (typeof props.title === "string" ? props.title : "briefing");
   const shellLanguage = props.pageLanguage ?? "en";
-  const shellMode = props.feed ? "feed-shell" : props.onAccount ? "admin-shell" : "auth-shell";
-  const showCreateNav = shellMode !== "auth-shell";
+  const shellMode = props.feed
+    ? "feed-shell"
+    : props.onAccount
+      ? "admin-shell"
+      : titleText === "Distilled.news"
+        ? "auth-shell home-shell"
+        : "auth-shell";
+  const showCreateNav = !shellMode.includes("auth-shell");
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("dn_theme", theme);
@@ -2546,33 +3967,55 @@ function Shell(props: {
   useEffect(() => {
     document.documentElement.lang = props.pageLanguage ?? "en";
     document.documentElement.dir = textDirection(props.pageLanguage ?? "en");
-    document.title = titleText === "Distilled.news" ? "Distilled.news" : `${titleText} · Distilled.news`;
+    const documentTitle = titleText === "Distilled.news" ? "Distilled.news" : `${titleText} · Distilled.news`;
+    const description = props.description ?? getPageMeta(titleText);
+    const canonicalUrl = new URL(props.canonicalPath ?? window.location.pathname, window.location.origin).href;
+    document.title = documentTitle;
+    setDocumentMeta("name", "description", description);
+    setDocumentMeta("name", "robots", props.noIndex ? "noindex, nofollow" : "index, follow, max-image-preview:large");
+    setDocumentMeta("property", "og:site_name", "Distilled.news");
+    setDocumentMeta("property", "og:type", "website");
+    setDocumentMeta("property", "og:title", documentTitle);
+    setDocumentMeta("property", "og:description", description);
+    setDocumentMeta("property", "og:url", canonicalUrl);
+    setDocumentMeta("property", "og:locale", openGraphLocale(props.pageLanguage ?? "en"));
+    setDocumentMeta("name", "twitter:card", "summary");
+    setDocumentMeta("name", "twitter:title", documentTitle);
+    setDocumentMeta("name", "twitter:description", description);
+    let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    canonical.href = canonicalUrl;
     const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     if (manifest) {
       manifest.href = props.feed
         ? `/manifest.webmanifest?user=${encodeURIComponent(props.feed.ownerUsername)}&feed=${encodeURIComponent(props.feed.slug)}`
         : "/manifest.webmanifest";
     }
-  }, [props.feed, props.pageLanguage, titleText]);
+  }, [props.canonicalPath, props.description, props.feed, props.noIndex, props.pageLanguage, titleText]);
 
   return (
     <main className={`shell ${shellMode}`}>
+      <a className="skip-link" href="#main-content">{skipToContentLabel(shellLanguage)}</a>
       <header>
         <div className="header-primary">
           <div className="brand-lockup">
             <a href="/" className="brand" aria-label="Distilled.news" title="Distilled.news">
               <img className="brand-logo" src="/logo.svg" alt="" />
             </a>
-            <a href="https://github.com/AmmarMohanna/distilled.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository" title="open GitHub repository">
+            <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository" title="open GitHub repository">
               <Github size={16} aria-hidden />
             </a>
           </div>
         </div>
         <div className="header-actions">
-          <nav>
-            {showCreateNav ? <a href="/" title={createNavLabel(shellLanguage)}>{createNavLabel(shellLanguage)}</a> : null}
+          <nav aria-label={primaryNavigationLabel(shellLanguage)}>
+            {showCreateNav ? <a href="/" title={createNavLabel(shellLanguage)} aria-current={!props.feed ? "page" : undefined}>{createNavLabel(shellLanguage)}</a> : null}
             {props.feed ? <span className="nav-separator" aria-hidden="true">|</span> : null}
-            {props.feed ? <a href={`/${props.feed.ownerUsername}/${props.feed.slug}/`}>{feedNavLabel(shellLanguage)}</a> : null}
+            {props.feed ? <a href={`/${props.feed.ownerUsername}/${props.feed.slug}/`} aria-current="page">{feedNavLabel(shellLanguage)}</a> : null}
           </nav>
           <div className="header-controls">
             {props.onAccount ? (
@@ -2587,53 +4030,79 @@ function Shell(props: {
           </div>
         </div>
       </header>
-      <div className="page-heading">
-        <h1>{props.title}</h1>
-        <p>{props.meta ?? getPageMeta(titleText)}</p>
+      <div id="main-content" className="shell-content" tabIndex={-1}>
+        <div className="page-heading">
+          <h1>{props.title}</h1>
+          <p>{props.meta ?? getPageMeta(titleText)}</p>
+        </div>
+        {props.children}
+        <footer className="shell-footer">
+          <p><ShieldCheck size={15} aria-hidden /> Public feeds. Sources and references stay visible.</p>
+          <nav aria-label="Project links">
+            <a href={GITHUB_URL} target="_blank" rel="noreferrer"><Github size={14} aria-hidden /> GitHub</a>
+            <a href={SELF_HOST_URL} target="_blank" rel="noreferrer">Self-host</a>
+            <a href={TRUST_URL} target="_blank" rel="noreferrer">Trust &amp; sources</a>
+            <a href="/status">Status</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/acceptable-use">Acceptable use</a>
+          </nav>
+        </footer>
       </div>
-      {props.children}
     </main>
   );
 }
 
 function getPageMeta(title: string): string {
-  if (title === "create") return "define the feed and add sources.";
+  if (title === "briefings") return "Manage your feeds and sources.";
   if (title === "briefing") return "Published briefing items only.";
   if (title.includes("Briefing")) return "Published briefing items only.";
   if (title === "verify email") return "Account verification.";
   if (title === "reset password") return "Account recovery.";
+  if (title === "Privacy notice") return "How the hosted service processes and protects data.";
+  if (title === "Terms of service") return "Terms for using the hosted Distilled.news service.";
+  if (title === "Acceptable Use Policy") return "Rules that protect people, sources, and the service.";
   return "Less clutter. Personalized news, to the point.";
 }
 
+function setDocumentMeta(attribute: "name" | "property", key: string, content: string) {
+  let element = document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`);
+  if (!element) {
+    element = document.createElement("meta");
+    element.setAttribute(attribute, key);
+    document.head.appendChild(element);
+  }
+  element.content = content;
+}
+
+function openGraphLocale(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "ar_AR";
+  if (language === "fr") return "fr_FR";
+  return "en_US";
+}
+
+function skipToContentLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "انتقل إلى المحتوى الرئيسي";
+  if (language === "fr") return "aller au contenu principal";
+  return "Skip to main content";
+}
+
+function primaryNavigationLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "التنقل الرئيسي";
+  if (language === "fr") return "navigation principale";
+  return "Primary navigation";
+}
+
 function createNavLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "إنشاء";
-  if (language === "fr") return "créer";
-  return "create";
+  if (language === "ar") return "موجزاتي";
+  if (language === "fr") return "mes briefs";
+  return "briefings";
 }
 
 function feedNavLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "الموجز";
   if (language === "fr") return "fil";
   return "feed";
-}
-
-function signalMetricLabel(metric: "unread" | "published" | "stars" | "next", language: "en" | "ar" | "fr"): string {
-  if (language === "ar") {
-    if (metric === "unread") return "غير مقروء";
-    if (metric === "published") return "منشور";
-    if (metric === "stars") return "نجوم";
-    return "التالي";
-  }
-  if (language === "fr") {
-    if (metric === "unread") return "non lu";
-    if (metric === "published") return "publié";
-    if (metric === "stars") return "étoiles";
-    return "prochain";
-  }
-  if (metric === "unread") return "unread";
-  if (metric === "published") return "published";
-  if (metric === "stars") return "stars";
-  return "next";
 }
 
 function updateBriefingList(current: BriefingConfig[], next: BriefingConfig): BriefingConfig[] {
@@ -2656,7 +4125,7 @@ function createBriefingDraft(existing: BriefingConfig[], account: AccountRecord)
     paused: false,
     language: "en",
     intensity: "medium",
-    briefingCadence: "hourly",
+    briefingCadence: existing.some((briefing) => briefing.briefingCadence === "hourly") ? "daily" : "hourly",
     briefingTimeOfDay: "00:00",
     briefingTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     retentionDays: 15,
@@ -2676,18 +4145,6 @@ function toggleSetValue(
   const next = new Set(current);
   if (next.has(id)) next.delete(id);
   else next.add(id);
-  setValue(next);
-}
-
-function toggleRead(
-  current: Set<string>,
-  setValue: React.Dispatch<React.SetStateAction<Set<string>>>,
-  id: string,
-  read: boolean
-) {
-  const next = new Set(current);
-  if (read) next.add(id);
-  else next.delete(id);
   setValue(next);
 }
 
@@ -2721,6 +4178,28 @@ function sourceInputKind(input: string): string {
   return "search topic";
 }
 
+function suggestionTierLabel(suggestion: SourceSuggestion): string {
+  if (suggestion.kind === "rss_feed") return "Direct · no scraper fee · recommended";
+  return "Paid beta · Apify-backed";
+}
+
+function sourceInputTierLabel(input: string): string {
+  const trimmed = input.trim();
+  if (/^https?:\/\/(?:www\.)?t\.me\//i.test(trimmed) || /^@[A-Za-z0-9_]{3,}$/i.test(trimmed)) {
+    return "Best-effort beta · no scraper fee";
+  }
+  if (/^https?:\/\/(?:www\.)?(?:x|twitter)\.com\//i.test(trimmed) || /^x:/i.test(trimmed)) {
+    return "Paid beta · Apify-backed";
+  }
+  if (/^https?:\/\/(?:www\.)?linkedin\.com\//i.test(trimmed) || /^(?:linkedin|apify):/i.test(trimmed)) {
+    return "Paid beta · Apify-backed";
+  }
+  if (/^(?:rss|json):/i.test(trimmed) || /^https?:\/\//i.test(trimmed)) {
+    return "Direct · no scraper fee · recommended";
+  }
+  return "Paid beta · Apify-backed";
+}
+
 function sourceProviderLabel(source: SourceRecord): string {
   if (source.kind === "google_news") return "google news";
   if (source.kind === "x_profile" || source.kind === "x_search") return "x";
@@ -2737,28 +4216,16 @@ function SourceStatusNote(props: { source: SourceRecord }) {
 
 function sourceStatusNote(source: SourceRecord): { text: string; className: string } {
   if (source.kind === "google_news" && /Google News RSS source: (?:429|5\d\d)/i.test(source.lastError ?? "")) {
-    if (/Apify fallback daily .* cap reached/i.test(source.lastError ?? "")) {
-      return {
-        text: "Google News RSS is unavailable and the Apify fallback hit today's cap.",
-        className: "source-warning"
-      };
-    }
-    if (/Apify fallback failed/i.test(source.lastError ?? "")) {
-      return {
-        text: "Google News RSS is unavailable and the Apify fallback could not start.",
-        className: "source-warning"
-      };
-    }
+    const retry = source.nextRetryAt ? ` Automatic retry ${formatTime(source.nextRetryAt, "en")}.` : " Automatic retry pending.";
     return {
-      text: source.enabled
-        ? "Google News RSS is temporarily unavailable from the Worker; retrying through the guarded schedule."
-        : "Paused after repeated Google News RSS failures. Re-enable to retry.",
+      text: `Google News is temporarily unavailable.${retry}`,
       className: "source-warning"
     };
   }
-  if (/^(Quarantined after repeated queue failures|Paused after repeated source failures):/i.test(source.lastError ?? "")) {
+  if (source.healthState === "backoff" || source.healthState === "degraded") {
+    const retry = source.nextRetryAt ? ` Retrying automatically ${formatTime(source.nextRetryAt, "en")}.` : " Retrying automatically.";
     return {
-      text: source.enabled ? "Repeated source failures; monitoring before the next retry." : "Paused after repeated source failures. Re-enable to retry.",
+      text: `Source is temporarily unavailable.${retry}`,
       className: "source-warning"
     };
   }
@@ -2775,11 +4242,281 @@ function getHealthSummaryParts(briefing: BriefingConfig, health: HealthStatus | 
   queueState: string;
 } {
   const feedState = briefing.paused ? "paused" : "live";
+  if (!health) {
+    return {
+      feedState,
+      latest: "publication health unavailable",
+      queueState: "health unavailable"
+    };
+  }
   const latest = health?.latestPublishedAt ? formatTime(health.latestPublishedAt, briefing.language) : "no published items";
-  const queued = health?.processing.queued ?? 0;
-  const failed = health?.processing.failed ?? 0;
+  const queued = health.processing.queued;
+  const failed = health.processing.failed;
   const queueState = failed > 0 ? `failed ${failed}` : queued > 0 ? `queued ${queued}` : "queue clear";
   return { feedState, latest, queueState };
+}
+
+function normalizePublicEditions(input: BriefingEdition[]): { editions: BriefingEdition[]; emptySince?: string } {
+  const editions = input.filter((edition) => !isPresentationEmptyEdition(edition));
+  const firstMaterialIndex = input.findIndex((edition) => !isPresentationEmptyEdition(edition));
+  const hasLeadingEmptyInterval = input.some(
+    (edition, index) => isPresentationEmptyEdition(edition) && (firstMaterialIndex < 0 || index < firstMaterialIndex)
+  );
+  if (!hasLeadingEmptyInterval) return { editions };
+  if (editions[0]?.publishedAt) return { editions, emptySince: editions[0].publishedAt };
+  const oldestEmpty = [...input].reverse().find(isPresentationEmptyEdition);
+  return { editions, emptySince: oldestEmpty?.windowStart ?? oldestEmpty?.publishedAt };
+}
+
+function isPresentationEmptyEdition(edition: BriefingEdition): boolean {
+  if (edition.status === "empty") return true;
+  const summary = edition.summary.trim().toLocaleLowerCase();
+  return [
+    /^no relevant updates\b/u,
+    /^no material updates\b/u,
+    /^aucune mise à jour pertinente\b/u,
+    /^لا توجد تحديثات ذات صلة\b/u
+  ].some((pattern) => pattern.test(summary));
+}
+
+function derivePublicFeedState(
+  briefing: PublicBriefing,
+  editions: BriefingEdition[],
+  hasRequestError: boolean
+): PublicFeedState {
+  if (briefing.paused) return "paused";
+  if (hasRequestError) return "needs-attention";
+  const nextBriefingAt = briefing.nextBriefingAt ? new Date(briefing.nextBriefingAt).getTime() : Number.NaN;
+  const isDelayed = Number.isFinite(nextBriefingAt) && nextBriefingAt < Date.now() - 5 * 60_000;
+  if (editions.length === 0) return isDelayed ? "delayed" : "collecting";
+  const latestPublishedAt = latestEditionPublishedAt(editions);
+  if (latestPublishedAt && isPublicationStale(latestPublishedAt, briefing.briefingCadence)) return "stale";
+  if (isDelayed) return "delayed";
+  return "ready";
+}
+
+function latestEditionPublishedAt(editions: BriefingEdition[]): string | undefined {
+  return editions
+    .map((edition) => edition.publishedAt)
+    .filter((value) => Number.isFinite(new Date(value).getTime()))
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
+}
+
+function publicBriefingPublishedAt(briefing: PublicBriefing): string | undefined {
+  const value = briefing.latestPublishedAt ?? briefing.lastPublishedAt;
+  return value && Number.isFinite(new Date(value).getTime()) ? value : undefined;
+}
+
+function isPublicationStale(value: string, cadence: BriefingConfig["briefingCadence"]): boolean {
+  const publishedAt = new Date(value).getTime();
+  if (!Number.isFinite(publishedAt)) return false;
+  const horizons: Record<BriefingConfig["briefingCadence"], number> = {
+    hourly: 2 * 60 * 60_000,
+    daily: 36 * 60 * 60_000,
+    weekly: 9 * 24 * 60 * 60_000,
+    monthly: 40 * 24 * 60 * 60_000
+  };
+  return Date.now() - publishedAt > horizons[cadence];
+}
+
+function relativeTimeLabel(value: string, language: "en" | "ar" | "fr"): string {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return language === "ar" ? "وقت غير معروف" : language === "fr" ? "heure inconnue" : "unknown time";
+  const deltaSeconds = Math.round((timestamp - Date.now()) / 1000);
+  const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ["year", 365 * 24 * 60 * 60],
+    ["month", 30 * 24 * 60 * 60],
+    ["week", 7 * 24 * 60 * 60],
+    ["day", 24 * 60 * 60],
+    ["hour", 60 * 60],
+    ["minute", 60]
+  ];
+  const [unit, seconds] = ranges.find(([, threshold]) => Math.abs(deltaSeconds) >= threshold) ?? ["second", 1];
+  return new Intl.RelativeTimeFormat(language, { numeric: "auto" }).format(Math.round(deltaSeconds / seconds), unit);
+}
+
+function publicFeedRequestError(cause: unknown): string {
+  if (isApiErrorStatus(cause, 429)) return "The public service is busy. Try again shortly.";
+  if (isApiErrorStatus(cause, 404)) return "The requested public briefing is no longer available.";
+  return "The public service could not be reached. Try again shortly.";
+}
+
+function publicStateLabel(state: PublicFeedState, language: "en" | "ar" | "fr"): string {
+  if (language === "ar") {
+    if (state === "ready") return "جاهز";
+    if (state === "collecting") return "قيد التجميع";
+    if (state === "delayed") return "متأخر";
+    if (state === "needs-attention") return "يحتاج إلى متابعة";
+    if (state === "paused") return "متوقف مؤقتاً";
+    return "قديم";
+  }
+  if (language === "fr") {
+    if (state === "ready") return "Prêt";
+    if (state === "collecting") return "Collecte";
+    if (state === "delayed") return "Retardé";
+    if (state === "needs-attention") return "À vérifier";
+    if (state === "paused") return "En pause";
+    return "Obsolète";
+  }
+  if (state === "ready") return "Ready";
+  if (state === "collecting") return "Collecting";
+  if (state === "delayed") return "Delayed";
+  if (state === "needs-attention") return "Needs attention";
+  if (state === "paused") return "Paused";
+  return "Stale";
+}
+
+function publicStateMessage(state: PublicFeedState, language: "en" | "ar" | "fr"): string {
+  if (language === "ar") {
+    if (state === "ready") return "أحدث موجز متوافق مع الجدول.";
+    if (state === "collecting") return "يتم جمع المصادر للموجز الأول.";
+    if (state === "delayed") return "الموجز التالي يستغرق وقتاً أطول من الموعد.";
+    if (state === "needs-attention") return "التحديث المباشر غير متاح مؤقتاً.";
+    if (state === "paused") return "النشر متوقف والموجزات السابقة متاحة.";
+    return "أحدث موجز أقدم من جدول هذا الموجز.";
+  }
+  if (language === "fr") {
+    if (state === "ready") return "Le dernier brief respecte le rythme prévu.";
+    if (state === "collecting") return "Les sources sont collectées pour le premier brief.";
+    if (state === "delayed") return "Le prochain brief prend plus de temps que prévu.";
+    if (state === "needs-attention") return "L’actualisation en direct est temporairement indisponible.";
+    if (state === "paused") return "La publication est en pause; les briefs précédents restent disponibles.";
+    return "Le dernier brief est plus ancien que le rythme prévu.";
+  }
+  if (state === "ready") return "The latest brief is on schedule.";
+  if (state === "collecting") return "Sources are being collected for the first brief.";
+  if (state === "delayed") return "The next brief is taking longer than scheduled.";
+  if (state === "needs-attention") return "Live updates are temporarily unavailable.";
+  if (state === "paused") return "Publishing is paused; existing briefs remain available.";
+  return "The latest brief is older than this feed’s schedule.";
+}
+
+function publicEmptyStateMessage(state: PublicFeedState, language: "en" | "ar" | "fr"): string {
+  if (language === "ar") {
+    if (state === "paused") return "ستبقى هذه الصفحة كما هي حتى يستأنف المالك النشر.";
+    if (state === "delayed" || state === "needs-attention") return "تحقق لاحقاً من الموجز التالي.";
+    return "سيظهر هنا أول تحديث مادي بعد التحقق من المصادر.";
+  }
+  if (language === "fr") {
+    if (state === "paused") return "Cette page restera inchangée jusqu’à la reprise de la publication.";
+    if (state === "delayed" || state === "needs-attention") return "Revenez bientôt pour le prochain brief.";
+    return "La première mise à jour matérielle apparaîtra ici après vérification des sources.";
+  }
+  if (state === "paused") return "This page will stay unchanged until the owner resumes publishing.";
+  if (state === "delayed" || state === "needs-attention") return "Check back shortly for the next brief.";
+  return "The first material update will appear here after sources are checked.";
+}
+
+function noMaterialUpdatesSinceLabel(
+  value: string | undefined,
+  language: "en" | "ar" | "fr",
+  timezone: string
+): string {
+  const formatted = value ? dateTimeLabel(value, language, timezone) : undefined;
+  if (language === "ar") return formatted ? `لا تحديثات جوهرية منذ ${formatted}.` : "لا تحديثات جوهرية منذ بدء هذا الموجز.";
+  if (language === "fr") return formatted ? `Aucune mise à jour importante depuis ${formatted}.` : "Aucune mise à jour importante depuis le début de ce fil.";
+  return formatted ? `No material updates since ${formatted}.` : "No material updates since this feed began.";
+}
+
+function dateTimeLabel(value: string, language: "en" | "ar" | "fr", timezone: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  try {
+    return new Intl.DateTimeFormat(language, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: timezone
+    }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(date);
+  }
+}
+
+function feedMetadataDescription(briefing: PublicBriefing, language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return `موجز ${briefing.title} العام بواسطة ${briefing.ownerUsername}. تبقى المصادر والمراجع ظاهرة.`;
+  if (language === "fr") return `Brief public ${briefing.title} par ${briefing.ownerUsername}. Les sources et références restent visibles.`;
+  return `${briefing.title}, a ${visibleBriefingCadence(briefing.briefingCadence)} public briefing by @${briefing.ownerUsername}. Sources and references stay visible.`;
+}
+
+function briefingScheduleLabel(
+  cadence: BriefingConfig["briefingCadence"],
+  nextValue: string,
+  paused: boolean,
+  language: "en" | "ar" | "fr"
+): string {
+  if (paused) return nextValue;
+  const cadenceText = visibleBriefingCadence(cadence);
+  if (language === "ar") return `${cadenceText} · الموجز التالي ${nextValue}`;
+  if (language === "fr") return `${cadenceText} · prochain brief ${nextValue}`;
+  return `${cadenceText[0].toUpperCase()}${cadenceText.slice(1)} · next brief ${nextValue}`;
+}
+
+function feedStatusAriaLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "حالة وجدول الموجز";
+  if (language === "fr") return "état et calendrier du fil";
+  return "feed status and schedule";
+}
+
+function latestBriefLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "آخر موجز";
+  if (language === "fr") return "dernier brief";
+  return "latest";
+}
+
+function freshnessUnavailableLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "وقت آخر موجز غير متاح";
+  if (language === "fr") return "fraîcheur non indiquée";
+  return "freshness not reported";
+}
+
+function showingCachedFeedLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "تعذر التحديث المباشر. يتم عرض آخر موجز تم تحميله.";
+  if (language === "fr") return "Actualisation indisponible. Affichage du dernier brief chargé.";
+  return "Live refresh is unavailable. Showing the last loaded brief.";
+}
+
+function snapshotFallbackLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "الخدمة المباشرة غير متاحة مؤقتاً. يتم عرض آخر نسخة منشورة محفوظة.";
+  if (language === "fr") return "Le service en direct est temporairement indisponible. Affichage de la dernière copie publiée.";
+  return "Live service is temporarily unavailable. Showing the last saved published copy.";
+}
+
+function searchingFeedLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "جار البحث في الموجزات المنشورة…";
+  if (language === "fr") return "Recherche dans les briefs publiés…";
+  return "Searching published briefs…";
+}
+
+function detailUnavailableLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "تفاصيل هذا الموجز لم تعد متاحة.";
+  if (language === "fr") return "Le détail de ce brief n’est plus disponible.";
+  return "This brief’s detail is no longer available.";
+}
+
+function noSearchResultsTitle(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "لا توجد نتائج";
+  if (language === "fr") return "Aucun résultat";
+  return "No matching briefs";
+}
+
+function noSearchResultsMessage(query: string, language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return `لا توجد موجزات منشورة تطابق «${query.trim()}».`;
+  if (language === "fr") return `Aucun brief publié ne correspond à « ${query.trim()} ».`;
+  return `No published briefs match “${query.trim()}”.`;
+}
+
+function overallStatusTitle(status: PublicStatus["status"]): string {
+  if (status === "operational") return "All public services operational";
+  if (status === "unverified") return "Some enabled providers are not yet verified";
+  if (status === "maintenance") return "Planned maintenance";
+  return "Some public services are degraded";
+}
+
+function statusServiceLabel(status: PublicStatus["services"][number]["status"]): string {
+  if (status === "operational") return "Operational";
+  if (status === "idle") return "Idle · not yet verified";
+  if (status === "disabled") return "Disabled";
+  return "Degraded";
 }
 
 function textDirection(language: "en" | "ar" | "fr"): "ltr" | "rtl" {
@@ -2798,40 +4535,16 @@ function loadingFeedLabel(language: "en" | "ar" | "fr"): string {
   return "loading feed";
 }
 
-function refreshControlLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "تحديث";
-  if (language === "fr") return "actualiser";
-  return "refresh";
-}
-
-function summaryRequestLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "موجز الآن";
-  if (language === "fr") return "brief maintenant";
-  return "brief now";
-}
-
-function summaryRequestTitleLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "إنشاء موجز منذ آخر خبر";
-  if (language === "fr") return "créer un brief depuis le dernier";
-  return "create a brief since the last one";
-}
-
-function summaryBusyLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "جار الإنشاء";
-  if (language === "fr") return "création";
-  return "building";
-}
-
 function summaryPublishedLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "تم نشر موجز جديد.";
   if (language === "fr") return "nouveau brief publié.";
   return "new brief published.";
 }
 
-function summaryEmptyLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "لا توجد تحديثات موثوقة منذ آخر موجز.";
-  if (language === "fr") return "aucune mise à jour vérifiée depuis le dernier brief.";
-  return "no verified updates since the last brief.";
+function moreOptionsLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "خيارات";
+  if (language === "fr") return "options";
+  return "options";
 }
 
 function starControlLabel(starred: boolean, language: "en" | "ar" | "fr"): string {
@@ -2844,6 +4557,12 @@ function starTitleLabel(starred: boolean, language: "en" | "ar" | "fr"): string 
   if (language === "ar") return starred ? "إزالة التمييز" : "تمييز الموجز";
   if (language === "fr") return starred ? "retirer le favori" : "favoriser le fil";
   return starred ? "remove star" : "star feed";
+}
+
+function signInToStarLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "سجّل الدخول للتمييز";
+  if (language === "fr") return "se connecter pour favoriser";
+  return "sign in to star";
 }
 
 function exploreControlLabel(language: "en" | "ar" | "fr"): string {
@@ -2894,42 +4613,6 @@ function moreCountLabel(count: number, language: "en" | "ar" | "fr"): string {
   return `${count} more`;
 }
 
-function emptyFeedTitle(readCount: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return readCount > 0 ? "كل الموجزات الظاهرة مقروءة" : "لا توجد موجزات منشورة";
-  if (language === "fr") return readCount > 0 ? "tous les briefs visibles sont lus" : "aucun brief publié";
-  return readCount > 0 ? "all visible briefings are read" : "no published briefings";
-}
-
-function emptyFeedMessage(readCount: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return readCount > 0 ? "افتح قسم المقروء للعودة إلى الموجزات السابقة." : "سيظهر الموجز المجدول التالي هنا.";
-  if (language === "fr") return readCount > 0 ? "Ouvrez la section lue pour revoir les anciens briefs." : "Le prochain brief programmé apparaîtra ici.";
-  return readCount > 0 ? "Open the read section below to revisit archived briefings." : "The next scheduled briefing will appear here.";
-}
-
-function readSectionLabel(count: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return `مقروء ${count}`;
-  if (language === "fr") return `lus ${count}`;
-  return `read ${count}`;
-}
-
-function readToggleText(isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? "غير مقروء" : "مقروء";
-  if (language === "fr") return isRead ? "non lu" : "lu";
-  return isRead ? "unread" : "read";
-}
-
-function readToggleTitle(isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? "وضع كغير مقروء" : "وضع كمقروء";
-  if (language === "fr") return isRead ? "marquer non lu" : "marquer lu";
-  return isRead ? "mark unread" : "mark read";
-}
-
-function readToggleAria(title: string, isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? `وضع ${title} كغير مقروء` : `وضع ${title} كمقروء`;
-  if (language === "fr") return isRead ? `marquer ${title} non lu` : `marquer ${title} lu`;
-  return isRead ? `mark ${title} unread` : `mark ${title} read`;
-}
-
 function briefingToggleTitle(isExpanded: boolean, language: "en" | "ar" | "fr"): string {
   if (language === "ar") return isExpanded ? "إخفاء الموجز" : "عرض الموجز";
   if (language === "fr") return isExpanded ? "masquer le brief" : "afficher le brief";
@@ -2960,12 +4643,6 @@ function feedUnavailableLabel(language: "en" | "ar" | "fr"): string {
   return "feed unavailable";
 }
 
-function fullBriefLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "الموجز الكامل";
-  if (language === "fr") return "brief complet";
-  return "full brief";
-}
-
 function pausedScheduleLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "متوقف مؤقتاً";
   if (language === "fr") return "en pause";
@@ -2977,58 +4654,6 @@ function formatAutosaveStatus(state: "idle" | "saving" | "saved" | "error", stat
   if (state === "saved") return "saved";
   if (state === "error") return "could not save";
   return status || "ready";
-}
-
-function formatCountdown(isoDate: string, nowMs: number, language: "en" | "ar" | "fr" = "en"): string {
-  const diffMs = new Date(isoDate).getTime() - nowMs;
-  if (!Number.isFinite(diffMs)) return "";
-  if (diffMs <= 0) {
-    if (language === "ar") return "مستحق الآن";
-    if (language === "fr") return "maintenant";
-    return "is due";
-  }
-  const minutes = Math.ceil(diffMs / 60_000);
-  if (minutes < 60) {
-    if (language === "ar") return `بعد ${minutes} د`;
-    if (language === "fr") return `dans ${minutes} min`;
-    return `in ${minutes} min`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  if (hours < 24) {
-    if (language === "ar") return remainder === 0 ? `بعد ${hours} س` : `بعد ${hours} س ${remainder} د`;
-    if (language === "fr") return remainder === 0 ? `dans ${hours}h` : `dans ${hours}h ${remainder}m`;
-    return remainder === 0 ? `in ${hours}h` : `in ${hours}h ${remainder}m`;
-  }
-  const days = Math.floor(hours / 24);
-  if (language === "ar") return `بعد ${days} يوم`;
-  if (language === "fr") return `dans ${days}j`;
-  return `in ${days}d`;
-}
-
-function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" | "ar" | "fr"): string {
-  if (briefing.paused) return pausedFeedMessage(language);
-  if (!briefing.nextBriefingAt) return "";
-  const nextAt = new Date(briefing.nextBriefingAt).getTime();
-  if (!Number.isFinite(nextAt)) return "";
-  if (nextAt <= nowMs) return awaitingAcceptedBriefMessage(briefing.briefingCadence, language);
-  const countdown = formatCountdown(briefing.nextBriefingAt, nowMs, language);
-  return countdown ? nextBriefingText(briefing.briefingCadence, countdown, language) : "";
-}
-
-function pausedFeedMessage(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "الموجز متوقف مؤقتاً؛ لن تُنشر موجزات جديدة حتى يُستأنف.";
-  if (language === "fr") return "fil en pause; aucun nouveau brief ne sera publié avant reprise.";
-  return "feed paused; no new briefings will publish until it resumes.";
-}
-
-function awaitingAcceptedBriefMessage(
-  cadence: BriefingConfig["briefingCadence"],
-  language: "en" | "ar" | "fr"
-): string {
-  if (language === "ar") return cadence === "hourly" ? "بانتظار التحديث المقبول التالي." : `بانتظار الموجز المقبول التالي (${cadenceMetaLabel(cadence, language)}).`;
-  if (language === "fr") return cadence === "hourly" ? "en attente de la prochaine mise à jour acceptée." : `en attente du prochain brief ${cadenceMetaLabel(cadence, language)} accepté.`;
-  return cadence === "hourly" ? "waiting for the next accepted update." : `waiting for the next accepted ${cadence} brief.`;
 }
 
 function uniqueSourceTitles(evidence: BriefingEvidence[]): string[] {
@@ -3064,22 +4689,11 @@ function referenceTimeRange(evidence: BriefingEvidence[], language: "en" | "ar" 
 }
 
 function referenceDigestSummary(summary: string): string {
-  const words = summary.trim().split(/\s+/u).filter(Boolean);
-  if (words.length <= 34) return summary;
-  return `${words.slice(0, 34).join(" ").replace(/[,.،;:]+$/u, "")}...`;
+  return normalizeSummary(summary);
 }
 
 function surfaceBriefSummary(summary: string): string {
-  const sentences = summarySentences(summary);
-  if (sentences.length <= 2) return normalizeSummary(summary);
-  return normalizeSummary(sentences.slice(0, 2).join(" "));
-}
-
-function summarySentences(summary: string): string[] {
-  const normalized = normalizeSummary(summary);
-  if (!normalized) return [];
-  const matches = normalized.match(/[^.!؟?]+(?:[.!؟?]+|$)/gu) ?? [normalized];
-  return matches.map((sentence) => sentence.trim()).filter(Boolean);
+  return normalizeSummary(summary);
 }
 
 function normalizeSummary(summary: string): string {
@@ -3112,6 +4726,18 @@ function referencesLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "المراجع";
   if (language === "fr") return "références";
   return "references";
+}
+
+function topStoriesLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "أبرز الأخبار";
+  if (language === "fr") return "à la une";
+  return "top stories";
+}
+
+function additionalUpdatesLabel(count: number, language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return `${count} تحديثات إضافية`;
+  if (language === "fr") return `${count} autre${count === 1 ? "" : "s"} mise${count === 1 ? "" : "s"} à jour`;
+  return `${count} additional update${count === 1 ? "" : "s"}`;
 }
 
 function referenceButtonLabel(referenceNumber: number, language: "en" | "ar" | "fr"): string {
@@ -3159,16 +4785,6 @@ function cadenceMetaLabel(cadence: BriefingConfig["briefingCadence"], language: 
   }
   if (cadence === "hourly") return "updates";
   return cadence;
-}
-
-function nextBriefingText(
-  cadence: BriefingConfig["briefingCadence"],
-  countdown: string,
-  language: "en" | "ar" | "fr"
-): string {
-  if (language === "ar") return cadence === "hourly" ? `الفحص التالي ${countdown}` : `الموجز التالي ${countdown}`;
-  if (language === "fr") return `prochain brief ${cadenceMetaLabel(cadence, language)} ${countdown}`;
-  return cadence === "hourly" ? `next check ${countdown}` : `next ${cadence} brief ${countdown}`;
 }
 
 function noReferencesLabel(language: "en" | "ar" | "fr"): string {
@@ -3236,10 +4852,9 @@ async function wait(milliseconds: number): Promise<void> {
 }
 
 function prepareBriefingForSave(briefing: BriefingConfig, existing: BriefingConfig[]): BriefingConfig {
-  const nextSlug = deriveBriefingSlug(existing, briefing.title, briefing.id);
   return {
     ...briefing,
-    slug: slugify(nextSlug),
+    slug: slugify(briefing.slug || deriveBriefingSlug(existing, briefing.title, briefing.id)),
     publicFeedEnabled: true,
     intensity: briefing.intensity ?? "medium",
     briefingCadence: visibleBriefingCadence(briefing.briefingCadence ?? "hourly"),

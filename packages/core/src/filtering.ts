@@ -6,7 +6,9 @@ const RUMOR_PATTERNS = [
   /\bunconfirmed\b/i,
   /\breportedly\b/i,
   /\bsources claim\b/i,
-  /\bnot verified\b/i
+  /\bnot verified\b/i,
+  /\brumeur(?:s)?\b/iu,
+  /(?:^|[^\p{L}\p{N}_])non confirm(?:é|ée|és|ées)(?=$|[^\p{L}\p{N}_])/iu
 ];
 
 const PREDICTION_PATTERNS = [
@@ -16,7 +18,9 @@ const PREDICTION_PATTERNS = [
   /\bcould happen\b/i,
   /\bmay happen\b/i,
   /\bmy prediction\b/i,
-  /\bexpected to\b/i
+  /\bexpected to\b/i,
+  /\bje pense\b/iu,
+  /(?:^|[^\p{L}\p{N}_])(?:pourrait|devrait|probablement)(?=$|[^\p{L}\p{N}_])/iu
 ];
 
 const POLITICAL_SPEECH_PATTERNS = [
@@ -25,20 +29,26 @@ const POLITICAL_SPEECH_PATTERNS = [
   /\bdeclared\b/i,
   /\bcalled for\b/i,
   /\bcondemned\b/i,
-  /\bwarned\b/i
+  /\bwarned\b/i,
+  /(?:^|[^\p{L}\p{N}_])(?:a |ont )?(?:déclaré|affirmé|appelé à|condamné|averti)(?=$|[^\p{L}\p{N}_])/iu
 ];
 
 const FACT_PATTERNS = [
-  /\b(deploy|deployed|strike|strikes|hit|killed|injured|arrested|closed|opened|approved|signed|launched|resumed|halted|evacuated|entered|left|announced)\b/i,
+  /\b(deploy|deployed|strike|strikes|hit|killed|injured|arrested|closed|opened|approved|authorized|cleared|signed|launched|released|introduced|adds?|added|resumed|halted|ended|expired|renewed|cancell?ed|evacuated|entered|left|announced)\b/i,
   /\b\d+([.,]\d+)?\b/,
   /\b(percent|%|usd|dollar|lira|euro|km|people|soldiers|civilians|hours|minutes)\b/i,
-  /(?:أعلن|اعلن|أكد|اكد|أفاد|افاد|وقّع|وقع|سيوقع|قتل|استشهد|أصيب|اصيب|جرح|اعتقل|أقر|اقر|وافق|افتتح|أغلق|اغلق|استهدف|قصف|غارة|غاره|انفجار|انسحب|انسحاب|بدأ|بدا|استأنف|استانف|قطع|أوقف|اوقف|علّق|علق|أطلق|اطلق|إطلاق|اطلاق|ألقى|القى|تلقي|قنبلة|مسيّرة|مسيرة|جريح|جريحين|جريحان|جرحى|قتيل|قتلى)/u
+  /(?:^|[^\p{L}\p{N}_])(?:a |ont )?(?:déployé|frappé|tué|blessé|arrêté|fermé|ouvert|approuvé|autorisé|signé|lancé|publié|introduit|ajouté|repris|suspendu|terminé|expiré|renouvelé|annulé|évacué|annoncé)(?=$|[^\p{L}\p{N}_])/iu,
+  /(?:^|[^\p{L}\p{N}_])(?:pour\s*cent|personnes?|soldats?|civils?|heures?|minutes?)(?=$|[^\p{L}\p{N}_])/iu,
+  /(?:أعلن|اعلن|أكد|اكد|أفاد|افاد|وقّع|وقع|سيوقع|قتل|استشهد|أصيب|اصيب|جرح|اعتقل|أقر|اقر|وافق|افتتح|أغلق|اغلق|استهدف|قصف|غارة|غاره|انفجار|تفجير|فجّر|فجر|نفّذ|نفذ|تنفيذ|دمّر|دمر|اعترض|إسقاط|اسقاط|انسحب|انسحاب|بدأ|بدا|استأنف|استانف|قطع|أوقف|اوقف|علّق|علق|أطلق|اطلق|إطلاق|اطلاق|ألقى|القى|تلقي|قنبلة|مسيّرة|مسيرة|جريح|جريحين|جريحان|جرحى|قتيل|قتلى)/u
 ];
 
 const IMPORTANT_PATTERNS = [
   /\b(minister|official|government|army|police|court|central bank|reuters|associated press|ap news|afp)\b/i,
   /\b(killed|injured|casualties|strike|missile|explosion|evacuated|closed|halted|resumed|cut all contact|sanction|approved|signed|announced)\b/i,
   /\b(currency|central bank|lira|dollar|euro|inflation|fuel|electricity|power|water|airport|port|border)\b/i,
+  /(?:^|[^\p{L}\p{N}_])(?:ministre|gouvernement|armée|police|tribunal|banque centrale|agence france-presse|afp|reuters)(?=$|[^\p{L}\p{N}_])/iu,
+  /(?:^|[^\p{L}\p{N}_])(?:tué|blessé|frappe|missile|explosion|évacué|fermé|suspendu|repris|sanction|approuvé|signé|annoncé)(?=$|[^\p{L}\p{N}_])/iu,
+  /(?:^|[^\p{L}\p{N}_])(?:monnaie|inflation|carburant|électricité|eau|aéroport|port|frontière)(?=$|[^\p{L}\p{N}_])/iu,
   /(?:وزير|مسؤول|الحكومة|الجيش|الشرطة|قوى الامن|مصرف لبنان|رويترز|فرانس برس)/u,
   /(?:قتل|قتيل|قتلى|استشهد|شهيد|شهداء|جرح|جريح|جرحى|أصيب|اصيب|غارة|قصف|انفجار|إخلاء|اخلاء|اغلاق|أغلق|قطع|عقوبات|وقّع|وقع|أعلن|اعلن|أكد|اكد|استهداف|قنبلة|مسيّرة|مسيرة|انسحاب)/u,
   /(?:كهرباء|مياه|مطار|مرفأ|حدود|دولار|ليرة|مصرف|وقود)/u
@@ -51,6 +61,7 @@ const FLUFF_PATTERNS = [
   /\byou won't believe\b/i,
   /\bshocking\b/i,
   /\bmust watch\b/i,
+  /\b(?:à suivre|regardez maintenant|vous n'allez pas croire|incroyable)\b/iu,
   /آخر تصريحات/u,
   /شاهد(?:وا)?/u,
   /للمزيد/u,
@@ -62,10 +73,13 @@ const NO_UPDATE_PATTERNS = [
   /\bno new (developments?|updates?)\b/i,
   /\bno new verified information\b/i,
   /\bnothing new to report\b/i,
-  /\bno major regional events\b/i
+  /\bno major regional events\b/i,
+  /\baucun(?:e)? (?:nouveau|nouvelle) (?:développement|mise à jour|information)\b/iu,
+  /\brien de nouveau à signaler\b/iu
 ];
 
 export function isRelevantToInterest(message: NormalizedMessage, briefing: BriefingConfig): boolean {
+  if (isLebanonScopedBriefing(briefing) && !hasLebanonAnchor(message)) return false;
   const profileTokens = expandInterestTokens(significantTokens(briefing.interestProfile));
   if (profileTokens.length === 0) return true;
 
@@ -78,6 +92,18 @@ export function isRelevantToInterest(message: NormalizedMessage, briefing: Brief
   const text = normalizeText(message.text);
 
   return profileTokens.some((token) => text.includes(token)) || text.includes(profile);
+}
+
+function isLebanonScopedBriefing(briefing: BriefingConfig): boolean {
+  return /\b(?:lebanon|lebanese|liban|libanais|libanaise)\b|(?:لبنان|لبناني|لبنانية)/iu.test(
+    `${briefing.title} ${briefing.interestProfile}`
+  );
+}
+
+function hasLebanonAnchor(message: NormalizedMessage): boolean {
+  const text = message.text;
+  return /\b(?:lebanon|lebanese|liban|libanais|libanaise|beirut|tripoli|sidon|tyre|nabatieh|baalbek|bint\s*jbeil|south\s+lebanon|hezbollah|unifil|litani)\b/iu.test(text) ||
+    /(?:لبنان|لبناني|لبنانية|بيروت|طرابلس|صيدا|صور|النبطية|بعلبك|بنت\s*جبيل|الجنوب(?:\s+اللبناني)?|جنوب\s+لبنان|حزب\s*الله|اليونيفيل|الليطاني|الجيش\s+اللبناني|رئاسة\s+الجمهورية)/u.test(text);
 }
 
 function expandInterestTokens(tokens: string[]): string[] {
@@ -131,24 +157,40 @@ function expandInterestTokens(tokens: string[]): string[] {
     safety: ["safety", "incident", "accident", "injury", "أمن", "سلامة", "حادث", "تصادم", "إصابة", "جريح", "جريحان"],
     regional: ["regional", "region", "middleeast", "iran", "syria", "israel", "إقليمي", "المنطقة", "إيران", "إيراني", "سوريا", "إسرائيل", "أميركي", "الولايات"],
     events: ["event", "events", "developments", "تطور", "تطورات", "حدث", "أحداث"],
-    لبنان: ["lebanon", "lebanese", "liban", "beirut", "south", "لبناني", "بيروت", "الجنوب", "جنوب", "النبطية", "صيدا", "صور", "طرابلس", "بعلبك"],
-    لبناني: ["lebanon", "lebanese", "لبنان", "بيروت", "الجنوب", "النبطية"],
+    لبنان: ["lebanon", "lebanese", "liban", "beirut", "south", "لبناني", "بيروت", "الجنوب", "جنوب", "النبطية", "صيدا", "صور", "طرابلس", "بعلبك", "بنت", "جبيل"],
+    لبناني: ["lebanon", "lebanese", "لبنان", "بيروت", "الجنوب", "النبطية", "بنت", "جبيل"],
     بيروت: ["beirut", "lebanon", "lebanese", "لبنان"],
     اقتصاد: ["economy", "economic", "currency", "bank", "lira", "dollar", "اقتصادي", "عملة", "بنك", "مصرف", "ليرة", "دولار"],
-    أمني: ["security", "safety", "incident", "army", "border", "أمن", "الجيش", "حادث", "غارة", "ضربة"],
-    أمن: ["security", "safety", "incident", "army", "border", "أمني", "الجيش", "حادث", "غارة", "ضربة"],
+    امني: ["security", "safety", "incident", "army", "border", "امن", "جيش", "حادث", "غارة", "ضربة"],
+    امن: ["security", "safety", "incident", "army", "border", "امني", "جيش", "حادث", "غارة", "ضربة"],
     بنية: ["infrastructure", "power", "electricity", "water", "internet", "road", "airport", "port", "تحتية", "كهرباء", "مياه", "طريق", "مطار", "مرفأ"],
-    تحتية: ["infrastructure", "power", "electricity", "water", "internet", "road", "airport", "port", "بنية", "كهرباء", "مياه", "طريق", "مطار", "مرفأ"],
-    إقليمي: ["regional", "region", "middleeast", "iran", "syria", "israel", "المنطقة", "إيران", "إيراني", "سوريا", "إسرائيل", "أميركي"]
+    تحتيه: ["infrastructure", "power", "electricity", "water", "internet", "road", "airport", "port", "بنية", "كهرباء", "مياه", "طريق", "مطار", "مرفأ"],
+    اقليمي: ["regional", "region", "middleeast", "iran", "syria", "israel", "المنطقة", "ايران", "ايراني", "سوريا", "اسرائيل", "اميركي"]
   };
 
   for (const token of tokens) {
-    for (const synonym of synonyms[token] ?? []) {
-      expanded.add(synonym);
+    const canonical = canonicalInterestToken(token);
+    expanded.add(canonical);
+    for (const synonym of synonyms[canonical] ?? []) {
+      expanded.add(canonicalInterestToken(synonym));
     }
   }
 
   return Array.from(expanded);
+}
+
+/** Normalize the limited Arabic morphology that matters for topic matching. */
+function canonicalInterestToken(token: string): string {
+  if (!/[\u0600-\u06FF]/u.test(token)) return token;
+  const normalized = token
+    .normalize("NFKD")
+    .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/gu, "")
+    .replace(/ـ/gu, "")
+    .replace(/[أإآٱ]/gu, "ا")
+    .replace(/ى/gu, "ي")
+    .replace(/ة$/u, "")
+    .replace(/^ال(?=\p{L}{3,}$)/u, "");
+  return normalized;
 }
 
 export function classifyNoise(message: NormalizedMessage): SuppressedMessage | null {
@@ -219,6 +261,7 @@ export function hasConcreteFact(text: string): boolean {
 
 export function hasAuthoritySignal(text: string): boolean {
   return /\bminister|agency|central bank|army|police|court|company|official|government|reuters|associated press|ap news|afp\b/i.test(text) ||
+    /(?:^|[^\p{L}\p{N}_])(?:ministre|agence|banque centrale|armée|police|tribunal|entreprise|responsable|gouvernement|reuters|afp)(?=$|[^\p{L}\p{N}_])/iu.test(text) ||
     /(?:وزير|وكالة|مصرف لبنان|الجيش|الشرطة|قوى الامن|محكمة|شركة|مسؤول|الحكومة|رويترز|فرانس برس)/u.test(text);
 }
 
@@ -228,12 +271,12 @@ export function hasImportantSignal(text: string): boolean {
 
 export function isImportantToInterest(message: NormalizedMessage, briefing: BriefingConfig): boolean {
   if (!hasConcreteFact(message.text) || !hasImportantSignal(message.text)) return false;
-  return isRelevantToInterest(message, briefing) || interestOverlap(message.text, briefing.interestProfile) > 0;
+  return isRelevantToInterest(message, briefing);
 }
 
 export function isImportantReviewCandidate(message: NormalizedMessage, briefing: BriefingConfig): boolean {
   if (!hasConcreteFact(message.text) && !hasImportantSignal(message.text)) return false;
-  return isRelevantToInterest(message, briefing) || interestOverlap(message.text, briefing.interestProfile) > 0;
+  return isRelevantToInterest(message, briefing);
 }
 
 export function findDuplicate(

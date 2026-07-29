@@ -3,156 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <script>
-      (() => {
-        const root = document.documentElement;
-        root.classList.add("app-pending");
-
-        try {
-          const theme = localStorage.getItem("dn_theme");
-          root.dataset.theme = theme === "dark" ? "dark" : "light";
-        } catch {}
-
-        const reveal = () => root.classList.remove("app-pending");
-
-        document.addEventListener(
-          "DOMContentLoaded",
-          () => {
-            const stylesheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
-            if (stylesheets.length === 0) {
-              requestAnimationFrame(reveal);
-              return;
-            }
-
-            let pending = 0;
-            let finished = false;
-            const complete = () => {
-              pending -= 1;
-              if (pending <= 0 && !finished) {
-                finished = true;
-                requestAnimationFrame(reveal);
-              }
-            };
-
-            for (const sheet of stylesheets) {
-              if (sheet.sheet) continue;
-              pending += 1;
-              sheet.addEventListener("load", complete, { once: true });
-              sheet.addEventListener("error", complete, { once: true });
-            }
-
-            if (pending === 0 && !finished) {
-              finished = true;
-              requestAnimationFrame(reveal);
-            } else {
-              window.setTimeout(() => {
-                if (!finished) {
-                  finished = true;
-                  reveal();
-                }
-              }, 2000);
-            }
-          },
-          { once: true }
-        );
-      })();
-    </script>
-    <style>
-      html {
-        min-height: 100%;
-        background: #faf8f1;
-        color-scheme: light;
-      }
-
-      html[data-theme="dark"] {
-        background: #151412;
-        color-scheme: dark;
-      }
-
-      body {
-        margin: 0;
-        min-height: 100vh;
-        min-height: 100dvh;
-        background: #faf8f1;
-        color: #171717;
-        font-family: "IBM Plex Mono", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-        font-size: 15px;
-        line-height: 1.55;
-      }
-
-      html[data-theme="dark"] body {
-        background: #151412;
-        color: #f2efe8;
-      }
-
-      #root {
-        min-height: 100vh;
-        min-height: 100dvh;
-      }
-
-      html.app-pending #root {
-        visibility: hidden;
-      }
-
-      .shell {
-        width: min(980px, 100%);
-        margin: 0 auto;
-        padding: 0 18px 64px;
-        display: grid;
-        gap: 24px;
-      }
-
-      header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        min-height: calc(4.5rem + env(safe-area-inset-top));
-        margin-inline: calc(50% - 50vw);
-        padding:
-          calc(10px + env(safe-area-inset-top))
-          max(calc(18px + env(safe-area-inset-right)), calc((100vw - 980px) / 2 + 18px))
-          10px
-          max(calc(18px + env(safe-area-inset-left)), calc((100vw - 980px) / 2 + 18px));
-        border: 0;
-        border-bottom: 1px solid #e8dcc7;
-        background: #fffdf8;
-      }
-
-      html[data-theme="dark"] header {
-        border-color: #383226;
-        background: #1d1b18;
-      }
-
-      .header-primary,
-      .header-actions,
-      .brand-lockup,
-      .header-controls,
-      nav {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
-      }
-
-      .page-heading {
-        display: grid;
-        gap: 6px;
-        max-width: 760px;
-      }
-
-      h1,
-      h2,
-      p {
-        margin: 0;
-      }
-
-      h1 {
-        font-size: 22px;
-        font-weight: 500;
-      }
-    </style>
+    <script src="/bootstrap.js"></script>
+    <link rel="stylesheet" href="/bootstrap.css" />
     <meta name="application-name" content="Distilled.news" />
+    <meta name="description" content="Less clutter. Personalized news, to the point." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta property="og:site_name" content="Distilled.news" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Distilled.news" />
+    <meta property="og:description" content="Less clutter. Personalized news, to the point." />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Distilled.news" />
+    <meta name="twitter:description" content="Less clutter. Personalized news, to the point." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Distilled.news" />

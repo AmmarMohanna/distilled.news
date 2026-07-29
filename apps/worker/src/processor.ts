@@ -18,6 +18,14 @@ import type { ProcessingJobMessage, Repository } from "./types";
 
 const RECENT_MESSAGE_CONTEXT_LIMIT = 30;
 const EXISTING_ITEM_CONTEXT_LIMIT = 80;
+const PROCESSING_LEASE_MS = 4 * 60 * 1000;
+
+export class ProcessingJobError extends Error {
+  constructor(message: string, readonly jobId: string, readonly leaseToken: string) {
+    super(message);
+    this.name = "ProcessingJobError";
+  }
+}
 
 export async function processQueueMessage(
   repo: Repository,
@@ -26,30 +34,43 @@ export async function processQueueMessage(
   summaryAdapter?: SummaryAdapter | null,
   reviewAdapter?: EventReviewAdapter | null
 ): Promise<ProcessingResult | undefined> {
+  const claim = await repo.claimProcessingJob(message.jobId, PROCESSING_LEASE_MS, now);
+  if (!claim) return undefined;
   try {
     const briefing = await repo.getBriefingById(message.briefingId);
     const rawMessage = await repo.getRawMessage(message.rawMessageId);
     if (!briefing || !rawMessage) {
-      await repo.failProcessingJob(message.jobId, "Briefing or raw message not found", now);
+      await repo.failProcessingJob(message.jobId, "Briefing or raw message not found", now, claim.leaseToken);
       return undefined;
     }
 
-    if (briefing.paused) {
-      await repo.completeProcessingJob(message.jobId, now);
+    const owner = await repo.getAccountById(briefing.ownerAccountId);
+    if (briefing.paused || !briefing.publicFeedEnabled || !owner || owner.disabledAt) {
+      await repo.completeProcessingJob(message.jobId, now, claim.leaseToken);
       return undefined;
     }
 
     const source = await repo.getSource(rawMessage.source.id);
     if (!source?.enabled) {
-      await repo.completeProcessingJob(message.jobId, now);
+      await repo.completeProcessingJob(message.jobId, now, claim.leaseToken);
       return undefined;
     }
+    const controlledCanaryModelPath =
+      !briefing.id.startsWith("launch_canary_briefing_") ||
+      rawMessage.source.id.startsWith("launch_canary_fixture_");
+    const scopedSummaryAdapter = controlledCanaryModelPath ? summaryAdapter : null;
+    const scopedReviewAdapter = controlledCanaryModelPath ? reviewAdapter : null;
 
     const existingItems = limitExistingItemsForProcessing(await repo.getExistingItems(briefing.id, now));
     const existingItemIds = new Set(existingItems.map((item) => item.id));
     const recentMessages = await repo.listRecentRawMessages(briefing.id, now, RECENT_MESSAGE_CONTEXT_LIMIT);
     const messages = uniqueMessagesById([rawMessage, ...recentMessages]);
-    const importantMessageIds = await findImportantMessageIds(briefing, messages, rawMessage.id, reviewAdapter);
+    const importantMessageIds = await findImportantMessageIds(
+      briefing,
+      messages,
+      rawMessage.id,
+      scopedReviewAdapter
+    );
     const result = processMessages({
       briefing,
       messages,
@@ -61,15 +82,23 @@ export async function processQueueMessage(
       briefing,
       result.publishedItems,
       rawMessage.id,
-      reviewAdapter
+      scopedReviewAdapter
     );
 
-    if (summaryAdapter) {
+    if (scopedSummaryAdapter) {
+      let summarizedCurrentMessage = false;
       for (const item of result.publishedItems) {
-        if (item.evidence.some((evidence) => evidence.messageId === rawMessage.id)) {
+        if (
+          !summarizedCurrentMessage &&
+          item.evidence.some((evidence) => evidence.messageId === rawMessage.id)
+        ) {
+          summarizedCurrentMessage = true;
           const fallbackSummary = item.summary;
           try {
-            const candidateSummary = sanitizeSummary(await summaryAdapter.summarize({ briefing, evidence: item.evidence }), briefing.language);
+            const candidateSummary = sanitizeSummary(
+              await scopedSummaryAdapter.summarize({ briefing, evidence: item.evidence }),
+              briefing.language
+            );
             if (candidateSummary) item.summary = candidateSummary;
             else if (!existingItemIds.has(item.id)) item.summary = "";
             else item.summary = fallbackSummary;
@@ -84,15 +113,14 @@ export async function processQueueMessage(
       Boolean(item.summary) && item.evidence.some((evidence) => evidence.messageId === rawMessage.id)
     );
     await repo.saveBriefingItems(briefing.id, changedItems, now);
-    await repo.completeProcessingJob(message.jobId, now);
+    await repo.completeProcessingJob(message.jobId, now, claim.leaseToken);
     return result;
   } catch (error) {
-    await repo.failProcessingJob(
-      message.jobId,
+    throw new ProcessingJobError(
       error instanceof Error ? error.message : "Unknown processing error",
-      now
+      message.jobId,
+      claim.leaseToken
     );
-    throw error;
   }
 }
 

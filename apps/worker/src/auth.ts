@@ -6,12 +6,13 @@ export const SESSION_COOKIE = "dn_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const VOTER_COOKIE = "dn_voter";
 const VOTER_TTL_SECONDS = 60 * 60 * 24 * 365;
-const PASSWORD_ITERATIONS = 100_000;
+const PASSWORD_ITERATIONS = 210_000;
 type AppEnv = { Bindings: Env; Variables: { repo: Repository; account?: AccountRecord } };
 
 export interface SessionClaims {
   sub: string;
   role: AccountRole;
+  ver: number;
   exp: number;
 }
 
@@ -53,6 +54,8 @@ export async function hashPassword(password: string, salt = randomToken(16)): Pr
 export async function verifyPassword(password: string, encoded: string): Promise<boolean> {
   const [, iterations, salt, expected] = encoded.split(":");
   if (!iterations || !salt || !expected) return false;
+  const iterationCount = Number(iterations);
+  if (!Number.isInteger(iterationCount) || iterationCount < 50_000 || iterationCount > 2_000_000) return false;
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(password),
@@ -65,7 +68,7 @@ export async function verifyPassword(password: string, encoded: string): Promise
       name: "PBKDF2",
       hash: "SHA-256",
       salt: toArrayBuffer(fromBase64Url(salt)),
-      iterations: Number(iterations)
+      iterations: iterationCount
     },
     key,
     256
@@ -79,6 +82,7 @@ export async function createSession(secret: string, account: AccountRecord, now 
       JSON.stringify({
         sub: account.id,
         role: account.role,
+        ver: account.sessionVersion,
         exp: Math.floor(now.getTime() / 1000) + SESSION_TTL_SECONDS
       })
     )
@@ -96,14 +100,15 @@ export async function verifySession(token: string | undefined, secret: string, n
   const decoded = parseJsonPayload<SessionClaims>(payload);
   if (!decoded) return null;
   if (!decoded.sub || (decoded.role !== "admin" && decoded.role !== "user")) return null;
-  if (decoded.exp <= Math.floor(now.getTime() / 1000)) return null;
+  if (!Number.isInteger(decoded.ver) || decoded.ver < 1) return null;
+  if (!Number.isSafeInteger(decoded.exp) || decoded.exp <= Math.floor(now.getTime() / 1000)) return null;
   return decoded;
 }
 
 export function setSessionCookie(c: Context<AppEnv>, token: string): void {
   setCookie(c, SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: "Lax",
+    sameSite: "Strict",
     secure: new URL(c.req.url).protocol === "https:",
     path: "/",
     maxAge: SESSION_TTL_SECONDS
@@ -148,7 +153,9 @@ export function accountAuth(repoForContext: (c: Context<AppEnv>) => Repository):
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
     if (!claims) return c.json({ error: "unauthorized" }, 401);
     const account = await repo.getAccountById(claims.sub);
-    if (!account || account.disabledAt) return c.json({ error: "unauthorized" }, 401);
+    if (!account || account.disabledAt || account.sessionVersion !== claims.ver) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     c.set("account", account);
     await next();
   };
@@ -164,7 +171,7 @@ export function adminAuth(repoForContext: (c: Context<AppEnv>) => Repository): M
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), secret);
     if (claims) {
       const account = await repo.getAccountById(claims.sub);
-      if (account?.role === "admin" && !account.disabledAt) {
+      if (account?.role === "admin" && !account.disabledAt && account.sessionVersion === claims.ver) {
         c.set("account", account);
         await next();
         return;

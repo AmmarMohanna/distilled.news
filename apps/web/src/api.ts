@@ -1,5 +1,5 @@
 import type { BriefingConfig, BriefingEdition } from "@distilled/core";
-import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
+import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, LegalAcceptanceStatus, PublicBriefing, SessionStatus, SourceRecord, SourceSuggestion } from "./types";
 
 export interface SourceIngestResult {
   sourceId: string;
@@ -15,8 +15,19 @@ export interface SourceIngestResult {
 export interface SourceRefreshResult {
   sources: SourceRecord[];
   health: HealthStatus;
+  refreshId?: string;
+  status?: "queued";
+  queued?: number;
   results?: SourceIngestResult[];
   result?: SourceIngestResult;
+}
+
+export async function getSourceSuggestions(input: {
+  briefingId: string;
+  interestProfile: string;
+  language: "en" | "ar" | "fr";
+}): Promise<{ suggestions: SourceSuggestion[]; degraded: boolean }> {
+  return requestJson("/api/me/source-suggestions", { method: "POST", body: JSON.stringify(input) });
 }
 
 export interface RetryProcessingResult {
@@ -29,9 +40,69 @@ export interface FeedStarResult {
   viewerHasStarred: boolean;
 }
 
-export interface FeedSummaryRequestResult {
-  edition: BriefingEdition | null;
-  message: string;
+export interface PublicStatusService {
+  id: "public_api" | "model_synthesis" | "rss" | "telegram" | "google_news" | "x";
+  label: string;
+  status: "operational" | "degraded" | "idle" | "disabled";
+  message?: string;
+}
+
+export interface PublicStatus {
+  status: "operational" | "degraded" | "unverified" | "maintenance";
+  updatedAt: string;
+  releaseSha?: string;
+  services: PublicStatusService[];
+}
+
+export interface PublicCapabilities {
+  hosted: boolean;
+  registrationMode: "open" | "closed";
+  registration?: {
+    enabled: boolean;
+    accountCap: number;
+    remaining: number;
+    capacityReached: boolean;
+    pendingAccountCap: number;
+    pendingRemaining: number;
+    pendingCapacityReached: boolean;
+    pendingLeaseMinutes: number;
+  };
+  paidProviderBeta?: {
+    accountCap: number;
+    claimedAccounts: number;
+    remainingAccounts: number;
+    capacityReached: boolean;
+  };
+  providers: Record<string, { enabled: boolean; available: boolean }>;
+  limits?: {
+    feedsPerAccount: number;
+    hourlyFeedsPerAccount: number;
+    sourcesPerFeed: number;
+    sourcesPerAccount: number;
+    paidSourcesPerAccount: number;
+    budgets?: {
+      collection: { dayUsd: number; monthUsd: number };
+      llm: { dayUsd: number; monthUsd: number };
+    };
+  };
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export const LEGAL_ACCEPTANCE_REQUIRED_EVENT = "distilled:legal-acceptance-required";
+
+export function isApiErrorStatus(error: unknown, status: number): boolean {
+  return error instanceof ApiError && error.status === status;
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -49,13 +120,30 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(`Expected JSON from the Worker API but received ${contentType || "an unknown content type"}.`);
   }
 
-  const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw new Error(payload.error ?? `Request failed: ${response.status}`);
+  const payload = (await response.json().catch(() => ({}))) as T & { error?: string; code?: string };
+  if (!response.ok) {
+    if (
+      response.status === 428 &&
+      payload.code === "legal_acceptance_required" &&
+      typeof window !== "undefined"
+    ) {
+      window.dispatchEvent(new Event(LEGAL_ACCEPTANCE_REQUIRED_EVENT));
+    }
+    throw new ApiError(payload.error ?? `Request failed: ${response.status}`, response.status, payload.code);
+  }
   return payload;
 }
 
 export async function getSession(): Promise<SessionStatus> {
   return requestJson<SessionStatus>("/api/auth/session");
+}
+
+export async function getPublicStatus(): Promise<PublicStatus> {
+  return requestJson<PublicStatus>("/api/status");
+}
+
+export async function getCapabilities(): Promise<PublicCapabilities> {
+  return requestJson<PublicCapabilities>("/api/capabilities");
 }
 
 export async function setupAdmin(input: {
@@ -76,6 +164,10 @@ export async function register(input: {
   username: string;
   password: string;
   turnstileToken?: string;
+  termsAccepted: boolean;
+  termsVersion: string;
+  privacyVersion: string;
+  acceptableUseVersion: string;
 }): Promise<void> {
   await requestJson("/api/auth/register", {
     method: "POST",
@@ -127,6 +219,29 @@ export async function updateAccount(input: {
   return requestJson<{ account: AccountRecord; briefings: BriefingConfig[] }>("/api/me/account", {
     method: "PATCH",
     body: JSON.stringify(input)
+  });
+}
+
+export async function acceptLegalTerms(input: {
+  termsAccepted: true;
+  privacyAcknowledged: true;
+  termsVersion: string;
+  privacyVersion: string;
+  acceptableUseVersion: string;
+}): Promise<{ account: AccountRecord; legalAcceptance: LegalAcceptanceStatus }> {
+  return requestJson<{ account: AccountRecord; legalAcceptance: LegalAcceptanceStatus }>(
+    "/api/me/legal-acceptance",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    }
+  );
+}
+
+export async function deleteOwnAccount(currentPassword: string): Promise<void> {
+  await requestJson("/api/me/account", {
+    method: "DELETE",
+    body: JSON.stringify({ currentPassword })
   });
 }
 
@@ -214,6 +329,23 @@ export async function listAccounts(): Promise<AccountWithStats[]> {
   return payload.accounts;
 }
 
+export async function sendAdminEmailTest(): Promise<{ ok: true; recipientDomain: string; sentAt: string }> {
+  return requestJson<{ ok: true; recipientDomain: string; sentAt: string }>("/api/admin/email/test", {
+    method: "POST"
+  });
+}
+
+export interface AdminEmailStatus {
+  configured: boolean;
+  senderDomain?: string;
+  lastSuccessAt?: string;
+  lastFailureAt?: string;
+}
+
+export async function getAdminEmailStatus(): Promise<AdminEmailStatus> {
+  return requestJson<AdminEmailStatus>("/api/admin/email/status");
+}
+
 export async function updateAdminAccount(
   accountId: string,
   input: { username?: string; role?: "admin" | "user"; disabled?: boolean }
@@ -278,9 +410,8 @@ export async function getFeedEdition(username: string, slug: string, editionId: 
   return payload.edition;
 }
 
-export async function getExploreFeeds(): Promise<PublicBriefing[]> {
-  const payload = await requestJson<{ feeds: PublicBriefing[] }>("/api/explore/feeds");
-  return payload.feeds;
+export async function getExploreFeeds(): Promise<{ feeds: PublicBriefing[]; snapshotFallback?: boolean }> {
+  return requestJson<{ feeds: PublicBriefing[]; snapshotFallback?: boolean }>("/api/explore/feeds");
 }
 
 export async function searchFeed(username: string, slug: string, query: string): Promise<FeedPayload["editions"]> {
@@ -288,13 +419,6 @@ export async function searchFeed(username: string, slug: string, query: string):
     `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/search?q=${encodeURIComponent(query)}`
   );
   return payload.editions;
-}
-
-export async function requestFeedSummary(username: string, slug: string): Promise<FeedSummaryRequestResult> {
-  return requestJson<FeedSummaryRequestResult>(
-    `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/request-summary`,
-    { method: "POST" }
-  );
 }
 
 export async function setFeedStar(username: string, slug: string, starred: boolean): Promise<FeedStarResult> {

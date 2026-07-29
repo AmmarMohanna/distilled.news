@@ -1,0 +1,355 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "distilled-news-config-only",
+  "main": "DO_NOT_DEPLOY_WITHOUT_A_NAMED_ENVIRONMENT",
+  "compatibility_date": "2026-07-29",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "env": {
+    "production": {
+      "name": "lownoise-news",
+      "main": "src/index.ts",
+      "workers_dev": false,
+      "preview_urls": false,
+      "vars": {
+        "ENVIRONMENT": "production",
+        "REGISTRATION_MODE": "closed",
+        "HOSTED_ACCOUNT_CAP": "50",
+        "HOSTED_PENDING_ACCOUNT_CAP": "10",
+        "RELEASE_SHA": "release-sha-required",
+        "PUBLIC_API_BASE_URL": "https://distilled.news",
+        "PUBLIC_WEB_BASE_URL": "https://distilled.news",
+        "CLOUDFLARE_ACCOUNT_ID": "9cd5e9612de11953c367cbdec84ed662",
+        "CLOUDFLARE_AI_GATEWAY_ID": "default",
+        "OPENAI_PROJECT_ID": "proj_dH3LjVEWjtfgGzWAzI4BFpgJ",
+        "OPENAI_MODEL": "gpt-4.1-mini",
+        "OPENAI_EDITION_MODEL": "gpt-4.1-mini",
+        "OPENAI_EDITION_FALLBACK_MODEL": "gpt-4.1-nano",
+        "OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS": "0.40",
+        "OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS": "1.60",
+        "OPENAI_SUMMARY_MAX_INPUT_TOKENS": "1000000",
+        "OPENAI_IMPORTANCE_REVIEW_MAX_INPUT_TOKENS": "1000000",
+        "OPENAI_EVENT_REVIEW_MAX_INPUT_TOKENS": "1000000",
+        "OPENAI_EDITION_MAX_INPUT_TOKENS": "1000000",
+        "OPENAI_SUMMARY_MAX_OUTPUT_TOKENS": "300",
+        "OPENAI_REVIEW_MAX_OUTPUT_TOKENS": "80",
+        "OPENAI_EDITION_MAX_OUTPUT_TOKENS": "1600",
+        "EDITION_SYNTHESIS_MODE": "all",
+        "HOSTED_LLM_ACCOUNT_DAILY_BUDGET_USD": "0.10",
+        "HOSTED_LLM_ACCOUNT_MONTHLY_BUDGET_USD": "2",
+        "GLOBAL_LLM_DAILY_BUDGET_USD": "5",
+        "GLOBAL_LLM_MONTHLY_BUDGET_USD": "150",
+        "GLOBAL_COLLECTION_DAILY_BUDGET_USD": "5",
+        "GLOBAL_COLLECTION_MONTHLY_BUDGET_USD": "25",
+        "TOTAL_MONTHLY_BUDGET_USD": "175",
+        "BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED": "false",
+        "EMAIL_FROM": "Distilled.news <noreply@distilled.news>",
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAD0lcuMSGrXK-eV1",
+        "TURNSTILE_EXPECTED_HOSTNAMES": "distilled.news,www.distilled.news",
+        "TURNSTILE_EXPECTED_ACTION": "register",
+        "PROVIDER_RSS_ENABLED": "true",
+        "PROVIDER_TELEGRAM_ENABLED": "true",
+        "PROVIDER_GOOGLE_NEWS_ENABLED": "true",
+        "PROVIDER_X_ENABLED": "true",
+        "PROVIDER_LINKEDIN_ENABLED": "false",
+        "PROVIDER_GENERIC_APIFY_ENABLED": "false",
+        "PROVIDER_BRAVE_ENABLED": "false",
+        "APIFY_EXPECTED_USER_ID": "RXAjmHtQRbA38IAbw",
+        "APIFY_EXPECTED_PLAN_TIER": "BRONZE",
+        "APIFY_EXPECTED_MAX_MONTHLY_USAGE_USD": "29",
+        "APIFY_X_ACTOR_ID": "xquik/x-tweet-scraper",
+        "APIFY_X_ACTOR_BUILD": "1.1.3",
+        "APIFY_X_PRICE_USD_PER_1000_RESULTS": "0.15",
+        "APIFY_GOOGLE_NEWS_ACTOR_ID": "groupoject/google-news-scraper",
+        "APIFY_GOOGLE_NEWS_ACTOR_BUILD": "1.1.1",
+        "APIFY_GOOGLE_NEWS_PRICE_USD_PER_1000_RESULTS": "0.50",
+        "APIFY_GOOGLE_NEWS_FALLBACK_ACTOR_ID": "solidcode/google-news-scraper",
+        "APIFY_GOOGLE_NEWS_FALLBACK_ACTOR_BUILD": "1.0.10",
+        "APIFY_GOOGLE_NEWS_FALLBACK_PRICE_USD_PER_1000_RESULTS": "1.20",
+        "APIFY_LINKEDIN_COMPANY_ACTOR_ID": "harvestapi/linkedin-company-posts",
+        "APIFY_LINKEDIN_PROFILE_ACTOR_ID": "harvestapi/linkedin-profile-posts"
+      },
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "lownoise",
+          "database_id": "777782fe-6c8f-45c1-826d-365c40bc1210",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "RAW_ARCHIVE",
+          "bucket_name": "lownoise-raw"
+        }
+      ],
+      "send_email": [
+        {
+          "name": "EMAIL"
+        }
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "PROCESSING_QUEUE",
+            "queue": "lownoise-processing"
+          },
+          {
+            "binding": "SOURCE_QUEUE",
+            "queue": "lownoise-sources"
+          },
+          {
+            "binding": "EDITION_QUEUE",
+            "queue": "lownoise-editions"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "lownoise-processing",
+            "max_batch_size": 1,
+            "max_batch_timeout": 5,
+            "max_concurrency": 6,
+            "max_retries": 4,
+            "retry_delay": 60,
+            "dead_letter_queue": "lownoise-processing-dlq"
+          },
+          {
+            "queue": "lownoise-sources",
+            "max_batch_size": 1,
+            "max_batch_timeout": 5,
+            "max_concurrency": 15,
+            "max_retries": 4,
+            "retry_delay": 60,
+            "dead_letter_queue": "lownoise-sources-dlq"
+          },
+          {
+            "queue": "lownoise-editions",
+            "max_batch_size": 1,
+            "max_batch_timeout": 5,
+            "max_concurrency": 10,
+            "max_retries": 3,
+            "retry_delay": 60,
+            "dead_letter_queue": "lownoise-editions-dlq"
+          },
+          {
+            "queue": "lownoise-processing-dlq",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_concurrency": 1,
+            "max_retries": 0
+          },
+          {
+            "queue": "lownoise-sources-dlq",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_concurrency": 1,
+            "max_retries": 0
+          },
+          {
+            "queue": "lownoise-editions-dlq",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_concurrency": 1,
+            "max_retries": 0
+          }
+        ]
+      },
+      "triggers": {
+        "crons": ["* * * * *"]
+      },
+      "routes": [
+        {
+          "pattern": "distilled.news",
+          "custom_domain": true
+        },
+        {
+          "pattern": "www.distilled.news",
+          "custom_domain": true
+        },
+        {
+          "pattern": "lownoise.news",
+          "custom_domain": true
+        },
+        {
+          "pattern": "www.lownoise.news",
+          "custom_domain": true
+        }
+      ]
+    },
+    "staging": {
+      "name": "distilled-news-staging",
+      "main": "src/index.ts",
+      "workers_dev": false,
+      "preview_urls": false,
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "REGISTRATION_MODE": "closed",
+        "HOSTED_ACCOUNT_CAP": "50",
+        "HOSTED_PENDING_ACCOUNT_CAP": "10",
+        "RELEASE_SHA": "staging-unreleased",
+        "PUBLIC_API_BASE_URL": "https://staging.distilled.news",
+        "PUBLIC_WEB_BASE_URL": "https://staging.distilled.news",
+        "CLOUDFLARE_ACCOUNT_ID": "9cd5e9612de11953c367cbdec84ed662",
+        "CLOUDFLARE_AI_GATEWAY_ID": "distilled-news-staging",
+        "OPENAI_PROJECT_ID": "proj_h2LV7AMPwS7sMD6U76qmMNAh",
+        "OPENAI_MODEL": "gpt-4.1-mini",
+        "OPENAI_EDITION_MODEL": "gpt-4.1-mini",
+        "OPENAI_EDITION_FALLBACK_MODEL": "gpt-4.1-nano",
+        "OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS": "0.40",
+        "OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS": "1.60",
+        "OPENAI_SUMMARY_MAX_INPUT_TOKENS": "2304",
+        "OPENAI_IMPORTANCE_REVIEW_MAX_INPUT_TOKENS": "2048",
+        "OPENAI_EVENT_REVIEW_MAX_INPUT_TOKENS": "3072",
+        "OPENAI_EDITION_MAX_INPUT_TOKENS": "19500",
+        "OPENAI_SUMMARY_MAX_OUTPUT_TOKENS": "160",
+        "OPENAI_REVIEW_MAX_OUTPUT_TOKENS": "80",
+        "OPENAI_EDITION_MAX_OUTPUT_TOKENS": "400",
+        "EDITION_SYNTHESIS_MODE": "all",
+        "HOSTED_LLM_ACCOUNT_DAILY_BUDGET_USD": "0.75",
+        "HOSTED_LLM_ACCOUNT_MONTHLY_BUDGET_USD": "3.00",
+        "GLOBAL_LLM_DAILY_BUDGET_USD": "38",
+        "GLOBAL_LLM_MONTHLY_BUDGET_USD": "150",
+        "GLOBAL_COLLECTION_DAILY_BUDGET_USD": "0.50",
+        "GLOBAL_COLLECTION_MONTHLY_BUDGET_USD": "4",
+        "TOTAL_MONTHLY_BUDGET_USD": "154",
+        "BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED": "false",
+        "EMAIL_FROM": "Distilled.news Staging <noreply@distilled.news>",
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAEA0A8tDTG4FZCD3",
+        "TURNSTILE_EXPECTED_HOSTNAMES": "staging.distilled.news",
+        "TURNSTILE_EXPECTED_ACTION": "register",
+        "PROVIDER_RSS_ENABLED": "true",
+        "PROVIDER_TELEGRAM_ENABLED": "true",
+        "PROVIDER_GOOGLE_NEWS_ENABLED": "true",
+        "PROVIDER_X_ENABLED": "true",
+        "PROVIDER_LINKEDIN_ENABLED": "false",
+        "PROVIDER_GENERIC_APIFY_ENABLED": "false",
+        "PROVIDER_BRAVE_ENABLED": "false",
+        "APIFY_EXPECTED_USER_ID": "5clcKRgkjN3Q9GnDB",
+        "APIFY_EXPECTED_PLAN_TIER": "FREE",
+        "APIFY_EXPECTED_MAX_MONTHLY_USAGE_USD": "5",
+        "APIFY_X_ACTOR_ID": "xquik/x-tweet-scraper",
+        "APIFY_X_ACTOR_BUILD": "1.1.3",
+        "APIFY_X_PRICE_USD_PER_1000_RESULTS": "15.00",
+        "APIFY_GOOGLE_NEWS_ACTOR_ID": "groupoject/google-news-scraper",
+        "APIFY_GOOGLE_NEWS_ACTOR_BUILD": "1.1.1",
+        "APIFY_GOOGLE_NEWS_PRICE_USD_PER_1000_RESULTS": "0.50",
+        "APIFY_GOOGLE_NEWS_FALLBACK_ACTOR_ID": "solidcode/google-news-scraper",
+        "APIFY_GOOGLE_NEWS_FALLBACK_ACTOR_BUILD": "1.0.10",
+        "APIFY_GOOGLE_NEWS_FALLBACK_PRICE_USD_PER_1000_RESULTS": "1.50",
+        "APIFY_LINKEDIN_COMPANY_ACTOR_ID": "harvestapi/linkedin-company-posts",
+        "APIFY_LINKEDIN_PROFILE_ACTOR_ID": "harvestapi/linkedin-profile-posts"
+      },
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "distilled-news-staging",
+          "database_id": "03ec56d1-2a01-4d3a-be96-1d3d5a2aed8e",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "RAW_ARCHIVE",
+          "bucket_name": "distilled-news-raw-staging"
+        }
+      ],
+      "send_email": [
+        {
+          "name": "EMAIL"
+        }
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "PROCESSING_QUEUE",
+            "queue": "distilled-news-processing-staging"
+          },
+          {
+            "binding": "SOURCE_QUEUE",
+            "queue": "distilled-news-sources-staging"
+          },
+          {
+            "binding": "EDITION_QUEUE",
+            "queue": "distilled-news-editions-staging"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "distilled-news-processing-staging",
+            "max_batch_size": 1,
+            "max_batch_timeout": 5,
+            "max_concurrency": 6,
+            "max_retries": 2,
+            "retry_delay": 60,
+            "dead_letter_queue": "distilled-news-processing-staging-dlq"
+          },
+          {
+            "queue": "distilled-news-sources-staging",
+            "max_batch_size": 1,
+            "max_batch_timeout": 5,
+            "max_concurrency": 15,
+            "max_retries": 2,
+            "retry_delay": 60,
+            "dead_letter_queue": "distilled-news-sources-staging-dlq"
+          },
+          {
+            "queue": "distilled-news-editions-staging",
+            "max_batch_size": 1,
+            "max_batch_timeout": 5,
+            "max_concurrency": 10,
+            "max_retries": 2,
+            "retry_delay": 60,
+            "dead_letter_queue": "distilled-news-editions-staging-dlq"
+          },
+          {
+            "queue": "distilled-news-processing-staging-dlq",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_concurrency": 1,
+            "max_retries": 0
+          },
+          {
+            "queue": "distilled-news-sources-staging-dlq",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_concurrency": 1,
+            "max_retries": 0
+          },
+          {
+            "queue": "distilled-news-editions-staging-dlq",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_concurrency": 1,
+            "max_retries": 0
+          }
+        ]
+      },
+      "triggers": {
+        "crons": ["* * * * *"]
+      },
+      "routes": [
+        {
+          "pattern": "staging.distilled.news",
+          "custom_domain": true
+        }
+      ]
+    }
+  }
+}

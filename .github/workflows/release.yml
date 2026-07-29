@@ -1,0 +1,207 @@
+name: Release Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Named Wrangler environment
+        type: choice
+        options:
+          - staging
+          - production
+        required: true
+      confirmation:
+        description: Type "deploy staging" or "deploy production"
+        type: string
+        required: true
+      canary_attestation:
+        description: Signed same-SHA 24-hour canary attestation (required for production)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+
+concurrency:
+  group: distilled-news-cloudflare-mutation
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      inputs.confirmation == format('deploy {0}', inputs.environment) &&
+      (inputs.environment != 'production' || github.ref == 'refs/heads/main')
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - name: Verify protected GitHub deployment controls
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_GITHUB_ENVIRONMENT: ${{ inputs.environment }}
+        run: node scripts/release/verify-github-protection.mjs
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check -- --e2e --audit
+      - name: Verify remote runtime secrets before mutation
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/doctor.mjs --ci --deployment --environment "${{ inputs.environment }}"
+      - name: Verify live Apify capacity and reviewed actor contracts
+        env:
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          APIFY_READINESS_TOKEN: ${{ secrets.APIFY_READINESS_TOKEN }}
+        run: node scripts/release/check-apify.mjs "${{ inputs.environment }}"
+      - name: Verify same-SHA 24-hour canary evidence
+        if: inputs.environment == 'production'
+        env:
+          CANARY_ATTESTATION: ${{ inputs.canary_attestation }}
+          CANARY_ATTESTATION_PUBLIC_KEY: ${{ secrets.CANARY_ATTESTATION_PUBLIC_KEY }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: pnpm canary:verify-attestation
+      - name: Export production D1 before migrations
+        if: inputs.environment == 'production'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CONFIRM_PRODUCTION_EXPORT: distilled-news:production:export:777782fe-6c8f-45c1-826d-365c40bc1210
+        run: pnpm backup:production
+      - name: Verify production export is locally restorable
+        if: inputs.environment == 'production'
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          backup_sql="$(find backups/production -maxdepth 1 -type f -name 'd1-*.sql' -print | sort | tail -n 1)"
+          test -n "$backup_sql"
+          test -s "$backup_sql"
+          echo "PRODUCTION_BACKUP_SQL=$backup_sql" >> "$GITHUB_ENV"
+          pnpm backup:verify -- --file "$backup_sql" --evidence backups/release-artifact/restore-verification.json
+      - name: Encrypt and verify the production backup package
+        if: inputs.environment == 'production'
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          umask 077
+          mkdir -p backups/release-artifact
+          backup_name="$(basename "$PRODUCTION_BACKUP_SQL")"
+          encrypted_path="$RUNNER_TEMP/${backup_name}.enc"
+          node scripts/backup/encrypt-d1.mjs \
+            --file "$PRODUCTION_BACKUP_SQL" \
+            --output "$encrypted_path" \
+            --evidence backups/release-artifact/encryption-verification.json
+          echo "PRODUCTION_BACKUP_ENCRYPTED=$encrypted_path" >> "$GITHUB_ENV"
+      - name: Store encrypted pre-migration backup in private R2
+        if: inputs.environment == 'production'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ github.sha }}
+          CONFIRM_PRODUCTION_BACKUP_STORE: distilled-news:production:backup-store:distilled-news-production-backups
+        run: |
+          node scripts/backup/private-store.mjs put \
+            --file "$PRODUCTION_BACKUP_ENCRYPTED" \
+            --evidence backups/release-artifact/private-store-verification.json
+      - name: Retain non-sensitive production backup evidence
+        if: inputs.environment == 'production'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-d1-pre-migration-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: backups/release-artifact/*.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove plaintext backup material
+        if: always() && inputs.environment == 'production'
+        run: |
+          find backups/production -maxdepth 1 -type f -delete 2>/dev/null || true
+          rm -f "$RUNNER_TEMP"/*.enc "$RUNNER_TEMP"/*.restore-check 2>/dev/null || true
+      - name: Capture closed rollback baseline before mutation
+        id: rollback_baseline
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node scripts/release/capture-rollback-baseline.mjs \
+            "${{ inputs.environment }}" \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/rollback-baseline.json" \
+            --github-env "$GITHUB_ENV"
+      - name: Retain pre-mutation rollback evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ inputs.environment }}-rollback-baseline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/distilled-release-evidence/rollback-baseline.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Verify captured N-1 code against forward migrations
+        run: >-
+          node scripts/release/verify-rollback-schema-compatibility.mjs
+          --baseline "$ROLLBACK_BASELINE_FILE"
+      - name: Apply remote migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:${{ inputs.environment }}:migrate
+        run: node scripts/release/migrate.mjs "${{ inputs.environment }}"
+      - name: Deploy named environment
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_PREFLIGHT_SHA: ${{ github.sha }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:${{ inputs.environment }}:deploy
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          APIFY_READINESS_TOKEN: ${{ secrets.APIFY_READINESS_TOKEN }}
+        run: node scripts/release/deploy.mjs "${{ inputs.environment }}" --preflight-verified
+      - name: Post-deploy remote smoke
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: node scripts/release/smoke.mjs "${{ inputs.environment }}"
+      - name: Run bounded authenticated retention cleanup
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          INTERNAL_MAINTENANCE_SECRET: ${{ secrets.INTERNAL_MAINTENANCE_SECRET }}
+          CONFIRM_CLOUDFLARE_MUTATION: distilled-news:${{ inputs.environment }}:retention
+        run: node scripts/release/run-retention.mjs "${{ inputs.environment }}"
+      - name: Verify D1 and R2 retention controls
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RAW_ARCHIVE_BUCKET: ${{ inputs.environment == 'production' && 'lownoise-raw' || 'distilled-news-raw-staging' }}
+          CONFIRM_PRODUCTION_READ: distilled-news:production:retention-read
+        run: pnpm retention:verify -- --environment "${{ inputs.environment }}"
+      - name: Roll back failed deployed release
+        id: release_rollback
+        if: failure() && steps.rollback_baseline.outcome == 'success'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FAILED_RELEASE_SHA: ${{ github.sha }}
+        run: |
+          export CONFIRM_CLOUDFLARE_MUTATION="distilled-news:${{ inputs.environment }}:rollback:${ROLLBACK_BASELINE_VERSION_ID}"
+          node scripts/release/rollback.mjs \
+            "${{ inputs.environment }}" \
+            --baseline "$ROLLBACK_BASELINE_FILE" \
+            --evidence "$RUNNER_TEMP/distilled-release-evidence/rollback-result.json"
+      - name: Retain automatic rollback result
+        if: failure() && steps.release_rollback.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ inputs.environment }}-rollback-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/distilled-release-evidence/rollback-result.json
+          if-no-files-found: error
+          retention-days: 30

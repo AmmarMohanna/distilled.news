@@ -12,9 +12,12 @@ export function clusterMessages(messages: NormalizedMessage[]): ClusterCandidate
     const matchingCluster = clusters.find((cluster) => {
       const tokenScore = jaccardSimilarity(cluster.tokens, tokens);
       const containmentScore = tokenContainment(cluster.tokens, tokens);
-      const sharedLink = message.links.some((link) =>
-        cluster.messages.some((clusterMessage) => clusterMessage.links.includes(link))
-      );
+      const sharedLink = message.links.some((link) => {
+        const eventLink = eventSpecificLink(link);
+        return Boolean(eventLink) && cluster.messages.some((clusterMessage) =>
+          clusterMessage.links.some((candidate) => eventSpecificLink(candidate) === eventLink)
+        );
+      });
       return tokenScore >= CLUSTER_THRESHOLD || containmentScore >= CLUSTER_CONTAINMENT_THRESHOLD || sharedLink;
     });
 
@@ -32,6 +35,23 @@ export function clusterMessages(messages: NormalizedMessage[]): ClusterCandidate
   }
 
   return clusters;
+}
+
+function eventSpecificLink(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./u, "").replace(/^twitter\.com$/u, "x.com");
+    const path = url.pathname.replace(/\/+$/u, "");
+    const segments = path.split("/").filter(Boolean);
+    if (segments.length === 0) return undefined;
+    if (host === "whatsapp.com" && segments[0] === "channel") return undefined;
+    if (host === "t.me" && segments.length < 2) return undefined;
+    if (host === "x.com" && !segments.includes("status")) return undefined;
+    if (host === "instagram.com" && !["p", "reel", "tv"].includes(segments[0] ?? "")) return undefined;
+    return `${host}${path}`;
+  } catch {
+    return undefined;
+  }
 }
 
 function tokenContainment(left: string[], right: string[]): number {

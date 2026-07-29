@@ -2,23 +2,63 @@
   "name": "distilled-news",
   "version": "0.1.0",
   "private": true,
-  "description": "Cloudflare-first, self-hostable personal news briefing filter.",
+  "description": "Cloudflare-first, self-hostable public news briefing product.",
   "type": "module",
   "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": "24.x",
+    "pnpm": "10.12.1"
+  },
   "scripts": {
     "dev": "pnpm --filter @distilled/worker dev",
     "build": "pnpm --filter @distilled/core build && pnpm --filter @distilled/connectors build && pnpm --filter @distilled/web build && pnpm --filter @distilled/worker build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:e2e": "playwright test",
-    "deploy": "pnpm --filter @distilled/worker run deploy",
+    "audit:dependencies": "pnpm audit --audit-level high",
+    "wrangler:types": "pnpm --filter @distilled/worker exec wrangler types worker-configuration.d.ts --env production --env-file /dev/null --include-runtime=false --strict-vars=false",
+    "wrangler:types:check": "pnpm --filter @distilled/worker exec wrangler types worker-configuration.d.ts --env production --env-file /dev/null --include-runtime=false --strict-vars=false --check",
+    "ci:migrations": "node scripts/ci/test-migrations.mjs",
+    "ci:scripts": "node scripts/ci/check-scripts.mjs && node scripts/ci/test-legal-parity.mjs && node scripts/ci/test-model-readiness-evidence.mjs && node scripts/ci/test-apify-readiness.mjs && node scripts/ci/test-rollback-control.mjs && node scripts/ci/test-registration-close.mjs && node scripts/ci/test-secrets-file.mjs && node scripts/ci/test-transition-control.mjs && node scripts/ci/test-public-launch-attestation.mjs && node scripts/ci/test-paid-cohort-control.mjs && node scripts/ci/test-canary-state-bundle.mjs && node scripts/ci/test-canary-evidence-run.mjs && node scripts/ci/test-canary-attestation-crypto.mjs && node scripts/ci/test-private-backup.mjs && node scripts/ci/test-restore-rehearsal.mjs && node scripts/ci/test-retention-target.mjs && node scripts/ci/test-github-protection.mjs && node scripts/ci/test-canary-workflow-identity.mjs && node scripts/ci/test-canary-cost-plan.mjs && node scripts/ci/test-canary-reliability.mjs",
+    "ci:readiness": "node scripts/release/static-readiness.mjs",
+    "release:check": "node scripts/release/readiness.mjs",
+    "release:dry-run": "node scripts/release/dry-run.mjs",
+    "deploy": "node scripts/release/deploy.mjs production",
+    "deploy:staging": "node scripts/release/deploy.mjs staging",
     "db:migrate": "pnpm --filter @distilled/worker db:migrate",
-    "setup": "node scripts/setup.mjs"
+    "db:migrate:staging": "node scripts/release/migrate.mjs staging",
+    "db:migrate:production": "node scripts/release/migrate.mjs production",
+    "canary:seed": "node scripts/canary/seed.mjs",
+    "canary:audit": "node scripts/canary/audit.mjs",
+    "canary:heartbeat": "node scripts/canary/heartbeat.mjs",
+    "canary:attest": "node scripts/canary/attest.mjs",
+    "canary:verify-attestation": "node scripts/canary/verify-attestation.mjs",
+    "canary:pack-state": "node scripts/canary/state-bundle.mjs pack",
+    "canary:restore-state": "node scripts/canary/state-bundle.mjs restore",
+    "canary:remove": "node scripts/canary/remove.mjs",
+    "backup:production": "node scripts/backup/export-d1.mjs",
+    "backup:verify": "node scripts/backup/verify-export.mjs",
+    "backup:store:verify": "node scripts/backup/private-store.mjs verify",
+    "restore:rehearse:staging": "node scripts/backup/rehearse-restore.mjs",
+    "retention:verify": "node scripts/backup/verify-retention.mjs",
+    "retention:run": "node scripts/release/run-retention.mjs",
+    "load:public-edge:staging": "node scripts/load/public-edge-cost.mjs",
+    "smoke:remote": "node scripts/release/smoke.mjs",
+    "registration:preflight": "node scripts/release/registration-control.mjs preflight",
+    "registration:open": "node scripts/release/registration-control.mjs open",
+    "registration:close": "node scripts/release/registration-control.mjs close",
+    "setup": "node scripts/setup.mjs",
+    "doctor": "node scripts/doctor.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.0",
     "@types/node": "^24.0.0",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "vitest": "4.1.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.18"
+    }
   }
 }

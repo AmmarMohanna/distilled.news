@@ -6,21 +6,113 @@ export async function sendVerificationEmail(env: Env, account: AccountRecord, to
   await sendAuthEmail(env, {
     to: account.email,
     subject: "Verify your email for Distilled.news",
-    path: `/verify-email?token=${encodeURIComponent(token)}`,
+    path: `/verify-email#token=${encodeURIComponent(token)}`,
     action: "Verify email",
     text: "Verify your email to finish setting up your Distilled.news account.",
-    expires: "This verification link expires in 24 hours."
+    expires: verificationLinkExpiryCopy(env)
   });
+}
+
+export function verificationLinkExpiryCopy(env: Pick<Env, "ENVIRONMENT">): string {
+  const environment = env.ENVIRONMENT?.trim().toLowerCase();
+  return environment === "production" || environment === "staging"
+    ? "This verification link expires in 60 minutes."
+    : "This verification link expires in 24 hours.";
 }
 
 export async function sendPasswordResetEmail(env: Env, account: AccountRecord, token: string): Promise<void> {
   await sendAuthEmail(env, {
     to: account.email,
     subject: "Reset your Distilled.news password",
-    path: `/reset-password?token=${encodeURIComponent(token)}`,
+    path: `/reset-password#token=${encodeURIComponent(token)}`,
     action: "Reset password",
     text: "Use this link to choose a new Distilled.news password.",
     expires: "This reset link expires in 30 minutes."
+  });
+}
+
+export async function sendEmailDeliveryTest(
+  env: Env,
+  account: Pick<AccountRecord, "email">,
+  sentAt = new Date()
+): Promise<void> {
+  if (!env.EMAIL) throw new Error("Cloudflare Email binding is not configured");
+  if (!env.EMAIL_FROM) throw new Error("EMAIL_FROM is not configured");
+
+  const timestamp = sentAt.toISOString();
+  const release = (
+    env.RELEASE_SHA?.trim() ||
+    env.CF_VERSION_METADATA?.tag ||
+    env.CF_VERSION_METADATA?.id ||
+    "unknown-release"
+  ).slice(0, 64);
+  const text = [
+    "Distilled.news",
+    "",
+    "Email delivery is working.",
+    "",
+    `Production test sent at ${timestamp}.`,
+    `Release: ${release}.`,
+    "No action is required."
+  ].join("\n");
+  await env.EMAIL.send({
+    to: account.email,
+    from: parseEmailAddress(env.EMAIL_FROM),
+    subject: `Distilled.news email delivery test (${release})`,
+    text,
+    html: [
+      "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.5; color: #111;\">",
+      "<h1 style=\"font-size: 18px; margin: 0 0 16px;\">Distilled.news</h1>",
+      "<p>Email delivery is working.</p>",
+      `<p style="color: #666;">Production test sent at ${escapeHtml(timestamp)}.</p>`,
+      `<p style="color: #666;">Release: ${escapeHtml(release)}.</p>`,
+      "<p>No action is required.</p>",
+      "</div>"
+    ].join("")
+  });
+}
+
+export async function sendRegistrationEmailReceipt(
+  env: Env,
+  recipient: string,
+  input: {
+    nonce: string;
+    release: string;
+    sentAt: Date;
+    expiresAt: string;
+  }
+): Promise<void> {
+  if (!env.EMAIL) throw new Error("Cloudflare Email binding is not configured");
+  if (!env.EMAIL_FROM) throw new Error("EMAIL_FROM is not configured");
+
+  const timestamp = input.sentAt.toISOString();
+  const text = [
+    "Distilled.news",
+    "",
+    "Email delivery is working.",
+    "",
+    `Registration receipt nonce: ${input.nonce}`,
+    "",
+    "Paste this exact one-time nonce into the separate registration open dispatch.",
+    `It expires at ${input.expiresAt} and is valid only for release ${input.release}.`,
+    `Production test sent at ${timestamp}.`
+  ].join("\n");
+  await env.EMAIL.send({
+    to: recipient,
+    from: parseEmailAddress(env.EMAIL_FROM),
+    subject: `Distilled.news registration receipt (${input.release})`,
+    text,
+    html: [
+      "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.5; color: #111;\">",
+      "<h1 style=\"font-size: 18px; margin: 0 0 16px;\">Distilled.news</h1>",
+      "<p>Email delivery is working.</p>",
+      "<p>Registration receipt nonce:</p>",
+      `<p><code style="font-size: 16px; word-break: break-all;">${escapeHtml(input.nonce)}</code></p>`,
+      "<p>Paste this exact one-time nonce into the separate registration open dispatch.</p>",
+      `<p style="color: #666;">Expires at ${escapeHtml(input.expiresAt)} and is valid only for release ${escapeHtml(input.release)}.</p>`,
+      `<p style="color: #666;">Production test sent at ${escapeHtml(timestamp)}.</p>`,
+      "</div>"
+    ].join("")
   });
 }
 

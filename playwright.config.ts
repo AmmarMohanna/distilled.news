@@ -1,10 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const port = Number(process.env.PLAYWRIGHT_PORT ?? "4173");
+const baseURL = `http://127.0.0.1:${port}`;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30_000,
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL,
     trace: "on-first-retry"
   },
   projects: [
@@ -12,8 +15,8 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"] } }
   ],
   webServer: {
-    command: "pnpm --filter @distilled/web preview --host 127.0.0.1 --port 4173",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: true
+    command: `pnpm --filter @distilled/web preview --host 127.0.0.1 --port ${port}`,
+    url: baseURL,
+    reuseExistingServer: false
   }
 });

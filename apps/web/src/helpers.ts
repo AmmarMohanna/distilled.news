@@ -1,20 +1,5 @@
 import type { BriefingConfig } from "@distilled/core";
 
-const ENGLISH_MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December"
-];
-
 export function uniqueSlug(existing: BriefingConfig[], base: string): string {
   let slug = slugify(base);
   let suffix = 2;
@@ -46,36 +31,45 @@ export function publicFeedUrl(username: string, slug: string, origin = window.lo
   return new URL(`/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/`, origin).toString();
 }
 
-export function formatDateTime(value: string, language: "en" | "ar" | "fr" = "en"): string {
+export function verificationEmailSentCopy(hosted: boolean): string {
+  const expiry = hosted ? "60 minutes" : "24 hours";
+  return `verification email sent. Check your inbox and spam folder. The link expires in ${expiry}.`;
+}
+
+export function formatDateTime(value: string, language: "en" | "ar" | "fr" = "en", timezone?: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  if (language === "en") {
-    const month = ENGLISH_MONTHS[date.getMonth()] ?? "";
-    const day = String(date.getDate());
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
-    return `${month} ${day}, ${hour}:${minute}`;
-  }
-
-  const locale = language === "ar" ? "ar-LB" : "fr-FR";
+  const locale = language === "ar" ? "ar-LB" : language === "fr" ? "fr-FR" : "en-US";
   const formatter = new Intl.DateTimeFormat(locale, {
     month: "long",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    hourCycle: "h23"
+    hourCycle: "h23",
+    timeZone: safeTimezone(timezone)
   });
   const parts = Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]));
-  const day = parts.day ?? String(date.getDate());
-  const month = parts.month ?? String(date.getMonth() + 1);
-  const hour = parts.hour ?? String(date.getHours()).padStart(2, "0");
-  const minute = parts.minute ?? String(date.getMinutes()).padStart(2, "0");
+  const day = parts.day ?? "";
+  const month = parts.month ?? "";
+  const hour = parts.hour ?? "00";
+  const minute = parts.minute ?? "00";
 
   if (language === "ar") return `${day} ${month}، ${hour}:${minute}`;
-  return `${day} ${month}, ${hour}:${minute}`;
+  if (language === "fr") return `${day} ${month}, ${hour}:${minute}`;
+  return `${month} ${day}, ${hour}:${minute}`;
 }
 
-export function formatTime(value: string, language: "en" | "ar" | "fr"): string {
-  return formatDateTime(value, language);
+export function formatTime(value: string, language: "en" | "ar" | "fr", timezone?: string): string {
+  return formatDateTime(value, language, timezone);
+}
+
+function safeTimezone(timezone?: string): string | undefined {
+  if (!timezone) return undefined;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date(0));
+    return timezone;
+  } catch {
+    return "UTC";
+  }
 }
