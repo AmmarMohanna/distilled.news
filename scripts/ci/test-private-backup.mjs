@@ -6,6 +6,8 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
+  symlinkSync,
   writeFileSync
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -38,6 +40,10 @@ try {
   await encryptFile(input, encrypted, key, Buffer.alloc(12, 7));
   await decryptFile(encrypted, restored, key);
   assert.deepEqual(readFileSync(restored), readFileSync(input));
+  if (process.platform !== "win32") {
+    assert.equal(statSync(encrypted).mode & 0o777, 0o600);
+    assert.equal(statSync(restored).mode & 0o777, 0o600);
+  }
 
   const tampered = Buffer.from(readFileSync(encrypted));
   tampered[Math.floor(tampered.length / 2)] ^= 1;
@@ -47,6 +53,38 @@ try {
     decryptFile(tamperedPath, resolve(root, "tampered.sql"), key),
     /authentication or decryption failed/
   );
+
+  const occupiedOutput = resolve(root, "occupied.enc");
+  writeFileSync(occupiedOutput, "do not replace", { mode: 0o600 });
+  await assert.rejects(
+    encryptFile(input, occupiedOutput, key, Buffer.alloc(12, 8)),
+    /Encrypted output already exists/
+  );
+  assert.equal(readFileSync(occupiedOutput, "utf8"), "do not replace");
+
+  const occupiedRestore = resolve(root, "occupied.sql");
+  writeFileSync(occupiedRestore, "do not replace", { mode: 0o600 });
+  await assert.rejects(
+    decryptFile(encrypted, occupiedRestore, key),
+    /Decrypted output already exists/
+  );
+  assert.equal(readFileSync(occupiedRestore, "utf8"), "do not replace");
+
+  if (process.platform !== "win32") {
+    const linkedInput = resolve(root, "linked-input.sql");
+    symlinkSync(input, linkedInput);
+    await assert.rejects(
+      encryptFile(linkedInput, resolve(root, "linked-input.enc"), key, Buffer.alloc(12, 9)),
+      /Backup input must be a non-empty regular file/
+    );
+
+    const linkedEncrypted = resolve(root, "linked-encrypted.enc");
+    symlinkSync(encrypted, linkedEncrypted);
+    await assert.rejects(
+      decryptFile(linkedEncrypted, resolve(root, "linked-restored.sql"), key),
+      /Backup input must be a non-empty regular file/
+    );
+  }
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

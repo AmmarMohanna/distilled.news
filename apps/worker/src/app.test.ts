@@ -3555,9 +3555,9 @@ describe("worker app accounts", () => {
       return new Response(JSON.stringify({
         type: "news",
         results: [{
-          title: "Lebanon cabinet approves energy plan",
+          title: "Lebanon energy &amp; water plan",
           url: "https://wire.example/lebanon-energy",
-          description: "The cabinet approved a new national electricity plan.",
+          description: "Research &amp;amp; development remains &amp;quot;fully funded&amp;quot;.",
           page_age: "2026-06-16T08:10:00Z",
           meta_url: { hostname: "wire.example" }
         }]
@@ -3594,6 +3594,9 @@ describe("worker app accounts", () => {
     expect(result).toMatchObject({ imported: 1, queued: 1, provider: "rss", kind: "google_news" });
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(Array.from(bucket.objects.keys()).some((key) => key.startsWith("brave-news/"))).toBe(true);
+    expect(Array.from(repo.rawMessages.values())[0]?.text).toBe(
+      "Lebanon energy & water plan. Research &amp; development remains &quot;fully funded&quot;."
+    );
     expect(await repo.listSourceRuns({ sourceId: source.id })).toEqual(expect.arrayContaining([
       expect.objectContaining({
         provider: "rss",

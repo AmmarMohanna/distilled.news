@@ -55,18 +55,26 @@ failed-signup rollback do not create a tombstone. Migration
 tombstones for legacy account rows.
 
 ```sh
+export CLOUDFLARE_API_TOKEN=your-existing-read-token
+export CLOUDFLARE_ACCOUNT_ID=your-account-id
+export RAW_ARCHIVE_BUCKET=your-staging-raw-archive-bucket
 pnpm retention:verify -- --environment staging
 ```
 
 Production is read-only but requires an explicit target acknowledgement:
 
 ```sh
+export CLOUDFLARE_API_TOKEN=your-existing-read-token
+export CLOUDFLARE_ACCOUNT_ID=your-account-id
+export RAW_ARCHIVE_BUCKET=your-production-raw-archive-bucket
 CONFIRM_PRODUCTION_READ=distilled-news:production:retention-read \
   pnpm retention:verify -- --environment production
 ```
 
 The Cloudflare token used by this command needs D1 read and Workers R2 Storage
-Read. It never deletes rows, lifecycle rules, or objects.
+Read. The verifier accepts the token only from the current process, and the
+runtime account and bucket must exactly match the selected reviewed Wrangler
+environment. It never deletes rows, lifecycle rules, or objects.
 
 Legal or security holds must be narrow, documented, access-controlled, and
 removed when the obligation ends. Public copies outside the service cannot be

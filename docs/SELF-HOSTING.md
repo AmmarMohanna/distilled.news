@@ -188,6 +188,9 @@ Run the remote read-only checks:
 
 ```sh
 pnpm smoke:remote -- production
+export CLOUDFLARE_API_TOKEN=your-existing-read-token
+export CLOUDFLARE_ACCOUNT_ID=your-account-id
+export RAW_ARCHIVE_BUCKET=your-production-raw-archive-bucket
 CONFIRM_PRODUCTION_READ=distilled-news:production:retention-read \
   pnpm retention:verify -- --environment production
 ```

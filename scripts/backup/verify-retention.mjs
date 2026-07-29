@@ -1,27 +1,25 @@
 #!/usr/bin/env node
 
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   assertIsolatedStaging,
-  combinedEnvironment,
   d1Binding,
   environmentConfig,
   readWorkerConfig,
   runWrangler
 } from "../lib/release-config.mjs";
 
-const environment = optionValue("--environment") ?? "staging";
+const CLOUDFLARE_API_ORIGIN = "https://api.cloudflare.com";
+const ACCOUNT_ID_PATTERN = /^[a-f0-9]{32}$/i;
+const BUCKET_NAME_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/;
+const API_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{20,2048}$/;
+const CURSOR_PATTERN = /^[^\u0000-\u001f\u007f]{1,2048}$/;
 const SPEND_LEDGER_REVIEW_ROWS = 250_000;
 const SPEND_LEDGER_DAILY_REVIEW_ROWS = 10_000;
 const SPEND_LEDGER_BLOCK_ROWS = 1_000_000;
-const config = readWorkerConfig();
-const selected = environmentConfig(config, environment);
-const values = combinedEnvironment(environment);
-if (environment === "staging") assertIsolatedStaging(config);
-if (environment === "production" && process.env.CONFIRM_PRODUCTION_READ !== "distilled-news:production:retention-read") {
-  throw new Error("Set CONFIRM_PRODUCTION_READ=distilled-news:production:retention-read for the production read-only check.");
-}
 
-const query = `
+const retentionQuery = `
 SELECT
   (SELECT COUNT(*) FROM raw_messages WHERE expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-10 minutes')) AS expired_raw_messages,
   (SELECT COUNT(*) FROM briefing_items WHERE expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-10 minutes')) AS expired_briefing_items,
@@ -64,106 +62,182 @@ SELECT
     WHERE created_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 days', '-10 minutes')) AS expired_llm_usage_events;
 `;
 
-const result = runWrangler([
-  "d1", "execute", "DB",
-  "--remote",
-  "--env", environment,
-  "--json",
-  "--command", query
-], { capture: true });
-const payload = JSON.parse(result.stdout);
-const row = payload[0]?.results?.[0];
-if (!row) throw new Error("Retention verification returned no result.");
+export async function main(options = {}) {
+  const argv = options.argv ?? process.argv.slice(2);
+  const runtime = options.environment ?? process.env;
+  const fetcher = options.fetcher ?? fetch;
+  const run = options.runWrangler ?? runWrangler;
+  const config = options.config ?? readWorkerConfig();
+  const environment = optionValue(argv, "--environment") ?? "staging";
+  const selected = environmentConfig(config, environment);
 
-const bucket = selected.r2_buckets?.find((candidate) => candidate.binding === "RAW_ARCHIVE")?.bucket_name;
-const token = values.get("CLOUDFLARE_API_TOKEN");
-const accountId = values.get("CLOUDFLARE_ACCOUNT_ID") ?? selected.vars?.CLOUDFLARE_ACCOUNT_ID;
-if (!bucket || !token || !accountId) {
-  throw new Error("R2 retention verification requires RAW_ARCHIVE, CLOUDFLARE_ACCOUNT_ID, and an R2-read API token.");
-}
-const lifecycle = await cloudflare(
-  `/accounts/${encodeURIComponent(accountId)}/r2/buckets/${encodeURIComponent(bucket)}/lifecycle`,
-  token
-);
-const maximumAgeSeconds = 30 * 24 * 60 * 60;
-const lifecycleRule = (lifecycle.result?.rules ?? []).find((rule) =>
-  rule.enabled === true &&
-  (rule.conditions?.prefix === undefined || rule.conditions.prefix === "") &&
-  rule.deleteObjectsTransition?.condition?.type === "Age" &&
-  Number(rule.deleteObjectsTransition.condition.maxAge) <= maximumAgeSeconds
-);
-const objectInventory = await inspectObjects(accountId, bucket, token);
-const spendLedgerGrowth = {
-  totalRows: Number(row.spend_ledger_rows ?? 0),
-  rowsTodayUtc: Number(row.spend_ledger_rows_today_utc ?? 0),
-  oldestAt: row.spend_ledger_oldest_at ?? null,
-  reviewRowThreshold: SPEND_LEDGER_REVIEW_ROWS,
-  dailyReviewRowThreshold: SPEND_LEDGER_DAILY_REVIEW_ROWS,
-  releaseBlockingRowThreshold: SPEND_LEDGER_BLOCK_ROWS
-};
+  if (environment === "staging") assertIsolatedStaging(config);
+  if (
+    environment === "production" &&
+    runtime.CONFIRM_PRODUCTION_READ !== "distilled-news:production:retention-read"
+  ) {
+    throw new Error(
+      "Set CONFIRM_PRODUCTION_READ=distilled-news:production:retention-read for the production read-only check."
+    );
+  }
 
-console.log(JSON.stringify({
-  environment,
-  database: d1Binding(selected).database_name,
-  bucket,
-  checkedAt: new Date().toISOString(),
-  ...row,
-  lifecycle: {
-    compliant: Boolean(lifecycleRule),
-    ruleId: lifecycleRule?.id ?? null,
-    maximumAgeDays: lifecycleRule
-      ? Number(lifecycleRule.deleteObjectsTransition.condition.maxAge) / 86_400
-      : null
-  },
-  objects: objectInventory,
-  spendLedgerGrowth
-}, null, 2));
+  const configuredBucket = selected.r2_buckets
+    ?.find((candidate) => candidate.binding === "RAW_ARCHIVE")
+    ?.bucket_name;
+  const target = validateRetentionTarget({
+    configuredAccountId: selected.vars?.CLOUDFLARE_ACCOUNT_ID,
+    configuredBucket,
+    runtimeAccountId: runtime.CLOUDFLARE_ACCOUNT_ID,
+    runtimeBucket: runtime.RAW_ARCHIVE_BUCKET,
+    runtimeToken: runtime.CLOUDFLARE_API_TOKEN
+  });
 
-if (
-  spendLedgerGrowth.totalRows >= SPEND_LEDGER_REVIEW_ROWS ||
-  spendLedgerGrowth.rowsTodayUtc >= SPEND_LEDGER_DAILY_REVIEW_ROWS
-) {
-  console.warn(
-    "Spend-ledger growth threshold reached despite bounded aggregation; investigate retention backlog and operation volume."
+  const result = run([
+    "d1", "execute", "DB",
+    "--remote",
+    "--env", environment,
+    "--json",
+    "--command", retentionQuery
+  ], { capture: true });
+  const payload = JSON.parse(result.stdout);
+  const row = payload[0]?.results?.[0];
+  if (!row) throw new Error("Retention verification returned no result.");
+
+  const lifecycle = await cloudflareR2Request({
+    ...target,
+    operation: "lifecycle",
+    fetcher
+  });
+  const maximumAgeSeconds = 30 * 24 * 60 * 60;
+  const lifecycleRule = (lifecycle.result?.rules ?? []).find((rule) =>
+    rule.enabled === true &&
+    (rule.conditions?.prefix === undefined || rule.conditions.prefix === "") &&
+    rule.deleteObjectsTransition?.condition?.type === "Age" &&
+    Number(rule.deleteObjectsTransition.condition.maxAge) <= maximumAgeSeconds
   );
+  const objectInventory = await inspectObjects(target, fetcher);
+  const spendLedgerGrowth = {
+    totalRows: Number(row.spend_ledger_rows ?? 0),
+    rowsTodayUtc: Number(row.spend_ledger_rows_today_utc ?? 0),
+    oldestAt: row.spend_ledger_oldest_at ?? null,
+    reviewRowThreshold: SPEND_LEDGER_REVIEW_ROWS,
+    dailyReviewRowThreshold: SPEND_LEDGER_DAILY_REVIEW_ROWS,
+    releaseBlockingRowThreshold: SPEND_LEDGER_BLOCK_ROWS
+  };
+
+  const report = {
+    environment,
+    database: d1Binding(selected).database_name,
+    bucket: target.bucketName,
+    checkedAt: new Date().toISOString(),
+    ...row,
+    lifecycle: {
+      compliant: Boolean(lifecycleRule),
+      ruleId: lifecycleRule?.id ?? null,
+      maximumAgeDays: lifecycleRule
+        ? Number(lifecycleRule.deleteObjectsTransition.condition.maxAge) / 86_400
+        : null
+    },
+    objects: objectInventory,
+    spendLedgerGrowth
+  };
+  console.log(JSON.stringify(report, null, 2));
+
+  if (
+    spendLedgerGrowth.totalRows >= SPEND_LEDGER_REVIEW_ROWS ||
+    spendLedgerGrowth.rowsTodayUtc >= SPEND_LEDGER_DAILY_REVIEW_ROWS
+  ) {
+    console.warn(
+      "Spend-ledger growth threshold reached despite bounded aggregation; investigate retention backlog and operation volume."
+    );
+  }
+
+  const staleRows = [
+    row.expired_raw_messages,
+    row.expired_briefing_items,
+    row.expired_clusters,
+    row.expired_auth_tokens,
+    row.expired_briefing_editions,
+    row.expired_briefing_windows,
+    row.expired_r2_references,
+    row.old_source_archive_references,
+    row.expired_terminal_spend_operations,
+    row.stale_open_spend_reservations,
+    row.expired_spend_aggregates,
+    row.expired_spend_tombstones,
+    row.expired_llm_usage_events
+  ].reduce((sum, value) => sum + Number(value ?? 0), 0);
+  if (
+    staleRows > 0 ||
+    !lifecycleRule ||
+    objectInventory.olderThan31Days > 0 ||
+    objectInventory.unreadableLastModified > 0 ||
+    spendLedgerGrowth.totalRows >= SPEND_LEDGER_BLOCK_ROWS
+  ) {
+    throw new Error(
+      "Retention gate failed: stale D1/R2/spend/model detail, missing lifecycle, old/unreadable R2 objects, or the spend-ledger hard ceiling remains."
+    );
+  }
+  return report;
 }
 
-const staleRows = [
-  row.expired_raw_messages,
-  row.expired_briefing_items,
-  row.expired_clusters,
-  row.expired_auth_tokens,
-  row.expired_briefing_editions,
-  row.expired_briefing_windows,
-  row.expired_r2_references,
-  row.old_source_archive_references,
-  row.expired_terminal_spend_operations,
-  row.stale_open_spend_reservations,
-  row.expired_spend_aggregates,
-  row.expired_spend_tombstones,
-  row.expired_llm_usage_events
-].reduce((sum, value) => sum + Number(value ?? 0), 0);
-if (
-  staleRows > 0 ||
-  !lifecycleRule ||
-  objectInventory.olderThan31Days > 0 ||
-  objectInventory.unreadableLastModified > 0 ||
-  spendLedgerGrowth.totalRows >= SPEND_LEDGER_BLOCK_ROWS
-) {
-  console.error(
-    "Retention gate failed: stale D1/R2/spend/model detail, missing lifecycle, old/unreadable R2 objects, or the spend-ledger hard ceiling remains."
+export function validateRetentionTarget({
+  configuredAccountId,
+  configuredBucket,
+  runtimeAccountId,
+  runtimeBucket,
+  runtimeToken
+}) {
+  const accountId = String(runtimeAccountId ?? "").trim();
+  const bucketName = String(runtimeBucket ?? "").trim();
+  const token = String(runtimeToken ?? "").trim();
+  const manifestAccountId = String(configuredAccountId ?? "").trim();
+  const manifestBucket = String(configuredBucket ?? "").trim();
+
+  if (!ACCOUNT_ID_PATTERN.test(accountId)) {
+    throw new Error("CLOUDFLARE_ACCOUNT_ID must be a 32-character hexadecimal runtime value.");
+  }
+  if (!BUCKET_NAME_PATTERN.test(bucketName)) {
+    throw new Error("RAW_ARCHIVE_BUCKET must be a valid runtime R2 bucket name.");
+  }
+  if (!API_TOKEN_PATTERN.test(token)) {
+    throw new Error("CLOUDFLARE_API_TOKEN must be provided directly to this process.");
+  }
+  if (manifestAccountId !== accountId || manifestBucket !== bucketName) {
+    throw new Error(
+      "Runtime Cloudflare account and RAW_ARCHIVE bucket must exactly match the reviewed Wrangler environment."
+    );
+  }
+  return { accountId, bucketName, token };
+}
+
+export function buildCloudflareR2Url({ accountId, bucketName, operation, cursor }) {
+  if (!ACCOUNT_ID_PATTERN.test(accountId) || !BUCKET_NAME_PATTERN.test(bucketName)) {
+    throw new Error("Cloudflare R2 request target is invalid.");
+  }
+  if (operation !== "lifecycle" && operation !== "objects") {
+    throw new Error("Cloudflare R2 request operation is invalid.");
+  }
+  const url = new URL(
+    `/client/v4/accounts/${accountId}/r2/buckets/${bucketName}/${operation}`,
+    CLOUDFLARE_API_ORIGIN
   );
-  process.exitCode = 1;
+  if (operation === "objects") {
+    url.searchParams.set("per_page", "1000");
+    if (cursor !== undefined) {
+      if (typeof cursor !== "string" || !CURSOR_PATTERN.test(cursor)) {
+        throw new Error("Cloudflare R2 pagination cursor is invalid.");
+      }
+      url.searchParams.set("cursor", cursor);
+    }
+  }
+  if (url.origin !== CLOUDFLARE_API_ORIGIN) {
+    throw new Error("Cloudflare R2 request escaped the fixed API origin.");
+  }
+  return url;
 }
 
-function optionValue(name) {
-  const direct = process.argv.slice(2).find((argument) => argument.startsWith(`${name}=`));
-  if (direct) return direct.slice(name.length + 1);
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
-
-async function inspectObjects(accountId, bucketName, token) {
+async function inspectObjects(target, fetcher) {
   let cursor;
   let total = 0;
   let olderThan31Days = 0;
@@ -171,12 +245,12 @@ async function inspectObjects(accountId, bucketName, token) {
   let oldestModifiedAt = null;
   const cutoff = Date.now() - 31 * 24 * 60 * 60 * 1000;
   do {
-    const query = new URLSearchParams({ per_page: "1000" });
-    if (cursor) query.set("cursor", cursor);
-    const page = await cloudflare(
-      `/accounts/${encodeURIComponent(accountId)}/r2/buckets/${encodeURIComponent(bucketName)}/objects?${query}`,
-      token
-    );
+    const page = await cloudflareR2Request({
+      ...target,
+      operation: "objects",
+      cursor,
+      fetcher
+    });
     for (const object of page.result ?? []) {
       total += 1;
       const modified = Date.parse(object.last_modified);
@@ -197,8 +271,16 @@ async function inspectObjects(accountId, bucketName, token) {
   return { total, olderThan31Days, unreadableLastModified, oldestModifiedAt };
 }
 
-async function cloudflare(path, token) {
-  const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
+async function cloudflareR2Request({
+  accountId,
+  bucketName,
+  token,
+  operation,
+  cursor,
+  fetcher
+}) {
+  const url = buildCloudflareR2Url({ accountId, bucketName, operation, cursor });
+  const response = await fetcher(url, {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(20_000)
   });
@@ -207,4 +289,18 @@ async function cloudflare(path, token) {
     throw new Error(`Cloudflare R2 read failed with HTTP ${response.status}.`);
   }
   return payload;
+}
+
+function optionValue(argv, name) {
+  const direct = argv.find((argument) => argument.startsWith(`${name}=`));
+  if (direct) return direct.slice(name.length + 1);
+  const index = argv.indexOf(name);
+  return index >= 0 ? argv[index + 1] : undefined;
+}
+
+if (
+  process.argv[1] &&
+  pathToFileURL(resolve(process.argv[1])).href === import.meta.url
+) {
+  await main();
 }

@@ -2,10 +2,12 @@
 
 import { createHash } from "node:crypto";
 import {
-  existsSync,
-  readFileSync,
-  statSync
+  chmodSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -17,6 +19,7 @@ import {
   usableValue,
   unsetDatabaseId
 } from "../lib/release-config.mjs";
+import { readRegularFileSnapshot } from "./safe-files.mjs";
 
 const d1IdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
@@ -97,22 +100,46 @@ export function main(options = {}) {
     throw new Error("Backup artifacts changed during restore preflight.");
   }
 
-  run([
-    "d1", "execute", restoreName,
-    "--remote",
-    "--env", "staging",
-    "--yes",
-    "--file", verifiedBackup.backupPath
-  ]);
+  const temporaryRoot = mkdtempSync(resolve(tmpdir(), "distilled-verified-restore-"));
+  chmodSync(temporaryRoot, 0o700);
+  const verifiedSnapshotPath = resolve(temporaryRoot, "verified-export.sql");
+  try {
+    writeFileSync(verifiedSnapshotPath, preMutationBackup.exportContents, {
+      flag: "wx",
+      mode: 0o600
+    });
+    const materializedSnapshot = readRegularFileSnapshot(verifiedSnapshotPath, {
+      message: "Could not materialize the verified restore snapshot."
+    });
+    const materializedDigest = createHash("sha256")
+      .update(materializedSnapshot.bytes)
+      .digest("hex");
+    if (
+      materializedSnapshot.size !== preMutationBackup.exportBytes ||
+      materializedDigest !== preMutationBackup.exportSha256
+    ) {
+      throw new Error("Materialized restore snapshot does not match the verified export.");
+    }
 
-  const quickCheck = executeJson(run, restoreName, "PRAGMA quick_check;");
-  const requiredTables = executeJson(
-    run,
-    restoreName,
-    "SELECT COUNT(*) AS tables FROM sqlite_master WHERE type = 'table' AND name IN ('accounts','briefings','sources','raw_messages','processing_jobs','briefing_editions');"
-  );
-  if (quickCheck[0]?.quick_check !== "ok" || Number(requiredTables[0]?.tables ?? 0) !== 6) {
-    throw new Error("Restore completed but integrity or required-table verification failed.");
+    run([
+      "d1", "execute", restoreName,
+      "--remote",
+      "--env", "staging",
+      "--yes",
+      "--file", verifiedSnapshotPath
+    ]);
+
+    const quickCheck = executeJson(run, restoreName, "PRAGMA quick_check;");
+    const requiredTables = executeJson(
+      run,
+      restoreName,
+      "SELECT COUNT(*) AS tables FROM sqlite_master WHERE type = 'table' AND name IN ('accounts','briefings','sources','raw_messages','processing_jobs','briefing_editions');"
+    );
+    if (quickCheck[0]?.quick_check !== "ok" || Number(requiredTables[0]?.tables ?? 0) !== 6) {
+      throw new Error("Restore completed but integrity or required-table verification failed.");
+    }
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
   }
   console.log(`Restore rehearsal passed in isolated database ${restoreName} (${restoreId}).`);
 }
@@ -122,26 +149,24 @@ export function verifyRestoreInputs({ backupPath, checksumPath, evidencePath }) 
   const resolvedChecksum = resolve(checksumPath ?? `${resolvedBackup}.sha256`);
   const resolvedEvidence = resolve(evidencePath);
 
-  assertRegularNonemptyFile(resolvedBackup, "Restore rehearsal requires an existing non-empty .sql export file.");
   if (!resolvedBackup.endsWith(".sql")) {
     throw new Error("Restore rehearsal requires an existing non-empty .sql export file.");
   }
-  assertRegularNonemptyFile(resolvedChecksum, `Backup checksum is missing or invalid: ${resolvedChecksum}`);
-  assertRegularNonemptyFile(
-    resolvedEvidence,
-    `Local restore-verification evidence is missing or invalid: ${resolvedEvidence}`
-  );
+  const backup = readRegularFileSnapshot(resolvedBackup, {
+    message: "Restore rehearsal requires an existing non-empty .sql export file."
+  });
+  const checksum = readRegularFileSnapshot(resolvedChecksum, {
+    message: `Backup checksum is missing or invalid: ${resolvedChecksum}`,
+    maxBytes: 4096
+  });
+  const evidenceSnapshot = readRegularFileSnapshot(resolvedEvidence, {
+    message: `Local restore-verification evidence is missing or invalid: ${resolvedEvidence}`,
+    maxBytes: 64 * 1024
+  });
 
-  if (statSync(resolvedChecksum).size > 4096) {
-    throw new Error("Backup checksum file is unexpectedly large.");
-  }
-  if (statSync(resolvedEvidence).size > 64 * 1024) {
-    throw new Error("Local restore-verification evidence is unexpectedly large.");
-  }
-
-  const exportBytes = statSync(resolvedBackup).size;
-  const exportSha256 = createHash("sha256").update(readFileSync(resolvedBackup)).digest("hex");
-  const expectedDigest = readFileSync(resolvedChecksum, "utf8")
+  const exportBytes = backup.size;
+  const exportSha256 = createHash("sha256").update(backup.bytes).digest("hex");
+  const expectedDigest = checksum.bytes.toString("utf8")
     .trim()
     .split(/\s+/)[0]
     ?.toLowerCase();
@@ -151,7 +176,7 @@ export function verifyRestoreInputs({ backupPath, checksumPath, evidencePath }) 
 
   let evidence;
   try {
-    evidence = JSON.parse(readFileSync(resolvedEvidence, "utf8"));
+    evidence = JSON.parse(evidenceSnapshot.bytes.toString("utf8"));
   } catch {
     throw new Error("Local restore-verification evidence is not valid JSON.");
   }
@@ -180,7 +205,8 @@ export function verifyRestoreInputs({ backupPath, checksumPath, evidencePath }) 
     checksumPath: resolvedChecksum,
     evidencePath: resolvedEvidence,
     exportSha256,
-    exportBytes
+    exportBytes,
+    exportContents: backup.bytes
   };
 }
 
@@ -223,12 +249,6 @@ function executeJson(run, database, command) {
   ], { capture: true });
   const payload = JSON.parse(result.stdout);
   return payload[0]?.results ?? [];
-}
-
-function assertRegularNonemptyFile(path, message) {
-  if (!existsSync(path)) throw new Error(message);
-  const stat = statSync(path);
-  if (!stat.isFile() || stat.size === 0) throw new Error(message);
 }
 
 function optionValue(argv, name) {

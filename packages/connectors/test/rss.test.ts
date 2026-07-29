@@ -129,6 +129,16 @@ describe("parseRssFeed", () => {
     expect(message.source.title).toBe("News – World");
   });
 
+  it("decodes supported entities once without collapsing double-encoded ampersands", () => {
+    const [message] = parseRssFeed(
+      `<rss><channel><title>Research &amp; Development</title><item><title>Markets &amp;amp; policy &amp; outlook &amp;quot;watch&amp;quot;</title><guid>1</guid></item></channel></rss>`,
+      { sourceId: "x", sourceTitle: "X", sourceUrl: "https://example.com/rss" }
+    );
+
+    expect(message.source.title).toBe("Research & Development");
+    expect(message.text).toBe("Markets &amp; policy & outlook &quot;watch&quot;");
+  });
+
   it("rejects DTD entity declarations instead of expanding attacker-controlled entities", () => {
     expect(() => parseRssFeed(
       `<?xml version="1.0"?><!DOCTYPE rss [<!ENTITY repeat "amplified">]>

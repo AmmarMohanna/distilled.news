@@ -7,24 +7,28 @@ import {
   randomBytes
 } from "node:crypto";
 import {
-  appendFileSync,
+  constants,
   createReadStream,
-  createWriteStream,
   closeSync,
-  existsSync,
+  fsyncSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   openSync,
   readSync,
-  renameSync,
   rmSync,
-  statSync,
+  writeSync,
   writeFileSync
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, resolve } from "node:path";
+import { Writable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { pipeline } from "node:stream/promises";
+import {
+  assertOpenFileUnchanged,
+  openRegularFileForRead
+} from "./safe-files.mjs";
 
 const MAGIC = Buffer.from("DSBKUP01", "ascii");
 const NONCE_BYTES = 12;
@@ -51,75 +55,157 @@ export function decodeEncryptionKey(value) {
 export async function encryptFile(inputPath, outputPath, key, nonce = randomBytes(NONCE_BYTES)) {
   const input = resolve(inputPath);
   const output = resolve(outputPath);
-  assertReadableFile(input);
-  if (existsSync(output)) throw new Error(`Encrypted output already exists: ${output}`);
   if (!Buffer.isBuffer(key) || key.length !== 32) throw new Error("AES-256-GCM requires a 32-byte key.");
   if (!Buffer.isBuffer(nonce) || nonce.length !== NONCE_BYTES) {
     throw new Error(`AES-256-GCM requires a ${NONCE_BYTES}-byte nonce.`);
   }
 
+  const source = openRegularFileForRead(input, {
+    message: `Backup input must be a non-empty regular file: ${input}`
+  });
   mkdirSync(dirname(output), { recursive: true, mode: 0o700 });
-  const partial = `${output}.partial-${process.pid}`;
+  const temporaryRoot = mkdtempSync(resolve(dirname(output), ".distilled-encrypt-"));
+  const partial = resolve(temporaryRoot, "payload.enc");
   const cipher = createCipheriv("aes-256-gcm", key, nonce);
+  let destination;
   try {
-    writeFileSync(partial, Buffer.concat([MAGIC, nonce]), { mode: 0o600, flag: "wx" });
-    await pipeline(
-      createReadStream(input),
-      cipher,
-      createWriteStream(partial, { flags: "a", mode: 0o600 })
+    destination = openSync(
+      partial,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+      0o600
     );
-    appendFileSync(partial, cipher.getAuthTag(), { mode: 0o600 });
-    renameSync(partial, output);
+    let position = writeBufferSync(destination, Buffer.concat([MAGIC, nonce]), 0);
+    await pipeline(
+      createReadStream(source.path, {
+        fd: source.descriptor,
+        autoClose: false,
+        start: 0,
+        end: source.size - 1
+      }),
+      cipher,
+      descriptorWritable(destination, position)
+    );
+    assertOpenFileUnchanged(
+      source,
+      `Backup input changed while it was being encrypted: ${input}`
+    );
+    position += source.size;
+    writeBufferSync(destination, cipher.getAuthTag(), position);
+    fsyncSync(destination);
+    closeSync(destination);
+    destination = undefined;
+    publishPrivateOutput(partial, output, "Encrypted");
   } catch (error) {
-    rmSync(partial, { force: true });
     throw error;
+  } finally {
+    if (destination !== undefined) closeSync(destination);
+    closeSync(source.descriptor);
+    rmSync(temporaryRoot, { recursive: true, force: true });
   }
 }
 
 export async function decryptFile(inputPath, outputPath, key) {
   const input = resolve(inputPath);
   const output = resolve(outputPath);
-  assertReadableFile(input);
-  if (existsSync(output)) throw new Error(`Decrypted output already exists: ${output}`);
   if (!Buffer.isBuffer(key) || key.length !== 32) throw new Error("AES-256-GCM requires a 32-byte key.");
 
-  const size = statSync(input).size;
-  if (size <= HEADER_BYTES + TAG_BYTES) throw new Error("Encrypted backup is truncated.");
-  const descriptor = openSync(input, "r");
+  const source = openRegularFileForRead(input, {
+    message: `Backup input must be a non-empty regular file: ${input}`
+  });
+  const size = source.size;
   const header = Buffer.alloc(HEADER_BYTES);
   const tag = Buffer.alloc(TAG_BYTES);
   try {
-    if (readSync(descriptor, header, 0, HEADER_BYTES, 0) !== HEADER_BYTES ||
-      readSync(descriptor, tag, 0, TAG_BYTES, size - TAG_BYTES) !== TAG_BYTES) {
+    if (size <= HEADER_BYTES + TAG_BYTES) throw new Error("Encrypted backup is truncated.");
+    if (readExactSync(source.descriptor, header, 0) !== HEADER_BYTES ||
+      readExactSync(source.descriptor, tag, size - TAG_BYTES) !== TAG_BYTES) {
       throw new Error("Encrypted backup header or authentication tag is truncated.");
     }
-  } finally {
-    closeSync(descriptor);
-  }
-  if (!header.subarray(0, MAGIC.length).equals(MAGIC)) {
-    throw new Error("Encrypted backup format marker is invalid.");
-  }
-  const nonce = header.subarray(MAGIC.length, HEADER_BYTES);
-  const decipher = createDecipheriv("aes-256-gcm", key, nonce);
-  decipher.setAuthTag(tag);
+    if (!header.subarray(0, MAGIC.length).equals(MAGIC)) {
+      throw new Error("Encrypted backup format marker is invalid.");
+    }
+    const nonce = header.subarray(MAGIC.length, HEADER_BYTES);
+    const decipher = createDecipheriv("aes-256-gcm", key, nonce);
+    decipher.setAuthTag(tag);
 
-  mkdirSync(dirname(output), { recursive: true, mode: 0o700 });
-  try {
-    await pipeline(
-      createReadStream(input, { start: HEADER_BYTES, end: size - TAG_BYTES - 1 }),
-      decipher,
-      createWriteStream(output, { mode: 0o600, flags: "wx" })
-    );
-  } catch (error) {
-    rmSync(output, { force: true });
-    throw new Error(`Encrypted backup authentication or decryption failed: ${error.message}`);
+    mkdirSync(dirname(output), { recursive: true, mode: 0o700 });
+    const temporaryRoot = mkdtempSync(resolve(dirname(output), ".distilled-decrypt-"));
+    const partial = resolve(temporaryRoot, "payload.sql");
+    let destination;
+    try {
+      destination = openSync(
+        partial,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+        0o600
+      );
+      await pipeline(
+        createReadStream(source.path, {
+          fd: source.descriptor,
+          autoClose: false,
+          start: HEADER_BYTES,
+          end: size - TAG_BYTES - 1
+        }),
+        decipher,
+        descriptorWritable(destination, 0)
+      );
+      assertOpenFileUnchanged(
+        source,
+        `Encrypted backup changed while it was being decrypted: ${input}`
+      );
+      fsyncSync(destination);
+      closeSync(destination);
+      destination = undefined;
+      publishPrivateOutput(partial, output, "Decrypted");
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.startsWith("Decrypted output already exists:") ||
+          error.message.startsWith("Encrypted backup changed while"))
+      ) {
+        throw error;
+      }
+      throw new Error(`Encrypted backup authentication or decryption failed: ${error.message}`, {
+        cause: error
+      });
+    } finally {
+      if (destination !== undefined) closeSync(destination);
+      rmSync(temporaryRoot, { recursive: true, force: true });
+    }
+  } finally {
+    closeSync(source.descriptor);
   }
 }
 
 export async function sha256File(path) {
+  return (await sha256FileDetails(path)).digest;
+}
+
+async function sha256FileDetails(path) {
+  const resolvedPath = resolve(path);
+  const source = openRegularFileForRead(resolvedPath, {
+    message: `Backup input must be a non-empty regular file: ${resolvedPath}`
+  });
   const hash = createHash("sha256");
-  for await (const chunk of createReadStream(resolve(path))) hash.update(chunk);
-  return hash.digest("hex");
+  try {
+    for await (const chunk of createReadStream(source.path, {
+      fd: source.descriptor,
+      autoClose: false,
+      start: 0,
+      end: source.size - 1
+    })) {
+      hash.update(chunk);
+    }
+    assertOpenFileUnchanged(
+      source,
+      `Backup input changed while it was being hashed: ${resolvedPath}`
+    );
+    return {
+      digest: hash.digest("hex"),
+      size: source.size
+    };
+  } finally {
+    closeSync(source.descriptor);
+  }
 }
 
 async function main() {
@@ -141,12 +227,12 @@ async function main() {
   try {
     await encryptFile(resolvedInput, resolvedOutput, key);
     await decryptFile(resolvedOutput, restored, key);
-    const [plaintextSha256, restoredSha256, encryptedSha256] = await Promise.all([
-      sha256File(resolvedInput),
-      sha256File(restored),
-      sha256File(resolvedOutput)
+    const [plaintext, restoredCopy, encrypted] = await Promise.all([
+      sha256FileDetails(resolvedInput),
+      sha256FileDetails(restored),
+      sha256FileDetails(resolvedOutput)
     ]);
-    if (plaintextSha256 !== restoredSha256) {
+    if (plaintext.digest !== restoredCopy.digest) {
       throw new Error("Encrypted backup decrypt verification did not reproduce the export.");
     }
     const payload = {
@@ -155,10 +241,10 @@ async function main() {
       releaseSha: process.env.RELEASE_SHA ?? null,
       algorithm: "AES-256-GCM",
       format: "DSBKUP01",
-      plaintextSha256,
-      encryptedSha256,
-      plaintextBytes: statSync(resolvedInput).size,
-      encryptedBytes: statSync(resolvedOutput).size,
+      plaintextSha256: plaintext.digest,
+      encryptedSha256: encrypted.digest,
+      plaintextBytes: plaintext.size,
+      encryptedBytes: encrypted.size,
       authenticatedDecryptVerified: true
     };
     const evidencePath = resolve(evidence);
@@ -171,9 +257,60 @@ async function main() {
   }
 }
 
-function assertReadableFile(path) {
-  if (!existsSync(path) || !statSync(path).isFile() || statSync(path).size === 0) {
-    throw new Error(`Backup input must be a non-empty regular file: ${path}`);
+function descriptorWritable(descriptor, start) {
+  let position = start;
+  return new Writable({
+    write(chunk, _encoding, callback) {
+      try {
+        position = writeBufferSync(descriptor, chunk, position);
+        callback();
+      } catch (error) {
+        callback(error);
+      }
+    }
+  });
+}
+
+function writeBufferSync(descriptor, buffer, start) {
+  let offset = 0;
+  while (offset < buffer.byteLength) {
+    const written = writeSync(
+      descriptor,
+      buffer,
+      offset,
+      buffer.byteLength - offset,
+      start + offset
+    );
+    if (written <= 0) throw new Error("Backup file write made no progress.");
+    offset += written;
+  }
+  return start + offset;
+}
+
+function readExactSync(descriptor, buffer, start) {
+  let offset = 0;
+  while (offset < buffer.byteLength) {
+    const bytesRead = readSync(
+      descriptor,
+      buffer,
+      offset,
+      buffer.byteLength - offset,
+      start + offset
+    );
+    if (bytesRead === 0) break;
+    offset += bytesRead;
+  }
+  return offset;
+}
+
+function publishPrivateOutput(partial, output, label) {
+  try {
+    linkSync(partial, output);
+  } catch (error) {
+    if (error?.code === "EEXIST") {
+      throw new Error(`${label} output already exists: ${output}`, { cause: error });
+    }
+    throw error;
   }
 }
 
