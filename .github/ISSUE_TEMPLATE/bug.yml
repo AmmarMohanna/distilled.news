@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a reproducible Distilled.news defect without sensitive data.
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include API keys, email addresses, private exports, or vulnerability details. Use the private security-reporting link for security issues.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What happened?
+      description: Describe the observed and expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Provide minimal, sanitized steps and the affected commit or release.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - Hosted web app
+        - Self-hosted deployment
+        - Source ingestion
+        - Worker or queue processing
+        - Documentation or setup
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Paste short logs or screenshots only after removing identifiers and secrets.
