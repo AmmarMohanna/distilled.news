@@ -60,18 +60,18 @@ importers:
 
   apps/worker:
     dependencies:
-      '@hono/zod-validator':
-        specifier: ^0.7.0
-        version: 0.7.6(hono@4.12.25)(zod@3.25.76)
       '@distilled/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
       '@distilled/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@hono/zod-validator':
+        specifier: ^0.7.0
+        version: 0.7.6(hono@4.13.5)(zod@3.25.76)
       hono:
-        specifier: ^4.8.2
-        version: 4.12.25
+        specifier: ^4.13.5
+        version: 4.13.5
       zod:
         specifier: ^3.25.67
         version: 3.25.76
@@ -1459,8 +1459,8 @@ packages:
   glob-to-regexp@0.4.1:
     resolution: {integrity: sha512-lkX1HJXwyMcprw/5YUZc2s7DrpAiHB21/V+E1rHUrVNokkvB6bqMzT0VfV6/86ZNabt1k14YOIaT7nDvOX3Iiw==}
 
-  hono@4.12.25:
-    resolution: {integrity: sha512-2NFaIyNVgJmBs/ecmtGzlmluTFs5cHEWGTdu0t1HBwYzoGXOL5nUQBRMXsXWla5i4KkG//QMzVP88m1+I3fdAQ==}
+  hono@4.13.5:
+    resolution: {integrity: sha512-O6+/eCYRkzzzy0rPWwKLiGBR1nFuUPZynnwjxN1MBA62NNqbT0wQEzQyK2gSO5yDIDB336sXQleAhOHrzlYyKw==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@4.0.0:
@@ -2387,9 +2387,9 @@ snapshots:
   '@esbuild/win32-x64@0.27.3':
     optional: true
 
-  '@hono/zod-validator@0.7.6(hono@4.12.25)(zod@3.25.76)':
+  '@hono/zod-validator@0.7.6(hono@4.13.5)(zod@3.25.76)':
     dependencies:
-      hono: 4.12.25
+      hono: 4.13.5
       zod: 3.25.76
 
   '@img/colour@1.1.0': {}
@@ -2984,7 +2984,7 @@ snapshots:
 
   glob-to-regexp@0.4.1: {}
 
-  hono@4.12.25: {}
+  hono@4.13.5: {}
 
   html-encoding-sniffer@4.0.0:
     dependencies:
