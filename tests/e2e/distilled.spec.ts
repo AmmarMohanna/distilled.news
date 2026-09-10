@@ -154,14 +154,24 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   await page.goto("/");
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe("light");
   await expect(page.getByRole("link", { name: "create" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "explore" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /City Watch/ })).toHaveAttribute("href", "/city-user/city-watch/");
-  await page.getByRole("button", { name: "new account" }).click();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await page.getByRole("button", { name: "switch to dark mode" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "switch to light mode" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "switch to light mode" }).click();
+  await expect(page.getByLabel("admin setup token")).toHaveCount(0);
+  await page.getByLabel("password", { exact: true }).fill("preview-password");
+  await page.getByRole("button", { name: "Show password" }).click();
+  await expect(page.getByLabel("password", { exact: true })).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Hide password" }).click();
+  await page.locator(".auth-tabs").getByRole("button", { name: "Sign up" }).click();
   await expect(page.getByRole("button", { name: /^create account$/ })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /^register$/ })).toHaveCount(0);
   await page.getByLabel("email").fill("ammar@example.com");
   await page.getByLabel("username").fill("Ammar Mohanna");
-  await page.getByLabel("password").fill("password123");
+  await page.getByLabel("password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: /^create account$/ }).click();
   await expect(page.getByText(/verification email sent/i)).toBeVisible();
 });
@@ -424,10 +434,10 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
 
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "create" })).toBeVisible();
-  await expect(page.getByText("define the feed and add sources.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Welcome back/ })).toBeVisible();
+  await page.getByRole("button", { name: "Manage", exact: true }).click();
   await expect(page.getByLabel("interest profile")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "account settings" })).toHaveAttribute("title", "account settings");
+  await expect(page.getByRole("button", { name: "Account profile" })).toBeVisible();
   await expect(page.getByRole("button", { name: "feed settings for Personal Briefing" })).toHaveAttribute("title", "feed settings");
   await expect(page.getByRole("button", { name: "fetch latest" })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "fetch latest" })).toHaveAttribute("title", "refresh");
@@ -454,7 +464,7 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
   await expect.poll(() => savedBriefings.some((saved) => saved.title === "Local Briefing")).toBe(true);
   await page.getByRole("button", { name: "close feed settings" }).click();
   await expect(page.getByLabel("username")).toHaveCount(0);
-  await page.getByRole("button", { name: "account settings" }).click();
+  await page.getByRole("button", { name: "Account profile" }).click();
   await expect(page.getByRole("dialog", { name: "account" })).toBeVisible();
   await expect(page.getByLabel("username")).toHaveValue("ammar-mohanna");
   await expect(page.getByLabel("current password")).toBeVisible();

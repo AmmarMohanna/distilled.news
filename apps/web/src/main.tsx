@@ -2,6 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
+  Eye,
+  EyeOff,
+  Mail,
+  LockKeyhole,
+  ArrowRight,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -78,6 +83,9 @@ import {
 import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify } from "./helpers";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
+import { AppExperience, BrandMark } from "./AppExperience";
+import { ThemeToggle } from "./ThemeToggle";
+import "./experience.css";
 
 const FEED_BATCH_SIZE = 20;
 
@@ -385,8 +393,14 @@ function AdminPage() {
 
   if (!session.authenticated) {
     return (
-      <Shell title="Distilled.news">
-        <div className="auth-layout">
+      <main className="auth-experience">
+        <header className="auth-header"><a href="/" className="experience-brand" aria-label="Distilled News"><BrandMark/><span className="auth-wordmark">Distilled News</span></a><div className="auth-header-controls"><ThemeToggle/><span className="auth-language"><Globe size={18}/> English</span></div></header>
+        <div className="auth-columns">
+          <section className="auth-introduction">
+            <h1>A calmer perspective<br/>on a complex world.</h1>
+            <p>Personalized news briefings that help you<br/>see the bigger picture.</p>
+            
+          </section>
           <AuthPanel
             setupRequired={session.setupRequired}
             turnstileSiteKey={session.turnstileSiteKey}
@@ -398,10 +412,9 @@ function AdminPage() {
               }
             }}
           />
-          {!session.setupRequired ? <ExploreFeedsPanel /> : null}
         </div>
         {error ? <p className="error">{error}</p> : null}
-      </Shell>
+      </main>
     );
   }
 
@@ -434,7 +447,9 @@ function AdminPage() {
 
   return (
     <>
-      <Shell title="create" onAccount={() => setAccountDialogOpen(true)} feed={briefing}>
+      <AppExperience account={account} briefings={orderedBriefings} briefing={briefing} health={health}
+        onAccount={() => setAccountDialogOpen(true)} onFeedSettings={() => setFeedSettingsOpen(true)}
+        onCreate={createBriefing} onHelp={() => setHelpOpen(true)} error={error}>
         <div className="admin-stack">
           <AdminCommandPanel
             briefing={briefing}
@@ -674,7 +689,7 @@ function AdminPage() {
             />
           ) : null}
         </div>
-      </Shell>
+      </AppExperience>
       {accountDialog}
       {feedSettingsOpen ? (
         <FeedSettingsSheet
@@ -811,6 +826,8 @@ function AdminCommandPanel(props: {
 }
 
 function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired ? "register" : "login");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -838,6 +855,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         event.preventDefault();
         setError("");
         setMessage("");
+        setSubmitting(true);
         try {
           if (requiresTurnstile && !turnstileToken) {
             setError("complete the verification check");
@@ -866,52 +884,59 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : String(cause));
           resetTurnstile();
+        } finally {
+          setSubmitting(false);
         }
       }}
     >
+      {!props.setupRequired && <div className="auth-tabs" aria-label="Account access"><button type="button" aria-pressed={mode === "login"} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>Login</button><button type="button" title="new account" aria-pressed={mode === "register"} onClick={() => { setMode("register"); setError(""); setMessage(""); }}>Sign up</button></div>}
       <div className="auth-copy">
-        <strong>{copy.title}</strong>
+        <h2>{copy.title}</h2>
         <p>{copy.description}</p>
       </div>
       {props.setupRequired ? (
         <label>
-          setup token
-          <input autoComplete="one-time-code" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
+          admin setup token
+          <input type="password" autoComplete="off" aria-describedby="admin-setup-token-help" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
+          <span className="field-help" id="admin-setup-token-help">Required only for the site owner to create the first admin account. Regular sign-up and login do not require a setup token.</span>
         </label>
       ) : null}
-      <label>
-        email
-        <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+      <label className="auth-input">
+        <span className="sr-only">email</span><Mail size={21} aria-hidden/>
+        <input type="email" required placeholder="Email address" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
       {(mode === "register" || props.setupRequired) ? (
         <label>
-          username
-          <input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} />
+          <span className="auth-input"><span className="sr-only">username</span><User size={21} aria-hidden/>
+          <input required placeholder="Username" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></span>
           <span className="field-help">{usernamePreview ? `your feed URLs start with /${usernamePreview}/` : "letters and numbers become your feed URL name"}</span>
         </label>
       ) : null}
       {mode !== "forgot" ? (
-        <label>
-          password
+        <div className="auth-password-field"><div className="auth-input">
+          <LockKeyhole size={21} aria-hidden/>
           <input
-            type="password"
+            aria-label="password"
+            placeholder="Password"
+            required
+            type={showPassword ? "text" : "password"}
             autoComplete={mode === "register" || props.setupRequired ? "new-password" : "current-password"}
             minLength={8}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          <span className="field-help">at least 8 characters</span>
-        </label>
+          <button type="button" className="quiet-icon" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}</button>
+        </div>{(mode === "register" || props.setupRequired) && <span className="field-help">at least 8 characters</span>}</div>
       ) : null}
       {requiresTurnstile && props.turnstileSiteKey ? (
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
-      <button type="submit" className="primary-button" title={submitLabel}><LogIn size={15} aria-hidden /> {submitLabel}</button>
+      {!props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>Forgot password?</button>}
+      <button type="submit" disabled={submitting} className="primary-button auth-submit" title={submitLabel}>{submitting ? "Please wait…" : submitLabel}<ArrowRight size={22} aria-hidden/></button>
       {!props.setupRequired ? (
         <div className="auth-switch">
-          {mode !== "login" ? <button type="button" title="login" onClick={() => setMode("login")}>login</button> : null}
-          {mode !== "register" ? <button type="button" title="new account" onClick={() => setMode("register")}>new account</button> : null}
-          {mode !== "forgot" ? <button type="button" title="forgot password" onClick={() => setMode("forgot")}>forgot password</button> : null}
+          <div className="auth-divider"><span>or</span></div>
+          <p>{mode === "login" ? "Don’t have an account?" : "Already have an account?"} <button type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); setMessage(""); }}>{mode === "login" ? "Sign up" : "Log in"}</button></p>
         </div>
       ) : null}
       {message ? <p className="muted">{message}</p> : null}
@@ -923,13 +948,13 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
 function getAuthPanelCopy(setupRequired: boolean, mode: "login" | "register" | "forgot"): { title: string; description: string } {
   if (setupRequired) {
     return {
-      title: "create the first account",
-      description: "This account can create feeds and manage the service."
+      title: "One-time administrator setup",
+      description: "The site owner must complete setup before users can join. After setup, users can create an account and sign in with email and password."
     };
   }
   if (mode === "register") {
     return {
-      title: "create your feed",
+      title: "Create your account",
       description: "Choose a username, then verify your email before signing in."
     };
   }
@@ -940,13 +965,13 @@ function getAuthPanelCopy(setupRequired: boolean, mode: "login" | "register" | "
     };
   }
   return {
-    title: "sign in",
-    description: "Open your feeds, sources, and account settings."
+    title: "Welcome back",
+    description: "Log in to your Distilled News account."
   };
 }
 
 function getAuthSubmitLabel(setupRequired: boolean, mode: "login" | "register" | "forgot"): string {
-  if (setupRequired) return "create first account";
+  if (setupRequired) return "Create admin account";
   if (mode === "register") return "create account";
   if (mode === "forgot") return "send reset link";
   return "login";
@@ -2533,15 +2558,10 @@ function Shell(props: {
   onLogout?: () => Promise<void>;
   pageLanguage?: "en" | "ar" | "fr";
 }) {
-  const [theme, setTheme] = useState(() => (localStorage.getItem("dn_theme") === "dark" ? "dark" : "light"));
   const titleText = props.titleText ?? (typeof props.title === "string" ? props.title : "briefing");
   const shellLanguage = props.pageLanguage ?? "en";
   const shellMode = props.feed ? "feed-shell" : props.onAccount ? "admin-shell" : "auth-shell";
   const showCreateNav = shellMode !== "auth-shell";
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("dn_theme", theme);
-  }, [theme]);
 
   useEffect(() => {
     document.documentElement.lang = props.pageLanguage ?? "en";
@@ -2561,7 +2581,7 @@ function Shell(props: {
         <div className="header-primary">
           <div className="brand-lockup">
             <a href="/" className="brand" aria-label="Distilled.news" title="Distilled.news">
-              <img className="brand-logo" src="/logo.svg" alt="" />
+              <span className="experience-brand"><BrandMark/></span>
             </a>
             <a href="https://github.com/AmmarMohanna/distilled.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository" title="open GitHub repository">
               <Github size={16} aria-hidden />
@@ -2580,9 +2600,7 @@ function Shell(props: {
                 <User size={16} aria-hidden />
               </button>
             ) : null}
-            <button type="button" className="icon-button" aria-label={`switch to ${theme === "dark" ? "light" : "dark"} mode`} title="switch theme" onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}>
-              {theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
-            </button>
+            <ThemeToggle/>
             {props.onLogout ? <button type="button" title="logout" onClick={() => void props.onLogout?.()}><LogOut size={15} aria-hidden /> logout</button> : null}
           </div>
         </div>
