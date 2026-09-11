@@ -1,0 +1,34 @@
+{
+  "name": "@distilled/agent-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./admission": "./src/admission.ts",
+    "./contracts": "./src/contracts.ts",
+    "./runtime": "./src/runtime.ts",
+    "./model": "./src/model.ts",
+    "./observations": "./src/observations.ts",
+    "./policy": "./src/policy.ts",
+    "./persistence": "./src/persistence.ts",
+    "./state-machine": "./src/state-machine.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:browser": "vitest run test/browser.integration.test.ts"
+  },
+  "dependencies": {
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
