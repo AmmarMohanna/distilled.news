@@ -10,6 +10,7 @@ import {
   type ModelRole,
   type ModelRoute,
   type ModelRoutingConfig,
+  type ModelPolicy,
   type ModelTargetConfig
 } from "./contracts";
 import { sha256Text } from "./observations";
@@ -68,7 +69,10 @@ export interface ModelRequest {
   dynamic: DynamicModelContext;
   contextManifestHash: string;
   allowExactReuse: boolean;
+  maxOutputTokens: number;
   visualInputs?: Array<{ observationId: string; dataUrl: string }>;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export interface ModelGatewayResult {
@@ -82,6 +86,10 @@ export interface ModelGatewayResult {
   provider: string;
   model: string;
   responseId: string;
+}
+
+export class ModelGatewayError extends Error {
+  constructor(message:string,readonly usage?:ModelGatewayResult["usage"]) { super(message); this.name="ModelGatewayError"; }
 }
 
 export interface ModelGateway {
@@ -207,7 +215,12 @@ export class ModelRouter {
       const configured = config.roles[role];
       if (configured) validateRoleRoute(role, configured, config.mode);
     }
-    this.capabilities = new Map(capabilities.map((capability) => [capability.modelRef, capability]));
+    for (const capability of capabilities) {
+      if ((capability.deployment==="api")!==capability.externallyHosted) {
+        throw new Error(`model capability ${capability.modelRef} has inconsistent deployment/external-hosting metadata`);
+      }
+    }
+    this.capabilities = new Map(capabilities.map((capability) => [`${capability.deployment}:${capability.modelRef}`, capability]));
   }
 
   resolve(input: {
@@ -215,6 +228,7 @@ export class ModelRouter {
     reason: string;
     required: Array<"toolCalling" | "vision" | "structuredOutput">;
     allowedProviders?: string[];
+    modelPolicy?: ModelPolicy;
     policyConstraints?: string[];
   }): ModelRoute {
     return this.resolveCandidates(input)[0];
@@ -225,6 +239,7 @@ export class ModelRouter {
     reason: string;
     required: Array<"toolCalling" | "vision" | "structuredOutput">;
     allowedProviders?: string[];
+    modelPolicy?: ModelPolicy;
     policyConstraints?: string[];
   }): ModelRoute[] {
     const configured = this.config.roles[input.role];
@@ -236,10 +251,12 @@ export class ModelRouter {
     let filteredReason: string | undefined;
     for (const [index, target] of targets.entries()) {
       const modelRef = target.model;
-      const capability = this.capabilities.get(modelRef);
+      const capability = this.capabilities.get(`${target.deployment}:${modelRef}`);
       const eligible =
         capability?.enabled &&
+        capability.deployment === target.deployment &&
         (!allowedProviders || allowedProviders.has(capability.provider)) &&
+        policyAllows(capability,target.deployment,input.modelPolicy) &&
         input.required.every((required) => capability[required]);
       if (!eligible) {
         filteredReason ??= `configured candidate ${modelRef} failed capability/provider policy filtering`;
@@ -255,6 +272,7 @@ export class ModelRouter {
         gateway: target.deployment === "api" ? this.config.apiGateway : this.config.selfHostedGateway,
         selectedModel: modelRef,
         selectedProvider: capability.provider,
+        selectedCapability:structuredClone(capability),
         appliedPolicyConstraints: [...(input.policyConstraints ?? [])],
         fallbackReason: index > 0
           ? filteredReason ?? `prior configured candidate failed at execution time`
@@ -337,6 +355,7 @@ export function buildOpenAICompatibleRequest(request: ModelRequest): RequestInit
     },
     body: JSON.stringify({
       model: request.route.selectedModel,
+      max_tokens:request.maxOutputTokens,
       messages: [
         { role: "system", content: request.stable.system },
         { role: "user", content: dynamicContent }
@@ -385,7 +404,16 @@ export function buildOpenAICompatibleRequest(request: ModelRequest): RequestInit
 }
 
 export function buildOpenRouterRequest(request: ModelRequest): RequestInit & { body: string } {
-  return buildOpenAICompatibleRequest(request);
+  const translated=buildOpenAICompatibleRequest(request);
+  const body=JSON.parse(translated.body) as Record<string,unknown>;
+  body.provider={
+    only:[request.route.selectedProvider],
+    allow_fallbacks:false,
+    require_parameters:true,
+    data_collection:request.route.selectedCapability.retentionClass==="standard"?"allow":"deny",
+    ...(request.route.selectedCapability.retentionClass==="zero_data_retention"?{zdr:true}:{})
+  };
+  return {...translated,body:JSON.stringify(body)};
 }
 
 export class OpenAICompatibleGateway implements ModelGateway {
@@ -399,14 +427,24 @@ export class OpenAICompatibleGateway implements ModelGateway {
     this.fetcher = options.fetcher ?? fetch;
   }
 
+  protected translate(request:ModelRequest) { return buildOpenAICompatibleRequest(request); }
+  protected validateResult(_request:ModelRequest,_result:ModelGatewayResult) {}
+
   async complete(request: ModelRequest): Promise<ModelGatewayResult> {
     const started = Date.now();
-    const translated = buildOpenAICompatibleRequest(request);
+    const translated = this.translate(request);
     const headers = new Headers(translated.headers);
     if (this.options.apiKey) headers.set("authorization", `Bearer ${this.options.apiKey}`);
     else headers.delete("authorization");
-    const response = await this.fetcher(this.endpoint, { ...translated, headers });
-    if (!response.ok) throw new Error(`${this.id} request failed: ${response.status}`);
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(new Error("model gateway deadline exceeded")),request.timeoutMs??15_000);
+    const abort=()=>controller.abort(request.signal?.reason);
+    request.signal?.addEventListener("abort",abort,{once:true});
+    if (request.signal?.aborted) abort();
+    let response:Response;
+    try { response = await this.fetcher(this.endpoint, { ...translated, headers,signal:controller.signal }); }
+    finally { clearTimeout(timeout); request.signal?.removeEventListener("abort",abort); }
+    if (!response.ok) throw new ModelGatewayError(`${this.id} request failed: ${response.status}`);
     const body = (await response.json()) as {
       id: string;
       model: string;
@@ -414,21 +452,36 @@ export class OpenAICompatibleGateway implements ModelGateway {
       choices: Array<{ message: { content: string } }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
     };
+    const usage={
+      inputTokens: body.usage?.prompt_tokens ?? 0,
+      outputTokens: body.usage?.completion_tokens ?? 0,
+      costUsd: body.usage?.cost ?? 0,
+      latencyMs: Date.now() - started
+    };
     const content = body.choices[0]?.message.content;
-    if (!content) throw new Error(`${this.id} returned no completed message`);
-    return {
-      plan: boundedActionPlanSchema.parse(JSON.parse(content)) as BoundedActionPlan,
-      usage: {
-        inputTokens: body.usage?.prompt_tokens ?? 0,
-        outputTokens: body.usage?.completion_tokens ?? 0,
-        costUsd: body.usage?.cost ?? 0,
-        latencyMs: Date.now() - started
-      },
+    if (!content) throw new ModelGatewayError(`${this.id} returned no completed message`,usage);
+    let plan:BoundedActionPlan;
+    try { plan=boundedActionPlanSchema.parse(JSON.parse(content)) as BoundedActionPlan; }
+    catch { throw new ModelGatewayError(`${this.id} returned an invalid bounded action plan`,usage); }
+    const result:ModelGatewayResult = {
+      plan,
+      usage,
       provider: body.provider ?? this.options.provider ?? request.route.selectedProvider,
       model: body.model,
       responseId: body.id
     };
+    this.validateResult(request,result);
+    return result;
   }
+}
+
+function policyAllows(capability:ModelCapability,deployment:ModelDeployment,policy?:ModelPolicy) {
+  if ((deployment==="api")!==capability.externallyHosted) return false;
+  if (!policy) return true;
+  return policy.allowedProviders.includes(capability.provider) && policy.allowedDeployments.includes(deployment) &&
+    policy.requiredPrivacyEligibility.every((entry)=>capability.privacyEligibility.includes(entry)) &&
+    policy.allowedRetentionClasses.includes(capability.retentionClass) &&
+    (!policy.allowedResidencies?.length || Boolean(capability.residency && policy.allowedResidencies.includes(capability.residency)));
 }
 
 export class OpenRouterGateway extends OpenAICompatibleGateway {
@@ -439,6 +492,13 @@ export class OpenRouterGateway extends OpenAICompatibleGateway {
       id: "openrouter",
       fetcher: options.fetcher
     });
+  }
+
+  protected override translate(request:ModelRequest) { return buildOpenRouterRequest(request); }
+  protected override validateResult(request:ModelRequest,result:ModelGatewayResult) {
+    if (result.provider.toLowerCase()!==request.route.selectedProvider.toLowerCase()) {
+      throw new ModelGatewayError(`OpenRouter returned policy-ineligible provider ${result.provider}`,result.usage);
+    }
   }
 }
 

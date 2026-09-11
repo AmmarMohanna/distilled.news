@@ -5,7 +5,8 @@ import { processQueueMessage } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
-import type { DistilledQueueMessage, Env, ProcessingJobMessage, Repository, SourceRefreshJobMessage } from "./types";
+import type { DistilledQueueMessage, Env, ProcessingJobMessage, Repository, SourceRefreshJobMessage, WebOperatorRunMessage } from "./types";
+import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
 
 const app = createApp();
 const MAX_QUEUE_ATTEMPTS = 5;
@@ -18,7 +19,7 @@ export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(runScheduledMaintenance(env));
   },
-  async queue(batch: MessageBatch<DistilledQueueMessage>, env: Env): Promise<void> {
+  async queue(batch: MessageBatch<DistilledQueueMessage | WebOperatorRunMessage>, env: Env): Promise<void> {
     const repo = new D1Repository(env.DB);
     const summaryAdapter = createSummaryAdapterFromEnv(env, repo);
     const reviewAdapter = createEventReviewAdapterFromEnv(env, repo);
@@ -27,7 +28,8 @@ export default {
       const bodyType = queueBodyType(message.body);
       const bodyId = queueBodyId(message.body);
       try {
-        await processDistilledQueueMessage(repo, env, message.body, summaryAdapter, reviewAdapter);
+        if (isWebOperatorRunMessage(message.body)) await processWebOperatorRunMessage(env,message.body);
+        else await processDistilledQueueMessage(repo, env, message.body, summaryAdapter, reviewAdapter);
         const durationMs = Date.now() - startedAt;
         if (durationMs >= SLOW_QUEUE_JOB_MS) {
           console.warn("Slow queue job completed", {
@@ -130,6 +132,20 @@ function isSourceRefreshJobMessage(body: unknown): body is SourceRefreshJobMessa
     typeof body.sourceId === "string";
 }
 
+function isWebOperatorRunMessage(body:unknown):body is WebOperatorRunMessage {
+  return isRecord(body) && body.type==="web_operator_run" && typeof body.runId==="string";
+}
+
+async function processWebOperatorRunMessage(env:Env,message:WebOperatorRunMessage) {
+  if (!env.WEB_OPERATOR_RUNTIME_URL) throw new Error("WEB_OPERATOR_RUNTIME_URL is not configured");
+  const headers=new Headers({"content-type":"application/json"});
+  if (env.WEB_OPERATOR_RUNTIME_TOKEN) headers.set("authorization",`Bearer ${env.WEB_OPERATOR_RUNTIME_TOKEN}`);
+  const response=await fetch(new URL("/v1/agent-runs/process",env.WEB_OPERATOR_RUNTIME_URL),{
+    method:"POST",headers,body:JSON.stringify(message)
+  });
+  if (!response.ok) throw new Error(`Web Operator runtime failed: ${response.status}`);
+}
+
 class PermanentQueueError extends Error {}
 
 function isPermanentQueueError(error: unknown): boolean {
@@ -168,6 +184,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function runScheduledMaintenance(env: Env): Promise<void> {
   const repo = new D1Repository(env.DB);
   const now = new Date();
+  if (env.DISTILLED_WEB_OPERATOR_ENABLED === "true") {
+    try { await relayPendingWebOperatorOutbox(env,undefined,25,now); }
+    catch (error) { console.warn("Could not relay pending Web Operator runs",error); }
+  }
   try {
     await runRetentionCleanup(repo, env.RAW_ARCHIVE, now);
   } catch (error) {

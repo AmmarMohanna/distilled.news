@@ -42,6 +42,10 @@ name = "EMAIL"
 binding = "PROCESSING_QUEUE"
 queue = "lownoise-processing"
 
+[[queues.producers]]
+binding = "WEB_OPERATOR_QUEUE"
+queue = "distilled-web-operator"
+
 [[queues.consumers]]
 queue = "lownoise-processing"
 max_batch_size = 1
@@ -49,6 +53,14 @@ max_batch_timeout = 5
 max_retries = 4
 retry_delay = 60
 dead_letter_queue = "lownoise-processing-dlq"
+
+[[queues.consumers]]
+queue = "distilled-web-operator"
+max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 4
+retry_delay = 60
+dead_letter_queue = "distilled-web-operator-dlq"
 
 [observability]
 enabled = true

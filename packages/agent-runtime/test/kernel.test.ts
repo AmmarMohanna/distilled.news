@@ -41,7 +41,7 @@ const capabilities: ModelCapability[] = [
     reasoningClass: "fast",
     enabled: true,
     inputCostPerMillion: 1,
-    outputCostPerMillion: 2
+    outputCostPerMillion: 2,deployment:"api",externallyHosted:true,privacyEligibility:["public"],retentionClass:"zero_data_retention"
   },
   {
     modelRef: "provider/vision",
@@ -52,7 +52,15 @@ const capabilities: ModelCapability[] = [
     reasoningClass: "fast",
     enabled: true,
     inputCostPerMillion: 2,
-    outputCostPerMillion: 4
+    outputCostPerMillion: 4,deployment:"self_hosted",externallyHosted:false,privacyEligibility:["public","private"],retentionClass:"zero_data_retention"
+  },
+  {
+    modelRef:"provider/text",provider:"provider",toolCalling:true,vision:false,structuredOutput:true,reasoningClass:"fast",enabled:true,
+    inputCostPerMillion:0,outputCostPerMillion:0,deployment:"self_hosted",externallyHosted:false,privacyEligibility:["public","private"],retentionClass:"zero_data_retention"
+  },
+  {
+    modelRef:"provider/vision",provider:"provider",toolCalling:true,vision:true,structuredOutput:true,reasoningClass:"fast",enabled:true,
+    inputCostPerMillion:0,outputCostPerMillion:0,deployment:"api",externallyHosted:true,privacyEligibility:["public"],retentionClass:"zero_data_retention"
   }
 ];
 
@@ -67,6 +75,9 @@ describe("transition kernel", () => {
   it("derives stable durable identities", () => {
     expect(makeId("acceptance","run","url","hash")).toBe(makeId("acceptance","run","url","hash"));
     expect(makeId("acceptance","run","url","hash")).not.toBe(makeId("acceptance","run","other","hash"));
+    expect(makeId("acquired","run","https://fixture.test/article/67894","bodyhash"))
+      .not.toBe(makeId("acquired","run","https://fixture.test/article/193580","bodyhash"));
+    expect(makeId("acceptance","run","url","hash")).toMatch(/^acceptance_[0-9a-f]{32}$/);
   });
 });
 
@@ -82,6 +93,17 @@ describe("budget kernel", () => {
   it.each(["modelCalls", "visionCalls", "challengeTransitions"] as const)("enforces %s independently", (dimension) => {
     const ledger = new BudgetLedger("run", { ...DEFAULT_SLICE_BUDGET, [dimension]: 0 });
     expect(() => ledger.reserve({ [dimension]: 1 })).toThrowError(`budget exhausted: ${dimension}`);
+  });
+
+  it("records exact model usage before reporting a reconciliation overage", () => {
+    const ledger=new BudgetLedger("run",{...DEFAULT_SLICE_BUDGET,inputTokens:1_500});
+    ledger.reserveModel({capability:capabilities[0],inputTokens:1_000,outputTokens:500,estimatedCostUsd:0.001});
+    const reconciliation=ledger.reconcileModel(
+      {inputTokens:1_000,outputTokens:500,modelCostUsd:0.001},
+      {inputTokens:1_600,outputTokens:100,costUsd:0.0005}
+    );
+    expect(reconciliation.exceeded).toBe("inputTokens");
+    expect(ledger.snapshot().usage).toMatchObject({inputTokens:1_600,outputTokens:100,modelCostUsd:0.0005,modelCalls:1});
   });
 });
 
@@ -144,6 +166,15 @@ describe("model routing", () => {
     expect(routes.map((route) => route.gateway)).toEqual(["openai_compatible","openrouter"]);
   });
 
+  it("re-filters every hybrid fallback against deployment and privacy policy",()=>{
+    const routes=new ModelRouter({mode:"hybrid",apiGateway:"openrouter",selfHostedGateway:"openai_compatible",roles:{NAVIGATION_FAST:{
+      primary:{deployment:"api",model:"provider/text"},fallbacks:[{deployment:"self_hosted",model:"provider/text"}]
+    }}},capabilities).resolveCandidates({role:"NAVIGATION_FAST",reason:"private source",required:["toolCalling","structuredOutput"],
+      modelPolicy:{allowedProviders:["provider"],allowedDeployments:["self_hosted"],requiredPrivacyEligibility:["private"],
+        allowedRetentionClasses:["zero_data_retention"]}});
+    expect(routes.map((route)=>`${route.deployment}:${route.selectedModel}`)).toEqual(["self_hosted:provider/text"]);
+  });
+
   it.each([
     ["api", "api", "openrouter"],
     ["self_hosted", "self_hosted", "openai_compatible"]
@@ -203,22 +234,29 @@ describe("durable admission and fencing", () => {
     const strategy = new WebOperatorAcquisitionStrategy(store);
     const input: KnownCandidateInvocation = {
       tenantId:"tenant",resourceId:"resource",idempotencyKey:"stable-key",objective:"Acquire known candidate",enabled:true,
-      policy:{id:"policy",allowedOrigins:["https://fixture.test"],allowLoopback:false,allowedTools:["browser.navigate@1" as const],visualReadPurposes:[]},
+      candidate:{candidateId:"candidate",canonicalUrl:"https://fixture.test/article",publisherId:"fixture",acquisitionAttempt:"attempt-1"},
+      policy:{id:"policy",allowedOrigins:["https://fixture.test"],allowLoopback:false,allowedTools:["browser.navigate@1" as const],visualReadPurposes:[],modelPolicy:modelPolicy()},
       modelRouting:{
         mode:"api",apiGateway:"openrouter",selfHostedGateway:"openai_compatible",
         roles:{NAVIGATION_FAST:{primary:{deployment:"api",model:"provider/text"},fallbacks:[]}}
       },modelCapabilities:capabilities
     };
-    const first = await strategy.admitKnownCandidate(input,new Date("2026-01-01T00:00:00Z"));
-    const duplicate = await strategy.admitKnownCandidate(input,new Date("2026-01-01T00:00:01Z"));
+    const base=new Date();
+    const first = await strategy.admitKnownCandidate(input,base);
+    const duplicate = await strategy.admitKnownCandidate(input,new Date(base.getTime()+1));
     expect(first.created).toBe(true);
     expect(duplicate.created).toBe(false);
+    expect(duplicate.run.runId).toBe(first.run.runId);
+    const otherTenant=await strategy.admitKnownCandidate({...input,tenantId:"tenant-2"});
+    const otherResource=await strategy.admitKnownCandidate({...input,resourceId:"resource-2"});
+    expect(otherTenant.run.runId).not.toBe(first.run.runId);
+    expect(otherResource.run.runId).not.toBe(first.run.runId);
     expect(await store.getRunConfiguration(first.run.runId)).toMatchObject({ policy:{id:"policy"},modelRouting:{mode:"api",apiGateway:"openrouter"} });
 
-    const lease = await store.acquireLease(first.run.runId,"worker-a",10_000,new Date("2026-01-01T00:00:02Z"));
+    const lease = await store.acquireLease(first.run.runId,"worker-a",10_000,new Date(base.getTime()+2));
     expect(lease?.generation).toBe(1);
-    expect(await store.acquireLease(first.run.runId,"worker-b",10_000,new Date("2026-01-01T00:00:03Z"))).toBeNull();
-    const replacement = await store.acquireLease(first.run.runId,"worker-b",10_000,new Date("2026-01-01T00:00:13Z"));
+    expect(await store.acquireLease(first.run.runId,"worker-b",10_000,new Date(base.getTime()+3))).toBeNull();
+    const replacement = await store.acquireLease(first.run.runId,"worker-b",10_000,new Date(base.getTime()+10_003));
     expect(replacement?.generation).toBe(2);
     await expect(store.assertGeneration(first.run.runId,1)).rejects.toBeInstanceOf(StaleGenerationError);
     await expect(store.saveToolResult({
@@ -251,14 +289,14 @@ describe("bounded planning and policy", () => {
       allowedOrigins: ["http://127.0.0.1:3000"],
       allowLoopback: false,
       allowedTools: ["browser.navigate@1", "fixture.publish@1"],
-      visualReadPurposes: []
+      visualReadPurposes: [],modelPolicy:modelPolicy()
     });
     expect(policy.evaluate({ runId: "run", toolCallId: "one", action: {
       tool: "fixture.publish@1", arguments: { articleId: "a" }
-    }}).reasonCode).toBe("external_mutation_forbidden");
+    },tenantId:"tenant",generation:1}).reasonCode).toBe("external_mutation_forbidden");
     expect(policy.evaluate({ runId: "run", toolCallId: "two", action: {
       tool: "browser.navigate@1", arguments: { url: "http://127.0.0.1:3000" }
-    }}).reasonCode).toBe("private_or_loopback_network_denied");
+    },tenantId:"tenant",generation:1}).reasonCode).toBe("private_or_loopback_network_denied");
   });
 });
 
@@ -292,14 +330,16 @@ describe("observations and completion", () => {
       route:{
         role:"NAVIGATION_FAST",routingReason:"test",requiredCapabilities:["toolCalling"],configuredChain:["provider/text"],
         configuredTargets:[{deployment:"api",model:"provider/text"}],deployment:"api",gateway:"openrouter",
-        selectedModel:"provider/text",selectedProvider:"provider",appliedPolicyConstraints:[]
+        selectedModel:"provider/text",selectedProvider:"provider",selectedCapability:capabilities[0],appliedPolicyConstraints:[]
       },
       stable:{version:"v1",system:"stable",toolSchemaVersion:"v1"},
       dynamic:{runId:"run",objective:"objective",pageState:pageState("https://fixture.test","r1"),observationIds:[],completionDeficits:[]},
-      contextManifestHash:"hash",allowExactReuse:false
+      contextManifestHash:"hash",allowExactReuse:false,maxOutputTokens:500
     });
     const body = JSON.parse(request.body);
     expect(body.model).toBe("provider/text");
+    expect(body.max_tokens).toBe(500);
+    expect(body.provider).toEqual({only:["provider"],allow_fallbacks:false,require_parameters:true,data_collection:"deny",zdr:true});
     expect(body.response_format.json_schema.schema.properties.actions.maxItems).toBe(5);
     expect(String(new Headers(request.headers).get("authorization"))).not.toContain("real-key");
   });
@@ -319,6 +359,7 @@ describe("observations and completion", () => {
       toolCallId: "early",
       citedObservationIds: [],
       progress: { watermarkObserved: false, validatedListingBoundaryReached: false, articleExtracted: false }
+      ,generation:1
     });
     expect(early.acceptance.outcome).toBe("not_satisfied");
     const complete = verifier.verify({
@@ -329,8 +370,9 @@ describe("observations and completion", () => {
         watermarkObserved: true,
         validatedListingBoundaryReached: false,
         articleExtracted: true,
-        acceptedContentId: "accepted"
+        acceptedContentId: "accepted",acceptedObservationId:"obs",acceptedCandidateId:"candidate",expectedCandidateId:"candidate"
       }
+      ,generation:1
     });
     expect(complete.acceptance.outcome).toBe("accepted");
   });
@@ -371,10 +413,14 @@ function modelRequest(route: {deployment:"api" | "self_hosted";gateway:string}):
       role:"NAVIGATION_FAST",routingReason:"gateway test",requiredCapabilities:["toolCalling"],
       configuredChain:["provider/text"],configuredTargets:[{deployment:route.deployment,model:"provider/text"}],
       deployment:route.deployment,gateway:route.gateway,selectedModel:"provider/text",selectedProvider:"provider",
+      selectedCapability:{...capabilities[0],deployment:route.deployment,externallyHosted:route.deployment==="api"},
       appliedPolicyConstraints:[]
     },
     stable:{version:"v1",system:"stable",toolSchemaVersion:"v1"},
     dynamic:{runId:"run",objective:"objective",pageState:pageState("https://fixture.test","r1"),observationIds:[],completionDeficits:[]},
-    contextManifestHash:"hash",allowExactReuse:false
+    contextManifestHash:"hash",allowExactReuse:false,maxOutputTokens:500
   };
 }
+
+function modelPolicy():import("../src").ModelPolicy { return {allowedProviders:["provider","fixture"],allowedDeployments:["api","self_hosted"],
+  requiredPrivacyEligibility:["public"],allowedRetentionClasses:["zero_data_retention"]}; }

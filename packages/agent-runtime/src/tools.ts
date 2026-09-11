@@ -21,7 +21,7 @@ import type {
   StructuredBrowserUsePort,
   VisualComputerUsePort
 } from "./browser";
-import { BrowserScopeError, StaleObservationError } from "./browser";
+import { BrowserPreDispatchError, StaleObservationError } from "./browser";
 import { BudgetExceededError, BudgetLedger } from "./budget";
 import { CompletionVerifier } from "./completion";
 import { createObservationEnvelope, diffPageState, projectPageState, sha256Text, type ArtifactStore } from "./observations";
@@ -33,7 +33,7 @@ const schemas: Record<ToolName, z.ZodTypeAny> = {
   "browser.navigate@1": z.object({ url: z.string().url() }).strict(),
   "browser.inspect_dom@1": empty,
   "browser.inspect_accessibility_tree@1": empty,
-  "browser.follow_link@1": z.object({ handle: z.string(), observationRevision: z.string() }).strict(),
+  "browser.follow_link@1": z.object({ handle: z.string(), observationRevision: z.string(), capability:z.string() }).strict(),
   "browser.extract@1": empty,
   "browser.query_page_state@1": empty,
   "browser.scroll@1": z.object({ deltaY: z.number().int().min(-2000).max(2000) }).strict(),
@@ -43,14 +43,14 @@ const schemas: Record<ToolName, z.ZodTypeAny> = {
     y: z.number().nonnegative(),
     screenshotObservationId: z.string(),
     screenshotHash: z.string(),
-    purpose: z.string()
+    capability: z.unknown().optional()
   }).strict(),
   "computer.click@1": z.object({
     x: z.number().nonnegative(),
     y: z.number().nonnegative(),
     screenshotObservationId: z.string(),
     screenshotHash: z.string(),
-    purpose: z.string()
+    capability: z.unknown().optional()
   }).strict(),
   "run.propose_completion@1": z.object({ citedObservationIds: z.array(z.string()).max(20) }).strict(),
   "fixture.publish@1": z.object({ articleId: z.string() }).strict()
@@ -61,8 +61,16 @@ export function validateToolArguments(action: PlannedAction) {
 }
 
 export type FaultPoint =
+  | "after_tool_creation"
+  | "after_policy_decision"
+  | "after_budget_reserve"
+  | "after_tool_intent_insert"
+  | "after_intent_state_transition"
+  | "after_dispatch_marker"
   | "after_intent_before_dispatch"
   | "after_effect_before_result"
+  | "after_terminal_tool_state"
+  | "after_tool_result_before_checkpoint"
   | "after_content_acceptance_before_state"
   | "after_completion_before_ack";
 
@@ -91,6 +99,8 @@ export interface DispatchState {
   };
   challengeFingerprints: Map<string, number>;
   progress: ProgressFacts;
+  candidate: import("./contracts").CandidateIdentity;
+  resourceId: string;
 }
 
 export interface DispatchOutcome {
@@ -141,14 +151,31 @@ export class ToolDispatcher {
       tool: resolvedAction.tool,
       arguments: resolvedAction.arguments,
       state: "requested",
-      createdAt: now
+      createdAt: now,generation:input.generation
     };
     const existing = await this.options.store.getToolCall(toolCallId);
     if (existing) {
       const priorResult = await this.options.store.getToolResult(toolCallId);
-      if (priorResult) return { result: priorResult, continuePlan: false, completionAccepted: false };
+      if (priorResult) {
+        await this.options.store.appendEvent(input.runId,"agent.tool.result_reconciled",{
+          toolCallId,resultId:priorResult.id,state:priorResult.state,effectCertainty:priorResult.effectCertainty
+        },undefined,input.generation);
+        return { result: priorResult, continuePlan: false, completionAccepted: false };
+      }
       call = existing;
       resolvedAction = { tool: existing.tool, arguments: existing.arguments };
+      if (["policy_denied","succeeded","failed","cancelled","effect_unknown"].includes(existing.state)) {
+        const intent=await this.options.store.getToolIntent(toolCallId);
+        const observation=existing.state==="succeeded"?await this.options.store.getObservationForToolCall(toolCallId):null;
+        const state=observation?"succeeded":existing.state==="policy_denied"||existing.state==="failed"?"failed":existing.state==="cancelled"?"cancelled":"effect_unknown";
+        const result=await this.options.store.saveToolResult({
+          id:makeId("tool_result",toolCallId),runId:input.runId,toolCallId,generation:input.generation,state,
+          effectCertainty:observation?"known_applied":intent?"unknown":"not_dispatched",output:observation?{observationId:observation.id,reconciled:true}:undefined,
+          errorCode:observation?undefined:"recovered_terminal_without_result",
+          errorMessage:observation?undefined:`recovered ${existing.state} tool call without its terminal result`,completedAt:now
+        });
+        return {result,continuePlan:false,completionAccepted:false};
+      }
       if (existing.state === "dispatching") {
         await this.options.store.transitionToolCall(toolCallId, "effect_unknown", input.generation);
         const result = await this.options.store.saveToolResult({
@@ -164,14 +191,23 @@ export class ToolDispatcher {
         });
         return { result, continuePlan: false, completionAccepted: false };
       }
+      if (existing.state === "budget_reserved" && await this.options.store.getToolIntent(toolCallId)) {
+        await this.options.store.transitionToolCall(toolCallId,"intent_persisted",input.generation);
+        existing.state="intent_persisted";
+      }
       if (existing.state !== "intent_persisted") {
-        throw new Error(`cannot resume tool call ${toolCallId} from ${existing.state}`);
+        await this.options.store.transitionToolCall(toolCallId,"failed",input.generation);
+        const result=await this.options.store.saveToolResult({id:makeId("tool_result",toolCallId),runId:input.runId,toolCallId,
+          generation:input.generation,state:"failed",effectCertainty:"not_dispatched",errorCode:"recovered_incomplete_pre_dispatch",
+          errorMessage:`recovered incomplete pre-dispatch state ${existing.state}`,completedAt:now});
+        return {result,continuePlan:false,completionAccepted:false};
       }
       await this.options.store.assertGeneration(input.runId, input.generation);
       await this.options.store.transitionToolCall(toolCallId, "dispatching", input.generation);
-      await this.options.store.appendEvent(input.runId, "agent.tool.intent_replayed", { toolCallId });
+      await this.options.store.appendEvent(input.runId, "agent.tool.intent_replayed", { toolCallId },undefined,input.generation);
     } else {
       await this.options.store.saveToolCall(call);
+      this.options.faultInjector?.hit("after_tool_creation",{runId:input.runId,toolCallId});
 
       const parsed = validateToolArguments(resolvedAction);
       if (!parsed.success) {
@@ -190,6 +226,7 @@ export class ToolDispatcher {
         return { result, continuePlan: false, completionAccepted: false };
       }
       resolvedAction.arguments = parsed.data;
+      resolvedAction = await this.attachRuntimeCapability(resolvedAction,input.state);
       await this.options.store.transitionToolCall(toolCallId, "schema_validated", input.generation);
 
       const decision = this.options.policy.evaluate({
@@ -197,9 +234,12 @@ export class ToolDispatcher {
         toolCallId,
         action: resolvedAction,
         pageState: input.state.pageState,
+        tenantId:input.tenantId,
+        generation:input.generation,
         now
       });
       await this.options.store.savePolicyDecision(decision);
+      this.options.faultInjector?.hit("after_policy_decision",{runId:input.runId,toolCallId});
       if (!decision.allowed) {
         await this.options.store.transitionToolCall(toolCallId, "policy_denied", input.generation);
         const result = await this.options.store.saveToolResult({
@@ -219,8 +259,10 @@ export class ToolDispatcher {
 
       try {
         this.options.budget.reserveTool(resolvedAction.tool);
-        await this.options.store.saveBudget(this.options.budget.snapshot());
+        await this.options.store.saveBudget(this.options.budget.snapshot(),input.generation);
+        this.options.faultInjector?.hit("after_budget_reserve",{runId:input.runId,toolCallId});
       } catch (error) {
+        if (error instanceof InjectedCrashError) throw error;
         await this.options.store.transitionToolCall(toolCallId, "failed", input.generation);
         const result = await this.options.store.saveToolResult({
           id: makeId("tool_result", toolCallId),
@@ -248,18 +290,23 @@ export class ToolDispatcher {
         persistedAt: now
       };
       await this.options.store.saveToolIntent(intent);
+      this.options.faultInjector?.hit("after_tool_intent_insert",{runId:input.runId,toolCallId});
       await this.options.store.transitionToolCall(toolCallId, "intent_persisted", input.generation);
+      this.options.faultInjector?.hit("after_intent_state_transition",{runId:input.runId,toolCallId});
       this.options.faultInjector?.hit("after_intent_before_dispatch", { runId: input.runId, toolCallId });
       await this.options.store.assertGeneration(input.runId, input.generation);
       await this.options.store.transitionToolCall(toolCallId, "dispatching", input.generation);
+      this.options.faultInjector?.hit("after_dispatch_marker",{runId:input.runId,toolCallId});
     }
 
+    let browserEffectReturned=false;
     try {
       if (resolvedAction.tool === "run.propose_completion@1") {
         return this.executeCompletion(input, resolvedAction, call, now);
       }
       if (resolvedAction.tool === "fixture.publish@1") throw new Error("forbidden executor must be unreachable");
       const browserOutput = await this.executeBrowser(resolvedAction, input.state);
+      browserEffectReturned=true;
       this.options.faultInjector?.hit("after_effect_before_result", { runId: input.runId, toolCallId });
       const observation = await this.envelopeBrowserOutput(input, call, browserOutput);
       await this.options.store.saveObservation(observation);
@@ -287,9 +334,16 @@ export class ToolDispatcher {
       let acquiredContent: AcquiredContent | undefined;
       if (resolvedAction.tool === "browser.extract@1" && browserOutput.article) {
         const contentHash = await sha256Text(browserOutput.article.body);
+        if (normalizeUrl(browserOutput.article.canonicalUrl) !== normalizeUrl(input.state.candidate.canonicalUrl)) {
+          throw new CandidateMismatchError(browserOutput.article.canonicalUrl,input.state.candidate.canonicalUrl);
+        }
         acquiredContent = {
-          acceptanceId: makeId("acquired", input.runId, browserOutput.article.canonicalUrl, contentHash),
+          acceptanceId: makeId("acquired", input.tenantId,input.state.resourceId,input.state.candidate.candidateId,browserOutput.article.canonicalUrl,contentHash),
           runId: input.runId,
+          tenantId:input.tenantId,
+          resourceId:input.state.resourceId,
+          candidateId:input.state.candidate.candidateId,
+          acquisitionAttempt:input.state.candidate.acquisitionAttempt,
           generation: input.generation,
           turnId: input.turn.id,
           modelCallId: input.modelCallId,
@@ -308,6 +362,8 @@ export class ToolDispatcher {
         acquiredContent = await this.options.store.acceptContent(acquiredContent);
         input.state.progress.articleExtracted = true;
         input.state.progress.acceptedContentId = acquiredContent.acceptanceId;
+        input.state.progress.acceptedObservationId=observation.id;
+        input.state.progress.acceptedCandidateId=input.state.candidate.candidateId;
         pageState.progress = structuredClone(input.state.progress);
         this.options.faultInjector?.hit("after_content_acceptance_before_state", { runId: input.runId, toolCallId });
       }
@@ -319,8 +375,6 @@ export class ToolDispatcher {
         const occurrence = Math.max(input.state.challengeFingerprints.get(fingerprint) ?? 0, persistedOccurrence) + 1;
         input.state.challengeFingerprints.set(fingerprint, occurrence);
         const state = occurrence > 1 ? "CHALLENGE_LOOP" : browserOutput.challengeState;
-        this.options.budget.reserve({ challengeTransitions: 1 });
-        await this.options.store.saveBudget(this.options.budget.snapshot());
         challenge = {
           id: makeId("challenge", input.runId, fingerprint, occurrence),
           runId: input.runId,
@@ -329,12 +383,22 @@ export class ToolDispatcher {
           fingerprint,
           occurrence,
           disposition: "suspend",
-          createdAt: now
+          createdAt: now,generation:input.generation
         };
+        try {
+          this.options.budget.reserve({ challengeTransitions: 1 });
+          await this.options.store.saveBudget(this.options.budget.snapshot(),input.generation);
+        } catch (error) {
+          if (!(error instanceof BudgetExceededError) || error.dimension!=="challengeTransitions") throw error;
+          await this.options.store.appendEvent(input.runId,"agent.challenge.budget_exhausted",{
+            challengeState:state,fingerprint,occurrence
+          },undefined,input.generation);
+        }
         await this.options.store.saveChallenge(challenge);
       }
 
       await this.options.store.transitionToolCall(toolCallId, "succeeded", input.generation);
+      this.options.faultInjector?.hit("after_terminal_tool_state",{runId:input.runId,toolCallId});
       const result = await this.options.store.saveToolResult({
         id: makeId("tool_result", toolCallId),
         runId: input.runId,
@@ -352,7 +416,7 @@ export class ToolDispatcher {
           observation.id,
           pageState
         );
-        await this.options.store.appendEvent(input.runId, "agent.observation.delta", input.state.latestDelta);
+        await this.options.store.appendEvent(input.runId, "agent.observation.delta", input.state.latestDelta,undefined,input.generation);
       }
       input.state.latestObservation = observation;
       input.state.pageState = pageState;
@@ -368,7 +432,7 @@ export class ToolDispatcher {
       };
     } catch (error) {
       if (error instanceof InjectedCrashError) throw error;
-      const knownNotApplied = error instanceof StaleObservationError || error instanceof BrowserScopeError;
+      const knownNotApplied = !browserEffectReturned && (error instanceof StaleObservationError || error instanceof BrowserPreDispatchError);
       const effectUnknown = error instanceof EffectUnknownError || !knownNotApplied;
       const state = effectUnknown ? "effect_unknown" : "failed";
       await this.options.store.transitionToolCall(toolCallId, state, input.generation);
@@ -399,6 +463,7 @@ export class ToolDispatcher {
       toolCallId: call.id,
       citedObservationIds: args.citedObservationIds,
       progress: input.state.progress,
+      generation:input.generation,
       now
     });
     await this.options.store.saveCompletionProposal(verification.proposal);
@@ -423,6 +488,11 @@ export class ToolDispatcher {
   }
 
   private resolvePlanReferences(action: PlannedAction, state: DispatchState): PlannedAction {
+    if (action.tool === "run.propose_completion@1") {
+      const args=structuredClone(action.arguments) as {citedObservationIds?:string[]};
+      if (args.citedObservationIds) args.citedObservationIds=args.citedObservationIds.map((id)=>id==="$latestObservation"?(state.latestObservation?.id??""):id);
+      return {...structuredClone(action),arguments:args};
+    }
     if (action.tool !== "computer.move_pointer@1" && action.tool !== "computer.click@1") return structuredClone(action);
     const args = structuredClone(action.arguments) as Record<string, unknown>;
     if (args.screenshotObservationId === "$latestScreenshot") {
@@ -442,8 +512,8 @@ export class ToolDispatcher {
       case "browser.inspect_accessibility_tree@1":
         return this.options.structured.inspectAccessibilityTree(scope);
       case "browser.follow_link@1": {
-        const args = action.arguments as { handle: string; observationRevision: string };
-        return this.options.structured.followLink(scope, args.handle, args.observationRevision);
+        const args = action.arguments as { handle: string; observationRevision: string; capability:string };
+        return this.options.structured.followLink(scope, args.handle, args.observationRevision,args.capability);
       }
       case "browser.extract@1":
         return this.options.structured.extract(scope);
@@ -460,7 +530,9 @@ export class ToolDispatcher {
         const args = action.arguments as { x: number; y: number; screenshotObservationId: string; screenshotHash:string };
         const latest = state.latestScreenshot;
         if (!latest || latest.observationId !== args.screenshotObservationId || latest.hash !== args.screenshotHash) throw new StaleObservationError("screenshot");
-        const input = { x: args.x, y: args.y, screenshotToken: latest.token, pageRevision: latest.pageRevision };
+        const capability=(action.arguments as {capability?:import("./contracts").InteractionCapability}).capability;
+        if (!capability) throw new BrowserPreDispatchError("runtime interaction capability missing");
+        const input = { x: args.x, y: args.y, screenshotToken: latest.token, pageRevision: latest.pageRevision,capability };
         return action.tool === "computer.move_pointer@1"
           ? this.options.visual.movePointer(scope, input)
           : this.options.visual.click(scope, input);
@@ -503,6 +575,10 @@ export class ToolDispatcher {
       modelRepresentation: output.representation,
       redactions: []
     });
+    output.controls = await this.options.browserExecutor.bindObservationCapabilities(input.state.allocation,{
+      observationId:observation.id,observationHash:observation.presented.hash,pageRevision:output.pageRevision,controls:output.controls,
+      allowedDestinationUrls:[input.state.candidate.canonicalUrl]
+    });
     if (
       call.tool === "computer.screenshot@1" &&
       "screenshotObservationToken" in output &&
@@ -516,6 +592,24 @@ export class ToolDispatcher {
       };
     }
     return observation;
+  }
+
+  private async attachRuntimeCapability(action: PlannedAction,state:DispatchState): Promise<PlannedAction> {
+    if (action.tool!=="computer.click@1" && action.tool!=="computer.move_pointer@1") return action;
+    const args={...(action.arguments as Record<string,unknown>)};
+    delete args.capability;
+    const latest=state.latestScreenshot;
+    if (!latest) return {...action,arguments:args};
+    if (String(args.screenshotObservationId)!==latest.observationId || String(args.screenshotHash)!==latest.hash) {
+      return {...action,arguments:args};
+    }
+    const capability=await this.options.visual.issueVisualCapability(state.allocation,{
+      action:action.tool==="computer.click@1"?"click":"move_pointer",
+      x:Number(args.x),y:Number(args.y),screenshotToken:latest.token,
+      screenshotObservationId:String(args.screenshotObservationId),screenshotHash:String(args.screenshotHash),pageRevision:latest.pageRevision,
+      allowedDestinationUrls:[state.candidate.canonicalUrl]
+    }).catch(()=>null);
+    return {...action,arguments:{...args,capability:capability ?? undefined}};
   }
 
   private expectedStateSatisfied(action: PlannedAction, state: AgentPageState): boolean {
@@ -533,3 +627,9 @@ export class EffectUnknownError extends Error {
     this.name = "EffectUnknownError";
   }
 }
+
+class CandidateMismatchError extends Error {
+  constructor(actual:string,expected:string) { super(`candidate mismatch: ${actual} != ${expected}`); this.name="CandidateMismatchError"; }
+}
+
+function normalizeUrl(value:string) { const url=new URL(value); url.hash=""; return url.toString(); }

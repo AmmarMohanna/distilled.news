@@ -48,12 +48,8 @@ export class BudgetLedger {
   }
 
   reserve(request: BudgetReservation): AgentRunBudgetUsage {
-    for (const dimension of DIMENSIONS) {
-      const increment = request[dimension] ?? 0;
-      if (this.budget.usage[dimension] + increment > this.budget.limits[dimension]) {
-        throw new BudgetExceededError(dimension);
-      }
-    }
+    const exceeded=this.wouldExceed(request);
+    if (exceeded) throw new BudgetExceededError(exceeded);
     for (const dimension of DIMENSIONS) {
       const increment = request[dimension] ?? 0;
       this.budget.usage[dimension] += increment;
@@ -61,8 +57,12 @@ export class BudgetLedger {
     return { ...this.budget.usage };
   }
 
+  wouldExceed(request:BudgetReservation):BudgetDimension|undefined {
+    return DIMENSIONS.find((dimension)=>this.budget.usage[dimension]+(request[dimension]??0)>this.budget.limits[dimension]);
+  }
+
   reserveModel(input: {
-    role: ModelRole;
+    capability: import("./contracts").ModelCapability;
     inputTokens: number;
     outputTokens: number;
     estimatedCostUsd: number;
@@ -72,9 +72,22 @@ export class BudgetLedger {
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
       modelCostUsd: input.estimatedCostUsd,
-      strongModelCalls: input.role.includes("STRONG") ? 1 : 0,
-      visionCalls: input.role.includes("VISION") ? 1 : 0
+      strongModelCalls: input.capability.reasoningClass === "strong" ? 1 : 0,
+      visionCalls: input.capability.vision ? 1 : 0
     });
+  }
+
+  reconcileModel(reserved:{inputTokens:number;outputTokens:number;modelCostUsd:number},actual:{inputTokens:number;outputTokens:number;costUsd:number}) {
+    const next={...this.budget.usage};
+    next.inputTokens += actual.inputTokens-reserved.inputTokens;
+    next.outputTokens += actual.outputTokens-reserved.outputTokens;
+    next.modelCostUsd += actual.costUsd-reserved.modelCostUsd;
+    for (const dimension of ["inputTokens","outputTokens","modelCostUsd"] as const)
+      if (next[dimension]<0) throw new Error(`invalid negative budget reconciliation: ${dimension}`);
+    this.budget.usage=next;
+    const exceeded=(['inputTokens','outputTokens','modelCostUsd'] as const)
+      .find((dimension)=>next[dimension]>this.budget.limits[dimension]);
+    return {usage:{...next},exceeded};
   }
 
   reserveTool(tool: ToolName): AgentRunBudgetUsage {

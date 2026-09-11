@@ -59,7 +59,9 @@ export interface Env {
   DB: D1Database;
   RAW_ARCHIVE: R2Bucket;
   PROCESSING_QUEUE: Queue<DistilledQueueMessage>;
-  WEB_OPERATOR_QUEUE?: Queue<WebOperatorRunMessage>;
+  WEB_OPERATOR_QUEUE: Queue<WebOperatorRunMessage>;
+  WEB_OPERATOR_RUNTIME_URL?: string;
+  WEB_OPERATOR_RUNTIME_TOKEN?: string;
   EMAIL?: SendEmail;
   ASSETS?: Fetcher;
   ADMIN_SESSION_SECRET?: string;

@@ -18,6 +18,7 @@ export class CompletionVerifier {
     toolCallId: string;
     citedObservationIds: string[];
     progress: ProgressFacts;
+    generation: number;
     now?: string;
   }): CompletionVerification {
     const decidedAt = input.now ?? new Date().toISOString();
@@ -27,10 +28,17 @@ export class CompletionVerifier {
       toolCallId: input.toolCallId,
       citedObservationIds: [...input.citedObservationIds],
       proposedAt: decidedAt
+      ,generation:input.generation
     };
     const deficits: string[] = [];
     if (!input.progress.articleExtracted) deficits.push("article_not_extracted");
     if (!input.progress.acceptedContentId) deficits.push("acquired_content_not_accepted");
+    if (!input.progress.acceptedObservationId || !input.citedObservationIds.includes(input.progress.acceptedObservationId)) {
+      deficits.push("accepted_observation_not_cited");
+    }
+    if (!input.progress.expectedCandidateId || input.progress.acceptedCandidateId!==input.progress.expectedCandidateId) {
+      deficits.push("candidate_identity_not_proven");
+    }
     if (!input.progress.watermarkObserved && !input.progress.validatedListingBoundaryReached) {
       deficits.push("completion_boundary_not_proven");
     }
@@ -45,6 +53,7 @@ export class CompletionVerifier {
         outcome,
         deficits,
         decidedAt
+        ,generation:input.generation
       }
     };
   }

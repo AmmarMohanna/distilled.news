@@ -1,4 +1,4 @@
-import type { AgentRun, AgentRunBudgetLimits, ModelCapability, ModelRoutingConfig } from "./contracts";
+import type { AgentRun, AgentRunBudgetLimits, CandidateIdentity, ModelCapability, ModelRoutingConfig } from "./contracts";
 import { makeId } from "./contracts";
 import { BudgetLedger, DEFAULT_SLICE_BUDGET } from "./budget";
 import type { RuntimeStore } from "./persistence";
@@ -14,6 +14,7 @@ export interface KnownCandidateInvocation {
   modelRouting: ModelRoutingConfig;
   modelCapabilities: ModelCapability[];
   budgetLimits?: AgentRunBudgetLimits;
+  candidate: CandidateIdentity;
 }
 
 export interface AdmittedRun {
@@ -41,15 +42,15 @@ export class WebOperatorAcquisitionStrategy {
       runId,tenantId:input.tenantId,resourceId:input.resourceId,idempotencyKey:input.idempotencyKey,
       objective:input.objective,mode:"known_candidate",state:"admitted",generation:0,
       policySnapshotId:input.policy.id,completionContractVersion:"known-candidate-watermark-v1",
-      createdAt:timestamp,updatedAt:timestamp
+      createdAt:timestamp,updatedAt:timestamp,candidate:structuredClone(input.candidate)
     };
     const ledger = new BudgetLedger(runId,input.budgetLimits ?? DEFAULT_SLICE_BUDGET,timestamp);
     const admitted = await this.store.admitRun({
       run,budget:ledger.snapshot(),
-      configuration:{runId,policy:structuredClone(input.policy),modelRouting:structuredClone(input.modelRouting),modelCapabilities:structuredClone(input.modelCapabilities),createdAt:timestamp},
-      outbox:{id:makeId("outbox",runId,"wake"),runId,kind:"agent_run_wake",state:"pending",createdAt:timestamp}
+      configuration:{runId,candidate:structuredClone(input.candidate),policy:structuredClone(input.policy),modelRouting:structuredClone(input.modelRouting),modelCapabilities:structuredClone(input.modelCapabilities),createdAt:timestamp},
+      outbox:{id:makeId("outbox",runId,"wake"),runId,kind:"agent_run_wake",state:"pending",createdAt:timestamp,attempts:0,nextAttemptAt:timestamp}
     });
-    if (admitted.created) await this.store.transitionRun(runId,0,"queued",timestamp);
-    return {run:(await this.store.getRun(runId))!,created:admitted.created,wake:{type:"web_operator_run",runId}};
+    if (admitted.created) await this.store.transitionRun(admitted.run.runId,0,"queued",timestamp);
+    return {run:(await this.store.getRun(admitted.run.runId))!,created:admitted.created,wake:{type:"web_operator_run",runId:admitted.run.runId}};
   }
 }

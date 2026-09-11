@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export const MODEL_ROLES = [
   "NAVIGATION_FAST",
   "EXTRACTION_FAST",
@@ -78,6 +80,14 @@ export interface AgentRun extends RuntimeIds {
   completionContractVersion: string;
   createdAt: string;
   updatedAt: string;
+  candidate: CandidateIdentity;
+}
+
+export interface CandidateIdentity {
+  candidateId: string;
+  canonicalUrl: string;
+  publisherId: string;
+  acquisitionAttempt: string;
 }
 
 export interface AgentRunAttempt {
@@ -104,6 +114,7 @@ export interface AgentTurn {
   state: AgentTurnState;
   pageStateHash?: string;
   createdAt: string;
+  generation: number;
 }
 
 export interface ModelCapability {
@@ -116,6 +127,11 @@ export interface ModelCapability {
   enabled: boolean;
   inputCostPerMillion: number;
   outputCostPerMillion: number;
+  deployment: ModelDeployment;
+  externallyHosted: boolean;
+  privacyEligibility: string[];
+  retentionClass: "zero_data_retention" | "limited" | "standard";
+  residency?: string;
 }
 
 export type LlmDeploymentMode = "api" | "self_hosted" | "hybrid";
@@ -140,16 +156,26 @@ export interface ModelRoutingConfig {
 
 export interface RunConfigurationSnapshot {
   runId: string;
+  candidate: CandidateIdentity;
   policy: {
     id: string;
     allowedOrigins: string[];
     allowedTools: ToolName[];
     allowLoopback: boolean;
     visualReadPurposes: string[];
+    modelPolicy: ModelPolicy;
   };
   modelRouting: ModelRoutingConfig;
   modelCapabilities: ModelCapability[];
   createdAt: string;
+}
+
+export interface ModelPolicy {
+  allowedProviders: string[];
+  allowedDeployments: ModelDeployment[];
+  requiredPrivacyEligibility: string[];
+  allowedRetentionClasses: ModelCapability["retentionClass"][];
+  allowedResidencies?: string[];
 }
 
 export interface ModelRoute {
@@ -162,6 +188,7 @@ export interface ModelRoute {
   gateway: string;
   selectedModel: string;
   selectedProvider: string;
+  selectedCapability: ModelCapability;
   appliedPolicyConstraints: string[];
   fallbackReason?: string;
 }
@@ -192,6 +219,7 @@ export interface AgentModelCallAttempt {
   latencyMs: number;
   fallbackReason?: string;
   state: "started" | "completed" | "failed";
+  reservation?: { inputTokens:number; outputTokens:number; costUsd:number };
 }
 
 export const TOOL_NAMES = [
@@ -237,6 +265,7 @@ export interface AgentToolCall {
   arguments: unknown;
   state: ToolCallState;
   createdAt: string;
+  generation: number;
 }
 
 export interface AgentPolicyDecision {
@@ -247,6 +276,7 @@ export interface AgentPolicyDecision {
   reasonCode: string;
   policySnapshotId: string;
   evaluatedAt: string;
+  generation: number;
 }
 
 export interface AgentToolIntent {
@@ -329,6 +359,9 @@ export interface AgentOutbox {
   state: "pending" | "delivered" | "acknowledged";
   createdAt: string;
   acknowledgedAt?: string;
+  deliveredAt?: string;
+  attempts: number;
+  nextAttemptAt: string;
 }
 
 export interface BrowserSessionRecord {
@@ -387,6 +420,26 @@ export interface SemanticControl {
   kind: "link" | "button" | "input" | "other";
   label: string;
   safeAction: "follow" | "read" | "forbidden" | "unknown";
+  destinationUrl?: string;
+  interactionCapability?: string;
+}
+
+export interface InteractionCapability {
+  token: string;
+  tenantId: string;
+  runId: string;
+  browserGeneration: number;
+  pageId: string;
+  observationId: string;
+  observationHash: string;
+  pageRevision: string;
+  actionClass: "follow_read_link" | "visual_read_link" | "pointer_only";
+  effect: "read_navigation" | "pointer_only";
+  target:
+    | { kind: "element"; handle: string; destinationUrl: string }
+    | { kind: "coordinates"; x: number; y: number; destinationUrl?: string };
+  viewport?: { width: number; height: number; deviceScaleFactor: number };
+  expiresAt: string;
 }
 
 export interface AgentPageState {
@@ -428,6 +481,7 @@ export interface ChallengeRecord {
   occurrence: number;
   disposition: "continue" | "suspend" | "fail" | "route_switch_required";
   createdAt: string;
+  generation: number;
 }
 
 export interface ProgressFacts {
@@ -435,6 +489,9 @@ export interface ProgressFacts {
   validatedListingBoundaryReached: boolean;
   articleExtracted: boolean;
   acceptedContentId?: string;
+  acceptedObservationId?: string;
+  acceptedCandidateId?: string;
+  expectedCandidateId?: string;
 }
 
 export interface CompletionProposal {
@@ -443,6 +500,7 @@ export interface CompletionProposal {
   toolCallId: string;
   citedObservationIds: string[];
   proposedAt: string;
+  generation: number;
 }
 
 export interface CompletionAcceptance {
@@ -453,11 +511,16 @@ export interface CompletionAcceptance {
   outcome: "accepted" | "not_satisfied" | "indeterminate";
   deficits: string[];
   decidedAt: string;
+  generation: number;
 }
 
 export interface AcquiredContent {
   acceptanceId: string;
   runId: string;
+  tenantId: string;
+  resourceId: string;
+  candidateId: string;
+  acquisitionAttempt: string;
   generation: number;
   turnId: string;
   modelCallId: string;
@@ -482,13 +545,10 @@ export interface CandidateProposal {
 }
 
 export function makeId(prefix: string, ...parts: Array<string | number>): string {
-  const input = parts.join("\u001f");
-  let hash = 2166136261;
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `${prefix}_${(hash >>> 0).toString(16).padStart(8, "0")}`;
+  const encoded = [prefix, ...parts.map(String)]
+    .map((part) => `${new TextEncoder().encode(part).byteLength}:${part}`)
+    .join("|");
+  return `${prefix}_${createHash("sha256").update(encoded, "utf8").digest("hex").slice(0, 32)}`;
 }
 
 export function emptyBudgetUsage(): AgentRunBudgetUsage {
