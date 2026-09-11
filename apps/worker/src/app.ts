@@ -376,7 +376,6 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/me/briefings", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
-    if ((await repo.listBriefings(account.id)).length === 0) await repo.ensureDefaultBriefing(account);
     return c.json({ briefings: await repo.listBriefings(account.id) });
   });
 
@@ -421,8 +420,6 @@ export function createApp(options: AppOptions = {}) {
   app.delete("/api/me/briefings/:briefingId", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
-    const briefings = await repo.listBriefings(account.id);
-    if (briefings.length <= 1) return c.json({ error: "keep at least one feed" }, 400);
     const briefing = await getOwnedBriefing(repo, account, c.req.param("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
     await repo.deleteBriefing(briefing.id);

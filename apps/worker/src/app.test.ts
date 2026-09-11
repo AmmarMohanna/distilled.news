@@ -289,6 +289,20 @@ describe("worker app accounts", () => {
     expect(loginResponse.status).toBe(200);
   });
 
+  it("allows deleting the last feed without recreating it on read", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "empty@test.com", "Empty User");
+    const headers = { cookie: user.cookie };
+    const initial = await app.request("/api/me/briefings", { headers }, env());
+    const { briefings } = await initial.json() as { briefings: Array<{ id: string }> };
+    expect(briefings).toHaveLength(1);
+    const deleted = await app.request(`/api/me/briefings/${briefings[0].id}`, { method: "DELETE", headers }, env());
+    expect(deleted.status).toBe(200);
+    const remaining = await app.request("/api/me/briefings", { headers }, env());
+    expect(await remaining.json()).toEqual({ briefings: [] });
+  });
+
   it("scopes user feed management to the logged-in account", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });

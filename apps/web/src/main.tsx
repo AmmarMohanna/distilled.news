@@ -83,9 +83,12 @@ import {
 import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify } from "./helpers";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
-import { AppExperience, BrandMark } from "./AppExperience";
+import { AppExperience, BrandMark, PublicExplorePage, GuestMenuItems } from "./AppExperience";
+import { LanguageControl, preferredLanguage, useLanguage } from "./LanguageControl";
+import { FeedEditor, type FeedInput } from "./FeedEditor";
 import { ThemeToggle } from "./ThemeToggle";
 import "./experience.css";
+import "./product.css";
 
 const FEED_BATCH_SIZE = 20;
 
@@ -120,6 +123,7 @@ declare global {
 
 function App() {
   const path = window.location.pathname;
+  if (path === "/explore" || path === "/explore/") return <PublicExplorePage/>;
   if (path === "/verify-email") return <VerifyEmailPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
   if (path === "/reset-password") return <ResetPasswordPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
   const feedMatch = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
@@ -136,6 +140,8 @@ function languageLabel(language: "en" | "ar" | "fr"): string {
 }
 
 function AdminPage() {
+  const { language: interfaceLanguage } = useLanguage();
+  useEffect(() => { document.documentElement.lang = interfaceLanguage; document.documentElement.dir = interfaceLanguage === "ar" ? "rtl" : "ltr"; }, [interfaceLanguage]);
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [briefings, setBriefings] = useState<BriefingConfig[]>([]);
   const [selectedBriefingId, setSelectedBriefingId] = useState<string | null>(null);
@@ -259,15 +265,19 @@ function AdminPage() {
     }, 650);
   }
 
-  async function createBriefing() {
+  async function createBriefing(input?: FeedInput) {
     if (!account) return;
     setError("");
     setBusyAction("create-feed");
     try {
-      const draft = createBriefingDraft(briefings, account);
+      const draft = { ...createBriefingDraft(briefings, account), ...input, language: preferredLanguage() };
       const created = await persistBriefing(draft, "feed created");
       await loadBriefings(created.id);
-      setFeedSettingsOpen(true);
+      if (input) {
+        try { await addSource(created.id, input.interestProfile); }
+        catch (cause) { sessionStorage.setItem(`feed-notice:${created.id}`, `Feed saved, but topic discovery could not be started: ${cause instanceof Error ? cause.message : String(cause)}`); }
+        window.location.href = `/${created.ownerUsername}/${created.slug}/`;
+      }
     } finally {
       setBusyAction(null);
     }
@@ -393,14 +403,9 @@ function AdminPage() {
 
   if (!session.authenticated) {
     return (
-      <main className="auth-experience">
-        <header className="auth-header"><a href="/" className="experience-brand" aria-label="Distilled News"><BrandMark/><span className="auth-wordmark">Distilled News</span></a><div className="auth-header-controls"><ThemeToggle/><span className="auth-language"><Globe size={18}/> English</span></div></header>
+      <main className="auth-experience guest-auth-home">
+        <header className="auth-header"><div className="experience-brand" aria-label="Distilled News"><BrandMark/></div><div className="auth-header-controls"><ThemeToggle/><LanguageControl/></div></header>
         <div className="auth-columns">
-          <section className="auth-introduction">
-            <h1>A calmer perspective<br/>on a complex world.</h1>
-            <p>Personalized news briefings that help you<br/>see the bigger picture.</p>
-            
-          </section>
           <AuthPanel
             setupRequired={session.setupRequired}
             turnstileSiteKey={session.turnstileSiteKey}
@@ -413,6 +418,7 @@ function AdminPage() {
             }}
           />
         </div>
+        <nav className="bottom-navigation" aria-label="Main navigation"><div className="sidebar-logo experience-brand" aria-label="Distilled.news"><BrandMark/></div><GuestMenuItems active="home"/></nav>
         {error ? <p className="error">{error}</p> : null}
       </main>
     );
@@ -426,310 +432,16 @@ function AdminPage() {
     );
   }
 
-  if (!briefing) {
-    return (
-      <>
-        <Shell title="create" onAccount={() => setAccountDialogOpen(true)}>
-          <section className="section">
-            <div className="section-title">
-              <Globe size={16} aria-hidden />
-              <h2>feeds</h2>
-            </div>
-            <button type="button" title="new feed" onClick={() => createBriefing()}>
-              <Plus size={15} aria-hidden /> new feed
-            </button>
-          </section>
-        </Shell>
-        {accountDialog}
-      </>
-    );
-  }
-
   return (
     <>
-      <AppExperience account={account} briefings={orderedBriefings} briefing={briefing} health={health}
-        onAccount={() => setAccountDialogOpen(true)} onFeedSettings={() => setFeedSettingsOpen(true)}
+      <AppExperience account={account} briefings={orderedBriefings} briefing={briefing ?? undefined} health={health}
+        onAccount={() => setAccountDialogOpen(true)}
         onCreate={createBriefing} onHelp={() => setHelpOpen(true)} error={error}>
-        <div className="admin-stack">
-          <AdminCommandPanel
-            briefing={briefing}
-            sources={sources}
-            health={health}
-            status={status}
-            sourceStatus={sourceStatus}
-            onOpenSettings={() => setFeedSettingsOpen(true)}
-            onCopy={() => copyFeedUrl(briefing)}
-          />
-
-          <section className="section feed-section">
-            <div className="section-title">
-              <Globe size={16} aria-hidden />
-              <h2>feeds</h2>
-            </div>
-            <div className="actions">
-              <button type="button" className="primary-button" title="new feed" disabled={busyAction === "create-feed"} onClick={() => createBriefing()}>
-                <Plus size={15} aria-hidden /> new feed
-              </button>
-              {status || autosaveState !== "idle" ? (
-                <span className={`save-state ${autosaveState === "error" ? "error" : ""}`}>{formatAutosaveStatus(autosaveState, status)}</span>
-              ) : null}
-            </div>
-            <div className="feed-list">
-              {orderedBriefings.map((item) => (
-                <div key={item.id} className={`feed-row${item.id === briefing.id ? " active" : ""}`}>
-                  <button type="button" className="feed-select" title={`select ${item.title}`} onClick={() => setSelectedBriefingId(item.id)}>
-                    <span className="feed-title">{item.title}</span>
-                  </button>
-                  <div className="feed-flags">
-                    <span className="star-count"><Star size={13} aria-hidden /> {item.stars}</span>
-                    <span className="pill">{languageLabel(item.language)}</span>
-                    {item.paused ? <span className="pill">paused</span> : null}
-                  </div>
-                  <div className="row-actions">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`feed settings for ${item.title}`}
-                      title="feed settings"
-                      onClick={() => {
-                        setSelectedBriefingId(item.id);
-                        setFeedSettingsOpen(true);
-                      }}
-                    >
-                      <Settings size={15} aria-hidden />
-                    </button>
-                    <a className="button-link icon-button" href={`/${item.ownerUsername}/${item.slug}/`} aria-label={`open ${item.title}`} title="open feed">
-                      <ExternalLink size={15} aria-hidden />
-                    </a>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`copy URL for ${item.title}`}
-                      title="copy feed url"
-                      onClick={() => copyFeedUrl(item)}
-                    >
-                      <Copy size={15} aria-hidden />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="section source-panel">
-            <div className="source-header">
-              <div className="section-title">
-                <RefreshCw size={16} aria-hidden />
-                <h2>sources</h2>
-              </div>
-              <div className="row-actions">
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="feed help"
-                  title="feed help"
-                  onClick={() => setHelpOpen(true)}
-                >
-                  <HelpCircle size={15} aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="fetch latest"
-                  title="refresh"
-                  disabled={briefing.paused || busyAction === "refresh-source"}
-                  onClick={async () => {
-                    setError("");
-                    try {
-                      setBusyAction("refresh-source");
-                      setSourceStatus("checking enabled sources");
-                      const response = await refreshPublicTelegramSources(briefing.id);
-                      applySourceResponse(response);
-                      setStatus("latest fetched");
-                      void pollHealthUntilSettled(briefing.id, response.health);
-                    } catch (cause) {
-                      setStatus("");
-                      setError(cause instanceof Error ? cause.message : String(cause));
-                      setSourceStatus("");
-                    } finally {
-                      setBusyAction(null);
-                    }
-                  }}
-                >
-                  <RefreshCw size={15} aria-hidden />
-                </button>
-              </div>
-            </div>
-            <div className="source-add">
-              <label>
-                source
-                <input
-                  dir="ltr"
-                  value={sourceUrl}
-                  onChange={(event) => setSourceUrl(event.target.value)}
-                  placeholder="https://t.me/LebUpdate, https://x.com/NASA, or Lebanon electricity"
-                />
-              </label>
-              <div className="source-examples" aria-label="source examples">
-                {sourceInputExamples.map((example) => (
-                  <button
-                    key={example.label}
-                    type="button"
-                    title={example.value}
-                    onClick={() => setSourceUrl(example.value)}
-                  >
-                    {example.label}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="primary-button"
-                title="add source"
-                disabled={!sourceUrl.trim() || briefing.paused || busyAction === "add-source"}
-                onClick={async () => {
-                  setError("");
-                  try {
-                    setBusyAction("add-source");
-                    setSourceStatus(`checking ${sourceInputKind(sourceUrl)}`);
-                    const response = await addSource(briefing.id, sourceUrl.trim());
-                    applySourceResponse(response);
-                    setSourceUrl("");
-                    setStatus("source added");
-                    void pollHealthUntilSettled(briefing.id, response.health);
-                  } catch (cause) {
-                    setStatus("");
-                    setError(cause instanceof Error ? cause.message : String(cause));
-                    setSourceStatus("");
-                  } finally {
-                    setBusyAction(null);
-                  }
-                }}
-              >
-                <Plus size={15} aria-hidden /> add
-              </button>
-            </div>
-            <HealthSummary
-              briefing={briefing}
-              health={health}
-              activity={sourceStatus}
-              retryBusy={busyAction === "retry-processing"}
-              onRetryProcessing={async () => {
-                setBusyAction("retry-processing");
-                try {
-                  const response = await retryProcessing(briefing.id);
-                  setHealth(response.health);
-                  setStatus(response.retried > 0 ? `retried ${response.retried} job(s)` : "no stale jobs to retry");
-                } finally {
-                  setBusyAction(null);
-                }
-              }}
-            />
-            <div className="source-list">
-              {sources.length === 0 ? <p className="muted">paste a full source URL or type a topic</p> : null}
-              {sources.map((source) => (
-                <div key={source.id} className="source-row">
-                  <div className="source-copy">
-                    <label className="source-toggle">
-                      <input
-                        type="checkbox"
-                        checked={source.enabled}
-                        disabled={sourceToggleBusyId === source.id}
-                        onChange={async (event) => {
-                          const enabled = event.target.checked;
-                          const previousSources = sources;
-                          setError("");
-                          setSourceToggleBusyId(source.id);
-                          setSources((current) => current.map((item) => (item.id === source.id ? { ...item, enabled } : item)));
-                          try {
-                            const nextSources = await setSourceEnabled(briefing.id, source.id, enabled);
-                            const updatedSource = nextSources.find((item) => item.id === source.id);
-                            setSources(nextSources);
-                            setStatus((updatedSource ? updatedSource.enabled : enabled) ? "source enabled" : "source paused");
-                            setSourceStatus("");
-                          } catch (cause) {
-                            setSources(previousSources);
-                            setStatus("");
-                            setError(cause instanceof Error ? cause.message : String(cause));
-                          } finally {
-                            setSourceToggleBusyId((current) => (current === source.id ? null : current));
-                          }
-                        }}
-                      />
-                      <span className="source-title" title={source.title}><bdi>{source.title}</bdi></span>
-                    </label>
-                    <span className="source-link" dir="ltr">{sourceProviderLabel(source)}</span>
-                    {source.url || source.sourceUrl ? <a className="source-link" href={source.url ?? source.sourceUrl} target="_blank" rel="noreferrer" dir="ltr">{source.username ?? "open"}</a> : null}
-                    <SourceStatusNote source={source} />
-                  </div>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={`remove ${source.title}`}
-                    title="remove source"
-                    onClick={async () => {
-                      const response = await deleteSource(briefing.id, source.id);
-                      setSources(response.sources);
-                      setHealth(response.health);
-                      setSourceStatus("source removed");
-                    }}
-                  >
-                    <Trash2 size={15} aria-hidden />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {account.role === "admin" ? (
-            <AdminAccountsSection
-              accounts={accounts}
-              currentAccountId={account.id}
-              onAccountsChanged={(nextAccounts) => setAccounts(nextAccounts)}
-            />
-          ) : null}
-        </div>
+{account.role === "admin" ? <AdminAccountsSection accounts={accounts} currentAccountId={account.id} onAccountsChanged={setAccounts}/> : null}
       </AppExperience>
       {accountDialog}
-      {feedSettingsOpen ? (
-        <FeedSettingsSheet
-          briefing={briefing}
-          briefings={briefings}
-          autosaveState={autosaveState}
-          status={status}
-          canDelete={briefings.length > 1}
-          onClose={() => setFeedSettingsOpen(false)}
-          onPatch={(patch) => patchSelectedBriefing(patch)}
-          onCopy={() => copyFeedUrl(briefing)}
-          onPauseToggle={async () => {
-            try {
-              await persistBriefing({ ...briefing, paused: !briefing.paused }, briefing.paused ? "feed resumed" : "feed paused", "pause-feed");
-            } catch (cause) {
-              setStatus("");
-              setError(cause instanceof Error ? cause.message : String(cause));
-            }
-          }}
-          onDelete={async () => {
-            if (briefings.length <= 1) return;
-            if (!window.confirm(`Delete "${briefing.title}" and all of its sources and published items?`)) return;
-            const remaining = await deleteBriefing(briefing.id);
-            setBriefings(remaining);
-            setSelectedBriefingId(remaining[0]?.id ?? null);
-            setFeedSettingsOpen(false);
-            setStatus("feed deleted");
-          }}
-        />
-      ) : null}
       {helpOpen ? <FeedHelpSheet onClose={() => setHelpOpen(false)} /> : null}
-      {onboardingOpen && account && briefing ? (
-        <FirstRunSetupSheet
-          account={account}
-          briefing={briefing}
-          busy={busyAction === "setup-feed"}
-          onClose={() => void dismissOnboarding()}
-          onComplete={completeOnboarding}
-        />
-      ) : null}
+
     </>
   );
 
@@ -828,7 +540,7 @@ function AdminCommandPanel(props: {
 function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired ? "register" : "login");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "register" : "login");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -1650,7 +1362,7 @@ function AdminAccountsSection(props: {
       <details className="section accounts-section">
         <summary className="section-title accounts-summary" title="accounts">
           <User size={16} aria-hidden />
-          <h2>accounts</h2>
+          <span className="accounts-label">Accounts</span>
           <span className="pill">{props.accounts.length}</span>
           <span className="pill">{adminBriefings.length} feeds</span>
         </summary>
@@ -1933,6 +1645,18 @@ function AdminAccountDialog(props: {
 }
 
 function FeedPage(props: { username: string; slug: string }) {
+  const { language: uiLanguage, t } = useLanguage();
+  const [ownedFeed, setOwnedFeed] = useState<BriefingConfig | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  useEffect(() => {
+    let active = true;
+    getSession().then(async session => {
+      if (!session.authenticated || session.account?.username !== props.username) return;
+      const owned = await getBriefings();
+      if (active) setOwnedFeed(owned.find(feed => feed.slug === props.slug) ?? null);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [props.username, props.slug]);
   const [payload, setPayload] = useState<FeedPayload | null>(null);
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
   const [query, setQuery] = useState("");
@@ -1954,6 +1678,8 @@ function FeedPage(props: { username: string; slug: string }) {
     setSummaryMessage("");
     const next = await getFeed(props.username, props.slug);
     setPayload(next);
+    const sourceNotice = sessionStorage.getItem(`feed-notice:${next.briefing.id}`);
+    if (sourceNotice) { setError(sourceNotice); sessionStorage.removeItem(`feed-notice:${next.briefing.id}`); }
     setEditions(next.editions);
     setExpanded(new Set());
     setEditionBusyIds(new Set());
@@ -2022,7 +1748,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const visibleUnreadEditions = unreadEditions.slice(0, visibleUnreadCount);
   const hiddenUnreadCount = Math.max(0, unreadEditions.length - visibleUnreadEditions.length);
   const archivedReadEditions = editions.filter((edition) => readIds.has(edition.id));
-  const language = payload?.briefing.language ?? "en";
+  const language = uiLanguage;
   const pageDir = textDirection(language);
   const canStar = Boolean(payload);
   const feedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language) : "";
@@ -2085,7 +1811,22 @@ function FeedPage(props: { username: string; slug: string }) {
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : loadingFeedLabel(language)}
       feed={payload?.briefing}
       pageLanguage={language}
+      headingAction={ownedFeed ? <button className="primary-button" onClick={() => setEditorOpen(true)}><Settings size={17}/>{t("Edit feed settings")}</button> : undefined}
+      onLanguageChange={ownedFeed ? async language => {
+        try { const saved = await saveBriefing({ ...ownedFeed, language }); setOwnedFeed(saved); }
+        catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+      } : undefined}
     >
+      {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
+        const saved = await saveBriefing({ ...ownedFeed, ...input, language: preferredLanguage() });
+        if (input.interestProfile !== ownedFeed.interestProfile) {
+          try { await addSource(saved.id, input.interestProfile); }
+          catch (cause) { sessionStorage.setItem(`feed-notice:${saved.id}`, `Feed saved, but topic discovery could not be updated: ${cause instanceof Error ? cause.message : String(cause)}`); }
+        }
+        setOwnedFeed(saved); setEditorOpen(false);
+        if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
+        else await refresh();
+      }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
       {payload ? (
         <FeedSignalPanel
           briefing={payload.briefing}
@@ -2557,15 +2298,18 @@ function Shell(props: {
   onAccount?: () => void;
   onLogout?: () => Promise<void>;
   pageLanguage?: "en" | "ar" | "fr";
+  headingAction?: React.ReactNode;
+  onLanguageChange?: (language: "en" | "ar" | "fr") => void;
 }) {
+  const { language: selectedLanguage } = useLanguage();
   const titleText = props.titleText ?? (typeof props.title === "string" ? props.title : "briefing");
   const shellLanguage = props.pageLanguage ?? "en";
   const shellMode = props.feed ? "feed-shell" : props.onAccount ? "admin-shell" : "auth-shell";
   const showCreateNav = shellMode !== "auth-shell";
 
   useEffect(() => {
-    document.documentElement.lang = props.pageLanguage ?? "en";
-    document.documentElement.dir = textDirection(props.pageLanguage ?? "en");
+    document.documentElement.lang = selectedLanguage;
+    document.documentElement.dir = textDirection(selectedLanguage);
     document.title = titleText === "Distilled.news" ? "Distilled.news" : `${titleText} · Distilled.news`;
     const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     if (manifest) {
@@ -2573,16 +2317,16 @@ function Shell(props: {
         ? `/manifest.webmanifest?user=${encodeURIComponent(props.feed.ownerUsername)}&feed=${encodeURIComponent(props.feed.slug)}`
         : "/manifest.webmanifest";
     }
-  }, [props.feed, props.pageLanguage, titleText]);
+  }, [props.feed, selectedLanguage, titleText]);
 
   return (
     <main className={`shell ${shellMode}`}>
       <header>
         <div className="header-primary">
           <div className="brand-lockup">
-            <a href="/" className="brand" aria-label="Distilled.news" title="Distilled.news">
+            <div className="brand" aria-label="Distilled.news" title="Distilled.news">
               <span className="experience-brand"><BrandMark/></span>
-            </a>
+            </div>
             <a href="https://github.com/AmmarMohanna/distilled.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository" title="open GitHub repository">
               <Github size={16} aria-hidden />
             </a>
@@ -2595,6 +2339,7 @@ function Shell(props: {
             {props.feed ? <a href={`/${props.feed.ownerUsername}/${props.feed.slug}/`}>{feedNavLabel(shellLanguage)}</a> : null}
           </nav>
           <div className="header-controls">
+            <LanguageControl onChange={props.onLanguageChange}/>
             {props.onAccount ? (
               <button type="button" className="icon-button" aria-label="account settings" title="account settings" onClick={props.onAccount}>
                 <User size={16} aria-hidden />
@@ -2606,7 +2351,7 @@ function Shell(props: {
         </div>
       </header>
       <div className="page-heading">
-        <h1>{props.title}</h1>
+        <div className="page-title-row"><h1>{props.title}</h1>{props.headingAction}</div>
         <p>{props.meta ?? getPageMeta(titleText)}</p>
       </div>
       {props.children}

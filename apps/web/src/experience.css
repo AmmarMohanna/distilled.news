@@ -425,3 +425,43 @@ html[data-theme="dark"], html[data-theme="dark"] body { background: var(--page);
     margin-left: calc(-1 * clamp(24px, 5vw, 90px));
   }
 }
+
+/* Purple symbol and serif wordmark matching the supplied brand reference. */
+.experience-brand > .distilled-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  line-height: 1;
+  white-space: nowrap;
+}
+.distilled-logo-symbol {
+  display: block;
+  width: 68px;
+  aspect-ratio: 960 / 474;
+  flex-shrink: 0;
+  background: #875bd6;
+  -webkit-mask: url('/logo.svg') center / contain no-repeat;
+  mask: url('/logo.svg') center / contain no-repeat;
+}
+.distilled-logo-wordmark {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -1.3px;
+  color: var(--text);
+}
+.bottom-navigation .sidebar-logo { left: 15px; }
+.sidebar-logo .distilled-logo { gap: 4px; }
+.sidebar-logo .distilled-logo-symbol { width: 44px; }
+.sidebar-logo .distilled-logo-wordmark { font-size: 21px; letter-spacing: -1px; }
+@media (max-width: 600px) {
+  .experience-brand .distilled-logo { gap: 4px; }
+  .distilled-logo-symbol { width: 40px; }
+  .distilled-logo-wordmark { font-size: 22px; letter-spacing: -1px; }
+  .experience-header-actions { gap: 2px; }
+}
+@media (max-width: 360px) {
+  .experience-header .distilled-logo-symbol { width: 30px; }
+  .experience-header .distilled-logo-wordmark { font-size: 18px; }
+}
