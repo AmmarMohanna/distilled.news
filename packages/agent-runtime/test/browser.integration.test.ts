@@ -151,7 +151,10 @@ describe.sequential("real Chromium first vertical slice", () => {
     const strategy = new WebOperatorAcquisitionStrategy(store);
     const coordinator = new WebOperatorCoordinator({store,artifacts,browserExecutor:browser,structured:browser,visual:browser,modelGateway:gateway,strategy});
     const config = invocation(fixture.origin,"fallback");
-    config.modelRouting.roles.NAVIGATION_FAST = {primary:"fixture/fast",fallbacks:["fixture/fallback"]};
+    config.modelRouting.roles.NAVIGATION_FAST = {
+      primary:{deployment:"api",model:"fixture/fast"},
+      fallbacks:[{deployment:"api",model:"fixture/fallback"}]
+    };
     const admitted = await strategy.admitKnownCandidate(config);
     const result = await coordinator.process(admitted.run.runId,"fallback-worker");
     expect(result.status).toBe("completed");
@@ -234,7 +237,13 @@ function invocation(origin:string,suffix:string):KnownCandidateInvocation {
     tenantId:`tenant-${suffix}`,resourceId:`resource-${suffix}`,idempotencyKey:`idempotency-${suffix}`,
     objective:"Acquire the known candidate article without performing external mutations.",enabled:true,
     policy:{ id:`policy-${suffix}`,allowedOrigins:[origin],allowLoopback:true,allowedTools:allTools,visualReadPurposes:["open known candidate article"] },
-    modelRouting:{ gateway:"openrouter",roles:{ NAVIGATION_FAST:{primary:"fixture/fast",fallbacks:[]},VISION_FAST:{primary:"fixture/vision",fallbacks:[]} } },
+    modelRouting:{
+      mode:"api",apiGateway:"openrouter",selfHostedGateway:"openai_compatible",
+      roles:{
+        NAVIGATION_FAST:{primary:{deployment:"api",model:"fixture/fast"},fallbacks:[]},
+        VISION_FAST:{primary:{deployment:"api",model:"fixture/vision"},fallbacks:[]}
+      }
+    },
     modelCapabilities:capabilities
   };
 }

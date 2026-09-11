@@ -4,10 +4,13 @@ import {
   TOOL_NAMES,
   type AgentPageState,
   type BoundedActionPlan,
+  type LlmDeploymentMode,
   type ModelCapability,
+  type ModelDeployment,
   type ModelRole,
   type ModelRoute,
-  type ModelRoutingConfig
+  type ModelRoutingConfig,
+  type ModelTargetConfig
 } from "./contracts";
 import { sha256Text } from "./observations";
 
@@ -87,40 +90,108 @@ export interface ModelGateway {
 }
 
 export interface ModelRoutingEnvironment {
+  DISTILLED_LLM_MODE?: string;
+  DISTILLED_LLM_API_GATEWAY?: string;
   DISTILLED_LLM_GATEWAY?: string;
   [key: string]: string | undefined;
 }
 
 export function modelRoutingConfigFromEnv(
   environment: ModelRoutingEnvironment,
-  base: ModelRoutingConfig = { gateway: "openrouter", roles: {} }
+  base: ModelRoutingConfig = {
+    mode: "api",
+    apiGateway: "openrouter",
+    selfHostedGateway: "openai_compatible",
+    roles: {}
+  }
 ): ModelRoutingConfig {
+  const mode = parseDeploymentMode(environment.DISTILLED_LLM_MODE ?? base.mode);
+  const apiGateway = environment.DISTILLED_LLM_API_GATEWAY?.trim()
+    || environment.DISTILLED_LLM_GATEWAY?.trim()
+    || base.apiGateway
+    || "openrouter";
+  const selfHostedGateway = base.selfHostedGateway || "openai_compatible";
   const roles: ModelRoutingConfig["roles"] = { ...base.roles };
   for (const role of MODEL_ROLES) {
     const prefix = `DISTILLED_MODEL_ROLE_${role}`;
-    const primary = environment[`${prefix}_PRIMARY`] ?? roles[role]?.primary;
+    const primaryModel = environment[`${prefix}_PRIMARY`] ?? roles[role]?.primary.model;
     const fallbackJson = environment[`${prefix}_FALLBACKS_JSON`];
     let fallbacks = roles[role]?.fallbacks ?? [];
     if (fallbackJson !== undefined) {
       const parsed: unknown = JSON.parse(fallbackJson);
-      if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === "string")) {
-        throw new Error(`${prefix}_FALLBACKS_JSON must be a JSON string array`);
+      if (!Array.isArray(parsed)) {
+        throw new Error(`${prefix}_FALLBACKS_JSON must be a JSON array of deployment/model objects`);
       }
-      fallbacks = parsed;
+      fallbacks = parsed.map((value,index) => parseTarget(value, mode, `${prefix}_FALLBACKS_JSON[${index}]`));
     }
-    if (primary !== undefined) roles[role] = validateRoleRoute(role, { primary, fallbacks });
+    if (primaryModel !== undefined) {
+      const primaryDeploymentValue = environment[`${prefix}_PRIMARY_DEPLOYMENT`]
+        ?? roles[role]?.primary.deployment
+        ?? defaultDeployment(mode);
+      roles[role] = validateRoleRoute(role, {
+        primary: {
+          deployment: parseDeployment(primaryDeploymentValue, `${prefix}_PRIMARY_DEPLOYMENT`),
+          model: primaryModel
+        },
+        fallbacks
+      }, mode);
+    }
   }
   return {
-    gateway: environment.DISTILLED_LLM_GATEWAY?.trim() || base.gateway || "openrouter",
+    mode,
+    apiGateway,
+    selfHostedGateway,
     roles
   };
 }
 
-function validateRoleRoute(role: ModelRole, route: { primary: string; fallbacks: string[] }) {
-  const chain = [route.primary, ...route.fallbacks].map((value) => value.trim());
-  if (chain.some((value) => value.length === 0)) throw new Error(`${role} contains an empty model reference`);
-  if (new Set(chain).size !== chain.length) throw new Error(`${role} contains duplicate model references`);
-  return { primary: chain[0], fallbacks: chain.slice(1) };
+function parseDeploymentMode(value: string): LlmDeploymentMode {
+  const normalized = value.trim();
+  if (normalized === "api" || normalized === "self_hosted" || normalized === "hybrid") return normalized;
+  throw new Error("DISTILLED_LLM_MODE must be api, self_hosted, or hybrid");
+}
+
+function defaultDeployment(mode: LlmDeploymentMode): ModelDeployment {
+  if (mode === "hybrid") throw new Error("hybrid role targets require an explicit deployment");
+  return mode;
+}
+
+function parseDeployment(value: string, field: string): ModelDeployment {
+  const normalized = value.trim();
+  if (normalized === "api" || normalized === "self_hosted") return normalized;
+  throw new Error(`${field} must be api or self_hosted`);
+}
+
+function parseTarget(value: unknown, mode: LlmDeploymentMode, field: string): ModelTargetConfig {
+  if (typeof value === "string") {
+    return { deployment: defaultDeployment(mode), model: value };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${field} must contain deployment and model`);
+  }
+  const candidate = value as { deployment?: unknown; model?: unknown };
+  if (typeof candidate.deployment !== "string" || typeof candidate.model !== "string") {
+    throw new Error(`${field} must contain string deployment and model fields`);
+  }
+  return { deployment: parseDeployment(candidate.deployment, `${field}.deployment`), model: candidate.model };
+}
+
+function validateRoleRoute(
+  role: ModelRole,
+  route: { primary: ModelTargetConfig; fallbacks: ModelTargetConfig[] },
+  mode: LlmDeploymentMode
+) {
+  const targets = [route.primary, ...route.fallbacks].map((target) => ({
+    deployment: target.deployment,
+    model: target.model.trim()
+  }));
+  if (targets.some((target) => target.model.length === 0)) throw new Error(`${role} contains an empty model reference`);
+  const identities = targets.map((target) => `${target.deployment}:${target.model}`);
+  if (new Set(identities).size !== identities.length) throw new Error(`${role} contains duplicate model targets`);
+  if (mode !== "hybrid" && targets.some((target) => target.deployment !== mode)) {
+    throw new Error(`${role} contains a ${targets.find((target) => target.deployment !== mode)?.deployment} target in ${mode} mode`);
+  }
+  return { primary: targets[0], fallbacks: targets.slice(1) };
 }
 
 export class ModelRouter {
@@ -130,6 +201,12 @@ export class ModelRouter {
     private readonly config: ModelRoutingConfig,
     capabilities: ModelCapability[]
   ) {
+    if (!config.apiGateway.trim()) throw new Error("apiGateway must not be empty");
+    if (!config.selfHostedGateway.trim()) throw new Error("selfHostedGateway must not be empty");
+    for (const role of MODEL_ROLES) {
+      const configured = config.roles[role];
+      if (configured) validateRoleRoute(role, configured, config.mode);
+    }
     this.capabilities = new Map(capabilities.map((capability) => [capability.modelRef, capability]));
   }
 
@@ -152,11 +229,13 @@ export class ModelRouter {
   }): ModelRoute[] {
     const configured = this.config.roles[input.role];
     if (!configured) throw new Error(`no model route configured for role ${input.role}`);
-    const chain = [configured.primary, ...configured.fallbacks];
+    const targets = [configured.primary, ...configured.fallbacks];
+    const chain = targets.map((target) => target.model);
     const allowedProviders = input.allowedProviders ? new Set(input.allowedProviders) : undefined;
     const routes: ModelRoute[] = [];
     let filteredReason: string | undefined;
-    for (const [index, modelRef] of chain.entries()) {
+    for (const [index, target] of targets.entries()) {
+      const modelRef = target.model;
       const capability = this.capabilities.get(modelRef);
       const eligible =
         capability?.enabled &&
@@ -171,7 +250,9 @@ export class ModelRouter {
         routingReason: input.reason,
         requiredCapabilities: [...input.required],
         configuredChain: chain,
-        gateway: this.config.gateway || "openrouter",
+        configuredTargets: structuredClone(targets),
+        deployment: target.deployment,
+        gateway: target.deployment === "api" ? this.config.apiGateway : this.config.selfHostedGateway,
         selectedModel: modelRef,
         selectedProvider: capability.provider,
         appliedPolicyConstraints: [...(input.policyConstraints ?? [])],
@@ -227,7 +308,21 @@ export interface OpenRouterGatewayOptions {
   fetcher?: typeof fetch;
 }
 
-export function buildOpenRouterRequest(request: ModelRequest): RequestInit & { body: string } {
+export interface OpenAICompatibleGatewayOptions {
+  baseUrl: string;
+  apiKey?: string;
+  id?: string;
+  provider?: string;
+  fetcher?: typeof fetch;
+}
+
+export interface ModelGatewayEnvironment extends ModelRoutingEnvironment {
+  DISTILLED_SELF_HOSTED_BASE_URL?: string;
+  DISTILLED_SELF_HOSTED_API_KEY?: string;
+  OPENROUTER_API_KEY?: string;
+}
+
+export function buildOpenAICompatibleRequest(request: ModelRequest): RequestInit & { body: string } {
   const dynamicContent = request.visualInputs?.length
     ? [
         { type: "text", text: JSON.stringify(request.dynamic) },
@@ -237,7 +332,7 @@ export function buildOpenRouterRequest(request: ModelRequest): RequestInit & { b
   return {
     method: "POST",
     headers: {
-      authorization: `Bearer __DISTILLED_OPENROUTER_KEY__`,
+      authorization: `Bearer __DISTILLED_GATEWAY_KEY__`,
       "content-type": "application/json"
     },
     body: JSON.stringify({
@@ -289,23 +384,29 @@ export function buildOpenRouterRequest(request: ModelRequest): RequestInit & { b
   };
 }
 
-export class OpenRouterGateway implements ModelGateway {
-  readonly id = "openrouter";
+export function buildOpenRouterRequest(request: ModelRequest): RequestInit & { body: string } {
+  return buildOpenAICompatibleRequest(request);
+}
+
+export class OpenAICompatibleGateway implements ModelGateway {
+  readonly id: string;
   private readonly endpoint: string;
   private readonly fetcher: typeof fetch;
 
-  constructor(private readonly options: OpenRouterGatewayOptions) {
-    this.endpoint = options.endpoint ?? "https://openrouter.ai/api/v1/chat/completions";
+  constructor(private readonly options: OpenAICompatibleGatewayOptions) {
+    this.id = options.id ?? "openai_compatible";
+    this.endpoint = chatCompletionsEndpoint(options.baseUrl);
     this.fetcher = options.fetcher ?? fetch;
   }
 
   async complete(request: ModelRequest): Promise<ModelGatewayResult> {
     const started = Date.now();
-    const translated = buildOpenRouterRequest(request);
+    const translated = buildOpenAICompatibleRequest(request);
     const headers = new Headers(translated.headers);
-    headers.set("authorization", `Bearer ${this.options.apiKey}`);
+    if (this.options.apiKey) headers.set("authorization", `Bearer ${this.options.apiKey}`);
+    else headers.delete("authorization");
     const response = await this.fetcher(this.endpoint, { ...translated, headers });
-    if (!response.ok) throw new Error(`OpenRouter request failed: ${response.status}`);
+    if (!response.ok) throw new Error(`${this.id} request failed: ${response.status}`);
     const body = (await response.json()) as {
       id: string;
       model: string;
@@ -314,7 +415,7 @@ export class OpenRouterGateway implements ModelGateway {
       usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
     };
     const content = body.choices[0]?.message.content;
-    if (!content) throw new Error("OpenRouter returned no completed message");
+    if (!content) throw new Error(`${this.id} returned no completed message`);
     return {
       plan: boundedActionPlanSchema.parse(JSON.parse(content)) as BoundedActionPlan,
       usage: {
@@ -323,11 +424,85 @@ export class OpenRouterGateway implements ModelGateway {
         costUsd: body.usage?.cost ?? 0,
         latencyMs: Date.now() - started
       },
-      provider: body.provider ?? request.route.selectedProvider,
+      provider: body.provider ?? this.options.provider ?? request.route.selectedProvider,
       model: body.model,
       responseId: body.id
     };
   }
+}
+
+export class OpenRouterGateway extends OpenAICompatibleGateway {
+  constructor(options: OpenRouterGatewayOptions) {
+    super({
+      baseUrl: options.endpoint ?? "https://openrouter.ai/api/v1/chat/completions",
+      apiKey: options.apiKey,
+      id: "openrouter",
+      fetcher: options.fetcher
+    });
+  }
+}
+
+export class DeploymentModelGateway implements ModelGateway {
+  readonly id = "deployment_router";
+
+  constructor(
+    private readonly mode: LlmDeploymentMode,
+    private readonly gateways: Partial<Record<ModelDeployment, ModelGateway>>
+  ) {
+    if ((mode === "api" || mode === "hybrid") && !gateways.api) throw new Error(`${mode} mode requires an API gateway`);
+    if ((mode === "self_hosted" || mode === "hybrid") && !gateways.self_hosted) {
+      throw new Error(`${mode} mode requires a self-hosted gateway`);
+    }
+  }
+
+  complete(request: ModelRequest): Promise<ModelGatewayResult> {
+    const deployment = request.route.deployment;
+    if (this.mode !== "hybrid" && deployment !== this.mode) {
+      throw new Error(`${deployment} route is not permitted in ${this.mode} mode`);
+    }
+    const gateway = this.gateways[deployment];
+    if (!gateway) throw new Error(`no ${deployment} ModelGateway is configured`);
+    return gateway.complete(request);
+  }
+}
+
+export function createModelGatewayFromEnv(
+  environment: ModelGatewayEnvironment,
+  fetcher?: typeof fetch
+): DeploymentModelGateway {
+  const mode = parseDeploymentMode(environment.DISTILLED_LLM_MODE ?? "api");
+  const gateways: Partial<Record<ModelDeployment, ModelGateway>> = {};
+  if (mode === "api" || mode === "hybrid") {
+    const gateway = environment.DISTILLED_LLM_API_GATEWAY?.trim()
+      || environment.DISTILLED_LLM_GATEWAY?.trim()
+      || "openrouter";
+    if (gateway !== "openrouter") throw new Error(`unsupported hosted API gateway: ${gateway}`);
+    const apiKey = environment.OPENROUTER_API_KEY?.trim();
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY is required for api or hybrid mode");
+    gateways.api = new OpenRouterGateway({ apiKey, fetcher });
+  }
+  if (mode === "self_hosted" || mode === "hybrid") {
+    const baseUrl = environment.DISTILLED_SELF_HOSTED_BASE_URL?.trim();
+    if (!baseUrl) throw new Error("DISTILLED_SELF_HOSTED_BASE_URL is required for self_hosted or hybrid mode");
+    gateways.self_hosted = new OpenAICompatibleGateway({
+      baseUrl,
+      apiKey: environment.DISTILLED_SELF_HOSTED_API_KEY?.trim() || undefined,
+      id: "openai_compatible",
+      provider: "self_hosted",
+      fetcher
+    });
+  }
+  return new DeploymentModelGateway(mode, gateways);
+}
+
+function chatCompletionsEndpoint(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("self-hosted base URL must use http or https");
+  }
+  const path = url.pathname.replace(/\/$/, "");
+  if (!path.endsWith("/chat/completions")) url.pathname = `${path}/chat/completions`;
+  return url.toString();
 }
 
 export async function createContextManifestHash(input: {

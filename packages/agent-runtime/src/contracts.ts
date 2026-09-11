@@ -118,13 +118,23 @@ export interface ModelCapability {
   outputCostPerMillion: number;
 }
 
+export type LlmDeploymentMode = "api" | "self_hosted" | "hybrid";
+export type ModelDeployment = "api" | "self_hosted";
+
+export interface ModelTargetConfig {
+  deployment: ModelDeployment;
+  model: string;
+}
+
 export interface ModelRoleRouteConfig {
-  primary: string;
-  fallbacks: string[];
+  primary: ModelTargetConfig;
+  fallbacks: ModelTargetConfig[];
 }
 
 export interface ModelRoutingConfig {
-  gateway: string;
+  mode: LlmDeploymentMode;
+  apiGateway: string;
+  selfHostedGateway: string;
   roles: Partial<Record<ModelRole, ModelRoleRouteConfig>>;
 }
 
@@ -147,6 +157,8 @@ export interface ModelRoute {
   routingReason: string;
   requiredCapabilities: string[];
   configuredChain: string[];
+  configuredTargets: ModelTargetConfig[];
+  deployment: ModelDeployment;
   gateway: string;
   selectedModel: string;
   selectedProvider: string;

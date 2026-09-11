@@ -4,30 +4,42 @@ The canonical model-routing configuration is structured data. Distilled resolves
 
 ```json
 {
-  "gateway": "openrouter",
+  "mode": "hybrid",
+  "apiGateway": "openrouter",
+  "selfHostedGateway": "openai_compatible",
   "roles": {
     "NAVIGATION_FAST": {
-      "primary": "provider/model-a",
-      "fallbacks": ["provider/model-b", "provider/model-c"]
+      "primary": { "deployment": "self_hosted", "model": "local/navigation" },
+      "fallbacks": [
+        { "deployment": "self_hosted", "model": "local/navigation-fallback" },
+        { "deployment": "api", "model": "provider/hosted-fallback" }
+      ]
     },
     "VISION_FAST": {
-      "primary": "provider/vision-a",
-      "fallbacks": ["provider/vision-b"]
+      "primary": { "deployment": "api", "model": "provider/vision-a" },
+      "fallbacks": [{ "deployment": "api", "model": "provider/vision-b" }]
     }
   }
 }
 ```
 
-Every configured role uses exactly one non-empty `primary` model reference and an ordered `fallbacks` array. Model and provider names are deployment data, not runtime constants. The default configurable gateway is `openrouter`.
+Every configured role uses exactly one non-empty `primary` target and an ordered `fallbacks` array. A target contains `deployment: "api" | "self_hosted"` and `model`. `api` mode accepts only API targets, `self_hosted` accepts only self-hosted targets, and `hybrid` permits both in the configured order. Model and provider names are deployment data, not runtime constants. The hosted API gateway defaults to `openrouter`; the self-hosted gateway depends only on an OpenAI-compatible `/chat/completions` contract.
+
+The runtime dependency chain remains `AgentRuntime -> ModelRouter -> ModelGateway`. `DeploymentModelGateway` selects an API or self-hosted `ModelGateway` from the durable route; no deployment conditional exists in the agent loop. Credentials and endpoint URLs are not part of the durable model-role mapping.
 
 Environment overrides are unambiguous and per role:
 
 ```text
-DISTILLED_LLM_GATEWAY=openrouter
+DISTILLED_LLM_MODE=api|self_hosted|hybrid
+DISTILLED_LLM_API_GATEWAY=openrouter
+OPENROUTER_API_KEY=...
+DISTILLED_SELF_HOSTED_BASE_URL=http://inference.internal/v1
+DISTILLED_SELF_HOSTED_API_KEY=...
 DISTILLED_MODEL_ROLE_<MODEL_ROLE>_PRIMARY=provider/model-a
-DISTILLED_MODEL_ROLE_<MODEL_ROLE>_FALLBACKS_JSON=["provider/model-b","provider/model-c"]
+DISTILLED_MODEL_ROLE_<MODEL_ROLE>_PRIMARY_DEPLOYMENT=api|self_hosted
+DISTILLED_MODEL_ROLE_<MODEL_ROLE>_FALLBACKS_JSON=[{"deployment":"api","model":"provider/model-b"},{"deployment":"self_hosted","model":"local/model-c"}]
 ```
 
-`<MODEL_ROLE>` is one of `NAVIGATION_FAST`, `EXTRACTION_FAST`, `VISION_FAST`, `REASONING_STANDARD`, `REASONING_STRONG`, `VISION_STRONG`, `ADAPTER_REPAIR`, or `SEMANTIC_VERIFIER`. An override for the fallback chain must be a JSON string array. Empty entries and duplicate model references are rejected.
+`<MODEL_ROLE>` is one of `NAVIGATION_FAST`, `EXTRACTION_FAST`, `VISION_FAST`, `REASONING_STANDARD`, `REASONING_STRONG`, `VISION_STRONG`, `ADAPTER_REPAIR`, or `SEMANTIC_VERIFIER`. In non-hybrid modes a fallback JSON string may use the mode's implicit deployment for backwards-compatible environment input; the canonical format is the explicit object array above, and hybrid requires it. Empty entries, duplicate deployment/model targets, malformed arrays, and targets inconsistent with the selected mode are rejected.
 
 The implemented slice keeps stable instructions separate from dynamic `AgentPageState`, observation-delta, budget, challenge, progress, completion-deficit, and capability data. A model response is a schema-validated plan of one to five actions. The deterministic controller decides whether each next action can continue without another model call. Exact response reuse is deliberately disabled; the immutable context-manifest hash and `allowExactReuse` seam exist for a later proof of safe reuse.

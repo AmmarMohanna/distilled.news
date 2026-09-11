@@ -7,6 +7,8 @@ import {
   InvalidTransitionError,
   MemoryArtifactStore,
   MemoryRuntimeStore,
+  DeploymentModelGateway,
+  OpenAICompatibleGateway,
   buildOpenRouterRequest,
   makeId,
   ModelRouter,
@@ -14,6 +16,7 @@ import {
   StaleGenerationError,
   WebOperatorAcquisitionStrategy,
   boundedActionPlanSchema,
+  createModelGatewayFromEnv,
   createObservationEnvelope,
   diffPageState,
   modelRoutingConfigFromEnv,
@@ -22,7 +25,10 @@ import {
   transitionToolCall,
   validateToolArguments,
   type AgentPageState,
-  type ModelCapability
+  type KnownCandidateInvocation,
+  type ModelCapability,
+  type ModelGateway,
+  type ModelRequest
 } from "../src";
 
 const capabilities: ModelCapability[] = [
@@ -82,9 +88,11 @@ describe("budget kernel", () => {
 describe("model routing", () => {
   it("uses explicit primary/fallback fields and preserves fallback order", () => {
     const config = modelRoutingConfigFromEnv({
-      DISTILLED_LLM_GATEWAY: "openrouter",
+      DISTILLED_LLM_MODE: "hybrid",
+      DISTILLED_LLM_API_GATEWAY: "openrouter",
       DISTILLED_MODEL_ROLE_VISION_FAST_PRIMARY: "provider/text",
-      DISTILLED_MODEL_ROLE_VISION_FAST_FALLBACKS_JSON: '["provider/vision"]'
+      DISTILLED_MODEL_ROLE_VISION_FAST_PRIMARY_DEPLOYMENT: "api",
+      DISTILLED_MODEL_ROLE_VISION_FAST_FALLBACKS_JSON: '[{"deployment":"self_hosted","model":"provider/vision"}]'
     });
     const route = new ModelRouter(config, capabilities).resolve({
       role: "VISION_FAST",
@@ -92,6 +100,12 @@ describe("model routing", () => {
       required: ["vision", "toolCalling", "structuredOutput"]
     });
     expect(route.configuredChain).toEqual(["provider/text", "provider/vision"]);
+    expect(route.configuredTargets).toEqual([
+      {deployment:"api",model:"provider/text"},
+      {deployment:"self_hosted",model:"provider/vision"}
+    ]);
+    expect(route.deployment).toBe("self_hosted");
+    expect(route.gateway).toBe("openai_compatible");
     expect(route.selectedModel).toBe("provider/vision");
     expect(route.fallbackReason).toContain("provider/text");
   });
@@ -100,17 +114,86 @@ describe("model routing", () => {
     expect(() => modelRoutingConfigFromEnv({
       DISTILLED_MODEL_ROLE_NAVIGATION_FAST_PRIMARY: "provider/text",
       DISTILLED_MODEL_ROLE_NAVIGATION_FAST_FALLBACKS_JSON: '"provider/vision"'
-    })).toThrow(/JSON string array/);
+    })).toThrow(/JSON array/);
     expect(() => modelRoutingConfigFromEnv({
       DISTILLED_MODEL_ROLE_NAVIGATION_FAST_PRIMARY: "provider/text",
-      DISTILLED_MODEL_ROLE_NAVIGATION_FAST_FALLBACKS_JSON: '["provider/text"]'
+      DISTILLED_MODEL_ROLE_NAVIGATION_FAST_FALLBACKS_JSON: '[{"deployment":"api","model":"provider/text"}]'
     })).toThrow(/duplicate/);
+    expect(() => modelRoutingConfigFromEnv({
+      DISTILLED_LLM_MODE:"hybrid",
+      DISTILLED_MODEL_ROLE_NAVIGATION_FAST_PRIMARY:"provider/text"
+    })).toThrow(/explicit deployment/);
+    expect(() => modelRoutingConfigFromEnv({
+      DISTILLED_LLM_MODE:"api",
+      DISTILLED_MODEL_ROLE_NAVIGATION_FAST_PRIMARY:"provider/text",
+      DISTILLED_MODEL_ROLE_NAVIGATION_FAST_PRIMARY_DEPLOYMENT:"self_hosted"
+    })).toThrow(/target in api mode/);
   });
 
   it("returns eligible execution fallbacks in configured order", () => {
-    const routes = new ModelRouter({ gateway:"openrouter",roles:{ NAVIGATION_FAST:{primary:"provider/text",fallbacks:["provider/vision"]} } }, capabilities)
+    const routes = new ModelRouter({
+      mode:"hybrid",apiGateway:"openrouter",selfHostedGateway:"openai_compatible",
+      roles:{ NAVIGATION_FAST:{
+        primary:{deployment:"self_hosted",model:"provider/text"},
+        fallbacks:[{deployment:"api",model:"provider/vision"}]
+      } }
+    }, capabilities)
       .resolveCandidates({ role:"NAVIGATION_FAST",reason:"reliability",required:["toolCalling","structuredOutput"] });
     expect(routes.map((route) => route.selectedModel)).toEqual(["provider/text","provider/vision"]);
+    expect(routes.map((route) => route.deployment)).toEqual(["self_hosted","api"]);
+    expect(routes.map((route) => route.gateway)).toEqual(["openai_compatible","openrouter"]);
+  });
+
+  it.each([
+    ["api", "api", "openrouter"],
+    ["self_hosted", "self_hosted", "openai_compatible"]
+  ] as const)("routes %s mode through its configured deployment gateway", (mode,deployment,gateway) => {
+    const config = modelRoutingConfigFromEnv({
+      DISTILLED_LLM_MODE:mode,
+      DISTILLED_MODEL_ROLE_NAVIGATION_FAST_PRIMARY:"provider/text"
+    });
+    const route = new ModelRouter(config,capabilities).resolve({
+      role:"NAVIGATION_FAST",reason:"mode check",required:["toolCalling","structuredOutput"]
+    });
+    expect(route.deployment).toBe(deployment);
+    expect(route.gateway).toBe(gateway);
+  });
+
+  it("keeps deployment selection behind ModelGateway and speaks the OpenAI-compatible contract", async () => {
+    const calls: Array<{url:string;authorization:string | null;body:unknown}> = [];
+    const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({
+        url:String(input),
+        authorization:new Headers(init?.headers).get("authorization"),
+        body:JSON.parse(String(init?.body))
+      });
+      return new Response(JSON.stringify({
+        id:"self-1",model:"provider/text",choices:[{message:{content:JSON.stringify({version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]})}}],
+        usage:{prompt_tokens:12,completion_tokens:5}
+      }),{status:200,headers:{"content-type":"application/json"}});
+    }) as typeof fetch;
+    const selfHosted = new OpenAICompatibleGateway({baseUrl:"http://inference.internal/v1",apiKey:"internal-test-key",fetcher});
+    const api = recordingGateway("api-recorder");
+    const gateway = new DeploymentModelGateway("hybrid",{api,self_hosted:selfHosted});
+    const result = await gateway.complete(modelRequest({deployment:"self_hosted",gateway:"openai_compatible"}));
+    expect(result.plan.actions).toHaveLength(1);
+    expect(calls).toEqual([expect.objectContaining({
+      url:"http://inference.internal/v1/chat/completions",
+      authorization:"Bearer internal-test-key"
+    })]);
+    expect(api.requests).toHaveLength(0);
+  });
+
+  it("builds API, self-hosted, and hybrid gateway compositions from environment only", () => {
+    expect(createModelGatewayFromEnv({DISTILLED_LLM_MODE:"api",OPENROUTER_API_KEY:"test"}).id).toBe("deployment_router");
+    expect(createModelGatewayFromEnv({
+      DISTILLED_LLM_MODE:"self_hosted",DISTILLED_SELF_HOSTED_BASE_URL:"http://inference.internal/v1"
+    }).id).toBe("deployment_router");
+    expect(createModelGatewayFromEnv({
+      DISTILLED_LLM_MODE:"hybrid",OPENROUTER_API_KEY:"test",
+      DISTILLED_SELF_HOSTED_BASE_URL:"http://inference.internal/v1"
+    }).id).toBe("deployment_router");
+    expect(() => createModelGatewayFromEnv({DISTILLED_LLM_MODE:"self_hosted"})).toThrow(/SELF_HOSTED_BASE_URL/);
   });
 });
 
@@ -118,16 +201,19 @@ describe("durable admission and fencing", () => {
   it("deduplicates admission, persists configuration, rejects concurrent delivery, and fences a stale generation", async () => {
     const store = new MemoryRuntimeStore();
     const strategy = new WebOperatorAcquisitionStrategy(store);
-    const input = {
+    const input: KnownCandidateInvocation = {
       tenantId:"tenant",resourceId:"resource",idempotencyKey:"stable-key",objective:"Acquire known candidate",enabled:true,
       policy:{id:"policy",allowedOrigins:["https://fixture.test"],allowLoopback:false,allowedTools:["browser.navigate@1" as const],visualReadPurposes:[]},
-      modelRouting:{gateway:"openrouter",roles:{NAVIGATION_FAST:{primary:"provider/text",fallbacks:[]}}},modelCapabilities:capabilities
+      modelRouting:{
+        mode:"api",apiGateway:"openrouter",selfHostedGateway:"openai_compatible",
+        roles:{NAVIGATION_FAST:{primary:{deployment:"api",model:"provider/text"},fallbacks:[]}}
+      },modelCapabilities:capabilities
     };
     const first = await strategy.admitKnownCandidate(input,new Date("2026-01-01T00:00:00Z"));
     const duplicate = await strategy.admitKnownCandidate(input,new Date("2026-01-01T00:00:01Z"));
     expect(first.created).toBe(true);
     expect(duplicate.created).toBe(false);
-    expect(await store.getRunConfiguration(first.run.runId)).toMatchObject({ policy:{id:"policy"},modelRouting:{gateway:"openrouter"} });
+    expect(await store.getRunConfiguration(first.run.runId)).toMatchObject({ policy:{id:"policy"},modelRouting:{mode:"api",apiGateway:"openrouter"} });
 
     const lease = await store.acquireLease(first.run.runId,"worker-a",10_000,new Date("2026-01-01T00:00:02Z"));
     expect(lease?.generation).toBe(1);
@@ -203,7 +289,11 @@ describe("observations and completion", () => {
   it("builds an OpenRouter structured-output request without making a network call", () => {
     const request = buildOpenRouterRequest({
       callId:"call",role:"NAVIGATION_FAST",
-      route:{role:"NAVIGATION_FAST",routingReason:"test",requiredCapabilities:["toolCalling"],configuredChain:["provider/text"],gateway:"openrouter",selectedModel:"provider/text",selectedProvider:"provider",appliedPolicyConstraints:[]},
+      route:{
+        role:"NAVIGATION_FAST",routingReason:"test",requiredCapabilities:["toolCalling"],configuredChain:["provider/text"],
+        configuredTargets:[{deployment:"api",model:"provider/text"}],deployment:"api",gateway:"openrouter",
+        selectedModel:"provider/text",selectedProvider:"provider",appliedPolicyConstraints:[]
+      },
       stable:{version:"v1",system:"stable",toolSchemaVersion:"v1"},
       dynamic:{runId:"run",objective:"objective",pageState:pageState("https://fixture.test","r1"),observationIds:[],completionDeficits:[]},
       contextManifestHash:"hash",allowExactReuse:false
@@ -256,4 +346,35 @@ function pageState(url: string, revision: string): AgentPageState {
     remainingBudget: DEFAULT_SLICE_BUDGET,
     policyVisibleCapabilities: []
   });
+}
+
+function recordingGateway(id: string): ModelGateway & { requests: ModelRequest[] } {
+  const requests: ModelRequest[] = [];
+  return {
+    id,
+    requests,
+    async complete(request) {
+      requests.push(request);
+      return {
+        plan:{version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]},
+        usage:{inputTokens:1,outputTokens:1,costUsd:0,latencyMs:1},
+        provider:id,model:request.route.selectedModel,responseId:`${id}-1`
+      };
+    }
+  };
+}
+
+function modelRequest(route: {deployment:"api" | "self_hosted";gateway:string}): ModelRequest {
+  return {
+    callId:"call",role:"NAVIGATION_FAST",
+    route:{
+      role:"NAVIGATION_FAST",routingReason:"gateway test",requiredCapabilities:["toolCalling"],
+      configuredChain:["provider/text"],configuredTargets:[{deployment:route.deployment,model:"provider/text"}],
+      deployment:route.deployment,gateway:route.gateway,selectedModel:"provider/text",selectedProvider:"provider",
+      appliedPolicyConstraints:[]
+    },
+    stable:{version:"v1",system:"stable",toolSchemaVersion:"v1"},
+    dynamic:{runId:"run",objective:"objective",pageState:pageState("https://fixture.test","r1"),observationIds:[],completionDeficits:[]},
+    contextManifestHash:"hash",allowExactReuse:false
+  };
 }
