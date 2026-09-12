@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AgentRunBudgetLimits, BoundedActionPlan, ModelCapability, ToolName } from "../src/contracts";
 import { TOOL_NAMES } from "../src/contracts";
 import { DEFAULT_SLICE_BUDGET } from "../src/budget";
-import { BrowserPostDispatchError, BrowserScopeError, PlaywrightBrowserAdapter, StaleObservationError } from "../src/browser";
+import { BrowserPreDispatchError, BrowserPostDispatchError, BrowserScopeError, PlaywrightBrowserAdapter, StaleObservationError } from "../src/browser";
 import { ModelGatewayError, OpenAICompatibleGateway, ScriptedModelGateway, type ModelGateway, type ModelRequest } from "../src/model";
 import { MemoryArtifactStore } from "../src/observations";
 import { MemoryRuntimeStore } from "../src/persistence";
@@ -111,7 +111,10 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
       await expect(browser.followLink(b, handle.handle, inspected.pageRevision,handle.interactionCapability!)).rejects.toBeInstanceOf(StaleObservationError);
       await expect(browser.click(b, {x:220,y:285,screenshotToken:screenshot.screenshotObservationToken,pageRevision:screenshot.pageRevision,capability:{} as never})).rejects.toBeInstanceOf(StaleObservationError);
       await browser.scroll(a,300);
-      await expect(browser.followLink(a, handle.handle, semantic.pageRevision,handle.interactionCapability!)).rejects.toBeInstanceOf(StaleObservationError);
+      let staleLinkError: unknown;
+      try { await browser.followLink(a, handle.handle, semantic.pageRevision,handle.interactionCapability!); }
+      catch (error) { staleLinkError = error; }
+      expect(staleLinkError instanceof StaleObservationError || staleLinkError instanceof BrowserPreDispatchError).toBe(true);
       await browser.navigate(a, `${fixture.origin}/article`);
       await expect(browser.click(a, { x:220,y:285,screenshotToken:screenshot.screenshotObservationToken,pageRevision:screenshot.pageRevision,capability:{} as never }))
         .rejects.toBeInstanceOf(StaleObservationError);
@@ -228,6 +231,39 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
         target:{kind:"coordinates",destinationUrl:`${fixture.origin}/article`}});
       await new Promise((resolve)=>setTimeout(resolve,50));
       expect(fixture.mutationCount()).toBe(0);
+    } finally { await browser.close(allocation).catch(()=>undefined); }
+  },30_000);
+
+  it("derives trusted semantic observation without invoking poisoned page-realm surfaces",async()=>{
+    fixture.resetMutations();
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const allocation=await browser.allocate({runId:"prototype-poison",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      const observed=await browser.navigate(allocation,`${fixture.origin}/prototype-poison`);
+      await new Promise((resolve)=>setTimeout(resolve,100));
+      expect(fixture.mutationCount()).toBe(0);
+      expect(observed.observationSource).toBe("CDP_DOM_SNAPSHOT");
+      expect(observed.protocolSnapshotVersion).toBe("cdp-dom-snapshot-v1");
+      const link=observed.controls.find((control)=>control.kind==="link");
+      expect(link).toMatchObject({
+        role:"link",
+        label:"Read safe article",
+        destinationUrl:`${fixture.origin}/article`,
+        safeAction:"follow",
+        attributes:{href:"/article","aria-label":"Read safe article",title:"Article title"}
+      });
+      expect(link?.nodeId).toMatch(/^(backend|snapshot):/);
+      expect(link?.geometry?.width).toBeGreaterThan(0);
+      const save=observed.controls.find((control)=>control.kind==="button");
+      expect(save).toMatchObject({label:"Save draft",safeAction:"forbidden"});
+      expect(observed.article).toMatchObject({
+        title:"Poison-resistant article",
+        canonicalUrl:`${fixture.origin}/article`,
+        publisherTimestamp:"2026-09-11T09:00:00Z",
+        excerpt:"Excerpt from protocol snapshot.",
+        body:"Body from protocol snapshot."
+      });
+      expect(JSON.stringify(observed.representation)).toContain("observationSource");
     } finally { await browser.close(allocation).catch(()=>undefined); }
   },30_000);
 

@@ -142,6 +142,31 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       </script>`));
       return;
     }
+    if (url.pathname === "/prototype-poison") {
+      response.end(page("Prototype poison", `<main style="height:1200px">
+        <a id="safe" href="/article" aria-label="Read safe article" title="Article title" style="position:absolute;left:40px;top:80px;width:180px;height:40px">Read safe article</a>
+        <button id="mutating" title="Save draft">Save draft</button>
+        <article>
+          <h1>Poison-resistant article</h1>
+          <time datetime="2026-09-11T09:00:00Z">September 11</time>
+          <p data-excerpt>Excerpt from protocol snapshot.</p>
+          <div data-article-body>Body from protocol snapshot.</div>
+        </article>
+        <link rel="canonical" href="${url.origin}/article">
+      </main><script>
+        const mutate = () => { fetch('/mutate').catch(() => {}); return ''; };
+        String.prototype.toLowerCase = function () { mutate(); return 'a'; };
+        String.prototype.trim = function () { mutate(); return String(this); };
+        Array.prototype.map = function () { mutate(); return []; };
+        document.elementFromPoint = () => { mutate(); return document.querySelector('#safe'); };
+        Element.prototype.getAttribute = function () { mutate(); return ''; };
+        Element.prototype.matches = function () { mutate(); return false; };
+        Object.defineProperty(HTMLElement.prototype, 'innerText', { get() { mutate(); return ''; } });
+        EventTarget.prototype.addEventListener = function () { mutate(); };
+        EventTarget.prototype.dispatchEvent = function () { mutate(); return false; };
+      </script>`));
+      return;
+    }
     if (url.pathname === "/login") { response.end(page("Sign in", `<form><input type="password"><button>Sign in</button></form>`)); return; }
     if (url.pathname === "/session-expired") { response.end(page("Session", `<main>Your session has expired. Please sign in again.</main>`)); return; }
     if (url.pathname === "/mfa") { response.end(page("Verification", `<label>Verification code<input autocomplete="one-time-code"></label>`)); return; }

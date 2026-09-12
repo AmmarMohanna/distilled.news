@@ -583,6 +583,8 @@ export class ToolDispatcher {
       representationType,
       rawBytes: output.raw,
       modelRepresentation: output.representation,
+      observationSource: output.observationSource,
+      protocolSnapshotVersion: output.protocolSnapshotVersion,
       redactions: []
     });
     output.controls = await this.options.browserExecutor.bindObservationCapabilities(input.state.allocation,{

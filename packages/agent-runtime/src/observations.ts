@@ -52,6 +52,8 @@ export interface EnvelopeInput {
   rawBytes: Uint8Array;
   modelRepresentation: unknown;
   maxPresentedBytes?: number;
+  observationSource?: ObservationEnvelope["observationSource"];
+  protocolSnapshotVersion?: string;
   redactions?: string[];
   retrievedAt?: string;
 }
@@ -95,6 +97,9 @@ export async function createObservationEnvelope(store: ArtifactStore, input: Env
     presentedSize: presentedBytes.byteLength,
     truncated,
     transformationVersion: "observation-sanitize-v1",
+    observationSource: input.observationSource,
+    protocolSnapshotVersion: input.protocolSnapshotVersion,
+    boundedProjectionHash: presented.hash,
     redactions: [...(input.redactions ?? [])],
     modelRepresentation: JSON.parse(presentedText)
   };

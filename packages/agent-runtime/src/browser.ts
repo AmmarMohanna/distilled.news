@@ -28,6 +28,8 @@ export interface BrowserObservationData {
   contentType: string;
   raw: Uint8Array;
   representation: unknown;
+  observationSource: "CDP_DOM_SNAPSHOT" | "CDP_ACCESSIBILITY_TREE" | "CDP_SCREENSHOT";
+  protocolSnapshotVersion: string;
   controls: SemanticControl[];
   challengeState: ChallengeState;
   httpStatus?: number;
@@ -117,6 +119,53 @@ interface LiveSession {
   httpRequestCount: number;
 }
 
+interface BrowserObservationProvider {
+  capture(live: LiveSession, image?: boolean): Promise<TrustedBrowserObservation>;
+}
+
+interface TrustedBrowserObservation {
+  url: string;
+  title: string;
+  pageRevision: string;
+  contentType: string;
+  raw: Uint8Array;
+  controls: SemanticControl[];
+  visibleText: string;
+  markup: string;
+  watermarkObserved: boolean;
+  article?: BrowserObservationData["article"];
+  observationSource: BrowserObservationData["observationSource"];
+  protocolSnapshotVersion: string;
+}
+
+interface SnapshotDocument {
+  documentURL?: number;
+  title?: number;
+  baseURL?: number;
+  nodes: {
+    parentIndex?: number[];
+    nodeName: number[];
+    nodeValue: number[];
+    backendNodeId?: number[];
+    attributes?: number[][];
+  };
+  layout?: {
+    nodeIndex: number[];
+    bounds?: number[][];
+  };
+}
+
+interface DomNodeSnapshot {
+  index: number;
+  parent: number;
+  name: string;
+  value: string;
+  backendNodeId?: number;
+  attributes: Map<string, string>;
+  children: number[];
+  geometry?: { x: number; y: number; width: number; height: number };
+}
+
 const READ_ONLY_BROWSER_METHODS = new Set(["GET", "HEAD"]);
 const MAX_HTTP_REQUESTS_PER_SESSION = 200;
 const ACTIVE_TRANSPORT_HARDENING = `(() => {
@@ -154,6 +203,7 @@ export class PlaywrightBrowserAdapter
   implements BrowserExecutorPort, StructuredBrowserUsePort, VisualComputerUsePort
 {
   private readonly sessions = new Map<string, LiveSession>();
+  private readonly observationProvider: BrowserObservationProvider = new CdpBrowserObservationProvider();
 
   constructor(private readonly options: { testOnlyPrivateNetwork?: true } = {}) {
     if (options.testOnlyPrivateNetwork && (typeof process === "undefined" || process.env.NODE_ENV !== "test")) {
@@ -508,8 +558,12 @@ export class PlaywrightBrowserAdapter
   }
 
   private async revision(live: LiveSession) {
-    const state = await this.viewportState(live);
-    return sha256Text(`${live.page.url()}\n${JSON.stringify(state)}\n${await live.page.content()}`);
+    const snapshot = await live.cdp.send("DOMSnapshot.captureSnapshot", {
+      computedStyles: [],
+      includeDOMRects: false,
+      includePaintOrder: false
+    }) as { documents: SnapshotDocument[]; strings: string[] };
+    return snapshotRevision(live.page.url(), snapshot.documents[0], snapshot.strings);
   }
 
   private async viewportState(live: LiveSession) {
@@ -613,99 +667,320 @@ export class PlaywrightBrowserAdapter
     kind: "dom" | "accessibility" | "page_state" | "screenshot" | "article",
     image = false
   ): Promise<BrowserObservationData> {
-    const page = live.page;
-    const url = page.url();
-    const title = await page.title();
-    const html = await page.content();
-    const pageRevision = await this.revision(live);
-    const controls: SemanticControl[] = [];
     live.handles.clear();
     live.capabilities.clear();
-    const elements = page.locator("a,button,input,select,textarea");
-    const count = Math.min(await elements.count(), 40);
-    for (let index = 0; index < count; index += 1) {
-      const element = elements.nth(index);
-      if (!(await element.isVisible().catch(() => false))) continue;
-      if ((await element.getAttribute("aria-hidden")) === "true") continue;
-      const tag = await element.evaluate((node) => node.tagName.toLowerCase());
-      const label = (
-        (await element.getAttribute("aria-label")) ??
-        (await element.getAttribute("title")) ??
-        (await element.getAttribute("placeholder")) ??
-        (await element.innerText().catch(() => ""))
-      ).trim();
-      const handle = makeId("handle", live.scope.sessionId, pageRevision, index, label);
-      const destinationUrl = tag === "a" ? await element.getAttribute("href").then((href) => href ? new URL(href,url).toString() : undefined) : undefined;
-      const isDownload = tag === "a" && (await element.getAttribute("download")) !== null;
-      const target = tag === "a" ? await element.getAttribute("target") : null;
-      const opensNewContext = Boolean(target && target.toLowerCase() !== "_self");
-      const destinationAllowed = destinationUrl
-        ? await this.isRequestAllowed(live,destinationUrl) && !isDownload && !opensNewContext
+    const observed = await this.observationProvider.capture(live, image);
+    const controls: SemanticControl[] = [];
+    for (const [index, control] of observed.controls.entries()) {
+      const destinationAllowed = control.destinationUrl
+        ? await this.isRequestAllowed(live, control.destinationUrl) && control.safeAction === "follow"
         : false;
-      live.handles.set(handle, { index, revision: pageRevision, destinationUrl:destinationAllowed ? destinationUrl : undefined });
+      const handle = makeId("handle", live.scope.sessionId, observed.pageRevision, index, control.label);
+      live.handles.set(handle, {
+        index,
+        revision: observed.pageRevision,
+        destinationUrl: destinationAllowed ? control.destinationUrl : undefined
+      });
       controls.push({
+        ...control,
         handle,
-        kind: tag === "a" ? "link" : tag === "button" ? "button" : tag === "input" ? "input" : "other",
-        label: label.slice(0, 160),
-        destinationUrl:destinationAllowed ? destinationUrl : undefined,
-        safeAction: /publish|send|buy|delete|save/i.test(label) ? "forbidden" : tag === "a" && destinationAllowed ? "follow" : "unknown"
+        destinationUrl: destinationAllowed ? control.destinationUrl : undefined,
+        safeAction: /publish|send|buy|delete|save/i.test(control.label)
+          ? "forbidden"
+          : control.kind === "link" && destinationAllowed
+            ? "follow"
+            : control.safeAction === "forbidden"
+              ? "forbidden"
+              : "unknown"
       });
     }
-    const bodyText = await page.locator("body").innerText().catch(() => "");
     const challengeState = classifyBrowserChallenge({
-      url,
-      title,
-      bodyText,
-      markup: html,
+      url: observed.url,
+      title: observed.title,
+      bodyText: observed.visibleText,
+      markup: observed.markup,
       httpStatus: live.lastMainDocumentStatus
     });
-    const watermarkObserved = (await page.locator("[data-watermark-observed='true']").count()) > 0;
-    let article: BrowserObservationData["article"];
-    const articleLocator = page.locator("article").first();
-    if ((await articleLocator.count()) > 0) {
-      const articleTitle = (await articleLocator.locator("h1").first().innerText().catch(() => "")).trim();
-      const canonicalUrl = (await page.locator("link[rel='canonical']").getAttribute("href")) ?? url;
-      const publisherTimestamp = (await articleLocator.locator("time").getAttribute("datetime")) ?? "";
-      const body = (await articleLocator.locator("[data-article-body]").innerText().catch(() => bodyText)).trim();
-      const excerpt = (await articleLocator.locator("[data-excerpt]").innerText().catch(() => body.slice(0, 180))).trim();
-      article = { title: articleTitle, canonicalUrl, publisherTimestamp, excerpt, body };
-    }
     const representation = {
-      url,
-      title,
+      url: observed.url,
+      title: observed.title,
       controls,
       challengeState,
       httpStatus: live.lastMainDocumentStatus,
-      watermarkObserved,
-      article: article
+      watermarkObserved: observed.watermarkObserved,
+      observationSource: observed.observationSource,
+      protocolSnapshotVersion: observed.protocolSnapshotVersion,
+      article: observed.article
         ? {
-            title: article.title,
-            canonicalUrl: article.canonicalUrl,
-            publisherTimestamp: article.publisherTimestamp,
-            excerpt: article.excerpt,
-            body: article.body.slice(0, 4_000)
+            title: observed.article.title,
+            canonicalUrl: observed.article.canonicalUrl,
+            publisherTimestamp: observed.article.publisherTimestamp,
+            excerpt: observed.article.excerpt,
+            body: observed.article.body.slice(0, 4_000)
           }
         : undefined,
-      visibleText: bodyText.slice(0, 4_000)
+      visibleText: observed.visibleText.slice(0, 4_000)
     };
-    const raw = image ? await page.screenshot({ type: "png" }) : new TextEncoder().encode(html);
     return {
-      url,
-      finalUrl: url,
-      title,
+      url: observed.url,
+      finalUrl: observed.url,
+      title: observed.title,
       pageId: live.scope.pageId,
-      pageRevision,
-      contentType: image ? "image/png" : "text/html",
-      raw,
+      pageRevision: observed.pageRevision,
+      contentType: observed.contentType,
+      raw: observed.raw,
       representation,
+      observationSource: observed.observationSource,
+      protocolSnapshotVersion: observed.protocolSnapshotVersion,
       controls,
       challengeState,
-      watermarkObserved,
-      article
+      watermarkObserved: observed.watermarkObserved,
+      article: observed.article
     };
   }
 
   private async isRequestAllowed(live: LiveSession,value:string) { try { await this.assertRequestAllowed(live,value); return true; } catch { return false; } }
+}
+
+class CdpBrowserObservationProvider implements BrowserObservationProvider {
+  async capture(live: LiveSession, image = false): Promise<TrustedBrowserObservation> {
+    const snapshot = await live.cdp.send("DOMSnapshot.captureSnapshot", {
+      computedStyles: ["display", "visibility", "opacity"],
+      includeDOMRects: true,
+      includePaintOrder: false
+    }) as { documents: SnapshotDocument[]; strings: string[] };
+    const ax = await live.cdp.send("Accessibility.getFullAXTree", {}) as {
+      nodes?: Array<{
+        backendDOMNodeId?: number;
+        role?: { value?: string };
+        name?: { value?: string };
+      }>;
+    };
+    const document = snapshot.documents[0];
+    if (!document) throw new BrowserPreDispatchError("browser protocol snapshot did not include a document");
+    const nodes = buildNodeTree(document, snapshot.strings);
+    const axByBackend = new Map<number, { role?: string; name?: string }>();
+    for (const node of ax.nodes ?? []) {
+      if (typeof node.backendDOMNodeId === "number") {
+        axByBackend.set(node.backendDOMNodeId, {
+          role: typeof node.role?.value === "string" ? node.role.value : undefined,
+          name: typeof node.name?.value === "string" ? node.name.value : undefined
+        });
+      }
+    }
+    const pageUrl = stringAt(snapshot.strings, document.documentURL) || live.page.url();
+    const baseUrl = stringAt(snapshot.strings, document.baseURL) || pageUrl;
+    const title = stringAt(snapshot.strings, document.title) || textOf(firstByName(nodes, "title"), nodes);
+    const visibleText = collapseWhitespace(textOf(firstByName(nodes, "body"), nodes));
+    const controls = discoverControls(nodes, axByBackend, pageUrl, baseUrl);
+    const article = discoverArticle(nodes, pageUrl, baseUrl, visibleText);
+    const watermarkObserved = [...nodes.values()].some((node) => node.attributes.get("data-watermark-observed") === "true");
+    const protocolSnapshotVersion = "cdp-dom-snapshot-v1";
+    const pageRevision = await snapshotRevision(pageUrl, document, snapshot.strings);
+    const raw = image
+      ? await live.page.screenshot({ type: "png" })
+      : new TextEncoder().encode(JSON.stringify({ protocolSnapshotVersion, snapshot, accessibilityTree: ax }));
+    return {
+      url: pageUrl,
+      title,
+      pageRevision,
+      contentType: image ? "image/png" : "application/vnd.distilled.cdp-snapshot+json",
+      raw,
+      controls,
+      visibleText,
+      markup: JSON.stringify(snapshot),
+      watermarkObserved,
+      article,
+      observationSource: image ? "CDP_SCREENSHOT" : "CDP_DOM_SNAPSHOT",
+      protocolSnapshotVersion
+    };
+  }
+}
+
+function buildNodeTree(document: SnapshotDocument, strings: string[]): Map<number, DomNodeSnapshot> {
+  const nodes = new Map<number, DomNodeSnapshot>();
+  for (let index = 0; index < document.nodes.nodeName.length; index += 1) {
+    const attributes = new Map<string, string>();
+    for (const attr of chunkPairs(document.nodes.attributes?.[index] ?? [])) {
+      attributes.set(stringAt(strings, attr[0]).toLowerCase(), stringAt(strings, attr[1]));
+    }
+    nodes.set(index, {
+      index,
+      parent: document.nodes.parentIndex?.[index] ?? -1,
+      name: stringAt(strings, document.nodes.nodeName[index]).toLowerCase(),
+      value: stringAt(strings, document.nodes.nodeValue[index]),
+      backendNodeId: document.nodes.backendNodeId?.[index],
+      attributes,
+      children: []
+    });
+  }
+  for (const node of nodes.values()) {
+    const parent = nodes.get(node.parent);
+    if (parent) parent.children.push(node.index);
+  }
+  for (let index = 0; index < (document.layout?.nodeIndex.length ?? 0); index += 1) {
+    const node = nodes.get(document.layout!.nodeIndex[index]);
+    const bounds = document.layout?.bounds?.[index];
+    if (node && bounds && bounds.length >= 4) {
+      node.geometry = { x: bounds[0], y: bounds[1], width: bounds[2], height: bounds[3] };
+    }
+  }
+  return nodes;
+}
+
+function discoverControls(
+  nodes: Map<number, DomNodeSnapshot>,
+  axByBackend: Map<number, { role?: string; name?: string }>,
+  pageUrl: string,
+  baseUrl: string
+): SemanticControl[] {
+  const controls: SemanticControl[] = [];
+  for (const node of nodes.values()) {
+    if (!["a", "button", "input", "select", "textarea"].includes(node.name)) continue;
+    if (node.attributes.get("aria-hidden") === "true") continue;
+    if (!isRenderableControl(node)) continue;
+    const ax = node.backendNodeId === undefined ? undefined : axByBackend.get(node.backendNodeId);
+    const label = collapseWhitespace(
+      ax?.name ||
+      node.attributes.get("aria-label") ||
+      node.attributes.get("title") ||
+      node.attributes.get("placeholder") ||
+      textOf(node, nodes)
+    );
+    const destinationUrl = node.name === "a" ? resolveRuntimeUrl(node.attributes.get("href"), baseUrl || pageUrl) : undefined;
+    const target = node.attributes.get("target") ?? "";
+    const isDownload = node.attributes.has("download");
+    const opensNewContext = Boolean(target && target.toLowerCase() !== "_self");
+    const kind: SemanticControl["kind"] = node.name === "a" ? "link" : node.name === "button" ? "button" : node.name === "input" ? "input" : "other";
+    controls.push({
+      handle: "",
+      nodeId: node.backendNodeId === undefined ? `snapshot:${node.index}` : `backend:${node.backendNodeId}`,
+      kind,
+      role: ax?.role ?? implicitRole(node.name, node.attributes),
+      label: label.slice(0, 160),
+      attributes: relevantAttributes(node.attributes),
+      geometry: node.geometry,
+      destinationUrl: !isDownload && !opensNewContext ? destinationUrl : undefined,
+      safeAction: node.name === "a" && destinationUrl && !isDownload && !opensNewContext ? "follow" : "unknown"
+    });
+    if (controls.length >= 40) break;
+  }
+  return controls;
+}
+
+function discoverArticle(
+  nodes: Map<number, DomNodeSnapshot>,
+  pageUrl: string,
+  baseUrl: string,
+  visibleText: string
+): BrowserObservationData["article"] | undefined {
+  const article = firstByName(nodes, "article");
+  if (!article) return undefined;
+  const title = collapseWhitespace(textOf(firstDescendant(article, nodes, "h1"), nodes));
+  const canonicalUrl = resolveRuntimeUrl(
+    [...nodes.values()].find((node) => node.name === "link" && (node.attributes.get("rel") ?? "").toLowerCase() === "canonical")
+      ?.attributes.get("href"),
+    baseUrl || pageUrl
+  ) ?? pageUrl;
+  const publisherTimestamp = firstDescendant(article, nodes, "time")?.attributes.get("datetime") ?? "";
+  const bodyNode = firstByAttribute(article, nodes, "data-article-body");
+  const excerptNode = firstByAttribute(article, nodes, "data-excerpt");
+  const body = collapseWhitespace(textOf(bodyNode ?? article, nodes) || visibleText);
+  const excerpt = collapseWhitespace(textOf(excerptNode, nodes) || body.slice(0, 180));
+  return { title, canonicalUrl, publisherTimestamp, excerpt, body };
+}
+
+function firstByName(nodes: Map<number, DomNodeSnapshot>, name: string): DomNodeSnapshot | undefined {
+  return [...nodes.values()].find((node) => node.name === name);
+}
+
+function firstDescendant(root: DomNodeSnapshot | undefined, nodes: Map<number, DomNodeSnapshot>, name: string): DomNodeSnapshot | undefined {
+  if (!root) return undefined;
+  for (const child of root.children) {
+    const node = nodes.get(child);
+    if (!node) continue;
+    if (node.name === name) return node;
+    const nested = firstDescendant(node, nodes, name);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
+function firstByAttribute(
+  root: DomNodeSnapshot | undefined,
+  nodes: Map<number, DomNodeSnapshot>,
+  attribute: string
+): DomNodeSnapshot | undefined {
+  if (!root) return undefined;
+  if (root.attributes.has(attribute)) return root;
+  for (const child of root.children) {
+    const nested = firstByAttribute(nodes.get(child), nodes, attribute);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
+function textOf(root: DomNodeSnapshot | undefined, nodes: Map<number, DomNodeSnapshot>): string {
+  if (!root) return "";
+  if (root.name === "#text") return root.value;
+  return root.children.map((child) => textOf(nodes.get(child), nodes)).join(" ");
+}
+
+function relevantAttributes(attributes: Map<string, string>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const key of ["href", "aria-label", "title", "placeholder", "type", "rel", "target", "download"]) {
+    const value = attributes.get(key);
+    if (value !== undefined) result[key] = value;
+  }
+  return result;
+}
+
+function isRenderableControl(node: DomNodeSnapshot): boolean {
+  return Boolean(node.geometry && node.geometry.width > 0 && node.geometry.height > 0);
+}
+
+function implicitRole(name: string, attributes: Map<string, string>): string {
+  if (attributes.has("role")) return attributes.get("role")!;
+  if (name === "a") return "link";
+  if (name === "button") return "button";
+  if (name === "input") return "textbox";
+  return name;
+}
+
+function resolveRuntimeUrl(value: string | undefined, baseUrl: string): string | undefined {
+  if (!value) return undefined;
+  try { return new URL(value, baseUrl).toString(); } catch { return undefined; }
+}
+
+function collapseWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function chunkPairs(values: number[]): Array<[number, number]> {
+  const pairs: Array<[number, number]> = [];
+  for (let index = 0; index + 1 < values.length; index += 2) pairs.push([values[index], values[index + 1]]);
+  return pairs;
+}
+
+function stringAt(strings: string[], index: number | undefined): string {
+  return index === undefined ? "" : strings[index] ?? "";
+}
+
+async function snapshotRevision(pageUrl: string, document: SnapshotDocument | undefined, strings: string[]) {
+  if (!document) return sha256Text(pageUrl);
+  return sha256Text(JSON.stringify({
+    pageUrl,
+    documentURL: stringAt(strings, document.documentURL),
+    title: stringAt(strings, document.title),
+    baseURL: stringAt(strings, document.baseURL),
+    nodes: document.nodes.nodeName.map((name, index) => ({
+      parent: document.nodes.parentIndex?.[index] ?? -1,
+      name: stringAt(strings, name),
+      value: stringAt(strings, document.nodes.nodeValue[index]),
+      attributes: chunkPairs(document.nodes.attributes?.[index] ?? [])
+        .map(([key, value]) => [stringAt(strings, key), stringAt(strings, value)])
+    }))
+  }));
 }
 
 async function resolveAddresses(hostname:string): Promise<string[]> {

@@ -432,14 +432,21 @@ export interface ObservationEnvelope {
   presentedSize: number;
   truncated: boolean;
   transformationVersion: string;
+  observationSource?: "CDP_DOM_SNAPSHOT" | "CDP_ACCESSIBILITY_TREE" | "CDP_SCREENSHOT";
+  protocolSnapshotVersion?: string;
+  boundedProjectionHash?: string;
   redactions: string[];
   modelRepresentation: unknown;
 }
 
 export interface SemanticControl {
   handle: string;
+  nodeId?: string;
   kind: "link" | "button" | "input" | "other";
+  role?: string;
   label: string;
+  attributes?: Record<string, string>;
+  geometry?: { x: number; y: number; width: number; height: number };
   safeAction: "follow" | "read" | "forbidden" | "unknown";
   destinationUrl?: string;
   interactionCapability?: string;
