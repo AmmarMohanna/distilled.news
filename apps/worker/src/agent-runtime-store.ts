@@ -1,5 +1,6 @@
 import type {
   AcquiredContent,
+  CanonicalAcquiredContent,
   AgentCheckpoint,
   AgentModelCall,
   AgentModelCallAttempt,
@@ -13,6 +14,7 @@ import type {
   AgentRunState,
   AgentToolCall,
   AgentToolIntent,
+  InteractionGroundingRecord,
   AgentToolResult,
   AgentTurn,
   BrowserContextRecord,
@@ -260,14 +262,19 @@ export class D1AgentRuntimeStore implements RuntimeStore {
     const call = await this.db.prepare("SELECT run_id,generation FROM agent_model_calls WHERE id=?").bind(value.modelCallId).first<Row>();
     if (!call) throw new Error(`model call not found: ${value.modelCallId}`);
     const result=await this.db.prepare(`INSERT INTO agent_model_call_attempts
-      (id,model_call_id,provider,model,attempt,gateway,state,input_tokens,output_tokens,cost_usd,latency_ms,fallback_reason)
-      SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM agent_run_leases WHERE run_id=? AND generation=? AND expires_at>?)
-      ON CONFLICT(id) DO UPDATE SET provider=excluded.provider,model=excluded.model,state=excluded.state,input_tokens=excluded.input_tokens,
+      (id,model_call_id,requested_provider,actual_provider,requested_model,actual_model,requested_deployment,actual_deployment,
+       attempt,requested_gateway,actual_gateway,state,input_tokens,output_tokens,cost_usd,latency_ms,fallback_reason)
+      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM agent_run_leases WHERE run_id=? AND generation=? AND expires_at>?)
+      ON CONFLICT(id) DO UPDATE SET actual_provider=excluded.actual_provider,actual_model=excluded.actual_model,
+        actual_deployment=excluded.actual_deployment,actual_gateway=excluded.actual_gateway,state=excluded.state,input_tokens=excluded.input_tokens,
         output_tokens=excluded.output_tokens,cost_usd=excluded.cost_usd,latency_ms=excluded.latency_ms,fallback_reason=excluded.fallback_reason
       WHERE agent_model_call_attempts.model_call_id=excluded.model_call_id AND agent_model_call_attempts.attempt=excluded.attempt
-        AND agent_model_call_attempts.gateway=excluded.gateway AND agent_model_call_attempts.provider=excluded.provider
-        AND agent_model_call_attempts.model=excluded.model`).bind(
-      value.id,value.modelCallId,value.provider,value.model,value.attempt,value.gateway,value.state,value.inputTokens,
+        AND agent_model_call_attempts.requested_gateway=excluded.requested_gateway
+        AND agent_model_call_attempts.requested_deployment=excluded.requested_deployment
+        AND agent_model_call_attempts.requested_provider=excluded.requested_provider
+        AND agent_model_call_attempts.requested_model=excluded.requested_model`).bind(
+      value.id,value.modelCallId,value.requestedProvider,value.actualProvider??null,value.requestedModel,value.actualModel??null,
+      value.requestedDeployment,value.actualDeployment??null,value.attempt,value.requestedGateway,value.actualGateway??null,value.state,value.inputTokens,
       value.outputTokens,value.costUsd,value.latencyMs,value.fallbackReason ?? null,String(call.run_id),Number(call.generation),new Date().toISOString()
     ).run();
     if (Number(result.meta.changes??0)!==1) {
@@ -356,6 +363,11 @@ export class D1AgentRuntimeStore implements RuntimeStore {
       assertImmutable("tool intent",pickIntentIdentity(existing),pickIntentIdentity(value));
     }
     if (Number(result.meta.changes ?? 0) === 1) await this.appendEvent(value.runId, "agent.tool.intent_persisted", value, value.persistedAt,value.generation);
+  }
+
+  async saveInteractionGrounding(value: InteractionGroundingRecord) {
+    await this.assertGeneration(value.runId,value.generation);
+    await this.appendEvent(value.runId,"agent.interaction.grounding_persisted",value,value.createdAt,value.generation);
   }
 
   async saveToolResult(value: AgentToolResult) {
@@ -477,31 +489,39 @@ export class D1AgentRuntimeStore implements RuntimeStore {
   }
 
   async acceptContent(value: AcquiredContent) {
-    const inserted=await this.db.prepare(`INSERT OR IGNORE INTO acquired_content
-      (acceptance_id,run_id,tenant_id,resource_id,candidate_id,acquisition_attempt,generation,canonical_url,content_hash,observation_id,content_json,accepted_at)
-      SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM agent_run_leases WHERE run_id=? AND generation=? AND expires_at>?)
+    await this.db.prepare(`INSERT OR IGNORE INTO acquired_content
+      (acceptance_id,tenant_id,resource_id,candidate_id,canonical_url,content_hash,content_json,created_at)
+      SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM agent_run_leases WHERE run_id=? AND generation=? AND expires_at>?)
       AND EXISTS (SELECT 1 FROM agent_observations WHERE id=? AND run_id=?)`).bind(
-      value.acceptanceId,value.runId,value.tenantId,value.resourceId,value.candidateId,value.acquisitionAttempt,value.generation,value.canonicalUrl,
-      value.contentHash,value.observationId,json(value),value.acceptedAt,value.runId,value.generation,new Date().toISOString(),value.observationId,value.runId
+      value.acceptanceId,value.tenantId,value.resourceId,value.candidateId,value.canonicalUrl,value.contentHash,json(canonicalContent(value)),
+      value.acceptedAt,value.runId,value.generation,new Date().toISOString(),value.observationId,value.runId
     ).run();
     const row = await this.db.prepare("SELECT content_json FROM acquired_content WHERE acceptance_id=?").bind(value.acceptanceId).first<Row>();
     if (!row) { await this.assertGeneration(value.runId,value.generation); throw new Error("accepted content did not persist"); }
-    const persisted=parse<AcquiredContent>(row.content_json);
+    const persisted=parse<CanonicalAcquiredContent>(row.content_json);
     assertAcquiredIdentity(persisted,value);
-    const linked=await this.db.prepare(`INSERT OR IGNORE INTO agent_run_acquired_content (run_id,acceptance_id,observation_id,linked_at)
-      SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM agent_run_leases WHERE run_id=? AND generation=? AND expires_at>?)
+    const linked=await this.db.prepare(`INSERT OR IGNORE INTO agent_run_acquired_content
+      (run_id,acceptance_id,observation_id,generation,provenance_json,linked_at)
+      SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM agent_run_leases WHERE run_id=? AND generation=? AND expires_at>?)
       AND EXISTS (SELECT 1 FROM agent_observations WHERE id=? AND run_id=?)`).bind(
-      value.runId,value.acceptanceId,value.observationId,value.acceptedAt,value.runId,value.generation,new Date().toISOString(),value.observationId,value.runId).run();
-    if (Number(linked.meta.changes??0)!==1 && Number(inserted.meta.changes??0)!==1) await this.assertGeneration(value.runId,value.generation);
-    await this.appendEvent(value.runId,"agent.acquired_content.accepted",{...value,canonicalProvenanceRunId:persisted.runId},value.acceptedAt,value.generation);
-    return persisted;
+      value.runId,value.acceptanceId,value.observationId,value.generation,json(runAcquisitionProvenance(value)),value.acceptedAt,
+      value.runId,value.generation,new Date().toISOString(),value.observationId,value.runId).run();
+    if (Number(linked.meta.changes??0)!==1) {
+      await this.assertGeneration(value.runId,value.generation);
+      const existingLink=await this.db.prepare("SELECT provenance_json FROM agent_run_acquired_content WHERE run_id=? AND acceptance_id=?")
+        .bind(value.runId,value.acceptanceId).first<Row>();
+      if (!existingLink) throw new Error("run acquisition provenance did not persist");
+      assertImmutable("run acquisition provenance",parse(existingLink.provenance_json),runAcquisitionProvenance(value));
+    }
+    await this.appendEvent(value.runId,"agent.acquired_content.accepted",value,value.acceptedAt,value.generation);
+    return value;
   }
 
   async getAcceptedContent(runId: string) {
-    const result = await this.db.prepare(`SELECT c.content_json FROM acquired_content c JOIN agent_run_acquired_content l ON l.acceptance_id=c.acceptance_id
+    const result = await this.db.prepare(`SELECT c.content_json,l.provenance_json FROM acquired_content c JOIN agent_run_acquired_content l ON l.acceptance_id=c.acceptance_id
       WHERE l.run_id=? ORDER BY l.linked_at,c.acceptance_id`)
       .bind(runId).all<Row>();
-    return result.results.map((row) => parse<AcquiredContent>(row.content_json));
+    return result.results.map((row) => ({...parse<CanonicalAcquiredContent>(row.content_json),...parse(row.provenance_json)}) as AcquiredContent);
   }
 
   async saveBrowserSession(value: BrowserSessionRecord) {
@@ -556,6 +576,22 @@ export class D1AgentRuntimeStore implements RuntimeStore {
     await this.appendEvent(runId,"agent.outbox.acknowledged",{ runId },at);
   }
 
+  async failRunDelivery(runId:string,reason:string,at=new Date().toISOString()) {
+    const run=await this.getRun(runId);
+    if (!run || ["completed","failed","cancelled"].includes(run.state)) return;
+    const results=await this.db.batch([
+      this.db.prepare(`UPDATE agent_runs SET state='failed',generation=generation+1,updated_at=?
+        WHERE run_id=? AND state NOT IN ('completed','failed','cancelled')`).bind(at,runId),
+      this.db.prepare("DELETE FROM agent_run_leases WHERE run_id=? AND EXISTS (SELECT 1 FROM agent_runs WHERE run_id=? AND state='failed' AND updated_at=?)").bind(runId,runId,at),
+      this.db.prepare(`UPDATE agent_browser_sessions SET state='crashed',record_json=json_set(record_json,'$.state','crashed')
+        WHERE run_id=? AND state!='closed' AND EXISTS (SELECT 1 FROM agent_runs WHERE run_id=? AND state='failed' AND updated_at=?)`).bind(runId,runId,at),
+      this.db.prepare(`UPDATE agent_outbox SET state='failed',failed_at=?,failure_reason=?
+        WHERE run_id=? AND state!='acknowledged' AND EXISTS (SELECT 1 FROM agent_runs WHERE run_id=? AND state='failed' AND updated_at=?)`).bind(at,reason,runId,runId,at)
+    ]);
+    if (Number(results[0].meta.changes??0)!==1) return;
+    await this.appendEvent(runId,"agent.run.delivery_failed",{reason},at);
+  }
+
   async markOutboxDelivered(runId:string,at=new Date().toISOString()) {
     await this.db.prepare("UPDATE agent_outbox SET state='delivered',delivered_at=?,attempts=attempts+1 WHERE run_id=? AND state='pending'").bind(at,runId).run();
     await this.appendEvent(runId,"agent.outbox.delivered",{runId},at);
@@ -590,7 +626,9 @@ export class D1AgentRuntimeStore implements RuntimeStore {
   async authorizeChallengeResume(runId:string,challengeVersion:number,tokenHash:string,at=new Date().toISOString()) {
     await this.db.batch([this.db.prepare(`INSERT INTO agent_challenge_resume_authorizations (run_id,challenge_version,token_hash,authorized_at)
       VALUES (?,?,?,?) ON CONFLICT(run_id,challenge_version) DO UPDATE SET token_hash=excluded.token_hash,authorized_at=excluded.authorized_at,consumed_at=NULL`)
-      .bind(runId,challengeVersion,tokenHash,at),this.db.prepare("UPDATE agent_outbox SET state='pending',next_attempt_at=? WHERE run_id=? AND state!='acknowledged'").bind(at,runId)]);
+      .bind(runId,challengeVersion,tokenHash,at),this.db.prepare(`UPDATE agent_outbox SET state='pending',next_attempt_at=?
+        WHERE run_id=? AND state IN ('pending','delivered') AND EXISTS
+        (SELECT 1 FROM agent_runs WHERE run_id=? AND state='suspended')`).bind(at,runId,runId)]);
   }
 
   async hasChallengeResumeAuthorization(runId:string) {
@@ -610,10 +648,19 @@ export class D1AgentRuntimeStore implements RuntimeStore {
 function outboxFromRow(row:Row):AgentOutbox {
   return {id:String(row.id),runId:String(row.run_id),kind:"agent_run_wake",state:row.state as AgentOutbox["state"],createdAt:String(row.created_at),
     acknowledgedAt:row.acknowledged_at?String(row.acknowledged_at):undefined,deliveredAt:row.delivered_at?String(row.delivered_at):undefined,
-    attempts:Number(row.attempts),nextAttemptAt:String(row.next_attempt_at)};
+    attempts:Number(row.attempts),nextAttemptAt:String(row.next_attempt_at),failedAt:row.failed_at?String(row.failed_at):undefined,
+    failureReason:row.failure_reason?String(row.failure_reason):undefined};
 }
 
-function assertAcquiredIdentity(existing:AcquiredContent,incoming:AcquiredContent) {
+function canonicalContent(value:AcquiredContent):CanonicalAcquiredContent { return {
+  acceptanceId:value.acceptanceId,tenantId:value.tenantId,resourceId:value.resourceId,candidateId:value.candidateId,
+  canonicalUrl:value.canonicalUrl,publisherTimestamp:value.publisherTimestamp,title:value.title,excerpt:value.excerpt,
+  body:value.body,contentHash:value.contentHash
+}; }
+function runAcquisitionProvenance(value:AcquiredContent) { return {runId:value.runId,acquisitionAttempt:value.acquisitionAttempt,
+  generation:value.generation,turnId:value.turnId,modelCallId:value.modelCallId,toolCallId:value.toolCallId,
+  observationId:value.observationId,rawArtifactRef:value.rawArtifactRef,finalUrl:value.finalUrl,acceptedAt:value.acceptedAt}; }
+function assertAcquiredIdentity(existing:CanonicalAcquiredContent,incoming:AcquiredContent) {
   for (const key of ["tenantId","resourceId","candidateId","canonicalUrl","contentHash"] as const) {
     if (existing[key]!==incoming[key]) throw new Error(`acquired content identity collision on ${key}`);
   }

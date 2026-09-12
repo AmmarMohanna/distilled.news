@@ -7,6 +7,7 @@ import { runRetentionCleanup } from "./retention";
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
 import type { DistilledQueueMessage, Env, ProcessingJobMessage, Repository, SourceRefreshJobMessage, WebOperatorRunMessage } from "./types";
 import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
+import { D1AgentRuntimeStore } from "./agent-runtime-store";
 
 const app = createApp();
 const MAX_QUEUE_ATTEMPTS = 5;
@@ -21,6 +22,7 @@ export default {
   },
   async queue(batch: MessageBatch<DistilledQueueMessage | WebOperatorRunMessage>, env: Env): Promise<void> {
     const repo = new D1Repository(env.DB);
+    const agentStore = new D1AgentRuntimeStore(env.DB);
     const summaryAdapter = createSummaryAdapterFromEnv(env, repo);
     const reviewAdapter = createEventReviewAdapterFromEnv(env, repo);
     for (const message of batch.messages) {
@@ -44,7 +46,7 @@ export default {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         const shouldQuarantine = shouldQuarantineQueueFailure(error, message.attempts);
-        await recordQueueFailure(repo, message.body, errorMessage, shouldQuarantine);
+        await recordQueueFailure(repo,agentStore,message.body,errorMessage,shouldQuarantine);
         console.error(shouldQuarantine ? "Quarantined queue job" : "Retrying queue job", {
           messageId: message.id,
           attempts: message.attempts,
@@ -98,6 +100,7 @@ async function processDistilledQueueMessage(
 
 async function recordQueueFailure(
   repo: Repository,
+  agentStore:D1AgentRuntimeStore,
   body: unknown,
   error: string,
   quarantined: boolean
@@ -110,6 +113,10 @@ async function recordQueueFailure(
   if (isSourceRefreshJobMessage(body)) {
     await repo.updateSourceState({ sourceId: body.sourceId, lastError: sourceFailureMessage(error, quarantined) });
     if (quarantined) await repo.setSourceEnabled(body.sourceId, false);
+    return;
+  }
+  if (quarantined && isWebOperatorRunMessage(body)) {
+    await agentStore.failRunDelivery(body.runId,message);
   }
 }
 
@@ -174,6 +181,7 @@ function queueBodyType(body: unknown): string {
 function queueBodyId(body: unknown): string | undefined {
   if (isProcessingJobMessage(body)) return body.jobId;
   if (isSourceRefreshJobMessage(body)) return body.sourceId;
+  if (isWebOperatorRunMessage(body)) return body.runId;
   return undefined;
 }
 

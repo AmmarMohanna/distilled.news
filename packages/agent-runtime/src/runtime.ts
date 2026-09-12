@@ -362,7 +362,8 @@ export class WebOperatorCoordinator {
           await this.options.store.saveBudget(budget.snapshot(),lease.generation);
           await this.options.store.saveModelAttempt({
             id: makeId("model_attempt", modelCallId, attempt), modelCallId, attempt,
-            gateway: attemptRoute.gateway, model: attemptRoute.selectedModel, provider: attemptRoute.selectedProvider,
+            requestedGateway:attemptRoute.gateway,requestedDeployment:attemptRoute.deployment,
+            requestedModel:attemptRoute.selectedModel,requestedProvider:attemptRoute.selectedProvider,
             inputTokens:0,outputTokens:0,costUsd:0,latencyMs:0,
             fallbackReason: candidateIndex > 0 ? `prior candidate failed or was ineligible` : attemptRoute.fallbackReason,
             state:"started",reservation:{inputTokens:reservation.inputTokens,outputTokens:reservation.outputTokens,costUsd:reservation.modelCostUsd}
@@ -375,8 +376,11 @@ export class WebOperatorCoordinator {
             const reconciliation=budget.reconcileModel(reservation,response.usage);
             await this.options.store.saveBudget(budget.snapshot(),lease.generation);
             await this.options.store.saveModelAttempt({
-              id:makeId("model_attempt",modelCallId,attempt),modelCallId,attempt,gateway:attemptRoute.gateway,
-              model:attemptRoute.selectedModel,provider:attemptRoute.selectedProvider,inputTokens:response.usage.inputTokens,
+              id:makeId("model_attempt",modelCallId,attempt),modelCallId,attempt,
+              requestedGateway:attemptRoute.gateway,actualGateway:response.gateway,
+              requestedDeployment:attemptRoute.deployment,actualDeployment:response.deployment,
+              requestedModel:attemptRoute.selectedModel,actualModel:response.model,
+              requestedProvider:attemptRoute.selectedProvider,actualProvider:response.provider,inputTokens:response.usage.inputTokens,
               outputTokens:response.usage.outputTokens,costUsd:response.usage.costUsd,latencyMs:response.usage.latencyMs,
               fallbackReason:candidateIndex > 0 ? `prior candidate failed or was ineligible` : attemptRoute.fallbackReason,state:"completed"
             });
@@ -391,8 +395,12 @@ export class WebOperatorCoordinator {
               await this.options.store.saveBudget(budget.snapshot(),lease.generation);
             }
             await this.options.store.saveModelAttempt({
-              id:makeId("model_attempt",modelCallId,attempt),modelCallId,attempt,gateway:attemptRoute.gateway,
-              model:attemptRoute.selectedModel,provider:attemptRoute.selectedProvider,inputTokens:error instanceof ModelGatewayError?error.usage?.inputTokens??0:0,
+              id:makeId("model_attempt",modelCallId,attempt),modelCallId,attempt,
+              requestedGateway:attemptRoute.gateway,actualGateway:error instanceof ModelGatewayError?error.observedIdentity?.gateway:undefined,
+              requestedDeployment:attemptRoute.deployment,actualDeployment:error instanceof ModelGatewayError?error.observedIdentity?.deployment:undefined,
+              requestedModel:attemptRoute.selectedModel,actualModel:error instanceof ModelGatewayError?error.observedIdentity?.model:undefined,
+              requestedProvider:attemptRoute.selectedProvider,actualProvider:error instanceof ModelGatewayError?error.observedIdentity?.provider:undefined,
+              inputTokens:error instanceof ModelGatewayError?error.usage?.inputTokens??0:0,
               outputTokens:error instanceof ModelGatewayError?error.usage?.outputTokens??0:0,costUsd:error instanceof ModelGatewayError?error.usage?.costUsd??0:0,
               latencyMs:error instanceof ModelGatewayError?error.usage?.latencyMs??0:0,
               fallbackReason:error instanceof Error ? error.message : String(error),state:"failed"

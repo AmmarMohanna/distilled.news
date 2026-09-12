@@ -3,7 +3,7 @@ import type { AgentRunBudgetLimits, BoundedActionPlan, ModelCapability, ToolName
 import { TOOL_NAMES } from "../src/contracts";
 import { DEFAULT_SLICE_BUDGET } from "../src/budget";
 import { BrowserPostDispatchError, BrowserScopeError, PlaywrightBrowserAdapter, StaleObservationError } from "../src/browser";
-import { ModelGatewayError, ScriptedModelGateway, type ModelGateway, type ModelRequest } from "../src/model";
+import { ModelGatewayError, OpenAICompatibleGateway, ScriptedModelGateway, type ModelGateway, type ModelRequest } from "../src/model";
 import { MemoryArtifactStore } from "../src/observations";
 import { MemoryRuntimeStore } from "../src/persistence";
 import { createConfiguredWebOperatorHttpHandler,WebOperatorAcquisitionStrategy, WebOperatorCoordinator, type KnownCandidateInvocation } from "../src/runtime";
@@ -83,6 +83,13 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     expect(events.some((event) => event.type === "agent.outbox.acknowledged")).toBe(true);
     expect(events.at(-1)?.type).toBe("agent.run.attempt_completed");
     expect(events.map((event) => event.sequence)).toEqual(events.map((_, index) => index + 1));
+    const groundingIndex=events.findIndex((event)=>event.type==="agent.interaction.grounding_persisted"&&JSON.stringify(event.data).includes("visual_read_link"));
+    const groundingCallId=(events[groundingIndex]?.data as {toolCallId?:string})?.toolCallId;
+    const groundingPolicyIndex=events.findIndex((event,index)=>index>groundingIndex&&event.type==="agent.policy.decision"&&JSON.stringify(event.data).includes(groundingCallId??"missing"));
+    const groundingIntentIndex=events.findIndex((event,index)=>index>groundingPolicyIndex&&event.type==="agent.tool.intent_persisted"&&JSON.stringify(event.data).includes(groundingCallId??"missing"));
+    expect(groundingIndex).toBeGreaterThan(events.findIndex((event)=>event.type==="agent.observation.persisted"&&JSON.stringify(event.data).includes("screenshot")));
+    expect(groundingPolicyIndex).toBeGreaterThan(groundingIndex);
+    expect(groundingIntentIndex).toBeGreaterThan(groundingPolicyIndex);
   }, 30_000);
 
   it("enforces tenant/run/generation isolation, stale handles and screenshots, crash rotation, and redirect blocking", async () => {
@@ -155,6 +162,92 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
       await browser.close(allocation).catch(() => undefined);
     }
   }, 30_000);
+
+  it("denies browser-created active transports before untrusted page code can open a channel", async () => {
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const allocation=await browser.allocate({runId:"active-transports",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      const observed=await browser.navigate(allocation,`${fixture.origin}/active-transports`);
+      const representation=JSON.stringify(observed.representation);
+      expect(representation).toContain("WebSocket:undefined");
+      expect(representation).toContain("WebTransport:undefined");
+      expect(representation).toContain("RTCPeerConnection:undefined");
+      expect(representation).toContain("EventSource:undefined");
+      expect(representation).toContain("data-channel:denied");
+      expect(representation).toContain("websocket:denied");
+      expect(representation).toContain("webtransport:denied");
+      expect(representation).toContain("eventsource:denied");
+      expect(fixture.requestCount("/socket")).toBe(0);
+    } finally { await browser.close(allocation).catch(()=>undefined); }
+  },30_000);
+
+  it("blocks service-worker registration and prevents its script from being fetched",async()=>{
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const allocation=await browser.allocate({runId:"service-worker",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      const before=fixture.requestCount("/service-worker.js");
+      const observed=await browser.navigate(allocation,`${fixture.origin}/service-worker-probe`);
+      expect(JSON.stringify(observed.representation)).toContain("denied");
+      expect(fixture.requestCount("/service-worker.js")).toBe(before);
+    } finally { await browser.close(allocation).catch(()=>undefined); }
+  },30_000);
+
+  it("denies page-created downloads without saving a file or authorizing a mutation",async()=>{
+    fixture.resetMutations();
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const allocation=await browser.allocate({runId:"download-denial",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      await expect(browser.navigate(allocation,`${fixture.origin}/page-download`)).rejects.toBeInstanceOf(BrowserPostDispatchError);
+      expect(fixture.mutationCount()).toBe(0);
+    } finally { await browser.close(allocation).catch(()=>undefined); }
+  },30_000);
+
+  it("prevents window and target-blank popups from executing child-page code",async()=>{
+    fixture.resetMutations();
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const allocation=await browser.allocate({runId:"popup-denial",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      await expect(browser.navigate(allocation,`${fixture.origin}/popup-probes`)).rejects.toBeInstanceOf(BrowserPostDispatchError);
+      expect(fixture.mutationCount()).toBe(0);
+    } finally { await browser.close(allocation).catch(()=>undefined); }
+  },30_000);
+
+  it("grounds a visual read capability without invoking hostile page hit-testing code",async()=>{
+    fixture.resetMutations();
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const allocation=await browser.allocate({runId:"trusted-grounding",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      await browser.navigate(allocation,`${fixture.origin}/hostile-hit-test`);
+      const screenshot=await browser.screenshot(allocation);
+      const capability=await browser.issueVisualCapability(allocation,{
+        action:"click",x:220,y:285,screenshotToken:screenshot.screenshotObservationToken,
+        screenshotObservationId:"trusted-screenshot",screenshotHash:"trusted-hash",pageRevision:screenshot.pageRevision,
+        allowedDestinationUrls:[`${fixture.origin}/article`]
+      });
+      expect(capability).toMatchObject({actionClass:"visual_read_link",effect:"read_navigation",
+        target:{kind:"coordinates",destinationUrl:`${fixture.origin}/article`}});
+      await new Promise((resolve)=>setTimeout(resolve,50));
+      expect(fixture.mutationCount()).toBe(0);
+    } finally { await browser.close(allocation).catch(()=>undefined); }
+  },30_000);
+
+  for (const [path,state] of [
+    ["login","LOGIN_REQUIRED"],
+    ["session-expired","SESSION_EXPIRED"],
+    ["mfa","MFA_REQUIRED"],
+    ["passive-challenge","PASSIVE_BROWSER_CHALLENGE"],
+    ["automation-blocked","AUTOMATION_BLOCKED"],
+    ["access-denied","ACCESS_DENIED"]
+  ] as const) {
+    it(`classifies ${state} deterministically from browser-owned signals`,async()=>{
+      const browser=PlaywrightBrowserAdapter.forTest();
+      const allocation=await browser.allocate({runId:`challenge-${path}`,tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+      try {
+        const observed=await browser.navigate(allocation,`${fixture.origin}/${path}`);
+        expect(observed.challengeState).toBe(state);
+      } finally { await browser.close(allocation).catch(()=>undefined); }
+    },30_000);
+  }
 
   for (const scenario of [
     { path:"semantic-onclick-beacon",effect:"navigator.sendBeacon" },
@@ -290,6 +383,21 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     expect((await store.listEvents(admitted.run.runId)).some((event) => event.type === "agent.model.fallback")).toBe(true);
   },30_000);
 
+  it("persists requested and actual identity when a gateway returns an unauthorized model",async()=>{
+    const store=new MemoryRuntimeStore();const artifacts=new MemoryArtifactStore();const browser=PlaywrightBrowserAdapter.forTest();
+    const gateway=new OpenAICompatibleGateway({baseUrl:"https://gateway.invalid/v1",fetcher:async()=>new Response(JSON.stringify({
+      id:"mismatch",model:"fixture/unauthorized",provider:"fixture",
+      choices:[{message:{content:JSON.stringify(plan(action("browser.inspect_dom@1",{})))}}],
+      usage:{prompt_tokens:12,completion_tokens:4,cost:0.0001}
+    }),{status:200,headers:{"content-type":"application/json"}})});
+    const {strategy,coordinator}=harness(store,artifacts,browser,gateway);
+    const admitted=await strategy.admitKnownCandidate(invocation(fixture.origin,"model-identity-mismatch"));
+    await expect(coordinator.process(admitted.run.runId,"identity-worker")).rejects.toBeInstanceOf(ModelGatewayError);
+    const failed=(await store.listEvents(admitted.run.runId)).find((event)=>event.type==="agent.model.attempt_failed");
+    expect(failed?.data).toMatchObject({requestedModel:"fixture/fast",actualModel:"fixture/unauthorized",
+      requestedProvider:"fixture",actualProvider:"fixture",requestedDeployment:"api",actualDeployment:"api"});
+  },30_000);
+
   it("filters a budget-ineligible primary before selecting an eligible fallback",async()=>{
     const store=new MemoryRuntimeStore(); const artifacts=new MemoryArtifactStore(); const browser=PlaywrightBrowserAdapter.forTest();
     const gateway=new ScriptedModelGateway([completeArticlePlan(fixture.origin)]);
@@ -385,6 +493,9 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     };
     const first=await execute("cross-run-a"); const second=await execute("cross-run-b");
     expect(first.acquiredContent[0].acceptanceId).toBe(second.acquiredContent[0].acceptanceId);
+    expect(first.acquiredContent[0].runId).not.toBe(second.acquiredContent[0].runId);
+    expect(first.acquiredContent[0].toolCallId).not.toBe(second.acquiredContent[0].toolCallId);
+    expect(second.acquiredContent[0]).toMatchObject({acquisitionAttempt:"cross-run-b"});
   },30_000);
 
   it("cannot complete with a different article from the same allowed origin",async()=>{
@@ -505,7 +616,8 @@ class FailPrimaryGateway implements ModelGateway {
   async complete(request:ModelRequest) {
     this.models.push(request.route.selectedModel);
     if (request.route.selectedModel === "fixture/fast") throw new ModelGatewayError("simulated primary outage",{inputTokens:1000,outputTokens:500,costUsd:0.000001,latencyMs:2});
-    return {plan:this.successfulPlan,usage:{inputTokens:100,outputTokens:40,costUsd:0.001,latencyMs:2},provider:"fixture",model:request.route.selectedModel,responseId:"fallback-ok"};
+    return {plan:this.successfulPlan,usage:{inputTokens:100,outputTokens:40,costUsd:0.001,latencyMs:2},provider:"fixture",
+      model:request.route.selectedModel,responseId:"fallback-ok",gateway:this.id,deployment:request.route.deployment};
   }
 }
 

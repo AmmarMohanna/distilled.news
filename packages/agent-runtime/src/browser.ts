@@ -1,9 +1,10 @@
-import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { chromium, type Browser, type BrowserContext, type CDPSession, type Page } from "@playwright/test";
 import { isIP } from "node:net";
 import { lookup } from "node:dns/promises";
 import type { ChallengeState, InteractionCapability, SemanticControl } from "./contracts";
 import { makeId } from "./contracts";
 import { sha256Text } from "./observations";
+import { classifyBrowserChallenge } from "./challenge-classifier";
 
 export interface BrowserScope {
   runId: string;
@@ -29,6 +30,7 @@ export interface BrowserObservationData {
   representation: unknown;
   controls: SemanticControl[];
   challengeState: ChallengeState;
+  httpStatus?: number;
   watermarkObserved: boolean;
   article?: {
     title: string;
@@ -110,9 +112,21 @@ interface LiveSession {
   abortListener?: () => void;
   state: "healthy" | "crashed" | "closed";
   blockedRequest?: { method: string; url: string };
+  cdp: CDPSession;
+  lastMainDocumentStatus?: number;
+  httpRequestCount: number;
 }
 
 const READ_ONLY_BROWSER_METHODS = new Set(["GET", "HEAD"]);
+const MAX_HTTP_REQUESTS_PER_SESSION = 200;
+const ACTIVE_TRANSPORT_HARDENING = `(() => {
+  const deny = name => {
+    try { Object.defineProperty(globalThis, name, { value: undefined, writable: false, configurable: false }); } catch {}
+  };
+  for (const name of ['WebSocket','WebTransport','RTCPeerConnection','webkitRTCPeerConnection','Worker','SharedWorker','EventSource']) deny(name);
+  try { Object.defineProperty(globalThis, 'open', { value: undefined, writable: false, configurable: false }); } catch {}
+  try { Object.defineProperty(Navigator.prototype, 'serviceWorker', { value: undefined, writable: false, configurable: false }); } catch {}
+})();`;
 
 export class BrowserScopeError extends Error {
   constructor(message: string) {
@@ -185,13 +199,24 @@ export class PlaywrightBrowserAdapter
         resolverRules.push(`MAP ${parsed.hostname} ${sorted[0]}`);
       }
     }
-    const browser = await chromium.launch({ headless: true,args:resolverRules.length ? [`--host-resolver-rules=${resolverRules.join(",")}`] : [] });
+    const browser = await chromium.launch({ headless: true, args: [
+      "--disable-features=WebTransport,WebTransportDeveloperMode",
+      "--disable-quic",
+      "--disable-webrtc",
+      "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+      ...(resolverRules.length ? [`--host-resolver-rules=${resolverRules.join(",")}`] : [])
+    ] });
     const context = await browser.newContext({
       viewport: { width: 960, height: 720 },
       deviceScaleFactor: 1,
-      serviceWorkers: "block"
+      serviceWorkers: "block",
+      acceptDownloads: false
     });
+    await context.addInitScript({ content: ACTIVE_TRANSPORT_HARDENING });
     const page = await context.newPage();
+    page.setDefaultTimeout(10_000);
+    page.setDefaultNavigationTimeout(15_000);
+    const cdp = await context.newCDPSession(page);
     const sessionId = makeId("browser_session", input.runId, input.generation);
     const contextId = makeId("browser_context", input.runId, input.tenantId, input.generation);
     const pageId = makeId("page", contextId, 1);
@@ -214,12 +239,18 @@ export class PlaywrightBrowserAdapter
       screenshots: new Map(),
       capabilities: new Map(),
       pinnedAddresses,
+      cdp,
+      httpRequestCount:0,
       signal:input.signal,
       state: "healthy"
     };
     await context.route("**/*", async (route) => {
       const request = route.request();
       try {
+        if (request.frame().page() !== live.page) throw new BrowserPreDispatchError("new browser context denied");
+        live.httpRequestCount+=1;
+        if (live.httpRequestCount>MAX_HTTP_REQUESTS_PER_SESSION) throw new BrowserPreDispatchError("browser HTTP request budget exhausted");
+        if (request.resourceType()==="eventsource") throw new BrowserPreDispatchError("EventSource transport denied");
         await this.assertRequestAllowed(live, request.url(), request.method());
         await route.continue();
       } catch {
@@ -227,7 +258,18 @@ export class PlaywrightBrowserAdapter
         await route.abort("blockedbyclient");
       }
     });
-    page.on("download", (download) => { void download.cancel().catch(() => undefined); });
+    await context.routeWebSocket("**/*", async (webSocket) => {
+      live.blockedRequest = { method: "WEBSOCKET", url: webSocket.url() };
+      await webSocket.close({ code: 1008, reason: "active transport denied" });
+    });
+    page.on("download", (download) => {
+      live.blockedRequest = { method: "DOWNLOAD", url: download.url() };
+      void download.cancel().catch(() => undefined);
+    });
+    page.on("response", (response) => {
+      const request = response.request();
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) live.lastMainDocumentStatus = response.status();
+    });
     this.sessions.set(sessionId, live);
     context.on("page",(opened)=>{
       if (opened===page) return;
@@ -283,7 +325,7 @@ export class PlaywrightBrowserAdapter
     observationId: string; observationHash: string; pageRevision: string; controls: SemanticControl[];allowedDestinationUrls:string[];
   }) {
     const live = this.requireHealthy(scope);
-    if (input.pageRevision !== await this.revision(live.page)) throw new StaleObservationError("handle");
+    if (input.pageRevision !== await this.revision(live)) throw new StaleObservationError("handle");
     const expiresAt = new Date(Date.now() + 60_000).toISOString();
     return input.controls.map((control) => {
       const binding = live.handles.get(control.handle);
@@ -315,7 +357,7 @@ export class PlaywrightBrowserAdapter
   async followLink(scope: BrowserScope, handle: string, observationRevision: string, capabilityToken: string) {
     const live = this.requireHealthy(scope);
     const binding = live.handles.get(handle);
-    if (!binding || binding.revision !== observationRevision || (await this.revision(live.page)) !== observationRevision) {
+    if (!binding || binding.revision !== observationRevision || (await this.revision(live)) !== observationRevision) {
       throw new StaleObservationError("handle");
     }
     const capability = this.requireCapability(live, capabilityToken, "follow_read_link");
@@ -345,7 +387,7 @@ export class PlaywrightBrowserAdapter
     const live = this.requireHealthy(scope);
     const base = await this.observe(live, "screenshot", true);
     const token = makeId("screenshot", scope.runId, base.pageRevision, live.screenshots.size + 1);
-    const position = await live.page.evaluate(() => ({ x:scrollX,y:scrollY }));
+    const position = await this.viewportState(live);
     live.screenshots.set(token, { revision: base.pageRevision, url: base.url, scrollX:position.x,scrollY:position.y,viewport:JSON.stringify(live.scope.viewport) });
     return {
       ...base,
@@ -398,14 +440,10 @@ export class PlaywrightBrowserAdapter
     let actionClass: InteractionCapability["actionClass"] = "pointer_only";
     let effect: InteractionCapability["effect"] = "pointer_only";
     if (input.action === "click") {
-      const hit = await live.page.evaluate(({x,y}) => {
-        const element = document.elementFromPoint(x,y);
-        const link = element?.closest("a[href]") as HTMLAnchorElement | null;
-        return link?{href:link.href,download:link.hasAttribute("download"),target:link.target}:null;
-      },{x:input.x,y:input.y});
+      const hit = await this.trustedAnchorAt(live, input.x, input.y);
       if (!hit?.href || hit.download || (hit.target && hit.target!=="_self")) return null;
       const href=hit.href;
-      await this.assertRequestAllowed(live,href);
+      this.assertGroundedDestination(live,href);
       if (!urlInSet(href,input.allowedDestinationUrls)) return null;
       destinationUrl = href;
       actionClass = "visual_read_link";
@@ -456,8 +494,8 @@ export class PlaywrightBrowserAdapter
     if (!captured || captured.revision !== revision || captured.url !== live.page.url()) {
       throw new StaleObservationError("screenshot");
     }
-    if ((await this.revision(live.page)) !== revision) throw new StaleObservationError("screenshot");
-    const position = await live.page.evaluate(() => ({ x:scrollX,y:scrollY }));
+    if ((await this.revision(live)) !== revision) throw new StaleObservationError("screenshot");
+    const position = await this.viewportState(live);
     if (captured.scrollX !== position.x || captured.scrollY !== position.y || captured.viewport !== JSON.stringify(live.scope.viewport)) {
       throw new StaleObservationError("screenshot");
     }
@@ -469,9 +507,45 @@ export class PlaywrightBrowserAdapter
     }
   }
 
-  private async revision(page: Page) {
-    const state = await page.evaluate(() => ({x:scrollX,y:scrollY,width:innerWidth,height:innerHeight,scale:devicePixelRatio}));
-    return sha256Text(`${page.url()}\n${JSON.stringify(state)}\n${await page.content()}`);
+  private async revision(live: LiveSession) {
+    const state = await this.viewportState(live);
+    return sha256Text(`${live.page.url()}\n${JSON.stringify(state)}\n${await live.page.content()}`);
+  }
+
+  private async viewportState(live: LiveSession) {
+    const result = await live.cdp.send("Page.getLayoutMetrics") as {
+      visualViewport: { pageX: number; pageY: number; clientWidth: number; clientHeight: number; scale: number };
+    };
+    return {
+      x: result.visualViewport.pageX,
+      y: result.visualViewport.pageY,
+      width: result.visualViewport.clientWidth,
+      height: result.visualViewport.clientHeight,
+      scale: result.visualViewport.scale
+    };
+  }
+
+  private async trustedAnchorAt(live: LiveSession, x: number, y: number) {
+    const located = await live.cdp.send("DOM.getNodeForLocation", {
+      x: Math.floor(x), y: Math.floor(y), includeUserAgentShadowDOM: true, ignorePointerEventsNone: false
+    }) as { backendNodeId?: number };
+    if (!located.backendNodeId) return null;
+    const described = await live.cdp.send("DOM.describeNode", {
+      backendNodeId: located.backendNodeId, depth: 0, pierce: true
+    }) as { node: { nodeName: string; attributes?: string[] } };
+    if (described.node.nodeName.toLowerCase() !== "a") return null;
+    const attributes = new Map<string,string>();
+    const values = described.node.attributes ?? [];
+    for (let index = 0; index + 1 < values.length; index += 2) {
+      attributes.set(values[index].toLowerCase(), values[index + 1]);
+    }
+    const rawHref = attributes.get("href");
+    if (!rawHref) return null;
+    return {
+      href: new URL(rawHref, live.page.url()).toString(),
+      download: attributes.has("download"),
+      target: attributes.get("target") ?? ""
+    };
   }
 
   private createCapability(live: LiveSession, input: Omit<InteractionCapability,"token"|"tenantId"|"runId"|"browserGeneration"|"pageId">) {
@@ -496,7 +570,8 @@ export class PlaywrightBrowserAdapter
     live.blockedRequest = undefined;
     await this.assertRequestAllowed(live, destinationUrl, "GET");
     try {
-      await live.page.goto(destinationUrl, { waitUntil: "networkidle" });
+      const response = await live.page.goto(destinationUrl, { waitUntil: "networkidle" });
+      live.lastMainDocumentStatus = response?.status();
     } catch (error) {
       throw new BrowserPostDispatchError(live.blockedRequest ? blockedRequestMessage(live.blockedRequest) : errorMessage(error));
     }
@@ -525,6 +600,14 @@ export class PlaywrightBrowserAdapter
     live.pinnedAddresses.set(url.hostname,resolved);
   }
 
+  private assertGroundedDestination(live:LiveSession,value:string) {
+    let url:URL;
+    try { url=new URL(value); } catch { throw new BrowserPreDispatchError("invalid grounded destination URL"); }
+    if ((url.protocol!=="http:"&&url.protocol!=="https:")||!live.allowedOrigins.has(url.origin)) {
+      throw new BrowserPreDispatchError("grounded destination is outside the admitted HTTP(S) origins");
+    }
+  }
+
   private async observe(
     live: LiveSession,
     kind: "dom" | "accessibility" | "page_state" | "screenshot" | "article",
@@ -534,7 +617,7 @@ export class PlaywrightBrowserAdapter
     const url = page.url();
     const title = await page.title();
     const html = await page.content();
-    const pageRevision = await this.revision(page);
+    const pageRevision = await this.revision(live);
     const controls: SemanticControl[] = [];
     live.handles.clear();
     live.capabilities.clear();
@@ -569,7 +652,13 @@ export class PlaywrightBrowserAdapter
       });
     }
     const bodyText = await page.locator("body").innerText().catch(() => "");
-    const challengeState = /simulated captcha|required captcha/i.test(bodyText) ? "CAPTCHA_REQUIRED" : "NO_CHALLENGE";
+    const challengeState = classifyBrowserChallenge({
+      url,
+      title,
+      bodyText,
+      markup: html,
+      httpStatus: live.lastMainDocumentStatus
+    });
     const watermarkObserved = (await page.locator("[data-watermark-observed='true']").count()) > 0;
     let article: BrowserObservationData["article"];
     const articleLocator = page.locator("article").first();
@@ -586,6 +675,7 @@ export class PlaywrightBrowserAdapter
       title,
       controls,
       challengeState,
+      httpStatus: live.lastMainDocumentStatus,
       watermarkObserved,
       article: article
         ? {

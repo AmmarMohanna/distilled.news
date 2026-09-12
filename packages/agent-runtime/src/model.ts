@@ -86,10 +86,16 @@ export interface ModelGatewayResult {
   provider: string;
   model: string;
   responseId: string;
+  gateway: string;
+  deployment: ModelDeployment;
 }
 
 export class ModelGatewayError extends Error {
-  constructor(message:string,readonly usage?:ModelGatewayResult["usage"]) { super(message); this.name="ModelGatewayError"; }
+  constructor(
+    message:string,
+    readonly usage?:ModelGatewayResult["usage"],
+    readonly observedIdentity?:{model?:string;provider?:string;gateway?:string;deployment?:ModelDeployment}
+  ) { super(message); this.name="ModelGatewayError"; }
 }
 
 export interface ModelGateway {
@@ -315,7 +321,9 @@ export class ScriptedModelGateway implements ModelGateway {
       },
       provider: "scripted",
       model: request.route.selectedModel,
-      responseId: `scripted_${this.index}`
+      responseId: `scripted_${this.index}`,
+      gateway:this.id,
+      deployment:request.route.deployment
     };
   }
 }
@@ -428,7 +436,16 @@ export class OpenAICompatibleGateway implements ModelGateway {
   }
 
   protected translate(request:ModelRequest) { return buildOpenAICompatibleRequest(request); }
-  protected validateResult(_request:ModelRequest,_result:ModelGatewayResult) {}
+  protected validateResult(request:ModelRequest,result:ModelGatewayResult) {
+    if (result.model.toLowerCase()!==request.route.selectedModel.toLowerCase() ||
+        result.provider.toLowerCase()!==request.route.selectedProvider.toLowerCase()) {
+      throw new ModelGatewayError(
+        `${this.id} returned an unexpected model/provider identity: ${result.model} via ${result.provider}`,
+        result.usage,
+        {model:result.model,provider:result.provider,gateway:result.gateway,deployment:result.deployment}
+      );
+    }
+  }
 
   async complete(request: ModelRequest): Promise<ModelGatewayResult> {
     const started = Date.now();
@@ -441,34 +458,50 @@ export class OpenAICompatibleGateway implements ModelGateway {
     const abort=()=>controller.abort(request.signal?.reason);
     request.signal?.addEventListener("abort",abort,{once:true});
     if (request.signal?.aborted) abort();
+    const gatewayIdentity={gateway:this.id,deployment:request.route.deployment};
     let response:Response;
     try { response = await this.fetcher(this.endpoint, { ...translated, headers,signal:controller.signal }); }
+    catch (error) {
+      throw new ModelGatewayError(`${this.id} transport failed: ${error instanceof Error?error.message:String(error)}`,undefined,gatewayIdentity);
+    }
     finally { clearTimeout(timeout); request.signal?.removeEventListener("abort",abort); }
-    if (!response.ok) throw new ModelGatewayError(`${this.id} request failed: ${response.status}`);
-    const body = (await response.json()) as {
+    if (!response.ok) throw new ModelGatewayError(`${this.id} request failed: ${response.status}`,undefined,gatewayIdentity);
+    let body:{
       id: string;
       model: string;
       provider?: string;
       choices: Array<{ message: { content: string } }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
     };
+    try { body=await response.json() as typeof body; }
+    catch { throw new ModelGatewayError(`${this.id} returned invalid JSON`,undefined,gatewayIdentity); }
+    if (!body || typeof body!=="object" || typeof body.id!=="string" || typeof body.model!=="string" || !Array.isArray(body.choices)) {
+      throw new ModelGatewayError(`${this.id} returned an invalid response envelope`,undefined,{
+        ...gatewayIdentity,
+        model:typeof body?.model==="string"?body.model:undefined,
+        provider:typeof body?.provider==="string"?body.provider:undefined
+      });
+    }
     const usage={
       inputTokens: body.usage?.prompt_tokens ?? 0,
       outputTokens: body.usage?.completion_tokens ?? 0,
       costUsd: body.usage?.cost ?? 0,
       latencyMs: Date.now() - started
     };
-    const content = body.choices[0]?.message.content;
-    if (!content) throw new ModelGatewayError(`${this.id} returned no completed message`,usage);
+    const observedIdentity={...gatewayIdentity,model:body.model,provider:body.provider??request.route.selectedProvider};
+    const content = body.choices?.[0]?.message.content;
+    if (!content) throw new ModelGatewayError(`${this.id} returned no completed message`,usage,observedIdentity);
     let plan:BoundedActionPlan;
     try { plan=boundedActionPlanSchema.parse(JSON.parse(content)) as BoundedActionPlan; }
-    catch { throw new ModelGatewayError(`${this.id} returned an invalid bounded action plan`,usage); }
+    catch { throw new ModelGatewayError(`${this.id} returned an invalid bounded action plan`,usage,observedIdentity); }
     const result:ModelGatewayResult = {
       plan,
       usage,
-      provider: body.provider ?? this.options.provider ?? request.route.selectedProvider,
+      provider: observedIdentity.provider,
       model: body.model,
-      responseId: body.id
+      responseId: body.id,
+      gateway:this.id,
+      deployment:request.route.deployment
     };
     this.validateResult(request,result);
     return result;
@@ -496,9 +529,7 @@ export class OpenRouterGateway extends OpenAICompatibleGateway {
 
   protected override translate(request:ModelRequest) { return buildOpenRouterRequest(request); }
   protected override validateResult(request:ModelRequest,result:ModelGatewayResult) {
-    if (result.provider.toLowerCase()!==request.route.selectedProvider.toLowerCase()) {
-      throw new ModelGatewayError(`OpenRouter returned policy-ineligible provider ${result.provider}`,result.usage);
-    }
+    super.validateResult(request,result);
   }
 }
 

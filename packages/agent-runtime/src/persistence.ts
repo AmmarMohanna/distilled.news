@@ -1,5 +1,6 @@
 import type {
   AcquiredContent,
+  CanonicalAcquiredContent,
   AgentCheckpoint,
   AgentModelCall,
   AgentModelCallAttempt,
@@ -13,6 +14,7 @@ import type {
   AgentRunState,
   AgentToolCall,
   AgentToolIntent,
+  InteractionGroundingRecord,
   AgentToolResult,
   AgentTurn,
   BrowserContextRecord,
@@ -63,6 +65,7 @@ export interface RuntimeStore {
   transitionToolCall(toolCallId: string, to: AgentToolCall["state"], generation: number): Promise<void>;
   savePolicyDecision(value: AgentPolicyDecision): Promise<void>;
   saveToolIntent(value: AgentToolIntent): Promise<void>;
+  saveInteractionGrounding(value: InteractionGroundingRecord): Promise<void>;
   saveToolResult(value: AgentToolResult): Promise<AgentToolResult>;
   getToolIntent(toolCallId: string): Promise<AgentToolIntent | null>;
   getToolResult(toolCallId: string): Promise<AgentToolResult | null>;
@@ -81,6 +84,7 @@ export interface RuntimeStore {
   listEvents(runId: string): Promise<AgentRunEvent[]>;
   markOutboxDelivered(runId: string, at?: string): Promise<void>;
   acknowledgeOutbox(runId: string, at?: string): Promise<void>;
+  failRunDelivery(runId:string,reason:string,at?:string):Promise<void>;
   getOutbox(runId: string): Promise<AgentOutbox | null>;
   listPendingOutbox(limit?: number, now?: Date): Promise<AgentOutbox[]>;
   getBudget(runId: string): Promise<AgentRunBudget | null>;
@@ -114,8 +118,8 @@ export class MemoryRuntimeStore implements RuntimeStore {
   private readonly challenges = new Map<string, ChallengeRecord>();
   private readonly proposals = new Map<string, CompletionProposal>();
   private readonly acceptances = new Map<string, CompletionAcceptance>();
-  private readonly contents = new Map<string, AcquiredContent>();
-  private readonly contentByRun = new Map<string, string[]>();
+  private readonly contents = new Map<string, CanonicalAcquiredContent>();
+  private readonly contentByRun = new Map<string, Map<string,AcquiredContent>>();
   private readonly browserSessions = new Map<string, BrowserSessionRecord>();
   private readonly browserContexts = new Map<string, BrowserContextRecord>();
   private readonly events = new Map<string, AgentRunEvent[]>();
@@ -318,6 +322,11 @@ export class MemoryRuntimeStore implements RuntimeStore {
     await this.appendEvent(value.runId, "agent.tool.intent_persisted", value, value.persistedAt,value.generation);
   }
 
+  async saveInteractionGrounding(value: InteractionGroundingRecord) {
+    await this.assertGeneration(value.runId,value.generation);
+    await this.appendEvent(value.runId,"agent.interaction.grounding_persisted",value,value.createdAt,value.generation);
+  }
+
   async saveToolResult(value: AgentToolResult) {
     await this.assertGeneration(value.runId, value.generation);
     const existing = this.results.get(value.toolCallId);
@@ -405,16 +414,18 @@ export class MemoryRuntimeStore implements RuntimeStore {
     await this.assertGeneration(value.runId, value.generation);
     const existing = this.contents.get(value.acceptanceId);
     if (existing) assertAcquiredIdentity(existing,value);
-    else this.contents.set(value.acceptanceId, clone(value));
-    const ids = this.contentByRun.get(value.runId) ?? [];
-    if (!ids.includes(value.acceptanceId)) ids.push(value.acceptanceId);
-    this.contentByRun.set(value.runId, ids);
+    else this.contents.set(value.acceptanceId, canonicalContent(value));
+    const links = this.contentByRun.get(value.runId) ?? new Map<string,AcquiredContent>();
+    const existingLink=links.get(value.acceptanceId);
+    if (existingLink) assertImmutable("run acquisition provenance",runAcquisitionProvenance(existingLink),runAcquisitionProvenance(value));
+    else links.set(value.acceptanceId,clone(value));
+    this.contentByRun.set(value.runId, links);
     await this.appendEvent(value.runId, "agent.acquired_content.accepted", value, value.acceptedAt,value.generation);
-    return clone(existing ?? value);
+    return clone(value);
   }
 
   async getAcceptedContent(runId: string) {
-    return (this.contentByRun.get(runId) ?? []).map((id) => clone(this.contents.get(id)!));
+    return [...(this.contentByRun.get(runId)?.values()??[])].map(clone);
   }
 
   async saveBrowserSession(value: BrowserSessionRecord) {
@@ -458,6 +469,21 @@ export class MemoryRuntimeStore implements RuntimeStore {
     await this.appendEvent(runId, "agent.outbox.acknowledged", { outboxId: outbox.id }, at);
   }
 
+  async failRunDelivery(runId:string,reason:string,at=new Date().toISOString()) {
+    const run=this.requireRun(runId);
+    if (["completed","failed","cancelled"].includes(run.state)) return;
+    run.state="failed";
+    run.generation+=1;
+    run.updatedAt=at;
+    this.leases.delete(runId);
+    for (const session of this.browserSessions.values()) {
+      if (session.runId===runId && session.state!=="closed") session.state="crashed";
+    }
+    const outbox=this.outboxes.get(runId);
+    if (outbox) { outbox.state="failed";outbox.failedAt=at;outbox.failureReason=reason; }
+    await this.appendEvent(runId,"agent.run.delivery_failed",{reason,generation:run.generation},at);
+  }
+
   async markOutboxDelivered(runId: string, at = new Date().toISOString()) {
     const outbox = this.outboxes.get(runId);
     if (!outbox) throw new Error(`outbox not found: ${runId}`);
@@ -490,7 +516,9 @@ export class MemoryRuntimeStore implements RuntimeStore {
   async authorizeChallengeResume(runId:string,challengeVersion:number,tokenHash:string) {
     this.resumeAuthorizations.set(runId,{version:challengeVersion,tokenHash});
     const outbox=this.outboxes.get(runId);
-    if (outbox) { outbox.state="pending"; outbox.nextAttemptAt=new Date().toISOString(); }
+    if (outbox && this.requireRun(runId).state==="suspended") {
+      outbox.state="pending"; outbox.nextAttemptAt=new Date().toISOString();
+    }
   }
 
   async hasChallengeResumeAuthorization(runId:string) {
@@ -542,7 +570,8 @@ function pickConfigurationIdentity(value:RunConfigurationSnapshot) { return {run
 function pickRunAttemptIdentity(value:AgentRunAttempt) { return {id:value.id,runId:value.runId,generation:value.generation,
   workerId:value.workerId,startedAt:value.startedAt}; }
 function pickModelAttemptIdentity(value:AgentModelCallAttempt) { return {id:value.id,modelCallId:value.modelCallId,attempt:value.attempt,
-  gateway:value.gateway,provider:value.provider,model:value.model}; }
+  requestedGateway:value.requestedGateway,requestedDeployment:value.requestedDeployment,
+  requestedProvider:value.requestedProvider,requestedModel:value.requestedModel}; }
 function pickChallengeIdentity(value:ChallengeRecord) { return {id:value.id,runId:value.runId,observationId:value.observationId,state:value.state,
   fingerprint:value.fingerprint,occurrence:value.occurrence,disposition:value.disposition,generation:value.generation}; }
 function pickProposalIdentity(value:CompletionProposal) { return {id:value.id,runId:value.runId,toolCallId:value.toolCallId,
@@ -552,7 +581,15 @@ function pickAcceptanceIdentity(value:CompletionAcceptance) { return {id:value.i
 
 function idempotencyScope(tenantId:string,resourceId:string,key:string) { return `${tenantId}\u001f${resourceId}\u001f${key}`; }
 
-function assertAcquiredIdentity(existing:AcquiredContent,incoming:AcquiredContent) {
+function canonicalContent(value:AcquiredContent):CanonicalAcquiredContent { return {
+  acceptanceId:value.acceptanceId,tenantId:value.tenantId,resourceId:value.resourceId,candidateId:value.candidateId,
+  canonicalUrl:value.canonicalUrl,publisherTimestamp:value.publisherTimestamp,title:value.title,excerpt:value.excerpt,
+  body:value.body,contentHash:value.contentHash
+}; }
+function runAcquisitionProvenance(value:AcquiredContent) { return {runId:value.runId,acquisitionAttempt:value.acquisitionAttempt,
+  generation:value.generation,turnId:value.turnId,modelCallId:value.modelCallId,toolCallId:value.toolCallId,
+  observationId:value.observationId,rawArtifactRef:value.rawArtifactRef,finalUrl:value.finalUrl,acceptedAt:value.acceptedAt}; }
+function assertAcquiredIdentity(existing:CanonicalAcquiredContent,incoming:AcquiredContent) {
   for (const key of ["tenantId","resourceId","candidateId","canonicalUrl","contentHash"] as const) {
     if (existing[key]!==incoming[key]) throw new Error(`acquired content identity collision on ${key}`);
   }

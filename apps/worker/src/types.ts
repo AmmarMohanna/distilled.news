@@ -55,39 +55,22 @@ export interface ProcessingJobRecord {
   updatedAt: string;
 }
 
-export interface Env {
-  DB: D1Database;
-  RAW_ARCHIVE: R2Bucket;
+export interface Env extends Cloudflare.Env {
   PROCESSING_QUEUE: Queue<DistilledQueueMessage>;
   WEB_OPERATOR_QUEUE: Queue<WebOperatorRunMessage>;
   WEB_OPERATOR_RUNTIME_URL?: string;
   WEB_OPERATOR_RUNTIME_TOKEN?: string;
-  EMAIL?: SendEmail;
-  ASSETS?: Fetcher;
   ADMIN_SESSION_SECRET?: string;
   ADMIN_SETUP_TOKEN?: string;
   INTERNAL_MAINTENANCE_SECRET?: string;
-  EMAIL_FROM?: string;
-  PUBLIC_API_BASE_URL?: string;
-  PUBLIC_WEB_BASE_URL?: string;
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_SITE_KEY?: string;
-  CLOUDFLARE_ACCOUNT_ID?: string;
-  CLOUDFLARE_AI_GATEWAY_ID?: string;
   CLOUDFLARE_AI_GATEWAY_TOKEN?: string;
   OPENAI_API_KEY?: string;
-  OPENAI_MODEL?: string;
   OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS?: string;
   OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS?: string;
   APIFY_API_TOKEN?: string;
-  APIFY_GOOGLE_NEWS_ACTOR_ID?: string;
-  APIFY_X_ACTOR_ID?: string;
-  APIFY_LINKEDIN_COMPANY_ACTOR_ID?: string;
-  APIFY_LINKEDIN_PROFILE_ACTOR_ID?: string;
   APIFY_X_PRICE_USD_PER_1000_RESULTS?: string;
-  DISTILLED_WEB_OPERATOR_ENABLED?: string;
-  DISTILLED_LLM_MODE?: string;
-  DISTILLED_LLM_API_GATEWAY?: string;
   DISTILLED_LLM_GATEWAY?: string;
   DISTILLED_SELF_HOSTED_BASE_URL?: string;
   DISTILLED_SELF_HOSTED_API_KEY?: string;

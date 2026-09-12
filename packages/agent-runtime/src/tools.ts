@@ -9,6 +9,7 @@ import type {
   BrowserContextRecord,
   BrowserSessionRecord,
   ChallengeRecord,
+  InteractionCapability,
   ObservationEnvelope,
   PlannedAction,
   ProgressFacts,
@@ -227,6 +228,15 @@ export class ToolDispatcher {
       }
       resolvedAction.arguments = parsed.data;
       resolvedAction = await this.attachRuntimeCapability(resolvedAction,input.state);
+      const groundedCapability=(resolvedAction.arguments as {capability?:InteractionCapability}).capability;
+      if (groundedCapability) {
+        await this.options.store.saveInteractionGrounding({
+          id:makeId("interaction_grounding",toolCallId,groundedCapability.token),runId:input.runId,toolCallId,
+          generation:input.generation,observationId:groundedCapability.observationId,
+          observationHash:groundedCapability.observationHash,pageRevision:groundedCapability.pageRevision,
+          actionClass:groundedCapability.actionClass,effect:groundedCapability.effect,target:groundedCapability.target,createdAt:now
+        });
+      }
       await this.options.store.transitionToolCall(toolCallId, "schema_validated", input.generation);
 
       const decision = this.options.policy.evaluate({

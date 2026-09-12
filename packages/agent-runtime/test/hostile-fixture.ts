@@ -5,14 +5,17 @@ export interface HostileFixture {
   mutationCount(): number;
   mutationMethods(): string[];
   resetMutations(): void;
+  requestCount(path: string): number;
   close(): Promise<void>;
 }
 
 export async function startHostileFixture(): Promise<HostileFixture> {
   let mutations=0;
   const mutationMethods:string[]=[];
+  const requestsByPath=new Map<string,number>();
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
+    requestsByPath.set(url.pathname,(requestsByPath.get(url.pathname)??0)+1);
     if (url.pathname === "/redirect") {
       response.writeHead(302, { location: "https://example.com/escaped" });
       response.end();
@@ -91,6 +94,60 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       response.end(page("Unsafe links", `<main><a download href="/mutate">Download report</a><a target="_blank" href="/mutate">Open report</a></main>`));
       return;
     }
+    if (url.pathname === "/active-transports") {
+      response.end(page("Active transports", `<main id="results">pending</main><script>
+        const results=[];
+        for (const name of ['WebSocket','WebTransport','RTCPeerConnection','Worker','SharedWorker','EventSource']) results.push(name+':'+typeof globalThis[name]);
+        try { const rtc=new RTCPeerConnection(); rtc.createDataChannel('mutating-channel'); results.push('data-channel:created'); } catch { results.push('data-channel:denied'); }
+        try { new WebSocket('ws://127.0.0.1:${url.port}/socket'); results.push('websocket:created'); } catch { results.push('websocket:denied'); }
+        try { new WebTransport('${url.origin}/transport'); results.push('webtransport:created'); } catch { results.push('webtransport:denied'); }
+        try { new EventSource('/event-stream'); results.push('eventsource:created'); } catch { results.push('eventsource:denied'); }
+        document.querySelector('#results').textContent=results.join(',');
+      </script>`));
+      return;
+    }
+    if (url.pathname === "/service-worker-probe") {
+      response.end(page("Service worker", `<main id="results">pending</main><script>
+        const output=document.querySelector('#results');
+        try { navigator.serviceWorker.register('/service-worker.js').then(()=>output.textContent='registered',()=>output.textContent='denied'); }
+        catch { output.textContent='denied'; }
+      </script>`));
+      return;
+    }
+    if (url.pathname === "/service-worker.js") {
+      response.setHeader("content-type","application/javascript"); response.end("fetch('/mutate')"); return;
+    }
+    if (url.pathname === "/page-download") {
+      response.end(page("Download", `<main>download probe</main><script>
+        const anchor=document.createElement('a');anchor.href='/download-payload';anchor.download='payload.txt';document.body.append(anchor);anchor.click();
+      </script>`));
+      return;
+    }
+    if (url.pathname === "/download-payload") {
+      response.setHeader("content-disposition","attachment; filename=payload.txt"); response.end("fixture payload"); return;
+    }
+    if (url.pathname === "/popup-probes") {
+      response.end(page("Popups", `<main id="results">pending</main><a id="blank" target="_blank" href="/child-page">child</a><script>
+        let result='';try { result=window.open('/child-page')?'opened':'denied'; } catch { result='denied'; }
+        document.querySelector('#blank').click();document.querySelector('#results').textContent=result;
+      </script>`));
+      return;
+    }
+    if (url.pathname === "/child-page") {
+      response.end(page("Child", `<script>fetch('/mutate')</script><main>child executed</main>`)); return;
+    }
+    if (url.pathname === "/hostile-hit-test") {
+      response.end(page("Hostile hit test", `<a aria-hidden="true" href="/article" style="position:absolute;left:100px;top:250px;width:240px;height:70px">read</a><script>
+        document.elementFromPoint=()=>{fetch('/mutate');return document.querySelector('a')};
+      </script>`));
+      return;
+    }
+    if (url.pathname === "/login") { response.end(page("Sign in", `<form><input type="password"><button>Sign in</button></form>`)); return; }
+    if (url.pathname === "/session-expired") { response.end(page("Session", `<main>Your session has expired. Please sign in again.</main>`)); return; }
+    if (url.pathname === "/mfa") { response.end(page("Verification", `<label>Verification code<input autocomplete="one-time-code"></label>`)); return; }
+    if (url.pathname === "/passive-challenge") { response.end(page("Just a moment", `<main>Checking your browser before accessing the site.</main>`)); return; }
+    if (url.pathname === "/automation-blocked") { response.end(page("Blocked", `<main>Automated requests have been blocked.</main>`)); return; }
+    if (url.pathname === "/access-denied") { response.writeHead(403); response.end(page("Denied", `<main>Access denied</main>`)); return; }
     if (url.pathname === "/storage") {
       const value = JSON.stringify(url.searchParams.get("value") ?? "");
       response.end(page("Storage", `<main id="value"></main><script>localStorage.setItem('tenant',${value});document.querySelector('#value').textContent=localStorage.getItem('tenant')||'empty'</script>`));
@@ -108,6 +165,11 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       </script>
     `));
   });
+  server.on("upgrade",(request,socket)=>{
+    const url=new URL(request.url??"/",`http://${request.headers.host??"127.0.0.1"}`);
+    requestsByPath.set(url.pathname,(requestsByPath.get(url.pathname)??0)+1);
+    socket.destroy();
+  });
   await listen(server);
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("fixture server did not bind TCP");
@@ -116,6 +178,7 @@ export async function startHostileFixture(): Promise<HostileFixture> {
     mutationCount:()=>mutations,
     mutationMethods:()=>[...mutationMethods],
     resetMutations:()=>{mutations=0;mutationMethods.length=0;},
+    requestCount:(path)=>requestsByPath.get(path)??0,
     close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
   };
 }

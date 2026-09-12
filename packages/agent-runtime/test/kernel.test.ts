@@ -12,6 +12,7 @@ import {
   buildOpenRouterRequest,
   makeId,
   ModelRouter,
+  ModelGatewayError,
   PolicyEngine,
   StaleGenerationError,
   WebOperatorAcquisitionStrategy,
@@ -344,6 +345,25 @@ describe("observations and completion", () => {
     expect(String(new Headers(request.headers).get("authorization"))).not.toContain("real-key");
   });
 
+  it("rejects a gateway response whose actual model identity differs from the authorized route",async()=>{
+    const gateway=new OpenAICompatibleGateway({baseUrl:"https://gateway.invalid/v1",provider:"provider",fetcher:async()=>new Response(JSON.stringify({
+      id:"mismatch",model:"provider/unapproved",provider:"provider",
+      choices:[{message:{content:JSON.stringify({version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]})}}],
+      usage:{prompt_tokens:1,completion_tokens:1,cost:0}
+    }),{status:200,headers:{"content-type":"application/json"}})});
+    const route={
+      role:"NAVIGATION_FAST" as const,routingReason:"test",requiredCapabilities:["toolCalling"],configuredChain:["provider/text"],
+      configuredTargets:[{deployment:"api" as const,model:"provider/text"}],deployment:"api" as const,gateway:"openrouter",
+      selectedModel:"provider/text",selectedProvider:"provider",selectedCapability:capabilities[0],appliedPolicyConstraints:[]
+    };
+    await expect(gateway.complete({callId:"call",role:"NAVIGATION_FAST",route,
+      stable:{version:"v1",system:"stable",toolSchemaVersion:"v1"},
+      dynamic:{runId:"run",objective:"objective",pageState:pageState("https://fixture.test","r1"),observationIds:[],completionDeficits:[]},
+      contextManifestHash:"hash",allowExactReuse:false,maxOutputTokens:500})).rejects.toMatchObject({
+        name:"ModelGatewayError",observedIdentity:{model:"provider/unapproved",provider:"provider",gateway:"openai_compatible",deployment:"api"}
+      } satisfies Partial<ModelGatewayError>);
+  });
+
   it("projects compact state and a material delta", () => {
     const base = pageState("https://fixture.test/listing", "r1");
     const next = pageState("https://fixture.test/article", "r2");
@@ -400,7 +420,7 @@ function recordingGateway(id: string): ModelGateway & { requests: ModelRequest[]
       return {
         plan:{version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]},
         usage:{inputTokens:1,outputTokens:1,costUsd:0,latencyMs:1},
-        provider:id,model:request.route.selectedModel,responseId:`${id}-1`
+        provider:id,model:request.route.selectedModel,responseId:`${id}-1`,gateway:id,deployment:request.route.deployment
       };
     }
   };

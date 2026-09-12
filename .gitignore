@@ -8,4 +8,11 @@ dist/
 coverage/
 test-results/
 playwright-report/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+benchmark-results/
+experiment-results/
+runtime-traces/
 *.tsbuildinfo

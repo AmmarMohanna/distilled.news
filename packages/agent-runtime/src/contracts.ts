@@ -210,9 +210,14 @@ export interface AgentModelCallAttempt {
   id: string;
   modelCallId: string;
   attempt: number;
-  gateway: string;
-  model: string;
-  provider: string;
+  requestedGateway: string;
+  actualGateway?: string;
+  requestedDeployment: ModelDeployment;
+  actualDeployment?: ModelDeployment;
+  requestedModel: string;
+  actualModel?: string;
+  requestedProvider: string;
+  actualProvider?: string;
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
@@ -290,6 +295,20 @@ export interface AgentToolIntent {
   persistedAt: string;
 }
 
+export interface InteractionGroundingRecord {
+  id: string;
+  runId: string;
+  toolCallId: string;
+  generation: number;
+  observationId: string;
+  observationHash: string;
+  pageRevision: string;
+  actionClass: InteractionCapability["actionClass"];
+  effect: InteractionCapability["effect"];
+  target: InteractionCapability["target"];
+  createdAt: string;
+}
+
 export interface AgentToolResult {
   id: string;
   runId: string;
@@ -356,12 +375,14 @@ export interface AgentOutbox {
   id: string;
   runId: string;
   kind: "agent_run_wake";
-  state: "pending" | "delivered" | "acknowledged";
+  state: "pending" | "delivered" | "acknowledged" | "failed";
   createdAt: string;
   acknowledgedAt?: string;
   deliveredAt?: string;
   attempts: number;
   nextAttemptAt: string;
+  failedAt?: string;
+  failureReason?: string;
 }
 
 export interface BrowserSessionRecord {
@@ -536,6 +557,16 @@ export interface AcquiredContent {
   contentHash: string;
   acceptedAt: string;
 }
+
+export type CanonicalAcquiredContent = Pick<AcquiredContent,
+  "acceptanceId"|"tenantId"|"resourceId"|"candidateId"|"canonicalUrl"|"publisherTimestamp"|
+  "title"|"excerpt"|"body"|"contentHash"
+>;
+
+export type AgentRunAcquisitionProvenance = Pick<AcquiredContent,
+  "runId"|"acquisitionAttempt"|"generation"|"turnId"|"modelCallId"|"toolCallId"|
+  "observationId"|"rawArtifactRef"|"finalUrl"|"acceptedAt"
+>;
 
 export interface CandidateProposal {
   id: string;

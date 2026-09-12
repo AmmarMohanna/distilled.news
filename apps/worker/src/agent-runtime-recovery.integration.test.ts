@@ -62,8 +62,7 @@ describe.sequential("durable D1/R2 crash recovery",()=>{
       mf=new Miniflare({modules:true,script:"export default {fetch(){return new Response('ok')}}",d1Databases:["DB"],r2Buckets:["ARTIFACTS"]});
       const db=await mf.getD1Database("DB");
       const bucket=await mf.getR2Bucket("ARTIFACTS");
-      const sql=await readFile(new URL("../migrations/0011_agent_runtime.sql",import.meta.url),"utf8");
-      for (const statement of sql.split(/;\s*(?:\r?\n|$)/).map((value)=>value.trim()).filter(Boolean)) await db.prepare(statement).run();
+      await applyAgentRuntimeMigrations(db);
 
       const firstStore=new D1AgentRuntimeStore(db);
       const firstArtifacts=new R2ArtifactStore(bucket);
@@ -97,7 +96,58 @@ describe.sequential("durable D1/R2 crash recovery",()=>{
       }
     },45_000);
   }
+
+  it("recovers run B from its own provenance after run A accepted identical canonical content",async()=>{
+    mf=new Miniflare({modules:true,script:"export default {fetch(){return new Response('ok')}}",d1Databases:["DB"],r2Buckets:["ARTIFACTS"]});
+    const db=await mf.getD1Database("DB");
+    const bucket=await mf.getR2Bucket("ARTIFACTS");
+    await applyAgentRuntimeMigrations(db);
+    const sharedInvocation=(suffix:string)=>{
+      const value=invocation(fixture.origin,suffix);
+      value.tenantId="shared-tenant";value.resourceId="shared-resource";
+      value.candidate={candidateId:"shared-candidate",canonicalUrl:`${fixture.origin}/article`,publisherId:"fixture",acquisitionAttempt:suffix};
+      return value;
+    };
+
+    const storeA=new D1AgentRuntimeStore(db);const artifactsA=new R2ArtifactStore(bucket);const browserA=PlaywrightBrowserAdapter.forTest();
+    const strategyA=new WebOperatorAcquisitionStrategy(storeA);
+    const runA=await strategyA.admitKnownCandidate(sharedInvocation("run-a"));
+    const resultA=await new WebOperatorCoordinator({store:storeA,artifacts:artifactsA,browserExecutor:browserA,structured:browserA,visual:browserA,
+      modelGateway:new ScriptedModelGateway([completeArticle(fixture.origin)]),strategy:strategyA}).process(runA.run.runId,"worker-a");
+    expect(resultA.status).toBe("completed");
+
+    const storeB=new D1AgentRuntimeStore(db);const artifactsB=new R2ArtifactStore(bucket);const browserB=PlaywrightBrowserAdapter.forTest();
+    const strategyB=new WebOperatorAcquisitionStrategy(storeB);
+    const runB=await strategyB.admitKnownCandidate(sharedInvocation("run-b"));
+    const crashingB=new WebOperatorCoordinator({store:storeB,artifacts:artifactsB,browserExecutor:browserB,structured:browserB,visual:browserB,
+      modelGateway:new ScriptedModelGateway([plan(action("browser.navigate@1",{url:`${fixture.origin}/article`} ,{urlIncludes:"/article"}),action("browser.extract@1",{}))]),
+      strategy:strategyB,faultInjector:new OnceFault("after_content_acceptance_before_state")});
+    await expect(crashingB.process(runB.run.runId,"worker-b")).rejects.toBeInstanceOf(InjectedCrashError);
+
+    const recoveryStore=new D1AgentRuntimeStore(db);const recoveryArtifacts=new R2ArtifactStore(bucket);const recoveryBrowser=PlaywrightBrowserAdapter.forTest();
+    const recoveryStrategy=new WebOperatorAcquisitionStrategy(recoveryStore);
+    const recovered=await new WebOperatorCoordinator({store:recoveryStore,artifacts:recoveryArtifacts,browserExecutor:recoveryBrowser,
+      structured:recoveryBrowser,visual:recoveryBrowser,modelGateway:new ScriptedModelGateway([
+        plan(action("run.propose_completion@1",{citedObservationIds:["$latestObservation"]}))
+      ]),strategy:recoveryStrategy}).process(runB.run.runId,"worker-b-recovery",new Date(Date.now()+20_000));
+    expect(recovered.status).toBe("completed");
+    expect(recovered.acquiredContent[0].acceptanceId).toBe(resultA.acquiredContent[0].acceptanceId);
+    expect(recovered.acquiredContent[0]).toMatchObject({runId:runB.run.runId,acquisitionAttempt:"run-b"});
+    expect(recovered.acquiredContent[0].toolCallId).not.toBe(resultA.acquiredContent[0].toolCallId);
+    const modelAttempt=await db.prepare(`SELECT requested_model,actual_model,requested_provider,actual_provider,
+      requested_deployment,actual_deployment,requested_gateway,actual_gateway FROM agent_model_call_attempts
+      WHERE model_call_id IN (SELECT id FROM agent_model_calls WHERE run_id=?) ORDER BY attempt LIMIT 1`).bind(runB.run.runId).first<Record<string,string>>();
+    expect(modelAttempt).toMatchObject({requested_model:"fixture/fast",actual_model:"fixture/fast",requested_provider:"fixture",
+      actual_provider:"scripted",requested_deployment:"api",actual_deployment:"api",requested_gateway:"openrouter",actual_gateway:"scripted"});
+  },60_000);
 });
+
+async function applyAgentRuntimeMigrations(db:D1Database) {
+  for (const migration of ["0011_agent_runtime.sql","0012_agent_runtime_security_and_provenance.sql"]) {
+    const sql=await readFile(new URL(`../migrations/${migration}`,import.meta.url),"utf8");
+    for (const statement of sql.split(/;\s*(?:\r?\n|$)/).map((value)=>value.trim()).filter(Boolean)) await db.prepare(statement).run();
+  }
+}
 
 class R2ArtifactStore implements ArtifactStore {
   constructor(private readonly bucket:Awaited<ReturnType<Miniflare["getR2Bucket"]>>) {}
