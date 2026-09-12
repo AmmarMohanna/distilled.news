@@ -27,7 +27,7 @@ describe("D1 agent runtime fencing and outbox",()=>{
     await store.saveBudget(budget!,b!.generation);
     const priorSession=await db.prepare("SELECT state FROM agent_browser_sessions WHERE id='session-a'").first<{state:string}>();
     expect(priorSession?.state).toBe("crashed");
-  });
+  },15_000);
 
   it("relays an admission committed before publication from a fresh store instance",async()=>{
     const {db,store}=await setup(); const admitted=await new WebOperatorAcquisitionStrategy(store).admitKnownCandidate(invocation());

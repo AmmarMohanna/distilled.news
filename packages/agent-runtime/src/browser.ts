@@ -109,8 +109,10 @@ interface LiveSession {
   signal?: AbortSignal;
   abortListener?: () => void;
   state: "healthy" | "crashed" | "closed";
-  blockedNavigation?: string;
+  blockedRequest?: { method: string; url: string };
 }
+
+const READ_ONLY_BROWSER_METHODS = new Set(["GET", "HEAD"]);
 
 export class BrowserScopeError extends Error {
   constructor(message: string) {
@@ -184,7 +186,11 @@ export class PlaywrightBrowserAdapter
       }
     }
     const browser = await chromium.launch({ headless: true,args:resolverRules.length ? [`--host-resolver-rules=${resolverRules.join(",")}`] : [] });
-    const context = await browser.newContext({ viewport: { width: 960, height: 720 }, deviceScaleFactor: 1 });
+    const context = await browser.newContext({
+      viewport: { width: 960, height: 720 },
+      deviceScaleFactor: 1,
+      serviceWorkers: "block"
+    });
     const page = await context.newPage();
     const sessionId = makeId("browser_session", input.runId, input.generation);
     const contextId = makeId("browser_context", input.runId, input.tenantId, input.generation);
@@ -214,10 +220,10 @@ export class PlaywrightBrowserAdapter
     await context.route("**/*", async (route) => {
       const request = route.request();
       try {
-        await this.assertRequestAllowed(live, request.url());
+        await this.assertRequestAllowed(live, request.url(), request.method());
         await route.continue();
       } catch {
-        live.blockedNavigation = request.url();
+        live.blockedRequest = { method: request.method(), url: request.url() };
         await route.abort("blockedbyclient");
       }
     });
@@ -225,7 +231,7 @@ export class PlaywrightBrowserAdapter
     this.sessions.set(sessionId, live);
     context.on("page",(opened)=>{
       if (opened===page) return;
-      live.blockedNavigation="popup:new-page";
+      live.blockedRequest={method:"POPUP",url:opened.url()};
       void opened.close().catch(()=>undefined);
     });
     if (input.signal) {
@@ -295,17 +301,7 @@ export class PlaywrightBrowserAdapter
 
   async navigate(scope: BrowserScope, url: string) {
     const live = this.requireHealthy(scope);
-    live.blockedNavigation = undefined;
-    await this.assertRequestAllowed(live, url);
-    try {
-      await live.page.goto(url, { waitUntil: "networkidle" });
-    } catch (error) {
-      throw new BrowserPostDispatchError(live.blockedNavigation ? `redirect blocked: ${live.blockedNavigation}` : errorMessage(error));
-    }
-    if (live.blockedNavigation) throw new BrowserPostDispatchError(`redirect blocked: ${live.blockedNavigation}`);
-    try { this.assertFinalOrigin(live); } catch (error) { throw new BrowserPostDispatchError(errorMessage(error)); }
-    this.invalidateTransientBindings(live);
-    return this.observe(live, "page_state");
+    return this.navigateDirectly(live, url);
   }
 
   async inspectDom(scope: BrowserScope) {
@@ -324,15 +320,10 @@ export class PlaywrightBrowserAdapter
     }
     const capability = this.requireCapability(live, capabilityToken, "follow_read_link");
     if (capability.target.kind !== "element" || capability.target.handle !== handle) throw new BrowserPreDispatchError("interaction target mismatch");
-    await this.assertRequestAllowed(live, capability.target.destinationUrl);
-    live.blockedNavigation = undefined;
+    if (!capability.target.destinationUrl) throw new BrowserPreDispatchError("read-navigation capability has no destination");
+    await this.assertRequestAllowed(live, capability.target.destinationUrl, "GET");
     live.capabilities.delete(capability.token);
-    await live.page.locator("a,button,input,select,textarea").nth(binding.index).click();
-    await live.page.waitForLoadState("networkidle").catch(() => undefined);
-    if (live.blockedNavigation) throw new BrowserPostDispatchError(`redirect blocked: ${live.blockedNavigation}`);
-    try { this.assertFinalOrigin(live); } catch (error) { throw new BrowserPostDispatchError(errorMessage(error)); }
-    this.invalidateTransientBindings(live);
-    return this.observe(live, "page_state");
+    return this.navigateDirectly(live, capability.target.destinationUrl);
   }
 
   async extract(scope: BrowserScope) {
@@ -390,19 +381,10 @@ export class PlaywrightBrowserAdapter
     if (capability.target.kind !== "coordinates" || capability.target.x !== input.x || capability.target.y !== input.y) {
       throw new BrowserPreDispatchError("interaction target mismatch");
     }
-    live.blockedNavigation = undefined;
-    const beforeUrl = live.page.url();
+    if (!capability.target.destinationUrl) throw new BrowserPreDispatchError("visual read-navigation capability has no destination");
+    await this.assertRequestAllowed(live, capability.target.destinationUrl, "GET");
     live.capabilities.delete(capability.token);
-    await live.page.mouse.click(input.x, input.y);
-    await Promise.race([
-      live.page.waitForURL((candidate) => candidate.toString() !== beforeUrl, { timeout: 1_000 }).catch(() => undefined),
-      live.page.waitForTimeout(250)
-    ]);
-    await live.page.waitForLoadState("networkidle").catch(() => undefined);
-    if (live.blockedNavigation) throw new BrowserPostDispatchError(`redirect blocked: ${live.blockedNavigation}`);
-    try { this.assertFinalOrigin(live); } catch (error) { throw new BrowserPostDispatchError(errorMessage(error)); }
-    this.invalidateTransientBindings(live);
-    return this.observe(live, "page_state");
+    return this.navigateDirectly(live, capability.target.destinationUrl);
   }
 
   async issueVisualCapability(scope: BrowserScope, input: {
@@ -510,7 +492,25 @@ export class PlaywrightBrowserAdapter
     return capability;
   }
 
-  private async assertRequestAllowed(live: LiveSession, value: string) {
+  private async navigateDirectly(live: LiveSession, destinationUrl: string) {
+    live.blockedRequest = undefined;
+    await this.assertRequestAllowed(live, destinationUrl, "GET");
+    try {
+      await live.page.goto(destinationUrl, { waitUntil: "networkidle" });
+    } catch (error) {
+      throw new BrowserPostDispatchError(live.blockedRequest ? blockedRequestMessage(live.blockedRequest) : errorMessage(error));
+    }
+    if (live.blockedRequest) throw new BrowserPostDispatchError(blockedRequestMessage(live.blockedRequest));
+    try { this.assertFinalOrigin(live); } catch (error) { throw new BrowserPostDispatchError(errorMessage(error)); }
+    this.invalidateTransientBindings(live);
+    return this.observe(live, "page_state");
+  }
+
+  private async assertRequestAllowed(live: LiveSession, value: string, method = "GET") {
+    const normalizedMethod = method.toUpperCase();
+    if (!READ_ONLY_BROWSER_METHODS.has(normalizedMethod)) {
+      throw new BrowserPreDispatchError(`browser request method denied: ${normalizedMethod}`);
+    }
     if (value === "about:blank") return;
     let url: URL;
     try { url=new URL(value); } catch { throw new BrowserPreDispatchError("invalid request URL"); }
@@ -636,6 +636,7 @@ function isPrivateAddress(address:string): boolean {
 }
 
 function errorMessage(error:unknown) { return error instanceof Error ? error.message : String(error); }
+function blockedRequestMessage(request:{method:string;url:string}) { return `browser request blocked: ${request.method} ${request.url}`; }
 function urlInSet(value:string,allowed:string[]) {
   try {
     const actual=new URL(value);actual.hash="";

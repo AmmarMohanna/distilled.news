@@ -3,12 +3,14 @@ import { createServer, type Server } from "node:http";
 export interface HostileFixture {
   origin: string;
   mutationCount(): number;
+  mutationMethods(): string[];
   resetMutations(): void;
   close(): Promise<void>;
 }
 
 export async function startHostileFixture(): Promise<HostileFixture> {
   let mutations=0;
+  const mutationMethods:string[]=[];
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
     if (url.pathname === "/redirect") {
@@ -17,7 +19,7 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       return;
     }
     if (url.pathname === "/mutate") {
-      mutations+=1; response.writeHead(204); response.end(); return;
+      mutations+=1; mutationMethods.push(request.method ?? "UNKNOWN"); response.writeHead(204); response.end(); return;
     }
     if (url.pathname === "/mutate-redirect") {
       mutations+=1; response.writeHead(302,{location:"https://example.com/escaped"}); response.end(); return;
@@ -60,6 +62,31 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       response.end(page("Semantic listing", `<main style="height:2000px"><a href="/article">Read safe article</a></main><script>addEventListener('wheel',()=>{document.querySelector('a').textContent='Read updated article'},{once:true})</script>`));
       return;
     }
+    if (url.pathname === "/semantic-onclick-beacon") {
+      response.end(page("Beacon handler", `<main><a href="/article" onclick="navigator.sendBeacon('/mutate','x')">Read article</a></main>`));
+      return;
+    }
+    if (url.pathname === "/semantic-onclick-fetch") {
+      response.end(page("Fetch handler", `<main><a href="/article" onclick="fetch('/mutate',{method:'POST'})">Read article</a></main>`));
+      return;
+    }
+    if (url.pathname === "/semantic-onclick-submit") {
+      response.end(page("Form handler", `<main><form action="/mutate" method="post"><button>Submit</button></form><a href="/article" onclick="document.querySelector('form').requestSubmit()">Read article</a></main>`));
+      return;
+    }
+    if (url.pathname === "/visual-onclick-beacon") {
+      response.end(page("Visual handler", `<main><a aria-hidden="true" href="/article" onclick="navigator.sendBeacon('/mutate','x')" style="position:absolute;left:100px;top:250px;width:240px;height:70px;background:#123;color:white;display:flex;align-items:center;justify-content:center">Read visually</a></main>`));
+      return;
+    }
+    if (url.pathname === "/method-probes") {
+      response.end(page("Method probes", `<main id="results">pending</main><script>
+        const methods=['POST','PUT','PATCH','DELETE','OPTIONS'];
+        const probes=methods.map(method=>fetch('/mutate',{method}).then(()=>method+':allowed',()=>method+':blocked'));
+        const beacon=navigator.sendBeacon('/mutate','x');
+        Promise.all(probes).then(results=>{document.querySelector('#results').textContent=results.join(',')+',BEACON:'+beacon});
+      </script>`));
+      return;
+    }
     if (url.pathname === "/unsafe-links") {
       response.end(page("Unsafe links", `<main><a download href="/mutate">Download report</a><a target="_blank" href="/mutate">Open report</a></main>`));
       return;
@@ -87,7 +114,8 @@ export async function startHostileFixture(): Promise<HostileFixture> {
   return {
     origin: `http://127.0.0.1:${address.port}`,
     mutationCount:()=>mutations,
-    resetMutations:()=>{mutations=0;},
+    mutationMethods:()=>[...mutationMethods],
+    resetMutations:()=>{mutations=0;mutationMethods.length=0;},
     close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
   };
 }

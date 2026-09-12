@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .wrangler/
+.review-tmp/
 .dev.vars
 .env
 .env.local

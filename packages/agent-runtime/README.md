@@ -1,4 +1,4 @@
-# Distilled agent runtime — first vertical slice
+# Distilled agent runtime
 
 The canonical model-routing configuration is structured data. Distilled resolves a logical `ModelRole`; the gateway does not choose the role.
 
@@ -42,6 +42,12 @@ DISTILLED_MODEL_ROLE_<MODEL_ROLE>_FALLBACKS_JSON=[{"deployment":"api","model":"p
 
 `<MODEL_ROLE>` is one of `NAVIGATION_FAST`, `EXTRACTION_FAST`, `VISION_FAST`, `REASONING_STANDARD`, `REASONING_STRONG`, `VISION_STRONG`, `ADAPTER_REPAIR`, or `SEMANTIC_VERIFIER`. In non-hybrid modes a fallback JSON string may use the mode's implicit deployment for backwards-compatible environment input; the canonical format is the explicit object array above, and hybrid requires it. Empty entries, duplicate deployment/model targets, malformed arrays, and targets inconsistent with the selected mode are rejected.
 
-The implemented slice keeps stable instructions separate from dynamic `AgentPageState`, observation-delta, budget, challenge, progress, completion-deficit, and capability data. A model response is a schema-validated plan of one to five actions. The deterministic controller decides whether each next action can continue without another model call. Exact response reuse is deliberately disabled; the immutable context-manifest hash and `allowExactReuse` seam exist for a later proof of safe reuse.
+The runtime keeps stable instructions separate from dynamic `AgentPageState`, observation-delta, budget, challenge, progress, completion-deficit, and capability data. A model response is a schema-validated plan of one to five actions. The deterministic controller decides whether each next action can continue without another model call. Exact response reuse is deliberately disabled; the immutable context-manifest hash and `allowExactReuse` seam remain available only for requests that can prove identical immutable context and safe reuse.
+
+## Read-navigation security contract
+
+`follow_read_link` and `visual_read_link` capabilities authorize navigation only to the exact runtime-resolved destination stored in the capability. Anchor elements and screenshot-grounded anchor coordinates are evidence for resolving that destination; they are never authority to execute a DOM event. The executor therefore performs direct navigation and does not call element, locator, or pointer click APIs for read-navigation capabilities.
+
+Every browser request is independently checked for HTTP(S), exact allowed origin including port, DNS pinning, and public-address eligibility. Browser contexts block service workers, and the read-only network boundary permits only `GET` and `HEAD`. Mutation-capable methods are denied regardless of page content, model output, same-origin status, or declared purpose. A denial before navigation dispatch is `known_not_applied`; after navigation may have begun, any failure remains `effect_unknown` unless deterministic reconciliation proves otherwise.
 
 The Cloudflare queue consumer keeps `web_operator` externally routed by posting a bounded `{ "type": "web_operator_run", "runId": "..." }` message to `/v1/agent-runs/process`. The external host must mount `createConfiguredWebOperatorHttpHandler` with its durable store, artifact store, isolated Playwright adapter, gateway environment, and `WEB_OPERATOR_RUNTIME_TOKEN`. The handler authenticates the request, constructs `createModelGatewayFromEnv`, returns `409` for a busy lease so Queue delivery retries, and returns success only after the coordinator reaches a durable terminal or suspended disposition.

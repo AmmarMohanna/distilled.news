@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AgentRunBudgetLimits, BoundedActionPlan, ModelCapability, ToolName } from "../src/contracts";
 import { TOOL_NAMES } from "../src/contracts";
 import { DEFAULT_SLICE_BUDGET } from "../src/budget";
-import { BrowserScopeError, PlaywrightBrowserAdapter, StaleObservationError } from "../src/browser";
+import { BrowserPostDispatchError, BrowserScopeError, PlaywrightBrowserAdapter, StaleObservationError } from "../src/browser";
 import { ModelGatewayError, ScriptedModelGateway, type ModelGateway, type ModelRequest } from "../src/model";
 import { MemoryArtifactStore } from "../src/observations";
 import { MemoryRuntimeStore } from "../src/persistence";
@@ -17,7 +17,7 @@ const capabilities: ModelCapability[] = [
   { modelRef:"fixture/fallback",provider:"fixture",toolCalling:true,vision:false,structuredOutput:true,reasoningClass:"fast",enabled:true,inputCostPerMillion:0,outputCostPerMillion:0,deployment:"api",externallyHosted:true,privacyEligibility:["public"],retentionClass:"zero_data_retention" }
 ];
 
-describe.sequential("real Chromium first vertical slice", () => {
+describe.sequential("real Chromium browser security and agent runtime", () => {
   let fixture: HostileFixture;
   beforeAll(async () => { fixture = await startHostileFixture(); });
   afterAll(async () => { await fixture.close(); });
@@ -155,6 +155,80 @@ describe.sequential("real Chromium first vertical slice", () => {
       await browser.close(allocation).catch(() => undefined);
     }
   }, 30_000);
+
+  for (const scenario of [
+    { path:"semantic-onclick-beacon",effect:"navigator.sendBeacon" },
+    { path:"semantic-onclick-fetch",effect:"fetch POST" },
+    { path:"semantic-onclick-submit",effect:"form submission" }
+  ]) {
+    it(`navigates to a capability-bound read destination without dispatching ${scenario.effect}`, async () => {
+      fixture.resetMutations();
+      const browser=PlaywrightBrowserAdapter.forTest();
+      const allocation=await browser.allocate({runId:`direct-${scenario.path}`,tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+      try {
+        await browser.navigate(allocation,`${fixture.origin}/${scenario.path}`);
+        const observed=await browser.inspectDom(allocation);
+        const controls=await browser.bindObservationCapabilities(allocation,{
+          observationId:`observation-${scenario.path}`,observationHash:`hash-${scenario.path}`,pageRevision:observed.pageRevision,
+          controls:observed.controls,allowedDestinationUrls:[`${fixture.origin}/article`]
+        });
+        const link=controls.find((control)=>control.kind==="link" && control.destinationUrl===`${fixture.origin}/article`);
+        expect(link?.interactionCapability).toBeTruthy();
+        const result=await browser.followLink(allocation,link!.handle,observed.pageRevision,link!.interactionCapability!);
+        expect(result.finalUrl).toBe(`${fixture.origin}/article`);
+        expect(fixture.mutationCount()).toBe(0);
+        expect(fixture.mutationMethods()).toEqual([]);
+      } finally {
+        await browser.close(allocation).catch(()=>undefined);
+      }
+    },30_000);
+  }
+
+  it("uses a visual anchor only to authorize its resolved destination",async()=>{
+    fixture.resetMutations();
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const allocation=await browser.allocate({runId:"visual-read-destination",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      await browser.navigate(allocation,`${fixture.origin}/visual-onclick-beacon`);
+      const screenshot=await browser.screenshot(allocation);
+      const capability=await browser.issueVisualCapability(allocation,{
+        action:"click",x:220,y:285,screenshotToken:screenshot.screenshotObservationToken,
+        screenshotObservationId:"visual-observation",screenshotHash:"visual-hash",pageRevision:screenshot.pageRevision,
+        allowedDestinationUrls:[`${fixture.origin}/article`]
+      });
+      expect(capability).toMatchObject({actionClass:"visual_read_link",effect:"read_navigation",
+        target:{kind:"coordinates",destinationUrl:`${fixture.origin}/article`}});
+      const genericClick=await browser.issueVisualCapability(allocation,{
+        action:"click",x:620,y:285,screenshotToken:screenshot.screenshotObservationToken,
+        screenshotObservationId:"visual-observation",screenshotHash:"visual-hash",pageRevision:screenshot.pageRevision,
+        allowedDestinationUrls:[`${fixture.origin}/article`]
+      });
+      expect(genericClick).toBeNull();
+      const result=await browser.click(allocation,{x:220,y:285,screenshotToken:screenshot.screenshotObservationToken,
+        pageRevision:screenshot.pageRevision,capability:capability!});
+      expect(result.finalUrl).toBe(`${fixture.origin}/article`);
+      expect(fixture.mutationCount()).toBe(0);
+      expect(fixture.mutationMethods()).toEqual([]);
+    } finally {
+      await browser.close(allocation).catch(()=>undefined);
+    }
+  },30_000);
+
+  it("blocks mutation-capable HTTP methods at the browser network boundary",async()=>{
+    fixture.resetMutations();
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const allocation=await browser.allocate({runId:"read-only-network",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      await expect(browser.navigate(allocation,`${fixture.origin}/method-probes`)).rejects.toBeInstanceOf(BrowserPostDispatchError);
+      const observed=await browser.inspectDom(allocation);
+      const representation=JSON.stringify(observed.representation);
+      for (const method of ["POST","PUT","PATCH","DELETE","OPTIONS"]) expect(representation).toContain(`${method}:blocked`);
+      expect(fixture.mutationCount()).toBe(0);
+      expect(fixture.mutationMethods()).toEqual([]);
+    } finally {
+      await browser.close(allocation).catch(()=>undefined);
+    }
+  },30_000);
 
   it("classifies a repeated challenge fingerprint as CHALLENGE_LOOP without an unbounded retry", async () => {
     const store = new MemoryRuntimeStore();
