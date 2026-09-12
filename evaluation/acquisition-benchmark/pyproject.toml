@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "distilled-acquisition-benchmark"
+version = "0.1.0"
+description = "Reproducible acquisition-route benchmark for Distilled.news"
+requires-python = ">=3.10"
+dependencies = [
+  "httpx==0.28.1",
+  "zstandard==0.23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==8.4.1",
+]
+
+[tool.setuptools.packages.find]
+include = ["bench*"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "strict"
+include = ["bench", "tests"]
