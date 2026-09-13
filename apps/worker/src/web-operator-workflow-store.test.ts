@@ -107,6 +107,25 @@ function captureBundle(resourceId: string, suffix: string): WorkflowCaptureBundl
     acceptedContentId: `accepted-${suffix}`,
     successfulAlternatives: ["browser.extract@1"],
     failedAlternatives: [],
+    discoveryEvidence: {
+      canonicalResourceIdentity: {
+        resourceId,
+        candidateCanonicalUrl: "https://fixture.test/article",
+        publisherId: "fixture"
+      },
+      listingUrlCandidates: ["https://fixture.test/section"],
+      paginationBehavior: {
+        watermarkObserved: true,
+        exhausted: true,
+        evidenceObservationIds: [`observation-${suffix}`]
+      },
+      articleUrlPatterns: ["https://fixture.test/{slug}"],
+      publicationTimeEvidence: [{ observationId: `observation-${suffix}`, publisherTimestamp: "2026-09-13T00:00:00Z" }],
+      pageTypeObservations: [{ observationId: `observation-${suffix}`, url: "https://fixture.test/article", pageType: "article", title: "Article" }],
+      locatorEvidence: [],
+      requiredReadCapabilities: [],
+      stoppingWatermarkEvidence: [{ observationId: `observation-${suffix}`, url: "https://fixture.test/article", watermarkObserved: true, exhausted: true }]
+    },
     extractionEvidence: [{ observationId: `observation-${suffix}`, canonicalUrl: "https://fixture.test/article", contentHash: "hash" }],
     completionEvidence: { citedObservationIds: [`observation-${suffix}`], watermarkObserved: true },
     runtime: { softwareVersion: "test", toolSchemaVersion: "tools", workflowSchemaVersion: "workflow-capture-v1" },

@@ -12,6 +12,7 @@ import {
   WebOperatorCoordinator,
   WorkflowCandidateCompiler,
   WorkflowCaptureService,
+  WorkflowLifecycleCoordinator,
   WorkflowValidator,
   assertAuthProfileUsable,
   emptyAcquisitionMetrics,
@@ -86,17 +87,64 @@ describe("workflow capture, compilation, validation, promotion, and replay", () 
       }).capture(run);
       expect(capture.actions.map((visible) => visible.tool)).toContain("browser.extract@1");
       expect(capture.extractionEvidence[0].canonicalUrl).toBe(`${fixture.origin}/article`);
+      expect(capture.discoveryEvidence.canonicalResourceIdentity).toMatchObject({
+        resourceId: "resource-capture",
+        candidateCanonicalUrl: `${fixture.origin}/article`
+      });
+      expect(capture.discoveryEvidence.articleUrlPatterns.length).toBeGreaterThan(0);
+      expect(capture.discoveryEvidence.pageTypeObservations.map((entry) => entry.pageType)).toContain("article");
 
-      const compiler = new WorkflowCandidateCompiler();
-      const candidate = compiler.compile(capture);
+      const lifecycle = new WorkflowLifecycleCoordinator({
+        workflowStore,
+        captureService: new WorkflowCaptureService({
+          runtimeStore: store,
+          workflowStore,
+          softwareVersion: "test-runtime",
+          toolSchemaVersion: "web-operator-tools-v1"
+        }),
+        compiler: new WorkflowCandidateCompiler(),
+        validator: new WorkflowValidator()
+      });
+      const candidate = new WorkflowCandidateCompiler().compile(capture);
       await workflowStore.saveWorkflowCandidate(candidate);
-      const validation = await new WorkflowValidator().validate(candidate, capture);
-      await workflowStore.saveValidationResult(validation);
+      const validation = await lifecycle.validateCandidate(candidate.id, "validator");
       expect(validation.passed).toBe(true);
-      await expect(workflowStore.promoteWorkflow(candidate.id, "producer-agent")).resolves.toMatchObject({ state: "ACTIVE" });
+      expect(await workflowStore.getWorkflowCandidate(candidate.id)).toMatchObject({ state: "VALIDATED" });
+      expect(await workflowStore.getActiveWorkflow("resource-capture")).toBeNull();
+      await expect(lifecycle.promoteValidatedWorkflow(candidate.id, "validator")).resolves.toMatchObject({ state: "ACTIVE" });
     } finally {
       await fixture.close();
     }
+  });
+
+  it("requires confirmed active-workflow structural failure before repair is authorized", async () => {
+    const store = new MemoryWorkflowRepository();
+    const workflow = workflowCandidate("resource", "repair");
+    await store.saveWorkflowCandidate({ ...workflow, state: "VALIDATED" });
+    await store.promoteWorkflow(workflow.id, "validator");
+    const lifecycle = new WorkflowLifecycleCoordinator({
+      workflowStore: store,
+      minimumStructuralEvidence: 2
+    });
+    await expect(lifecycle.decideRepair({
+      workflowId: workflow.id,
+      attempts: [{ failureClass: "structural_site_change", transient: false }]
+    })).resolves.toMatchObject({ repairRequired: false, reason: "insufficient_failure_evidence" });
+    await expect(lifecycle.decideRepair({
+      workflowId: workflow.id,
+      attempts: [
+        { failureClass: "structural_site_change", transient: false },
+        { failureClass: "structural_site_change", transient: false }
+      ]
+    })).resolves.toMatchObject({ repairRequired: true, failureClass: "structural_site_change" });
+    await store.markWorkflow(workflow.id, "ROLLED_BACK");
+    await expect(lifecycle.decideRepair({
+      workflowId: workflow.id,
+      attempts: [
+        { failureClass: "structural_site_change", transient: false },
+        { failureClass: "structural_site_change", transient: false }
+      ]
+    })).resolves.toMatchObject({ repairRequired: false, reason: "only_active_workflows_trigger_repair" });
   });
 
   it("keeps workflow lifecycle versioned and rollback-safe", async () => {

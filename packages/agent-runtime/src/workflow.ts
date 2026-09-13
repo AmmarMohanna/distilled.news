@@ -67,6 +67,46 @@ export interface WorkflowVisibleAction {
   occurredAt: string;
 }
 
+export interface SourceDiscoveryEvidence {
+  canonicalResourceIdentity: {
+    resourceId: string;
+    candidateCanonicalUrl: string;
+    publisherId?: string;
+  };
+  listingUrlCandidates: string[];
+  paginationBehavior: {
+    watermarkObserved: boolean;
+    exhausted: boolean;
+    evidenceObservationIds: string[];
+  };
+  articleUrlPatterns: string[];
+  publicationTimeEvidence: Array<{
+    observationId: string;
+    publisherTimestamp: string;
+  }>;
+  pageTypeObservations: Array<{
+    observationId: string;
+    url: string;
+    pageType: AgentPageState["pageType"];
+    title: string;
+  }>;
+  locatorEvidence: Array<{
+    observationId: string;
+    kind: string;
+    label?: string;
+    destinationUrl?: string;
+    safeAction?: string;
+    capability?: InteractionCapability["actionClass"];
+  }>;
+  requiredReadCapabilities: InteractionCapability["actionClass"][];
+  stoppingWatermarkEvidence: Array<{
+    observationId: string;
+    url: string;
+    watermarkObserved: boolean;
+    exhausted: boolean;
+  }>;
+}
+
 export interface WorkflowCaptureBundle {
   id: string;
   runId: string;
@@ -78,6 +118,7 @@ export interface WorkflowCaptureBundle {
   acceptedContentId?: string;
   successfulAlternatives: string[];
   failedAlternatives: string[];
+  discoveryEvidence: SourceDiscoveryEvidence;
   extractionEvidence: {
     observationId: string;
     canonicalUrl: string;
@@ -227,6 +268,7 @@ export class WorkflowCaptureService {
     const accepted = await this.input.runtimeStore.getAcceptedContent(run.runId);
     const actions: WorkflowVisibleAction[] = [];
     const observationIds: string[] = [];
+    const observations: ObservationEnvelope[] = [];
     for (const event of events) {
       if (event.type === "agent.observation.persisted") {
         const data = event.data as { observationId?: string };
@@ -238,6 +280,7 @@ export class WorkflowCaptureService {
         const intent = await this.input.runtimeStore.getToolIntent(result.toolCallId);
         if (toolCall && intent) {
           const observation = await this.input.runtimeStore.getObservationForToolCall(result.toolCallId);
+          if (observation) observations.push(observation);
           actions.push({
             tool: toolCall.tool,
             arguments: intent.arguments,
@@ -265,6 +308,7 @@ export class WorkflowCaptureService {
       acceptedContentId: accepted[0]?.acceptanceId,
       successfulAlternatives: actions.filter((action) => action.effectCertainty === "known_applied").map((action) => action.tool),
       failedAlternatives: actions.filter((action) => action.effectCertainty !== "known_applied").map((action) => action.tool),
+      discoveryEvidence: buildDiscoveryEvidence(run, observations, accepted),
       extractionEvidence,
       completionEvidence: {
         citedObservationIds: observationIds,
@@ -369,6 +413,82 @@ export class WorkflowValidator {
       failureClass: passed ? undefined : "structural_site_change",
       validatedAt: now
     };
+  }
+}
+
+export interface WorkflowRepairDecision {
+  repairRequired: boolean;
+  sourceWorkflowId: string;
+  failureClass?: StructuralFailureClass;
+  reason: string;
+}
+
+export class WorkflowLifecycleCoordinator {
+  constructor(private readonly options: {
+    workflowStore: WorkflowRepository;
+    captureService?: WorkflowCaptureService;
+    compiler?: WorkflowCandidateCompiler;
+    validator?: WorkflowValidator;
+    minimumStructuralEvidence?: number;
+  }) {}
+
+  async produceCandidateFromRun(run: AgentRun, now = new Date().toISOString()): Promise<{
+    capture: WorkflowCaptureBundle;
+    candidate: WorkflowCandidate;
+  }> {
+    if (!this.options.captureService) throw new Error("workflow capture service is required to produce a candidate from a run");
+    const capture = await this.options.captureService.capture(run, now);
+    const candidate = (this.options.compiler ?? new WorkflowCandidateCompiler()).compile(capture, now);
+    await this.options.workflowStore.saveWorkflowCandidate(candidate);
+    return { capture, candidate };
+  }
+
+  async validateCandidate(candidateId: string, validatorId: string, now = new Date().toISOString()): Promise<WorkflowValidationResult> {
+    const candidate = await this.requireCandidate(candidateId);
+    const capture = await this.options.workflowStore.getCaptureBundle(candidate.sourceCaptureId);
+    if (!capture) throw new Error(`workflow capture not found: ${candidate.sourceCaptureId}`);
+    const result = await (this.options.validator ?? new WorkflowValidator()).validate(candidate, capture, now);
+    await this.options.workflowStore.saveValidationResult(result);
+    await this.options.workflowStore.saveWorkflowCandidate({
+      ...candidate,
+      state: result.passed ? "VALIDATED" : "INVALID",
+      validatedAt: now
+    });
+    return result;
+  }
+
+  async promoteValidatedWorkflow(candidateId: string, validatorId: string, now = new Date().toISOString()): Promise<WorkflowCandidate> {
+    const candidate = await this.requireCandidate(candidateId);
+    if (candidate.state !== "VALIDATED") throw new Error("only VALIDATED workflows can be promoted");
+    return this.options.workflowStore.promoteWorkflow(candidateId, validatorId, now);
+  }
+
+  async decideRepair(input: {
+    workflowId: string;
+    attempts: Array<{ failureClass: StructuralFailureClass; transient: boolean }>;
+  }): Promise<WorkflowRepairDecision> {
+    const workflow = await this.requireCandidate(input.workflowId);
+    const failureClass = classifyWorkflowFailure({
+      attempts: input.attempts,
+      minimumStructuralEvidence: this.options.minimumStructuralEvidence ?? 2
+    });
+    if (!failureClass) return { repairRequired: false, sourceWorkflowId: workflow.id, reason: "insufficient_failure_evidence" };
+    if (failureClass === "transient_browser_network_failure") {
+      return { repairRequired: false, sourceWorkflowId: workflow.id, failureClass, reason: "transient_failure_requires_backoff" };
+    }
+    if (failureClass === "authentication_or_challenge" || failureClass === "policy_restriction") {
+      return { repairRequired: false, sourceWorkflowId: workflow.id, failureClass, reason: "explicit_authorization_required" };
+    }
+    if (workflow.state !== "ACTIVE") {
+      return { repairRequired: false, sourceWorkflowId: workflow.id, failureClass, reason: "only_active_workflows_trigger_repair" };
+    }
+    return { repairRequired: true, sourceWorkflowId: workflow.id, failureClass, reason: "confirmed_structural_failure" };
+  }
+
+  private async requireCandidate(candidateId: string): Promise<WorkflowCandidate> {
+    const candidate = await this.options.workflowStore.getWorkflowCandidate(candidateId);
+    if (!candidate) throw new Error(`workflow candidate not found: ${candidateId}`);
+    return candidate;
   }
 }
 
@@ -569,7 +689,10 @@ export function classifyWorkflowFailure(input: {
 }): StructuralFailureClass | undefined {
   const structural = input.attempts.filter((attempt) => !attempt.transient && attempt.failureClass === "structural_site_change");
   if (structural.length >= input.minimumStructuralEvidence) return "structural_site_change";
-  return input.attempts.at(-1)?.failureClass;
+  const latest = input.attempts.at(-1);
+  if (!latest) return undefined;
+  if (!latest.transient && latest.failureClass === "structural_site_change") return undefined;
+  return latest.failureClass;
 }
 
 function reserveBudget(remaining: AgentRunBudgetLimits, requested: Partial<AgentRunBudgetLimits>): boolean {
@@ -588,6 +711,103 @@ function workflowPageState(observation: ObservationEnvelope | undefined): AgentP
   if (typeof (value as AgentPageState).url !== "string") return undefined;
   if (!Array.isArray((value as AgentPageState).relevantControls)) return undefined;
   return value as AgentPageState;
+}
+
+function buildDiscoveryEvidence(run: AgentRun, observations: ObservationEnvelope[], accepted: AcquiredContent[]): SourceDiscoveryEvidence {
+  const pageStates = observations
+    .map((observation) => ({ observation, pageState: workflowPageState(observation) }))
+    .filter((entry): entry is { observation: ObservationEnvelope; pageState: AgentPageState } => Boolean(entry.pageState));
+  const listingUrlCandidates = unique(pageStates
+    .filter(({ pageState }) => pageState.pageType === "listing")
+    .map(({ pageState }) => pageState.url));
+  const stoppingWatermarkEvidence = pageStates
+    .filter(({ pageState }) => pageState.pagination.watermarkObserved || pageState.pagination.exhausted)
+    .map(({ observation, pageState }) => ({
+      observationId: observation.id,
+      url: pageState.url,
+      watermarkObserved: pageState.pagination.watermarkObserved,
+      exhausted: pageState.pagination.exhausted
+    }));
+  const locatorEvidence = pageStates.flatMap(({ observation, pageState }) =>
+    pageState.relevantControls.map((control) => ({
+      observationId: observation.id,
+      kind: control.kind,
+      label: control.label,
+      destinationUrl: control.destinationUrl,
+      safeAction: control.safeAction,
+      capability: readCapability(control.interactionCapability)
+    }))
+  );
+  return {
+    canonicalResourceIdentity: {
+      resourceId: run.resourceId,
+      candidateCanonicalUrl: run.candidate.canonicalUrl,
+      publisherId: run.candidate.publisherId
+    },
+    listingUrlCandidates,
+    paginationBehavior: {
+      watermarkObserved: stoppingWatermarkEvidence.some((entry) => entry.watermarkObserved),
+      exhausted: stoppingWatermarkEvidence.some((entry) => entry.exhausted),
+      evidenceObservationIds: stoppingWatermarkEvidence.map((entry) => entry.observationId)
+    },
+    articleUrlPatterns: unique([
+      pathPattern(run.candidate.canonicalUrl),
+      ...accepted.map((content) => pathPattern(content.canonicalUrl)),
+      ...pageStates
+        .flatMap(({ pageState }) => pageState.relevantControls)
+        .map((control) => control.destinationUrl)
+        .filter((value): value is string => Boolean(value))
+        .map(pathPattern)
+    ]),
+    publicationTimeEvidence: [
+      ...accepted.map((content) => ({
+        observationId: content.observationId,
+        publisherTimestamp: content.publisherTimestamp
+      })),
+      ...pageStates
+      .filter(({ pageState }) => Boolean(pageState.article?.publisherTimestamp))
+      .map(({ observation, pageState }) => ({
+        observationId: observation.id,
+        publisherTimestamp: pageState.article!.publisherTimestamp!
+      }))
+    ],
+    pageTypeObservations: [
+      ...accepted.map((content) => ({
+        observationId: content.observationId,
+        url: content.canonicalUrl,
+        pageType: "article" as const,
+        title: content.title
+      })),
+      ...pageStates.map(({ observation, pageState }) => ({
+      observationId: observation.id,
+      url: pageState.url,
+      pageType: pageState.pageType,
+      title: pageState.title
+      }))
+    ],
+    locatorEvidence,
+    requiredReadCapabilities: unique(locatorEvidence
+      .map((entry) => entry.capability)
+      .filter((value): value is InteractionCapability["actionClass"] => Boolean(value))),
+    stoppingWatermarkEvidence
+  };
+}
+
+function pathPattern(value: string): string {
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname.replace(/[0-9]{4}(?:\/[0-9]{2})?(?:\/[0-9]{2})?/g, "{date}").replace(/\/[^/]+$/, "/{slug}")}`;
+  } catch {
+    return value;
+  }
+}
+
+function unique<T>(values: T[]): T[] {
+  return [...new Set(values)];
+}
+
+function readCapability(value: string | undefined): InteractionCapability["actionClass"] | undefined {
+  return value === "follow_read_link" || value === "visual_read_link" || value === "pointer_only" ? value : undefined;
 }
 
 function workflowIdentity(candidate: WorkflowCandidate) {

@@ -77,11 +77,11 @@ DISTILLED_LIVE_OPENROUTER_PROVIDER=...
 
 ## Workflow lifecycle
 
-A successful run may produce a `WorkflowCaptureBundle` containing visible actions, observation references, effect certainty, browser generation, extraction evidence, completion evidence, and runtime/tool/schema versions. It does not capture hidden chain-of-thought.
+A successful run may produce a `WorkflowCaptureBundle` containing visible actions, observation references, effect certainty, browser generation, structured discovery evidence, extraction evidence, completion evidence, and runtime/tool/schema versions. Discovery evidence is machine-readable and includes observed page types, listing URL candidates, article URL pattern hints, publication-time evidence, locator/capability evidence, and watermark/exhaustion evidence when available. It does not capture hidden chain-of-thought.
 
 `WorkflowCandidateCompiler` converts captures into typed deterministic operations such as `navigate`, `locate_semantic_target`, `follow_canonical_article`, `paginate`, `stop_at_watermark`, `extract_article`, and `verify_expected_condition`. Unsupported or ambiguous gaps remain explicit.
 
-Workflow states are `CANDIDATE`, `VALIDATED`, `ACTIVE`, `SUPERSEDED`, `REJECTED`, `INVALID`, and `ROLLED_BACK`. The producing agent may create a candidate, but only validator/promotion authority can activate it. Deterministic replay uses the same browser security contracts and requires zero model calls while the workflow remains valid.
+Workflow states are `CANDIDATE`, `VALIDATED`, `ACTIVE`, `SUPERSEDED`, `REJECTED`, `INVALID`, and `ROLLED_BACK`. The producing agent may create a candidate, but only validator/promotion authority can activate it. Repair is authorized only after bounded structural-failure evidence on an active workflow; challenge, policy, and transient failures do not directly trigger repair. Deterministic replay uses the same browser security contracts and requires zero model calls while the workflow remains valid.
 
 ## Authorized browser profiles
 
