@@ -404,8 +404,13 @@ function AdminPage() {
   if (!session.authenticated) {
     return (
       <main className="auth-experience guest-auth-home">
-        <header className="auth-header"><div className="experience-brand" aria-label="Distilled News"><BrandMark/></div><div className="auth-header-controls"><ThemeToggle/><LanguageControl/></div></header>
+        <header className="auth-header"><div className="experience-brand" aria-label="Distilled News"><BrandMark/></div><div className="auth-header-controls experience-header-actions"><LanguageControl/><ThemeToggle/></div></header>
         <div className="auth-columns">
+          <section className="auth-introduction">
+            <div className="auth-product-name">distilled.news</div>
+            <h1>A calmer perspective<br/>on a complex world.</h1>
+            <p>Personalized news briefings that help you see the bigger picture.</p>
+          </section>
           <AuthPanel
             setupRequired={session.setupRequired}
             turnstileSiteKey={session.turnstileSiteKey}
