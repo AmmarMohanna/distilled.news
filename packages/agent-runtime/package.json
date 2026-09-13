@@ -14,6 +14,11 @@
     "./observations": "./src/observations.ts",
     "./policy": "./src/policy.ts",
     "./persistence": "./src/persistence.ts",
+    "./acquisition-router": "./src/acquisition-router.ts",
+    "./auth-profile": "./src/auth-profile.ts",
+    "./evaluation": "./src/evaluation.ts",
+    "./product-loop": "./src/product-loop.ts",
+    "./workflow": "./src/workflow.ts",
     "./state-machine": "./src/state-machine.ts"
   },
   "scripts": {
