@@ -233,14 +233,22 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
   });
 
   const parser = isGoogleNews ? parseGoogleNewsRssFeed : parseRssFeed;
-  const messages = parser(xml, {
-    sourceId: input.source.id,
-    sourceTitle: input.source.title,
-    sourceUrl: url,
-    receivedAt: now,
-    retentionDays: input.briefing.retentionDays,
-    rawPayloadKey
-  });
+  let messages: NormalizedMessage[];
+  try {
+    messages = parser(xml, {
+      sourceId: input.source.id,
+      sourceTitle: input.source.title,
+      sourceUrl: url,
+      receivedAt: now,
+      retentionDays: input.briefing.retentionDays,
+      rawPayloadKey
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Invalid feed response";
+    const message = `Could not parse ${isGoogleNews ? "Google News RSS" : "RSS"} source: ${detail}`;
+    await input.repo.updateSourceState({ sourceId: input.source.id, lastCheckedAt: now.toISOString(), lastError: message }, now);
+    throw new Error(message);
+  }
   const result = await persistMessages({ ...input, messages, now });
   await markSourceFetch(input.repo, input.briefing.id, now);
   if (result.imported > 0) await markImportedMessage(input.repo, input.briefing.id, now);

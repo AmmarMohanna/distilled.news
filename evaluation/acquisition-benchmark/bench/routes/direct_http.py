@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from urllib.parse import urljoin, urlsplit
 
 import httpx
+import httpcore
+from bench.network import NetworkError, PublicTransport, bounded_body
 
 from bench.records import (
     CostRecord,
@@ -136,7 +138,9 @@ class DirectHttpRoute:
                 ),
                 payload=None,
             )
-        except httpx.ConnectError:
+        except UnsafeTargetError:
+            outcome = _Outcome(transport=TransportRecord(ok=False, resolved_url=input_url, error_type=ErrorType.UNSAFE_TARGET), payload=None)
+        except (httpx.ConnectError, httpcore.ConnectError):
             outcome = _Outcome(
                 transport=TransportRecord(
                     ok=False,
@@ -145,7 +149,7 @@ class DirectHttpRoute:
                 ),
                 payload=None,
             )
-        except httpx.HTTPError:
+        except (httpx.HTTPError, httpcore.NetworkError):
             outcome = _Outcome(
                 transport=TransportRecord(
                     ok=False,
@@ -193,6 +197,7 @@ class DirectHttpRoute:
             return await self._perform(self._client, input_url)
 
         async with httpx.AsyncClient(
+            transport=PublicTransport(),
             follow_redirects=False,
             timeout=None,
             trust_env=False,
@@ -205,6 +210,7 @@ class DirectHttpRoute:
         headers = {
             "User-Agent": self._config.user_agent,
             "Accept-Language": self._config.accept_language,
+            "Accept-Encoding": "identity",
         }
 
         while True:
@@ -275,20 +281,11 @@ class DirectHttpRoute:
         current_url: str,
         redirects: int,
     ) -> bytes:
-        chunks: list[bytes] = []
-        bytes_received = 0
-        async for chunk in response.aiter_bytes():
-            bytes_received += len(chunk)
-            if bytes_received > self._config.max_bytes_decompressed:
-                raise _RouteFailure(
-                    ErrorType.TOO_LARGE,
-                    current_url,
-                    redirects,
-                    http_status=response.status_code,
-                    content_type=response.headers.get("content-type"),
-                )
-            chunks.append(chunk)
-        return b"".join(chunks)
+        try:
+            return await bounded_body(response, self._config.max_bytes_decompressed)
+        except NetworkError as error:
+            raise _RouteFailure(ErrorType.TOO_LARGE if error.code == "too_large" else ErrorType.OTHER,
+                current_url, redirects, http_status=response.status_code, content_type=response.headers.get("content-type")) from error
 
 
 def _classify_status(status_code: int) -> ErrorType | None:

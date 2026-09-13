@@ -48,17 +48,15 @@ export function normalizeGoogleNewsItems(items: unknown[], options: ApifyNormali
 }
 
 function googleNewsPostedAt(record: Record<string, unknown>, receivedAt?: Date): string | undefined {
-  const direct = dateValue(record.publishedAt ?? record.published_at ?? record.publishedTimestamp ?? record.timestamp);
-  if (direct) return direct;
-
-  const date = dateValue(record.date);
-  if (date) return date;
+  for (const value of [record.publishedAt, record.published_at, record.publishedTimestamp, record.timestamp, record.date]) {
+    const date = dateValue(value);
+    if (date) return date;
+  }
 
   const base = dateObject(record.fetchedAt ?? record.fetched_at ?? record.scrapedAt) ?? receivedAt ?? new Date();
-  const relative = relativeDateValue(record.date, base);
-  if (relative) return relative;
-
-  return dateValue(record.fetchedAt ?? record.fetched_at ?? record.scrapedAt) ?? receivedAt?.toISOString();
+  // Collection time can anchor an explicit relative date, but is not publication evidence.
+  // The message schema requires postedAt, so unrecoverably undated items are skipped.
+  return relativeDateValue(record.date, base);
 }
 
 export function normalizeXItems(items: unknown[], options: ApifyNormalizeOptions): NormalizedMessage[] {
@@ -230,7 +228,8 @@ function relativeDateValue(value: unknown, base: Date): string | undefined {
   };
   const multiplier = multipliers[unit];
   if (!Number.isFinite(amount) || !multiplier) return undefined;
-  return new Date(base.getTime() - amount * multiplier).toISOString();
+  const date = new Date(base.getTime() - amount * multiplier);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
 }
 
 function imageMedia(value: unknown): MediaReference[] {

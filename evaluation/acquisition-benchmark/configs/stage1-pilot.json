@@ -1,0 +1,497 @@
+{
+  "version": 1,
+  "mode": "live",
+  "data_dir": "../data/live",
+  "repetitions": 2,
+  "seed": 20260913,
+  "budget": {
+    "total_usd": 0,
+    "providers": {}
+  },
+  "routes": [
+    {
+      "id": "direct",
+      "adapter": "direct_http",
+      "enabled": false,
+      "provider": "direct_http",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {}
+    },
+    {
+      "id": "zyte",
+      "adapter": "zyte_http",
+      "enabled": false,
+      "provider": "zyte_http",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {}
+    },
+    {
+      "id": "unlocker",
+      "adapter": "brightdata_unlocker",
+      "enabled": false,
+      "provider": "brightdata",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "zone": ""
+      }
+    },
+    {
+      "id": "browser",
+      "adapter": "browser_playwright",
+      "enabled": false,
+      "provider": "browser_playwright",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {}
+    },
+    {
+      "id": "rss_baseline",
+      "adapter": "rss",
+      "enabled": false,
+      "provider": "rss",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "parser": "baseline"
+      }
+    },
+    {
+      "id": "rss_feedparser",
+      "adapter": "rss",
+      "enabled": false,
+      "provider": "rss",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "parser": "feedparser"
+      }
+    },
+    {
+      "id": "google_rss",
+      "adapter": "google_news_rss",
+      "enabled": false,
+      "provider": "google_news_rss",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {}
+    },
+    {
+      "id": "google_apify",
+      "adapter": "apify",
+      "enabled": false,
+      "provider": "apify",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "actor_id": "groupoject/google-news-scraper",
+        "schema_confirmed": false,
+        "input": {}
+      }
+    },
+    {
+      "id": "telegram_public",
+      "adapter": "telegram_public",
+      "enabled": false,
+      "provider": "telegram_public",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {}
+    },
+    {
+      "id": "telegram_api",
+      "adapter": "telethon",
+      "enabled": false,
+      "provider": "telethon",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {}
+    },
+    {
+      "id": "x_profile_apify",
+      "adapter": "apify",
+      "enabled": false,
+      "provider": "apify",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "actor_id": "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest",
+        "schema_confirmed": false,
+        "input": {
+          "from": "{input}",
+          "maxItems": 50,
+          "queryType": "Latest"
+        }
+      }
+    },
+    {
+      "id": "x_search_apify",
+      "adapter": "apify",
+      "enabled": false,
+      "provider": "apify",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "actor_id": "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest",
+        "schema_confirmed": false,
+        "input": {
+          "searchTerms": [
+            "{input}"
+          ],
+          "maxItems": 50,
+          "queryType": "Latest"
+        }
+      }
+    },
+    {
+      "id": "x_profile_api",
+      "adapter": "x_api",
+      "enabled": false,
+      "provider": "x_api",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {}
+    },
+    {
+      "id": "x_search_api",
+      "adapter": "x_api",
+      "enabled": false,
+      "provider": "x_api",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "search": "recent"
+      }
+    },
+    {
+      "id": "x_profile_brightdata",
+      "adapter": "brightdata_social",
+      "enabled": false,
+      "provider": "brightdata",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "dataset_id": "",
+        "schema_confirmed": false,
+        "query": {
+          "type": "discover_new",
+          "discover_by": "profile_url"
+        },
+        "input": [
+          {
+            "url": "{profile_url}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "linkedin_company_apify",
+      "adapter": "apify",
+      "enabled": false,
+      "provider": "apify",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "actor_id": "harvestapi/linkedin-company-posts",
+        "schema_confirmed": false,
+        "input": {
+          "targetUrls": [
+            "{input}"
+          ],
+          "maxPosts": 50,
+          "scrapeComments": false,
+          "scrapeReactions": false
+        }
+      }
+    },
+    {
+      "id": "linkedin_profile_apify",
+      "adapter": "apify",
+      "enabled": false,
+      "provider": "apify",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "actor_id": "harvestapi/linkedin-profile-posts",
+        "schema_confirmed": false,
+        "input": {
+          "targetUrls": [
+            "{input}"
+          ],
+          "maxPosts": 50,
+          "scrapeComments": false,
+          "scrapeReactions": false
+        }
+      }
+    },
+    {
+      "id": "linkedin_company_brightdata",
+      "adapter": "brightdata_social",
+      "enabled": false,
+      "provider": "brightdata",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "dataset_id": "",
+        "schema_confirmed": false,
+        "query": {
+          "type": "discover_new",
+          "discover_by": "company_url"
+        },
+        "input": [
+          {
+            "url": "{input}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "linkedin_profile_brightdata",
+      "adapter": "brightdata_social",
+      "enabled": false,
+      "provider": "brightdata",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "dataset_id": "",
+        "schema_confirmed": false,
+        "query": {
+          "type": "discover_new",
+          "discover_by": "profile_url"
+        },
+        "input": [
+          {
+            "url": "{input}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "linkedin_official",
+      "adapter": "linkedin_api",
+      "enabled": false,
+      "provider": "linkedin_api",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "linkedin_version": "",
+        "authorized_read_confirmed": false
+      }
+    },
+    {
+      "id": "generic_apify",
+      "adapter": "apify",
+      "enabled": false,
+      "provider": "apify",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "actor_id": "",
+        "schema_confirmed": false,
+        "input": {}
+      }
+    }
+  ],
+  "targets": [
+    {
+      "id": "article_en",
+      "kind": "article",
+      "input": "https://example.com/REPLACE_en",
+      "routes": [
+        "direct",
+        "zyte",
+        "unlocker",
+        "browser"
+      ],
+      "language": "en",
+      "category": "en"
+    },
+    {
+      "id": "article_ar",
+      "kind": "article",
+      "input": "https://example.com/REPLACE_ar",
+      "routes": [
+        "direct",
+        "zyte",
+        "unlocker",
+        "browser"
+      ],
+      "language": "ar",
+      "category": "ar"
+    },
+    {
+      "id": "article_fr",
+      "kind": "article",
+      "input": "https://example.com/REPLACE_fr",
+      "routes": [
+        "direct",
+        "zyte",
+        "unlocker",
+        "browser"
+      ],
+      "language": "fr",
+      "category": "fr"
+    },
+    {
+      "id": "article_javascript",
+      "kind": "article",
+      "input": "https://example.com/REPLACE_javascript",
+      "routes": [
+        "direct",
+        "zyte",
+        "unlocker",
+        "browser"
+      ],
+      "language": "en",
+      "category": "javascript"
+    },
+    {
+      "id": "article_redirect",
+      "kind": "article",
+      "input": "https://example.com/REPLACE_redirect",
+      "routes": [
+        "direct",
+        "zyte",
+        "unlocker",
+        "browser"
+      ],
+      "language": "en",
+      "category": "redirect"
+    },
+    {
+      "id": "rss",
+      "kind": "rss",
+      "input": "https://example.com/REPLACE_feed.xml",
+      "routes": [
+        "rss_baseline",
+        "rss_feedparser"
+      ],
+      "options": {
+        "start_time": "2026-09-01T00:00:00Z",
+        "end_time": "2026-09-02T00:00:00Z"
+      }
+    },
+    {
+      "id": "google",
+      "kind": "google_news",
+      "input": "REPLACE controlled news query",
+      "routes": [
+        "google_rss",
+        "google_apify"
+      ],
+      "options": {
+        "language": "en",
+        "region": "US",
+        "start_time": "2026-09-01T00:00:00Z",
+        "end_time": "2026-09-02T00:00:00Z"
+      }
+    },
+    {
+      "id": "telegram",
+      "kind": "telegram",
+      "input": "REPLACE_CHANNEL",
+      "routes": [
+        "telegram_public",
+        "telegram_api"
+      ],
+      "options": {
+        "start_time": "2026-09-01T00:00:00Z",
+        "end_time": "2026-09-02T00:00:00Z"
+      }
+    },
+    {
+      "id": "x_profile",
+      "kind": "x_profile",
+      "input": "REPLACE_USER",
+      "routes": [
+        "x_profile_apify",
+        "x_profile_api",
+        "x_profile_brightdata"
+      ],
+      "options": {
+        "profile_url": "https://x.com/REPLACE_USER",
+        "start_time": "2026-09-01T00:00:00Z",
+        "end_time": "2026-09-02T00:00:00Z"
+      }
+    },
+    {
+      "id": "x_search",
+      "kind": "x_search",
+      "input": "REPLACE controlled search query",
+      "routes": [
+        "x_search_apify",
+        "x_search_api"
+      ],
+      "options": {
+        "start_time": "2026-09-01T00:00:00Z",
+        "end_time": "2026-09-02T00:00:00Z"
+      }
+    },
+    {
+      "id": "linkedin_company",
+      "kind": "linkedin_company",
+      "input": "https://www.linkedin.com/company/REPLACE_COMPANY/",
+      "routes": [
+        "linkedin_company_apify",
+        "linkedin_company_brightdata"
+      ],
+      "options": {
+        "start_time": "2026-09-01T00:00:00Z",
+        "end_time": "2026-09-02T00:00:00Z"
+      }
+    },
+    {
+      "id": "linkedin_profile",
+      "kind": "linkedin_profile",
+      "input": "https://www.linkedin.com/in/REPLACE_PROFILE/",
+      "routes": [
+        "linkedin_profile_apify",
+        "linkedin_profile_brightdata"
+      ],
+      "options": {
+        "start_time": "2026-09-01T00:00:00Z",
+        "end_time": "2026-09-02T00:00:00Z"
+      }
+    },
+    {
+      "id": "linkedin_authorized",
+      "kind": "linkedin_company",
+      "input": "https://www.linkedin.com/company/REPLACE_AUTHORIZED/",
+      "routes": [
+        "linkedin_official"
+      ],
+      "options": {
+        "author_urn": "urn:li:organization:REPLACE_ID",
+        "start_time": "2026-09-01T00:00:00Z",
+        "end_time": "2026-09-02T00:00:00Z"
+      }
+    },
+    {
+      "id": "generic",
+      "kind": "apify",
+      "input": "https://example.com/REPLACE_actor_input",
+      "routes": [
+        "generic_apify"
+      ],
+      "options": {
+        "start_time": "2026-09-01T00:00:00Z",
+        "end_time": "2026-09-02T00:00:00Z"
+      }
+    }
+  ],
+  "chains": [
+    {
+      "id": "direct_then_managed_then_browser",
+      "routes": [
+        "direct",
+        "zyte",
+        "unlocker",
+        "browser"
+      ],
+      "deadline_seconds": 90
+    }
+  ],
+  "notes": "Disabled templates: replace inputs, provide independent gold, confirm provider schemas and caps before enabling routes."
+}

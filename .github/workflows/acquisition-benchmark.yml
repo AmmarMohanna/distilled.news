@@ -1,0 +1,41 @@
+name: Acquisition benchmark offline tests
+on:
+  pull_request:
+    paths:
+      - evaluation/acquisition-benchmark/**
+      - packages/connectors/src/**
+      - .github/workflows/acquisition-benchmark.yml
+  push:
+    paths:
+      - evaluation/acquisition-benchmark/**
+      - packages/connectors/src/**
+      - .github/workflows/acquisition-benchmark.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.12', '3.14']
+    defaults:
+      run:
+        working-directory: evaluation/acquisition-benchmark
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: python -m pip install -c constraints.txt -e '.[dev,sources,extract]'
+      - run: npm ci --prefix node --ignore-scripts --no-audit --no-fund
+      - run: python -m pytest --junitxml=data/junit.xml
+      - run: python -m bench faults --output data/faults.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-offline-${{ matrix.python }}
+          path: evaluation/acquisition-benchmark/data/*.xml

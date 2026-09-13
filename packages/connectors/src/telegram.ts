@@ -275,9 +275,15 @@ function htmlToText(html: string): string {
 }
 
 function decodeHtml(value: string): string {
+  const character = (digits: string, radix: number): string => {
+    const point = Number.parseInt(digits, radix);
+    return Number.isInteger(point) && point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff)
+      ? String.fromCodePoint(point)
+      : "\uFFFD";
+  };
   return value
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => character(hex, 16))
+    .replace(/&#(\d+);/g, (_, dec: string) => character(dec, 10))
     .replace(/&quot;/g, "\"")
     .replace(/&#39;/g, "'")
     .replace(/&amp;/g, "&")

@@ -34,17 +34,12 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
   const fetcher = input.fetcher ?? fetch;
   const now = input.now ?? new Date();
   const channel = parsePublicTelegramChannelUrl(input.url);
-  const response = await fetchWithTimeout(fetcher, channel.widgetUrl, {
+  const html = await fetchPageWithTimeout(fetcher, channel.widgetUrl, {
     headers: {
       "user-agent": "Distilled.news public Telegram source reader"
     }
   }, TELEGRAM_FETCH_TIMEOUT_MS);
 
-  if (!response.ok) {
-    throw new Error(`Could not fetch ${channel.publicUrl}: ${response.status}`);
-  }
-
-  const html = await response.text();
   const rawPayloadKey = await archiveTelegramPageIfChanged(input, channel.username, html, now);
 
   const messages = parsePublicTelegramChannelPage(html, {
@@ -111,11 +106,17 @@ export async function ingestPublicTelegramChannel(input: PublicTelegramIngestInp
   };
 }
 
-async function fetchWithTimeout(fetcher: typeof fetch, url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchPageWithTimeout(fetcher: typeof fetch, url: string, init: RequestInit, timeoutMs: number): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetcher(url, { ...init, signal: controller.signal });
+    const response = await fetcher(url, { ...init, signal: controller.signal });
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new Error(`Could not fetch ${url}: ${response.status}`);
+    }
+    // Keep the same deadline active until the complete body has arrived.
+    return await response.text();
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw new Error(`Timed out fetching ${url}`);
     throw error;

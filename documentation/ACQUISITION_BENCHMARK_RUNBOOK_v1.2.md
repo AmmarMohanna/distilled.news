@@ -1,5 +1,7 @@
 # Distilled.news — Acquisition Benchmark Runbook (VPS)
 
+> For the current scraper-first milestone, follow the [Scraper and API Evaluation Plan](SCRAPER_AND_API_EVALUATION_PLAN.md). It reconciles this runbook with the VPS guide on sampling, live labels, source changes, retries, fallback evaluation, and readiness. This document remains an extended reference; its proposed harness commands are not all implemented.
+
 **Status:** Evaluation runbook under architecture v1.2. It does not change any frozen contract.
 **Version:** 1.2
 **Depends on:** `ARCHITECTURE_BASELINE_v1.2.md`, `TECHNICAL_CONTRACTS_AND_SERVICE_BOUNDARIES_v1.2.md`, `IMPLEMENTATION_PLAN_v1.2.md`

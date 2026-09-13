@@ -1,0 +1,19 @@
+{
+  "complete_window": true,
+  "items": [
+    {
+      "id": "story-1",
+      "aliases": ["w4lz0a"],
+      "text": "Library reopened. Residents can read again.",
+      "published_at": "2026-09-01T09:00:00Z",
+      "url": "https://example.com/library"
+    },
+    {
+      "id": "story-2",
+      "aliases": ["w4lz09"],
+      "text": "افتتاح المكتبة. المكتبة مفتوحة للجميع.",
+      "published_at": "2026-09-01T10:00:00Z",
+      "url": "https://example.com/library-ar"
+    }
+  ]
+}

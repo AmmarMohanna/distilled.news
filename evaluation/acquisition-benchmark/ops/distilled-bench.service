@@ -1,0 +1,30 @@
+[Unit]
+Description=Distilled acquisition benchmark scheduled campaign
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=distilled-bench
+Group=distilled-bench
+WorkingDirectory=/opt/distilled.news/evaluation/acquisition-benchmark
+EnvironmentFile=/etc/distilled-bench/credentials.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/distilled.news/evaluation/acquisition-benchmark/.venv/bin/python -m bench schedule --config /etc/distilled-bench/stage3.json --run-id week1
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=50
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/distilled-bench
+PrivateTmp=true
+MemoryHigh=5G
+MemoryMax=6G
+CPUQuota=180%
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target

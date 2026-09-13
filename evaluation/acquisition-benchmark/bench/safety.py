@@ -44,7 +44,8 @@ def resolve_addresses(hostname: str, port: int) -> tuple[str, ...]:
 
 def is_public_address(value: str) -> bool:
     try:
-        return ipaddress.ip_address(value).is_global
+        address = ipaddress.ip_address(value)
+        return address.is_global and not address.is_multicast and not address.is_reserved
     except ValueError:
         return False
 

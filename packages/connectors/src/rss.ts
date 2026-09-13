@@ -59,6 +59,13 @@ function parseRssLikeFeed(
     itemText?: (block: string, sourceTitle: string) => string;
   } = {}
 ): NormalizedMessage[] {
+  // A successful HTTP status can still contain a consent or access-denied page.
+  // Check the document root, rather than treating every zero-item response as a feed.
+  // Ignore declarations without resolving DTDs; quoted ">" and internal subsets stay intact.
+  const document = xml.replace(/<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE\b(?:[^>"'\[]|"[^"]*"|'[^']*'|\[(?:[^\]"']|"[^"]*"|'[^']*')*\])*>/gi, "").trimStart();
+  if (!/^<(?:rss|feed|rdf:RDF)(?:\s|\/?>)/i.test(document)) {
+    throw new Error("Response is not an RSS or Atom feed.");
+  }
   const receivedAt = options.receivedAt ?? new Date();
   const retentionDays = options.retentionDays ?? 15;
   const source: MessageSource = {
@@ -162,9 +169,15 @@ function htmlToText(html: string): string {
 }
 
 function decodeHtml(value: string): string {
+  const character = (digits: string, radix: number): string => {
+    const point = Number.parseInt(digits, radix);
+    return Number.isInteger(point) && point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff)
+      ? String.fromCodePoint(point)
+      : "\uFFFD";
+  };
   return value
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => character(hex, 16))
+    .replace(/&#(\d+);/g, (_, dec: string) => character(dec, 10))
     .replace(/&quot;/g, "\"")
     .replace(/&#39;/g, "'")
     .replace(/&amp;/g, "&")

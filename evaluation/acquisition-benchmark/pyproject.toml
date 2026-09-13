@@ -6,16 +6,24 @@ build-backend = "setuptools.build_meta"
 name = "distilled-acquisition-benchmark"
 version = "0.1.0"
 description = "Reproducible acquisition-route benchmark for Distilled.news"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
   "httpx==0.28.1",
-  "zstandard==0.23.0",
+  "httpcore==1.0.9",
+  "zstandard==0.25.0",
+  "PyYAML==6.0.3",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest==8.4.1",
 ]
+sources = ["feedparser==6.0.12", "Telethon==1.45.0"]
+extract = ["trafilatura==2.0.0"]
+browser = ["playwright==1.58.0"]
+
+[project.scripts]
+distilled-bench = "bench.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["bench*"]
@@ -25,6 +33,6 @@ addopts = "-q"
 testpaths = ["tests"]
 
 [tool.pyright]
-pythonVersion = "3.10"
+pythonVersion = "3.12"
 typeCheckingMode = "strict"
 include = ["bench", "tests"]

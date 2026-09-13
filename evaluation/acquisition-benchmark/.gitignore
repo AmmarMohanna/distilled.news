@@ -5,5 +5,10 @@ __pycache__/
 
 .env
 data/
+configs/*.local.json
+configs/*.local.yaml
+*.session
+*.session-journal
+credentials.env
 gold/*.jsonl
 gold/snapshots/

@@ -1,5 +1,7 @@
 # Distilled.news — VPS-to-Benchmark Execution Guide
 
+> Start with the [Scraper and API Evaluation Plan](SCRAPER_AND_API_EVALUATION_PLAN.md) for the current acquisition comparison and implementation status. Use this guide for detailed VPS preparation and operations, after verifying the actual host and which harness components exist.
+
 **Purpose:** Exact step-by-step execution guide starting from the currently provisioned VPS and ending with a completed acquisition benchmark, connector evaluation, routing policy, and integration decision.
 
 **Project:** Distilled.news FYP  
