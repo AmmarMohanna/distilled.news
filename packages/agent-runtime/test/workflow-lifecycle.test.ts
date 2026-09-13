@@ -14,6 +14,7 @@ import {
   WorkflowCaptureService,
   WorkflowLifecycleCoordinator,
   WorkflowValidator,
+  admitPublicCandidateAcquisition,
   assertAuthProfileUsable,
   emptyAcquisitionMetrics,
   makeId,
@@ -54,6 +55,36 @@ describe("browser backend selection", () => {
     expect(local.executor).toBeInstanceOf(LocalPlaywrightBrowserExecutor);
     expect(() => selectBrowserBackend({ environment: { DISTILLED_BROWSER_BACKEND: "cloudflare" } })).toThrow(/Browser binding/);
     expect(() => selectBrowserBackend({ environment: { DISTILLED_BROWSER_BACKEND: "other" } })).toThrow(/DISTILLED_BROWSER_BACKEND/);
+  });
+});
+
+describe("public candidate acquisition assembly", () => {
+  it("admits a public candidate through the configured model-routing contract", async () => {
+    const store = new MemoryRuntimeStore();
+    const request = invocation("https://fixture.test", "public-admission");
+    const admitted = await admitPublicCandidateAcquisition({
+      store,
+      request: {
+        tenantId: request.tenantId,
+        resourceId: request.resourceId,
+        idempotencyKey: request.idempotencyKey,
+        objective: request.objective,
+        candidate: request.candidate,
+        policy: request.policy,
+        modelCapabilities: request.modelCapabilities,
+        baseModelRouting: request.modelRouting
+      },
+      enabled: true,
+      environment: {
+        DISTILLED_LLM_MODE: "api",
+        DISTILLED_LLM_API_GATEWAY: "openrouter"
+      }
+    });
+    expect(admitted.wake).toEqual({ type: "web_operator_run", runId: admitted.run.runId });
+    expect((await store.getRunConfiguration(admitted.run.runId))?.modelRouting).toMatchObject({
+      mode: "api",
+      apiGateway: "openrouter"
+    });
   });
 });
 
