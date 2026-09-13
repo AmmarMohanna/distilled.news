@@ -109,22 +109,6 @@ describe("workflow capture, compilation, validation, promotion, and replay", () 
       const result = await coordinator.process(admitted.run.runId, "worker");
       expect(result.status).toBe("completed");
 
-      const run = (await store.getRun(admitted.run.runId))!;
-      const capture = await new WorkflowCaptureService({
-        runtimeStore: store,
-        workflowStore,
-        softwareVersion: "test-runtime",
-        toolSchemaVersion: "web-operator-tools-v1"
-      }).capture(run);
-      expect(capture.actions.map((visible) => visible.tool)).toContain("browser.extract@1");
-      expect(capture.extractionEvidence[0].canonicalUrl).toBe(`${fixture.origin}/article`);
-      expect(capture.discoveryEvidence.canonicalResourceIdentity).toMatchObject({
-        resourceId: "resource-capture",
-        candidateCanonicalUrl: `${fixture.origin}/article`
-      });
-      expect(capture.discoveryEvidence.articleUrlPatterns.length).toBeGreaterThan(0);
-      expect(capture.discoveryEvidence.pageTypeObservations.map((entry) => entry.pageType)).toContain("article");
-
       const lifecycle = new WorkflowLifecycleCoordinator({
         workflowStore,
         captureService: new WorkflowCaptureService({
@@ -136,8 +120,21 @@ describe("workflow capture, compilation, validation, promotion, and replay", () 
         compiler: new WorkflowCandidateCompiler(),
         validator: new WorkflowValidator()
       });
-      const candidate = new WorkflowCandidateCompiler().compile(capture);
-      await workflowStore.saveWorkflowCandidate(candidate);
+      const run = (await store.getRun(admitted.run.runId))!;
+      const produced = await lifecycle.produceCandidateFromRun(run);
+      const capture = produced.capture;
+      expect(capture.actions.map((visible) => visible.tool)).toContain("browser.extract@1");
+      expect(capture.extractionEvidence[0].canonicalUrl).toBe(`${fixture.origin}/article`);
+      expect(capture.discoveryEvidence.canonicalResourceIdentity).toMatchObject({
+        resourceId: "resource-capture",
+        candidateCanonicalUrl: `${fixture.origin}/article`
+      });
+      expect(capture.discoveryEvidence.articleUrlPatterns.length).toBeGreaterThan(0);
+      expect(capture.discoveryEvidence.pageTypeObservations.map((entry) => entry.pageType)).toContain("article");
+      const repeated = await lifecycle.produceCandidateFromRun(run);
+      expect(repeated.candidate.id).toBe(produced.candidate.id);
+      expect(await workflowStore.listWorkflowCandidates("resource-capture")).toHaveLength(1);
+      const candidate = produced.candidate;
       const validation = await lifecycle.validateCandidate(candidate.id, "validator");
       expect(validation.passed).toBe(true);
       expect(await workflowStore.getWorkflowCandidate(candidate.id)).toMatchObject({ state: "VALIDATED" });

@@ -24,7 +24,9 @@ export class D1WorkflowRepository implements WorkflowRepository, EvaluationSink 
       .bind(bundle.id,bundle.runId,bundle.tenantId,bundle.resourceId,json(bundle),bundle.createdAt).run();
     if (Number(result.meta.changes ?? 0) !== 1) {
       const existing = await this.getCaptureBundle(bundle.id);
-      if (!existing || json(existing) !== json(bundle)) throw new Error(`workflow capture identity collision: ${bundle.id}`);
+      if (!existing || json(captureIdentity(existing)) !== json(captureIdentity(bundle))) {
+        throw new Error(`workflow capture identity collision: ${bundle.id}`);
+      }
     }
   }
 
@@ -172,5 +174,24 @@ function workflowIdentity(candidate: WorkflowCandidate) {
     candidate: candidate.candidate,
     operations: candidate.operations,
     version: candidate.version
+  };
+}
+
+function captureIdentity(bundle: WorkflowCaptureBundle) {
+  return {
+    id: bundle.id,
+    runId: bundle.runId,
+    tenantId: bundle.tenantId,
+    resourceId: bundle.resourceId,
+    candidate: bundle.candidate,
+    actions: bundle.actions,
+    observationIds: bundle.observationIds,
+    acceptedContentId: bundle.acceptedContentId,
+    successfulAlternatives: bundle.successfulAlternatives,
+    failedAlternatives: bundle.failedAlternatives,
+    discoveryEvidence: bundle.discoveryEvidence,
+    extractionEvidence: bundle.extractionEvidence,
+    completionEvidence: bundle.completionEvidence,
+    runtime: bundle.runtime
   };
 }

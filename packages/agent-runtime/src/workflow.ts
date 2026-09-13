@@ -204,7 +204,8 @@ export class MemoryWorkflowRepository implements WorkflowRepository {
 
   async saveCaptureBundle(bundle: WorkflowCaptureBundle): Promise<void> {
     const existing = this.captures.get(bundle.id);
-    if (existing && JSON.stringify(existing) !== JSON.stringify(bundle)) throw new Error("workflow capture identity collision");
+    if (existing && JSON.stringify(captureIdentity(existing)) !== JSON.stringify(captureIdentity(bundle))) throw new Error("workflow capture identity collision");
+    if (existing) return;
     this.captures.set(bundle.id, structuredClone(bundle));
   }
 
@@ -349,7 +350,7 @@ export class WorkflowCaptureService {
       createdAt: now
     };
     await this.input.workflowStore.saveCaptureBundle(bundle);
-    return bundle;
+    return (await this.input.workflowStore.getCaptureBundle(bundle.id)) ?? bundle;
   }
 }
 
@@ -465,8 +466,10 @@ export class WorkflowLifecycleCoordinator {
   }> {
     if (!this.options.captureService) throw new Error("workflow capture service is required to produce a candidate from a run");
     const capture = await this.options.captureService.capture(run, now);
-    const compiled = (this.options.compiler ?? new WorkflowCandidateCompiler()).compile(capture, now);
     const existing = await this.options.workflowStore.listWorkflowCandidates(run.resourceId);
+    const existingForCapture = existing.find((workflow) => workflow.sourceCaptureId === capture.id);
+    if (existingForCapture) return { capture, candidate: existingForCapture };
+    const compiled = (this.options.compiler ?? new WorkflowCandidateCompiler()).compile(capture, now);
     const candidate = {
       ...compiled,
       version: Math.max(0, ...existing.map((workflow) => workflow.version)) + 1
@@ -851,6 +854,25 @@ function workflowIdentity(candidate: WorkflowCandidate) {
     candidate: candidate.candidate,
     operations: candidate.operations,
     version: candidate.version
+  };
+}
+
+function captureIdentity(bundle: WorkflowCaptureBundle) {
+  return {
+    id: bundle.id,
+    runId: bundle.runId,
+    tenantId: bundle.tenantId,
+    resourceId: bundle.resourceId,
+    candidate: bundle.candidate,
+    actions: bundle.actions,
+    observationIds: bundle.observationIds,
+    acceptedContentId: bundle.acceptedContentId,
+    successfulAlternatives: bundle.successfulAlternatives,
+    failedAlternatives: bundle.failedAlternatives,
+    discoveryEvidence: bundle.discoveryEvidence,
+    extractionEvidence: bundle.extractionEvidence,
+    completionEvidence: bundle.completionEvidence,
+    runtime: bundle.runtime
   };
 }
 
