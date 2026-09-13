@@ -12,8 +12,8 @@ import {
 const runLive = process.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE === "true";
 const maybeDescribe = runLive ? describe : describe.skip;
 
-maybeDescribe("live public candidate acquisition smoke test", () => {
-  it("acquires an explicitly configured public candidate through the real runtime loop", async () => {
+maybeDescribe("live public candidate acquisition smoke test with local browser", () => {
+  it("acquires an explicitly configured public candidate through the real runtime loop using local Playwright", async () => {
     const articleUrl = requiredEnv("DISTILLED_LIVE_PUBLIC_CANDIDATE_URL");
     const model = requiredEnv("DISTILLED_LIVE_OPENROUTER_MODEL");
     const provider = requiredEnv("DISTILLED_LIVE_OPENROUTER_PROVIDER");

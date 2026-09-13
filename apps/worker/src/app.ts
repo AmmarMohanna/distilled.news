@@ -36,6 +36,7 @@ import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { addSourceFromInput, refreshEnabledSources } from "./sources";
 import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
+import { createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 
 type Variables = {
   repo: Repository;
@@ -211,6 +212,11 @@ export function createApp(options: AppOptions = {}) {
       return c.redirect(url.toString(), 301);
     }
     return next();
+  });
+
+  app.all("/v1/agent-runs/process", async (c) => {
+    const handler = createWorkerWebOperatorRuntimeHandler(c.env);
+    return handler(c.req.raw);
   });
 
   app.get("/api/auth/session", async (c) => {

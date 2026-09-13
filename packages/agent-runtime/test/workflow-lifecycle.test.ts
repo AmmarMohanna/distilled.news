@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AcquisitionRouter,
   DEFAULT_SLICE_BUDGET,
+  CloudflareBrowserExecutor,
   LocalPlaywrightBrowserExecutor,
   MemoryArtifactStore,
   MemoryRuntimeStore,
@@ -55,6 +56,15 @@ describe("browser backend selection", () => {
     const local = selectBrowserBackend({ environment: { DISTILLED_BROWSER_BACKEND: "local" } });
     expect(local.backend).toBe("local");
     expect(local.executor).toBeInstanceOf(LocalPlaywrightBrowserExecutor);
+    const cloudflare = selectBrowserBackend({
+      environment: { DISTILLED_BROWSER_BACKEND: "cloudflare" },
+      cloudflare: {
+        binding: {},
+        launch: async () => ({}) as never
+      }
+    });
+    expect(cloudflare.backend).toBe("cloudflare");
+    expect(cloudflare.executor).toBeInstanceOf(CloudflareBrowserExecutor);
     expect(() => selectBrowserBackend({ environment: { DISTILLED_BROWSER_BACKEND: "cloudflare" } })).toThrow(/Browser binding/);
     expect(() => selectBrowserBackend({ environment: { DISTILLED_BROWSER_BACKEND: "other" } })).toThrow(/DISTILLED_BROWSER_BACKEND/);
   });
