@@ -16,6 +16,7 @@
     "./persistence": "./src/persistence.ts",
     "./acquisition-router": "./src/acquisition-router.ts",
     "./auth-profile": "./src/auth-profile.ts",
+    "./closed-loop": "./src/closed-loop.ts",
     "./evaluation": "./src/evaluation.ts",
     "./product-loop": "./src/product-loop.ts",
     "./workflow": "./src/workflow.ts",

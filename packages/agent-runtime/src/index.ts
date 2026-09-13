@@ -4,6 +4,7 @@ export * from "./auth-profile";
 export * from "./browser";
 export * from "./budget";
 export * from "./challenge-classifier";
+export * from "./closed-loop";
 export * from "./completion";
 export * from "./contracts";
 export * from "./evaluation";

@@ -37,6 +37,17 @@ describe("D1 Web Operator workflow lifecycle store", () => {
     });
     await store.promoteWorkflow(replacement.id, "validator");
     expect(await store.getWorkflowCandidate(first.id)).toMatchObject({ state: "SUPERSEDED", supersededBy: replacement.id });
+    await store.saveFailureEvidence({
+      id: makeId("workflow_failure", replacement.id, "first"),
+      workflowId: replacement.id,
+      resourceId: "resource",
+      failureClass: "structural_site_change",
+      transient: false,
+      operationId: replacement.operations[0].id,
+      details: { reason: "expected article structure changed" },
+      observedAt: "2026-09-13T00:01:30Z"
+    });
+    expect(await store.listFailureEvidence(replacement.id)).toHaveLength(1);
     await store.markWorkflow(replacement.id, "ROLLED_BACK");
     expect(await store.getActiveWorkflow("resource")).toBeNull();
 
@@ -74,7 +85,8 @@ describe("D1 Web Operator workflow lifecycle store", () => {
     for (const migration of [
       "0011_agent_runtime.sql",
       "0012_agent_runtime_security_and_provenance.sql",
-      "0013_web_operator_workflow_lifecycle.sql"
+      "0013_web_operator_workflow_lifecycle.sql",
+      "0014_web_operator_workflow_failure_evidence.sql"
     ]) await applyMigration(db, migration);
     await db.prepare(`INSERT INTO agent_runs
       (run_id,tenant_id,resource_id,idempotency_key,candidate_id,candidate_url,publisher_id,acquisition_attempt,objective,mode,state,generation,policy_snapshot_id,completion_contract_version,created_at,updated_at)

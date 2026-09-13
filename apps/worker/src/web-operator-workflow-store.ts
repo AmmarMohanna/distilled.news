@@ -3,6 +3,7 @@ import type {
   EvaluationSink,
   WorkflowCaptureBundle,
   WorkflowCandidate,
+  WorkflowFailureEvidence,
   WorkflowRepository,
   WorkflowValidationResult,
   WorkflowLifecycleState
@@ -80,6 +81,34 @@ export class D1WorkflowRepository implements WorkflowRepository, EvaluationSink 
     ]);
     if (Number(write[1].meta.changes ?? 0) !== 1) throw new Error(`workflow validation target not found or not mutable: ${result.workflowId}`);
     await this.recordLifecycle(result.workflowId, undefined, result.passed ? "VALIDATED" : "INVALID", "workflow-validator", result.failureClass);
+  }
+
+  async saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void> {
+    const result = await this.db.prepare(`INSERT OR IGNORE INTO web_operator_workflow_failure_evidence
+      (id,workflow_id,resource_id,failure_class,transient,operation_id,details_json,observed_at)
+      VALUES (?,?,?,?,?,?,?,?)`).bind(
+      evidence.id,evidence.workflowId,evidence.resourceId,evidence.failureClass,evidence.transient ? 1 : 0,
+      evidence.operationId ?? null,json(evidence.details),evidence.observedAt
+    ).run();
+    if (Number(result.meta.changes ?? 0) !== 1) {
+      const existing = (await this.listFailureEvidence(evidence.workflowId)).find((entry) => entry.id === evidence.id);
+      if (!existing || json(existing) !== json(evidence)) throw new Error(`workflow failure evidence identity collision: ${evidence.id}`);
+    }
+  }
+
+  async listFailureEvidence(workflowId: string): Promise<WorkflowFailureEvidence[]> {
+    const result = await this.db.prepare(`SELECT * FROM web_operator_workflow_failure_evidence
+      WHERE workflow_id=? ORDER BY observed_at ASC`).bind(workflowId).all<Row>();
+    return result.results.map((row) => ({
+      id: String(row.id),
+      workflowId: String(row.workflow_id),
+      resourceId: String(row.resource_id),
+      failureClass: row.failure_class as WorkflowFailureEvidence["failureClass"],
+      transient: Boolean(row.transient),
+      operationId: row.operation_id ? String(row.operation_id) : undefined,
+      details: parse<Record<string, unknown>>(row.details_json),
+      observedAt: String(row.observed_at)
+    }));
   }
 
   async promoteWorkflow(workflowId: string, validatorId: string, now = new Date().toISOString()): Promise<WorkflowCandidate> {

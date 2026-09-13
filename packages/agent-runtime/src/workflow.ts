@@ -162,6 +162,17 @@ export interface WorkflowValidationResult {
   validatedAt: string;
 }
 
+export interface WorkflowFailureEvidence {
+  id: string;
+  workflowId: string;
+  resourceId: string;
+  failureClass: StructuralFailureClass;
+  transient: boolean;
+  operationId?: string;
+  details: Record<string, unknown>;
+  observedAt: string;
+}
+
 export type StructuralFailureClass =
   | "transient_browser_network_failure"
   | "authentication_or_challenge"
@@ -179,6 +190,8 @@ export interface WorkflowRepository {
   listWorkflowCandidates(resourceId: string): Promise<WorkflowCandidate[]>;
   getActiveWorkflow(resourceId: string): Promise<WorkflowCandidate | null>;
   saveValidationResult(result: WorkflowValidationResult): Promise<void>;
+  saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void>;
+  listFailureEvidence(workflowId: string): Promise<WorkflowFailureEvidence[]>;
   promoteWorkflow(workflowId: string, validatorId: string, now?: string): Promise<WorkflowCandidate>;
   markWorkflow(workflowId: string, state: Extract<WorkflowLifecycleState, "REJECTED" | "INVALID" | "ROLLED_BACK">, now?: string): Promise<WorkflowCandidate>;
 }
@@ -187,6 +200,7 @@ export class MemoryWorkflowRepository implements WorkflowRepository {
   private readonly captures = new Map<string, WorkflowCaptureBundle>();
   private readonly workflows = new Map<string, WorkflowCandidate>();
   private readonly validations = new Map<string, WorkflowValidationResult>();
+  private readonly failures = new Map<string, WorkflowFailureEvidence>();
 
   async saveCaptureBundle(bundle: WorkflowCaptureBundle): Promise<void> {
     const existing = this.captures.get(bundle.id);
@@ -225,6 +239,19 @@ export class MemoryWorkflowRepository implements WorkflowRepository {
       workflow.state = result.passed ? "VALIDATED" : "INVALID";
       workflow.validatedAt = result.validatedAt;
     }
+  }
+
+  async saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void> {
+    const existing = this.failures.get(evidence.id);
+    if (existing && JSON.stringify(existing) !== JSON.stringify(evidence)) throw new Error("workflow failure evidence identity collision");
+    this.failures.set(evidence.id, structuredClone(evidence));
+  }
+
+  async listFailureEvidence(workflowId: string): Promise<WorkflowFailureEvidence[]> {
+    return [...this.failures.values()]
+      .filter((evidence) => evidence.workflowId === workflowId)
+      .sort((left, right) => left.observedAt.localeCompare(right.observedAt))
+      .map((evidence) => structuredClone(evidence));
   }
 
   async promoteWorkflow(workflowId: string, _validatorId: string, now = new Date().toISOString()): Promise<WorkflowCandidate> {
@@ -438,7 +465,12 @@ export class WorkflowLifecycleCoordinator {
   }> {
     if (!this.options.captureService) throw new Error("workflow capture service is required to produce a candidate from a run");
     const capture = await this.options.captureService.capture(run, now);
-    const candidate = (this.options.compiler ?? new WorkflowCandidateCompiler()).compile(capture, now);
+    const compiled = (this.options.compiler ?? new WorkflowCandidateCompiler()).compile(capture, now);
+    const existing = await this.options.workflowStore.listWorkflowCandidates(run.resourceId);
+    const candidate = {
+      ...compiled,
+      version: Math.max(0, ...existing.map((workflow) => workflow.version)) + 1
+    };
     await this.options.workflowStore.saveWorkflowCandidate(candidate);
     return { capture, candidate };
   }
