@@ -86,6 +86,10 @@ describe("closed-loop Web Operator lifecycle", () => {
     expect(firstBreak.state).toBe("waiting_for_repair_evidence");
     if (firstBreak.state !== "waiting_for_repair_evidence") throw new Error("expected repair gate to wait");
     expect(firstBreak.failureEvidence.filter((entry) => !entry.transient && entry.failureClass === "structural_site_change")).toHaveLength(1);
+    expect(firstBreak.routeDecision).toMatchObject({
+      method: "deterministic_browser_workflow",
+      reason: "waiting_for_bounded_structural_evidence"
+    });
 
     const repaired = await controller.acquire(request(fixture.origin, "v2-repair", "article-v2"), new Date("2026-09-13T00:04:00Z"));
     expect(repaired.state).toBe("acquired_by_agent");

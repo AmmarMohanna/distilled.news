@@ -9,6 +9,7 @@ import { PolicyEngine } from "./policy";
 import { DEFAULT_SLICE_BUDGET } from "./budget";
 import { WebOperatorAcquisitionStrategy } from "./admission";
 import { WebOperatorCoordinator, type ProcessResult } from "./runtime";
+import { AcquisitionRouter, type AcquisitionRouteDecision } from "./acquisition-router";
 import {
   DeterministicWorkflowExecutor,
   WorkflowCandidateCompiler,
@@ -55,6 +56,7 @@ export type ClosedLoopAcquisitionOutcome =
       workflow: WorkflowCandidate;
       failureEvidence: WorkflowFailureEvidence[];
       replay: WorkflowExecutionResult;
+      routeDecision: AcquisitionRouteDecision;
       modelCalls: 0;
     };
 
@@ -113,27 +115,31 @@ export class ClosedLoopWebOperatorLifecycle {
     now: Date
   ): Promise<ClosedLoopAcquisitionOutcome> {
     const evidence = await this.recordFailure(active, replay, now);
-    const lifecycle = this.lifecycleCoordinator();
-    const repair = await lifecycle.decideRepair({
-      workflowId: active.id,
-      attempts: evidence.map((entry) => ({
+    const routeDecision = new AcquisitionRouter().decide({
+      candidate: request.candidate,
+      failures: evidence.map((entry) => ({
+        method: "deterministic_browser_workflow",
         failureClass: entry.failureClass,
-        transient: entry.transient
-      }))
+        occurredAt: entry.observedAt
+      })),
+      budget: request.budgetLimits ?? DEFAULT_SLICE_BUDGET,
+      policyAllowsWebOperator: request.enabled,
+      now
     });
-    if (!repair.repairRequired) {
+    if (routeDecision.method !== "web_operator") {
       return {
         state: "waiting_for_repair_evidence",
         workflow: active,
         failureEvidence: evidence,
         replay,
+        routeDecision,
         modelCalls: 0
       };
     }
     return this.runAgentAndPromote({
       ...request,
       idempotencyKey: `${request.idempotencyKey}:repair:${active.version + 1}`,
-      objective: `${request.objective}\n\nRepair the active workflow ${active.id}. Previous deterministic replay failed with ${repair.failureClass}. Reason freely from current observations; do not mechanically mutate selectors.`
+      objective: `${request.objective}\n\nRepair the active workflow ${active.id}. Previous deterministic replay failed with ${routeDecision.reason}. Reason freely from current observations; do not mechanically mutate selectors.`
     }, "repair", now);
   }
 
