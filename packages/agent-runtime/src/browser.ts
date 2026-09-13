@@ -68,6 +68,21 @@ export interface BrowserExecutorPort {
   }): Promise<SemanticControl[]>;
 }
 
+export type BrowserBackendName = "local" | "cloudflare";
+
+export interface BrowserBackendEnvironment {
+  DISTILLED_BROWSER_BACKEND?: string;
+}
+
+export interface CloudflareBrowserBinding {}
+
+export type CloudflareBrowserLauncher = (binding: CloudflareBrowserBinding) => Promise<Browser>;
+
+export interface BrowserBackendSelection {
+  backend: BrowserBackendName;
+  executor: BrowserExecutorPort & StructuredBrowserUsePort & VisualComputerUsePort;
+}
+
 export interface StructuredBrowserUsePort {
   navigate(scope: BrowserScope, url: string): Promise<BrowserObservationData>;
   inspectDom(scope: BrowserScope): Promise<BrowserObservationData>;
@@ -205,7 +220,7 @@ export class PlaywrightBrowserAdapter
   private readonly sessions = new Map<string, LiveSession>();
   private readonly observationProvider: BrowserObservationProvider = new CdpBrowserObservationProvider();
 
-  constructor(private readonly options: { testOnlyPrivateNetwork?: true } = {}) {
+  constructor(private readonly options: { testOnlyPrivateNetwork?: true; launchBrowser?: () => Promise<Browser> } = {}) {
     if (options.testOnlyPrivateNetwork && (typeof process === "undefined" || process.env.NODE_ENV !== "test")) {
       throw new Error("private-network browser access is test-only");
     }
@@ -249,13 +264,16 @@ export class PlaywrightBrowserAdapter
         resolverRules.push(`MAP ${parsed.hostname} ${sorted[0]}`);
       }
     }
-    const browser = await chromium.launch({ headless: true, args: [
+    const launchOptions = { headless: true, args: [
       "--disable-features=WebTransport,WebTransportDeveloperMode",
       "--disable-quic",
       "--disable-webrtc",
       "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
       ...(resolverRules.length ? [`--host-resolver-rules=${resolverRules.join(",")}`] : [])
-    ] });
+    ] };
+    const browser = this.options.launchBrowser
+      ? await this.options.launchBrowser()
+      : await chromium.launch(launchOptions);
     const context = await browser.newContext({
       viewport: { width: 960, height: 720 },
       deviceScaleFactor: 1,
@@ -740,6 +758,46 @@ export class PlaywrightBrowserAdapter
   }
 
   private async isRequestAllowed(live: LiveSession,value:string) { try { await this.assertRequestAllowed(live,value); return true; } catch { return false; } }
+}
+
+export class LocalPlaywrightBrowserExecutor extends PlaywrightBrowserAdapter {
+  constructor(options: { testOnlyPrivateNetwork?: true } = {}) {
+    super(options);
+  }
+
+  static forTest(): LocalPlaywrightBrowserExecutor {
+    if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
+      throw new Error("private-network browser access is test-only");
+    }
+    return new LocalPlaywrightBrowserExecutor({ testOnlyPrivateNetwork: true });
+  }
+}
+
+export class CloudflareBrowserExecutor extends PlaywrightBrowserAdapter {
+  constructor(input: { binding: CloudflareBrowserBinding; launch: CloudflareBrowserLauncher }) {
+    super({ launchBrowser: () => input.launch(input.binding) });
+  }
+}
+
+export function selectBrowserBackend(input: {
+  environment: BrowserBackendEnvironment;
+  cloudflare?: { binding?: CloudflareBrowserBinding; launch?: CloudflareBrowserLauncher };
+}): BrowserBackendSelection {
+  const backend = parseBrowserBackend(input.environment.DISTILLED_BROWSER_BACKEND ?? "local");
+  if (backend === "local") return { backend, executor: new LocalPlaywrightBrowserExecutor() };
+  if (!input.cloudflare?.binding || !input.cloudflare.launch) {
+    throw new Error("Cloudflare browser backend requires a Browser binding and launcher");
+  }
+  return {
+    backend,
+    executor: new CloudflareBrowserExecutor({ binding: input.cloudflare.binding, launch: input.cloudflare.launch })
+  };
+}
+
+function parseBrowserBackend(value: string): BrowserBackendName {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "local" || normalized === "cloudflare") return normalized;
+  throw new Error("DISTILLED_BROWSER_BACKEND must be local or cloudflare");
 }
 
 class CdpBrowserObservationProvider implements BrowserObservationProvider {

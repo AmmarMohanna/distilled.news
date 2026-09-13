@@ -59,3 +59,34 @@ Challenge state is runtime-owned. A deterministic classifier uses main-document 
 Canonical acquired content stores only stable content identity and article fields. Each run has a separate acquisition-provenance link containing its own generation, turn/model/tool call, observation, artifact, final URL, acquisition attempt, and acceptance timestamp. Recovery therefore never inherits the first accepting run's provenance. Each physical model attempt likewise records requested and actual model, provider, deployment, gateway, fallback reason, usage, cost, and latency; returned identities outside the resolved route are rejected. Exhausted Web Operator queue delivery durably fails and fences a nonterminal run, marks its outbox failed with an operator-visible reason, and invalidates its lease.
 
 The Cloudflare queue consumer keeps `web_operator` externally routed by posting a bounded `{ "type": "web_operator_run", "runId": "..." }` message to `/v1/agent-runs/process`. The external host must mount `createConfiguredWebOperatorHttpHandler` with its durable store, artifact store, isolated Playwright adapter, gateway environment, and `WEB_OPERATOR_RUNTIME_TOKEN`. The handler authenticates the request, constructs `createModelGatewayFromEnv`, returns `409` for a busy lease so Queue delivery retries, and returns success only after the coordinator reaches a durable terminal or suspended disposition.
+
+## Browser backend selection
+
+Browser execution is selected at construction time through `DISTILLED_BROWSER_BACKEND=local|cloudflare`. `LocalPlaywrightBrowserExecutor` and `CloudflareBrowserExecutor` implement the same browser ports and share the same adapter semantics; production code outside backend construction depends only on `BrowserExecutorPort`, `StructuredBrowserUsePort`, and `VisualComputerUsePort`.
+
+## Live model smoke tests
+
+Normal CI and repository tests use deterministic scripted gateways. A paid OpenRouter smoke test is inert unless all of these are explicitly supplied:
+
+```text
+DISTILLED_LIVE_OPENROUTER_SMOKE=true
+OPENROUTER_API_KEY=...
+DISTILLED_LIVE_OPENROUTER_MODEL=...
+DISTILLED_LIVE_OPENROUTER_PROVIDER=...
+```
+
+## Workflow lifecycle
+
+A successful run may produce a `WorkflowCaptureBundle` containing visible actions, observation references, effect certainty, browser generation, extraction evidence, completion evidence, and runtime/tool/schema versions. It does not capture hidden chain-of-thought.
+
+`WorkflowCandidateCompiler` converts captures into typed deterministic operations such as `navigate`, `locate_semantic_target`, `follow_canonical_article`, `paginate`, `stop_at_watermark`, `extract_article`, and `verify_expected_condition`. Unsupported or ambiguous gaps remain explicit.
+
+Workflow states are `CANDIDATE`, `VALIDATED`, `ACTIVE`, `SUPERSEDED`, `REJECTED`, `INVALID`, and `ROLLED_BACK`. The producing agent may create a candidate, but only validator/promotion authority can activate it. Deterministic replay uses the same browser security contracts and requires zero model calls while the workflow remains valid.
+
+## Authorized browser profiles
+
+`AuthProfile` stores encrypted browser state by reference with tenant, owner, allowed domains, allowed operation class, version, expiry, and revocation. The model-visible `AuthProfileCapability` excludes passwords, cookies, session tokens, MFA secrets, and API keys. CAPTCHA/MFA remains a typed challenge and human-resume boundary.
+
+## Evaluation instrumentation
+
+Evaluation metrics are machine-readable and cover acquisition success, correct-candidate rate, model calls, tokens, cost, latency, tool actions, replans, strong-model escalation, visual usage, workflow compilation, deterministic replay, repair success, verifier rejection, policy denial, `effect_unknown`, challenge rate, and software/config/tool/workflow versions. Metrics exclude secrets, private browser state, and hidden model reasoning.

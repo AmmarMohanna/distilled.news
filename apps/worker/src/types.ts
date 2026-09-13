@@ -56,6 +56,7 @@ export interface ProcessingJobRecord {
 }
 
 export interface Env extends Cloudflare.Env {
+  BROWSER: Cloudflare.Env["BROWSER"];
   PROCESSING_QUEUE: Queue<DistilledQueueMessage>;
   WEB_OPERATOR_QUEUE: Queue<WebOperatorRunMessage>;
   WEB_OPERATOR_RUNTIME_URL?: string;
@@ -72,6 +73,7 @@ export interface Env extends Cloudflare.Env {
   APIFY_API_TOKEN?: string;
   APIFY_X_PRICE_USD_PER_1000_RESULTS?: string;
   DISTILLED_LLM_GATEWAY?: string;
+  DISTILLED_BROWSER_BACKEND: string;
   DISTILLED_SELF_HOSTED_BASE_URL?: string;
   DISTILLED_SELF_HOSTED_API_KEY?: string;
   OPENROUTER_API_KEY?: string;
