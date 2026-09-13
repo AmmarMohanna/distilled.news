@@ -96,6 +96,8 @@ A successful run may produce a `WorkflowCaptureBundle` containing visible action
 
 Workflow states are `CANDIDATE`, `VALIDATED`, `ACTIVE`, `SUPERSEDED`, `REJECTED`, `INVALID`, and `ROLLED_BACK`. The producing agent may create a candidate, but only validator/promotion authority can activate it. Repair is authorized only after bounded structural-failure evidence on an active workflow; challenge, policy, and transient failures do not directly trigger repair. Deterministic replay uses the same browser security contracts and requires zero model calls while the workflow remains valid.
 
+`ClosedLoopWebOperatorLifecycle` integrates the existing pieces for public candidate acquisition: no active workflow triggers a normal Web Operator run, successful runs are captured and compiled, validator authority marks candidates `VALIDATED`, promotion authority activates one workflow version, later refreshes replay the active workflow with zero model calls, and structural replay evidence gates repair before a replacement workflow can supersede the old active version. Repeated capture/candidate finalization for the same completed run is idempotent and returns the first persisted candidate.
+
 ## Authorized browser profiles
 
 `AuthProfile` stores encrypted browser state by reference with tenant, owner, allowed domains, allowed operation class, version, expiry, and revocation. The model-visible `AuthProfileCapability` excludes passwords, cookies, session tokens, MFA secrets, and API keys. CAPTCHA/MFA remains a typed challenge and human-resume boundary.
