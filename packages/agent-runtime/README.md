@@ -75,6 +75,19 @@ DISTILLED_LIVE_OPENROUTER_MODEL=...
 DISTILLED_LIVE_OPENROUTER_PROVIDER=...
 ```
 
+A live public acquisition smoke test is also inert unless explicitly enabled with:
+
+```text
+DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE=true
+DISTILLED_LIVE_PUBLIC_CANDIDATE_URL=https://publisher.example/article
+DISTILLED_LIVE_OPENROUTER_SMOKE=true
+OPENROUTER_API_KEY=...
+DISTILLED_LIVE_OPENROUTER_MODEL=...
+DISTILLED_LIVE_OPENROUTER_PROVIDER=...
+```
+
+This path uses the real runtime coordinator, configured model gateway, browser backend selection, policy checks, durable intent/effect handling, verifier-owned completion, and `AcquiredContent` acceptance. It is never required for normal tests or CI.
+
 ## Workflow lifecycle
 
 A successful run may produce a `WorkflowCaptureBundle` containing visible actions, observation references, effect certainty, browser generation, structured discovery evidence, extraction evidence, completion evidence, and runtime/tool/schema versions. Discovery evidence is machine-readable and includes observed page types, listing URL candidates, article URL pattern hints, publication-time evidence, locator/capability evidence, and watermark/exhaustion evidence when available. It does not capture hidden chain-of-thought.
