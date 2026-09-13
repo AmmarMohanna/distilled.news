@@ -4,8 +4,9 @@ import { Miniflare } from "miniflare";
 import { acquisitionFailureEvidence, makeId, type AcquisitionEvaluationMetrics, type WorkflowCaptureBundle, type WorkflowCandidate } from "@distilled/agent-runtime";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
 
+let mf: Miniflare | undefined;
+
 describe("D1 Web Operator workflow lifecycle store", () => {
-  let mf: Miniflare | undefined;
   afterEach(async () => { await mf?.dispose(); mf = undefined; });
 
   it("persists capture, validation, promotion, supersession, rollback, and evaluation metrics", async () => {
@@ -97,26 +98,117 @@ describe("D1 Web Operator workflow lifecycle store", () => {
     await store.recordMetrics(metrics);
   }, 30_000);
 
+  it("upgrades existing workflow data from 0014 and enables acquisition-failure evidence without backfill", async () => {
+    const { db } = await setupThrough("0014_web_operator_workflow_failure_evidence.sql");
+    await seedAgentRun(db);
+    const storeBeforeUpgrade = new D1WorkflowRepository(db);
+    const capture = captureBundle("resource", "upgrade");
+    await storeBeforeUpgrade.saveCaptureBundle(capture);
+    const workflow = workflowCandidate(capture, 1);
+    await storeBeforeUpgrade.saveWorkflowCandidate(workflow);
+    await storeBeforeUpgrade.saveValidationResult({
+      workflowId: workflow.id,
+      passed: true,
+      criteria: { hasOperations: true, hasAcceptedContentReference: true },
+      validatedAt: "2026-09-13T00:00:00Z"
+    });
+    const activeBeforeUpgrade = await storeBeforeUpgrade.promoteWorkflow(workflow.id, "validator", "2026-09-13T00:00:01Z");
+    await storeBeforeUpgrade.saveFailureEvidence({
+      id: makeId("workflow_failure", workflow.id, "upgrade"),
+      workflowId: workflow.id,
+      resourceId: "resource",
+      failureClass: "structural_site_change",
+      transient: false,
+      operationId: workflow.operations[0].id,
+      details: { reason: "representative pre-0015 workflow evidence" },
+      observedAt: "2026-09-13T00:00:02Z"
+    });
+    expect(await tableExists(db, "web_operator_acquisition_failure_evidence")).toBe(false);
+
+    await applyMigration(db, "0015_web_operator_acquisition_failure_evidence.sql");
+    expect(await tableExists(db, "web_operator_acquisition_failure_evidence")).toBe(true);
+    const storeAfterUpgrade = new D1WorkflowRepository(db);
+    expect(await storeAfterUpgrade.getWorkflowCandidate(workflow.id)).toMatchObject({
+      id: activeBeforeUpgrade.id,
+      state: "ACTIVE",
+      version: 1
+    });
+    expect(await storeAfterUpgrade.getValidationResult(workflow.id)).toMatchObject({ workflowId: workflow.id, passed: true });
+    expect(await storeAfterUpgrade.listFailureEvidence(workflow.id)).toHaveLength(1);
+    expect(await storeAfterUpgrade.getActiveWorkflow("resource")).toMatchObject({ id: workflow.id, state: "ACTIVE" });
+
+    const routeFailure = acquisitionFailureEvidence({
+      tenantId: "tenant",
+      resourceId: "resource",
+      candidateId: "candidate",
+      method: "http_deterministic_extraction",
+      failureClass: "source_unavailable",
+      transient: false,
+      details: { reason: "deterministic extractor unavailable after upgrade" },
+      occurredAt: "2026-09-13T00:00:03Z"
+    });
+    await storeAfterUpgrade.saveAcquisitionFailure(routeFailure);
+    await storeAfterUpgrade.saveAcquisitionFailure(routeFailure);
+    expect(await storeAfterUpgrade.listAcquisitionFailures({
+      tenantId: "tenant",
+      resourceId: "resource",
+      candidateId: "candidate"
+    })).toEqual([routeFailure]);
+    expect((await storeAfterUpgrade.listWorkflowCandidates("resource")).filter((candidate) => candidate.state === "ACTIVE")).toHaveLength(1);
+  }, 30_000);
+
   async function setup() {
-    mf = new Miniflare({ modules: true, script: "export default {fetch(){return new Response('ok')}}", d1Databases: ["DB"] });
-    const db = await mf.getD1Database("DB");
-    for (const migration of [
-      "0011_agent_runtime.sql",
-      "0012_agent_runtime_security_and_provenance.sql",
-      "0013_web_operator_workflow_lifecycle.sql",
-      "0014_web_operator_workflow_failure_evidence.sql",
-      "0015_web_operator_acquisition_failure_evidence.sql"
-    ]) await applyMigration(db, migration);
-    await db.prepare(`INSERT INTO agent_runs
-      (run_id,tenant_id,resource_id,idempotency_key,candidate_id,candidate_url,publisher_id,acquisition_attempt,objective,mode,state,generation,policy_snapshot_id,completion_contract_version,created_at,updated_at)
-      VALUES ('run','tenant','resource','key','candidate','https://fixture.test/article','fixture','attempt','Acquire','known_candidate','completed',1,'policy','contract','2026-09-13T00:00:00Z','2026-09-13T00:00:00Z')`).run();
+    const { db } = await setupThrough("0015_web_operator_acquisition_failure_evidence.sql");
+    await seedAgentRun(db);
     return { db, store: new D1WorkflowRepository(db) };
   }
 });
 
+const MIGRATIONS = [
+  "0001_initial.sql",
+  "0002_briefing_language_pause.sql",
+  "0003_briefing_starred.sql",
+  "0004_briefing_stars.sql",
+  "0005_briefing_votes.sql",
+  "0006_accounts.sql",
+  "0007_sources_apify_intensity.sql",
+  "0008_event_deduplication.sql",
+  "0009_daily_budget_costs.sql",
+  "0010_briefing_editions.sql",
+  "0011_agent_runtime.sql",
+  "0012_agent_runtime_security_and_provenance.sql",
+  "0013_web_operator_workflow_lifecycle.sql",
+  "0014_web_operator_workflow_failure_evidence.sql",
+  "0015_web_operator_acquisition_failure_evidence.sql"
+];
+
+async function setupThrough(lastMigration: string) {
+  mf = new Miniflare({ modules: true, script: "export default {fetch(){return new Response('ok')}}", d1Databases: ["DB"] });
+  const db = await mf.getD1Database("DB");
+  for (const migration of MIGRATIONS.slice(0, MIGRATIONS.indexOf(lastMigration) + 1)) await applyMigration(db, migration);
+  return { db };
+}
+
 async function applyMigration(db: D1Database, migration: string) {
-  const sql = await readFile(new URL(`../migrations/${migration}`, import.meta.url), "utf8");
-  for (const statement of sql.split(/;\s*(?:\r?\n|$)/).map((value) => value.trim()).filter(Boolean)) await db.prepare(statement).run();
+  const sql = (await readFile(new URL(`../migrations/${migration}`, import.meta.url), "utf8"))
+    .split(/\r?\n/)
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n");
+  for (const statement of sql.split(/;\s*(?:\r?\n|$)/).map((value) => value.trim()).filter(Boolean)) {
+    if (!/\S/.test(statement)) continue;
+    await db.prepare(statement).run();
+  }
+}
+
+async function seedAgentRun(db: D1Database) {
+  await db.prepare(`INSERT INTO agent_runs
+    (run_id,tenant_id,resource_id,idempotency_key,candidate_id,candidate_url,publisher_id,acquisition_attempt,objective,mode,state,generation,policy_snapshot_id,completion_contract_version,created_at,updated_at)
+    VALUES ('run','tenant','resource','key','candidate','https://fixture.test/article','fixture','attempt','Acquire','known_candidate','completed',1,'policy','contract','2026-09-13T00:00:00Z','2026-09-13T00:00:00Z')`).run();
+}
+
+async function tableExists(db: D1Database, tableName: string): Promise<boolean> {
+  const row = await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").bind(tableName).first();
+  return Boolean(row);
 }
 
 function captureBundle(resourceId: string, suffix: string): WorkflowCaptureBundle {
