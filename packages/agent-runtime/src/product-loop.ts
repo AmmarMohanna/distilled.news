@@ -2,10 +2,13 @@ import type { CandidateIdentity, ModelCapability, ModelRoutingConfig } from "./c
 import { createConfiguredWebOperatorHttpHandler, type CoordinatorOptions } from "./runtime";
 import { WebOperatorAcquisitionStrategy, type AdmittedRun } from "./admission";
 import { selectBrowserBackend, type BrowserBackendEnvironment, type CloudflareBrowserBinding, type CloudflareBrowserLauncher } from "./browser";
-import { modelRoutingConfigFromEnv, type ModelGatewayEnvironment } from "./model";
+import { createModelGatewayFromEnv, modelRoutingConfigFromEnv, type ModelGatewayEnvironment } from "./model";
 import type { RuntimeStore } from "./persistence";
 import type { ArtifactStore } from "./observations";
 import type { RunPolicySnapshot } from "./policy";
+import type { AcquisitionFailureRepository } from "./acquisition-router";
+import { ClosedLoopWebOperatorLifecycle, type DeterministicAcquisitionPort } from "./closed-loop";
+import type { WorkflowRepository } from "./workflow";
 
 export interface PublicCandidateAcquisitionRequest {
   tenantId: string;
@@ -33,6 +36,15 @@ export interface WebOperatorRuntimeAssemblyInput {
   workerIdFactory?: () => string;
 }
 
+export interface ClosedLoopWebOperatorAssemblyInput extends Omit<WebOperatorRuntimeAssemblyInput, "runtimeToken"> {
+  workflowStore: WorkflowRepository;
+  acquisitionFailures?: AcquisitionFailureRepository;
+  deterministicAcquisition?: Partial<Record<DeterministicAcquisitionPort["method"], DeterministicAcquisitionPort>>;
+  softwareVersion: string;
+  toolSchemaVersion: string;
+  minimumStructuralEvidence?: number;
+}
+
 export function createWebOperatorRuntimeHandler(input: WebOperatorRuntimeAssemblyInput) {
   const browser = selectBrowserBackend({
     environment: input.environment,
@@ -49,6 +61,28 @@ export function createWebOperatorRuntimeHandler(input: WebOperatorRuntimeAssembl
     stableInstructions: input.stableInstructions,
     leaseTtlMs: input.leaseTtlMs,
     gatewayFetcher: input.gatewayFetcher,
+    workerIdFactory: input.workerIdFactory
+  });
+}
+
+export function createClosedLoopWebOperatorLifecycle(input: ClosedLoopWebOperatorAssemblyInput): ClosedLoopWebOperatorLifecycle {
+  const browser = selectBrowserBackend({
+    environment: input.environment,
+    cloudflare: input.cloudflareBrowser
+  });
+  return new ClosedLoopWebOperatorLifecycle({
+    runtimeStore: input.store,
+    workflowStore: input.workflowStore,
+    acquisitionFailures: input.acquisitionFailures,
+    artifacts: input.artifacts,
+    browserExecutor: browser.executor,
+    structured: browser.executor,
+    visual: browser.executor,
+    modelGateway: createModelGatewayFromEnv(input.environment, input.gatewayFetcher),
+    softwareVersion: input.softwareVersion,
+    toolSchemaVersion: input.toolSchemaVersion,
+    deterministicAcquisition: input.deterministicAcquisition,
+    minimumStructuralEvidence: input.minimumStructuralEvidence,
     workerIdFactory: input.workerIdFactory
   });
 }

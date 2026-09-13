@@ -16,6 +16,7 @@ import {
   WorkflowValidator,
   admitPublicCandidateAcquisition,
   assertAuthProfileUsable,
+  createClosedLoopWebOperatorLifecycle,
   emptyAcquisitionMetrics,
   makeId,
   projectAuthProfileForModel,
@@ -86,6 +87,24 @@ describe("public candidate acquisition assembly", () => {
       mode: "api",
       apiGateway: "openrouter"
     });
+  });
+
+  it("assembles the closed-loop lifecycle from configured browser and model gateways", () => {
+    const lifecycle = createClosedLoopWebOperatorLifecycle({
+      store: new MemoryRuntimeStore(),
+      artifacts: new MemoryArtifactStore(),
+      workflowStore: new MemoryWorkflowRepository(),
+      environment: {
+        DISTILLED_BROWSER_BACKEND: "local",
+        DISTILLED_LLM_MODE: "api",
+        DISTILLED_LLM_API_GATEWAY: "openrouter",
+        OPENROUTER_API_KEY: "test-key"
+      },
+      softwareVersion: "test-runtime",
+      toolSchemaVersion: "web-operator-tools-v1",
+      gatewayFetcher: async () => new Response("{}", { status: 200 })
+    });
+    expect(lifecycle).toBeInstanceOf(Object);
   });
 });
 
