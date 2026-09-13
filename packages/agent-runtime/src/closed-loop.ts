@@ -58,6 +58,12 @@ export type ClosedLoopAcquisitionOutcome =
       modelCalls: 0;
     };
 
+export interface FinalizedWorkflowRun {
+  run: AgentRun;
+  workflow: WorkflowCandidate;
+  acquiredContent: AcquiredContent;
+}
+
 export class ClosedLoopWebOperatorLifecycle {
   constructor(private readonly options: {
     runtimeStore: RuntimeStore;
@@ -151,18 +157,45 @@ export class ClosedLoopWebOperatorLifecycle {
     if (process.status !== "completed" || process.acquiredContent.length === 0) {
       throw new Error(`Web Operator ${purpose} run did not complete acquisition`);
     }
-    const run = (await this.options.runtimeStore.getRun(admitted.run.runId))!;
-    const { candidate } = await this.lifecycleCoordinator().produceCandidateFromRun(run, new Date().toISOString());
-    const validation = await this.lifecycleCoordinator().validateCandidate(candidate.id, "workflow-validator", new Date().toISOString());
-    if (!validation.passed) throw new Error(`compiled workflow failed validation: ${candidate.id}`);
-    const active = await this.lifecycleCoordinator().promoteValidatedWorkflow(candidate.id, "workflow-promotion-controller", new Date().toISOString());
+    const finalized = await this.finalizeSuccessfulAgentRun(admitted.run.runId, now);
     return {
       state: "acquired_by_agent",
-      run,
+      run: finalized.run,
       process,
-      workflow: active,
-      acquiredContent: process.acquiredContent[0],
+      workflow: finalized.workflow,
+      acquiredContent: finalized.acquiredContent,
       modelCalls: process.modelCalls
+    };
+  }
+
+  async finalizeSuccessfulAgentRun(runId: string, now = new Date()): Promise<FinalizedWorkflowRun> {
+    const run = await this.options.runtimeStore.getRun(runId);
+    if (!run) throw new Error(`agent run not found: ${runId}`);
+    if (run.state !== "completed") throw new Error(`agent run is not completed: ${runId}`);
+    const accepted = await this.options.runtimeStore.getAcceptedContent(runId);
+    if (accepted.length === 0) throw new Error(`agent run has no accepted content: ${runId}`);
+
+    const timestamp = now.toISOString();
+    const lifecycle = this.lifecycleCoordinator();
+    const { candidate } = await lifecycle.produceCandidateFromRun(run, timestamp);
+    let workflow = candidate;
+
+    if (workflow.state === "CANDIDATE") {
+      const validation = await lifecycle.validateCandidate(workflow.id, "workflow-validator", timestamp);
+      if (!validation.passed) throw new Error(`compiled workflow failed validation: ${workflow.id}`);
+      workflow = (await this.options.workflowStore.getWorkflowCandidate(workflow.id))!;
+    }
+
+    if (workflow.state === "VALIDATED") {
+      workflow = await lifecycle.promoteValidatedWorkflow(workflow.id, "workflow-promotion-controller", timestamp);
+    } else if (workflow.state !== "ACTIVE") {
+      throw new Error(`workflow finalization cannot activate workflow in ${workflow.state} state: ${workflow.id}`);
+    }
+
+    return {
+      run,
+      workflow,
+      acquiredContent: accepted.find((content) => content.canonicalUrl === workflow.candidate.canonicalUrl) ?? accepted[0]
     };
   }
 

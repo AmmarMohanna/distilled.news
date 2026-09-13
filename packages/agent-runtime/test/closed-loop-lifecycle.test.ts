@@ -46,6 +46,24 @@ describe("closed-loop Web Operator lifecycle", () => {
     expect(discovered.workflow).toMatchObject({ state: "ACTIVE", version: 1 });
     expect(discovered.modelCalls).toBeGreaterThan(0);
 
+    const resumedController = new ClosedLoopWebOperatorLifecycle({
+      runtimeStore: store,
+      workflowStore,
+      artifacts,
+      browserExecutor: browser,
+      structured: browser,
+      visual: browser,
+      modelGateway: gateway,
+      softwareVersion: "test-runtime",
+      toolSchemaVersion: "web-operator-tools-v1",
+      workerIdFactory: () => "closed-loop-worker"
+    });
+    const resumedFinalization = await resumedController.finalizeSuccessfulAgentRun(discovered.run.runId, new Date("2026-09-13T00:00:30Z"));
+    const repeatedFinalization = await resumedController.finalizeSuccessfulAgentRun(discovered.run.runId, new Date("2026-09-13T00:00:45Z"));
+    expect(resumedFinalization.workflow.id).toBe(discovered.workflow.id);
+    expect(repeatedFinalization.workflow.id).toBe(discovered.workflow.id);
+    expect(await workflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(1);
+
     const replayed = await controller.acquire(request(fixture.origin, "v1-refresh", "article-v1"), new Date("2026-09-13T00:01:00Z"));
     expect(replayed.state).toBe("acquired_by_workflow");
     if (replayed.state !== "acquired_by_workflow") throw new Error("expected deterministic replay");
