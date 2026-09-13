@@ -22,6 +22,7 @@ describe("D1 Web Operator workflow lifecycle store", () => {
       criteria: { hasOperations: true },
       validatedAt: "2026-09-13T00:00:00Z"
     });
+    expect(await store.getValidationResult(first.id)).toMatchObject({ workflowId: first.id, passed: true });
     const active = await store.promoteWorkflow(first.id, "validator");
     expect(active.state).toBe("ACTIVE");
 

@@ -190,6 +190,7 @@ export interface WorkflowRepository {
   listWorkflowCandidates(resourceId: string): Promise<WorkflowCandidate[]>;
   getActiveWorkflow(resourceId: string): Promise<WorkflowCandidate | null>;
   saveValidationResult(result: WorkflowValidationResult): Promise<void>;
+  getValidationResult(workflowId: string): Promise<WorkflowValidationResult | null>;
   saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void>;
   listFailureEvidence(workflowId: string): Promise<WorkflowFailureEvidence[]>;
   promoteWorkflow(workflowId: string, validatorId: string, now?: string): Promise<WorkflowCandidate>;
@@ -218,6 +219,7 @@ export class MemoryWorkflowRepository implements WorkflowRepository {
     if (existing && JSON.stringify(workflowIdentity(existing)) !== JSON.stringify(workflowIdentity(candidate))) {
       throw new Error("workflow candidate identity collision");
     }
+    if (existing) return;
     this.workflows.set(candidate.id, structuredClone(candidate));
   }
 
@@ -240,6 +242,10 @@ export class MemoryWorkflowRepository implements WorkflowRepository {
       workflow.state = result.passed ? "VALIDATED" : "INVALID";
       workflow.validatedAt = result.validatedAt;
     }
+  }
+
+  async getValidationResult(workflowId: string): Promise<WorkflowValidationResult | null> {
+    return structuredClone(this.validations.get(workflowId) ?? null);
   }
 
   async saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void> {
@@ -425,12 +431,23 @@ export class WorkflowCandidateCompiler {
 
 export class WorkflowValidator {
   async validate(candidate: WorkflowCandidate, evidence: WorkflowCaptureBundle, now = new Date().toISOString()): Promise<WorkflowValidationResult> {
+    const matchingExtraction = evidence.extractionEvidence.find((entry) => entry.canonicalUrl === candidate.candidate.canonicalUrl);
+    const matchingPublicationEvidence = evidence.discoveryEvidence.publicationTimeEvidence.some((entry) =>
+      entry.publisherTimestamp.trim().length > 0
+    );
     const criteria = {
       hasOperations: candidate.operations.length > 0,
       hasNoUnsupportedGaps: candidate.unsupportedGaps.length === 0,
       candidateIdentityMatches: candidate.candidate.candidateId === evidence.candidate.candidateId &&
         candidate.candidate.canonicalUrl === evidence.candidate.canonicalUrl,
-      hasSuccessfulExtractionEvidence: evidence.extractionEvidence.some((entry) => entry.canonicalUrl === candidate.candidate.canonicalUrl),
+      hasSuccessfulExtractionEvidence: Boolean(matchingExtraction),
+      extractionHasContentHash: Boolean(matchingExtraction?.contentHash),
+      hasPublicationTimestampEvidence: matchingPublicationEvidence,
+      hasPageTypeEvidence: evidence.discoveryEvidence.pageTypeObservations.some((entry) => entry.pageType === "article"),
+      hasWatermarkEvidence: evidence.completionEvidence.watermarkObserved ||
+        evidence.discoveryEvidence.stoppingWatermarkEvidence.some((entry) => entry.watermarkObserved || entry.exhausted) ||
+        Boolean(evidence.discoveryEvidence.paginationBehavior?.watermarkObserved || evidence.discoveryEvidence.paginationBehavior?.exhausted),
+      hasAcceptedContentReference: Boolean(evidence.acceptedContentId),
       onlyDeterministicOperations: candidate.operations.every((operation) => operation.kind !== undefined)
     };
     const passed = Object.values(criteria).every(Boolean);

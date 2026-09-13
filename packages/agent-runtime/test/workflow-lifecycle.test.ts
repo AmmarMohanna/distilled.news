@@ -28,7 +28,8 @@ import {
   type ModelRequest,
   type BrowserAllocation,
   type BrowserObservationData,
-  type WorkflowCandidate
+  type WorkflowCandidate,
+  type WorkflowCaptureBundle
 } from "../src";
 import { startHostileFixture } from "./hostile-fixture";
 
@@ -137,12 +138,41 @@ describe("workflow capture, compilation, validation, promotion, and replay", () 
       const candidate = produced.candidate;
       const validation = await lifecycle.validateCandidate(candidate.id, "validator");
       expect(validation.passed).toBe(true);
+      expect(validation.criteria).toMatchObject({
+        hasAcceptedContentReference: true,
+        hasPublicationTimestampEvidence: true,
+        hasWatermarkEvidence: true,
+        extractionHasContentHash: true
+      });
+      await expect(workflowStore.getValidationResult(candidate.id)).resolves.toMatchObject({ passed: true });
       expect(await workflowStore.getWorkflowCandidate(candidate.id)).toMatchObject({ state: "VALIDATED" });
       expect(await workflowStore.getActiveWorkflow("resource-capture")).toBeNull();
       await expect(lifecycle.promoteValidatedWorkflow(candidate.id, "validator")).resolves.toMatchObject({ state: "ACTIVE" });
     } finally {
       await fixture.close();
     }
+  });
+
+  it("rejects workflow candidates that cannot prove required article evidence", async () => {
+    const store = new MemoryWorkflowRepository();
+    const capture = workflowCaptureBundle("resource-validation", "missing-required-evidence");
+    const candidate = new WorkflowCandidateCompiler().compile(capture, "2026-09-13T00:00:00Z");
+    await store.saveCaptureBundle(capture);
+    await store.saveWorkflowCandidate(candidate);
+    const lifecycle = new WorkflowLifecycleCoordinator({
+      workflowStore: store,
+      validator: new WorkflowValidator()
+    });
+
+    const validation = await lifecycle.validateCandidate(candidate.id, "validator", "2026-09-13T00:00:01Z");
+    expect(validation.passed).toBe(false);
+    expect(validation.criteria).toMatchObject({
+      hasAcceptedContentReference: false,
+      hasPublicationTimestampEvidence: false,
+      hasWatermarkEvidence: false
+    });
+    expect(await store.getWorkflowCandidate(candidate.id)).toMatchObject({ state: "INVALID" });
+    await expect(lifecycle.promoteValidatedWorkflow(candidate.id, "validator")).rejects.toThrow(/VALIDATED/);
   });
 
   it("requires confirmed active-workflow structural failure before repair is authorized", async () => {
@@ -526,6 +556,67 @@ function workflowCandidate(resourceId: string, suffix: string) {
       locatorAlternatives: [{ kind: "url_pattern" as const, value: "https://fixture.test/article", confidence: 1 }]
     }],
     unsupportedGaps: [],
+    createdAt: "2026-09-13T00:00:00Z"
+  };
+}
+
+function workflowCaptureBundle(resourceId: string, suffix: string): WorkflowCaptureBundle {
+  const canonicalUrl = "https://fixture.test/article";
+  return {
+    id: makeId("workflow_capture", resourceId, suffix),
+    runId: makeId("run", resourceId, suffix),
+    tenantId: "tenant",
+    resourceId,
+    candidate: candidateIdentity(canonicalUrl),
+    actions: [{
+      tool: "browser.extract@1",
+      arguments: {},
+      observationAfterId: makeId("observation", suffix),
+      effectCertainty: "known_applied",
+      browserGeneration: 1,
+      occurredAt: "2026-09-13T00:00:00Z"
+    }],
+    observationIds: [makeId("observation", suffix)],
+    successfulAlternatives: ["browser.extract@1"],
+    failedAlternatives: [],
+    discoveryEvidence: {
+      canonicalResourceIdentity: {
+        resourceId,
+        candidateCanonicalUrl: canonicalUrl,
+        publisherId: "fixture"
+      },
+      listingUrlCandidates: [],
+      paginationBehavior: {
+        watermarkObserved: false,
+        exhausted: false,
+        evidenceObservationIds: []
+      },
+      articleUrlPatterns: [canonicalUrl],
+      publicationTimeEvidence: [],
+      pageTypeObservations: [{
+        observationId: makeId("observation", suffix),
+        url: canonicalUrl,
+        pageType: "article",
+        title: "Article"
+      }],
+      locatorEvidence: [],
+      requiredReadCapabilities: [],
+      stoppingWatermarkEvidence: []
+    },
+    extractionEvidence: [{
+      observationId: makeId("observation", suffix),
+      canonicalUrl,
+      contentHash: "hash"
+    }],
+    completionEvidence: {
+      citedObservationIds: [makeId("observation", suffix)],
+      watermarkObserved: false
+    },
+    runtime: {
+      softwareVersion: "test-runtime",
+      toolSchemaVersion: "web-operator-tools-v1",
+      workflowSchemaVersion: "workflow-capture-v1"
+    },
     createdAt: "2026-09-13T00:00:00Z"
   };
 }

@@ -85,6 +85,12 @@ export class D1WorkflowRepository implements WorkflowRepository, EvaluationSink 
     await this.recordLifecycle(result.workflowId, undefined, result.passed ? "VALIDATED" : "INVALID", "workflow-validator", result.failureClass);
   }
 
+  async getValidationResult(workflowId: string): Promise<WorkflowValidationResult | null> {
+    const row = await this.db.prepare("SELECT result_json FROM web_operator_workflow_validations WHERE workflow_id=?")
+      .bind(workflowId).first<Row>();
+    return row ? parse<WorkflowValidationResult>(row.result_json) : null;
+  }
+
   async saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void> {
     const result = await this.db.prepare(`INSERT OR IGNORE INTO web_operator_workflow_failure_evidence
       (id,workflow_id,resource_id,failure_class,transient,operation_id,details_json,observed_at)

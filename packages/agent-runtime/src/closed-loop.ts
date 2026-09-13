@@ -279,7 +279,8 @@ export class ClosedLoopWebOperatorLifecycle {
     let workflow = candidate;
 
     if (workflow.state === "CANDIDATE") {
-      const validation = await lifecycle.validateCandidate(workflow.id, "workflow-validator", timestamp);
+      const validation = (await this.options.workflowStore.getValidationResult(workflow.id)) ??
+        await lifecycle.validateCandidate(workflow.id, "workflow-validator", timestamp);
       if (!validation.passed) throw new Error(`compiled workflow failed validation: ${workflow.id}`);
       workflow = (await this.options.workflowStore.getWorkflowCandidate(workflow.id))!;
     }
