@@ -14,7 +14,13 @@ import {
   type DeterministicAcquisitionPort,
   type ModelCapability,
   type ModelGateway,
-  type ModelRequest
+  type ModelRequest,
+  type WorkflowCaptureBundle,
+  type WorkflowCandidate,
+  type WorkflowFailureEvidence,
+  type WorkflowLifecycleState,
+  type WorkflowRepository,
+  type WorkflowValidationResult
 } from "../src";
 
 describe("closed-loop Web Operator lifecycle", () => {
@@ -151,6 +157,53 @@ describe("closed-loop Web Operator lifecycle", () => {
     })).toHaveLength(4);
   }, 60_000);
 
+  it("resumes automatic discovery finalization across durable workflow boundaries without duplicating artifacts", async () => {
+    fixture = await startVersionedPublisherFixture();
+    for (const boundary of ["capture", "candidate", "validation", "promotion"] as const) {
+      const store = new MemoryRuntimeStore();
+      const backingWorkflowStore = new MemoryWorkflowRepository();
+      const workflowStore = new FailOnceWorkflowRepository(backingWorkflowStore, boundary);
+      const artifacts = new MemoryArtifactStore();
+      const browser = LocalPlaywrightBrowserExecutor.forTest();
+      const gateway = new VersionedPublisherGateway(fixture.origin);
+      const acquisitionRequest = request(fixture.origin, `restart-${boundary}`, "article-v1");
+
+      const interruptedController = closedLoopController({
+        store,
+        workflowStore,
+        artifacts,
+        browser,
+        gateway
+      });
+      await expect(interruptedController.acquire(acquisitionRequest, new Date("2026-09-13T00:00:00Z")))
+        .rejects.toThrow(new RegExp(boundary));
+      const modelCallsAfterInterruptedRun = gateway.calls;
+
+      const recoveryController = closedLoopController({
+        store,
+        workflowStore,
+        artifacts,
+        browser,
+        gateway
+      });
+      const recovered = await recoveryController.acquire(acquisitionRequest, new Date("2026-09-13T00:01:00Z"));
+      if (boundary === "promotion") {
+        expect(recovered.state).toBe("acquired_by_workflow");
+      } else {
+        expect(recovered.state).toBe("acquired_by_agent");
+        if (recovered.state !== "acquired_by_agent") throw new Error("expected recovered agent acquisition");
+        expect(recovered.process.status).toBe("already_completed");
+      }
+      expect(gateway.calls).toBe(modelCallsAfterInterruptedRun);
+      expect(await backingWorkflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(1);
+      expect((await backingWorkflowStore.listWorkflowCandidates("resource-closed-loop")).filter((workflow) => workflow.state === "ACTIVE")).toHaveLength(1);
+
+      const repeated = await recoveryController.acquire(acquisitionRequest, new Date("2026-09-13T00:02:00Z"));
+      expect(repeated.state).toBe("acquired_by_workflow");
+      expect(await backingWorkflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(1);
+    }
+  }, 90_000);
+
   it("discovers, validates, promotes, replays with zero LLM calls, repairs after structural change, and preserves rollback safety", async () => {
     fixture = await startVersionedPublisherFixture();
     const store = new MemoryRuntimeStore();
@@ -243,6 +296,58 @@ describe("closed-loop Web Operator lifecycle", () => {
     await workflowStore.markWorkflow(repaired.workflow.id, "ROLLED_BACK", "2026-09-13T00:06:00Z");
     expect(await workflowStore.getActiveWorkflow("resource-closed-loop")).toBeNull();
   }, 60_000);
+
+  it("resumes repair finalization after router-authorized structural failure without duplicating replacement workflows", async () => {
+    fixture = await startVersionedPublisherFixture();
+    const store = new MemoryRuntimeStore();
+    const backingWorkflowStore = new MemoryWorkflowRepository();
+    const artifacts = new MemoryArtifactStore();
+    const browser = LocalPlaywrightBrowserExecutor.forTest();
+    const gateway = new VersionedPublisherGateway(fixture.origin);
+    const discoveryController = closedLoopController({
+      store,
+      workflowStore: backingWorkflowStore,
+      artifacts,
+      browser,
+      gateway
+    });
+    const discovered = await discoveryController.acquire(request(fixture.origin, "repair-restart-v1", "article-v1"), new Date("2026-09-13T00:00:00Z"));
+    expect(discovered.state).toBe("acquired_by_agent");
+    if (discovered.state !== "acquired_by_agent") throw new Error("expected initial discovery");
+
+    fixture.setVersion("v2");
+    const activeV1 = (await backingWorkflowStore.getActiveWorkflow("resource-closed-loop"))!;
+    const repairWorkflowStore = new FailOnceWorkflowRepository(backingWorkflowStore, "candidate");
+    const repairController = closedLoopController({
+      store,
+      workflowStore: repairWorkflowStore,
+      artifacts,
+      browser,
+      gateway
+    });
+    const firstStructuralEvidence = await repairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), new Date("2026-09-13T00:01:00Z"));
+    expect(firstStructuralEvidence.state).toBe("waiting_for_repair_evidence");
+
+    await expect(repairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), new Date("2026-09-13T00:02:00Z")))
+      .rejects.toThrow(/candidate/);
+    const modelCallsAfterInterruptedRepair = gateway.calls;
+
+    const resumedRepairController = closedLoopController({
+      store,
+      workflowStore: repairWorkflowStore,
+      artifacts,
+      browser,
+      gateway
+    });
+    const repaired = await resumedRepairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), new Date("2026-09-13T00:03:00Z"));
+    expect(repaired.state).toBe("acquired_by_agent");
+    if (repaired.state !== "acquired_by_agent") throw new Error("expected resumed repair finalization");
+    expect(repaired.process.status).toBe("already_completed");
+    expect(gateway.calls).toBe(modelCallsAfterInterruptedRepair);
+    expect(repaired.workflow).toMatchObject({ state: "ACTIVE", version: 2 });
+    expect(await backingWorkflowStore.getWorkflowCandidate(activeV1.id)).toMatchObject({ state: "SUPERSEDED", supersededBy: repaired.workflow.id });
+    expect((await backingWorkflowStore.listWorkflowCandidates("resource-closed-loop")).filter((workflow) => workflow.state === "ACTIVE")).toHaveLength(1);
+  }, 90_000);
 });
 
 class VersionedPublisherGateway implements ModelGateway {
@@ -364,7 +469,7 @@ function listen(server: Server) {
 
 function closedLoopController(input: {
   store: MemoryRuntimeStore;
-  workflowStore: MemoryWorkflowRepository;
+  workflowStore: WorkflowRepository;
   acquisitionFailures?: MemoryAcquisitionFailureRepository;
   artifacts: MemoryArtifactStore;
   browser: LocalPlaywrightBrowserExecutor;
@@ -385,6 +490,79 @@ function closedLoopController(input: {
     deterministicAcquisition: input.deterministicAcquisition,
     workerIdFactory: () => "closed-loop-worker"
   });
+}
+
+class FailOnceWorkflowRepository implements WorkflowRepository {
+  private failed = false;
+
+  constructor(
+    private readonly delegate: WorkflowRepository,
+    private readonly boundary: "capture" | "candidate" | "validation" | "promotion"
+  ) {}
+
+  async saveCaptureBundle(bundle: WorkflowCaptureBundle): Promise<void> {
+    await this.delegate.saveCaptureBundle(bundle);
+    this.failAt("capture");
+  }
+
+  getCaptureBundle(id: string): Promise<WorkflowCaptureBundle | null> {
+    return this.delegate.getCaptureBundle(id);
+  }
+
+  async saveWorkflowCandidate(candidate: WorkflowCandidate): Promise<void> {
+    await this.delegate.saveWorkflowCandidate(candidate);
+    this.failAt("candidate");
+  }
+
+  getWorkflowCandidate(id: string): Promise<WorkflowCandidate | null> {
+    return this.delegate.getWorkflowCandidate(id);
+  }
+
+  listWorkflowCandidates(resourceId: string): Promise<WorkflowCandidate[]> {
+    return this.delegate.listWorkflowCandidates(resourceId);
+  }
+
+  getActiveWorkflow(resourceId: string): Promise<WorkflowCandidate | null> {
+    return this.delegate.getActiveWorkflow(resourceId);
+  }
+
+  async saveValidationResult(result: WorkflowValidationResult): Promise<void> {
+    await this.delegate.saveValidationResult(result);
+    this.failAt("validation");
+  }
+
+  getValidationResult(workflowId: string): Promise<WorkflowValidationResult | null> {
+    return this.delegate.getValidationResult(workflowId);
+  }
+
+  saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void> {
+    return this.delegate.saveFailureEvidence(evidence);
+  }
+
+  listFailureEvidence(workflowId: string): Promise<WorkflowFailureEvidence[]> {
+    return this.delegate.listFailureEvidence(workflowId);
+  }
+
+  async promoteWorkflow(workflowId: string, validatorId: string, now?: string): Promise<WorkflowCandidate> {
+    const promoted = await this.delegate.promoteWorkflow(workflowId, validatorId, now);
+    this.failAt("promotion");
+    return promoted;
+  }
+
+  markWorkflow(
+    workflowId: string,
+    state: Extract<WorkflowLifecycleState, "REJECTED" | "INVALID" | "ROLLED_BACK">,
+    now?: string
+  ): Promise<WorkflowCandidate> {
+    return this.delegate.markWorkflow(workflowId, state, now);
+  }
+
+  private failAt(boundary: "capture" | "candidate" | "validation" | "promotion") {
+    if (this.boundary === boundary && !this.failed) {
+      this.failed = true;
+      throw new Error(`simulated ${boundary} restart boundary`);
+    }
+  }
 }
 
 function request(origin: string, key: string, articleSlug: "article-v1" | "article-v2"): ClosedLoopAcquisitionRequest {

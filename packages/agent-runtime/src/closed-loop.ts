@@ -309,7 +309,7 @@ export class ClosedLoopWebOperatorLifecycle {
       strategy
     });
     const process = await coordinator.process(admitted.run.runId, this.workerId(purpose));
-    if (process.status !== "completed" || process.acquiredContent.length === 0) {
+    if ((process.status !== "completed" && process.status !== "already_completed") || process.acquiredContent.length === 0) {
       throw new Error(`Web Operator ${purpose} run did not complete acquisition`);
     }
     const finalized = await this.finalizeSuccessfulAgentRun(admitted.run.runId, now);
