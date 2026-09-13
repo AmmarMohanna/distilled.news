@@ -177,6 +177,7 @@ describe("closed-loop Web Operator lifecycle", () => {
     expect(discovered.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v1`);
     expect(discovered.workflow).toMatchObject({ state: "ACTIVE", version: 1 });
     expect(discovered.modelCalls).toBeGreaterThan(0);
+    const modelCallsBeforeReplay = gateway.calls;
 
     const resumedController = new ClosedLoopWebOperatorLifecycle({
       runtimeStore: store,
@@ -201,6 +202,7 @@ describe("closed-loop Web Operator lifecycle", () => {
     if (replayed.state !== "acquired_by_workflow") throw new Error("expected deterministic replay");
     expect(replayed.modelCalls).toBe(0);
     expect(replayed.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v1`);
+    expect(gateway.calls).toBe(modelCallsBeforeReplay);
 
     fixture.setVersion("v2");
     const activeV1 = (await workflowStore.getActiveWorkflow("resource-closed-loop"))!;
@@ -229,12 +231,14 @@ describe("closed-loop Web Operator lifecycle", () => {
     expect(repaired.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v2`);
     expect(repaired.workflow).toMatchObject({ state: "ACTIVE", version: 2 });
     expect(await workflowStore.getWorkflowCandidate(activeV1.id)).toMatchObject({ state: "SUPERSEDED", supersededBy: repaired.workflow.id });
+    const modelCallsBeforeV2Replay = gateway.calls;
 
     const replayedV2 = await controller.acquire(request(fixture.origin, "v2-refresh", "article-v2"), new Date("2026-09-13T00:05:00Z"));
     expect(replayedV2.state).toBe("acquired_by_workflow");
     if (replayedV2.state !== "acquired_by_workflow") throw new Error("expected v2 deterministic replay");
     expect(replayedV2.modelCalls).toBe(0);
     expect(replayedV2.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v2`);
+    expect(gateway.calls).toBe(modelCallsBeforeV2Replay);
 
     await workflowStore.markWorkflow(repaired.workflow.id, "ROLLED_BACK", "2026-09-13T00:06:00Z");
     expect(await workflowStore.getActiveWorkflow("resource-closed-loop")).toBeNull();
@@ -244,10 +248,12 @@ describe("closed-loop Web Operator lifecycle", () => {
 class VersionedPublisherGateway implements ModelGateway {
   readonly id = "versioned-publisher-gateway";
   readonly strategies: string[] = [];
+  calls = 0;
 
   constructor(private readonly origin: string) {}
 
   async complete(request: ModelRequest) {
+    this.calls += 1;
     const url = request.dynamic.pageState.url;
     const controls = request.dynamic.pageState.relevantControls;
     const v1Link = controls.find((control) => control.destinationUrl === `${this.origin}/article-v1` && control.interactionCapability);
