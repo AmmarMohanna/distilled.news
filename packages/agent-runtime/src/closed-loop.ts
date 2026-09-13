@@ -11,7 +11,9 @@ import { WebOperatorAcquisitionStrategy } from "./admission";
 import { WebOperatorCoordinator, type ProcessResult } from "./runtime";
 import {
   AcquisitionRouter,
+  acquisitionFailureEvidence,
   type AcquisitionFailure,
+  type AcquisitionFailureRepository,
   type AcquisitionMethod,
   type AcquisitionRouteDecision
 } from "./acquisition-router";
@@ -115,6 +117,7 @@ export class ClosedLoopWebOperatorLifecycle {
     softwareVersion: string;
     toolSchemaVersion: string;
     deterministicAcquisition?: Partial<Record<DeterministicAcquisitionMethod, DeterministicAcquisitionPort>>;
+    acquisitionFailures?: AcquisitionFailureRepository;
     minimumStructuralEvidence?: number;
     workerIdFactory?: () => string;
   }) {}
@@ -153,7 +156,7 @@ export class ClosedLoopWebOperatorLifecycle {
     const executors = this.options.deterministicAcquisition;
     if (!executors || Object.keys(executors).length === 0) return this.runAgentAndPromote(request, "discovery", now);
 
-    const failures = [...(request.priorFailures ?? [])];
+    const failures = await this.acquisitionFailures(request);
     const routeDecision = new AcquisitionRouter().decide({
       candidate: request.candidate,
       failures,
@@ -167,10 +170,26 @@ export class ClosedLoopWebOperatorLifecycle {
 
     const executor = executors[routeDecision.method];
     if (!executor) {
+      const updatedFailures = await this.recordAcquisitionFailure(request, routeDecision.method, {
+        state: "failed",
+        failureClass: "source_unavailable",
+        transient: false,
+        details: { reason: "deterministic acquisition executor unavailable" }
+      }, now, failures);
+      const nextRouteDecision = new AcquisitionRouter().decide({
+        candidate: request.candidate,
+        failures: updatedFailures,
+        budget: request.budgetLimits ?? DEFAULT_SLICE_BUDGET,
+        policyAllowsWebOperator: request.enabled,
+        now
+      });
+      if (nextRouteDecision.method === "web_operator" || nextRouteDecision.method === "deterministic_browser_workflow") {
+        return this.runAgentAndPromote(request, "discovery", now);
+      }
       return {
         state: "waiting_for_deterministic_route_evidence",
-        routeDecision,
-        failures,
+        routeDecision: nextRouteDecision,
+        failures: updatedFailures,
         modelCalls: 0
       };
     }
@@ -185,19 +204,57 @@ export class ClosedLoopWebOperatorLifecycle {
       };
     }
 
+    const updatedFailures = await this.recordAcquisitionFailure(request, routeDecision.method, result, now, failures);
+    const nextRouteDecision = new AcquisitionRouter().decide({
+      candidate: request.candidate,
+      failures: updatedFailures,
+      budget: request.budgetLimits ?? DEFAULT_SLICE_BUDGET,
+      policyAllowsWebOperator: request.enabled,
+      now
+    });
+    if (nextRouteDecision.method === "web_operator") return this.runAgentAndPromote(request, "discovery", now);
+
     return {
       state: "waiting_for_deterministic_route_evidence",
-      routeDecision,
-      failures: [
-        ...failures,
-        {
-          method: routeDecision.method,
-          failureClass: result.failureClass,
-          occurredAt: now.toISOString()
-        }
-      ],
+      routeDecision: nextRouteDecision,
+      failures: updatedFailures,
       modelCalls: 0
     };
+  }
+
+  private async acquisitionFailures(request: ClosedLoopAcquisitionRequest): Promise<AcquisitionFailure[]> {
+    const stored = this.options.acquisitionFailures
+      ? await this.options.acquisitionFailures.listAcquisitionFailures({
+          tenantId: request.tenantId,
+          resourceId: request.resourceId,
+          candidateId: request.candidate.candidateId
+        })
+      : [];
+    return [...stored, ...(request.priorFailures ?? [])]
+      .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
+  }
+
+  private async recordAcquisitionFailure(
+    request: ClosedLoopAcquisitionRequest,
+    method: DeterministicAcquisitionMethod,
+    result: Extract<DeterministicAcquisitionResult, { state: "failed" }>,
+    now: Date,
+    priorFailures: AcquisitionFailure[]
+  ): Promise<AcquisitionFailure[]> {
+    const evidence = acquisitionFailureEvidence({
+      tenantId: request.tenantId,
+      resourceId: request.resourceId,
+      candidateId: request.candidate.candidateId,
+      method,
+      failureClass: result.failureClass,
+      transient: result.transient,
+      details: result.details,
+      occurredAt: now.toISOString()
+    });
+    await this.options.acquisitionFailures?.saveAcquisitionFailure(evidence);
+    return this.options.acquisitionFailures
+      ? this.acquisitionFailures(request)
+      : [...priorFailures, evidence].sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
   }
 
   private async handleReplayFailure(

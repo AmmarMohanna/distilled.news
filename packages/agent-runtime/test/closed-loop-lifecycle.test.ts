@@ -4,6 +4,7 @@ import {
   ClosedLoopWebOperatorLifecycle,
   DEFAULT_SLICE_BUDGET,
   LocalPlaywrightBrowserExecutor,
+  MemoryAcquisitionFailureRepository,
   MemoryArtifactStore,
   MemoryRuntimeStore,
   MemoryWorkflowRepository,
@@ -59,6 +60,95 @@ describe("closed-loop Web Operator lifecycle", () => {
     expect(routed.routeDecision).toMatchObject({ method: "structured_api_feed", reason: "no_prior_failure" });
     expect(routeExecutions).toEqual([`${fixture.origin}/article-v1`]);
     expect(await workflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(0);
+  }, 60_000);
+
+  it("persists deterministic route failures and authorizes Web Operator fallback through AcquisitionRouter", async () => {
+    fixture = await startVersionedPublisherFixture();
+    const store = new MemoryRuntimeStore();
+    const workflowStore = new MemoryWorkflowRepository();
+    const acquisitionFailures = new MemoryAcquisitionFailureRepository();
+    const artifacts = new MemoryArtifactStore();
+    const browser = LocalPlaywrightBrowserExecutor.forTest();
+    const gateway = new VersionedPublisherGateway(fixture.origin);
+    const failingRoute: DeterministicAcquisitionPort = {
+      method: "structured_api_feed",
+      async acquire(_request, now) {
+        return {
+          state: "failed",
+          failureClass: "source_unavailable",
+          transient: false,
+          details: { checkedAt: now.toISOString() }
+        };
+      }
+    };
+
+    const firstController = closedLoopController({
+      store,
+      workflowStore,
+      acquisitionFailures,
+      artifacts,
+      browser,
+      gateway,
+      deterministicAcquisition: { structured_api_feed: failingRoute }
+    });
+    const first = await firstController.acquire(request(fixture.origin, "feed-failure", "article-v1"), new Date("2026-09-13T00:00:00Z"));
+    expect(first.state).toBe("waiting_for_deterministic_route_evidence");
+    if (first.state !== "waiting_for_deterministic_route_evidence") throw new Error("expected first structural evidence only");
+    expect(first.routeDecision).toMatchObject({ method: "structured_api_feed", reason: "waiting_for_bounded_structural_evidence" });
+
+    const secondController = closedLoopController({
+      store,
+      workflowStore,
+      acquisitionFailures,
+      artifacts,
+      browser,
+      gateway,
+      deterministicAcquisition: { structured_api_feed: failingRoute }
+    });
+    const second = await secondController.acquire(request(fixture.origin, "feed-failure", "article-v1"), new Date("2026-09-13T00:01:00Z"));
+    expect(second.state).toBe("waiting_for_deterministic_route_evidence");
+    if (second.state !== "waiting_for_deterministic_route_evidence") throw new Error("expected HTTP route escalation after feed evidence");
+    expect(second.routeDecision).toMatchObject({
+      method: "http_deterministic_extraction",
+      escalatedFrom: "structured_api_feed"
+    });
+
+    const thirdController = closedLoopController({
+      store,
+      workflowStore,
+      acquisitionFailures,
+      artifacts,
+      browser,
+      gateway,
+      deterministicAcquisition: { structured_api_feed: failingRoute }
+    });
+    const third = await thirdController.acquire(request(fixture.origin, "http-missing", "article-v1"), new Date("2026-09-13T00:02:00Z"));
+    expect(third.state).toBe("waiting_for_deterministic_route_evidence");
+    if (third.state !== "waiting_for_deterministic_route_evidence") throw new Error("expected bounded HTTP failure evidence");
+    expect(third.routeDecision).toMatchObject({
+      method: "http_deterministic_extraction",
+      reason: "waiting_for_bounded_structural_evidence"
+    });
+
+    const fourthController = closedLoopController({
+      store,
+      workflowStore,
+      acquisitionFailures,
+      artifacts,
+      browser,
+      gateway,
+      deterministicAcquisition: { structured_api_feed: failingRoute }
+    });
+    const fallback = await fourthController.acquire(request(fixture.origin, "agent-after-deterministic-failure", "article-v1"), new Date("2026-09-13T00:03:00Z"));
+    expect(fallback.state).toBe("acquired_by_agent");
+    if (fallback.state !== "acquired_by_agent") throw new Error("expected Web Operator fallback after persisted failures");
+    expect(fallback.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v1`);
+    expect(fallback.workflow).toMatchObject({ state: "ACTIVE", version: 1 });
+    expect(await acquisitionFailures.listAcquisitionFailures({
+      tenantId: "tenant",
+      resourceId: "resource-closed-loop",
+      candidateId: "candidate-article-v1"
+    })).toHaveLength(4);
   }, 60_000);
 
   it("discovers, validates, promotes, replays with zero LLM calls, repairs after structural change, and preserves rollback safety", async () => {
@@ -263,6 +353,31 @@ function listen(server: Server) {
   return new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => resolve());
+  });
+}
+
+function closedLoopController(input: {
+  store: MemoryRuntimeStore;
+  workflowStore: MemoryWorkflowRepository;
+  acquisitionFailures?: MemoryAcquisitionFailureRepository;
+  artifacts: MemoryArtifactStore;
+  browser: LocalPlaywrightBrowserExecutor;
+  gateway: ModelGateway;
+  deterministicAcquisition?: Partial<Record<"structured_api_feed" | "http_deterministic_extraction", DeterministicAcquisitionPort>>;
+}) {
+  return new ClosedLoopWebOperatorLifecycle({
+    runtimeStore: input.store,
+    workflowStore: input.workflowStore,
+    acquisitionFailures: input.acquisitionFailures,
+    artifacts: input.artifacts,
+    browserExecutor: input.browser,
+    structured: input.browser,
+    visual: input.browser,
+    modelGateway: input.gateway,
+    softwareVersion: "test-runtime",
+    toolSchemaVersion: "web-operator-tools-v1",
+    deterministicAcquisition: input.deterministicAcquisition,
+    workerIdFactory: () => "closed-loop-worker"
   });
 }
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
-import { makeId, type AcquisitionEvaluationMetrics, type WorkflowCaptureBundle, type WorkflowCandidate } from "@distilled/agent-runtime";
+import { acquisitionFailureEvidence, makeId, type AcquisitionEvaluationMetrics, type WorkflowCaptureBundle, type WorkflowCandidate } from "@distilled/agent-runtime";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
 
 describe("D1 Web Operator workflow lifecycle store", () => {
@@ -49,6 +49,23 @@ describe("D1 Web Operator workflow lifecycle store", () => {
       observedAt: "2026-09-13T00:01:30Z"
     });
     expect(await store.listFailureEvidence(replacement.id)).toHaveLength(1);
+    const routeFailure = acquisitionFailureEvidence({
+      tenantId: "tenant",
+      resourceId: "resource",
+      candidateId: "candidate",
+      method: "structured_api_feed",
+      failureClass: "source_unavailable",
+      transient: false,
+      details: { reason: "feed missing" },
+      occurredAt: "2026-09-13T00:01:45Z"
+    });
+    await store.saveAcquisitionFailure(routeFailure);
+    await store.saveAcquisitionFailure(routeFailure);
+    expect(await store.listAcquisitionFailures({
+      tenantId: "tenant",
+      resourceId: "resource",
+      candidateId: "candidate"
+    })).toEqual([routeFailure]);
     await store.markWorkflow(replacement.id, "ROLLED_BACK");
     expect(await store.getActiveWorkflow("resource")).toBeNull();
 
@@ -87,7 +104,8 @@ describe("D1 Web Operator workflow lifecycle store", () => {
       "0011_agent_runtime.sql",
       "0012_agent_runtime_security_and_provenance.sql",
       "0013_web_operator_workflow_lifecycle.sql",
-      "0014_web_operator_workflow_failure_evidence.sql"
+      "0014_web_operator_workflow_failure_evidence.sql",
+      "0015_web_operator_acquisition_failure_evidence.sql"
     ]) await applyMigration(db, migration);
     await db.prepare(`INSERT INTO agent_runs
       (run_id,tenant_id,resource_id,idempotency_key,candidate_id,candidate_url,publisher_id,acquisition_attempt,objective,mode,state,generation,policy_snapshot_id,completion_contract_version,created_at,updated_at)

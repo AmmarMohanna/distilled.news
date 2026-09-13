@@ -1,5 +1,7 @@
 import type {
   AcquisitionEvaluationMetrics,
+  AcquisitionFailureEvidence,
+  AcquisitionFailureRepository,
   EvaluationSink,
   WorkflowCaptureBundle,
   WorkflowCandidate,
@@ -15,7 +17,7 @@ type Row = Record<string, unknown>;
 const json = (value: unknown) => JSON.stringify(value);
 const parse = <T>(value: unknown): T => JSON.parse(String(value)) as T;
 
-export class D1WorkflowRepository implements WorkflowRepository, EvaluationSink {
+export class D1WorkflowRepository implements WorkflowRepository, AcquisitionFailureRepository, EvaluationSink {
   constructor(private readonly db: D1Database) {}
 
   async saveCaptureBundle(bundle: WorkflowCaptureBundle): Promise<void> {
@@ -116,6 +118,44 @@ export class D1WorkflowRepository implements WorkflowRepository, EvaluationSink 
       operationId: row.operation_id ? String(row.operation_id) : undefined,
       details: parse<Record<string, unknown>>(row.details_json),
       observedAt: String(row.observed_at)
+    }));
+  }
+
+  async saveAcquisitionFailure(evidence: AcquisitionFailureEvidence): Promise<void> {
+    const result = await this.db.prepare(`INSERT OR IGNORE INTO web_operator_acquisition_failure_evidence
+      (id,tenant_id,resource_id,candidate_id,method,failure_class,transient,details_json,occurred_at)
+      VALUES (?,?,?,?,?,?,?,?,?)`).bind(
+      evidence.id,evidence.tenantId,evidence.resourceId,evidence.candidateId,evidence.method,evidence.failureClass,
+      evidence.transient ? 1 : 0,json(evidence.details),evidence.occurredAt
+    ).run();
+    if (Number(result.meta.changes ?? 0) !== 1) {
+      const existing = (await this.listAcquisitionFailures({
+        tenantId: evidence.tenantId,
+        resourceId: evidence.resourceId,
+        candidateId: evidence.candidateId
+      })).find((entry) => entry.id === evidence.id);
+      if (!existing || json(existing) !== json(evidence)) throw new Error(`acquisition failure identity collision: ${evidence.id}`);
+    }
+  }
+
+  async listAcquisitionFailures(input: {
+    tenantId: string;
+    resourceId: string;
+    candidateId: string;
+  }): Promise<AcquisitionFailureEvidence[]> {
+    const result = await this.db.prepare(`SELECT * FROM web_operator_acquisition_failure_evidence
+      WHERE tenant_id=? AND resource_id=? AND candidate_id=? ORDER BY occurred_at ASC`)
+      .bind(input.tenantId,input.resourceId,input.candidateId).all<Row>();
+    return result.results.map((row) => ({
+      id: String(row.id),
+      tenantId: String(row.tenant_id),
+      resourceId: String(row.resource_id),
+      candidateId: String(row.candidate_id),
+      method: row.method as AcquisitionFailureEvidence["method"],
+      failureClass: row.failure_class as AcquisitionFailureEvidence["failureClass"],
+      transient: Boolean(row.transient),
+      details: parse<Record<string, unknown>>(row.details_json),
+      occurredAt: String(row.occurred_at)
     }));
   }
 

@@ -1,4 +1,5 @@
 import type { AgentRunBudgetLimits, CandidateIdentity } from "./contracts";
+import { makeId } from "./contracts";
 import type { StructuralFailureClass } from "./workflow";
 
 export type AcquisitionMethod =
@@ -11,6 +12,81 @@ export interface AcquisitionFailure {
   method: AcquisitionMethod;
   failureClass: StructuralFailureClass;
   occurredAt: string;
+}
+
+export interface AcquisitionFailureEvidence extends AcquisitionFailure {
+  id: string;
+  tenantId: string;
+  resourceId: string;
+  candidateId: string;
+  transient: boolean;
+  details: Record<string, unknown>;
+}
+
+export interface AcquisitionFailureRepository {
+  saveAcquisitionFailure(evidence: AcquisitionFailureEvidence): Promise<void>;
+  listAcquisitionFailures(input: {
+    tenantId: string;
+    resourceId: string;
+    candidateId: string;
+  }): Promise<AcquisitionFailureEvidence[]>;
+}
+
+export class MemoryAcquisitionFailureRepository implements AcquisitionFailureRepository {
+  private readonly failures = new Map<string, AcquisitionFailureEvidence>();
+
+  async saveAcquisitionFailure(evidence: AcquisitionFailureEvidence): Promise<void> {
+    const existing = this.failures.get(evidence.id);
+    if (existing && JSON.stringify(existing) !== JSON.stringify(evidence)) {
+      throw new Error(`acquisition failure identity collision: ${evidence.id}`);
+    }
+    this.failures.set(evidence.id, structuredClone(evidence));
+  }
+
+  async listAcquisitionFailures(input: {
+    tenantId: string;
+    resourceId: string;
+    candidateId: string;
+  }): Promise<AcquisitionFailureEvidence[]> {
+    return [...this.failures.values()]
+      .filter((failure) => failure.tenantId === input.tenantId &&
+        failure.resourceId === input.resourceId &&
+        failure.candidateId === input.candidateId)
+      .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt))
+      .map((failure) => structuredClone(failure));
+  }
+}
+
+export function acquisitionFailureEvidence(input: {
+  tenantId: string;
+  resourceId: string;
+  candidateId: string;
+  method: AcquisitionMethod;
+  failureClass: StructuralFailureClass;
+  transient: boolean;
+  details?: Record<string, unknown>;
+  occurredAt: string;
+}): AcquisitionFailureEvidence {
+  return {
+    id: makeId(
+      "acquisition_failure",
+      input.tenantId,
+      input.resourceId,
+      input.candidateId,
+      input.method,
+      input.failureClass,
+      input.occurredAt,
+      JSON.stringify(input.details ?? {})
+    ),
+    tenantId: input.tenantId,
+    resourceId: input.resourceId,
+    candidateId: input.candidateId,
+    method: input.method,
+    failureClass: input.failureClass,
+    transient: input.transient,
+    details: input.details ?? {},
+    occurredAt: input.occurredAt
+  };
 }
 
 export interface AcquisitionRouteDecision {
