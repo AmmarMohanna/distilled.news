@@ -10,6 +10,7 @@ import {
   makeId,
   type BoundedActionPlan,
   type ClosedLoopAcquisitionRequest,
+  type DeterministicAcquisitionPort,
   type ModelCapability,
   type ModelGateway,
   type ModelRequest
@@ -18,6 +19,47 @@ import {
 describe("closed-loop Web Operator lifecycle", () => {
   let fixture: VersionedPublisherFixture | undefined;
   afterEach(async () => { await fixture?.close(); fixture = undefined; });
+
+  it("honors configured deterministic acquisition routes before Web Operator escalation", async () => {
+    fixture = await startVersionedPublisherFixture();
+    const store = new MemoryRuntimeStore();
+    const workflowStore = new MemoryWorkflowRepository();
+    const artifacts = new MemoryArtifactStore();
+    const browser = LocalPlaywrightBrowserExecutor.forTest();
+    const routeExecutions: string[] = [];
+    const deterministicRoute: DeterministicAcquisitionPort = {
+      method: "structured_api_feed",
+      async acquire(acquisitionRequest, now) {
+        routeExecutions.push(acquisitionRequest.candidate.canonicalUrl);
+        return {
+          state: "completed",
+          acquiredContent: acquiredContent(acquisitionRequest, now.toISOString())
+        };
+      }
+    };
+    const controller = new ClosedLoopWebOperatorLifecycle({
+      runtimeStore: store,
+      workflowStore,
+      artifacts,
+      browserExecutor: browser,
+      structured: browser,
+      visual: browser,
+      modelGateway: new VersionedPublisherGateway(fixture.origin),
+      softwareVersion: "test-runtime",
+      toolSchemaVersion: "web-operator-tools-v1",
+      deterministicAcquisition: {
+        structured_api_feed: deterministicRoute
+      }
+    });
+
+    const routed = await controller.acquire(request(fixture.origin, "structured-route", "article-v1"), new Date("2026-09-13T00:00:00Z"));
+    expect(routed.state).toBe("acquired_by_deterministic_route");
+    if (routed.state !== "acquired_by_deterministic_route") throw new Error("expected deterministic acquisition route");
+    expect(routed.modelCalls).toBe(0);
+    expect(routed.routeDecision).toMatchObject({ method: "structured_api_feed", reason: "no_prior_failure" });
+    expect(routeExecutions).toEqual([`${fixture.origin}/article-v1`]);
+    expect(await workflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(0);
+  }, 60_000);
 
   it("discovers, validates, promotes, replays with zero LLM calls, repairs after structural change, and preserves rollback safety", async () => {
     fixture = await startVersionedPublisherFixture();
@@ -271,6 +313,32 @@ function request(origin: string, key: string, articleSlug: "article-v1" | "artic
     },
     modelCapabilities,
     budgetLimits: { ...DEFAULT_SLICE_BUDGET, modelCalls: 8, visionCalls: 8, browserActions: 20, navigations: 12, pages: 12 }
+  };
+}
+
+function acquiredContent(request: ClosedLoopAcquisitionRequest, acceptedAt: string) {
+  const body = "Deterministic acquisition route content.";
+  return {
+    acceptanceId: makeId("accepted_content", request.candidate.candidateId, acceptedAt),
+    runId: makeId("deterministic_acquisition", request.idempotencyKey),
+    tenantId: request.tenantId,
+    resourceId: request.resourceId,
+    candidateId: request.candidate.candidateId,
+    acquisitionAttempt: request.candidate.acquisitionAttempt,
+    generation: 1,
+    turnId: "turn_deterministic_route",
+    modelCallId: "model_call_not_used",
+    toolCallId: "tool_call_deterministic_route",
+    observationId: "observation_deterministic_route",
+    rawArtifactRef: "artifact://deterministic-route",
+    canonicalUrl: request.candidate.canonicalUrl,
+    finalUrl: request.candidate.canonicalUrl,
+    publisherTimestamp: "2026-09-13T12:00:00Z",
+    title: "Deterministic route article",
+    excerpt: "Deterministic route article excerpt.",
+    body,
+    contentHash: makeId("content_hash", request.candidate.canonicalUrl, body),
+    acceptedAt
   };
 }
 

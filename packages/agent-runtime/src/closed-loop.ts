@@ -9,7 +9,12 @@ import { PolicyEngine } from "./policy";
 import { DEFAULT_SLICE_BUDGET } from "./budget";
 import { WebOperatorAcquisitionStrategy } from "./admission";
 import { WebOperatorCoordinator, type ProcessResult } from "./runtime";
-import { AcquisitionRouter, type AcquisitionRouteDecision } from "./acquisition-router";
+import {
+  AcquisitionRouter,
+  type AcquisitionFailure,
+  type AcquisitionMethod,
+  type AcquisitionRouteDecision
+} from "./acquisition-router";
 import {
   DeterministicWorkflowExecutor,
   WorkflowCandidateCompiler,
@@ -33,10 +38,42 @@ export interface ClosedLoopAcquisitionRequest {
   modelRouting: ModelRoutingConfig;
   modelCapabilities: ModelCapability[];
   budgetLimits?: AgentRunBudgetLimits;
+  priorFailures?: AcquisitionFailure[];
   enabled: boolean;
 }
 
+type DeterministicAcquisitionMethod = Extract<AcquisitionMethod, "structured_api_feed" | "http_deterministic_extraction">;
+
+export interface DeterministicAcquisitionPort {
+  readonly method: DeterministicAcquisitionMethod;
+  acquire(request: ClosedLoopAcquisitionRequest, now: Date): Promise<DeterministicAcquisitionResult>;
+}
+
+export type DeterministicAcquisitionResult =
+  | {
+      state: "completed";
+      acquiredContent: AcquiredContent;
+    }
+  | {
+      state: "failed";
+      failureClass: StructuralFailureClass;
+      transient: boolean;
+      details?: Record<string, unknown>;
+    };
+
 export type ClosedLoopAcquisitionOutcome =
+  | {
+      state: "acquired_by_deterministic_route";
+      routeDecision: AcquisitionRouteDecision;
+      acquiredContent: AcquiredContent;
+      modelCalls: 0;
+    }
+  | {
+      state: "waiting_for_deterministic_route_evidence";
+      routeDecision: AcquisitionRouteDecision;
+      failures: AcquisitionFailure[];
+      modelCalls: 0;
+    }
   | {
       state: "acquired_by_workflow";
       workflow: WorkflowCandidate;
@@ -77,13 +114,14 @@ export class ClosedLoopWebOperatorLifecycle {
     modelGateway: ModelGateway;
     softwareVersion: string;
     toolSchemaVersion: string;
+    deterministicAcquisition?: Partial<Record<DeterministicAcquisitionMethod, DeterministicAcquisitionPort>>;
     minimumStructuralEvidence?: number;
     workerIdFactory?: () => string;
   }) {}
 
   async acquire(request: ClosedLoopAcquisitionRequest, now = new Date()): Promise<ClosedLoopAcquisitionOutcome> {
     const active = await this.options.workflowStore.getActiveWorkflow(request.resourceId);
-    if (!active) return this.runAgentAndPromote(request, "discovery", now);
+    if (!active) return this.acquireWithoutActiveWorkflow(request, now);
 
     if (normalizeUrl(active.candidate.canonicalUrl) !== normalizeUrl(request.candidate.canonicalUrl)) {
       const replay: WorkflowExecutionResult = {
@@ -106,6 +144,60 @@ export class ClosedLoopWebOperatorLifecycle {
     }
 
     return this.handleReplayFailure(active, replay, request, now);
+  }
+
+  private async acquireWithoutActiveWorkflow(
+    request: ClosedLoopAcquisitionRequest,
+    now: Date
+  ): Promise<ClosedLoopAcquisitionOutcome> {
+    const executors = this.options.deterministicAcquisition;
+    if (!executors || Object.keys(executors).length === 0) return this.runAgentAndPromote(request, "discovery", now);
+
+    const failures = [...(request.priorFailures ?? [])];
+    const routeDecision = new AcquisitionRouter().decide({
+      candidate: request.candidate,
+      failures,
+      budget: request.budgetLimits ?? DEFAULT_SLICE_BUDGET,
+      policyAllowsWebOperator: request.enabled,
+      now
+    });
+
+    if (routeDecision.method === "web_operator") return this.runAgentAndPromote(request, "discovery", now);
+    if (routeDecision.method === "deterministic_browser_workflow") return this.runAgentAndPromote(request, "discovery", now);
+
+    const executor = executors[routeDecision.method];
+    if (!executor) {
+      return {
+        state: "waiting_for_deterministic_route_evidence",
+        routeDecision,
+        failures,
+        modelCalls: 0
+      };
+    }
+
+    const result = await executor.acquire(request, now);
+    if (result.state === "completed") {
+      return {
+        state: "acquired_by_deterministic_route",
+        routeDecision,
+        acquiredContent: result.acquiredContent,
+        modelCalls: 0
+      };
+    }
+
+    return {
+      state: "waiting_for_deterministic_route_evidence",
+      routeDecision,
+      failures: [
+        ...failures,
+        {
+          method: routeDecision.method,
+          failureClass: result.failureClass,
+          occurredAt: now.toISOString()
+        }
+      ],
+      modelCalls: 0
+    };
   }
 
   private async handleReplayFailure(
