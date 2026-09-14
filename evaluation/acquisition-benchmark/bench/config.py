@@ -21,7 +21,10 @@ DEFAULT_LIMITS = {
     "max_bytes": 10 * 1024 * 1024, "max_job_bytes": 50 * 1024 * 1024,
     "max_pages": 3, "max_items": 50, "redirects": 5, "domain_interval_seconds": 10,
     "poll_seconds": 10, "min_free_disk_bytes": 20 * 1024**3,
+    "min_available_memory_bytes": 1024**3, "max_host_cpu_fraction": 0.9, "pressure_seconds": 300,
 }
+BROWSER_NETWORKS = {"isolated", "standard"}
+HOURS_PER_MONTH = 730
 
 
 def canonical(value: object) -> str:
@@ -67,8 +70,9 @@ def load(path: Path) -> dict:
     config["data_dir"] = str((base / config.get("data_dir", "../data")).resolve())
     if config.get("credentials_file"):
         config["credentials_file"] = str((base / Path(config["credentials_file"]).expanduser()).resolve())
-    if config.get("schedule", {}).get("daily_targets_dir"):
-        config["schedule"]["daily_targets_dir"] = str((base / Path(config["schedule"]["daily_targets_dir"]).expanduser()).resolve())
+    for key in ("daily_targets_dir", "references_dir"):
+        if config.get("schedule", {}).get(key):
+            config["schedule"][key] = str((base / Path(config["schedule"][key]).expanduser()).resolve())
     config["limits"] = DEFAULT_LIMITS | config.get("limits", {})
     for key, value in config["limits"].items(): number(value, f"limits.{key}")
     for key in ("concurrency", "max_bytes", "max_job_bytes", "max_pages", "max_items", "redirects"):
@@ -77,6 +81,10 @@ def load(path: Path) -> dict:
     for key in ("max_bytes", "max_job_bytes", "max_pages", "max_items", "attempt_seconds", "job_seconds"):
         number(config["limits"][key], key, minimum=1)
     if config["limits"]["poll_seconds"] < 1: raise ValueError("poll_seconds must be >= 1")
+    if not 0 < config["limits"]["max_host_cpu_fraction"] <= 1: raise ValueError("max_host_cpu_fraction must be in (0, 1]")
+    costs = config.setdefault("costs", {})
+    if not isinstance(costs, dict): raise ValueError("costs must be a mapping")
+    if costs.get("server_monthly_usd") is not None: number(costs["server_monthly_usd"], "costs.server_monthly_usd")
     if type(config.get("repetitions", 1)) is not int or not 1 <= config.get("repetitions", 1) <= 100:
         raise ValueError("repetitions must be between 1 and 100")
     config.setdefault("repetitions", 1)
@@ -107,6 +115,12 @@ def load(path: Path) -> dict:
             raise ValueError("Zyte request settings must be a mapping")
         route.setdefault("provider", route["adapter"])
         identifier(route["provider"])
+        if route["adapter"] == "browser_playwright":
+            network = route["settings"].setdefault("network", "isolated")
+            if network not in BROWSER_NETWORKS: raise ValueError("Browser settings.network must be isolated or standard")
+            # A standard browser connects on its own; only a host egress rule pins private-address refusal.
+            if network == "standard" and route["enabled"] and config["mode"] == "live" and route["settings"].get("host_egress_firewall_confirmed") is not True:
+                raise ValueError("Confirm the host egress firewall before enabling a standard-network browser")
         if route["enabled"] and route["adapter"] in PAID and config["mode"] == "live":
             number(route.get("cost_ceiling_usd"), "cost_ceiling_usd", minimum=0.000001)
             number(budget.get("total_usd"), "total budget", minimum=0.000001)

@@ -44,11 +44,50 @@ def test_source_aliases_window_and_unexpected_items():
     target = {"options": {"start_time": "2026-09-01T00:00:00Z", "end_time": "2026-09-02T00:00:00Z"}}
     normalized = {"items": [{"id": "alias", "text": "A post", "published_at": "2026-09-01T01:00:00Z"},
                             {"id": "old", "text": "An old post", "published_at": "2026-08-01T00:00:00Z"}]}
-    reference = {"complete_window": True, "items": [{"id": "canonical", "aliases": ["alias"], "text": "A post", "published_at": "2026-09-01T01:00:00Z"}]}
+    reference = {"complete_window": True, "window": target["options"],
+                 "items": [{"id": "canonical", "aliases": ["alias"], "text": "A post", "published_at": "2026-09-01T01:00:00Z"}]}
     result = score_source(normalized, reference, target)
     assert result["label"] == "PASS" and result["outside_window"] == 1 and result["extra_ids"] == []
     normalized["items"].append({"id": "unexpected", "text": "Another", "published_at": "2026-09-01T01:00:00Z"})
     assert score_source(normalized, reference, target)["label"] == "PARTIAL"
+
+
+@pytest.mark.parametrize("window,error", [
+    (None, "reference_window_missing"),
+    ({"start_time": "2026-08-31T00:00:00Z", "end_time": "2026-09-01T00:00:00Z"}, "reference_window_mismatch"),
+])
+def test_complete_reference_for_another_window_cannot_establish_recall_or_pass(window, error):
+    # A scheduled round moves the window; yesterday's complete list must not score today's collection.
+    target = {"options": {"start_time": "2026-09-01T00:00:00Z", "end_time": "2026-09-02T00:00:00Z"}}
+    item = {"id": "one", "text": "A post", "published_at": "2026-09-01T01:00:00Z"}
+    reference = {"complete_window": True, "items": [item]} | ({"window": window} if window else {})
+    result = score_source({"items": [item, item | {"id": "new_today"}]}, reference, target)
+    assert result["reference_window_error"] == error
+    assert result["label"] == "SOURCE_VERIFIED_SAMPLE" and result["recall"] is None and not result["quality_verified"]
+    assert result["sample_coverage"] == 1
+
+
+def test_equivalent_timezone_offsets_match_the_collection_window():
+    target = {"options": {"start_time": "2026-09-01T00:00:00Z", "end_time": "2026-09-02T00:00:00Z"}}
+    item = {"id": "one", "text": "A post", "published_at": "2026-09-01T01:00:00Z"}
+    reference = {"complete_window": True, "window": {"start_time": "2026-09-01T03:00:00+03:00", "end_time": "2026-09-02T03:00:00+03:00"}, "items": [item]}
+    result = score_source({"items": [item]}, reference, target)
+    assert result["reference_window_error"] is None and result["label"] == "PASS" and result["recall"] == 1
+
+
+def test_gold_validation_rejects_window_mismatch_and_fixed_complete_references_for_rolling_rounds(tmp_path):
+    config = load(ROOT / "configs/offline-demo.json")
+    target = next(target for target in config["targets"] if target["kind"] == "rss")
+    shifted = json.loads(Path(target["reference"]).read_text(encoding="utf-8"))
+    shifted["window"] = {"start_time": "2026-08-31T00:00:00Z", "end_time": "2026-09-01T00:00:00Z"}
+    path = tmp_path / "shifted.json"
+    path.write_text(json.dumps(shifted), encoding="utf-8")
+    config["targets"] = [target | {"reference": str(path)}]
+    assert "reference_window_mismatch" in validate(config)["errors"][0]["error"]
+    config["targets"] = [target]
+    assert validate(config)["valid"]
+    config["schedule"] = {"rolling_window_hours": 24}
+    assert "per round" in validate(config)["errors"][0]["error"]
 
 
 def test_complete_source_rejects_missing_ids_and_ambiguous_aliases():
@@ -101,7 +140,7 @@ def test_coverage_only_reference_is_visible_in_validation_and_excluded_from_qual
     config = load(ROOT / "configs/offline-demo.json")
     target = next(target for target in config["targets"] if target["kind"] == "rss")
     target["routes"] = target["routes"][:1]
-    reference = {"complete_window": True, "items": [{"id": "one"}]}
+    reference = {"complete_window": True, "window": target["options"], "items": [{"id": "one"}]}
     gold = tmp_path / "inventory.json"
     gold.write_text(json.dumps(reference), encoding="utf-8")
     target["reference"] = str(gold)
@@ -117,7 +156,7 @@ def test_coverage_only_reference_is_visible_in_validation_and_excluded_from_qual
         state.set_job("coverage-000000", "complete", {"steps": [{"route": target["routes"][0], "status": "captured", "duration_ms": 1, "source_score": score}]})
         group = next(iter(report(state, "coverage")["groups"].values()))
         assert group["unique_unseen"] == 0 and group["pass_rate"] is None
-        assert group["cost_per_verified_usable_attempt_usd"] is None
+        assert group["cost_per_usable_result_usd"] is None and group["usable_results"] == 0
         assert group["source_results"][0]["recall"] == 1
     finally: state.close()
 
@@ -133,7 +172,7 @@ def test_attach_reference_and_discover_do_not_recollect(tmp_path, capsys):
         await Runner(state, config).run("saved")
         await process_run(state, "saved")
         candidates = discover(state, "saved")
-        assert len(candidates) == 2 and candidates[0]["routes"] == ["direct", "zyte", "unlocker", "browser"]
+        assert len(candidates) == 2 and candidates[0]["routes"] == ["direct", "zyte", "unlocker", "browser", "browser_standard"]
         before = state.db.execute("SELECT count(*) FROM events WHERE kind='capture'").fetchone()[0]
         state.close()
         assert main(["attach-reference", "--data-dir", str(tmp_path), "--run-id", "saved", "--target-id", "rss", "--reference", str(ROOT / "fixtures/rss.gold.json")]) == 0

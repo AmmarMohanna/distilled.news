@@ -4,6 +4,7 @@ from pathlib import Path
 
 from bench.config import digest
 from bench.processing import similarity, source_reference_gaps
+from bench.score import window_check
 from bench.safety import validate_public_http_url, UnsafeTargetError
 
 
@@ -32,6 +33,10 @@ def validate(config):
                 if len(ids) != len(items): raise ValueError("Duplicate reference IDs")
                 if len(set(aliases)) != len(aliases) or ids & set(aliases):
                     raise ValueError("Reference IDs and aliases must be unique and disjoint")
+                if config.get("schedule", {}).get("rolling_window_hours") and reference.get("complete_window"):
+                    raise ValueError("Rolling rounds change the collection window; supply complete references per round (schedule.references_dir or attach-reference)")
+                window_error = window_check(reference, target)
+                if window_error: raise ValueError(f"{window_error}: set window.start_time/end_time equal to the target's options, or complete_window false")
                 gaps = [{"id": str(item["id"]), "fields": source_reference_gaps(item)} for item in items if source_reference_gaps(item)]
                 if gaps: coverage_only_sources.append({"target": target["id"], "reference_fields_missing": gaps})
                 sources += 1

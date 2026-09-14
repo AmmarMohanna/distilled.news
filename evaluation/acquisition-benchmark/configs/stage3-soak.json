@@ -8,6 +8,9 @@
     "total_usd": 0,
     "providers": {}
   },
+  "costs": {
+    "server_monthly_usd": null
+  },
   "routes": [
     {
       "id": "direct",
@@ -45,7 +48,21 @@
       "provider": "browser_playwright",
       "cost_ceiling_usd": 0,
       "cost_bound_confirmed": false,
-      "settings": {}
+      "settings": {
+        "network": "isolated"
+      }
+    },
+    {
+      "id": "browser_standard",
+      "adapter": "browser_playwright",
+      "enabled": false,
+      "provider": "browser_playwright",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "network": "standard",
+        "host_egress_firewall_confirmed": false
+      }
     },
     {
       "id": "rss_baseline",
@@ -303,7 +320,8 @@
         "direct",
         "zyte",
         "unlocker",
-        "browser"
+        "browser",
+        "browser_standard"
       ],
       "language": "en",
       "category": "en"
@@ -316,7 +334,8 @@
         "direct",
         "zyte",
         "unlocker",
-        "browser"
+        "browser",
+        "browser_standard"
       ],
       "language": "ar",
       "category": "ar"
@@ -329,7 +348,8 @@
         "direct",
         "zyte",
         "unlocker",
-        "browser"
+        "browser",
+        "browser_standard"
       ],
       "language": "fr",
       "category": "fr"
@@ -342,7 +362,8 @@
         "direct",
         "zyte",
         "unlocker",
-        "browser"
+        "browser",
+        "browser_standard"
       ],
       "language": "en",
       "category": "javascript"
@@ -355,7 +376,8 @@
         "direct",
         "zyte",
         "unlocker",
-        "browser"
+        "browser",
+        "browser_standard"
       ],
       "language": "en",
       "category": "redirect"
@@ -488,16 +510,17 @@
         "direct",
         "zyte",
         "unlocker",
-        "browser"
+        "browser_standard"
       ],
       "deadline_seconds": 90
     }
   ],
-  "notes": "Seven daily rounds. Split separate configurations for faster source cadences. Add targets_by_round entries for newly discovered URLs; original article targets repeat unchanged.",
+  "notes": "Eight daily rounds span seven days. Rolling windows change every round, so source references go in references_dir/round-NNN/<target_id>.json or are attached to each child run. Add targets_by_round or daily_targets_dir entries for newly discovered URLs; original article targets repeat unchanged.",
   "stage": "soak",
   "schedule": {
-    "rounds": 7,
+    "rounds": 8,
     "interval_seconds": 86400,
-    "rolling_window_hours": 24
+    "rolling_window_hours": 24,
+    "references_dir": "../data/live/references"
   }
 }

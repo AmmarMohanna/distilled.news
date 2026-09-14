@@ -19,16 +19,20 @@ def lookup(value, paths, default=None):
     return default
 
 
+def feed_gate(raw):
+    """Match the production root gate for both parsers, including legacy DTD feeds."""
+    if "<!ENTITY" in raw.upper(): raise ValueError("feed_entities_refused")
+    document = re.sub(r"""<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE\b(?:[^>"'\[]|"[^"]*"|'[^']*'|\[(?:[^\]"']|"[^"]*"|'[^']*')*\])*>""", "", raw, flags=re.I)
+    document = re.sub(r"^[\s\ufeff]+", "", document)
+    if not re.match(r"<(?:rss|feed|rdf:RDF)(?:\s|/?>)", document, re.I): raise ValueError("not_a_feed")
+
+
 async def normalize(payload, target, route, fetched_at, *, offline=False):
     adapter, settings = route["adapter"], route["settings"]
     raw = payload.decode("utf-8", errors="replace")
     if offline and target.get("format") == "normalized": return {"items": json.loads(payload), "issues": []}
     if adapter in {"rss", "google_news_rss"}:
-        if "<!ENTITY" in raw.upper(): raise ValueError("feed_entities_refused")
-        # Match the production root gate for both parsers, including legacy DTD feeds.
-        document = re.sub(r"""<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE\b(?:[^>"'\[]|"[^"]*"|'[^']*'|\[(?:[^\]"']|"[^"]*"|'[^']*')*\])*>""", "", raw, flags=re.I)
-        document = re.sub(r"^[\s\ufeff]+", "", document)
-        if not re.match(r"<(?:rss|feed|rdf:RDF)(?:\s|/?>)", document, re.I): raise ValueError("not_a_feed")
+        feed_gate(raw)
         if settings.get("parser") == "feedparser":
             import feedparser
             feed = feedparser.parse(payload)

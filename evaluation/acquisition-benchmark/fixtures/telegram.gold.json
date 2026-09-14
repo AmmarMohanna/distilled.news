@@ -1,5 +1,9 @@
 {
   "complete_window": true,
+  "window": {
+    "start_time": "2026-09-01T00:00:00Z",
+    "end_time": "2026-09-02T00:00:00Z"
+  },
   "items": [
     {
       "id": "101",

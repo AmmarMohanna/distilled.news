@@ -291,3 +291,86 @@ def test_repeated_evidence_counts_once_but_distinct_payloads_still_hit_the_limit
             with pytest.raises(ValueError, match="job_byte_limit"):
                 ctx.save(b"b" * 10, {"status": 200})
     asyncio.run(scenario())
+
+
+def standard_browser(monkeypatch, *, requests=(), sizes=None, final_url="https://example.com/final"):
+    """Mocked standard-network Chromium without Linux namespaces; replays the page's requests through the route guard."""
+    fake = mock_browser(monkeypatch)
+    monkeypatch.setattr(browser_playwright, "sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(browser_playwright, "shutil", SimpleNamespace(which=lambda _: None))
+    listeners = {}
+    fake.context.on = lambda event, callback: listeners.setdefault(event, []).append(callback)
+    fake.page.url = final_url
+    routes = []
+    async def navigate(*args, **kwargs):
+        guard = fake.context.route.call_args.args[1]
+        for url, method, resource_type in requests:
+            route = SimpleNamespace(request=SimpleNamespace(url=url, method=method, resource_type=resource_type),
+                                    abort=AsyncMock(), continue_=AsyncMock(), fulfill=AsyncMock())
+            routes.append(route)
+            await guard(route)
+            if route.continue_.await_count:
+                for callback in listeners.get("requestfinished", []):
+                    callback(SimpleNamespace(sizes=AsyncMock(return_value=sizes or {"responseBodySize": 10, "responseHeadersSize": 5})))
+        return SimpleNamespace(status=200)
+    fake.page.goto.side_effect = navigate
+    return fake, routes
+
+
+def test_standard_browser_keeps_ordinary_requests_and_needs_no_namespace(tmp_path, monkeypatch):
+    fake, routes = standard_browser(monkeypatch, requests=[
+        ("https://example.com/article", "GET", "document"), ("https://example.com/api/graphql", "POST", "xhr"),
+        ("https://cdn.example.com/photo.jpg", "GET", "image"), ("http://10.0.0.5/internal", "GET", "fetch"),
+        ("data:text/plain,inline", "GET", "other")])
+    async def scenario():
+        async with capture_context(tmp_path, "browser_playwright", lambda _: pytest.fail("Standard browser uses Chromium networking"),
+                                   settings={"network": "standard"}) as ctx:
+            result = await adapters.acquire(ctx)
+            assert fake.chromium.launch.call_args.kwargs == {}  # No unshare wrapper.
+            document, post, image, private, inline = routes
+            assert document.continue_.await_count == post.continue_.await_count == inline.continue_.await_count == 1
+            assert image.abort.await_count == private.abort.await_count == 1 and not private.continue_.await_count
+            assert ctx.warnings == ["browser_subrequest_rejected"]
+            coverage = result["coverage"]
+            assert coverage["network"] == "standard" and coverage["variant"] == browser_playwright.VARIANTS["standard"]
+            assert coverage["network_bytes"] == 3 * 15 and coverage["network_bytes_method"] == "finished_request_sizes"
+    asyncio.run(scenario())
+
+
+def test_standard_browser_budget_and_final_address_cannot_return_success(tmp_path, monkeypatch):
+    async def scenario(folder, requests, sizes, final_url, error):
+        standard_browser(monkeypatch, requests=requests, sizes=sizes, final_url=final_url)
+        async with capture_context(tmp_path / folder, "browser_playwright", lambda _: httpx.Response(200), settings={"network": "standard"},
+                                   limits={"max_job_bytes": 100}) as ctx:
+            with pytest.raises(error): await adapters.acquire(ctx)
+    page = [("https://example.com/article", "GET", "document")]
+    asyncio.run(scenario("budget", page, {"responseBodySize": 101, "responseHeadersSize": 0}, "https://example.com/final", NetworkError))
+    asyncio.run(scenario("final", page, None, "http://127.0.0.1/admin", ValueError))
+
+
+def test_isolated_browser_remains_unavailable_without_namespaces(tmp_path, monkeypatch):
+    mock_browser(monkeypatch)
+    monkeypatch.setattr(browser_playwright, "shutil", SimpleNamespace(which=lambda _: None))
+    async def scenario():
+        async with capture_context(tmp_path, "browser_playwright", lambda _: pytest.fail("No dispatch"), settings={"network": "isolated"}) as ctx:
+            with pytest.raises(adapters.Unavailable, match="unshare"): await adapters.acquire(ctx)
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("settings,error", [
+    ({"network": "standard"}, "host egress firewall"),
+    ({"network": "open"}, "isolated or standard"),
+    ({"network": "standard", "host_egress_firewall_confirmed": True}, None),
+])
+def test_standard_browser_configuration_requires_confirmed_host_firewall(tmp_path, settings, error):
+    config = json.loads((ROOT / "configs/offline-demo.json").read_text())
+    config["mode"] = "live"
+    config["routes"] = [route for route in config["routes"] if route["id"] == "browser_standard"]
+    config["routes"][0]["settings"] = settings
+    config["targets"] = [{"id": "article", "kind": "article", "input": "https://example.com/article", "routes": ["browser_standard"]}]
+    config["chains"] = []
+    path = tmp_path / "browser.json"
+    path.write_text(json.dumps(config))
+    if error:
+        with pytest.raises(ValueError, match=error): load(path)
+    else: assert load(path)["routes"][0]["settings"]["network"] == "standard"

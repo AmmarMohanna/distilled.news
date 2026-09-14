@@ -8,6 +8,9 @@
     "total_usd": 0,
     "providers": {}
   },
+  "costs": {
+    "server_monthly_usd": null
+  },
   "routes": [
     {
       "id": "direct",
@@ -45,7 +48,21 @@
       "provider": "browser_playwright",
       "cost_ceiling_usd": 0,
       "cost_bound_confirmed": false,
-      "settings": {}
+      "settings": {
+        "network": "isolated"
+      }
+    },
+    {
+      "id": "browser_standard",
+      "adapter": "browser_playwright",
+      "enabled": true,
+      "provider": "browser_playwright",
+      "cost_ceiling_usd": 0,
+      "cost_bound_confirmed": false,
+      "settings": {
+        "network": "standard",
+        "host_egress_firewall_confirmed": false
+      }
     },
     {
       "id": "rss_baseline",
@@ -303,7 +320,8 @@
         "direct",
         "zyte",
         "unlocker",
-        "browser"
+        "browser",
+        "browser_standard"
       ],
       "fixture": "../fixtures/article.html",
       "reference": "../fixtures/article.gold.json",
@@ -466,12 +484,12 @@
         "direct",
         "zyte",
         "unlocker",
-        "browser"
+        "browser_standard"
       ],
       "deadline_seconds": 90
     }
   ],
-  "notes": "Disabled templates: replace inputs, provide independent gold, confirm provider schemas and caps before enabling routes.",
+  "notes": "Disabled templates: replace inputs, provide independent gold, set costs.server_monthly_usd, confirm provider schemas and caps before enabling routes. browser (isolated) and browser_standard are separately scored variants; browser_standard needs a confirmed host egress firewall.",
   "extractors": [
     "trafilatura",
     "readability"

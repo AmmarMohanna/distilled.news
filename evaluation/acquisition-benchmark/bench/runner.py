@@ -247,12 +247,35 @@ class Runner:
     def stopped(self, run):
         return self.state.stopped(run) or bool(self.config.get("parent_run") and self.state.stopped(self.config["parent_run"]))
 
+    def pressure(self, run, previous, sample, since):
+        """Stop new dispatch after any capacity limit holds continuously; running attempts finish."""
+        from bench.metrics import cpu_fraction
+        if self.config["mode"] != "live" or self.stopped(run): return None
+        limits = self.config["limits"]
+        reasons = []
+        available = sample.get("host_memory_bytes", {}).get("MemAvailable")
+        if available is not None and available < limits["min_available_memory_bytes"]: reasons.append("low_available_memory")
+        fraction = cpu_fraction(previous, sample)
+        if fraction is not None and fraction > limits["max_host_cpu_fraction"]: reasons.append("high_host_cpu")
+        if not reasons: return None
+        now = time.monotonic()
+        since = since if since is not None else now
+        if now - since < limits["pressure_seconds"]: return since
+        for stopped in {run, self.config.get("parent_run")} - {None}: self.state.stop(stopped)
+        self.state.event(run, None, "capacity_stop", {"reasons": reasons, "sustained_seconds": round(now - since),
+            "available_memory_bytes": available, "host_cpu_fraction": fraction})
+        return None
+
     async def heartbeat(self, run):
+        from bench.metrics import snapshot
+        previous, since = None, None
         while True:
-            from bench.metrics import snapshot
             self.state.beat(run)
-            self.state.event(run, None, "resource_sample", snapshot(self.state.root))
+            sample = snapshot(self.state.root)
+            self.state.event(run, None, "resource_sample", sample)
             if self.config.get("parent_run"): self.state.beat(self.config["parent_run"])
+            since = self.pressure(run, previous, sample, since)
+            previous = sample
             await asyncio.sleep(5)
 
     async def run(self, run, *, resume=False):

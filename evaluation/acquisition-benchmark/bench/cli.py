@@ -14,6 +14,7 @@ import time
 
 from bench import adapters
 from bench.config import credentials, identifier, load, digest
+from bench.routes import browser_playwright
 from bench.runner import Runner, plan, process_run, report, versions
 from bench.state import State
 
@@ -52,8 +53,20 @@ def preflight(config):
             if route["adapter"] == "telethon":
                 if not creds.get("TELEGRAM_API_ID") or not creds.get("TELEGRAM_SESSION_PATH"): issues.append("Telegram ID/session path required")
                 elif not Path(creds["TELEGRAM_SESSION_PATH"]).expanduser().exists(): issues.append("Telegram login session absent")
-            if route["adapter"] == "browser_playwright" and (sys.platform != "linux" or not shutil.which("unshare")): issues.append("Linux unshare required for browser network isolation")
+            if route["adapter"] == "browser_playwright" and settings.get("network", "isolated") == "isolated" and not browser_playwright.isolation_available():
+                issues.append("Linux unshare required for the isolated browser; run server-check")
         checks.append({"route": route["id"], "status": "NOT_READY" if issues else "READY", "issues": issues})
+    if config["mode"] == "live" and config.get("costs", {}).get("server_monthly_usd") is None:
+        checks.append({"check": "server_cost", "status": "NOT_READY",
+                       "issues": ["Set costs.server_monthly_usd so cost per usable result includes the server; unpaid routes are not free"]})
+    if config.get("schedule", {}).get("rolling_window_hours"):
+        for target in config["targets"]:
+            if target["kind"] == "article" or not target.get("reference"): continue
+            try: complete = json.loads(Path(target["reference"]).read_text(encoding="utf-8")).get("complete_window")
+            except (OSError, ValueError): continue
+            if complete:
+                checks.append({"check": "reference_window", "target": target["id"], "status": "NOT_READY",
+                               "issues": ["A fixed complete reference cannot match rolling round windows; use schedule.references_dir or attach-reference per round"]})
     for extractor in config["extractors"]:
         if extractor == "trafilatura" and util.find_spec("trafilatura") is None: checks.append({"extractor": extractor, "status": "NOT_READY", "issues": ["Install .[extract]"]})
         if extractor == "readability" and (not shutil.which("node") or not (Path(__file__).resolve().parent.parent / "node/node_modules/@mozilla/readability").exists()):
@@ -142,6 +155,16 @@ async def scheduled_rounds(config, run_id, state):
                     start = end - timedelta(hours=float(schedule_config["rolling_window_hours"]))
                     for target in round_config["targets"]:
                         target.setdefault("options", {}).update(start_time=start.isoformat(), end_time=end.isoformat())
+                if schedule_config.get("references_dir"):
+                    # Round-specific references replace fixed ones; scoring still checks each declared window.
+                    folder = Path(schedule_config["references_dir"]) / f"round-{index:03}"
+                    loaded = {}
+                    for target in round_config["targets"]:
+                        path = folder / f"{identifier(target['id'])}.json"
+                        if path.is_file():
+                            target["reference"] = str(path.resolve())
+                            loaded[target["id"]] = __import__("hashlib").sha256(path.read_bytes()).hexdigest()
+                    state.event(schedule_id, None, "round_references_loaded", {"round": index, "references": loaded})
                 manifest = plan(round_config)
                 state.create_run(child, {key: value for key, value in manifest.items() if key != "jobs"}, manifest["jobs"])
                 await Runner(state, round_config).run(child)
@@ -164,11 +187,89 @@ async def telegram_login(creds):
     finally: await asyncio.wait_for(client.disconnect(), timeout=5)
 
 
+async def server_check(config):
+    """Local readiness of the real host. Launches Chromium on inline HTML only; sends no acquisition requests."""
+    import platform
+    import subprocess
+    checks = []
+    limits = config["limits"]
+    def add(name, ok, detail=None, required=True):
+        checks.append({"check": name, "status": "READY" if ok else "NOT_READY" if required else "WARNING", "detail": detail})
+    def command(*argv, timeout=10):
+        try:
+            done = subprocess.run(list(argv), capture_output=True, text=True, timeout=timeout)
+            return done.returncode, (done.stdout or done.stderr).strip()[:300]
+        except (OSError, subprocess.SubprocessError) as error:
+            return None, type(error).__name__
+    add("linux", sys.platform == "linux", platform.platform())
+    add("python_3_12_plus", sys.version_info >= (3, 12), platform.python_version())
+    code, output = command("node", "--version")
+    add("node_24_plus", code == 0 and output.lstrip("v").split(".")[0].isdigit() and int(output.lstrip("v").split(".")[0]) >= 24, output)
+    add("readability_installed", (Path(__file__).resolve().parents[1] / "node/node_modules/@mozilla/readability").exists())
+    data_dir = Path(config["data_dir"])
+    try:
+        data_dir.mkdir(parents=True, exist_ok=True)
+        probe = data_dir / f".server-check-{os.getpid()}"
+        probe.write_bytes(b"ok"); probe.unlink()
+        add("data_dir_writable", True, str(data_dir))
+        free = shutil.disk_usage(data_dir).free
+        add("free_disk_above_reserve", free >= limits["min_free_disk_bytes"], {"free_bytes": free, "reserve_bytes": limits["min_free_disk_bytes"]})
+    except OSError as error:
+        add("data_dir_writable", False, type(error).__name__)
+    from bench.metrics import process_tree, snapshot
+    sample = snapshot(data_dir if data_dir.exists() else Path.cwd())
+    memory = sample.get("host_memory_bytes", {})
+    add("host_memory_readable", "MemAvailable" in memory, memory)
+    if "MemAvailable" in memory:
+        add("available_memory_above_limit", memory["MemAvailable"] >= limits["min_available_memory_bytes"],
+            {"available_bytes": memory["MemAvailable"], "limit_bytes": limits["min_available_memory_bytes"]})
+    try: add("process_tree_measurement", process_tree()["processes"] >= 1)
+    except (OSError, ValueError, AttributeError) as error: add("process_tree_measurement", False, type(error).__name__)
+    code, output = command("timedatectl", "show", "-p", "NTPSynchronized", "--value")
+    add("clock_synchronized", code == 0 and output == "yes", output, required=False)
+    if config.get("credentials_file"):
+        path = Path(config["credentials_file"])
+        add("credentials_file_private", path.is_file() and path.stat().st_mode & 0o077 == 0,
+            oct(path.stat().st_mode & 0o777) if path.exists() else "missing")
+    try: session = credentials(config.get("credentials_file")).get("TELEGRAM_SESSION_PATH")
+    except (OSError, ValueError): session = None
+    if session and Path(session).expanduser().exists():
+        add("telegram_session_private", Path(session).expanduser().stat().st_mode & 0o077 == 0, required=False)
+    if config["mode"] == "live":
+        add("server_cost_configured", config.get("costs", {}).get("server_monthly_usd") is not None)
+    networks = {route["settings"].get("network", "isolated") for route in config["routes"] if route["enabled"] and route["adapter"] == "browser_playwright"}
+    namespace_ok = False
+    if "isolated" in networks:
+        code, output = command("unshare", "--user", "--map-root-user", "--net", "true")
+        namespace_ok = code == 0
+        add("user_network_namespace", namespace_ok, output or "ok")
+    for network in sorted(networks):
+        if network == "isolated" and not namespace_ok: continue
+        try:
+            from playwright.async_api import async_playwright
+            async with asyncio.timeout(60):
+                async with async_playwright() as playwright:
+                    browser = await browser_playwright.launch(playwright, data_dir, network)
+                    try:
+                        page = await browser.new_page()
+                        await page.set_content("<html><title>Benchmark ready</title><body>Local check</body></html>")
+                        add(f"chromium_launch_{network}", await page.title() == "Benchmark ready", browser.version)
+                    finally: await browser.close()
+        except Exception as error:
+            add(f"chromium_launch_{network}", False, f"{type(error).__name__}: {str(error)[:200]}")
+    if "standard" in networks:
+        confirmed = all(route["settings"].get("host_egress_firewall_confirmed") is True for route in config["routes"]
+                        if route["enabled"] and route["settings"].get("network") == "standard")
+        add("host_egress_firewall_confirmed", confirmed, "Verify with the administrator; this check does not probe private addresses",
+            required=config["mode"] == "live")
+    return {"checks": checks, "ready": not any(check["status"] == "NOT_READY" for check in checks), "acquisition_requests": 0}
+
+
 def main(argv=None):
     os.umask(0o077)
     parser = argparse.ArgumentParser(description="Distilled source acquisition benchmark")
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("preflight", "plan", "fetch", "collect", "run", "chains", "schedule", "validate-gold"):
+    for name in ("preflight", "server-check", "plan", "fetch", "collect", "run", "chains", "schedule", "validate-gold"):
         sub = commands.add_parser(name)
         sub.add_argument("--config", required=True, type=Path)
         if name in {"fetch", "collect", "run", "chains", "schedule"}: sub.add_argument("--run-id", required=True)
@@ -224,6 +325,7 @@ def main(argv=None):
         elif hasattr(args, "config"):
             config = load(args.config)
             if args.command == "preflight": output = preflight(config)
+            elif args.command == "server-check": output = asyncio.run(server_check(config))
             elif args.command == "validate-gold":
                 from bench.gold import validate
                 output = validate(config)
@@ -252,7 +354,11 @@ def main(argv=None):
                             state.db.execute("UPDATE jobs SET spec=? WHERE id=?", (json.dumps(spec), job["id"]))
                             updated += 1
                     if not updated: raise ValueError("Target not found in run")
-                    output = {"updated_jobs": updated, "next": "Run score or process; acquisition is unchanged", "network_calls": 0}
+                    from bench.score import collection_window, window_check
+                    target = spec["target"]
+                    output = {"updated_jobs": updated, "next": "Run score or process; acquisition is unchanged", "network_calls": 0,
+                              "collection_window": collection_window(target),
+                              "reference_window_error": None if target["kind"] == "article" else window_check(reference_data, target)}
                 elif args.command == "discover":
                     from bench.gold import discover
                     if not 1 <= args.limit <= 100: raise ValueError("Discovery limit must be 1..100")
@@ -310,7 +416,7 @@ def main(argv=None):
         # Keep terminal output short; complete results are saved under reports/.
         if "jobs" in output and args.command != "plan": output = {key: value for key, value in output.items() if key not in {"jobs", "groups", "spend", "rows", "chains", "matched_cohorts", "resource_samples"}}
         print(json.dumps(output, ensure_ascii=False, indent=2))
-        if args.command in {"preflight", "faults"} and not output.get("ready", output.get("passed", True)): return 1
+        if args.command in {"preflight", "server-check", "faults"} and not output.get("ready", output.get("passed", True)): return 1
         if args.command == "validate-gold" and not output["valid"]: return 1
         if args.command == "compare-gold" and not output["meets_body_agreement_threshold"]: return 1
         return 0

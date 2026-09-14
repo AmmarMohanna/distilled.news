@@ -2,16 +2,17 @@
 
 The immediate priority is to compare scraper and acquisition API options before committing to new integrations.
 
-Start with [Scraper and API Testing on the University VPS](SCRAPER_TESTING_STEPS.md) for server preparation and three testing stages covering every source and specific scraper/API candidate. Use the [Scraper and API Evaluation Plan](SCRAPER_AND_API_EVALUATION_PLAN.md) for the underlying scoring rules and methodological detail.
+Start with [External Testing: A to Z](EXTERNAL_TESTING_A_TO_Z.md) for the complete Windows-to-VPS operating guide, source configuration, all three testing stages, recovery, billing, and report export. Use [Scraper and API Testing on the University VPS](SCRAPER_TESTING_STEPS.md) for the broader experiment design and [Scraper and API Evaluation Plan](SCRAPER_AND_API_EVALUATION_PLAN.md) for scoring and methodological detail.
 
 ## Reading order
 
 | Document | Use |
 |---|---|
+| [External Testing: A to Z](EXTERNAL_TESTING_A_TO_Z.md) | Start-to-finish external testing instructions, actual CLI commands, each source/candidate, references, schedules, recovery, costs, backups, and final deliverables. |
 | [Runnable benchmark and commands](../evaluation/acquisition-benchmark/README.md) | Implemented CLI, all source adapters, stage configs, offline demo, scoring and recovery. |
 | [General image](<general image.md>) | Quick source-by-source table of specific APIs/scrapers, plus an explanation of the existing Telegram scraper. |
 | [Example Telegram](<example telegram.md>) | One-channel walkthrough with setup commands, illustrative collector code and comparison instructions. The original snippets are illustrative; the document links to the implemented collectors. |
-| [Scraper and API Testing on the University VPS](SCRAPER_TESTING_STEPS.md) | Summary, server setup, exact source/provider roster, and per-candidate pilot, controlled and seven-day testing steps. Read this first. |
+| [Scraper and API Testing on the University VPS](SCRAPER_TESTING_STEPS.md) | Experiment design, source/provider roster, and stage rationale. Use the A-to-Z guide for current execution commands. |
 | [Scraper and API Evaluation Plan](SCRAPER_AND_API_EVALUATION_PLAN.md) | Detailed procedure, scoring rules, and implementation requirements. |
 | [Benchmark implementation notes](../implementation/ACQUISITION_BENCHMARK_IMPLEMENTATION.md) | Initial Python implementation and its limitations. Consult the evaluation plan for subsequently identified test gaps. |
 | [Acquisition Benchmark Runbook](ACQUISITION_BENCHMARK_RUNBOOK_v1.2.md) | Extended experimental background and scenarios. Apply the current plan's scoring and execution clarifications. |

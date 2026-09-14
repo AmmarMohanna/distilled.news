@@ -45,7 +45,9 @@ def test_templates_load_and_plan_without_network(name, monkeypatch):
     manifest = plan(value)
     assert manifest["planned_jobs"] > 0
     assert manifest["planned_maximum_usd"] == 0
-    assert len({route["id"] for route in value["routes"]}) == 21
+    assert len({route["id"] for route in value["routes"]}) == 22
+    networks = {route["id"]: route["settings"]["network"] for route in value["routes"] if route["adapter"] == "browser_playwright"}
+    assert networks == {"browser": "isolated", "browser_standard": "standard"}
     if name != "offline-demo": assert not any(route["enabled"] for route in value["routes"])
 
 
@@ -267,7 +269,7 @@ def test_full_offline_pipeline_all_source_kinds_and_actual_parsers(tmp_path, mon
         monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: pytest.fail("offline used DNS"))
         await Runner(state, conf).run("offline")
         result = await process_run(state, "offline")
-        assert result["job_states"] == {"complete": 21}
+        assert result["job_states"] == {"complete": 22}
         steps = [step for job in result["jobs"] for step in job["result"]["steps"]]
         assert all(step["status"] == "captured" and "processing_error" not in step for step in steps), steps
         assert all("error" not in extraction for step in steps for extraction in step.get("extractions", {}).values())
@@ -348,5 +350,41 @@ def test_report_gate_counts_failures_and_cost_uses_verified_cohort(tmp_path):
     assert group["quality_gate"] == "DOES_NOT_MEET_GATES"
     assert group["cost_bound_or_actual_usd"] == pytest.approx(1.01)
     assert group["verified_cohort_cost_bound_or_actual_usd"] == pytest.approx(1.0)
-    assert group["cost_per_verified_usable_attempt_usd"] == pytest.approx(1 / 94)
+    # Reserved ceilings are bounds, and a missing server cost makes every route look free.
+    assert group["cost_status"] == "SERVER_COST_NOT_CONFIGURED"
+    assert group["cost_per_usable_result_usd"] is None and group["cost_per_usable_result_upper_bound_usd"] is None
     state.close()
+
+
+def test_cost_per_usable_result_needs_reconciled_bills_and_allocates_server_slot_time(tmp_path):
+    conf = config(tmp_path)
+    conf["extractors"] = ["fixture"]
+    conf["costs"] = {"server_monthly_usd": 73.0}  # 0.1 USD/hour; two slots.
+    route = {"id": "candidate", "adapter": "fixture", "provider": "provider", "enabled": True, "settings": {}}
+    conf["routes"] = [route]
+    jobs = [{"target": {"id": f"article{index}", "kind": "article", "input": f"https://example.com/{index}", "routes": ["candidate"]},
+             "routes": [route], "candidate": "candidate", "reference": {"labelled": True}, "reference_sha256": "reference",
+             "repetition": 0, "chain": False, "deadline_seconds": 60, "fixture_hashes": {}} for index in range(4)]
+    state = State(tmp_path / "costs")
+    try:
+        state.create_run("costs", {"config": conf, "config_sha256": "config", "versions": {}}, jobs)
+        for index in range(4):
+            job_id = f"costs-{index:06}"
+            state.reserve(job_id + "__candidate", "provider", 1.0, {"total_usd": 10, "providers": {"provider": 10}})
+            label = "PASS" if index < 2 else "FAIL"
+            state.set_job(job_id, "complete", {"steps": [{"route": "candidate", "spend_id": job_id + "__candidate", "status": "captured",
+                "duration_ms": 3_600_000, "evidence": [], "extractions": {"fixture": {"article": {}, "duration_ms": 0,
+                "score": {"label": label, "verified": True}}}}]})
+        group = report(state, "costs")["groups"]["candidate / article / fixture"]
+        server = 4 * 0.05  # Four one-hour attempts, each occupying one of two slots.
+        assert group["verified_cohort_costs"]["server_allocated_usd"] == pytest.approx(server)
+        assert group["cost_status"] == "UNRECONCILED_PROVIDER_CHARGES" and group["cost_per_usable_result_usd"] is None
+        assert group["cost_per_usable_result_upper_bound_usd"] == pytest.approx((4.0 + server) / 2)
+        for index in range(4): state.reconcile(f"costs-{index:06}__candidate", 0.25, "invoice line")
+        output = report(state, "costs")
+        group = output["groups"]["candidate / article / fixture"]
+        assert group["cost_status"] == "RECONCILED"
+        assert group["cost_per_usable_result_usd"] == pytest.approx((1.0 + server) / 2)
+        assert output["provider_actual_usd"] == pytest.approx(1.0) and output["provider_unreconciled_reserved_usd"] == 0
+        assert "Cost per usable result" in (state.root / "reports/costs/report.md").read_text(encoding="utf-8")
+    finally: state.close()

@@ -10,7 +10,14 @@ This isolated Python/Node package implements the scraper/API testing infrastruct
 
 `extractors/` runs Trafilatura and Readability over saved bytes and adds explicit HTML metadata with field provenance. Original extractor title/date values remain in `extractor_metadata`; publication and modification dates are separate. `validator.py` contains response-only article acceptance, `score.py` compares independent references, and `reporting.py` writes the reports. `processing.py` keeps source normalization and compatible imports for existing callers. The CLI commands and saved run structure remain compatible.
 
-Managed-route tests exercise the real dispatcher with mock provider responses, including invalid Zyte envelopes, target errors, rate limits, missing credentials, and byte limits. Zyte envelope and target-body evidence stay separate; Unlocker leaves unobserved target status unknown. Browser tests use a mocked Playwright interface to check fixed context settings, final URL recording, network limits, and cleanup after setup/navigation failures. They do not establish that Linux namespaces or Chromium work on the VPS.
+Managed-route tests exercise the real dispatcher with mock provider responses, including invalid Zyte envelopes, target errors, rate limits, missing credentials, and byte limits. Zyte envelope and target-body evidence stay separate; Unlocker leaves unobserved target status unknown. Browser tests use a mocked Playwright interface to check both variants' context settings, request guards, final URL recording, network limits, and cleanup after setup/navigation failures. They do not establish that Linux namespaces or Chromium work on the VPS; `server-check` does.
+
+Four controls decide whether a comparison can pick a winner:
+
+- **Browser variants.** `browser_playwright` has `settings.network`: `isolated` (no Chromium network, GET-only, response cookies stripped, pinned client) and `standard` (ordinary Chromium networking, cookies within a fresh context, all methods). They are separate routes and separately scored, so isolation restrictions cannot be mistaken for browser failure. `standard` requires `host_egress_firewall_confirmed: true` in live mode, because its per-request address check does not cover redirects or DNS changes.
+- **Window-matched references.** A `complete_window` source reference must declare a `window` equal to the target's collection window, or it is scored as a sample with unknown recall (`reference_window_missing` / `reference_window_mismatch`). Schedules load `references_dir/round-NNN/<target_id>.json`, and `attach-reference` prints each run's `collection_window`.
+- **Actual cost.** Reports separate reconciled provider charges, unreconciled reservations and slot-time server allocation from `costs.server_monthly_usd`. `cost_per_usable_result_usd` appears only when `cost_status` is `RECONCILED`.
+- **Resources.** On Linux, samples include the dispatcher's whole process tree (Python, Node, Chromium). Live runs stop new dispatch after sustained low memory or high CPU (`capacity_stop`).
 
 ## Install and run offline
 
@@ -22,12 +29,14 @@ source .venv/bin/activate
 python -m pip install -c constraints.txt -e '.[dev,sources,extract]'
 npm ci --prefix node --ignore-scripts --no-audit --no-fund
 python -m pytest
+python -m bench faults
+python -m bench server-check --config configs/offline-demo.json
 python -m bench preflight --config configs/offline-demo.json
 python -m bench run --config configs/offline-demo.json --run-id demo1
 python -m bench process --data-dir data/demo --run-id demo1
 ```
 
-On Windows, use `.venv\Scripts\python.exe` instead of activating, and `npm.cmd` if PowerShell blocks `npm.ps1`. Dependency installation requires internet; demo collection and processing use local fixtures. The demo runs 21 route/target combinations, including four article routes feeding both real extractors.
+On Windows, use `.venv\Scripts\python.exe` instead of activating, and `npm.cmd` if PowerShell blocks `npm.ps1`. Dependency installation requires internet; demo collection and processing use local fixtures. The demo runs 22 route/target combinations, including five article routes (both browser variants) feeding both real extractors. `server-check` is expected to report NOT_READY on Windows; run it on the Linux VPS. `faults` is a 21-case smoke gate; pytest is the complete offline gate.
 
 Inspect `data/demo/reports/demo1/report.md`, `report.json` and `attempts.csv`. Reusing a run ID is refused; use `resume` or a new ID. A successful HTTP response is only `captured`; quality requires processing and independent labels.
 
@@ -35,7 +44,7 @@ Inspect `data/demo/reports/demo1/report.md`, `report.json` and `attempts.csv`. R
 
 | Source | Config route IDs | Implementation |
 |---|---|---|
-| Websites | `direct`, `zyte`, `unlocker`, `browser` | Pinned-address HTTP, Zyte HTTP response mode, Bright Data Web Unlocker, isolated Playwright Chromium; each feeds Trafilatura and Mozilla Readability. |
+| Websites | `direct`, `zyte`, `unlocker`, `browser`, `browser_standard` | Pinned-address HTTP, Zyte HTTP response mode, Bright Data Web Unlocker, isolated Playwright Chromium, standard-network Playwright Chromium behind a host egress firewall; each feeds Trafilatura and Mozilla Readability. |
 | RSS / Atom | `rss_baseline`, `rss_feedparser` | Application TypeScript parser versus feedparser on the same captured bytes, including across restart. |
 | Google News | `google_rss`, `google_apify` | Google News RSS; Apify `groupoject/google-news-scraper`. Confirm actor availability/schema in your account; its template input is deliberately empty. |
 | Telegram | `telegram_public`, `telegram_api` | Public `t.me/s/<channel>` with the application parser; Telethon with an authorized session and explicit window. |
@@ -56,7 +65,9 @@ Copy a stage template to an ignored `configs/*.local.json` or `*.local.yaml`. Pa
 2. Copy `credentials.env.example` outside Git, fill it privately, and set `credentials_file` to its absolute path. Environment variables take precedence. Keep tokens and Telegram sessions out of configs, command-line arguments and reports.
 3. Fill actor/task IDs, dataset IDs, zone, input, optional build, and LinkedIn version/authorized permissions. Set `settings.schema_confirmed: true` after reviewing async provider schemas. Non-Apify JSON datasets support `settings.field_map` dotted paths for `id`, `text`, `date`, `url`, `author`, `media`. Apify uses the current application normalizer so incompatibilities remain visible.
 4. Set each paid route's conservative `cost_ceiling_usd` for its **whole job**, including polling, pagination and failures. Set `budget.total_usd`, `budget.providers.<provider>`, and `cost_bound_confirmed: true` only after confirming account-side bounds. Local output slicing and timeouts cannot cap remote billing. No prices are assumed by the templates.
-5. Enable selected candidates, add independent references, and run preflight/plan. Both commands are local and nonbillable. Install the browser prerequisites separately using [server operations](ops/README.md).
+5. Set `costs.server_monthly_usd` to the VPS's actual monthly price; live preflight is NOT_READY without it, because unpaid routes would otherwise look free.
+6. For `browser_standard`, apply and verify the outbound egress firewall ([A-to-Z guide, Section 4.5](../../documentation/EXTERNAL_TESTING_A_TO_Z.md)), then set `host_egress_firewall_confirmed: true`. For `browser`, `server-check` must show `user_network_namespace` READY.
+7. Enable selected candidates, add independent references, and run `server-check`, preflight and plan. All are local and send no acquisition requests. Install the browser prerequisites separately using [server operations](ops/README.md).
 
 Defaults: two jobs, one browser, one request group per input domain, ten seconds between domain starts, 45-second website attempts, ten-minute source jobs, 10 MiB decoded HTTP responses, 50 MiB saved evidence per job invocation, five HTTP redirects, three dataset pages, 50 returned items and no primary-comparison retries. HTTP streaming/decompression and connection-time DNS checks enforce bounds. Browser collection additionally requires Linux network namespaces. Provider internal retries/redirects remain unknown unless returned in evidence.
 
@@ -64,7 +75,7 @@ The ledger reserves full job ceilings before dispatch. Failed and uncertain paid
 
 ## Stage 1: pilot
 
-The template contains five article inputs × four routes × two repetitions = 40 article jobs, plus every source candidate. Replace the five URLs and use small controlled source samples.
+The template contains five article inputs × five routes × two repetitions = 50 article jobs, plus every source candidate. Replace the five URLs and use small controlled source samples.
 
 ```bash
 cp configs/stage1-pilot.json configs/stage1.local.json
@@ -99,9 +110,12 @@ Use `published_at: null` for absent dates, `date_precision: day` for date-only e
 Source reference example:
 
 ```json
-{"complete_window":true,"items":[{"id":"101","text":"Expected text","published_at":"2026-09-01T09:00:00Z",
+{"complete_window":true,"window":{"start_time":"2026-09-01T00:00:00Z","end_time":"2026-09-02T00:00:00Z"},
+ "items":[{"id":"101","text":"Expected text","published_at":"2026-09-01T09:00:00Z",
  "url":"https://t.me/channel/101","has_media":false}]}
 ```
+
+`window` must equal the target's `options.start_time`/`end_time` (equivalent offsets match). Otherwise the reference is scored as a sample: `reference_window_error` explains why and recall stays unknown. `validate-gold` rejects mismatches, and rejects fixed complete references under a rolling schedule.
 
 Optional item `aliases` map equivalent provider identifiers; `links` lists expected extracted URLs. For a sample, set `complete_window: false`: reports show sample coverage and leave total recall unknown. Out-of-window records and missing dates are reported separately.
 
@@ -135,7 +149,7 @@ python -m bench preflight --config configs/stage3.local.json
 python -m bench schedule --config configs/stage3.local.json --run-id week1
 ```
 
-The default is seven daily rounds and rolling 24-hour windows. Parent ID: `week1-schedule`; rounds: `week1-r000` through `week1-r006`, each with a report. For shorter source cadences use separate staggered configurations sharing the same ledger. Publication age is measured; real detection delay still needs independently observed arrival/discovery times.
+The default is eight daily rounds, spanning seven days, with rolling 24-hour windows. Parent ID: `week1-schedule`; rounds: `week1-r000` through `week1-r007`, each with a report. Each round needs its own source references: place them in `schedule.references_dir/round-NNN/<target_id>.json` before the round, or attach them to `week1-rNNN` afterwards. For shorter source cadences use separate staggered configurations sharing the same ledger. Publication age is measured; real detection delay still needs independently observed arrival/discovery times.
 
 Keep repeated article URLs in `targets`. Preselected daily inputs can go in `targets_by_round: {"0": [...], "1": [...]}`. For newly discovered URLs, set `schedule.daily_targets_dir` and place a target array in `round-000.json`, `round-001.json`, etc. before that round. Each file is snapshotted once; missing files are recorded as missing daily samples. Use unique IDs across fixed/daily targets. Existing rounds resume their original inputs.
 
@@ -179,6 +193,6 @@ The amount is an example, not a provider price. Overages remain visible and redu
 
 `config.py` validates inputs; `adapters.py` collects; `network.py` enforces HTTP bounds/address checks; `state.py` stores SQLite jobs, spend, remote IDs, checkpoints and hashed blobs. `runner.py` drives execution. `node/transform.mjs` calls the application parsers and Readability. `processing.py`, `gold.py` and `reporting.py` score and compare. `scripts/build_examples.py` rebuilds the synthetic fixtures and disabled templates.
 
-Runs freeze configuration, references, fixture hashes and code/dependency fingerprints. Replays verify artifact hashes; known credential values are redacted before storage. Reports flag capped outputs, preserve failed/unknown states and provide matched task cohorts with pairwise costs. General route summaries are not automatically fair matched-cost rankings. Local server cost is explicitly unallocated, separate from provider bills.
+Runs freeze configuration, references, fixture hashes and code/dependency fingerprints. Replays verify artifact hashes; known credential values are redacted before storage. Reports flag capped outputs, preserve failed/unknown states and provide matched task cohorts with pairwise costs. General route summaries are not automatically fair matched-cost rankings. Server cost is allocated by active slot time when `costs.server_monthly_usd` is set; idle time between runs is not charged to candidates.
 
-Tests cover mocked provider protocols, redirects, stalled bodies, compressed expansion, DNS checks, durable budgets, ambiguous submissions, polling, pagination, actual source parsers/extractors, scores, fallback decisions, restart and scheduling. Real provider permissions/schemas, bills, browser namespace behavior, long-term server resource use and Cloudflare egress still require server validation. The baseline bridge exposes existing connector defects without rewriting production parsers. See [server operations](ops/README.md) for setup and the optional systemd unit.
+Tests cover mocked provider protocols, redirects, stalled bodies, compressed expansion, DNS checks, durable budgets, ambiguous submissions, polling, pagination, actual source parsers/extractors, scores, window-matched references, reconciled cost reporting, process-tree metrics, capacity stops, both browser variants, `server-check`, fallback decisions, restart and scheduling. Real provider permissions/schemas, bills, browser namespace behavior, long-term server resource use and Cloudflare egress still require server validation. The baseline bridge exposes existing connector defects without rewriting production parsers. See [server operations](ops/README.md) for setup and the optional systemd unit.
