@@ -278,6 +278,10 @@ def main(argv=None):
         sub = commands.add_parser(name)
         sub.add_argument("--data-dir", type=Path, default=Path("data"))
         sub.add_argument("--run-id", required=True)
+    campaign = commands.add_parser("campaign-costs")
+    campaign.add_argument("--data-dir", type=Path, default=Path("data"))
+    campaign.add_argument("--server-total-usd", type=float, required=True)
+    campaign.add_argument("--server-cost-evidence", required=True)
     reconcile = commands.add_parser("reconcile")
     reconcile.add_argument("--data-dir", type=Path, default=Path("data"))
     reconcile.add_argument("--spend-id", required=True)
@@ -340,7 +344,10 @@ def main(argv=None):
         else:
             state = State(args.data_dir)
             try:
-                if args.command == "attach-reference":
+                if args.command == "campaign-costs":
+                    from bench.campaign import report_campaign
+                    output = report_campaign(state, args.server_total_usd, args.server_cost_evidence)
+                elif args.command == "attach-reference":
                     if args.reference.stat().st_size > 10 * 1024 * 1024: raise ValueError("Reference too large")
                     reference_data = json.loads(args.reference.read_text(encoding="utf-8"))
                     if not isinstance(reference_data, dict): raise ValueError("Reference must be an object")

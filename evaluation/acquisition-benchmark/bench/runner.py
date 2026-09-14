@@ -300,6 +300,27 @@ async def process_run(state, run, operations="all"):
 
 
 async def process_unlocked(state, run, operations="all"):
+    """Sample extraction/normalization children, including on cancellation or failure."""
+    from bench.metrics import snapshot
+    def sample(kind):
+        state.beat(run)
+        state.event(run, None, kind, snapshot(state.root) | {"phase": "processing"})
+    async def monitor():
+        while True:
+            await asyncio.sleep(0.25)
+            sample("resource_sample")
+    sample("resource_sample")
+    task = asyncio.create_task(monitor())
+    try:
+        await process_payloads(state, run, operations)
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        sample("resource_final")
+    return report(state, run)
+
+
+async def process_payloads(state, run, operations="all"):
     manifest = state.manifest(run)
     config = manifest["config"]
     state.event(run, None, "processing_versions", versions())
@@ -348,7 +369,6 @@ async def process_unlocked(state, run, operations="all"):
                 step.pop("source_score", None)
                 for extraction in step.get("extractions", {}).values(): extraction.pop("score", None)
         state.set_job(job["id"], job["status"], result)
-    return report(state, run)
 
 
 

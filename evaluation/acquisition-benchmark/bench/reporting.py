@@ -182,6 +182,8 @@ def generate(state, run):
         "provider_unreconciled_reserved_usd": sum(row["reserved"] for row in spend if row["actual"] is None),
         "cost_model": {key: value for key, value in model.items() if key != "per_ms"},
         "resource_summary": summarize(samples),
+        "resource_summary_by_phase": {phase: summarize([sample for sample in samples if sample.get("phase", "acquisition") == phase])
+                                      for phase in ("acquisition", "processing")},
         "capacity_stops": [json.loads(row[0]) for row in state.db.execute("SELECT detail FROM events WHERE run=? AND kind='capacity_stop' ORDER BY id", (run,))],
         "resource_samples": samples,
         "notes": ["Synthetic offline results validate the harness, not provider performance.",
@@ -210,6 +212,8 @@ def generate(state, run):
         f"Node {resources.get('peak_node_rss_bytes', 'unavailable')}); minimum available memory {resources.get('min_available_memory_bytes', 'unavailable')} bytes; "
         f"maximum host CPU {resources.get('max_host_cpu_fraction', 'unavailable')}. Capacity stops: {len(output['capacity_stops'])}.", "",
         "Use report.json for per-item checks, matched cohorts, failure reasons, recovery state, costs and artifacts. attempts.csv supports spreadsheet comparison.", "",
-        "Unreconciled reservations are conservative bounds, not costs. Disabled, pending and unscored results are not successful tests."]
+        "Unreconciled reservations are conservative bounds, not costs. Disabled, pending and unscored results are not successful tests.",
+        "The table's cost per usable result uses the verified first-repetition cohort. Use campaign-costs for all runs/repetitions and idle server cost.",
+        "Resource summaries by acquisition/processing phase are in report.json; sampled peaks can miss short-lived processes."]
     state.write_report(run, "report.md", "\n".join(lines) + "\n")
     return output

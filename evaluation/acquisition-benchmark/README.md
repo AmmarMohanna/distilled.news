@@ -21,6 +21,8 @@ Four controls decide whether a comparison can pick a winner:
 
 ## Install and run offline
 
+Start with [SERVER_START_HERE.md](SERVER_START_HERE.md) for the separate-checkout workflow and the exact files to edit/open.
+
 Run from `evaluation/acquisition-benchmark`. Use Python 3.12+ and Node 24+. Keep the complete repository checkout: the Node bridge imports the actual `packages/connectors/src` files.
 
 ```bash
@@ -164,6 +166,16 @@ python -m bench process --data-dir data/live --run-id fallback1
 Review discovered inputs and independently label them. The chain command measures configured article fallback orders. It uses the first extractor plus a response-only validator, without gold access. Reports include final quality, attempted fallbacks and accumulated costs/time. Chain deadlines include domain/provider/browser waiting and extraction; expiry before dispatch is recorded as `not_tested`. Ordinary request deadlines start after local capacity becomes available. Their JSON/CSV rows record `queue_ms` separately from acquisition and processing latency. A website result does not automatically select source fallback policies.
 
 ## Recovery and billing
+
+After processing and reconciling the individual runs, use `campaign-costs` to account for the entire shared data directory, including every repetition, failed job and unresolved reservation:
+
+```bash
+python -m bench campaign-costs --data-dir data/live --server-total-usd YOUR_CAMPAIGN_SERVER_ALLOCATION --server-cost-evidence 'Billing period, invoice and allocation including idle time'
+```
+
+Replace the amount with a number representing the VPS cost allocated to this campaign, including idle time. This replaces (does not add to) the per-run slot-time estimates. Open `data/live/reports/campaign-costs/report.md` and `report.json`. The overall cost per usable acquisition stays unknown while jobs, billing or captured-result quality remain unresolved. A source acquisition is a collection job, not one post; alternative extractors do not multiply usable acquisitions. Campaign expenditure is separate from the matched provider comparisons.
+
+Processing now samples the Python/Node process tree every 250 ms, with start/final samples even on failure or cancellation. Reports expose separate acquisition and processing resource summaries. These are sampled observations, not guaranteed instantaneous peaks. Official X normalization preserves expanded links and joins media expansions across captured pages; missing expansions retain their media keys and are explicitly marked unresolved.
 
 ```bash
 python -m bench status --data-dir data/live --run-id week1-r000

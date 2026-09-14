@@ -27,6 +27,20 @@ def feed_gate(raw):
     if not re.match(r"<(?:rss|feed|rdf:RDF)(?:\s|/?>)", document, re.I): raise ValueError("not_a_feed")
 
 
+def x_fields(row, expansions):
+    """Preserve link entities and join media expansions from every captured page."""
+    entities = lookup(row, ["note_tweet.entities", "entities"], {})
+    links = []
+    for entity in entities.get("urls", []) or []:
+        url = lookup(entity, ["unwound_url", "expanded_url", "url"])
+        if isinstance(url, str) and url not in links: links.append(url)
+    media = []
+    for key in lookup(row, ["attachments.media_keys"], []) or []:
+        # Preserve the reference when the API omitted an expansion; never fabricate a URL.
+        media.append(expansions.get(key, {"media_key": key, "unresolved": True}))
+    return links, media
+
+
 async def normalize(payload, target, route, fetched_at, *, offline=False):
     adapter, settings = route["adapter"], route["settings"]
     raw = payload.decode("utf-8", errors="replace")
@@ -56,6 +70,13 @@ async def normalize(payload, target, route, fetched_at, *, offline=False):
     rows = data.get("data", []) if isinstance(data, dict) else data
     if not isinstance(rows, list): raise ValueError("source_dataset_not_a_list")
     items, rejected = [], 0
+    expansions = {}
+    if adapter == "x_api" and isinstance(data, dict):
+        pages = data.get("includes", [])
+        if isinstance(pages, dict): pages = [pages]
+        for page in pages:
+            for medium in page.get("media", []) or []:
+                if medium.get("media_key"): expansions[medium["media_key"]] = medium
     fields = settings.get("field_map", {})
     for row in rows:
         if not isinstance(row, dict): rejected += 1; continue
@@ -70,8 +91,12 @@ async def normalize(payload, target, route, fetched_at, *, offline=False):
         original_id = str(values["id"])
         url = values["url"]
         if adapter == "telethon": url = f"https://t.me/{target['input'].lstrip('@')}/{original_id}"
-        if adapter == "x_api": url = f"https://x.com/i/web/status/{original_id}"
+        extra = {}
+        if adapter == "x_api":
+            url = f"https://x.com/i/web/status/{original_id}"
+            links, values["media"] = x_fields(row, expansions)
+            extra = {"links": links, "unresolved_media_keys": [item["media_key"] for item in values["media"] if item.get("unresolved")]}
         if adapter == "linkedin_api": values["date"] = lookup(row, ["publishedAt", "createdAt"])
         items.append({"id": original_id, "text": str(values["text"] or ""), "published_at": parsed_date(values["date"]),
-            "url": url, "author": values["author"], "media": values["media"], "source_id": target["id"]})
+            "url": url, "author": values["author"], "media": values["media"], "source_id": target["id"], **extra})
     return {"items": items, "normalization_dropped": rejected, "raw_item_count": len(rows), "issues": []}
