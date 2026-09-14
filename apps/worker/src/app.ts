@@ -1,4 +1,13 @@
 import {
+  DEFAULT_SLICE_BUDGET,
+  makeId,
+  type AcquisitionFailure,
+  type ClosedLoopAcquisitionOutcome,
+  type DeterministicAcquisitionPort,
+  type ModelCapability,
+  type ModelRoutingConfig
+} from "@distilled/agent-runtime";
+import {
   defaultNextBriefingAt,
   searchBriefingEditions,
   sanitizeEditionSectionForLanguage,
@@ -36,7 +45,7 @@ import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { addSourceFromInput, refreshEnabledSources } from "./sources";
 import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
-import { createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
+import { createWorkerClosedLoopWebOperatorLifecycle, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 
 type Variables = {
   repo: Repository;
@@ -150,6 +159,10 @@ const sourceInputSchema = z.union([
 const healthInputSchema = z.object({
   briefingId: z.string().min(1).optional()
 });
+const livePublicAcquisitionSmokeSchema = z.object({
+  candidateUrl: z.string().url().optional(),
+  idempotencyKey: z.string().min(1).optional()
+}).strict();
 
 const feedStarInputSchema = z.object({
   starred: z.boolean()
@@ -217,6 +230,88 @@ export function createApp(options: AppOptions = {}) {
   app.all("/v1/agent-runs/process", async (c) => {
     const handler = createWorkerWebOperatorRuntimeHandler(c.env);
     return handler(c.req.raw);
+  });
+
+  app.post("/v1/live-smoke/public-acquisition", async (c) => {
+    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
+    if (!isRuntimeAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
+    const input = livePublicAcquisitionSmokeSchema.parse(await c.req.json().catch(() => ({})));
+    const articleUrl = input.candidateUrl ?? requiredLiveSmokeEnv(c.env, "DISTILLED_LIVE_PUBLIC_CANDIDATE_URL");
+    const model = requiredLiveSmokeEnv(c.env, "DISTILLED_LIVE_OPENROUTER_MODEL");
+    const provider = requiredLiveSmokeEnv(c.env, "DISTILLED_LIVE_OPENROUTER_PROVIDER");
+    requiredLiveSmokeEnv(c.env, "OPENROUTER_API_KEY");
+    if (c.env.DISTILLED_BROWSER_BACKEND?.trim().toLowerCase() !== "cloudflare") {
+      return c.json({ error: "live smoke requires DISTILLED_BROWSER_BACKEND=cloudflare" }, 500);
+    }
+    if (c.env.DISTILLED_LLM_MODE !== "api" || c.env.DISTILLED_LLM_API_GATEWAY !== "openrouter") {
+      return c.json({ error: "live smoke requires api OpenRouter model routing" }, 500);
+    }
+
+    const now = nowFor();
+    const origin = new URL(articleUrl).origin;
+    const idempotencyKey = input.idempotencyKey ?? makeId("live_public_acquisition_smoke", articleUrl);
+    const lifecycle = createWorkerClosedLoopWebOperatorLifecycle(c.env, {
+      deterministicAcquisition: {
+        structured_api_feed: unavailableDeterministicAcquisition("structured_api_feed"),
+        http_deterministic_extraction: unavailableDeterministicAcquisition("http_deterministic_extraction")
+      }
+    });
+    const outcome = await lifecycle.acquire({
+      tenantId: "live-smoke",
+      resourceId: makeId("live_public_resource", origin),
+      idempotencyKey,
+      objective: `Acquire the public article at ${articleUrl} and cite the accepted observation when complete.`,
+      candidate: {
+        candidateId: makeId("live_public_candidate", articleUrl),
+        canonicalUrl: articleUrl,
+        publisherId: new URL(articleUrl).hostname,
+        acquisitionAttempt: "live-public-smoke"
+      },
+      policy: {
+        id: "live-public-read-policy",
+        allowedOrigins: [origin],
+        allowLoopback: false,
+        allowedTools: [
+          "browser.navigate@1",
+          "browser.inspect_dom@1",
+          "browser.inspect_accessibility_tree@1",
+          "browser.query_page_state@1",
+          "browser.follow_link@1",
+          "browser.extract@1",
+          "computer.screenshot@1",
+          "run.propose_completion@1"
+        ],
+        visualReadPurposes: ["read-navigation"],
+        modelPolicy: {
+          allowedProviders: [provider],
+          allowedDeployments: ["api"],
+          requiredPrivacyEligibility: ["public"],
+          allowedRetentionClasses: ["zero_data_retention"]
+        }
+      },
+      modelRouting: liveSmokeModelRouting(model),
+      modelCapabilities: [liveSmokeModelCapability(model, provider, c.env)],
+      budgetLimits: {
+        ...DEFAULT_SLICE_BUDGET,
+        modelCalls: liveSmokeInteger(c.env.DISTILLED_LIVE_MODEL_CALL_LIMIT, 5),
+        inputTokens: liveSmokeInteger(c.env.DISTILLED_LIVE_INPUT_TOKEN_LIMIT, 12_000),
+        outputTokens: liveSmokeInteger(c.env.DISTILLED_LIVE_OUTPUT_TOKEN_LIMIT, 2_000),
+        modelCostUsd: liveSmokeNumber(c.env.DISTILLED_LIVE_MODEL_COST_LIMIT_USD, 0.25),
+        browserActions: liveSmokeInteger(c.env.DISTILLED_LIVE_BROWSER_ACTION_LIMIT, 15),
+        navigations: liveSmokeInteger(c.env.DISTILLED_LIVE_NAVIGATION_LIMIT, 4),
+        wallClockMs: liveSmokeInteger(c.env.DISTILLED_LIVE_WALL_CLOCK_LIMIT_MS, 60_000)
+      },
+      priorFailures: webOperatorRouteEvidence(now),
+      enabled: c.env.DISTILLED_WEB_OPERATOR_ENABLED === "true"
+    }, now);
+    return c.json(await liveSmokeReport(c.env.DB, outcome, {
+      browserBackend: c.env.DISTILLED_BROWSER_BACKEND,
+      llmMode: c.env.DISTILLED_LLM_MODE,
+      gateway: c.env.DISTILLED_LLM_API_GATEWAY,
+      requestedModel: model,
+      requestedProvider: provider,
+      startedAt: now.toISOString()
+    }));
   });
 
   app.get("/api/auth/session", async (c) => {
@@ -964,6 +1059,199 @@ async function retryProcessingJobs(
 
 function repoForContext(c: Context<{ Bindings: Env; Variables: Variables }>): Repository {
   return c.get("repo") ?? new D1Repository(c.env.DB);
+}
+
+function isRuntimeAuthorized(c: Context<{ Bindings: Env; Variables: Variables }>): boolean {
+  const token = c.env.WEB_OPERATOR_RUNTIME_TOKEN?.trim();
+  return Boolean(token) && c.req.header("authorization") === `Bearer ${token}`;
+}
+
+function requiredLiveSmokeEnv(env: Env, key: keyof Env): string {
+  const value = env[key];
+  if (typeof value !== "string" || value.trim().length === 0) throw new Error(`${String(key)} is required for live public acquisition smoke`);
+  return value.trim();
+}
+
+function liveSmokeModelCapability(model: string, provider: string, env: Env): ModelCapability {
+  return {
+    modelRef: model,
+    provider,
+    toolCalling: true,
+    vision: true,
+    structuredOutput: true,
+    reasoningClass: "fast",
+    enabled: true,
+    inputCostPerMillion: liveSmokeNumber(env.DISTILLED_LIVE_OPENROUTER_INPUT_COST_PER_MILLION, 0),
+    outputCostPerMillion: liveSmokeNumber(env.DISTILLED_LIVE_OPENROUTER_OUTPUT_COST_PER_MILLION, 0),
+    deployment: "api",
+    externallyHosted: true,
+    privacyEligibility: ["public"],
+    retentionClass: "zero_data_retention"
+  };
+}
+
+function liveSmokeModelRouting(model: string): ModelRoutingConfig {
+  return {
+    mode: "api",
+    apiGateway: "openrouter",
+    selfHostedGateway: "openai_compatible",
+    roles: {
+      NAVIGATION_FAST: { primary: { deployment: "api", model }, fallbacks: [] },
+      VISION_FAST: { primary: { deployment: "api", model }, fallbacks: [] }
+    }
+  };
+}
+
+function unavailableDeterministicAcquisition(method: DeterministicAcquisitionPort["method"]): DeterministicAcquisitionPort {
+  return {
+    method,
+    async acquire() {
+      return {
+        state: "failed",
+        failureClass: "source_unavailable",
+        transient: false,
+        details: { reason: "live smoke does not provide teammate-owned deterministic acquisition adapter" }
+      };
+    }
+  };
+}
+
+function webOperatorRouteEvidence(now: Date): AcquisitionFailure[] {
+  return [
+    {
+      method: "deterministic_browser_workflow",
+      failureClass: "structural_site_change",
+      occurredAt: new Date(now.getTime() - 2_000).toISOString()
+    },
+    {
+      method: "deterministic_browser_workflow",
+      failureClass: "extraction_mismatch",
+      occurredAt: new Date(now.getTime() - 1_000).toISOString()
+    }
+  ];
+}
+
+function liveSmokeInteger(value: string | undefined, fallback: number): number {
+  if (!value?.trim()) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`invalid live smoke integer limit: ${value}`);
+  return parsed;
+}
+
+function liveSmokeNumber(value: string | undefined, fallback: number): number {
+  if (!value?.trim()) return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`invalid live smoke numeric limit: ${value}`);
+  return parsed;
+}
+
+async function liveSmokeReport(
+  db: D1Database,
+  outcome: ClosedLoopAcquisitionOutcome,
+  configuration: {
+    browserBackend: string;
+    llmMode: string;
+    gateway: string;
+    requestedModel: string;
+    requestedProvider: string;
+    startedAt: string;
+  }
+) {
+  const run = "run" in outcome ? outcome.run : undefined;
+  const acquiredContent = "acquiredContent" in outcome ? outcome.acquiredContent : undefined;
+  const workflow = "workflow" in outcome ? outcome.workflow : undefined;
+  const runId = run?.runId;
+  const modelAttempts = runId ? await modelAttemptSummary(db, runId) : [];
+  const observationSummary = runId ? await observationProvenanceSummary(db, runId) : { count: 0, latestObservationId: undefined };
+  const toolCount = runId ? await countRows(db, "SELECT COUNT(*) AS count FROM agent_tool_calls WHERE run_id=?", runId) : 0;
+  const completion = runId ? await latestCompletionOutcome(db, runId) : undefined;
+  return {
+    status: outcome.state,
+    configuration: {
+      actualBrowserBackend: configuration.browserBackend,
+      actualLlmMode: configuration.llmMode,
+      gateway: configuration.gateway,
+      requestedModel: configuration.requestedModel,
+      requestedProvider: configuration.requestedProvider
+    },
+    run: run ? { runId: run.runId, state: run.state, generation: run.generation } : undefined,
+    workflow: workflow ? { id: workflow.id, state: workflow.state, version: workflow.version } : undefined,
+    acquiredContent: acquiredContent ? {
+      acceptanceId: acquiredContent.acceptanceId,
+      canonicalUrl: acquiredContent.canonicalUrl,
+      finalUrl: acquiredContent.finalUrl,
+      contentHash: acquiredContent.contentHash,
+      titleLength: acquiredContent.title.length,
+      bodyLength: acquiredContent.body.length,
+      observationId: acquiredContent.observationId
+    } : undefined,
+    completionVerifier: completion,
+    provenance: observationSummary,
+    metrics: {
+      modelCalls: outcome.modelCalls,
+      physicalModelAttempts: modelAttempts.length,
+      inputTokens: modelAttempts.reduce((sum, attempt) => sum + attempt.inputTokens, 0),
+      outputTokens: modelAttempts.reduce((sum, attempt) => sum + attempt.outputTokens, 0),
+      costUsd: modelAttempts.reduce((sum, attempt) => sum + attempt.costUsd, 0),
+      browserActions: toolCount,
+      startedAt: configuration.startedAt,
+      completedAt: new Date().toISOString()
+    },
+    modelAttempts
+  };
+}
+
+async function modelAttemptSummary(db: D1Database, runId: string) {
+  const result = await db.prepare(`SELECT a.requested_provider,a.actual_provider,a.requested_model,a.actual_model,
+      a.requested_gateway,a.actual_gateway,a.requested_deployment,a.actual_deployment,a.state,
+      a.input_tokens,a.output_tokens,a.cost_usd,a.latency_ms
+    FROM agent_model_call_attempts a JOIN agent_model_calls c ON c.id=a.model_call_id
+    WHERE c.run_id=? ORDER BY c.created_at ASC,a.attempt ASC`).bind(runId).all<Record<string, unknown>>();
+  return result.results.map((row) => ({
+    requestedProvider: String(row.requested_provider),
+    actualProvider: row.actual_provider ? String(row.actual_provider) : undefined,
+    requestedModel: String(row.requested_model),
+    actualModel: row.actual_model ? String(row.actual_model) : undefined,
+    requestedGateway: String(row.requested_gateway),
+    actualGateway: row.actual_gateway ? String(row.actual_gateway) : undefined,
+    requestedDeployment: String(row.requested_deployment),
+    actualDeployment: row.actual_deployment ? String(row.actual_deployment) : undefined,
+    state: String(row.state),
+    inputTokens: Number(row.input_tokens),
+    outputTokens: Number(row.output_tokens),
+    costUsd: Number(row.cost_usd),
+    latencyMs: Number(row.latency_ms)
+  }));
+}
+
+async function observationProvenanceSummary(db: D1Database, runId: string) {
+  const row = await db.prepare(`SELECT COUNT(*) AS count,
+      MAX(json_extract(envelope_json,'$.id')) AS latest_observation_id,
+      MAX(json_extract(envelope_json,'$.raw.hash')) AS latest_raw_hash,
+      MAX(json_extract(envelope_json,'$.presented.hash')) AS latest_presented_hash
+    FROM agent_observations WHERE run_id=?`).bind(runId).first<Record<string, unknown>>();
+  return {
+    count: Number(row?.count ?? 0),
+    latestObservationId: row?.latest_observation_id ? String(row.latest_observation_id) : undefined,
+    latestRawHashPresent: Boolean(row?.latest_raw_hash),
+    latestPresentedHashPresent: Boolean(row?.latest_presented_hash)
+  };
+}
+
+async function latestCompletionOutcome(db: D1Database, runId: string) {
+  const row = await db.prepare(`SELECT acceptance_json FROM agent_completion_acceptances
+    WHERE run_id=? ORDER BY decided_at DESC LIMIT 1`).bind(runId).first<Record<string, unknown>>();
+  if (!row?.acceptance_json) return undefined;
+  const parsed = JSON.parse(String(row.acceptance_json)) as { outcome?: unknown; deficits?: unknown };
+  return {
+    outcome: typeof parsed.outcome === "string" ? parsed.outcome : undefined,
+    deficits: Array.isArray(parsed.deficits) ? parsed.deficits : []
+  };
+}
+
+async function countRows(db: D1Database, query: string, value: string): Promise<number> {
+  const row = await db.prepare(query).bind(value).first<Record<string, unknown>>();
+  return Number(row?.count ?? 0);
 }
 
 function publicAccount(account: AccountRecord) {

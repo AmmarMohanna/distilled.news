@@ -1,7 +1,14 @@
-import { createWebOperatorRuntimeHandler, type CloudflareBrowserBinding, type CloudflareBrowserLauncher } from "@distilled/agent-runtime";
+import {
+  createClosedLoopWebOperatorLifecycle,
+  createWebOperatorRuntimeHandler,
+  type CloudflareBrowserBinding,
+  type CloudflareBrowserLauncher,
+  type DeterministicAcquisitionPort
+} from "@distilled/agent-runtime";
 import { D1AgentRuntimeStore } from "./agent-runtime-store";
 import { R2AgentArtifactStore } from "./agent-artifact-store";
 import type { Env } from "./types";
+import { D1WorkflowRepository } from "./web-operator-workflow-store";
 
 interface BrowserWorkerBinding {
   fetch: typeof fetch;
@@ -17,6 +24,28 @@ export function createWorkerWebOperatorRuntimeHandler(env: Env) {
     runtimeToken,
     cloudflareBrowser: workerCloudflareBrowser(env),
     workerIdFactory: () => "worker-web-operator-runtime"
+  });
+}
+
+export function createWorkerClosedLoopWebOperatorLifecycle(
+  env: Env,
+  options: {
+    deterministicAcquisition?: Partial<Record<DeterministicAcquisitionPort["method"], DeterministicAcquisitionPort>>;
+  } = {}
+) {
+  const store = new D1AgentRuntimeStore(env.DB);
+  const workflowStore = new D1WorkflowRepository(env.DB);
+  return createClosedLoopWebOperatorLifecycle({
+    store,
+    artifacts: new R2AgentArtifactStore(env.RAW_ARCHIVE),
+    environment: env as unknown as Record<string, string | undefined>,
+    cloudflareBrowser: workerCloudflareBrowser(env),
+    workflowStore,
+    acquisitionFailures: workflowStore,
+    deterministicAcquisition: options.deterministicAcquisition,
+    softwareVersion: "distilled-worker@0.1.0",
+    toolSchemaVersion: "web-operator-tools@1",
+    workerIdFactory: () => "worker-closed-loop-web-operator"
   });
 }
 

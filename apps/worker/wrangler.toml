@@ -16,10 +16,10 @@ run_worker_first = true
 [vars]
 PUBLIC_API_BASE_URL = "https://distilled.news"
 PUBLIC_WEB_BASE_URL = "https://distilled.news"
-CLOUDFLARE_ACCOUNT_ID = "9cd5e9612de11953c367cbdec84ed662"
+CLOUDFLARE_ACCOUNT_ID = "37a6bb83b085bd6739426e7c2d4aeda8"
 CLOUDFLARE_AI_GATEWAY_ID = "default"
 OPENAI_MODEL = "gpt-4.1-mini"
-DISTILLED_WEB_OPERATOR_ENABLED = "false"
+DISTILLED_WEB_OPERATOR_ENABLED = "true"
 DISTILLED_BROWSER_BACKEND = "cloudflare"
 DISTILLED_LLM_MODE = "api"
 DISTILLED_LLM_API_GATEWAY = "openrouter"
@@ -32,7 +32,7 @@ APIFY_LINKEDIN_PROFILE_ACTOR_ID = "harvestapi/linkedin-profile-posts"
 [[d1_databases]]
 binding = "DB"
 database_name = "lownoise"
-database_id = "777782fe-6c8f-45c1-826d-365c40bc1210"
+database_id = "07b3581a-6eec-4eec-907b-b0c44e4408ad"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
@@ -72,19 +72,3 @@ head_sampling_rate = 1
 
 [triggers]
 crons = ["* * * * *"]
-
-[[routes]]
-pattern = "distilled.news"
-custom_domain = true
-
-[[routes]]
-pattern = "www.distilled.news"
-custom_domain = true
-
-[[routes]]
-pattern = "lownoise.news"
-custom_domain = true
-
-[[routes]]
-pattern = "www.lownoise.news"
-custom_domain = true

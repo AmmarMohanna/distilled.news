@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type CDPSession, type Page } from "@playwright/test";
+import type { Browser, BrowserContext, CDPSession, Page } from "@playwright/test";
 import { isIP } from "node:net";
 import { lookup } from "node:dns/promises";
 import type { ChallengeState, InteractionCapability, SemanticControl } from "./contracts";
@@ -273,7 +273,7 @@ export class PlaywrightBrowserAdapter
     ] };
     const browser = this.options.launchBrowser
       ? await this.options.launchBrowser()
-      : await chromium.launch(launchOptions);
+      : await launchLocalChromium(launchOptions);
     const context = await browser.newContext({
       viewport: { width: 960, height: 720 },
       deviceScaleFactor: 1,
@@ -798,6 +798,15 @@ function parseBrowserBackend(value: string): BrowserBackendName {
   const normalized = value.trim().toLowerCase();
   if (normalized === "local" || normalized === "cloudflare") return normalized;
   throw new Error("DISTILLED_BROWSER_BACKEND must be local or cloudflare");
+}
+
+async function launchLocalChromium(options: {
+  headless: boolean;
+  args: string[];
+}): Promise<Browser> {
+  const packageName = "@playwright/test";
+  const { chromium } = await import(packageName);
+  return await chromium.launch(options);
 }
 
 class CdpBrowserObservationProvider implements BrowserObservationProvider {
