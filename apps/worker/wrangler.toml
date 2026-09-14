@@ -4,11 +4,7 @@ compatibility_date = "2026-06-16"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
-<<<<<<< Updated upstream
 # Keep local requests off production-host canonical redirects.
-=======
-# Keep local requests from inheriting the production route's HTTPS redirect.
->>>>>>> Stashed changes
 [dev]
 host = "localhost"
 local_protocol = "http"
