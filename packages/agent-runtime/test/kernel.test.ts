@@ -9,6 +9,7 @@ import {
   MemoryRuntimeStore,
   DeploymentModelGateway,
   OpenAICompatibleGateway,
+  OpenRouterGateway,
   buildOpenRouterRequest,
   makeId,
   ModelRouter,
@@ -363,6 +364,29 @@ describe("observations and completion", () => {
       contextManifestHash:"hash",allowExactReuse:false,maxOutputTokens:500})).rejects.toMatchObject({
         name:"ModelGatewayError",observedIdentity:{model:"provider/unapproved",provider:"provider",gateway:"openai_compatible",deployment:"api"}
       } satisfies Partial<ModelGatewayError>);
+  });
+
+  it("accepts an OpenRouter provider display identity only for the pinned provider tag",async()=>{
+    const responseFor=(provider:string)=>async()=>new Response(JSON.stringify({
+      id:"provider-identity",model:"anthropic/claude-sonnet-4.6",provider,
+      choices:[{message:{content:JSON.stringify({version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]})}}],
+      usage:{prompt_tokens:1,completion_tokens:1,cost:0}
+    }),{status:200,headers:{"content-type":"application/json"}});
+    const capability:ModelCapability={...capabilities[0],modelRef:"anthropic/claude-sonnet-4.6",provider:"amazon-bedrock/global"};
+    const route={
+      role:"NAVIGATION_FAST" as const,routingReason:"test",requiredCapabilities:["toolCalling"],configuredChain:[capability.modelRef],
+      configuredTargets:[{deployment:"api" as const,model:capability.modelRef}],deployment:"api" as const,gateway:"openrouter",
+      selectedModel:capability.modelRef,selectedProvider:capability.provider,selectedCapability:capability,appliedPolicyConstraints:[]
+    };
+    const request={callId:"call",role:"NAVIGATION_FAST" as const,route,
+      stable:{version:"v1",system:"stable",toolSchemaVersion:"v1"},
+      dynamic:{runId:"run",objective:"objective",pageState:pageState("https://fixture.test","r1"),observationIds:[],completionDeficits:[]},
+      contextManifestHash:"hash",allowExactReuse:false,maxOutputTokens:500};
+
+    await expect(new OpenRouterGateway({apiKey:"test",fetcher:responseFor("Amazon Bedrock")}).complete(request))
+      .resolves.toMatchObject({provider:"Amazon Bedrock"});
+    await expect(new OpenRouterGateway({apiKey:"test",fetcher:responseFor("Google")}).complete(request))
+      .rejects.toMatchObject({name:"ModelGatewayError",observedIdentity:{provider:"Google"}} satisfies Partial<ModelGatewayError>);
   });
 
   it("invokes the platform fetch port with the global receiver",async()=>{

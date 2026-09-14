@@ -534,7 +534,17 @@ export class OpenRouterGateway extends OpenAICompatibleGateway {
 
   protected override translate(request:ModelRequest) { return buildOpenRouterRequest(request); }
   protected override validateResult(request:ModelRequest,result:ModelGatewayResult) {
-    super.validateResult(request,result);
+    const expectedProviderTag=request.route.selectedProvider.toLowerCase();
+    const expectedProviderSlug=expectedProviderTag.split("/",1)[0];
+    const actualProviderSlug=result.provider.trim().toLowerCase().replace(/\s+/g,"-");
+    if (result.model.toLowerCase()!==request.route.selectedModel.toLowerCase() ||
+        (result.provider.toLowerCase()!==expectedProviderTag && actualProviderSlug!==expectedProviderSlug)) {
+      throw new ModelGatewayError(
+        `${this.id} returned an unexpected model/provider identity: ${result.model} via ${result.provider}`,
+        result.usage,
+        {model:result.model,provider:result.provider,gateway:result.gateway,deployment:result.deployment}
+      );
+    }
   }
 }
 
