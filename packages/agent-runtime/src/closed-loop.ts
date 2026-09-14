@@ -120,6 +120,7 @@ export class ClosedLoopWebOperatorLifecycle {
     acquisitionFailures?: AcquisitionFailureRepository;
     minimumStructuralEvidence?: number;
     workerIdFactory?: () => string;
+    leaseTtlMs?: number;
   }) {}
 
   async acquire(request: ClosedLoopAcquisitionRequest, now = new Date()): Promise<ClosedLoopAcquisitionOutcome> {
@@ -306,7 +307,8 @@ export class ClosedLoopWebOperatorLifecycle {
       structured: this.options.structured,
       visual: this.options.visual,
       modelGateway: this.options.modelGateway,
-      strategy
+      strategy,
+      leaseTtlMs:this.options.leaseTtlMs
     });
     const process = await coordinator.process(admitted.run.runId, this.workerId(purpose));
     if ((process.status !== "completed" && process.status !== "already_completed") || process.acquiredContent.length === 0) {

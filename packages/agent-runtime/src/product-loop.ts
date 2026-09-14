@@ -83,7 +83,8 @@ export function createClosedLoopWebOperatorLifecycle(input: ClosedLoopWebOperato
     toolSchemaVersion: input.toolSchemaVersion,
     deterministicAcquisition: input.deterministicAcquisition,
     minimumStructuralEvidence: input.minimumStructuralEvidence,
-    workerIdFactory: input.workerIdFactory
+    workerIdFactory: input.workerIdFactory,
+    leaseTtlMs:input.leaseTtlMs
   });
 }
 

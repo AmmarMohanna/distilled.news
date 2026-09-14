@@ -14,6 +14,8 @@ interface BrowserWorkerBinding {
   fetch: typeof fetch;
 }
 
+const WORKER_AGENT_LEASE_TTL_MS=30_000;
+
 export function createWorkerWebOperatorRuntimeHandler(env: Env) {
   const runtimeToken = env.WEB_OPERATOR_RUNTIME_TOKEN?.trim();
   if (!runtimeToken) throw new Error("WEB_OPERATOR_RUNTIME_TOKEN is required for Web Operator runtime processing");
@@ -23,6 +25,7 @@ export function createWorkerWebOperatorRuntimeHandler(env: Env) {
     environment: env as unknown as Record<string, string | undefined>,
     runtimeToken,
     cloudflareBrowser: workerCloudflareBrowser(env),
+    leaseTtlMs:WORKER_AGENT_LEASE_TTL_MS,
     workerIdFactory: () => "worker-web-operator-runtime"
   });
 }
@@ -45,6 +48,7 @@ export function createWorkerClosedLoopWebOperatorLifecycle(
     deterministicAcquisition: options.deterministicAcquisition,
     softwareVersion: "distilled-worker@0.1.0",
     toolSchemaVersion: "web-operator-tools@1",
+    leaseTtlMs:WORKER_AGENT_LEASE_TTL_MS,
     workerIdFactory: () => "worker-closed-loop-web-operator"
   });
 }
