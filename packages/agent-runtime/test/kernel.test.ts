@@ -16,6 +16,7 @@ import {
   ModelGatewayError,
   PolicyEngine,
   StaleGenerationError,
+  TOOL_NAMES,
   WebOperatorAcquisitionStrategy,
   boundedActionPlanSchema,
   createModelGatewayFromEnv,
@@ -343,7 +344,12 @@ describe("observations and completion", () => {
     expect(body.max_tokens).toBe(500);
     expect(body.provider).toEqual({only:["provider"],allow_fallbacks:false,require_parameters:true,data_collection:"deny",zdr:true});
     expect(body.response_format.json_schema.schema.properties.actions.maxItems).toBe(5);
-    expect(body.response_format.json_schema.schema.properties.actions.items.properties.expected.properties.pageRevision.const).toBe("r1");
+    const action=body.response_format.json_schema.schema.properties.actions.items;
+    expect(action.properties.tool.enum).toEqual([...TOOL_NAMES]);
+    expect(action.properties.arguments.properties.url.type).toBe("string");
+    expect(action.properties.arguments.properties.citedObservationIds.items.type).toBe("string");
+    expect(action.properties.arguments.additionalProperties).toBe(false);
+    expect(action.properties.expected.properties.pageRevision.const).toBe("r1");
     expect(String(new Headers(request.headers).get("authorization"))).not.toContain("real-key");
   });
 

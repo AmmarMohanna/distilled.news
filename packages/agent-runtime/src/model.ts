@@ -385,34 +385,57 @@ export function buildOpenAICompatibleRequest(request: ModelRequest): RequestInit
                 type: "array",
                 minItems: 1,
                 maxItems: 5,
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: ["tool", "arguments"],
-                  properties: {
-                    tool: { type: "string", enum: [...TOOL_NAMES] },
-                    arguments: { type: "object" },
-                    expected: {
-                      type: "object",
-                      description: "Optional deterministic guards. pageRevision is a pre-action stale-plan guard; URL and challenge fields are postconditions.",
-                      additionalProperties: false,
-                      properties: {
-                        pageRevision: {
-                          const: currentPageRevision,
-                          description: "If present, it must be the exact current PageState.pageRevision. Never predict a future revision."
-                        },
-                        urlIncludes: { type: "string" },
-                        challengeState: { type: "string" }
-                      }
-                    }
-                  }
-                }
+                items: actionResponseSchema(currentPageRevision)
               }
             }
           }
         }
       }
     })
+  };
+}
+
+function actionResponseSchema(currentPageRevision:string) {
+  const stringProperty={type:"string",minLength:1};
+  const expected={
+    type:"object",
+    description:"Optional deterministic guards. pageRevision is a pre-action stale-plan guard; URL and challenge fields are postconditions.",
+    additionalProperties:false,
+    properties:{
+      pageRevision:{
+        const:currentPageRevision,
+        description:"If present, it must be the exact current PageState.pageRevision. Never predict a future revision."
+      },
+      urlIncludes:{type:"string"},
+      challengeState:{type:"string"}
+    }
+  };
+  return {
+    type:"object",
+    additionalProperties:false,
+    required:["tool","arguments"],
+    properties:{
+      tool:{type:"string",enum:[...TOOL_NAMES]},
+      arguments:{
+        type:"object",
+        description:"Use exactly the fields required by the selected tool: navigate {url}; follow_link {handle,observationRevision,capability}; scroll {deltaY}; move_pointer/click {x,y,screenshotObservationId,screenshotHash}; propose_completion {citedObservationIds}; fixture.publish {articleId}; all inspection, extraction, query, and screenshot tools {}.",
+        additionalProperties:false,
+        properties:{
+          url:stringProperty,
+          handle:stringProperty,
+          observationRevision:stringProperty,
+          capability:stringProperty,
+          deltaY:{type:"integer",minimum:-2000,maximum:2000},
+          x:{type:"number",minimum:0},
+          y:{type:"number",minimum:0},
+          screenshotObservationId:stringProperty,
+          screenshotHash:stringProperty,
+          citedObservationIds:{type:"array",items:{type:"string"},maxItems:20},
+          articleId:stringProperty
+        }
+      },
+      expected
+    }
   };
 }
 
