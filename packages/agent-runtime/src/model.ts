@@ -349,6 +349,7 @@ export interface ModelGatewayEnvironment extends ModelRoutingEnvironment {
 }
 
 export function buildOpenAICompatibleRequest(request: ModelRequest): RequestInit & { body: string } {
+  const currentPageRevision = request.dynamic.pageState.pageRevision;
   const dynamicContent = request.visualInputs?.length
     ? [
         { type: "text", text: JSON.stringify(request.dynamic) },
@@ -393,9 +394,13 @@ export function buildOpenAICompatibleRequest(request: ModelRequest): RequestInit
                     arguments: { type: "object" },
                     expected: {
                       type: "object",
+                      description: "Optional deterministic guards. pageRevision is a pre-action stale-plan guard; URL and challenge fields are postconditions.",
                       additionalProperties: false,
                       properties: {
-                        pageRevision: { type: "string" },
+                        pageRevision: {
+                          const: currentPageRevision,
+                          description: "If present, it must be the exact current PageState.pageRevision. Never predict a future revision."
+                        },
                         urlIncludes: { type: "string" },
                         challengeState: { type: "string" }
                       }
@@ -460,7 +465,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
     if (request.signal?.aborted) abort();
     const gatewayIdentity={gateway:this.id,deployment:request.route.deployment};
     let response:Response;
-    try { response = await this.fetcher(this.endpoint, { ...translated, headers,signal:controller.signal }); }
+    try { response = await this.fetcher.call(globalThis, this.endpoint, { ...translated, headers,signal:controller.signal }); }
     catch (error) {
       throw new ModelGatewayError(`${this.id} transport failed: ${error instanceof Error?error.message:String(error)}`,undefined,gatewayIdentity);
     }

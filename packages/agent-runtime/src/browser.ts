@@ -76,7 +76,14 @@ export interface BrowserBackendEnvironment {
 
 export interface CloudflareBrowserBinding {}
 
-export type CloudflareBrowserLauncher = (binding: CloudflareBrowserBinding) => Promise<Browser>;
+export interface CloudflareBrowserLaunchPolicy {
+  allowedDomains: string[];
+}
+
+export type CloudflareBrowserLauncher = (
+  binding: CloudflareBrowserBinding,
+  policy: CloudflareBrowserLaunchPolicy
+) => Promise<Browser>;
 
 export interface BrowserBackendSelection {
   backend: BrowserBackendName;
@@ -220,7 +227,10 @@ export class PlaywrightBrowserAdapter
   private readonly sessions = new Map<string, LiveSession>();
   private readonly observationProvider: BrowserObservationProvider = new CdpBrowserObservationProvider();
 
-  constructor(private readonly options: { testOnlyPrivateNetwork?: true; launchBrowser?: () => Promise<Browser> } = {}) {
+  constructor(private readonly options: {
+    testOnlyPrivateNetwork?: true;
+    launchBrowser?: (options: { headless: boolean; args: string[]; allowedDomains: string[] }) => Promise<Browser>;
+  } = {}) {
     if (options.testOnlyPrivateNetwork && (typeof process === "undefined" || process.env.NODE_ENV !== "test")) {
       throw new Error("private-network browser access is test-only");
     }
@@ -270,9 +280,9 @@ export class PlaywrightBrowserAdapter
       "--disable-webrtc",
       "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
       ...(resolverRules.length ? [`--host-resolver-rules=${resolverRules.join(",")}`] : [])
-    ] };
+    ], allowedDomains:[...new Set([...normalizedOrigins].map((origin)=>new URL(origin).hostname))] };
     const browser = this.options.launchBrowser
-      ? await this.options.launchBrowser()
+      ? await this.options.launchBrowser(launchOptions)
       : await launchLocalChromium(launchOptions);
     const context = await browser.newContext({
       viewport: { width: 960, height: 720 },
@@ -664,12 +674,8 @@ export class PlaywrightBrowserAdapter
     if (url.protocol!=="http:" && url.protocol!=="https:") throw new BrowserPreDispatchError(`scheme denied: ${url.protocol}`);
     if (!live.allowedOrigins.has(url.origin)) throw new BrowserPreDispatchError(`origin denied: ${url.origin}`);
     if (this.options.testOnlyPrivateNetwork) return;
-    const addresses = await resolveAddresses(url.hostname);
-    if (addresses.length===0 || addresses.some(isPrivateAddress)) throw new BrowserPreDispatchError(`private or unresolved address denied: ${url.hostname}`);
-    const resolved=addresses.sort().join(",");
     const pinned=live.pinnedAddresses.get(url.hostname);
-    if (pinned && pinned!==resolved) throw new BrowserPreDispatchError(`DNS rebinding denied: ${url.hostname}`);
-    live.pinnedAddresses.set(url.hostname,resolved);
+    if (!pinned) throw new BrowserPreDispatchError(`hostname was not pinned at allocation: ${url.hostname}`);
   }
 
   private assertGroundedDestination(live:LiveSession,value:string) {
@@ -775,7 +781,7 @@ export class LocalPlaywrightBrowserExecutor extends PlaywrightBrowserAdapter {
 
 export class CloudflareBrowserExecutor extends PlaywrightBrowserAdapter {
   constructor(input: { binding: CloudflareBrowserBinding; launch: CloudflareBrowserLauncher }) {
-    super({ launchBrowser: () => input.launch(input.binding) });
+    super({ launchBrowser: (options) => input.launch(input.binding,{allowedDomains:options.allowedDomains}) });
   }
 }
 

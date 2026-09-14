@@ -64,7 +64,9 @@ export function workerCloudflareBrowser(
   };
 }
 
-const cloudflarePlaywrightLaunch: CloudflareBrowserLauncher = async (binding) => {
+const cloudflarePlaywrightLaunch: CloudflareBrowserLauncher = async (binding, policy) => {
   const { launch } = await import("@cloudflare/playwright");
-  return await launch(binding as BrowserWorkerBinding) as unknown as Awaited<ReturnType<CloudflareBrowserLauncher>>;
+  return await launch(binding as BrowserWorkerBinding,{
+    guardrails:{allowedDomains:policy.allowedDomains}
+  }) as unknown as Awaited<ReturnType<CloudflareBrowserLauncher>>;
 };

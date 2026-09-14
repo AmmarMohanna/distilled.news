@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createWorkerWebOperatorRuntimeHandler, workerCloudflareBrowser } from "./web-operator-runtime";
 import type { Env } from "./types";
 
@@ -21,6 +21,24 @@ describe("Worker Web Operator runtime composition", () => {
     });
     expect(cloudflare?.binding).toBe(binding);
     expect(cloudflare?.launch).toBeInstanceOf(Function);
+  });
+
+  it("latches admitted domains into Browser Run session guardrails", async () => {
+    const launch=vi.fn(async()=>({}));
+    vi.doMock("@cloudflare/playwright",()=>({launch}));
+    try {
+      const binding={fetch:async()=>new Response(null,{status:204})};
+      const cloudflare=workerCloudflareBrowser({
+        DISTILLED_BROWSER_BACKEND:"cloudflare",
+        BROWSER:binding as unknown as Env["BROWSER"]
+      });
+      await cloudflare!.launch(cloudflare!.binding,{allowedDomains:["publisher.example"]});
+      expect(launch).toHaveBeenCalledWith(binding,{
+        guardrails:{allowedDomains:["publisher.example"]}
+      });
+    } finally {
+      vi.doUnmock("@cloudflare/playwright");
+    }
   });
 
   it("fails explicitly instead of falling back to local when Cloudflare is selected without a binding", () => {

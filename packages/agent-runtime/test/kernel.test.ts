@@ -342,6 +342,7 @@ describe("observations and completion", () => {
     expect(body.max_tokens).toBe(500);
     expect(body.provider).toEqual({only:["provider"],allow_fallbacks:false,require_parameters:true,data_collection:"deny",zdr:true});
     expect(body.response_format.json_schema.schema.properties.actions.maxItems).toBe(5);
+    expect(body.response_format.json_schema.schema.properties.actions.items.properties.expected.properties.pageRevision.const).toBe("r1");
     expect(String(new Headers(request.headers).get("authorization"))).not.toContain("real-key");
   });
 
@@ -362,6 +363,34 @@ describe("observations and completion", () => {
       contextManifestHash:"hash",allowExactReuse:false,maxOutputTokens:500})).rejects.toMatchObject({
         name:"ModelGatewayError",observedIdentity:{model:"provider/unapproved",provider:"provider",gateway:"openai_compatible",deployment:"api"}
       } satisfies Partial<ModelGatewayError>);
+  });
+
+  it("invokes the platform fetch port with the global receiver",async()=>{
+    const originalFetch=globalThis.fetch;
+    let receiver:unknown;
+    globalThis.fetch=async function(this:unknown) {
+      receiver=this;
+      return new Response(JSON.stringify({
+        id:"receiver",model:"provider/text",provider:"provider",
+        choices:[{message:{content:JSON.stringify({version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]})}}],
+        usage:{prompt_tokens:1,completion_tokens:1,cost:0}
+      }),{status:200,headers:{"content-type":"application/json"}});
+    } as typeof fetch;
+    try {
+      const gateway=new OpenAICompatibleGateway({baseUrl:"https://gateway.invalid/v1",provider:"provider"});
+      const route={
+        role:"NAVIGATION_FAST" as const,routingReason:"test",requiredCapabilities:["toolCalling"],configuredChain:["provider/text"],
+        configuredTargets:[{deployment:"api" as const,model:"provider/text"}],deployment:"api" as const,gateway:"openrouter",
+        selectedModel:"provider/text",selectedProvider:"provider",selectedCapability:capabilities[0],appliedPolicyConstraints:[]
+      };
+      await gateway.complete({callId:"call",role:"NAVIGATION_FAST",route,
+        stable:{version:"v1",system:"stable",toolSchemaVersion:"v1"},
+        dynamic:{runId:"run",objective:"objective",pageState:pageState("https://fixture.test","r1"),observationIds:[],completionDeficits:[]},
+        contextManifestHash:"hash",allowExactReuse:false,maxOutputTokens:500});
+      expect(receiver).toBe(globalThis);
+    } finally {
+      globalThis.fetch=originalFetch;
+    }
   });
 
   it("projects compact state and a material delta", () => {
