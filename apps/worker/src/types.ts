@@ -59,7 +59,7 @@ export interface Env extends Cloudflare.Env {
   BROWSER: Cloudflare.Env["BROWSER"];
   PROCESSING_QUEUE: Queue<DistilledQueueMessage>;
   WEB_OPERATOR_QUEUE: Queue<WebOperatorRunMessage>;
-  WEB_OPERATOR_RUNTIME_URL?: string;
+  WEB_OPERATOR_RUNTIME_URL: string;
   WEB_OPERATOR_RUNTIME_TOKEN?: string;
   ADMIN_SESSION_SECRET?: string;
   ADMIN_SETUP_TOKEN?: string;
