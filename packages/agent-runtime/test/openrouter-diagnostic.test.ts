@@ -69,6 +69,20 @@ describe("bounded OpenRouter diagnostic",()=>{
     expect(report.stages.map((stage)=>stage.stage)).toEqual(["C","D","E","F"]);
     expect(calls).toBe(4);
   });
+
+  it("rejects a truncated or malformed trivial tool call",async()=>{
+    let calls=0;
+    const gateway=new OpenRouterGateway({apiKey:"secret",fetcher:async()=>{
+      calls+=1;
+      return Response.json({id:"response",model:"anthropic/claude-sonnet-4.6",provider:"Amazon Bedrock",
+        choices:[{finish_reason:"length",message:{content:null,tool_calls:[{id:"tool-1",type:"function",
+          function:{name:"report_ok",arguments:'{"ok":'}}]}}]});
+    }});
+    const report=await runOpenRouterDiagnostic({gateway,productionRequest:request(),timeoutMs:5_000,startAt:"D"});
+    expect(calls).toBe(1);
+    expect(report).toMatchObject({startedAt:"D",stoppedAt:"D",stages:[{stage:"D",state:"failed",
+      failureClass:"diagnostic_validation_failure"}]});
+  });
 });
 
 function request():ModelRequest {

@@ -131,7 +131,13 @@ async function requestManifest(serialized:string):Promise<OpenRouterDiagnosticSt
 function validateStageResponse(stage:OpenRouterDiagnosticStage,response:unknown) {
   const message=responseMessage(response);
   if (stage==="D") {
-    if (!Array.isArray(message.tool_calls)||message.tool_calls.length===0) throw new Error("diagnostic tool response is missing tool_calls");
+    const toolCall=Array.isArray(message.tool_calls)&&isRecord(message.tool_calls[0])?message.tool_calls[0]:undefined;
+    const functionCall=toolCall&&isRecord(toolCall.function)?toolCall.function:undefined;
+    if (functionCall?.name!=="report_ok"||typeof functionCall.arguments!=="string") {
+      throw new Error("diagnostic tool response is missing the required report_ok call");
+    }
+    const argumentsValue=JSON.parse(functionCall.arguments) as {ok?:unknown};
+    if (argumentsValue.ok!==true) throw new Error("diagnostic report_ok call did not return ok=true");
     return;
   }
   if (typeof message.content!=="string"||!message.content.trim()) throw new Error("diagnostic response is missing content");
