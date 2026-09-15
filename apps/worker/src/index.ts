@@ -5,11 +5,12 @@ import { processQueueMessage } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
-import type { DistilledQueueMessage, Env, ProcessingJobMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
+import type { DistilledQueueMessage, Env, OpenRouterModelDiagnosticMessage, ProcessingJobMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
 import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
 import { D1AgentRuntimeStore } from "./agent-runtime-store";
 import { dispatchPendingLivePublicAcquisitionSmokes, processLivePublicAcquisitionSmoke } from "./live-public-acquisition-smoke";
 import { createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
+import { dispatchPendingOpenRouterModelDiagnostics,processOpenRouterModelDiagnostic } from "./openrouter-model-diagnostic";
 
 const app = createApp();
 const MAX_QUEUE_ATTEMPTS = 5;
@@ -36,6 +37,7 @@ export default {
         else if (isWebOperatorLiveSmokeMessage(message.body)) {
           await processLivePublicAcquisitionSmoke(env, message.body, async (request) => app.fetch(request, env));
         }
+        else if (isOpenRouterModelDiagnosticMessage(message.body)) await processOpenRouterModelDiagnostic(env,message.body);
         else await processDistilledQueueMessage(repo, env, message.body, summaryAdapter, reviewAdapter);
         const durationMs = Date.now() - startedAt;
         if (durationMs >= SLOW_QUEUE_JOB_MS) {
@@ -152,6 +154,10 @@ function isWebOperatorLiveSmokeMessage(body: unknown): body is WebOperatorLiveSm
   return isRecord(body) && body.type === "live_public_acquisition_smoke" && typeof body.requestId === "string";
 }
 
+function isOpenRouterModelDiagnosticMessage(body:unknown):body is OpenRouterModelDiagnosticMessage {
+  return isRecord(body)&&body.type==="openrouter_model_diagnostic"&&typeof body.requestId==="string";
+}
+
 export async function processWebOperatorRunMessage(
   env: Env,
   message: WebOperatorRunMessage,
@@ -196,6 +202,7 @@ function queueBodyId(body: unknown): string | undefined {
   if (isSourceRefreshJobMessage(body)) return body.sourceId;
   if (isWebOperatorRunMessage(body)) return body.runId;
   if (isWebOperatorLiveSmokeMessage(body)) return body.requestId;
+  if (isOpenRouterModelDiagnosticMessage(body)) return body.requestId;
   return undefined;
 }
 
@@ -210,6 +217,11 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
     await dispatchPendingLivePublicAcquisitionSmokes(env, now);
   } catch (error) {
     console.warn("Could not dispatch pending live public acquisition smoke", error);
+  }
+  try {
+    await dispatchPendingOpenRouterModelDiagnostics(env,now);
+  } catch (error) {
+    console.warn("Could not dispatch pending OpenRouter model diagnostic",error);
   }
   if (env.DISTILLED_WEB_OPERATOR_ENABLED === "true") {
     try { await relayPendingWebOperatorOutbox(env,undefined,25,now); }

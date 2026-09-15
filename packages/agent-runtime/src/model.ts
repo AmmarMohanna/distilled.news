@@ -338,6 +338,13 @@ export interface OpenRouterGatewayOptions {
   fetcher?: typeof fetch;
 }
 
+export interface OpenRouterProbeResult {
+  httpStatus:number;
+  elapsedMs:number;
+  response:unknown;
+  requestIds:ModelGatewayDiagnostic["requestIds"];
+}
+
 export interface OpenAICompatibleGatewayOptions {
   baseUrl: string;
   apiKey?: string;
@@ -460,10 +467,10 @@ export function buildOpenRouterRequest(request: ModelRequest): RequestInit & { b
 
 export class OpenAICompatibleGateway implements ModelGateway {
   readonly id: string;
-  private readonly endpoint: string;
-  private readonly fetcher: typeof fetch;
+  protected readonly endpoint: string;
+  protected readonly fetcher: typeof fetch;
 
-  constructor(private readonly options: OpenAICompatibleGatewayOptions) {
+  constructor(protected readonly options: OpenAICompatibleGatewayOptions) {
     this.id = options.id ?? "openai_compatible";
     this.endpoint = chatCompletionsEndpoint(options.baseUrl);
     this.fetcher = options.fetcher ?? fetch;
@@ -568,6 +575,26 @@ function openRouterErrorDiagnostic(
   request:ModelRequest,
   elapsedMs:number
 ):ModelGatewayDiagnostic {
+  const provider=request.route.selectedCapability.providerRouting;
+  return openRouterErrorDiagnosticFromPayload(response,responseText,{
+    model:request.route.selectedModel,
+    provider:{
+      only:provider?.endpoints.map((endpoint)=>endpoint.tag)??[request.route.selectedProvider],
+      sort:provider?.sort,
+      allow_fallbacks:provider?.allowFallbacks??false,
+      require_parameters:true,
+      zdr:request.route.selectedCapability.retentionClass==="zero_data_retention",
+      data_collection:request.route.selectedCapability.retentionClass==="standard"?"allow":"deny"
+    }
+  },elapsedMs);
+}
+
+function openRouterErrorDiagnosticFromPayload(
+  response:Response,
+  responseText:string,
+  payload:Record<string,unknown>,
+  elapsedMs:number
+):ModelGatewayDiagnostic {
   let error:Record<string,unknown>|undefined;
   try {
     const parsed=JSON.parse(responseText) as unknown;
@@ -576,29 +603,39 @@ function openRouterErrorDiagnostic(
       if (candidate && typeof candidate==="object" && !Array.isArray(candidate)) error=candidate as Record<string,unknown>;
     }
   } catch { /* A non-JSON provider error remains classified by status. */ }
-  const provider=request.route.selectedCapability.providerRouting;
-  const requestIds:ModelGatewayDiagnostic["requestIds"]={};
-  for (const name of ["x-request-id","x-openrouter-request-id","cf-ray"] as const) {
-    const value=sanitizedDiagnosticText(response.headers.get(name),200);
-    if (value) requestIds[name]=value;
-  }
+  const routing=payload.provider && typeof payload.provider==="object" && !Array.isArray(payload.provider)
+    ? payload.provider as Record<string,unknown> : undefined;
   return {
     httpStatus:response.status,
     errorCode:sanitizedDiagnosticText(error?.code,80),
     errorType:sanitizedDiagnosticText(error?.type,80),
     message:sanitizedDiagnosticText(error?.message,500),
-    requestIds,
-    requestedModel:request.route.selectedModel,
+    requestIds:diagnosticRequestIds(response.headers),
+    requestedModel:typeof payload.model==="string"?payload.model:"unknown",
     routingPreferences:{
-      only:provider?.endpoints.map((endpoint)=>endpoint.tag)??[request.route.selectedProvider],
-      sort:provider?.sort,
-      allowFallbacks:provider?.allowFallbacks??false,
-      requireParameters:true,
-      zeroDataRetention:request.route.selectedCapability.retentionClass==="zero_data_retention",
-      dataCollection:request.route.selectedCapability.retentionClass==="standard"?"allow":"deny"
+      only:stringArray(routing?.only),
+      order:stringArray(routing?.order),
+      sort:typeof routing?.sort==="string"?routing.sort:undefined,
+      allowFallbacks:typeof routing?.allow_fallbacks==="boolean"?routing.allow_fallbacks:undefined,
+      requireParameters:typeof routing?.require_parameters==="boolean"?routing.require_parameters:undefined,
+      zeroDataRetention:typeof routing?.zdr==="boolean"?routing.zdr:undefined,
+      dataCollection:routing?.data_collection==="allow"||routing?.data_collection==="deny"?routing.data_collection:undefined
     },
     elapsedMs
   };
+}
+
+function diagnosticRequestIds(headers:Headers):ModelGatewayDiagnostic["requestIds"] {
+  const requestIds:ModelGatewayDiagnostic["requestIds"]={};
+  for (const name of ["x-request-id","x-openrouter-request-id","cf-ray"] as const) {
+    const value=sanitizedDiagnosticText(headers.get(name),200);
+    if (value) requestIds[name]=value;
+  }
+  return requestIds;
+}
+
+function stringArray(value:unknown):string[]|undefined {
+  return Array.isArray(value) && value.every((entry)=>typeof entry==="string") ? value : undefined;
 }
 
 function sanitizedDiagnosticText(value:unknown,maxLength:number):string|undefined {
@@ -636,6 +673,52 @@ export class OpenRouterGateway extends OpenAICompatibleGateway {
   }
 
   protected override translate(request:ModelRequest) { return buildOpenRouterRequest(request); }
+
+  async probeSerialized(serializedBody:string,timeoutMs:number,signal?:AbortSignal):Promise<OpenRouterProbeResult> {
+    const payload=JSON.parse(serializedBody) as Record<string,unknown>;
+    if (typeof payload.model!=="string" || !payload.model.trim()) throw new Error("OpenRouter probe requires a model");
+    const started=Date.now();
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(new Error("model gateway diagnostic deadline exceeded")),timeoutMs);
+    const abort=()=>controller.abort(signal?.reason);
+    signal?.addEventListener("abort",abort,{once:true});
+    if (signal?.aborted) abort();
+    try {
+      const response=await this.fetcher.call(globalThis,this.endpoint,{
+        method:"POST",
+        headers:{authorization:`Bearer ${this.options.apiKey??""}`,"content-type":"application/json"},
+        body:serializedBody,
+        signal:controller.signal
+      });
+      const responseText=await response.text();
+      const elapsedMs=Date.now()-started;
+      if (!response.ok) {
+        const diagnostic=openRouterErrorDiagnosticFromPayload(response,responseText,payload,elapsedMs);
+        throw new ModelGatewayError(
+          `${this.id} diagnostic request failed: ${response.status}${diagnostic.message?`: ${diagnostic.message}`:""}`,
+          unconfirmedModelUsage(started),{gateway:this.id,deployment:"api"},"provider_http_failure",false,diagnostic
+        );
+      }
+      let responseBody:unknown;
+      try { responseBody=JSON.parse(responseText); }
+      catch {
+        throw new ModelGatewayError(`${this.id} diagnostic returned invalid JSON`,unconfirmedModelUsage(started),
+          {gateway:this.id,deployment:"api"},"malformed_response",false);
+      }
+      return {httpStatus:response.status,elapsedMs,response:responseBody,requestIds:diagnosticRequestIds(response.headers)};
+    } catch (error) {
+      if (error instanceof ModelGatewayError) throw error;
+      throw new ModelGatewayError(
+        `${this.id} diagnostic transport failed: ${error instanceof Error?error.message:String(error)}`,
+        unconfirmedModelUsage(started),{gateway:this.id,deployment:"api"},
+        controller.signal.aborted&&!signal?.aborted?"deadline_exceeded":signal?.aborted?"cancelled":"transport_failure",false
+      );
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort",abort);
+    }
+  }
+
   protected override validateResult(request:ModelRequest,result:ModelGatewayResult) {
     const automatic=request.route.selectedCapability.providerRouting;
     const expectedProviderTag=request.route.selectedProvider.toLowerCase();

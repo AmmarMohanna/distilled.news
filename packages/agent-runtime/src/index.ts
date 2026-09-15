@@ -10,6 +10,7 @@ export * from "./contracts";
 export * from "./evaluation";
 export * from "./model";
 export * from "./observations";
+export * from "./openrouter-diagnostic";
 export * from "./persistence";
 export * from "./policy";
 export * from "./product-loop";

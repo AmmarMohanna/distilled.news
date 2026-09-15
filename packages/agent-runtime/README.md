@@ -115,6 +115,14 @@ The scheduled Worker dispatches at most one pending request per tick to `WEB_OPE
 
 This path uses the real closed-loop runtime coordinator, configured model gateway, browser backend selection, policy checks, durable intent/effect handling, verifier-owned completion, workflow finalization, and `AcquiredContent` acceptance. The HTTP route remains disabled by default and authenticated when enabled. It is never required for normal tests or CI.
 
+For operator diagnosis of the configured OpenRouter boundary without allocating Browser Run, enable `DISTILLED_OPENROUTER_DIAGNOSTIC_ENABLED=true`, set `DISTILLED_OPENROUTER_DIAGNOSTIC_TIMEOUT_MS` to an integer from 1000 through 75000, and admit one durable request with an explicit unique key:
+
+```text
+pnpm openrouter:diagnostic:trigger <explicit-idempotency-key>
+```
+
+The scheduled Worker dispatches at most one pending diagnostic. Its queue consumer stops at the first failure while progressing through at most six paid calls: minimal privacy, production routing/privacy, structured output, tool calling, the production schema with a synthetic prompt, and the exact production first-turn request. Stored results contain request manifests, sanitized status/error/correlation metadata, returned model/provider, usage, cost, and latency—not API keys, prompts, or response content. The mechanism is disabled by default and is not a substitute for the end-to-end acquisition smoke.
+
 ## Workflow lifecycle
 
 A successful run may produce a `WorkflowCaptureBundle` containing visible actions, observation references, effect certainty, browser generation, structured discovery evidence, extraction evidence, completion evidence, and runtime/tool/schema versions. Discovery evidence is machine-readable and includes observed page types, listing URL candidates, article URL pattern hints, publication-time evidence, locator/capability evidence, and watermark/exhaustion evidence when available. It does not capture hidden chain-of-thought.

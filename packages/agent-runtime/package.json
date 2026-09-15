@@ -12,6 +12,7 @@
     "./runtime": "./src/runtime.ts",
     "./model": "./src/model.ts",
     "./observations": "./src/observations.ts",
+    "./openrouter-diagnostic": "./src/openrouter-diagnostic.ts",
     "./policy": "./src/policy.ts",
     "./persistence": "./src/persistence.ts",
     "./acquisition-router": "./src/acquisition-router.ts",

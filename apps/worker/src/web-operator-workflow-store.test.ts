@@ -182,7 +182,8 @@ const MIGRATIONS = [
   "0015_web_operator_acquisition_failure_evidence.sql",
   "0016_model_attempt_timeout_provenance.sql",
   "0017_web_operator_live_smoke_requests.sql",
-  "0018_model_gateway_diagnostics.sql"
+  "0018_model_gateway_diagnostics.sql",
+  "0019_openrouter_model_diagnostic.sql"
 ];
 
 async function setupThrough(lastMigration: string) {

@@ -96,6 +96,8 @@ export interface Env extends Cloudflare.Env {
   DISTILLED_LIVE_BROWSER_ACTION_LIMIT?: string;
   DISTILLED_LIVE_NAVIGATION_LIMIT?: string;
   DISTILLED_LIVE_WALL_CLOCK_LIMIT_MS?: string;
+  DISTILLED_OPENROUTER_DIAGNOSTIC_ENABLED?: string;
+  DISTILLED_OPENROUTER_DIAGNOSTIC_TIMEOUT_MS?: string;
   DISTILLED_MODEL_ROLE_NAVIGATION_FAST_PRIMARY?: string;
   DISTILLED_MODEL_ROLE_NAVIGATION_FAST_PRIMARY_DEPLOYMENT?: string;
   DISTILLED_MODEL_ROLE_NAVIGATION_FAST_FALLBACKS_JSON?: string;
@@ -132,7 +134,12 @@ export interface WebOperatorLiveSmokeMessage {
   requestId: string;
 }
 
-export type WebOperatorQueueMessage = WebOperatorRunMessage | WebOperatorLiveSmokeMessage;
+export interface OpenRouterModelDiagnosticMessage {
+  type:"openrouter_model_diagnostic";
+  requestId:string;
+}
+
+export type WebOperatorQueueMessage = WebOperatorRunMessage | WebOperatorLiveSmokeMessage | OpenRouterModelDiagnosticMessage;
 
 export interface ProcessingJobMessage {
   type?: "process_raw_message";
@@ -148,7 +155,7 @@ export interface SourceRefreshJobMessage {
   force?: boolean;
 }
 
-export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage;
+export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | OpenRouterModelDiagnosticMessage;
 
 export interface SourceRecord {
   id: string;
