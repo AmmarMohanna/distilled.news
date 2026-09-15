@@ -98,7 +98,7 @@ DISTILLED_LIVE_OPENROUTER_PROVIDER=...
 The deployed Worker accepts operator smoke admission through `web_operator_live_smoke_requests`. An operator creates a request with an explicit unique idempotency key through the authenticated Wrangler/D1 control plane:
 
 ```text
-pnpm web-operator:live-smoke:trigger -- https://publisher.example/article <explicit-idempotency-key>
+pnpm web-operator:live-smoke:trigger https://publisher.example/article <explicit-idempotency-key>
 ```
 
 The scheduled Worker dispatches at most one pending request per tick to `WEB_OPERATOR_QUEUE`. The queue consumer claims it once and invokes the existing authenticated live-smoke handler internally with the Worker-held `WEB_OPERATOR_RUNTIME_TOKEN`; the secret never leaves the Worker environment. Repeated insertion of the same identity and duplicate queue delivery are idempotent. A completed or typed-failed request is not automatically retried.

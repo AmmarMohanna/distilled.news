@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 
-const [candidateUrlValue, idempotencyKey] = process.argv.slice(2);
+const argumentsFromCli = process.argv.slice(2);
+if (argumentsFromCli[0] === "--") argumentsFromCli.shift();
+const [candidateUrlValue, idempotencyKey] = argumentsFromCli;
 if (!candidateUrlValue || !idempotencyKey) {
   console.error("usage: node scripts/trigger-live-public-acquisition-smoke.mjs <https-url> <idempotency-key>");
   process.exit(2);
