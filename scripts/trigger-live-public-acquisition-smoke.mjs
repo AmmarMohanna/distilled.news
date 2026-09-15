@@ -19,8 +19,9 @@ const quote = (value) => `'${value.replaceAll("'", "''")}'`;
 const sql = `INSERT OR IGNORE INTO web_operator_live_smoke_requests
   (request_id,idempotency_key,candidate_url,state,created_at)
   VALUES (${quote(requestId)},${quote(idempotencyKey)},${quote(candidateUrl.toString())},'pending',${quote(createdAt)});`;
-const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-const result = spawnSync(command, [
+const pnpmEntrypoint = process.env.npm_execpath;
+if (!pnpmEntrypoint) throw new Error("run this operator command through the repository pnpm script");
+const result = spawnSync(process.execPath, [pnpmEntrypoint,
   "--filter", "@distilled/worker", "exec", "wrangler", "d1", "execute", "lownoise", "--remote", "--command", sql
 ], { cwd: new URL("..", import.meta.url), stdio: "inherit" });
 if (result.error) throw result.error;
