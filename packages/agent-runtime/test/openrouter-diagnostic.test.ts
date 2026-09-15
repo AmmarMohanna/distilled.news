@@ -83,6 +83,34 @@ describe("bounded OpenRouter diagnostic",()=>{
     expect(report).toMatchObject({startedAt:"D",stoppedAt:"D",stages:[{stage:"D",state:"failed",
       failureClass:"diagnostic_validation_failure"}]});
   });
+
+  it("bisects production prompt and output modes using exact serialized payloads",async()=>{
+    const bodies:Record<string,unknown>[]=[];
+    const gateway=new OpenRouterGateway({apiKey:"secret",fetcher:async(_input,init)=>{
+      const body=JSON.parse(String(init?.body)) as Record<string,unknown>;
+      bodies.push(body);
+      const toolCall=bodies.length>=4?{content:null,tool_calls:[{id:"tool-1",type:"function",function:{
+        name:"submit_bounded_action_plan",arguments:'{"version":1,"actions":[{"tool":"browser.inspect_dom@1","arguments":{}}]}'
+      }}]}:undefined;
+      return Response.json({id:`response-${bodies.length}`,model:"anthropic/claude-sonnet-4.6",provider:"Amazon Bedrock",
+        choices:[{finish_reason:"stop",message:toolCall??{content:bodies.length===1?"OK":'{"ok":true}'}}]});
+    }});
+    const report=await runOpenRouterDiagnostic({gateway,productionRequest:request(),timeoutMs:5_000,
+      profile:"production_bisection"});
+    expect(report.profile).toBe("production_bisection");
+    expect(report.stages.map((stage)=>stage.stage)).toEqual(["A","B","C","D","E","F"]);
+    expect(bodies[2].messages).toEqual([
+      {role:"system",content:"Exact production system instructions"},
+      {role:"user",content:'Return {"ok":true}. '}
+    ]);
+    expect(bodies[3].response_format).toBeUndefined();
+    expect(bodies[3].tools).toHaveLength(1);
+    expect(bodies[4].messages).toEqual(bodies[5].messages);
+    expect(bodies[4].tools).toEqual(bodies[5].tools);
+    expect(bodies[4].response_format).toBeUndefined();
+    expect(bodies[5].response_format).toBeDefined();
+    expect(bodies[5].tool_choice).toEqual({type:"function",function:{name:"submit_bounded_action_plan"}});
+  });
 });
 
 function request():ModelRequest {

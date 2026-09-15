@@ -10,6 +10,7 @@ import { sha256Text } from "./observations";
 
 export const OPENROUTER_DIAGNOSTIC_STAGES=["A","B","C","D","E","F"] as const;
 export type OpenRouterDiagnosticStage=(typeof OPENROUTER_DIAGNOSTIC_STAGES)[number];
+export type OpenRouterDiagnosticProfile="standard"|"production_bisection";
 
 export interface OpenRouterDiagnosticStageResult {
   stage:OpenRouterDiagnosticStage;
@@ -44,6 +45,7 @@ export interface OpenRouterDiagnosticStageResult {
 
 export interface OpenRouterDiagnosticReport {
   model:string;
+  profile:OpenRouterDiagnosticProfile;
   startedAt:OpenRouterDiagnosticStage;
   stoppedAt?:OpenRouterDiagnosticStage;
   stages:OpenRouterDiagnosticStageResult[];
@@ -54,13 +56,15 @@ export async function runOpenRouterDiagnostic(input:{
   productionRequest:ModelRequest;
   timeoutMs:number;
   startAt?:OpenRouterDiagnosticStage;
+  profile?:OpenRouterDiagnosticProfile;
   signal?:AbortSignal;
 }):Promise<OpenRouterDiagnosticReport> {
   if (!Number.isInteger(input.timeoutMs)||input.timeoutMs<1_000||input.timeoutMs>75_000) {
     throw new Error("OpenRouter diagnostic timeout must be between 1000 and 75000 milliseconds");
   }
   const startAt=input.startAt??"A";
-  const bodies=diagnosticBodies(input.productionRequest).slice(OPENROUTER_DIAGNOSTIC_STAGES.indexOf(startAt));
+  const profile=input.profile??"standard";
+  const bodies=diagnosticBodies(input.productionRequest,profile).slice(OPENROUTER_DIAGNOSTIC_STAGES.indexOf(startAt));
   const stages:OpenRouterDiagnosticStageResult[]=[];
   for (const [stage,body] of bodies) {
     const serialized=JSON.stringify(body);
@@ -68,7 +72,7 @@ export async function runOpenRouterDiagnostic(input:{
     try {
       const result=await input.gateway.probeSerialized(serialized,input.timeoutMs,input.signal);
       const response=responseSummary(result.response,result.httpStatus,result.elapsedMs,result.requestIds);
-      validateStageResponse(stage,result.response);
+      validateStageResponse(stage,result.response,profile);
       stages.push({stage,state:"passed",request,response});
     } catch (error) {
       const gatewayError=error instanceof ModelGatewayError?error:undefined;
@@ -77,13 +81,13 @@ export async function runOpenRouterDiagnostic(input:{
         failureClass:gatewayError?.failureClass??"diagnostic_validation_failure",
         diagnostic:gatewayError?.gatewayDiagnostic
       });
-      return {model:input.productionRequest.route.selectedModel,startedAt:startAt,stoppedAt:stage,stages};
+      return {model:input.productionRequest.route.selectedModel,profile,startedAt:startAt,stoppedAt:stage,stages};
     }
   }
-  return {model:input.productionRequest.route.selectedModel,startedAt:startAt,stages};
+  return {model:input.productionRequest.route.selectedModel,profile,startedAt:startAt,stages};
 }
 
-function diagnosticBodies(request:ModelRequest):Array<[OpenRouterDiagnosticStage,Record<string,unknown>]> {
+function diagnosticBodies(request:ModelRequest,profile:OpenRouterDiagnosticProfile):Array<[OpenRouterDiagnosticStage,Record<string,unknown>]> {
   const production=JSON.parse(buildOpenRouterRequest(request).body) as Record<string,unknown>;
   const privacy={data_collection:"deny",zdr:true};
   const tinyMessages=[{role:"user",content:"Reply with OK."}];
@@ -98,6 +102,7 @@ function diagnosticBodies(request:ModelRequest):Array<[OpenRouterDiagnosticStage
     parameters:{type:"object",additionalProperties:false,required:["ok"],properties:{ok:{const:true}}}
   }};
   const stageE={...production,messages:[{role:"system",content:"Return one valid bounded action plan."},{role:"user",content:"Inspect the current page."}],max_tokens:256,stream:false};
+  if (profile==="production_bisection") return productionBisectionBodies(production,simpleSchema);
   return [
     ["A",{model:request.route.selectedModel,messages:tinyMessages,max_tokens:8,stream:false,provider:privacy}],
     ["B",{model:request.route.selectedModel,messages:tinyMessages,max_tokens:8,stream:false,provider:production.provider}],
@@ -107,6 +112,33 @@ function diagnosticBodies(request:ModelRequest):Array<[OpenRouterDiagnosticStage
       provider:production.provider,tools:[tool],tool_choice:{type:"function",function:{name:"report_ok"}}}],
     ["E",stageE],
     ["F",{...production,stream:false}]
+  ];
+}
+
+function productionBisectionBodies(
+  production:Record<string,unknown>,simpleSchema:Record<string,unknown>
+):Array<[OpenRouterDiagnosticStage,Record<string,unknown>]> {
+  const responseFormat=isRecord(production.response_format)?production.response_format:{};
+  const jsonSchema=isRecord(responseFormat.json_schema)?responseFormat.json_schema:{};
+  const boundedSchema=isRecord(jsonSchema.schema)?jsonSchema.schema:{};
+  const boundedPlanTool={type:"function",function:{
+    name:"submit_bounded_action_plan",
+    description:"Submit the next bounded action plan for deterministic runtime validation.",
+    parameters:boundedSchema
+  }};
+  const toolChoice={type:"function",function:{name:"submit_bounded_action_plan"}};
+  const productionMessages=production.messages;
+  const syntheticMessages=[{role:"system",content:"Choose one safe typed action."},{role:"user",content:"Inspect the current page."}];
+  return [
+    ["A",{...production,messages:[{role:"user",content:"Reply OK."}],max_tokens:8,stream:false,response_format:undefined}],
+    ["B",{...production,messages:[{role:"user",content:'Return {"ok":true}. '}],max_tokens:32,stream:false,response_format:simpleSchema}],
+    ["C",{...production,messages:Array.isArray(productionMessages)&&productionMessages.length>0
+      ? [productionMessages[0],{role:"user",content:'Return {"ok":true}. '}]
+      : [{role:"user",content:'Return {"ok":true}. '}],max_tokens:32,stream:false,response_format:simpleSchema}],
+    ["D",{...production,messages:syntheticMessages,max_tokens:256,stream:false,response_format:undefined,
+      tools:[boundedPlanTool],tool_choice:toolChoice}],
+    ["E",{...production,stream:false,response_format:undefined,tools:[boundedPlanTool],tool_choice:toolChoice}],
+    ["F",{...production,stream:false,tools:[boundedPlanTool],tool_choice:toolChoice}]
   ];
 }
 
@@ -128,14 +160,23 @@ async function requestManifest(serialized:string):Promise<OpenRouterDiagnosticSt
   };
 }
 
-function validateStageResponse(stage:OpenRouterDiagnosticStage,response:unknown) {
+function validateStageResponse(stage:OpenRouterDiagnosticStage,response:unknown,profile:OpenRouterDiagnosticProfile) {
   const message=responseMessage(response);
-  if (stage==="D") {
-    const toolCall=Array.isArray(message.tool_calls)&&isRecord(message.tool_calls[0])?message.tool_calls[0]:undefined;
-    const functionCall=toolCall&&isRecord(toolCall.function)?toolCall.function:undefined;
-    if (functionCall?.name!=="report_ok"||typeof functionCall.arguments!=="string") {
-      throw new Error("diagnostic tool response is missing the required report_ok call");
+  if (profile==="production_bisection") {
+    if (stage==="A") {
+      if (typeof message.content!=="string"||!message.content.trim()) throw new Error("diagnostic response is missing content");
+      return;
     }
+    if (stage==="B"||stage==="C") {
+      const parsed=JSON.parse(typeof message.content==="string"?message.content:"") as {ok?:unknown};
+      if (parsed.ok!==true) throw new Error("diagnostic structured response did not return ok=true");
+      return;
+    }
+    validateBoundedPlanToolCall(message);
+    return;
+  }
+  if (stage==="D") {
+    const functionCall=responseFunctionCall(message,"report_ok");
     const argumentsValue=JSON.parse(functionCall.arguments) as {ok?:unknown};
     if (argumentsValue.ok!==true) throw new Error("diagnostic report_ok call did not return ok=true");
     return;
@@ -146,6 +187,20 @@ function validateStageResponse(stage:OpenRouterDiagnosticStage,response:unknown)
     if (parsed.ok!==true) throw new Error("diagnostic structured response did not return ok=true");
   }
   if (stage==="E"||stage==="F") boundedActionPlanSchema.parse(JSON.parse(message.content));
+}
+
+function validateBoundedPlanToolCall(message:Record<string,unknown>) {
+  const functionCall=responseFunctionCall(message,"submit_bounded_action_plan");
+  boundedActionPlanSchema.parse(JSON.parse(functionCall.arguments));
+}
+
+function responseFunctionCall(message:Record<string,unknown>,expectedName:string):{name:string;arguments:string} {
+  const toolCall=Array.isArray(message.tool_calls)&&isRecord(message.tool_calls[0])?message.tool_calls[0]:undefined;
+  const functionCall=toolCall&&isRecord(toolCall.function)?toolCall.function:undefined;
+  if (functionCall?.name!==expectedName||typeof functionCall.arguments!=="string") {
+    throw new Error(`diagnostic tool response is missing the required ${expectedName} call`);
+  }
+  return {name:functionCall.name,arguments:functionCall.arguments};
 }
 
 function responseSummary(

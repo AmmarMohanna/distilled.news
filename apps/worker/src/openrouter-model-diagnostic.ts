@@ -11,6 +11,7 @@ import {
   type ModelRequest,
   type ModelRoute,
   type OpenRouterDiagnosticStage
+  ,type OpenRouterDiagnosticProfile
 } from "@distilled/agent-runtime";
 import type { Env,OpenRouterModelDiagnosticMessage } from "./types";
 
@@ -38,6 +39,7 @@ export async function processOpenRouterModelDiagnostic(
   env:Pick<Env,"DB"|"OPENROUTER_API_KEY"|"DISTILLED_OPENROUTER_DIAGNOSTIC_ENABLED"|
     "DISTILLED_LIVE_OPENROUTER_MODEL"|"DISTILLED_LIVE_OPENROUTER_PROVIDER"|"DISTILLED_OPENROUTER_DIAGNOSTIC_TIMEOUT_MS"|
     "DISTILLED_OPENROUTER_DIAGNOSTIC_START_STAGE"|
+    "DISTILLED_OPENROUTER_DIAGNOSTIC_PROFILE"|
     "DISTILLED_LIVE_PUBLIC_CANDIDATE_URL">,
   message:OpenRouterModelDiagnosticMessage,
   now=new Date(),
@@ -58,8 +60,9 @@ export async function processOpenRouterModelDiagnostic(
     const target=required(env.DISTILLED_LIVE_PUBLIC_CANDIDATE_URL,"DISTILLED_LIVE_PUBLIC_CANDIDATE_URL");
     const timeoutMs=diagnosticTimeout(env.DISTILLED_OPENROUTER_DIAGNOSTIC_TIMEOUT_MS);
     const startAt=diagnosticStartStage(env.DISTILLED_OPENROUTER_DIAGNOSTIC_START_STAGE);
+    const profile=diagnosticProfile(env.DISTILLED_OPENROUTER_DIAGNOSTIC_PROFILE);
     const request=await productionFirstTurnRequest(row.idempotency_key,target,model,provider,timeoutMs);
-    const report=await runOpenRouterDiagnostic({gateway:gateway??new OpenRouterGateway({apiKey}),productionRequest:request,timeoutMs,startAt});
+    const report=await runOpenRouterDiagnostic({gateway:gateway??new OpenRouterGateway({apiKey}),productionRequest:request,timeoutMs,startAt,profile});
     const failed=report.stoppedAt!==undefined;
     const completedAt=new Date().toISOString();
     await env.DB.prepare(`UPDATE openrouter_model_diagnostic_requests SET state=?,requested_model=?,requested_provider=?,
@@ -128,4 +131,12 @@ function diagnosticStartStage(value:string|undefined):OpenRouterDiagnosticStage 
     throw new Error("DISTILLED_OPENROUTER_DIAGNOSTIC_START_STAGE must be A, B, C, D, E, or F");
   }
   return stage;
+}
+
+function diagnosticProfile(value:string|undefined):OpenRouterDiagnosticProfile {
+  const profile=value?.trim()||"standard";
+  if (profile!=="standard"&&profile!=="production_bisection") {
+    throw new Error("DISTILLED_OPENROUTER_DIAGNOSTIC_PROFILE must be standard or production_bisection");
+  }
+  return profile;
 }
