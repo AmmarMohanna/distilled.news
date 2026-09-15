@@ -32,6 +32,8 @@ export interface WebOperatorRuntimeAssemblyInput {
   };
   stableInstructions?: CoordinatorOptions["stableInstructions"];
   leaseTtlMs?: number;
+  modelCallTimeoutMs?: number;
+  runSettlementReserveMs?: number;
   gatewayFetcher?: typeof fetch;
   workerIdFactory?: () => string;
 }
@@ -60,6 +62,8 @@ export function createWebOperatorRuntimeHandler(input: WebOperatorRuntimeAssembl
     runtimeToken: input.runtimeToken,
     stableInstructions: input.stableInstructions,
     leaseTtlMs: input.leaseTtlMs,
+    modelCallTimeoutMs: input.modelCallTimeoutMs,
+    runSettlementReserveMs: input.runSettlementReserveMs,
     gatewayFetcher: input.gatewayFetcher,
     workerIdFactory: input.workerIdFactory
   });
@@ -84,7 +88,9 @@ export function createClosedLoopWebOperatorLifecycle(input: ClosedLoopWebOperato
     deterministicAcquisition: input.deterministicAcquisition,
     minimumStructuralEvidence: input.minimumStructuralEvidence,
     workerIdFactory: input.workerIdFactory,
-    leaseTtlMs:input.leaseTtlMs
+    leaseTtlMs: input.leaseTtlMs,
+    modelCallTimeoutMs: input.modelCallTimeoutMs,
+    runSettlementReserveMs: input.runSettlementReserveMs
   });
 }
 

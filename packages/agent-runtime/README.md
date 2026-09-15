@@ -60,6 +60,15 @@ Canonical acquired content stores only stable content identity and article field
 
 The Cloudflare queue consumer keeps `web_operator` externally routed by posting a bounded `{ "type": "web_operator_run", "runId": "..." }` message to `/v1/agent-runs/process`. The external host must mount `createConfiguredWebOperatorHttpHandler` with its durable store, artifact store, isolated Playwright adapter, gateway environment, and `WEB_OPERATOR_RUNTIME_TOKEN`. The handler authenticates the request, constructs `createModelGatewayFromEnv`, returns `409` for a busy lease so Queue delivery retries, and returns success only after the coordinator reaches a durable terminal or suspended disposition.
 
+Lease ownership, physical model-operation deadlines, and the durable run wall-clock limit are independent bounds. `leaseTtlMs` is a renewable fencing interval and never determines a model timeout. `modelCallTimeoutMs` bounds one physical gateway attempt; the controller clamps it to the remaining durable run time minus `runSettlementReserveMs`, which preserves time for persistence, cancellation, settlement, and cleanup. A model attempt is not started when that reserve is exhausted. Worker deployment defaults are configured explicitly:
+
+```text
+DISTILLED_MODEL_CALL_TIMEOUT_MS=45000
+DISTILLED_RUN_SETTLEMENT_RESERVE_MS=5000
+```
+
+A gateway deadline fails the active turn, durably records an unconfirmed physical attempt and typed failure, settles the worker attempt, and returns the run to `queued` for the existing at-least-once retry path while run budget remains. Reservations are retained conservatively when the provider did not confirm usage. Lease loss cancels the operation without permitting the stale generation to settle; absolute run-deadline exhaustion is a terminal wall-clock budget failure.
+
 ## Browser backend selection
 
 Browser execution is selected at construction time through `DISTILLED_BROWSER_BACKEND=local|cloudflare`. `LocalPlaywrightBrowserExecutor` and `CloudflareBrowserExecutor` implement the same browser ports and share the same adapter semantics; production code outside backend construction depends only on `BrowserExecutorPort`, `StructuredBrowserUsePort`, and `VisualComputerUsePort`.

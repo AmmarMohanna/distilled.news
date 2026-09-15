@@ -434,6 +434,37 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
       requestedProvider:"fixture",actualProvider:"fixture",requestedDeployment:"api",actualDeployment:"api"});
   },30_000);
 
+  it("settles a model deadline as a failed turn and retryable queued run",async()=>{
+    const store=new MemoryRuntimeStore();const artifacts=new MemoryArtifactStore();const browser=PlaywrightBrowserAdapter.forTest();
+    const gateway:ModelGateway={
+      id:"deadline-reproduction",
+      async complete() {
+        throw new ModelGatewayError(
+          "openrouter transport failed: model gateway deadline exceeded",
+          {inputTokens:0,outputTokens:0,costUsd:0,latencyMs:29_764},
+          {gateway:"openrouter",deployment:"api"},
+          "deadline_exceeded",
+          false
+        );
+      }
+    };
+    const {strategy,coordinator}=harness(store,artifacts,browser,gateway);
+    const admitted=await strategy.admitKnownCandidate(invocation(fixture.origin,"model-deadline-reproduction"));
+
+    await expect(coordinator.process(admitted.run.runId,"deadline-worker")).rejects.toThrow("model gateway deadline exceeded");
+
+    expect((await store.getRun(admitted.run.runId))?.state).toBe("queued");
+    const turnCreated=(await store.listEvents(admitted.run.runId)).find((event)=>event.type==="agent.turn.created");
+    const turnId=(turnCreated?.data as {id?:string}|undefined)?.id;
+    expect(turnId).toBeTruthy();
+    expect((await store.getTurn(turnId!))?.state).toBe("failed");
+    const attemptEvents=(await store.listEvents(admitted.run.runId)).filter((event)=>event.type.startsWith("agent.run.attempt_"));
+    expect(attemptEvents.map((event)=>event.type)).toEqual(["agent.run.attempt_started","agent.run.attempt_completed"]);
+    expect((await store.listEvents(admitted.run.runId)).find((event)=>event.type==="agent.model.attempt_failed")?.data)
+      .toMatchObject({failureClass:"deadline_exceeded",usageConfirmed:false,latencyMs:29_764});
+    expect((await store.getOutbox(admitted.run.runId))?.state).toBe("pending");
+  },30_000);
+
   it("filters a budget-ineligible primary before selecting an eligible fallback",async()=>{
     const store=new MemoryRuntimeStore(); const artifacts=new MemoryArtifactStore(); const browser=PlaywrightBrowserAdapter.forTest();
     const gateway=new ScriptedModelGateway([completeArticlePlan(fixture.origin)]);
@@ -479,6 +510,27 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     expect((await response.json() as {status:string}).status).toBe("completed");
     expect(gatewayBodies).toHaveLength(1);
     expect(gatewayBodies[0].provider).toEqual({only:["fixture"],allow_fallbacks:false,require_parameters:true,data_collection:"deny",zdr:true});
+  },30_000);
+
+  it("returns typed retryable gateway failures from the external process endpoint",async()=>{
+    const store=new MemoryRuntimeStore();const artifacts=new MemoryArtifactStore();const browser=PlaywrightBrowserAdapter.forTest();
+    const strategy=new WebOperatorAcquisitionStrategy(store);
+    const admitted=await strategy.admitKnownCandidate(invocation(fixture.origin,"configured-endpoint-timeout"));
+    const handler=createConfiguredWebOperatorHttpHandler({
+      store,artifacts,browserExecutor:browser,structured:browser,visual:browser,
+      environment:{DISTILLED_LLM_MODE:"api",DISTILLED_LLM_API_GATEWAY:"openrouter",OPENROUTER_API_KEY:"test-only"},
+      runtimeToken:"runtime-secret",gatewayFetcher:async()=>new Response("upstream unavailable",{status:503}),
+      workerIdFactory:()=>"configured-endpoint-timeout-worker"
+    });
+
+    const response=await handler(new Request("https://runtime.test/v1/agent-runs/process",{
+      method:"POST",headers:{authorization:"Bearer runtime-secret"},
+      body:JSON.stringify({type:"web_operator_run",runId:admitted.run.runId})
+    }));
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({error:"model_gateway_failure",failureClass:"provider_http_failure"});
+    expect((await store.getRun(admitted.run.runId))?.state).toBe("queued");
   },30_000);
 
   it("denies a visually benign mutating control without trusting model-declared intent",async()=>{

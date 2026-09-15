@@ -15,10 +15,13 @@ interface BrowserWorkerBinding {
 }
 
 const WORKER_AGENT_LEASE_TTL_MS=30_000;
+const DEFAULT_MODEL_CALL_TIMEOUT_MS=45_000;
+const DEFAULT_RUN_SETTLEMENT_RESERVE_MS=5_000;
 
 export function createWorkerWebOperatorRuntimeHandler(env: Env) {
   const runtimeToken = env.WEB_OPERATOR_RUNTIME_TOKEN?.trim();
   if (!runtimeToken) throw new Error("WEB_OPERATOR_RUNTIME_TOKEN is required for Web Operator runtime processing");
+  const timing=workerRuntimeTiming(env);
   return createWebOperatorRuntimeHandler({
     store: new D1AgentRuntimeStore(env.DB),
     artifacts: new R2AgentArtifactStore(env.RAW_ARCHIVE),
@@ -26,6 +29,7 @@ export function createWorkerWebOperatorRuntimeHandler(env: Env) {
     runtimeToken,
     cloudflareBrowser: workerCloudflareBrowser(env),
     leaseTtlMs:WORKER_AGENT_LEASE_TTL_MS,
+    ...timing,
     workerIdFactory: () => "worker-web-operator-runtime"
   });
 }
@@ -38,6 +42,7 @@ export function createWorkerClosedLoopWebOperatorLifecycle(
 ) {
   const store = new D1AgentRuntimeStore(env.DB);
   const workflowStore = new D1WorkflowRepository(env.DB);
+  const timing=workerRuntimeTiming(env);
   return createClosedLoopWebOperatorLifecycle({
     store,
     artifacts: new R2AgentArtifactStore(env.RAW_ARCHIVE),
@@ -49,6 +54,7 @@ export function createWorkerClosedLoopWebOperatorLifecycle(
     softwareVersion: "distilled-worker@0.1.0",
     toolSchemaVersion: "web-operator-tools@1",
     leaseTtlMs:WORKER_AGENT_LEASE_TTL_MS,
+    ...timing,
     workerIdFactory: () => "worker-closed-loop-web-operator"
   });
 }
@@ -74,3 +80,17 @@ const cloudflarePlaywrightLaunch: CloudflareBrowserLauncher = async (binding, po
     guardrails:{allowedDomains:policy.allowedDomains}
   }) as unknown as Awaited<ReturnType<CloudflareBrowserLauncher>>;
 };
+
+export function workerRuntimeTiming(env:Pick<Env,"DISTILLED_MODEL_CALL_TIMEOUT_MS"|"DISTILLED_RUN_SETTLEMENT_RESERVE_MS">) {
+  return {
+    modelCallTimeoutMs:runtimeDuration(env.DISTILLED_MODEL_CALL_TIMEOUT_MS,DEFAULT_MODEL_CALL_TIMEOUT_MS,"DISTILLED_MODEL_CALL_TIMEOUT_MS"),
+    runSettlementReserveMs:runtimeDuration(env.DISTILLED_RUN_SETTLEMENT_RESERVE_MS,DEFAULT_RUN_SETTLEMENT_RESERVE_MS,"DISTILLED_RUN_SETTLEMENT_RESERVE_MS",0)
+  };
+}
+
+function runtimeDuration(value:string|undefined,fallback:number,name:string,minimum=1_000) {
+  if (value===undefined||value.trim()==="") return fallback;
+  const parsed=Number(value);
+  if (!Number.isInteger(parsed)||parsed<minimum) throw new Error(`${name} must be an integer of at least ${minimum} milliseconds`);
+  return parsed;
+}

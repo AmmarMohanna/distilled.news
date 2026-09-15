@@ -23,6 +23,8 @@ import {
   type WorkflowValidationResult
 } from "../src";
 
+const lifecycleAt = (offsetMs: number) => new Date(Date.now() + offsetMs);
+
 describe("closed-loop Web Operator lifecycle", () => {
   let fixture: VersionedPublisherFixture | undefined;
   afterEach(async () => { await fixture?.close(); fixture = undefined; });
@@ -59,7 +61,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       }
     });
 
-    const routed = await controller.acquire(request(fixture.origin, "structured-route", "article-v1"), new Date("2026-09-13T00:00:00Z"));
+    const routed = await controller.acquire(request(fixture.origin, "structured-route", "article-v1"), lifecycleAt(0));
     expect(routed.state).toBe("acquired_by_deterministic_route");
     if (routed.state !== "acquired_by_deterministic_route") throw new Error("expected deterministic acquisition route");
     expect(routed.modelCalls).toBe(0);
@@ -97,7 +99,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       gateway,
       deterministicAcquisition: { structured_api_feed: failingRoute }
     });
-    const first = await firstController.acquire(request(fixture.origin, "feed-failure", "article-v1"), new Date("2026-09-13T00:00:00Z"));
+    const first = await firstController.acquire(request(fixture.origin, "feed-failure", "article-v1"), lifecycleAt(0));
     expect(first.state).toBe("waiting_for_deterministic_route_evidence");
     if (first.state !== "waiting_for_deterministic_route_evidence") throw new Error("expected first structural evidence only");
     expect(first.routeDecision).toMatchObject({ method: "structured_api_feed", reason: "waiting_for_bounded_structural_evidence" });
@@ -111,7 +113,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       gateway,
       deterministicAcquisition: { structured_api_feed: failingRoute }
     });
-    const second = await secondController.acquire(request(fixture.origin, "feed-failure", "article-v1"), new Date("2026-09-13T00:01:00Z"));
+    const second = await secondController.acquire(request(fixture.origin, "feed-failure", "article-v1"), lifecycleAt(60_000));
     expect(second.state).toBe("waiting_for_deterministic_route_evidence");
     if (second.state !== "waiting_for_deterministic_route_evidence") throw new Error("expected HTTP route escalation after feed evidence");
     expect(second.routeDecision).toMatchObject({
@@ -128,7 +130,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       gateway,
       deterministicAcquisition: { structured_api_feed: failingRoute }
     });
-    const third = await thirdController.acquire(request(fixture.origin, "http-missing", "article-v1"), new Date("2026-09-13T00:02:00Z"));
+    const third = await thirdController.acquire(request(fixture.origin, "http-missing", "article-v1"), lifecycleAt(120_000));
     expect(third.state).toBe("waiting_for_deterministic_route_evidence");
     if (third.state !== "waiting_for_deterministic_route_evidence") throw new Error("expected bounded HTTP failure evidence");
     expect(third.routeDecision).toMatchObject({
@@ -145,7 +147,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       gateway,
       deterministicAcquisition: { structured_api_feed: failingRoute }
     });
-    const fallback = await fourthController.acquire(request(fixture.origin, "agent-after-deterministic-failure", "article-v1"), new Date("2026-09-13T00:03:00Z"));
+    const fallback = await fourthController.acquire(request(fixture.origin, "agent-after-deterministic-failure", "article-v1"), lifecycleAt(180_000));
     expect(fallback.state).toBe("acquired_by_agent");
     if (fallback.state !== "acquired_by_agent") throw new Error("expected Web Operator fallback after persisted failures");
     expect(fallback.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v1`);
@@ -175,7 +177,7 @@ describe("closed-loop Web Operator lifecycle", () => {
         browser,
         gateway
       });
-      await expect(interruptedController.acquire(acquisitionRequest, new Date("2026-09-13T00:00:00Z")))
+      await expect(interruptedController.acquire(acquisitionRequest, lifecycleAt(0)))
         .rejects.toThrow(new RegExp(boundary));
       const modelCallsAfterInterruptedRun = gateway.calls;
 
@@ -186,7 +188,7 @@ describe("closed-loop Web Operator lifecycle", () => {
         browser,
         gateway
       });
-      const recovered = await recoveryController.acquire(acquisitionRequest, new Date("2026-09-13T00:01:00Z"));
+      const recovered = await recoveryController.acquire(acquisitionRequest, lifecycleAt(60_000));
       if (boundary === "promotion") {
         expect(recovered.state).toBe("acquired_by_workflow");
       } else {
@@ -198,7 +200,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       expect(await backingWorkflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(1);
       expect((await backingWorkflowStore.listWorkflowCandidates("resource-closed-loop")).filter((workflow) => workflow.state === "ACTIVE")).toHaveLength(1);
 
-      const repeated = await recoveryController.acquire(acquisitionRequest, new Date("2026-09-13T00:02:00Z"));
+      const repeated = await recoveryController.acquire(acquisitionRequest, lifecycleAt(120_000));
       expect(repeated.state).toBe("acquired_by_workflow");
       expect(await backingWorkflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(1);
     }
@@ -224,7 +226,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       workerIdFactory: () => "closed-loop-worker"
     });
 
-    const discovered = await controller.acquire(request(fixture.origin, "v1-discovery", "article-v1"), new Date("2026-09-13T00:00:00Z"));
+    const discovered = await controller.acquire(request(fixture.origin, "v1-discovery", "article-v1"), lifecycleAt(0));
     expect(discovered.state).toBe("acquired_by_agent");
     if (discovered.state !== "acquired_by_agent") throw new Error("expected agent discovery");
     expect(discovered.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v1`);
@@ -244,13 +246,13 @@ describe("closed-loop Web Operator lifecycle", () => {
       toolSchemaVersion: "web-operator-tools-v1",
       workerIdFactory: () => "closed-loop-worker"
     });
-    const resumedFinalization = await resumedController.finalizeSuccessfulAgentRun(discovered.run.runId, new Date("2026-09-13T00:00:30Z"));
-    const repeatedFinalization = await resumedController.finalizeSuccessfulAgentRun(discovered.run.runId, new Date("2026-09-13T00:00:45Z"));
+    const resumedFinalization = await resumedController.finalizeSuccessfulAgentRun(discovered.run.runId, lifecycleAt(30_000));
+    const repeatedFinalization = await resumedController.finalizeSuccessfulAgentRun(discovered.run.runId, lifecycleAt(45_000));
     expect(resumedFinalization.workflow.id).toBe(discovered.workflow.id);
     expect(repeatedFinalization.workflow.id).toBe(discovered.workflow.id);
     expect(await workflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(1);
 
-    const replayed = await controller.acquire(request(fixture.origin, "v1-refresh", "article-v1"), new Date("2026-09-13T00:01:00Z"));
+    const replayed = await controller.acquire(request(fixture.origin, "v1-refresh", "article-v1"), lifecycleAt(60_000));
     expect(replayed.state).toBe("acquired_by_workflow");
     if (replayed.state !== "acquired_by_workflow") throw new Error("expected deterministic replay");
     expect(replayed.modelCalls).toBe(0);
@@ -269,7 +271,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       observedAt: "2026-09-13T00:02:00Z"
     });
 
-    const firstBreak = await controller.acquire(request(fixture.origin, "v2-repair", "article-v2"), new Date("2026-09-13T00:03:00Z"));
+    const firstBreak = await controller.acquire(request(fixture.origin, "v2-repair", "article-v2"), lifecycleAt(180_000));
     expect(firstBreak.state).toBe("waiting_for_repair_evidence");
     if (firstBreak.state !== "waiting_for_repair_evidence") throw new Error("expected repair gate to wait");
     expect(firstBreak.failureEvidence.filter((entry) => !entry.transient && entry.failureClass === "structural_site_change")).toHaveLength(1);
@@ -278,7 +280,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       reason: "waiting_for_bounded_structural_evidence"
     });
 
-    const repaired = await controller.acquire(request(fixture.origin, "v2-repair", "article-v2"), new Date("2026-09-13T00:04:00Z"));
+    const repaired = await controller.acquire(request(fixture.origin, "v2-repair", "article-v2"), lifecycleAt(240_000));
     expect(repaired.state).toBe("acquired_by_agent");
     if (repaired.state !== "acquired_by_agent") throw new Error("expected agent repair");
     expect(repaired.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v2`);
@@ -286,7 +288,7 @@ describe("closed-loop Web Operator lifecycle", () => {
     expect(await workflowStore.getWorkflowCandidate(activeV1.id)).toMatchObject({ state: "SUPERSEDED", supersededBy: repaired.workflow.id });
     const modelCallsBeforeV2Replay = gateway.calls;
 
-    const replayedV2 = await controller.acquire(request(fixture.origin, "v2-refresh", "article-v2"), new Date("2026-09-13T00:05:00Z"));
+    const replayedV2 = await controller.acquire(request(fixture.origin, "v2-refresh", "article-v2"), lifecycleAt(300_000));
     expect(replayedV2.state).toBe("acquired_by_workflow");
     if (replayedV2.state !== "acquired_by_workflow") throw new Error("expected v2 deterministic replay");
     expect(replayedV2.modelCalls).toBe(0);
@@ -311,7 +313,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       browser,
       gateway
     });
-    const discovered = await discoveryController.acquire(request(fixture.origin, "repair-restart-v1", "article-v1"), new Date("2026-09-13T00:00:00Z"));
+    const discovered = await discoveryController.acquire(request(fixture.origin, "repair-restart-v1", "article-v1"), lifecycleAt(0));
     expect(discovered.state).toBe("acquired_by_agent");
     if (discovered.state !== "acquired_by_agent") throw new Error("expected initial discovery");
 
@@ -325,10 +327,10 @@ describe("closed-loop Web Operator lifecycle", () => {
       browser,
       gateway
     });
-    const firstStructuralEvidence = await repairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), new Date("2026-09-13T00:01:00Z"));
+    const firstStructuralEvidence = await repairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), lifecycleAt(60_000));
     expect(firstStructuralEvidence.state).toBe("waiting_for_repair_evidence");
 
-    await expect(repairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), new Date("2026-09-13T00:02:00Z")))
+    await expect(repairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), lifecycleAt(120_000)))
       .rejects.toThrow(/candidate/);
     const modelCallsAfterInterruptedRepair = gateway.calls;
 
@@ -339,7 +341,7 @@ describe("closed-loop Web Operator lifecycle", () => {
       browser,
       gateway
     });
-    const repaired = await resumedRepairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), new Date("2026-09-13T00:03:00Z"));
+    const repaired = await resumedRepairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), lifecycleAt(180_000));
     expect(repaired.state).toBe("acquired_by_agent");
     if (repaired.state !== "acquired_by_agent") throw new Error("expected resumed repair finalization");
     expect(repaired.process.status).toBe("already_completed");

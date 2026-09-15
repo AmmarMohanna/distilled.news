@@ -395,6 +395,25 @@ describe("observations and completion", () => {
       .rejects.toMatchObject({name:"ModelGatewayError",observedIdentity:{provider:"Google"}} satisfies Partial<ModelGatewayError>);
   });
 
+  it("classifies a gateway-owned deadline without fabricating provider usage or identity",async()=>{
+    const fetcher=(async(_input:string|URL|Request,init?:RequestInit)=>new Promise<Response>((_resolve,reject)=>{
+      init?.signal?.addEventListener("abort",()=>reject(init.signal?.reason),{once:true});
+    })) as typeof fetch;
+    const gateway=new OpenAICompatibleGateway({baseUrl:"https://gateway.invalid/v1",provider:"provider",fetcher});
+
+    const error=await gateway.complete({...modelRequest({deployment:"api",gateway:"openrouter"}),timeoutMs:5})
+      .then(()=>null,(caught:unknown)=>caught);
+
+    expect(error).toMatchObject({
+      name:"ModelGatewayError",failureClass:"deadline_exceeded",usageConfirmed:false,
+      observedIdentity:{gateway:"openai_compatible",deployment:"api"},
+      usage:{inputTokens:0,outputTokens:0,costUsd:0}
+    });
+    expect((error as ModelGatewayError).observedIdentity?.model).toBeUndefined();
+    expect((error as ModelGatewayError).observedIdentity?.provider).toBeUndefined();
+    expect((error as ModelGatewayError).usage?.latencyMs).toBeGreaterThanOrEqual(1);
+  });
+
   it("invokes the platform fetch port with the global receiver",async()=>{
     const originalFetch=globalThis.fetch;
     let receiver:unknown;

@@ -263,11 +263,13 @@ export class D1AgentRuntimeStore implements RuntimeStore {
     if (!call) throw new Error(`model call not found: ${value.modelCallId}`);
     const result=await this.db.prepare(`INSERT INTO agent_model_call_attempts
       (id,model_call_id,requested_provider,actual_provider,requested_model,actual_model,requested_deployment,actual_deployment,
-       attempt,requested_gateway,actual_gateway,state,input_tokens,output_tokens,cost_usd,latency_ms,fallback_reason)
-      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM agent_run_leases WHERE run_id=? AND generation=? AND expires_at>?)
+       attempt,requested_gateway,actual_gateway,state,input_tokens,output_tokens,cost_usd,latency_ms,fallback_reason,
+       started_at,completed_at,usage_confirmed,failure_class,reserved_input_tokens,reserved_output_tokens,reserved_cost_usd)
+      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM agent_run_leases WHERE run_id=? AND generation=? AND expires_at>?)
       ON CONFLICT(id) DO UPDATE SET actual_provider=excluded.actual_provider,actual_model=excluded.actual_model,
         actual_deployment=excluded.actual_deployment,actual_gateway=excluded.actual_gateway,state=excluded.state,input_tokens=excluded.input_tokens,
-        output_tokens=excluded.output_tokens,cost_usd=excluded.cost_usd,latency_ms=excluded.latency_ms,fallback_reason=excluded.fallback_reason
+        output_tokens=excluded.output_tokens,cost_usd=excluded.cost_usd,latency_ms=excluded.latency_ms,fallback_reason=excluded.fallback_reason,
+        completed_at=excluded.completed_at,usage_confirmed=excluded.usage_confirmed,failure_class=excluded.failure_class
       WHERE agent_model_call_attempts.model_call_id=excluded.model_call_id AND agent_model_call_attempts.attempt=excluded.attempt
         AND agent_model_call_attempts.requested_gateway=excluded.requested_gateway
         AND agent_model_call_attempts.requested_deployment=excluded.requested_deployment
@@ -275,7 +277,9 @@ export class D1AgentRuntimeStore implements RuntimeStore {
         AND agent_model_call_attempts.requested_model=excluded.requested_model`).bind(
       value.id,value.modelCallId,value.requestedProvider,value.actualProvider??null,value.requestedModel,value.actualModel??null,
       value.requestedDeployment,value.actualDeployment??null,value.attempt,value.requestedGateway,value.actualGateway??null,value.state,value.inputTokens,
-      value.outputTokens,value.costUsd,value.latencyMs,value.fallbackReason ?? null,String(call.run_id),Number(call.generation),new Date().toISOString()
+      value.outputTokens,value.costUsd,value.latencyMs,value.fallbackReason ?? null,value.startedAt,value.completedAt??null,value.usageConfirmed?1:0,
+      value.failureClass??null,value.reservation?.inputTokens??0,value.reservation?.outputTokens??0,value.reservation?.costUsd??0,
+      String(call.run_id),Number(call.generation),new Date().toISOString()
     ).run();
     if (Number(result.meta.changes??0)!==1) {
       await this.assertGeneration(String(call.run_id),Number(call.generation));

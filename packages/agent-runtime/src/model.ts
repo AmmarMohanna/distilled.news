@@ -94,7 +94,9 @@ export class ModelGatewayError extends Error {
   constructor(
     message:string,
     readonly usage?:ModelGatewayResult["usage"],
-    readonly observedIdentity?:{model?:string;provider?:string;gateway?:string;deployment?:ModelDeployment}
+    readonly observedIdentity?:{model?:string;provider?:string;gateway?:string;deployment?:ModelDeployment},
+    readonly failureClass:import("./contracts").ModelGatewayFailureClass="transport_failure",
+    readonly usageConfirmed=usage!==undefined
   ) { super(message); this.name="ModelGatewayError"; }
 }
 
@@ -470,7 +472,8 @@ export class OpenAICompatibleGateway implements ModelGateway {
       throw new ModelGatewayError(
         `${this.id} returned an unexpected model/provider identity: ${result.model} via ${result.provider}`,
         result.usage,
-        {model:result.model,provider:result.provider,gateway:result.gateway,deployment:result.deployment}
+        {model:result.model,provider:result.provider,gateway:result.gateway,deployment:result.deployment},
+        "provider_identity_mismatch"
       );
     }
   }
@@ -487,53 +490,69 @@ export class OpenAICompatibleGateway implements ModelGateway {
     request.signal?.addEventListener("abort",abort,{once:true});
     if (request.signal?.aborted) abort();
     const gatewayIdentity={gateway:this.id,deployment:request.route.deployment};
-    let response:Response;
-    try { response = await this.fetcher.call(globalThis, this.endpoint, { ...translated, headers,signal:controller.signal }); }
-    catch (error) {
-      throw new ModelGatewayError(`${this.id} transport failed: ${error instanceof Error?error.message:String(error)}`,undefined,gatewayIdentity);
+    try {
+      const response=await this.fetcher.call(globalThis,this.endpoint,{...translated,headers,signal:controller.signal});
+      if (!response.ok) {
+        throw new ModelGatewayError(`${this.id} request failed: ${response.status}`,unconfirmedModelUsage(started),gatewayIdentity,"provider_http_failure",false);
+      }
+      let body:{
+        id:string;
+        model:string;
+        provider?:string;
+        choices:Array<{message:{content:string}}>;
+        usage?:{prompt_tokens?:number;completion_tokens?:number;cost?:number};
+      };
+      try { body=await response.json() as typeof body; }
+      catch (error) {
+        if (controller.signal.aborted) throw error;
+        throw new ModelGatewayError(`${this.id} returned invalid JSON`,unconfirmedModelUsage(started),gatewayIdentity,"malformed_response",false);
+      }
+      if (!body||typeof body!=="object"||typeof body.id!=="string"||typeof body.model!=="string"||!Array.isArray(body.choices)) {
+        throw new ModelGatewayError(`${this.id} returned an invalid response envelope`,unconfirmedModelUsage(started),{
+          ...gatewayIdentity,
+          model:typeof body?.model==="string"?body.model:undefined,
+          provider:typeof body?.provider==="string"?body.provider:undefined
+        },"malformed_response",false);
+      }
+      const usage={
+        inputTokens:body.usage?.prompt_tokens??0,
+        outputTokens:body.usage?.completion_tokens??0,
+        costUsd:body.usage?.cost??0,
+        latencyMs:Date.now()-started
+      };
+      const observedIdentity={...gatewayIdentity,model:body.model,provider:body.provider??request.route.selectedProvider};
+      const content=body.choices?.[0]?.message.content;
+      if (!content) throw new ModelGatewayError(`${this.id} returned no completed message`,usage,observedIdentity,"malformed_response");
+      let plan:BoundedActionPlan;
+      try { plan=boundedActionPlanSchema.parse(JSON.parse(content)) as BoundedActionPlan; }
+      catch { throw new ModelGatewayError(`${this.id} returned an invalid bounded action plan`,usage,observedIdentity,"malformed_response"); }
+      const result:ModelGatewayResult={
+        plan,usage,provider:observedIdentity.provider,model:body.model,responseId:body.id,gateway:this.id,deployment:request.route.deployment
+      };
+      this.validateResult(request,result);
+      return result;
+    } catch (error) {
+      if (error instanceof ModelGatewayError) throw error;
+      const latencyMs=Date.now()-started;
+      const usage={inputTokens:0,outputTokens:0,costUsd:0,latencyMs};
+      const ownDeadline=controller.signal.aborted && !request.signal?.aborted;
+      const cancelled=Boolean(request.signal?.aborted);
+      throw new ModelGatewayError(
+        `${this.id} transport failed: ${error instanceof Error?error.message:String(error)}`,
+        usage,
+        gatewayIdentity,
+        ownDeadline?"deadline_exceeded":cancelled?"cancelled":"transport_failure",
+        false
+      );
+    } finally {
+      clearTimeout(timeout);
+      request.signal?.removeEventListener("abort",abort);
     }
-    finally { clearTimeout(timeout); request.signal?.removeEventListener("abort",abort); }
-    if (!response.ok) throw new ModelGatewayError(`${this.id} request failed: ${response.status}`,undefined,gatewayIdentity);
-    let body:{
-      id: string;
-      model: string;
-      provider?: string;
-      choices: Array<{ message: { content: string } }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
-    };
-    try { body=await response.json() as typeof body; }
-    catch { throw new ModelGatewayError(`${this.id} returned invalid JSON`,undefined,gatewayIdentity); }
-    if (!body || typeof body!=="object" || typeof body.id!=="string" || typeof body.model!=="string" || !Array.isArray(body.choices)) {
-      throw new ModelGatewayError(`${this.id} returned an invalid response envelope`,undefined,{
-        ...gatewayIdentity,
-        model:typeof body?.model==="string"?body.model:undefined,
-        provider:typeof body?.provider==="string"?body.provider:undefined
-      });
-    }
-    const usage={
-      inputTokens: body.usage?.prompt_tokens ?? 0,
-      outputTokens: body.usage?.completion_tokens ?? 0,
-      costUsd: body.usage?.cost ?? 0,
-      latencyMs: Date.now() - started
-    };
-    const observedIdentity={...gatewayIdentity,model:body.model,provider:body.provider??request.route.selectedProvider};
-    const content = body.choices?.[0]?.message.content;
-    if (!content) throw new ModelGatewayError(`${this.id} returned no completed message`,usage,observedIdentity);
-    let plan:BoundedActionPlan;
-    try { plan=boundedActionPlanSchema.parse(JSON.parse(content)) as BoundedActionPlan; }
-    catch { throw new ModelGatewayError(`${this.id} returned an invalid bounded action plan`,usage,observedIdentity); }
-    const result:ModelGatewayResult = {
-      plan,
-      usage,
-      provider: observedIdentity.provider,
-      model: body.model,
-      responseId: body.id,
-      gateway:this.id,
-      deployment:request.route.deployment
-    };
-    this.validateResult(request,result);
-    return result;
   }
+}
+
+function unconfirmedModelUsage(started:number):ModelGatewayResult["usage"] {
+  return {inputTokens:0,outputTokens:0,costUsd:0,latencyMs:Date.now()-started};
 }
 
 function policyAllows(capability:ModelCapability,deployment:ModelDeployment,policy?:ModelPolicy) {
@@ -565,7 +584,8 @@ export class OpenRouterGateway extends OpenAICompatibleGateway {
       throw new ModelGatewayError(
         `${this.id} returned an unexpected model/provider identity: ${result.model} via ${result.provider}`,
         result.usage,
-        {model:result.model,provider:result.provider,gateway:result.gateway,deployment:result.deployment}
+        {model:result.model,provider:result.provider,gateway:result.gateway,deployment:result.deployment},
+        "provider_identity_mismatch"
       );
     }
   }

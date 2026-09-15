@@ -121,6 +121,8 @@ export class ClosedLoopWebOperatorLifecycle {
     minimumStructuralEvidence?: number;
     workerIdFactory?: () => string;
     leaseTtlMs?: number;
+    modelCallTimeoutMs?: number;
+    runSettlementReserveMs?: number;
   }) {}
 
   async acquire(request: ClosedLoopAcquisitionRequest, now = new Date()): Promise<ClosedLoopAcquisitionOutcome> {
@@ -308,9 +310,11 @@ export class ClosedLoopWebOperatorLifecycle {
       visual: this.options.visual,
       modelGateway: this.options.modelGateway,
       strategy,
-      leaseTtlMs:this.options.leaseTtlMs
+      leaseTtlMs: this.options.leaseTtlMs,
+      modelCallTimeoutMs: this.options.modelCallTimeoutMs,
+      runSettlementReserveMs: this.options.runSettlementReserveMs
     });
-    const process = await coordinator.process(admitted.run.runId, this.workerId(purpose));
+    const process = await coordinator.process(admitted.run.runId, this.workerId(purpose), now);
     if ((process.status !== "completed" && process.status !== "already_completed") || process.acquiredContent.length === 0) {
       throw new Error(`Web Operator ${purpose} run did not complete acquisition`);
     }

@@ -48,6 +48,19 @@ export interface CoordinatorOptions {
   faultInjector?: TestOnlyFaultInjector;
   stableInstructions?: StableModelInstructions;
   leaseTtlMs?: number;
+  modelCallTimeoutMs?: number;
+  runSettlementReserveMs?: number;
+}
+
+const DEFAULT_MODEL_CALL_TIMEOUT_MS=15_000;
+const DEFAULT_RUN_SETTLEMENT_RESERVE_MS=1_000;
+
+export class LeaseRenewalLostError extends Error {
+  constructor(readonly cause:unknown) { super("agent run lease renewal failed"); this.name="LeaseRenewalLostError"; }
+}
+
+class RunDeadlineExceededError extends Error {
+  constructor() { super("agent run wall-clock deadline exceeded"); this.name="RunDeadlineExceededError"; }
 }
 
 export function createConfiguredWebOperatorCoordinator(options:Omit<CoordinatorOptions,"modelGateway"|"strategy"> & {
@@ -87,6 +100,17 @@ export function createConfiguredWebOperatorHttpHandler(options:Omit<CoordinatorO
     } catch (error) {
       console.error(JSON.stringify({message:"Web Operator processing failed",runId:(body as {runId:string}).runId,
         error:error instanceof Error?error.message:String(error)}));
+      if (error instanceof ModelGatewayError) {
+        return Response.json({error:"model_gateway_failure",failureClass:error.failureClass},{
+          status:retryableModelFailure(error.failureClass)?503:502
+        });
+      }
+      if (error instanceof BudgetExceededError) {
+        return Response.json({error:"agent_budget_exhausted",dimension:error.dimension},{status:409});
+      }
+      if (error instanceof LeaseRenewalLostError) {
+        return Response.json({error:"agent_operation_cancelled",failureClass:"lease_lost"},{status:409});
+      }
       return Response.json({error:"web_operator_processing_failed"},{status:500});
     }
   };
@@ -127,8 +151,11 @@ export class WebOperatorCoordinator {
     const lease = await this.options.store.acquireLease(runId, workerId, this.options.leaseTtlMs ?? 15_000, now);
     if (!lease) return { status: "lease_busy", run, acquiredContent: await this.options.store.getAcceptedContent(runId), modelCalls: 0 };
     const leaseTtlMs=this.options.leaseTtlMs??15_000;
+    const modelCallTimeoutMs=positiveDuration(this.options.modelCallTimeoutMs??DEFAULT_MODEL_CALL_TIMEOUT_MS,"modelCallTimeoutMs");
+    const runSettlementReserveMs=nonNegativeDuration(this.options.runSettlementReserveMs??DEFAULT_RUN_SETTLEMENT_RESERVE_MS,"runSettlementReserveMs");
     const operationAbort=new AbortController();
     let heartbeat:ReturnType<typeof setInterval>|undefined;
+    let runDeadlineTimer:ReturnType<typeof setTimeout>|undefined;
     run = await this.requireRun(runId);
     if (run.state === "running") run = await this.options.store.transitionRun(runId, lease.generation, "queued", now.toISOString());
     if (run.state === "suspended" || run.state === "waiting_human") {
@@ -155,6 +182,12 @@ export class WebOperatorCoordinator {
       persistedBudget.startedAt,
       persistedBudget.usage
     );
+    const processMonotonicStartedAt=Date.now();
+    const processWallStartedAt=now.getTime();
+    const currentWallTimeMs=()=>processWallStartedAt+(Date.now()-processMonotonicStartedAt);
+    const runDeadlineMs=Date.parse(persistedBudget.startedAt)+persistedBudget.limits.wallClockMs;
+    if (!Number.isFinite(runDeadlineMs)) throw new Error(`invalid run budget start time for ${runId}`);
+    const remainingRunMs=()=>runDeadlineMs-currentWallTimeMs();
     const policy = new PolicyEngine(invocation.policy);
     const modelRouter = new ModelRouter(invocation.modelRouting, invocation.modelCapabilities);
     const escalation = new ModelEscalationPolicy();
@@ -172,10 +205,16 @@ export class WebOperatorCoordinator {
     let allocation: Awaited<ReturnType<BrowserExecutorPort["allocate"]>> | undefined;
     let modelCalls = 0;
     let deficits: string[] = [];
+    let activeTurn:AgentTurn|undefined;
+    let activeModelCallId:string|undefined;
+    let runAttemptSettled=false;
 
     try {
+      if (remainingRunMs()<=runSettlementReserveMs) throw new BudgetExceededError("wallClockMs");
+      runDeadlineTimer=setTimeout(()=>operationAbort.abort(new RunDeadlineExceededError()),Math.max(1,remainingRunMs()));
       heartbeat=setInterval(()=>{
-        void this.options.store.renewLease(runId,lease.generation,workerId,leaseTtlMs).catch((error)=>operationAbort.abort(error));
+        void this.options.store.renewLease(runId,lease.generation,workerId,leaseTtlMs,new Date(currentWallTimeMs()))
+          .catch((error)=>operationAbort.abort(new LeaseRenewalLostError(error)));
       },Math.max(250,Math.floor(leaseTtlMs/3)));
       allocation = await this.options.browserExecutor.allocate({
         runId,
@@ -272,6 +311,7 @@ export class WebOperatorCoordinator {
           pageStateHash: await sha256Text(JSON.stringify(dispatchState.pageState)),
           createdAt: new Date().toISOString(),generation:lease.generation
         };
+        activeTurn=turn;
         await this.options.store.saveTurn(turn);
         await this.options.store.transitionTurn(turn.id, "model_pending",lease.generation);
         const requiresVision = this.requiresVisualReasoning(dispatchState.pageState);
@@ -312,6 +352,7 @@ export class WebOperatorCoordinator {
         };
         const contextManifestHash = await createContextManifestHash({ stable: this.stableInstructions, dynamic, route });
         const modelCallId = makeId("model_call", runId, turn.id, contextManifestHash);
+        activeModelCallId=modelCallId;
         const stableInstructionsHash = await sha256Text(JSON.stringify(this.stableInstructions));
         await this.options.store.appendEvent(runId,"agent.model.context_prepared",{
           modelCallId,role,contextManifestHash,stableInstructionsHash,observationIds:dynamic.observationIds,
@@ -341,6 +382,10 @@ export class WebOperatorCoordinator {
         let lastModelError: unknown;
         let physicalAttempts=0;
         for (const [candidateIndex, attemptRoute] of routes.entries()) {
+          await accountWallClock();
+          const availableForModelMs=remainingRunMs()-runSettlementReserveMs;
+          if (availableForModelMs<1_000) throw new BudgetExceededError("wallClockMs");
+          const effectiveModelCallTimeoutMs=Math.min(modelCallTimeoutMs,availableForModelMs);
           const candidateReservation=reservationFor(attemptRoute);
           const exceeded=budget.wouldExceed(candidateReservation);
           if (exceeded) {
@@ -356,6 +401,7 @@ export class WebOperatorCoordinator {
           }
           physicalAttempts+=1;
           const attempt = physicalAttempts;
+          const attemptStartedAt=new Date(currentWallTimeMs()).toISOString();
           const reservation={inputTokens:candidateReservation.inputTokens,outputTokens:candidateReservation.outputTokens,modelCostUsd:candidateReservation.modelCostUsd};
           budget.reserveModel({capability:attemptRoute.selectedCapability,inputTokens:reservation.inputTokens,
             outputTokens:reservation.outputTokens,estimatedCostUsd:reservation.modelCostUsd});
@@ -365,14 +411,17 @@ export class WebOperatorCoordinator {
             requestedGateway:attemptRoute.gateway,requestedDeployment:attemptRoute.deployment,
             requestedModel:attemptRoute.selectedModel,requestedProvider:attemptRoute.selectedProvider,
             inputTokens:0,outputTokens:0,costUsd:0,latencyMs:0,
+            startedAt:attemptStartedAt,usageConfirmed:false,
             fallbackReason: candidateIndex > 0 ? `prior candidate failed or was ineligible` : attemptRoute.fallbackReason,
             state:"started",reservation:{inputTokens:reservation.inputTokens,outputTokens:reservation.outputTokens,costUsd:reservation.modelCostUsd}
           });
           try {
             response = await this.options.modelGateway.complete({
               callId:modelCallId,role,route:attemptRoute,stable:this.stableInstructions,dynamic,contextManifestHash,
-              allowExactReuse:false,maxOutputTokens:reservation.outputTokens,visualInputs,signal:operationAbort.signal,timeoutMs:Math.max(1_000,leaseTtlMs-500)
+              allowExactReuse:false,maxOutputTokens:reservation.outputTokens,visualInputs,signal:operationAbort.signal,
+              timeoutMs:effectiveModelCallTimeoutMs
             });
+            operationAbort.signal.throwIfAborted();
             const reconciliation=budget.reconcileModel(reservation,response.usage);
             await this.options.store.saveBudget(budget.snapshot(),lease.generation);
             await this.options.store.saveModelAttempt({
@@ -382,15 +431,17 @@ export class WebOperatorCoordinator {
               requestedModel:attemptRoute.selectedModel,actualModel:response.model,
               requestedProvider:attemptRoute.selectedProvider,actualProvider:response.provider,inputTokens:response.usage.inputTokens,
               outputTokens:response.usage.outputTokens,costUsd:response.usage.costUsd,latencyMs:response.usage.latencyMs,
+              startedAt:attemptStartedAt,completedAt:new Date(currentWallTimeMs()).toISOString(),usageConfirmed:true,
               fallbackReason:candidateIndex > 0 ? `prior candidate failed or was ineligible` : attemptRoute.fallbackReason,state:"completed"
             });
             if (reconciliation.exceeded) throw new BudgetExceededError(reconciliation.exceeded);
             break;
           } catch (error) {
             if (error instanceof BudgetExceededError) throw error;
+            if (operationAbort.signal.reason instanceof LeaseRenewalLostError) throw operationAbort.signal.reason;
             lastModelError = error;
             let reconciliationExceeded:ReturnType<BudgetLedger["reconcileModel"]>["exceeded"];
-            if (error instanceof ModelGatewayError && error.usage) {
+            if (error instanceof ModelGatewayError && error.usage && error.usageConfirmed) {
               reconciliationExceeded=budget.reconcileModel(reservation,error.usage).exceeded;
               await this.options.store.saveBudget(budget.snapshot(),lease.generation);
             }
@@ -403,7 +454,11 @@ export class WebOperatorCoordinator {
               inputTokens:error instanceof ModelGatewayError?error.usage?.inputTokens??0:0,
               outputTokens:error instanceof ModelGatewayError?error.usage?.outputTokens??0:0,costUsd:error instanceof ModelGatewayError?error.usage?.costUsd??0:0,
               latencyMs:error instanceof ModelGatewayError?error.usage?.latencyMs??0:0,
-              fallbackReason:error instanceof Error ? error.message : String(error),state:"failed"
+              startedAt:attemptStartedAt,completedAt:new Date(currentWallTimeMs()).toISOString(),
+              usageConfirmed:error instanceof ModelGatewayError?error.usageConfirmed:false,
+              failureClass:modelFailureClass(error,operationAbort.signal.reason),
+              fallbackReason:error instanceof Error ? error.message : String(error),state:"failed",
+              reservation:{inputTokens:reservation.inputTokens,outputTokens:reservation.outputTokens,costUsd:reservation.modelCostUsd}
             });
             if (reconciliationExceeded) throw new BudgetExceededError(reconciliationExceeded);
             await this.options.store.appendEvent(runId,"agent.model.fallback",{ modelCallId,attempt,model:attemptRoute.selectedModel },undefined,lease.generation);
@@ -492,13 +547,36 @@ export class WebOperatorCoordinator {
       run = await this.options.store.transitionRun(runId, lease.generation, "failed");
       return { status: "failed", run, acquiredContent: await this.options.store.getAcceptedContent(runId), modelCalls };
     } catch (error) {
-      if (error instanceof BudgetExceededError) {
-        await this.options.store.appendEvent(runId, "agent.budget.exhausted", { dimension: error.dimension },undefined,lease.generation);
+      const deadlineExceeded=operationAbort.signal.reason instanceof RunDeadlineExceededError;
+      const leaseLost=operationAbort.signal.reason instanceof LeaseRenewalLostError;
+      let caught:unknown=deadlineExceeded ? new BudgetExceededError("wallClockMs") : error;
+      if (!leaseLost) {
+        try { await accountWallClock(); }
+        catch (accountingError) { caught=accountingError; }
+      }
+      if (caught instanceof BudgetExceededError) {
+        await this.options.store.appendEvent(runId, "agent.budget.exhausted", { dimension: caught.dimension },undefined,lease.generation);
+        await failActiveTurn(this.options.store,activeTurn,lease.generation);
         const current = await this.requireRun(runId);
         if (current.state === "running") await this.options.store.transitionRun(runId, lease.generation, "failed");
+      } else if (caught instanceof ModelGatewayError && retryableModelFailure(caught.failureClass)) {
+        await failActiveTurn(this.options.store,activeTurn,lease.generation);
+        await this.options.store.appendEvent(runId,"agent.run.retryable_failure",{
+          failureClass:caught.failureClass,modelCallId:activeModelCallId
+        },undefined,lease.generation);
+        const current=await this.requireRun(runId);
+        if (current.state==="running") run=await this.options.store.transitionRun(runId,lease.generation,"queued");
+        await this.options.store.saveRunAttempt({...runAttempt,completedAt:new Date(currentWallTimeMs()).toISOString(),outcome:"failed"});
+        runAttemptSettled=true;
+      } else if (caught instanceof ModelGatewayError && caught.failureClass==="provider_identity_mismatch") {
+        await failActiveTurn(this.options.store,activeTurn,lease.generation);
+        const current=await this.requireRun(runId);
+        if (current.state==="running") await this.options.store.transitionRun(runId,lease.generation,"failed");
       }
-      throw error;
+      throw caught;
     } finally {
+      if (runDeadlineTimer) clearTimeout(runDeadlineTimer);
+      if (heartbeat) clearInterval(heartbeat);
       if (allocation) await this.options.browserExecutor.close(allocation).catch(() => undefined);
       if (allocation) {
         await this.options.store.saveBrowserSession({
@@ -506,13 +584,12 @@ export class WebOperatorCoordinator {
           state:"closed",createdAt:now.toISOString()
         }).catch(() => undefined);
       }
-      if (heartbeat) clearInterval(heartbeat);
       const finalRun = await this.options.store.getRun(runId).catch(() => null);
       const outcome = finalRun?.state === "completed" ? "completed"
         : finalRun?.state === "failed" ? "failed"
           : finalRun?.state === "suspended" ? "suspended"
             : undefined;
-      if (outcome) {
+      if (outcome && !runAttemptSettled) {
         await this.options.store.saveRunAttempt({
           ...runAttempt,completedAt:new Date().toISOString(),outcome
         }).catch(() => undefined);
@@ -630,5 +707,33 @@ export class WebOperatorCoordinator {
     let binary = "";
     for (const byte of bytes) binary += String.fromCharCode(byte);
     return `data:${contentType};base64,${btoa(binary)}`;
+  }
+}
+
+function positiveDuration(value:number,name:string) {
+  if (!Number.isFinite(value)||!Number.isInteger(value)||value<1_000) throw new Error(`${name} must be an integer of at least 1000 milliseconds`);
+  return value;
+}
+
+function nonNegativeDuration(value:number,name:string) {
+  if (!Number.isFinite(value)||!Number.isInteger(value)||value<0) throw new Error(`${name} must be a non-negative integer`);
+  return value;
+}
+
+function modelFailureClass(error:unknown,abortReason:unknown):import("./contracts").ModelGatewayFailureClass|undefined {
+  if (abortReason instanceof LeaseRenewalLostError) return "lease_lost";
+  if (abortReason instanceof RunDeadlineExceededError) return "run_deadline_exhausted";
+  return error instanceof ModelGatewayError?error.failureClass:undefined;
+}
+
+function retryableModelFailure(value:import("./contracts").ModelGatewayFailureClass) {
+  return ["deadline_exceeded","provider_http_failure","malformed_response","transport_failure"].includes(value);
+}
+
+async function failActiveTurn(store:RuntimeStore,turn:AgentTurn|undefined,generation:number) {
+  if (!turn) return;
+  const current=await store.getTurn(turn.id);
+  if (current && ["model_pending","model_streaming","response_validating","tools_pending"].includes(current.state)) {
+    await store.transitionTurn(turn.id,"failed",generation);
   }
 }

@@ -1,6 +1,7 @@
 import {
   DEFAULT_SLICE_BUDGET,
   makeId,
+  ModelGatewayError,
   type AcquisitionFailure,
   type ClosedLoopAcquisitionOutcome,
   type DeterministicAcquisitionPort,
@@ -208,6 +209,10 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
     }
     console.error(error);
+    if (error instanceof ModelGatewayError) {
+      const retryable=["deadline_exceeded","provider_http_failure","malformed_response","transport_failure"].includes(error.failureClass);
+      return c.json({error:"model_gateway_failure",failureClass:error.failureClass},retryable?503:502);
+    }
     return c.json({ error: "internal server error" }, 500);
   });
 

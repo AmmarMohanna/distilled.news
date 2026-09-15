@@ -222,10 +222,24 @@ export interface AgentModelCallAttempt {
   outputTokens: number;
   costUsd: number;
   latencyMs: number;
+  startedAt: string;
+  completedAt?: string;
+  usageConfirmed: boolean;
+  failureClass?: ModelGatewayFailureClass;
   fallbackReason?: string;
   state: "started" | "completed" | "failed";
   reservation?: { inputTokens:number; outputTokens:number; costUsd:number };
 }
+
+export type ModelGatewayFailureClass =
+  | "deadline_exceeded"
+  | "provider_http_failure"
+  | "malformed_response"
+  | "provider_identity_mismatch"
+  | "transport_failure"
+  | "cancelled"
+  | "lease_lost"
+  | "run_deadline_exhausted";
 
 export const TOOL_NAMES = [
   "browser.navigate@1",

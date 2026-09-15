@@ -78,6 +78,30 @@ describe("D1 agent runtime fencing and outbox",()=>{
       .rejects.toThrow(/agent run identity collision/);
   });
 
+  it("persists unconfirmed model-timeout provenance without replacing reserved usage",async()=>{
+    const {db,store}=await setup();const strategy=new WebOperatorAcquisitionStrategy(store);
+    const admitted=await strategy.admitKnownCandidate({...invocation(),idempotencyKey:"timeout-key"});
+    const now=new Date();const lease=await store.acquireLease(admitted.run.runId,"timeout-worker",30_000,now);
+    await store.transitionRun(admitted.run.runId,lease!.generation,"running",now.toISOString());
+    await store.saveTurn({id:"timeout-turn",runId:admitted.run.runId,sequence:1,state:"model_streaming",createdAt:now.toISOString(),generation:lease!.generation});
+    await store.saveModelCall({id:"timeout-call",runId:admitted.run.runId,turnId:"timeout-turn",generation:lease!.generation,
+      role:"NAVIGATION_FAST",route:{} as never,contextManifestHash:"context",stableInstructionsHash:"stable",state:"streaming",createdAt:now.toISOString()});
+    const startedAt=now.toISOString();const completedAt=new Date(now.getTime()+29_500).toISOString();
+    const base={id:"timeout-attempt",modelCallId:"timeout-call",attempt:1,requestedGateway:"openrouter",requestedDeployment:"api" as const,
+      requestedModel:"fixture/model",requestedProvider:"fixture",inputTokens:0,outputTokens:0,costUsd:0,startedAt,
+      reservation:{inputTokens:1000,outputTokens:500,costUsd:0.01}};
+    await store.saveModelAttempt({...base,latencyMs:0,usageConfirmed:false,state:"started"});
+    await store.saveModelAttempt({...base,actualGateway:"openrouter",actualDeployment:"api",latencyMs:29_500,completedAt,
+      usageConfirmed:false,failureClass:"deadline_exceeded",fallbackReason:"model gateway deadline exceeded",state:"failed"});
+
+    const row=await db.prepare(`SELECT started_at,completed_at,usage_confirmed,failure_class,latency_ms,input_tokens,output_tokens,cost_usd,
+      reserved_input_tokens,reserved_output_tokens,reserved_cost_usd,actual_model,actual_provider FROM agent_model_call_attempts WHERE id='timeout-attempt'`)
+      .first<Record<string,string|number|null>>();
+    expect(row).toEqual({started_at:startedAt,completed_at:completedAt,usage_confirmed:0,failure_class:"deadline_exceeded",latency_ms:29_500,
+      input_tokens:0,output_tokens:0,cost_usd:0,reserved_input_tokens:1000,reserved_output_tokens:500,reserved_cost_usd:0.01,
+      actual_model:null,actual_provider:null});
+  });
+
   it("migrates legacy shared content into canonical data plus each run's own relational provenance",async()=>{
     mf=new Miniflare({modules:true,script:"export default {fetch(){return new Response('ok')}}",d1Databases:["DB"]});
     const db=await mf.getD1Database("DB");
@@ -120,10 +144,36 @@ describe("D1 agent runtime fencing and outbox",()=>{
       toolCallId:"tool-b",observationId:"observation-b",rawArtifactRef:"artifact-b",acceptedAt:"2026-01-02T00:00:00.000Z"});
   });
 
+  it("migrates existing model attempts with explicit confirmation and timing provenance",async()=>{
+    mf=new Miniflare({modules:true,script:"export default {fetch(){return new Response('ok')}}",d1Databases:["DB"]});
+    const db=await mf.getD1Database("DB");
+    await applyMigration(db,"0011_agent_runtime.sql");
+    await applyMigration(db,"0012_agent_runtime_security_and_provenance.sql");
+    await db.prepare(`INSERT INTO agent_runs
+      (run_id,tenant_id,resource_id,idempotency_key,candidate_id,candidate_url,publisher_id,acquisition_attempt,objective,mode,state,generation,policy_snapshot_id,completion_contract_version,created_at,updated_at)
+      VALUES ('run-model','tenant','resource','model-key','candidate','https://fixture.test/article','fixture','attempt','Acquire','known_candidate','completed',1,'policy','contract','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`).run();
+    await db.prepare(`INSERT INTO agent_turns (id,run_id,sequence,state,created_at,generation)
+      VALUES ('turn-model','run-model',1,'completed','2026-01-01T00:00:01Z',1)`).run();
+    await db.prepare(`INSERT INTO agent_model_calls
+      (id,run_id,turn_id,generation,role,route_json,context_manifest_hash,stable_instructions_hash,state,created_at)
+      VALUES ('call-model','run-model','turn-model',1,'NAVIGATION_FAST','{}','context','stable','completed','2026-01-01T00:00:02Z')`).run();
+    await db.prepare(`INSERT INTO agent_model_call_attempts
+      (id,model_call_id,requested_provider,actual_provider,requested_model,actual_model,requested_deployment,actual_deployment,attempt,requested_gateway,actual_gateway,state,input_tokens,output_tokens,cost_usd,latency_ms)
+      VALUES ('attempt-model','call-model','fixture','fixture','fixture/model','fixture/model','api','api',1,'openrouter','openrouter','completed',10,2,0.01,50)`).run();
+
+    await applyMigration(db,"0016_model_attempt_timeout_provenance.sql");
+
+    const attempt=await db.prepare(`SELECT started_at,completed_at,usage_confirmed,failure_class,
+      reserved_input_tokens,reserved_output_tokens,reserved_cost_usd FROM agent_model_call_attempts WHERE id='attempt-model'`)
+      .first<Record<string,string|number|null>>();
+    expect(attempt).toEqual({started_at:"2026-01-01T00:00:02Z",completed_at:null,usage_confirmed:1,failure_class:null,
+      reserved_input_tokens:0,reserved_output_tokens:0,reserved_cost_usd:0});
+  });
+
   async function setup() {
     mf=new Miniflare({modules:true,script:"export default {fetch(){return new Response('ok')}}",d1Databases:["DB"]});
     const db=await mf.getD1Database("DB");
-    for (const migration of ["0011_agent_runtime.sql","0012_agent_runtime_security_and_provenance.sql"]) {
+    for (const migration of ["0011_agent_runtime.sql","0012_agent_runtime_security_and_provenance.sql","0016_model_attempt_timeout_provenance.sql"]) {
       await applyMigration(db,migration);
     }
     return {db,store:new D1AgentRuntimeStore(db)};

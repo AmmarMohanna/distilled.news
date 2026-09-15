@@ -158,7 +158,7 @@ describe("D1 Web Operator workflow lifecycle store", () => {
   }, 30_000);
 
   async function setup() {
-    const { db } = await setupThrough("0015_web_operator_acquisition_failure_evidence.sql");
+    const { db } = await setupThrough("0016_model_attempt_timeout_provenance.sql");
     await seedAgentRun(db);
     return { db, store: new D1WorkflowRepository(db) };
   }
@@ -179,7 +179,8 @@ const MIGRATIONS = [
   "0012_agent_runtime_security_and_provenance.sql",
   "0013_web_operator_workflow_lifecycle.sql",
   "0014_web_operator_workflow_failure_evidence.sql",
-  "0015_web_operator_acquisition_failure_evidence.sql"
+  "0015_web_operator_acquisition_failure_evidence.sql",
+  "0016_model_attempt_timeout_provenance.sql"
 ];
 
 async function setupThrough(lastMigration: string) {

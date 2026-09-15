@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createWorkerWebOperatorRuntimeHandler, workerCloudflareBrowser } from "./web-operator-runtime";
+import { createWorkerWebOperatorRuntimeHandler, workerCloudflareBrowser,workerRuntimeTiming } from "./web-operator-runtime";
 import type { Env } from "./types";
 
 describe("Worker Web Operator runtime composition", () => {
@@ -55,5 +55,12 @@ describe("Worker Web Operator runtime composition", () => {
       DB: undefined,
       RAW_ARCHIVE: undefined
     } as unknown as Env)).toThrow(/WEB_OPERATOR_RUNTIME_TOKEN/);
+  });
+
+  it("parses explicit model operation and settlement timing independently from the lease",()=>{
+    expect(workerRuntimeTiming({DISTILLED_MODEL_CALL_TIMEOUT_MS:"45000",DISTILLED_RUN_SETTLEMENT_RESERVE_MS:"5000"}))
+      .toEqual({modelCallTimeoutMs:45_000,runSettlementReserveMs:5_000});
+    expect(()=>workerRuntimeTiming({DISTILLED_MODEL_CALL_TIMEOUT_MS:"999",DISTILLED_RUN_SETTLEMENT_RESERVE_MS:"5000"}))
+      .toThrow(/DISTILLED_MODEL_CALL_TIMEOUT_MS/);
   });
 });
