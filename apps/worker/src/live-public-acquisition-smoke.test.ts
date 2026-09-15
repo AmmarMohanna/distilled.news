@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { makeId } from "@distilled/agent-runtime/contracts";
 import { Miniflare } from "miniflare";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
@@ -116,16 +117,38 @@ describe("live public acquisition operator trigger", () => {
   });
 
   it("records a bounded failure without retrying the live acquisition", async () => {
-    const db = await setup();
+    const db = await setupRuntime();
     await insertRequest(db, "request-failed", "failed-smoke-key", "2026-09-15T00:00:00.000Z");
+    const resourceId = makeId("live_public_resource", "https://matklad.github.io");
+    await db.prepare(`INSERT INTO agent_runs
+      (run_id,tenant_id,resource_id,idempotency_key,candidate_id,candidate_url,publisher_id,acquisition_attempt,objective,mode,state,generation,policy_snapshot_id,completion_contract_version,created_at,updated_at)
+      VALUES ('agent_run_dddddddddddddddddddddddddddddddd','live-smoke',?,'failed-smoke-key','candidate','https://matklad.github.io/2024/12/24/minimal-version-selection-revisited.html','matklad.github.io','live-public-smoke','Acquire','known_candidate','queued',1,'policy','contract','2026-09-15T00:00:00Z','2026-09-15T00:00:00Z')`)
+      .bind(resourceId).run();
+    await db.prepare(`INSERT INTO agent_outbox
+      (id,run_id,kind,state,created_at,delivered_at,attempts,next_attempt_at)
+      VALUES ('outbox-failed','agent_run_dddddddddddddddddddddddddddddddd','agent_run_wake','delivered','2026-09-15T00:00:00Z','2026-09-15T00:00:00Z',1,'2026-09-15T00:00:00Z')`).run();
     const invoke = vi.fn(async () => Response.json({ error: "model_gateway_failure", failureClass: "deadline_exceeded" }, { status: 503 }));
     const result = await processLivePublicAcquisitionSmoke({
       DB: db,
       WEB_OPERATOR_RUNTIME_TOKEN: "worker-held-secret",
       DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE: "true"
     }, { type: "live_public_acquisition_smoke", requestId: "request-failed" }, invoke, new Date("2026-09-15T00:00:01.000Z"));
-    expect(result).toEqual({ status: "failed", failureClass: "http_503_deadline_exceeded" });
+    expect(result).toEqual({
+      status: "failed",
+      failureClass: "http_503_deadline_exceeded",
+      runId: "agent_run_dddddddddddddddddddddddddddddddd"
+    });
     expect(invoke).toHaveBeenCalledTimes(1);
+    expect(await db.prepare("SELECT state,generation FROM agent_runs WHERE run_id='agent_run_dddddddddddddddddddddddddddddddd'").first())
+      .toEqual({ state: "failed", generation: 2 });
+    expect(await db.prepare("SELECT state,attempts FROM agent_outbox WHERE run_id='agent_run_dddddddddddddddddddddddddddddddd'").first())
+      .toEqual({ state: "failed", attempts: 1 });
+    expect(await db.prepare("SELECT state,run_id,failure_class FROM web_operator_live_smoke_requests WHERE request_id='request-failed'").first())
+      .toEqual({
+        state: "failed",
+        run_id: "agent_run_dddddddddddddddddddddddddddddddd",
+        failure_class: "http_503_deadline_exceeded"
+      });
     expect(await processLivePublicAcquisitionSmoke({
       DB: db,
       WEB_OPERATOR_RUNTIME_TOKEN: "worker-held-secret",
@@ -138,6 +161,19 @@ describe("live public acquisition operator trigger", () => {
     mf = new Miniflare({ modules: true, script: "export default {fetch(){return new Response('ok')}}", d1Databases: ["DB"] });
     const db = await mf.getD1Database("DB");
     await applyMigration(db, "0017_web_operator_live_smoke_requests.sql");
+    return db;
+  }
+
+  async function setupRuntime(): Promise<D1Database> {
+    await mf?.dispose();
+    mf = new Miniflare({ modules: true, script: "export default {fetch(){return new Response('ok')}}", d1Databases: ["DB"] });
+    const db = await mf.getD1Database("DB");
+    for (const migration of [
+      "0011_agent_runtime.sql",
+      "0012_agent_runtime_security_and_provenance.sql",
+      "0016_model_attempt_timeout_provenance.sql",
+      "0017_web_operator_live_smoke_requests.sql"
+    ]) await applyMigration(db, migration);
     return db;
   }
 });
