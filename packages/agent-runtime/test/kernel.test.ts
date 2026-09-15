@@ -268,6 +268,7 @@ describe("durable admission and fencing", () => {
     const first = await strategy.admitKnownCandidate(input,base);
     const duplicate = await strategy.admitKnownCandidate(input,new Date(base.getTime()+1));
     expect(first.created).toBe(true);
+    expect(first.run.completionContractVersion).toBe("known-candidate-exact-v1");
     expect(duplicate.created).toBe(false);
     expect(duplicate.run.runId).toBe(first.run.runId);
     const otherTenant=await strategy.admitKnownCandidate({...input,tenantId:"tenant-2"});
@@ -596,6 +597,27 @@ describe("observations and completion", () => {
       ,generation:1
     });
     expect(complete.acceptance.outcome).toBe("accepted");
+  });
+
+  it("accepts an exact known candidate without listing-boundary evidence", () => {
+    const verifier = new CompletionVerifier("known-candidate-exact-v1");
+    const result = verifier.verify({
+      runId: "run",
+      toolCallId: "complete",
+      citedObservationIds: ["obs"],
+      progress: {
+        watermarkObserved: false,
+        validatedListingBoundaryReached: false,
+        articleExtracted: true,
+        acceptedContentId: "accepted",
+        acceptedObservationId: "obs",
+        acceptedCandidateId: "candidate",
+        expectedCandidateId: "candidate"
+      },
+      generation: 1
+    });
+    expect(result.acceptance.outcome).toBe("accepted");
+    expect(result.acceptance.deficits).toEqual([]);
   });
 });
 

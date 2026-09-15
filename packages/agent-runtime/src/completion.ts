@@ -39,7 +39,11 @@ export class CompletionVerifier {
     if (!input.progress.expectedCandidateId || input.progress.acceptedCandidateId!==input.progress.expectedCandidateId) {
       deficits.push("candidate_identity_not_proven");
     }
-    if (!input.progress.watermarkObserved && !input.progress.validatedListingBoundaryReached) {
+    if (
+      this.contractVersion !== "known-candidate-exact-v1" &&
+      !input.progress.watermarkObserved &&
+      !input.progress.validatedListingBoundaryReached
+    ) {
       deficits.push("completion_boundary_not_proven");
     }
     const outcome = deficits.length === 0 ? "accepted" : "not_satisfied";

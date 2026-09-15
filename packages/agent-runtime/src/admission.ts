@@ -41,7 +41,7 @@ export class WebOperatorAcquisitionStrategy {
     const run: AgentRun = {
       runId,tenantId:input.tenantId,resourceId:input.resourceId,idempotencyKey:input.idempotencyKey,
       objective:input.objective,mode:"known_candidate",state:"admitted",generation:0,
-      policySnapshotId:input.policy.id,completionContractVersion:"known-candidate-watermark-v1",
+      policySnapshotId:input.policy.id,completionContractVersion:"known-candidate-exact-v1",
       createdAt:timestamp,updatedAt:timestamp,candidate:structuredClone(input.candidate)
     };
     const ledger = new BudgetLedger(runId,input.budgetLimits ?? DEFAULT_SLICE_BUDGET,timestamp);
