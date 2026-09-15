@@ -127,6 +127,8 @@ After an earlier stage has already been proven, an operator may set `DISTILLED_O
 
 `DISTILLED_OPENROUTER_DIAGNOSTIC_PROFILE=production_bisection` changes the six stages into a request-shape bisection: baseline, tiny structured output, production system prompt with the tiny schema, full bounded schema as a forced tool, exact production messages with the forced tool, then the same request with both forced tool calling and `response_format`. It remains subject to the same first-failure stop and timeout bounds.
 
+`DISTILLED_OPENROUTER_DIAGNOSTIC_PROFILE=production_gateway` performs one Stage F call through `OpenRouterGateway.complete()` itself. It is the no-browser production gate for response parsing, bounded-plan validation, provider identity enforcement, and usage attribution.
+
 ## Workflow lifecycle
 
 A successful run may produce a `WorkflowCaptureBundle` containing visible actions, observation references, effect certainty, browser generation, structured discovery evidence, extraction evidence, completion evidence, and runtime/tool/schema versions. Discovery evidence is machine-readable and includes observed page types, listing URL candidates, article URL pattern hints, publication-time evidence, locator/capability evidence, and watermark/exhaustion evidence when available. It does not capture hidden chain-of-thought.

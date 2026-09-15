@@ -135,8 +135,8 @@ function diagnosticStartStage(value:string|undefined):OpenRouterDiagnosticStage 
 
 function diagnosticProfile(value:string|undefined):OpenRouterDiagnosticProfile {
   const profile=value?.trim()||"standard";
-  if (profile!=="standard"&&profile!=="production_bisection") {
-    throw new Error("DISTILLED_OPENROUTER_DIAGNOSTIC_PROFILE must be standard or production_bisection");
+  if (profile!=="standard"&&profile!=="production_bisection"&&profile!=="production_gateway") {
+    throw new Error("DISTILLED_OPENROUTER_DIAGNOSTIC_PROFILE must be standard, production_bisection, or production_gateway");
   }
   return profile;
 }

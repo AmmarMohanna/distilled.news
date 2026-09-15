@@ -11,7 +11,7 @@ import { sha256Text } from "./observations";
 
 export const OPENROUTER_DIAGNOSTIC_STAGES=["A","B","C","D","E","F"] as const;
 export type OpenRouterDiagnosticStage=(typeof OPENROUTER_DIAGNOSTIC_STAGES)[number];
-export type OpenRouterDiagnosticProfile="standard"|"production_bisection";
+export type OpenRouterDiagnosticProfile="standard"|"production_bisection"|"production_gateway";
 
 export interface OpenRouterDiagnosticStageResult {
   stage:OpenRouterDiagnosticStage;
@@ -65,6 +65,7 @@ export async function runOpenRouterDiagnostic(input:{
   }
   const startAt=input.startAt??"A";
   const profile=input.profile??"standard";
+  if (profile==="production_gateway") return runProductionGatewayDiagnostic(input.gateway,input.productionRequest);
   const bodies=diagnosticBodies(input.productionRequest,profile).slice(OPENROUTER_DIAGNOSTIC_STAGES.indexOf(startAt));
   const stages:OpenRouterDiagnosticStageResult[]=[];
   for (const [stage,body] of bodies) {
@@ -86,6 +87,30 @@ export async function runOpenRouterDiagnostic(input:{
     }
   }
   return {model:input.productionRequest.route.selectedModel,profile,startedAt:startAt,stages};
+}
+
+async function runProductionGatewayDiagnostic(
+  gateway:OpenRouterGateway,request:ModelRequest
+):Promise<OpenRouterDiagnosticReport> {
+  const serialized=buildOpenRouterRequest(request).body;
+  const manifest=await requestManifest(serialized);
+  try {
+    const result=await gateway.complete(request);
+    return {model:request.route.selectedModel,profile:"production_gateway",startedAt:"F",stages:[{
+      stage:"F",state:"passed",request:manifest,response:{
+        httpStatus:200,requestIds:{},model:result.model,provider:result.provider,
+        inputTokens:result.usage.inputTokens,outputTokens:result.usage.outputTokens,
+        costUsd:result.usage.costUsd,latencyMs:result.usage.latencyMs
+      }
+    }]};
+  } catch (error) {
+    const gatewayError=error instanceof ModelGatewayError?error:undefined;
+    return {model:request.route.selectedModel,profile:"production_gateway",startedAt:"F",stoppedAt:"F",stages:[{
+      stage:"F",state:"failed",request:manifest,
+      failureClass:gatewayError?.failureClass??"diagnostic_validation_failure",
+      diagnostic:gatewayError?.gatewayDiagnostic
+    }]};
+  }
 }
 
 function diagnosticBodies(request:ModelRequest,profile:OpenRouterDiagnosticProfile):Array<[OpenRouterDiagnosticStage,Record<string,unknown>]> {

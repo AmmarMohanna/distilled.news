@@ -118,6 +118,21 @@ describe("bounded OpenRouter diagnostic",()=>{
     expect(bodies[5].response_format).toBeDefined();
     expect(bodies[5].tool_choice).toEqual({type:"function",function:{name:"submit_bounded_action_plan"}});
   });
+
+  it("gates production through the real OpenRouter completion parser",async()=>{
+    const gateway=new OpenRouterGateway({apiKey:"secret",fetcher:async()=>Response.json({
+      id:"production-gate",model:"anthropic/claude-sonnet-4.6",provider:"Anthropic",
+      choices:[{finish_reason:"tool_calls",message:{content:null,tool_calls:[{id:"plan",type:"function",function:{
+        name:"submit_bounded_action_plan",arguments:'{"version":1,"actions":[{"tool":"browser.inspect_dom@1","arguments":{}}]}'
+      }}]}}],usage:{prompt_tokens:21,completion_tokens:9,cost:0.001}
+    })});
+    const report=await runOpenRouterDiagnostic({gateway,productionRequest:request(),timeoutMs:5_000,
+      profile:"production_gateway"});
+    expect(report).toMatchObject({profile:"production_gateway",startedAt:"F",stages:[{stage:"F",state:"passed",
+      response:{model:"anthropic/claude-sonnet-4.6",provider:"Anthropic",inputTokens:21,outputTokens:9,costUsd:0.001}}]});
+    expect(report.stages[0].request.responseFormat).toBeUndefined();
+    expect(report.stages[0].request.toolChoice).toEqual({type:"function",function:{name:"submit_bounded_action_plan"}});
+  });
 });
 
 function request():ModelRequest {
