@@ -161,8 +161,8 @@ const healthInputSchema = z.object({
   briefingId: z.string().min(1).optional()
 });
 const livePublicAcquisitionSmokeSchema = z.object({
-  candidateUrl: z.string().url().optional(),
-  idempotencyKey: z.string().min(1).optional()
+  candidateUrl: z.string().url().max(2_048).optional(),
+  idempotencyKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/)
 }).strict();
 
 const feedStarInputSchema = z.object({
@@ -254,7 +254,7 @@ export function createApp(options: AppOptions = {}) {
 
     const now = nowFor();
     const origin = new URL(articleUrl).origin;
-    const idempotencyKey = input.idempotencyKey ?? makeId("live_public_acquisition_smoke", articleUrl);
+    const idempotencyKey = input.idempotencyKey;
     const lifecycle = createWorkerClosedLoopWebOperatorLifecycle(c.env, {
       deterministicAcquisition: {
         structured_api_feed: unavailableDeterministicAcquisition("structured_api_feed"),

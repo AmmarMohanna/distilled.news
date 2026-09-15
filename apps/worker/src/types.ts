@@ -58,7 +58,7 @@ export interface ProcessingJobRecord {
 export interface Env extends Cloudflare.Env {
   BROWSER: Cloudflare.Env["BROWSER"];
   PROCESSING_QUEUE: Queue<DistilledQueueMessage>;
-  WEB_OPERATOR_QUEUE: Queue<WebOperatorRunMessage>;
+  WEB_OPERATOR_QUEUE: Queue<WebOperatorQueueMessage>;
   WEB_OPERATOR_RUNTIME_URL: string;
   WEB_OPERATOR_RUNTIME_TOKEN?: string;
   ADMIN_SESSION_SECRET?: string;
@@ -125,6 +125,13 @@ export interface WebOperatorRunMessage {
   runId: string;
 }
 
+export interface WebOperatorLiveSmokeMessage {
+  type: "live_public_acquisition_smoke";
+  requestId: string;
+}
+
+export type WebOperatorQueueMessage = WebOperatorRunMessage | WebOperatorLiveSmokeMessage;
+
 export interface ProcessingJobMessage {
   type?: "process_raw_message";
   jobId: string;
@@ -139,7 +146,7 @@ export interface SourceRefreshJobMessage {
   force?: boolean;
 }
 
-export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage;
+export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage;
 
 export interface SourceRecord {
   id: string;

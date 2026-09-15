@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "deploy": "pnpm --filter @distilled/worker run deploy",
     "db:migrate": "pnpm --filter @distilled/worker db:migrate",
+    "web-operator:live-smoke:trigger": "node scripts/trigger-live-public-acquisition-smoke.mjs",
     "setup": "node scripts/setup.mjs"
   },
   "devDependencies": {

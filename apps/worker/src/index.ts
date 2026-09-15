@@ -5,9 +5,10 @@ import { processQueueMessage } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
-import type { DistilledQueueMessage, Env, ProcessingJobMessage, Repository, SourceRefreshJobMessage, WebOperatorRunMessage } from "./types";
+import type { DistilledQueueMessage, Env, ProcessingJobMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
 import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
 import { D1AgentRuntimeStore } from "./agent-runtime-store";
+import { dispatchPendingLivePublicAcquisitionSmokes, processLivePublicAcquisitionSmoke } from "./live-public-acquisition-smoke";
 
 const app = createApp();
 const MAX_QUEUE_ATTEMPTS = 5;
@@ -31,6 +32,9 @@ export default {
       const bodyId = queueBodyId(message.body);
       try {
         if (isWebOperatorRunMessage(message.body)) await processWebOperatorRunMessage(env,message.body);
+        else if (isWebOperatorLiveSmokeMessage(message.body)) {
+          await processLivePublicAcquisitionSmoke(env, message.body, async (request) => app.fetch(request, env));
+        }
         else await processDistilledQueueMessage(repo, env, message.body, summaryAdapter, reviewAdapter);
         const durationMs = Date.now() - startedAt;
         if (durationMs >= SLOW_QUEUE_JOB_MS) {
@@ -143,6 +147,10 @@ function isWebOperatorRunMessage(body:unknown):body is WebOperatorRunMessage {
   return isRecord(body) && body.type==="web_operator_run" && typeof body.runId==="string";
 }
 
+function isWebOperatorLiveSmokeMessage(body: unknown): body is WebOperatorLiveSmokeMessage {
+  return isRecord(body) && body.type === "live_public_acquisition_smoke" && typeof body.requestId === "string";
+}
+
 async function processWebOperatorRunMessage(env:Env,message:WebOperatorRunMessage) {
   if (!env.WEB_OPERATOR_RUNTIME_URL) throw new Error("WEB_OPERATOR_RUNTIME_URL is not configured");
   const headers=new Headers({"content-type":"application/json"});
@@ -182,6 +190,7 @@ function queueBodyId(body: unknown): string | undefined {
   if (isProcessingJobMessage(body)) return body.jobId;
   if (isSourceRefreshJobMessage(body)) return body.sourceId;
   if (isWebOperatorRunMessage(body)) return body.runId;
+  if (isWebOperatorLiveSmokeMessage(body)) return body.requestId;
   return undefined;
 }
 
@@ -192,6 +201,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function runScheduledMaintenance(env: Env): Promise<void> {
   const repo = new D1Repository(env.DB);
   const now = new Date();
+  try {
+    await dispatchPendingLivePublicAcquisitionSmokes(env, now);
+  } catch (error) {
+    console.warn("Could not dispatch pending live public acquisition smoke", error);
+  }
   if (env.DISTILLED_WEB_OPERATOR_ENABLED === "true") {
     try { await relayPendingWebOperatorOutbox(env,undefined,25,now); }
     catch (error) { console.warn("Could not relay pending Web Operator runs",error); }

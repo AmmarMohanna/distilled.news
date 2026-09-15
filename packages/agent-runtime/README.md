@@ -95,7 +95,15 @@ DISTILLED_LIVE_OPENROUTER_MODEL=...
 DISTILLED_LIVE_OPENROUTER_PROVIDER=...
 ```
 
-This path uses the real runtime coordinator, configured model gateway, browser backend selection, policy checks, durable intent/effect handling, verifier-owned completion, and `AcquiredContent` acceptance. It is never required for normal tests or CI.
+The deployed Worker accepts operator smoke admission through `web_operator_live_smoke_requests`. An operator creates a request with an explicit unique idempotency key through the authenticated Wrangler/D1 control plane:
+
+```text
+pnpm web-operator:live-smoke:trigger -- https://publisher.example/article <explicit-idempotency-key>
+```
+
+The scheduled Worker dispatches at most one pending request per tick to `WEB_OPERATOR_QUEUE`. The queue consumer claims it once and invokes the existing authenticated live-smoke handler internally with the Worker-held `WEB_OPERATOR_RUNTIME_TOKEN`; the secret never leaves the Worker environment. Repeated insertion of the same identity and duplicate queue delivery are idempotent. A completed or typed-failed request is not automatically retried.
+
+This path uses the real closed-loop runtime coordinator, configured model gateway, browser backend selection, policy checks, durable intent/effect handling, verifier-owned completion, workflow finalization, and `AcquiredContent` acceptance. The HTTP route remains disabled by default and authenticated when enabled. It is never required for normal tests or CI.
 
 ## Workflow lifecycle
 
