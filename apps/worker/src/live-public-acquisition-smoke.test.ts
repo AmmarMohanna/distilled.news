@@ -172,6 +172,7 @@ describe("live public acquisition operator trigger", () => {
       "0011_agent_runtime.sql",
       "0012_agent_runtime_security_and_provenance.sql",
       "0016_model_attempt_timeout_provenance.sql",
+      "0018_model_gateway_diagnostics.sql",
       "0017_web_operator_live_smoke_requests.sql"
     ]) await applyMigration(db, migration);
     return db;

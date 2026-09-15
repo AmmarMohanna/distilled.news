@@ -457,6 +457,7 @@ export class WebOperatorCoordinator {
               startedAt:attemptStartedAt,completedAt:new Date(currentWallTimeMs()).toISOString(),
               usageConfirmed:error instanceof ModelGatewayError?error.usageConfirmed:false,
               failureClass:modelFailureClass(error,operationAbort.signal.reason),
+              gatewayDiagnostic:error instanceof ModelGatewayError?error.gatewayDiagnostic:undefined,
               fallbackReason:error instanceof Error ? error.message : String(error),state:"failed",
               reservation:{inputTokens:reservation.inputTokens,outputTokens:reservation.outputTokens,costUsd:reservation.modelCostUsd}
             });

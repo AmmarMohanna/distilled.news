@@ -481,6 +481,37 @@ describe("observations and completion", () => {
       .rejects.toMatchObject({name:"ModelGatewayError",observedIdentity:{provider:"Azure"}} satisfies Partial<ModelGatewayError>);
   });
 
+  it("preserves sanitized OpenRouter error diagnostics without secrets or prompt content",async()=>{
+    const secret="sk-or-v1-abcdefghijklmnopqrstuvwxyz";
+    const gateway=new OpenRouterGateway({apiKey:secret,fetcher:async(_input,init)=>{
+      expect(new Headers(init?.headers).get("authorization")).toBe(`Bearer ${secret}`);
+      return new Response(JSON.stringify({error:{code:404,type:"NoEndpointError",
+        message:`No endpoints satisfy request; received Bearer ${secret}\n`}}),{
+        status:404,
+        headers:{"x-request-id":"request-123","x-openrouter-request-id":"openrouter-456","cf-ray":"ray-789"}
+      });
+    }});
+
+    const error=await gateway.complete(modelRequest({deployment:"api",gateway:"openrouter"}))
+      .then(()=>null,(caught:unknown)=>caught as ModelGatewayError);
+
+    if (!error) throw new Error("expected OpenRouter gateway failure");
+    expect(error).toMatchObject({
+      failureClass:"provider_http_failure",
+      gatewayDiagnostic:{
+        httpStatus:404,
+        errorCode:"404",
+        errorType:"NoEndpointError",
+        requestIds:{"x-request-id":"request-123","x-openrouter-request-id":"openrouter-456","cf-ray":"ray-789"},
+        requestedModel:"provider/text",
+        routingPreferences:{only:["provider"],allowFallbacks:false,requireParameters:true,zeroDataRetention:true,dataCollection:"deny"}
+      }
+    });
+    expect(error.gatewayDiagnostic?.message).toBe("No endpoints satisfy request; received Bearer [REDACTED]");
+    expect(JSON.stringify(error.gatewayDiagnostic)).not.toContain(secret);
+    expect(JSON.stringify(error.gatewayDiagnostic)).not.toContain("gateway test");
+  });
+
   it("classifies a gateway-owned deadline without fabricating provider usage or identity",async()=>{
     const fetcher=(async(_input:string|URL|Request,init?:RequestInit)=>new Promise<Response>((_resolve,reject)=>{
       init?.signal?.addEventListener("abort",()=>reject(init.signal?.reason),{once:true});

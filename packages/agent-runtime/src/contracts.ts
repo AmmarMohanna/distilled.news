@@ -239,9 +239,29 @@ export interface AgentModelCallAttempt {
   completedAt?: string;
   usageConfirmed: boolean;
   failureClass?: ModelGatewayFailureClass;
+  gatewayDiagnostic?: ModelGatewayDiagnostic;
   fallbackReason?: string;
   state: "started" | "completed" | "failed";
   reservation?: { inputTokens:number; outputTokens:number; costUsd:number };
+}
+
+export interface ModelGatewayDiagnostic {
+  httpStatus: number;
+  errorCode?: string;
+  errorType?: string;
+  message?: string;
+  requestIds: Partial<Record<"x-request-id" | "x-openrouter-request-id" | "cf-ray", string>>;
+  requestedModel: string;
+  routingPreferences?: {
+    only?: string[];
+    order?: string[];
+    sort?: string;
+    allowFallbacks?: boolean;
+    requireParameters?: boolean;
+    zeroDataRetention?: boolean;
+    dataCollection?: "allow" | "deny";
+  };
+  elapsedMs: number;
 }
 
 export type ModelGatewayFailureClass =

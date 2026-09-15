@@ -92,14 +92,18 @@ describe("D1 agent runtime fencing and outbox",()=>{
       reservation:{inputTokens:1000,outputTokens:500,costUsd:0.01}};
     await store.saveModelAttempt({...base,latencyMs:0,usageConfirmed:false,state:"started"});
     await store.saveModelAttempt({...base,actualGateway:"openrouter",actualDeployment:"api",latencyMs:29_500,completedAt,
-      usageConfirmed:false,failureClass:"deadline_exceeded",fallbackReason:"model gateway deadline exceeded",state:"failed"});
+      usageConfirmed:false,failureClass:"deadline_exceeded",fallbackReason:"model gateway deadline exceeded",state:"failed",
+      gatewayDiagnostic:{httpStatus:404,errorCode:"404",errorType:"NoEndpointError",message:"No eligible endpoint",requestIds:{"x-request-id":"request-1"},
+        requestedModel:"fixture/model",routingPreferences:{only:["fixture"],zeroDataRetention:true,dataCollection:"deny"},elapsedMs:29_500}});
 
     const row=await db.prepare(`SELECT started_at,completed_at,usage_confirmed,failure_class,latency_ms,input_tokens,output_tokens,cost_usd,
-      reserved_input_tokens,reserved_output_tokens,reserved_cost_usd,actual_model,actual_provider FROM agent_model_call_attempts WHERE id='timeout-attempt'`)
+      reserved_input_tokens,reserved_output_tokens,reserved_cost_usd,actual_model,actual_provider,gateway_diagnostic_json FROM agent_model_call_attempts WHERE id='timeout-attempt'`)
       .first<Record<string,string|number|null>>();
     expect(row).toEqual({started_at:startedAt,completed_at:completedAt,usage_confirmed:0,failure_class:"deadline_exceeded",latency_ms:29_500,
       input_tokens:0,output_tokens:0,cost_usd:0,reserved_input_tokens:1000,reserved_output_tokens:500,reserved_cost_usd:0.01,
-      actual_model:null,actual_provider:null});
+      actual_model:null,actual_provider:null,gateway_diagnostic_json:JSON.stringify({httpStatus:404,errorCode:"404",errorType:"NoEndpointError",
+        message:"No eligible endpoint",requestIds:{"x-request-id":"request-1"},requestedModel:"fixture/model",
+        routingPreferences:{only:["fixture"],zeroDataRetention:true,dataCollection:"deny"},elapsedMs:29_500})});
   });
 
   it("migrates legacy shared content into canonical data plus each run's own relational provenance",async()=>{
@@ -173,7 +177,7 @@ describe("D1 agent runtime fencing and outbox",()=>{
   async function setup() {
     mf=new Miniflare({modules:true,script:"export default {fetch(){return new Response('ok')}}",d1Databases:["DB"]});
     const db=await mf.getD1Database("DB");
-    for (const migration of ["0011_agent_runtime.sql","0012_agent_runtime_security_and_provenance.sql","0016_model_attempt_timeout_provenance.sql"]) {
+    for (const migration of ["0011_agent_runtime.sql","0012_agent_runtime_security_and_provenance.sql","0016_model_attempt_timeout_provenance.sql","0018_model_gateway_diagnostics.sql"]) {
       await applyMigration(db,migration);
     }
     return {db,store:new D1AgentRuntimeStore(db)};

@@ -11,6 +11,7 @@ import {
   type ModelRoute,
   type ModelRoutingConfig,
   type ModelPolicy,
+  type ModelGatewayDiagnostic,
   type ModelTargetConfig
 } from "./contracts";
 import { sha256Text } from "./observations";
@@ -96,7 +97,8 @@ export class ModelGatewayError extends Error {
     readonly usage?:ModelGatewayResult["usage"],
     readonly observedIdentity?:{model?:string;provider?:string;gateway?:string;deployment?:ModelDeployment},
     readonly failureClass:import("./contracts").ModelGatewayFailureClass="transport_failure",
-    readonly usageConfirmed=usage!==undefined
+    readonly usageConfirmed=usage!==undefined,
+    readonly gatewayDiagnostic?:ModelGatewayDiagnostic
   ) { super(message); this.name="ModelGatewayError"; }
 }
 
@@ -495,7 +497,14 @@ export class OpenAICompatibleGateway implements ModelGateway {
     try {
       const response=await this.fetcher.call(globalThis,this.endpoint,{...translated,headers,signal:controller.signal});
       if (!response.ok) {
-        throw new ModelGatewayError(`${this.id} request failed: ${response.status}`,unconfirmedModelUsage(started),gatewayIdentity,"provider_http_failure",false);
+        const responseText=await response.text();
+        const diagnostic=this.id==="openrouter"
+          ? openRouterErrorDiagnostic(response,responseText,request,Date.now()-started)
+          : undefined;
+        throw new ModelGatewayError(
+          `${this.id} request failed: ${response.status}${diagnostic?.message?`: ${diagnostic.message}`:""}`,
+          unconfirmedModelUsage(started),gatewayIdentity,"provider_http_failure",false,diagnostic
+        );
       }
       let body:{
         id:string;
@@ -551,6 +560,54 @@ export class OpenAICompatibleGateway implements ModelGateway {
       request.signal?.removeEventListener("abort",abort);
     }
   }
+}
+
+function openRouterErrorDiagnostic(
+  response:Response,
+  responseText:string,
+  request:ModelRequest,
+  elapsedMs:number
+):ModelGatewayDiagnostic {
+  let error:Record<string,unknown>|undefined;
+  try {
+    const parsed=JSON.parse(responseText) as unknown;
+    if (parsed && typeof parsed==="object" && !Array.isArray(parsed)) {
+      const candidate=(parsed as Record<string,unknown>).error;
+      if (candidate && typeof candidate==="object" && !Array.isArray(candidate)) error=candidate as Record<string,unknown>;
+    }
+  } catch { /* A non-JSON provider error remains classified by status. */ }
+  const provider=request.route.selectedCapability.providerRouting;
+  const requestIds:ModelGatewayDiagnostic["requestIds"]={};
+  for (const name of ["x-request-id","x-openrouter-request-id","cf-ray"] as const) {
+    const value=sanitizedDiagnosticText(response.headers.get(name),200);
+    if (value) requestIds[name]=value;
+  }
+  return {
+    httpStatus:response.status,
+    errorCode:sanitizedDiagnosticText(error?.code,80),
+    errorType:sanitizedDiagnosticText(error?.type,80),
+    message:sanitizedDiagnosticText(error?.message,500),
+    requestIds,
+    requestedModel:request.route.selectedModel,
+    routingPreferences:{
+      only:provider?.endpoints.map((endpoint)=>endpoint.tag)??[request.route.selectedProvider],
+      sort:provider?.sort,
+      allowFallbacks:provider?.allowFallbacks??false,
+      requireParameters:true,
+      zeroDataRetention:request.route.selectedCapability.retentionClass==="zero_data_retention",
+      dataCollection:request.route.selectedCapability.retentionClass==="standard"?"allow":"deny"
+    },
+    elapsedMs
+  };
+}
+
+function sanitizedDiagnosticText(value:unknown,maxLength:number):string|undefined {
+  if (typeof value!=="string" && typeof value!=="number") return undefined;
+  const sanitized=String(value)
+    .replace(/bearer\s+[^\s,;]+/gi,"Bearer [REDACTED]")
+    .replace(/\bsk-(?:or-v1-)?[a-z0-9_-]{12,}\b/gi,"[REDACTED]")
+    .replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim();
+  return sanitized ? sanitized.slice(0,maxLength) : undefined;
 }
 
 function unconfirmedModelUsage(started:number):ModelGatewayResult["usage"] {
