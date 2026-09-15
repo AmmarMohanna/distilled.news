@@ -444,9 +444,11 @@ function actionResponseSchema(currentPageRevision:string) {
 export function buildOpenRouterRequest(request: ModelRequest): RequestInit & { body: string } {
   const translated=buildOpenAICompatibleRequest(request);
   const body=JSON.parse(translated.body) as Record<string,unknown>;
+  const automatic=request.route.selectedCapability.providerRouting;
   body.provider={
-    only:[request.route.selectedProvider],
-    allow_fallbacks:false,
+    only:automatic?.endpoints.map((endpoint)=>endpoint.tag)??[request.route.selectedProvider],
+    allow_fallbacks:automatic?.allowFallbacks??false,
+    ...(automatic?{sort:automatic.sort}:{}),
     require_parameters:true,
     data_collection:request.route.selectedCapability.retentionClass==="standard"?"allow":"deny",
     ...(request.route.selectedCapability.retentionClass==="zero_data_retention"?{zdr:true}:{})
@@ -558,7 +560,9 @@ function unconfirmedModelUsage(started:number):ModelGatewayResult["usage"] {
 function policyAllows(capability:ModelCapability,deployment:ModelDeployment,policy?:ModelPolicy) {
   if ((deployment==="api")!==capability.externallyHosted) return false;
   if (!policy) return true;
-  return policy.allowedProviders.includes(capability.provider) && policy.allowedDeployments.includes(deployment) &&
+  const providersAllowed=policy.allowedProviders.includes(capability.provider) &&
+    (!capability.providerRouting || capability.providerRouting.endpoints.every((endpoint)=>policy.allowedProviders.includes(endpoint.tag)));
+  return providersAllowed && policy.allowedDeployments.includes(deployment) &&
     policy.requiredPrivacyEligibility.every((entry)=>capability.privacyEligibility.includes(entry)) &&
     policy.allowedRetentionClasses.includes(capability.retentionClass) &&
     (!policy.allowedResidencies?.length || Boolean(capability.residency && policy.allowedResidencies.includes(capability.residency)));
@@ -576,11 +580,17 @@ export class OpenRouterGateway extends OpenAICompatibleGateway {
 
   protected override translate(request:ModelRequest) { return buildOpenRouterRequest(request); }
   protected override validateResult(request:ModelRequest,result:ModelGatewayResult) {
+    const automatic=request.route.selectedCapability.providerRouting;
     const expectedProviderTag=request.route.selectedProvider.toLowerCase();
     const expectedProviderSlug=expectedProviderTag.split("/",1)[0];
-    const actualProviderSlug=result.provider.trim().toLowerCase().replace(/\s+/g,"-");
+    const actualProviderSlug=normalizedProviderIdentity(result.provider);
+    const providerAccepted=automatic
+      ? automatic.endpoints.some((endpoint)=>
+          normalizedProviderIdentity(endpoint.tag).split("/",1)[0]===actualProviderSlug ||
+          endpoint.reportedIdentities.some((identity)=>normalizedProviderIdentity(identity)===actualProviderSlug))
+      : result.provider.toLowerCase()===expectedProviderTag || actualProviderSlug===expectedProviderSlug;
     if (result.model.toLowerCase()!==request.route.selectedModel.toLowerCase() ||
-        (result.provider.toLowerCase()!==expectedProviderTag && actualProviderSlug!==expectedProviderSlug)) {
+        !providerAccepted) {
       throw new ModelGatewayError(
         `${this.id} returned an unexpected model/provider identity: ${result.model} via ${result.provider}`,
         result.usage,
@@ -589,6 +599,10 @@ export class OpenRouterGateway extends OpenAICompatibleGateway {
       );
     }
   }
+}
+
+function normalizedProviderIdentity(value:string):string {
+  return value.trim().toLowerCase().replace(/\s+/g,"-");
 }
 
 export class DeploymentModelGateway implements ModelGateway {

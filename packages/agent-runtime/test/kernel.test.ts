@@ -178,6 +178,26 @@ describe("model routing", () => {
     expect(routes.map((route)=>`${route.deployment}:${route.selectedModel}`)).toEqual(["self_hosted:provider/text"]);
   });
 
+  it("requires policy approval for every endpoint in an automatic provider route",()=>{
+    const automatic:ModelCapability={
+      ...capabilities[0],provider:"openrouter/automatic-latency",
+      providerRouting:{mode:"automatic",sort:"latency",allowFallbacks:true,endpoints:[
+        {tag:"anthropic",reportedIdentities:["Anthropic"]},
+        {tag:"google-vertex/global",reportedIdentities:["Google"]}
+      ]}
+    };
+    const router=new ModelRouter({mode:"api",apiGateway:"openrouter",selfHostedGateway:"openai_compatible",roles:{NAVIGATION_FAST:{
+      primary:{deployment:"api",model:automatic.modelRef},fallbacks:[]
+    }}},[automatic]);
+    const basePolicy={allowedDeployments:["api" as const],requiredPrivacyEligibility:["public"],allowedRetentionClasses:["zero_data_retention" as const]};
+
+    expect(()=>router.resolve({role:"NAVIGATION_FAST",reason:"automatic",required:["toolCalling","structuredOutput"],
+      modelPolicy:{...basePolicy,allowedProviders:["openrouter/automatic-latency","anthropic"]}})).toThrow(/no eligible model/);
+    expect(router.resolve({role:"NAVIGATION_FAST",reason:"automatic",required:["toolCalling","structuredOutput"],
+      modelPolicy:{...basePolicy,allowedProviders:["openrouter/automatic-latency","anthropic","google-vertex/global"]}})
+      .selectedCapability.providerRouting?.mode).toBe("automatic");
+  });
+
   it.each([
     ["api", "api", "openrouter"],
     ["self_hosted", "self_hosted", "openai_compatible"]
@@ -353,6 +373,43 @@ describe("observations and completion", () => {
     expect(String(new Headers(request.headers).get("authorization"))).not.toContain("real-key");
   });
 
+  it("builds an allowlisted latency route with provider fallbacks without weakening privacy filters", () => {
+    const capability:ModelCapability={
+      ...capabilities[0],
+      modelRef:"anthropic/claude-sonnet-4.6",
+      provider:"openrouter/automatic-latency",
+      providerRouting:{
+        mode:"automatic",
+        sort:"latency",
+        allowFallbacks:true,
+        endpoints:[
+          {tag:"anthropic",reportedIdentities:["Anthropic"]},
+          {tag:"google-vertex/global",reportedIdentities:["Google"]}
+        ]
+      }
+    };
+    const request=buildOpenRouterRequest({
+      callId:"call",role:"NAVIGATION_FAST",
+      route:{
+        role:"NAVIGATION_FAST",routingReason:"test",requiredCapabilities:["toolCalling"],configuredChain:[capability.modelRef],
+        configuredTargets:[{deployment:"api",model:capability.modelRef}],deployment:"api",gateway:"openrouter",
+        selectedModel:capability.modelRef,selectedProvider:capability.provider,selectedCapability:capability,appliedPolicyConstraints:[]
+      },
+      stable:{version:"v1",system:"stable",toolSchemaVersion:"v1"},
+      dynamic:{runId:"run",objective:"objective",pageState:pageState("https://fixture.test","r1"),observationIds:[],completionDeficits:[]},
+      contextManifestHash:"hash",allowExactReuse:false,maxOutputTokens:500
+    });
+
+    expect(JSON.parse(request.body).provider).toEqual({
+      only:["anthropic","google-vertex/global"],
+      allow_fallbacks:true,
+      sort:"latency",
+      require_parameters:true,
+      data_collection:"deny",
+      zdr:true
+    });
+  });
+
   it("rejects a gateway response whose actual model identity differs from the authorized route",async()=>{
     const gateway=new OpenAICompatibleGateway({baseUrl:"https://gateway.invalid/v1",provider:"provider",fetcher:async()=>new Response(JSON.stringify({
       id:"mismatch",model:"provider/unapproved",provider:"provider",
@@ -393,6 +450,35 @@ describe("observations and completion", () => {
       .resolves.toMatchObject({provider:"Amazon Bedrock"});
     await expect(new OpenRouterGateway({apiKey:"test",fetcher:responseFor("Google")}).complete(request))
       .rejects.toMatchObject({name:"ModelGatewayError",observedIdentity:{provider:"Google"}} satisfies Partial<ModelGatewayError>);
+  });
+
+  it("accepts only an allowlisted reported identity for automatic OpenRouter routing",async()=>{
+    const responseFor=(provider:string)=>async()=>new Response(JSON.stringify({
+      id:"provider-identity",model:"anthropic/claude-sonnet-4.6",provider,
+      choices:[{message:{content:JSON.stringify({version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]})}}],
+      usage:{prompt_tokens:1,completion_tokens:1,cost:0}
+    }),{status:200,headers:{"content-type":"application/json"}});
+    const capability:ModelCapability={
+      ...capabilities[0],modelRef:"anthropic/claude-sonnet-4.6",provider:"openrouter/automatic-latency",
+      providerRouting:{mode:"automatic",sort:"latency",allowFallbacks:true,endpoints:[
+        {tag:"anthropic",reportedIdentities:["Anthropic"]},
+        {tag:"google-vertex/global",reportedIdentities:["Google"]}
+      ]}
+    };
+    const route={
+      role:"NAVIGATION_FAST" as const,routingReason:"test",requiredCapabilities:["toolCalling"],configuredChain:[capability.modelRef],
+      configuredTargets:[{deployment:"api" as const,model:capability.modelRef}],deployment:"api" as const,gateway:"openrouter",
+      selectedModel:capability.modelRef,selectedProvider:capability.provider,selectedCapability:capability,appliedPolicyConstraints:[]
+    };
+    const request={callId:"call",role:"NAVIGATION_FAST" as const,route,
+      stable:{version:"v1",system:"stable",toolSchemaVersion:"v1"},
+      dynamic:{runId:"run",objective:"objective",pageState:pageState("https://fixture.test","r1"),observationIds:[],completionDeficits:[]},
+      contextManifestHash:"hash",allowExactReuse:false,maxOutputTokens:500};
+
+    await expect(new OpenRouterGateway({apiKey:"test",fetcher:responseFor("Google")}).complete(request))
+      .resolves.toMatchObject({provider:"Google"});
+    await expect(new OpenRouterGateway({apiKey:"test",fetcher:responseFor("Azure")}).complete(request))
+      .rejects.toMatchObject({name:"ModelGatewayError",observedIdentity:{provider:"Azure"}} satisfies Partial<ModelGatewayError>);
   });
 
   it("classifies a gateway-owned deadline without fabricating provider usage or identity",async()=>{

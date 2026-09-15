@@ -132,7 +132,20 @@ export interface ModelCapability {
   privacyEligibility: string[];
   retentionClass: "zero_data_retention" | "limited" | "standard";
   residency?: string;
+  providerRouting?: ModelProviderRouting;
 }
+
+export interface ModelProviderEndpoint {
+  tag: string;
+  reportedIdentities: string[];
+}
+
+export type ModelProviderRouting = {
+  mode: "automatic";
+  sort: "latency";
+  allowFallbacks: true;
+  endpoints: ModelProviderEndpoint[];
+};
 
 export type LlmDeploymentMode = "api" | "self_hosted" | "hybrid";
 export type ModelDeployment = "api" | "self_hosted";

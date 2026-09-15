@@ -55,6 +55,10 @@ type Variables = {
 
 const CANONICAL_HOST = "distilled.news";
 const LEGACY_HOSTS = new Set(["lownoise.news", "www.lownoise.news"]);
+const liveSmokeProviderEndpointsSchema = z.array(z.object({
+  tag: z.string().trim().min(1),
+  reportedIdentities: z.array(z.string().trim().min(1)).min(1)
+}).strict()).min(2);
 
 export interface AppOptions {
   repository?: Repository;
@@ -244,6 +248,7 @@ export function createApp(options: AppOptions = {}) {
     const articleUrl = input.candidateUrl ?? requiredLiveSmokeEnv(c.env, "DISTILLED_LIVE_PUBLIC_CANDIDATE_URL");
     const model = requiredLiveSmokeEnv(c.env, "DISTILLED_LIVE_OPENROUTER_MODEL");
     const provider = requiredLiveSmokeEnv(c.env, "DISTILLED_LIVE_OPENROUTER_PROVIDER");
+    const providerRouting = liveSmokeProviderRouting(c.env);
     requiredLiveSmokeEnv(c.env, "OPENROUTER_API_KEY");
     if (c.env.DISTILLED_BROWSER_BACKEND?.trim().toLowerCase() !== "cloudflare") {
       return c.json({ error: "live smoke requires DISTILLED_BROWSER_BACKEND=cloudflare" }, 500);
@@ -288,14 +293,14 @@ export function createApp(options: AppOptions = {}) {
         ],
         visualReadPurposes: ["read-navigation"],
         modelPolicy: {
-          allowedProviders: [provider],
+          allowedProviders: [provider, ...(providerRouting?.endpoints.map((endpoint)=>endpoint.tag)??[])],
           allowedDeployments: ["api"],
           requiredPrivacyEligibility: ["public"],
           allowedRetentionClasses: ["zero_data_retention"]
         }
       },
       modelRouting: liveSmokeModelRouting(model),
-      modelCapabilities: [liveSmokeModelCapability(model, provider, c.env)],
+      modelCapabilities: [liveSmokeModelCapability(model, provider, providerRouting, c.env)],
       budgetLimits: {
         ...DEFAULT_SLICE_BUDGET,
         modelCalls: liveSmokeInteger(c.env.DISTILLED_LIVE_MODEL_CALL_LIMIT, 5),
@@ -1077,7 +1082,12 @@ function requiredLiveSmokeEnv(env: Env, key: keyof Env): string {
   return value.trim();
 }
 
-function liveSmokeModelCapability(model: string, provider: string, env: Env): ModelCapability {
+function liveSmokeModelCapability(
+  model: string,
+  provider: string,
+  providerRouting:ModelCapability["providerRouting"],
+  env: Env
+): ModelCapability {
   return {
     modelRef: model,
     provider,
@@ -1091,8 +1101,24 @@ function liveSmokeModelCapability(model: string, provider: string, env: Env): Mo
     deployment: "api",
     externallyHosted: true,
     privacyEligibility: ["public"],
-    retentionClass: "zero_data_retention"
+    retentionClass: "zero_data_retention",
+    providerRouting
   };
+}
+
+function liveSmokeProviderRouting(env:Env):ModelCapability["providerRouting"] {
+  const mode=env.DISTILLED_LIVE_OPENROUTER_PROVIDER_ROUTING?.trim()||"pinned";
+  if (mode==="pinned") return undefined;
+  if (mode!=="automatic_latency") {
+    throw new Error("DISTILLED_LIVE_OPENROUTER_PROVIDER_ROUTING must be pinned or automatic_latency");
+  }
+  const raw=requiredLiveSmokeEnv(env,"DISTILLED_LIVE_OPENROUTER_PROVIDER_ENDPOINTS_JSON");
+  const endpoints=liveSmokeProviderEndpointsSchema.parse(JSON.parse(raw));
+  const normalizedTags=endpoints.map((endpoint)=>endpoint.tag.toLowerCase());
+  if (new Set(normalizedTags).size!==normalizedTags.length) {
+    throw new Error("DISTILLED_LIVE_OPENROUTER_PROVIDER_ENDPOINTS_JSON contains duplicate provider tags");
+  }
+  return {mode:"automatic",sort:"latency",allowFallbacks:true,endpoints};
 }
 
 function liveSmokeModelRouting(model: string): ModelRoutingConfig {

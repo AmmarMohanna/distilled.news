@@ -84,6 +84,16 @@ DISTILLED_LIVE_OPENROUTER_MODEL=...
 DISTILLED_LIVE_OPENROUTER_PROVIDER=...
 ```
 
+The default provider route is pinned. An explicitly configured live smoke may instead use OpenRouter latency ordering with bounded provider fallback:
+
+```text
+DISTILLED_LIVE_OPENROUTER_PROVIDER=openrouter/automatic-latency
+DISTILLED_LIVE_OPENROUTER_PROVIDER_ROUTING=automatic_latency
+DISTILLED_LIVE_OPENROUTER_PROVIDER_ENDPOINTS_JSON=[{"tag":"anthropic","reportedIdentities":["Anthropic"]},{"tag":"google-vertex/global","reportedIdentities":["Google"]}]
+```
+
+The endpoint list is an allowlist, not a preference hint. Every tag must also pass the run's model-provider policy; OpenRouter receives the allowlist with `sort=latency`, provider fallback enabled, required-parameter enforcement, and the same retention/data-collection constraints as pinned routing. Returned provider identity must match an allowlisted endpoint's declared identity.
+
 A live public acquisition smoke test is also inert unless explicitly enabled with:
 
 ```text
