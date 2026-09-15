@@ -493,7 +493,9 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
       gatewayBodies.push(JSON.parse(String(init?.body)) as Record<string,unknown>);
       return new Response(JSON.stringify({
         id:"local-openrouter-response",model:"fixture/fast",provider:"fixture",
-        choices:[{message:{content:JSON.stringify(completeArticlePlan(fixture.origin))}}],
+        choices:[{message:{content:null,tool_calls:[{id:"plan",type:"function",function:{
+          name:"submit_bounded_action_plan",arguments:JSON.stringify(completeArticlePlan(fixture.origin))
+        }}]}}],
         usage:{prompt_tokens:140,completion_tokens:56,cost:0.0002}
       }),{status:200,headers:{"content-type":"application/json"}});
     };
@@ -510,6 +512,8 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     expect((await response.json() as {status:string}).status).toBe("completed");
     expect(gatewayBodies).toHaveLength(1);
     expect(gatewayBodies[0].provider).toEqual({only:["fixture"],allow_fallbacks:false,require_parameters:true,data_collection:"deny",zdr:true});
+    expect(gatewayBodies[0].response_format).toBeUndefined();
+    expect(gatewayBodies[0].tool_choice).toEqual({type:"function",function:{name:"submit_bounded_action_plan"}});
   },30_000);
 
   it("returns typed retryable gateway failures from the external process endpoint",async()=>{

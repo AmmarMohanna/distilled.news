@@ -12,7 +12,10 @@ describe("bounded OpenRouter diagnostic",()=>{
       const stage=bodies.length;
       const message=stage===4
         ? {content:null,tool_calls:[{id:"tool-1",type:"function",function:{name:"report_ok",arguments:'{"ok":true}'}}]}
-        : {content:stage===3?'{"ok":true}':stage>=5?'{"version":1,"actions":[{"tool":"browser.inspect_dom@1","arguments":{}}]}':"OK"};
+        : stage>=5
+          ? {content:null,tool_calls:[{id:"plan",type:"function",function:{name:"submit_bounded_action_plan",
+              arguments:'{"version":1,"actions":[{"tool":"browser.inspect_dom@1","arguments":{}}]}'}}]}
+          : {content:stage===3?'{"ok":true}':"OK"};
       return Response.json({id:`response-${stage}`,model:"anthropic/claude-sonnet-4.6",provider:"Anthropic",
         choices:[{finish_reason:"stop",message}],usage:{prompt_tokens:2,completion_tokens:2,cost:0.00001}});
     }});
@@ -30,10 +33,11 @@ describe("bounded OpenRouter diagnostic",()=>{
     expect(bodies[2].tools).toBeUndefined();
     expect(bodies[3]).toMatchObject({tool_choice:{type:"function",function:{name:"report_ok"}}});
     expect((bodies[3].tools as Array<Record<string,unknown>>)[0]).toMatchObject({type:"function",function:{name:"report_ok"}});
-    expect(bodies[4].response_format).toEqual(bodies[5].response_format);
+    expect(bodies[4].response_format).toBeUndefined();
+    expect(bodies[5].response_format).toBeUndefined();
     expect(bodies[4].provider).toEqual(bodies[5].provider);
-    expect(bodies[4].tools).toBeUndefined();
-    expect(bodies[4].tool_choice).toBeUndefined();
+    expect(bodies[4].tools).toEqual(bodies[5].tools);
+    expect(bodies[4].tool_choice).toEqual({type:"function",function:{name:"submit_bounded_action_plan"}});
     expect(report.stages[5].request.messageContentBytes.length).toBe(2);
     expect(JSON.stringify(report)).not.toContain("Exact production objective");
     expect(JSON.stringify(report)).not.toContain("test-secret");
@@ -60,7 +64,10 @@ describe("bounded OpenRouter diagnostic",()=>{
       calls+=1;
       const message=calls===2
         ? {content:null,tool_calls:[{id:"tool-1",type:"function",function:{name:"report_ok",arguments:'{"ok":true}'}}]}
-        : {content:calls===1?'{"ok":true}':'{"version":1,"actions":[{"tool":"browser.inspect_dom@1","arguments":{}}]}'};
+        : calls>=3
+          ? {content:null,tool_calls:[{id:"plan",type:"function",function:{name:"submit_bounded_action_plan",
+              arguments:'{"version":1,"actions":[{"tool":"browser.inspect_dom@1","arguments":{}}]}'}}]}
+          : {content:'{"ok":true}'};
       return Response.json({id:`response-${calls}`,model:"anthropic/claude-sonnet-4.6",provider:"Amazon Bedrock",
         choices:[{finish_reason:"stop",message}],usage:{prompt_tokens:1,completion_tokens:1,cost:0.00001}});
     }});

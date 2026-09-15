@@ -29,7 +29,10 @@ describe("operator-controlled OpenRouter model diagnostic",()=>{
       call+=1;
       const message=call===4
         ? {content:null,tool_calls:[{id:"tool-1",type:"function",function:{name:"report_ok",arguments:'{"ok":true}'}}]}
-        : {content:call===3?'{"ok":true}':call>=5?'{"version":1,"actions":[{"tool":"browser.inspect_dom@1","arguments":{}}]}':"OK"};
+        : call>=5
+          ? {content:null,tool_calls:[{id:"plan",type:"function",function:{name:"submit_bounded_action_plan",
+              arguments:'{"version":1,"actions":[{"tool":"browser.inspect_dom@1","arguments":{}}]}'}}]}
+          : {content:call===3?'{"ok":true}':"OK"};
       return Response.json({id:`response-${call}`,model:"anthropic/claude-sonnet-4.6",provider:"Anthropic",
         choices:[{finish_reason:"stop",message}],usage:{prompt_tokens:2,completion_tokens:2,cost:0.00001}});
     }});

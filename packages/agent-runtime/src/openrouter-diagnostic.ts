@@ -3,6 +3,7 @@ import {
   boundedActionPlanSchema,
   buildOpenRouterRequest,
   ModelGatewayError,
+  OPENROUTER_BOUNDED_PLAN_TOOL_NAME,
   OpenRouterGateway,
   type ModelRequest
 } from "./model";
@@ -118,15 +119,17 @@ function diagnosticBodies(request:ModelRequest,profile:OpenRouterDiagnosticProfi
 function productionBisectionBodies(
   production:Record<string,unknown>,simpleSchema:Record<string,unknown>
 ):Array<[OpenRouterDiagnosticStage,Record<string,unknown>]> {
-  const responseFormat=isRecord(production.response_format)?production.response_format:{};
-  const jsonSchema=isRecord(responseFormat.json_schema)?responseFormat.json_schema:{};
-  const boundedSchema=isRecord(jsonSchema.schema)?jsonSchema.schema:{};
+  const productionTools=Array.isArray(production.tools)?production.tools:[];
+  const productionTool=isRecord(productionTools[0])?productionTools[0]:{};
+  const productionFunction=isRecord(productionTool.function)?productionTool.function:{};
+  const boundedSchema=isRecord(productionFunction.parameters)?productionFunction.parameters:{};
+  const responseFormat={type:"json_schema",json_schema:{name:"bounded_action_plan",strict:true,schema:boundedSchema}};
   const boundedPlanTool={type:"function",function:{
-    name:"submit_bounded_action_plan",
+    name:OPENROUTER_BOUNDED_PLAN_TOOL_NAME,
     description:"Submit the next bounded action plan for deterministic runtime validation.",
     parameters:boundedSchema
   }};
-  const toolChoice={type:"function",function:{name:"submit_bounded_action_plan"}};
+  const toolChoice={type:"function",function:{name:OPENROUTER_BOUNDED_PLAN_TOOL_NAME}};
   const productionMessages=production.messages;
   const syntheticMessages=[{role:"system",content:"Choose one safe typed action."},{role:"user",content:"Inspect the current page."}];
   return [
@@ -138,7 +141,7 @@ function productionBisectionBodies(
     ["D",{...production,messages:syntheticMessages,max_tokens:256,stream:false,response_format:undefined,
       tools:[boundedPlanTool],tool_choice:toolChoice}],
     ["E",{...production,stream:false,response_format:undefined,tools:[boundedPlanTool],tool_choice:toolChoice}],
-    ["F",{...production,stream:false,tools:[boundedPlanTool],tool_choice:toolChoice}]
+    ["F",{...production,stream:false,response_format:responseFormat,tools:[boundedPlanTool],tool_choice:toolChoice}]
   ];
 }
 
@@ -181,16 +184,20 @@ function validateStageResponse(stage:OpenRouterDiagnosticStage,response:unknown,
     if (argumentsValue.ok!==true) throw new Error("diagnostic report_ok call did not return ok=true");
     return;
   }
+  if (stage==="E"||stage==="F") {
+    if (Array.isArray(message.tool_calls)) validateBoundedPlanToolCall(message);
+    else boundedActionPlanSchema.parse(JSON.parse(typeof message.content==="string"?message.content:""));
+    return;
+  }
   if (typeof message.content!=="string"||!message.content.trim()) throw new Error("diagnostic response is missing content");
   if (stage==="C") {
     const parsed=JSON.parse(message.content) as {ok?:unknown};
     if (parsed.ok!==true) throw new Error("diagnostic structured response did not return ok=true");
   }
-  if (stage==="E"||stage==="F") boundedActionPlanSchema.parse(JSON.parse(message.content));
 }
 
 function validateBoundedPlanToolCall(message:Record<string,unknown>) {
-  const functionCall=responseFunctionCall(message,"submit_bounded_action_plan");
+  const functionCall=responseFunctionCall(message,OPENROUTER_BOUNDED_PLAN_TOOL_NAME);
   boundedActionPlanSchema.parse(JSON.parse(functionCall.arguments));
 }
 

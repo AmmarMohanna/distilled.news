@@ -347,7 +347,7 @@ describe("observations and completion", () => {
     expect(await artifacts.get(envelope.raw.ref)).not.toEqual(await artifacts.get(envelope.presented.ref));
   });
 
-  it("builds an OpenRouter structured-output request without making a network call", () => {
+  it("builds a forced bounded-plan tool request for OpenRouter without making a network call", () => {
     const request = buildOpenRouterRequest({
       callId:"call",role:"NAVIGATION_FAST",
       route:{
@@ -363,8 +363,12 @@ describe("observations and completion", () => {
     expect(body.model).toBe("provider/text");
     expect(body.max_tokens).toBe(500);
     expect(body.provider).toEqual({only:["provider"],allow_fallbacks:false,require_parameters:true,data_collection:"deny",zdr:true});
-    expect(body.response_format.json_schema.schema.properties.actions.maxItems).toBe(5);
-    const action=body.response_format.json_schema.schema.properties.actions.items;
+    expect(body.response_format).toBeUndefined();
+    expect(body.tool_choice).toEqual({type:"function",function:{name:"submit_bounded_action_plan"}});
+    expect(body.tools).toHaveLength(1);
+    const plan=body.tools[0].function.parameters;
+    expect(plan.properties.actions.maxItems).toBe(5);
+    const action=plan.properties.actions.items;
     expect(action.properties.tool.enum).toEqual([...TOOL_NAMES]);
     expect(action.properties.arguments.properties.url.type).toBe("string");
     expect(action.properties.arguments.properties.citedObservationIds.items.type).toBe("string");
@@ -432,7 +436,8 @@ describe("observations and completion", () => {
   it("accepts an OpenRouter provider display identity only for the pinned provider tag",async()=>{
     const responseFor=(provider:string)=>async()=>new Response(JSON.stringify({
       id:"provider-identity",model:"anthropic/claude-sonnet-4.6",provider,
-      choices:[{message:{content:JSON.stringify({version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]})}}],
+      choices:[{message:{content:null,tool_calls:[{id:"plan",type:"function",function:{name:"submit_bounded_action_plan",
+        arguments:JSON.stringify({version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]})}}]}}],
       usage:{prompt_tokens:1,completion_tokens:1,cost:0}
     }),{status:200,headers:{"content-type":"application/json"}});
     const capability:ModelCapability={...capabilities[0],modelRef:"anthropic/claude-sonnet-4.6",provider:"amazon-bedrock/global"};
@@ -455,7 +460,8 @@ describe("observations and completion", () => {
   it("accepts only an allowlisted reported identity for automatic OpenRouter routing",async()=>{
     const responseFor=(provider:string)=>async()=>new Response(JSON.stringify({
       id:"provider-identity",model:"anthropic/claude-sonnet-4.6",provider,
-      choices:[{message:{content:JSON.stringify({version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]})}}],
+      choices:[{message:{content:null,tool_calls:[{id:"plan",type:"function",function:{name:"submit_bounded_action_plan",
+        arguments:JSON.stringify({version:1,actions:[{tool:"browser.inspect_dom@1",arguments:{}}]})}}]}}],
       usage:{prompt_tokens:1,completion_tokens:1,cost:0}
     }),{status:200,headers:{"content-type":"application/json"}});
     const capability:ModelCapability={

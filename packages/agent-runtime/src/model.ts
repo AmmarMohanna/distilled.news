@@ -385,24 +385,25 @@ export function buildOpenAICompatibleRequest(request: ModelRequest): RequestInit
         json_schema: {
           name: "bounded_action_plan",
           strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: ["version", "actions"],
-            properties: {
-              version: { const: 1 },
-              rationale: { type: "string", maxLength: 400 },
-              actions: {
-                type: "array",
-                minItems: 1,
-                maxItems: 5,
-                items: actionResponseSchema(currentPageRevision)
-              }
-            }
-          }
+          schema: boundedActionPlanResponseSchema(currentPageRevision)
         }
       }
     })
+  };
+}
+
+export const OPENROUTER_BOUNDED_PLAN_TOOL_NAME="submit_bounded_action_plan";
+
+function boundedActionPlanResponseSchema(currentPageRevision:string) {
+  return {
+    type:"object",
+    additionalProperties:false,
+    required:["version","actions"],
+    properties:{
+      version:{const:1},
+      rationale:{type:"string",maxLength:400},
+      actions:{type:"array",minItems:1,maxItems:5,items:actionResponseSchema(currentPageRevision)}
+    }
   };
 }
 
@@ -453,6 +454,15 @@ function actionResponseSchema(currentPageRevision:string) {
 export function buildOpenRouterRequest(request: ModelRequest): RequestInit & { body: string } {
   const translated=buildOpenAICompatibleRequest(request);
   const body=JSON.parse(translated.body) as Record<string,unknown>;
+  const responseFormat=body.response_format as {json_schema?:{schema?:unknown}}|undefined;
+  const planSchema=responseFormat?.json_schema?.schema;
+  delete body.response_format;
+  body.tools=[{type:"function",function:{
+    name:OPENROUTER_BOUNDED_PLAN_TOOL_NAME,
+    description:"Submit the next bounded action plan for deterministic runtime validation.",
+    parameters:planSchema
+  }}];
+  body.tool_choice={type:"function",function:{name:OPENROUTER_BOUNDED_PLAN_TOOL_NAME}};
   const automatic=request.route.selectedCapability.providerRouting;
   body.provider={
     only:automatic?.endpoints.map((endpoint)=>endpoint.tag)??[request.route.selectedProvider],
@@ -477,6 +487,9 @@ export class OpenAICompatibleGateway implements ModelGateway {
   }
 
   protected translate(request:ModelRequest) { return buildOpenAICompatibleRequest(request); }
+  protected planPayload(message:{content?:unknown;tool_calls?:unknown}):string|undefined {
+    return typeof message.content==="string"?message.content:undefined;
+  }
   protected validateResult(request:ModelRequest,result:ModelGatewayResult) {
     if (result.model.toLowerCase()!==request.route.selectedModel.toLowerCase() ||
         result.provider.toLowerCase()!==request.route.selectedProvider.toLowerCase()) {
@@ -517,7 +530,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
         id:string;
         model:string;
         provider?:string;
-        choices:Array<{message:{content:string}}>;
+        choices:Array<{message:{content?:unknown;tool_calls?:unknown}}>;
         usage?:{prompt_tokens?:number;completion_tokens?:number;cost?:number};
       };
       try { body=await response.json() as typeof body; }
@@ -539,7 +552,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
         latencyMs:Date.now()-started
       };
       const observedIdentity={...gatewayIdentity,model:body.model,provider:body.provider??request.route.selectedProvider};
-      const content=body.choices?.[0]?.message.content;
+      const content=this.planPayload(body.choices?.[0]?.message??{});
       if (!content) throw new ModelGatewayError(`${this.id} returned no completed message`,usage,observedIdentity,"malformed_response");
       let plan:BoundedActionPlan;
       try { plan=boundedActionPlanSchema.parse(JSON.parse(content)) as BoundedActionPlan; }
@@ -673,6 +686,17 @@ export class OpenRouterGateway extends OpenAICompatibleGateway {
   }
 
   protected override translate(request:ModelRequest) { return buildOpenRouterRequest(request); }
+
+  protected override planPayload(message:{content?:unknown;tool_calls?:unknown}):string|undefined {
+    if (!Array.isArray(message.tool_calls)||message.tool_calls.length!==1) return undefined;
+    const toolCall=message.tool_calls[0];
+    if (!toolCall||typeof toolCall!=="object"||Array.isArray(toolCall)) return undefined;
+    const functionCall=(toolCall as Record<string,unknown>).function;
+    if (!functionCall||typeof functionCall!=="object"||Array.isArray(functionCall)) return undefined;
+    const record=functionCall as Record<string,unknown>;
+    return record.name===OPENROUTER_BOUNDED_PLAN_TOOL_NAME&&typeof record.arguments==="string"
+      ? record.arguments : undefined;
+  }
 
   async probeSerialized(serializedBody:string,timeoutMs:number,signal?:AbortSignal):Promise<OpenRouterProbeResult> {
     const payload=JSON.parse(serializedBody) as Record<string,unknown>;
