@@ -9,6 +9,7 @@ import type { DistilledQueueMessage, Env, ProcessingJobMessage, Repository, Sour
 import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
 import { D1AgentRuntimeStore } from "./agent-runtime-store";
 import { dispatchPendingLivePublicAcquisitionSmokes, processLivePublicAcquisitionSmoke } from "./live-public-acquisition-smoke";
+import { createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 
 const app = createApp();
 const MAX_QUEUE_ATTEMPTS = 5;
@@ -151,13 +152,17 @@ function isWebOperatorLiveSmokeMessage(body: unknown): body is WebOperatorLiveSm
   return isRecord(body) && body.type === "live_public_acquisition_smoke" && typeof body.requestId === "string";
 }
 
-async function processWebOperatorRunMessage(env:Env,message:WebOperatorRunMessage) {
+export async function processWebOperatorRunMessage(
+  env: Env,
+  message: WebOperatorRunMessage,
+  runtimeHandler: (request: Request) => Promise<Response> = createWorkerWebOperatorRuntimeHandler(env)
+) {
   if (!env.WEB_OPERATOR_RUNTIME_URL) throw new Error("WEB_OPERATOR_RUNTIME_URL is not configured");
   const headers=new Headers({"content-type":"application/json"});
   if (env.WEB_OPERATOR_RUNTIME_TOKEN) headers.set("authorization",`Bearer ${env.WEB_OPERATOR_RUNTIME_TOKEN}`);
-  const response=await fetch(new URL("/v1/agent-runs/process",env.WEB_OPERATOR_RUNTIME_URL),{
+  const response=await runtimeHandler(new Request(new URL("/v1/agent-runs/process",env.WEB_OPERATOR_RUNTIME_URL),{
     method:"POST",headers,body:JSON.stringify(message)
-  });
+  }));
   if (!response.ok) throw new Error(`Web Operator runtime failed: ${response.status}`);
 }
 

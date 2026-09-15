@@ -199,6 +199,10 @@ describe("closed-loop Web Operator lifecycle", () => {
       expect(gateway.calls).toBe(modelCallsAfterInterruptedRun);
       expect(await backingWorkflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(1);
       expect((await backingWorkflowStore.listWorkflowCandidates("resource-closed-loop")).filter((workflow) => workflow.state === "ACTIVE")).toHaveLength(1);
+      const resumedRun = await store.getRunByIdempotencyKey("tenant", "resource-closed-loop", acquisitionRequest.idempotencyKey);
+      expect(resumedRun).not.toBeNull();
+      expect((await store.listEvents(resumedRun!.runId)).filter((event) => event.type === "agent.outbox.delivered"))
+        .toHaveLength(1);
 
       const repeated = await recoveryController.acquire(acquisitionRequest, lifecycleAt(120_000));
       expect(repeated.state).toBe("acquired_by_workflow");
@@ -232,6 +236,10 @@ describe("closed-loop Web Operator lifecycle", () => {
     expect(discovered.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v1`);
     expect(discovered.workflow).toMatchObject({ state: "ACTIVE", version: 1 });
     expect(discovered.modelCalls).toBeGreaterThan(0);
+    expect(await store.getOutbox(discovered.run.runId)).toMatchObject({
+      state: "acknowledged",
+      attempts: 1
+    });
     const modelCallsBeforeReplay = gateway.calls;
 
     const resumedController = new ClosedLoopWebOperatorLifecycle({

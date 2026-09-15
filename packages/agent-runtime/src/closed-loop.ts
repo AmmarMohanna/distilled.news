@@ -302,6 +302,13 @@ export class ClosedLoopWebOperatorLifecycle {
   ): Promise<Extract<ClosedLoopAcquisitionOutcome, { state: "acquired_by_agent" }>> {
     const strategy = new WebOperatorAcquisitionStrategy(this.options.runtimeStore);
     const admitted = await strategy.admitKnownCandidate(request, now);
+    // This lifecycle owns processing synchronously. Consume the durable wake-up
+    // before starting the coordinator so the external relay cannot dispatch the
+    // same run while its model/browser operation is still in flight.
+    const outbox = await this.options.runtimeStore.getOutbox(admitted.run.runId);
+    if (outbox?.state === "pending") {
+      await this.options.runtimeStore.markOutboxDelivered(admitted.run.runId, now.toISOString());
+    }
     const coordinator = new WebOperatorCoordinator({
       store: this.options.runtimeStore,
       artifacts: this.options.artifacts,
