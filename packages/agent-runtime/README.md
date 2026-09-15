@@ -123,6 +123,8 @@ pnpm openrouter:diagnostic:trigger <explicit-idempotency-key>
 
 The scheduled Worker dispatches at most one pending diagnostic. Its queue consumer stops at the first failure while progressing through at most six paid calls: minimal privacy, production routing/privacy, structured output, tool calling, the production schema with a synthetic prompt, and the exact production first-turn request. Stored results contain request manifests, sanitized status/error/correlation metadata, returned model/provider, usage, cost, and latency—not API keys, prompts, or response content. The mechanism is disabled by default and is not a substitute for the end-to-end acquisition smoke.
 
+After an earlier stage has already been proven, an operator may set `DISTILLED_OPENROUTER_DIAGNOSTIC_START_STAGE=A|B|C|D|E|F` to run only that suffix and avoid repeating paid calls. The stored report records the selected start stage.
+
 ## Workflow lifecycle
 
 A successful run may produce a `WorkflowCaptureBundle` containing visible actions, observation references, effect certainty, browser generation, structured discovery evidence, extraction evidence, completion evidence, and runtime/tool/schema versions. Discovery evidence is machine-readable and includes observed page types, listing URL candidates, article URL pattern hints, publication-time evidence, locator/capability evidence, and watermark/exhaustion evidence when available. It does not capture hidden chain-of-thought.

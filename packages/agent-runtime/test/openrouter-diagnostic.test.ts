@@ -53,6 +53,22 @@ describe("bounded OpenRouter diagnostic",()=>{
       diagnostic:expect.objectContaining({httpStatus:404,errorCode:"404",errorType:"NoEndpointError",message:"No endpoints available",
         requestIds:{"x-request-id":"request-a"}})})]);
   });
+
+  it("can resume at a later stage without repeating already-proven paid calls",async()=>{
+    let calls=0;
+    const gateway=new OpenRouterGateway({apiKey:"secret",fetcher:async()=>{
+      calls+=1;
+      const message=calls===2
+        ? {content:null,tool_calls:[{id:"tool-1",type:"function",function:{name:"report_ok",arguments:'{"ok":true}'}}]}
+        : {content:calls===1?'{"ok":true}':'{"version":1,"actions":[{"tool":"browser.inspect_dom@1","arguments":{}}]}'};
+      return Response.json({id:`response-${calls}`,model:"anthropic/claude-sonnet-4.6",provider:"Amazon Bedrock",
+        choices:[{finish_reason:"stop",message}],usage:{prompt_tokens:1,completion_tokens:1,cost:0.00001}});
+    }});
+    const report=await runOpenRouterDiagnostic({gateway,productionRequest:request(),timeoutMs:5_000,startAt:"C"});
+    expect(report.startedAt).toBe("C");
+    expect(report.stages.map((stage)=>stage.stage)).toEqual(["C","D","E","F"]);
+    expect(calls).toBe(4);
+  });
 });
 
 function request():ModelRequest {

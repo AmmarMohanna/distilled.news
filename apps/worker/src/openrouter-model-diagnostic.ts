@@ -1,6 +1,7 @@
 import {
   DEFAULT_SLICE_BUDGET,
   DEFAULT_WEB_OPERATOR_STABLE_INSTRUCTIONS,
+  OPENROUTER_DIAGNOSTIC_STAGES,
   OpenRouterGateway,
   createContextManifestHash,
   makeId,
@@ -8,7 +9,8 @@ import {
   runOpenRouterDiagnostic,
   type ModelCapability,
   type ModelRequest,
-  type ModelRoute
+  type ModelRoute,
+  type OpenRouterDiagnosticStage
 } from "@distilled/agent-runtime";
 import type { Env,OpenRouterModelDiagnosticMessage } from "./types";
 
@@ -35,6 +37,7 @@ export async function dispatchPendingOpenRouterModelDiagnostics(
 export async function processOpenRouterModelDiagnostic(
   env:Pick<Env,"DB"|"OPENROUTER_API_KEY"|"DISTILLED_OPENROUTER_DIAGNOSTIC_ENABLED"|
     "DISTILLED_LIVE_OPENROUTER_MODEL"|"DISTILLED_LIVE_OPENROUTER_PROVIDER"|"DISTILLED_OPENROUTER_DIAGNOSTIC_TIMEOUT_MS"|
+    "DISTILLED_OPENROUTER_DIAGNOSTIC_START_STAGE"|
     "DISTILLED_LIVE_PUBLIC_CANDIDATE_URL">,
   message:OpenRouterModelDiagnosticMessage,
   now=new Date(),
@@ -54,8 +57,9 @@ export async function processOpenRouterModelDiagnostic(
     const provider=required(env.DISTILLED_LIVE_OPENROUTER_PROVIDER,"DISTILLED_LIVE_OPENROUTER_PROVIDER");
     const target=required(env.DISTILLED_LIVE_PUBLIC_CANDIDATE_URL,"DISTILLED_LIVE_PUBLIC_CANDIDATE_URL");
     const timeoutMs=diagnosticTimeout(env.DISTILLED_OPENROUTER_DIAGNOSTIC_TIMEOUT_MS);
+    const startAt=diagnosticStartStage(env.DISTILLED_OPENROUTER_DIAGNOSTIC_START_STAGE);
     const request=await productionFirstTurnRequest(row.idempotency_key,target,model,provider,timeoutMs);
-    const report=await runOpenRouterDiagnostic({gateway:gateway??new OpenRouterGateway({apiKey}),productionRequest:request,timeoutMs});
+    const report=await runOpenRouterDiagnostic({gateway:gateway??new OpenRouterGateway({apiKey}),productionRequest:request,timeoutMs,startAt});
     const failed=report.stoppedAt!==undefined;
     const completedAt=new Date().toISOString();
     await env.DB.prepare(`UPDATE openrouter_model_diagnostic_requests SET state=?,requested_model=?,requested_provider=?,
@@ -116,4 +120,12 @@ function diagnosticTimeout(value:string|undefined) {
     throw new Error("DISTILLED_OPENROUTER_DIAGNOSTIC_TIMEOUT_MS must be an integer from 1000 to 75000");
   }
   return parsed;
+}
+
+function diagnosticStartStage(value:string|undefined):OpenRouterDiagnosticStage {
+  const stage=(value?.trim()||"A") as OpenRouterDiagnosticStage;
+  if (!OPENROUTER_DIAGNOSTIC_STAGES.includes(stage)) {
+    throw new Error("DISTILLED_OPENROUTER_DIAGNOSTIC_START_STAGE must be A, B, C, D, E, or F");
+  }
+  return stage;
 }

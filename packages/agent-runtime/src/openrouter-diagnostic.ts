@@ -44,6 +44,7 @@ export interface OpenRouterDiagnosticStageResult {
 
 export interface OpenRouterDiagnosticReport {
   model:string;
+  startedAt:OpenRouterDiagnosticStage;
   stoppedAt?:OpenRouterDiagnosticStage;
   stages:OpenRouterDiagnosticStageResult[];
 }
@@ -52,12 +53,14 @@ export async function runOpenRouterDiagnostic(input:{
   gateway:OpenRouterGateway;
   productionRequest:ModelRequest;
   timeoutMs:number;
+  startAt?:OpenRouterDiagnosticStage;
   signal?:AbortSignal;
 }):Promise<OpenRouterDiagnosticReport> {
   if (!Number.isInteger(input.timeoutMs)||input.timeoutMs<1_000||input.timeoutMs>75_000) {
     throw new Error("OpenRouter diagnostic timeout must be between 1000 and 75000 milliseconds");
   }
-  const bodies=diagnosticBodies(input.productionRequest);
+  const startAt=input.startAt??"A";
+  const bodies=diagnosticBodies(input.productionRequest).slice(OPENROUTER_DIAGNOSTIC_STAGES.indexOf(startAt));
   const stages:OpenRouterDiagnosticStageResult[]=[];
   for (const [stage,body] of bodies) {
     const serialized=JSON.stringify(body);
@@ -74,10 +77,10 @@ export async function runOpenRouterDiagnostic(input:{
         failureClass:gatewayError?.failureClass??"diagnostic_validation_failure",
         diagnostic:gatewayError?.gatewayDiagnostic
       });
-      return {model:input.productionRequest.route.selectedModel,stoppedAt:stage,stages};
+      return {model:input.productionRequest.route.selectedModel,startedAt:startAt,stoppedAt:stage,stages};
     }
   }
-  return {model:input.productionRequest.route.selectedModel,stages};
+  return {model:input.productionRequest.route.selectedModel,startedAt:startAt,stages};
 }
 
 function diagnosticBodies(request:ModelRequest):Array<[OpenRouterDiagnosticStage,Record<string,unknown>]> {
