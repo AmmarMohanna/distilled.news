@@ -6,7 +6,7 @@ import { makeId } from "./contracts";
 import { sha256Text } from "./observations";
 import { classifyBrowserChallenge } from "./challenge-classifier";
 import type { BrowserSessionState } from "./auth-profile";
-import type { AuthenticatedSiteAdapter,AuthenticatedSiteDetection,AuthenticatedSiteSnapshot } from "./authenticated-site";
+import type { AuthenticatedBootstrapObserver,AuthenticatedSiteAdapter,AuthenticatedSiteDetection,AuthenticatedSiteSnapshot } from "./authenticated-site";
 import type { CredentialMaterial } from "./auth-profile";
 
 export interface BrowserScope {
@@ -223,6 +223,8 @@ export class BrowserPreDispatchError extends BrowserScopeError {
 export class BrowserPostDispatchError extends BrowserScopeError {
   constructor(message: string) { super(message); this.name = "BrowserPostDispatchError"; }
 }
+export class BrowserNavigationError extends BrowserPostDispatchError{constructor(public readonly code:"NAVIGATION_TIMEOUT"|"UNEXPECTED_AUTH_ORIGIN"|"NETWORK_POLICY_DENIED"|"INITIAL_NAVIGATION_FAILED"){super(code);this.name="BrowserNavigationError";}}
+export class BrowserAllocationError extends BrowserScopeError{constructor(public readonly code:"BROWSER_ALLOCATION_FAILED"|"BROWSER_CONTEXT_INITIALIZATION_FAILED",options?:{cause?:unknown}){super(code);this.name="BrowserAllocationError";if(options?.cause!==undefined)this.cause=options.cause;}}
 
 export class StaleObservationError extends Error {
   constructor(kind: "handle" | "screenshot") {
@@ -292,10 +294,10 @@ export class PlaywrightBrowserAdapter
       "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
       ...(resolverRules.length ? [`--host-resolver-rules=${resolverRules.join(",")}`] : [])
     ], allowedDomains:[...new Set([...normalizedOrigins].map((origin)=>new URL(origin).hostname))] };
-    const browser = this.options.launchBrowser
+    let browser:Browser;try{browser=this.options.launchBrowser
       ? await this.options.launchBrowser(launchOptions)
-      : await launchLocalChromium(launchOptions);
-    const context = await browser.newContext({
+      : await launchLocalChromium(launchOptions)}catch(error){throw new BrowserAllocationError("BROWSER_ALLOCATION_FAILED",{cause:error})}
+    let context:BrowserContext;let page:Page;try{context=await browser.newContext({
       viewport: { width: 960, height: 720 },
       deviceScaleFactor: 1,
       serviceWorkers: "block",
@@ -303,7 +305,7 @@ export class PlaywrightBrowserAdapter
       storageState: input.authenticatedSessionState
     });
     await context.addInitScript({ content: ACTIVE_TRANSPORT_HARDENING });
-    const page = await context.newPage();
+    page = await context.newPage();}catch(error){await browser.close().catch(()=>undefined);throw new BrowserAllocationError("BROWSER_CONTEXT_INITIALIZATION_FAILED",{cause:error})}
     page.setDefaultTimeout(10_000);
     page.setDefaultNavigationTimeout(15_000);
     const cdp = await context.newCDPSession(page);
@@ -407,11 +409,11 @@ export class PlaywrightBrowserAdapter
 
   async detectAuthenticatedState(scope:BrowserScope,adapter:AuthenticatedSiteAdapter){return adapter.detect(await this.authenticationSnapshot(this.requireHealthy(scope)));}
 
-  async establishAuthenticatedSession(scope:BrowserScope,adapter:AuthenticatedSiteAdapter,credential:CredentialMaterial){
+  async establishAuthenticatedSession(scope:BrowserScope,adapter:AuthenticatedSiteAdapter,credential:CredentialMaterial,observer?:AuthenticatedBootstrapObserver){
     const live=this.requireHealthy(scope);
     if(!adapter.allowedOrigins.every((origin)=>live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("site adapter origin outside browser policy");
     const writeOrigins=new Set(adapter.authenticationWriteOrigins??adapter.allowedOrigins);if([...writeOrigins].some(origin=>!live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("site authentication origin outside browser policy");live.authenticationWriteOrigins=writeOrigins;live.authenticationBootstrap=true;
-    try{return await adapter.bootstrap({goto:async(url)=>{await this.navigateDirectly(live,url)},fill:async(selector,value)=>{await live.page.locator(selector).fill(value)},click:async(selector)=>{await live.page.locator(selector).click()},clickControl:async(control)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).click()},snapshot:async()=>this.authenticationSnapshot(live),importSession:async(state)=>this.attachAuthenticatedSession(scope,state),exportSession:async()=>this.exportAuthenticatedSession(scope)},credential)}finally{live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;}
+    try{return await adapter.bootstrap({goto:async(url,options)=>{await this.navigateDirectly(live,url,options?.waitUntil)},fill:async(selector,value)=>{await live.page.locator(selector).fill(value)},click:async(selector)=>{await live.page.locator(selector).click()},clickControl:async(control)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).click()},snapshot:async()=>this.authenticationSnapshot(live),importSession:async(state)=>this.attachAuthenticatedSession(scope,state),exportSession:async()=>this.exportAuthenticatedSession(scope)},credential,observer)}finally{live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;}
   }
 
   private async authenticationSnapshot(live:LiveSession):Promise<AuthenticatedSiteSnapshot>{const observed=await this.observationProvider.capture(live);return{url:observed.url,title:observed.title,visibleText:observed.visibleText,controls:observed.controls.map(control=>({role:control.role,label:control.label,type:control.attributes?.type}))};}
@@ -685,17 +687,19 @@ export class PlaywrightBrowserAdapter
     return capability;
   }
 
-  private async navigateDirectly(live: LiveSession, destinationUrl: string) {
+  private async navigateDirectly(live: LiveSession, destinationUrl: string,waitUntil:"networkidle"|"domcontentloaded"="networkidle") {
     live.blockedRequest = undefined;
     await this.assertRequestAllowed(live, destinationUrl, "GET");
     try {
-      const response = await live.page.goto(destinationUrl, { waitUntil: "networkidle" });
+      const response = await live.page.goto(destinationUrl, { waitUntil });
       live.lastMainDocumentStatus = response?.status();
     } catch (error) {
-      throw new BrowserPostDispatchError(live.blockedRequest ? blockedRequestMessage(live.blockedRequest) : errorMessage(error));
+      if(live.blockedRequest)throw new BrowserNavigationError("NETWORK_POLICY_DENIED");
+      if(error instanceof Error&&(error.name==="TimeoutError"||/timeout/i.test(error.message)))throw new BrowserNavigationError("NAVIGATION_TIMEOUT");
+      throw new BrowserNavigationError("INITIAL_NAVIGATION_FAILED");
     }
-    if (live.blockedRequest) throw new BrowserPostDispatchError(blockedRequestMessage(live.blockedRequest));
-    try { this.assertFinalOrigin(live); } catch (error) { throw new BrowserPostDispatchError(errorMessage(error)); }
+    if (live.blockedRequest) throw new BrowserNavigationError("NETWORK_POLICY_DENIED");
+    try { this.assertFinalOrigin(live); } catch { throw new BrowserNavigationError("UNEXPECTED_AUTH_ORIGIN"); }
     this.invalidateTransientBindings(live);
     return this.observe(live, "page_state");
   }
