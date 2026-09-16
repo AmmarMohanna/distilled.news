@@ -6,6 +6,7 @@
   "type": "module",
   "packageManager": "pnpm@10.12.1",
   "scripts": {
+    "provision:x": "node scripts/provision-authenticated-profile.mjs",
     "dev": "pnpm --filter @distilled/worker dev",
     "build": "pnpm --filter @distilled/core build && pnpm --filter @distilled/connectors build && pnpm --filter @distilled/web build && pnpm --filter @distilled/worker build",
     "typecheck": "pnpm -r typecheck",

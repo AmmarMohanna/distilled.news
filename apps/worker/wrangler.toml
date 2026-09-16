@@ -42,6 +42,10 @@ migrations_dir = "migrations"
 binding = "RAW_ARCHIVE"
 bucket_name = "lownoise-raw"
 
+[[r2_buckets]]
+binding = "AUTHENTICATED_SECRETS"
+bucket_name = "lownoise-authenticated-secrets"
+
 [[send_email]]
 name = "EMAIL"
 

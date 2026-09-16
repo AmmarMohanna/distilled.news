@@ -47,6 +47,7 @@ import { runRetentionCleanup } from "./retention";
 import { addSourceFromInput, refreshEnabledSources } from "./sources";
 import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
 import { createWorkerClosedLoopWebOperatorLifecycle, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
+import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
 
 type Variables = {
   repo: Repository;
@@ -240,6 +241,7 @@ export function createApp(options: AppOptions = {}) {
     const handler = createWorkerWebOperatorRuntimeHandler(c.env);
     return handler(c.req.raw);
   });
+  app.post("/v1/authenticated-profiles", async (c) => provisionAuthenticatedProfile(c.req.raw,c.env));
 
   app.post("/v1/live-smoke/public-acquisition", async (c) => {
     if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
