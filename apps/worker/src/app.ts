@@ -1191,6 +1191,7 @@ async function liveSmokeReport(
   const run = "run" in outcome ? outcome.run : undefined;
   const acquiredContent = "acquiredContent" in outcome ? outcome.acquiredContent : undefined;
   const workflow = "workflow" in outcome ? outcome.workflow : undefined;
+  const workflowFinalization = "workflowFinalization" in outcome ? outcome.workflowFinalization : undefined;
   const runId = run?.runId;
   const modelAttempts = runId ? await modelAttemptSummary(db, runId) : [];
   const observationSummary = runId ? await observationProvenanceSummary(db, runId) : { count: 0, latestObservationId: undefined };
@@ -1207,6 +1208,7 @@ async function liveSmokeReport(
     },
     run: run ? { runId: run.runId, state: run.state, generation: run.generation } : undefined,
     workflow: workflow ? { id: workflow.id, state: workflow.state, version: workflow.version } : undefined,
+    workflowFinalization,
     acquiredContent: acquiredContent ? {
       acceptanceId: acquiredContent.acceptanceId,
       canonicalUrl: acquiredContent.canonicalUrl,

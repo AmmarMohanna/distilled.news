@@ -69,6 +69,16 @@ describe("D1 Web Operator workflow lifecycle store", () => {
     })).toEqual([routeFailure]);
     await store.markWorkflow(replacement.id, "ROLLED_BACK");
     expect(await store.getActiveWorkflow("resource")).toBeNull();
+    const finalization = {
+      runId: "run",
+      state: "NOT_PROMOTED" as const,
+      reason: "validation_failed" as const,
+      captureId: replacementCapture.id,
+      workflowId: replacement.id,
+      recordedAt: "2026-09-13T00:01:50Z"
+    };
+    await store.saveFinalizationOutcome(finalization);
+    expect(await store.getFinalizationOutcome("run")).toEqual(finalization);
 
     const metrics: AcquisitionEvaluationMetrics = {
       runId: "run",
@@ -96,6 +106,24 @@ describe("D1 Web Operator workflow lifecycle store", () => {
       recordedAt: "2026-09-13T00:02:00Z"
     };
     await store.recordMetrics(metrics);
+  }, 30_000);
+
+  it("adds durable workflow-finalization outcomes without changing completed acquisition data", async () => {
+    const { db } = await setupThrough("0019_openrouter_model_diagnostic.sql");
+    await seedAgentRun(db);
+    expect(await tableExists(db, "web_operator_workflow_finalization_outcomes")).toBe(false);
+    await applyMigration(db, "0020_workflow_finalization_outcomes.sql");
+    const store = new D1WorkflowRepository(db);
+    const outcome = {
+      runId: "run",
+      state: "NOT_PROMOTED" as const,
+      reason: "candidate_production_failed" as const,
+      recordedAt: "2026-09-13T00:03:00Z"
+    };
+    await store.saveFinalizationOutcome(outcome);
+    await store.saveFinalizationOutcome(outcome);
+    expect(await store.getFinalizationOutcome("run")).toEqual(outcome);
+    expect(await db.prepare("SELECT state FROM agent_runs WHERE run_id='run'").first()).toMatchObject({ state: "completed" });
   }, 30_000);
 
   it("upgrades existing workflow data from 0014 and enables acquisition-failure evidence without backfill", async () => {
@@ -158,7 +186,7 @@ describe("D1 Web Operator workflow lifecycle store", () => {
   }, 30_000);
 
   async function setup() {
-    const { db } = await setupThrough("0016_model_attempt_timeout_provenance.sql");
+    const { db } = await setupThrough("0020_workflow_finalization_outcomes.sql");
     await seedAgentRun(db);
     return { db, store: new D1WorkflowRepository(db) };
   }
@@ -183,7 +211,8 @@ const MIGRATIONS = [
   "0016_model_attempt_timeout_provenance.sql",
   "0017_web_operator_live_smoke_requests.sql",
   "0018_model_gateway_diagnostics.sql",
-  "0019_openrouter_model_diagnostic.sql"
+  "0019_openrouter_model_diagnostic.sql",
+  "0020_workflow_finalization_outcomes.sql"
 ];
 
 async function setupThrough(lastMigration: string) {

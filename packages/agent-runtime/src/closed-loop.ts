@@ -27,6 +27,7 @@ import {
   type WorkflowCandidate,
   type WorkflowExecutionResult,
   type WorkflowFailureEvidence,
+  type WorkflowFinalizationOutcome,
   type WorkflowRepository
 } from "./workflow";
 
@@ -86,7 +87,8 @@ export type ClosedLoopAcquisitionOutcome =
       state: "acquired_by_agent";
       run: AgentRun;
       process: ProcessResult;
-      workflow: WorkflowCandidate;
+      workflow?: WorkflowCandidate;
+      workflowFinalization: WorkflowFinalizationOutcome;
       acquiredContent: AcquiredContent;
       modelCalls: number;
     }
@@ -101,7 +103,8 @@ export type ClosedLoopAcquisitionOutcome =
 
 export interface FinalizedWorkflowRun {
   run: AgentRun;
-  workflow: WorkflowCandidate;
+  workflow?: WorkflowCandidate;
+  workflowFinalization: WorkflowFinalizationOutcome;
   acquiredContent: AcquiredContent;
 }
 
@@ -331,6 +334,7 @@ export class ClosedLoopWebOperatorLifecycle {
       run: finalized.run,
       process,
       workflow: finalized.workflow,
+      workflowFinalization: finalized.workflowFinalization,
       acquiredContent: finalized.acquiredContent,
       modelCalls: process.modelCalls
     };
@@ -345,25 +349,111 @@ export class ClosedLoopWebOperatorLifecycle {
 
     const timestamp = now.toISOString();
     const lifecycle = this.lifecycleCoordinator();
-    const { candidate } = await lifecycle.produceCandidateFromRun(run, timestamp);
+    let candidate: WorkflowCandidate;
+    try {
+      ({ candidate } = await lifecycle.produceCandidateFromRun(run, timestamp));
+    } catch {
+      const workflowFinalization: WorkflowFinalizationOutcome = {
+        runId,
+        state: "NOT_PROMOTED",
+        reason: "candidate_production_failed",
+        recordedAt: timestamp
+      };
+      await this.options.workflowStore.saveFinalizationOutcome(workflowFinalization);
+      return { run, acquiredContent: accepted[0], workflowFinalization };
+    }
     let workflow = candidate;
 
     if (workflow.state === "CANDIDATE") {
-      const validation = (await this.options.workflowStore.getValidationResult(workflow.id)) ??
-        await lifecycle.validateCandidate(workflow.id, "workflow-validator", timestamp);
-      if (!validation.passed) throw new Error(`compiled workflow failed validation: ${workflow.id}`);
+      let validation;
+      try {
+        validation = (await this.options.workflowStore.getValidationResult(workflow.id)) ??
+          await lifecycle.validateCandidate(workflow.id, "workflow-validator", timestamp);
+      } catch {
+        workflow = (await this.options.workflowStore.getWorkflowCandidate(workflow.id)) ?? workflow;
+        const persistedValidation = await this.options.workflowStore.getValidationResult(workflow.id);
+        const workflowFinalization: WorkflowFinalizationOutcome = {
+          runId,
+          state: "NOT_PROMOTED",
+          reason: "validation_failed",
+          captureId: workflow.sourceCaptureId,
+          workflowId: workflow.id,
+          validation: persistedValidation ?? undefined,
+          recordedAt: timestamp
+        };
+        await this.options.workflowStore.saveFinalizationOutcome(workflowFinalization);
+        return { run, workflow, workflowFinalization, acquiredContent: accepted[0] };
+      }
+      if (!validation.passed) {
+        workflow = (await this.options.workflowStore.getWorkflowCandidate(workflow.id)) ?? workflow;
+        const workflowFinalization: WorkflowFinalizationOutcome = {
+          runId,
+          state: "NOT_PROMOTED",
+          reason: "validation_failed",
+          captureId: workflow.sourceCaptureId,
+          workflowId: workflow.id,
+          validation,
+          recordedAt: timestamp
+        };
+        await this.options.workflowStore.saveFinalizationOutcome(workflowFinalization);
+        return { run, workflow, workflowFinalization, acquiredContent: accepted[0] };
+      }
       workflow = (await this.options.workflowStore.getWorkflowCandidate(workflow.id))!;
     }
 
     if (workflow.state === "VALIDATED") {
-      workflow = await lifecycle.promoteValidatedWorkflow(workflow.id, "workflow-promotion-controller", timestamp);
+      try {
+        workflow = await lifecycle.promoteValidatedWorkflow(workflow.id, "workflow-promotion-controller", timestamp);
+      } catch {
+        workflow = (await this.options.workflowStore.getWorkflowCandidate(workflow.id)) ?? workflow;
+        if (workflow.state === "ACTIVE") {
+          const workflowFinalization: WorkflowFinalizationOutcome = {
+            runId,
+            state: "PROMOTED",
+            workflowId: workflow.id,
+            recordedAt: timestamp
+          };
+          await this.options.workflowStore.saveFinalizationOutcome(workflowFinalization);
+          return { run, workflow, workflowFinalization, acquiredContent: accepted[0] };
+        }
+        const workflowFinalization: WorkflowFinalizationOutcome = {
+          runId,
+          state: "NOT_PROMOTED",
+          reason: "promotion_failed",
+          captureId: workflow.sourceCaptureId,
+          workflowId: workflow.id,
+          recordedAt: timestamp
+        };
+        await this.options.workflowStore.saveFinalizationOutcome(workflowFinalization);
+        return { run, workflow, workflowFinalization, acquiredContent: accepted[0] };
+      }
     } else if (workflow.state !== "ACTIVE") {
-      throw new Error(`workflow finalization cannot activate workflow in ${workflow.state} state: ${workflow.id}`);
+      const validation = await this.options.workflowStore.getValidationResult(workflow.id);
+      const workflowFinalization: WorkflowFinalizationOutcome = {
+        runId,
+        state: "NOT_PROMOTED",
+        reason: workflow.state === "INVALID" ? "validation_failed" : "workflow_state_ineligible",
+        captureId: workflow.sourceCaptureId,
+        workflowId: workflow.id,
+        validation: validation ?? undefined,
+        recordedAt: timestamp
+      };
+      await this.options.workflowStore.saveFinalizationOutcome(workflowFinalization);
+      return { run, workflow, workflowFinalization, acquiredContent: accepted[0] };
     }
+
+    const workflowFinalization: WorkflowFinalizationOutcome = {
+      runId,
+      state: "PROMOTED",
+      workflowId: workflow.id,
+      recordedAt: timestamp
+    };
+    await this.options.workflowStore.saveFinalizationOutcome(workflowFinalization);
 
     return {
       run,
       workflow,
+      workflowFinalization,
       acquiredContent: accepted.find((content) => content.canonicalUrl === workflow.candidate.canonicalUrl) ?? accepted[0]
     };
   }

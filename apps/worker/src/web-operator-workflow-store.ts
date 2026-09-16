@@ -6,6 +6,7 @@ import type {
   WorkflowCaptureBundle,
   WorkflowCandidate,
   WorkflowFailureEvidence,
+  WorkflowFinalizationOutcome,
   WorkflowRepository,
   WorkflowValidationResult,
   WorkflowLifecycleState
@@ -91,6 +92,27 @@ export class D1WorkflowRepository implements WorkflowRepository, AcquisitionFail
     const row = await this.db.prepare("SELECT result_json FROM web_operator_workflow_validations WHERE workflow_id=?")
       .bind(workflowId).first<Row>();
     return row ? parse<WorkflowValidationResult>(row.result_json) : null;
+  }
+
+  async saveFinalizationOutcome(outcome: WorkflowFinalizationOutcome): Promise<void> {
+    await this.db.prepare(`INSERT INTO web_operator_workflow_finalization_outcomes
+      (run_id,state,reason,workflow_id,outcome_json,recorded_at) VALUES (?,?,?,?,?,?)
+      ON CONFLICT(run_id) DO UPDATE SET state=excluded.state,reason=excluded.reason,
+        workflow_id=excluded.workflow_id,outcome_json=excluded.outcome_json,recorded_at=excluded.recorded_at`)
+      .bind(
+        outcome.runId,
+        outcome.state,
+        outcome.state === "NOT_PROMOTED" ? outcome.reason : null,
+        outcome.workflowId ?? null,
+        json(outcome),
+        outcome.recordedAt
+      ).run();
+  }
+
+  async getFinalizationOutcome(runId: string): Promise<WorkflowFinalizationOutcome | null> {
+    const row = await this.db.prepare("SELECT outcome_json FROM web_operator_workflow_finalization_outcomes WHERE run_id=?")
+      .bind(runId).first<Row>();
+    return row ? parse<WorkflowFinalizationOutcome>(row.outcome_json) : null;
   }
 
   async saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void> {

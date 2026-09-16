@@ -162,6 +162,29 @@ export interface WorkflowValidationResult {
   validatedAt: string;
 }
 
+export type WorkflowFinalizationReason =
+  | "candidate_production_failed"
+  | "validation_failed"
+  | "promotion_failed"
+  | "workflow_state_ineligible";
+
+export type WorkflowFinalizationOutcome =
+  | {
+      runId: string;
+      state: "PROMOTED";
+      workflowId: string;
+      recordedAt: string;
+    }
+  | {
+      runId: string;
+      state: "NOT_PROMOTED";
+      reason: WorkflowFinalizationReason;
+      captureId?: string;
+      workflowId?: string;
+      validation?: WorkflowValidationResult;
+      recordedAt: string;
+    };
+
 export interface WorkflowFailureEvidence {
   id: string;
   workflowId: string;
@@ -191,6 +214,8 @@ export interface WorkflowRepository {
   getActiveWorkflow(resourceId: string): Promise<WorkflowCandidate | null>;
   saveValidationResult(result: WorkflowValidationResult): Promise<void>;
   getValidationResult(workflowId: string): Promise<WorkflowValidationResult | null>;
+  saveFinalizationOutcome(outcome: WorkflowFinalizationOutcome): Promise<void>;
+  getFinalizationOutcome(runId: string): Promise<WorkflowFinalizationOutcome | null>;
   saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void>;
   listFailureEvidence(workflowId: string): Promise<WorkflowFailureEvidence[]>;
   promoteWorkflow(workflowId: string, validatorId: string, now?: string): Promise<WorkflowCandidate>;
@@ -202,6 +227,7 @@ export class MemoryWorkflowRepository implements WorkflowRepository {
   private readonly workflows = new Map<string, WorkflowCandidate>();
   private readonly validations = new Map<string, WorkflowValidationResult>();
   private readonly failures = new Map<string, WorkflowFailureEvidence>();
+  private readonly finalizations = new Map<string, WorkflowFinalizationOutcome>();
 
   async saveCaptureBundle(bundle: WorkflowCaptureBundle): Promise<void> {
     const existing = this.captures.get(bundle.id);
@@ -246,6 +272,14 @@ export class MemoryWorkflowRepository implements WorkflowRepository {
 
   async getValidationResult(workflowId: string): Promise<WorkflowValidationResult | null> {
     return structuredClone(this.validations.get(workflowId) ?? null);
+  }
+
+  async saveFinalizationOutcome(outcome: WorkflowFinalizationOutcome): Promise<void> {
+    this.finalizations.set(outcome.runId, structuredClone(outcome));
+  }
+
+  async getFinalizationOutcome(runId: string): Promise<WorkflowFinalizationOutcome | null> {
+    return structuredClone(this.finalizations.get(runId) ?? null);
   }
 
   async saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void> {

@@ -18,6 +18,7 @@ import {
   type WorkflowCaptureBundle,
   type WorkflowCandidate,
   type WorkflowFailureEvidence,
+  type WorkflowFinalizationOutcome,
   type WorkflowLifecycleState,
   type WorkflowRepository,
   type WorkflowValidationResult
@@ -177,8 +178,12 @@ describe("closed-loop Web Operator lifecycle", () => {
         browser,
         gateway
       });
-      await expect(interruptedController.acquire(acquisitionRequest, lifecycleAt(0)))
-        .rejects.toThrow(new RegExp(boundary));
+      const interrupted = await interruptedController.acquire(acquisitionRequest, lifecycleAt(0));
+      expect(interrupted.state).toBe("acquired_by_agent");
+      if (interrupted.state !== "acquired_by_agent") throw new Error("expected acquisition success across workflow boundary");
+      expect(interrupted.run.state).toBe("completed");
+      expect(interrupted.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v1`);
+      expect(interrupted.workflowFinalization.state).toBe(boundary === "promotion" ? "PROMOTED" : "NOT_PROMOTED");
       const modelCallsAfterInterruptedRun = gateway.calls;
 
       const recoveryController = closedLoopController({
@@ -209,6 +214,57 @@ describe("closed-loop Web Operator lifecycle", () => {
       expect(await backingWorkflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(1);
     }
   }, 90_000);
+
+  it("keeps accepted acquisition successful when its workflow is not eligible for promotion", async () => {
+    fixture = await startVersionedPublisherFixture();
+    const store = new MemoryRuntimeStore();
+    const workflowStore = new MemoryWorkflowRepository();
+    const artifacts = new MemoryArtifactStore();
+    const browser = LocalPlaywrightBrowserExecutor.forTest();
+    const gateway = new DirectCandidateGateway(`${fixture.origin}/exact-article`);
+    const controller = closedLoopController({ store, workflowStore, artifacts, browser, gateway });
+    const acquisitionRequest = request(fixture.origin, "exact-candidate", "exact-article");
+
+    const acquired = await controller.acquire(acquisitionRequest, lifecycleAt(0));
+    expect(acquired.state).toBe("acquired_by_agent");
+    if (acquired.state !== "acquired_by_agent") throw new Error("expected exact-candidate acquisition");
+    expect(acquired.run.state).toBe("completed");
+    expect(acquired.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/exact-article`);
+    expect(acquired.workflow).toMatchObject({ state: "INVALID" });
+    expect(acquired.workflowFinalization).toMatchObject({
+      state: "NOT_PROMOTED",
+      reason: "validation_failed",
+      workflowId: acquired.workflow?.id
+    });
+    expect(await workflowStore.getFinalizationOutcome(acquired.run.runId)).toEqual(acquired.workflowFinalization);
+    expect(await workflowStore.getActiveWorkflow(acquisitionRequest.resourceId)).toBeNull();
+
+    const callsAfterAcquisition = gateway.calls;
+    const resumed = await controller.acquire(acquisitionRequest, lifecycleAt(60_000));
+    expect(resumed.state).toBe("acquired_by_agent");
+    if (resumed.state !== "acquired_by_agent") throw new Error("expected resumed exact-candidate acquisition");
+    expect(resumed.process.status).toBe("already_completed");
+    expect(resumed.workflowFinalization).toMatchObject({ state: "NOT_PROMOTED", reason: "validation_failed" });
+    expect(gateway.calls).toBe(callsAfterAcquisition);
+    expect(await workflowStore.listWorkflowCandidates(acquisitionRequest.resourceId)).toHaveLength(1);
+  }, 60_000);
+
+  it("does not hide a canonical mismatch behind workflow finalization", async () => {
+    fixture = await startVersionedPublisherFixture();
+    const store = new MemoryRuntimeStore();
+    const workflowStore = new MemoryWorkflowRepository();
+    const artifacts = new MemoryArtifactStore();
+    const browser = LocalPlaywrightBrowserExecutor.forTest();
+    const gateway = new DirectCandidateGateway(`${fixture.origin}/article-v2`);
+    const controller = closedLoopController({ store, workflowStore, artifacts, browser, gateway });
+    const acquisitionRequest = request(fixture.origin, "wrong-canonical", "article-v1");
+
+    await expect(controller.acquire(acquisitionRequest, lifecycleAt(0))).rejects.toThrow(/did not complete acquisition/);
+    const run = await store.getRunByIdempotencyKey(acquisitionRequest.tenantId, acquisitionRequest.resourceId, acquisitionRequest.idempotencyKey);
+    expect(run?.state).toBe("failed");
+    expect(run && await store.getAcceptedContent(run.runId)).toEqual([]);
+    expect(run && await workflowStore.getFinalizationOutcome(run.runId)).toBeNull();
+  }, 60_000);
 
   it("discovers, validates, promotes, replays with zero LLM calls, repairs after structural change, and preserves rollback safety", async () => {
     fixture = await startVersionedPublisherFixture();
@@ -256,6 +312,7 @@ describe("closed-loop Web Operator lifecycle", () => {
     });
     const resumedFinalization = await resumedController.finalizeSuccessfulAgentRun(discovered.run.runId, lifecycleAt(30_000));
     const repeatedFinalization = await resumedController.finalizeSuccessfulAgentRun(discovered.run.runId, lifecycleAt(45_000));
+    if (!resumedFinalization.workflow || !repeatedFinalization.workflow || !discovered.workflow) throw new Error("expected promoted workflow");
     expect(resumedFinalization.workflow.id).toBe(discovered.workflow.id);
     expect(repeatedFinalization.workflow.id).toBe(discovered.workflow.id);
     expect(await workflowStore.listWorkflowCandidates("resource-closed-loop")).toHaveLength(1);
@@ -291,6 +348,7 @@ describe("closed-loop Web Operator lifecycle", () => {
     const repaired = await controller.acquire(request(fixture.origin, "v2-repair", "article-v2"), lifecycleAt(240_000));
     expect(repaired.state).toBe("acquired_by_agent");
     if (repaired.state !== "acquired_by_agent") throw new Error("expected agent repair");
+    if (!repaired.workflow) throw new Error("expected promoted repair workflow");
     expect(repaired.acquiredContent.canonicalUrl).toBe(`${fixture.origin}/article-v2`);
     expect(repaired.workflow).toMatchObject({ state: "ACTIVE", version: 2 });
     expect(await workflowStore.getWorkflowCandidate(activeV1.id)).toMatchObject({ state: "SUPERSEDED", supersededBy: repaired.workflow.id });
@@ -338,8 +396,10 @@ describe("closed-loop Web Operator lifecycle", () => {
     const firstStructuralEvidence = await repairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), lifecycleAt(60_000));
     expect(firstStructuralEvidence.state).toBe("waiting_for_repair_evidence");
 
-    await expect(repairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), lifecycleAt(120_000)))
-      .rejects.toThrow(/candidate/);
+    const interruptedRepair = await repairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), lifecycleAt(120_000));
+    expect(interruptedRepair.state).toBe("acquired_by_agent");
+    if (interruptedRepair.state !== "acquired_by_agent") throw new Error("expected successful repair acquisition");
+    expect(interruptedRepair.workflowFinalization).toMatchObject({ state: "NOT_PROMOTED", reason: "candidate_production_failed" });
     const modelCallsAfterInterruptedRepair = gateway.calls;
 
     const resumedRepairController = closedLoopController({
@@ -352,6 +412,7 @@ describe("closed-loop Web Operator lifecycle", () => {
     const repaired = await resumedRepairController.acquire(request(fixture.origin, "repair-restart-v2", "article-v2"), lifecycleAt(180_000));
     expect(repaired.state).toBe("acquired_by_agent");
     if (repaired.state !== "acquired_by_agent") throw new Error("expected resumed repair finalization");
+    if (!repaired.workflow) throw new Error("expected promoted repair workflow");
     expect(repaired.process.status).toBe("already_completed");
     expect(gateway.calls).toBe(modelCallsAfterInterruptedRepair);
     expect(repaired.workflow).toMatchObject({ state: "ACTIVE", version: 2 });
@@ -412,6 +473,32 @@ class VersionedPublisherGateway implements ModelGateway {
   }
 }
 
+class DirectCandidateGateway implements ModelGateway {
+  readonly id = "direct-candidate-gateway";
+  calls = 0;
+
+  constructor(private readonly targetUrl: string) {}
+
+  async complete(request: ModelRequest) {
+    this.calls += 1;
+    const planToReturn = request.dynamic.pageState.progress.articleExtracted
+      ? plan(action("run.propose_completion@1", { citedObservationIds: ["$latestObservation"] }))
+      : plan(
+          action("browser.navigate@1", { url: this.targetUrl }, { urlIncludes: new URL(this.targetUrl).pathname }),
+          action("browser.extract@1", {})
+        );
+    return {
+      plan: planToReturn,
+      usage: { inputTokens: 10, outputTokens: 10, costUsd: 0, latencyMs: 1 },
+      provider: "fixture",
+      model: "fixture/fast",
+      responseId: makeId("model_response", request.callId, this.calls),
+      gateway: this.id,
+      deployment: "api" as const
+    };
+  }
+}
+
 interface VersionedPublisherFixture {
   origin: string;
   setVersion(version: "v1" | "v2"): void;
@@ -441,6 +528,10 @@ async function startVersionedPublisherFixture(): Promise<VersionedPublisherFixtu
       response.end(article(url.origin, "article-v2", "Publisher v2 article", "2026-09-13T12:00:00Z"));
       return;
     }
+    if (url.pathname === "/exact-article") {
+      response.end(article(url.origin, "exact-article", "Exact candidate article", "2026-09-14T12:00:00Z", false));
+      return;
+    }
     response.end(page("Home", `<main><h1>Publisher home</h1></main>`));
   });
   await listen(server);
@@ -453,9 +544,9 @@ async function startVersionedPublisherFixture(): Promise<VersionedPublisherFixtu
   };
 }
 
-function article(origin: string, slug: string, title: string, timestamp: string) {
+function article(origin: string, slug: string, title: string, timestamp: string, watermark = true) {
   return page(title, `
-    <div data-watermark-observed="true">watermark reached</div>
+    ${watermark ? '<div data-watermark-observed="true">watermark reached</div>' : ""}
     <article>
       <h1>${title}</h1>
       <time datetime="${timestamp}">${timestamp}</time>
@@ -545,6 +636,14 @@ class FailOnceWorkflowRepository implements WorkflowRepository {
     return this.delegate.getValidationResult(workflowId);
   }
 
+  saveFinalizationOutcome(outcome: WorkflowFinalizationOutcome): Promise<void> {
+    return this.delegate.saveFinalizationOutcome(outcome);
+  }
+
+  getFinalizationOutcome(runId: string): Promise<WorkflowFinalizationOutcome | null> {
+    return this.delegate.getFinalizationOutcome(runId);
+  }
+
   saveFailureEvidence(evidence: WorkflowFailureEvidence): Promise<void> {
     return this.delegate.saveFailureEvidence(evidence);
   }
@@ -575,7 +674,7 @@ class FailOnceWorkflowRepository implements WorkflowRepository {
   }
 }
 
-function request(origin: string, key: string, articleSlug: "article-v1" | "article-v2"): ClosedLoopAcquisitionRequest {
+function request(origin: string, key: string, articleSlug: "article-v1" | "article-v2" | "exact-article"): ClosedLoopAcquisitionRequest {
   return {
     tenantId: "tenant",
     resourceId: "resource-closed-loop",
