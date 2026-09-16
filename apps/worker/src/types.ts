@@ -64,6 +64,7 @@ export interface Env extends Cloudflare.Env {
   AUTHENTICATED_SECRETS: R2Bucket;
   AUTH_PROFILE_ENCRYPTION_KEYS?: string;
   AUTH_PROFILE_ACTIVE_KEY_ID?: string;
+  AUTH_PROFILE_BOOTSTRAP_TOKEN?: string;
   ADMIN_SESSION_SECRET?: string;
   ADMIN_SETUP_TOKEN?: string;
   INTERNAL_MAINTENANCE_SECRET?: string;

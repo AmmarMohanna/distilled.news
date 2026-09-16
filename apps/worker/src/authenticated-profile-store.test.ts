@@ -22,6 +22,7 @@ describe("authenticated profile account ownership",()=>{
     expect((await db.prepare("SELECT COUNT(*) count FROM authenticated_site_profiles").first<{count:number}>())?.count).toBe(1);
   },30_000);
   it("rejects bootstrap before touching storage or Browser Run when the runtime token is invalid",async()=>{const response=await bootstrapAuthenticatedProfile(new Request("https://worker.test/v1/authenticated-profiles/bootstrap",{method:"POST",headers:{authorization:"Bearer wrong","content-type":"application/json"},body:"{}"}),{WEB_OPERATOR_RUNTIME_TOKEN:"runtime"} as Env);expect(response.status).toBe(401);expect(await response.json()).toEqual({error:"unauthorized"});});
+  it("prefers a dedicated one-time bootstrap token when configured",async()=>{const request=(token:string)=>new Request("https://worker.test/v1/authenticated-profiles/bootstrap",{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:"{}"});const env={WEB_OPERATOR_RUNTIME_TOKEN:"runtime",AUTH_PROFILE_BOOTSTRAP_TOKEN:"one-time"} as Env;expect((await bootstrapAuthenticatedProfile(request("runtime"),env)).status).toBe(401);expect((await bootstrapAuthenticatedProfile(request("one-time"),env)).status).toBe(400);});
 });
 async function apply(db:D1Database,sql:string){
   const withoutComments=sql.split(/\r?\n/).filter(line=>!line.trimStart().startsWith("--")).join("\n");

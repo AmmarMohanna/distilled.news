@@ -7,7 +7,7 @@ import { workerCloudflareBrowser } from "./web-operator-runtime";
 const inputSchema=z.object({authenticatedProfileId:z.string().startsWith("authenticated_profile_"),tenantId:z.string().startsWith("account_"),ownerId:z.string().startsWith("account_")}).strict();
 
 export async function bootstrapAuthenticatedProfile(request:Request,env:Env){
-  if(!await authorized(request,env.WEB_OPERATOR_RUNTIME_TOKEN))return Response.json({error:"unauthorized"},{status:401});
+  if(!await authorized(request,env.AUTH_PROFILE_BOOTSTRAP_TOKEN??env.WEB_OPERATOR_RUNTIME_TOKEN))return Response.json({error:"unauthorized"},{status:401});
   const parsed=inputSchema.safeParse(await request.json().catch(()=>null));if(!parsed.success)return Response.json({error:"invalid_request"},{status:400});
   if(!env.AUTH_PROFILE_ENCRYPTION_KEYS||!env.AUTH_PROFILE_ACTIVE_KEY_ID)return Response.json({error:"authenticated_profile_storage_not_configured"},{status:503});
   let keys:Record<string,string>;try{keys=JSON.parse(env.AUTH_PROFILE_ENCRYPTION_KEYS) as Record<string,string>}catch{return Response.json({error:"authenticated_profile_keyring_invalid"},{status:503})}
