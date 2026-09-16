@@ -22,10 +22,6 @@ describe("authenticated profile account ownership",()=>{
   },30_000);
 });
 async function apply(db:D1Database,sql:string){
-  if (/CREATE TRIGGER/.test(sql)) {
-    for (const statement of sql.match(/CREATE TRIGGER[\s\S]*?^END;/gm) ?? []) await db.prepare(statement).run();
-    return;
-  }
   const withoutComments=sql.split(/\r?\n/).filter(line=>!line.trimStart().startsWith("--")).join("\n");
   for(const statement of withoutComments.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();
 }
