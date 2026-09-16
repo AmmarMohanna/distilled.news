@@ -7,7 +7,7 @@ const inputSchema=z.object({tenantId:z.string().min(1),ownerId:z.string().min(1)
 export async function provisionAuthenticatedProfile(request:Request,env:Env){
   if(request.method!=="POST")return Response.json({error:"method_not_allowed"},{status:405});
   if(!authorized(request,env.WEB_OPERATOR_RUNTIME_TOKEN))return Response.json({error:"unauthorized"},{status:401});
-  if(!env.AUTHENTICATED_SECRETS||!env.AUTH_PROFILE_ENCRYPTION_KEYS||!env.AUTH_PROFILE_ACTIVE_KEY_ID)return Response.json({error:"authenticated_profile_storage_not_configured"},{status:503});
+  if(!env.AUTH_PROFILE_ENCRYPTION_KEYS||!env.AUTH_PROFILE_ACTIVE_KEY_ID)return Response.json({error:"authenticated_profile_storage_not_configured"},{status:503});
   let body:unknown;try{body=await request.json()}catch{return Response.json({error:"invalid_json"},{status:400})}
   const parsed=inputSchema.safeParse(body);if(!parsed.success)return Response.json({error:"invalid_profile_request"},{status:400});
   let keys:Record<string,string>;try{keys=JSON.parse(env.AUTH_PROFILE_ENCRYPTION_KEYS) as Record<string,string>}catch{return Response.json({error:"authenticated_profile_keyring_invalid"},{status:503})}

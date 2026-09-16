@@ -61,7 +61,7 @@ export interface Env extends Cloudflare.Env {
   WEB_OPERATOR_QUEUE: Queue<WebOperatorQueueMessage>;
   WEB_OPERATOR_RUNTIME_URL: string;
   WEB_OPERATOR_RUNTIME_TOKEN?: string;
-  AUTHENTICATED_SECRETS?: R2Bucket;
+  AUTHENTICATED_SECRETS: R2Bucket;
   AUTH_PROFILE_ENCRYPTION_KEYS?: string;
   AUTH_PROFILE_ACTIVE_KEY_ID?: string;
   ADMIN_SESSION_SECRET?: string;
