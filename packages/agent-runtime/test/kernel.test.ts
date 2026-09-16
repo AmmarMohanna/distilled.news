@@ -619,6 +619,65 @@ describe("observations and completion", () => {
     expect(result.acceptance.outcome).toBe("accepted");
     expect(result.acceptance.deficits).toEqual([]);
   });
+
+  it.each([
+    {
+      name: "missing accepted content",
+      progress: { acceptedContentId: undefined },
+      deficit: "acquired_content_not_accepted"
+    },
+    {
+      name: "wrong candidate identity",
+      progress: { acceptedCandidateId: "different-candidate" },
+      deficit: "candidate_identity_not_proven"
+    },
+    {
+      name: "missing cited accepted observation",
+      progress: { acceptedObservationId: "uncited-observation" },
+      deficit: "accepted_observation_not_cited"
+    }
+  ])("rejects an exact known candidate with $name", ({ progress, deficit }) => {
+    const verifier = new CompletionVerifier("known-candidate-exact-v1");
+    const result = verifier.verify({
+      runId: "run",
+      toolCallId: "complete",
+      citedObservationIds: ["obs"],
+      progress: {
+        watermarkObserved: false,
+        validatedListingBoundaryReached: false,
+        articleExtracted: true,
+        acceptedContentId: "accepted",
+        acceptedObservationId: "obs",
+        acceptedCandidateId: "candidate",
+        expectedCandidateId: "candidate",
+        ...progress
+      },
+      generation: 1
+    });
+    expect(result.acceptance.outcome).toBe("not_satisfied");
+    expect(result.acceptance.deficits).toContain(deficit);
+  });
+
+  it("keeps the watermark-oriented contract boundary requirement", () => {
+    const verifier = new CompletionVerifier("known-candidate-watermark-v1");
+    const result = verifier.verify({
+      runId: "run",
+      toolCallId: "complete",
+      citedObservationIds: ["obs"],
+      progress: {
+        watermarkObserved: false,
+        validatedListingBoundaryReached: false,
+        articleExtracted: true,
+        acceptedContentId: "accepted",
+        acceptedObservationId: "obs",
+        acceptedCandidateId: "candidate",
+        expectedCandidateId: "candidate"
+      },
+      generation: 1
+    });
+    expect(result.acceptance.outcome).toBe("not_satisfied");
+    expect(result.acceptance.deficits).toEqual(["completion_boundary_not_proven"]);
+  });
 });
 
 function pageState(url: string, revision: string): AgentPageState {
