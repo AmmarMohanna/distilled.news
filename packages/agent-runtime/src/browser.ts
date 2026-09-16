@@ -5,6 +5,9 @@ import type { ChallengeState, InteractionCapability, SemanticControl } from "./c
 import { makeId } from "./contracts";
 import { sha256Text } from "./observations";
 import { classifyBrowserChallenge } from "./challenge-classifier";
+import type { BrowserSessionState } from "./auth-profile";
+import type { AuthenticatedSiteAdapter,AuthenticatedSiteDetection,AuthenticatedSiteSnapshot } from "./authenticated-site";
+import type { CredentialMaterial } from "./auth-profile";
 
 export interface BrowserScope {
   runId: string;
@@ -54,8 +57,13 @@ export interface BrowserExecutorPort {
     tenantId: string;
     generation: number;
     allowedOrigins: string[];
+    authenticatedSessionState?: BrowserSessionState;
     signal?: AbortSignal;
   }): Promise<BrowserAllocation>;
+  exportAuthenticatedSession?(scope: BrowserScope): Promise<BrowserSessionState>;
+  attachAuthenticatedSession?(scope: BrowserScope,state:BrowserSessionState): Promise<void>;
+  detectAuthenticatedState?(scope:BrowserScope,adapter:AuthenticatedSiteAdapter):Promise<AuthenticatedSiteDetection>;
+  establishAuthenticatedSession?(scope:BrowserScope,adapter:AuthenticatedSiteAdapter,credential:CredentialMaterial):Promise<AuthenticatedSiteDetection>;
   health(scope: BrowserScope): Promise<"healthy" | "crashed" | "closed">;
   close(scope: BrowserScope): Promise<void>;
   crashForTest(scope: BrowserScope): Promise<void>;
@@ -248,6 +256,7 @@ export class PlaywrightBrowserAdapter
     tenantId: string;
     generation: number;
     allowedOrigins: string[];
+    authenticatedSessionState?: BrowserSessionState;
     signal?: AbortSignal;
   }): Promise<BrowserAllocation> {
     input.signal?.throwIfAborted();
@@ -288,7 +297,8 @@ export class PlaywrightBrowserAdapter
       viewport: { width: 960, height: 720 },
       deviceScaleFactor: 1,
       serviceWorkers: "block",
-      acceptDownloads: false
+      acceptDownloads: false,
+      storageState: input.authenticatedSessionState
     });
     await context.addInitScript({ content: ACTIVE_TRANSPORT_HARDENING });
     const page = await context.newPage();
@@ -378,6 +388,30 @@ export class PlaywrightBrowserAdapter
   async health(scope: BrowserScope) {
     return this.require(scope).state;
   }
+
+  async exportAuthenticatedSession(scope: BrowserScope): Promise<BrowserSessionState> {
+    const live=this.requireHealthy(scope);
+    return await live.context.storageState() as BrowserSessionState;
+  }
+
+  async attachAuthenticatedSession(scope:BrowserScope,state:BrowserSessionState){
+    const live=this.requireHealthy(scope);
+    const allowedCookies=state.cookies.filter((cookie)=>[...live.allowedOrigins].some((origin)=>domainMatches(cookie.domain,new URL(origin).hostname)));
+    if(allowedCookies.length!==state.cookies.length||state.origins.some((entry)=>!live.allowedOrigins.has(new URL(entry.origin).origin)))throw new BrowserPreDispatchError("authenticated session origin denied");
+    await live.context.addCookies(allowedCookies);
+    for(const entry of state.origins){await live.page.goto(entry.origin);for(const item of entry.localStorage)await live.cdp.send("DOMStorage.setDOMStorageItem",{storageId:{securityOrigin:entry.origin,isLocalStorage:true},key:item.name,value:item.value});}
+    this.invalidateTransientBindings(live);
+  }
+
+  async detectAuthenticatedState(scope:BrowserScope,adapter:AuthenticatedSiteAdapter){return adapter.detect(await this.authenticationSnapshot(this.requireHealthy(scope)));}
+
+  async establishAuthenticatedSession(scope:BrowserScope,adapter:AuthenticatedSiteAdapter,credential:CredentialMaterial){
+    const live=this.requireHealthy(scope);
+    if(!adapter.allowedOrigins.every((origin)=>live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("site adapter origin outside browser policy");
+    return adapter.bootstrap({goto:async(url)=>{await this.navigateDirectly(live,url)},fill:async(selector,value)=>{await live.page.locator(selector).fill(value)},click:async(selector)=>{await live.page.locator(selector).click()},snapshot:async()=>this.authenticationSnapshot(live),importSession:async(state)=>this.attachAuthenticatedSession(scope,state),exportSession:async()=>this.exportAuthenticatedSession(scope)},credential);
+  }
+
+  private async authenticationSnapshot(live:LiveSession):Promise<AuthenticatedSiteSnapshot>{const observed=await this.observationProvider.capture(live);return{url:observed.url,title:observed.title,visibleText:observed.visibleText,controls:observed.controls.map(control=>({role:control.role,label:control.label,type:control.attributes?.type}))};}
 
   async close(scope: BrowserScope) {
     if (!this.sessions.has(scope.sessionId)) return;
@@ -850,9 +884,11 @@ class CdpBrowserObservationProvider implements BrowserObservationProvider {
     const watermarkObserved = [...nodes.values()].some((node) => node.attributes.get("data-watermark-observed") === "true");
     const protocolSnapshotVersion = "cdp-dom-snapshot-v1";
     const pageRevision = await snapshotRevision(pageUrl, document, snapshot.strings);
+    const sanitizedSnapshot=sanitizeProtocolPayload(snapshot);
+    const sanitizedAccessibility=sanitizeProtocolPayload(ax);
     const raw = image
       ? await live.page.screenshot({ type: "png" })
-      : new TextEncoder().encode(JSON.stringify({ protocolSnapshotVersion, snapshot, accessibilityTree: ax }));
+      : new TextEncoder().encode(JSON.stringify({ protocolSnapshotVersion, snapshot:sanitizedSnapshot, accessibilityTree:sanitizedAccessibility }));
     return {
       url: pageUrl,
       title,
@@ -861,7 +897,7 @@ class CdpBrowserObservationProvider implements BrowserObservationProvider {
       raw,
       controls,
       visibleText,
-      markup: JSON.stringify(snapshot),
+      markup: JSON.stringify(sanitizedSnapshot),
       watermarkObserved,
       article,
       observationSource: image ? "CDP_SCREENSHOT" : "CDP_DOM_SNAPSHOT",
@@ -1039,6 +1075,20 @@ function stringAt(strings: string[], index: number | undefined): string {
   return index === undefined ? "" : strings[index] ?? "";
 }
 
+const SECRET_PROTOCOL_KEY=/(?:password|passwd|cookie|authorization|authToken|accessToken|refreshToken|sessionToken|csrf|xsrf|totp|otp|inputValue)/i;
+const SECRET_TEXT=/(?:bearer\s+[a-z0-9._~+\/-]+=*|(?:access|refresh|session|csrf|xsrf|auth)[_-]?token\s*[=:]\s*["']?[a-z0-9._~+\/-]{8,})/ig;
+function sanitizeProtocolPayload<T>(value:T,key=""):T {
+  if(SECRET_PROTOCOL_KEY.test(key)) return "[REDACTED]" as T;
+  if(typeof value==="string") return value.replace(SECRET_TEXT,"[REDACTED]") as T;
+  if(Array.isArray(value)) return value.map((entry)=>sanitizeProtocolPayload(entry,key)) as T;
+  if(value&&typeof value==="object") {
+    const output:Record<string,unknown>={};
+    for(const [childKey,child] of Object.entries(value as Record<string,unknown>)) output[childKey]=sanitizeProtocolPayload(child,childKey);
+    return output as T;
+  }
+  return value;
+}
+
 async function snapshotRevision(pageUrl: string, document: SnapshotDocument | undefined, strings: string[]) {
   if (!document) return sha256Text(pageUrl);
   return sha256Text(JSON.stringify({
@@ -1081,3 +1131,4 @@ function urlInSet(value:string,allowed:string[]) {
     return allowed.some((candidate)=>{const expected=new URL(candidate);expected.hash="";return expected.toString()===actual.toString();});
   } catch { return false; }
 }
+function domainMatches(cookieDomain:string,hostname:string){const normalized=cookieDomain.replace(/^\./,"").toLowerCase();const host=hostname.toLowerCase();return host===normalized||host.endsWith(`.${normalized}`);}

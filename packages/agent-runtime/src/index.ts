@@ -1,6 +1,7 @@
 export * from "./admission";
 export * from "./acquisition-router";
 export * from "./auth-profile";
+export * from "./authenticated-site";
 export * from "./browser";
 export * from "./budget";
 export * from "./challenge-classifier";

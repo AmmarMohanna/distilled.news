@@ -1,47 +1,55 @@
-export type AuthOperationClass = "public_read" | "authenticated_read";
+import { makeId } from "./contracts";
 
-export interface AuthProfile {
-  id: string;
-  tenantId: string;
-  ownerId: string;
-  encryptedBrowserStateRef: string;
-  allowedDomains: string[];
-  allowedOperationClass: AuthOperationClass;
-  version: number;
-  expiresAt: string;
-  revokedAt?: string;
+export type AuthenticatedSiteFamily = "x" | (string & {});
+export type AuthPermissionScope = "READ_ONLY";
+export type AuthenticationMethod = "PASSWORD" | "SESSION_IMPORT";
+export type AuthenticatedSessionState = "ACTIVE" | "SESSION_EXPIRED" | "REAUTH_REQUIRED" | "MFA_REQUIRED" | "CHALLENGE_REQUIRED" | "REVOKED";
+
+export interface CredentialProfile { id:string; tenantId:string; ownerId:string; siteFamily:AuthenticatedSiteFamily; authenticationMethod:AuthenticationMethod; encryptedCredentialRef:string; createdAt:string; updatedAt:string; revokedAt?:string }
+export interface AuthenticatedSiteProfile { id:string; tenantId:string; ownerId:string; siteFamily:AuthenticatedSiteFamily; allowedOrigins:string[]; permissionScope:AuthPermissionScope; authenticationMethod:AuthenticationMethod; credentialProfileId?:string; encryptedSessionRef?:string; sessionState:AuthenticatedSessionState; version:number; createdAt:string; updatedAt:string; lastValidatedAt?:string; expiresAt?:string; reauthReason?:string; revokedAt?:string }
+export interface AuthenticatedProfileCapability { id:string; profileId:string; tenantId:string; ownerId:string; runId:string; browserGeneration:number; siteFamily:AuthenticatedSiteFamily; allowedOrigins:string[]; permissionScope:AuthPermissionScope; profileVersion:number; expiresAt:string }
+export interface BrowserSessionState { cookies:Array<{name:string;value:string;domain:string;path:string;expires:number;httpOnly:boolean;secure:boolean;sameSite:"Strict"|"Lax"|"None"}>; origins:Array<{origin:string;localStorage:Array<{name:string;value:string}>}> }
+export interface CredentialMaterial { username:string; password:string }
+export interface SecretBlobStore { put(ref:string,ciphertext:Uint8Array):Promise<void>; get(ref:string):Promise<Uint8Array|null>; delete(ref:string):Promise<void> }
+export interface AuthenticatedProfileRepository { createCredentialProfile(profile:CredentialProfile):Promise<void>; createSiteProfile(profile:AuthenticatedSiteProfile):Promise<void>; getCredentialProfile(id:string):Promise<CredentialProfile|null>; getSiteProfile(id:string):Promise<AuthenticatedSiteProfile|null>; updateSiteProfile(profile:AuthenticatedSiteProfile):Promise<void>; appendAuthAudit(event:AuthAuditEvent):Promise<void> }
+export interface AuthAuditEvent { id:string; profileId:string; tenantId:string; runId?:string; type:"PROFILE_CREATED"|"SESSION_REUSED"|"SESSION_ESTABLISHED"|"SESSION_STATE_CHANGED"|"REVOKED"; fromState?:AuthenticatedSessionState; toState?:AuthenticatedSessionState; safeMetadata:Record<string,string|number|boolean|undefined>; createdAt:string }
+export interface CryptoEnvelope { version:1; algorithm:"AES-256-GCM"; keyId:string; salt:string; iv:string; ciphertext:string }
+
+export class AuthenticatedProfileError extends Error { constructor(public readonly code:string,message=code){super(message);this.name="AuthenticatedProfileError";} }
+
+export class ProfileEnvelopeCrypto {
+  constructor(private readonly keys:Record<string,string>,private readonly activeKeyId:string){if(!keys[activeKeyId])throw new Error("active authenticated-profile encryption key is unavailable");}
+  async encrypt(value:unknown,context:{tenantId:string;profileId:string;purpose:"credential"|"session"}):Promise<Uint8Array>{
+    const salt=crypto.getRandomValues(new Uint8Array(32));const iv=crypto.getRandomValues(new Uint8Array(12));const key=await this.derive(this.activeKeyId,salt,context);
+    const ciphertext=await crypto.subtle.encrypt({name:"AES-GCM",iv,additionalData:this.aad(context,1,this.activeKeyId),tagLength:128},key,new TextEncoder().encode(JSON.stringify(value)));
+    return new TextEncoder().encode(JSON.stringify({version:1,algorithm:"AES-256-GCM",keyId:this.activeKeyId,salt:toBase64(salt),iv:toBase64(iv),ciphertext:toBase64(new Uint8Array(ciphertext))} satisfies CryptoEnvelope));
+  }
+  async decrypt<T>(encoded:Uint8Array,context:{tenantId:string;profileId:string;purpose:"credential"|"session"}):Promise<T>{
+    try{const envelope=JSON.parse(new TextDecoder().decode(encoded)) as CryptoEnvelope;if(envelope.version!==1||envelope.algorithm!=="AES-256-GCM"||!this.keys[envelope.keyId])throw new Error("unsupported envelope");
+      const salt=fromBase64(envelope.salt);const key=await this.derive(envelope.keyId,salt,context);const plaintext=await crypto.subtle.decrypt({name:"AES-GCM",iv:fromBase64(envelope.iv),additionalData:this.aad(context,1,envelope.keyId),tagLength:128},key,fromBase64(envelope.ciphertext));return JSON.parse(new TextDecoder().decode(plaintext)) as T;
+    }catch{throw new AuthenticatedProfileError("AUTH_SECRET_DECRYPTION_FAILED","authenticated profile material could not be decrypted");}
+  }
+  private async derive(keyId:string,salt:Uint8Array,context:{tenantId:string;profileId:string;purpose:string}){const root=await crypto.subtle.importKey("raw",bufferOf(fromBase64(this.keys[keyId])),"HKDF",false,["deriveKey"]);const info=new TextEncoder().encode(`distilled.auth-profile.v1\0${context.tenantId}\0${context.profileId}\0${context.purpose}`);return crypto.subtle.deriveKey({name:"HKDF",hash:"SHA-256",salt:bufferOf(salt),info:bufferOf(info)},root,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);}
+  private aad(context:{tenantId:string;profileId:string;purpose:string},version:number,keyId:string){return new TextEncoder().encode(JSON.stringify({version,keyId,...context}));}
 }
 
-export interface AuthProfileCapability {
-  profileId: string;
-  tenantId: string;
-  allowedDomains: string[];
-  allowedOperationClass: AuthOperationClass;
-  version: number;
-  expiresAt: string;
-}
+export function projectAuthenticatedProfileForModel(profile:AuthenticatedSiteProfile){return{authenticatedProfileId:profile.id,site:profile.siteFamily,status:profile.sessionState,permission:profile.permissionScope,allowedOrigins:[...profile.allowedOrigins]} as const;}
+export function issueAuthenticatedProfileCapability(profile:AuthenticatedSiteProfile,input:{tenantId:string;ownerId:string;runId:string;browserGeneration:number;ttlMs?:number;now?:Date}):AuthenticatedProfileCapability{assertProfileUsable(profile,input);const now=input.now??new Date();return{id:makeId("auth_cap",profile.id,input.runId,input.browserGeneration,profile.version,now.toISOString()),profileId:profile.id,tenantId:input.tenantId,ownerId:input.ownerId,runId:input.runId,browserGeneration:input.browserGeneration,siteFamily:profile.siteFamily,allowedOrigins:[...profile.allowedOrigins],permissionScope:"READ_ONLY",profileVersion:profile.version,expiresAt:new Date(now.getTime()+(input.ttlMs??60_000)).toISOString()};}
+export function assertCapabilityUsable(capability:AuthenticatedProfileCapability,profile:AuthenticatedSiteProfile,input:{tenantId:string;ownerId:string;runId:string;browserGeneration:number;origin:string;now?:string}){const now=input.now??new Date().toISOString();if(capability.tenantId!==input.tenantId||profile.tenantId!==input.tenantId)throw new AuthenticatedProfileError("AUTH_TENANT_DENIED");if(capability.ownerId!==input.ownerId||profile.ownerId!==input.ownerId)throw new AuthenticatedProfileError("AUTH_OWNER_DENIED");if(capability.runId!==input.runId)throw new AuthenticatedProfileError("AUTH_RUN_DENIED");if(capability.browserGeneration!==input.browserGeneration)throw new AuthenticatedProfileError("AUTH_STALE_GENERATION");if(capability.profileVersion!==profile.version)throw new AuthenticatedProfileError("AUTH_STALE_CAPABILITY");if(capability.expiresAt<=now)throw new AuthenticatedProfileError("AUTH_CAPABILITY_EXPIRED");if(!capability.allowedOrigins.includes(new URL(input.origin).origin))throw new AuthenticatedProfileError("AUTH_ORIGIN_DENIED");assertProfileUsable(profile,{tenantId:input.tenantId,ownerId:input.ownerId,now:new Date(now)});}
+export function assertProfileUsable(profile:AuthenticatedSiteProfile,input:{tenantId:string;ownerId:string;now?:Date}){const now=input.now??new Date();if(profile.tenantId!==input.tenantId)throw new AuthenticatedProfileError("AUTH_TENANT_DENIED");if(profile.ownerId!==input.ownerId)throw new AuthenticatedProfileError("AUTH_OWNER_DENIED");if(profile.revokedAt||profile.sessionState==="REVOKED")throw new AuthenticatedProfileError("AUTH_PROFILE_REVOKED");if(profile.expiresAt&&profile.expiresAt<=now.toISOString())throw new AuthenticatedProfileError("AUTH_PROFILE_EXPIRED");if(profile.permissionScope!=="READ_ONLY")throw new AuthenticatedProfileError("AUTH_PERMISSION_DENIED");}
 
-export function projectAuthProfileForModel(profile: AuthProfile): AuthProfileCapability {
-  return {
-    profileId: profile.id,
-    tenantId: profile.tenantId,
-    allowedDomains: [...profile.allowedDomains],
-    allowedOperationClass: profile.allowedOperationClass,
-    version: profile.version,
-    expiresAt: profile.expiresAt
-  };
+export class AuthenticatedProfileService {
+  constructor(private readonly repository:AuthenticatedProfileRepository,private readonly blobs:SecretBlobStore,private readonly envelope:ProfileEnvelopeCrypto){}
+  async provision(input:{tenantId:string;ownerId:string;siteFamily:AuthenticatedSiteFamily;allowedOrigins:string[];credential:CredentialMaterial;now?:Date}){const now=input.now??new Date();const stable=`${input.tenantId}\0${input.ownerId}\0${input.siteFamily}`;const credentialId=makeId("credential_profile",stable);const profileId=makeId("authenticated_profile",stable);const credentialRef=`authenticated/${input.tenantId}/${credentialId}/credential.v1.enc`;await this.blobs.put(credentialRef,await this.envelope.encrypt(input.credential,{tenantId:input.tenantId,profileId:credentialId,purpose:"credential"}));await this.repository.createCredentialProfile({id:credentialId,tenantId:input.tenantId,ownerId:input.ownerId,siteFamily:input.siteFamily,authenticationMethod:"PASSWORD",encryptedCredentialRef:credentialRef,createdAt:now.toISOString(),updatedAt:now.toISOString()});const profile:AuthenticatedSiteProfile={id:profileId,tenantId:input.tenantId,ownerId:input.ownerId,siteFamily:input.siteFamily,allowedOrigins:normalizeOrigins(input.allowedOrigins),permissionScope:"READ_ONLY",authenticationMethod:"PASSWORD",credentialProfileId:credentialId,sessionState:"REAUTH_REQUIRED",version:1,createdAt:now.toISOString(),updatedAt:now.toISOString()};await this.repository.createSiteProfile(profile);await this.audit(profile,"PROFILE_CREATED",undefined,profile.sessionState,{},now);return projectAuthenticatedProfileForModel(profile);}
+  async loadCredential(profile:AuthenticatedSiteProfile):Promise<CredentialMaterial>{if(!profile.credentialProfileId)throw new AuthenticatedProfileError("AUTH_CREDENTIAL_UNAVAILABLE");const credential=await this.repository.getCredentialProfile(profile.credentialProfileId);if(!credential||credential.revokedAt||credential.tenantId!==profile.tenantId)throw new AuthenticatedProfileError("AUTH_CREDENTIAL_UNAVAILABLE");const blob=await this.blobs.get(credential.encryptedCredentialRef);if(!blob)throw new AuthenticatedProfileError("AUTH_CREDENTIAL_UNAVAILABLE");return this.envelope.decrypt(blob,{tenantId:profile.tenantId,profileId:credential.id,purpose:"credential"});}
+  async loadSession(profile:AuthenticatedSiteProfile):Promise<BrowserSessionState|null>{if(profile.sessionState!=="ACTIVE"||!profile.encryptedSessionRef)return null;const blob=await this.blobs.get(profile.encryptedSessionRef);if(!blob)return null;return this.envelope.decrypt(blob,{tenantId:profile.tenantId,profileId:profile.id,purpose:"session"});}
+  async saveSession(profile:AuthenticatedSiteProfile,state:BrowserSessionState,input:{runId:string;now?:Date}){const now=input.now??new Date();const ref=`authenticated/${profile.tenantId}/${profile.id}/session.v${profile.version+1}.enc`;await this.blobs.put(ref,await this.envelope.encrypt(state,{tenantId:profile.tenantId,profileId:profile.id,purpose:"session"}));const previous=profile.sessionState;const updated={...profile,encryptedSessionRef:ref,sessionState:"ACTIVE" as const,version:profile.version+1,lastValidatedAt:now.toISOString(),updatedAt:now.toISOString(),reauthReason:undefined};await this.repository.updateSiteProfile(updated);await this.audit(updated,previous==="ACTIVE"?"SESSION_REUSED":"SESSION_ESTABLISHED",previous,"ACTIVE",{sessionReused:previous==="ACTIVE"},now,input.runId);return updated;}
+  async transition(profile:AuthenticatedSiteProfile,toState:AuthenticatedSessionState,input:{runId?:string;reason?:string;now?:Date}){const now=input.now??new Date();const updated={...profile,sessionState:toState,version:profile.version+1,updatedAt:now.toISOString(),reauthReason:input.reason,revokedAt:toState==="REVOKED"?now.toISOString():profile.revokedAt};await this.repository.updateSiteProfile(updated);await this.audit(updated,toState==="REVOKED"?"REVOKED":"SESSION_STATE_CHANGED",profile.sessionState,toState,{reason:input.reason},now,input.runId);return updated;}
+  private audit(profile:AuthenticatedSiteProfile,type:AuthAuditEvent["type"],fromState:AuthenticatedSessionState|undefined,toState:AuthenticatedSessionState|undefined,safeMetadata:AuthAuditEvent["safeMetadata"],now:Date,runId?:string){return this.repository.appendAuthAudit({id:crypto.randomUUID(),profileId:profile.id,tenantId:profile.tenantId,runId,type,fromState,toState,safeMetadata,createdAt:now.toISOString()});}
 }
+function normalizeOrigins(origins:string[]){return[...new Set(origins.map(value=>{const url=new URL(value);if(url.protocol!=="https:"||url.origin!==value)throw new Error("authenticated origins must be exact HTTPS origins");return url.origin;}))];}
+function toBase64(value:Uint8Array){return Buffer.from(value).toString("base64");}function fromBase64(value:string){return new Uint8Array(Buffer.from(value,"base64"));}function bufferOf(value:Uint8Array){return Uint8Array.from(value).buffer;}
 
-export function assertAuthProfileUsable(profile: AuthProfile, input: {
-  tenantId: string;
-  domain: string;
-  operationClass: AuthOperationClass;
-  now?: string;
-}): void {
-  const now = input.now ?? new Date().toISOString();
-  if (profile.tenantId !== input.tenantId) throw new Error("auth profile tenant mismatch");
-  if (profile.revokedAt) throw new Error("auth profile revoked");
-  if (profile.expiresAt <= now) throw new Error("auth profile expired");
-  if (profile.allowedOperationClass !== input.operationClass) throw new Error("auth profile operation class denied");
-  if (!profile.allowedDomains.includes(input.domain)) throw new Error("auth profile domain denied");
-}
+export type AuthOperationClass="public_read"|"authenticated_read";export interface AuthProfile{id:string;tenantId:string;ownerId:string;encryptedBrowserStateRef:string;allowedDomains:string[];allowedOperationClass:AuthOperationClass;version:number;expiresAt:string;revokedAt?:string}export type AuthProfileCapability={profileId:string;tenantId:string;allowedDomains:string[];allowedOperationClass:AuthOperationClass;version:number;expiresAt:string};
+export function projectAuthProfileForModel(profile:AuthProfile):AuthProfileCapability{return{profileId:profile.id,tenantId:profile.tenantId,allowedDomains:[...profile.allowedDomains],allowedOperationClass:profile.allowedOperationClass,version:profile.version,expiresAt:profile.expiresAt};}
+export function assertAuthProfileUsable(profile:AuthProfile,input:{tenantId:string;domain:string;operationClass:AuthOperationClass;now?:string}){const now=input.now??new Date().toISOString();if(profile.tenantId!==input.tenantId)throw new Error("auth profile tenant mismatch");if(profile.revokedAt)throw new Error("auth profile revoked");if(profile.expiresAt<=now)throw new Error("auth profile expired");if(profile.allowedOperationClass!==input.operationClass)throw new Error("auth profile operation class denied");if(!profile.allowedDomains.includes(input.domain))throw new Error("auth profile domain denied");}
