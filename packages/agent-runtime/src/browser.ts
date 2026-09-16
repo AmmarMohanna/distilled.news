@@ -95,7 +95,7 @@ export type CloudflareBrowserLauncher = (
 
 export interface BrowserBackendSelection {
   backend: BrowserBackendName;
-  executor: BrowserExecutorPort & StructuredBrowserUsePort & VisualComputerUsePort;
+  executor: PlaywrightBrowserAdapter;
 }
 
 export interface StructuredBrowserUsePort {
@@ -136,6 +136,8 @@ interface LiveSession {
   context: BrowserContext;
   page: Page;
   allowedOrigins: Set<string>;
+  authenticationWriteOrigins?:Set<string>;
+  authenticationBootstrap?:boolean;
   handles: Map<string, { index: number; revision: string; destinationUrl?: string }>;
   screenshots: Map<string, { revision: string; url: string; scrollX: number; scrollY: number; viewport: string }>;
   capabilities: Map<string, InteractionCapability>;
@@ -408,7 +410,8 @@ export class PlaywrightBrowserAdapter
   async establishAuthenticatedSession(scope:BrowserScope,adapter:AuthenticatedSiteAdapter,credential:CredentialMaterial){
     const live=this.requireHealthy(scope);
     if(!adapter.allowedOrigins.every((origin)=>live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("site adapter origin outside browser policy");
-    return adapter.bootstrap({goto:async(url)=>{await this.navigateDirectly(live,url)},fill:async(selector,value)=>{await live.page.locator(selector).fill(value)},click:async(selector)=>{await live.page.locator(selector).click()},snapshot:async()=>this.authenticationSnapshot(live),importSession:async(state)=>this.attachAuthenticatedSession(scope,state),exportSession:async()=>this.exportAuthenticatedSession(scope)},credential);
+    const writeOrigins=new Set(adapter.authenticationWriteOrigins??adapter.allowedOrigins);if([...writeOrigins].some(origin=>!live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("site authentication origin outside browser policy");live.authenticationWriteOrigins=writeOrigins;live.authenticationBootstrap=true;
+    try{return await adapter.bootstrap({goto:async(url)=>{await this.navigateDirectly(live,url)},fill:async(selector,value)=>{await live.page.locator(selector).fill(value)},click:async(selector)=>{await live.page.locator(selector).click()},clickControl:async(control)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).click()},snapshot:async()=>this.authenticationSnapshot(live),importSession:async(state)=>this.attachAuthenticatedSession(scope,state),exportSession:async()=>this.exportAuthenticatedSession(scope)},credential)}finally{live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;}
   }
 
   private async authenticationSnapshot(live:LiveSession):Promise<AuthenticatedSiteSnapshot>{const observed=await this.observationProvider.capture(live);return{url:observed.url,title:observed.title,visibleText:observed.visibleText,controls:observed.controls.map(control=>({role:control.role,label:control.label,type:control.attributes?.type}))};}
@@ -699,14 +702,12 @@ export class PlaywrightBrowserAdapter
 
   private async assertRequestAllowed(live: LiveSession, value: string, method = "GET") {
     const normalizedMethod = method.toUpperCase();
-    if (!READ_ONLY_BROWSER_METHODS.has(normalizedMethod)) {
-      throw new BrowserPreDispatchError(`browser request method denied: ${normalizedMethod}`);
-    }
     if (value === "about:blank") return;
     let url: URL;
     try { url=new URL(value); } catch { throw new BrowserPreDispatchError("invalid request URL"); }
     if (url.protocol!=="http:" && url.protocol!=="https:") throw new BrowserPreDispatchError(`scheme denied: ${url.protocol}`);
     if (!live.allowedOrigins.has(url.origin)) throw new BrowserPreDispatchError(`origin denied: ${url.origin}`);
+    if (!READ_ONLY_BROWSER_METHODS.has(normalizedMethod)&&!(normalizedMethod==="POST"&&live.authenticationBootstrap&&live.authenticationWriteOrigins?.has(url.origin)))throw new BrowserPreDispatchError(`browser request method denied: ${normalizedMethod}`);
     if (this.options.testOnlyPrivateNetwork) return;
     const pinned=live.pinnedAddresses.get(url.hostname);
     if (!pinned) throw new BrowserPreDispatchError(`hostname was not pinned at allocation: ${url.hostname}`);

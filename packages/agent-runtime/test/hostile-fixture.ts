@@ -90,6 +90,10 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       </script>`));
       return;
     }
+    if (url.pathname === "/auth-post") {
+      response.end(page("Authentication",`<main id="results"><label>Password <input aria-label="Password" type="password"></label><button>Log in</button></main><script>document.querySelector('button').addEventListener('click',async()=>{await fetch('/mutate',{method:'POST',body:document.querySelector('input').value});document.querySelector('#results').textContent='authenticated'})</script>`));
+      return;
+    }
     if (url.pathname === "/unsafe-links") {
       response.end(page("Unsafe links", `<main><a download href="/mutate">Download report</a><a target="_blank" href="/mutate">Open report</a></main>`));
       return;

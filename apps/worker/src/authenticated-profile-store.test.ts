@@ -2,6 +2,7 @@ import { readFile,readdir } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { afterEach,describe,expect,it } from "vitest";
 import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
+import { bootstrapAuthenticatedProfile } from "./authenticated-profile-bootstrap";
 import type { Env } from "./types";
 
 describe("authenticated profile account ownership",()=>{
@@ -20,6 +21,7 @@ describe("authenticated profile account ownership",()=>{
     await db.prepare("UPDATE accounts SET disabled_at='2026-01-02' WHERE id='account-a'").run();expect(await call("account-a","account-a")).toMatchObject({status:403});
     expect((await db.prepare("SELECT COUNT(*) count FROM authenticated_site_profiles").first<{count:number}>())?.count).toBe(1);
   },30_000);
+  it("rejects bootstrap before touching storage or Browser Run when the runtime token is invalid",async()=>{const response=await bootstrapAuthenticatedProfile(new Request("https://worker.test/v1/authenticated-profiles/bootstrap",{method:"POST",headers:{authorization:"Bearer wrong","content-type":"application/json"},body:"{}"}),{WEB_OPERATOR_RUNTIME_TOKEN:"runtime"} as Env);expect(response.status).toBe(401);expect(await response.json()).toEqual({error:"unauthorized"});});
 });
 async function apply(db:D1Database,sql:string){
   const withoutComments=sql.split(/\r?\n/).filter(line=>!line.trimStart().startsWith("--")).join("\n");

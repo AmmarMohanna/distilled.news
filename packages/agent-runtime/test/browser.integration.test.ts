@@ -8,6 +8,7 @@ import { MemoryArtifactStore } from "../src/observations";
 import { MemoryRuntimeStore } from "../src/persistence";
 import { createConfiguredWebOperatorHttpHandler,WebOperatorAcquisitionStrategy, WebOperatorCoordinator, type KnownCandidateInvocation } from "../src/runtime";
 import { InjectedCrashError, type FaultPoint, type TestOnlyFaultInjector } from "../src/tools";
+import type { AuthenticatedSiteAdapter } from "../src/authenticated-site";
 import { startHostileFixture, type HostileFixture } from "./hostile-fixture";
 
 const allTools = [...TOOL_NAMES] as ToolName[];
@@ -357,6 +358,12 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     } finally {
       await browser.close(allocation).catch(()=>undefined);
     }
+  },30_000);
+
+  it("permits POST only during a bounded first-party authentication bootstrap",async()=>{
+    fixture.resetMutations();const browser=PlaywrightBrowserAdapter.forTest();const allocation=await browser.allocate({runId:"authentication-post",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    const adapter:AuthenticatedSiteAdapter={siteFamily:"fixture",allowedOrigins:[fixture.origin],authenticationWriteOrigins:[fixture.origin],loginOrigin:fixture.origin,detect:()=>({state:"ACTIVE",reason:"fixture"}),bootstrap:async(runtime,credential)=>{await runtime.goto(`${fixture.origin}/auth-post`);await runtime.fill('input[type="password"]',credential.password);await runtime.clickControl({role:"button",label:"Log in"});await new Promise(resolve=>setTimeout(resolve,50));return{state:"ACTIVE",reason:"fixture_authenticated"}}};
+    try{await expect(browser.establishAuthenticatedSession(allocation,adapter,{username:"fixture-user-secret",password:"fixture-password-secret"})).resolves.toEqual({state:"ACTIVE",reason:"fixture_authenticated"});expect(fixture.mutationMethods()).toEqual(["POST"]);await expect(browser.navigate(allocation,`${fixture.origin}/method-probes`)).rejects.toBeInstanceOf(BrowserPostDispatchError);expect(fixture.mutationMethods()).toEqual(["POST"]);}finally{await browser.close(allocation).catch(()=>undefined)}
   },30_000);
 
   it("classifies a repeated challenge fingerprint as CHALLENGE_LOOP without an unbounded retry", async () => {
