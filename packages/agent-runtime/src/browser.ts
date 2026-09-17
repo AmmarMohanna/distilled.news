@@ -6,8 +6,9 @@ import { makeId } from "./contracts";
 import { sha256Text } from "./observations";
 import { classifyBrowserChallenge } from "./challenge-classifier";
 import type { BrowserSessionState } from "./auth-profile";
-import type { AuthenticatedBootstrapObserver,AuthenticatedSiteAdapter,AuthenticatedSiteDetection,AuthenticatedSiteSnapshot,AuthenticationFlowLineage } from "./authenticated-site";
+import type { AuthenticatedBootstrapObserver,AuthenticatedSiteAdapter,AuthenticatedSiteDetection,AuthenticatedSiteSnapshot,AuthenticationChallengeRuntime,AuthenticationFlowLineage } from "./authenticated-site";
 import type { CredentialMaterial } from "./auth-profile";
+import { DetectOnlyBrowserChallengeProvider,type BrowserChallengeProvider } from "./challenge-coordinator";
 
 export interface BrowserScope {
   runId: string;
@@ -63,7 +64,7 @@ export interface BrowserExecutorPort {
   exportAuthenticatedSession?(scope: BrowserScope): Promise<BrowserSessionState>;
   attachAuthenticatedSession?(scope: BrowserScope,state:BrowserSessionState): Promise<void>;
   detectAuthenticatedState?(scope:BrowserScope,adapter:AuthenticatedSiteAdapter):Promise<AuthenticatedSiteDetection>;
-  establishAuthenticatedSession?(scope:BrowserScope,adapter:AuthenticatedSiteAdapter,credential:CredentialMaterial,observer?:AuthenticatedBootstrapObserver,lineage?:AuthenticationFlowLineage):Promise<AuthenticatedSiteDetection>;
+  establishAuthenticatedSession?(scope:BrowserScope,adapter:AuthenticatedSiteAdapter,credential:CredentialMaterial,observer?:AuthenticatedBootstrapObserver,lineage?:AuthenticationFlowLineage,challenges?:AuthenticationChallengeRuntime):Promise<AuthenticatedSiteDetection>;
   health(scope: BrowserScope): Promise<"healthy" | "crashed" | "closed">;
   close(scope: BrowserScope): Promise<void>;
   crashForTest(scope: BrowserScope): Promise<void>;
@@ -96,6 +97,7 @@ export type CloudflareBrowserLauncher = (
 export interface BrowserBackendSelection {
   backend: BrowserBackendName;
   executor: PlaywrightBrowserAdapter;
+  challengeProvider: BrowserChallengeProvider;
 }
 
 export interface StructuredBrowserUsePort {
@@ -409,11 +411,11 @@ export class PlaywrightBrowserAdapter
 
   async detectAuthenticatedState(scope:BrowserScope,adapter:AuthenticatedSiteAdapter){return adapter.detect(await this.authenticationSnapshot(this.requireHealthy(scope)));}
 
-  async establishAuthenticatedSession(scope:BrowserScope,adapter:AuthenticatedSiteAdapter,credential:CredentialMaterial,observer?:AuthenticatedBootstrapObserver,lineage?:AuthenticationFlowLineage){
+  async establishAuthenticatedSession(scope:BrowserScope,adapter:AuthenticatedSiteAdapter,credential:CredentialMaterial,observer?:AuthenticatedBootstrapObserver,lineage?:AuthenticationFlowLineage,challenges?:AuthenticationChallengeRuntime){
     const live=this.requireHealthy(scope);
     if(!adapter.allowedOrigins.every((origin)=>live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("site adapter origin outside browser policy");
     const writeOrigins=new Set(adapter.authenticationWriteOrigins??adapter.allowedOrigins);if([...writeOrigins].some(origin=>!live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("site authentication origin outside browser policy");live.authenticationWriteOrigins=writeOrigins;live.authenticationBootstrap=true;
-    try{return await adapter.bootstrap({goto:async(url,options)=>{await this.navigateDirectly(live,url,options?.waitUntil)},fill:async(selector,value)=>{await live.page.locator(selector).fill(value)},fillControl:async(control,value)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).fill(value)},click:async(selector)=>{await live.page.locator(selector).click()},clickControl:async(control)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).click()},waitForAuthenticationSurface:async()=>{await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});return this.authenticationSnapshot(live)},waitForPasswordSurface:async()=>{await live.page.locator('input[type="password"]').waitFor({state:"visible",timeout:10_000})},snapshot:async()=>this.authenticationSnapshot(live),importSession:async(state)=>this.attachAuthenticatedSession(scope,state),exportSession:async()=>this.exportAuthenticatedSession(scope)},credential,observer,lineage)}finally{lineage?.invalidate();live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;}
+    try{return await adapter.bootstrap({goto:async(url,options)=>{await this.navigateDirectly(live,url,options?.waitUntil)},fill:async(selector,value)=>{await live.page.locator(selector).fill(value)},fillControl:async(control,value)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).fill(value)},click:async(selector)=>{await live.page.locator(selector).click()},clickControl:async(control)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).click()},waitForAuthenticationSurface:async()=>{await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});return this.authenticationSnapshot(live)},waitForPasswordSurface:async()=>{await live.page.locator('input[type="password"]').waitFor({state:"visible",timeout:10_000})},snapshot:async()=>this.authenticationSnapshot(live),importSession:async(state)=>this.attachAuthenticatedSession(scope,state),exportSession:async()=>this.exportAuthenticatedSession(scope)},credential,observer,lineage,challenges)}finally{lineage?.invalidate();live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;}
   }
 
   private async authenticationSnapshot(live:LiveSession):Promise<AuthenticatedSiteSnapshot>{const observed=await this.observationProvider.capture(live);return{url:live.page.url(),title:observed.title,visibleText:observed.visibleText,controls:observed.controls.map(control=>({role:control.role,label:control.label,type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",focused:false}))};}
@@ -829,13 +831,14 @@ export function selectBrowserBackend(input: {
   cloudflare?: { binding?: CloudflareBrowserBinding; launch?: CloudflareBrowserLauncher };
 }): BrowserBackendSelection {
   const backend = parseBrowserBackend(input.environment.DISTILLED_BROWSER_BACKEND ?? "local");
-  if (backend === "local") return { backend, executor: new LocalPlaywrightBrowserExecutor() };
+  if (backend === "local") return { backend, executor: new LocalPlaywrightBrowserExecutor(),challengeProvider:new DetectOnlyBrowserChallengeProvider("local_playwright") };
   if (!input.cloudflare?.binding || !input.cloudflare.launch) {
     throw new Error("Cloudflare browser backend requires a Browser binding and launcher");
   }
   return {
     backend,
-    executor: new CloudflareBrowserExecutor({ binding: input.cloudflare.binding, launch: input.cloudflare.launch })
+    executor: new CloudflareBrowserExecutor({ binding: input.cloudflare.binding, launch: input.cloudflare.launch }),
+    challengeProvider:new DetectOnlyBrowserChallengeProvider("cloudflare_browser")
   };
 }
 

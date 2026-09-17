@@ -5,6 +5,7 @@ export * from "./authenticated-site";
 export * from "./browser";
 export * from "./budget";
 export * from "./challenge-classifier";
+export * from "./challenge-coordinator";
 export * from "./closed-loop";
 export * from "./completion";
 export * from "./contracts";

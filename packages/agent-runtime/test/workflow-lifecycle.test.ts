@@ -56,6 +56,7 @@ describe("browser backend selection", () => {
     const local = selectBrowserBackend({ environment: { DISTILLED_BROWSER_BACKEND: "local" } });
     expect(local.backend).toBe("local");
     expect(local.executor).toBeInstanceOf(LocalPlaywrightBrowserExecutor);
+    expect(local.challengeProvider.capabilities().CAPTCHA).toBe("DETECT_ONLY");
     const cloudflare = selectBrowserBackend({
       environment: { DISTILLED_BROWSER_BACKEND: "cloudflare" },
       cloudflare: {
@@ -65,6 +66,8 @@ describe("browser backend selection", () => {
     });
     expect(cloudflare.backend).toBe("cloudflare");
     expect(cloudflare.executor).toBeInstanceOf(CloudflareBrowserExecutor);
+    expect(cloudflare.challengeProvider).toMatchObject({providerKind:"cloudflare_browser",productionSafe:true});
+    expect(cloudflare.challengeProvider.capabilities().CAPTCHA).toBe("DETECT_ONLY");
     expect(() => selectBrowserBackend({ environment: { DISTILLED_BROWSER_BACKEND: "cloudflare" } })).toThrow(/Browser binding/);
     expect(() => selectBrowserBackend({ environment: { DISTILLED_BROWSER_BACKEND: "other" } })).toThrow(/DISTILLED_BROWSER_BACKEND/);
   });

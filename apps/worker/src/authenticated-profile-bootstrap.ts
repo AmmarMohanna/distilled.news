@@ -1,6 +1,6 @@
-import { AuthenticatedBootstrapError,BrowserAllocationError,BrowserPreDispatchError,AuthenticatedBrowserLifecycle,AuthenticatedProfileService,ProfileEnvelopeCrypto,XAuthenticatedSiteAdapter,issueAuthenticatedProfileCapability,makeId,selectBrowserBackend,type AuthenticatedBootstrapFailureCode,type AuthenticatedBootstrapObserver,type AuthenticatedBootstrapSafeMetadata,type AuthenticatedBootstrapStage,type AuthAuditEvent,type BrowserAllocation } from "@distilled/agent-runtime";
+import { AuthenticatedBootstrapError,BrowserAllocationError,BrowserPreDispatchError,AuthenticatedBrowserLifecycle,AuthenticatedProfileService,ChallengeCoordinator,ProfileEnvelopeCrypto,XAuthenticatedSiteAdapter,assertProductionChallengeProvider,issueAuthenticatedProfileCapability,makeId,selectBrowserBackend,type AuthenticatedBootstrapFailureCode,type AuthenticatedBootstrapObserver,type AuthenticatedBootstrapSafeMetadata,type AuthenticatedBootstrapStage,type AuthAuditEvent,type BrowserAllocation } from "@distilled/agent-runtime";
 import { z } from "zod";
-import { D1AccountTenantOwnershipPolicy,D1AuthenticatedProfileRepository,R2AuthenticatedSecretStore } from "./authenticated-profile-store";
+import { D1AccountTenantOwnershipPolicy,D1AuthenticatedProfileRepository,D1AuthenticationChallengeStore,R2AuthenticatedSecretStore } from "./authenticated-profile-store";
 import type { Env } from "./types";
 import { workerCloudflareBrowser } from "./web-operator-runtime";
 
@@ -25,12 +25,13 @@ export async function executeAuthenticatedProfileBootstrap(parsedData:Authentica
   let result:Awaited<ReturnType<AuthenticatedBrowserLifecycle["attach"]>>;
   try{
     allocation=await browser.allocate({runId,tenantId:profile.tenantId,generation:1,allowedOrigins:[...(adapter.authenticationNetworkOrigins??adapter.allowedOrigins)]});await observer.stage("browser_allocated");await observer.stage("browser_context_initialized");
+    assertProductionChallengeProvider(selected.challengeProvider);const challengeCoordinator=new ChallengeCoordinator(new D1AuthenticationChallengeStore(env.DB),selected.challengeProvider,{overallTimeoutMs:30_000,pollingIntervalMs:500});
     const service=new AuthenticatedProfileService(repository,new R2AuthenticatedSecretStore(env.AUTHENTICATED_SECRETS),new ProfileEnvelopeCrypto(keys,env.AUTH_PROFILE_ACTIVE_KEY_ID),new D1AccountTenantOwnershipPolicy(env.DB));
     const lifecycle=new AuthenticatedBrowserLifecycle(repository,service,browser,new Map([[adapter.siteFamily,adapter]]));const capability=issueAuthenticatedProfileCapability(profile,{tenantId:profile.tenantId,ownerId:profile.ownerId,runId:allocation.runId,browserGeneration:allocation.generation,ttlMs:120_000});
-    result=await lifecycle.attach({capability,scope:allocation,ownerId:profile.ownerId,observer});
+    result=await lifecycle.attach({capability,scope:allocation,ownerId:profile.ownerId,observer,challengeCoordinator,bootstrapRequestId:dependencies.bootstrapRequestId??runId});
   }catch(error){const failure=diagnosticFailure(error,lastSuccessfulStage);const safe={lastSuccessfulStage,failureStage:failure.stage,failureCode:failure.code,...failure.safeMetadata,...baseMetadata()};await record("BOOTSTRAP_FAILED",safe).catch(()=>undefined);console.error(JSON.stringify({message:"authenticated profile bootstrap failed",...safe}));return Response.json({error:"authenticated_profile_bootstrap_failed",diagnostic:safe},{status:500});}
   finally{if(allocation)await browser.close(allocation).catch(()=>undefined)}
-  return Response.json({authenticatedProfileId:profile.id,site:profile.siteFamily,status:result.detection.state,reason:result.detection.reason,sessionReused:result.sessionReused,browserClosed:true});
+  return Response.json({authenticatedProfileId:profile.id,site:profile.siteFamily,status:result.detection.state,reason:result.detection.reason,challengeKind:result.detection.challengeKind,challengePhase:result.detection.challengePhase,challengeProviderOutcome:result.detection.challengeProviderOutcome,sessionReused:result.sessionReused,browserClosed:true});
 }
 
 function diagnosticFailure(error:unknown,last:AuthenticatedBootstrapStage):{code:AuthenticatedBootstrapFailureCode;stage:AuthenticatedBootstrapStage;safeMetadata:AuthenticatedBootstrapSafeMetadata}{if(error instanceof AuthenticatedBootstrapError)return{code:error.code,stage:error.stage,safeMetadata:error.safeMetadata};if(error instanceof BrowserAllocationError)return{code:error.code,stage:last,safeMetadata:{}};if(error instanceof BrowserPreDispatchError)return{code:"NETWORK_POLICY_DENIED",stage:last,safeMetadata:{}};return{code:"BOOTSTRAP_INFRASTRUCTURE_FAILED",stage:last,safeMetadata:{}}}
