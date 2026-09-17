@@ -5,15 +5,20 @@ import type { Env } from "./types";
 import { workerCloudflareBrowser } from "./web-operator-runtime";
 
 const inputSchema=z.object({authenticatedProfileId:z.string().startsWith("authenticated_profile_"),tenantId:z.string().startsWith("account_"),ownerId:z.string().startsWith("account_")}).strict();
+export type AuthenticatedProfileBootstrapInput=z.infer<typeof inputSchema>;
 
 export async function bootstrapAuthenticatedProfile(request:Request,env:Env,dependencies:{selectBackend?:()=>ReturnType<typeof selectBrowserBackend>}={}){
   if(!await authorized(request,env.AUTH_PROFILE_BOOTSTRAP_TOKEN??env.WEB_OPERATOR_RUNTIME_TOKEN))return Response.json({error:"unauthorized"},{status:401});
   const parsed=inputSchema.safeParse(await request.json().catch(()=>null));if(!parsed.success)return Response.json({error:"invalid_request"},{status:400});
+  return executeAuthenticatedProfileBootstrap(parsed.data,env,dependencies);
+}
+
+export async function executeAuthenticatedProfileBootstrap(parsedData:AuthenticatedProfileBootstrapInput,env:Env,dependencies:{selectBackend?:()=>ReturnType<typeof selectBrowserBackend>;bootstrapRequestId?:string}={}){
   if(!env.AUTH_PROFILE_ENCRYPTION_KEYS||!env.AUTH_PROFILE_ACTIVE_KEY_ID)return Response.json({error:"authenticated_profile_storage_not_configured"},{status:503});
   let keys:Record<string,string>;try{keys=JSON.parse(env.AUTH_PROFILE_ENCRYPTION_KEYS) as Record<string,string>}catch{return Response.json({error:"authenticated_profile_keyring_invalid"},{status:503})}
-  const repository=new D1AuthenticatedProfileRepository(env.DB);const profile=await repository.getSiteProfile(parsed.data.authenticatedProfileId);if(!profile)return Response.json({error:"authenticated_profile_not_found"},{status:404});
-  if(profile.tenantId!==parsed.data.tenantId||profile.ownerId!==parsed.data.ownerId)return Response.json({error:"authenticated_profile_owner_denied"},{status:403});
-  const adapter=new XAuthenticatedSiteAdapter();const selected=dependencies.selectBackend?.()??selectBrowserBackend({environment:env,cloudflare:workerCloudflareBrowser(env)});const browser=selected.executor;const runId=makeId("authenticated_bootstrap",profile.id,crypto.randomUUID());const startedAt=Date.now();let lastSuccessfulStage:AuthenticatedBootstrapStage="profile_resolved";let allocation:BrowserAllocation|undefined;
+  const repository=new D1AuthenticatedProfileRepository(env.DB);const profile=await repository.getSiteProfile(parsedData.authenticatedProfileId);if(!profile)return Response.json({error:"authenticated_profile_not_found"},{status:404});
+  if(profile.tenantId!==parsedData.tenantId||profile.ownerId!==parsedData.ownerId)return Response.json({error:"authenticated_profile_owner_denied"},{status:403});
+  const adapter=new XAuthenticatedSiteAdapter();const selected=dependencies.selectBackend?.()??selectBrowserBackend({environment:env,cloudflare:workerCloudflareBrowser(env)});const browser=selected.executor;const runId=makeId("authenticated_bootstrap",profile.id,dependencies.bootstrapRequestId??crypto.randomUUID());const startedAt=Date.now();let lastSuccessfulStage:AuthenticatedBootstrapStage="profile_resolved";let allocation:BrowserAllocation|undefined;
   const baseMetadata=()=>({profileId:profile.id,profileVersion:profile.version,browserBackend:selected.backend,browserGeneration:allocation?.generation??1,elapsedMs:Date.now()-startedAt});
   const record=async(type:AuthAuditEvent["type"],metadata:AuthenticatedBootstrapSafeMetadata)=>repository.appendAuthAudit({id:crypto.randomUUID(),profileId:profile.id,tenantId:profile.tenantId,runId,type,safeMetadata:{...baseMetadata(),...metadata},createdAt:new Date().toISOString()});
   const observer:AuthenticatedBootstrapObserver={stage:async(stage,metadata)=>{lastSuccessfulStage=stage;await record("BOOTSTRAP_PROGRESS",{lastSuccessfulStage:stage,...metadata})}};await observer.stage("profile_resolved");

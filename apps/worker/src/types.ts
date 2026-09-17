@@ -144,8 +144,9 @@ export interface OpenRouterModelDiagnosticMessage {
   type:"openrouter_model_diagnostic";
   requestId:string;
 }
+export interface AuthenticatedProfileBootstrapMessage{type:"authenticated_profile_bootstrap";requestId:string}
 
-export type WebOperatorQueueMessage = WebOperatorRunMessage | WebOperatorLiveSmokeMessage | OpenRouterModelDiagnosticMessage;
+export type WebOperatorQueueMessage = WebOperatorRunMessage | WebOperatorLiveSmokeMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage;
 
 export interface ProcessingJobMessage {
   type?: "process_raw_message";
@@ -161,7 +162,7 @@ export interface SourceRefreshJobMessage {
   force?: boolean;
 }
 
-export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | OpenRouterModelDiagnosticMessage;
+export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage;
 
 export interface SourceRecord {
   id: string;
