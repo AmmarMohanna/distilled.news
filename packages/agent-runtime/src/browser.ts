@@ -416,7 +416,7 @@ export class PlaywrightBrowserAdapter
     try{return await adapter.bootstrap({goto:async(url,options)=>{await this.navigateDirectly(live,url,options?.waitUntil)},fill:async(selector,value)=>{await live.page.locator(selector).fill(value)},fillControl:async(control,value)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).fill(value)},click:async(selector)=>{await live.page.locator(selector).click()},clickControl:async(control)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).click()},waitForAuthenticationSurface:async()=>{await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});return this.authenticationSnapshot(live)},waitForPasswordSurface:async()=>{await live.page.locator('input[type="password"]').waitFor({state:"visible",timeout:10_000})},snapshot:async()=>this.authenticationSnapshot(live),importSession:async(state)=>this.attachAuthenticatedSession(scope,state),exportSession:async()=>this.exportAuthenticatedSession(scope)},credential,observer)}finally{live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;}
   }
 
-  private async authenticationSnapshot(live:LiveSession):Promise<AuthenticatedSiteSnapshot>{const observed=await this.observationProvider.capture(live);return{url:observed.url,title:observed.title,visibleText:observed.visibleText,controls:observed.controls.map(control=>({role:control.role,label:control.label,type:control.attributes?.type,autocomplete:control.attributes?.autocomplete}))};}
+  private async authenticationSnapshot(live:LiveSession):Promise<AuthenticatedSiteSnapshot>{const observed=await this.observationProvider.capture(live);return{url:observed.url,title:observed.title,visibleText:observed.visibleText,controls:observed.controls.map(control=>({role:control.role,label:control.label,type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",focused:false}))};}
 
   async close(scope: BrowserScope) {
     if (!this.sessions.has(scope.sessionId)) return;
@@ -966,13 +966,14 @@ function discoverControls(
     const isDownload = node.attributes.has("download");
     const opensNewContext = Boolean(target && target.toLowerCase() !== "_self");
     const kind: SemanticControl["kind"] = node.name === "a" ? "link" : node.name === "button" ? "button" : node.name === "input" ? "input" : "other";
+    const projectedAttributes=relevantAttributes(node.attributes);if(hasAncestor(node,nodes,"form"))projectedAttributes["inside-form"]="true";
     controls.push({
       handle: "",
       nodeId: node.backendNodeId === undefined ? `snapshot:${node.index}` : `backend:${node.backendNodeId}`,
       kind,
       role: ax?.role ?? implicitRole(node.name, node.attributes),
       label: label.slice(0, 160),
-      attributes: relevantAttributes(node.attributes),
+      attributes: projectedAttributes,
       geometry: node.geometry,
       destinationUrl: !isDownload && !opensNewContext ? destinationUrl : undefined,
       safeAction: node.name === "a" && destinationUrl && !isDownload && !opensNewContext ? "follow" : "unknown"
@@ -1042,7 +1043,7 @@ function textOf(root: DomNodeSnapshot | undefined, nodes: Map<number, DomNodeSna
 
 function relevantAttributes(attributes: Map<string, string>): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const key of ["href", "aria-label", "title", "placeholder", "type", "rel", "target", "download"]) {
+  for (const key of ["href", "aria-label", "aria-disabled", "title", "placeholder", "type", "autocomplete", "form", "disabled", "rel", "target", "download"]) {
     const value = attributes.get(key);
     if (value !== undefined) result[key] = value;
   }
@@ -1057,9 +1058,10 @@ function implicitRole(name: string, attributes: Map<string, string>): string {
   if (attributes.has("role")) return attributes.get("role")!;
   if (name === "a") return "link";
   if (name === "button") return "button";
-  if (name === "input") return "textbox";
+  if (name === "input") return ["submit","button"].includes((attributes.get("type")??"").toLowerCase())?"button":"textbox";
   return name;
 }
+function hasAncestor(node:DomNodeSnapshot,nodes:Map<number,DomNodeSnapshot>,name:string){let current=nodes.get(node.parent);while(current){if(current.name===name)return true;current=nodes.get(current.parent)}return false}
 
 function resolveRuntimeUrl(value: string | undefined, baseUrl: string): string | undefined {
   if (!value) return undefined;
