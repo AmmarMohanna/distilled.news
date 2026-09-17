@@ -71,7 +71,9 @@ A gateway deadline fails the active turn, durably records an unconfirmed physica
 
 ## Browser backend selection
 
-Browser execution is selected at construction time through `DISTILLED_BROWSER_BACKEND=local|cloudflare`. `LocalPlaywrightBrowserExecutor` and `CloudflareBrowserExecutor` implement the same browser ports and share the same adapter semantics; production code outside backend construction depends only on `BrowserExecutorPort`, `StructuredBrowserUsePort`, and `VisualComputerUsePort`.
+Browser execution is selected at construction time through `DISTILLED_BROWSER_PROVIDER=self_hosted|cloudflare` (the legacy `DISTILLED_BROWSER_BACKEND=local|cloudflare` remains accepted). `SelfHostedChromiumProvider` and `CloudflareBrowserExecutor` implement the same browser ports and share the same adapter semantics; production code outside provider construction depends only on `BrowserExecutorPort`, `StructuredBrowserUsePort`, and `VisualComputerUsePort`. Unknown values fail closed and there is no runtime fallback. The production Worker remains explicitly configured for Cloudflare; self-hosted Chromium is a Node.js/container composition and cannot execute inside the Worker runtime.
+
+The self-hosted provider uses ordinary Playwright Chromium with isolated ephemeral contexts, a two-session default concurrency bound, a 30-second launch timeout, and a 15-second navigation timeout. It creates no persistent user-data directory. Both providers use the same CDP observation boundary, request/redirect/DNS policy, popup/download/active-transport restrictions, state restore/capture path, generation fencing, and `CAPTCHA: DETECT_ONLY` challenge behavior.
 
 ## Live model smoke tests
 

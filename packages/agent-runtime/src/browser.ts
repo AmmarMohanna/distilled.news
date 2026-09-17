@@ -78,9 +78,11 @@ export interface BrowserExecutorPort {
 }
 
 export type BrowserBackendName = "local" | "cloudflare";
+export type BrowserProviderIdentity = "CLOUDFLARE_BROWSER" | "SELF_HOSTED_CHROMIUM";
 
 export interface BrowserBackendEnvironment {
   DISTILLED_BROWSER_BACKEND?: string;
+  DISTILLED_BROWSER_PROVIDER?: string;
 }
 
 export interface CloudflareBrowserBinding {}
@@ -96,6 +98,7 @@ export type CloudflareBrowserLauncher = (
 
 export interface BrowserBackendSelection {
   backend: BrowserBackendName;
+  providerIdentity?: BrowserProviderIdentity;
   executor: PlaywrightBrowserAdapter;
   challengeProvider: BrowserChallengeProvider;
 }
@@ -244,6 +247,9 @@ export class PlaywrightBrowserAdapter
   constructor(private readonly options: {
     testOnlyPrivateNetwork?: true;
     launchBrowser?: (options: { headless: boolean; args: string[]; allowedDomains: string[] }) => Promise<Browser>;
+    maxConcurrentSessions?: number;
+    launchTimeoutMs?: number;
+    navigationTimeoutMs?: number;
   } = {}) {
     if (options.testOnlyPrivateNetwork && (typeof process === "undefined" || process.env.NODE_ENV !== "test")) {
       throw new Error("private-network browser access is test-only");
@@ -266,6 +272,9 @@ export class PlaywrightBrowserAdapter
     signal?: AbortSignal;
   }): Promise<BrowserAllocation> {
     input.signal?.throwIfAborted();
+    if (this.sessions.size >= (this.options.maxConcurrentSessions ?? 4)) {
+      throw new BrowserAllocationError("BROWSER_ALLOCATION_FAILED", { cause: new Error("browser session concurrency limit reached") });
+    }
     if ([...this.sessions.values()].some((entry) => entry.scope.runId === input.runId && entry.state === "healthy")) {
       throw new BrowserScopeError(`run ${input.runId} already has an active browser context`);
     }
@@ -296,9 +305,9 @@ export class PlaywrightBrowserAdapter
       "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
       ...(resolverRules.length ? [`--host-resolver-rules=${resolverRules.join(",")}`] : [])
     ], allowedDomains:[...new Set([...normalizedOrigins].map((origin)=>new URL(origin).hostname))] };
-    let browser:Browser;try{browser=this.options.launchBrowser
-      ? await this.options.launchBrowser(launchOptions)
-      : await launchLocalChromium(launchOptions)}catch(error){throw new BrowserAllocationError("BROWSER_ALLOCATION_FAILED",{cause:error})}
+    let browser:Browser;try{browser=await withTimeout(this.options.launchBrowser
+      ? this.options.launchBrowser(launchOptions)
+      : launchLocalChromium(launchOptions),this.options.launchTimeoutMs??30_000,"browser launch timeout",browser=>browser.close())}catch(error){throw new BrowserAllocationError("BROWSER_ALLOCATION_FAILED",{cause:error})}
     let context:BrowserContext;let page:Page;try{context=await browser.newContext({
       viewport: { width: 960, height: 720 },
       deviceScaleFactor: 1,
@@ -309,7 +318,7 @@ export class PlaywrightBrowserAdapter
     await context.addInitScript({ content: ACTIVE_TRANSPORT_HARDENING });
     page = await context.newPage();}catch(error){await browser.close().catch(()=>undefined);throw new BrowserAllocationError("BROWSER_CONTEXT_INITIALIZATION_FAILED",{cause:error})}
     page.setDefaultTimeout(10_000);
-    page.setDefaultNavigationTimeout(15_000);
+    page.setDefaultNavigationTimeout(this.options.navigationTimeoutMs??15_000);
     const cdp = await context.newCDPSession(page);
     const sessionId = makeId("browser_session", input.runId, input.generation);
     const contextId = makeId("browser_context", input.runId, input.tenantId, input.generation);
@@ -807,20 +816,30 @@ export class PlaywrightBrowserAdapter
   private async isRequestAllowed(live: LiveSession,value:string) { try { await this.assertRequestAllowed(live,value); return true; } catch { return false; } }
 }
 
-export class LocalPlaywrightBrowserExecutor extends PlaywrightBrowserAdapter {
-  constructor(options: { testOnlyPrivateNetwork?: true } = {}) {
-    super(options);
+export class SelfHostedChromiumProvider extends PlaywrightBrowserAdapter {
+  readonly providerIdentity = "SELF_HOSTED_CHROMIUM" as const;
+  constructor(options: { testOnlyPrivateNetwork?: true; maxConcurrentSessions?: number; launchTimeoutMs?: number; navigationTimeoutMs?: number } = {}) {
+    super({maxConcurrentSessions:2,launchTimeoutMs:30_000,navigationTimeoutMs:15_000,...options});
   }
 
-  static forTest(): LocalPlaywrightBrowserExecutor {
+  static forTest(): SelfHostedChromiumProvider {
     if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
       throw new Error("private-network browser access is test-only");
     }
+    return new SelfHostedChromiumProvider({ testOnlyPrivateNetwork: true });
+  }
+}
+
+/** @deprecated Use SelfHostedChromiumProvider. */
+export class LocalPlaywrightBrowserExecutor extends SelfHostedChromiumProvider {
+  static forTest(): LocalPlaywrightBrowserExecutor {
+    if (typeof process === "undefined" || process.env.NODE_ENV !== "test") throw new Error("private-network browser access is test-only");
     return new LocalPlaywrightBrowserExecutor({ testOnlyPrivateNetwork: true });
   }
 }
 
 export class CloudflareBrowserExecutor extends PlaywrightBrowserAdapter {
+  readonly providerIdentity = "CLOUDFLARE_BROWSER" as const;
   constructor(input: { binding: CloudflareBrowserBinding; launch: CloudflareBrowserLauncher }) {
     super({ launchBrowser: (options) => input.launch(input.binding,{allowedDomains:options.allowedDomains}) });
   }
@@ -830,13 +849,15 @@ export function selectBrowserBackend(input: {
   environment: BrowserBackendEnvironment;
   cloudflare?: { binding?: CloudflareBrowserBinding; launch?: CloudflareBrowserLauncher };
 }): BrowserBackendSelection {
-  const backend = parseBrowserBackend(input.environment.DISTILLED_BROWSER_BACKEND ?? "local");
-  if (backend === "local") return { backend, executor: new LocalPlaywrightBrowserExecutor(),challengeProvider:new DetectOnlyBrowserChallengeProvider("local_playwright") };
+  const configured=input.environment.DISTILLED_BROWSER_PROVIDER??input.environment.DISTILLED_BROWSER_BACKEND??"local";
+  const backend = parseBrowserBackend(configured);
+  if (backend === "local") return { backend,providerIdentity:"SELF_HOSTED_CHROMIUM", executor: configured.trim().toLowerCase()==="local"?new LocalPlaywrightBrowserExecutor():new SelfHostedChromiumProvider(),challengeProvider:new DetectOnlyBrowserChallengeProvider("self_hosted_chromium") };
   if (!input.cloudflare?.binding || !input.cloudflare.launch) {
     throw new Error("Cloudflare browser backend requires a Browser binding and launcher");
   }
   return {
     backend,
+    providerIdentity:"CLOUDFLARE_BROWSER",
     executor: new CloudflareBrowserExecutor({ binding: input.cloudflare.binding, launch: input.cloudflare.launch }),
     challengeProvider:new DetectOnlyBrowserChallengeProvider("cloudflare_browser")
   };
@@ -844,8 +865,13 @@ export function selectBrowserBackend(input: {
 
 function parseBrowserBackend(value: string): BrowserBackendName {
   const normalized = value.trim().toLowerCase();
-  if (normalized === "local" || normalized === "cloudflare") return normalized;
-  throw new Error("DISTILLED_BROWSER_BACKEND must be local or cloudflare");
+  if (normalized === "local" || normalized === "self_hosted") return "local";
+  if (normalized === "cloudflare") return normalized;
+  throw new Error("DISTILLED_BROWSER_PROVIDER must be cloudflare or self_hosted");
+}
+
+function withTimeout<T>(operation:Promise<T>,timeoutMs:number,message:string,onLateResolution?:(value:T)=>Promise<unknown>):Promise<T>{
+  return new Promise<T>((resolve,reject)=>{let timedOut=false;const timer=setTimeout(()=>{timedOut=true;reject(new Error(message))},timeoutMs);operation.then(value=>{clearTimeout(timer);if(timedOut){void onLateResolution?.(value).catch(()=>undefined);return}resolve(value)},error=>{clearTimeout(timer);if(!timedOut)reject(error)});});
 }
 
 async function launchLocalChromium(options: {

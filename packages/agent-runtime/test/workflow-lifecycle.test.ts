@@ -4,6 +4,7 @@ import {
   DEFAULT_SLICE_BUDGET,
   CloudflareBrowserExecutor,
   LocalPlaywrightBrowserExecutor,
+  SelfHostedChromiumProvider,
   MemoryArtifactStore,
   MemoryRuntimeStore,
   MemoryWorkflowRepository,
@@ -57,6 +58,10 @@ describe("browser backend selection", () => {
     expect(local.backend).toBe("local");
     expect(local.executor).toBeInstanceOf(LocalPlaywrightBrowserExecutor);
     expect(local.challengeProvider.capabilities().CAPTCHA).toBe("DETECT_ONLY");
+    const selfHosted = selectBrowserBackend({ environment: { DISTILLED_BROWSER_PROVIDER: "self_hosted" } });
+    expect(selfHosted.providerIdentity).toBe("SELF_HOSTED_CHROMIUM");
+    expect(selfHosted.executor).toBeInstanceOf(SelfHostedChromiumProvider);
+    expect(selfHosted.challengeProvider).toMatchObject({providerKind:"self_hosted_chromium",productionSafe:true});
     const cloudflare = selectBrowserBackend({
       environment: { DISTILLED_BROWSER_BACKEND: "cloudflare" },
       cloudflare: {
@@ -66,10 +71,11 @@ describe("browser backend selection", () => {
     });
     expect(cloudflare.backend).toBe("cloudflare");
     expect(cloudflare.executor).toBeInstanceOf(CloudflareBrowserExecutor);
+    expect(cloudflare.providerIdentity).toBe("CLOUDFLARE_BROWSER");
     expect(cloudflare.challengeProvider).toMatchObject({providerKind:"cloudflare_browser",productionSafe:true});
     expect(cloudflare.challengeProvider.capabilities().CAPTCHA).toBe("DETECT_ONLY");
     expect(() => selectBrowserBackend({ environment: { DISTILLED_BROWSER_BACKEND: "cloudflare" } })).toThrow(/Browser binding/);
-    expect(() => selectBrowserBackend({ environment: { DISTILLED_BROWSER_BACKEND: "other" } })).toThrow(/DISTILLED_BROWSER_BACKEND/);
+    expect(() => selectBrowserBackend({ environment: { DISTILLED_BROWSER_PROVIDER: "other" } })).toThrow(/DISTILLED_BROWSER_PROVIDER/);
   });
 });
 
