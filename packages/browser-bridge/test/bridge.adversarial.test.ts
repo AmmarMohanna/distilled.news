@@ -286,6 +286,16 @@ describe("transport loss and client behaviour",()=>{
     await expect(make(async()=>new Response(JSON.stringify({protocol:"v2",ok:true,result:{}}))).execute(observe)).rejects.toMatchObject({code:"BRIDGE_UNAVAILABLE"});
   });
 
+  it("uses only fetch redirect modes the Workers runtime accepts, and refuses any redirect instead of following it",async()=>{
+    const modes:unknown[]=[];const cap=baseCapability();
+    const make=(response:()=>Response)=>new HttpAuthenticatedBrowserBridgeClient({url:"https://bridge.example.test/v1/authenticated-browser",serviceCredential:TEST_SECRET,fetch:async(_url,init)=>{modes.push(init?.redirect);return response()}});
+    // A redirect that carries a plausible protocol envelope must still be refused (the signed request would otherwise leave the bridge).
+    const redirecting=()=>new Response(JSON.stringify({protocol:"v1",ok:true,result:{accepted:true}}),{status:307,headers:{location:"https://evil.example/collect"}});
+    await expect(make(redirecting).execute(req("INJECT_AUTH_FIELD",cap,"op",{fieldKind:"IDENTIFIER",fieldHandle:"h",pageRevision:"r",secretValue:"s"}))).rejects.toMatchObject({code:"BRIDGE_EFFECT_UNKNOWN"});
+    await expect(make(redirecting).execute(req("OBSERVE_AUTH_SURFACE",cap,"op"))).rejects.toMatchObject({code:"BRIDGE_UNAVAILABLE"});
+    expect(modes.every(mode=>mode==="manual"||mode==="follow")).toBe(true);expect(modes).not.toContain("error");expect(modes).not.toContain("follow");
+  });
+
   it("never lets an infrastructure failure look like an authentication outcome",async()=>{
     for(const code of["BRIDGE_UNAVAILABLE","BRIDGE_UNAUTHORIZED","BRIDGE_EFFECT_UNKNOWN","BRIDGE_BROWSER_FAILURE"] as const){
       const transport=new HttpAuthenticatedBrowserBridgeClient({url:"https://bridge.example.test/v1/authenticated-browser",serviceCredential:TEST_SECRET,fetch:async()=>new Response(JSON.stringify({protocol:"v1",ok:false,error:{code}}),{status:400})});

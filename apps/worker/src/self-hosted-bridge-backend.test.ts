@@ -1,3 +1,4 @@
+import { Miniflare } from "miniflare";
 import { afterEach,describe,expect,it,vi } from "vitest";
 import { AuthenticatedBrowserBridgeError,XAuthenticatedSiteAdapter,assertProductionChallengeProvider,type AuthenticatedBrowserBridgeRequest,type BrowserScope } from "@distilled/agent-runtime";
 import { authenticatedBackend } from "./authenticated-profile-bootstrap";
@@ -69,4 +70,12 @@ describe("self-hosted authenticated browser backend selection",()=>{
     await expect(selected.executor.navigate(scope,"https://x.com/home")).rejects.toBeInstanceOf(AuthenticatedBrowserBridgeError);
     await expect(selected.executor.extract(scope)).rejects.toMatchObject({code:"BRIDGE_OPERATION_UNKNOWN"});
   });
+
+  it("runs on the Workers runtime: workerd rejects fetch redirect:\"error\", which Node accepts, so the bridge client must use \"manual\"",async()=>{
+    // Regression guard for a bug that every Node-side test missed and only the production Worker preflight exposed.
+    const mf=new Miniflare({modules:true,outboundService:()=>new Response("ok"),script:`export default{async fetch(){const out={};for(const mode of["error","manual","follow"]){try{await fetch("http://bridge.test/",{redirect:mode});out[mode]="ok"}catch(error){out[mode]=error.name}}return Response.json(out)}}`});
+    try{expect(await (await mf.dispatchFetch("http://worker.test/")).json()).toEqual({error:"TypeError",manual:"ok",follow:"ok"})}finally{await mf.dispose()}
+    const client=await import("@distilled/agent-runtime");
+    expect(client.HttpAuthenticatedBrowserBridgeClient.toString()).not.toMatch(/redirect:\s*"error"/);
+  },30_000);
 });
