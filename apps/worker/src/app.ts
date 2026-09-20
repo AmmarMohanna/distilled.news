@@ -48,7 +48,7 @@ import { addSourceFromInput, refreshEnabledSources } from "./sources";
 import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
 import { createWorkerClosedLoopWebOperatorLifecycle, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
-import { handleBridgePreflight } from "./bridge-preflight";
+import { handleBridgePreflight,handleProviderDiagnostic } from "./bridge-preflight";
 
 type Variables = {
   repo: Repository;
@@ -244,6 +244,7 @@ export function createApp(options: AppOptions = {}) {
   });
   app.post("/v1/authenticated-profiles", async (c) => provisionAuthenticatedProfile(c.req.raw,c.env));
   app.post("/v1/authenticated-profiles/bridge-preflight", async (c) => handleBridgePreflight(c.req.raw,c.env));
+  app.on(["GET","POST"], "/v1/authenticated-profiles/provider-diagnostic", async (c) => handleProviderDiagnostic(c.req.raw,c.env));
 
   app.post("/v1/live-smoke/public-acquisition", async (c) => {
     if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
