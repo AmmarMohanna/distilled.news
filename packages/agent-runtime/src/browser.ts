@@ -103,6 +103,19 @@ export interface BrowserBackendSelection {
   challengeProvider: BrowserChallengeProvider;
 }
 
+export type AuthFieldKind="IDENTIFIER"|"PASSWORD";
+export type AuthControlKind="CONTINUE"|"NEXT"|"USE_PASSWORD"|"LOGIN"|"SIGN_IN";
+export type AuthSurfaceWait="AUTH_SURFACE"|"PASSWORD_FIELD";
+export const AUTH_FIELD_KINDS:readonly AuthFieldKind[]=["IDENTIFIER","PASSWORD"];
+export const AUTH_CONTROL_LABEL_PATTERNS:Record<AuthControlKind,RegExp>={CONTINUE:/^continue$/i,NEXT:/^next$/i,USE_PASSWORD:/^(?:use (?:a )?password(?: instead)?|log ?in with password)$/i,LOGIN:/^log ?in$/i,SIGN_IN:/^sign ?in$/i};
+export const AUTH_SURFACE_MAX_CONTROLS=120;
+export const AUTH_SURFACE_MAX_TEXT=4_000;
+const AUTH_HANDLE_TTL_MS=60_000;
+export interface AuthenticatedBrowserSurface {
+  url:string;title:string;pageRevision:string;challengeState:ChallengeState;visibleText:string;
+  controls:Array<{handle:string;kind:string;role?:string;label:string;type?:string;autocomplete?:string;insideForm:boolean;disabled:boolean}>;
+}
+
 export interface StructuredBrowserUsePort {
   navigate(scope: BrowserScope, url: string): Promise<BrowserObservationData>;
   inspectDom(scope: BrowserScope): Promise<BrowserObservationData>;
@@ -143,7 +156,7 @@ interface LiveSession {
   allowedOrigins: Set<string>;
   authenticationWriteOrigins?:Set<string>;
   authenticationBootstrap?:boolean;
-  handles: Map<string, { index: number; revision: string; destinationUrl?: string }>;
+  handles: Map<string, { index: number; revision: string; destinationUrl?: string; role?:string; label?:string; type?:string; autocomplete?:string; expiresAt?:number }>;
   screenshots: Map<string, { revision: string; url: string; scrollX: number; scrollY: number; viewport: string }>;
   capabilities: Map<string, InteractionCapability>;
   pinnedAddresses: Map<string, string>;
@@ -420,6 +433,14 @@ export class PlaywrightBrowserAdapter
 
   async detectAuthenticatedState(scope:BrowserScope,adapter:AuthenticatedSiteAdapter){return adapter.detect(await this.authenticationSnapshot(this.requireHealthy(scope)));}
 
+  async navigateAuthenticationEntrypoint(scope:BrowserScope,entrypoint:string,writeOrigins:string[]){const live=this.requireHealthy(scope);if(!live.allowedOrigins.has(new URL(entrypoint).origin)||writeOrigins.some(origin=>!live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("authentication entrypoint outside browser policy");live.authenticationBootstrap=true;live.authenticationWriteOrigins=new Set(writeOrigins);await this.navigateDirectly(live,entrypoint,"domcontentloaded");}
+
+  async observeAuthenticationSurface(scope:BrowserScope,wait?:AuthSurfaceWait):Promise<AuthenticatedBrowserSurface>{const live=this.requireHealthy(scope);if(wait==="AUTH_SURFACE")await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});else if(wait==="PASSWORD_FIELD")await live.page.locator('input[type="password"]').first().waitFor({state:"visible",timeout:10_000});const observed=await this.observe(live,"page_state");const visibleText=String((observed.representation as {visibleText?:string}).visibleText??"").slice(0,AUTH_SURFACE_MAX_TEXT);return{url:observed.url,title:observed.title.slice(0,300),pageRevision:observed.pageRevision,challengeState:observed.challengeState,visibleText,controls:observed.controls.slice(0,AUTH_SURFACE_MAX_CONTROLS).map(control=>({handle:control.handle,kind:control.kind,role:control.role,label:control.label.slice(0,200),type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true"}))};}
+
+  async injectAuthenticationField(scope:BrowserScope,input:{fieldKind:AuthFieldKind;fieldHandle:string;pageRevision:string;secretValue:string}){const live=this.requireHealthy(scope);const binding=await this.requireAuthenticationHandle(live,input.fieldHandle,input.pageRevision);if(!AUTH_FIELD_KINDS.includes(input.fieldKind)||typeof input.secretValue!=="string")throw new BrowserPreDispatchError("authentication field kind mismatch");const isPassword=binding.type?.toLowerCase()==="password"||binding.autocomplete?.toLowerCase()==="current-password";if((input.fieldKind==="PASSWORD")!==isPassword)throw new BrowserPreDispatchError("authentication field kind mismatch");if(!["textbox","searchbox"].includes((binding.role??"").toLowerCase()))throw new BrowserPreDispatchError("authentication field handle is not editable");await live.page.getByRole(binding.role as "textbox",{name:binding.label,exact:true}).fill(input.secretValue);this.invalidateTransientBindings(live);}
+
+  async activateAuthenticationControl(scope:BrowserScope,input:{controlKind:AuthControlKind;controlHandle:string;pageRevision:string}){const live=this.requireHealthy(scope);const binding=await this.requireAuthenticationHandle(live,input.controlHandle,input.pageRevision);const expected=AUTH_CONTROL_LABEL_PATTERNS[input.controlKind];if(!expected||!expected.test((binding.label??"").trim())||!['button','link'].includes((binding.role??'').toLowerCase()))throw new BrowserPreDispatchError("authentication control kind mismatch");await live.page.getByRole(binding.role as "button",{name:binding.label,exact:true}).click();this.invalidateTransientBindings(live);}
+
   async establishAuthenticatedSession(scope:BrowserScope,adapter:AuthenticatedSiteAdapter,credential:CredentialMaterial,observer?:AuthenticatedBootstrapObserver,lineage?:AuthenticationFlowLineage,challenges?:AuthenticationChallengeRuntime){
     const live=this.requireHealthy(scope);
     if(!adapter.allowedOrigins.every((origin)=>live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("site adapter origin outside browser policy");
@@ -428,6 +449,8 @@ export class PlaywrightBrowserAdapter
   }
 
   private async authenticationSnapshot(live:LiveSession):Promise<AuthenticatedSiteSnapshot>{const observed=await this.observationProvider.capture(live);return{url:live.page.url(),title:observed.title,visibleText:observed.visibleText,controls:observed.controls.map(control=>({role:control.role,label:control.label,type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",focused:false}))};}
+
+  private async requireAuthenticationHandle(live:LiveSession,handle:string,revision:string){const binding=live.handles.get(handle);if(!binding||binding.revision!==revision||(binding.expiresAt!==undefined&&binding.expiresAt<Date.now())||await this.revision(live)!==revision)throw new StaleObservationError("handle");return binding;}
 
   async close(scope: BrowserScope) {
     if (!this.sessions.has(scope.sessionId)) return;
@@ -753,7 +776,8 @@ export class PlaywrightBrowserAdapter
       live.handles.set(handle, {
         index,
         revision: observed.pageRevision,
-        destinationUrl: destinationAllowed ? control.destinationUrl : undefined
+        destinationUrl: destinationAllowed ? control.destinationUrl : undefined,
+        role:control.role,label:control.label,type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,expiresAt:Date.now()+AUTH_HANDLE_TTL_MS
       });
       controls.push({
         ...control,

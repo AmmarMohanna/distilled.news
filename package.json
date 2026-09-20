@@ -9,6 +9,8 @@
     "provision:x": "node scripts/provision-authenticated-profile.mjs",
     "bootstrap:x": "node scripts/trigger-authenticated-profile-bootstrap.mjs",
     "browser-worker:check": "pnpm --filter @distilled/agent-runtime test:browser",
+    "browser-bridge:dev": "pnpm --filter @distilled/browser-bridge dev",
+    "browser-bridge:build": "pnpm --filter @distilled/browser-bridge build",
     "dev": "pnpm --filter @distilled/worker dev",
     "build": "pnpm --filter @distilled/core build && pnpm --filter @distilled/connectors build && pnpm --filter @distilled/web build && pnpm --filter @distilled/worker build",
     "typecheck": "pnpm -r typecheck",
