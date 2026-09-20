@@ -321,6 +321,13 @@ describe("cleanup",()=>{
     expect(await send(service,req("OBSERVE_AUTH_SURFACE",cap,"op_late"))).toMatchObject({json:{error:{code:"BRIDGE_EXECUTION_EXPIRED"}}});
   });
 
+  it("does not let a slow browser launch consume the idle lease, and starts the lease once the browser is open",async()=>{
+    const mock=new MockBrowserProvider();mock.allocateDelayMs=200;const {service}=newService({idleTimeoutMs:80},mock);
+    const cap=await open(service);expect(mock.closed).toBe(false);
+    expect((await send(service,req("OBSERVE_AUTH_SURFACE",cap,"op_observe"))).status).toBe(200);
+    await new Promise(resolve=>setTimeout(resolve,250));expect(mock.closed).toBe(true);
+  });
+
   it("closes an execution at its absolute deadline even while it is being kept active",async()=>{
     const {service,mock}=newService({absoluteTimeoutMs:150,idleTimeoutMs:10_000});const cap=await open(service);
     const keepAlive=setInterval(()=>void send(service,req("OBSERVE_AUTH_SURFACE",cap,`op_${Math.random()}`)),30);

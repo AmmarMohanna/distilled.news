@@ -102,10 +102,13 @@ describe("real HTTP bridge → real SelfHostedChromiumProvider → synthetic aut
     }finally{await flow.executor.close(scope)}
   },60_000);
 
-  it("fails closed on a cross-origin redirect: reports a policy denial, never returns the foreign page, and terminates the execution",async()=>{
+  it("fails closed on a cross-origin redirect before it is followed: the foreign origin gets no request, the foreign page is never returned, and the execution is terminated",async()=>{
     const bounce=new SyntheticAuthAdapter(site.origin,"/bounce");const flow=newFlow({bridgeUrl,secret:BRIDGE_SECRET,adapter:bounce,label:"redirect"});const scope=await allocate(flow);const call=(operation:string,id:string)=>flow.transport.execute({protocol:"v1",operationId:id,capability:flow.capability,operation} as AuthenticatedBrowserBridgeRequest);
     try{
+      const hitsBefore=site.otherHits;
       await expect(call("NAVIGATE_AUTH_ENTRYPOINT","op_nav")).rejects.toMatchObject({code:"BRIDGE_NETWORK_POLICY_DENIED"});
+      // Pre-dispatch: the redirect hop is failed before Chromium follows it, so the foreign origin never receives the request.
+      expect(site.otherHits).toBe(hitsBefore);
       // Nothing further may run in a browser that left its fenced origins, and the browser is torn down.
       await expect(call("OBSERVE_AUTH_SURFACE","op_obs")).rejects.toMatchObject({code:"BRIDGE_EXECUTION_EXPIRED"});
       await expect(call("CAPTURE_AUTH_STATE","op_capture")).rejects.toMatchObject({code:"BRIDGE_EXECUTION_EXPIRED"});

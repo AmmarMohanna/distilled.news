@@ -244,6 +244,8 @@ export class BrowserPostDispatchError extends BrowserScopeError {
 export class BrowserNavigationError extends BrowserPostDispatchError{constructor(public readonly code:"NAVIGATION_TIMEOUT"|"UNEXPECTED_AUTH_ORIGIN"|"NETWORK_POLICY_DENIED"|"INITIAL_NAVIGATION_FAILED"){super(code);this.name="BrowserNavigationError";}}
 export class BrowserAllocationError extends BrowserScopeError{constructor(public readonly code:"BROWSER_ALLOCATION_FAILED"|"BROWSER_CONTEXT_INITIALIZATION_FAILED",options?:{cause?:unknown}){super(code);this.name="BrowserAllocationError";if(options?.cause!==undefined)this.cause=options.cause;}}
 
+interface RedirectHopEvent { requestId: string; request: { url: string; method: string }; responseStatusCode?: number; responseHeaders?: Array<{ name: string; value: string }> }
+
 export class StaleObservationError extends Error {
   constructor(kind: "handle" | "screenshot") {
     super(`stale ${kind} observation`);
@@ -263,6 +265,8 @@ export class PlaywrightBrowserAdapter
     maxConcurrentSessions?: number;
     launchTimeoutMs?: number;
     navigationTimeoutMs?: number;
+    /** Validate every redirect hop before Chromium follows it. On by default; only a provider whose browser already enforces the origin allowlist itself may opt out. */
+    enforceRedirectHops?: boolean;
   } = {}) {
     if (options.testOnlyPrivateNetwork && (typeof process === "undefined" || process.env.NODE_ENV !== "test")) {
       throw new Error("private-network browser access is test-only");
@@ -386,6 +390,15 @@ export class PlaywrightBrowserAdapter
       const request = response.request();
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) live.lastMainDocumentStatus = response.status();
     });
+    if (this.options.enforceRedirectHops !== false) {
+      try {
+        await this.guardRedirectHops(live, await context.newCDPSession(page));
+        page.on("frameattached", (frame) => { if (frame !== page.mainFrame()) void context.newCDPSession(frame).then((session) => this.guardRedirectHops(live, session)).catch(() => undefined); });
+      } catch (error) {
+        await browser.close().catch(() => undefined);
+        throw new BrowserAllocationError("BROWSER_CONTEXT_INITIALIZATION_FAILED", { cause: error });
+      }
+    }
     this.sessions.set(sessionId, live);
     context.on("page",(opened)=>{
       if (opened===page) return;
@@ -837,6 +850,37 @@ export class PlaywrightBrowserAdapter
     };
   }
 
+  /**
+   * Chromium follows HTTP redirects inside its network stack, so context.route() never sees a redirect hop: the foreign
+   * origin would receive the request (and a 307/308 would re-send a POST body) before any post-hoc final-origin check.
+   * This pauses each response, and fails a redirect whose Location the request policy would not admit, before it is followed.
+   * The network stack stays in the loop, so resolver pinning still applies to every allowed request.
+   */
+  private async guardRedirectHops(live: LiveSession, session: CDPSession) {
+    session.on("Fetch.requestPaused" as never, ((event: RedirectHopEvent) => void this.judgeRedirectHop(live, session, event)) as never);
+    await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Response" }] });
+  }
+
+  private async judgeRedirectHop(live: LiveSession, session: CDPSession, event: RedirectHopEvent) {
+    let denied = false;
+    const status = event.responseStatusCode;
+    if (status !== undefined && status >= 300 && status < 400) {
+      const location = event.responseHeaders?.find((header) => header.name.toLowerCase() === "location")?.value;
+      if (location !== undefined) {
+        try {
+          const method = event.request.method.toUpperCase();
+          await this.assertRequestAllowed(live, new URL(location, event.request.url).href, status === 307 || status === 308 ? method : method === "HEAD" ? "HEAD" : "GET");
+        } catch { denied = true; }
+      }
+    }
+    if (denied) {
+      live.blockedRequest = { method: event.request.method, url: event.request.url };
+      await session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" }).catch(() => undefined);
+    } else {
+      await session.send("Fetch.continueResponse", { requestId: event.requestId }).catch(() => undefined);
+    }
+  }
+
   private async isRequestAllowed(live: LiveSession,value:string) { try { await this.assertRequestAllowed(live,value); return true; } catch { return false; } }
 }
 
@@ -865,7 +909,8 @@ export class LocalPlaywrightBrowserExecutor extends SelfHostedChromiumProvider {
 export class CloudflareBrowserExecutor extends PlaywrightBrowserAdapter {
   readonly providerIdentity = "CLOUDFLARE_BROWSER" as const;
   constructor(input: { binding: CloudflareBrowserBinding; launch: CloudflareBrowserLauncher }) {
-    super({ launchBrowser: (options) => input.launch(input.binding,{allowedDomains:options.allowedDomains}) });
+    // Browser Run enforces allowedDomains inside the remote browser; the local CDP Fetch guard is not verified against it, so it is not enabled here.
+    super({ launchBrowser: (options) => input.launch(input.binding,{allowedDomains:options.allowedDomains}), enforceRedirectHops: false });
   }
 }
 
