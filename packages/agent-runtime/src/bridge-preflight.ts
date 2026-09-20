@@ -56,20 +56,23 @@ export async function runBridgePreflight(config:BridgePreflightConfig,input:Brid
   const call=(cap:AuthenticatedBrowserExecutionCapability,operation:string,extra:Record<string,unknown>={})=>client().execute({protocol:"v1",operationId:crypto.randomUUID(),capability:cap,operation,...extra} as AuthenticatedBrowserBridgeRequest);
   const expectCode=(name:string,operation:()=>Promise<unknown>,code:string)=>check(name,async()=>{try{await operation()}catch(error){return codeOf(error)===code?true:`expected ${code}, got ${codeOf(error)}`}return`expected ${code}, got success`});
   const raw=async(body:string,options:{secret?:string;timestamp?:string;nonce?:string;path?:string}={})=>{const url=new URL(config.url);if(options.path)url.pathname=options.path;const timestamp=options.timestamp??String(Date.now()),nonce=options.nonce??crypto.randomUUID();const signature=await signBrowserBridgeRequest(options.secret??config.serviceCredential,timestamp,nonce,body);const response=await(config.fetch??fetch)(url,{method:"POST",redirect:"error",signal:AbortSignal.timeout(30_000),headers:{"content-type":"application/json","x-distilled-bridge-timestamp":timestamp,"x-distilled-bridge-nonce":nonce,"x-distilled-bridge-signature":signature},body});let parsed:{protocol?:string;ok?:boolean;error?:{code?:string}}={};try{parsed=await response.json()}catch{}return{status:response.status,protocol:parsed.protocol,code:parsed.error?.code,ok:parsed.ok}};
+  const seen=(result:{status:number;code?:string;ok?:boolean;protocol?:string})=>`observed ${result.status} ${result.code??(result.ok===true?"ok":"-")}`;
+  /** Reports pass, or the observed status/code (never content) so a failure is diagnosable. */
+  const expectRaw=(name:string,run:()=>Promise<{status:number;code?:string;ok?:boolean;protocol?:string}>,accept:(result:{status:number;code?:string;ok?:boolean;protocol?:string})=>boolean)=>check(name,async()=>{const result=await run();return accept(result)?true:seen(result)});
   const mustClose=async(executor:AuthenticatedBrowserBridgeExecutor,scope?:BrowserScope)=>{if(scope)await executor.close(scope).catch(()=>undefined)};
 
   switch(input.stage){
     case"AUTH_PROTOCOL":{
       const cap=capability("auth");const open=JSON.stringify({protocol:"v1",operationId:crypto.randomUUID(),capability:cap,operation:"OPEN_AUTH_BROWSER"});const close=JSON.stringify({protocol:"v1",operationId:crypto.randomUUID(),capability:cap,operation:"CLOSE_AUTH_BROWSER"});
       const nonce=crypto.randomUUID();let opened=false;
-      await check("signed OPEN accepted; protocol v1 in response",async()=>{const result=await raw(open,{nonce});opened=result.status===200&&result.ok===true;return opened&&result.protocol==="v1"});
-      await check("replayed nonce rejected (BRIDGE_REPLAY_REJECTED)",async()=>{const result=await raw(open,{nonce});return result.status===409&&result.code==="BRIDGE_REPLAY_REJECTED"});
-      await check("wrong credential rejected (BRIDGE_UNAUTHORIZED)",async()=>{const result=await raw(open,{secret:`${config.serviceCredential}x`});return result.status===401&&result.code==="BRIDGE_UNAUTHORIZED"});
-      await check("stale timestamp rejected (BRIDGE_UNAUTHORIZED)",async()=>{const result=await raw(open,{timestamp:String(Date.now()-120_000)});return result.status===401&&result.code==="BRIDGE_UNAUTHORIZED"});
-      await check("unsupported protocol version rejected",async()=>{const result=await raw(JSON.stringify({protocol:"v2",operationId:"x",capability:cap,operation:"OPEN_AUTH_BROWSER"}));return result.code==="BRIDGE_PROTOCOL_UNSUPPORTED"});
-      for(const operation of["EVALUATE_JAVASCRIPT","NAVIGATE","SCREENSHOT"])await check(`no generic endpoint: ${operation} unknown`,async()=>(await raw(JSON.stringify({protocol:"v1",operationId:"x",capability:cap,operation,url:"https://example.invalid",selector:"#x"}))).code==="BRIDGE_OPERATION_UNKNOWN");
-      await check("no other path is served",async()=>(await raw(open,{path:"/v1/arbitrary-browser"})).status===404);
-      await check("execution CLOSE accepted",async()=>opened&&(await raw(close)).ok===true);
+      await expectRaw("signed OPEN accepted; protocol v1 in response",()=>raw(open,{nonce}),result=>{opened=result.status===200&&result.ok===true;return opened&&result.protocol==="v1"});
+      await expectRaw("replayed nonce rejected (BRIDGE_REPLAY_REJECTED)",()=>raw(open,{nonce}),result=>result.status===409&&result.code==="BRIDGE_REPLAY_REJECTED");
+      await expectRaw("wrong credential rejected (BRIDGE_UNAUTHORIZED)",()=>raw(open,{secret:`${config.serviceCredential}x`}),result=>result.status===401&&result.code==="BRIDGE_UNAUTHORIZED");
+      await expectRaw("stale timestamp rejected (BRIDGE_UNAUTHORIZED)",()=>raw(open,{timestamp:String(Date.now()-120_000)}),result=>result.status===401&&result.code==="BRIDGE_UNAUTHORIZED");
+      await expectRaw("unsupported protocol version rejected",()=>raw(JSON.stringify({protocol:"v2",operationId:"x",capability:cap,operation:"OPEN_AUTH_BROWSER"})),result=>result.code==="BRIDGE_PROTOCOL_UNSUPPORTED");
+      for(const operation of["EVALUATE_JAVASCRIPT","NAVIGATE","SCREENSHOT"])await expectRaw(`no generic endpoint: ${operation} unknown`,()=>raw(JSON.stringify({protocol:"v1",operationId:"x",capability:cap,operation,url:"https://example.invalid",selector:"#x"})),result=>result.code==="BRIDGE_OPERATION_UNKNOWN");
+      await expectRaw("no other path is served",()=>raw(open,{path:"/v1/arbitrary-browser"}),result=>result.status===404);
+      await expectRaw("execution CLOSE accepted",()=>opened?raw(close):Promise.resolve({status:0,code:"not opened"}),result=>result.ok===true);
       break;
     }
     case"FENCING":{
