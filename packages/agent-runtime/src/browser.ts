@@ -34,6 +34,7 @@ export interface BrowserObservationData {
   representation: unknown;
   observationSource: "CDP_DOM_SNAPSHOT" | "CDP_ACCESSIBILITY_TREE" | "CDP_SCREENSHOT";
   protocolSnapshotVersion: string;
+  formCountCategory?: "none" | "one" | "few" | "many";
   controls: SemanticControl[];
   challengeState: ChallengeState;
   httpStatus?: number;
@@ -112,8 +113,8 @@ export const AUTH_SURFACE_MAX_CONTROLS=120;
 export const AUTH_SURFACE_MAX_TEXT=4_000;
 const AUTH_HANDLE_TTL_MS=60_000;
 export interface AuthenticatedBrowserSurface {
-  url:string;title:string;pageRevision:string;challengeState:ChallengeState;visibleText:string;
-  controls:Array<{handle:string;kind:string;role?:string;label:string;type?:string;autocomplete?:string;insideForm:boolean;disabled:boolean}>;
+  url:string;title:string;pageRevision:string;challengeState:ChallengeState;visibleText:string;formCountCategory?:"none"|"one"|"few"|"many";
+  controls:Array<{handle:string;kind:string;role?:string;label:string;type?:string;autocomplete?:string;insideForm:boolean;disabled:boolean;visible?:boolean;focusable?:boolean}>;
 }
 
 export interface StructuredBrowserUsePort {
@@ -186,6 +187,7 @@ interface TrustedBrowserObservation {
   article?: BrowserObservationData["article"];
   observationSource: BrowserObservationData["observationSource"];
   protocolSnapshotVersion: string;
+  formCountCategory: "none"|"one"|"few"|"many";
 }
 
 interface SnapshotDocument {
@@ -448,7 +450,7 @@ export class PlaywrightBrowserAdapter
 
   async navigateAuthenticationEntrypoint(scope:BrowserScope,entrypoint:string,writeOrigins:string[]){const live=this.requireHealthy(scope);if(!live.allowedOrigins.has(new URL(entrypoint).origin)||writeOrigins.some(origin=>!live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("authentication entrypoint outside browser policy");live.authenticationBootstrap=true;live.authenticationWriteOrigins=new Set(writeOrigins);await this.navigateDirectly(live,entrypoint,"domcontentloaded");}
 
-  async observeAuthenticationSurface(scope:BrowserScope,wait?:AuthSurfaceWait):Promise<AuthenticatedBrowserSurface>{const live=this.requireHealthy(scope);if(wait==="AUTH_SURFACE")await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});else if(wait==="PASSWORD_FIELD")await live.page.locator('input[type="password"]').first().waitFor({state:"visible",timeout:10_000});const observed=await this.observe(live,"page_state");const visibleText=String((observed.representation as {visibleText?:string}).visibleText??"").slice(0,AUTH_SURFACE_MAX_TEXT);return{url:observed.url,title:observed.title.slice(0,300),pageRevision:observed.pageRevision,challengeState:observed.challengeState,visibleText,controls:observed.controls.slice(0,AUTH_SURFACE_MAX_CONTROLS).map(control=>({handle:control.handle,kind:control.kind,role:control.role,label:control.label.slice(0,200),type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true"}))};}
+  async observeAuthenticationSurface(scope:BrowserScope,wait?:AuthSurfaceWait):Promise<AuthenticatedBrowserSurface>{const live=this.requireHealthy(scope);if(wait==="AUTH_SURFACE")await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});else if(wait==="PASSWORD_FIELD")await live.page.locator('input[type="password"]').first().waitFor({state:"visible",timeout:10_000});const observed=await this.observe(live,"page_state");const visibleText=String((observed.representation as {visibleText?:string}).visibleText??"").slice(0,AUTH_SURFACE_MAX_TEXT);return{url:observed.url,title:observed.title.slice(0,300),pageRevision:observed.pageRevision,challengeState:observed.challengeState,visibleText,formCountCategory:observed.formCountCategory??"none",controls:observed.controls.slice(0,AUTH_SURFACE_MAX_CONTROLS).map(control=>({handle:control.handle,kind:control.kind,role:control.role,label:control.label.slice(0,200),type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",visible:control.attributes?.["auth-visible"]==="true",focusable:control.attributes?.["auth-focusable"]==="true"}))};}
 
   async injectAuthenticationField(scope:BrowserScope,input:{fieldKind:AuthFieldKind;fieldHandle:string;pageRevision:string;secretValue:string}){const live=this.requireHealthy(scope);const binding=await this.requireAuthenticationHandle(live,input.fieldHandle,input.pageRevision);if(!AUTH_FIELD_KINDS.includes(input.fieldKind)||typeof input.secretValue!=="string")throw new BrowserPreDispatchError("authentication field kind mismatch");const isPassword=binding.type?.toLowerCase()==="password"||binding.autocomplete?.toLowerCase()==="current-password";if((input.fieldKind==="PASSWORD")!==isPassword)throw new BrowserPreDispatchError("authentication field kind mismatch");if(!["textbox","searchbox"].includes((binding.role??"").toLowerCase()))throw new BrowserPreDispatchError("authentication field handle is not editable");await live.page.getByRole(binding.role as "textbox",{name:binding.label,exact:true}).fill(input.secretValue);this.invalidateTransientBindings(live);}
 
@@ -461,7 +463,7 @@ export class PlaywrightBrowserAdapter
     try{return await adapter.bootstrap({goto:async(url,options)=>{await this.navigateDirectly(live,url,options?.waitUntil)},fill:async(selector,value)=>{await live.page.locator(selector).fill(value)},fillControl:async(control,value)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).fill(value)},click:async(selector)=>{await live.page.locator(selector).click()},clickControl:async(control)=>{const observed=await this.authenticationSnapshot(live);if(!observed.controls.some(candidate=>candidate.role===control.role&&candidate.label.trim()===control.label))throw new BrowserPreDispatchError("authentication control no longer present");await live.page.getByRole(control.role,{name:control.label,exact:true}).click()},waitForAuthenticationSurface:async()=>{await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});return this.authenticationSnapshot(live)},waitForPasswordSurface:async()=>{await live.page.locator('input[type="password"]').waitFor({state:"visible",timeout:10_000})},snapshot:async()=>this.authenticationSnapshot(live),importSession:async(state)=>this.attachAuthenticatedSession(scope,state),exportSession:async()=>this.exportAuthenticatedSession(scope)},credential,observer,lineage,challenges)}finally{lineage?.invalidate();live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;}
   }
 
-  private async authenticationSnapshot(live:LiveSession):Promise<AuthenticatedSiteSnapshot>{const observed=await this.observationProvider.capture(live);return{url:live.page.url(),title:observed.title,visibleText:observed.visibleText,controls:observed.controls.map(control=>({role:control.role,label:control.label,type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",focused:false}))};}
+  private async authenticationSnapshot(live:LiveSession):Promise<AuthenticatedSiteSnapshot>{const observed=await this.observationProvider.capture(live);return{url:live.page.url(),title:observed.title,visibleText:observed.visibleText,formCountCategory:observed.formCountCategory,controls:observed.controls.map(control=>({role:control.role,label:control.label,type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",visible:control.attributes?.["auth-visible"]==="true",focusable:control.attributes?.["auth-focusable"]==="true",focused:false}))};}
 
   private async requireAuthenticationHandle(live:LiveSession,handle:string,revision:string){const binding=live.handles.get(handle);if(!binding||binding.revision!==revision||(binding.expiresAt!==undefined&&binding.expiresAt<Date.now())||await this.revision(live)!==revision)throw new StaleObservationError("handle");return binding;}
 
@@ -821,6 +823,7 @@ export class PlaywrightBrowserAdapter
       watermarkObserved: observed.watermarkObserved,
       observationSource: observed.observationSource,
       protocolSnapshotVersion: observed.protocolSnapshotVersion,
+      formCountCategory: observed.formCountCategory,
       article: observed.article
         ? {
             title: observed.article.title,
@@ -843,6 +846,7 @@ export class PlaywrightBrowserAdapter
       representation,
       observationSource: observed.observationSource,
       protocolSnapshotVersion: observed.protocolSnapshotVersion,
+      formCountCategory: observed.formCountCategory,
       controls,
       challengeState,
       watermarkObserved: observed.watermarkObserved,
@@ -982,7 +986,8 @@ class CdpBrowserObservationProvider implements BrowserObservationProvider {
     const baseUrl = stringAt(snapshot.strings, document.baseURL) || pageUrl;
     const title = stringAt(snapshot.strings, document.title) || textOf(firstByName(nodes, "title"), nodes);
     const visibleText = collapseWhitespace(textOf(firstByName(nodes, "body"), nodes));
-    const controls = discoverControls(nodes, axByBackend, pageUrl, baseUrl);
+    const controls = discoverControls(nodes, axByBackend, pageUrl, baseUrl, live.scope.viewport);
+    const formCountCategory=countCategory([...nodes.values()].filter(node=>node.name==="form").length);
     const article = discoverArticle(nodes, pageUrl, baseUrl, visibleText);
     const watermarkObserved = [...nodes.values()].some((node) => node.attributes.get("data-watermark-observed") === "true");
     const protocolSnapshotVersion = "cdp-dom-snapshot-v1";
@@ -1004,7 +1009,8 @@ class CdpBrowserObservationProvider implements BrowserObservationProvider {
       watermarkObserved,
       article,
       observationSource: image ? "CDP_SCREENSHOT" : "CDP_DOM_SNAPSHOT",
-      protocolSnapshotVersion
+      protocolSnapshotVersion,
+      formCountCategory
     };
   }
 }
@@ -1044,7 +1050,8 @@ function discoverControls(
   nodes: Map<number, DomNodeSnapshot>,
   axByBackend: Map<number, { role?: string; name?: string }>,
   pageUrl: string,
-  baseUrl: string
+  baseUrl: string,
+  viewport: { width:number;height:number }
 ): SemanticControl[] {
   const controls: SemanticControl[] = [];
   for (const node of nodes.values()) {
@@ -1064,7 +1071,7 @@ function discoverControls(
     const isDownload = node.attributes.has("download");
     const opensNewContext = Boolean(target && target.toLowerCase() !== "_self");
     const kind: SemanticControl["kind"] = node.name === "a" ? "link" : node.name === "button" ? "button" : node.name === "input" ? "input" : "other";
-    const projectedAttributes=relevantAttributes(node.attributes);if(hasAncestor(node,nodes,"form"))projectedAttributes["inside-form"]="true";
+    const projectedAttributes=relevantAttributes(node.attributes);if(hasAncestor(node,nodes,"form"))projectedAttributes["inside-form"]="true";projectedAttributes["auth-visible"]=isVisibleControl(node,viewport)?"true":"false";projectedAttributes["auth-focusable"]=isFocusableControl(node)?"true":"false";
     controls.push({
       handle: "",
       nodeId: node.backendNodeId === undefined ? `snapshot:${node.index}` : `backend:${node.backendNodeId}`,
@@ -1141,7 +1148,7 @@ function textOf(root: DomNodeSnapshot | undefined, nodes: Map<number, DomNodeSna
 
 function relevantAttributes(attributes: Map<string, string>): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const key of ["href", "aria-label", "aria-disabled", "title", "placeholder", "type", "autocomplete", "form", "disabled", "rel", "target", "download"]) {
+  for (const key of ["href", "aria-label", "aria-disabled", "title", "placeholder", "type", "autocomplete", "form", "disabled", "tabindex", "rel", "target", "download"]) {
     const value = attributes.get(key);
     if (value !== undefined) result[key] = value;
   }
@@ -1151,6 +1158,8 @@ function relevantAttributes(attributes: Map<string, string>): Record<string, str
 function isRenderableControl(node: DomNodeSnapshot): boolean {
   return Boolean(node.geometry && node.geometry.width > 0 && node.geometry.height > 0);
 }
+function isVisibleControl(node:DomNodeSnapshot,viewport:{width:number;height:number}){const box=node.geometry;return !!box&&box.width>0&&box.height>0&&box.x+box.width>0&&box.y+box.height>0&&box.x<viewport.width&&box.y<viewport.height&&node.attributes.get("aria-hidden")!=="true";}
+function isFocusableControl(node:DomNodeSnapshot){return node.attributes.get("disabled")===undefined&&node.attributes.get("aria-disabled")!=="true"&&node.attributes.get("tabindex")!=="-1";}
 
 function implicitRole(name: string, attributes: Map<string, string>): string {
   if (attributes.has("role")) return attributes.get("role")!;
@@ -1169,6 +1178,8 @@ function resolveRuntimeUrl(value: string | undefined, baseUrl: string): string |
 function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
+
+function countCategory(value:number):"none"|"one"|"few"|"many"{return value===0?"none":value===1?"one":value<=3?"few":"many";}
 
 function chunkPairs(values: number[]): Array<[number, number]> {
   const pairs: Array<[number, number]> = [];
