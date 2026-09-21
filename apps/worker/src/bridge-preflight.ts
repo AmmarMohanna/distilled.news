@@ -1,6 +1,7 @@
-import { AuthenticatedBrowserBridgeExecutor,BRIDGE_PREFLIGHT_STAGES,XAuthenticatedSiteAdapter,runBridgePreflight,type BrowserScope } from "@distilled/agent-runtime";
+import { AuthenticatedBrowserBridgeExecutor,BRIDGE_PREFLIGHT_STAGES,XAuthenticatedSiteAdapter,runBridgePreflight,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserExecutionCapability } from "@distilled/agent-runtime";
 import { z } from "zod";
 import { authenticatedBackend } from "./authenticated-profile-bootstrap";
+import { CloudflareContainerBrowserBridgeTransport } from "./cloudflare-container-browser-transport";
 import type { Env } from "./types";
 
 const inputSchema=z.object({stage:z.enum(BRIDGE_PREFLIGHT_STAGES as unknown as [string,...string[]]),siteOrigin:z.string().url().max(200),markers:z.object({identifier:z.string().startsWith("TEST_").max(120),password:z.string().startsWith("TEST_").max(120)}).strict(),idleWaitMs:z.number().int().min(1_000).max(60_000).optional()}).strict();
@@ -46,16 +47,20 @@ export async function handleContainerPreflight(request:Request,env:Env):Promise<
   if(request.method!=="POST"||!env.BRIDGE_PREFLIGHT_TOKEN)return Response.json({error:"not found"},{status:404});
   if(!await matches(request.headers.get("authorization")?.replace(/^Bearer\s+/i,"").trim()??"",env.BRIDGE_PREFLIGHT_TOKEN))return Response.json({error:"unauthorized"},{status:401});
   if((env.DISTILLED_BROWSER_PROVIDER??"").trim().toLowerCase()!=="cloudflare_container"||!env.AUTHENTICATED_BROWSER_CONTAINER)return Response.json({error:"container_not_selected"},{status:409});
-  let scope:BrowserScope|undefined;
+  let capability:AuthenticatedBrowserExecutionCapability|undefined;
+  let sessionId:string|undefined;
   try{
-    const selected=authenticatedBackend(env,{runId:"container_preflight",bootstrapRequestId:"container_preflight",profile:{id:"container_preflight",tenantId:"container_preflight",ownerId:"container_preflight",version:0},adapter:new XAuthenticatedSiteAdapter()});
-    if(selected.providerIdentity!=="CLOUDFLARE_CONTAINER"||!(selected.executor instanceof AuthenticatedBrowserBridgeExecutor))return Response.json({error:"container_selection_failed"},{status:409});
-    scope=await selected.executor.allocate({runId:"container_preflight",tenantId:"container_preflight",generation:1,allowedOrigins:["https://x.com"]});
-    const observation=await selected.executor.observeAuthenticatedSurface(scope,"AUTH_SURFACE");
-    await selected.executor.close(scope);scope=undefined;
-    return Response.json({pass:true,provider:"CLOUDFLARE_CONTAINER",allocated:true,observed:true,cleanup:true,hostname:new URL(observation.url).hostname==="x.com"?"x.com":"other"});
+    const transport=new CloudflareContainerBrowserBridgeTransport(env.AUTHENTICATED_BROWSER_CONTAINER);
+    const issuedAt=new Date().toISOString();
+    capability={bridgeExecutionId:"bridge_execution_container_preflight",bootstrapRequestId:"container_preflight",runId:"container_preflight",tenantId:"container_preflight",ownerId:"container_preflight",profileId:"container_preflight",expectedProfileVersion:0,browserGeneration:1,authFlowId:"auth_flow_container_preflight",siteKind:"synthetic",authEntryPoint:"https://synthetic.invalid/login",sessionProbeUrl:"https://synthetic.invalid/home",allowedOrigins:["https://synthetic.invalid"],writeOrigins:[],issuedAt,expiresAt:new Date(Date.now()+120_000).toISOString(),operationBudget:8};
+    const open=await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"OPEN_AUTH_BROWSER"}) as {sessionId:string;runId:string;tenantId:string;generation:number};
+    if(open.runId!==capability.runId||open.tenantId!==capability.tenantId||open.generation!==capability.browserGeneration)throw new Error("container_fence_mismatch");
+    sessionId=open.sessionId;
+    const observation=await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"OBSERVE_AUTH_SURFACE",wait:"AUTH_SURFACE"});
+    await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"CLOSE_AUTH_BROWSER"});sessionId=undefined;
+    return Response.json({pass:true,provider:"CLOUDFLARE_CONTAINER",allocated:true,observed:!!observation,cleanup:true,synthetic:true});
   }catch(error){
-    if(scope){try{const selected=authenticatedBackend(env,{runId:"container_preflight",bootstrapRequestId:"container_preflight",profile:{id:"container_preflight",tenantId:"container_preflight",ownerId:"container_preflight",version:0},adapter:new XAuthenticatedSiteAdapter()});await selected.executor.close(scope)}catch{/* cleanup is best effort after a failed synthetic probe */}}
+    if(capability&&sessionId){try{await new CloudflareContainerBrowserBridgeTransport(env.AUTHENTICATED_BROWSER_CONTAINER).execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"CLOSE_AUTH_BROWSER"})}catch{/* cleanup is best effort after a failed synthetic probe */}}
     return Response.json({pass:false,provider:"CLOUDFLARE_CONTAINER",error:error instanceof Error?error.name:"preflight_failed"},{status:502});
   }
 }
