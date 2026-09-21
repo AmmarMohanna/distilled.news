@@ -37,15 +37,15 @@ describe("provider diagnostic route (proves the deployed runtime's actual select
     expect((await ask({...cloudflare,BRIDGE_PREFLIGHT_TOKEN:"preflight-token"},"wrong")).status).toBe(401);
     expect((await ask({...cloudflare,BRIDGE_PREFLIGHT_TOKEN:"preflight-token",WEB_OPERATOR_RUNTIME_TOKEN:"rt"},"rt")).status).toBe(401);
   });
-  it("reports the bridge only when the provider secret selects it, using exactly three fields",async()=>{
+  it("reports the bridge only when the provider secret selects it, with bounded provider metadata",async()=>{
     const body=await (await ask({...cloudflare,...configured,DISTILLED_BROWSER_PROVIDER:"self_hosted"})).json();
-    expect(body).toEqual({authenticatedBrowserProvider:"SELF_HOSTED_CHROMIUM",providerSelfHosted:true,bridgeConfigured:true});
+    expect(body).toMatchObject({authenticatedBrowserProvider:"SELF_HOSTED_CHROMIUM",providerSelfHosted:true,providerContainer:false,bridgeConfigured:true,containerConfigured:false});
   });
   it("tolerates case and whitespace exactly as the bootstrap does",async()=>{
     expect(await (await ask({...cloudflare,...configured,DISTILLED_BROWSER_PROVIDER:"  Self_Hosted "})).json()).toMatchObject({providerSelfHosted:true});
   });
   it("reports Cloudflare when the provider secret is absent, even with the bridge fully configured (the silent default that caused the accidental runs)",async()=>{
-    expect(await (await ask({...cloudflare,...configured})).json()).toEqual({authenticatedBrowserProvider:"CLOUDFLARE_BROWSER",providerSelfHosted:false,bridgeConfigured:true});
+    expect(await (await ask({...cloudflare,...configured})).json()).toMatchObject({authenticatedBrowserProvider:"CLOUDFLARE_BROWSER",providerSelfHosted:false,providerContainer:false,bridgeConfigured:true,containerConfigured:false});
   });
   it("never resolves a misspelt or unsupported provider to the bridge, and never silently to Cloudflare",async()=>{
     for(const value of["selfhosted","self-hosted","","selfhosted "]){const body=await (await ask({...cloudflare,...configured,DISTILLED_BROWSER_PROVIDER:value})).json() as Record<string,unknown>;expect(body,JSON.stringify(value)).toMatchObject({authenticatedBrowserProvider:"UNRESOLVED",providerSelfHosted:false,error:"provider_resolution_failed"})}

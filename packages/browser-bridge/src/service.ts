@@ -24,6 +24,20 @@ export class AuthenticatedBrowserBridgeService{
     let message:unknown;try{message=JSON.parse(body)}catch{return this.failure("BRIDGE_PROTOCOL_UNSUPPORTED",400)}
     try{const result=await this.execute(message);return this.response({protocol:"v1",ok:true,result})}catch(error){const code=classifyFailure("",error);return this.failure(code,statusFor(code))}
   }
+  /**
+   * Native Container ingress. This is intentionally not an HTTP-public API: the
+   * container Durable Object is the sole caller and exposes only the typed
+   * protocol request below. It retains every protocol, capability, operation,
+   * replay/idempotency and browser-policy fence; HMAC remains mandatory on
+   * `handle()` for the optional externally hosted transport.
+   */
+  async handleInternal(request:Request):Promise<Response>{
+    if(request.method!=="POST"||new URL(request.url).pathname!=="/v1/internal-authenticated-browser")return this.failure("BRIDGE_OPERATION_UNKNOWN",404);
+    if(Number(request.headers.get("content-length")??0)>BRIDGE_MAX_REQUEST_BYTES)return this.failure("BRIDGE_PAYLOAD_TOO_LARGE",413);
+    const body=await readBounded(request,BRIDGE_MAX_REQUEST_BYTES);if(body===undefined)return this.failure("BRIDGE_PAYLOAD_TOO_LARGE",413);
+    let message:unknown;try{message=JSON.parse(body)}catch{return this.failure("BRIDGE_PROTOCOL_UNSUPPORTED",400)}
+    try{return this.response({protocol:"v1",ok:true,result:await this.execute(message)})}catch(error){const code=classifyFailure("",error);return this.failure(code,statusFor(code))}
+  }
   async shutdown(){await Promise.all([...this.executions.values()].map(execution=>this.close(execution)));this.executions.clear()}
   private async execute(raw:unknown):Promise<AuthenticatedBrowserBridgeResult>{
     assertBridgeRequestShape(raw);const message=raw,capability=message.capability,now=this.now();

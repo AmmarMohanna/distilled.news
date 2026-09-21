@@ -14,6 +14,8 @@ import { dispatchPendingOpenRouterModelDiagnostics,processOpenRouterModelDiagnos
 import { dispatchPendingAuthenticatedProfileBootstraps,processAuthenticatedProfileBootstrap } from "./authenticated-profile-bootstrap-trigger";
 import { dispatchPendingAuthenticatedSurfaceDiagnostics,processAuthenticatedSurfaceDiagnostic } from "./authenticated-surface-diagnostic-trigger";
 
+export {AuthenticatedBrowserContainer} from "./cloudflare-container-browser";
+
 const app = createApp();
 const MAX_QUEUE_ATTEMPTS = 5;
 const STALE_PROCESSING_JOB_REQUEUE_AGE_MS = 10 * 60 * 1000;

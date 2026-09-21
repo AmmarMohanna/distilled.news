@@ -7,6 +7,21 @@ workers_dev = true
 [browser]
 binding = "BROWSER"
 
+[[containers]]
+class_name = "AuthenticatedBrowserContainer"
+image = "./browser-container.Dockerfile"
+image_build_context = "../.."
+instance_type = "standard-1"
+max_instances = 2
+
+[[durable_objects.bindings]]
+name = "AUTHENTICATED_BROWSER_CONTAINER"
+class_name = "AuthenticatedBrowserContainer"
+
+[[migrations]]
+tag = "authenticated-browser-container-v1"
+new_sqlite_classes = ["AuthenticatedBrowserContainer"]
+
 [assets]
 directory = "../web/dist"
 binding = "ASSETS"

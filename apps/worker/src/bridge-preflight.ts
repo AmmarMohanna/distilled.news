@@ -1,4 +1,4 @@
-import { AuthenticatedBrowserBridgeExecutor,BRIDGE_PREFLIGHT_STAGES,XAuthenticatedSiteAdapter,runBridgePreflight } from "@distilled/agent-runtime";
+import { AuthenticatedBrowserBridgeExecutor,BRIDGE_PREFLIGHT_STAGES,XAuthenticatedSiteAdapter,runBridgePreflight,type BrowserScope } from "@distilled/agent-runtime";
 import { z } from "zod";
 import { authenticatedBackend } from "./authenticated-profile-bootstrap";
 import type { Env } from "./types";
@@ -32,12 +32,32 @@ export async function handleBridgePreflight(request:Request,env:Env):Promise<Res
 export async function handleProviderDiagnostic(request:Request,env:Env):Promise<Response>{
   if(!env.BRIDGE_PREFLIGHT_TOKEN)return Response.json({error:"not found"},{status:404});
   if(!await matches(request.headers.get("authorization")?.replace(/^Bearer\s+/i,"")??"",env.BRIDGE_PREFLIGHT_TOKEN))return Response.json({error:"unauthorized"},{status:401});
-  const bridgeConfigured=!!env.SELF_HOSTED_BROWSER_BRIDGE_URL?.trim()&&!!env.SELF_HOSTED_BROWSER_BRIDGE_AUTH?.trim();
+  const containerConfigured=!!env.AUTHENTICATED_BROWSER_CONTAINER,bridgeConfigured=containerConfigured||!!env.SELF_HOSTED_BROWSER_BRIDGE_URL?.trim()&&!!env.SELF_HOSTED_BROWSER_BRIDGE_AUTH?.trim();
   try{
     const selected=authenticatedBackend(env,{runId:"provider_diagnostic",bootstrapRequestId:"provider_diagnostic",profile:{id:"provider_diagnostic",tenantId:"provider_diagnostic",ownerId:"provider_diagnostic",version:0},adapter:new XAuthenticatedSiteAdapter()});
-    const selfHosted=selected.executor instanceof AuthenticatedBrowserBridgeExecutor;
-    return Response.json({authenticatedBrowserProvider:selfHosted?"SELF_HOSTED_CHROMIUM":selected.providerIdentity??"UNKNOWN",providerSelfHosted:selfHosted,bridgeConfigured});
+    const bridgeExecutor=selected.executor instanceof AuthenticatedBrowserBridgeExecutor;
+    const providerSecret=(env.DISTILLED_BROWSER_PROVIDER??"").trim().toLowerCase();
+    return Response.json({authenticatedBrowserProvider:selected.providerIdentity??"UNKNOWN",providerSelfHosted:selected.providerIdentity==="SELF_HOSTED_CHROMIUM"&&providerSecret==="self_hosted",providerContainer:selected.providerIdentity==="CLOUDFLARE_CONTAINER",bridgeConfigured,containerConfigured,bridgeExecutor});
   }catch{return Response.json({authenticatedBrowserProvider:"UNRESOLVED",providerSelfHosted:false,bridgeConfigured,error:"provider_resolution_failed"})}
+}
+
+/** Native Container-only synthetic proof: open Chromium, take one trusted observation, and close. */
+export async function handleContainerPreflight(request:Request,env:Env):Promise<Response>{
+  if(request.method!=="POST"||!env.BRIDGE_PREFLIGHT_TOKEN)return Response.json({error:"not found"},{status:404});
+  if(!await matches(request.headers.get("authorization")?.replace(/^Bearer\s+/i,"").trim()??"",env.BRIDGE_PREFLIGHT_TOKEN))return Response.json({error:"unauthorized"},{status:401});
+  if((env.DISTILLED_BROWSER_PROVIDER??"").trim().toLowerCase()!=="cloudflare_container"||!env.AUTHENTICATED_BROWSER_CONTAINER)return Response.json({error:"container_not_selected"},{status:409});
+  let scope:BrowserScope|undefined;
+  try{
+    const selected=authenticatedBackend(env,{runId:"container_preflight",bootstrapRequestId:"container_preflight",profile:{id:"container_preflight",tenantId:"container_preflight",ownerId:"container_preflight",version:0},adapter:new XAuthenticatedSiteAdapter()});
+    if(selected.providerIdentity!=="CLOUDFLARE_CONTAINER"||!(selected.executor instanceof AuthenticatedBrowserBridgeExecutor))return Response.json({error:"container_selection_failed"},{status:409});
+    scope=await selected.executor.allocate({runId:"container_preflight",tenantId:"container_preflight",generation:1,allowedOrigins:["https://x.com"]});
+    const observation=await selected.executor.observeAuthenticatedSurface(scope,"AUTH_SURFACE");
+    await selected.executor.close(scope);scope=undefined;
+    return Response.json({pass:true,provider:"CLOUDFLARE_CONTAINER",allocated:true,observed:true,cleanup:true,hostname:new URL(observation.url).hostname==="x.com"?"x.com":"other"});
+  }catch(error){
+    if(scope){try{const selected=authenticatedBackend(env,{runId:"container_preflight",bootstrapRequestId:"container_preflight",profile:{id:"container_preflight",tenantId:"container_preflight",ownerId:"container_preflight",version:0},adapter:new XAuthenticatedSiteAdapter()});await selected.executor.close(scope)}catch{/* cleanup is best effort after a failed synthetic probe */}}
+    return Response.json({pass:false,provider:"CLOUDFLARE_CONTAINER",error:error instanceof Error?error.name:"preflight_failed"},{status:502});
+  }
 }
 
 async function matches(provided:string,expected:string){const encoder=new TextEncoder();const [a,b]=await Promise.all([crypto.subtle.digest("SHA-256",encoder.encode(provided)),crypto.subtle.digest("SHA-256",encoder.encode(expected))]);const x=new Uint8Array(a),y=new Uint8Array(b);let diff=0;for(let index=0;index<x.length;index++)diff|=x[index]^y[index];return diff===0}

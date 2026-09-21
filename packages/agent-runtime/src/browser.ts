@@ -78,8 +78,8 @@ export interface BrowserExecutorPort {
   }): Promise<SemanticControl[]>;
 }
 
-export type BrowserBackendName = "local" | "cloudflare";
-export type BrowserProviderIdentity = "CLOUDFLARE_BROWSER" | "SELF_HOSTED_CHROMIUM";
+export type BrowserBackendName = "local" | "cloudflare" | "container";
+export type BrowserProviderIdentity = "CLOUDFLARE_BROWSER" | "CLOUDFLARE_CONTAINER" | "SELF_HOSTED_CHROMIUM";
 
 export interface BrowserBackendEnvironment {
   DISTILLED_BROWSER_BACKEND?: string;

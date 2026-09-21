@@ -53,6 +53,16 @@ describe("service authentication",()=>{
     expect((await send(service,payload,{nonce})).status).toBe(200);
     expect((await send(service,payload,{nonce,secret:"wrong_secret_key_12345"})).json.error?.code).toBe("BRIDGE_UNAUTHORIZED");
   });
+
+  it("accepts native-container ingress only on its distinct private route and preserves operation-id idempotency",async()=>{
+    const {service,mock}=newService();const payload=req("OPEN_AUTH_BROWSER",baseCapability(),"container_open");
+    const internalUrl="http://127.0.0.1:8080/v1/internal-authenticated-browser";
+    const first=await service.handleInternal(new Request(internalUrl,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}));
+    const second=await service.handleInternal(new Request(internalUrl,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}));
+    expect(first.status).toBe(200);expect(second.status).toBe(200);expect(mock.allocations).toBe(1);
+    expect((await service.handleInternal(new Request("http://127.0.0.1:8080/v1/arbitrary-browser",{method:"POST",body:"{}"}))).status).toBe(404);
+    expect((await service.handle(new Request(internalUrl,{method:"POST",body:JSON.stringify(payload)}))).status).toBe(404);
+  });
 });
 
 describe("protocol surface",()=>{

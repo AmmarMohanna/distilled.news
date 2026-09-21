@@ -2,6 +2,7 @@ import { Miniflare } from "miniflare";
 import { afterEach,describe,expect,it,vi } from "vitest";
 import { AuthenticatedBrowserBridgeError,XAuthenticatedSiteAdapter,assertProductionChallengeProvider,type AuthenticatedBrowserBridgeRequest,type BrowserScope } from "@distilled/agent-runtime";
 import { authenticatedBackend } from "./authenticated-profile-bootstrap";
+import {CloudflareContainerBrowserBridgeTransport} from "./cloudflare-container-browser-transport";
 import type { Env } from "./types";
 
 const profile={id:"authenticated_profile_aaaaaaaaaaaaaaaa",tenantId:"account_a",ownerId:"account_a",version:3};
@@ -35,6 +36,20 @@ describe("self-hosted authenticated browser backend selection",()=>{
     const selected=authenticatedBackend(env(),input);
     expect(selected.providerIdentity).toBe("SELF_HOSTED_CHROMIUM");expect(()=>assertProductionChallengeProvider(selected.challengeProvider)).not.toThrow();
     expect(selected.challengeProvider.capabilities()).toEqual({CAPTCHA:"DETECT_ONLY",MFA:"DETECT_ONLY",EMAIL_VERIFICATION:"DETECT_ONLY",SECURITY_CHALLENGE:"DETECT_ONLY",UNKNOWN:"DETECT_ONLY"});
+  });
+
+  it("selects the native Container provider without an HTTPS bridge URL, HMAC secret, or Cloudflare Browser fallback",async()=>{
+    const operations:AuthenticatedBrowserBridgeRequest[]=[];const stub={executeAuthenticatedBrowser:async(request:AuthenticatedBrowserBridgeRequest)=>{operations.push(request);if(request.operation==="OPEN_AUTH_BROWSER")return{runId:request.capability.runId,tenantId:request.capability.tenantId,sessionId:"container_session",contextId:"container_context",generation:request.capability.browserGeneration,pageId:"container_page",viewport:{width:1,height:1,deviceScaleFactor:1}};return{closed:true};}};
+    const binding={idFromName:vi.fn((name:string)=>name),get:vi.fn(()=>stub)} as unknown as Env["AUTHENTICATED_BROWSER_CONTAINER"];
+    const selected=authenticatedBackend(env({DISTILLED_BROWSER_PROVIDER:"cloudflare_container",SELF_HOSTED_BROWSER_BRIDGE_URL:undefined,SELF_HOSTED_BROWSER_BRIDGE_AUTH:undefined,AUTHENTICATED_BROWSER_CONTAINER:binding}),input);
+    expect(selected).toMatchObject({backend:"container",providerIdentity:"CLOUDFLARE_CONTAINER"});expect(selected.executor.constructor.name).toBe("AuthenticatedBrowserBridgeExecutor");
+    const scope=await selected.executor.allocate({runId:input.runId,tenantId:profile.tenantId,generation:1,allowedOrigins:["https://x.com"]});await selected.executor.close(scope);
+    expect(operations.map(request=>request.operation)).toEqual(["OPEN_AUTH_BROWSER","CLOSE_AUTH_BROWSER"]);expect((binding as any).idFromName).toHaveBeenCalledWith(expect.stringMatching(/^auth-browser:bridge_execution_/));
+  });
+
+  it("keeps the native transport bounded to typed bridge RPC rather than container fetch, shell, or arbitrary navigation",async()=>{
+    const transport=new CloudflareContainerBrowserBridgeTransport({idFromName:()=>"id",get:()=>({executeAuthenticatedBrowser:async()=>{throw new AuthenticatedBrowserBridgeError("BRIDGE_OPERATION_UNKNOWN")}})} as {idFromName(name:string):unknown;get(id:unknown):{executeAuthenticatedBrowser(request:AuthenticatedBrowserBridgeRequest):Promise<never>}});
+    await expect(transport.execute({protocol:"v1",operationId:"bad",capability:{...input as any},operation:"NAVIGATE"} as any)).rejects.toMatchObject({code:"BRIDGE_OPERATION_UNKNOWN"});
   });
 
   it("mints a fully fenced capability, uses the dedicated credential only as a signature, and never sends the runtime token",async()=>{
