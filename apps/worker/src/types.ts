@@ -150,8 +150,9 @@ export interface OpenRouterModelDiagnosticMessage {
   requestId:string;
 }
 export interface AuthenticatedProfileBootstrapMessage{type:"authenticated_profile_bootstrap";requestId:string}
+export interface AuthenticatedSurfaceDiagnosticMessage{type:"authenticated_surface_diagnostic";requestId:string}
 
-export type WebOperatorQueueMessage = WebOperatorRunMessage | WebOperatorLiveSmokeMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage;
+export type WebOperatorQueueMessage = WebOperatorRunMessage | WebOperatorLiveSmokeMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | AuthenticatedSurfaceDiagnosticMessage;
 
 export interface ProcessingJobMessage {
   type?: "process_raw_message";

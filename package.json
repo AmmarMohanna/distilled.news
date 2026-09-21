@@ -8,6 +8,7 @@
   "scripts": {
     "provision:x": "node scripts/provision-authenticated-profile.mjs",
     "bootstrap:x": "node scripts/trigger-authenticated-profile-bootstrap.mjs",
+    "diagnostic:x": "node scripts/trigger-authenticated-surface-diagnostic.mjs",
     "browser-worker:check": "pnpm --filter @distilled/agent-runtime test:browser",
     "browser-bridge:dev": "pnpm --filter @distilled/browser-bridge dev",
     "browser-bridge:build": "pnpm --filter @distilled/browser-bridge build",

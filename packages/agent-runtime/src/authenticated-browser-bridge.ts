@@ -82,6 +82,8 @@ export class AuthenticatedBrowserBridgeExecutor implements AuthenticatedBrowserE
     },credential,observer,lineage,challenges)}finally{lineage?.invalidate()}
   }
   async detectAuthenticatedState(scope:BrowserScope,adapter:AuthenticatedSiteAdapter){const surface=await this.operation(scope,{operation:"OBSERVE_AUTH_SURFACE"}) as AuthenticatedBrowserSurface;return adapter.detect(surfaceToSnapshot(surface))}
+  /** Diagnostic-only trusted observation. It cannot restore state or mutate page controls. */
+  async observeAuthenticatedSurface(scope:BrowserScope,wait:AuthSurfaceWait="AUTH_SURFACE"):Promise<AuthenticatedSiteSnapshot>{const surface=await this.operation(scope,{operation:"OBSERVE_AUTH_SURFACE",wait}) as AuthenticatedBrowserSurface;return surfaceToSnapshot(surface)}
   async health(scope:BrowserScope){const session=this.sessions.get(scope.sessionId);if(!session)return"closed";if(session.capability.runId!==scope.runId||session.capability.tenantId!==scope.tenantId||session.capability.browserGeneration!==scope.generation)throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");return session.state}
   async close(scope:BrowserScope){const session=this.sessions.get(scope.sessionId);if(!session)return;this.sessions.delete(scope.sessionId);session.state="closed";await this.transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability:session.capability,operation:"CLOSE_AUTH_BROWSER"}).catch(()=>undefined)}
   async crashForTest(scope:BrowserScope){const session=this.require(scope);session.state="crashed";await this.close(scope)}

@@ -5,13 +5,14 @@ import { processQueueMessage } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
-import type { AuthenticatedProfileBootstrapMessage,DistilledQueueMessage, Env, OpenRouterModelDiagnosticMessage, ProcessingJobMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
+import type { AuthenticatedProfileBootstrapMessage,AuthenticatedSurfaceDiagnosticMessage,DistilledQueueMessage, Env, OpenRouterModelDiagnosticMessage, ProcessingJobMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
 import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
 import { D1AgentRuntimeStore } from "./agent-runtime-store";
 import { dispatchPendingLivePublicAcquisitionSmokes, processLivePublicAcquisitionSmoke } from "./live-public-acquisition-smoke";
 import { createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { dispatchPendingOpenRouterModelDiagnostics,processOpenRouterModelDiagnostic } from "./openrouter-model-diagnostic";
 import { dispatchPendingAuthenticatedProfileBootstraps,processAuthenticatedProfileBootstrap } from "./authenticated-profile-bootstrap-trigger";
+import { dispatchPendingAuthenticatedSurfaceDiagnostics,processAuthenticatedSurfaceDiagnostic } from "./authenticated-surface-diagnostic-trigger";
 
 const app = createApp();
 const MAX_QUEUE_ATTEMPTS = 5;
@@ -40,6 +41,7 @@ export default {
         }
         else if (isOpenRouterModelDiagnosticMessage(message.body)) await processOpenRouterModelDiagnostic(env,message.body);
         else if(isAuthenticatedProfileBootstrapMessage(message.body))await processAuthenticatedProfileBootstrap(env,message.body);
+        else if(isAuthenticatedSurfaceDiagnosticMessage(message.body))await processAuthenticatedSurfaceDiagnostic(env,message.body);
         else await processDistilledQueueMessage(repo, env, message.body, summaryAdapter, reviewAdapter);
         const durationMs = Date.now() - startedAt;
         if (durationMs >= SLOW_QUEUE_JOB_MS) {
@@ -160,6 +162,7 @@ function isOpenRouterModelDiagnosticMessage(body:unknown):body is OpenRouterMode
   return isRecord(body)&&body.type==="openrouter_model_diagnostic"&&typeof body.requestId==="string";
 }
 function isAuthenticatedProfileBootstrapMessage(body:unknown):body is AuthenticatedProfileBootstrapMessage{return isRecord(body)&&body.type==="authenticated_profile_bootstrap"&&typeof body.requestId==="string"}
+function isAuthenticatedSurfaceDiagnosticMessage(body:unknown):body is AuthenticatedSurfaceDiagnosticMessage{return isRecord(body)&&body.type==="authenticated_surface_diagnostic"&&typeof body.requestId==="string"}
 
 export async function processWebOperatorRunMessage(
   env: Env,
@@ -228,6 +231,7 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
     console.warn("Could not dispatch pending OpenRouter model diagnostic",error);
   }
   try{await dispatchPendingAuthenticatedProfileBootstraps(env,now)}catch(error){console.warn("Could not dispatch pending authenticated profile bootstrap",error)}
+  try{await dispatchPendingAuthenticatedSurfaceDiagnostics(env,now)}catch(error){console.warn("Could not dispatch pending authenticated surface diagnostic",error)}
   if (env.DISTILLED_WEB_OPERATOR_ENABLED === "true") {
     try { await relayPendingWebOperatorOutbox(env,undefined,25,now); }
     catch (error) { console.warn("Could not relay pending Web Operator runs",error); }
