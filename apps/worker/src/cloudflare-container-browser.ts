@@ -20,7 +20,7 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
 
   async executeAuthenticatedBrowser(request:AuthenticatedBrowserBridgeRequest):Promise<AuthenticatedBrowserBridgeResult>{
     const body=JSON.stringify(request);if(byteLength(body)>BRIDGE_MAX_REQUEST_BYTES)throw new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE");
-    let response:Response;try{response=await this.containerFetch(new Request(`http://localhost${INTERNAL_PATH}`,{method:"POST",headers:{"content-type":"application/json","content-length":String(byteLength(body))},body}));}catch{throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation))}
+    let response:Response;try{response=await this.containerFetch(new Request(`http://localhost${INTERNAL_PATH}`,{method:"POST",headers:{"content-type":"application/json","content-length":String(byteLength(body))},body}),8080);}catch{throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation))}
     const declared=Number(response.headers.get("content-length")??0);if(declared>BRIDGE_MAX_RESPONSE_BYTES)throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation));
     let text:string;try{text=await response.text()}catch{throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation))}if(byteLength(text)>BRIDGE_MAX_RESPONSE_BYTES)throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation));
     let envelope:Partial<AuthenticatedBrowserBridgeResponse>;try{envelope=JSON.parse(text) as Partial<AuthenticatedBrowserBridgeResponse>}catch{throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation))}
