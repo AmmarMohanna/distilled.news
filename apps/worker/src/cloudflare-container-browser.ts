@@ -21,6 +21,7 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
 
   async health():Promise<"READY"|"UNAVAILABLE">{
     try{
+      await this.startAndWaitForPorts({ports:8080});
       const response=await this.containerFetch(HEALTH_PATH,{method:"GET"},8080);
       return response.ok?"READY":"UNAVAILABLE";
     }catch{return "UNAVAILABLE";}
