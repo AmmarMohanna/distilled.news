@@ -3,8 +3,8 @@ import {AuthenticatedBrowserBridgeError,BRIDGE_FAILURE_CODES,BRIDGE_MAX_REQUEST_
 import type {Env} from "./types";
 import {containerUnknownOutcome} from "./cloudflare-container-browser-transport";
 
-const INTERNAL_PATH="/v1/internal-authenticated-browser";
-const HEALTH_PATH="/health";
+const INTERNAL_PATH="http://container/v1/internal-authenticated-browser";
+const HEALTH_PATH="http://container/health";
 
 /**
  * A single named DO represents one fenced bridge execution.  It owns no
@@ -28,6 +28,7 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
     }catch(error){
       const message=error instanceof Error?error.message:"";
       const kind=/no instance|provision|concurrent instance/i.test(message)?"NO_INSTANCE":/port|connect|fetch|timeout|ready/i.test(message)?"PORT_NOT_READY":"START_FAILED";
+      console.error("container_health_diagnostic",{errorName:error instanceof Error?error.name:typeof error,errorMessage:message.slice(0,300),kind,targetPort:8080});
       return {state:"UNAVAILABLE",kind};
     }
   }
