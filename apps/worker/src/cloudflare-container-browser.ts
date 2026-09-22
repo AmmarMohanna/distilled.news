@@ -14,7 +14,7 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
   defaultPort=8080;
   requiredPorts=[8080];
   sleepAfter="60s";
-  envVars={NODE_ENV:"production",BROWSER_BRIDGE_INTERNAL_TRANSPORT:"true",BROWSER_BRIDGE_HOST:"0.0.0.0",BROWSER_BRIDGE_PORT:"8080",BROWSER_BRIDGE_TLS_TERMINATED:"true"};
+  env={NODE_ENV:"production",BROWSER_BRIDGE_INTERNAL_TRANSPORT:"true",BROWSER_BRIDGE_HOST:"0.0.0.0",BROWSER_BRIDGE_PORT:"8080",BROWSER_BRIDGE_TLS_TERMINATED:"true"};
   enableInternet=true;
   pingEndpoint="localhost/health";
 
