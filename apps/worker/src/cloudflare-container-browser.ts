@@ -4,6 +4,7 @@ import type {Env} from "./types";
 import {containerUnknownOutcome} from "./cloudflare-container-browser-transport";
 
 const INTERNAL_PATH="/v1/internal-authenticated-browser";
+const HEALTH_PATH="/health";
 
 /**
  * A single named DO represents one fenced bridge execution.  It owns no
@@ -17,6 +18,13 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
   envVars={NODE_ENV:"production",BROWSER_BRIDGE_INTERNAL_TRANSPORT:"true",BROWSER_BRIDGE_HOST:"0.0.0.0",BROWSER_BRIDGE_PORT:"8080",BROWSER_BRIDGE_TLS_TERMINATED:"true"};
   enableInternet=true;
   pingEndpoint="localhost/health";
+
+  async health():Promise<"READY"|"UNAVAILABLE">{
+    try{
+      const response=await this.containerFetch(HEALTH_PATH,{method:"GET"},8080);
+      return response.ok?"READY":"UNAVAILABLE";
+    }catch{return "UNAVAILABLE";}
+  }
 
   async executeAuthenticatedBrowser(request:AuthenticatedBrowserBridgeRequest):Promise<AuthenticatedBrowserBridgeResult>{
     const body=JSON.stringify(request);if(byteLength(body)>BRIDGE_MAX_REQUEST_BYTES)throw new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE");
