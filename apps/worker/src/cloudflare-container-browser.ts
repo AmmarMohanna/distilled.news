@@ -16,6 +16,7 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
   requiredPorts=[8080];
   sleepAfter="60s";
   envVars={NODE_ENV:"production",BROWSER_BRIDGE_INTERNAL_TRANSPORT:"true",BROWSER_BRIDGE_HOST:"0.0.0.0",BROWSER_BRIDGE_PORT:"8080",BROWSER_BRIDGE_TLS_TERMINATED:"true"};
+  entrypoint=["pnpm","--filter","@distilled/browser-bridge","exec","tsx","src/server.ts"];
   enableInternet=true;
   pingEndpoint="container/health";
 
