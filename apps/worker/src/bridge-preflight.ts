@@ -61,7 +61,8 @@ export async function handleContainerPreflight(request:Request,env:Env):Promise<
     return Response.json({pass:true,provider:"CLOUDFLARE_CONTAINER",allocated:true,observed:!!observation,cleanup:true,synthetic:true});
   }catch(error){
     if(capability&&sessionId){try{await new CloudflareContainerBrowserBridgeTransport(env.AUTHENTICATED_BROWSER_CONTAINER).execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"CLOSE_AUTH_BROWSER"})}catch{/* cleanup is best effort after a failed synthetic probe */}}
-    return Response.json({pass:false,provider:"CLOUDFLARE_CONTAINER",error:error instanceof Error?error.name:"preflight_failed"},{status:502});
+    const errorCode=error&&typeof error==="object"&&"code"in error&&typeof (error as {code?:unknown}).code==="string"?(error as {code:string}).code:undefined;
+    return Response.json({pass:false,provider:"CLOUDFLARE_CONTAINER",error:error instanceof Error?error.name:"preflight_failed",...(errorCode?{errorCode}: {})},{status:502});
   }
 }
 
