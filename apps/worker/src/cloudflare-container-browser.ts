@@ -19,12 +19,16 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
   enableInternet=true;
   pingEndpoint="container/health";
 
-  async health():Promise<{state:"READY"}|{state:"HTTP_ERROR";status:number}|{state:"UNAVAILABLE"}>{
+  async health():Promise<{state:"READY"}|{state:"HTTP_ERROR";status:number}|{state:"UNAVAILABLE";kind:"NO_INSTANCE"|"PORT_NOT_READY"|"START_FAILED"}>{
     try{
       await this.startAndWaitForPorts({ports:8080});
       const response=await this.containerFetch(HEALTH_PATH,{method:"GET"},8080);
       return response.ok?{state:"READY"}:{state:"HTTP_ERROR",status:response.status};
-    }catch{return {state:"UNAVAILABLE"};}
+    }catch(error){
+      const message=error instanceof Error?error.message:"";
+      const kind=/no instance|provision|concurrent instance/i.test(message)?"NO_INSTANCE":/port|connect|fetch|timeout|ready/i.test(message)?"PORT_NOT_READY":"START_FAILED";
+      return {state:"UNAVAILABLE",kind};
+    }
   }
 
   async executeAuthenticatedBrowser(request:AuthenticatedBrowserBridgeRequest):Promise<AuthenticatedBrowserBridgeResult>{
