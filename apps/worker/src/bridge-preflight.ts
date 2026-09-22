@@ -60,7 +60,8 @@ export async function handleContainerPreflight(request:Request,env:Env):Promise<
     const open=await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"OPEN_AUTH_BROWSER"}) as {sessionId:string;runId:string;tenantId:string;generation:number};
     if(open.runId!==capability.runId||open.tenantId!==capability.tenantId||open.generation!==capability.browserGeneration)throw new Error("container_fence_mismatch");
     sessionId=open.sessionId;
-    const observation=await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"OBSERVE_AUTH_SURFACE",wait:"AUTH_SURFACE"});
+    await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"NAVIGATE_AUTH_ENTRYPOINT"});
+    const observation=await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"OBSERVE_AUTH_SURFACE"});
     await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"CLOSE_AUTH_BROWSER"});sessionId=undefined;
     return Response.json({pass:true,provider:"CLOUDFLARE_CONTAINER",allocated:true,observed:!!observation,cleanup:true,synthetic:true});
   }catch(error){
