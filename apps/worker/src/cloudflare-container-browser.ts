@@ -14,13 +14,13 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
   defaultPort=8080;
   requiredPorts=[8080];
   sleepAfter="60s";
-  env={NODE_ENV:"production",BROWSER_BRIDGE_INTERNAL_TRANSPORT:"true",BROWSER_BRIDGE_HOST:"0.0.0.0",BROWSER_BRIDGE_PORT:"8080",BROWSER_BRIDGE_TLS_TERMINATED:"true"};
+  envVars={NODE_ENV:"production",BROWSER_BRIDGE_INTERNAL_TRANSPORT:"true",BROWSER_BRIDGE_HOST:"0.0.0.0",BROWSER_BRIDGE_PORT:"8080",BROWSER_BRIDGE_TLS_TERMINATED:"true"};
   enableInternet=true;
   pingEndpoint="localhost/health";
 
   async executeAuthenticatedBrowser(request:AuthenticatedBrowserBridgeRequest):Promise<AuthenticatedBrowserBridgeResult>{
     const body=JSON.stringify(request);if(byteLength(body)>BRIDGE_MAX_REQUEST_BYTES)throw new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE");
-    let response:Response;try{response=await this.containerFetch(INTERNAL_PATH,{method:"POST",headers:{"content-type":"application/json","content-length":String(byteLength(body))},body},8080);}catch{throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation))}
+    let response:Response;try{await this.startAndWaitForPorts({ports:8080});response=await this.containerFetch(INTERNAL_PATH,{method:"POST",headers:{"content-type":"application/json","content-length":String(byteLength(body))},body},8080);}catch{throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation))}
     const declared=Number(response.headers.get("content-length")??0);if(declared>BRIDGE_MAX_RESPONSE_BYTES)throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation));
     let text:string;try{text=await response.text()}catch{throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation))}if(byteLength(text)>BRIDGE_MAX_RESPONSE_BYTES)throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation));
     let envelope:Partial<AuthenticatedBrowserBridgeResponse>;try{envelope=JSON.parse(text) as Partial<AuthenticatedBrowserBridgeResponse>}catch{throw new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation))}
