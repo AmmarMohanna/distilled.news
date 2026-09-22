@@ -52,8 +52,8 @@ export async function handleContainerPreflight(request:Request,env:Env):Promise<
   try{
     const binding=env.AUTHENTICATED_BROWSER_CONTAINER;
     const containerId=binding.idFromName("auth-browser:bridge_execution_container_preflight");
-    const health=await binding.get(containerId).health?.()??"UNAVAILABLE";
-    if(health!=="READY")return Response.json({pass:false,provider:"CLOUDFLARE_CONTAINER",health,stage:"container_health"},{status:502});
+    const health=await binding.get(containerId).health?.()??{state:"UNAVAILABLE" as const};
+    if(health.state!=="READY")return Response.json({pass:false,provider:"CLOUDFLARE_CONTAINER",health,stage:"container_health"},{status:502});
     const transport=new CloudflareContainerBrowserBridgeTransport(binding);
     const issuedAt=new Date().toISOString();
     capability={bridgeExecutionId:"bridge_execution_container_preflight",bootstrapRequestId:"container_preflight",runId:"container_preflight",tenantId:"container_preflight",ownerId:"container_preflight",profileId:"container_preflight",expectedProfileVersion:0,browserGeneration:1,authFlowId:"auth_flow_container_preflight",siteKind:"synthetic",authEntryPoint:"https://example.com/login",sessionProbeUrl:"https://example.com/home",allowedOrigins:["https://example.com"],writeOrigins:[],issuedAt,expiresAt:new Date(Date.now()+120_000).toISOString(),operationBudget:8};

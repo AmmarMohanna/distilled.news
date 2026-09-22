@@ -1,6 +1,6 @@
 import {AuthenticatedBrowserBridgeError,BRIDGE_MUTATION_OPERATIONS,type AuthenticatedBrowserBridgeFailureCode,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserBridgeResult,type BrowserBridgeTransport} from "@distilled/agent-runtime";
 
-export interface AuthenticatedBrowserContainerRpc{executeAuthenticatedBrowser(request:AuthenticatedBrowserBridgeRequest):Promise<AuthenticatedBrowserBridgeResult>;health?():Promise<"READY"|"UNAVAILABLE">}
+export interface AuthenticatedBrowserContainerRpc{executeAuthenticatedBrowser(request:AuthenticatedBrowserBridgeRequest):Promise<AuthenticatedBrowserBridgeResult>;health?():Promise<{state:"READY"}|{state:"HTTP_ERROR";status:number}|{state:"UNAVAILABLE"}>}
 
 /** Runtime-neutral typed DO RPC transport; it deliberately has no container fetch, shell, or arbitrary URL API. */
 export class CloudflareContainerBrowserBridgeTransport implements BrowserBridgeTransport{
