@@ -27,3 +27,5 @@ export * from "./http-html-acquisition";
 export * from "./workflow";
 
 export * from "./source-acquisition-orchestrator";
+
+export * from "./production-web-operator-adapter";
