@@ -23,4 +23,5 @@ export * from "./state-machine";
 export * from "./tools";
 export * from "./temporal-acquisition";
 export * from "./rss-acquisition";
+export * from "./http-html-acquisition";
 export * from "./workflow";
