@@ -35,6 +35,10 @@ export interface BrowserObservationData {
   observationSource: "CDP_DOM_SNAPSHOT" | "CDP_ACCESSIBILITY_TREE" | "CDP_SCREENSHOT";
   protocolSnapshotVersion: string;
   formCountCategory?: "none" | "one" | "few" | "many";
+  documentCountCategory?: "none" | "one" | "few" | "many";
+  iframeCountCategory?: "none" | "one" | "few" | "many";
+  domNodeCountCategory?: "none" | "one" | "few" | "many";
+  accessibilityNodeCountCategory?: "none" | "one" | "few" | "many";
   controls: SemanticControl[];
   challengeState: ChallengeState;
   httpStatus?: number;
@@ -114,6 +118,7 @@ export const AUTH_SURFACE_MAX_TEXT=4_000;
 const AUTH_HANDLE_TTL_MS=60_000;
 export interface AuthenticatedBrowserSurface {
   url:string;title:string;pageRevision:string;challengeState:ChallengeState;visibleText:string;formCountCategory?:"none"|"one"|"few"|"many";
+  documentCountCategory?:"none"|"one"|"few"|"many";iframeCountCategory?:"none"|"one"|"few"|"many";domNodeCountCategory?:"none"|"one"|"few"|"many";accessibilityNodeCountCategory?:"none"|"one"|"few"|"many";
   controls:Array<{handle:string;kind:string;role?:string;label:string;type?:string;autocomplete?:string;insideForm:boolean;disabled:boolean;visible?:boolean;focusable?:boolean}>;
 }
 
@@ -188,6 +193,10 @@ interface TrustedBrowserObservation {
   observationSource: BrowserObservationData["observationSource"];
   protocolSnapshotVersion: string;
   formCountCategory: "none"|"one"|"few"|"many";
+  documentCountCategory?: "none"|"one"|"few"|"many";
+  iframeCountCategory?: "none"|"one"|"few"|"many";
+  domNodeCountCategory?: "none"|"one"|"few"|"many";
+  accessibilityNodeCountCategory?: "none"|"one"|"few"|"many";
 }
 
 interface SnapshotDocument {
@@ -450,7 +459,7 @@ export class PlaywrightBrowserAdapter
 
   async navigateAuthenticationEntrypoint(scope:BrowserScope,entrypoint:string,writeOrigins:string[]){const live=this.requireHealthy(scope);if(!live.allowedOrigins.has(new URL(entrypoint).origin)||writeOrigins.some(origin=>!live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("authentication entrypoint outside browser policy");live.authenticationBootstrap=true;live.authenticationWriteOrigins=new Set(writeOrigins);await this.navigateDirectly(live,entrypoint,"domcontentloaded");}
 
-  async observeAuthenticationSurface(scope:BrowserScope,wait?:AuthSurfaceWait):Promise<AuthenticatedBrowserSurface>{const live=this.requireHealthy(scope);if(wait==="AUTH_SURFACE")await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});else if(wait==="PASSWORD_FIELD")await live.page.locator('input[type="password"]').first().waitFor({state:"visible",timeout:10_000});const observed=await this.observe(live,"page_state");const visibleText=String((observed.representation as {visibleText?:string}).visibleText??"").slice(0,AUTH_SURFACE_MAX_TEXT);return{url:observed.url,title:observed.title.slice(0,300),pageRevision:observed.pageRevision,challengeState:observed.challengeState,visibleText,formCountCategory:observed.formCountCategory??"none",controls:observed.controls.slice(0,AUTH_SURFACE_MAX_CONTROLS).map(control=>({handle:control.handle,kind:control.kind,role:control.role,label:control.label.slice(0,200),type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",visible:control.attributes?.["auth-visible"]==="true",focusable:control.attributes?.["auth-focusable"]==="true"}))};}
+  async observeAuthenticationSurface(scope:BrowserScope,wait?:AuthSurfaceWait):Promise<AuthenticatedBrowserSurface>{const live=this.requireHealthy(scope);if(wait==="AUTH_SURFACE")await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});else if(wait==="PASSWORD_FIELD")await live.page.locator('input[type="password"]').first().waitFor({state:"visible",timeout:10_000});const observed=await this.observe(live,"page_state");const visibleText=String((observed.representation as {visibleText?:string}).visibleText??"").slice(0,AUTH_SURFACE_MAX_TEXT);return{url:observed.url,title:observed.title.slice(0,300),pageRevision:observed.pageRevision,challengeState:observed.challengeState,visibleText,formCountCategory:observed.formCountCategory??"none",documentCountCategory:observed.documentCountCategory,iframeCountCategory:observed.iframeCountCategory,domNodeCountCategory:observed.domNodeCountCategory,accessibilityNodeCountCategory:observed.accessibilityNodeCountCategory,controls:observed.controls.slice(0,AUTH_SURFACE_MAX_CONTROLS).map(control=>({handle:control.handle,kind:control.kind,role:control.role,label:control.label.slice(0,200),type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",visible:control.attributes?.["auth-visible"]==="true",focusable:control.attributes?.["auth-focusable"]==="true"}))};}
 
   async injectAuthenticationField(scope:BrowserScope,input:{fieldKind:AuthFieldKind;fieldHandle:string;pageRevision:string;secretValue:string}){const live=this.requireHealthy(scope);const binding=await this.requireAuthenticationHandle(live,input.fieldHandle,input.pageRevision);if(!AUTH_FIELD_KINDS.includes(input.fieldKind)||typeof input.secretValue!=="string")throw new BrowserPreDispatchError("authentication field kind mismatch");const isPassword=binding.type?.toLowerCase()==="password"||binding.autocomplete?.toLowerCase()==="current-password";if((input.fieldKind==="PASSWORD")!==isPassword)throw new BrowserPreDispatchError("authentication field kind mismatch");if(!["textbox","searchbox"].includes((binding.role??"").toLowerCase()))throw new BrowserPreDispatchError("authentication field handle is not editable");await live.page.getByRole(binding.role as "textbox",{name:binding.label,exact:true}).fill(input.secretValue);this.invalidateTransientBindings(live);}
 
@@ -1010,7 +1019,11 @@ class CdpBrowserObservationProvider implements BrowserObservationProvider {
       article,
       observationSource: image ? "CDP_SCREENSHOT" : "CDP_DOM_SNAPSHOT",
       protocolSnapshotVersion,
-      formCountCategory
+      formCountCategory,
+      documentCountCategory:countCategory(snapshot.documents.length),
+      iframeCountCategory:countCategory([...nodes.values()].filter(node=>node.name==="iframe").length),
+      domNodeCountCategory:countCategory(nodes.size),
+      accessibilityNodeCountCategory:countCategory(ax.nodes?.length??0)
     };
   }
 }
