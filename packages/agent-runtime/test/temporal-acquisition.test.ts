@@ -4,9 +4,9 @@ import { MemorySourceHighWaterStore, TemporalSourceAcquisition, commitSourceHigh
 const request = (): SourceAcquisitionRequest => ({ source: { canonicalSourceUrl: "https://example.test/technology" }, window: { startTime: "2026-09-01T00:00:00.000Z", endTime: "2026-09-08T00:00:00.000Z" }, limits: { maxItems: 20, maxPages: 5, maxScrolls: 5, maxPhysicalAttempts: 5, maxExecutionMs: 10_000 }, authentication: "PUBLIC" });
 const item = (id: string, publishedAt?: string): AcquiredSourceItem => ({ sourceResource: "https://example.test/technology", sourceItemId: id, canonicalItemUrl: `https://example.test/post/${id}#fragment`, publishedAt, text: id, acquisitionEvidence: { timestampSource: publishedAt ? "time-element" : "none" } });
 class Pages implements SourceAcquisitionAdapter {
-  readonly authentication = "PUBLIC" as const; calls = 0; closed = 0;
+  readonly authentication = "PUBLIC" as const; calls = 0; closed = 0; opened?: SourceAcquisitionRequest; requests: SourceAcquisitionRequest[] = [];
   constructor(private readonly pages: SourceAcquisitionPage[]) {}
-  async open() {} async next() { return this.pages[this.calls++] ?? { items: [], paginationExhausted: true }; } async close() { this.closed++; }
+  async open(request: SourceAcquisitionRequest) { this.opened = request; this.requests.push(request); } async next(request: SourceAcquisitionRequest) { this.requests.push(request); return this.pages[this.calls++] ?? { items: [], paginationExhausted: true }; } async close() { this.closed++; }
 }
 
 describe("generic temporal source acquisition", () => {
@@ -43,5 +43,39 @@ describe("generic temporal source acquisition", () => {
     const covered = await new TemporalSourceAcquisition().acquire(request(), new Pages([{ items: [item("in", "2026-09-02T00:00:00.000Z"), item("old", "2026-08-31T00:00:00.000Z")], sourceExhausted: true }]));
     const store = new MemorySourceHighWaterStore(); await commitSourceHighWater(store, "source", covered);
     expect(await store.get("source")).toEqual({ key: "source", lastSuccessfulBoundary: "2026-09-08T00:00:00.000Z" });
+  });
+  it("clamps a past requested end to itself, including an equal as-of", async () => {
+    for (const acquisitionAsOf of ["2026-09-10T00:00:00.000Z", "2026-09-08T00:00:00.000Z"]) {
+      const run = request(); run.acquisitionAsOf = acquisitionAsOf;
+      const adapter = new Pages([{ items: [item("in", "2026-09-02T00:00:00.000Z")], sourceExhausted: true }]);
+      const result = await new TemporalSourceAcquisition().acquire(run, adapter);
+      expect(result.effectiveWindow.endTime).toBe("2026-09-08T00:00:00.000Z");
+      expect(adapter.opened?.window.endTime).toBe(result.effectiveWindow.endTime);
+    }
+  });
+  it("clamps a future requested end to one fixed acquisition-as-of and excludes later items", async () => {
+    const run = request(); run.window.endTime = "2026-09-20T00:00:00.000Z"; run.acquisitionAsOf = "2026-09-08T12:00:00.000Z";
+    const adapter = new Pages([{ items: [item("inside", "2026-09-08T11:59:59.000Z"), item("after-as-of", "2026-09-08T12:00:00.000Z"), item("future", "2026-09-09T00:00:00.000Z")], sourceExhausted: true }]);
+    const result = await new TemporalSourceAcquisition().acquire(run, adapter);
+    expect(result.effectiveWindow.endTime).toBe("2026-09-08T12:00:00.000Z");
+    expect(result.items.map(value => value.sourceItemId)).toEqual(["inside"]);
+    const store = new MemorySourceHighWaterStore(); await commitSourceHighWater(store, "source", result);
+    expect(await store.get("source")).toMatchObject({ lastSuccessfulBoundary: "2026-09-08T12:00:00.000Z" });
+  });
+  it("captures the acquisition-as-of clock once and preserves it for replay", async () => {
+    let clockCalls = 0; const clock = () => { clockCalls++; return new Date("2026-09-08T12:00:00.000Z"); };
+    const run = request(); run.window.endTime = "2026-09-20T00:00:00.000Z";
+    const adapter = new Pages([{ items: [item("in", "2026-09-08T11:00:00.000Z")], sourceExhausted: true }]);
+    const result = await new TemporalSourceAcquisition(clock).acquire(run, adapter);
+    expect(clockCalls).toBe(1); expect(result.acquisitionAsOf).toBe("2026-09-08T12:00:00.000Z");
+    const replay = { ...run, acquisitionAsOf: result.acquisitionAsOf };
+    const replayResult = await new TemporalSourceAcquisition(() => { throw new Error("clock must not be consulted for replay"); }).acquire(replay, new Pages([{ items: [item("in", "2026-09-08T11:00:00.000Z")], sourceExhausted: true }]));
+    expect(replayResult.effectiveWindow).toEqual(result.effectiveWindow);
+  });
+  it("does not advance high-water for incomplete coverage even when an as-of is present", async () => {
+    const run = request(); run.window.endTime = "2026-09-20T00:00:00.000Z"; run.acquisitionAsOf = "2026-09-08T12:00:00.000Z";
+    const result = await new TemporalSourceAcquisition().acquire(run, new Pages([{ items: [item("recent", "2026-09-08T11:00:00.000Z")] , paginationExhausted: true }]));
+    const store = new MemorySourceHighWaterStore(); await store.put({ key: "source", lastSuccessfulBoundary: "2026-09-01T00:00:00.000Z" }); await commitSourceHighWater(store, "source", result);
+    expect(await store.get("source")).toMatchObject({ lastSuccessfulBoundary: "2026-09-01T00:00:00.000Z", unresolvedWindow: run.window });
   });
 });

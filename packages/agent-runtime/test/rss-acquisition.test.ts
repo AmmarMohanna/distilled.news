@@ -2,7 +2,7 @@ import {describe,expect,it} from "vitest";
 import {RssFeedSourceAcquisitionAdapter} from "../src/rss-acquisition";
 import {TemporalSourceAcquisition,type SourceAcquisitionRequest} from "../src/temporal-acquisition";
 
-const request:SourceAcquisitionRequest={source:{sourceFamily:"rss",canonicalSourceUrl:"https://news.example.test",resourceLocator:"https://news.example.test/feed.xml"},window:{startTime:"2026-09-22T00:00:00Z",endTime:"2026-09-24T00:00:00Z"},limits:{maxItems:20,maxPages:2,maxScrolls:1,maxPhysicalAttempts:2,maxExecutionMs:10_000},authentication:"PUBLIC"};
+const request:SourceAcquisitionRequest={source:{sourceFamily:"rss",canonicalSourceUrl:"https://news.example.test",resourceLocator:"https://news.example.test/feed.xml"},window:{startTime:"2026-09-22T00:00:00Z",endTime:"2026-09-24T00:00:00Z"},limits:{maxItems:20,maxPages:2,maxScrolls:1,maxPhysicalAttempts:2,maxExecutionMs:10_000},authentication:"PUBLIC",acquisitionAsOf:"2026-09-24T00:00:00Z"};
 const xml=`<rss><channel><item><title><![CDATA[Older]]></title><description><![CDATA[old summary]]></description><link>https://news.example.test/a#1</link><guid>https://news.example.test/a#1</guid><pubDate>Mon, 21 Sep 2026 23:00:00 GMT</pubDate></item><item><title>Boundary</title><description>boundary summary</description><link>https://news.example.test/b</link><guid>https://news.example.test/b#1</guid><pubDate>Tue, 22 Sep 2026 00:00:00 GMT</pubDate></item><item><title>Inside</title><description>inside summary</description><link>https://news.example.test/c</link><guid>https://news.example.test/c#1</guid><pubDate>Wed, 23 Sep 2026 12:00:00 GMT</pubDate></item></channel></rss>`;
 
 describe("generic RSS acquisition adapter",()=>{

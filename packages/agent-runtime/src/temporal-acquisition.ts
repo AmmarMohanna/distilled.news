@@ -13,6 +13,8 @@ export interface SourceAcquisitionRequest {
   filters?: { includeReplies?: boolean; includeReposts?: boolean; contentTypes?: string[] };
   limits: { maxItems: number; maxPages: number; maxScrolls: number; maxPhysicalAttempts: number; maxExecutionMs: number };
   authentication?: SourceAuthenticationMode;
+  /** Fixed observation bound for replay/tests; production callers omit it and the kernel captures it once. */
+  acquisitionAsOf?: string;
 }
 
 export interface AcquiredSourceItem {
@@ -39,6 +41,8 @@ export interface SourceAcquisitionCoverage {
 export interface SourceAcquisitionResult {
   items: AcquiredSourceItem[];
   requestedWindow: SourceAcquisitionRequest["window"];
+  effectiveWindow: SourceAcquisitionRequest["window"];
+  acquisitionAsOf: string;
   coverage: SourceAcquisitionCoverage;
   continuation?: { pageCount: number; scrollCount: number; noProgressCount: number; uniqueCanonicalIds: number; uniqueCanonicalUrls: number };
   provenance?: { workflowId?: string; workflowVersion?: number; mechanism?: string };
@@ -81,19 +85,26 @@ export function canonicalItemIdentity(item: AcquiredSourceItem): string | undefi
 }
 
 export class TemporalSourceAcquisition {
+  constructor(private readonly acquisitionClock:()=>Date=()=>new Date()){}
   async acquire(request: SourceAcquisitionRequest, adapter: SourceAcquisitionAdapter): Promise<SourceAcquisitionResult> {
     assertWindow(request.window);
+    const acquisitionAsOf=request.acquisitionAsOf??this.acquisitionClock().toISOString();
+    const asOf=trustedTime(acquisitionAsOf); if(asOf===undefined)throw new Error("acquisitionAsOf must be a valid timestamp");
+    const requestedEnd=trustedTime(request.window.endTime)!;
+    const effectiveWindow={...request.window,endTime:iso(Math.min(requestedEnd,asOf))!};
+    assertWindow(effectiveWindow);
+    const effectiveRequest={...request,window:effectiveWindow};
     const started = Date.now(), seen = new Set<string>(), idSet = new Set<string>(), urlSet = new Set<string>();
     const items: AcquiredSourceItem[] = []; let pages = 0, scrolls = 0, attempts = 0, noProgress = 0;
     let newest: number | undefined, oldest: number | undefined, stopReason: SourceAcquisitionStopReason = "SOURCE_PAGINATION_EXHAUSTED";
     try {
-      await adapter.open(request);
+      await adapter.open(effectiveRequest);
       while (true) {
         if (Date.now() - started >= request.limits.maxExecutionMs) { stopReason = "EXECUTION_BUDGET_REACHED"; break; }
         if (pages >= request.limits.maxPages) { stopReason = "MAX_PAGES_REACHED"; break; }
         if (scrolls >= request.limits.maxScrolls) { stopReason = "MAX_SCROLLS_REACHED"; break; }
         if (attempts >= request.limits.maxPhysicalAttempts) { stopReason = "EXECUTION_BUDGET_REACHED"; break; }
-        attempts++; const page = await adapter.next(request); pages++; scrolls += page.scrolls ?? 0;
+        attempts++; const page = await adapter.next(effectiveRequest); pages++; scrolls += page.scrolls ?? 0;
         let progress = false;
         for (const item of page.items) {
           const timestamp = trustedTime(item.publishedAt);
@@ -102,7 +113,7 @@ export class TemporalSourceAcquisition {
           seen.add(identity); progress = true;
           if (item.sourceItemId?.trim()) idSet.add(item.sourceItemId.trim());
           if (item.canonicalItemUrl) { try { const url = new URL(item.canonicalItemUrl); url.hash = ""; urlSet.add(url.href); } catch { /* invalid URLs are not canonical identities */ } }
-          if (itemInRequestedWindow(item, request.window)) items.push(item);
+          if (itemInRequestedWindow(item, effectiveWindow)) items.push(item);
           if (items.length >= request.limits.maxItems) { stopReason = "MAX_ITEMS_REACHED"; break; }
         }
         if (!progress) noProgress++;
@@ -116,7 +127,7 @@ export class TemporalSourceAcquisition {
     const hasTimestampEvidence = oldest !== undefined;
     const rangeCovered = hasTimestampEvidence && (stopReason === "START_BOUNDARY_REACHED" || stopReason === "SOURCE_EXHAUSTED");
     if (!hasTimestampEvidence && (stopReason === "START_BOUNDARY_REACHED" || stopReason === "SOURCE_EXHAUSTED" || stopReason === "SOURCE_PAGINATION_EXHAUSTED")) stopReason = "SOURCE_TIMESTAMP_UNAVAILABLE";
-    return { items, requestedWindow: request.window, coverage: { newestObservedTimestamp: iso(newest), oldestObservedTimestamp: iso(oldest), rangeCovered, truncated: !rangeCovered, stopReason }, continuation: { pageCount: pages, scrollCount: scrolls, noProgressCount: noProgress, uniqueCanonicalIds: idSet.size, uniqueCanonicalUrls: urlSet.size } };
+    return { items, requestedWindow: request.window, effectiveWindow, acquisitionAsOf, coverage: { newestObservedTimestamp: iso(newest), oldestObservedTimestamp: iso(oldest), rangeCovered, truncated: !rangeCovered, stopReason }, continuation: { pageCount: pages, scrollCount: scrolls, noProgressCount: noProgress, uniqueCanonicalIds: idSet.size, uniqueCanonicalUrls: urlSet.size } };
   }
 }
 
@@ -124,7 +135,7 @@ export class TemporalSourceAcquisition {
 export async function commitSourceHighWater(store: SourceHighWaterStore, key: string, result: SourceAcquisitionResult): Promise<SourceHighWaterState> {
   const current = await store.get(key) ?? { key };
   const next: SourceHighWaterState = result.coverage.rangeCovered
-    ? { key, lastSuccessfulBoundary: result.requestedWindow.endTime }
+    ? { key, lastSuccessfulBoundary: result.effectiveWindow.endTime }
     : { ...current, unresolvedWindow: result.requestedWindow };
   await store.put(next); return next;
 }
