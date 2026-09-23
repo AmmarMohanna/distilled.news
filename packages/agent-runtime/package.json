@@ -22,6 +22,7 @@
     "./product-loop": "./src/product-loop.ts",
     "./workflow": "./src/workflow.ts",
     "./temporal-acquisition": "./src/temporal-acquisition.ts",
+    "./rss-acquisition": "./src/rss-acquisition.ts",
     "./state-machine": "./src/state-machine.ts"
   },
   "scripts": {
