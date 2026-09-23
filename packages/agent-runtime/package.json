@@ -27,6 +27,7 @@
     "./source-acquisition-orchestrator": "./src/source-acquisition-orchestrator.ts",
     "./production-web-operator-adapter": "./src/production-web-operator-adapter.ts",
     "./production-source-acquisition-service": "./src/production-source-acquisition-service.ts",
+    "./upstream-resource": "./src/upstream-resource.ts",
     "./state-machine": "./src/state-machine.ts"
   },
   "scripts": {

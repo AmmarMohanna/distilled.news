@@ -9,6 +9,8 @@ import { D1AgentRuntimeStore } from "./agent-runtime-store";
 import { R2AgentArtifactStore } from "./agent-artifact-store";
 import type { Env } from "./types";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
+import { D1SourceHighWaterStore } from "./source-acquisition-store";
+import { ProductionSourceAcquisitionService, type ProductionSourceAcquisitionDependencies } from "@distilled/agent-runtime";
 
 interface BrowserWorkerBinding {
   fetch: typeof fetch;
@@ -59,6 +61,33 @@ export function createWorkerClosedLoopWebOperatorLifecycle(
   });
 }
 
+
+/** Worker composition root for generic bounded source acquisition. Stage adapters are injected
+ * by the source registry; persistence and workflow lookup are always durable Worker stores. */
+export function createWorkerProductionSourceAcquisitionService(
+  env: Env,
+  dependencies: Omit<ProductionSourceAcquisitionDependencies, "highWater" | "lookupActiveWorkflow"> & {
+    tenantId: string;
+    ownerId: string;
+    executeActiveWorkflow: (input: { resourceId: string; request: import("@distilled/agent-runtime").SourceAcquisitionRequest; workflow: import("@distilled/agent-runtime").WorkflowCandidate }) => Promise<import("@distilled/agent-runtime").AcquisitionStageOutcome>;
+  }
+) {
+  const workflowStore = new D1WorkflowRepository(env.DB);
+  const highWater = new D1SourceHighWaterStore(env.DB, dependencies.tenantId);
+  return new ProductionSourceAcquisitionService({
+    ...dependencies,
+    highWater,
+    lookupActiveWorkflow: async ({ resourceId }) => {
+      const active = await workflowStore.getActiveWorkflow(resourceId);
+      if (!active) return undefined;
+      return {
+        id: active.id,
+        version: active.version,
+        execute: async (request) => dependencies.executeActiveWorkflow({ resourceId, request, workflow: active })
+      };
+    }
+  });
+}
 export function workerCloudflareBrowser(
   env: Pick<Env, "DISTILLED_BROWSER_BACKEND" | "BROWSER">,
   launcher: CloudflareBrowserLauncher = cloudflarePlaywrightLaunch

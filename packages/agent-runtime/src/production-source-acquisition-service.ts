@@ -49,8 +49,8 @@ export class ProductionSourceAcquisitionService {
     });
     const outcome = await orchestrator.acquire(request);
     let committedHighWater: SourceHighWaterState | undefined;
-    if (outcome.status === "SUCCESS" && outcome.result) committedHighWater = await commitSourceHighWater(this.dependencies.highWater, input.resourceId, outcome.result);
-    else if (outcome.result) committedHighWater = await this.dependencies.highWater.get(input.resourceId);
+    if (outcome.status === "SUCCESS" && outcome.result) committedHighWater = await commitSourceHighWater(this.dependencies.highWater, `${input.tenantId}:${input.resourceId}`, outcome.result);
+    else if (outcome.result) committedHighWater = await this.dependencies.highWater.get(`${input.tenantId}:${input.resourceId}`);
     return { ...outcome, request, committedHighWater };
   }
 }
