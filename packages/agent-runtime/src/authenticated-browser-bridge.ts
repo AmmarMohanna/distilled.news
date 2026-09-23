@@ -13,7 +13,7 @@ export const BRIDGE_MAX_SECRET_CHARS=4_096;
 export const BRIDGE_MAX_OPERATION_BUDGET=64;
 export const BRIDGE_FAILURE_CODES=["BRIDGE_UNAVAILABLE","BRIDGE_UNAUTHORIZED","BRIDGE_REPLAY_REJECTED","BRIDGE_EXECUTION_EXPIRED","BRIDGE_FENCE_MISMATCH","BRIDGE_OBSERVATION_STALE","BRIDGE_NETWORK_POLICY_DENIED","BRIDGE_EFFECT_UNKNOWN","BRIDGE_BROWSER_FAILURE","BRIDGE_PROTOCOL_UNSUPPORTED","BRIDGE_PAYLOAD_TOO_LARGE","BRIDGE_OPERATION_UNKNOWN"] as const;
 export type AuthenticatedBrowserBridgeFailureCode=typeof BRIDGE_FAILURE_CODES[number];
-export class AuthenticatedBrowserBridgeError extends Error{constructor(public readonly code:AuthenticatedBrowserBridgeFailureCode){super(code);this.name="AuthenticatedBrowserBridgeError"}}
+export type BrowserNetworkPolicyRule="ORIGIN_NOT_ADMITTED"|"REDIRECT_ORIGIN_NOT_ADMITTED"|"FINAL_ORIGIN_NOT_ADMITTED"|"SCHEME_NOT_ALLOWED"|"PRIVATE_OR_UNRESOLVED_ORIGIN"|"METHOD_NOT_ALLOWED"|"REQUEST_BLOCKED"; export interface BrowserNetworkPolicyDiagnostic{policyRule:BrowserNetworkPolicyRule;deniedHostname?:string;redirectHop:boolean;topLevelNavigation:boolean;sameSiteWithRequestedSource?:boolean;admittedOriginCount?:number;} export class AuthenticatedBrowserBridgeError extends Error{constructor(public readonly code:AuthenticatedBrowserBridgeFailureCode,public readonly diagnostic?:BrowserNetworkPolicyDiagnostic){super(code);this.name="AuthenticatedBrowserBridgeError"}}
 export const BRIDGE_OPERATIONS=["OPEN_AUTH_BROWSER","RESTORE_AUTH_STATE","NAVIGATE_AUTH_ENTRYPOINT","OBSERVE_AUTH_SURFACE","NAVIGATE_PUBLIC_PAGE","OBSERVE_PUBLIC_PAGE","INJECT_AUTH_FIELD","ACTIVATE_AUTH_CONTROL","CAPTURE_AUTH_STATE","CLOSE_AUTH_BROWSER"] as const;
 export type AuthenticatedBrowserBridgeOperation=typeof BRIDGE_OPERATIONS[number];
 /** Operations whose transport-level outcome must never be blindly repeated: an unknown result is BRIDGE_EFFECT_UNKNOWN. */
@@ -34,7 +34,7 @@ export type AuthenticatedBrowserBridgeRequest=
   | (BoundOperation&{operation:"CAPTURE_AUTH_STATE"})
   | (BoundOperation&{operation:"CLOSE_AUTH_BROWSER"});
 export type AuthenticatedBrowserBridgeResult=BrowserAllocation|AuthenticatedBrowserSurface|PublicBrowserObservation|BrowserSessionState|{closed:true}|{accepted:true};
-export type AuthenticatedBrowserBridgeResponse={protocol:typeof AUTHENTICATED_BROWSER_BRIDGE_PROTOCOL;ok:true;result:AuthenticatedBrowserBridgeResult}|{protocol:typeof AUTHENTICATED_BROWSER_BRIDGE_PROTOCOL;ok:false;error:{code:AuthenticatedBrowserBridgeFailureCode}};
+export type AuthenticatedBrowserBridgeResponse={protocol:typeof AUTHENTICATED_BROWSER_BRIDGE_PROTOCOL;ok:true;result:AuthenticatedBrowserBridgeResult}|{protocol:typeof AUTHENTICATED_BROWSER_BRIDGE_PROTOCOL;ok:false;error:{code:AuthenticatedBrowserBridgeFailureCode;diagnostic?:BrowserNetworkPolicyDiagnostic}};
 
 export interface BrowserBridgeTransport{execute(request:AuthenticatedBrowserBridgeRequest):Promise<AuthenticatedBrowserBridgeResult>}
 export class HttpAuthenticatedBrowserBridgeClient implements BrowserBridgeTransport{
@@ -49,7 +49,7 @@ export class HttpAuthenticatedBrowserBridgeClient implements BrowserBridgeTransp
     let envelope:Partial<AuthenticatedBrowserBridgeResponse>|undefined;try{envelope=JSON.parse(text) as Partial<AuthenticatedBrowserBridgeResponse>}catch{throw new AuthenticatedBrowserBridgeError(unknownOutcome)}
     if(!envelope||typeof envelope!=="object"||envelope.protocol!==AUTHENTICATED_BROWSER_BRIDGE_PROTOCOL)throw new AuthenticatedBrowserBridgeError(unknownOutcome);
     if(envelope.ok===true&&response.ok&&envelope.result!==undefined)return envelope.result;
-    if(envelope.ok===false){const code=(envelope.error as {code?:string}|undefined)?.code;if(BRIDGE_FAILURE_CODES.includes(code as AuthenticatedBrowserBridgeFailureCode))throw new AuthenticatedBrowserBridgeError(code as AuthenticatedBrowserBridgeFailureCode)}
+    if(envelope.ok===false){const bridgeError=envelope.error as {code?:string;diagnostic?:BrowserNetworkPolicyDiagnostic}|undefined;const code=bridgeError?.code;if(BRIDGE_FAILURE_CODES.includes(code as AuthenticatedBrowserBridgeFailureCode))throw new AuthenticatedBrowserBridgeError(code as AuthenticatedBrowserBridgeFailureCode,bridgeError?.diagnostic)}
     throw new AuthenticatedBrowserBridgeError(unknownOutcome);
   }
 }

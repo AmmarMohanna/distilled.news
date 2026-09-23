@@ -9,6 +9,12 @@ describe("public browser bounded diagnostics", () => {
     expect(JSON.stringify(result)).not.toContain("provider detail");
   });
 
+  it("preserves bounded policy diagnostics without raw URLs", () => {
+    const result = publicBrowserFailureDiagnostic(new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED", { policyRule: "ORIGIN_NOT_ADMITTED", deniedHostname: "cdn.example.test", redirectHop: false, topLevelNavigation: true, sameSiteWithRequestedSource: false, admittedOriginCount: 1 }), "NAVIGATE_PUBLIC_PAGE", true);
+    expect(result).toMatchObject({ policy: { policyRule: "ORIGIN_NOT_ADMITTED", deniedHostname: "cdn.example.test", redirectHop: false, topLevelNavigation: true, sameSiteWithRequestedSource: false, admittedOriginCount: 1 } });
+    expect(JSON.stringify(result)).not.toContain("/secret");
+  });
+
   it("preserves observation stage and omits raw provider errors", () => {
     const result = publicBrowserFailureDiagnostic(Object.assign(new Error("provider detail must not escape"), { name: "BrowserNavigationError" }), "OBSERVE_PUBLIC_PAGE", false);
     expect(result).toMatchObject({ stage: "OBSERVE_PUBLIC_PAGE", operation: "OBSERVE_PUBLIC_PAGE", errorCode: "public_browser_acquisition_failed", cleanup: false });

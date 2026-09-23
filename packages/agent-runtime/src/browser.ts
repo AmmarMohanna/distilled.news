@@ -9,6 +9,7 @@ import type { BrowserSessionState } from "./auth-profile";
 import type { AuthenticatedBootstrapObserver,AuthenticatedSiteAdapter,AuthenticatedSiteDetection,AuthenticatedSiteSnapshot,AuthenticationChallengeRuntime,AuthenticationFlowLineage } from "./authenticated-site";
 import type { CredentialMaterial } from "./auth-profile";
 import { DetectOnlyBrowserChallengeProvider,type BrowserChallengeProvider } from "./challenge-coordinator";
+import type { BrowserNetworkPolicyDiagnostic } from "./authenticated-browser-bridge";
 
 /** Bounded identities carried with trusted observations so Worker/bridge skew is observable. */
 export const BROWSER_BRIDGE_PROTOCOL_VERSION="v1" as const;
@@ -185,7 +186,7 @@ interface LiveSession {
   signal?: AbortSignal;
   abortListener?: () => void;
   state: "healthy" | "crashed" | "closed";
-  blockedRequest?: { method: string; url: string };
+  blockedRequest?: { method: string; url: string; redirectHop?: boolean; topLevelNavigation?: boolean; deniedHostname?: string; policyRule?: BrowserNetworkPolicyDiagnostic["policyRule"] };
   cdp: CDPSession;
   lastMainDocumentStatus?: number;
   httpRequestCount: number;
@@ -270,7 +271,7 @@ export class BrowserPreDispatchError extends BrowserScopeError {
 export class BrowserPostDispatchError extends BrowserScopeError {
   constructor(message: string) { super(message); this.name = "BrowserPostDispatchError"; }
 }
-export class BrowserNavigationError extends BrowserPostDispatchError{constructor(public readonly code:"NAVIGATION_TIMEOUT"|"UNEXPECTED_AUTH_ORIGIN"|"NETWORK_POLICY_DENIED"|"INITIAL_NAVIGATION_FAILED"){super(code);this.name="BrowserNavigationError";}}
+export class BrowserNavigationError extends BrowserPostDispatchError{constructor(public readonly code:"NAVIGATION_TIMEOUT"|"UNEXPECTED_AUTH_ORIGIN"|"NETWORK_POLICY_DENIED"|"INITIAL_NAVIGATION_FAILED",public readonly diagnostic?:BrowserNetworkPolicyDiagnostic){super(code);this.name="BrowserNavigationError";}}
 export class BrowserAllocationError extends BrowserScopeError{constructor(public readonly code:"BROWSER_ALLOCATION_FAILED"|"BROWSER_CONTEXT_INITIALIZATION_FAILED",options?:{cause?:unknown}){super(code);this.name="BrowserAllocationError";if(options?.cause!==undefined)this.cause=options.cause;}}
 
 interface RedirectHopEvent { requestId: string; request: { url: string; method: string }; responseStatusCode?: number; responseHeaders?: Array<{ name: string; value: string }> }
@@ -403,16 +404,16 @@ export class PlaywrightBrowserAdapter
         await this.assertRequestAllowed(live, request.url(), request.method());
         await route.continue();
       } catch {
-        live.blockedRequest = { method: request.method(), url: request.url() };
+        live.blockedRequest = { method: request.method(), url: request.url(), redirectHop:false, topLevelNavigation:request.isNavigationRequest()&&request.frame()===live.page.mainFrame(), deniedHostname:hostnameOf(request.url()), policyRule:"ORIGIN_NOT_ADMITTED" };
         await route.abort("blockedbyclient");
       }
     });
     await context.routeWebSocket("**/*", async (webSocket) => {
-      live.blockedRequest = { method: "WEBSOCKET", url: webSocket.url() };
+      live.blockedRequest = { method: "WEBSOCKET", url: webSocket.url(), deniedHostname:hostnameOf(webSocket.url()), policyRule:"REQUEST_BLOCKED" };
       await webSocket.close({ code: 1008, reason: "active transport denied" });
     });
     page.on("download", (download) => {
-      live.blockedRequest = { method: "DOWNLOAD", url: download.url() };
+      live.blockedRequest = { method: "DOWNLOAD", url: download.url(), deniedHostname:hostnameOf(download.url()), policyRule:"REQUEST_BLOCKED" };
       void download.cancel().catch(() => undefined);
     });
     page.on("response", (response) => {
@@ -431,7 +432,7 @@ export class PlaywrightBrowserAdapter
     this.sessions.set(sessionId, live);
     context.on("page",(opened)=>{
       if (opened===page) return;
-      live.blockedRequest={method:"POPUP",url:opened.url()};
+      live.blockedRequest={method:"POPUP",url:opened.url(),deniedHostname:hostnameOf(opened.url()),policyRule:"REQUEST_BLOCKED"};
       void opened.close().catch(()=>undefined);
     });
     if (input.signal) {
@@ -773,11 +774,11 @@ export class PlaywrightBrowserAdapter
       const response = await live.page.goto(destinationUrl, { waitUntil });
       live.lastMainDocumentStatus = response?.status();
     } catch (error) {
-      if(live.blockedRequest)throw new BrowserNavigationError("NETWORK_POLICY_DENIED");
+      if(live.blockedRequest)throw new BrowserNavigationError("NETWORK_POLICY_DENIED",networkDiagnostic(live));
       if(error instanceof Error&&(error.name==="TimeoutError"||/timeout/i.test(error.message)))throw new BrowserNavigationError("NAVIGATION_TIMEOUT");
       throw new BrowserNavigationError("INITIAL_NAVIGATION_FAILED");
     }
-    if (live.blockedRequest) throw new BrowserNavigationError("NETWORK_POLICY_DENIED");
+    if (live.blockedRequest) throw new BrowserNavigationError("NETWORK_POLICY_DENIED",networkDiagnostic(live));
     try { this.assertFinalOrigin(live); } catch { throw new BrowserNavigationError("UNEXPECTED_AUTH_ORIGIN"); }
     this.invalidateTransientBindings(live);
     return this.observe(live, "page_state");
@@ -908,7 +909,7 @@ export class PlaywrightBrowserAdapter
   }
 
   private async judgeRedirectHop(live: LiveSession, session: CDPSession, event: RedirectHopEvent) {
-    let denied = false;
+    let denied = false; let deniedHostname: string | undefined;
     const status = event.responseStatusCode;
     if (status !== undefined && status >= 300 && status < 400) {
       const location = event.responseHeaders?.find((header) => header.name.toLowerCase() === "location")?.value;
@@ -916,11 +917,11 @@ export class PlaywrightBrowserAdapter
         try {
           const method = event.request.method.toUpperCase();
           await this.assertRequestAllowed(live, new URL(location, event.request.url).href, status === 307 || status === 308 ? method : method === "HEAD" ? "HEAD" : "GET");
-        } catch { denied = true; }
+        } catch { denied = true; try { deniedHostname = new URL(location, event.request.url).hostname; } catch {} }
       }
     }
     if (denied) {
-      live.blockedRequest = { method: event.request.method, url: event.request.url };
+      live.blockedRequest = { method: event.request.method, url: event.request.url, redirectHop:true, deniedHostname: deniedHostname, policyRule:"REDIRECT_ORIGIN_NOT_ADMITTED" };
       await session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" }).catch(() => undefined);
     } else {
       await session.send("Fetch.continueResponse", { requestId: event.requestId }).catch(() => undefined);
@@ -1288,6 +1289,8 @@ function isPrivateAddress(address:string): boolean {
 }
 
 function errorMessage(error:unknown) { return error instanceof Error ? error.message : String(error); }
+function hostnameOf(value:string){try{return new URL(value).hostname.slice(0,253)}catch{return undefined}}
+function networkDiagnostic(live:LiveSession):BrowserNetworkPolicyDiagnostic|undefined{const request=live.blockedRequest;if(!request)return undefined;return{policyRule:request.policyRule??"REQUEST_BLOCKED",deniedHostname:request.deniedHostname??hostnameOf(request.url),redirectHop:request.redirectHop===true,topLevelNavigation:request.topLevelNavigation??true,sameSiteWithRequestedSource:request.policyRule==="REDIRECT_ORIGIN_NOT_ADMITTED"?false:(request.deniedHostname?live.allowedOrigins.has((()=>{try{return new URL(request.url).origin}catch{return ""}})()):undefined),admittedOriginCount:live.allowedOrigins.size};}
 function blockedRequestMessage(request:{method:string;url:string}) { return `browser request blocked: ${request.method} ${request.url}`; }
 function urlInSet(value:string,allowed:string[]) {
   try {

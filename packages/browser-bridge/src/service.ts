@@ -1,4 +1,4 @@
-import {AUTHENTICATED_BROWSER_BRIDGE_PATH,AuthenticatedBrowserBridgeError,BRIDGE_MAX_OBSERVATION_BYTES,BRIDGE_MAX_OPERATION_BUDGET,BRIDGE_MAX_REQUEST_BYTES,BRIDGE_MAX_STORAGE_STATE_BYTES,BRIDGE_MUTATION_OPERATIONS,SelfHostedChromiumProvider,assertBridgeRequestShape,assertCapabilityExactMatch,bridgeRequestFingerprint,byteLength,verifyBrowserBridgeRequest,type AuthenticatedBrowserBridgeFailureCode,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserBridgeResponse,type AuthenticatedBrowserBridgeResult,type AuthenticatedBrowserExecutionCapability,type BrowserAllocation,type PublicBrowserObservation} from "@distilled/agent-runtime";
+import {AUTHENTICATED_BROWSER_BRIDGE_PATH,AuthenticatedBrowserBridgeError,BRIDGE_MAX_OBSERVATION_BYTES,BRIDGE_MAX_OPERATION_BUDGET,BRIDGE_MAX_REQUEST_BYTES,BRIDGE_MAX_STORAGE_STATE_BYTES,BRIDGE_MUTATION_OPERATIONS,SelfHostedChromiumProvider,assertBridgeRequestShape,assertCapabilityExactMatch,bridgeRequestFingerprint,byteLength,verifyBrowserBridgeRequest,type BrowserNetworkPolicyDiagnostic,type AuthenticatedBrowserBridgeFailureCode,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserBridgeResponse,type AuthenticatedBrowserBridgeResult,type AuthenticatedBrowserExecutionCapability,type BrowserAllocation,type PublicBrowserObservation} from "@distilled/agent-runtime";
 
 type Recorded=AuthenticatedBrowserBridgeResponse;
 type Execution={capability:AuthenticatedBrowserExecutionCapability;scope?:BrowserAllocation;ready:Promise<BrowserAllocation>;state:"OPENING"|"OPEN"|"CLOSING"|"CLOSED"|"EXPIRED";operations:number;/** Idempotency records for mutations only: outcome envelopes carry no secret material. */records:Map<string,{fingerprint:string;response:Recorded}>;inflight:Map<string,{fingerprint:string;promise:Promise<Recorded>}>;queue:Promise<unknown>;abort:AbortController;idleTimer?:ReturnType<typeof setTimeout>;absoluteTimer?:ReturnType<typeof setTimeout>};
@@ -47,7 +47,7 @@ export class AuthenticatedBrowserBridgeService{
     const execution=this.executions.get(capability.bridgeExecutionId);if(!execution)throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     assertCapabilityExactMatch(execution.capability,capability);
     if(message.operation==="CLOSE_AUTH_BROWSER"&&(execution.state==="CLOSED"||execution.state==="EXPIRED")){return{closed:true}}
-    const envelope=await this.dispatch(execution,message);if(envelope.ok)return envelope.result;throw new AuthenticatedBrowserBridgeError(envelope.error.code);
+    const envelope=await this.dispatch(execution,message);if(envelope.ok)return envelope.result;throw new AuthenticatedBrowserBridgeError(envelope.error.code,envelope.error.diagnostic);
   }
   /** Serialises operations per execution, deduplicates by operationId, and records mutation outcomes so a retry can never re-execute one. */
   private dispatch(execution:Execution,message:AuthenticatedBrowserBridgeRequest):Promise<Recorded>{
@@ -63,7 +63,7 @@ export class AuthenticatedBrowserBridgeService{
         if(execution.operations>=execution.capability.operationBudget)throw new AuthenticatedBrowserBridgeError("BRIDGE_EXECUTION_EXPIRED");
         execution.operations++;this.refreshIdle(execution);
         envelope={protocol:"v1",ok:true,result:await this.perform(execution,message)};
-      }catch(error){const code=classifyFailure(message.operation,error);envelope={protocol:"v1",ok:false,error:{code}};if(code==="BRIDGE_NETWORK_POLICY_DENIED")void this.expire(execution)}
+      }catch(error){const code=classifyFailure(message.operation,error);const diagnostic=failureDiagnostic(message.operation,error);envelope={protocol:"v1",ok:false,error:{code,...(diagnostic?{diagnostic}: {})}};if(code==="BRIDGE_NETWORK_POLICY_DENIED")void this.expire(execution)}
       if(mutation||message.operation==="CLOSE_AUTH_BROWSER")execution.records.set(key,{fingerprint,response:envelope});
       return envelope;
     };
@@ -113,6 +113,7 @@ export class AuthenticatedBrowserBridgeService{
  * Maps a provider error to a typed failure. Only the code leaves the service: error text can echo page or field content, so it is never returned or logged.
  * A mutation that fails for any reason not provably pre-dispatch is EFFECT_UNKNOWN and must not be retried by the caller.
  */
+function failureDiagnostic(operation:string,error:unknown):BrowserNetworkPolicyDiagnostic|undefined{if(error instanceof AuthenticatedBrowserBridgeError)return error.diagnostic;if(error instanceof Error&&error.name==="BrowserNavigationError"){const diagnostic=(error as {diagnostic?:BrowserNetworkPolicyDiagnostic}).diagnostic;if(diagnostic)return diagnostic;}return undefined;}
 function classifyFailure(operation:string,error:unknown):AuthenticatedBrowserBridgeFailureCode{
   if(error instanceof AuthenticatedBrowserBridgeError)return error.code;
   const name=error instanceof Error?error.name:"",message=error instanceof Error?error.message:"";
