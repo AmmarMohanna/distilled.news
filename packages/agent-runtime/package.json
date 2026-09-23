@@ -21,6 +21,7 @@
     "./evaluation": "./src/evaluation.ts",
     "./product-loop": "./src/product-loop.ts",
     "./workflow": "./src/workflow.ts",
+    "./temporal-acquisition": "./src/temporal-acquisition.ts",
     "./state-machine": "./src/state-machine.ts"
   },
   "scripts": {
