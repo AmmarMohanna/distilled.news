@@ -26,6 +26,7 @@
     "./http-html-acquisition": "./src/http-html-acquisition.ts",
     "./source-acquisition-orchestrator": "./src/source-acquisition-orchestrator.ts",
     "./production-web-operator-adapter": "./src/production-web-operator-adapter.ts",
+    "./production-source-acquisition-service": "./src/production-source-acquisition-service.ts",
     "./state-machine": "./src/state-machine.ts"
   },
   "scripts": {

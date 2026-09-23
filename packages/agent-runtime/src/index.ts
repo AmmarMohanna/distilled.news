@@ -29,3 +29,5 @@ export * from "./workflow";
 export * from "./source-acquisition-orchestrator";
 
 export * from "./production-web-operator-adapter";
+
+export * from "./production-source-acquisition-service";
