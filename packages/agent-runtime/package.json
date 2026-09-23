@@ -24,6 +24,7 @@
     "./temporal-acquisition": "./src/temporal-acquisition.ts",
     "./rss-acquisition": "./src/rss-acquisition.ts",
     "./http-html-acquisition": "./src/http-html-acquisition.ts",
+    "./source-acquisition-orchestrator": "./src/source-acquisition-orchestrator.ts",
     "./state-machine": "./src/state-machine.ts"
   },
   "scripts": {
