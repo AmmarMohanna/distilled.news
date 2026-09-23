@@ -10,5 +10,6 @@ const store=new MemorySourceHighWaterStore();
 const firstHighWater=await commitSourceHighWater(store,"public-rss-validation",first);
 const replay=await run();
 const replayHighWater=await commitSourceHighWater(store,"public-rss-validation",replay);
+const nextWindow={startTime:firstHighWater.lastSuccessfulBoundary,endTime:new Date().toISOString()};
 const summarize=(result:Awaited<ReturnType<typeof run>>)=>({items:result.items.map(item=>({sourceItemId:item.sourceItemId,canonicalItemUrl:item.canonicalItemUrl,title:item.title,publishedAt:item.publishedAt,text:item.text,originalSourceReference:item.originalSourceReference,acquisitionEvidence:item.acquisitionEvidence})),coverage:result.coverage,continuation:result.continuation,provenance:{mechanism:"official_rss",workflowId:"rss-feed-v1",workflowVersion:1,llmCalls:0,browserUsed:false}});
-console.log(JSON.stringify({request,first:summarize(first),replay:summarize(replay),highWater:{first:firstHighWater,replay:replayHighWater}},null,2));
+console.log(JSON.stringify({request,first:summarize(first),replay:summarize(replay),highWater:{first:firstHighWater,replay:replayHighWater,nextWindow}},null,2));
