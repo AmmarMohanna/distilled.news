@@ -63,6 +63,26 @@ describe("real HTTP bridge → real SelfHostedChromiumProvider → synthetic aut
     expect(providerSessions(service)).toBe(0);
   },60_000);
 
+  it("supports bounded public navigation and observation without enabling authenticated mutations",async()=>{
+    const flow=newFlow({bridgeUrl,secret:BRIDGE_SECRET,adapter,label:"public"});
+    const capability={...flow.capability,siteKind:"PUBLIC" as const,writeOrigins:[],authEntryPoint:`${site.origin}/structure`,sessionProbeUrl:`${site.origin}/structure`,operationBudget:8};
+    let sessionId:string|undefined;
+    try {
+      const opened=await flow.transport.execute({protocol:"v1",operationId:"op_public_open",capability,operation:"OPEN_AUTH_BROWSER"}) as {sessionId:string};
+      sessionId=opened.sessionId;
+      const navigated=await flow.transport.execute({protocol:"v1",operationId:"op_public_nav",capability,operation:"NAVIGATE_PUBLIC_PAGE",url:`${site.origin}/structure`}) as {url:string;controls:unknown[]};
+      expect(navigated.url).toContain("/structure");
+      expect(navigated.controls.length).toBeGreaterThan(0);
+      const observed=await flow.transport.execute({protocol:"v1",operationId:"op_public_observe",capability,operation:"OBSERVE_PUBLIC_PAGE"}) as {iframeCountCategory:string;domNodeCountCategory:string};
+      expect(observed.iframeCountCategory).toBe("one");
+      expect(["one","few","many"]).toContain(observed.domNodeCountCategory);
+      await expect(flow.transport.execute({protocol:"v1",operationId:"op_public_capture",capability,operation:"CAPTURE_AUTH_STATE"})).rejects.toMatchObject({code:"BRIDGE_NETWORK_POLICY_DENIED"});
+    } finally {
+      if(sessionId) await flow.transport.execute({protocol:"v1",operationId:"op_public_close",capability,operation:"CLOSE_AUTH_BROWSER"}).catch(()=>undefined);
+    }
+    expect(providerSessions(service)).toBe(0);
+  },60_000);
+
   it("restores a captured session into a fresh isolated browser and verifies it via the capability-bound session probe",async()=>{
     const first=newFlow({bridgeUrl,secret:BRIDGE_SECRET,adapter,label:"capture"});const scope=await allocate(first);let state;
     try{

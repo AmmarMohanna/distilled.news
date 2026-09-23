@@ -49,6 +49,7 @@ import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository 
 import { createWorkerClosedLoopWebOperatorLifecycle, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
 import { handleBridgePreflight,handleContainerPreflight,handleProviderDiagnostic } from "./bridge-preflight";
+import { handlePublicBrowserAcquisition } from "./public-browser-acquisition";
 
 type Variables = {
   repo: Repository;
@@ -245,6 +246,7 @@ export function createApp(options: AppOptions = {}) {
   app.post("/v1/authenticated-profiles", async (c) => provisionAuthenticatedProfile(c.req.raw,c.env));
   app.post("/v1/authenticated-profiles/bridge-preflight", async (c) => handleBridgePreflight(c.req.raw,c.env));
   app.post("/v1/authenticated-profiles/container-preflight", async (c) => handleContainerPreflight(c.req.raw,c.env));
+  app.post("/v1/public-browser/acquisition", async (c) => handlePublicBrowserAcquisition(c.req.raw,c.env));
   app.on(["GET","POST"], "/v1/authenticated-profiles/provider-diagnostic", async (c) => handleProviderDiagnostic(c.req.raw,c.env));
 
   app.post("/v1/live-smoke/public-acquisition", async (c) => {

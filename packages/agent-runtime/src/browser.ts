@@ -58,6 +58,16 @@ export interface BrowserObservationData {
   };
 }
 
+export interface PublicBrowserObservation {
+  url:string; title:string; pageRevision:string; visibleText:string; controls:SemanticControl[];
+  article?:BrowserObservationData["article"];
+  documentCountCategory?:BrowserObservationData["documentCountCategory"];
+  iframeCountCategory?:BrowserObservationData["iframeCountCategory"];
+  domNodeCountCategory?:BrowserObservationData["domNodeCountCategory"];
+  accessibilityNodeCountCategory?:BrowserObservationData["accessibilityNodeCountCategory"];
+  bridgeProtocolVersion?:string; trustedObservationSchemaVersion?:string;
+}
+
 export interface ScreenshotData extends BrowserObservationData {
   screenshotObservationToken: string;
   viewport: { width: number; height: number; deviceScaleFactor: number };
@@ -466,6 +476,9 @@ export class PlaywrightBrowserAdapter
   async detectAuthenticatedState(scope:BrowserScope,adapter:AuthenticatedSiteAdapter){return adapter.detect(await this.authenticationSnapshot(this.requireHealthy(scope)));}
 
   async navigateAuthenticationEntrypoint(scope:BrowserScope,entrypoint:string,writeOrigins:string[]){const live=this.requireHealthy(scope);if(!live.allowedOrigins.has(new URL(entrypoint).origin)||writeOrigins.some(origin=>!live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("authentication entrypoint outside browser policy");live.authenticationBootstrap=true;live.authenticationWriteOrigins=new Set(writeOrigins);await this.navigateDirectly(live,entrypoint,"domcontentloaded");}
+
+  async navigatePublicPage(scope:BrowserScope,url:string,allowedOrigins:string[]){const live=this.requireHealthy(scope);let parsed:URL;try{parsed=new URL(url)}catch{throw new BrowserPreDispatchError("public destination invalid")}if(!allowedOrigins.includes(parsed.origin)||!live.allowedOrigins.has(parsed.origin))throw new BrowserPreDispatchError("public destination outside browser policy");live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;await this.navigateDirectly(live,url,"domcontentloaded");return await this.observe(live,"page_state");}
+  async observePublicPage(scope:BrowserScope){return await this.observe(this.requireHealthy(scope),"page_state");}
 
   async observeAuthenticationSurface(scope:BrowserScope,wait?:AuthSurfaceWait):Promise<AuthenticatedBrowserSurface>{const live=this.requireHealthy(scope);if(wait==="AUTH_SURFACE")await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});else if(wait==="PASSWORD_FIELD")await live.page.locator('input[type="password"]').first().waitFor({state:"visible",timeout:10_000});const observed=await this.observe(live,"page_state");const visibleText=String((observed.representation as {visibleText?:string}).visibleText??"").slice(0,AUTH_SURFACE_MAX_TEXT);return{url:observed.url,title:observed.title.slice(0,300),pageRevision:observed.pageRevision,challengeState:observed.challengeState,visibleText,bridgeProtocolVersion:BROWSER_BRIDGE_PROTOCOL_VERSION,trustedObservationSchemaVersion:TRUSTED_OBSERVATION_SCHEMA_VERSION,formCountCategory:observed.formCountCategory??"none",documentCountCategory:observed.documentCountCategory,iframeCountCategory:observed.iframeCountCategory,domNodeCountCategory:observed.domNodeCountCategory,accessibilityNodeCountCategory:observed.accessibilityNodeCountCategory,controls:observed.controls.slice(0,AUTH_SURFACE_MAX_CONTROLS).map(control=>({handle:control.handle,kind:control.kind,role:control.role,label:control.label.slice(0,200),type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",visible:control.attributes?.["auth-visible"]==="true",focusable:control.attributes?.["auth-focusable"]==="true"}))};}
 
