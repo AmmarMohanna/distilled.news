@@ -9,7 +9,7 @@ describe("bounded auth-surface structure diagnostics", () => {
       domNodeCountCategory: "many",
       accessibilityNodeCountCategory: "few"
     });
-    expect(safeObservationStructure({})).toEqual({ documentCountCategory: "none", iframeCountCategory: "none", domNodeCountCategory: "none", accessibilityNodeCountCategory: "none" });
+    expect(safeObservationStructure({})).toEqual({ documentCountCategory: "unavailable", iframeCountCategory: "unavailable", domNodeCountCategory: "unavailable", accessibilityNodeCountCategory: "unavailable" });
   });
 
   it("retains only bounded observation contract identity", () => {

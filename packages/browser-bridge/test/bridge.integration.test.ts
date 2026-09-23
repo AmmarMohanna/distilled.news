@@ -45,6 +45,24 @@ describe("real HTTP bridge → real SelfHostedChromiumProvider → synthetic aut
     expect(providerSessions(service)).toBe(0);expect(service.activeExecutionCount).toBe(0);
   },60_000);
 
+  it("propagates trusted structural buckets through Chromium, bridge JSON and executor mapping",async()=>{
+    const structureAdapter=new SyntheticAuthAdapter(site.origin,"/structure");const flow=newFlow({bridgeUrl,secret:BRIDGE_SECRET,adapter:structureAdapter,label:"structure"});const scope=await allocate(flow);
+    try{
+      await flow.transport.execute({protocol:"v1",operationId:"op_structure_navigate",capability:flow.capability,operation:"NAVIGATE_AUTH_ENTRYPOINT"});
+      const surface=await flow.transport.execute({protocol:"v1",operationId:"op_structure_surface",capability:flow.capability,operation:"OBSERVE_AUTH_SURFACE",wait:"AUTH_SURFACE"}) as AuthenticatedBrowserSurface;
+      expect(["one","few","many"]).toContain(surface.documentCountCategory);
+      expect(surface.iframeCountCategory).toBe("one");
+      expect(["one","few","many"]).toContain(surface.domNodeCountCategory);
+      expect(["one","few","many"]).toContain(surface.accessibilityNodeCountCategory);
+      const mapped=await flow.executor.observeAuthenticatedSurface(scope);
+      expect(["one","few","many"]).toContain(mapped.documentCountCategory);
+      expect(mapped.iframeCountCategory).toBe("one");
+      expect(["one","few","many"]).toContain(mapped.domNodeCountCategory);
+      expect(["one","few","many"]).toContain(mapped.accessibilityNodeCountCategory);
+    }finally{await flow.executor.close(scope)}
+    expect(providerSessions(service)).toBe(0);
+  },60_000);
+
   it("restores a captured session into a fresh isolated browser and verifies it via the capability-bound session probe",async()=>{
     const first=newFlow({bridgeUrl,secret:BRIDGE_SECRET,adapter,label:"capture"});const scope=await allocate(first);let state;
     try{

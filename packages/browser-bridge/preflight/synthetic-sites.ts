@@ -41,6 +41,8 @@ export class SyntheticSite{
         const body=Buffer.concat(chunks).toString("utf8");if(req.method==="POST")this.received.push({path:url.pathname,body});
         const html=(status:number,title:string,content:string,headers:Record<string,string>={})=>{res.writeHead(status,{"content-type":"text/html",...headers});res.end(page(title,content))};
         const redirect=(status:number,location:string)=>{res.writeHead(status,{location});res.end()};
+        if(url.pathname==="/structure"&&req.method==="GET")return html(200,"Structure fixture",`<button type="button">Continue</button><input aria-label="Username"><iframe src="/structure-frame" title="fixture"></iframe>`);
+        if(url.pathname==="/structure-frame"&&req.method==="GET")return html(200,"Structure frame","<p>Frame fixture</p>");
         if(url.pathname==="/login"&&req.method==="GET")return html(200,"Login step 1",`<form method="POST" action="/login/step1"><label>Username <input name="username" type="text" aria-label="Username"></label><button type="submit">Continue</button></form>`);
         if(url.pathname==="/login/step1"&&req.method==="POST"){
           if(new URLSearchParams(body).get("username")!==identifier)return html(200,"Login step 1",`<p>Unknown account</p><form method="POST" action="/login/step1"><input name="username" type="text" aria-label="Username"><button type="submit">Continue</button></form>`);

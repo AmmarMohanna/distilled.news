@@ -38,6 +38,8 @@ export interface BrowserObservationData {
   representation: unknown;
   observationSource: "CDP_DOM_SNAPSHOT" | "CDP_ACCESSIBILITY_TREE" | "CDP_SCREENSHOT";
   protocolSnapshotVersion: string;
+  bridgeProtocolVersion?: string;
+  trustedObservationSchemaVersion?: string;
   formCountCategory?: "none" | "one" | "few" | "many";
   documentCountCategory?: "none" | "one" | "few" | "many";
   iframeCountCategory?: "none" | "one" | "few" | "many";
@@ -838,6 +840,12 @@ export class PlaywrightBrowserAdapter
       watermarkObserved: observed.watermarkObserved,
       observationSource: observed.observationSource,
       protocolSnapshotVersion: observed.protocolSnapshotVersion,
+      bridgeProtocolVersion: observed.bridgeProtocolVersion,
+      trustedObservationSchemaVersion: observed.trustedObservationSchemaVersion,
+      documentCountCategory: observed.documentCountCategory,
+      iframeCountCategory: observed.iframeCountCategory,
+      domNodeCountCategory: observed.domNodeCountCategory,
+      accessibilityNodeCountCategory: observed.accessibilityNodeCountCategory,
       formCountCategory: observed.formCountCategory,
       article: observed.article
         ? {
@@ -861,7 +869,13 @@ export class PlaywrightBrowserAdapter
       representation,
       observationSource: observed.observationSource,
       protocolSnapshotVersion: observed.protocolSnapshotVersion,
+      bridgeProtocolVersion: observed.bridgeProtocolVersion,
+      trustedObservationSchemaVersion: observed.trustedObservationSchemaVersion,
       formCountCategory: observed.formCountCategory,
+      documentCountCategory: observed.documentCountCategory,
+      iframeCountCategory: observed.iframeCountCategory,
+      domNodeCountCategory: observed.domNodeCountCategory,
+      accessibilityNodeCountCategory: observed.accessibilityNodeCountCategory,
       controls,
       challengeState,
       watermarkObserved: observed.watermarkObserved,
