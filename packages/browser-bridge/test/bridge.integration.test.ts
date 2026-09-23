@@ -88,6 +88,15 @@ describe("real HTTP bridge → real SelfHostedChromiumProvider → synthetic aut
     try{
       await call({operation:"NAVIGATE_AUTH_ENTRYPOINT"});
       const surface=await call({operation:"OBSERVE_AUTH_SURFACE",wait:"AUTH_SURFACE"}) as AuthenticatedBrowserSurface;
+      expect(surface.bridgeProtocolVersion).toBe("v1");
+      expect(surface.trustedObservationSchemaVersion).toBe("trusted-observation-v1");
+      expect(surface.documentCountCategory).not.toBe("none");
+      expect(surface.domNodeCountCategory).not.toBe("none");
+      const mapped=await flow.executor.observeAuthenticatedSurface(scope);
+      expect(mapped.bridgeProtocolVersion).toBe("v1");
+      expect(mapped.trustedObservationSchemaVersion).toBe("trusted-observation-v1");
+      expect(mapped.documentCountCategory).not.toBe("none");
+      expect(mapped.domNodeCountCategory).not.toBe("none");
       const username=surface.controls.find(control=>control.label==="Username")!,submit=surface.controls.find(control=>control.label==="Continue")!;
       expect(username.handle).not.toMatch(/Username|input|#|\[/);
       await expect(call({operation:"INJECT_AUTH_FIELD",fieldKind:"PASSWORD",fieldHandle:username.handle,pageRevision:surface.pageRevision,secretValue:"x"})).rejects.toMatchObject({code:"BRIDGE_FENCE_MISMATCH"});

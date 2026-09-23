@@ -1,4 +1,4 @@
-import { AuthenticatedBrowserBridgeExecutor,BRIDGE_PREFLIGHT_STAGES,XAuthenticatedSiteAdapter,runBridgePreflight,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserExecutionCapability } from "@distilled/agent-runtime";
+import { AuthenticatedBrowserBridgeExecutor,BRIDGE_PREFLIGHT_STAGES,XAuthenticatedSiteAdapter,runBridgePreflight,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserExecutionCapability,type AuthenticatedBrowserSurface } from "@distilled/agent-runtime";
 import { z } from "zod";
 import { authenticatedBackend } from "./authenticated-profile-bootstrap";
 import { CloudflareContainerBrowserBridgeTransport } from "./cloudflare-container-browser-transport";
@@ -61,9 +61,9 @@ export async function handleContainerPreflight(request:Request,env:Env):Promise<
     if(open.runId!==capability.runId||open.tenantId!==capability.tenantId||open.generation!==capability.browserGeneration)throw new Error("container_fence_mismatch");
     sessionId=open.sessionId;
     await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"NAVIGATE_AUTH_ENTRYPOINT"});
-    const observation=await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"OBSERVE_AUTH_SURFACE"});
+    const observation=await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"OBSERVE_AUTH_SURFACE"}) as AuthenticatedBrowserSurface;
     await transport.execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"CLOSE_AUTH_BROWSER"});sessionId=undefined;
-    return Response.json({pass:true,provider:"CLOUDFLARE_CONTAINER",allocated:true,observed:!!observation,cleanup:true,synthetic:true});
+    return Response.json({pass:true,provider:"CLOUDFLARE_CONTAINER",browserBackend:"container",allocated:true,observed:!!observation,observationStructure:{documentCountCategory:observation.documentCountCategory??"none",iframeCountCategory:observation.iframeCountCategory??"none",domNodeCountCategory:observation.domNodeCountCategory??"none",accessibilityNodeCountCategory:observation.accessibilityNodeCountCategory??"none"},observationSchema:{bridgeProtocolVersion:observation.bridgeProtocolVersion??"unknown",trustedObservationSchemaVersion:observation.trustedObservationSchemaVersion??"unknown"},cleanup:true,synthetic:true});
   }catch(error){
     if(capability&&sessionId){try{await new CloudflareContainerBrowserBridgeTransport(env.AUTHENTICATED_BROWSER_CONTAINER).execute({protocol:"v1",operationId:crypto.randomUUID(),capability,operation:"CLOSE_AUTH_BROWSER"})}catch{/* cleanup is best effort after a failed synthetic probe */}}
     const errorCode=error&&typeof error==="object"&&"code"in error&&typeof (error as {code?:unknown}).code==="string"?(error as {code:string}).code:undefined;

@@ -1,9 +1,9 @@
-import { AUTH_CONTROL_LABEL_PATTERNS,AUTH_FIELD_KINDS,type AuthControlKind,type AuthenticatedBrowserSurface,type AuthFieldKind,type AuthSurfaceWait,type BrowserAllocation,type BrowserObservationData,type BrowserScope } from "./browser";
+import { AUTH_CONTROL_LABEL_PATTERNS,AUTH_FIELD_KINDS,BROWSER_BRIDGE_PROTOCOL_VERSION,type AuthControlKind,type AuthenticatedBrowserSurface,type AuthFieldKind,type AuthSurfaceWait,type BrowserAllocation,type BrowserObservationData,type BrowserScope } from "./browser";
 import type { SemanticControl } from "./contracts";
 import type { BrowserSessionState,CredentialMaterial } from "./auth-profile";
 import type { AuthenticatedBootstrapObserver,AuthenticatedBrowserExecutorPort,AuthenticatedSiteAdapter,AuthenticatedSiteDetection,AuthenticatedSiteSnapshot,AuthenticationChallengeRuntime,AuthenticationFlowLineage } from "./authenticated-site";
 
-export const AUTHENTICATED_BROWSER_BRIDGE_PROTOCOL="v1" as const;
+export const AUTHENTICATED_BROWSER_BRIDGE_PROTOCOL=BROWSER_BRIDGE_PROTOCOL_VERSION;
 export const AUTHENTICATED_BROWSER_BRIDGE_PATH="/v1/authenticated-browser" as const;
 export const BRIDGE_MAX_REQUEST_BYTES=256_000;
 export const BRIDGE_MAX_RESPONSE_BYTES=512_000;
@@ -140,5 +140,5 @@ export function byteLength(value:string){return new TextEncoder().encode(value).
 function isLoopback(host:string){return host==="localhost"||host==="127.0.0.1"||host==="[::1]"}
 function toHex(bytes:Uint8Array){return[...bytes].map(value=>value.toString(16).padStart(2,"0")).join("")}
 function fromHex(value:string){if(!/^[a-f0-9]+$/i.test(value)||value.length%2)return new Uint8Array();return Uint8Array.from(value.match(/../g)!.map(part=>Number.parseInt(part,16)))}
-function surfaceToSnapshot(surface:AuthenticatedBrowserSurface):AuthenticatedSiteSnapshot{return{url:surface.url,title:surface.title,visibleText:surface.visibleText??"",formCountCategory:surface.formCountCategory,documentCountCategory:surface.documentCountCategory,iframeCountCategory:surface.iframeCountCategory,domNodeCountCategory:surface.domNodeCountCategory,accessibilityNodeCountCategory:surface.accessibilityNodeCountCategory,controls:surface.controls.map(control=>({role:control.role??"",label:control.label,type:control.type,autocomplete:control.autocomplete,insideForm:control.insideForm,disabled:control.disabled,visible:control.visible,focusable:control.focusable,focused:false}))}}
+function surfaceToSnapshot(surface:AuthenticatedBrowserSurface):AuthenticatedSiteSnapshot{return{url:surface.url,title:surface.title,visibleText:surface.visibleText??"",bridgeProtocolVersion:surface.bridgeProtocolVersion,trustedObservationSchemaVersion:surface.trustedObservationSchemaVersion,formCountCategory:surface.formCountCategory,documentCountCategory:surface.documentCountCategory,iframeCountCategory:surface.iframeCountCategory,domNodeCountCategory:surface.domNodeCountCategory,accessibilityNodeCountCategory:surface.accessibilityNodeCountCategory,controls:surface.controls.map(control=>({role:control.role??"",label:control.label,type:control.type,autocomplete:control.autocomplete,insideForm:control.insideForm,disabled:control.disabled,visible:control.visible,focusable:control.focusable,focused:false}))}}
 function controlKind(label:string):AuthControlKind{for(const kind of Object.keys(AUTH_CONTROL_LABEL_PATTERNS) as AuthControlKind[])if(AUTH_CONTROL_LABEL_PATTERNS[kind].test(label.trim()))return kind;throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH")}
