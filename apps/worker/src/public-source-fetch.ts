@@ -16,7 +16,10 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
     let response: Response;
     const signal = AbortSignal.timeout(15_000);
     try { response = await this.fetcher(url.href, { redirect: "manual", signal, headers: { accept: "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml" } }); }
-    catch { throw new PublicSourceFetchFailure(signal.aborted ? "FETCH_TIMEOUT" : "FETCH_REJECTED"); }
+    catch (error) {
+      if (knownCloudflareSubrequestDenial(error)) throw new PublicSourcePolicyError();
+      throw new PublicSourceFetchFailure(signal.aborted ? "FETCH_TIMEOUT" : "FETCH_REJECTED");
+    }
     if (response.status >= 300 && response.status < 400) throw new PublicSourcePolicyError();
     if (Number(response.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw new PublicSourceFetchFailure("BODY_BUDGET_EXCEEDED");
     const reader = response.body?.getReader();
@@ -40,6 +43,12 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
     return { url: url.href, contentType: response.headers.get("content-type") ?? "", body: new TextDecoder().decode(bytes), status: response.status };
   }
+}
+
+/** Only documented platform denial codes are classified; raw provider text is never returned. */
+function knownCloudflareSubrequestDenial(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  return /\b(?:1021|1024|1042)\b/u.test(message);
 }
 
 function admittedUrl(value: string): URL {

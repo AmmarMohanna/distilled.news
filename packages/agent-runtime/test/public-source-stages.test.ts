@@ -57,6 +57,7 @@ describe("real public source capability stages", () => {
     expect(await oversized.structured(request)).toMatchObject({ stage: "STRUCTURED", status: "INSUFFICIENT", reason: "source_body_budget_exceeded" });
     expect(await oversized.http(request)).toMatchObject({ stage: "HTTP", status: "INSUFFICIENT", reason: "source_body_budget_exceeded" });
     const network = new PublicSourceStages({ async get() { throw new PublicSourceFetchFailure("FETCH_REJECTED"); } });
-    expect(await network.structured(request)).toMatchObject({ status: "TRANSIENT_FAILURE", reason: "source_fetch_rejected" });
+    expect(await network.structured(request)).toMatchObject({ status: "INSUFFICIENT", reason: "worker_http_transport_unavailable" });
+    expect(await network.http(request)).toMatchObject({ status: "INSUFFICIENT", reason: "worker_http_transport_unavailable" });
   });
 });

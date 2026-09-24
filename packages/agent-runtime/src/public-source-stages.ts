@@ -66,6 +66,9 @@ export class PublicSourceStages {
 function fetchFailure(stage: "STRUCTURED" | "HTTP", error: unknown): AcquisitionStageOutcome {
   if (error instanceof PublicSourcePolicyError) return { stage, status: "POLICY_DENIED", reason: "source_policy_denied" };
   if (error instanceof PublicSourceFetchFailure && error.category === "BODY_BUDGET_EXCEEDED") return { stage, status: "INSUFFICIENT", reason: "source_body_budget_exceeded" };
+  // A rejected Worker HTTP transport has not observed the source. The independently fenced
+  // browser provider may still assess it; explicit origin/redirect policy denials never escalate.
+  if (error instanceof PublicSourceFetchFailure && error.category === "FETCH_REJECTED") return { stage, status: "INSUFFICIENT", reason: "worker_http_transport_unavailable" };
   return { stage, status: "TRANSIENT_FAILURE", reason: error instanceof PublicSourceFetchFailure ? `source_${error.category.toLowerCase()}` : "source_http_extraction_failure" };
 }
 
