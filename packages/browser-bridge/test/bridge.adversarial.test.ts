@@ -41,6 +41,19 @@ describe("service authentication",()=>{
     expect(JSON.parse(body)).toMatchObject({ok:false,error:{code:"BRIDGE_NETWORK_POLICY_DENIED",diagnostic:{policyRule:"PRIVATE_OR_UNRESOLVED_ORIGIN",deniedHostname:"private.example"}}});
     expect(body).not.toContain("unsafe provider text");
   });
+  it("classifies a foreign final public origin without returning its path",async()=>{
+    const mock=new class extends MockBrowserProvider { override async navigatePublicPage():Promise<any>{return{url:"https://foreign.example/private/path?token=secret",title:"unsafe",pageRevision:"r1",representation:{visibleText:"unsafe"},controls:[]};} }();
+    const {service}=newService({},mock);
+    const cap=baseCapability({siteKind:"PUBLIC",authEntryPoint:"https://auth.example.com/",sessionProbeUrl:"https://auth.example.com/",writeOrigins:[]});
+    const url="http://127.0.0.1:8080/v1/internal-authenticated-browser";
+    const sendInternal=(payload:AuthenticatedBrowserBridgeRequest)=>service.handleInternal(new Request(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}));
+    expect((await sendInternal(req("OPEN_AUTH_BROWSER",cap,"open"))).status).toBe(200);
+    const response=await sendInternal({protocol:"v1",operationId:"nav",capability:cap,operation:"NAVIGATE_PUBLIC_PAGE",url:"https://auth.example.com/"});
+    const body=await response.text();
+    expect(JSON.parse(body)).toMatchObject({ok:false,error:{code:"BRIDGE_NETWORK_POLICY_DENIED",diagnostic:{policyRule:"FINAL_ORIGIN_NOT_ADMITTED",deniedHostname:"foreign.example"}}});
+    expect(body).not.toMatch(/private\/path|secret|unsafe/);
+    await service.shutdown();
+  });
   it("rejects unauthorized requests: missing headers, bad signature, wrong secret",async()=>{
     const {service}=newService();const payload=req("OPEN_AUTH_BROWSER",baseCapability(),"op_1");
     const missing=await service.handle(new Request(BRIDGE_URL,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}));
