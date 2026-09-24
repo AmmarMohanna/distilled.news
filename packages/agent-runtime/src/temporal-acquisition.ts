@@ -44,7 +44,7 @@ export interface SourceAcquisitionResult {
   effectiveWindow: SourceAcquisitionRequest["window"];
   acquisitionAsOf: string;
   coverage: SourceAcquisitionCoverage;
-  continuation?: { pageCount: number; scrollCount: number; noProgressCount: number; uniqueCanonicalIds: number; uniqueCanonicalUrls: number };
+  continuation?: { pageCount: number; scrollCount: number; noProgressCount: number; uniqueCanonicalIds: number; uniqueCanonicalUrls: number; physicalAttempts?: number };
   provenance?: { workflowId?: string; workflowVersion?: number; mechanism?: string };
 }
 
@@ -53,10 +53,11 @@ export interface SourceAcquisitionResult {
 export interface SourceAcquisitionPage {
   items: AcquiredSourceItem[];
   scrolls?: number;
+  physicalAttempts?: number;
   lowerBoundaryReached?: boolean;
   sourceExhausted?: boolean;
   paginationExhausted?: boolean;
-  stopReason?: Extract<SourceAcquisitionStopReason, "AUTH_REQUIRED" | "SESSION_EXPIRED" | "CHALLENGE_REQUIRED" | "STRUCTURAL_FAILURE" | "SOURCE_TIMESTAMP_UNAVAILABLE">;
+  stopReason?: Extract<SourceAcquisitionStopReason, "AUTH_REQUIRED" | "SESSION_EXPIRED" | "CHALLENGE_REQUIRED" | "STRUCTURAL_FAILURE" | "SOURCE_TIMESTAMP_UNAVAILABLE" | "EXECUTION_BUDGET_REACHED">;
 }
 export interface SourceAcquisitionAdapter {
   readonly authentication: SourceAuthenticationMode;
@@ -104,7 +105,7 @@ export class TemporalSourceAcquisition {
         if (pages >= request.limits.maxPages) { stopReason = "MAX_PAGES_REACHED"; break; }
         if (scrolls >= request.limits.maxScrolls) { stopReason = "MAX_SCROLLS_REACHED"; break; }
         if (attempts >= request.limits.maxPhysicalAttempts) { stopReason = "EXECUTION_BUDGET_REACHED"; break; }
-        attempts++; const page = await adapter.next(effectiveRequest); pages++; scrolls += page.scrolls ?? 0;
+        attempts++; const page = await adapter.next(effectiveRequest); pages++; scrolls += page.scrolls ?? 0; attempts += Math.max(0,(page.physicalAttempts ?? 1)-1);
         let progress = false;
         for (const item of page.items) {
           const timestamp = trustedTime(item.publishedAt);
@@ -127,7 +128,7 @@ export class TemporalSourceAcquisition {
     const hasTimestampEvidence = oldest !== undefined;
     const rangeCovered = hasTimestampEvidence && (stopReason === "START_BOUNDARY_REACHED" || stopReason === "SOURCE_EXHAUSTED");
     if (!hasTimestampEvidence && (stopReason === "START_BOUNDARY_REACHED" || stopReason === "SOURCE_EXHAUSTED" || stopReason === "SOURCE_PAGINATION_EXHAUSTED")) stopReason = "SOURCE_TIMESTAMP_UNAVAILABLE";
-    return { items, requestedWindow: request.window, effectiveWindow, acquisitionAsOf, coverage: { newestObservedTimestamp: iso(newest), oldestObservedTimestamp: iso(oldest), rangeCovered, truncated: !rangeCovered, stopReason }, continuation: { pageCount: pages, scrollCount: scrolls, noProgressCount: noProgress, uniqueCanonicalIds: idSet.size, uniqueCanonicalUrls: urlSet.size } };
+    return { items, requestedWindow: request.window, effectiveWindow, acquisitionAsOf, coverage: { newestObservedTimestamp: iso(newest), oldestObservedTimestamp: iso(oldest), rangeCovered, truncated: !rangeCovered, stopReason }, continuation: { pageCount: pages, scrollCount: scrolls, noProgressCount: noProgress, uniqueCanonicalIds: idSet.size, uniqueCanonicalUrls: urlSet.size, physicalAttempts: attempts } };
   }
 }
 

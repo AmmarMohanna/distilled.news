@@ -21,6 +21,7 @@
     "./evaluation": "./src/evaluation.ts",
     "./product-loop": "./src/product-loop.ts",
     "./workflow": "./src/workflow.ts",
+    "./source-browser-workflow": "./src/source-browser-workflow.ts",
     "./temporal-acquisition": "./src/temporal-acquisition.ts",
     "./rss-acquisition": "./src/rss-acquisition.ts",
     "./http-html-acquisition": "./src/http-html-acquisition.ts",

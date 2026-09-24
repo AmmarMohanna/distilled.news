@@ -25,6 +25,7 @@ export * from "./temporal-acquisition";
 export * from "./rss-acquisition";
 export * from "./http-html-acquisition";
 export * from "./workflow";
+export * from "./source-browser-workflow";
 
 export * from "./source-acquisition-orchestrator";
 

@@ -61,6 +61,7 @@ export interface BrowserObservationData {
 
 export interface PublicBrowserObservation {
   url:string; title:string; pageRevision:string; visibleText:string; controls:SemanticControl[];
+  challengeState?:ChallengeState;
   article?:BrowserObservationData["article"];
   documentCountCategory?:BrowserObservationData["documentCountCategory"];
   iframeCountCategory?:BrowserObservationData["iframeCountCategory"];

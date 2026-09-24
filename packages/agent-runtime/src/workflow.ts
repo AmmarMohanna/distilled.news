@@ -15,6 +15,7 @@ import { makeId } from "./contracts";
 import type { RuntimeStore } from "./persistence";
 import type { PolicyEngine } from "./policy";
 import type { BrowserAllocation, BrowserExecutorPort, StructuredBrowserUsePort } from "./browser";
+import type { SourceBrowserWorkflowPlan } from "./source-browser-workflow";
 import { CompletionVerifier } from "./completion";
 import { projectPageState, sha256Text, type ArtifactStore } from "./observations";
 
@@ -147,6 +148,8 @@ export interface WorkflowCandidate {
   state: WorkflowLifecycleState;
   version: number;
   operations: DeterministicWorkflowOperation[];
+  /** Optional validated source-level plan; legacy candidates remain single-article workflows. */
+  sourceAcquisition?: SourceBrowserWorkflowPlan;
   unsupportedGaps: string[];
   createdAt: string;
   validatedAt?: string;
