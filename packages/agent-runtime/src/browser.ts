@@ -409,7 +409,9 @@ export class PlaywrightBrowserAdapter
         await this.assertRequestAllowed(live, request.url(), request.method());
         await route.continue();
       } catch {
-        live.blockedRequest = { method: request.method(), url: request.url(), redirectHop:false, topLevelNavigation:request.isNavigationRequest()&&request.frame()===live.page.mainFrame(), deniedHostname:hostnameOf(request.url()), policyRule:"ORIGIN_NOT_ADMITTED" };
+        let topLevelNavigation=false;
+        try { topLevelNavigation=request.isNavigationRequest()&&request.frame()===live.page.mainFrame(); } catch { /* A denied popup can issue a request before its frame exists. */ }
+        live.blockedRequest = { method: request.method(), url: request.url(), redirectHop:false, topLevelNavigation, deniedHostname:hostnameOf(request.url()), policyRule:"ORIGIN_NOT_ADMITTED" };
         await route.abort("blockedbyclient");
       }
     });
