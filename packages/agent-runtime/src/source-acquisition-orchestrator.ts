@@ -42,6 +42,8 @@ export interface AcquisitionStageTrace {
   stage: AcquisitionStage;
   status: AcquisitionStageStatus;
   reason?: string;
+  /** Bounded network-policy evidence; never a raw provider message or URL. */
+  policy?: { rule: string; deniedHostname?: string; redirectHop: boolean; topLevelNavigation: boolean };
 }
 
 export interface SourceAcquisitionOrchestrationResult {
@@ -63,7 +65,7 @@ export class SourceAcquisitionOrchestrator {
 
   async acquire(request: SourceAcquisitionRequest): Promise<SourceAcquisitionOrchestrationResult> {
     const stages: AcquisitionStageTrace[] = [];
-    const record = (outcome: AcquisitionStageOutcome) => { stages.push({ stage: outcome.stage, status: outcome.status, reason: outcome.reason }); return outcome; };
+    const record = (outcome: AcquisitionStageOutcome) => { stages.push({ stage: outcome.stage, status: outcome.status, reason: outcome.reason, ...(outcome.status === "POLICY_DENIED" && outcome.details?.policy ? { policy: outcome.details.policy as AcquisitionStageTrace["policy"] } : {}) }); return outcome; };
     const terminal = (outcome: AcquisitionStageOutcome): SourceAcquisitionOrchestrationResult => ({ status: "STOPPED", stages, stopReason: outcome.status, webOperatorCalls: 0 });
 
     if (this.options.structured) {

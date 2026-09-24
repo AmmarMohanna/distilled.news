@@ -134,11 +134,20 @@ export async function discoverAndPromotePublicSourceWorkflow(
   };
 }
 
-function bridgeStop(error: unknown): AcquisitionStageOutcome {
+export function bridgeStop(error: unknown): AcquisitionStageOutcome {
   if (error instanceof PublicSourceDiscoveryStop) return { stage: "WEB_OPERATOR", status: error.status, reason: "source requires unsupported access or challenge" };
   const code = error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : undefined;
+  const raw = error && typeof error === "object" && "diagnostic" in error ? (error as { diagnostic?: unknown }).diagnostic : undefined;
+  const diagnostic = raw && typeof raw === "object" ? raw as Record<string, unknown> : undefined;
+  const allowedRules = ["ORIGIN_NOT_ADMITTED", "REDIRECT_ORIGIN_NOT_ADMITTED", "FINAL_ORIGIN_NOT_ADMITTED", "SCHEME_NOT_ALLOWED", "PRIVATE_OR_UNRESOLVED_ORIGIN", "METHOD_NOT_ALLOWED", "REQUEST_BLOCKED"];
+  const policy = diagnostic && allowedRules.includes(String(diagnostic.policyRule)) ? {
+    rule: String(diagnostic.policyRule),
+    ...(typeof diagnostic.deniedHostname === "string" && /^[a-z0-9.-]{1,253}$/i.test(diagnostic.deniedHostname) ? { deniedHostname: diagnostic.deniedHostname } : {}),
+    redirectHop: diagnostic.redirectHop === true,
+    topLevelNavigation: diagnostic.topLevelNavigation === true
+  } : undefined;
   return code === "BRIDGE_NETWORK_POLICY_DENIED"
-    ? { stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied" }
+    ? { stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied", ...(policy ? { details: { policy } } : {}) }
     : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "public Web Operator discovery failed" };
 }
 function liveModelRouting(model: string): ModelRoutingConfig {

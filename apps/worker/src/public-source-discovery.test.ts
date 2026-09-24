@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PublicBrowserObservation, SourceAcquisitionRequest, SourceBrowserWorkflowPort } from "@distilled/agent-runtime";
-import { discoverPublicSourceBrowserPlan } from "./public-source-discovery";
+import { AuthenticatedBrowserBridgeError } from "@distilled/agent-runtime";
+import { bridgeStop, discoverPublicSourceBrowserPlan } from "./public-source-discovery";
 import type { Env } from "./types";
 
 const source = "https://publisher.example/news";
@@ -8,6 +9,13 @@ const article = (id: string): PublicBrowserObservation => ({ url: `https://publi
 const request: SourceAcquisitionRequest = { source: { canonicalSourceUrl: source }, window: { startTime: "2026-09-20T00:00:00Z", endTime: "2026-09-22T00:00:00Z" }, limits: { maxItems: 5, maxPages: 2, maxScrolls: 1, maxPhysicalAttempts: 5, maxExecutionMs: 20_000 } };
 
 describe("public source discovery from trusted Container structure", () => {
+  it("preserves only bounded policy evidence from a typed Container failure", () => {
+    const error = new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED", { policyRule: "ORIGIN_NOT_ADMITTED", deniedHostname: "static.publisher.example", redirectHop: false, topLevelNavigation: false, admittedOriginCount: 1 });
+    error.message = "unsafe provider text /private/path?token=secret";
+    const outcome = bridgeStop(error);
+    expect(outcome).toMatchObject({ status: "POLICY_DENIED", details: { policy: { rule: "ORIGIN_NOT_ADMITTED", deniedHostname: "static.publisher.example", redirectHop: false, topLevelNavigation: false } } });
+    expect(JSON.stringify(outcome)).not.toMatch(/unsafe|private|secret/);
+  });
   it("samples two real article observations and closes exactly once", async () => {
     const links = ["a", "b"].map((id) => ({ handle: id, kind: "link" as const, role: "link", label: id, safeAction: "follow" as const, destinationUrl: `https://publisher.example/article/${id}` }));
     const listing: PublicBrowserObservation = { url: source, title: "News", pageRevision: "listing", visibleText: "", controls: links };
