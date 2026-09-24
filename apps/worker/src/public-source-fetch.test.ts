@@ -24,5 +24,7 @@ describe("public source HTTP admission", () => {
     await expect(redirect.get("https://news.example.com/")).rejects.toThrow("public source policy denied");
     const oversized = new WorkerPublicSourceFetch("https://news.example.com/", (async () => new Response("x".repeat(512_001))) as typeof fetch);
     await expect(oversized.get("https://news.example.com/")).rejects.toMatchObject({ category: "BODY_BUDGET_EXCEEDED" });
+    const rejected = new WorkerPublicSourceFetch("https://news.example.com/", (async () => { throw new TypeError("unsafe provider details must not escape"); }) as typeof fetch);
+    await expect(rejected.get("https://news.example.com/")).rejects.toMatchObject({ category: "FETCH_REJECTED", message: "FETCH_REJECTED" });
   });
 });

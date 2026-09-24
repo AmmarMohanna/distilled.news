@@ -6,7 +6,7 @@ import type { AcquisitionStageOutcome } from "./source-acquisition-orchestrator"
 export interface PublicSourceFetchPort { get(url: string): Promise<{ url: string; contentType: string; body: string; status: number }> }
 export class PublicSourcePolicyError extends Error { constructor() { super("public source policy denied"); } }
 export class PublicSourceFetchFailure extends Error {
-  constructor(readonly category: "BODY_BUDGET_EXCEEDED" | "NETWORK_FAILURE") { super(category); }
+  constructor(readonly category: "BODY_BUDGET_EXCEEDED" | "FETCH_REJECTED" | "FETCH_TIMEOUT" | "BODY_STREAM_FAILURE") { super(category); }
 }
 
 /** Actual, bounded capability assessment: a stage never reports an invented outcome. */
@@ -66,7 +66,7 @@ export class PublicSourceStages {
 function fetchFailure(stage: "STRUCTURED" | "HTTP", error: unknown): AcquisitionStageOutcome {
   if (error instanceof PublicSourcePolicyError) return { stage, status: "POLICY_DENIED", reason: "source_policy_denied" };
   if (error instanceof PublicSourceFetchFailure && error.category === "BODY_BUDGET_EXCEEDED") return { stage, status: "INSUFFICIENT", reason: "source_body_budget_exceeded" };
-  return { stage, status: "TRANSIENT_FAILURE", reason: error instanceof PublicSourceFetchFailure ? "source_network_failure" : "source_http_extraction_failure" };
+  return { stage, status: "TRANSIENT_FAILURE", reason: error instanceof PublicSourceFetchFailure ? `source_${error.category.toLowerCase()}` : "source_http_extraction_failure" };
 }
 
 function sourceUrl(request: SourceAcquisitionRequest): string {

@@ -14,8 +14,9 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
     const url = admittedUrl(value);
     if (url.origin !== this.origin) throw new PublicSourcePolicyError();
     let response: Response;
-    try { response = await this.fetcher(url.href, { redirect: "manual", signal: AbortSignal.timeout(15_000), headers: { accept: "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml" } }); }
-    catch { throw new PublicSourceFetchFailure("NETWORK_FAILURE"); }
+    const signal = AbortSignal.timeout(15_000);
+    try { response = await this.fetcher(url.href, { redirect: "manual", signal, headers: { accept: "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml" } }); }
+    catch { throw new PublicSourceFetchFailure(signal.aborted ? "FETCH_TIMEOUT" : "FETCH_REJECTED"); }
     if (response.status >= 300 && response.status < 400) throw new PublicSourcePolicyError();
     if (Number(response.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw new PublicSourceFetchFailure("BODY_BUDGET_EXCEEDED");
     const reader = response.body?.getReader();
@@ -32,7 +33,7 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
       }
     } catch (error) {
       if (error instanceof PublicSourceFetchFailure) throw error;
-      throw new PublicSourceFetchFailure("NETWORK_FAILURE");
+      throw new PublicSourceFetchFailure(signal.aborted ? "FETCH_TIMEOUT" : "BODY_STREAM_FAILURE");
     }
     const bytes = new Uint8Array(size);
     let offset = 0;
