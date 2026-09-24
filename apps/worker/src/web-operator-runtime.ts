@@ -3,7 +3,11 @@ import {
   createWebOperatorRuntimeHandler,
   type CloudflareBrowserBinding,
   type CloudflareBrowserLauncher,
-  type DeterministicAcquisitionPort
+  type DeterministicAcquisitionPort,
+  type ClosedLoopWebOperatorLifecycle,
+  type ClosedLoopAcquisitionRequest,
+  type SourceAcquisitionRequest,
+  type SourceAcquisitionResult
 } from "@distilled/agent-runtime";
 import { D1AgentRuntimeStore } from "./agent-runtime-store";
 import { R2AgentArtifactStore } from "./agent-artifact-store";
@@ -85,6 +89,55 @@ export function createWorkerProductionSourceAcquisitionService(
         version: active.version,
         execute: async (request) => dependencies.executeActiveWorkflow({ resourceId, request, workflow: active })
       };
+    }
+  });
+}
+
+export function createWorkerLifecycleBackedSourceAcquisitionService(
+  env: Env,
+  options: {
+    tenantId: string;
+    ownerId: string;
+    resourceId: string;
+    lifecycle: ClosedLoopWebOperatorLifecycle;
+    buildClosedLoopRequest: (request: SourceAcquisitionRequest) => ClosedLoopAcquisitionRequest;
+  }
+) {
+  const run = async (request: SourceAcquisitionRequest): Promise<{ outcome: Awaited<ReturnType<ClosedLoopWebOperatorLifecycle["acquire"]>>; runId: string }> => {
+    const outcome = await options.lifecycle.acquire(options.buildClosedLoopRequest(request), new Date(request.acquisitionAsOf ?? Date.now()));
+    const runId = "run" in outcome && outcome.run ? outcome.run.runId : `source_${crypto.randomUUID()}`;
+    return { outcome, runId };
+  };
+  const toResult = (request: SourceAcquisitionRequest, value: Awaited<ReturnType<ClosedLoopWebOperatorLifecycle["acquire"]>>, workflowId?: string, workflowVersion?: number): SourceAcquisitionResult | undefined => {
+    if (!("acquiredContent" in value) || !value.acquiredContent) return undefined;
+    const item = value.acquiredContent;
+    return {
+      items: [{ sourceResource: request.source.canonicalSourceUrl ?? request.source.resourceLocator ?? item.canonicalUrl, canonicalItemUrl: item.canonicalUrl, title: item.title, text: item.body, publishedAt: item.publisherTimestamp, originalSourceReference: item.canonicalUrl, acquisitionEvidence: { acceptanceId: item.acceptanceId, observationId: item.observationId } }],
+      requestedWindow: request.window,
+      effectiveWindow: request.window,
+      acquisitionAsOf: request.acquisitionAsOf ?? new Date().toISOString(),
+      coverage: { newestObservedTimestamp: item.publisherTimestamp, oldestObservedTimestamp: item.publisherTimestamp, rangeCovered: false, truncated: true, stopReason: "SOURCE_PAGINATION_EXHAUSTED" },
+      continuation: { pageCount: 1, scrollCount: 0, noProgressCount: 0, uniqueCanonicalIds: 0, uniqueCanonicalUrls: 1 },
+      provenance: { workflowId, workflowVersion, mechanism: "web_operator" }
+    };
+  };
+  const execute = async (request: SourceAcquisitionRequest, workflow: { id: string; version: number }) => {
+    const { outcome } = await run(request);
+    const result = toResult(request, outcome, workflow.id, workflow.version);
+    return result ? { stage: "BROWSER_WORKFLOW" as const, status: "SUCCESS" as const, result } : { stage: "BROWSER_WORKFLOW" as const, status: "STRUCTURAL_FAILURE" as const, reason: "deterministic acquisition did not produce content" };
+  };
+  return createWorkerProductionSourceAcquisitionService(env, {
+    tenantId: options.tenantId,
+    ownerId: options.ownerId,
+    executeActiveWorkflow: async ({ request, workflow }) => execute(request, workflow),
+    structured: async () => ({ stage: "STRUCTURED" as const, status: "UNSUPPORTED" as const }),
+    http: async () => ({ stage: "HTTP" as const, status: "INSUFFICIENT" as const }),
+    webOperator: async (request) => {
+      const { outcome, runId } = await run(request);
+      const workflow = "workflow" in outcome ? outcome.workflow : undefined;
+      if (!workflow) throw new Error("Web Operator did not produce a deterministic workflow");
+      const candidate = { id: workflow.id, version: workflow.version, state: "CANDIDATE" as const, execute: async (next: SourceAcquisitionRequest) => execute(next, workflow) };
+      return { runId, modelCalls: outcome.modelCalls, browserOperations: 0, candidate, validate: async () => ({ ...candidate, state: "VALIDATED" as const }), activate: async () => ({ ...candidate, state: "ACTIVE" as const }) };
     }
   });
 }
