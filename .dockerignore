@@ -1,0 +1,9 @@
+.git
+**/node_modules
+**/.wrangler*/
+**/dist/
+**/dist-*/
+**/coverage/
+**/*.tsbuildinfo
+.container-build/
+apps/worker/apps/
