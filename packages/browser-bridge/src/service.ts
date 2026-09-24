@@ -22,7 +22,7 @@ export class AuthenticatedBrowserBridgeService{
     if(!await verifyBrowserBridgeRequest(this.input.serviceCredential,timestamp,nonce,body,signature))return this.failure("BRIDGE_UNAUTHORIZED",401);
     this.pruneNonces(now);if(this.nonces.has(nonce))return this.failure("BRIDGE_REPLAY_REJECTED",409);if(this.nonces.size>=MAX_TRACKED_NONCES)return this.failure("BRIDGE_UNAVAILABLE",503);this.nonces.set(nonce,now);
     let message:unknown;try{message=JSON.parse(body)}catch{return this.failure("BRIDGE_PROTOCOL_UNSUPPORTED",400)}
-    try{const result=await this.execute(message);return this.response({protocol:"v1",ok:true,result})}catch(error){const code=classifyFailure("",error);return this.failure(code,statusFor(code))}
+    try{const result=await this.execute(message);return this.response({protocol:"v1",ok:true,result})}catch(error){const code=classifyFailure("",error);return this.failure(code,statusFor(code),failureDiagnostic("",error))}
   }
   /**
    * Native Container ingress. This is intentionally not an HTTP-public API: the
@@ -36,14 +36,14 @@ export class AuthenticatedBrowserBridgeService{
     if(Number(request.headers.get("content-length")??0)>BRIDGE_MAX_REQUEST_BYTES)return this.failure("BRIDGE_PAYLOAD_TOO_LARGE",413);
     const body=await readBounded(request,BRIDGE_MAX_REQUEST_BYTES);if(body===undefined)return this.failure("BRIDGE_PAYLOAD_TOO_LARGE",413);
     let message:unknown;try{message=JSON.parse(body)}catch{return this.failure("BRIDGE_PROTOCOL_UNSUPPORTED",400)}
-    try{return this.response({protocol:"v1",ok:true,result:await this.execute(message)})}catch(error){const code=classifyFailure("",error);return this.failure(code,statusFor(code))}
+    try{return this.response({protocol:"v1",ok:true,result:await this.execute(message)})}catch(error){const code=classifyFailure("",error);return this.failure(code,statusFor(code),failureDiagnostic("",error))}
   }
   async shutdown(){await Promise.all([...this.executions.values()].map(execution=>this.close(execution)));this.executions.clear()}
   private async execute(raw:unknown):Promise<AuthenticatedBrowserBridgeResult>{
     assertBridgeRequestShape(raw);const message=raw,capability=message.capability,now=this.now();
     if(Date.parse(capability.expiresAt)<=now||Date.parse(capability.issuedAt)>now+MAX_CLOCK_SKEW_MS)throw new AuthenticatedBrowserBridgeError("BRIDGE_EXECUTION_EXPIRED");
     if(capability.operationBudget<1||capability.operationBudget>BRIDGE_MAX_OPERATION_BUDGET||Date.parse(capability.expiresAt)-Date.parse(capability.issuedAt)>MAX_CAPABILITY_TTL_MS)throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
-    if(message.operation==="OPEN_AUTH_BROWSER"){try{return await this.open(message)}catch(error){throw new AuthenticatedBrowserBridgeError(classifyFailure("OPEN_AUTH_BROWSER",error))}}
+    if(message.operation==="OPEN_AUTH_BROWSER"){try{return await this.open(message)}catch(error){throw new AuthenticatedBrowserBridgeError(classifyFailure("OPEN_AUTH_BROWSER",error),failureDiagnostic("OPEN_AUTH_BROWSER",error))}}
     const execution=this.executions.get(capability.bridgeExecutionId);if(!execution)throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     assertCapabilityExactMatch(execution.capability,capability);
     if(message.operation==="CLOSE_AUTH_BROWSER"&&(execution.state==="CLOSED"||execution.state==="EXPIRED")){return{closed:true}}
@@ -106,7 +106,7 @@ export class AuthenticatedBrowserBridgeService{
   /** Drops timers and per-operation records immediately; keeps a small tombstone so late calls are answered EXPIRED rather than as an unknown execution. */
   private retire(execution:Execution,state:"CLOSED"|"EXPIRED"){execution.state=state;clearTimeout(execution.idleTimer);clearTimeout(execution.absoluteTimer);execution.records.clear();const id=execution.capability.bridgeExecutionId;unref(setTimeout(()=>{if(this.executions.get(id)===execution)this.executions.delete(id)},TOMBSTONE_MS))}
   private pruneNonces(now:number){for(const[nonce,seen]of this.nonces)if(now-seen>(this.input.requestWindowMs??30_000))this.nonces.delete(nonce)}
-  private failure(code:AuthenticatedBrowserBridgeFailureCode,status:number){return this.response({protocol:"v1",ok:false,error:{code}},status)}
+  private failure(code:AuthenticatedBrowserBridgeFailureCode,status:number,diagnostic?:BrowserNetworkPolicyDiagnostic){return this.response({protocol:"v1",ok:false,error:{code,...(code==="BRIDGE_NETWORK_POLICY_DENIED"&&diagnostic?{diagnostic}: {})}},status)}
   private response(value:AuthenticatedBrowserBridgeResponse,status=200){return new Response(JSON.stringify(value),{status,headers:{"content-type":"application/json","cache-control":"no-store"}})}
 }
 
@@ -114,12 +114,12 @@ export class AuthenticatedBrowserBridgeService{
  * Maps a provider error to a typed failure. Only the code leaves the service: error text can echo page or field content, so it is never returned or logged.
  * A mutation that fails for any reason not provably pre-dispatch is EFFECT_UNKNOWN and must not be retried by the caller.
  */
-function failureDiagnostic(operation:string,error:unknown):BrowserNetworkPolicyDiagnostic|undefined{if(error instanceof AuthenticatedBrowserBridgeError)return error.diagnostic;if(error instanceof Error&&error.name==="BrowserNavigationError"){const diagnostic=(error as {diagnostic?:BrowserNetworkPolicyDiagnostic}).diagnostic;if(diagnostic)return diagnostic;}return undefined;}
+function failureDiagnostic(operation:string,error:unknown):BrowserNetworkPolicyDiagnostic|undefined{if(error instanceof AuthenticatedBrowserBridgeError)return error.diagnostic;if(error instanceof Error&&(error.name==="BrowserNavigationError"||error.name==="BrowserPreDispatchError")){const diagnostic=(error as {diagnostic?:BrowserNetworkPolicyDiagnostic}).diagnostic;if(diagnostic)return diagnostic;}return undefined;}
 function classifyFailure(operation:string,error:unknown):AuthenticatedBrowserBridgeFailureCode{
   if(error instanceof AuthenticatedBrowserBridgeError)return error.code;
   const name=error instanceof Error?error.name:"",message=error instanceof Error?error.message:"";
   if(name==="StaleObservationError")return"BRIDGE_OBSERVATION_STALE";
-  if(name==="BrowserPreDispatchError")return/origin|scheme|hostname|method denied|request url|private|policy/i.test(message)?"BRIDGE_NETWORK_POLICY_DENIED":"BRIDGE_FENCE_MISMATCH";
+  if(name==="BrowserPreDispatchError")return failureDiagnostic(operation,error)||/origin|scheme|hostname|method denied|request url|private|policy/i.test(message)?"BRIDGE_NETWORK_POLICY_DENIED":"BRIDGE_FENCE_MISMATCH";
   if(name==="BrowserScopeError")return"BRIDGE_FENCE_MISMATCH";
   if(name==="BrowserNavigationError"){const code=(error as {code?:string}).code;return code==="NETWORK_POLICY_DENIED"||code==="UNEXPECTED_AUTH_ORIGIN"?"BRIDGE_NETWORK_POLICY_DENIED":"BRIDGE_BROWSER_FAILURE"}
   if(name==="BrowserAllocationError")return/concurrency/i.test(String((error as {cause?:{message?:string}}).cause?.message??""))?"BRIDGE_UNAVAILABLE":"BRIDGE_BROWSER_FAILURE";

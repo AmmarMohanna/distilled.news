@@ -11,9 +11,10 @@ const request: SourceAcquisitionRequest = { source: { canonicalSourceUrl: source
 describe("public source discovery from trusted Container structure", () => {
   it("preserves only bounded policy evidence from a typed Container failure", () => {
     const error = new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED", { policyRule: "ORIGIN_NOT_ADMITTED", deniedHostname: "static.publisher.example", redirectHop: false, topLevelNavigation: false, admittedOriginCount: 1 });
+    Object.assign(error, { operation: "NAVIGATE_PUBLIC_PAGE" });
     error.message = "unsafe provider text /private/path?token=secret";
     const outcome = bridgeStop(error);
-    expect(outcome).toMatchObject({ status: "POLICY_DENIED", details: { policy: { rule: "ORIGIN_NOT_ADMITTED", deniedHostname: "static.publisher.example", redirectHop: false, topLevelNavigation: false } } });
+    expect(outcome).toMatchObject({ status: "POLICY_DENIED", details: { operation: "NAVIGATE_PUBLIC_PAGE", policy: { rule: "ORIGIN_NOT_ADMITTED", deniedHostname: "static.publisher.example", redirectHop: false, topLevelNavigation: false } } });
     expect(JSON.stringify(outcome)).not.toMatch(/unsafe|private|secret/);
   });
   it("samples two real article observations and closes exactly once", async () => {

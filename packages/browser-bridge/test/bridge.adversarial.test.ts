@@ -2,6 +2,8 @@ import {describe,expect,it} from "vitest";
 import {
   AuthenticatedBrowserBridgeError,
   AuthenticatedBrowserBridgeExecutor,
+  BrowserNavigationError,
+  BrowserPreDispatchError,
   BRIDGE_MAX_REQUEST_BYTES,
   BRIDGE_MAX_SECRET_CHARS,
   BRIDGE_MAX_STORAGE_STATE_BYTES,
@@ -17,6 +19,28 @@ const newService=(options:Partial<ConstructorParameters<typeof AuthenticatedBrow
 const open=async(service:AuthenticatedBrowserBridgeService,cap=baseCapability())=>{const result=await send(service,req("OPEN_AUTH_BROWSER",cap,"op_open"));expect(result.status).toBe(200);return cap};
 
 describe("service authentication",()=>{
+  it("preserves bounded policy evidence through native Container ingress without provider text",async()=>{
+    const diagnostic={policyRule:"ORIGIN_NOT_ADMITTED" as const,deniedHostname:"static.publisher.example",redirectHop:false,topLevelNavigation:false};
+    const mock=new class extends MockBrowserProvider { override async navigatePublicPage():Promise<never>{const error=new BrowserNavigationError("NETWORK_POLICY_DENIED",diagnostic);error.message="unsafe /path?token=secret";throw error;} }();
+    const {service}=newService({},mock);
+    const cap=baseCapability({siteKind:"PUBLIC",authEntryPoint:"https://auth.example.com/",sessionProbeUrl:"https://auth.example.com/",writeOrigins:[]});
+    const url="http://127.0.0.1:8080/v1/internal-authenticated-browser";
+    const sendInternal=(payload:AuthenticatedBrowserBridgeRequest)=>service.handleInternal(new Request(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}));
+    expect((await sendInternal(req("OPEN_AUTH_BROWSER",cap,"open"))).status).toBe(200);
+    const response=await sendInternal({protocol:"v1",operationId:"nav",capability:cap,operation:"NAVIGATE_PUBLIC_PAGE",url:"https://auth.example.com/"});
+    const body=await response.text();
+    expect(JSON.parse(body)).toMatchObject({ok:false,error:{code:"BRIDGE_NETWORK_POLICY_DENIED",diagnostic}});
+    expect(body).not.toMatch(/unsafe|secret|\/path/);
+    await service.shutdown();
+  });
+  it("preserves a bounded allocation policy rule through native ingress",async()=>{
+    const mock=new class extends MockBrowserProvider { override async allocate():Promise<never>{throw new BrowserPreDispatchError("unsafe provider text",{policyRule:"PRIVATE_OR_UNRESOLVED_ORIGIN",deniedHostname:"private.example",redirectHop:false,topLevelNavigation:true});} }();
+    const {service}=newService({},mock);
+    const response=await service.handleInternal(new Request("http://127.0.0.1:8080/v1/internal-authenticated-browser",{method:"POST",body:JSON.stringify(req("OPEN_AUTH_BROWSER",baseCapability(),"open"))}));
+    const body=await response.text();
+    expect(JSON.parse(body)).toMatchObject({ok:false,error:{code:"BRIDGE_NETWORK_POLICY_DENIED",diagnostic:{policyRule:"PRIVATE_OR_UNRESOLVED_ORIGIN",deniedHostname:"private.example"}}});
+    expect(body).not.toContain("unsafe provider text");
+  });
   it("rejects unauthorized requests: missing headers, bad signature, wrong secret",async()=>{
     const {service}=newService();const payload=req("OPEN_AUTH_BROWSER",baseCapability(),"op_1");
     const missing=await service.handle(new Request(BRIDGE_URL,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}));

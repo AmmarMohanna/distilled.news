@@ -270,7 +270,7 @@ export class BrowserScopeError extends Error {
 }
 
 export class BrowserPreDispatchError extends BrowserScopeError {
-  constructor(message: string) { super(message); this.name = "BrowserPreDispatchError"; }
+  constructor(message: string, public readonly diagnostic?: BrowserNetworkPolicyDiagnostic) { super(message); this.name = "BrowserPreDispatchError"; }
 }
 
 export class BrowserPostDispatchError extends BrowserScopeError {
@@ -343,7 +343,7 @@ export class PlaywrightBrowserAdapter
       if (!this.options.testOnlyPrivateNetwork && !pinnedAddresses.has(parsed.hostname)) {
         const addresses=await resolveAddresses(parsed.hostname);
         if (addresses.length===0 || addresses.some(isPrivateAddress)) {
-          throw new BrowserPreDispatchError(`private or unresolved allowed origin denied: ${parsed.hostname}`);
+          throw new BrowserPreDispatchError(`private or unresolved allowed origin denied: ${parsed.hostname}`, { policyRule: "PRIVATE_OR_UNRESOLVED_ORIGIN", deniedHostname: parsed.hostname, redirectHop: false, topLevelNavigation: true, admittedOriginCount: normalizedOrigins.size });
         }
         const sorted=addresses.sort();
         pinnedAddresses.set(parsed.hostname,sorted.join(","));

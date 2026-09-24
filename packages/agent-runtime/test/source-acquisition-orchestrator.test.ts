@@ -44,7 +44,8 @@ describe("generic source acquisition orchestrator", () => {
     expect(out.status).toBe("STOPPED"); expect(out.stopReason).toBe("POLICY_DENIED"); expect(agent).toBe(0);
   });
   it("keeps bounded network-policy evidence on a stopped stage", async () => {
-    const out = await new SourceAcquisitionOrchestrator({ structured: async () => failure("STRUCTURED", "UNSUPPORTED"), http: async () => failure("HTTP", "INSUFFICIENT"), webOperator: async () => ({ stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied", details: { policy: { rule: "ORIGIN_NOT_ADMITTED", deniedHostname: "static.source.example.test", redirectHop: false, topLevelNavigation: false } } }) }).acquire(request);
+    const out = await new SourceAcquisitionOrchestrator({ structured: async () => failure("STRUCTURED", "UNSUPPORTED"), http: async () => failure("HTTP", "INSUFFICIENT"), webOperator: async () => ({ stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied", details: { operation: "NAVIGATE_PUBLIC_PAGE", policy: { rule: "ORIGIN_NOT_ADMITTED", deniedHostname: "static.source.example.test", redirectHop: false, topLevelNavigation: false } } }) }).acquire(request);
+    expect(out.stages.at(-1)?.operation).toBe("NAVIGATE_PUBLIC_PAGE");
     expect(out.stages.at(-1)?.policy).toEqual({ rule: "ORIGIN_NOT_ADMITTED", deniedHostname: "static.source.example.test", redirectHop: false, topLevelNavigation: false });
   });
 });

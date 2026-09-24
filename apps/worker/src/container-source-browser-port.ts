@@ -54,9 +54,9 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
       operationBudget
     };
     this.capability = capability;
-    const opened = await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "OPEN_AUTH_BROWSER" });
+    const opened = await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "OPEN_AUTH_BROWSER" });
     if (!opened || typeof opened !== "object" || !("sessionId" in opened) || opened.runId !== this.context.runId || opened.tenantId !== this.context.tenantId || opened.generation !== this.context.generation) {
-      await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "CLOSE_AUTH_BROWSER" }).catch(() => undefined);
+      await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "CLOSE_AUTH_BROWSER" }).catch(() => undefined);
       throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     }
     this.opened = true;
@@ -66,8 +66,8 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
     const capability = this.capability;
     if (!capability || !this.opened || this.closed) throw new AuthenticatedBrowserBridgeError("BRIDGE_EXECUTION_EXPIRED");
     if (!capability.allowedOrigins.includes(new URL(url).origin)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
-    await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "NAVIGATE_PUBLIC_PAGE", url });
-    const observation = await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "OBSERVE_PUBLIC_PAGE" });
+    await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "NAVIGATE_PUBLIC_PAGE", url });
+    const observation = await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "OBSERVE_PUBLIC_PAGE" });
     if (!observation || typeof observation !== "object" || !("pageRevision" in observation)) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     return observation as PublicBrowserObservation;
   }
@@ -76,7 +76,7 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
     const capability = this.capability;
     if (!capability || !this.opened || this.closed) throw new AuthenticatedBrowserBridgeError("BRIDGE_EXECUTION_EXPIRED");
     if (!Number.isInteger(deltaY) || deltaY < 1 || deltaY > 2000) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
-    const observation = await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "SCROLL_PUBLIC_PAGE", deltaY });
+    const observation = await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "SCROLL_PUBLIC_PAGE", deltaY });
     if (!observation || typeof observation !== "object" || !("pageRevision" in observation)) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     return observation as PublicBrowserObservation;
   }
@@ -84,6 +84,14 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
   async close(): Promise<void> {
     if (this.closed || !this.capability) return;
     this.closed = true;
-    await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability: this.capability, operation: "CLOSE_AUTH_BROWSER" });
+    await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability: this.capability, operation: "CLOSE_AUTH_BROWSER" });
+  }
+
+  private async execute(request: Parameters<BrowserBridgeTransport["execute"]>[0]) {
+    try { return await this.transport.execute(request); }
+    catch (error) {
+      if (error instanceof AuthenticatedBrowserBridgeError) Object.assign(error, { operation: request.operation });
+      throw error;
+    }
   }
 }
