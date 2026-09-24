@@ -1,7 +1,7 @@
 import type { CandidateIdentity, ModelCapability, ModelRoutingConfig } from "./contracts";
 import { createConfiguredWebOperatorHttpHandler, type CoordinatorOptions } from "./runtime";
 import { WebOperatorAcquisitionStrategy, type AdmittedRun } from "./admission";
-import { selectBrowserBackend, type BrowserBackendEnvironment, type CloudflareBrowserBinding, type CloudflareBrowserLauncher } from "./browser";
+import { selectBrowserBackend, type BrowserBackendEnvironment, type BrowserExecutorPort, type StructuredBrowserUsePort, type VisualComputerUsePort, type CloudflareBrowserBinding, type CloudflareBrowserLauncher } from "./browser";
 import { createModelGatewayFromEnv, modelRoutingConfigFromEnv, type ModelGatewayEnvironment } from "./model";
 import type { RuntimeStore } from "./persistence";
 import type { ArtifactStore } from "./observations";
@@ -45,6 +45,8 @@ export interface ClosedLoopWebOperatorAssemblyInput extends Omit<WebOperatorRunt
   softwareVersion: string;
   toolSchemaVersion: string;
   minimumStructuralEvidence?: number;
+  /** Explicit bounded browser backend for production Container or external deployments. */
+  browserPorts?: { executor: BrowserExecutorPort; structured: StructuredBrowserUsePort; visual: VisualComputerUsePort };
 }
 
 export function createWebOperatorRuntimeHandler(input: WebOperatorRuntimeAssemblyInput) {
@@ -70,18 +72,19 @@ export function createWebOperatorRuntimeHandler(input: WebOperatorRuntimeAssembl
 }
 
 export function createClosedLoopWebOperatorLifecycle(input: ClosedLoopWebOperatorAssemblyInput): ClosedLoopWebOperatorLifecycle {
-  const browser = selectBrowserBackend({
+  const selected = input.browserPorts ? undefined : selectBrowserBackend({
     environment: input.environment,
     cloudflare: input.cloudflareBrowser
   });
+  const browser = input.browserPorts ?? { executor: selected!.executor, structured: selected!.executor, visual: selected!.executor };
   return new ClosedLoopWebOperatorLifecycle({
     runtimeStore: input.store,
     workflowStore: input.workflowStore,
     acquisitionFailures: input.acquisitionFailures,
     artifacts: input.artifacts,
     browserExecutor: browser.executor,
-    structured: browser.executor,
-    visual: browser.executor,
+    structured: browser.structured,
+    visual: browser.visual,
     modelGateway: createModelGatewayFromEnv(input.environment, input.gatewayFetcher),
     softwareVersion: input.softwareVersion,
     toolSchemaVersion: input.toolSchemaVersion,

@@ -14,10 +14,10 @@ export const BRIDGE_MAX_OPERATION_BUDGET=64;
 export const BRIDGE_FAILURE_CODES=["BRIDGE_UNAVAILABLE","BRIDGE_UNAUTHORIZED","BRIDGE_REPLAY_REJECTED","BRIDGE_EXECUTION_EXPIRED","BRIDGE_FENCE_MISMATCH","BRIDGE_OBSERVATION_STALE","BRIDGE_NETWORK_POLICY_DENIED","BRIDGE_EFFECT_UNKNOWN","BRIDGE_BROWSER_FAILURE","BRIDGE_PROTOCOL_UNSUPPORTED","BRIDGE_PAYLOAD_TOO_LARGE","BRIDGE_OPERATION_UNKNOWN"] as const;
 export type AuthenticatedBrowserBridgeFailureCode=typeof BRIDGE_FAILURE_CODES[number];
 export type BrowserNetworkPolicyRule="ORIGIN_NOT_ADMITTED"|"REDIRECT_ORIGIN_NOT_ADMITTED"|"FINAL_ORIGIN_NOT_ADMITTED"|"SCHEME_NOT_ALLOWED"|"PRIVATE_OR_UNRESOLVED_ORIGIN"|"METHOD_NOT_ALLOWED"|"REQUEST_BLOCKED"; export interface BrowserNetworkPolicyDiagnostic{policyRule:BrowserNetworkPolicyRule;deniedHostname?:string;redirectHop:boolean;topLevelNavigation:boolean;sameSiteWithRequestedSource?:boolean;admittedOriginCount?:number;} export class AuthenticatedBrowserBridgeError extends Error{constructor(public readonly code:AuthenticatedBrowserBridgeFailureCode,public readonly diagnostic?:BrowserNetworkPolicyDiagnostic){super(code);this.name="AuthenticatedBrowserBridgeError"}}
-export const BRIDGE_OPERATIONS=["OPEN_AUTH_BROWSER","RESTORE_AUTH_STATE","NAVIGATE_AUTH_ENTRYPOINT","OBSERVE_AUTH_SURFACE","NAVIGATE_PUBLIC_PAGE","OBSERVE_PUBLIC_PAGE","INJECT_AUTH_FIELD","ACTIVATE_AUTH_CONTROL","CAPTURE_AUTH_STATE","CLOSE_AUTH_BROWSER"] as const;
+export const BRIDGE_OPERATIONS=["OPEN_AUTH_BROWSER","RESTORE_AUTH_STATE","NAVIGATE_AUTH_ENTRYPOINT","OBSERVE_AUTH_SURFACE","NAVIGATE_PUBLIC_PAGE","OBSERVE_PUBLIC_PAGE","SCROLL_PUBLIC_PAGE","INJECT_AUTH_FIELD","ACTIVATE_AUTH_CONTROL","CAPTURE_AUTH_STATE","CLOSE_AUTH_BROWSER"] as const;
 export type AuthenticatedBrowserBridgeOperation=typeof BRIDGE_OPERATIONS[number];
 /** Operations whose transport-level outcome must never be blindly repeated: an unknown result is BRIDGE_EFFECT_UNKNOWN. */
-export const BRIDGE_MUTATION_OPERATIONS:ReadonlySet<string>=new Set(["RESTORE_AUTH_STATE","NAVIGATE_AUTH_ENTRYPOINT","INJECT_AUTH_FIELD","ACTIVATE_AUTH_CONTROL"]);
+export const BRIDGE_MUTATION_OPERATIONS:ReadonlySet<string>=new Set(["RESTORE_AUTH_STATE","NAVIGATE_AUTH_ENTRYPOINT","INJECT_AUTH_FIELD","ACTIVATE_AUTH_CONTROL","SCROLL_PUBLIC_PAGE"]);
 export type BridgeNavigationDestination="ENTRYPOINT"|"SESSION_PROBE";
 
 export interface AuthenticatedBrowserExecutionCapability {bridgeExecutionId:string;bootstrapRequestId:string;runId:string;tenantId:string;ownerId:string;profileId:string;expectedProfileVersion:number;browserGeneration:number;authFlowId:string;siteKind:string;authEntryPoint:string;sessionProbeUrl:string;allowedOrigins:string[];writeOrigins:string[];issuedAt:string;expiresAt:string;operationBudget:number;}
@@ -29,6 +29,7 @@ export type AuthenticatedBrowserBridgeRequest=
   | (BoundOperation&{operation:"OBSERVE_AUTH_SURFACE";wait?:AuthSurfaceWait})
   | (BoundOperation&{operation:"NAVIGATE_PUBLIC_PAGE";url:string})
   | (BoundOperation&{operation:"OBSERVE_PUBLIC_PAGE"})
+  | (BoundOperation&{operation:"SCROLL_PUBLIC_PAGE";deltaY:number})
   | (BoundOperation&{operation:"INJECT_AUTH_FIELD";fieldKind:AuthFieldKind;fieldHandle:string;pageRevision:string;secretValue:string})
   | (BoundOperation&{operation:"ACTIVATE_AUTH_CONTROL";controlKind:AuthControlKind;controlHandle:string;pageRevision:string})
   | (BoundOperation&{operation:"CAPTURE_AUTH_STATE"})
@@ -133,12 +134,13 @@ export function assertBridgeRequestShape(value:unknown):asserts value is Authent
     case"NAVIGATE_AUTH_ENTRYPOINT":if(v.destination!==undefined&&v.destination!=="ENTRYPOINT"&&v.destination!=="SESSION_PROBE")bad();break;
     case"OBSERVE_AUTH_SURFACE":if(v.wait!==undefined&&v.wait!=="AUTH_SURFACE"&&v.wait!=="PASSWORD_FIELD")bad();break;
     case"NAVIGATE_PUBLIC_PAGE":text("url",2048);break;
+    case"SCROLL_PUBLIC_PAGE":if(!Number.isInteger(v.deltaY)||Number(v.deltaY)<1||Number(v.deltaY)>2000)bad();break;
     case"INJECT_AUTH_FIELD":if(!(AUTH_FIELD_KINDS as readonly unknown[]).includes(v.fieldKind))bad();text("fieldHandle");text("pageRevision");if(typeof v.secretValue!=="string"||v.secretValue.length>BRIDGE_MAX_SECRET_CHARS)bad();break;
     case"ACTIVATE_AUTH_CONTROL":if(typeof v.controlKind!=="string"||!(v.controlKind in AUTH_CONTROL_LABEL_PATTERNS))bad();text("controlHandle");text("pageRevision");break;
   }
 }
 /** Stable identity of a request for idempotency; deliberately excludes the secret value (only its length is bound). */
-export function bridgeRequestFingerprint(request:AuthenticatedBrowserBridgeRequest){switch(request.operation){case"INJECT_AUTH_FIELD":return JSON.stringify([request.operation,request.fieldKind,request.fieldHandle,request.pageRevision,request.secretValue.length]);case"ACTIVATE_AUTH_CONTROL":return JSON.stringify([request.operation,request.controlKind,request.controlHandle,request.pageRevision]);case"RESTORE_AUTH_STATE":return JSON.stringify([request.operation,byteLength(JSON.stringify(request.state))]);case"NAVIGATE_AUTH_ENTRYPOINT":return JSON.stringify([request.operation,request.destination??"ENTRYPOINT"]);case"NAVIGATE_PUBLIC_PAGE":return JSON.stringify([request.operation,request.url]);case"OBSERVE_AUTH_SURFACE":case"OBSERVE_PUBLIC_PAGE":return JSON.stringify([request.operation,request.operation==="OBSERVE_AUTH_SURFACE"?request.wait??null:null]);default:return request.operation}}
+export function bridgeRequestFingerprint(request:AuthenticatedBrowserBridgeRequest){switch(request.operation){case"INJECT_AUTH_FIELD":return JSON.stringify([request.operation,request.fieldKind,request.fieldHandle,request.pageRevision,request.secretValue.length]);case"ACTIVATE_AUTH_CONTROL":return JSON.stringify([request.operation,request.controlKind,request.controlHandle,request.pageRevision]);case"RESTORE_AUTH_STATE":return JSON.stringify([request.operation,byteLength(JSON.stringify(request.state))]);case"NAVIGATE_AUTH_ENTRYPOINT":return JSON.stringify([request.operation,request.destination??"ENTRYPOINT"]);case"NAVIGATE_PUBLIC_PAGE":return JSON.stringify([request.operation,request.url]);case"SCROLL_PUBLIC_PAGE":return JSON.stringify([request.operation,request.deltaY]);case"OBSERVE_AUTH_SURFACE":case"OBSERVE_PUBLIC_PAGE":return JSON.stringify([request.operation,request.operation==="OBSERVE_AUTH_SURFACE"?request.wait??null:null]);default:return request.operation}}
 export function byteLength(value:string){return new TextEncoder().encode(value).byteLength}
 function isLoopback(host:string){return host==="localhost"||host==="127.0.0.1"||host==="[::1]"}
 function toHex(bytes:Uint8Array){return[...bytes].map(value=>value.toString(16).padStart(2,"0")).join("")}

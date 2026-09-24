@@ -4,17 +4,18 @@ import {
   type CloudflareBrowserBinding,
   type CloudflareBrowserLauncher,
   type DeterministicAcquisitionPort,
-  type ClosedLoopWebOperatorLifecycle,
-  type ClosedLoopAcquisitionRequest,
   type SourceAcquisitionRequest,
-  type SourceAcquisitionResult
 } from "@distilled/agent-runtime";
+import { DeterministicSourceBrowserWorkflowExecutor, PublicSourceStages, type AcquisitionStageOutcome, type WebOperatorDiscovery } from "@distilled/agent-runtime";
 import { D1AgentRuntimeStore } from "./agent-runtime-store";
 import { R2AgentArtifactStore } from "./agent-artifact-store";
 import type { Env } from "./types";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
 import { D1SourceHighWaterStore } from "./source-acquisition-store";
 import { ProductionSourceAcquisitionService, type ProductionSourceAcquisitionDependencies } from "@distilled/agent-runtime";
+import { ContainerSourceBrowserPort } from "./container-source-browser-port";
+import { WorkerPublicSourceFetch } from "./public-source-fetch";
+import { ContainerPublicWebOperatorBrowser } from "./container-web-operator-browser";
 
 interface BrowserWorkerBinding {
   fetch: typeof fetch;
@@ -65,6 +66,19 @@ export function createWorkerClosedLoopWebOperatorLifecycle(
   });
 }
 
+export function createWorkerContainerPublicWebOperatorLifecycle(env: Env, input: { ownerId: string; resourceId: string; sourceUrl: string; operationBudget: number }) {
+  const browser = new ContainerPublicWebOperatorBrowser(env, input.ownerId, input.resourceId, input.sourceUrl, input.operationBudget);
+  const store = new D1AgentRuntimeStore(env.DB);
+  const workflowStore = new D1WorkflowRepository(env.DB);
+  return createClosedLoopWebOperatorLifecycle({
+    store, artifacts: new R2AgentArtifactStore(env.RAW_ARCHIVE), workflowStore, acquisitionFailures: workflowStore,
+    environment: env as unknown as Record<string, string | undefined>,
+    browserPorts: { executor: browser, structured: browser, visual: browser },
+    softwareVersion: "distilled-worker@0.1.0", toolSchemaVersion: "web-operator-tools@1",
+    leaseTtlMs: WORKER_AGENT_LEASE_TTL_MS, ...workerRuntimeTiming(env), workerIdFactory: () => "worker-container-public-web-operator"
+  });
+}
+
 
 /** Worker composition root for generic bounded source acquisition. Stage adapters are injected
  * by the source registry; persistence and workflow lookup are always durable Worker stores. */
@@ -81,6 +95,7 @@ export function createWorkerProductionSourceAcquisitionService(
   return new ProductionSourceAcquisitionService({
     ...dependencies,
     highWater,
+    browserWorkflow: dependencies.browserWorkflow ?? (async (request, workflow) => workflow ? workflow.execute(request) : { stage: "BROWSER_WORKFLOW", status: "UNSUPPORTED" }),
     lookupActiveWorkflow: async ({ resourceId }) => {
       const active = await workflowStore.getActiveWorkflow(resourceId);
       if (!active) return undefined;
@@ -93,54 +108,6 @@ export function createWorkerProductionSourceAcquisitionService(
   });
 }
 
-export function createWorkerLifecycleBackedSourceAcquisitionService(
-  env: Env,
-  options: {
-    tenantId: string;
-    ownerId: string;
-    resourceId: string;
-    lifecycle: ClosedLoopWebOperatorLifecycle;
-    buildClosedLoopRequest: (request: SourceAcquisitionRequest) => ClosedLoopAcquisitionRequest;
-  }
-) {
-  const run = async (request: SourceAcquisitionRequest): Promise<{ outcome: Awaited<ReturnType<ClosedLoopWebOperatorLifecycle["acquire"]>>; runId: string }> => {
-    const outcome = await options.lifecycle.acquire(options.buildClosedLoopRequest(request), new Date(request.acquisitionAsOf ?? Date.now()));
-    const runId = "run" in outcome && outcome.run ? outcome.run.runId : `source_${crypto.randomUUID()}`;
-    return { outcome, runId };
-  };
-  const toResult = (request: SourceAcquisitionRequest, value: Awaited<ReturnType<ClosedLoopWebOperatorLifecycle["acquire"]>>, workflowId?: string, workflowVersion?: number): SourceAcquisitionResult | undefined => {
-    if (!("acquiredContent" in value) || !value.acquiredContent) return undefined;
-    const item = value.acquiredContent;
-    return {
-      items: [{ sourceResource: request.source.canonicalSourceUrl ?? request.source.resourceLocator ?? item.canonicalUrl, canonicalItemUrl: item.canonicalUrl, title: item.title, text: item.body, publishedAt: item.publisherTimestamp, originalSourceReference: item.canonicalUrl, acquisitionEvidence: { acceptanceId: item.acceptanceId, observationId: item.observationId } }],
-      requestedWindow: request.window,
-      effectiveWindow: request.window,
-      acquisitionAsOf: request.acquisitionAsOf ?? new Date().toISOString(),
-      coverage: { newestObservedTimestamp: item.publisherTimestamp, oldestObservedTimestamp: item.publisherTimestamp, rangeCovered: false, truncated: true, stopReason: "SOURCE_PAGINATION_EXHAUSTED" },
-      continuation: { pageCount: 1, scrollCount: 0, noProgressCount: 0, uniqueCanonicalIds: 0, uniqueCanonicalUrls: 1 },
-      provenance: { workflowId, workflowVersion, mechanism: "web_operator" }
-    };
-  };
-  const execute = async (request: SourceAcquisitionRequest, workflow: { id: string; version: number }) => {
-    const { outcome } = await run(request);
-    const result = toResult(request, outcome, workflow.id, workflow.version);
-    return result ? { stage: "BROWSER_WORKFLOW" as const, status: "SUCCESS" as const, result } : { stage: "BROWSER_WORKFLOW" as const, status: "STRUCTURAL_FAILURE" as const, reason: "deterministic acquisition did not produce content" };
-  };
-  return createWorkerProductionSourceAcquisitionService(env, {
-    tenantId: options.tenantId,
-    ownerId: options.ownerId,
-    executeActiveWorkflow: async ({ request, workflow }) => execute(request, workflow),
-    structured: async () => ({ stage: "STRUCTURED" as const, status: "UNSUPPORTED" as const }),
-    http: async () => ({ stage: "HTTP" as const, status: "INSUFFICIENT" as const }),
-    webOperator: async (request) => {
-      const { outcome, runId } = await run(request);
-      const workflow = "workflow" in outcome ? outcome.workflow : undefined;
-      if (!workflow) throw new Error("Web Operator did not produce a deterministic workflow");
-      const candidate = { id: workflow.id, version: workflow.version, state: "CANDIDATE" as const, execute: async (next: SourceAcquisitionRequest) => execute(next, workflow) };
-      return { runId, modelCalls: outcome.modelCalls, browserOperations: 0, candidate, validate: async () => ({ ...candidate, state: "VALIDATED" as const }), activate: async () => ({ ...candidate, state: "ACTIVE" as const }) };
-    }
-  });
-}
 export function workerCloudflareBrowser(
   env: Pick<Env, "DISTILLED_BROWSER_BACKEND" | "BROWSER">,
   launcher: CloudflareBrowserLauncher = cloudflarePlaywrightLaunch
@@ -154,6 +121,38 @@ export function workerCloudflareBrowser(
     binding: env.BROWSER as CloudflareBrowserBinding,
     launch: launcher
   };
+}
+
+/** Production source-neutral stage composition. A workflow may only execute a validated source plan. */
+export function createWorkerPublicSourceAcquisitionService(
+  env: Env,
+  options: { tenantId: string; ownerId: string; resourceId: string; runId: string; sourceUrl: string; fetcher?: typeof fetch; webOperator?: (request: SourceAcquisitionRequest) => Promise<WebOperatorDiscovery | AcquisitionStageOutcome> }
+) {
+  const stages = new PublicSourceStages(new WorkerPublicSourceFetch(options.sourceUrl, options.fetcher));
+  const executeActiveWorkflow = async (input: { request: SourceAcquisitionRequest; workflow: import("@distilled/agent-runtime").WorkflowCandidate }): Promise<AcquisitionStageOutcome> =>
+    executeWorkerSourcePlan(env, { ...options, request: input.request, workflow: input.workflow });
+  return createWorkerProductionSourceAcquisitionService(env, {
+    tenantId: options.tenantId,
+    ownerId: options.ownerId,
+    executeActiveWorkflow: async ({ request, workflow }) => executeActiveWorkflow({ request, workflow }),
+    structured: (request) => stages.structured(request),
+    http: (request) => stages.http(request),
+    webOperator: options.webOperator
+  });
+}
+
+export async function executeWorkerSourcePlan(env: Env, input: { tenantId: string; ownerId: string; resourceId: string; runId: string; request: SourceAcquisitionRequest; workflow: import("@distilled/agent-runtime").WorkflowCandidate }): Promise<AcquisitionStageOutcome> {
+  if (!input.workflow.sourceAcquisition) return { stage: "BROWSER_WORKFLOW", status: "STRUCTURAL_FAILURE", reason: "ACTIVE workflow lacks a validated source acquisition plan" };
+  try {
+    const port = new ContainerSourceBrowserPort(env, { tenantId: input.tenantId, ownerId: input.ownerId, resourceId: input.resourceId, runId: input.runId, generation: input.workflow.version });
+    const result = await new DeterministicSourceBrowserWorkflowExecutor(port).execute(input.request, input.workflow.sourceAcquisition);
+    return { stage: "BROWSER_WORKFLOW", status: "SUCCESS", result: { ...result, provenance: { ...result.provenance, workflowId: input.workflow.id, workflowVersion: input.workflow.version } } };
+  } catch (error) {
+    const code = error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : undefined;
+    return code === "BRIDGE_NETWORK_POLICY_DENIED"
+      ? { stage: "BROWSER_WORKFLOW", status: "POLICY_DENIED", reason: "browser network policy denied" }
+      : { stage: "BROWSER_WORKFLOW", status: "STRUCTURAL_FAILURE", reason: "deterministic browser workflow failed" };
+  }
 }
 
 const cloudflarePlaywrightLaunch: CloudflareBrowserLauncher = async (binding, policy) => {

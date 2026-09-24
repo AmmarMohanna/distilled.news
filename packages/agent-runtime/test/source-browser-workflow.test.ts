@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PublicBrowserObservation } from "../src/browser";
-import { DeterministicSourceBrowserWorkflowExecutor, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort } from "../src/source-browser-workflow";
+import { compileSourceBrowserWorkflowPlan, DeterministicSourceBrowserWorkflowExecutor, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort } from "../src/source-browser-workflow";
 import type { SourceAcquisitionRequest } from "../src/temporal-acquisition";
 
 const origin = "https://publisher.example";
@@ -40,6 +40,13 @@ function fixture(pages: Map<string, PublicBrowserObservation>) {
 }
 
 describe("deterministic multi-item browser workflow", () => {
+  it("compiles source-neutral link/continuation evidence only from trusted observations", () => {
+    const evidence = { sourceUrl: `${origin}/news`, listing: listing(`${origin}/news`, [`${origin}/article/a`, `${origin}/article/b`]), sampledArticles: [article("a", "2026-09-21T00:00:00Z"), article("b", "2026-09-20T00:00:00Z")] };
+    expect(compileSourceBrowserWorkflowPlan(evidence)).toMatchObject({ articlePathPrefix: "/article/", continuation: { kind: "NONE", terminalEvidence: "UNPROVEN" } });
+    expect(compileSourceBrowserWorkflowPlan({ ...evidence, sampledArticles: [article("a", "2026-09-21T00:00:00Z")] })).toBeUndefined();
+    expect(compileSourceBrowserWorkflowPlan({ ...evidence, afterScroll: { ...evidence.listing, pageRevision: "scrolled", controls: [...evidence.listing.controls, link(`${origin}/article/c`)] } })).toMatchObject({ continuation: { kind: "SCROLL" } });
+    expect(compileSourceBrowserWorkflowPlan({ ...evidence, listing: { ...evidence.listing, controls: [], listingLinks: [`${origin}/article/a`, `${origin}/article/b`] }, afterScroll: { ...evidence.listing, controls: [], listingLinks: [`${origin}/article/a`, `${origin}/article/b`, `${origin}/article/c`], pageRevision: "scrolled" } })).toMatchObject({ continuation: { kind: "SCROLL" } });
+  });
   it("traverses listings and articles, deduplicates, applies [start,end), and proves validated exhaustion", async () => {
     const page2 = `${origin}/news?page=2`;
     const fixturePages = new Map<string, PublicBrowserObservation>([
@@ -78,6 +85,31 @@ describe("deterministic multi-item browser workflow", () => {
     const exhausted = await new DeterministicSourceBrowserWorkflowExecutor(physical.port).execute({ ...request, limits: { ...request.limits, maxPhysicalAttempts: 1 } }, plan);
     expect(exhausted.coverage.stopReason).toBe("EXECUTION_BUDGET_REACHED");
     expect(exhausted.continuation?.physicalAttempts).toBe(1);
+  });
+
+  it("restores listing scroll depth after article navigation and does not scroll the article", async () => {
+    let current = "";
+    let scrollDepth = 0;
+    const scrollContexts: string[] = [];
+    const port: SourceBrowserWorkflowPort = {
+      async open() {},
+      async navigateAndObserve(url) {
+        current = url;
+        if (url === plan.entryUrl) { scrollDepth = 0; return listing(url, [`${origin}/article/a`]); }
+        return article(url.split("/").at(-1)!, url.endsWith("/a") ? "2026-09-21T00:00:00Z" : "2026-09-19T00:00:00Z");
+      },
+      async scrollAndObserve() {
+        scrollContexts.push(current);
+        if (current !== plan.entryUrl) throw new Error("scroll attempted on article");
+        scrollDepth++;
+        return listing(plan.entryUrl, scrollDepth === 1 ? [`${origin}/article/a`, `${origin}/article/b`] : [`${origin}/article/a`, `${origin}/article/b`]);
+      },
+      async close() {}
+    };
+    const result = await new DeterministicSourceBrowserWorkflowExecutor(port).execute(request, { ...plan, continuation: { kind: "SCROLL", deltaY: 1200, terminalEvidence: "UNPROVEN" } });
+    expect(scrollContexts).toEqual([plan.entryUrl, plan.entryUrl, plan.entryUrl]);
+    expect(result.items.map((item) => item.canonicalItemUrl)).toEqual([`${origin}/article/a`]);
+    expect(result.coverage).toMatchObject({ rangeCovered: false, stopReason: "SOURCE_PAGINATION_EXHAUSTED" });
   });
 
   it("uses fixed acquisitionAsOf and always closes after a failed trusted observation", async () => {

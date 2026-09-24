@@ -19,7 +19,7 @@ export interface ProductionSourceAcquisitionDependencies {
   structured?: (request: SourceAcquisitionRequest) => Promise<AcquisitionStageOutcome>;
   http?: (request: SourceAcquisitionRequest) => Promise<AcquisitionStageOutcome>;
   browserWorkflow?: (request: SourceAcquisitionRequest, workflow?: ActiveWorkflowHandle) => Promise<AcquisitionStageOutcome>;
-  webOperator?: (request: SourceAcquisitionRequest) => Promise<import("./source-acquisition-orchestrator").WebOperatorDiscovery>;
+  webOperator?: (request: SourceAcquisitionRequest) => Promise<import("./source-acquisition-orchestrator").WebOperatorDiscovery | AcquisitionStageOutcome>;
 }
 
 export interface ProductionSourceAcquisitionResult extends SourceAcquisitionOrchestrationResult {
@@ -50,7 +50,14 @@ export class ProductionSourceAcquisitionService {
     const outcome = await orchestrator.acquire(request);
     let committedHighWater: SourceHighWaterState | undefined;
     if (outcome.status === "SUCCESS" && outcome.result) committedHighWater = await commitSourceHighWater(this.dependencies.highWater, `${input.tenantId}:${input.resourceId}`, outcome.result);
-    else if (outcome.result) committedHighWater = await this.dependencies.highWater.get(`${input.tenantId}:${input.resourceId}`);
+    else {
+      const key = `${input.tenantId}:${input.resourceId}`;
+      const current = await this.dependencies.highWater.get(key) ?? { key };
+      if (!current.lastSuccessfulBoundary || Date.parse(current.lastSuccessfulBoundary) < Date.parse(request.window.endTime)) {
+        await this.dependencies.highWater.put({ ...current, unresolvedWindow: request.window });
+      }
+      committedHighWater = await this.dependencies.highWater.get(key);
+    }
     return { ...outcome, request, committedHighWater };
   }
 }

@@ -22,6 +22,7 @@
     "./product-loop": "./src/product-loop.ts",
     "./workflow": "./src/workflow.ts",
     "./source-browser-workflow": "./src/source-browser-workflow.ts",
+    "./public-source-stages": "./src/public-source-stages.ts",
     "./temporal-acquisition": "./src/temporal-acquisition.ts",
     "./rss-acquisition": "./src/rss-acquisition.ts",
     "./http-html-acquisition": "./src/http-html-acquisition.ts",

@@ -46,7 +46,9 @@ import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { addSourceFromInput, refreshEnabledSources } from "./sources";
 import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
-import { createWorkerClosedLoopWebOperatorLifecycle, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
+import { createWorkerPublicSourceAcquisitionService, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
+import { D1UpstreamResourceStore } from "./upstream-resource-store";
+import { discoverAndPromotePublicSourceWorkflow } from "./public-source-discovery";
 import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
 import { handleBridgePreflight,handleContainerPreflight,handleProviderDiagnostic } from "./bridge-preflight";
 import { handlePublicBrowserAcquisition } from "./public-browser-acquisition";
@@ -168,8 +170,18 @@ const healthInputSchema = z.object({
   briefingId: z.string().min(1).optional()
 });
 const livePublicAcquisitionSmokeSchema = z.object({
-  candidateUrl: z.string().url().max(2_048).optional(),
-  idempotencyKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/)
+  sourceUrl: z.string().url().max(2_048),
+  ownerAccountId: z.string().min(1).max(128),
+  startTime: z.string().datetime({ offset: true }),
+  endTime: z.string().datetime({ offset: true }),
+  idempotencyKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/),
+  limits: z.object({
+    maxItems: z.number().int().min(1).max(30),
+    maxPages: z.number().int().min(1).max(5),
+    maxScrolls: z.number().int().min(1).max(5),
+    maxPhysicalAttempts: z.number().int().min(1).max(30),
+    maxExecutionMs: z.number().int().min(1_000).max(90_000)
+  }).strict().optional()
 }).strict();
 
 const feedStarInputSchema = z.object({
@@ -253,83 +265,18 @@ export function createApp(options: AppOptions = {}) {
     if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
     if (!isRuntimeAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
     const input = livePublicAcquisitionSmokeSchema.parse(await c.req.json().catch(() => ({})));
-    const articleUrl = input.candidateUrl ?? requiredLiveSmokeEnv(c.env, "DISTILLED_LIVE_PUBLIC_CANDIDATE_URL");
-    const model = requiredLiveSmokeEnv(c.env, "DISTILLED_LIVE_OPENROUTER_MODEL");
-    const provider = requiredLiveSmokeEnv(c.env, "DISTILLED_LIVE_OPENROUTER_PROVIDER");
-    const providerRouting = liveSmokeProviderRouting(c.env);
-    requiredLiveSmokeEnv(c.env, "OPENROUTER_API_KEY");
-    if (c.env.DISTILLED_BROWSER_BACKEND?.trim().toLowerCase() !== "cloudflare") {
-      return c.json({ error: "live smoke requires DISTILLED_BROWSER_BACKEND=cloudflare" }, 500);
-    }
-    if (c.env.DISTILLED_LLM_MODE !== "api" || c.env.DISTILLED_LLM_API_GATEWAY !== "openrouter") {
-      return c.json({ error: "live smoke requires api OpenRouter model routing" }, 500);
-    }
-
     const now = nowFor();
-    const origin = new URL(articleUrl).origin;
-    const idempotencyKey = input.idempotencyKey;
-    const lifecycle = createWorkerClosedLoopWebOperatorLifecycle(c.env, {
-      deterministicAcquisition: {
-        structured_api_feed: unavailableDeterministicAcquisition("structured_api_feed"),
-        http_deterministic_extraction: unavailableDeterministicAcquisition("http_deterministic_extraction")
-      }
-    });
-    const outcome = await lifecycle.acquire({
-      tenantId: "live-smoke",
-      resourceId: makeId("live_public_resource", origin),
-      idempotencyKey,
-      objective: `Acquire the public article at ${articleUrl} and cite the accepted observation when complete.`,
-      candidate: {
-        candidateId: makeId("live_public_candidate", articleUrl),
-        canonicalUrl: articleUrl,
-        publisherId: new URL(articleUrl).hostname,
-        acquisitionAttempt: "live-public-smoke"
-      },
-      policy: {
-        id: "live-public-read-policy",
-        allowedOrigins: [origin],
-        allowLoopback: false,
-        allowedTools: [
-          "browser.navigate@1",
-          "browser.inspect_dom@1",
-          "browser.inspect_accessibility_tree@1",
-          "browser.query_page_state@1",
-          "browser.follow_link@1",
-          "browser.extract@1",
-          "computer.screenshot@1",
-          "run.propose_completion@1"
-        ],
-        visualReadPurposes: ["read-navigation"],
-        modelPolicy: {
-          allowedProviders: [provider, ...(providerRouting?.endpoints.map((endpoint)=>endpoint.tag)??[])],
-          allowedDeployments: ["api"],
-          requiredPrivacyEligibility: ["public"],
-          allowedRetentionClasses: ["zero_data_retention"]
-        }
-      },
-      modelRouting: liveSmokeModelRouting(model),
-      modelCapabilities: [liveSmokeModelCapability(model, provider, providerRouting, c.env)],
-      budgetLimits: {
-        ...DEFAULT_SLICE_BUDGET,
-        modelCalls: liveSmokeInteger(c.env.DISTILLED_LIVE_MODEL_CALL_LIMIT, 5),
-        inputTokens: liveSmokeInteger(c.env.DISTILLED_LIVE_INPUT_TOKEN_LIMIT, 12_000),
-        outputTokens: liveSmokeInteger(c.env.DISTILLED_LIVE_OUTPUT_TOKEN_LIMIT, 2_000),
-        modelCostUsd: liveSmokeNumber(c.env.DISTILLED_LIVE_MODEL_COST_LIMIT_USD, 0.25),
-        browserActions: liveSmokeInteger(c.env.DISTILLED_LIVE_BROWSER_ACTION_LIMIT, 15),
-        navigations: liveSmokeInteger(c.env.DISTILLED_LIVE_NAVIGATION_LIMIT, 4),
-        wallClockMs: liveSmokeInteger(c.env.DISTILLED_LIVE_WALL_CLOCK_LIMIT_MS, 60_000)
-      },
-      priorFailures: webOperatorRouteEvidence(now),
-      enabled: c.env.DISTILLED_WEB_OPERATOR_ENABLED === "true"
-    }, now);
-    return c.json(await liveSmokeReport(c.env.DB, outcome, {
-      browserBackend: c.env.DISTILLED_BROWSER_BACKEND,
-      llmMode: c.env.DISTILLED_LLM_MODE,
-      gateway: c.env.DISTILLED_LLM_API_GATEWAY,
-      requestedModel: model,
-      requestedProvider: provider,
-      startedAt: now.toISOString()
-    }));
+    const source = new URL(input.sourceUrl);
+    if (source.protocol !== "https:" || source.username || source.password || Date.parse(input.startTime) >= Date.parse(input.endTime) || Date.parse(input.startTime) >= now.getTime()) return c.json({ error: "invalid_source_window" }, 400);
+    const window = { startTime: new Date(input.startTime).toISOString(), endTime: new Date(input.endTime).toISOString() };
+    const owner = await repoFor(c).getAccountById(input.ownerAccountId);
+    if (!owner || owner.disabledAt) return c.json({ error: "owner_not_found" }, 404);
+    const resource = await new D1UpstreamResourceStore(c.env.DB).resolveOrCreate({ tenantId: owner.id, canonicalSourceUrl: source.href, now: now.toISOString() });
+    const limits = input.limits ?? { maxItems: 10, maxPages: 3, maxScrolls: 3, maxPhysicalAttempts: 16, maxExecutionMs: 60_000 };
+    const runId = makeId("public_source_run", resource.id, input.idempotencyKey);
+    const service = createWorkerPublicSourceAcquisitionService(c.env, { tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, sourceUrl: source.href, fetcher, webOperator: (request) => discoverAndPromotePublicSourceWorkflow(c.env, { request, tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, idempotencyKey: input.idempotencyKey }) });
+    const outcome = await service.acquire({ tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, source: { canonicalSourceUrl: source.href }, window, limits, authentication: "PUBLIC", acquisitionAsOf: now.toISOString() });
+    return c.json({ status: outcome.status, stages: outcome.stages, stopReason: outcome.stopReason, upstreamResourceId: resource.id, activeWorkflow: outcome.activeWorkflow, candidateWorkflow: outcome.candidateWorkflow, webOperatorCalls: outcome.webOperatorCalls, webOperatorRunId: outcome.webOperatorRunId, discoveryModelCalls: outcome.discoveryModelCalls, discoveryBrowserOperations: outcome.discoveryBrowserOperations, requestedWindow: outcome.result?.requestedWindow ?? outcome.request.window, effectiveWindow: outcome.result?.effectiveWindow, acquisitionAsOf: outcome.result?.acquisitionAsOf ?? outcome.request.acquisitionAsOf, coverage: outcome.result?.coverage, continuation: outcome.result?.continuation, items: outcome.result?.items.map((item) => ({ canonicalItemUrl: item.canonicalItemUrl, sourceItemId: item.sourceItemId, title: item.title, publishedAt: item.publishedAt, contentLength: item.text?.length, originalSourceReference: item.originalSourceReference })), committedHighWater: outcome.committedHighWater });
   });
 
   app.get("/api/auth/session", async (c) => {

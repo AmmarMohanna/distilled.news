@@ -48,6 +48,7 @@ export interface BrowserObservationData {
   accessibilityNodeCountCategory?: "none" | "one" | "few" | "many";
   controls: SemanticControl[];
   challengeState: ChallengeState;
+  listingLinks?: string[];
   httpStatus?: number;
   watermarkObserved: boolean;
   article?: {
@@ -61,7 +62,9 @@ export interface BrowserObservationData {
 
 export interface PublicBrowserObservation {
   url:string; title:string; pageRevision:string; visibleText:string; controls:SemanticControl[];
+  listingLinks?:string[];
   challengeState?:ChallengeState;
+  watermarkObserved?:boolean;
   article?:BrowserObservationData["article"];
   documentCountCategory?:BrowserObservationData["documentCountCategory"];
   iframeCountCategory?:BrowserObservationData["iframeCountCategory"];
@@ -204,6 +207,7 @@ interface TrustedBrowserObservation {
   contentType: string;
   raw: Uint8Array;
   controls: SemanticControl[];
+  listingLinks?: string[];
   visibleText: string;
   markup: string;
   watermarkObserved: boolean;
@@ -850,6 +854,7 @@ export class PlaywrightBrowserAdapter
       url: observed.url,
       title: observed.title,
       controls,
+      listingLinks: observed.listingLinks,
       challengeState,
       httpStatus: live.lastMainDocumentStatus,
       watermarkObserved: observed.watermarkObserved,
@@ -892,6 +897,7 @@ export class PlaywrightBrowserAdapter
       domNodeCountCategory: observed.domNodeCountCategory,
       accessibilityNodeCountCategory: observed.accessibilityNodeCountCategory,
       controls,
+      listingLinks: observed.listingLinks,
       challengeState,
       watermarkObserved: observed.watermarkObserved,
       article: observed.article
@@ -1031,6 +1037,7 @@ class CdpBrowserObservationProvider implements BrowserObservationProvider {
     const title = stringAt(snapshot.strings, document.title) || textOf(firstByName(nodes, "title"), nodes);
     const visibleText = collapseWhitespace(textOf(firstByName(nodes, "body"), nodes));
     const controls = discoverControls(nodes, axByBackend, pageUrl, baseUrl, live.scope.viewport);
+    const listingLinks = discoverListingLinks(nodes, pageUrl, baseUrl);
     const formCountCategory=countCategory([...nodes.values()].filter(node=>node.name==="form").length);
     const article = discoverArticle(nodes, pageUrl, baseUrl, visibleText);
     const watermarkObserved = [...nodes.values()].some((node) => node.attributes.get("data-watermark-observed") === "true");
@@ -1048,6 +1055,7 @@ class CdpBrowserObservationProvider implements BrowserObservationProvider {
       contentType: image ? "image/png" : "application/vnd.distilled.cdp-snapshot+json",
       raw,
       controls,
+      listingLinks,
       visibleText,
       markup: JSON.stringify(sanitizedSnapshot),
       watermarkObserved,
@@ -1138,6 +1146,25 @@ function discoverControls(
   return controls;
 }
 
+/** Browser-owned DOM snapshot inventory; actionable controls remain separately bounded and fenced. */
+function discoverListingLinks(nodes: Map<number, DomNodeSnapshot>, pageUrl: string, baseUrl: string): string[] {
+  const page = new URL(pageUrl);
+  const origin = page.origin;
+  const links = new Set<string>();
+  for (const node of nodes.values()) {
+    if (node.name !== "a" || node.attributes.get("aria-hidden") === "true" || !isRenderableControl(node)) continue;
+    if (node.attributes.has("download") || (node.attributes.get("target") && node.attributes.get("target") !== "_self")) continue;
+    const value = resolveRuntimeUrl(node.attributes.get("href"), baseUrl || pageUrl);
+    if (!value) continue;
+    const url = new URL(value);
+    if (url.protocol !== page.protocol || url.origin !== origin) continue;
+    url.hash = "";
+    links.add(url.href);
+    if (links.size >= 100) break;
+  }
+  return [...links];
+}
+
 function discoverArticle(
   nodes: Map<number, DomNodeSnapshot>,
   pageUrl: string,
@@ -1152,7 +1179,10 @@ function discoverArticle(
       ?.attributes.get("href"),
     baseUrl || pageUrl
   ) ?? pageUrl;
-  const publisherTimestamp = firstDescendant(article, nodes, "time")?.attributes.get("datetime") ?? "";
+  const timeAttribute = firstDescendant(article, nodes, "time")?.attributes.get("datetime");
+  const publishedMeta = [...nodes.values()].find((node) => node.name === "meta" &&
+    ["article:published_time", "datepublished", "parsely-pub-date"].includes((node.attributes.get("property") ?? node.attributes.get("name") ?? "").toLowerCase()))?.attributes.get("content");
+  const publisherTimestamp = [timeAttribute, publishedMeta].find((value) => value && Number.isFinite(Date.parse(value))) ?? "";
   const bodyNode = firstByAttribute(article, nodes, "data-article-body");
   const excerptNode = firstByAttribute(article, nodes, "data-excerpt");
   const body = collapseWhitespace(textOf(bodyNode ?? article, nodes) || visibleText);

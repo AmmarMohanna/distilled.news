@@ -42,6 +42,7 @@ export class SyntheticSite{
         const html=(status:number,title:string,content:string,headers:Record<string,string>={})=>{res.writeHead(status,{"content-type":"text/html",...headers});res.end(page(title,content))};
         const redirect=(status:number,location:string)=>{res.writeHead(status,{location});res.end()};
         if(url.pathname==="/structure"&&req.method==="GET")return html(200,"Structure fixture",`<button type="button">Continue</button><input aria-label="Username"><iframe src="/structure-frame" title="fixture"></iframe>`);
+        if(url.pathname==="/link-listing"&&req.method==="GET")return html(200,"Listing fixture",`${Array.from({length:45},(_,index)=>`<a href="/navigation/${index}">Navigation ${index}</a>`).join("")}<article><a href="/article/one">First article</a><a href="/article/two">Second article</a></article>`);
         if(url.pathname==="/structure-frame"&&req.method==="GET")return html(200,"Structure frame","<p>Frame fixture</p>");
         if(url.pathname==="/login"&&req.method==="GET")return html(200,"Login step 1",`<form method="POST" action="/login/step1"><label>Username <input name="username" type="text" aria-label="Username"></label><button type="submit">Continue</button></form>`);
         if(url.pathname==="/login/step1"&&req.method==="POST"){

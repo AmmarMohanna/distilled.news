@@ -8,7 +8,7 @@ import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } f
 import type { AuthenticatedProfileBootstrapMessage,AuthenticatedSurfaceDiagnosticMessage,DistilledQueueMessage, Env, OpenRouterModelDiagnosticMessage, ProcessingJobMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
 import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
 import { D1AgentRuntimeStore } from "./agent-runtime-store";
-import { dispatchPendingLivePublicAcquisitionSmokes, processLivePublicAcquisitionSmoke } from "./live-public-acquisition-smoke";
+import { processLivePublicAcquisitionSmoke } from "./live-public-acquisition-smoke";
 import { createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { dispatchPendingOpenRouterModelDiagnostics,processOpenRouterModelDiagnostic } from "./openrouter-model-diagnostic";
 import { dispatchPendingAuthenticatedProfileBootstraps,processAuthenticatedProfileBootstrap } from "./authenticated-profile-bootstrap-trigger";
@@ -222,11 +222,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function runScheduledMaintenance(env: Env): Promise<void> {
   const repo = new D1Repository(env.DB);
   const now = new Date();
-  try {
-    await dispatchPendingLivePublicAcquisitionSmokes(env, now);
-  } catch (error) {
-    console.warn("Could not dispatch pending live public acquisition smoke", error);
-  }
   try {
     await dispatchPendingOpenRouterModelDiagnostics(env,now);
   } catch (error) {

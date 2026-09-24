@@ -70,12 +70,21 @@ describe("real HTTP bridge → real SelfHostedChromiumProvider → synthetic aut
     try {
       const opened=await flow.transport.execute({protocol:"v1",operationId:"op_public_open",capability,operation:"OPEN_AUTH_BROWSER"}) as {sessionId:string};
       sessionId=opened.sessionId;
-      const navigated=await flow.transport.execute({protocol:"v1",operationId:"op_public_nav",capability,operation:"NAVIGATE_PUBLIC_PAGE",url:`${site.origin}/structure`}) as {url:string;controls:unknown[]};
+      const navigated=await flow.transport.execute({protocol:"v1",operationId:"op_public_nav",capability,operation:"NAVIGATE_PUBLIC_PAGE",url:`${site.origin}/structure`}) as {url:string;controls:unknown[];listingLinks?:string[]};
       expect(navigated.url).toContain("/structure");
       expect(navigated.controls.length).toBeGreaterThan(0);
+      expect(navigated.listingLinks).toEqual([]);
       const observed=await flow.transport.execute({protocol:"v1",operationId:"op_public_observe",capability,operation:"OBSERVE_PUBLIC_PAGE"}) as {iframeCountCategory:string;domNodeCountCategory:string};
       expect(observed.iframeCountCategory).toBe("one");
       expect(["one","few","many"]).toContain(observed.domNodeCountCategory);
+      const scrolled=await flow.transport.execute({protocol:"v1",operationId:"op_public_scroll",capability,operation:"SCROLL_PUBLIC_PAGE",deltaY:400}) as {url:string;pageRevision:string};
+      expect(scrolled.url).toContain("/structure");
+      expect(scrolled.pageRevision).toBeTruthy();
+      const listing=await flow.transport.execute({protocol:"v1",operationId:"op_public_listing",capability,operation:"NAVIGATE_PUBLIC_PAGE",url:`${site.origin}/link-listing`}) as {controls:unknown[];listingLinks?:string[]};
+      expect(listing.controls).toHaveLength(40);
+      expect(listing.listingLinks).toContain(`${site.origin}/article/one`);
+      expect(listing.listingLinks).toContain(`${site.origin}/article/two`);
+      await expect(flow.transport.execute({protocol:"v1",operationId:"op_public_bad_scroll",capability,operation:"SCROLL_PUBLIC_PAGE",deltaY:5000})).rejects.toMatchObject({code:"BRIDGE_FENCE_MISMATCH"});
       await expect(flow.transport.execute({protocol:"v1",operationId:"op_public_capture",capability,operation:"CAPTURE_AUTH_STATE"})).rejects.toMatchObject({code:"BRIDGE_NETWORK_POLICY_DENIED"});
     } finally {
       if(sessionId) await flow.transport.execute({protocol:"v1",operationId:"op_public_close",capability,operation:"CLOSE_AUTH_BROWSER"}).catch(()=>undefined);

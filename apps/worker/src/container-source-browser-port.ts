@@ -29,6 +29,7 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
 
   async open(input: { sourceUrl: string; allowedOrigins: string[]; request: SourceAcquisitionRequest }): Promise<void> {
     if (this.capability) throw new AuthenticatedBrowserBridgeError("BRIDGE_REPLAY_REJECTED");
+    if (input.request.limits.maxPhysicalAttempts > 30) throw new Error("public source operation budget exceeds bridge limit");
     const source = new URL(input.sourceUrl);
     if (source.protocol !== "https:" || !input.allowedOrigins.includes(source.origin)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     const now = Date.now();
@@ -55,6 +56,7 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
     this.capability = capability;
     const opened = await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "OPEN_AUTH_BROWSER" });
     if (!opened || typeof opened !== "object" || !("sessionId" in opened) || opened.runId !== this.context.runId || opened.tenantId !== this.context.tenantId || opened.generation !== this.context.generation) {
+      await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "CLOSE_AUTH_BROWSER" }).catch(() => undefined);
       throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     }
     this.opened = true;
@@ -66,6 +68,15 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
     if (!capability.allowedOrigins.includes(new URL(url).origin)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "NAVIGATE_PUBLIC_PAGE", url });
     const observation = await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "OBSERVE_PUBLIC_PAGE" });
+    if (!observation || typeof observation !== "object" || !("pageRevision" in observation)) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
+    return observation as PublicBrowserObservation;
+  }
+
+  async scrollAndObserve(deltaY: number): Promise<PublicBrowserObservation> {
+    const capability = this.capability;
+    if (!capability || !this.opened || this.closed) throw new AuthenticatedBrowserBridgeError("BRIDGE_EXECUTION_EXPIRED");
+    if (!Number.isInteger(deltaY) || deltaY < 1 || deltaY > 2000) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
+    const observation = await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "SCROLL_PUBLIC_PAGE", deltaY });
     if (!observation || typeof observation !== "object" || !("pageRevision" in observation)) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     return observation as PublicBrowserObservation;
   }

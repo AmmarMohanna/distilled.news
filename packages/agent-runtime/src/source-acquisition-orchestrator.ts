@@ -25,6 +25,9 @@ export interface WebOperatorDiscovery {
   candidate: CandidateWorkflowHandle;
   validate(candidate: CandidateWorkflowHandle): Promise<CandidateWorkflowHandle>;
   activate(candidate: CandidateWorkflowHandle): Promise<ActiveWorkflowHandle>;
+  runId?: string;
+  modelCalls?: number;
+  browserOperations?: number;
 }
 
 export interface SourceAcquisitionOrchestratorOptions {
@@ -32,7 +35,7 @@ export interface SourceAcquisitionOrchestratorOptions {
   structured?: (request: SourceAcquisitionRequest) => Promise<AcquisitionStageOutcome>;
   http?: (request: SourceAcquisitionRequest) => Promise<AcquisitionStageOutcome>;
   browserWorkflow?: (request: SourceAcquisitionRequest, workflow?: ActiveWorkflowHandle) => Promise<AcquisitionStageOutcome>;
-  webOperator?: (request: SourceAcquisitionRequest) => Promise<WebOperatorDiscovery>;
+  webOperator?: (request: SourceAcquisitionRequest) => Promise<WebOperatorDiscovery | AcquisitionStageOutcome>;
 }
 
 export interface AcquisitionStageTrace {
@@ -48,6 +51,9 @@ export interface SourceAcquisitionOrchestrationResult {
   activeWorkflow?: { id: string; version: number };
   candidateWorkflow?: { id: string; version: number; promoted: boolean };
   webOperatorCalls: number;
+  webOperatorRunId?: string;
+  discoveryModelCalls?: number;
+  discoveryBrowserOperations?: number;
   stopReason?: AcquisitionStageStatus;
 }
 
@@ -82,13 +88,24 @@ export class SourceAcquisitionOrchestrator {
 
     if (!this.options.webOperator) return { status: "UNAVAILABLE", stages, webOperatorCalls: 0, stopReason: "UNSUPPORTED" };
     const discovery = await this.options.webOperator(request);
+    if ("stage" in discovery) {
+      record(discovery);
+      return { status: "STOPPED", stages, webOperatorCalls: 1, stopReason: discovery.status };
+    }
     const candidateTrace: AcquisitionStageTrace = { stage: "WEB_OPERATOR", status: "SUCCESS", reason: "candidate_discovered" };
     stages.push(candidateTrace);
-    const validated = await discovery.validate(discovery.candidate);
-    const activeWorkflow = await discovery.activate(validated);
+    let activeWorkflow: ActiveWorkflowHandle;
+    try {
+      const validated = await discovery.validate(discovery.candidate);
+      activeWorkflow = await discovery.activate(validated);
+    } catch {
+      record({ stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "candidate_validation_or_promotion_failed" });
+      return { status: "STOPPED", stages, candidateWorkflow: { id: discovery.candidate.id, version: discovery.candidate.version, promoted: false }, webOperatorCalls: 1, stopReason: "STRUCTURAL_FAILURE", webOperatorRunId: discovery.runId, discoveryModelCalls: discovery.modelCalls, discoveryBrowserOperations: discovery.browserOperations };
+    }
     const acquired = record(await activeWorkflow.execute(request));
-    if (acquired.status !== "SUCCESS") return { status: "STOPPED", stages, activeWorkflow: { id: activeWorkflow.id, version: activeWorkflow.version }, candidateWorkflow: { id: discovery.candidate.id, version: discovery.candidate.version, promoted: false }, webOperatorCalls: 1, stopReason: acquired.status };
-    return { status: "SUCCESS", result: acquired.result, stages, activeWorkflow: { id: activeWorkflow.id, version: activeWorkflow.version }, candidateWorkflow: { id: discovery.candidate.id, version: discovery.candidate.version, promoted: true }, webOperatorCalls: 1 };
+    const metrics = { webOperatorRunId: discovery.runId, discoveryModelCalls: discovery.modelCalls, discoveryBrowserOperations: discovery.browserOperations };
+    if (acquired.status !== "SUCCESS") return { status: "STOPPED", stages, activeWorkflow: { id: activeWorkflow.id, version: activeWorkflow.version }, candidateWorkflow: { id: discovery.candidate.id, version: discovery.candidate.version, promoted: true }, webOperatorCalls: 1, stopReason: acquired.status, ...metrics };
+    return { status: "SUCCESS", result: acquired.result, stages, activeWorkflow: { id: activeWorkflow.id, version: activeWorkflow.version }, candidateWorkflow: { id: discovery.candidate.id, version: discovery.candidate.version, promoted: true }, webOperatorCalls: 1, ...metrics };
   }
 
   private mayEscalate(status: AcquisitionStageStatus) { return status === "UNSUPPORTED" || status === "INSUFFICIENT" || status === "STRUCTURAL_FAILURE"; }
