@@ -23,6 +23,6 @@ describe("public source HTTP admission", () => {
     const redirect = new WorkerPublicSourceFetch("https://news.example.com/", (async () => new Response(null, { status: 302, headers: { location: "https://foreign.example.com/" } })) as typeof fetch);
     await expect(redirect.get("https://news.example.com/")).rejects.toThrow("public source policy denied");
     const oversized = new WorkerPublicSourceFetch("https://news.example.com/", (async () => new Response("x".repeat(512_001))) as typeof fetch);
-    await expect(oversized.get("https://news.example.com/")).rejects.toThrow("exceeds budget");
+    await expect(oversized.get("https://news.example.com/")).rejects.toMatchObject({ category: "BODY_BUDGET_EXCEEDED" });
   });
 });

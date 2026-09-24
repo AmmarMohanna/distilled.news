@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PublicSourceStages, type PublicSourceFetchPort } from "../src/public-source-stages";
+import { PublicSourceFetchFailure, PublicSourceStages, type PublicSourceFetchPort } from "../src/public-source-stages";
 import type { SourceAcquisitionRequest } from "../src/temporal-acquisition";
 
 const source = "https://publisher.example/news";
@@ -50,5 +50,13 @@ describe("real public source capability stages", () => {
     const outcome = await new PublicSourceStages(fetcher).http(request);
     expect(outcome.status).toBe("INSUFFICIENT");
     expect(visits).toEqual([source, source, article]);
+  });
+
+  it("distinguishes bounded HTTP insufficiency from transient network failure", async () => {
+    const oversized = new PublicSourceStages({ async get() { throw new PublicSourceFetchFailure("BODY_BUDGET_EXCEEDED"); } });
+    expect(await oversized.structured(request)).toMatchObject({ stage: "STRUCTURED", status: "INSUFFICIENT", reason: "source_body_budget_exceeded" });
+    expect(await oversized.http(request)).toMatchObject({ stage: "HTTP", status: "INSUFFICIENT", reason: "source_body_budget_exceeded" });
+    const network = new PublicSourceStages({ async get() { throw new PublicSourceFetchFailure("NETWORK_FAILURE"); } });
+    expect(await network.structured(request)).toMatchObject({ status: "TRANSIENT_FAILURE", reason: "source_network_failure" });
   });
 });

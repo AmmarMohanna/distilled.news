@@ -5,6 +5,9 @@ import type { AcquisitionStageOutcome } from "./source-acquisition-orchestrator"
 
 export interface PublicSourceFetchPort { get(url: string): Promise<{ url: string; contentType: string; body: string; status: number }> }
 export class PublicSourcePolicyError extends Error { constructor() { super("public source policy denied"); } }
+export class PublicSourceFetchFailure extends Error {
+  constructor(readonly category: "BODY_BUDGET_EXCEEDED" | "NETWORK_FAILURE") { super(category); }
+}
 
 /** Actual, bounded capability assessment: a stage never reports an invented outcome. */
 export class PublicSourceStages {
@@ -15,7 +18,7 @@ export class PublicSourceStages {
     const source = sourceUrl(request);
     let document: Awaited<ReturnType<PublicSourceFetchPort["get"]>>;
     try { document = await this.load(source); }
-    catch (error) { return { stage: "STRUCTURED", status: error instanceof PublicSourcePolicyError ? "POLICY_DENIED" : "TRANSIENT_FAILURE", reason: "source retrieval failed" }; }
+    catch (error) { return fetchFailure("STRUCTURED", error); }
     const feed = directFeed(document) ? source : discoveredFeed(document.body, source);
     if (!feed) return { stage: "STRUCTURED", status: "UNSUPPORTED", reason: "no native feed discovered" };
     try {
@@ -23,14 +26,14 @@ export class PublicSourceStages {
       return result.coverage.rangeCovered && result.items.every((item) => Boolean(item.text && item.publishedAt))
         ? { stage: "STRUCTURED", status: "SUCCESS", result }
         : { stage: "STRUCTURED", status: "INSUFFICIENT", reason: "feed does not prove the requested range or full content" };
-    } catch (error) { return { stage: "STRUCTURED", status: error instanceof PublicSourcePolicyError ? "POLICY_DENIED" : "TRANSIENT_FAILURE", reason: "native feed retrieval failed" }; }
+    } catch (error) { return fetchFailure("STRUCTURED", error); }
   }
 
   async http(request: SourceAcquisitionRequest): Promise<AcquisitionStageOutcome> {
     const source = sourceUrl(request);
     let document: Awaited<ReturnType<PublicSourceFetchPort["get"]>>;
     try { document = await this.load(source); }
-    catch (error) { return { stage: "HTTP", status: error instanceof PublicSourcePolicyError ? "POLICY_DENIED" : "TRANSIENT_FAILURE", reason: "source retrieval failed" }; }
+    catch (error) { return fetchFailure("HTTP", error); }
     if (!document.contentType.toLowerCase().includes("html")) return { stage: "HTTP", status: "UNSUPPORTED", reason: "source is not HTML" };
     if (!articleLinks(document.body, source).length) return { stage: "HTTP", status: "INSUFFICIENT", reason: "no deterministic listing article links" };
     const workflow: HttpHtmlSourceWorkflow = {
@@ -46,7 +49,7 @@ export class PublicSourceStages {
       return result.coverage.rangeCovered && result.items.every((item) => Boolean(item.text && item.publishedAt))
         ? { stage: "HTTP", status: "SUCCESS", result }
         : { stage: "HTTP", status: "INSUFFICIENT", reason: "HTML listing could not prove complete dated content" };
-    } catch (error) { return { stage: "HTTP", status: error instanceof PublicSourcePolicyError ? "POLICY_DENIED" : "TRANSIENT_FAILURE", reason: "HTML retrieval failed" }; }
+    } catch (error) { return fetchFailure("HTTP", error); }
   }
 
   private load(url: string) { return this.document ??= this.fetcher.get(url); }
@@ -58,6 +61,12 @@ export class PublicSourceStages {
     const result = await this.fetcher.get(String(input));
     return new Response(result.body, { status: result.status, headers: { "content-type": result.contentType } });
   };
+}
+
+function fetchFailure(stage: "STRUCTURED" | "HTTP", error: unknown): AcquisitionStageOutcome {
+  if (error instanceof PublicSourcePolicyError) return { stage, status: "POLICY_DENIED", reason: "source_policy_denied" };
+  if (error instanceof PublicSourceFetchFailure && error.category === "BODY_BUDGET_EXCEEDED") return { stage, status: "INSUFFICIENT", reason: "source_body_budget_exceeded" };
+  return { stage, status: "TRANSIENT_FAILURE", reason: error instanceof PublicSourceFetchFailure ? "source_network_failure" : "source_http_extraction_failure" };
 }
 
 function sourceUrl(request: SourceAcquisitionRequest): string {
