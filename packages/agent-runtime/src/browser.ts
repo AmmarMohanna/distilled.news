@@ -1156,7 +1156,7 @@ function discoverControls(
   for (const node of nodes.values()) {
     if (!["a", "button", "input", "select", "textarea"].includes(node.name)) continue;
     if (node.attributes.get("aria-hidden") === "true") continue;
-    if (!isRenderableControl(node)) continue;
+    if (!isRenderableControl(node,nodes)) continue;
     const ax = node.backendNodeId === undefined ? undefined : axByBackend.get(node.backendNodeId);
     const label = collapseWhitespace(
       ax?.name ||
@@ -1193,7 +1193,7 @@ function discoverListingLinks(nodes: Map<number, DomNodeSnapshot>, pageUrl: stri
   const origin = page.origin;
   const links = new Set<string>();
   for (const node of nodes.values()) {
-    if (node.name !== "a" || node.attributes.get("aria-hidden") === "true" || !isRenderableControl(node)) continue;
+    if (node.name !== "a" || node.attributes.get("aria-hidden") === "true" || !isRenderableControl(node,nodes)) continue;
     if (node.attributes.has("download") || (node.attributes.get("target") && node.attributes.get("target") !== "_self")) continue;
     const value = resolveRuntimeUrl(node.attributes.get("href"), baseUrl || pageUrl);
     if (!value) continue;
@@ -1203,7 +1203,56 @@ function discoverListingLinks(nodes: Map<number, DomNodeSnapshot>, pageUrl: stri
     links.add(url.href);
     if (links.size >= 100) break;
   }
+  // Client-rendered publishers commonly ship their initial listing as bounded JSON
+  // hydration data before creating anchors. Parse that static browser-owned snapshot
+  // deterministically; do not evaluate the script or accept cross-origin destinations.
+  for(const value of discoverEmbeddedListingLinks(nodes,baseUrl||pageUrl)){
+    if(links.size>=100)break;
+    const url=new URL(value);
+    if(url.protocol===page.protocol&&url.origin===origin&&url.href!==page.href)links.add(url.href);
+  }
   return [...links];
+}
+
+function discoverEmbeddedListingLinks(nodes:Map<number,DomNodeSnapshot>,baseUrl:string):string[]{
+  const output=new Set<string>();
+  let parsedBytes=0;
+  for(const node of nodes.values()){
+    if(node.name!=="script")continue;
+    const type=(node.attributes.get("type")??"").toLowerCase();
+    if(!["application/json","application/ld+json","application/schema+json"].includes(type))continue;
+    const raw=rawTextOf(node,nodes).trim();
+    parsedBytes+=raw.length;
+    if(!raw||raw.length>512_000||parsedBytes>1_000_000)continue;
+    let value:unknown;try{value=JSON.parse(raw)}catch{continue}
+    collectEmbeddedLinks(value,baseUrl,output,0);
+    if(output.size>=100)break;
+  }
+  return [...output];
+}
+
+function collectEmbeddedLinks(value:unknown,baseUrl:string,output:Set<string>,depth:number):void{
+  if(depth>16||output.size>=100||value===null||value===undefined)return;
+  if(Array.isArray(value)){for(const item of value)collectEmbeddedLinks(item,baseUrl,output,depth+1);return}
+  if(typeof value!=="object")return;
+  for(const [key,item] of Object.entries(value as Record<string,unknown>)){
+    if(typeof item==="string"&&/(?:url|uri|href|link|path|slug|canonical)/i.test(key)){
+      const candidate=embeddedNavigableUrl(item,baseUrl);
+      if(candidate)output.add(candidate);
+    }else collectEmbeddedLinks(item,baseUrl,output,depth+1);
+    if(output.size>=100)return;
+  }
+}
+
+function embeddedNavigableUrl(value:string,baseUrl:string):string|undefined{
+  const trimmed=value.trim();
+  if(!trimmed||trimmed.length>2_048||(!trimmed.startsWith("/")&&!/^https:\/\//i.test(trimmed)&&!trimmed.includes("/")))return undefined;
+  let url:URL;try{url=new URL(trimmed,baseUrl)}catch{return undefined}
+  const base=new URL(baseUrl);
+  if(url.protocol!==base.protocol||url.origin!==base.origin)return undefined;
+  if(/\.(?:js|mjs|css|json|xml|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|map)(?:$|\/)/i.test(url.pathname))return undefined;
+  url.hash="";
+  return url.href;
 }
 
 function discoverArticle(
@@ -1244,7 +1293,7 @@ interface StructuredArticleMetadata { headline?:string; datePublished?:string; a
 function discoverStructuredArticle(nodes:Map<number,DomNodeSnapshot>):StructuredArticleMetadata|undefined {
   for(const node of nodes.values()){
     if(node.name!=="script"||(node.attributes.get("type")??"").toLowerCase()!=="application/ld+json")continue;
-    const raw=textOf(node,nodes).trim();
+    const raw=rawTextOf(node,nodes).trim();
     if(!raw||raw.length>256_000)continue;
     let value:unknown;try{value=JSON.parse(raw)}catch{continue}
     for(const candidate of structuredValues(value)){
@@ -1305,8 +1354,15 @@ function firstByAttribute(
 
 function textOf(root: DomNodeSnapshot | undefined, nodes: Map<number, DomNodeSnapshot>): string {
   if (!root) return "";
+  if (["script","style","noscript","template","head"].includes(root.name)) return "";
   if (root.name === "#text") return root.value;
   return root.children.map((child) => textOf(nodes.get(child), nodes)).join(" ");
+}
+
+function rawTextOf(root:DomNodeSnapshot|undefined,nodes:Map<number,DomNodeSnapshot>):string{
+  if(!root)return"";
+  if(root.name==="#text")return root.value;
+  return root.children.map((child)=>rawTextOf(nodes.get(child),nodes)).join("");
 }
 
 function relevantAttributes(attributes: Map<string, string>): Record<string, string> {
@@ -1318,8 +1374,9 @@ function relevantAttributes(attributes: Map<string, string>): Record<string, str
   return result;
 }
 
-function isRenderableControl(node: DomNodeSnapshot): boolean {
-  return Boolean(node.geometry && node.geometry.width > 0 && node.geometry.height > 0);
+function isRenderableControl(node:DomNodeSnapshot,nodes:Map<number,DomNodeSnapshot>):boolean {
+  if(node.geometry&&node.geometry.width>0&&node.geometry.height>0)return true;
+  return node.children.some((child)=>{const descendant=nodes.get(child);return Boolean(descendant&&isRenderableControl(descendant,nodes))});
 }
 function isVisibleControl(node:DomNodeSnapshot,viewport:{width:number;height:number}){const box=node.geometry;return !!box&&box.width>0&&box.height>0&&box.x+box.width>0&&box.y+box.height>0&&box.x<viewport.width&&box.y<viewport.height&&node.attributes.get("aria-hidden")!=="true";}
 function isFocusableControl(node:DomNodeSnapshot){return node.attributes.get("disabled")===undefined&&node.attributes.get("aria-disabled")!=="true"&&node.attributes.get("tabindex")!=="-1";}

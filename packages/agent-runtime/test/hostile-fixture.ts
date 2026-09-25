@@ -81,6 +81,14 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       response.end(page("Delayed listing", `<main id="listing">Loading public source</main><script>setTimeout(()=>{document.querySelector('#listing').innerHTML='<a href="/article">Read delayed article</a>'},700)</script>`));
       return;
     }
+    if (url.pathname === "/display-contents-listing") {
+      response.end(page("Display contents listing", `<main><a href="/article" style="display:contents"><span style="display:block">Read nested article</span></a></main>`));
+      return;
+    }
+    if (url.pathname === "/hydration-listing") {
+      response.end(page("Hydration listing", `<main>Client-rendered listing shell</main><script type="application/json">${JSON.stringify({props:{items:[{canonicalUrl:`${url.origin}/article`},{path:"/other-article"},{url:"https://tracker.invalid/ignored"}],asset:{url:"/_next/static/app.js"}}})}</script>`));
+      return;
+    }
     if (url.pathname === "/semantic-onclick-beacon") {
       response.end(page("Beacon handler", `<main><a href="/article" onclick="navigator.sendBeacon('/mutate','x')">Read article</a></main>`));
       return;

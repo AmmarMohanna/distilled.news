@@ -594,6 +594,27 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     } finally { await browser.close(scope).catch(()=>undefined); }
   },30_000);
 
+  it("discovers a grounded link whose visible descendant owns the layout box",async()=>{
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const scope=await browser.allocate({runId:"display-contents",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      const observed=await browser.navigatePublicPage(scope,`${fixture.origin}/display-contents-listing`,[fixture.origin]);
+      expect(observed.listingLinks).toContain(`${fixture.origin}/article`);
+      expect(observed.controls.some((control)=>control.destinationUrl===`${fixture.origin}/article`)).toBe(true);
+    } finally { await browser.close(scope).catch(()=>undefined); }
+  },30_000);
+
+  it("discovers same-origin listing links from bounded static hydration JSON",async()=>{
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const scope=await browser.allocate({runId:"hydration-listing",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      const observed=await browser.navigatePublicPage(scope,`${fixture.origin}/hydration-listing`,[fixture.origin]);
+      expect(observed.listingLinks).toEqual(expect.arrayContaining([`${fixture.origin}/article`,`${fixture.origin}/other-article`]));
+      expect(observed.listingLinks).not.toContain("https://tracker.invalid/ignored");
+      expect(observed.listingLinks?.some((url)=>url.includes("/_next/"))).toBe(false);
+    } finally { await browser.close(scope).catch(()=>undefined); }
+  },30_000);
+
   it("records a mutation followed by a blocked redirect as effect_unknown and never replays it",async()=>{
     fixture.resetMutations(); const store=new MemoryRuntimeStore(); const artifacts=new MemoryArtifactStore(); const browser=PlaywrightBrowserAdapter.forTest();
     const gateway=new ScriptedModelGateway([plan(action("browser.navigate@1",{url:`${fixture.origin}/mutate-redirect`},{urlIncludes:"escaped"}))]);
