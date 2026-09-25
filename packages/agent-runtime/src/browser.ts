@@ -417,7 +417,7 @@ export class PlaywrightBrowserAdapter
         const incidentalReadOnlyResource=
           !topLevelNavigation &&
           READ_ONLY_BROWSER_METHODS.has(request.method().toUpperCase()) &&
-          diagnostic?.policyRule==="ORIGIN_NOT_ADMITTED";
+          (diagnostic?.policyRule === "ORIGIN_NOT_ADMITTED" || diagnostic === undefined);
         // Abort optional third-party reads without poisoning an otherwise-authorized page.
         // Navigation, unsafe methods, transport/budget failures, and redirect violations
         // remain fatal and are surfaced through blockedRequest.
