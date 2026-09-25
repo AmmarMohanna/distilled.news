@@ -406,7 +406,10 @@ export class PlaywrightBrowserAdapter
     await context.route("**/*", async (route) => {
       const request = route.request();
       try {
-        if (request.frame().page() !== live.page) throw new BrowserPreDispatchError("new browser context denied");
+        // Compare the request frame with the admitted page's main frame. Comparing
+        // Page object identity is not stable across Chromium/CDP navigation events
+        // and incorrectly rejected same-origin top-level requests as REQUEST_BLOCKED.
+        if (request.frame() !== live.page.mainFrame()) throw new BrowserPreDispatchError("new browser context denied");
         live.httpRequestCount+=1;
         if (live.httpRequestCount>MAX_HTTP_REQUESTS_PER_SESSION) throw new BrowserPreDispatchError("browser HTTP request budget exhausted");
         if (request.resourceType()==="eventsource") throw new BrowserPreDispatchError("EventSource transport denied");
