@@ -43,6 +43,15 @@ describe("deterministic authenticated source workflow", () => {
     expect(result.coverage.rangeCovered).toBe(false);
     expect(closes).toBe(1);
   });
+  it("stops a stagnant timeline without claiming source exhaustion or replaying duplicate posts indefinitely", async () => {
+    let scrolls = 0;
+    const repeated = observation([item("a", "2026-09-21T00:00:00Z")]);
+    const port: AuthenticatedSourceWorkflowPort = { open: async () => {}, observe: async () => repeated, scrollAndObserve: async () => { scrolls++; return repeated; }, close: async () => {} };
+    const result = await new DeterministicAuthenticatedSourceWorkflowExecutor(port).execute(request, plan);
+    expect(result.items.map(value => value.sourceItemId)).toEqual(["a"]);
+    expect(result.coverage).toMatchObject({ rangeCovered: false, truncated: true, stopReason: "SOURCE_PAGINATION_EXHAUSTED" });
+    expect(scrolls).toBe(1);
+  });
 
   it("rejects public requests and non-read-only plans", async () => {
     const port: AuthenticatedSourceWorkflowPort = { async open() {}, async observe() { return observation([]); }, async close() {} };

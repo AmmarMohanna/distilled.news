@@ -57,6 +57,7 @@ class AuthenticatedWorkflowPageAdapter implements SourceAcquisitionAdapter {
   private observation?: AuthenticatedSourceTimelineObservation;
   private done = false;
   private scrolls = 0;
+  private totalScrolls = 0;
 
   constructor(private readonly plan: AuthenticatedSourceWorkflowPlan, private readonly port: AuthenticatedSourceWorkflowPort) {}
 
@@ -64,18 +65,24 @@ class AuthenticatedWorkflowPageAdapter implements SourceAcquisitionAdapter {
     this.observation = undefined;
     this.done = false;
     this.scrolls = 0;
+    this.totalScrolls = 0;
     await this.port.open({ sourceUrl: this.plan.entryUrl, allowedOrigins: this.plan.allowedOrigins, request });
   }
 
   async next(request: SourceAcquisitionRequest): Promise<SourceAcquisitionPage> {
     if (this.done) return { items: [], sourceExhausted: true };
-    let current = this.observation ? await this.advance() : await this.port.observe();
+    const prior = this.observation;
+    let current = prior ? await this.advance(request) : await this.port.observe();
     this.observation = current;
     if (!sameOrigin(current.url, this.plan.allowedOrigins)) return { items: [], stopReason: "STRUCTURAL_FAILURE" };
     if (current.challengeState === "LOGIN_REQUIRED" || current.challengeState === "CHALLENGE_REQUIRED") {
       return { items: [], stopReason: current.challengeState === "LOGIN_REQUIRED" ? "AUTH_REQUIRED" : "CHALLENGE_REQUIRED" };
     }
     if (current.sourceExhausted || current.lowerBoundaryReached) this.done = true;
+    if (prior && current.pageRevision === prior.pageRevision && !current.sourceExhausted && !current.lowerBoundaryReached) {
+      this.done = true;
+      return { items: [], paginationExhausted: true, scrolls: this.scrolls };
+    }
     const result: SourceAcquisitionPage = {
       items: current.items,
       lowerBoundaryReached: current.lowerBoundaryReached,
@@ -90,14 +97,15 @@ class AuthenticatedWorkflowPageAdapter implements SourceAcquisitionAdapter {
     return result;
   }
 
-  private async advance(): Promise<AuthenticatedSourceTimelineObservation> {
+  private async advance(request: SourceAcquisitionRequest): Promise<AuthenticatedSourceTimelineObservation> {
     const continuation = this.plan.continuation;
     if (continuation.kind === "SCROLL") {
-      if (!this.port.scrollAndObserve || this.scrolls >= 100) {
+      if (!this.port.scrollAndObserve || this.totalScrolls >= request.limits.maxScrolls) {
         this.done = true;
         return { ...this.observation!, items: [], sourceExhausted: false };
       }
       this.scrolls++;
+      this.totalScrolls++;
       return this.port.scrollAndObserve(continuation.deltaY);
     }
     if (continuation.kind === "NEXT_LINK") {
