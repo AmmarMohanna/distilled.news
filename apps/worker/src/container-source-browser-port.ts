@@ -6,6 +6,7 @@ import {
   type SourceAcquisitionRequest,
   type SourceBrowserWorkflowPort
 } from "@distilled/agent-runtime";
+import { normalizeHttpsOrigin, originMatches } from "@distilled/agent-runtime";
 import { CloudflareContainerBrowserBridgeTransport } from "./cloudflare-container-browser-transport";
 import type { Env } from "./types";
 
@@ -31,7 +32,8 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
     if (this.capability) throw new AuthenticatedBrowserBridgeError("BRIDGE_REPLAY_REJECTED");
     if (input.request.limits.maxPhysicalAttempts > 30) throw new Error("public source operation budget exceeds bridge limit");
     const source = new URL(input.sourceUrl);
-    if (source.protocol !== "https:" || !input.allowedOrigins.includes(source.origin)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
+    const sourceOrigin = normalizeHttpsOrigin(source.href);
+    if (!originMatches(sourceOrigin, input.allowedOrigins)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     const now = Date.now();
     const operationBudget = Math.min(64, Math.max(4, input.request.limits.maxPhysicalAttempts * 2 + 2));
     const capability: AuthenticatedBrowserExecutionCapability = {
@@ -65,7 +67,7 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
   async navigateAndObserve(url: string): Promise<PublicBrowserObservation> {
     const capability = this.capability;
     if (!capability || !this.opened || this.closed) throw new AuthenticatedBrowserBridgeError("BRIDGE_EXECUTION_EXPIRED");
-    if (!capability.allowedOrigins.includes(new URL(url).origin)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
+    if (!originMatches(url, capability.allowedOrigins)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "NAVIGATE_PUBLIC_PAGE", url });
     const observation = await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "OBSERVE_PUBLIC_PAGE" });
     if (!observation || typeof observation !== "object" || !("pageRevision" in observation)) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");

@@ -14,6 +14,7 @@ import {
   type StructuredBrowserUsePort,
   type VisualComputerUsePort
 } from "@distilled/agent-runtime";
+import { normalizeHttpsOrigin, originMatches } from "@distilled/agent-runtime";
 import { CloudflareContainerBrowserBridgeTransport } from "./cloudflare-container-browser-transport";
 import type { Env } from "./types";
 
@@ -38,7 +39,8 @@ export class ContainerPublicWebOperatorBrowser implements BrowserExecutorPort, S
 
   async allocate(input: { runId: string; tenantId: string; generation: number; allowedOrigins: string[] }): Promise<BrowserAllocation> {
     const entry = new URL(this.entryUrl);
-    if (entry.protocol !== "https:" || !input.allowedOrigins.includes(entry.origin)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
+    const entryOrigin = normalizeHttpsOrigin(entry.href);
+    if (!originMatches(entryOrigin, input.allowedOrigins)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     const now = Date.now();
     const capability: AuthenticatedBrowserExecutionCapability = {
       bridgeExecutionId: input.runId,
@@ -71,7 +73,7 @@ export class ContainerPublicWebOperatorBrowser implements BrowserExecutorPort, S
 
   async navigate(scope: BrowserScope, url: string): Promise<BrowserObservationData> {
     const session = this.require(scope);
-    if (!session.capability.allowedOrigins.includes(new URL(url).origin)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
+    if (!originMatches(url, session.capability.allowedOrigins)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability: session.capability, operation: "NAVIGATE_PUBLIC_PAGE", url });
     return this.observe(session);
   }
@@ -118,7 +120,7 @@ export class ContainerPublicWebOperatorBrowser implements BrowserExecutorPort, S
   private acceptObserved(session: Session, observed: unknown): BrowserObservationData {
     if (!observed || typeof observed !== "object" || !("pageRevision" in observed)) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     const value = observed as PublicBrowserObservation;
-    if (!session.capability.allowedOrigins.includes(new URL(value.url).origin)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
+    if (!originMatches(value.url, session.capability.allowedOrigins)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     session.current = value;
     const representation = { visibleText: value.visibleText, controls: value.controls, listingLinks: value.listingLinks, challengeDiagnostics: value.challengeDiagnostics, article: value.article ? { title: value.article.title, canonicalUrl: value.article.canonicalUrl, publisherTimestamp: value.article.publisherTimestamp } : undefined };
     return {

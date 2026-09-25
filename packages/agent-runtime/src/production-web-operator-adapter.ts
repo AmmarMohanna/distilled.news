@@ -1,6 +1,7 @@
 ﻿import type { SourceAcquisitionRequest, SourceAcquisitionResult } from "./temporal-acquisition";
 import type { ActiveWorkflowHandle, CandidateWorkflowHandle, WebOperatorDiscovery } from "./source-acquisition-orchestrator";
 import type { BrowserAllocation } from "./browser";
+import { normalizeHttpsOrigin } from "./origin";
 
 export interface PublicAcquisitionCapability {
   runId: string;
@@ -66,6 +67,6 @@ export class ProductionWebOperatorAcquisitionAdapter {
 export function publicCapabilityFromAllocation(input: { request: SourceAcquisitionRequest; allocation: BrowserAllocation; tenantId: string; ownerId: string; expiresAt: string }): PublicAcquisitionCapability {
   const source = input.request.source.canonicalSourceUrl ?? input.request.source.resourceLocator;
   if (!source) throw new Error("public acquisition source origin is required");
-  const origin = new URL(source).origin;
+  const origin = normalizeHttpsOrigin(source);
   return { runId: input.allocation.runId, tenantId: input.tenantId, ownerId: input.ownerId, resourceId: source, browserGeneration: input.allocation.generation, allowedOrigins: [origin], siteKind: "PUBLIC", readOnly: true, expiresAt: input.expiresAt };
 }
