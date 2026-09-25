@@ -1192,23 +1192,65 @@ function discoverArticle(
   visibleText: string
 ): BrowserObservationData["article"] | undefined {
   const article = firstByName(nodes, "article");
-  if (!article) return undefined;
-  const title = collapseWhitespace(textOf(firstDescendant(article, nodes, "h1"), nodes));
+  const structured = discoverStructuredArticle(nodes);
+  const root = article ?? (structured ? firstByName(nodes, "main") : undefined);
+  if (!root && !structured) return undefined;
+  const metaValue=(names:string[])=>[...nodes.values()].find((node) => {
+    if(node.name!=="meta")return false;
+    const key=(node.attributes.get("property")??node.attributes.get("name")??node.attributes.get("itemprop")??"").toLowerCase();
+    return names.includes(key);
+  })?.attributes.get("content");
+  const title = collapseWhitespace([structured?.headline,textOf(firstDescendant(root,nodes,"h1"),nodes),metaValue(["og:title","twitter:title"])]
+    .find((value)=>Boolean(value?.trim()))??"");
   const canonicalUrl = resolveRuntimeUrl(
     [...nodes.values()].find((node) => node.name === "link" && (node.attributes.get("rel") ?? "").toLowerCase() === "canonical")
       ?.attributes.get("href"),
     baseUrl || pageUrl
-  ) ?? pageUrl;
-  const timeAttribute = firstDescendant(article, nodes, "time")?.attributes.get("datetime");
-  const publishedMeta = [...nodes.values()].find((node) => node.name === "meta" &&
-    ["article:published_time", "datepublished", "parsely-pub-date"].includes((node.attributes.get("property") ?? node.attributes.get("name") ?? "").toLowerCase()))?.attributes.get("content");
-  const publisherTimestamp = [timeAttribute, publishedMeta].find((value) => value && Number.isFinite(Date.parse(value))) ?? "";
-  const bodyNode = firstByAttribute(article, nodes, "data-article-body");
-  const excerptNode = firstByAttribute(article, nodes, "data-excerpt");
-  const body = collapseWhitespace(textOf(bodyNode ?? article, nodes) || visibleText);
-  const excerpt = collapseWhitespace(textOf(excerptNode, nodes) || body.slice(0, 180));
+  ) ?? resolveRuntimeUrl(structured?.canonicalUrl,baseUrl||pageUrl) ?? pageUrl;
+  const timeAttribute = firstDescendant(root, nodes, "time")?.attributes.get("datetime");
+  const publishedMeta = metaValue(["article:published_time", "datepublished", "parsely-pub-date", "date", "dc.date", "dcterms.date"]);
+  const publisherTimestamp = [timeAttribute, publishedMeta, structured?.datePublished].find((value) => value && Number.isFinite(Date.parse(value))) ?? "";
+  const bodyNode = firstByAttribute(root, nodes, "data-article-body");
+  const excerptNode = firstByAttribute(root, nodes, "data-excerpt");
+  const body = collapseWhitespace(structured?.articleBody || textOf(bodyNode ?? root, nodes) || visibleText);
+  const excerpt = collapseWhitespace(structured?.description || textOf(excerptNode, nodes) || body.slice(0, 180));
   return { title, canonicalUrl, publisherTimestamp, excerpt, body };
 }
+
+interface StructuredArticleMetadata { headline?:string; datePublished?:string; articleBody?:string; description?:string; canonicalUrl?:string }
+
+/** Parses only bounded static JSON-LD captured by CDP; no page-realm code executes. */
+function discoverStructuredArticle(nodes:Map<number,DomNodeSnapshot>):StructuredArticleMetadata|undefined {
+  for(const node of nodes.values()){
+    if(node.name!=="script"||(node.attributes.get("type")??"").toLowerCase()!=="application/ld+json")continue;
+    const raw=textOf(node,nodes).trim();
+    if(!raw||raw.length>256_000)continue;
+    let value:unknown;try{value=JSON.parse(raw)}catch{continue}
+    for(const candidate of structuredValues(value)){
+      if(!candidate||typeof candidate!=="object"||Array.isArray(candidate))continue;
+      const record=candidate as Record<string,unknown>;
+      const types=Array.isArray(record["@type"])?record["@type"]:[record["@type"]];
+      if(!types.some((type)=>typeof type==="string"&&["article","newsarticle","reportagenewsarticle","analysisnewsarticle","opinionnewsarticle"].includes(type.toLowerCase())))continue;
+      const main=record.mainEntityOfPage;
+      const mainRecord=main&&typeof main==="object"&&!Array.isArray(main)?main as Record<string,unknown>:undefined;
+      return{
+        headline:stringMetadata(record.headline),datePublished:stringMetadata(record.datePublished),
+        articleBody:stringMetadata(record.articleBody),description:stringMetadata(record.description),
+        canonicalUrl:stringMetadata(record.url)??stringMetadata(mainRecord?.["@id"])??stringMetadata(mainRecord?.url)
+      };
+    }
+  }
+  return undefined;
+}
+
+function structuredValues(value:unknown):unknown[]{
+  if(Array.isArray(value))return value.flatMap(structuredValues);
+  if(!value||typeof value!=="object")return[];
+  const record=value as Record<string,unknown>;
+  return [record,...structuredValues(record["@graph"])];
+}
+
+function stringMetadata(value:unknown):string|undefined{return typeof value==="string"&&value.trim()?value.trim():undefined}
 
 function firstByName(nodes: Map<number, DomNodeSnapshot>, name: string): DomNodeSnapshot | undefined {
   return [...nodes.values()].find((node) => node.name === name);

@@ -57,6 +57,18 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       `));
       return;
     }
+    if (url.pathname === "/structured-article") {
+      response.end(page("Structured article", `
+        <script type="application/ld+json">${JSON.stringify({
+          "@context":"https://schema.org","@type":"NewsArticle",headline:"Structured fixture headline",
+          datePublished:"2026-09-11T14:30:00Z",url:`${url.origin}/structured-article`,
+          description:"Structured fixture excerpt",articleBody:"A full deterministic body represented through publisher JSON-LD."
+        })}</script>
+        <main><h1>Structured fixture headline</h1><p>A full deterministic body represented through publisher JSON-LD.</p></main>
+        <link rel="canonical" href="${url.origin}/structured-article">
+      `));
+      return;
+    }
     if (url.pathname === "/challenge") {
       response.end(page("Challenge", `<main><h1>Simulated CAPTCHA required</h1><p>Do not retry this challenge forever.</p></main>`));
       return;

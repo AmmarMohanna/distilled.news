@@ -571,6 +571,20 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     expect(fixture.mutationCount()).toBe(0);
   },30_000);
 
+  it("extracts trusted article evidence from static NewsArticle JSON-LD without page-realm execution",async()=>{
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const scope=await browser.allocate({runId:"structured-article",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      const observed=await browser.navigate(scope,`${fixture.origin}/structured-article`);
+      expect(observed.article).toMatchObject({
+        canonicalUrl:`${fixture.origin}/structured-article`,
+        title:"Structured fixture headline",
+        publisherTimestamp:"2026-09-11T14:30:00Z",
+        body:"A full deterministic body represented through publisher JSON-LD."
+      });
+    } finally { await browser.close(scope).catch(()=>undefined); }
+  },30_000);
+
   it("records a mutation followed by a blocked redirect as effect_unknown and never replays it",async()=>{
     fixture.resetMutations(); const store=new MemoryRuntimeStore(); const artifacts=new MemoryArtifactStore(); const browser=PlaywrightBrowserAdapter.forTest();
     const gateway=new ScriptedModelGateway([plan(action("browser.navigate@1",{url:`${fixture.origin}/mutate-redirect`},{urlIncludes:"escaped"}))]);
