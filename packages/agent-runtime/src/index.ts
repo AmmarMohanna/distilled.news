@@ -33,6 +33,7 @@ export * from "./public-source-stages";
 export * from "./source-acquisition-orchestrator";
 
 export * from "./production-web-operator-adapter";
+export * from "./browser-use-discovery";
 
 export * from "./production-source-acquisition-service";
 
