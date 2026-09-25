@@ -120,13 +120,13 @@ export class ContainerPublicWebOperatorBrowser implements BrowserExecutorPort, S
     const value = observed as PublicBrowserObservation;
     if (!session.capability.allowedOrigins.includes(new URL(value.url).origin)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     session.current = value;
-    const representation = { visibleText: value.visibleText, controls: value.controls, listingLinks: value.listingLinks, article: value.article ? { title: value.article.title, canonicalUrl: value.article.canonicalUrl, publisherTimestamp: value.article.publisherTimestamp } : undefined };
+    const representation = { visibleText: value.visibleText, controls: value.controls, listingLinks: value.listingLinks, challengeDiagnostics: value.challengeDiagnostics, article: value.article ? { title: value.article.title, canonicalUrl: value.article.canonicalUrl, publisherTimestamp: value.article.publisherTimestamp } : undefined };
     return {
       url: value.url, finalUrl: value.url, title: value.title, pageId: session.allocation.pageId, pageRevision: value.pageRevision,
       contentType: "application/json", raw: new TextEncoder().encode(JSON.stringify(representation)), representation,
       observationSource: "CDP_DOM_SNAPSHOT", protocolSnapshotVersion: value.trustedObservationSchemaVersion ?? "trusted-observation-v1",
       bridgeProtocolVersion: value.bridgeProtocolVersion, trustedObservationSchemaVersion: value.trustedObservationSchemaVersion,
-      controls: value.controls, listingLinks: value.listingLinks, challengeState: value.challengeState ?? "NO_CHALLENGE", watermarkObserved: value.watermarkObserved ?? false, article: value.article,
+      controls: value.controls, listingLinks: value.listingLinks, challengeState: value.challengeState ?? "NO_CHALLENGE", challengeDiagnostics: value.challengeDiagnostics, watermarkObserved: value.watermarkObserved ?? false, article: value.article,
       documentCountCategory: value.documentCountCategory, iframeCountCategory: value.iframeCountCategory,
       domNodeCountCategory: value.domNodeCountCategory, accessibilityNodeCountCategory: value.accessibilityNodeCountCategory
     };

@@ -5,7 +5,10 @@ import { D1WorkflowRepository } from "./web-operator-workflow-store";
 import { createWorkerContainerPublicWebOperatorLifecycle, executeWorkerSourcePlan } from "./web-operator-runtime";
 
 export interface PublicSourceDiscoveryResult { evidence: SourceBrowserDiscoveryEvidence; plan: SourceBrowserWorkflowPlan; candidateUrl: string; browserOperations: number }
-class PublicSourceDiscoveryStop extends Error { constructor(readonly status: "AUTH_REQUIRED" | "CHALLENGE_REQUIRED" | "POLICY_DENIED") { super(status); } }
+class PublicSourceDiscoveryStop extends Error { constructor(readonly status: "AUTH_REQUIRED" | "CHALLENGE_REQUIRED" | "POLICY_DENIED", readonly diagnostics?: PublicBrowserObservation["challengeDiagnostics"]) { super(status); } }
+function challengeStop(observation: PublicBrowserObservation): PublicSourceDiscoveryStop {
+  return new PublicSourceDiscoveryStop(observation.challengeState === "LOGIN_REQUIRED" ? "AUTH_REQUIRED" : "CHALLENGE_REQUIRED", observation.challengeDiagnostics);
+}
 
 /** Bounded trusted-observation probe; no model or page-realm execution selects article evidence. */
 export async function discoverPublicSourceBrowserPlan(
@@ -20,11 +23,11 @@ export async function discoverPublicSourceBrowserPlan(
   await port.open({ sourceUrl, allowedOrigins: [origin], request: input.request });
   try {
     const listing = await port.navigateAndObserve(sourceUrl); operations++;
-    if (listing.challengeState && listing.challengeState !== "NO_CHALLENGE") throw new PublicSourceDiscoveryStop(listing.challengeState === "LOGIN_REQUIRED" ? "AUTH_REQUIRED" : "CHALLENGE_REQUIRED");
+    if (listing.challengeState && listing.challengeState !== "NO_CHALLENGE") throw challengeStop(listing);
     let afterScroll: PublicBrowserObservation | undefined;
     if (port.scrollAndObserve && input.request.limits.maxScrolls > 0) {
       afterScroll = await port.scrollAndObserve(1200); operations++;
-      if (afterScroll.challengeState && afterScroll.challengeState !== "NO_CHALLENGE") throw new PublicSourceDiscoveryStop(afterScroll.challengeState === "LOGIN_REQUIRED" ? "AUTH_REQUIRED" : "CHALLENGE_REQUIRED");
+      if (afterScroll.challengeState && afterScroll.challengeState !== "NO_CHALLENGE") throw challengeStop(afterScroll);
     }
     const urls = [...new Set([listing, afterScroll].filter((value): value is PublicBrowserObservation => Boolean(value))
       .flatMap((value) => [...(value.listingLinks ?? []), ...value.controls.map((control) => control.destinationUrl)] )
@@ -34,7 +37,7 @@ export async function discoverPublicSourceBrowserPlan(
     const maxProbes = Math.min(10, Math.max(0, input.request.limits.maxPhysicalAttempts - operations));
     for (const url of urls.slice(0, maxProbes)) {
       const observed = await port.navigateAndObserve(url); operations++;
-      if (observed.challengeState && observed.challengeState !== "NO_CHALLENGE") throw new PublicSourceDiscoveryStop(observed.challengeState === "LOGIN_REQUIRED" ? "AUTH_REQUIRED" : "CHALLENGE_REQUIRED");
+      if (observed.challengeState && observed.challengeState !== "NO_CHALLENGE") throw challengeStop(observed);
       if (observed.article?.body && Number.isFinite(Date.parse(observed.article.publisherTimestamp)) && new URL(observed.article.canonicalUrl).origin === origin) sampledArticles.push(observed);
       if (sampledArticles.length >= 2) break;
     }
@@ -145,7 +148,7 @@ export async function discoverAndPromotePublicSourceWorkflow(
 }
 
 export function bridgeStop(error: unknown): AcquisitionStageOutcome {
-  if (error instanceof PublicSourceDiscoveryStop) return { stage: "WEB_OPERATOR", status: error.status, reason: "source requires unsupported access or challenge" };
+  if (error instanceof PublicSourceDiscoveryStop) return { stage: "WEB_OPERATOR", status: error.status, reason: "source requires unsupported access or challenge", details: error.diagnostics ? { challenge: error.diagnostics } : undefined };
   const code = error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : undefined;
   const rawOperation = error && typeof error === "object" && "operation" in error ? (error as { operation?: unknown }).operation : undefined;
   const operation = ["OPEN_AUTH_BROWSER", "NAVIGATE_PUBLIC_PAGE", "OBSERVE_PUBLIC_PAGE", "SCROLL_PUBLIC_PAGE", "CLOSE_AUTH_BROWSER"].includes(String(rawOperation)) ? rawOperation : undefined;

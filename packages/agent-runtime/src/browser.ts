@@ -4,7 +4,7 @@ import { lookup } from "node:dns/promises";
 import type { ChallengeState, InteractionCapability, SemanticControl } from "./contracts";
 import { makeId } from "./contracts";
 import { sha256Text } from "./observations";
-import { classifyBrowserChallenge } from "./challenge-classifier";
+import { classifyBrowserChallengeEvidence, type BrowserChallengeDiagnostics } from "./challenge-classifier";
 import type { BrowserSessionState } from "./auth-profile";
 import type { AuthenticatedBootstrapObserver,AuthenticatedSiteAdapter,AuthenticatedSiteDetection,AuthenticatedSiteSnapshot,AuthenticationChallengeRuntime,AuthenticationFlowLineage } from "./authenticated-site";
 import type { CredentialMaterial } from "./auth-profile";
@@ -48,6 +48,7 @@ export interface BrowserObservationData {
   accessibilityNodeCountCategory?: "none" | "one" | "few" | "many";
   controls: SemanticControl[];
   challengeState: ChallengeState;
+  challengeDiagnostics?: BrowserChallengeDiagnostics;
   listingLinks?: string[];
   httpStatus?: number;
   watermarkObserved: boolean;
@@ -64,6 +65,7 @@ export interface PublicBrowserObservation {
   url:string; title:string; pageRevision:string; visibleText:string; controls:SemanticControl[];
   listingLinks?:string[];
   challengeState?:ChallengeState;
+  challengeDiagnostics?: BrowserObservationData["challengeDiagnostics"];
   watermarkObserved?:boolean;
   article?:BrowserObservationData["article"];
   documentCountCategory?:BrowserObservationData["documentCountCategory"];
@@ -884,19 +886,21 @@ export class PlaywrightBrowserAdapter
               : "unknown"
       });
     }
-    const challengeState = classifyBrowserChallenge({
+    const challengeDiagnostics = classifyBrowserChallengeEvidence({
       url: observed.url,
       title: observed.title,
       bodyText: observed.visibleText,
       markup: activeChallengeMarkup(observed.markup),
       httpStatus: live.lastMainDocumentStatus
     });
+    const challengeState = challengeDiagnostics.state;
     const representation = {
       url: observed.url,
       title: observed.title,
       controls,
       listingLinks: observed.listingLinks,
       challengeState,
+      challengeDiagnostics,
       httpStatus: live.lastMainDocumentStatus,
       watermarkObserved: observed.watermarkObserved,
       observationSource: observed.observationSource,
@@ -940,6 +944,7 @@ export class PlaywrightBrowserAdapter
       controls,
       listingLinks: observed.listingLinks,
       challengeState,
+      challengeDiagnostics,
       watermarkObserved: observed.watermarkObserved,
       article: observed.article
     };
