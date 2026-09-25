@@ -22,7 +22,7 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
 
   async health():Promise<{state:"READY"}|{state:"HTTP_ERROR";status:number}|{state:"UNAVAILABLE";kind:"NO_INSTANCE"|"PORT_NOT_READY"|"START_FAILED"}>{
     try{
-      await this.startAndWaitForPorts({ports:8080,startOptions:{envVars:this.envVars}});
+      await this.startAndWaitForPorts({ports:8080,startOptions:{envVars:this.runtimeEnvVars()}});
       const response=await this.containerFetch(HEALTH_PATH,{method:"GET"},8080);
       return response.ok?{state:"READY"}:{state:"HTTP_ERROR",status:response.status};
     }catch(error){
@@ -36,7 +36,7 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
   async executeAuthenticatedBrowser(request:AuthenticatedBrowserBridgeRequest):Promise<AuthenticatedBrowserBridgeResult>{
     const body=JSON.stringify(request);if(byteLength(body)>BRIDGE_MAX_REQUEST_BYTES)throw new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE");
     const unknown=(stage:string,extra?:Record<string,unknown>)=>{console.error("container_bridge_diagnostic",{stage,operation:request.operation,...extra});return new AuthenticatedBrowserBridgeError(containerUnknownOutcome(request.operation))};
-    let response:Response;try{await this.startAndWaitForPorts({ports:8080,startOptions:{envVars:this.envVars}});response=await this.containerFetch(INTERNAL_PATH,{method:"POST",headers:{"content-type":"application/json","content-length":String(byteLength(body))},body},8080);}catch(error){throw unknown("transport_fetch",{errorName:error instanceof Error?error.name:typeof error,errorMessage:error instanceof Error?error.message.slice(0,300):""})}
+    let response:Response;try{await this.startAndWaitForPorts({ports:8080,startOptions:{envVars:this.runtimeEnvVars()}});response=await this.containerFetch(INTERNAL_PATH,{method:"POST",headers:{"content-type":"application/json","content-length":String(byteLength(body))},body},8080);}catch(error){throw unknown("transport_fetch",{errorName:error instanceof Error?error.name:typeof error,errorMessage:error instanceof Error?error.message.slice(0,300):""})}
     const declared=Number(response.headers.get("content-length")??0);if(declared>BRIDGE_MAX_RESPONSE_BYTES)throw unknown("declared_length_exceeded",{declared,status:response.status});
     let text:string;try{text=await response.text()}catch(error){throw unknown("response_text_read",{errorName:error instanceof Error?error.name:typeof error,status:response.status})}if(byteLength(text)>BRIDGE_MAX_RESPONSE_BYTES)throw unknown("actual_length_exceeded",{length:byteLength(text),status:response.status});
     let envelope:Partial<AuthenticatedBrowserBridgeResponse>;try{envelope=JSON.parse(text) as Partial<AuthenticatedBrowserBridgeResponse>}catch(error){throw unknown("json_parse",{errorName:error instanceof Error?error.name:typeof error,status:response.status,length:byteLength(text)})}
@@ -45,5 +45,5 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
     if(envelope.ok===false){const bridgeError=envelope.error as {code?:string;diagnostic?:BrowserNetworkPolicyDiagnostic}|undefined;const code=bridgeError?.code;if(BRIDGE_FAILURE_CODES.includes(code as AuthenticatedBrowserBridgeFailureCode)){console.error("container_bridge_diagnostic",{stage:"typed_bridge_error",operation:request.operation,status:response.status,code,diagnostic:bridgeError?.diagnostic});throw new AuthenticatedBrowserBridgeError(code as AuthenticatedBrowserBridgeFailureCode,bridgeError?.diagnostic)}throw unknown("untyped_bridge_error_code",{status:response.status,code})}
     throw unknown("fallthrough",{status:response.status,ok:envelope.ok,hasResult:envelope.ok===true?envelope.result!==undefined:undefined});
   }
+  private runtimeEnvVars(){return {...this.envVars,...(this.env.OPENROUTER_API_KEY?{OPENROUTER_API_KEY:this.env.OPENROUTER_API_KEY}:{})};}
 }
-

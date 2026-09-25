@@ -44,4 +44,20 @@ describe("Container public source workflow port", () => {
     await port.close();
     expect(operations).toEqual(["OPEN_AUTH_BROWSER", "CLOSE_AUTH_BROWSER"]);
   });
+  it("sends a bounded Browser Use discovery operation through the same public capability", async () => {
+    const operations: AuthenticatedBrowserBridgeRequest[] = [];
+    const transport: BrowserBridgeTransport = { async execute(operation) {
+      operations.push(operation);
+      if (operation.operation === "OPEN_AUTH_BROWSER") return { runId: "run_a", tenantId: "tenant_a", sessionId: "session_a", contextId: "context_a", pageId: "page_a", generation: 2, viewport: { width: 1, height: 1, deviceScaleFactor: 1 } };
+      if (operation.operation === "DISCOVER_SOURCE_WITH_BROWSER_USE") return { protocol: "distilled.browser-use.discovery.v1", runId: "run_a", visitedUrls: [sourceUrl], listingUrls: [sourceUrl], articleUrls: [], continuation: "none", timestampHints: [], steps: 2, challengeObserved: false };
+      return { closed: true };
+    } };
+    const port = new ContainerSourceBrowserPort(env, context, transport);
+    await port.open({ sourceUrl, allowedOrigins: [new URL(sourceUrl).origin], request });
+    expect((await port.discoverWithBrowserUse(sourceUrl, "openai/model", 4)).steps).toBe(2);
+    await expect(port.discoverWithBrowserUse("https://other.example/", "openai/model", 4)).rejects.toThrow();
+    await port.close();
+    expect(operations.map(value => value.operation)).toEqual(["OPEN_AUTH_BROWSER", "DISCOVER_SOURCE_WITH_BROWSER_USE", "CLOSE_AUTH_BROWSER"]);
+    expect(operations[1].capability.writeOrigins).toEqual([]);
+  });
 });

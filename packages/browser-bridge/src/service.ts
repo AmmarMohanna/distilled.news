@@ -1,8 +1,11 @@
 import {AUTHENTICATED_BROWSER_BRIDGE_PATH,AuthenticatedBrowserBridgeError,BRIDGE_MAX_OBSERVATION_BYTES,BRIDGE_MAX_OPERATION_BUDGET,BRIDGE_MAX_REQUEST_BYTES,BRIDGE_MAX_STORAGE_STATE_BYTES,BRIDGE_MUTATION_OPERATIONS,SelfHostedChromiumProvider,assertBridgeRequestShape,assertCapabilityExactMatch,bridgeRequestFingerprint,byteLength,verifyBrowserBridgeRequest,type BrowserNetworkPolicyDiagnostic,type AuthenticatedBrowserBridgeFailureCode,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserBridgeResponse,type AuthenticatedBrowserBridgeResult,type AuthenticatedBrowserExecutionCapability,type BrowserAllocation,type PublicBrowserObservation} from "@distilled/agent-runtime";
 import { originMatches } from "@distilled/agent-runtime";
+import { assertBoundedProposal, type BrowserUseDiscoveryProposal } from "@distilled/agent-runtime";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 type Recorded=AuthenticatedBrowserBridgeResponse;
-type Execution={capability:AuthenticatedBrowserExecutionCapability;scope?:BrowserAllocation;ready:Promise<BrowserAllocation>;state:"OPENING"|"OPEN"|"CLOSING"|"CLOSED"|"EXPIRED";operations:number;/** Idempotency records for mutations only: outcome envelopes carry no secret material. */records:Map<string,{fingerprint:string;response:Recorded}>;inflight:Map<string,{fingerprint:string;promise:Promise<Recorded>}>;queue:Promise<unknown>;abort:AbortController;idleTimer?:ReturnType<typeof setTimeout>;absoluteTimer?:ReturnType<typeof setTimeout>};
+type Execution={capability:AuthenticatedBrowserExecutionCapability;scope?:BrowserAllocation;ready:Promise<BrowserAllocation>;state:"OPENING"|"OPEN"|"CLOSING"|"CLOSED"|"EXPIRED";operations:number;discovery?:Promise<BrowserUseDiscoveryProposal>;/** Idempotency records for mutations only: outcome envelopes carry no secret material. */records:Map<string,{fingerprint:string;response:Recorded}>;inflight:Map<string,{fingerprint:string;promise:Promise<Recorded>}>;queue:Promise<unknown>;abort:AbortController;idleTimer?:ReturnType<typeof setTimeout>;absoluteTimer?:ReturnType<typeof setTimeout>};
 const MAX_CAPABILITY_TTL_MS=15*60_000;
 const MAX_CLOCK_SKEW_MS=30_000;
 const MAX_TRACKED_NONCES=10_000;
@@ -23,7 +26,7 @@ export class AuthenticatedBrowserBridgeService{
     if(!await verifyBrowserBridgeRequest(this.input.serviceCredential,timestamp,nonce,body,signature))return this.failure("BRIDGE_UNAUTHORIZED",401);
     this.pruneNonces(now);if(this.nonces.has(nonce))return this.failure("BRIDGE_REPLAY_REJECTED",409);if(this.nonces.size>=MAX_TRACKED_NONCES)return this.failure("BRIDGE_UNAVAILABLE",503);this.nonces.set(nonce,now);
     let message:unknown;try{message=JSON.parse(body)}catch{return this.failure("BRIDGE_PROTOCOL_UNSUPPORTED",400)}
-    try{const result=await this.execute(message);return this.response({protocol:"v1",ok:true,result})}catch(error){const code=classifyFailure("",error);return this.failure(code,statusFor(code),failureDiagnostic("",error))}
+    try{const result=await this.execute(message,request.signal);return this.response({protocol:"v1",ok:true,result})}catch(error){const code=classifyFailure("",error);return this.failure(code,statusFor(code),failureDiagnostic("",error))}
   }
   /**
    * Native Container ingress. This is intentionally not an HTTP-public API: the
@@ -37,18 +40,47 @@ export class AuthenticatedBrowserBridgeService{
     if(Number(request.headers.get("content-length")??0)>BRIDGE_MAX_REQUEST_BYTES)return this.failure("BRIDGE_PAYLOAD_TOO_LARGE",413);
     const body=await readBounded(request,BRIDGE_MAX_REQUEST_BYTES);if(body===undefined)return this.failure("BRIDGE_PAYLOAD_TOO_LARGE",413);
     let message:unknown;try{message=JSON.parse(body)}catch{return this.failure("BRIDGE_PROTOCOL_UNSUPPORTED",400)}
-    try{return this.response({protocol:"v1",ok:true,result:await this.execute(message)})}catch(error){const code=classifyFailure("",error);return this.failure(code,statusFor(code),failureDiagnostic("",error))}
+    try{return this.response({protocol:"v1",ok:true,result:await this.execute(message,request.signal)})}catch(error){const code=classifyFailure("",error);return this.failure(code,statusFor(code),failureDiagnostic("",error))}
   }
   async shutdown(){await Promise.all([...this.executions.values()].map(execution=>this.close(execution)));this.executions.clear()}
-  private async execute(raw:unknown):Promise<AuthenticatedBrowserBridgeResult>{
+  private async execute(raw:unknown,signal?:AbortSignal):Promise<AuthenticatedBrowserBridgeResult>{
     assertBridgeRequestShape(raw);const message=raw,capability=message.capability,now=this.now();
     if(Date.parse(capability.expiresAt)<=now||Date.parse(capability.issuedAt)>now+MAX_CLOCK_SKEW_MS)throw new AuthenticatedBrowserBridgeError("BRIDGE_EXECUTION_EXPIRED");
     if(capability.operationBudget<1||capability.operationBudget>BRIDGE_MAX_OPERATION_BUDGET||Date.parse(capability.expiresAt)-Date.parse(capability.issuedAt)>MAX_CAPABILITY_TTL_MS)throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     if(message.operation==="OPEN_AUTH_BROWSER"){try{return await this.open(message)}catch(error){throw new AuthenticatedBrowserBridgeError(classifyFailure("OPEN_AUTH_BROWSER",error),failureDiagnostic("OPEN_AUTH_BROWSER",error))}}
     const execution=this.executions.get(capability.bridgeExecutionId);if(!execution)throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     assertCapabilityExactMatch(execution.capability,capability);
+    // The agent invokes bounded bridge operations on this same execution. It
+    // must run outside the per-execution queue to avoid deadlocking those calls.
+    if(message.operation==="DISCOVER_SOURCE_WITH_BROWSER_USE")return this.discoverWithBrowserUse(execution,message,signal);
     if(message.operation==="CLOSE_AUTH_BROWSER"&&(execution.state==="CLOSED"||execution.state==="EXPIRED")){return{closed:true}}
     const envelope=await this.dispatch(execution,message);if(envelope.ok)return envelope.result;throw new AuthenticatedBrowserBridgeError(envelope.error.code,envelope.error.diagnostic);
+  }
+  private async discoverWithBrowserUse(execution:Execution,message:Extract<AuthenticatedBrowserBridgeRequest,{operation:"DISCOVER_SOURCE_WITH_BROWSER_USE"}>,signal?:AbortSignal):Promise<BrowserUseDiscoveryProposal>{
+    const cap=execution.capability;
+    if(execution.discovery)throw new AuthenticatedBrowserBridgeError("BRIDGE_REPLAY_REJECTED");
+    if(execution.state!=="OPEN"||cap.siteKind!=="PUBLIC"||cap.allowedOrigins.length!==1)throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
+    if(!originAllowed(message.sourceUrl,cap.allowedOrigins)||message.sourceUrl!==cap.authEntryPoint)throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
+    if(!process.env.OPENROUTER_API_KEY||!process.env.DISTILLED_BROWSER_USE_PYTHON)throw new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE");
+    const payload={runId:cap.runId,sourceUrl:message.sourceUrl,allowedOrigin:cap.allowedOrigins[0],modelRef:message.modelRef,maxSteps:message.maxSteps,capability:cap};
+    const python=process.env.DISTILLED_BROWSER_USE_PYTHON;
+    const script=fileURLToPath(new URL("../browser_use_discovery.py",import.meta.url));
+    clearTimeout(execution.idleTimer);
+    const discovery=new Promise<BrowserUseDiscoveryProposal>((resolve,reject)=>{
+      const child=spawn(python,[script],{shell:false,stdio:["pipe","pipe","ignore"],env:{...process.env,ANONYMIZED_TELEMETRY:"false",BROWSER_USE_CLOUD_SYNC:"false",OPENAI_API_KEY:process.env.OPENROUTER_API_KEY,OPENAI_BASE_URL:"https://openrouter.ai/api/v1",DISTILLED_BRIDGE_URL:"http://127.0.0.1:8080/v1/internal-authenticated-browser"}});
+      let output="",settled=false;
+      const finish=(error?:Error,value?:BrowserUseDiscoveryProposal)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener("abort",cancel);if(error)reject(error);else resolve(value!)};
+      const cancel=()=>{child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE"))};
+      const timer=setTimeout(()=>{child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE"))},Math.min(90_000,Math.max(1,Date.parse(cap.expiresAt)-this.now())));
+      signal?.addEventListener("abort",cancel,{once:true});if(signal?.aborted)cancel();
+      child.stdout.on("data",(chunk:Buffer)=>{output+=chunk.toString("utf8");if(output.length>32_768){child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE"))}});
+      child.on("error",()=>finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE")));
+      child.stdin.on("error",()=>finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE")));
+      child.on("close",code=>{if(settled)return;try{if(code!==0)throw new Error();const parsed=JSON.parse(output) as BrowserUseDiscoveryProposal;assertBoundedProposal(parsed,{runId:cap.runId,tenantId:cap.tenantId,ownerId:cap.ownerId,resourceId:cap.profileId,browserGeneration:cap.browserGeneration,allowedOrigins:cap.allowedOrigins,siteKind:"PUBLIC",readOnly:true,expiresAt:cap.expiresAt});finish(undefined,parsed)}catch{finish(new AuthenticatedBrowserBridgeError("BRIDGE_BROWSER_FAILURE"))}});
+      child.stdin.end(JSON.stringify(payload));
+    });
+    execution.discovery=discovery;
+    try{return await discovery}finally{if(execution.state==="OPEN")this.refreshIdle(execution)}
   }
   /** Serialises operations per execution, deduplicates by operationId, and records mutation outcomes so a retry can never re-execute one. */
   private dispatch(execution:Execution,message:AuthenticatedBrowserBridgeRequest):Promise<Recorded>{

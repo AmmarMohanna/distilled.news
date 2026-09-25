@@ -2,6 +2,7 @@ import {
   AuthenticatedBrowserBridgeError,
   type AuthenticatedBrowserExecutionCapability,
   type BrowserBridgeTransport,
+  type BrowserUseDiscoveryProposal,
   type PublicBrowserObservation,
   type SourceAcquisitionRequest,
   type SourceBrowserWorkflowPort
@@ -56,7 +57,9 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
       operationBudget
     };
     this.capability = capability;
-    const opened = await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "OPEN_AUTH_BROWSER" });
+    let opened: Awaited<ReturnType<BrowserBridgeTransport["execute"]>>;
+    try { opened = await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "OPEN_AUTH_BROWSER" }); }
+    catch (error) { await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "CLOSE_AUTH_BROWSER" }).catch(() => undefined); this.closed = true; throw error; }
     if (!opened || typeof opened !== "object" || !("sessionId" in opened) || opened.runId !== this.context.runId || opened.tenantId !== this.context.tenantId || opened.generation !== this.context.generation) {
       await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "CLOSE_AUTH_BROWSER" }).catch(() => undefined);
       throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
@@ -81,6 +84,14 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
     const observation = await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "SCROLL_PUBLIC_PAGE", deltaY });
     if (!observation || typeof observation !== "object" || !("pageRevision" in observation)) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     return observation as PublicBrowserObservation;
+  }
+
+  async discoverWithBrowserUse(sourceUrl: string, modelRef: string, maxSteps = 12): Promise<BrowserUseDiscoveryProposal> {
+    const capability = this.capability;
+    if (!capability || !this.opened || this.closed || sourceUrl !== capability.authEntryPoint) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
+    const result = await this.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability, operation: "DISCOVER_SOURCE_WITH_BROWSER_USE", sourceUrl, modelRef, maxSteps });
+    if (!result || typeof result !== "object" || !("protocol" in result) || result.protocol !== "distilled.browser-use.discovery.v1") throw new AuthenticatedBrowserBridgeError("BRIDGE_BROWSER_FAILURE");
+    return result as BrowserUseDiscoveryProposal;
   }
 
   async close(): Promise<void> {
