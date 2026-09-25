@@ -51,7 +51,7 @@ export async function discoverPublicSourceBrowserPlan(
 }
 
 /** Agent supplies navigation hints; a fresh Distilled-owned session verifies every promoted fact. */
-export async function discoverBrowserUseSourcePlan(env: Env, input: { request: SourceAcquisitionRequest; tenantId: string; ownerId: string; resourceId: string; runId: string }, ports?: { agent: Pick<ContainerSourceBrowserPort, "open" | "close" | "discoverWithBrowserUse">; verifier: SourceBrowserWorkflowPort }): Promise<PublicSourceDiscoveryResult | undefined> {
+export async function discoverBrowserUseSourcePlan(env: Env, input: { request: SourceAcquisitionRequest; tenantId: string; ownerId: string; resourceId: string; runId: string }, ports?: { agent: Pick<ContainerSourceBrowserPort, "open" | "close" | "discoverWithBrowserUse">; verifier: SourceBrowserWorkflowPort }, maxSteps = 12): Promise<PublicSourceDiscoveryResult | undefined> {
   const sourceUrl = input.request.source.canonicalSourceUrl ?? input.request.source.resourceLocator;
   const model = env.DISTILLED_LIVE_OPENROUTER_MODEL?.trim();
   if (!sourceUrl || !model || !env.OPENROUTER_API_KEY) return undefined;
@@ -60,7 +60,7 @@ export async function discoverBrowserUseSourcePlan(env: Env, input: { request: S
   await agentPort.open({ sourceUrl, allowedOrigins: [origin], request: input.request });
   let proposal: Awaited<ReturnType<ContainerSourceBrowserPort["discoverWithBrowserUse"]>>;
   try {
-    const backend = new BrowserUseDiscoveryBackend({ discover: () => agentPort.discoverWithBrowserUse(sourceUrl, model, 12) });
+    const backend = new BrowserUseDiscoveryBackend({ discover: () => agentPort.discoverWithBrowserUse(sourceUrl, model, maxSteps) });
     proposal = await backend.propose({ request: input.request, capability: { runId: `${input.runId}_browser_use`, tenantId: input.tenantId, ownerId: input.ownerId, resourceId: input.resourceId, browserGeneration: 1, allowedOrigins: [origin], siteKind: "PUBLIC", readOnly: true, expiresAt: new Date(Date.now() + 120_000).toISOString() } });
   }
   finally { await agentPort.close(); }
@@ -98,7 +98,13 @@ export async function discoverAndPromotePublicSourceWorkflow(
   if (env.DISTILLED_WEB_OPERATOR_ENABLED !== "true") return { stage: "WEB_OPERATOR", status: "UNSUPPORTED", reason: "Web Operator disabled" };
   let probe: PublicSourceDiscoveryResult | undefined;
   try { probe = await discoverPublicSourceBrowserPlan(env, input); }
-  catch (error) { return bridgeStop(error); }
+  catch (error) {
+    if (error instanceof PublicSourceDiscoveryStop && error.status === "CHALLENGE_REQUIRED" && env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE === "true") {
+      try { await discoverBrowserUseSourcePlan(env, input, undefined, 4); console.log(JSON.stringify({ event: "browser_use_challenge_probe", state: "completed" })); }
+      catch (diagnosticError) { console.log(JSON.stringify({ event: "browser_use_challenge_probe", state: diagnosticError instanceof PublicSourceDiscoveryStop ? diagnosticError.status : "UNAVAILABLE" })); }
+    }
+    return bridgeStop(error);
+  }
   if (!probe) {
     try { probe = await discoverBrowserUseSourcePlan(env, input); }
     catch (error) { return bridgeStop(error); }
