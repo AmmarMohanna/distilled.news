@@ -560,10 +560,13 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     expect((await store.listEvents(admitted.run.runId)).some((event)=>event.type==="agent.policy.decision"&&JSON.stringify(event.data).includes("runtime_interaction_capability_required"))).toBe(true);
   },30_000);
 
-  it("blocks disallowed fetch/subresource egress from an allowed page",async()=>{
+  it("blocks incidental third-party read-only subresources without poisoning the admitted page",async()=>{
     fixture.resetMutations(); const browser=PlaywrightBrowserAdapter.forTest();
     const scope=await browser.allocate({runId:"egress",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
-    try { await expect(browser.navigate(scope,`${fixture.origin}/egress`)).rejects.toBeInstanceOf(BrowserScopeError); }
+    try {
+      const observed=await browser.navigate(scope,`${fixture.origin}/egress`);
+      expect(JSON.stringify(observed.representation)).toContain("safe page");
+    }
     finally { await browser.close(scope).catch(()=>undefined); }
     expect(fixture.mutationCount()).toBe(0);
   },30_000);

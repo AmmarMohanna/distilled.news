@@ -408,10 +408,27 @@ export class PlaywrightBrowserAdapter
         if (request.resourceType()==="eventsource") throw new BrowserPreDispatchError("EventSource transport denied");
         await this.assertRequestAllowed(live, request.url(), request.method());
         await route.continue();
-      } catch {
+      } catch (error) {
         let topLevelNavigation=false;
         try { topLevelNavigation=request.isNavigationRequest()&&request.frame()===live.page.mainFrame(); } catch { /* A denied popup can issue a request before its frame exists. */ }
-        live.blockedRequest = { method: request.method(), url: request.url(), redirectHop:false, topLevelNavigation, deniedHostname:hostnameOf(request.url()), policyRule:"ORIGIN_NOT_ADMITTED" };
+        const diagnostic=error instanceof BrowserPreDispatchError?error.diagnostic:undefined;
+        const incidentalReadOnlyResource=
+          !topLevelNavigation &&
+          READ_ONLY_BROWSER_METHODS.has(request.method().toUpperCase()) &&
+          diagnostic?.policyRule==="ORIGIN_NOT_ADMITTED";
+        // Abort optional third-party reads without poisoning an otherwise-authorized page.
+        // Navigation, unsafe methods, transport/budget failures, and redirect violations
+        // remain fatal and are surfaced through blockedRequest.
+        if (!incidentalReadOnlyResource) {
+          live.blockedRequest = {
+            method: request.method(),
+            url: request.url(),
+            redirectHop:false,
+            topLevelNavigation,
+            deniedHostname:diagnostic?.deniedHostname??hostnameOf(request.url()),
+            policyRule:diagnostic?.policyRule??"REQUEST_BLOCKED"
+          };
+        }
         await route.abort("blockedbyclient");
       }
     });
