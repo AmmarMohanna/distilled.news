@@ -888,7 +888,7 @@ export class PlaywrightBrowserAdapter
       url: observed.url,
       title: observed.title,
       bodyText: observed.visibleText,
-      markup: observed.markup,
+      markup: activeChallengeMarkup(observed.markup),
       httpStatus: live.lastMainDocumentStatus
     });
     const representation = {
@@ -1111,6 +1111,40 @@ class CdpBrowserObservationProvider implements BrowserObservationProvider {
       domNodeCountCategory:countCategory(nodes.size),
       accessibilityNodeCountCategory:countCategory(ax.nodes?.length??0)
     };
+  }
+}
+
+/** Keep challenge evidence tied to active DOM structure, not dormant bundle/widget text. */
+function activeChallengeMarkup(markup: string): string {
+  try {
+    const parsed = JSON.parse(markup) as { documents?: Array<{ nodes?: { nodeName?: number[]; attributes?: number[][]; parentIndex?: number[] } }>; strings?: string[] };
+    const document = parsed.documents?.[0];
+    const strings = parsed.strings ?? [];
+    const names = document?.nodes?.nodeName ?? [];
+    const attributes = document?.nodes?.attributes ?? [];
+    const parents = document?.nodes?.parentIndex ?? [];
+    const excluded = new Set<number>();
+    for (let index = 0; index < names.length; index += 1) {
+      const name = strings[names[index]]?.toLowerCase();
+      if (name === "script" || name === "style" || name === "noscript" || name === "template" || name === "head") excluded.add(index);
+    }
+    const isExcluded = (index: number): boolean => {
+      let current = index;
+      for (let depth = 0; depth < 32 && current >= 0; depth += 1) {
+        if (excluded.has(current)) return true;
+        current = parents[current] ?? -1;
+      }
+      return false;
+    };
+    const output: string[] = [];
+    for (let index = 0; index < names.length; index += 1) {
+      if (isExcluded(index)) continue;
+      output.push(strings[names[index]] ?? "");
+      for (const value of attributes[index] ?? []) output.push(strings[value] ?? "");
+    }
+    return output.join(" ").slice(0, 120_000);
+  } catch {
+    return markup.slice(0, 120_000);
   }
 }
 
