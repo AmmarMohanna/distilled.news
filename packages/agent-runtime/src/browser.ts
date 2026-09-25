@@ -253,6 +253,8 @@ interface DomNodeSnapshot {
 
 const READ_ONLY_BROWSER_METHODS = new Set(["GET", "HEAD"]);
 const MAX_HTTP_REQUESTS_PER_SESSION = 200;
+const PUBLIC_PAGE_READINESS_DEADLINE_MS = 8_000;
+const PUBLIC_PAGE_READINESS_POLL_MS = 250;
 const ACTIVE_TRANSPORT_HARDENING = `(() => {
   const deny = name => {
     try { Object.defineProperty(globalThis, name, { value: undefined, writable: false, configurable: false }); } catch {}
@@ -502,7 +504,7 @@ export class PlaywrightBrowserAdapter
 
   async navigateAuthenticationEntrypoint(scope:BrowserScope,entrypoint:string,writeOrigins:string[]){const live=this.requireHealthy(scope);if(!live.allowedOrigins.has(new URL(entrypoint).origin)||writeOrigins.some(origin=>!live.allowedOrigins.has(origin)))throw new BrowserPreDispatchError("authentication entrypoint outside browser policy");live.authenticationBootstrap=true;live.authenticationWriteOrigins=new Set(writeOrigins);await this.navigateDirectly(live,entrypoint,"domcontentloaded");}
 
-  async navigatePublicPage(scope:BrowserScope,url:string,allowedOrigins:string[]){const live=this.requireHealthy(scope);let parsed:URL;try{parsed=new URL(url)}catch{throw new BrowserPreDispatchError("public destination invalid")}if(!allowedOrigins.includes(parsed.origin)||!live.allowedOrigins.has(parsed.origin))throw new BrowserPreDispatchError("public destination outside browser policy",{policyRule:"ORIGIN_NOT_ADMITTED",deniedHostname:parsed.hostname,redirectHop:false,topLevelNavigation:true,admittedOriginCount:live.allowedOrigins.size});live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;await this.navigateDirectly(live,url,"domcontentloaded");return await this.observe(live,"page_state");}
+  async navigatePublicPage(scope:BrowserScope,url:string,allowedOrigins:string[]){const live=this.requireHealthy(scope);let parsed:URL;try{parsed=new URL(url)}catch{throw new BrowserPreDispatchError("public destination invalid")}if(!allowedOrigins.includes(parsed.origin)||!live.allowedOrigins.has(parsed.origin))throw new BrowserPreDispatchError("public destination outside browser policy",{policyRule:"ORIGIN_NOT_ADMITTED",deniedHostname:parsed.hostname,redirectHop:false,topLevelNavigation:true,admittedOriginCount:live.allowedOrigins.size});live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;const initial=await this.navigateDirectly(live,url,"domcontentloaded");return await this.waitForPublicPageReadiness(live,initial);}
   async observePublicPage(scope:BrowserScope){return await this.observe(this.requireHealthy(scope),"page_state");}
 
   async observeAuthenticationSurface(scope:BrowserScope,wait?:AuthSurfaceWait):Promise<AuthenticatedBrowserSurface>{const live=this.requireHealthy(scope);if(wait==="AUTH_SURFACE")await live.page.locator('input,button,[role="button"],[role="textbox"],iframe').first().waitFor({state:"visible",timeout:10_000});else if(wait==="PASSWORD_FIELD")await live.page.locator('input[type="password"]').first().waitFor({state:"visible",timeout:10_000});const observed=await this.observe(live,"page_state");const visibleText=String((observed.representation as {visibleText?:string}).visibleText??"").slice(0,AUTH_SURFACE_MAX_TEXT);return{url:observed.url,title:observed.title.slice(0,300),pageRevision:observed.pageRevision,challengeState:observed.challengeState,visibleText,bridgeProtocolVersion:BROWSER_BRIDGE_PROTOCOL_VERSION,trustedObservationSchemaVersion:TRUSTED_OBSERVATION_SCHEMA_VERSION,formCountCategory:observed.formCountCategory??"none",documentCountCategory:observed.documentCountCategory,iframeCountCategory:observed.iframeCountCategory,domNodeCountCategory:observed.domNodeCountCategory,accessibilityNodeCountCategory:observed.accessibilityNodeCountCategory,controls:observed.controls.slice(0,AUTH_SURFACE_MAX_CONTROLS).map(control=>({handle:control.handle,kind:control.kind,role:control.role,label:control.label.slice(0,200),type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",visible:control.attributes?.["auth-visible"]==="true",focusable:control.attributes?.["auth-focusable"]==="true"}))};}
@@ -806,6 +808,25 @@ export class PlaywrightBrowserAdapter
     try { this.assertFinalOrigin(live); } catch { throw new BrowserNavigationError("UNEXPECTED_AUTH_ORIGIN",{policyRule:"FINAL_ORIGIN_NOT_ADMITTED",deniedHostname:hostnameOf(live.page.url()),redirectHop:true,topLevelNavigation:true,admittedOriginCount:live.allowedOrigins.size}); }
     this.invalidateTransientBindings(live);
     return this.observe(live, "page_state");
+  }
+
+  /** Bounded browser-owned structural readiness for client-rendered public pages. */
+  private async waitForPublicPageReadiness(live:LiveSession,initial:BrowserObservationData):Promise<BrowserObservationData>{
+    const started=Date.now();
+    let observed=initial;
+    let lastFingerprint=publicStructureFingerprint(observed);
+    let stableCount=0;
+    while(Date.now()-started<PUBLIC_PAGE_READINESS_DEADLINE_MS){
+      if(publicObservationMeaningful(observed))return observed;
+      await boundedDelay(PUBLIC_PAGE_READINESS_POLL_MS,live.signal);
+      observed=await this.observe(live,"page_state");
+      const fingerprint=publicStructureFingerprint(observed);
+      stableCount=fingerprint===lastFingerprint?stableCount+1:0;
+      lastFingerprint=fingerprint;
+      // A text-bearing, structurally non-empty terminal document may legitimately have no links.
+      if(stableCount>=3&&Date.now()-started>=1_500&&publicObservationTerminal(observed))return observed;
+    }
+    return observed;
   }
 
   private async assertRequestAllowed(live: LiveSession, value: string, method = "GET") {
@@ -1319,6 +1340,35 @@ function resolveRuntimeUrl(value: string | undefined, baseUrl: string): string |
 
 function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function publicObservationMeaningful(observation:BrowserObservationData):boolean {
+  return (observation.challengeState!==undefined&&observation.challengeState!=="NO_CHALLENGE") ||
+    Boolean(observation.article?.body) || (observation.listingLinks?.length??0)>0 || observation.controls.length>0;
+}
+
+function publicObservationTerminal(observation:BrowserObservationData):boolean {
+  const representation=observation.representation&&typeof observation.representation==="object"
+    ? observation.representation as {visibleText?:unknown}:undefined;
+  return observation.domNodeCountCategory!==undefined&&observation.domNodeCountCategory!=="none"&&
+    typeof representation?.visibleText==="string"&&representation.visibleText.length>=120;
+}
+
+function publicStructureFingerprint(observation:BrowserObservationData):string {
+  const representation=observation.representation&&typeof observation.representation==="object"
+    ? observation.representation as {visibleText?:unknown}:undefined;
+  const textLength=typeof representation?.visibleText==="string"?representation.visibleText.length:0;
+  return JSON.stringify([observation.url,observation.domNodeCountCategory,observation.accessibilityNodeCountCategory,
+    observation.controls.length,observation.listingLinks?.length??0,Boolean(observation.article),Math.min(20,Math.floor(textLength/200))]);
+}
+
+function boundedDelay(milliseconds:number,signal?:AbortSignal):Promise<void>{
+  signal?.throwIfAborted();
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{signal?.removeEventListener("abort",abort);resolve()},milliseconds);
+    const abort=()=>{clearTimeout(timer);reject(signal?.reason??new Error("browser operation aborted"))};
+    signal?.addEventListener("abort",abort,{once:true});
+  });
 }
 
 function countCategory(value:number):"none"|"one"|"few"|"many"{return value===0?"none":value===1?"one":value<=3?"few":"many";}

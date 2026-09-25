@@ -585,6 +585,15 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     } finally { await browser.close(scope).catch(()=>undefined); }
   },30_000);
 
+  it("waits boundedly for meaningful public SPA structure",async()=>{
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const scope=await browser.allocate({runId:"delayed-listing",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      const observed=await browser.navigatePublicPage(scope,`${fixture.origin}/delayed-listing`,[fixture.origin]);
+      expect(observed.listingLinks).toContain(`${fixture.origin}/article`);
+    } finally { await browser.close(scope).catch(()=>undefined); }
+  },30_000);
+
   it("records a mutation followed by a blocked redirect as effect_unknown and never replays it",async()=>{
     fixture.resetMutations(); const store=new MemoryRuntimeStore(); const artifacts=new MemoryArtifactStore(); const browser=PlaywrightBrowserAdapter.forTest();
     const gateway=new ScriptedModelGateway([plan(action("browser.navigate@1",{url:`${fixture.origin}/mutate-redirect`},{urlIncludes:"escaped"}))]);
