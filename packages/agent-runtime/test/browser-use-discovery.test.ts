@@ -25,6 +25,17 @@ describe("Browser Use discovery boundary", () => {
     }
     expect(compile).not.toHaveBeenCalled();
   });
+  it("rejects malformed and oversized agent output before trusted observation", async () => {
+    const compile = vi.fn();
+    const outputs = [
+      { ...proposal, visitedUrls: "not-an-array" },
+      { ...proposal, timestampHints: Array.from({ length: 33 }, () => "2026-09-20") },
+      { ...proposal, steps: 500 },
+      { ...proposal, articleUrls: ["http://127.0.0.1/private"] }
+    ];
+    for (const output of outputs) await expect(new BrowserUseDiscoveryBackend({ discover: async () => output as never }, { compile }).discover({ request: {} as never, capability })).rejects.toThrow();
+    expect(compile).not.toHaveBeenCalled();
+  });
   it("compiles only independently observed article links and dated bodies", async () => {
     const a = "https://news.example/article/a", b = "https://news.example/article/b";
     const listing: PublicBrowserObservation = { url: "https://news.example/", title: "News", pageRevision: "listing", visibleText: "", controls: [a, b].map(url => ({ handle: url, kind: "link", role: "link", label: "Article", safeAction: "follow", destinationUrl: url })) };
