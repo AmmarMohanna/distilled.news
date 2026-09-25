@@ -1220,12 +1220,21 @@ function discoverEmbeddedListingLinks(nodes:Map<number,DomNodeSnapshot>,baseUrl:
   for(const node of nodes.values()){
     if(node.name!=="script")continue;
     const type=(node.attributes.get("type")??"").toLowerCase();
-    if(!["application/json","application/ld+json","application/schema+json"].includes(type))continue;
     const raw=rawTextOf(node,nodes).trim();
     parsedBytes+=raw.length;
     if(!raw||raw.length>512_000||parsedBytes>1_000_000)continue;
-    let value:unknown;try{value=JSON.parse(raw)}catch{continue}
-    collectEmbeddedLinks(value,baseUrl,output,0);
+    if(["application/json","application/ld+json","application/schema+json"].includes(type)){
+      let value:unknown;try{value=JSON.parse(raw)}catch{value=undefined}
+      collectEmbeddedLinks(value,baseUrl,output,0);
+    }
+    // React Flight and similar hydration formats are executable wrappers around
+    // serialized data rather than valid JSON. Lex only bounded path literals;
+    // never evaluate the script or trust a cross-origin value.
+    for(const match of raw.matchAll(/\/[A-Za-z0-9][A-Za-z0-9%._~!$&()*+,;=:@/?-]{3,}/g)){
+      const candidate=embeddedNavigableUrl(match[0],baseUrl);
+      if(candidate)output.add(candidate);
+      if(output.size>=100)break;
+    }
     if(output.size>=100)break;
   }
   return [...output];

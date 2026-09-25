@@ -14,26 +14,26 @@ export function classifyBrowserChallenge(signals: BrowserChallengeSignals): Chal
   const title = signals.title.toLowerCase();
   const text = signals.bodyText.toLowerCase();
   const markup = signals.markup.toLowerCase();
-  const combined = `${url}\n${title}\n${text}\n${markup}`;
+  const visible = `${url}\n${title}\n${text}`;
 
-  if (signals.httpStatus === 403 || matches(combined, ["access denied", "request forbidden", "permission denied"])) {
+  if (signals.httpStatus === 403 || matches(visible, ["access denied", "request forbidden", "permission denied"])) {
     return "ACCESS_DENIED";
   }
-  if (matches(combined, ["session expired", "session has expired", "authentication expired", "please sign in again"])) {
+  if (matches(visible, ["session expired", "session has expired", "authentication expired", "please sign in again"])) {
     return "SESSION_EXPIRED";
   }
-  if (matches(combined, ["multi-factor authentication", "two-factor authentication", "verification code", "one-time code", "mfa required"]) ||
+  if (matches(visible, ["multi-factor authentication", "two-factor authentication", "verification code", "one-time code", "mfa required"]) ||
       /autocomplete=["']one-time-code["']/.test(markup)) {
     return "MFA_REQUIRED";
   }
-  if (matches(combined, ["captcha", "recaptcha", "hcaptcha", "cf-turnstile", "turnstile-response"]) ||
+  if (matches(visible, ["captcha", "recaptcha", "hcaptcha", "cf-turnstile", "turnstile-response"]) ||
       /(?:id|class|src|data-sitekey)=["'][^"']*(?:captcha|challenge-platform|turnstile)/.test(markup)) {
     return "CAPTCHA_REQUIRED";
   }
-  if (matches(combined, ["automated requests", "automation blocked", "bot detected", "unusual traffic", "automated access is prohibited"])) {
+  if (matches(visible, ["automated requests", "automation blocked", "bot detected", "unusual traffic", "automated access is prohibited"])) {
     return "AUTOMATION_BLOCKED";
   }
-  if (matches(combined, ["checking your browser", "just a moment", "verify you are human", "browser verification", "security check"]) ||
+  if (matches(visible, ["checking your browser", "just a moment", "verify you are human", "browser verification", "security check"]) ||
       matches(markup, ["cf-chl-", "challenge-platform"])) {
     return "PASSIVE_BROWSER_CHALLENGE";
   }

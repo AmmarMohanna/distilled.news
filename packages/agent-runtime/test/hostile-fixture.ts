@@ -86,7 +86,7 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       return;
     }
     if (url.pathname === "/hydration-listing") {
-      response.end(page("Hydration listing", `<main>Client-rendered listing shell</main><script type="application/json">${JSON.stringify({props:{items:[{canonicalUrl:`${url.origin}/article`},{path:"/other-article"},{url:"https://tracker.invalid/ignored"}],asset:{url:"/_next/static/app.js"}}})}</script>`));
+      response.end(page("Hydration listing", `<main>Client-rendered listing shell</main><script type="application/json">${JSON.stringify({props:{items:[{canonicalUrl:`${url.origin}/article`},{path:"/other-article"},{url:"https://tracker.invalid/ignored"}],asset:{url:"/_next/static/app.js"}}})}</script><script>self.__flight=self.__flight||[];self.__flight.push("/news/2026/09/24/serialized-article-path")</script>`));
       return;
     }
     if (url.pathname === "/semantic-onclick-beacon") {
@@ -201,6 +201,7 @@ export async function startHostileFixture(): Promise<HostileFixture> {
     if (url.pathname === "/passive-challenge") { response.end(page("Just a moment", `<main>Checking your browser before accessing the site.</main>`)); return; }
     if (url.pathname === "/automation-blocked") { response.end(page("Blocked", `<main>Automated requests have been blocked.</main>`)); return; }
     if (url.pathname === "/access-denied") { response.writeHead(403); response.end(page("Denied", `<main>Access denied</main>`)); return; }
+    if (url.pathname === "/challenge-words-in-script") { response.end(page("Ordinary article", `<script type="application/json">{"componentCopy":"verification code captcha security check"}</script><article><h1>Ordinary reporting</h1><time datetime="2026-09-12T12:00:00Z">September 12</time><div data-article-body>Visible reporting without a challenge.</div></article>`)); return; }
     if (url.pathname === "/storage") {
       const value = JSON.stringify(url.searchParams.get("value") ?? "");
       response.end(page("Storage", `<main id="value"></main><script>localStorage.setItem('tenant',${value});document.querySelector('#value').textContent=localStorage.getItem('tenant')||'empty'</script>`));

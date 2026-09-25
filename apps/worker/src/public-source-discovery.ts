@@ -29,7 +29,7 @@ export async function discoverPublicSourceBrowserPlan(
     const urls = [...new Set([listing, afterScroll].filter((value): value is PublicBrowserObservation => Boolean(value))
       .flatMap((value) => [...(value.listingLinks ?? []), ...value.controls.map((control) => control.destinationUrl)] )
       .filter((value): value is string => Boolean(value && admittedArticleCandidate(value, origin, sourceUrl))))];
-    urls.sort((left, right) => new URL(right).pathname.split("/").length - new URL(left).pathname.split("/").length);
+    urls.sort((left, right) => articleCandidateScore(right) - articleCandidateScore(left));
     const sampledArticles: PublicBrowserObservation[] = [];
     const maxProbes = Math.min(10, Math.max(0, input.request.limits.maxPhysicalAttempts - operations));
     for (const url of urls.slice(0, maxProbes)) {
@@ -48,8 +48,18 @@ export async function discoverPublicSourceBrowserPlan(
 function admittedArticleCandidate(value: string, origin: string, sourceUrl: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && url.origin === origin && url.href !== sourceUrl && url.pathname.split("/").filter(Boolean).length >= 2;
+    const parts=url.pathname.split("/").filter(Boolean);
+    return url.protocol === "https:" && url.origin === origin && url.href !== sourceUrl && parts.length >= 2 &&
+      !/[{}]/.test(url.pathname) && !/\.(?:js|mjs|css|json|xml|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|map)$/i.test(url.pathname);
   } catch { return false; }
+}
+
+function articleCandidateScore(value:string):number{
+  const parts=new URL(value).pathname.split("/").filter(Boolean);
+  const dateIndex=parts.findIndex((part,index)=>/^20\d{2}$/.test(part)&&/^\d{1,2}$/.test(parts[index+1]??"")&&/^\d{1,2}$/.test(parts[index+2]??""));
+  const slug=parts.at(-1)??"";
+  const unstable=parts.some((part)=>/^(?:live|liveblog|live-updates?|search|tag|author)$/i.test(part));
+  return (unstable?-100:0)+(dateIndex>=0?100:0)+Math.min(30,(slug.match(/-/g)?.length??0)*5)+Math.min(20,parts.length);
 }
 
 /** Invoked only by SourceAcquisitionOrchestrator after structured/HTTP/ACTIVE have been assessed. */

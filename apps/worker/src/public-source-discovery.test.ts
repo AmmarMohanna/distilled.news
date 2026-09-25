@@ -26,4 +26,17 @@ describe("public source discovery from trusted Container structure", () => {
     expect(result).toMatchObject({ candidateUrl: "https://publisher.example/article/a", plan: { articlePathPrefix: "/article/" }, browserOperations: 4 });
     expect([opened, closed]).toEqual([1, 1]);
   });
+  it("samples stable dated articles before live/search/navigation resources",async()=>{
+    const urls=[
+      "https://publisher.example/news/liveblog/2026/9/24/ongoing-live-updates-with-many-words",
+      "https://publisher.example/news/2026/9/24/first-completed-report-with-details",
+      "https://publisher.example/news/2026/9/24/second-completed-report-with-details"
+    ];
+    const listing:PublicBrowserObservation={url:source,title:"News",pageRevision:"listing",visibleText:"",controls:[],listingLinks:urls};
+    const visited:string[]=[];
+    const port:SourceBrowserWorkflowPort={async open(){},async navigateAndObserve(url){visited.push(url);if(url===source)return listing;if(url.includes("liveblog"))return{...article("live"),challengeState:"PASSIVE_BROWSER_CHALLENGE"};return{...article(url.includes("first-")?"first":"second"),url,article:{...article("x").article!,canonicalUrl:url}}},async close(){}};
+    const result=await discoverPublicSourceBrowserPlan({} as Env,{request:{...request,limits:{...request.limits,maxPhysicalAttempts:4}},tenantId:"tenant",ownerId:"owner",resourceId:"resource",runId:"run-ranked"},port);
+    expect(result?.evidence.sampledArticles.map((value)=>value.article?.canonicalUrl)).toEqual(urls.slice(1));
+    expect(visited).not.toContain(urls[0]);
+  });
 });

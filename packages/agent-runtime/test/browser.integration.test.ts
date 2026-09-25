@@ -286,6 +286,16 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     },30_000);
   }
 
+  it("does not classify dormant script-bundle copy as an active challenge",async()=>{
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const allocation=await browser.allocate({runId:"challenge-script-copy",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      const observed=await browser.navigate(allocation,`${fixture.origin}/challenge-words-in-script`);
+      expect(observed.challengeState).toBe("NO_CHALLENGE");
+      expect(observed.article?.publisherTimestamp).toBe("2026-09-12T12:00:00Z");
+    } finally { await browser.close(allocation).catch(()=>undefined); }
+  },30_000);
+
   for (const scenario of [
     { path:"semantic-onclick-beacon",effect:"navigator.sendBeacon" },
     { path:"semantic-onclick-fetch",effect:"fetch POST" },
@@ -609,7 +619,7 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     const scope=await browser.allocate({runId:"hydration-listing",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
     try {
       const observed=await browser.navigatePublicPage(scope,`${fixture.origin}/hydration-listing`,[fixture.origin]);
-      expect(observed.listingLinks).toEqual(expect.arrayContaining([`${fixture.origin}/article`,`${fixture.origin}/other-article`]));
+      expect(observed.listingLinks).toEqual(expect.arrayContaining([`${fixture.origin}/article`,`${fixture.origin}/other-article`,`${fixture.origin}/news/2026/09/24/serialized-article-path`]));
       expect(observed.listingLinks).not.toContain("https://tracker.invalid/ignored");
       expect(observed.listingLinks?.some((url)=>url.includes("/_next/"))).toBe(false);
     } finally { await browser.close(scope).catch(()=>undefined); }
