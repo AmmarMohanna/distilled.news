@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.61.0-noble
+FROM mcr.microsoft.com/playwright:v1.61.0-noble AS browser_use_python
 
 WORKDIR /app
 RUN corepack enable
@@ -11,12 +11,11 @@ RUN python3.12 -m venv /opt/distilled-browser-use \
     && /opt/distilled-browser-use/bin/pip install --no-cache-dir --upgrade pip==25.2 \
     && /opt/distilled-browser-use/bin/pip install --no-cache-dir browser-use==0.13.10 \
     && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'; print('browser-use', version('browser-use'))"
-RUN chromium_path="$(find /ms-playwright -type f -path '*/chrome-linux64/chrome' -print -quit)" \
-    && test -n "$chromium_path" && ln -s "$chromium_path" /usr/local/bin/distilled-chromium
-ENV DISTILLED_BROWSER_USE_PYTHON=/opt/distilled-browser-use/bin/python
-ENV DISTILLED_BROWSER_USE_CHROMIUM=/usr/local/bin/distilled-chromium
-ENV ANONYMIZED_TELEMETRY=false
-ENV BROWSER_USE_CLOUD_SYNC=false
+
+# Preserve the deployed Node dependency layer; Python is copied in separately.
+FROM mcr.microsoft.com/playwright:v1.61.0-noble
+WORKDIR /app
+RUN corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/package.json
@@ -34,7 +33,15 @@ RUN pnpm install --frozen-lockfile
 # Source edits must invalidate the runtime layer, not the workspace install.
 COPY apps ./apps
 COPY packages ./packages
+COPY --from=browser_use_python /opt/distilled-browser-use /opt/distilled-browser-use
+RUN chromium_path="$(find /ms-playwright -type f -path '*/chrome-linux64/chrome' -print -quit)" \
+    && test -n "$chromium_path" && ln -s "$chromium_path" /usr/local/bin/distilled-chromium \
+    && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'"
 
+ENV DISTILLED_BROWSER_USE_PYTHON=/opt/distilled-browser-use/bin/python
+ENV DISTILLED_BROWSER_USE_CHROMIUM=/usr/local/bin/distilled-chromium
+ENV ANONYMIZED_TELEMETRY=false
+ENV BROWSER_USE_CLOUD_SYNC=false
 ENV NODE_ENV=production
 EXPOSE 8080
 CMD ["pnpm", "--filter", "@distilled/browser-bridge", "exec", "tsx", "src/server.ts"]
