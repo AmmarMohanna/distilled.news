@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PublicBrowserObservation, SourceAcquisitionRequest, SourceBrowserWorkflowPort } from "@distilled/agent-runtime";
 import { AuthenticatedBrowserBridgeError } from "@distilled/agent-runtime";
-import { bridgeStop, discoverPublicSourceBrowserPlan } from "./public-source-discovery";
+import { bridgeStop, discoverBrowserUseSourcePlan, discoverPublicSourceBrowserPlan } from "./public-source-discovery";
 import type { Env } from "./types";
 
 const source = "https://publisher.example/news";
@@ -38,5 +38,18 @@ describe("public source discovery from trusted Container structure", () => {
     const result=await discoverPublicSourceBrowserPlan({} as Env,{request:{...request,limits:{...request.limits,maxPhysicalAttempts:4}},tenantId:"tenant",ownerId:"owner",resourceId:"resource",runId:"run-ranked"},port);
     expect(result?.evidence.sampledArticles.map((value)=>value.article?.canonicalUrl)).toEqual(urls.slice(1));
     expect(visited).not.toContain(urls[0]);
+  });
+  it("uses Browser Use hints to compile a scroll workflow only after fresh trusted observations", async () => {
+    const first = "https://publisher.example/article/first", second = "https://publisher.example/article/second";
+    const staticListing: PublicBrowserObservation = { url: source, title: "SPA", pageRevision: "initial", visibleText: "", controls: [] };
+    const dynamicListing: PublicBrowserObservation = { ...staticListing, pageRevision: "hydrated", controls: [first, second].map(url => ({ handle: url, kind: "link" as const, role: "link", label: "Story", safeAction: "follow" as const, destinationUrl: url })) };
+    let agentClosed = 0, verifierClosed = 0;
+    const result = await discoverBrowserUseSourcePlan({ DISTILLED_LIVE_OPENROUTER_MODEL: "openai/model", OPENROUTER_API_KEY: "test-only" } as Env,
+      { request, tenantId: "tenant", ownerId: "owner", resourceId: "resource", runId: "run" },
+      { agent: { open: async () => {}, close: async () => { agentClosed++; }, discoverWithBrowserUse: async () => ({ protocol: "distilled.browser-use.discovery.v1", runId: "run_browser_use", visitedUrls: [source, first, second], listingUrls: [source], articleUrls: [first, second], continuation: "scroll", timestampHints: [], steps: 4, challengeObserved: false }) },
+        verifier: { open: async () => {}, navigateAndObserve: async url => url === source ? staticListing : { ...article(url.split("/").at(-1)!), url }, scrollAndObserve: async () => dynamicListing, close: async () => { verifierClosed++; } } });
+    expect(result?.plan).toMatchObject({ articlePathPrefix: "/article/", continuation: { kind: "SCROLL" } });
+    expect(result?.discoveryModelCalls).toBe(4);
+    expect([agentClosed, verifierClosed]).toEqual([1, 1]);
   });
 });

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
-import { acquisitionFailureEvidence, makeId, type AcquisitionEvaluationMetrics, type WorkflowCaptureBundle, type WorkflowCandidate } from "@distilled/agent-runtime";
+import { acquisitionFailureEvidence, makeId, SourceAcquisitionOrchestrator, DeterministicSourceBrowserWorkflowExecutor, verifyBrowserUseProposal, type AcquisitionEvaluationMetrics, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserWorkflowPort, type WorkflowCaptureBundle, type WorkflowCandidate } from "@distilled/agent-runtime";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
 
 let mf: Miniflare | undefined;
@@ -22,7 +22,8 @@ describe("D1 Web Operator workflow lifecycle store", () => {
       passed: true,
       criteria: { hasOperations: true },
       validatedAt: "2026-09-13T00:00:00Z"
-    });
+  });
+
     expect(await store.getValidationResult(first.id)).toMatchObject({ workflowId: first.id, passed: true });
     const active = await store.promoteWorkflow(first.id, "validator");
     expect(active.state).toBe("ACTIVE");
@@ -106,6 +107,36 @@ describe("D1 Web Operator workflow lifecycle store", () => {
       recordedAt: "2026-09-13T00:02:00Z"
     };
     await store.recordMetrics(metrics);
+  }, 30_000);
+
+  it("replays a Browser Use-discovered dynamic listing from a fresh D1 repository with zero discovery calls", async () => {
+    const { db, store } = await setup();
+    const source = "https://fixture.test/section", a = "https://fixture.test/article/a", b = "https://fixture.test/article/b";
+    const request: SourceAcquisitionRequest = { source: { canonicalSourceUrl: source }, window: { startTime: "2026-09-20T00:00:00Z", endTime: "2026-09-22T00:00:00Z" }, acquisitionAsOf: "2026-09-23T00:00:00Z", limits: { maxItems: 5, maxPages: 3, maxScrolls: 2, maxPhysicalAttempts: 12, maxExecutionMs: 20_000 }, authentication: "PUBLIC" };
+    const links = (urls: string[]): PublicBrowserObservation => ({ url: source, title: "SPA listing", pageRevision: urls.join(","), visibleText: "", controls: urls.map(url => ({ handle: url, kind: "link", role: "link", label: "Story", safeAction: "follow", destinationUrl: url })) });
+    const article = (url: string, timestamp: string): PublicBrowserObservation => ({ url, title: url, pageRevision: url, visibleText: "", controls: [], article: { canonicalUrl: url, title: url, body: `Verified body ${url}`, excerpt: "", publisherTimestamp: timestamp } });
+    const pages = new Map([[a, article(a, "2026-09-21T00:00:00Z")], [b, article(b, "2026-09-20T00:00:00Z")]]);
+    const port = (): SourceBrowserWorkflowPort => ({ open: async () => {}, navigateAndObserve: async url => url === source ? links([a]) : pages.get(url)!, scrollAndObserve: async () => links([a, b]), close: async () => {} });
+    const proposal = { protocol: "distilled.browser-use.discovery.v1" as const, runId: "run", visitedUrls: [source, a, b], listingUrls: [source], articleUrls: [a, b], continuation: "scroll" as const, timestampHints: [], steps: 4, challengeObserved: false };
+    const capability = { runId: "run", tenantId: "tenant", ownerId: "tenant", resourceId: "resource", browserGeneration: 1, allowedOrigins: ["https://fixture.test"], siteKind: "PUBLIC" as const, readOnly: true as const, expiresAt: "2026-09-23T00:02:00Z" };
+    let discoveryCalls = 0;
+    const execute = async (workflow: WorkflowCandidate, req: SourceAcquisitionRequest) => ({ stage: "BROWSER_WORKFLOW" as const, status: "SUCCESS" as const, result: await new DeterministicSourceBrowserWorkflowExecutor(port()).execute(req, workflow.sourceAcquisition!) });
+    const first = new SourceAcquisitionOrchestrator({ structured: async () => ({ stage: "STRUCTURED", status: "INSUFFICIENT" }), http: async () => ({ stage: "HTTP", status: "INSUFFICIENT" }), lookupActiveWorkflow: async () => undefined, webOperator: async () => {
+      discoveryCalls++;
+      const trusted = await verifyBrowserUseProposal({ request, capability, proposal, port: port() });
+      const capture = captureBundle("resource", "browser-use"); await store.saveCaptureBundle(capture);
+      const candidate: WorkflowCandidate = { ...workflowCandidate(capture, 1), sourceAcquisition: trusted.plan };
+      await store.saveWorkflowCandidate(candidate);
+      return { candidate: { id: candidate.id, version: 1, state: "CANDIDATE" as const, execute: req => execute(candidate, req) }, validate: async () => { await store.saveValidationResult({ workflowId: candidate.id, passed: true, criteria: { trustedLinks: trusted.articles.length === 2, deterministicPlan: true }, validatedAt: "2026-09-23T00:00:00Z" }); return { id: candidate.id, version: 1, state: "VALIDATED" as const, execute: req => execute(candidate, req) }; }, activate: async () => { const active = await store.promoteWorkflow(candidate.id, "trusted-source-validator"); return { id: active.id, version: active.version, execute: (req: SourceAcquisitionRequest) => execute(active, req) }; }, modelCalls: 4 };
+    } });
+    const learned = await first.acquire(request);
+    expect(learned.status).toBe("SUCCESS"); expect(learned.result?.items).toHaveLength(2); expect(discoveryCalls).toBe(1); expect(learned.discoveryModelCalls).toBe(4);
+    const freshStore = new D1WorkflowRepository(db);
+    const second = new SourceAcquisitionOrchestrator({ structured: async () => ({ stage: "STRUCTURED", status: "INSUFFICIENT" }), http: async () => ({ stage: "HTTP", status: "INSUFFICIENT" }), lookupActiveWorkflow: async () => { const active = await freshStore.getActiveWorkflow("resource"); return active ? { id: active.id, version: active.version, execute: (req: SourceAcquisitionRequest) => execute(active, req) } : undefined; }, browserWorkflow: async (req, active) => active!.execute(req), webOperator: async () => { discoveryCalls++; throw new Error("discovery must not run on replay"); } });
+    const replay = await second.acquire(request);
+    expect(replay.status).toBe("SUCCESS"); expect(replay.result?.items).toEqual(learned.result?.items);
+    expect(replay.webOperatorCalls).toBe(0); expect(replay.discoveryModelCalls).toBeUndefined(); expect(discoveryCalls).toBe(1);
+    expect((await freshStore.getActiveWorkflow("resource"))?.state).toBe("ACTIVE");
   }, 30_000);
 
   it("adds durable workflow-finalization outcomes without changing completed acquisition data", async () => {

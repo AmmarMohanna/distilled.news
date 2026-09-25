@@ -1,10 +1,10 @@
-import { compileSourceBrowserWorkflowPlan, DEFAULT_SLICE_BUDGET, makeId, validateSourceBrowserWorkflowPlan, type AcquisitionStageOutcome, type ModelCapability, type ModelRoutingConfig, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserDiscoveryEvidence, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort, type WebOperatorDiscovery, type WorkflowCandidate } from "@distilled/agent-runtime";
+import { BrowserUseDiscoveryBackend, BrowserUseTrustedChallengeError, compileSourceBrowserWorkflowPlan, verifyBrowserUseProposal, DEFAULT_SLICE_BUDGET, makeId, validateSourceBrowserWorkflowPlan, type AcquisitionStageOutcome, type ModelCapability, type ModelRoutingConfig, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserDiscoveryEvidence, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort, type WebOperatorDiscovery, type WorkflowCandidate } from "@distilled/agent-runtime";
 import { ContainerSourceBrowserPort } from "./container-source-browser-port";
 import type { Env } from "./types";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
 import { createWorkerContainerPublicWebOperatorLifecycle, executeWorkerSourcePlan } from "./web-operator-runtime";
 
-export interface PublicSourceDiscoveryResult { evidence: SourceBrowserDiscoveryEvidence; plan: SourceBrowserWorkflowPlan; candidateUrl: string; browserOperations: number }
+export interface PublicSourceDiscoveryResult { evidence: SourceBrowserDiscoveryEvidence; plan: SourceBrowserWorkflowPlan; candidateUrl: string; browserOperations: number; discoveryModelCalls?: number }
 class PublicSourceDiscoveryStop extends Error { constructor(readonly status: "AUTH_REQUIRED" | "CHALLENGE_REQUIRED" | "POLICY_DENIED", readonly diagnostics?: PublicBrowserObservation["challengeDiagnostics"], readonly originHost?: string) { super(status); } }
 function challengeStop(observation: PublicBrowserObservation): PublicSourceDiscoveryStop {
   let originHost: string | undefined;
@@ -50,6 +50,29 @@ export async function discoverPublicSourceBrowserPlan(
   } finally { await port.close(); }
 }
 
+/** Agent supplies navigation hints; a fresh Distilled-owned session verifies every promoted fact. */
+export async function discoverBrowserUseSourcePlan(env: Env, input: { request: SourceAcquisitionRequest; tenantId: string; ownerId: string; resourceId: string; runId: string }, ports?: { agent: Pick<ContainerSourceBrowserPort, "open" | "close" | "discoverWithBrowserUse">; verifier: SourceBrowserWorkflowPort }): Promise<PublicSourceDiscoveryResult | undefined> {
+  const sourceUrl = input.request.source.canonicalSourceUrl ?? input.request.source.resourceLocator;
+  const model = env.DISTILLED_LIVE_OPENROUTER_MODEL?.trim();
+  if (!sourceUrl || !model || !env.OPENROUTER_API_KEY) return undefined;
+  const origin = new URL(sourceUrl).origin;
+  const agentPort = ports?.agent ?? new ContainerSourceBrowserPort(env, { ...input, runId: `${input.runId}_browser_use`, generation: 1 });
+  await agentPort.open({ sourceUrl, allowedOrigins: [origin], request: input.request });
+  let proposal: Awaited<ReturnType<ContainerSourceBrowserPort["discoverWithBrowserUse"]>>;
+  try {
+    const backend = new BrowserUseDiscoveryBackend({ discover: () => agentPort.discoverWithBrowserUse(sourceUrl, model, 12) });
+    proposal = await backend.propose({ request: input.request, capability: { runId: `${input.runId}_browser_use`, tenantId: input.tenantId, ownerId: input.ownerId, resourceId: input.resourceId, browserGeneration: 1, allowedOrigins: [origin], siteKind: "PUBLIC", readOnly: true, expiresAt: new Date(Date.now() + 120_000).toISOString() } });
+  }
+  finally { await agentPort.close(); }
+  // A model-reported challenge is only a hint; the verification session owns the typed result.
+  const verifier = ports?.verifier ?? new ContainerSourceBrowserPort(env, { ...input, runId: `${input.runId}_browser_use_verify`, generation: 1 });
+  let trusted: Awaited<ReturnType<typeof verifyBrowserUseProposal>>;
+  try { trusted = await verifyBrowserUseProposal({ request: input.request, capability: { runId: proposal.runId, tenantId: input.tenantId, ownerId: input.ownerId, resourceId: input.resourceId, browserGeneration: 1, allowedOrigins: [origin], siteKind: "PUBLIC", readOnly: true, expiresAt: new Date(Date.now() + 120_000).toISOString() }, proposal, port: verifier }); }
+  catch (error) { if (error instanceof BrowserUseTrustedChallengeError) throw challengeStop(error.observation); throw error; }
+  if (trusted.plan.continuation.kind === "NONE") return undefined;
+  return { evidence: { sourceUrl, listing: trusted.listing, sampledArticles: trusted.articles }, plan: trusted.plan, candidateUrl: trusted.articles[0].article!.canonicalUrl, browserOperations: proposal.steps + trusted.articles.length + 1, discoveryModelCalls: proposal.steps };
+}
+
 function admittedArticleCandidate(value: string, origin: string, sourceUrl: string): boolean {
   try {
     const url = new URL(value);
@@ -76,6 +99,10 @@ export async function discoverAndPromotePublicSourceWorkflow(
   let probe: PublicSourceDiscoveryResult | undefined;
   try { probe = await discoverPublicSourceBrowserPlan(env, input); }
   catch (error) { return bridgeStop(error); }
+  if (!probe) {
+    try { probe = await discoverBrowserUseSourcePlan(env, input); }
+    catch (error) { return bridgeStop(error); }
+  }
   if (!probe) return { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "trusted source probe did not establish two dated articles" };
   if (probe.plan.continuation.kind === "NONE") return { stage: "WEB_OPERATOR", status: "INSUFFICIENT", reason: "source continuation was not established" };
   const model = env.DISTILLED_LIVE_OPENROUTER_MODEL?.trim();
@@ -144,7 +171,7 @@ export async function discoverAndPromotePublicSourceWorkflow(
       return { id: active.id, version: active.version, execute: (request) => execute(request, active) };
     },
     runId: outcome.run.runId,
-    modelCalls: outcome.modelCalls,
+    modelCalls: outcome.modelCalls + (probe.discoveryModelCalls ?? 0),
     browserOperations: probe.browserOperations
   };
 }
