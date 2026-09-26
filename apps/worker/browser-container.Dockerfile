@@ -11,6 +11,15 @@ RUN python3.12 -m venv /opt/distilled-browser-use \
     && /opt/distilled-browser-use/bin/pip install --no-cache-dir --upgrade pip==25.2 \
     && /opt/distilled-browser-use/bin/pip install --no-cache-dir browser-use==0.13.10 \
     && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'; print('browser-use', version('browser-use'))"
+# Cloudflare's registry proxy has repeatedly closed the connection on a single
+# 319 MB venv layer. Partition site-packages into smaller, reproducible layers.
+RUN set -eu; packages=/opt/distilled-browser-use/lib/python3.12/site-packages; \
+    mkdir -p /opt/browser-use-packages/af /opt/browser-use-packages/g /opt/browser-use-packages/hm /opt/browser-use-packages/ns /opt/browser-use-packages/tz /opt/browser-use-packages/other; \
+    for item in "$packages"/* "$packages"/.[!.]*; do \
+      [ -e "$item" ] || continue; name="${item##*/}"; \
+      case "$name" in [a-fA-F]*) group=af;; [gG]*) group=g;; [h-mH-M]*) group=hm;; [n-sN-S]*) group=ns;; [t-zT-Z]*) group=tz;; *) group=other;; esac; \
+      mv "$item" "/opt/browser-use-packages/$group/"; \
+    done
 
 # Preserve the deployed Node dependency layer; Python is copied in separately.
 FROM mcr.microsoft.com/playwright:v1.61.0-noble
@@ -34,6 +43,12 @@ RUN pnpm install --frozen-lockfile
 COPY apps ./apps
 COPY packages ./packages
 COPY --from=browser_use_python /opt/distilled-browser-use /opt/distilled-browser-use
+COPY --from=browser_use_python /opt/browser-use-packages/af/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/g/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/hm/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/ns/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/tz/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/other/ /opt/distilled-browser-use/lib/python3.12/site-packages/
 RUN chromium_path="$(find /ms-playwright -type f -path '*/chrome-linux64/chrome' -print -quit)" \
     && test -n "$chromium_path" && ln -s "$chromium_path" /usr/local/bin/distilled-chromium \
     && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'"
