@@ -41,7 +41,7 @@ COPY packages/core/package.json ./packages/core/package.json
 # The bridge runs directly from the reviewed TypeScript source using the
 # workspace's pinned tsx/Playwright versions. No browser state is copied into
 # or written by the image.
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --filter @distilled/browser-bridge... --prod --frozen-lockfile
 
 # Keep expensive Python layers stable across TypeScript and fixture edits.
 COPY --from=browser_use_python /opt/distilled-browser-use /opt/distilled-browser-use
