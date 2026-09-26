@@ -261,6 +261,26 @@ export function createApp(options: AppOptions = {}) {
   app.post("/v1/public-browser/acquisition", async (c) => handlePublicBrowserAcquisition(c.req.raw,c.env));
   app.on(["GET","POST"], "/v1/authenticated-profiles/provider-diagnostic", async (c) => handleProviderDiagnostic(c.req.raw,c.env));
 
+  // Public, read-only fixture for bounded production acquisition validation.
+  // It exists only while the protected smoke flag is temporarily enabled.
+  app.get("/v1/live-smoke/browser-use-fixture", (c) => {
+    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.text("not found",404);
+    return c.html(`<!doctype html><html><head><title>Browser acquisition fixture</title></head><body><main><h1>Fixture news</h1><div id="stories"></div><div style="height:5000px"></div></main><script>
+      let count=0; addEventListener('scroll',()=>{count++; if(count>2)return; const id=count===1?'a':'b';
+        const link=document.createElement('a'); link.href='/v1/live-smoke/browser-use-fixture/article/'+id;
+        link.textContent='Fixture article '+id; document.getElementById('stories').append(link);
+      });
+    </script></body></html>`,200,{"cache-control":"no-store"});
+  });
+  app.get("/v1/live-smoke/browser-use-fixture/article/:id", (c) => {
+    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.text("not found",404);
+    const id=c.req.param("id"); if(id!=="a"&&id!=="b")return c.text("not found",404);
+    const canonical=new URL(c.req.url).origin+`/v1/live-smoke/browser-use-fixture/article/${id}`;
+    const published=id==="a"?"2026-09-24T12:00:00Z":"2026-09-25T12:00:00Z";
+    const metadata=JSON.stringify({"@context":"https://schema.org","@type":"NewsArticle",headline:`Fixture article ${id}`,datePublished:published,mainEntityOfPage:canonical,articleBody:`Verified fixture article ${id} has a complete read-only body for temporal acquisition.`});
+    return c.html(`<!doctype html><html><head><title>Fixture article ${id}</title><link rel="canonical" href="${canonical}"><meta property="article:published_time" content="${published}"><script type="application/ld+json">${metadata}</script></head><body><article><h1>Fixture article ${id}</h1><time datetime="${published}">${published}</time><p>Verified fixture article ${id} has a complete read-only body for temporal acquisition.</p></article></body></html>`,200,{"cache-control":"no-store"});
+  });
+
   app.post("/v1/live-smoke/public-acquisition", async (c) => {
     if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
     if (!isRuntimeAuthorized(c)) return c.json({ error: "unauthorized" }, 401);

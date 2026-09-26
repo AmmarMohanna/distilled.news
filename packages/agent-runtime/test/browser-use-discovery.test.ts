@@ -50,6 +50,16 @@ describe("Browser Use discovery boundary", () => {
     await expect(verifyBrowserUseProposal({ request, capability, proposal: { ...proposal, visitedUrls: [listing.url, a, "https://news.example/article/unobserved"], articleUrls: [a, "https://news.example/article/unobserved"], continuation: "none" }, port })).rejects.toThrow("browser_use_trusted_evidence_insufficient");
     expect(closes).toBe(2);
   });
+  it("verifies links that appear only after a second bounded scroll", async () => {
+    const source="https://news.example/", a="https://news.example/article/a", b="https://news.example/article/b";
+    const observed=(url:string,links:string[]):PublicBrowserObservation=>({url,title:"News",pageRevision:`${url}:${links.length}`,visibleText:"",controls:[],listingLinks:links});
+    const articles=new Map([a,b].map((url,index)=>[url,{...observed(url,[]),article:{canonicalUrl:url,title:"Article",body:"Verified full body",excerpt:"",publisherTimestamp:`2026-09-${20+index}T00:00:00Z`}}]));
+    let scrolls=0, closes=0;
+    const port={open:async()=>{},navigateAndObserve:async(url:string)=>url===source?observed(source,[]):articles.get(url)!,scrollAndObserve:async()=>observed(source,++scrolls===1?[a]:[a,b]),close:async()=>{closes++}};
+    const request={source:{canonicalSourceUrl:source},limits:{maxScrolls:3,maxPhysicalAttempts:8}} as never;
+    const verified=await verifyBrowserUseProposal({request,capability,proposal:{...proposal,visitedUrls:[source,a,b],articleUrls:[a,b]},port});
+    expect(scrolls).toBe(2);expect(verified.articles).toHaveLength(2);expect(verified.plan.continuation.kind).toBe("SCROLL");expect(closes).toBe(1);
+  });
   it("rejects unbounded or authenticated Browser Use bridge operations", () => {
     const base = { protocol: "v1", operationId: "op", capability: { bridgeExecutionId: "run", bootstrapRequestId: "run", runId: "run", tenantId: "tenant", ownerId: "owner", profileId: "source", expectedProfileVersion: 0, browserGeneration: 1, authFlowId: "flow", siteKind: "PUBLIC", authEntryPoint: "https://news.example/", sessionProbeUrl: "https://news.example/", allowedOrigins: ["https://news.example"], writeOrigins: [], issuedAt: "2026-09-25T00:00:00Z", expiresAt: "2026-09-25T00:02:00Z", operationBudget: 20 }, operation: "DISCOVER_SOURCE_WITH_BROWSER_USE", sourceUrl: "https://news.example/", modelRef: "openai/model", maxSteps: 12 };
     expect(() => assertBridgeRequestShape(base)).not.toThrow();

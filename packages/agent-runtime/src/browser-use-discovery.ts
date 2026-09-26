@@ -78,13 +78,20 @@ export async function verifyBrowserUseProposal(input: {
     const listing = await port.navigateAndObserve(listingUrl);
     assertTrustedObservation(listing, listingUrl, capability);
     let afterScroll: PublicBrowserObservation | undefined;
-    if (proposal.continuation === "scroll" && request.limits.maxScrolls > 0 && port.scrollAndObserve) {
-      afterScroll = await port.scrollAndObserve(1200);
-      assertTrustedObservation(afterScroll, listingUrl, capability);
+    const observedLinks = new Set<string>();
+    const addLinks = (observation: PublicBrowserObservation) => {
+      for (const value of [...(observation.listingLinks ?? []), ...observation.controls.map(control => control.destinationUrl)])
+        if (typeof value === "string") observedLinks.add(value);
+    };
+    addLinks(listing);
+    if (proposal.continuation === "scroll" && port.scrollAndObserve) {
+      for (let index = 0; index < Math.min(request.limits.maxScrolls, 3); index++) {
+        afterScroll = await port.scrollAndObserve(1200);
+        assertTrustedObservation(afterScroll, listingUrl, capability);
+        addLinks(afterScroll);
+        if (proposal.articleUrls.filter(url => observedLinks.has(url)).length >= 2) break;
+      }
     }
-    const observedLinks = new Set([listing, afterScroll].filter((value): value is PublicBrowserObservation => Boolean(value))
-      .flatMap(value => [...(value.listingLinks ?? []), ...value.controls.map(control => control.destinationUrl)])
-      .filter((value): value is string => typeof value === "string"));
     const articles: PublicBrowserObservation[] = [];
     for (const url of proposal.articleUrls.slice(0, Math.min(8, request.limits.maxPhysicalAttempts - 1))) {
       if (!observedLinks.has(url)) continue;
