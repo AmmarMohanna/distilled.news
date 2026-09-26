@@ -9,6 +9,7 @@ import contextlib
 import json
 import os
 import sys
+import traceback
 import urllib.request
 import uuid
 from urllib.parse import urlparse
@@ -25,6 +26,14 @@ def safe_exception_type(error: BaseException | None) -> str | None:
         return None
     value = f"{type(error).__module__}.{type(error).__name__}"
     return value if len(value) <= 120 and all(character.isalnum() or character in "._" for character in value) else None
+
+
+def safe_trace(error: BaseException | None) -> list[str]:
+    if error is None:
+        return []
+    frames = traceback.extract_tb(error.__traceback__)[-4:]
+    values = [f"{os.path.basename(frame.filename)}.{frame.name}" for frame in frames]
+    return [value for value in values if len(value) <= 100 and all(character.isalnum() or character in "._" for character in value)]
 
 
 def admitted(value: str, origin: str) -> bool:
@@ -172,5 +181,6 @@ if __name__ == "__main__":
         origin = error.__cause__ if isinstance(error, DiscoveryFailure) else error
         print(json.dumps({"error": "browser_use_discovery_failed", "category": category,
                           "failureType": safe_exception_type(origin),
-                          "causeType": safe_exception_type(origin.__cause__ if origin else None)}))
+                          "causeType": safe_exception_type(origin.__cause__ if origin else None),
+                          "failureTrace": safe_trace(origin)}))
         sys.exit(1)
