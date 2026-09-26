@@ -67,7 +67,7 @@ export class SourceAcquisitionOrchestrator {
 
   async acquire(request: SourceAcquisitionRequest): Promise<SourceAcquisitionOrchestrationResult> {
     const stages: AcquisitionStageTrace[] = [];
-    const record = (outcome: AcquisitionStageOutcome) => { stages.push({ stage: outcome.stage, status: outcome.status, reason: outcome.reason, ...(outcome.status === "POLICY_DENIED" && outcome.details?.operation ? { operation: outcome.details.operation as AcquisitionStageTrace["operation"] } : {}), ...(outcome.status === "POLICY_DENIED" && outcome.details?.policy ? { policy: outcome.details.policy as AcquisitionStageTrace["policy"] } : {}), ...(outcome.status === "CHALLENGE_REQUIRED" && outcome.details?.challenge ? { challenge: outcome.details.challenge as AcquisitionStageTrace["challenge"] } : {}) }); return outcome; };
+    const record = (outcome: AcquisitionStageOutcome) => { stages.push({ stage: outcome.stage, status: outcome.status, reason: outcome.reason, ...(outcome.status === "POLICY_DENIED" && outcome.details?.operation ? { operation: outcome.details.operation as AcquisitionStageTrace["operation"] } : {}), ...(outcome.status === "POLICY_DENIED" && outcome.details?.policy ? { policy: outcome.details.policy as AcquisitionStageTrace["policy"] } : {}), ...((outcome.status === "CHALLENGE_REQUIRED" || outcome.status === "AUTH_REQUIRED") && outcome.details?.challenge ? { challenge: outcome.details.challenge as AcquisitionStageTrace["challenge"] } : {}) }); return outcome; };
     const terminal = (outcome: AcquisitionStageOutcome): SourceAcquisitionOrchestrationResult => ({ status: "STOPPED", stages, stopReason: outcome.status, webOperatorCalls: 0 });
 
     if (this.options.structured) {
