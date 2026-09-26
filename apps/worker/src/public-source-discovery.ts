@@ -57,20 +57,32 @@ export async function discoverBrowserUseSourcePlan(env: Env, input: { request: S
   if (!sourceUrl || !model || !env.OPENROUTER_API_KEY) return undefined;
   const origin = new URL(sourceUrl).origin;
   const agentPort = ports?.agent ?? new ContainerSourceBrowserPort(env, { ...input, runId: `${input.runId}_browser_use`, generation: 1 });
-  await agentPort.open({ sourceUrl, allowedOrigins: [origin], request: input.request });
+  try { await agentPort.open({ sourceUrl, allowedOrigins: [origin], request: input.request }); }
+  catch (error) { throw tagBrowserUseStage(error, "AGENT_OPEN"); }
   let proposal: Awaited<ReturnType<ContainerSourceBrowserPort["discoverWithBrowserUse"]>>;
+  let agentFailure: unknown;
   try {
     const backend = new BrowserUseDiscoveryBackend({ discover: () => agentPort.discoverWithBrowserUse(sourceUrl, model, maxSteps) });
     proposal = await backend.propose({ request: input.request, capability: { runId: `${input.runId}_browser_use`, tenantId: input.tenantId, ownerId: input.ownerId, resourceId: input.resourceId, browserGeneration: 1, allowedOrigins: [origin], siteKind: "PUBLIC", readOnly: true, expiresAt: new Date(Date.now() + 120_000).toISOString() } });
+  } catch (error) {
+    agentFailure = error;
+    throw tagBrowserUseStage(error, "AGENT_RUN");
   }
-  finally { await agentPort.close(); }
+  finally { try { await agentPort.close(); } catch (error) { if (!agentFailure) throw tagBrowserUseStage(error, "AGENT_CLOSE"); } }
   // A model-reported challenge is only a hint; the verification session owns the typed result.
   const verifier = ports?.verifier ?? new ContainerSourceBrowserPort(env, { ...input, runId: `${input.runId}_browser_use_verify`, generation: 1 });
   let trusted: Awaited<ReturnType<typeof verifyBrowserUseProposal>>;
   try { trusted = await verifyBrowserUseProposal({ request: input.request, capability: { runId: proposal.runId, tenantId: input.tenantId, ownerId: input.ownerId, resourceId: input.resourceId, browserGeneration: 1, allowedOrigins: [origin], siteKind: "PUBLIC", readOnly: true, expiresAt: new Date(Date.now() + 120_000).toISOString() }, proposal, port: verifier }); }
-  catch (error) { if (error instanceof BrowserUseTrustedChallengeError) throw challengeStop(error.observation); throw error; }
+  catch (error) { if (error instanceof BrowserUseTrustedChallengeError) throw challengeStop(error.observation); throw tagBrowserUseStage(error, "TRUSTED_VERIFY"); }
   if (trusted.plan.continuation.kind === "NONE") return undefined;
   return { evidence: { sourceUrl, listing: trusted.listing, sampledArticles: trusted.articles }, plan: trusted.plan, candidateUrl: trusted.articles[0].article!.canonicalUrl, browserOperations: proposal.steps + trusted.articles.length + 1, discoveryModelCalls: proposal.steps };
+}
+
+function tagBrowserUseStage(error: unknown, stage: "AGENT_OPEN" | "AGENT_RUN" | "AGENT_CLOSE" | "TRUSTED_VERIFY"): unknown {
+  if (error && typeof error === "object") {
+    try { Object.defineProperty(error, "browserUseStage", { value: stage, configurable: true }); } catch { /* Preserve the original failure. */ }
+  }
+  return error;
 }
 
 function admittedArticleCandidate(value: string, origin: string, sourceUrl: string): boolean {
@@ -192,6 +204,9 @@ export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE
   const bridgeCode = BRIDGE_FAILURE_CODES.includes(code as typeof BRIDGE_FAILURE_CODES[number]) ? code as typeof BRIDGE_FAILURE_CODES[number] : undefined;
   console.log(JSON.stringify({ event: "public_acquisition_discovery_stop", phase, bridgeCode: bridgeCode ?? "UNCLASSIFIED" }));
   const rawOperation = error && typeof error === "object" && "operation" in error ? (error as { operation?: unknown }).operation : undefined;
+  const rawBrowserUseStage = error && typeof error === "object" && "browserUseStage" in error ? (error as { browserUseStage?: unknown }).browserUseStage : undefined;
+  const browserUseStage = ["AGENT_OPEN", "AGENT_RUN", "AGENT_CLOSE", "TRUSTED_VERIFY"].includes(String(rawBrowserUseStage)) ? rawBrowserUseStage as string : undefined;
+  const errorName = error instanceof Error && /^[A-Za-z]{1,40}$/.test(error.name) ? error.name : undefined;
   const operation = ["OPEN_AUTH_BROWSER", "NAVIGATE_PUBLIC_PAGE", "OBSERVE_PUBLIC_PAGE", "SCROLL_PUBLIC_PAGE", "CLOSE_AUTH_BROWSER"].includes(String(rawOperation)) ? rawOperation : undefined;
   const raw = error && typeof error === "object" && "diagnostic" in error ? (error as { diagnostic?: unknown }).diagnostic : undefined;
   const diagnostic = raw && typeof raw === "object" ? raw as Record<string, unknown> : undefined;
@@ -211,7 +226,7 @@ export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE
   } : undefined;
   return code === "BRIDGE_NETWORK_POLICY_DENIED"
     ? { stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied", details: { phase, ...(operation ? { operation } : {}), ...(policy ? { policy } : {}) } }
-    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: `public Web Operator discovery failed: ${phase}/${String(operation ?? "UNKNOWN_OPERATION")}/${bridgeCode ?? "UNCLASSIFIED"}${browserUseFailure ? `/${browserUseFailure}` : ""}${failureType ? `/${failureType}` : ""}${causeType ? `/${causeType}` : ""}${runnerExit ? `/${runnerExit}` : ""}${runtimeHint ? `/${runtimeHint}` : ""}${failureTrace?.length ? `/${failureTrace.join(",")}` : ""}`, details: { phase, operation, bridgeCode: bridgeCode ?? "UNCLASSIFIED", ...(browserUseFailure ? { browserUseFailure } : {}), ...(failureType ? { failureType } : {}), ...(causeType ? { causeType } : {}), ...(runnerExit ? { runnerExit } : {}), ...(runtimeHint ? { runtimeHint } : {}), ...(failureTrace ? { failureTrace } : {}) } };
+    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: `public Web Operator discovery failed: ${phase}/${browserUseStage ?? "UNKNOWN_STAGE"}/${String(operation ?? "UNKNOWN_OPERATION")}/${bridgeCode ?? "UNCLASSIFIED"}${browserUseFailure ? `/${browserUseFailure}` : ""}${failureType ? `/${failureType}` : ""}${causeType ? `/${causeType}` : ""}${runnerExit ? `/${runnerExit}` : ""}${runtimeHint ? `/${runtimeHint}` : ""}${failureTrace?.length ? `/${failureTrace.join(",")}` : ""}${errorName ? `/${errorName}` : ""}`, details: { phase, browserUseStage, operation, bridgeCode: bridgeCode ?? "UNCLASSIFIED", ...(browserUseFailure ? { browserUseFailure } : {}), ...(failureType ? { failureType } : {}), ...(causeType ? { causeType } : {}), ...(runnerExit ? { runnerExit } : {}), ...(runtimeHint ? { runtimeHint } : {}), ...(failureTrace ? { failureTrace } : {}), ...(errorName ? { errorName } : {}) } };
 }
 function liveModelRouting(model: string): ModelRoutingConfig {
   return { mode: "api", apiGateway: "openrouter", selfHostedGateway: "openai_compatible", roles: { NAVIGATION_FAST: { primary: { deployment: "api", model }, fallbacks: [] }, VISION_FAST: { primary: { deployment: "api", model }, fallbacks: [] } } };
