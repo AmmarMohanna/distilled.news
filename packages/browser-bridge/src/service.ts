@@ -68,7 +68,10 @@ export class AuthenticatedBrowserBridgeService{
     const script=fileURLToPath(new URL("../browser_use_discovery.py",import.meta.url));
     clearTimeout(execution.idleTimer);
     const discovery=new Promise<BrowserUseDiscoveryProposal>((resolve,reject)=>{
-      const child=spawn(python,[script],{shell:false,stdio:["pipe","pipe","ignore"],env:{...process.env,ANONYMIZED_TELEMETRY:"false",BROWSER_USE_CLOUD_SYNC:"false",OPENAI_API_KEY:process.env.OPENROUTER_API_KEY,OPENAI_BASE_URL:"https://openrouter.ai/api/v1",DISTILLED_BRIDGE_URL:"http://127.0.0.1:8080/v1/internal-authenticated-browser"}});
+      const uid=process.env.DISTILLED_BROWSER_USE_UID?Number(process.env.DISTILLED_BROWSER_USE_UID):undefined;
+      const gid=process.env.DISTILLED_BROWSER_USE_GID?Number(process.env.DISTILLED_BROWSER_USE_GID):undefined;
+      if((uid!==undefined&&(!Number.isInteger(uid)||uid<1))||(gid!==undefined&&(!Number.isInteger(gid)||gid<1)))throw new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"RUNNER_START_FAILED"});
+      const child=spawn(python,[script],{shell:false,...(uid!==undefined?{uid}:{}),...(gid!==undefined?{gid}:{}),stdio:["pipe","pipe","ignore"],env:{...process.env,HOME:process.env.DISTILLED_BROWSER_USE_HOME??process.env.HOME,ANONYMIZED_TELEMETRY:"false",BROWSER_USE_CLOUD_SYNC:"false",OPENAI_API_KEY:process.env.OPENROUTER_API_KEY,OPENAI_BASE_URL:"https://openrouter.ai/api/v1",DISTILLED_BRIDGE_URL:"http://127.0.0.1:8080/v1/internal-authenticated-browser"}});
       let output="",settled=false;
       const finish=(error?:Error,value?:BrowserUseDiscoveryProposal)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener("abort",cancel);if(error)reject(error);else resolve(value!)};
       const cancel=()=>{child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"CANCELLED"}))};

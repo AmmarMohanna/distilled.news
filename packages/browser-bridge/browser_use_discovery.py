@@ -105,7 +105,7 @@ async def discover(payload: dict) -> dict:
     browser = Browser(browser_profile=BrowserProfile(
         allowed_domains=["invalid.invalid"], block_ip_addresses=True,
         executable_path=os.environ.get("DISTILLED_BROWSER_USE_CHROMIUM"),
-        headless=True, enable_default_extensions=False))
+        headless=True, chromium_sandbox=True, enable_default_extensions=False))
     tools = Tools(exclude_actions=["search", "navigate", "go_back", "wait", "click", "input",
                                    "upload_file", "scroll", "find_text", "send_keys", "evaluate",
                                    "switch", "close", "extract", "screenshot", "dropdown_options",

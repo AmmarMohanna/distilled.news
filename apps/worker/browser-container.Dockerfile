@@ -64,6 +64,9 @@ RUN chromium_path="$(find /ms-playwright -type f -path '*/chrome-linux64/chrome'
 
 ENV DISTILLED_BROWSER_USE_PYTHON=/opt/distilled-browser-use/bin/python
 ENV DISTILLED_BROWSER_USE_CHROMIUM=/usr/local/bin/distilled-chromium
+ENV DISTILLED_BROWSER_USE_UID=1001
+ENV DISTILLED_BROWSER_USE_GID=1001
+ENV DISTILLED_BROWSER_USE_HOME=/home/pwuser
 ENV ANONYMIZED_TELEMETRY=false
 ENV BROWSER_USE_CLOUD_SYNC=false
 ENV NODE_ENV=production
