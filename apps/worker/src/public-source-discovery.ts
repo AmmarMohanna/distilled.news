@@ -1,4 +1,4 @@
-import { BrowserUseDiscoveryBackend, BrowserUseTrustedChallengeError, BROWSER_USE_FAILURE_CATEGORIES, compileSourceBrowserWorkflowPlan, verifyBrowserUseProposal, DEFAULT_SLICE_BUDGET, makeId, validateSourceBrowserWorkflowPlan, type AcquisitionStageOutcome, type ModelCapability, type ModelRoutingConfig, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserDiscoveryEvidence, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort, type WebOperatorDiscovery, type WorkflowCandidate } from "@distilled/agent-runtime";
+import { BrowserUseDiscoveryBackend, BrowserUseTrustedChallengeError, BROWSER_USE_FAILURE_CATEGORIES, BRIDGE_FAILURE_CODES, compileSourceBrowserWorkflowPlan, verifyBrowserUseProposal, DEFAULT_SLICE_BUDGET, makeId, validateSourceBrowserWorkflowPlan, type AcquisitionStageOutcome, type ModelCapability, type ModelRoutingConfig, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserDiscoveryEvidence, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort, type WebOperatorDiscovery, type WorkflowCandidate } from "@distilled/agent-runtime";
 import { ContainerSourceBrowserPort } from "./container-source-browser-port";
 import type { Env } from "./types";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
@@ -103,11 +103,11 @@ export async function discoverAndPromotePublicSourceWorkflow(
       try { await discoverBrowserUseSourcePlan(env, input, undefined, 4); console.log(JSON.stringify({ event: "browser_use_challenge_probe", state: "completed" })); }
       catch (diagnosticError) { console.log(JSON.stringify({ event: "browser_use_challenge_probe", state: diagnosticError instanceof PublicSourceDiscoveryStop ? diagnosticError.status : "UNAVAILABLE" })); }
     }
-    return bridgeStop(error);
+    return bridgeStop(error, "TRUSTED_PROBE");
   }
   if (!probe) {
     try { probe = await discoverBrowserUseSourcePlan(env, input); }
-    catch (error) { return bridgeStop(error); }
+    catch (error) { return bridgeStop(error, "BROWSER_USE_DISCOVERY"); }
   }
   if (!probe) return { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "trusted source probe did not establish two dated articles" };
   if (probe.plan.continuation.kind === "NONE") return { stage: "WEB_OPERATOR", status: "INSUFFICIENT", reason: "source continuation was not established" };
@@ -133,7 +133,7 @@ export async function discoverAndPromotePublicSourceWorkflow(
       budgetLimits: { ...DEFAULT_SLICE_BUDGET, modelCalls: 5, browserActions: 15, navigations: 4, pages: 5, wallClockMs: Math.min(90_000, input.request.limits.maxExecutionMs) },
       enabled: true
     }, new Date(input.request.acquisitionAsOf ?? Date.now()));
-  } catch (error) { return bridgeStop(error); }
+  } catch (error) { return bridgeStop(error, "WORKFLOW_EXPLORATION"); }
   if (outcome.state !== "acquired_by_agent") return { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "Web Operator exploration did not complete" };
   const captureId = outcome.workflow?.sourceCaptureId ?? (outcome.workflowFinalization.state === "NOT_PROMOTED" ? outcome.workflowFinalization.captureId : undefined);
   if (!captureId || outcome.acquiredContent.canonicalUrl !== probe.candidateUrl) return { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "Web Operator exploration did not produce grounded article evidence" };
@@ -182,13 +182,15 @@ export async function discoverAndPromotePublicSourceWorkflow(
   };
 }
 
-export function bridgeStop(error: unknown): AcquisitionStageOutcome {
+export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE_DISCOVERY" | "WORKFLOW_EXPLORATION" | "UNKNOWN" = "UNKNOWN"): AcquisitionStageOutcome {
   if (error instanceof PublicSourceDiscoveryStop) {
     const challenge = error.diagnostics;
     if (challenge) console.log(JSON.stringify({ event: "public_acquisition_challenge", challengeKind: challenge.state, classifierRule: challenge.rule, visibleEvidence: challenge.visibleEvidence, structuralEvidence: challenge.structuralEvidence, actionableControlEvidence: challenge.actionableEvidence, surface: challenge.surface, originHost: error.originHost }));
     return { stage: "WEB_OPERATOR", status: error.status, reason: "source requires unsupported access or challenge", details: challenge ? { challenge: { ...challenge, ...(error.originHost ? { originHost: error.originHost } : {}), ...(error.observedPath ? { observedPath: error.observedPath } : {}), ...(error.observedTitle ? { observedTitle: error.observedTitle } : {}) } } : undefined };
   }
   const code = error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : undefined;
+  const bridgeCode = BRIDGE_FAILURE_CODES.includes(code as typeof BRIDGE_FAILURE_CODES[number]) ? code as typeof BRIDGE_FAILURE_CODES[number] : undefined;
+  console.log(JSON.stringify({ event: "public_acquisition_discovery_stop", phase, bridgeCode: bridgeCode ?? "UNCLASSIFIED" }));
   const rawOperation = error && typeof error === "object" && "operation" in error ? (error as { operation?: unknown }).operation : undefined;
   const operation = ["OPEN_AUTH_BROWSER", "NAVIGATE_PUBLIC_PAGE", "OBSERVE_PUBLIC_PAGE", "SCROLL_PUBLIC_PAGE", "CLOSE_AUTH_BROWSER"].includes(String(rawOperation)) ? rawOperation : undefined;
   const raw = error && typeof error === "object" && "diagnostic" in error ? (error as { diagnostic?: unknown }).diagnostic : undefined;
@@ -203,8 +205,8 @@ export function bridgeStop(error: unknown): AcquisitionStageOutcome {
     topLevelNavigation: diagnostic.topLevelNavigation === true
   } : undefined;
   return code === "BRIDGE_NETWORK_POLICY_DENIED"
-    ? { stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied", details: { ...(operation ? { operation } : {}), ...(policy ? { policy } : {}) } }
-    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "public Web Operator discovery failed", details: browserUseFailure ? { browserUseFailure } : undefined };
+    ? { stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied", details: { phase, ...(operation ? { operation } : {}), ...(policy ? { policy } : {}) } }
+    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "public Web Operator discovery failed", details: { phase, bridgeCode: bridgeCode ?? "UNCLASSIFIED", ...(browserUseFailure ? { browserUseFailure } : {}) } };
 }
 function liveModelRouting(model: string): ModelRoutingConfig {
   return { mode: "api", apiGateway: "openrouter", selfHostedGateway: "openai_compatible", roles: { NAVIGATION_FAST: { primary: { deployment: "api", model }, fallbacks: [] }, VISION_FAST: { primary: { deployment: "api", model }, fallbacks: [] } } };
