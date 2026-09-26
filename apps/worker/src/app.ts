@@ -267,7 +267,7 @@ export function createApp(options: AppOptions = {}) {
     if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.text("not found",404);
     return c.html(`<!doctype html><html><head><title>Browser acquisition fixture</title></head><body><main><h1>Fixture news</h1><div id="stories"></div><div style="height:5000px"></div></main><script>
       let count=0; addEventListener('scroll',()=>{count++; if(count>2)return; const id=count===1?'a':'b';
-        const link=document.createElement('a'); link.href='/v1/live-smoke/browser-use-fixture/article/'+id;
+        const link=document.createElement('a'); link.href=['/v1','/live-smoke','/browser-use-fixture','/article/',id].join('');
         link.textContent='Fixture article '+id; document.getElementById('stories').append(link);
       });
     </script></body></html>`,200,{"cache-control":"no-store"});
