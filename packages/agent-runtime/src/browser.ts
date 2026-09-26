@@ -989,7 +989,7 @@ export class PlaywrightBrowserAdapter
 
 export class SelfHostedChromiumProvider extends PlaywrightBrowserAdapter {
   readonly providerIdentity = "SELF_HOSTED_CHROMIUM" as const;
-  constructor(options: { testOnlyPrivateNetwork?: true; maxConcurrentSessions?: number; launchTimeoutMs?: number; navigationTimeoutMs?: number } = {}) {
+  constructor(options: { testOnlyPrivateNetwork?: true; maxConcurrentSessions?: number; launchTimeoutMs?: number; navigationTimeoutMs?: number; launchBrowser?: (options: { headless: boolean; args: string[]; allowedDomains: string[] }) => Promise<Browser> } = {}) {
     super({maxConcurrentSessions:2,launchTimeoutMs:30_000,navigationTimeoutMs:15_000,...options});
   }
 

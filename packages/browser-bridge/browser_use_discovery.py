@@ -20,6 +20,13 @@ class DiscoveryFailure(Exception):
         super().__init__(category)
 
 
+def safe_exception_type(error: BaseException | None) -> str | None:
+    if error is None:
+        return None
+    value = f"{type(error).__module__}.{type(error).__name__}"
+    return value if len(value) <= 120 and all(character.isalnum() or character in "._" for character in value) else None
+
+
 def admitted(value: str, origin: str) -> bool:
     parsed = urlparse(value)
     source = urlparse(origin)
@@ -162,5 +169,8 @@ if __name__ == "__main__":
         # Only a fixed exception category crosses this boundary. Exception text
         # can contain model responses, URLs, or provider credentials.
         category = error.category if isinstance(error, DiscoveryFailure) else "AGENT_RUN_FAILED"
-        print(json.dumps({"error": "browser_use_discovery_failed", "category": category}))
+        origin = error.__cause__ if isinstance(error, DiscoveryFailure) else error
+        print(json.dumps({"error": "browser_use_discovery_failed", "category": category,
+                          "failureType": safe_exception_type(origin),
+                          "causeType": safe_exception_type(origin.__cause__ if origin else None)}))
         sys.exit(1)

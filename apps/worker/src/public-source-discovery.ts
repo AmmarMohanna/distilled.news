@@ -196,6 +196,8 @@ export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE
   const raw = error && typeof error === "object" && "diagnostic" in error ? (error as { diagnostic?: unknown }).diagnostic : undefined;
   const diagnostic = raw && typeof raw === "object" ? raw as Record<string, unknown> : undefined;
   const browserUseFailure = diagnostic && BROWSER_USE_FAILURE_CATEGORIES.includes(diagnostic.browserUseFailure as typeof BROWSER_USE_FAILURE_CATEGORIES[number]) ? diagnostic.browserUseFailure as typeof BROWSER_USE_FAILURE_CATEGORIES[number] : undefined;
+  const failureType = diagnostic && typeof diagnostic.failureType === "string" && /^[A-Za-z0-9_.]{1,120}$/.test(diagnostic.failureType) ? diagnostic.failureType : undefined;
+  const causeType = diagnostic && typeof diagnostic.causeType === "string" && /^[A-Za-z0-9_.]{1,120}$/.test(diagnostic.causeType) ? diagnostic.causeType : undefined;
   if (browserUseFailure) console.log(JSON.stringify({ event: "public_acquisition_browser_use_failure", category: browserUseFailure }));
   const allowedRules = ["ORIGIN_NOT_ADMITTED", "REDIRECT_ORIGIN_NOT_ADMITTED", "FINAL_ORIGIN_NOT_ADMITTED", "SCHEME_NOT_ALLOWED", "PRIVATE_OR_UNRESOLVED_ORIGIN", "METHOD_NOT_ALLOWED", "REQUEST_BLOCKED"];
   const policy = diagnostic && allowedRules.includes(String(diagnostic.policyRule)) ? {
@@ -206,7 +208,7 @@ export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE
   } : undefined;
   return code === "BRIDGE_NETWORK_POLICY_DENIED"
     ? { stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied", details: { phase, ...(operation ? { operation } : {}), ...(policy ? { policy } : {}) } }
-    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: `public Web Operator discovery failed: ${phase}/${String(operation ?? "UNKNOWN_OPERATION")}/${bridgeCode ?? "UNCLASSIFIED"}${browserUseFailure ? `/${browserUseFailure}` : ""}`, details: { phase, operation, bridgeCode: bridgeCode ?? "UNCLASSIFIED", ...(browserUseFailure ? { browserUseFailure } : {}) } };
+    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: `public Web Operator discovery failed: ${phase}/${String(operation ?? "UNKNOWN_OPERATION")}/${bridgeCode ?? "UNCLASSIFIED"}${browserUseFailure ? `/${browserUseFailure}` : ""}${failureType ? `/${failureType}` : ""}${causeType ? `/${causeType}` : ""}`, details: { phase, operation, bridgeCode: bridgeCode ?? "UNCLASSIFIED", ...(browserUseFailure ? { browserUseFailure } : {}), ...(failureType ? { failureType } : {}), ...(causeType ? { causeType } : {}) } };
 }
 function liveModelRouting(model: string): ModelRoutingConfig {
   return { mode: "api", apiGateway: "openrouter", selfHostedGateway: "openai_compatible", roles: { NAVIGATION_FAST: { primary: { deployment: "api", model }, fallbacks: [] }, VISION_FAST: { primary: { deployment: "api", model }, fallbacks: [] } } };
