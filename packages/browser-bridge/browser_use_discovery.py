@@ -36,6 +36,29 @@ def safe_trace(error: BaseException | None) -> list[str]:
     return [value for value in values if len(value) <= 100 and all(character.isalnum() or character in "._" for character in value)]
 
 
+def runtime_hint(error: BaseException | None) -> str | None:
+    if not isinstance(error, RuntimeError):
+        return None
+    message = str(error).lower()
+    cases = (
+        ("failed to launch browser", "BROWSER_LAUNCH"),
+        ("no local chrome", "BROWSER_EXECUTABLE"),
+        ("no local browser path", "BROWSER_EXECUTABLE"),
+        ("chrome profile directory", "BROWSER_PROFILE"),
+        ("cdp client not initialized", "CDP_INITIALIZATION"),
+        ("failed to establish cdp", "CDP_INITIALIZATION"),
+        ("failed to get session for initial target", "CDP_INITIALIZATION"),
+        ("no active page", "PAGE_TARGET"),
+        ("no page targets", "PAGE_TARGET"),
+        ("sessionmanager not initialized", "SESSION_MANAGER"),
+        ("failed to load system prompt", "PROMPT_TEMPLATE"),
+        ("cannot be called from a running event loop", "EVENT_LOOP"),
+        ("connection error", "MODEL_CONNECTION"),
+        ("browser not connected", "BROWSER_DISCONNECTED"),
+    )
+    return next((category for phrase, category in cases if phrase in message), "OTHER_RUNTIME")
+
+
 def admitted(value: str, origin: str) -> bool:
     parsed = urlparse(value)
     source = urlparse(origin)
@@ -182,5 +205,6 @@ if __name__ == "__main__":
         print(json.dumps({"error": "browser_use_discovery_failed", "category": category,
                           "failureType": safe_exception_type(origin),
                           "causeType": safe_exception_type(origin.__cause__ if origin else None),
-                          "failureTrace": safe_trace(origin)}))
+                          "failureTrace": safe_trace(origin),
+                          "runtimeHint": runtime_hint(origin)}))
         sys.exit(1)
