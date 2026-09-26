@@ -13,11 +13,15 @@ RUN python3.12 -m venv /opt/distilled-browser-use \
     && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'; print('browser-use', version('browser-use'))"
 # Cloudflare's registry proxy has repeatedly closed the connection on a single
 # 319 MB venv layer. Partition site-packages into smaller, reproducible layers.
+# The Google API static discovery documents are unused by ChatOpenAI and add
+# roughly 93 MB to the runtime image; keep the library itself available.
+RUN rm -rf /opt/distilled-browser-use/lib/python3.12/site-packages/googleapiclient/discovery_cache/documents \
+    && /opt/distilled-browser-use/bin/python -c "import browser_use; import googleapiclient.discovery; from importlib.metadata import version; assert version('browser-use') == '0.13.10'"
 RUN set -eu; packages=/opt/distilled-browser-use/lib/python3.12/site-packages; \
-    mkdir -p /opt/browser-use-packages/af /opt/browser-use-packages/g /opt/browser-use-packages/hm /opt/browser-use-packages/ns /opt/browser-use-packages/tz /opt/browser-use-packages/other; \
+    mkdir -p /opt/browser-use-packages/ac /opt/browser-use-packages/df /opt/browser-use-packages/g /opt/browser-use-packages/hl /opt/browser-use-packages/im /opt/browser-use-packages/no /opt/browser-use-packages/pa_pi /opt/browser-use-packages/pj_pz /opt/browser-use-packages/qs /opt/browser-use-packages/tz /opt/browser-use-packages/other; \
     for item in "$packages"/* "$packages"/.[!.]*; do \
       [ -e "$item" ] || continue; name="${item##*/}"; \
-      case "$name" in [a-fA-F]*) group=af;; [gG]*) group=g;; [h-mH-M]*) group=hm;; [n-sN-S]*) group=ns;; [t-zT-Z]*) group=tz;; *) group=other;; esac; \
+      case "$name" in [a-cA-C]*) group=ac;; [d-fD-F]*) group=df;; [gG]*) group=g;; [h-lH-L]*) group=hl;; [i-mI-M]*) group=im;; [n-oN-O]*) group=no;; [pP][a-iA-I]*) group=pa_pi;; [pP]*) group=pj_pz;; [q-sQ-S]*) group=qs;; [t-zT-Z]*) group=tz;; *) group=other;; esac; \
       mv "$item" "/opt/browser-use-packages/$group/"; \
     done
 
@@ -43,10 +47,15 @@ RUN pnpm install --frozen-lockfile
 COPY apps ./apps
 COPY packages ./packages
 COPY --from=browser_use_python /opt/distilled-browser-use /opt/distilled-browser-use
-COPY --from=browser_use_python /opt/browser-use-packages/af/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/ac/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/df/ /opt/distilled-browser-use/lib/python3.12/site-packages/
 COPY --from=browser_use_python /opt/browser-use-packages/g/ /opt/distilled-browser-use/lib/python3.12/site-packages/
-COPY --from=browser_use_python /opt/browser-use-packages/hm/ /opt/distilled-browser-use/lib/python3.12/site-packages/
-COPY --from=browser_use_python /opt/browser-use-packages/ns/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/hl/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/im/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/no/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/pa_pi/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/pj_pz/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY --from=browser_use_python /opt/browser-use-packages/qs/ /opt/distilled-browser-use/lib/python3.12/site-packages/
 COPY --from=browser_use_python /opt/browser-use-packages/tz/ /opt/distilled-browser-use/lib/python3.12/site-packages/
 COPY --from=browser_use_python /opt/browser-use-packages/other/ /opt/distilled-browser-use/lib/python3.12/site-packages/
 RUN chromium_path="$(find /ms-playwright -type f -path '*/chrome-linux64/chrome' -print -quit)" \
