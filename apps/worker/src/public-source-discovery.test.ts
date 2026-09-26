@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PublicBrowserObservation, SourceAcquisitionRequest, SourceBrowserWorkflowPort } from "@distilled/agent-runtime";
-import { AuthenticatedBrowserBridgeError } from "@distilled/agent-runtime";
+import { AuthenticatedBrowserBridgeError, BrowserUseEvidenceError } from "@distilled/agent-runtime";
 import { bridgeStop, discoverBrowserUseSourcePlan, discoverPublicSourceBrowserPlan } from "./public-source-discovery";
 import type { Env } from "./types";
 
@@ -29,6 +29,12 @@ describe("public source discovery from trusted Container structure", () => {
     const outcome = bridgeStop(error, "BROWSER_USE_DISCOVERY");
     expect(outcome.reason).toContain("browser_use.exceptions.BrowserError/builtins.RuntimeError");
     expect(outcome.details).toMatchObject({ failureType: "browser_use.exceptions.BrowserError", causeType: "builtins.RuntimeError" });
+  });
+  it("reports bounded trusted verification counts without model text or URLs", () => {
+    const error = new BrowserUseEvidenceError({ proposalArticles: 2, visitedPages: 3, observedLinks: 2, trustedArticles: 0, scrollObservations: 2, continuation: "scroll" });
+    const outcome = bridgeStop(error, "BROWSER_USE_DISCOVERY");
+    expect(outcome).toMatchObject({ status: "STRUCTURAL_FAILURE", details: { trustedError: "browser_use_trusted_evidence_insufficient", evidenceCounts: { proposalArticles: 2, observedLinks: 2, trustedArticles: 0 } } });
+    expect(outcome.reason).toContain("3,2,2,0,2,scroll");
   });
   it("samples two real article observations and closes exactly once", async () => {
     const links = ["a", "b"].map((id) => ({ handle: id, kind: "link" as const, role: "link", label: id, safeAction: "follow" as const, destinationUrl: `https://publisher.example/article/${id}` }));

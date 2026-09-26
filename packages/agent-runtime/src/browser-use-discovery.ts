@@ -28,6 +28,12 @@ export interface BrowserUseProposalCompiler {
 export class BrowserUseTrustedChallengeError extends Error {
   constructor(readonly observation: PublicBrowserObservation) { super("browser_use_trusted_challenge_required"); }
 }
+export class BrowserUseEvidenceError extends Error {
+  constructor(readonly counts: { proposalArticles: number; visitedPages: number; observedLinks: number; trustedArticles: number; scrollObservations: number; continuation: BrowserUseDiscoveryProposal["continuation"] }) {
+    super("browser_use_trusted_evidence_insufficient");
+    this.name = "BrowserUseEvidenceError";
+  }
+}
 
 /** Plugs into the existing production adapter and its Distilled-owned lifecycle. */
 export class BrowserUseDiscoveryBackend implements WebOperatorDiscoveryPort {
@@ -78,6 +84,7 @@ export async function verifyBrowserUseProposal(input: {
     const listing = await port.navigateAndObserve(listingUrl);
     assertTrustedObservation(listing, listingUrl, capability);
     let afterScroll: PublicBrowserObservation | undefined;
+    let scrollObservations = 0;
     const observedLinks = new Set<string>();
     const addLinks = (observation: PublicBrowserObservation) => {
       for (const value of [...(observation.listingLinks ?? []), ...observation.controls.map(control => control.destinationUrl)])
@@ -87,6 +94,7 @@ export async function verifyBrowserUseProposal(input: {
     if (proposal.continuation === "scroll" && port.scrollAndObserve) {
       for (let index = 0; index < Math.min(request.limits.maxScrolls, 3); index++) {
         afterScroll = await port.scrollAndObserve(1200);
+        scrollObservations++;
         assertTrustedObservation(afterScroll, listingUrl, capability);
         addLinks(afterScroll);
         if (proposal.articleUrls.filter(url => observedLinks.has(url)).length >= 2) break;
@@ -102,7 +110,7 @@ export async function verifyBrowserUseProposal(input: {
       if (articles.length >= 2) break;
     }
     const plan = compileSourceBrowserWorkflowPlan({ sourceUrl: listingUrl, listing, sampledArticles: articles, afterScroll });
-    if (!plan) throw new Error("browser_use_trusted_evidence_insufficient");
+    if (!plan) throw new BrowserUseEvidenceError({ proposalArticles: proposal.articleUrls.length, visitedPages: proposal.visitedUrls.length, observedLinks: observedLinks.size, trustedArticles: articles.length, scrollObservations, continuation: proposal.continuation });
     return { plan, listing, articles };
   } finally { await port.close(); }
 }
