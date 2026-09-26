@@ -5,11 +5,11 @@ import { D1WorkflowRepository } from "./web-operator-workflow-store";
 import { createWorkerContainerPublicWebOperatorLifecycle, executeWorkerSourcePlan } from "./web-operator-runtime";
 
 export interface PublicSourceDiscoveryResult { evidence: SourceBrowserDiscoveryEvidence; plan: SourceBrowserWorkflowPlan; candidateUrl: string; browserOperations: number; discoveryModelCalls?: number }
-class PublicSourceDiscoveryStop extends Error { constructor(readonly status: "AUTH_REQUIRED" | "CHALLENGE_REQUIRED" | "POLICY_DENIED", readonly diagnostics?: PublicBrowserObservation["challengeDiagnostics"], readonly originHost?: string) { super(status); } }
+class PublicSourceDiscoveryStop extends Error { constructor(readonly status: "AUTH_REQUIRED" | "CHALLENGE_REQUIRED" | "POLICY_DENIED", readonly diagnostics?: PublicBrowserObservation["challengeDiagnostics"], readonly originHost?: string, readonly observedPath?: string, readonly observedTitle?: string) { super(status); } }
 function challengeStop(observation: PublicBrowserObservation): PublicSourceDiscoveryStop {
-  let originHost: string | undefined;
-  try { originHost = new URL(observation.url).hostname.slice(0, 253); } catch { /* bounded diagnostic only */ }
-  return new PublicSourceDiscoveryStop(observation.challengeState === "LOGIN_REQUIRED" ? "AUTH_REQUIRED" : "CHALLENGE_REQUIRED", observation.challengeDiagnostics, originHost);
+  let originHost: string | undefined, observedPath: string | undefined;
+  try { const url=new URL(observation.url);originHost = url.hostname.slice(0, 253);observedPath=url.pathname.slice(0, 160); } catch { /* bounded diagnostic only */ }
+  return new PublicSourceDiscoveryStop(observation.challengeState === "LOGIN_REQUIRED" ? "AUTH_REQUIRED" : "CHALLENGE_REQUIRED", observation.challengeDiagnostics, originHost, observedPath, observation.title.slice(0, 120));
 }
 
 /** Bounded trusted-observation probe; no model or page-realm execution selects article evidence. */
@@ -186,7 +186,7 @@ export function bridgeStop(error: unknown): AcquisitionStageOutcome {
   if (error instanceof PublicSourceDiscoveryStop) {
     const challenge = error.diagnostics;
     if (challenge) console.log(JSON.stringify({ event: "public_acquisition_challenge", challengeKind: challenge.state, classifierRule: challenge.rule, visibleEvidence: challenge.visibleEvidence, structuralEvidence: challenge.structuralEvidence, actionableControlEvidence: challenge.actionableEvidence, surface: challenge.surface, originHost: error.originHost }));
-    return { stage: "WEB_OPERATOR", status: error.status, reason: "source requires unsupported access or challenge", details: challenge ? { challenge: { ...challenge, ...(error.originHost ? { originHost: error.originHost } : {}) } } : undefined };
+    return { stage: "WEB_OPERATOR", status: error.status, reason: "source requires unsupported access or challenge", details: challenge ? { challenge: { ...challenge, ...(error.originHost ? { originHost: error.originHost } : {}), ...(error.observedPath ? { observedPath: error.observedPath } : {}), ...(error.observedTitle ? { observedTitle: error.observedTitle } : {}) } } : undefined };
   }
   const code = error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : undefined;
   const rawOperation = error && typeof error === "object" && "operation" in error ? (error as { operation?: unknown }).operation : undefined;
