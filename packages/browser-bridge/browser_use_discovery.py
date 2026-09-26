@@ -14,6 +14,12 @@ import uuid
 from urllib.parse import urlparse
 
 
+class DiscoveryFailure(Exception):
+    def __init__(self, category: str):
+        self.category = category
+        super().__init__(category)
+
+
 def admitted(value: str, origin: str) -> bool:
     parsed = urlparse(value)
     source = urlparse(origin)
@@ -28,9 +34,12 @@ def admitted(value: str, origin: str) -> bool:
 
 
 async def discover(payload: dict) -> dict:
-    from browser_use import Agent, Browser, ChatOpenAI, Tools, ActionResult
-    from browser_use.browser.profile import BrowserProfile
-    from pydantic import BaseModel, Field
+    try:
+        from browser_use import Agent, Browser, ChatOpenAI, Tools, ActionResult
+        from browser_use.browser.profile import BrowserProfile
+        from pydantic import BaseModel, Field
+    except Exception as error:
+        raise DiscoveryFailure("BROWSER_USE_IMPORT_FAILED") from error
 
     class Discovery(BaseModel):
         listing_urls: list[str] = Field(max_length=16)
@@ -51,7 +60,7 @@ async def discover(payload: dict) -> dict:
     if not isinstance(model, str) or not 1 <= len(model) <= 128 or not isinstance(max_steps, int) or not 1 <= max_steps <= 16 or not isinstance(capability, dict) or capability.get("runId") != run_id or bridge_url != "http://127.0.0.1:8080/v1/internal-authenticated-browser":
         raise ValueError("invalid_discovery_input")
     if not model or not os.environ.get("OPENAI_API_KEY"):
-        raise ValueError("discovery_model_unconfigured")
+        raise DiscoveryFailure("MODEL_CONFIGURATION_FAILED")
     # All site traffic goes through the existing fenced Distilled bridge. The
     # Browser Use native browser has no navigation actions or source authority.
     browser = Browser(browser_profile=BrowserProfile(
@@ -71,10 +80,10 @@ async def discover(payload: dict) -> dict:
         with urllib.request.urlopen(request, timeout=25) as response:
             envelope = json.load(response)
         if envelope.get("ok") is not True:
-            raise ValueError("distilled_bridge_rejected")
+            raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
         result = envelope["result"]
         if not isinstance(result, dict) or not admitted(result.get("url", ""), origin):
-            raise ValueError("distilled_observation_rejected")
+            raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
         if result["url"] not in visited:
             visited.append(result["url"])
         return result
@@ -103,20 +112,29 @@ async def discover(payload: dict) -> dict:
     @tools.action("Observe the current Distilled public page")
     async def observe_source() -> ActionResult:
         return ActionResult(extracted_content=summary(await asyncio.to_thread(bridge, "OBSERVE_PUBLIC_PAGE")))
-    agent = Agent(
-        task=(f"Explore the public news listing {source_url} using navigate_source, scroll_source and observe_source. "
-              "Navigate at least two article pages. Return only URLs you visited. "
-              "Identify listing and article URLs, continuation, timestamp hints, and visible challenges. "
-              "Do not submit forms, authenticate, or claim a challenge was solved."),
-        llm=ChatOpenAI(model=model, api_key=os.environ["OPENAI_API_KEY"],
-                       base_url=os.environ["OPENAI_BASE_URL"], reasoning_effort=None),
-        browser=browser, tools=tools,
-        output_model_schema=Discovery, use_vision=False, directly_open_url=False,
-    )
-    history = await agent.run(max_steps=max_steps)
+    try:
+        agent = Agent(
+            task=(f"Explore the public news listing {source_url} using navigate_source, scroll_source and observe_source. "
+                  "Navigate at least two article pages. Return only URLs you visited. "
+                  "Identify listing and article URLs, continuation, timestamp hints, and visible challenges. "
+                  "Do not submit forms, authenticate, or claim a challenge was solved."),
+            llm=ChatOpenAI(model=model, api_key=os.environ["OPENAI_API_KEY"],
+                           base_url=os.environ["OPENAI_BASE_URL"], reasoning_effort=None),
+            browser=browser, tools=tools,
+            output_model_schema=Discovery, use_vision=False, directly_open_url=False,
+        )
+    except Exception as error:
+        raise DiscoveryFailure("AGENT_INITIALIZATION_FAILED") from error
+    try:
+        history = await agent.run(max_steps=max_steps)
+    except DiscoveryFailure:
+        raise
+    except Exception as error:
+        category = "MODEL_REQUEST_FAILED" if type(error).__name__ in {"APIStatusError", "AuthenticationError", "APIConnectionError", "RateLimitError"} else "AGENT_RUN_FAILED"
+        raise DiscoveryFailure(category) from error
     result = history.structured_output
     if result is None:
-        raise ValueError("discovery_output_missing")
+        raise DiscoveryFailure("STRUCTURED_OUTPUT_INVALID")
     visited = visited[:32]
     structured = result.model_dump()
     listings = [url for url in structured["listing_urls"] if url in visited]
@@ -143,8 +161,6 @@ if __name__ == "__main__":
     except Exception as error:
         # Only a fixed exception category crosses this boundary. Exception text
         # can contain model responses, URLs, or provider credentials.
-        category = type(error).__name__
-        if category not in {"ValueError", "RuntimeError", "TimeoutError", "HTTPError", "ValidationError", "APIStatusError", "AuthenticationError", "ConnectionError"}:
-            category = "OtherError"
+        category = error.category if isinstance(error, DiscoveryFailure) else "AGENT_RUN_FAILED"
         print(json.dumps({"error": "browser_use_discovery_failed", "category": category}))
         sys.exit(1)

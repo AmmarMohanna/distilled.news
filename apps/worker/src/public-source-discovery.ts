@@ -1,4 +1,4 @@
-import { BrowserUseDiscoveryBackend, BrowserUseTrustedChallengeError, compileSourceBrowserWorkflowPlan, verifyBrowserUseProposal, DEFAULT_SLICE_BUDGET, makeId, validateSourceBrowserWorkflowPlan, type AcquisitionStageOutcome, type ModelCapability, type ModelRoutingConfig, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserDiscoveryEvidence, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort, type WebOperatorDiscovery, type WorkflowCandidate } from "@distilled/agent-runtime";
+import { BrowserUseDiscoveryBackend, BrowserUseTrustedChallengeError, BROWSER_USE_FAILURE_CATEGORIES, compileSourceBrowserWorkflowPlan, verifyBrowserUseProposal, DEFAULT_SLICE_BUDGET, makeId, validateSourceBrowserWorkflowPlan, type AcquisitionStageOutcome, type ModelCapability, type ModelRoutingConfig, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserDiscoveryEvidence, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort, type WebOperatorDiscovery, type WorkflowCandidate } from "@distilled/agent-runtime";
 import { ContainerSourceBrowserPort } from "./container-source-browser-port";
 import type { Env } from "./types";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
@@ -193,6 +193,8 @@ export function bridgeStop(error: unknown): AcquisitionStageOutcome {
   const operation = ["OPEN_AUTH_BROWSER", "NAVIGATE_PUBLIC_PAGE", "OBSERVE_PUBLIC_PAGE", "SCROLL_PUBLIC_PAGE", "CLOSE_AUTH_BROWSER"].includes(String(rawOperation)) ? rawOperation : undefined;
   const raw = error && typeof error === "object" && "diagnostic" in error ? (error as { diagnostic?: unknown }).diagnostic : undefined;
   const diagnostic = raw && typeof raw === "object" ? raw as Record<string, unknown> : undefined;
+  const browserUseFailure = diagnostic && BROWSER_USE_FAILURE_CATEGORIES.includes(diagnostic.browserUseFailure as typeof BROWSER_USE_FAILURE_CATEGORIES[number]) ? diagnostic.browserUseFailure as typeof BROWSER_USE_FAILURE_CATEGORIES[number] : undefined;
+  if (browserUseFailure) console.log(JSON.stringify({ event: "public_acquisition_browser_use_failure", category: browserUseFailure }));
   const allowedRules = ["ORIGIN_NOT_ADMITTED", "REDIRECT_ORIGIN_NOT_ADMITTED", "FINAL_ORIGIN_NOT_ADMITTED", "SCHEME_NOT_ALLOWED", "PRIVATE_OR_UNRESOLVED_ORIGIN", "METHOD_NOT_ALLOWED", "REQUEST_BLOCKED"];
   const policy = diagnostic && allowedRules.includes(String(diagnostic.policyRule)) ? {
     rule: String(diagnostic.policyRule),
@@ -202,7 +204,7 @@ export function bridgeStop(error: unknown): AcquisitionStageOutcome {
   } : undefined;
   return code === "BRIDGE_NETWORK_POLICY_DENIED"
     ? { stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied", details: { ...(operation ? { operation } : {}), ...(policy ? { policy } : {}) } }
-    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "public Web Operator discovery failed" };
+    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "public Web Operator discovery failed", details: browserUseFailure ? { browserUseFailure } : undefined };
 }
 function liveModelRouting(model: string): ModelRoutingConfig {
   return { mode: "api", apiGateway: "openrouter", selfHostedGateway: "openai_compatible", roles: { NAVIGATION_FAST: { primary: { deployment: "api", model }, fallbacks: [] }, VISION_FAST: { primary: { deployment: "api", model }, fallbacks: [] } } };

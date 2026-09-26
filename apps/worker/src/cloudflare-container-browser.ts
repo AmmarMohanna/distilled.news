@@ -1,5 +1,5 @@
 import {Container} from "@cloudflare/containers";
-import {AuthenticatedBrowserBridgeError,BRIDGE_FAILURE_CODES,BRIDGE_MAX_REQUEST_BYTES,BRIDGE_MAX_RESPONSE_BYTES,byteLength,type BrowserNetworkPolicyDiagnostic,type AuthenticatedBrowserBridgeFailureCode,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserBridgeResponse,type AuthenticatedBrowserBridgeResult} from "@distilled/agent-runtime";
+import {AuthenticatedBrowserBridgeError,BRIDGE_FAILURE_CODES,BRIDGE_MAX_REQUEST_BYTES,BRIDGE_MAX_RESPONSE_BYTES,byteLength,type BrowserBridgeDiagnostic,type AuthenticatedBrowserBridgeFailureCode,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserBridgeResponse,type AuthenticatedBrowserBridgeResult} from "@distilled/agent-runtime";
 import type {Env} from "./types";
 import {containerUnknownOutcome} from "./cloudflare-container-browser-transport";
 
@@ -42,7 +42,7 @@ export class AuthenticatedBrowserContainer extends Container<Env>{
     let envelope:Partial<AuthenticatedBrowserBridgeResponse>;try{envelope=JSON.parse(text) as Partial<AuthenticatedBrowserBridgeResponse>}catch(error){throw unknown("json_parse",{errorName:error instanceof Error?error.name:typeof error,status:response.status,length:byteLength(text)})}
     if(envelope?.protocol!=="v1")throw unknown("protocol_mismatch",{status:response.status,protocol:envelope?.protocol,ok:envelope?.ok});
     if(envelope.ok===true&&response.ok&&envelope.result!==undefined){if(request.operation==="CLOSE_AUTH_BROWSER")await this.stop().catch(()=>undefined);return envelope.result;}
-    if(envelope.ok===false){const bridgeError=envelope.error as {code?:string;diagnostic?:BrowserNetworkPolicyDiagnostic}|undefined;const code=bridgeError?.code;if(BRIDGE_FAILURE_CODES.includes(code as AuthenticatedBrowserBridgeFailureCode)){console.error("container_bridge_diagnostic",{stage:"typed_bridge_error",operation:request.operation,status:response.status,code,diagnostic:bridgeError?.diagnostic});throw new AuthenticatedBrowserBridgeError(code as AuthenticatedBrowserBridgeFailureCode,bridgeError?.diagnostic)}throw unknown("untyped_bridge_error_code",{status:response.status,code})}
+    if(envelope.ok===false){const bridgeError=envelope.error as {code?:string;diagnostic?:BrowserBridgeDiagnostic}|undefined;const code=bridgeError?.code;if(BRIDGE_FAILURE_CODES.includes(code as AuthenticatedBrowserBridgeFailureCode)){console.error("container_bridge_diagnostic",{stage:"typed_bridge_error",operation:request.operation,status:response.status,code,diagnostic:bridgeError?.diagnostic});throw new AuthenticatedBrowserBridgeError(code as AuthenticatedBrowserBridgeFailureCode,bridgeError?.diagnostic)}throw unknown("untyped_bridge_error_code",{status:response.status,code})}
     throw unknown("fallthrough",{status:response.status,ok:envelope.ok,hasResult:envelope.ok===true?envelope.result!==undefined:undefined});
   }
   private runtimeEnvVars(){return {...this.envVars,...(this.env.OPENROUTER_API_KEY?{OPENROUTER_API_KEY:this.env.OPENROUTER_API_KEY}:{})};}

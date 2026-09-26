@@ -17,6 +17,13 @@ describe("public source discovery from trusted Container structure", () => {
     expect(outcome).toMatchObject({ status: "POLICY_DENIED", details: { operation: "NAVIGATE_PUBLIC_PAGE", policy: { rule: "ORIGIN_NOT_ADMITTED", deniedHostname: "static.publisher.example", redirectHop: false, topLevelNavigation: false } } });
     expect(JSON.stringify(outcome)).not.toMatch(/unsafe|private|secret/);
   });
+  it("preserves a fixed Browser Use failure category without provider text", () => {
+    const error = new AuthenticatedBrowserBridgeError("BRIDGE_BROWSER_FAILURE", { browserUseFailure: "MODEL_REQUEST_FAILED" });
+    error.message = "Authorization: Bearer secret-provider-value";
+    const outcome = bridgeStop(error);
+    expect(outcome).toMatchObject({ status: "STRUCTURAL_FAILURE", details: { browserUseFailure: "MODEL_REQUEST_FAILED" } });
+    expect(JSON.stringify(outcome)).not.toMatch(/Bearer|secret-provider-value/);
+  });
   it("samples two real article observations and closes exactly once", async () => {
     const links = ["a", "b"].map((id) => ({ handle: id, kind: "link" as const, role: "link", label: id, safeAction: "follow" as const, destinationUrl: `https://publisher.example/article/${id}` }));
     const listing: PublicBrowserObservation = { url: source, title: "News", pageRevision: "listing", visibleText: "", controls: links };
