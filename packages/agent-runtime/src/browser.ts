@@ -1270,9 +1270,11 @@ function discoverEmbeddedListingLinks(nodes:Map<number,DomNodeSnapshot>,baseUrl:
       collectEmbeddedLinks(value,baseUrl,output,0);
     }
     // React Flight and similar hydration formats are executable wrappers around
-    // serialized data rather than valid JSON. Lex only bounded path literals;
-    // never evaluate the script or trust a cross-origin value.
+    // serialized data rather than valid JSON. Ordinary imperative scripts may
+    // contain incomplete path fragments later concatenated with a variable.
+    if(!/(?:__flight|__next_f|__NUXT_DATA__|__INITIAL_STATE__|__APOLLO_STATE__)/i.test(raw))continue;
     for(const match of raw.matchAll(/\/[A-Za-z0-9][A-Za-z0-9%._~!$&()*+,;=:@/?-]{3,}/g)){
+      if(/^['"]\s*\+/.test(raw.slice((match.index??0)+match[0].length)))continue;
       const candidate=embeddedNavigableUrl(match[0],baseUrl);
       if(candidate)output.add(candidate);
       if(output.size>=100)break;

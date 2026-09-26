@@ -625,6 +625,16 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     } finally { await browser.close(scope).catch(()=>undefined); }
   },30_000);
 
+  it("does not invent complete links from concatenated executable path fragments",async()=>{
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const scope=await browser.allocate({runId:"concatenated-path",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try{
+      const observed=await browser.navigatePublicPage(scope,`${fixture.origin}/concatenated-path-listing`,[fixture.origin]);
+      expect(observed.listingLinks).toContain(`${fixture.origin}/news/article/article`);
+      expect(observed.listingLinks).not.toContain(`${fixture.origin}/news/article/`);
+    }finally{await browser.close(scope).catch(()=>undefined)}
+  },30_000);
+
   it("records a mutation followed by a blocked redirect as effect_unknown and never replays it",async()=>{
     fixture.resetMutations(); const store=new MemoryRuntimeStore(); const artifacts=new MemoryArtifactStore(); const browser=PlaywrightBrowserAdapter.forTest();
     const gateway=new ScriptedModelGateway([plan(action("browser.navigate@1",{url:`${fixture.origin}/mutate-redirect`},{urlIncludes:"escaped"}))]);

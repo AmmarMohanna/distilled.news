@@ -89,6 +89,10 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       response.end(page("Hydration listing", `<main>Client-rendered listing shell</main><script type="application/json">${JSON.stringify({props:{items:[{canonicalUrl:`${url.origin}/article`},{path:"/other-article"},{url:"https://tracker.invalid/ignored"}],asset:{url:"/_next/static/app.js"}}})}</script><script>self.__flight=self.__flight||[];self.__flight.push("/news/2026/09/24/serialized-article-path")</script>`));
       return;
     }
+    if (url.pathname === "/concatenated-path-listing") {
+      response.end(page("Concatenated path listing", `<main>Dynamic listing</main><script>const id='article';const link=document.createElement('a');link.href='/news/article/'+id;link.textContent='Read item';document.querySelector('main').append(link)</script>`));
+      return;
+    }
     if (url.pathname === "/semantic-onclick-beacon") {
       response.end(page("Beacon handler", `<main><a href="/article" onclick="navigator.sendBeacon('/mutate','x')">Read article</a></main>`));
       return;
