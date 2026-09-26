@@ -206,7 +206,7 @@ export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE
   } : undefined;
   return code === "BRIDGE_NETWORK_POLICY_DENIED"
     ? { stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied", details: { phase, ...(operation ? { operation } : {}), ...(policy ? { policy } : {}) } }
-    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "public Web Operator discovery failed", details: { phase, bridgeCode: bridgeCode ?? "UNCLASSIFIED", ...(browserUseFailure ? { browserUseFailure } : {}) } };
+    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: `public Web Operator discovery failed: ${phase}/${bridgeCode ?? "UNCLASSIFIED"}${browserUseFailure ? `/${browserUseFailure}` : ""}`, details: { phase, bridgeCode: bridgeCode ?? "UNCLASSIFIED", ...(browserUseFailure ? { browserUseFailure } : {}) } };
 }
 function liveModelRouting(model: string): ModelRoutingConfig {
   return { mode: "api", apiGateway: "openrouter", selfHostedGateway: "openai_compatible", roles: { NAVIGATION_FAST: { primary: { deployment: "api", model }, fallbacks: [] }, VISION_FAST: { primary: { deployment: "api", model }, fallbacks: [] } } };
