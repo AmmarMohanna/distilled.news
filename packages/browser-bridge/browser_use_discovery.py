@@ -140,7 +140,11 @@ if __name__ == "__main__":
         with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
             result = asyncio.run(discover(request))
         print(json.dumps(result, separators=(",", ":")))
-    except Exception:
-        # No exception detail or page content may cross this process boundary.
-        print('{"error":"browser_use_discovery_failed"}')
+    except Exception as error:
+        # Only a fixed exception category crosses this boundary. Exception text
+        # can contain model responses, URLs, or provider credentials.
+        category = type(error).__name__
+        if category not in {"ValueError", "RuntimeError", "TimeoutError", "HTTPError", "ValidationError", "APIStatusError", "AuthenticationError", "ConnectionError"}:
+            category = "OtherError"
+        print(json.dumps({"error": "browser_use_discovery_failed", "category": category}))
         sys.exit(1)

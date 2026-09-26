@@ -43,9 +43,7 @@ COPY packages/core/package.json ./packages/core/package.json
 # or written by the image.
 RUN pnpm install --frozen-lockfile
 
-# Source edits must invalidate the runtime layer, not the workspace install.
-COPY apps ./apps
-COPY packages ./packages
+# Keep expensive Python layers stable across TypeScript and fixture edits.
 COPY --from=browser_use_python /opt/distilled-browser-use /opt/distilled-browser-use
 COPY --from=browser_use_python /opt/browser-use-packages/ac/ /opt/distilled-browser-use/lib/python3.12/site-packages/
 COPY --from=browser_use_python /opt/browser-use-packages/df/ /opt/distilled-browser-use/lib/python3.12/site-packages/
@@ -58,6 +56,8 @@ COPY --from=browser_use_python /opt/browser-use-packages/pj_pz/ /opt/distilled-b
 COPY --from=browser_use_python /opt/browser-use-packages/qs/ /opt/distilled-browser-use/lib/python3.12/site-packages/
 COPY --from=browser_use_python /opt/browser-use-packages/tz/ /opt/distilled-browser-use/lib/python3.12/site-packages/
 COPY --from=browser_use_python /opt/browser-use-packages/other/ /opt/distilled-browser-use/lib/python3.12/site-packages/
+COPY apps ./apps
+COPY packages ./packages
 RUN chromium_path="$(find /ms-playwright -type f -path '*/chrome-linux64/chrome' -print -quit)" \
     && test -n "$chromium_path" && ln -s "$chromium_path" /usr/local/bin/distilled-chromium \
     && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'"
