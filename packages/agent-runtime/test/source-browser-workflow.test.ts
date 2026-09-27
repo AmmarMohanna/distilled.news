@@ -107,7 +107,7 @@ describe("deterministic multi-item browser workflow", () => {
       async close() {}
     };
     const result = await new DeterministicSourceBrowserWorkflowExecutor(port).execute(request, { ...plan, continuation: { kind: "SCROLL", deltaY: 1200, terminalEvidence: "UNPROVEN" } });
-    expect(scrollContexts).toEqual([plan.entryUrl, plan.entryUrl, plan.entryUrl]);
+    expect(scrollContexts).toEqual([plan.entryUrl, plan.entryUrl, plan.entryUrl, plan.entryUrl]);
     expect(result.items.map((item) => item.canonicalItemUrl)).toEqual([`${origin}/article/a`]);
     expect(result.coverage).toMatchObject({ rangeCovered: false, stopReason: "SOURCE_PAGINATION_EXHAUSTED" });
   });
@@ -125,11 +125,11 @@ describe("deterministic multi-item browser workflow", () => {
       async scrollAndObserve() {
         if (current !== plan.entryUrl) throw new Error("scroll attempted on article");
         depth++;
-        return listing(plan.entryUrl, depth === 1 ? [`${origin}/article/a`] : [`${origin}/article/b`]);
+        return listing(plan.entryUrl, depth === 1 ? [] : depth === 2 ? [`${origin}/article/a`] : [`${origin}/article/b`]);
       },
       async close() {}
     };
-    const result = await new DeterministicSourceBrowserWorkflowExecutor(port).execute({ ...request, limits: { ...request.limits, maxItems: 2 } }, { ...plan, continuation: { kind: "SCROLL", deltaY: 1200, terminalEvidence: "UNPROVEN" } });
+    const result = await new DeterministicSourceBrowserWorkflowExecutor(port).execute({ ...request, limits: { ...request.limits, maxItems: 2, maxScrolls: 3 } }, { ...plan, continuation: { kind: "SCROLL", deltaY: 1200, terminalEvidence: "UNPROVEN" } });
     expect(result.items.map(value => value.canonicalItemUrl)).toEqual([`${origin}/article/a`, `${origin}/article/b`]);
     expect(visits.filter(url => url === plan.entryUrl)).toHaveLength(2);
   });

@@ -113,13 +113,16 @@ class BrowserWorkflowPageAdapter implements SourceAcquisitionAdapter {
     let scrolls = 0;
     if (this.plan.continuation.kind === "SCROLL") {
       if (!this.port.scrollAndObserve) return { items: [], physicalAttempts: pageAttempts, stopReason: "STRUCTURAL_FAILURE" };
-      // Dynamic listings may have no items until the first scroll. Recreate
-      // the prior depth after each fresh listing navigation, then advance one.
-      for (let index = 0; index < Math.min(request.limits.maxScrolls, this.scrollDepth + 1); index++) {
+      // Dynamic listings may hydrate only after repeated scroll events. Recreate
+      // prior depth and allow one additional no-progress scroll, within budget.
+      const minimumDepth = Math.min(request.limits.maxScrolls, this.scrollDepth + 1);
+      const maximumDepth = Math.min(request.limits.maxScrolls, this.scrollDepth + 2);
+      for (let index = 0; index < maximumDepth; index++) {
         if (this.physicalAttempts >= request.limits.maxPhysicalAttempts) return { items: [], physicalAttempts: pageAttempts, scrolls, stopReason: "EXECUTION_BUDGET_REACHED" };
         listing = await this.port.scrollAndObserve(this.plan.continuation.deltaY);
         for (const url of observedLinks(listing)) discoveredLinks.add(url);
         this.physicalAttempts++; pageAttempts++; scrolls++;
+        if (index + 1 >= minimumDepth && [...discoveredLinks].some(url => isArticleUrl(url, this.plan) && !this.seenArticles.has(url))) break;
       }
     }
     if (listing.challengeState && listing.challengeState !== "NO_CHALLENGE") return { items: [], physicalAttempts: 1, stopReason: listing.challengeState === "LOGIN_REQUIRED" ? "AUTH_REQUIRED" : "CHALLENGE_REQUIRED" };
