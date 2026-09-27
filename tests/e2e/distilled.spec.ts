@@ -154,13 +154,15 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   await page.goto("/");
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe("light");
   await expect(page.getByRole("link", { name: "create" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "A calmer perspective on a complex world." })).toBeVisible();
   await page.getByRole("button", { name: "switch to dark mode" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.reload();
   await expect(page.getByRole("button", { name: "switch to light mode" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "switch to light mode" }).click();
+  await page.getByRole("button", { name: "Create feed", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   await expect(page.getByLabel("admin setup token")).toHaveCount(0);
   await page.getByLabel("password", { exact: true }).fill("preview-password");
   await page.getByRole("button", { name: "Show password" }).click();

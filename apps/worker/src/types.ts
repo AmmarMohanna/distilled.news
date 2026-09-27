@@ -56,6 +56,7 @@ export interface ProcessingJobRecord {
 }
 
 export interface Env {
+  AI?: Ai;
   DB: D1Database;
   RAW_ARCHIVE: R2Bucket;
   PROCESSING_QUEUE: Queue<DistilledQueueMessage>;

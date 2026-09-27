@@ -324,6 +324,10 @@ function writeWranglerConfig(path, resources, env) {
     `not_found_handling = "single-page-application"`,
     `run_worker_first = true`,
     "",
+    "[ai]",
+    `binding = "AI"`,
+    "remote = true",
+    "",
     "[vars]",
     ...Object.entries(vars)
       .filter(([, value]) => usableEnvValue(value))

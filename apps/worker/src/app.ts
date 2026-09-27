@@ -13,6 +13,7 @@ import { Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
 import { createSummaryAdapterFromEnv } from "./ai";
+import { generateSketch, SketchError, sketchFingerprint, sketchKey } from "./sketches";
 import {
   accountAuth,
   adminAuth,
@@ -414,7 +415,57 @@ export function createApp(options: AppOptions = {}) {
       nextBriefingAt,
       retentionDays: FIXED_RETENTION_DAYS
     });
+    if (c.env.AI && c.env.RAW_ARCHIVE) {
+      const generate = async () => {
+        try {
+          const cached = await c.env.RAW_ARCHIVE.head(sketchKey(briefing));
+          if (cached?.customMetadata?.fingerprint === await sketchFingerprint(briefing)) return;
+          const since = new Date(Date.now() - 86_400_000).toISOString();
+          if (await repo.countRecentAuthAttempts({ key: account.id, action: "feed_sketch", since }) >= 5) return;
+          await repo.recordAuthAttempt({ key: account.id, action: "feed_sketch" });
+          await generateSketch(c.env, briefing, async () => {
+            const current = await repo.getBriefingById(briefing.id);
+            return !!current && await sketchFingerprint(current) === await sketchFingerprint(briefing);
+          });
+        } catch (error) {
+          console.error(JSON.stringify({ event: "automatic_feed_sketch_failed", code: error instanceof SketchError ? error.code : "SKETCH_FAILED" }));
+        }
+      };
+      let context;
+      try { context = c.executionCtx; } catch { /* Direct tests have no runtime context. */ }
+      if (context) context.waitUntil(generate());
+      else await generate();
+    }
     return c.json({ briefing });
+  });
+
+  app.post("/api/me/briefings/:briefingId/sketch", async (c) => {
+    const repo = c.get("repo");
+    const account = c.get("account")!;
+    const briefing = await getOwnedBriefing(repo, account, c.req.param("briefingId"));
+    if (!briefing) return c.json({ error: "briefing not found" }, 404);
+    if (!c.env.AI) return c.json({ error: "Sketch generation needs the Cloudflare Workers AI binding (AI). No separate image API key is required." }, 503);
+    if (!c.env.RAW_ARCHIVE) return c.json({ error: "Sketch storage needs the RAW_ARCHIVE R2 binding." }, 503);
+    let saved;
+    try { saved = await c.env.RAW_ARCHIVE.head(sketchKey(briefing)); }
+    catch {
+      console.error(JSON.stringify({ event: "feed_sketch_failed", code: "SKETCH_STORAGE_READ" }));
+      return c.json({ code: "SKETCH_STORAGE_READ", error: "Could not check existing sketches in R2. Check the RAW_ARCHIVE binding. Image generation was not attempted." }, 502);
+    }
+    if (saved?.customMetadata?.fingerprint === await sketchFingerprint(briefing)) return c.json({ generated: false });
+    const since = new Date(Date.now() - 86_400_000).toISOString();
+    if (await repo.countRecentAuthAttempts({ key: account.id, action: "feed_sketch", since }) >= 5) {
+      return c.json({ error: "Sketch limit reached. Try again tomorrow." }, 429);
+    }
+    await repo.recordAuthAttempt({ key: account.id, action: "feed_sketch" });
+    try {
+      await generateSketch(c.env, briefing);
+      return c.json({ generated: true });
+    } catch (error) {
+      const failure = error instanceof SketchError ? error : new SketchError("SKETCH_FAILED", "Sketch generation failed unexpectedly. Check the server configuration before retrying.");
+      console.error(JSON.stringify({ event: "feed_sketch_failed", code: failure.code }));
+      return c.json({ error: failure.message, code: failure.code }, 502);
+    }
   });
 
   app.delete("/api/me/briefings/:briefingId", async (c) => {
@@ -422,6 +473,7 @@ export function createApp(options: AppOptions = {}) {
     const account = c.get("account")!;
     const briefing = await getOwnedBriefing(repo, account, c.req.param("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
+    await c.env.RAW_ARCHIVE?.delete(sketchKey(briefing));
     await repo.deleteBriefing(briefing.id);
     return c.json({ briefings: await repo.listBriefings(account.id) });
   });
@@ -560,6 +612,9 @@ export function createApp(options: AppOptions = {}) {
     if (target.role === "admin" && !target.disabledAt && (await repo.countAdmins()) <= 1) {
       return c.json({ error: "keep at least one admin" }, 400);
     }
+    for (const briefing of await repo.listBriefings(target.id)) {
+      await c.env.RAW_ARCHIVE?.delete(sketchKey(briefing));
+    }
     await repo.deleteAccount(target.id);
     return c.json({ accounts: await repo.listAccounts(), briefings: await repo.listBriefings() });
   });
@@ -587,6 +642,7 @@ export function createApp(options: AppOptions = {}) {
     const repo = c.get("repo");
     const briefing = await repo.getBriefingById(c.req.param("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
+    await c.env.RAW_ARCHIVE?.delete(sketchKey(briefing));
     await repo.deleteBriefing(briefing.id);
     return c.json({ briefings: await repo.listBriefings(), accounts: await repo.listAccounts() });
   });
@@ -595,6 +651,18 @@ export function createApp(options: AppOptions = {}) {
     const repo = repoFor(c);
     const feeds = await repo.listExploreBriefings(10);
     return c.json({ feeds: feeds.map(publicBriefing) });
+  });
+
+  app.get("/api/feed/:username/:briefingSlug/sketch", async (c) => {
+    const resolved = await resolvePublicFeed(c);
+    if (resolved instanceof Response) return resolved;
+    const object = await c.env.RAW_ARCHIVE?.get(sketchKey(resolved.briefing));
+    if (!object || object.customMetadata?.fingerprint !== await sketchFingerprint(resolved.briefing)) {
+      return c.body(null, 404, { "Cache-Control": "no-store" });
+    }
+    return new Response(object.body, { headers: {
+      "Content-Type": "image/jpeg", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"
+    } });
   });
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {

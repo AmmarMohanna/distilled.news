@@ -15,10 +15,14 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = true
 
+[ai]
+binding = "AI"
+remote = true
+
 [vars]
 PUBLIC_API_BASE_URL = "https://distilled.news"
 PUBLIC_WEB_BASE_URL = "https://distilled.news"
-CLOUDFLARE_ACCOUNT_ID = "9cd5e9612de11953c367cbdec84ed662"
+CLOUDFLARE_ACCOUNT_ID = "90bd6af0ea5419df8df12e0886f607ab"
 CLOUDFLARE_AI_GATEWAY_ID = "default"
 OPENAI_MODEL = "gpt-4.1-mini"
 EMAIL_FROM = "Distilled.news <noreply@distilled.news>"
@@ -30,7 +34,7 @@ APIFY_LINKEDIN_PROFILE_ACTOR_ID = "harvestapi/linkedin-profile-posts"
 [[d1_databases]]
 binding = "DB"
 database_name = "lownoise"
-database_id = "777782fe-6c8f-45c1-826d-365c40bc1210"
+database_id = "48d06bd0-6665-4725-b70f-a472e1db6b6b"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
