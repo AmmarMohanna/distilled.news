@@ -51,7 +51,7 @@ export async function discoverPublicSourceBrowserPlan(
 }
 
 /** Agent supplies navigation hints; a fresh Distilled-owned session verifies every promoted fact. */
-export async function discoverBrowserUseSourcePlan(env: Env, input: { request: SourceAcquisitionRequest; tenantId: string; ownerId: string; resourceId: string; runId: string }, ports?: { agent: Pick<ContainerSourceBrowserPort, "open" | "close" | "discoverWithBrowserUse">; verifier: SourceBrowserWorkflowPort }, maxSteps = 12): Promise<PublicSourceDiscoveryResult | undefined> {
+export async function discoverBrowserUseSourcePlan(env: Env, input: { request: SourceAcquisitionRequest; tenantId: string; ownerId: string; resourceId: string; runId: string }, ports?: { agent: Pick<ContainerSourceBrowserPort, "open" | "close" | "discoverWithBrowserUse">; verifier: SourceBrowserWorkflowPort }, maxSteps = 6): Promise<PublicSourceDiscoveryResult | undefined> {
   const sourceUrl = input.request.source.canonicalSourceUrl ?? input.request.source.resourceLocator;
   const model = env.DISTILLED_LIVE_OPENROUTER_MODEL?.trim();
   if (!sourceUrl || !model || !env.OPENROUTER_API_KEY) return undefined;
