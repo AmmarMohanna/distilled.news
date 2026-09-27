@@ -5,10 +5,11 @@ import { processQueueMessage } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
-import type { AuthenticatedProfileBootstrapMessage,AuthenticatedSurfaceDiagnosticMessage,DistilledQueueMessage, Env, OpenRouterModelDiagnosticMessage, ProcessingJobMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
+import type { AuthenticatedProfileBootstrapMessage,AuthenticatedSurfaceDiagnosticMessage,DistilledQueueMessage, Env, OpenRouterModelDiagnosticMessage, ProcessingJobMessage, PublicAcquisitionRequestMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
 import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
 import { D1AgentRuntimeStore } from "./agent-runtime-store";
 import { processLivePublicAcquisitionSmoke } from "./live-public-acquisition-smoke";
+import { dispatchPendingPublicAcquisitionRequests, processPublicAcquisitionRequest } from "./public-acquisition-request";
 import { createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { dispatchPendingOpenRouterModelDiagnostics,processOpenRouterModelDiagnostic } from "./openrouter-model-diagnostic";
 import { dispatchPendingAuthenticatedProfileBootstraps,processAuthenticatedProfileBootstrap } from "./authenticated-profile-bootstrap-trigger";
@@ -41,6 +42,7 @@ export default {
         else if (isWebOperatorLiveSmokeMessage(message.body)) {
           await processLivePublicAcquisitionSmoke(env, message.body, async (request) => app.fetch(request, env));
         }
+        else if (isPublicAcquisitionRequestMessage(message.body)) await processPublicAcquisitionRequest(env,message.body,async request=>app.fetch(request,env));
         else if (isOpenRouterModelDiagnosticMessage(message.body)) await processOpenRouterModelDiagnostic(env,message.body);
         else if(isAuthenticatedProfileBootstrapMessage(message.body))await processAuthenticatedProfileBootstrap(env,message.body);
         else if(isAuthenticatedSurfaceDiagnosticMessage(message.body))await processAuthenticatedSurfaceDiagnostic(env,message.body);
@@ -159,6 +161,7 @@ function isWebOperatorRunMessage(body:unknown):body is WebOperatorRunMessage {
 function isWebOperatorLiveSmokeMessage(body: unknown): body is WebOperatorLiveSmokeMessage {
   return isRecord(body) && body.type === "live_public_acquisition_smoke" && typeof body.requestId === "string";
 }
+function isPublicAcquisitionRequestMessage(body:unknown):body is PublicAcquisitionRequestMessage{return isRecord(body)&&body.type==="public_acquisition_request"&&typeof body.requestId==="string"}
 
 function isOpenRouterModelDiagnosticMessage(body:unknown):body is OpenRouterModelDiagnosticMessage {
   return isRecord(body)&&body.type==="openrouter_model_diagnostic"&&typeof body.requestId==="string";
@@ -210,6 +213,7 @@ function queueBodyId(body: unknown): string | undefined {
   if (isSourceRefreshJobMessage(body)) return body.sourceId;
   if (isWebOperatorRunMessage(body)) return body.runId;
   if (isWebOperatorLiveSmokeMessage(body)) return body.requestId;
+  if (isPublicAcquisitionRequestMessage(body)) return body.requestId;
   if (isOpenRouterModelDiagnosticMessage(body)) return body.requestId;
   if(isAuthenticatedProfileBootstrapMessage(body))return body.requestId;
   return undefined;
@@ -229,6 +233,7 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
   }
   try{await dispatchPendingAuthenticatedProfileBootstraps(env,now)}catch(error){console.warn("Could not dispatch pending authenticated profile bootstrap",error)}
   try{await dispatchPendingAuthenticatedSurfaceDiagnostics(env,now)}catch(error){console.warn("Could not dispatch pending authenticated surface diagnostic",error)}
+  try{await dispatchPendingPublicAcquisitionRequests(env)}catch(error){console.warn("Could not dispatch pending public acquisition requests",error)}
   if (env.DISTILLED_WEB_OPERATOR_ENABLED === "true") {
     try { await relayPendingWebOperatorOutbox(env,undefined,25,now); }
     catch (error) { console.warn("Could not relay pending Web Operator runs",error); }

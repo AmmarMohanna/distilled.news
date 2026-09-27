@@ -3,6 +3,7 @@ import { ContainerSourceBrowserPort } from "./container-source-browser-port";
 import type { Env } from "./types";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
 import { createWorkerContainerPublicWebOperatorLifecycle, executeWorkerSourcePlan } from "./web-operator-runtime";
+import { D1BrowserUseRunTelemetry } from "./browser-use-run-telemetry";
 
 export interface PublicSourceDiscoveryResult { evidence: SourceBrowserDiscoveryEvidence; plan: SourceBrowserWorkflowPlan; candidateUrl: string; browserOperations: number; discoveryModelCalls?: number; agentRunId?: string }
 class PublicSourceDiscoveryStop extends Error { constructor(readonly status: "AUTH_REQUIRED" | "CHALLENGE_REQUIRED" | "POLICY_DENIED", readonly diagnostics?: PublicBrowserObservation["challengeDiagnostics"], readonly originHost?: string, readonly observedPath?: string, readonly observedTitle?: string) { super(status); } }
@@ -59,9 +60,13 @@ export async function discoverBrowserUseSourcePlan(env: Env, input: { request: S
   const model = env.DISTILLED_LIVE_OPENROUTER_MODEL?.trim();
   if (!sourceUrl || !model || !env.OPENROUTER_API_KEY) return undefined;
   const origin = new URL(sourceUrl).origin;
+  const telemetry = new D1BrowserUseRunTelemetry(env.DB);
+  const agentRunId = `${input.runId}_browser_use`;
+  const agentStarted = Date.now();
+  await telemetry.begin({ runId: agentRunId, acquisitionRunId: input.runId, tenantId: input.tenantId, resourceId: input.resourceId, startedAt: new Date(agentStarted).toISOString() });
   const agentPort = ports?.agent ?? new ContainerSourceBrowserPort(env, { ...input, runId: `${input.runId}_browser_use`, generation: 1 });
   try { await agentPort.open({ sourceUrl, allowedOrigins: [origin], request: input.request }); }
-  catch (error) { throw tagBrowserUseStage(error, "AGENT_OPEN"); }
+  catch (error) { await telemetry.stage(agentRunId,"FAILED"); throw tagBrowserUseStage(error, "AGENT_OPEN"); }
   let proposal: Awaited<ReturnType<ContainerSourceBrowserPort["discoverWithBrowserUse"]>>;
   let agentFailure: unknown;
   try {
@@ -69,16 +74,20 @@ export async function discoverBrowserUseSourcePlan(env: Env, input: { request: S
     proposal = await backend.propose({ request: input.request, capability: { runId: `${input.runId}_browser_use`, tenantId: input.tenantId, ownerId: input.ownerId, resourceId: input.resourceId, browserGeneration: 1, allowedOrigins: [origin], siteKind: "PUBLIC", readOnly: true, expiresAt: new Date(Date.now() + 120_000).toISOString() } });
   } catch (error) {
     agentFailure = error;
+    await telemetry.stage(agentRunId,"FAILED");
     throw tagBrowserUseStage(error, "AGENT_RUN");
   }
-  finally { try { await agentPort.close(); } catch (error) { if (!agentFailure) throw tagBrowserUseStage(error, "AGENT_CLOSE"); } }
+  finally { try { await agentPort.close(); } catch (error) { if (!agentFailure) { await telemetry.stage(agentRunId,"FAILED"); throw tagBrowserUseStage(error, "AGENT_CLOSE"); } } }
+  await telemetry.stage(agentRunId,"PROPOSAL_ACCEPTED",{ modelCalls: proposal.modelCalls, browserOperations: proposal.browserActions, agentBrowserActions: proposal.agentBrowserActions, agentDurationMs: Date.now()-agentStarted });
   console.log(JSON.stringify({ event: "browser_use_agent_proposal", modelCalls: proposal.modelCalls ?? null, browserActions: proposal.browserActions ?? null, agentBrowserActions: proposal.agentBrowserActions ?? null, visitedPages: proposal.visitedUrls.length, articleHints: proposal.articleUrls.length }));
   // A model-reported challenge is only a hint; the verification session owns the typed result.
   const verifier = ports?.verifier ?? new ContainerSourceBrowserPort(env, { ...input, runId: `${input.runId}_browser_use_verify`, generation: 1 });
+  const verificationStarted = Date.now();
   let trusted: Awaited<ReturnType<typeof verifyBrowserUseProposal>>;
   try { trusted = await verifyBrowserUseProposal({ request: input.request, capability: { runId: proposal.runId, tenantId: input.tenantId, ownerId: input.ownerId, resourceId: input.resourceId, browserGeneration: 1, allowedOrigins: [origin], siteKind: "PUBLIC", readOnly: true, expiresAt: new Date(Date.now() + 120_000).toISOString() }, proposal, port: verifier }); }
-  catch (error) { if (error instanceof BrowserUseTrustedChallengeError) throw challengeStop(error.observation); throw tagBrowserUseStage(error, "TRUSTED_VERIFY"); }
+  catch (error) { await telemetry.stage(agentRunId,"FAILED",{verificationDurationMs:Date.now()-verificationStarted}); if (error instanceof BrowserUseTrustedChallengeError) throw challengeStop(error.observation); throw tagBrowserUseStage(error, "TRUSTED_VERIFY"); }
   if (trusted.plan.continuation.kind === "NONE") return undefined;
+  await telemetry.stage(agentRunId,"VERIFIED",{verificationDurationMs:Date.now()-verificationStarted});
   console.log(JSON.stringify({ event: "browser_use_discovery_verified", modelCalls: proposal.modelCalls ?? null, browserActions: proposal.browserActions ?? null, agentBrowserActions: proposal.agentBrowserActions ?? null, trustedArticles: trusted.articles.length }));
   return { evidence: { sourceUrl, listing: trusted.listing, sampledArticles: trusted.articles, afterScroll: trusted.afterScroll }, plan: trusted.plan, candidateUrl: trusted.articles[0].article!.canonicalUrl, browserOperations: (proposal.browserActions ?? proposal.steps) + trusted.articles.length + 1, discoveryModelCalls: proposal.modelCalls ?? proposal.steps, agentRunId: proposal.runId };
 }
@@ -256,6 +265,7 @@ export async function compileVerifiedBrowserUseDiscovery(
     ],unsupportedGaps:[],createdAt:now
   };
   await repository.saveWorkflowCandidate(candidate);
+  await new D1BrowserUseRunTelemetry(env.DB).stage(runId,"CANDIDATE");
   const execute = async (request: SourceAcquisitionRequest, workflow: WorkflowCandidate) => executeWorkerSourcePlan(env,{tenantId:input.tenantId,ownerId:input.ownerId,resourceId:input.resourceId,runId:makeId("source_execution",input.runId,workflow.id),request,workflow});
   return {
     candidate:{id:candidate.id,version:candidate.version,state:"CANDIDATE",execute:request=>execute(request,candidate)},
@@ -265,9 +275,10 @@ export async function compileVerifiedBrowserUseDiscovery(
       const passed=Object.values(criteria).every(Boolean);
       await repository.saveValidationResult({workflowId:candidate.id,passed,criteria,failureClass:passed?undefined:"structural_site_change",validatedAt:now});
       if(!passed)throw new Error("source workflow validation failed");
+      await new D1BrowserUseRunTelemetry(env.DB).stage(runId,"VALIDATED");
       return {id:candidate.id,version:candidate.version,state:"VALIDATED",execute:(request:SourceAcquisitionRequest)=>execute(request,{...candidate,state:"VALIDATED"})};
     },
-    activate:async()=>{const active=await repository.promoteWorkflow(candidate.id,"source-workflow-validator",now);return {id:active.id,version:active.version,execute:(request:SourceAcquisitionRequest)=>execute(request,active)};},
+    activate:async()=>{const active=await repository.promoteWorkflow(candidate.id,"source-workflow-validator",now);await new D1BrowserUseRunTelemetry(env.DB).stage(runId,"ACTIVE");return {id:active.id,version:active.version,execute:(request:SourceAcquisitionRequest)=>execute(request,active)};},
     runId,modelCalls:probe.discoveryModelCalls??0,browserOperations:probe.browserOperations
   };
 }

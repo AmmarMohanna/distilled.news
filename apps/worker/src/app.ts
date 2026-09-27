@@ -49,6 +49,7 @@ import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository 
 import { createWorkerPublicSourceAcquisitionService, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { D1UpstreamResourceStore } from "./upstream-resource-store";
 import { discoverAndPromotePublicSourceWorkflow } from "./public-source-discovery";
+import { D1BrowserUseRunTelemetry } from "./browser-use-run-telemetry";
 import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
 import { handleBridgePreflight,handleContainerPreflight,handleProviderDiagnostic } from "./bridge-preflight";
 import { handlePublicBrowserAcquisition } from "./public-browser-acquisition";
@@ -295,8 +296,52 @@ export function createApp(options: AppOptions = {}) {
     const limits = input.limits ?? { maxItems: 10, maxPages: 3, maxScrolls: 3, maxPhysicalAttempts: 16, maxExecutionMs: 60_000 };
     const runId = makeId("public_source_run", resource.id, input.idempotencyKey);
     const service = createWorkerPublicSourceAcquisitionService(c.env, { tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, sourceUrl: source.href, fetcher, webOperator: (request) => discoverAndPromotePublicSourceWorkflow(c.env, { request, tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, idempotencyKey: input.idempotencyKey }) });
-    const outcome = await service.acquire({ tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, source: { canonicalSourceUrl: source.href }, window, limits, authentication: "PUBLIC", acquisitionAsOf: now.toISOString() });
+    let outcome: Awaited<ReturnType<typeof service.acquire>>;
+    try { outcome = await service.acquire({ tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, source: { canonicalSourceUrl: source.href }, window, limits, authentication: "PUBLIC", acquisitionAsOf: now.toISOString() }); }
+    catch (error) { await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,"STRUCTURAL_FAILURE"); throw error; }
+    await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId, outcome.status === "SUCCESS" ? "SUCCESS" : outcome.stopReason === "CHALLENGE_REQUIRED" ? "CHALLENGE_REQUIRED" : outcome.stopReason === "POLICY_DENIED" ? "POLICY_DENIED" : "STRUCTURAL_FAILURE");
     return c.json({ status: outcome.status, stages: outcome.stages, stopReason: outcome.stopReason, upstreamResourceId: resource.id, activeWorkflow: outcome.activeWorkflow, candidateWorkflow: outcome.candidateWorkflow, webOperatorCalls: outcome.webOperatorCalls, webOperatorRunId: outcome.webOperatorRunId, discoveryModelCalls: outcome.discoveryModelCalls, discoveryBrowserOperations: outcome.discoveryBrowserOperations, requestedWindow: outcome.result?.requestedWindow ?? outcome.request.window, effectiveWindow: outcome.result?.effectiveWindow, acquisitionAsOf: outcome.result?.acquisitionAsOf ?? outcome.request.acquisitionAsOf, coverage: outcome.result?.coverage, continuation: outcome.result?.continuation, items: outcome.result?.items.map((item) => ({ canonicalItemUrl: item.canonicalItemUrl, sourceItemId: item.sourceItemId, title: item.title, publishedAt: item.publishedAt, contentLength: item.text?.length, originalSourceReference: item.originalSourceReference })), committedHighWater: outcome.committedHighWater });
+  });
+
+  app.post("/v1/live-smoke/public-acquisition/submit", async (c) => {
+    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({error:"not found"},404);
+    if (!isRuntimeAuthorized(c)) return c.json({error:"unauthorized"},401);
+    const input = livePublicAcquisitionSmokeSchema.safeParse(await c.req.json().catch(()=>null));
+    if (!input.success) return c.json({error:"invalid_request"},400);
+    const source = new URL(input.data.sourceUrl);
+    if (source.protocol!=="https:" || source.username || source.password || source.search || source.hash || Date.parse(input.data.startTime)>=Date.parse(input.data.endTime)) return c.json({error:"invalid_source_window"},400);
+    const owner=await repoFor(c).getAccountById(input.data.ownerAccountId);
+    if (!owner || owner.disabledAt) return c.json({error:"owner_not_found"},404);
+    const requestId=makeId("public_acquisition_request",owner.id,source.href,input.data.idempotencyKey);
+    const inserted=await c.env.DB.prepare(`INSERT OR IGNORE INTO public_acquisition_requests
+      (request_id,idempotency_key,owner_account_id,request_json,state,created_at) VALUES (?,?,?,?,'pending',?)`)
+      .bind(requestId,input.data.idempotencyKey,owner.id,JSON.stringify({...input.data,sourceUrl:source.href}),nowFor().toISOString()).run();
+    if (Number(inserted.meta.changes)===1) {
+      await c.env.WEB_OPERATOR_QUEUE.send({type:"public_acquisition_request",requestId});
+      await c.env.DB.prepare("UPDATE public_acquisition_requests SET state='queued' WHERE request_id=? AND state='pending'").bind(requestId).run();
+    }
+    const state=await c.env.DB.prepare("SELECT state FROM public_acquisition_requests WHERE request_id=?").bind(requestId).first<{state:string}>();
+    return c.json({requestId,state:state?.state??"pending"},202);
+  });
+
+  app.get("/v1/live-smoke/public-acquisition/requests/:requestId", async (c) => {
+    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({error:"not found"},404);
+    if (!isRuntimeAuthorized(c)) return c.json({error:"unauthorized"},401);
+    const requestId=c.req.param("requestId");
+    if (!/^public_acquisition_request_[a-f0-9]{32}$/.test(requestId)) return c.json({error:"invalid_request_id"},400);
+    const row=await c.env.DB.prepare("SELECT request_id,state,outcome,result_json,failure_class,created_at,started_at,completed_at FROM public_acquisition_requests WHERE request_id=?")
+      .bind(requestId).first<{request_id:string;state:string;outcome:string|null;result_json:string|null;failure_class:string|null;created_at:string;started_at:string|null;completed_at:string|null}>();
+    if (!row) return c.json({error:"not found"},404);
+    return c.json({requestId:row.request_id,state:row.state,outcome:row.outcome,result:row.result_json?JSON.parse(row.result_json):null,failureClass:row.failure_class,createdAt:row.created_at,startedAt:row.started_at,completedAt:row.completed_at});
+  });
+
+  app.get("/v1/live-smoke/browser-use-runs/:runId", async (c) => {
+    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
+    if (!isRuntimeAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
+    const runId = c.req.param("runId");
+    if (!/^public_source_run_[a-f0-9]{32}_browser_use$/.test(runId)) return c.json({ error: "invalid_run_id" }, 400);
+    const row = await new D1BrowserUseRunTelemetry(c.env.DB).get(runId);
+    return row ? c.json(row) : c.json({ error: "not found" }, 404);
   });
 
   app.get("/api/auth/session", async (c) => {

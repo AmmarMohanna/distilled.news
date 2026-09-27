@@ -69,7 +69,8 @@ describe("public source discovery from trusted Container structure", () => {
     const staticListing: PublicBrowserObservation = { url: source, title: "SPA", pageRevision: "initial", visibleText: "", controls: [] };
     const dynamicListing: PublicBrowserObservation = { ...staticListing, pageRevision: "hydrated", controls: [first, second].map(url => ({ handle: url, kind: "link" as const, role: "link", label: "Story", safeAction: "follow" as const, destinationUrl: url })) };
     let agentClosed = 0, verifierClosed = 0;
-    const result = await discoverBrowserUseSourcePlan({ DISTILLED_LIVE_OPENROUTER_MODEL: "openai/model", OPENROUTER_API_KEY: "test-only" } as Env,
+    const telemetryDb = { prepare: () => ({ bind: () => ({ run: async () => ({}) }) }) };
+    const result = await discoverBrowserUseSourcePlan({ DB: telemetryDb, DISTILLED_LIVE_OPENROUTER_MODEL: "openai/model", OPENROUTER_API_KEY: "test-only" } as unknown as Env,
       { request, tenantId: "tenant", ownerId: "owner", resourceId: "resource", runId: "run" },
       { agent: { open: async () => {}, close: async () => { agentClosed++; }, discoverWithBrowserUse: async () => ({ protocol: "distilled.browser-use.discovery.v1", runId: "run_browser_use", visitedUrls: [source, first, second], listingUrls: [source], articleUrls: [first, second], continuation: "scroll", timestampHints: [], steps: 4, challengeObserved: false }) },
         verifier: { open: async () => {}, navigateAndObserve: async url => url === source ? staticListing : { ...article(url.split("/").at(-1)!), url }, scrollAndObserve: async () => dynamicListing, close: async () => { verifierClosed++; } } });
