@@ -11,14 +11,17 @@ import os
 import re
 import sys
 import traceback
+import urllib.error
 import urllib.request
 import uuid
 from urllib.parse import urlparse
 
 
 class DiscoveryFailure(Exception):
-    def __init__(self, category: str):
+    def __init__(self, category: str, bridge_code: str | None = None, bridge_status: int | None = None):
         self.category = category
+        self.bridge_code = bridge_code
+        self.bridge_status = bridge_status
         super().__init__(category)
 
 
@@ -144,8 +147,20 @@ async def discover(payload: dict) -> dict:
         body = json.dumps({"protocol": "v1", "operationId": str(uuid.uuid4()),
                            "capability": capability, "operation": operation, **arguments}).encode()
         request = urllib.request.Request(bridge_url, data=body, headers={"content-type": "application/json"}, method="POST")
-        with urllib.request.urlopen(request, timeout=25) as response:
-            envelope = json.load(response)
+        try:
+            with urllib.request.urlopen(request, timeout=25) as response:
+                envelope = json.load(response)
+        except urllib.error.HTTPError as error:
+            try:
+                failure = json.loads(error.read(4096))
+                code = failure.get("error", {}).get("code")
+            except (ValueError, TypeError, AttributeError):
+                code = None
+            allowed = {"BRIDGE_UNAVAILABLE", "BRIDGE_UNAUTHORIZED", "BRIDGE_REPLAY_REJECTED", "BRIDGE_EXECUTION_EXPIRED",
+                       "BRIDGE_FENCE_MISMATCH", "BRIDGE_OBSERVATION_STALE", "BRIDGE_NETWORK_POLICY_DENIED",
+                       "BRIDGE_EFFECT_UNKNOWN", "BRIDGE_BROWSER_FAILURE", "BRIDGE_PROTOCOL_UNSUPPORTED",
+                       "BRIDGE_PAYLOAD_TOO_LARGE", "BRIDGE_OPERATION_UNKNOWN"}
+            raise DiscoveryFailure("ACTION_BRIDGE_FAILED", code if isinstance(code, str) and code in allowed else None, error.code) from error
         if envelope.get("ok") is not True:
             raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
         result = envelope["result"]
@@ -280,5 +295,7 @@ if __name__ == "__main__":
                           "failureType": safe_exception_type(origin),
                           "causeType": safe_exception_type(origin.__cause__ if origin else None),
                           "failureTrace": safe_trace(origin),
-                          "runtimeHint": runtime_hint(origin)}))
+                          "runtimeHint": runtime_hint(origin),
+                          "bridgeFailureCode": error.bridge_code if isinstance(error, DiscoveryFailure) else None,
+                          "bridgeHttpStatus": error.bridge_status if isinstance(error, DiscoveryFailure) else None}))
         sys.exit(1)

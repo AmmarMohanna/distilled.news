@@ -1,4 +1,4 @@
-import {AUTHENTICATED_BROWSER_BRIDGE_PATH,AuthenticatedBrowserBridgeError,BROWSER_USE_FAILURE_CATEGORIES,BRIDGE_MAX_OBSERVATION_BYTES,BRIDGE_MAX_OPERATION_BUDGET,BRIDGE_MAX_REQUEST_BYTES,BRIDGE_MAX_STORAGE_STATE_BYTES,BRIDGE_MUTATION_OPERATIONS,SelfHostedChromiumProvider,assertBridgeRequestShape,assertCapabilityExactMatch,bridgeRequestFingerprint,byteLength,verifyBrowserBridgeRequest,type BrowserBridgeDiagnostic,type BrowserUseFailureCategory,type BrowserNetworkPolicyDiagnostic,type AuthenticatedBrowserBridgeFailureCode,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserBridgeResponse,type AuthenticatedBrowserBridgeResult,type AuthenticatedBrowserExecutionCapability,type BrowserAllocation,type PublicBrowserObservation} from "@distilled/agent-runtime";
+import {AUTHENTICATED_BROWSER_BRIDGE_PATH,AuthenticatedBrowserBridgeError,BROWSER_USE_FAILURE_CATEGORIES,BRIDGE_FAILURE_CODES,BRIDGE_MAX_OBSERVATION_BYTES,BRIDGE_MAX_OPERATION_BUDGET,BRIDGE_MAX_REQUEST_BYTES,BRIDGE_MAX_STORAGE_STATE_BYTES,BRIDGE_MUTATION_OPERATIONS,SelfHostedChromiumProvider,assertBridgeRequestShape,assertCapabilityExactMatch,bridgeRequestFingerprint,byteLength,verifyBrowserBridgeRequest,type BrowserBridgeDiagnostic,type BrowserUseFailureCategory,type BrowserNetworkPolicyDiagnostic,type AuthenticatedBrowserBridgeFailureCode,type AuthenticatedBrowserBridgeRequest,type AuthenticatedBrowserBridgeResponse,type AuthenticatedBrowserBridgeResult,type AuthenticatedBrowserExecutionCapability,type BrowserAllocation,type PublicBrowserObservation} from "@distilled/agent-runtime";
 import { originMatches } from "@distilled/agent-runtime";
 import { assertBoundedProposal, type BrowserUseDiscoveryProposal } from "@distilled/agent-runtime";
 import { spawn } from "node:child_process";
@@ -84,18 +84,20 @@ export class AuthenticatedBrowserBridgeService{
         if(settled)return;
         try{
           if(code!==0){
-            let category:BrowserUseFailureCategory="AGENT_RUN_FAILED",failureType:string|undefined,causeType:string|undefined,failureTrace:string[]|undefined,runtimeHint:string|undefined;
+            let category:BrowserUseFailureCategory="AGENT_RUN_FAILED",failureType:string|undefined,causeType:string|undefined,failureTrace:string[]|undefined,runtimeHint:string|undefined,bridgeFailureCode:AuthenticatedBrowserBridgeFailureCode|undefined,bridgeHttpStatus:number|undefined;
             const runnerExit=signal?"SIGNAL":output.trim()?"EXIT_CODE":"EMPTY_OUTPUT";
             try{
-              const failure=JSON.parse(output) as {category?:unknown;failureType?:unknown;causeType?:unknown;failureTrace?:unknown;runtimeHint?:unknown};
+              const failure=JSON.parse(output) as {category?:unknown;failureType?:unknown;causeType?:unknown;failureTrace?:unknown;runtimeHint?:unknown;bridgeFailureCode?:unknown;bridgeHttpStatus?:unknown};
               if(BROWSER_USE_FAILURE_CATEGORIES.includes(failure.category as BrowserUseFailureCategory))category=failure.category as BrowserUseFailureCategory;
               if(typeof failure.failureType==="string"&&/^[A-Za-z0-9_.]{1,120}$/.test(failure.failureType))failureType=failure.failureType;
               if(typeof failure.causeType==="string"&&/^[A-Za-z0-9_.]{1,120}$/.test(failure.causeType))causeType=failure.causeType;
               if(Array.isArray(failure.failureTrace)&&failure.failureTrace.length<=4&&failure.failureTrace.every(value=>typeof value==="string"&&/^[A-Za-z0-9_.]{1,100}$/.test(value)))failureTrace=failure.failureTrace;
               if(typeof failure.runtimeHint==="string"&&/^[A-Z_]{1,40}$/.test(failure.runtimeHint))runtimeHint=failure.runtimeHint;
+              if(BRIDGE_FAILURE_CODES.includes(failure.bridgeFailureCode as AuthenticatedBrowserBridgeFailureCode))bridgeFailureCode=failure.bridgeFailureCode as AuthenticatedBrowserBridgeFailureCode;
+              if(typeof failure.bridgeHttpStatus==="number"&&Number.isInteger(failure.bridgeHttpStatus)&&failure.bridgeHttpStatus>=400&&failure.bridgeHttpStatus<=599)bridgeHttpStatus=failure.bridgeHttpStatus;
             }catch{/* bounded diagnostic only */}
-            console.log(JSON.stringify({event:"browser_use_runner_failure",category,failureType,causeType,failureTrace,runtimeHint,runnerExit}));
-            finish(new AuthenticatedBrowserBridgeError("BRIDGE_BROWSER_FAILURE",{browserUseFailure:category,failureType,causeType,failureTrace,runtimeHint,runnerExit}));return;
+            console.log(JSON.stringify({event:"browser_use_runner_failure",category,failureType,causeType,failureTrace,runtimeHint,bridgeFailureCode,bridgeHttpStatus,runnerExit}));
+            finish(new AuthenticatedBrowserBridgeError("BRIDGE_BROWSER_FAILURE",{browserUseFailure:category,failureType,causeType,failureTrace,runtimeHint,bridgeFailureCode,bridgeHttpStatus,runnerExit}));return;
           }
           const parsed=JSON.parse(output) as BrowserUseDiscoveryProposal;
           assertBoundedProposal(parsed,{runId:cap.runId,tenantId:cap.tenantId,ownerId:cap.ownerId,resourceId:cap.profileId,browserGeneration:cap.browserGeneration,allowedOrigins:cap.allowedOrigins,siteKind:"PUBLIC",readOnly:true,expiresAt:cap.expiresAt});

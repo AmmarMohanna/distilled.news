@@ -30,6 +30,12 @@ describe("public source discovery from trusted Container structure", () => {
     expect(outcome.reason).toContain("browser_use.exceptions.BrowserError/builtins.RuntimeError");
     expect(outcome.details).toMatchObject({ failureType: "browser_use.exceptions.BrowserError", causeType: "builtins.RuntimeError" });
   });
+  it("reports only a bounded bridge status and failure code from Python action errors", () => {
+    const error = new AuthenticatedBrowserBridgeError("BRIDGE_BROWSER_FAILURE", { browserUseFailure: "ACTION_BRIDGE_FAILED", bridgeFailureCode: "BRIDGE_EXECUTION_EXPIRED", bridgeHttpStatus: 409 });
+    const outcome = bridgeStop(error, "BROWSER_USE_DISCOVERY");
+    expect(outcome.reason).toContain("ACTION_BRIDGE_FAILED/BRIDGE_EXECUTION_EXPIRED/409");
+    expect(outcome.details).toMatchObject({ bridgeFailureCode: "BRIDGE_EXECUTION_EXPIRED", bridgeHttpStatus: 409 });
+  });
   it("reports bounded trusted verification counts without model text or URLs", () => {
     const error = new BrowserUseEvidenceError({ proposalArticles: 2, visitedPages: 3, observedLinks: 2, trustedArticles: 0, scrollObservations: 2, continuation: "scroll" });
     const outcome = bridgeStop(error, "BROWSER_USE_DISCOVERY");
