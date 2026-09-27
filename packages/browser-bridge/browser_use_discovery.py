@@ -82,7 +82,10 @@ async def discover(payload: dict) -> dict:
 
     class Discovery(BaseModel):
         listing_urls: list[str] = Field(max_length=16)
-        article_urls: list[str] = Field(max_length=32)
+        # Workflow compilation needs two independent dated samples. Requiring
+        # two hypotheses prevents a premature empty Agent completion; each is
+        # still checked against observed links and reverified by Distilled.
+        article_urls: list[str] = Field(min_length=2, max_length=32)
         continuation: str
         timestamp_hints: list[str] = Field(max_length=16)
         challenge_observed: bool
