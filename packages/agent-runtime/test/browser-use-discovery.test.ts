@@ -14,6 +14,14 @@ describe("Browser Use discovery boundary", () => {
     expect(result.modelCalls).toBe(3);
     expect(compile).toHaveBeenCalledOnce();
   });
+  it("uses measured model and fenced action counts when the Python runner reports them", async () => {
+    const compile = vi.fn(async () => ({ id: "candidate", version: 1, state: "CANDIDATE" as const, execute: vi.fn() }));
+    const measured = { ...proposal, modelCalls: 2, browserActions: 5, agentBrowserActions: 2 };
+    const result = await new BrowserUseDiscoveryBackend({ discover: async () => measured }, { compile }).discover({ request: {} as never, capability });
+    expect(result.modelCalls).toBe(2);
+    expect(result.browserOperations).toBe(5);
+    await expect(new BrowserUseDiscoveryBackend({ discover: async () => ({ ...measured, modelCalls: 33 }) }, { compile }).propose({ request: {} as never, capability })).rejects.toThrow("invalid_browser_use_proposal");
+  });
   it("rejects off-origin, unvisited and challenged claims before compilation", async () => {
     const compile = vi.fn();
     for (const changed of [
@@ -57,7 +65,7 @@ describe("Browser Use discovery boundary", () => {
     let scrolls=0, closes=0;
     const port={open:async()=>{},navigateAndObserve:async(url:string)=>url===source?observed(source,[]):articles.get(url)!,scrollAndObserve:async()=>observed(source,++scrolls===1?[a]:[a,b]),close:async()=>{closes++}};
     const request={source:{canonicalSourceUrl:source},limits:{maxScrolls:3,maxPhysicalAttempts:8}} as never;
-    const verified=await verifyBrowserUseProposal({request,capability,proposal:{...proposal,visitedUrls:[source,a,b],articleUrls:[a,b]},port});
+    const verified=await verifyBrowserUseProposal({request,capability,proposal:{...proposal,visitedUrls:[source,a,b],articleUrls:[a,b],continuation:"none"},port});
     expect(scrolls).toBe(2);expect(verified.articles).toHaveLength(2);expect(verified.plan.continuation.kind).toBe("SCROLL");expect(closes).toBe(1);
   });
   it("rejects unbounded or authenticated Browser Use bridge operations", () => {

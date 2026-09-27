@@ -75,7 +75,8 @@ export async function discoverBrowserUseSourcePlan(env: Env, input: { request: S
   try { trusted = await verifyBrowserUseProposal({ request: input.request, capability: { runId: proposal.runId, tenantId: input.tenantId, ownerId: input.ownerId, resourceId: input.resourceId, browserGeneration: 1, allowedOrigins: [origin], siteKind: "PUBLIC", readOnly: true, expiresAt: new Date(Date.now() + 120_000).toISOString() }, proposal, port: verifier }); }
   catch (error) { if (error instanceof BrowserUseTrustedChallengeError) throw challengeStop(error.observation); throw tagBrowserUseStage(error, "TRUSTED_VERIFY"); }
   if (trusted.plan.continuation.kind === "NONE") return undefined;
-  return { evidence: { sourceUrl, listing: trusted.listing, sampledArticles: trusted.articles }, plan: trusted.plan, candidateUrl: trusted.articles[0].article!.canonicalUrl, browserOperations: proposal.steps + trusted.articles.length + 1, discoveryModelCalls: proposal.steps };
+  console.log(JSON.stringify({ event: "browser_use_discovery_verified", modelCalls: proposal.modelCalls ?? null, browserActions: proposal.browserActions ?? null, agentBrowserActions: proposal.agentBrowserActions ?? null, trustedArticles: trusted.articles.length }));
+  return { evidence: { sourceUrl, listing: trusted.listing, sampledArticles: trusted.articles }, plan: trusted.plan, candidateUrl: trusted.articles[0].article!.canonicalUrl, browserOperations: (proposal.browserActions ?? proposal.steps) + trusted.articles.length + 1, discoveryModelCalls: proposal.modelCalls ?? proposal.steps };
 }
 
 function tagBrowserUseStage(error: unknown, stage: "AGENT_OPEN" | "AGENT_RUN" | "AGENT_CLOSE" | "TRUSTED_VERIFY"): unknown {

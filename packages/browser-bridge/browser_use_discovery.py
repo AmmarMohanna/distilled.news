@@ -111,8 +111,19 @@ async def discover(payload: dict) -> dict:
                                    "switch", "close", "extract", "screenshot", "dropdown_options",
                                    "select_dropdown", "write_file", "read_file", "replace_file"])
     visited: list[str] = []
+    model_calls = 0
+    browser_actions = 0
+    agent_actions = 0
+
+    class CountedChatOpenAI(ChatOpenAI):
+        async def ainvoke(self, *args, **kwargs):
+            nonlocal model_calls
+            result = await super().ainvoke(*args, **kwargs)
+            model_calls += 1
+            return result
 
     def bridge(operation: str, **arguments: object) -> dict:
+        nonlocal browser_actions
         body = json.dumps({"protocol": "v1", "operationId": str(uuid.uuid4()),
                            "capability": capability, "operation": operation, **arguments}).encode()
         request = urllib.request.Request(bridge_url, data=body, headers={"content-type": "application/json"}, method="POST")
@@ -125,6 +136,7 @@ async def discover(payload: dict) -> dict:
             raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
         if result["url"] not in visited:
             visited.append(result["url"])
+        browser_actions += 1
         return result
 
     def summary(result: dict) -> str:
@@ -140,17 +152,26 @@ async def discover(payload: dict) -> dict:
 
     @tools.action("Navigate to a public same-origin page through Distilled's fenced Chromium browser")
     async def navigate_source(url: str) -> ActionResult:
+        nonlocal agent_actions
         if not admitted(url, origin):
             return ActionResult(extracted_content="Navigation denied by Distilled origin policy")
-        return ActionResult(extracted_content=summary(await asyncio.to_thread(bridge, "NAVIGATE_PUBLIC_PAGE", url=url)))
+        result = await asyncio.to_thread(bridge, "NAVIGATE_PUBLIC_PAGE", url=url)
+        agent_actions += 1
+        return ActionResult(extracted_content=summary(result))
 
     @tools.action("Scroll the current Distilled public page by up to 1200 pixels and inspect it")
     async def scroll_source() -> ActionResult:
-        return ActionResult(extracted_content=summary(await asyncio.to_thread(bridge, "SCROLL_PUBLIC_PAGE", deltaY=1200)))
+        nonlocal agent_actions
+        result = await asyncio.to_thread(bridge, "SCROLL_PUBLIC_PAGE", deltaY=1200)
+        agent_actions += 1
+        return ActionResult(extracted_content=summary(result))
 
     @tools.action("Observe the current Distilled public page")
     async def observe_source() -> ActionResult:
-        return ActionResult(extracted_content=summary(await asyncio.to_thread(bridge, "OBSERVE_PUBLIC_PAGE")))
+        nonlocal agent_actions
+        result = await asyncio.to_thread(bridge, "OBSERVE_PUBLIC_PAGE")
+        agent_actions += 1
+        return ActionResult(extracted_content=summary(result))
     # A bounded, fenced listing probe gives the agent real links on sites that
     # render items only after scrolling. These are hints, never trusted evidence.
     initial = await asyncio.to_thread(bridge, "NAVIGATE_PUBLIC_PAGE", url=source_url)
@@ -170,7 +191,7 @@ async def discover(payload: dict) -> dict:
                   "Return article_urls only for article pages you visited through navigate_source. "
                   "Identify listing and article URLs, continuation, timestamp hints, and visible challenges. "
                   "Do not submit forms, authenticate, or claim a challenge was solved."),
-            llm=ChatOpenAI(model=model, api_key=os.environ["OPENAI_API_KEY"],
+            llm=CountedChatOpenAI(model=model, api_key=os.environ["OPENAI_API_KEY"],
                            base_url=os.environ["OPENAI_BASE_URL"], reasoning_effort=None),
             browser=browser, tools=tools,
             output_model_schema=Discovery, use_vision=False, directly_open_url=False,
@@ -200,6 +221,9 @@ async def discover(payload: dict) -> dict:
         "continuation": continuation,
         "timestampHints": structured["timestamp_hints"][:16],
         "steps": min(32, history.number_of_steps()),
+        "modelCalls": min(32, model_calls),
+        "browserActions": min(64, browser_actions),
+        "agentBrowserActions": min(32, agent_actions),
         "challengeObserved": structured["challenge_observed"],
     }
 
