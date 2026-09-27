@@ -51,6 +51,8 @@ export function compileSourceBrowserWorkflowPlan(evidence: SourceBrowserDiscover
     if (!paths.every((parts) => parts[index] === paths[0][index])) break;
     common.push(paths[0][index]);
   }
+  const calendarIndex=paths[0].findIndex((part,index)=>/^20\d{2}$/.test(part)&&/^\d{1,2}$/.test(paths[0][index+1]??"")&&/^\d{1,2}$/.test(paths[0][index+2]??""));
+  if(calendarIndex>0&&paths.every(parts=>/^20\d{2}$/.test(parts[calendarIndex]??"")&&/^\d{1,2}$/.test(parts[calendarIndex+1]??"")&&/^\d{1,2}$/.test(parts[calendarIndex+2]??"")))common.splice(calendarIndex);
   if (!common.length) return undefined;
   const next = evidence.listing.controls.find((control) => control.kind === "link" && control.destinationUrl &&
     /^(?:next|older)(?: page| stories| articles)?$/i.test(control.label.trim()) && sameAdmittedOrigin(control.destinationUrl, [source.origin]));
@@ -61,7 +63,7 @@ export function compileSourceBrowserWorkflowPlan(evidence: SourceBrowserDiscover
     : evidence.afterScroll && evidence.afterScroll.pageRevision !== evidence.listing.pageRevision && scrolledLinks.length > 0
       ? { kind: "SCROLL", deltaY: 1200, terminalEvidence: "UNPROVEN" }
       : { kind: "NONE", terminalEvidence: "UNPROVEN" };
-  return { version: 1, entryUrl: source.href, allowedOrigins: [source.origin], articlePathPrefix: `/${common.join("/")}/`, continuation };
+  return { version: 1, entryUrl: source.href, allowedOrigins: [source.origin], articlePathPrefix: stableArticlePrefix(`/${common.join("/")}/`), continuation };
 }
 
 /** The temporal kernel owns budgets, deduplication, [start,end), coverage, and cleanup. */
@@ -173,8 +175,15 @@ export function validateSourceBrowserWorkflowPlan(plan: SourceBrowserWorkflowPla
 }
 
 function isArticleUrl(value: string, plan: SourceBrowserWorkflowPlan): boolean {
-  try { const url = new URL(value); return sameAdmittedOrigin(value, plan.allowedOrigins) && url.pathname.startsWith(plan.articlePathPrefix) && url.href !== plan.entryUrl; }
+  try { const url = new URL(value); return sameAdmittedOrigin(value, plan.allowedOrigins) && url.pathname.startsWith(stableArticlePrefix(plan.articlePathPrefix)) && url.href !== plan.entryUrl; }
   catch { return false; }
+}
+
+/** A calendar path belongs to the item identity, not to a reusable listing workflow. */
+function stableArticlePrefix(prefix:string):string{
+  const parts=prefix.split("/").filter(Boolean);
+  const yearIndex=parts.findIndex((part,index)=>/^20\d{2}$/.test(part)&&/^\d{1,2}$/.test(parts[index+1]??"")&&/^\d{1,2}$/.test(parts[index+2]??""));
+  return yearIndex>0?`/${parts.slice(0,yearIndex).join("/")}/`:prefix;
 }
 
 function observedLinks(observation: PublicBrowserObservation): string[] {

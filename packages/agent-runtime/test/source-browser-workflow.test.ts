@@ -48,6 +48,20 @@ describe("deterministic multi-item browser workflow", () => {
     expect(compileSourceBrowserWorkflowPlan({ ...evidence, afterScroll: { ...evidence.listing, pageRevision: "scrolled", controls: [...evidence.listing.controls, link(`${origin}/article/c`)] } })).toMatchObject({ continuation: { kind: "SCROLL" } });
     expect(compileSourceBrowserWorkflowPlan({ ...evidence, listing: { ...evidence.listing, controls: [], listingLinks: [`${origin}/article/a`, `${origin}/article/b`] }, afterScroll: { ...evidence.listing, controls: [], listingLinks: [`${origin}/article/a`, `${origin}/article/b`, `${origin}/article/c`], pageRevision: "scrolled" } })).toMatchObject({ continuation: { kind: "SCROLL" } });
   });
+  it("keeps dated item paths reusable across later acquisition windows", async () => {
+    const dated=(day:string,id:string)=>`${origin}/blogs/2026/9/${day}/${id}`;
+    const listingPage=listing(`${origin}/news`,[dated("27","a"),dated("28","b")]);
+    const samples=[
+      {...article("a","2026-09-27T12:00:00Z"),url:dated("27","a"),article:{...article("a","2026-09-27T12:00:00Z").article!,canonicalUrl:dated("27","a")}},
+      {...article("b","2026-09-28T12:00:00Z"),url:dated("28","b"),article:{...article("b","2026-09-28T12:00:00Z").article!,canonicalUrl:dated("28","b")}}
+    ];
+    const compiled=compileSourceBrowserWorkflowPlan({sourceUrl:`${origin}/news`,listing:listingPage,sampledArticles:samples});
+    expect(compiled?.articlePathPrefix).toBe("/blogs/");
+    const legacy={...compiled!,articlePathPrefix:"/blogs/2026/9/27/"};
+    const pages=new Map<string,PublicBrowserObservation>([[listingPage.url,listingPage],...samples.map(value=>[value.url,value] as const)]);
+    const result=await new DeterministicSourceBrowserWorkflowExecutor(fixture(pages).port).execute({...request,window:{startTime:"2026-09-28T00:00:00Z",endTime:"2026-09-29T00:00:00Z"},acquisitionAsOf:"2026-09-29T01:00:00Z"},legacy);
+    expect(result.items.map(value=>value.canonicalItemUrl)).toEqual([dated("28","b")]);
+  });
   it("traverses listings and articles, deduplicates, applies [start,end), and proves validated exhaustion", async () => {
     const page2 = `${origin}/news?page=2`;
     const fixturePages = new Map<string, PublicBrowserObservation>([
