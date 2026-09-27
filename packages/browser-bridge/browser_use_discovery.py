@@ -8,6 +8,7 @@ import asyncio
 import contextlib
 import json
 import os
+import re
 import sys
 import traceback
 import urllib.request
@@ -70,6 +71,18 @@ def admitted(value: str, origin: str) -> bool:
         and not parsed.password
         and len(value) <= 2048
     )
+
+
+def article_candidate_score(value: str) -> int:
+    """Rank only URLs already observed by the fenced browser, without page JS."""
+    path = urlparse(value).path.lower()
+    parts = [part for part in path.split("/") if part]
+    if len(parts) < 2 or re.search(r"\.(?:js|mjs|css|json|xml|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|map)$", path):
+        return -100
+    if parts[0] in {"account", "search", "login", "signin", "tag", "tags", "author"}:
+        return -100
+    dated = bool(re.search(r"/20\d{2}/\d{1,2}/\d{1,2}/", path))
+    return (100 if dated else 0) + min(30, len(parts[-1]) // 4) + min(20, len(parts) * 4)
 
 
 async def discover(payload: dict) -> dict:
@@ -155,7 +168,7 @@ async def discover(payload: dict) -> dict:
         links += [control.get("destinationUrl") for control in controls if isinstance(control, dict) and isinstance(control.get("destinationUrl"), str) and admitted(control["destinationUrl"], origin)]
         article = result.get("article") or {}
         return json.dumps({"url": result["url"], "title": result.get("title", "")[:200],
-                           "links": list(dict.fromkeys(links))[:40],
+                           "links": sorted(set(links), key=lambda value: (-article_candidate_score(value), value))[:40],
                            "articleCanonical": article.get("canonicalUrl"),
                            "articlePublished": article.get("publisherTimestamp"),
                            "challengeState": result.get("challengeState")}, separators=(",", ":"))[:12000]
@@ -192,6 +205,7 @@ async def discover(payload: dict) -> dict:
             initial_observations.append(summary(initial))
             if initial.get("challengeState") and initial.get("challengeState") != "NO_CHALLENGE":
                 break
+    initial_listing_links = set(observed_links)
     try:
         agent = Agent(
             task=(f"Explore the public news listing {source_url} using navigate_source, scroll_source and observe_source. "
@@ -225,7 +239,10 @@ async def discover(payload: dict) -> dict:
     # browser. Execute selected visits here; the Worker later re-observes them
     # in a fresh session before compiling any workflow.
     articles = []
-    for url in structured["article_urls"][:8]:
+    model_hints = [url for url in structured["article_urls"] if url in observed_links]
+    observed_candidates = sorted((url for url in initial_listing_links if article_candidate_score(url) >= 20),
+                                 key=lambda value: (-article_candidate_score(value), value))
+    for url in list(dict.fromkeys(model_hints + observed_candidates))[:4]:
         if url not in observed_links:
             continue
         if url not in visited:
