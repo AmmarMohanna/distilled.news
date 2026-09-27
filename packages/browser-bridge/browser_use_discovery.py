@@ -151,10 +151,23 @@ async def discover(payload: dict) -> dict:
     @tools.action("Observe the current Distilled public page")
     async def observe_source() -> ActionResult:
         return ActionResult(extracted_content=summary(await asyncio.to_thread(bridge, "OBSERVE_PUBLIC_PAGE")))
+    # A bounded, fenced listing probe gives the agent real links on sites that
+    # render items only after scrolling. These are hints, never trusted evidence.
+    initial = await asyncio.to_thread(bridge, "NAVIGATE_PUBLIC_PAGE", url=source_url)
+    initial_observations = [summary(initial)]
+    if not initial.get("challengeState") or initial.get("challengeState") == "NO_CHALLENGE":
+        for _ in range(2):
+            initial = await asyncio.to_thread(bridge, "SCROLL_PUBLIC_PAGE", deltaY=1200)
+            initial_observations.append(summary(initial))
+            if initial.get("challengeState") and initial.get("challengeState") != "NO_CHALLENGE":
+                break
     try:
         agent = Agent(
             task=(f"Explore the public news listing {source_url} using navigate_source, scroll_source and observe_source. "
-                  "Navigate at least two article pages. Return only URLs you visited. "
+                  f"Distilled already observed these bounded listing states: {initial_observations}. "
+                  "Use navigate_source on at least two observed article links before finishing when two are available. "
+                  "If no article links are visible, use scroll_source and observe_source to find them. "
+                  "Return article_urls only for article pages you visited through navigate_source. "
                   "Identify listing and article URLs, continuation, timestamp hints, and visible challenges. "
                   "Do not submit forms, authenticate, or claim a challenge was solved."),
             llm=ChatOpenAI(model=model, api_key=os.environ["OPENAI_API_KEY"],

@@ -91,7 +91,9 @@ export async function verifyBrowserUseProposal(input: {
         if (typeof value === "string") observedLinks.add(value);
     };
     addLinks(listing);
-    if (proposal.continuation === "scroll" && port.scrollAndObserve) {
+    // The continuation label is a model hypothesis. Re-observe when its
+    // claimed article links are absent from the trusted initial listing.
+    if (port.scrollAndObserve && (proposal.continuation === "scroll" || proposal.articleUrls.filter(url => observedLinks.has(url)).length < 2)) {
       for (let index = 0; index < Math.min(request.limits.maxScrolls, 3); index++) {
         afterScroll = await port.scrollAndObserve(1200);
         scrollObservations++;
