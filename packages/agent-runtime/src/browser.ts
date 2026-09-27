@@ -1472,8 +1472,12 @@ function collapseWhitespace(value: string): string {
 }
 
 function publicObservationMeaningful(observation:BrowserObservationData):boolean {
+  const representation=observation.representation&&typeof observation.representation==="object"
+    ? observation.representation as {visibleText?:unknown}:undefined;
+  const textLength=typeof representation?.visibleText==="string"?representation.visibleText.length:0;
   return (observation.challengeState!==undefined&&observation.challengeState!=="NO_CHALLENGE") ||
-    Boolean(observation.article?.body) || (observation.listingLinks?.length??0)>0 || observation.controls.length>0;
+    Boolean(observation.article?.body) || (observation.listingLinks?.length??0)>=2 ||
+    (textLength>=100&&((observation.listingLinks?.length??0)>0||observation.controls.length>0));
 }
 
 function publicObservationTerminal(observation:BrowserObservationData):boolean {
