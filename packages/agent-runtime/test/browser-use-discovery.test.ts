@@ -71,6 +71,18 @@ describe("Browser Use discovery boundary", () => {
     const verified=await verifyBrowserUseProposal({request,capability,proposal:{...proposal,visitedUrls:[source,a,b],articleUrls:[a,b],continuation:"none"},port});
     expect(scrolls).toBe(2);expect(verified.articles).toHaveLength(2);expect(verified.plan.continuation.kind).toBe("SCROLL");expect(closes).toBe(1);
   });
+  it("tests continuation even when the model's two article hints were already visible", async () => {
+    const source="https://news.example/",a="https://news.example/article/a",b="https://news.example/article/b",c="https://news.example/article/c";
+    const listing=(links:string[]):PublicBrowserObservation=>({url:source,title:"News",pageRevision:links.join(","),visibleText:"",controls:[],listingLinks:links});
+    const article=(url:string):PublicBrowserObservation=>({url,title:"Article",pageRevision:url,visibleText:"",controls:[],article:{canonicalUrl:url,title:"Article",body:"Verified full body",excerpt:"",publisherTimestamp:"2026-09-27T00:00:00Z"}});
+    let scrolls=0;
+    const port={open:async()=>{},navigateAndObserve:async(url:string)=>url===source?listing([a,b]):article(url),scrollAndObserve:async()=>listing(++scrolls===1?[a,b]:[a,b,c]),close:async()=>{}};
+    const request={source:{canonicalSourceUrl:source},limits:{maxScrolls:3,maxPhysicalAttempts:8}} as never;
+    const verified=await verifyBrowserUseProposal({request,capability,proposal:{...proposal,visitedUrls:[source,a,b],articleUrls:[a,b],continuation:"none"},port});
+    expect(scrolls).toBe(2);
+    expect(verified.plan.continuation.kind).toBe("SCROLL");
+    expect(verified.articles).toHaveLength(2);
+  });
   it("continues past duplicate canonical hints using only a fresh observed listing link", async () => {
     const source="https://news.example/", a="https://news.example/article/a", duplicate="https://news.example/article/a?ref=listing", b="https://news.example/article/b";
     const listing:PublicBrowserObservation={url:source,title:"Listing",pageRevision:"listing",visibleText:"",controls:[],listingLinks:[a,duplicate,b]};

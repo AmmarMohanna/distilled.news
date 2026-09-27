@@ -97,15 +97,18 @@ export async function verifyBrowserUseProposal(input: {
         if (typeof value === "string") observedLinks.add(value);
     };
     addLinks(listing);
-    // The continuation label is a model hypothesis. Re-observe when its
-    // claimed article links are absent from the trusted initial listing.
-    if (port.scrollAndObserve && (proposal.continuation === "scroll" || proposal.articleUrls.filter(url => observedLinks.has(url)).length < 2)) {
+    // The model's continuation label is a hypothesis. Independently test a
+    // bounded scroll even when its article hints were already visible; a
+    // client-rendered listing may reveal newer links only on the second scroll.
+    const initialLinks = new Set(observedLinks);
+    if (port.scrollAndObserve && request.limits.maxScrolls > 0) {
       for (let index = 0; index < Math.min(request.limits.maxScrolls, 3); index++) {
         afterScroll = await port.scrollAndObserve(1200);
         scrollObservations++;
         assertTrustedObservation(afterScroll, listingUrl, capability);
         addLinks(afterScroll);
-        if (proposal.articleUrls.filter(url => observedLinks.has(url)).length >= 2) break;
+        if ([...observedLinks].some(url => !initialLinks.has(url) && isPlausibleObservedArticle(url, capability.allowedOrigins)) &&
+            proposal.articleUrls.filter(url => observedLinks.has(url)).length >= 2) break;
       }
     }
     const articles: PublicBrowserObservation[] = [];

@@ -623,6 +623,15 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     } finally { await browser.close(scope).catch(()=>undefined); }
   },30_000);
 
+  it("waits past a stable navigation shell for delayed article links",async()=>{
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const scope=await browser.allocate({runId:"nav-shell",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      const observed=await browser.navigatePublicPage(scope,`${fixture.origin}/delayed-listing-nav-shell`,[fixture.origin]);
+      expect(observed.listingLinks).toEqual(expect.arrayContaining([`${fixture.origin}/news/2026/9/27/article`,`${fixture.origin}/news/2026/9/27/other-article`]));
+    } finally { await browser.close(scope).catch(()=>undefined); }
+  },30_000);
+
   it("hydrates a listing that checks WebSocket availability without opening a socket",async()=>{
     const browser=PlaywrightBrowserAdapter.forTest();
     const scope=await browser.allocate({runId:"websocket-inert",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});

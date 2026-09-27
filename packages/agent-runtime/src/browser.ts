@@ -258,7 +258,7 @@ const READ_ONLY_BROWSER_METHODS = new Set(["GET", "HEAD"]);
 // context. Keep a finite aggregate cap while allowing their ordinary read-only
 // assets; origin, address, method, and redirect checks still apply per request.
 const MAX_HTTP_REQUESTS_PER_SESSION = 1200;
-const PUBLIC_PAGE_READINESS_DEADLINE_MS = 8_000;
+const PUBLIC_PAGE_READINESS_DEADLINE_MS = 15_000;
 const PUBLIC_PAGE_READINESS_POLL_MS = 250;
 const ACTIVE_TRANSPORT_HARDENING = `(() => {
   // Some read-only site bundles require the WebSocket interface to exist at
@@ -841,17 +841,10 @@ export class PlaywrightBrowserAdapter
   private async waitForPublicPageReadiness(live:LiveSession,initial:BrowserObservationData):Promise<BrowserObservationData>{
     const started=Date.now();
     let observed=initial;
-    let lastFingerprint=publicStructureFingerprint(observed);
-    let stableCount=0;
     while(Date.now()-started<PUBLIC_PAGE_READINESS_DEADLINE_MS){
       if(publicObservationMeaningful(observed))return observed;
       await boundedDelay(PUBLIC_PAGE_READINESS_POLL_MS,live.signal);
       observed=await this.observe(live,"page_state");
-      const fingerprint=publicStructureFingerprint(observed);
-      stableCount=fingerprint===lastFingerprint?stableCount+1:0;
-      lastFingerprint=fingerprint;
-      // A text-bearing, structurally non-empty terminal document may legitimately have no links.
-      if(stableCount>=3&&Date.now()-started>=1_500&&publicObservationTerminal(observed))return observed;
     }
     return observed;
   }
@@ -1475,27 +1468,12 @@ function collapseWhitespace(value: string): string {
 }
 
 function publicObservationMeaningful(observation:BrowserObservationData):boolean {
-  const representation=observation.representation&&typeof observation.representation==="object"
-    ? observation.representation as {visibleText?:unknown}:undefined;
-  const textLength=typeof representation?.visibleText==="string"?representation.visibleText.length:0;
+  const contentLinks=(observation.listingLinks??[]).filter(value=>{
+    try { const path=new URL(value).pathname; return path.split("/").filter(Boolean).length>=2; }
+    catch { return false; }
+  }).length;
   return (observation.challengeState!==undefined&&observation.challengeState!=="NO_CHALLENGE") ||
-    Boolean(observation.article?.body) || (observation.listingLinks?.length??0)>=2 ||
-    (textLength>=100&&((observation.listingLinks?.length??0)>0||observation.controls.length>0));
-}
-
-function publicObservationTerminal(observation:BrowserObservationData):boolean {
-  const representation=observation.representation&&typeof observation.representation==="object"
-    ? observation.representation as {visibleText?:unknown}:undefined;
-  return observation.domNodeCountCategory!==undefined&&observation.domNodeCountCategory!=="none"&&
-    typeof representation?.visibleText==="string"&&representation.visibleText.length>=120;
-}
-
-function publicStructureFingerprint(observation:BrowserObservationData):string {
-  const representation=observation.representation&&typeof observation.representation==="object"
-    ? observation.representation as {visibleText?:unknown}:undefined;
-  const textLength=typeof representation?.visibleText==="string"?representation.visibleText.length:0;
-  return JSON.stringify([observation.url,observation.domNodeCountCategory,observation.accessibilityNodeCountCategory,
-    observation.controls.length,observation.listingLinks?.length??0,Boolean(observation.article),Math.min(20,Math.floor(textLength/200))]);
+    Boolean(observation.article?.body) || contentLinks>=2;
 }
 
 function boundedDelay(milliseconds:number,signal?:AbortSignal):Promise<void>{

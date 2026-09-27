@@ -85,6 +85,10 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       response.end(page("Delayed listing with search shell", `<script type="application/ld+json">{"url":"/search/{search_term_string}"}</script><main id="listing">Loading</main><script>setTimeout(()=>{document.querySelector('#listing').innerHTML='<a href="/article">First article</a><a href="/other-article">Second article</a>'},700)</script>`));
       return;
     }
+    if (url.pathname === "/delayed-listing-nav-shell") {
+      response.end(page("Delayed listing with navigation shell", `<nav><a href="/">Home</a><a href="/video/live">Live</a><a href="/account">Account</a></nav><main id="listing">Loading</main><script>setTimeout(()=>{document.querySelector('#listing').innerHTML='<a href="/news/2026/9/27/article">First article</a><a href="/news/2026/9/27/other-article">Second article</a>'},1800)</script>`));
+      return;
+    }
     if (url.pathname === "/display-contents-listing") {
       response.end(page("Display contents listing", `<main><a href="/article" style="display:contents"><span style="display:block">Read nested article</span></a></main>`));
       return;
