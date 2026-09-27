@@ -109,20 +109,22 @@ class BrowserWorkflowPageAdapter implements SourceAcquisitionAdapter {
     this.physicalAttempts++;
     let pageAttempts = 1;
     let listing = await this.port.navigateAndObserve(listingUrl);
+    const discoveredLinks = new Set(observedLinks(listing));
     let scrolls = 0;
     if (this.plan.continuation.kind === "SCROLL") {
       if (!this.port.scrollAndObserve) return { items: [], physicalAttempts: pageAttempts, stopReason: "STRUCTURAL_FAILURE" };
-      for (let index = 0; index < this.scrollDepth; index++) {
+      // Dynamic listings may have no items until the first scroll. Recreate
+      // the prior depth after each fresh listing navigation, then advance one.
+      for (let index = 0; index < Math.min(request.limits.maxScrolls, this.scrollDepth + 1); index++) {
         if (this.physicalAttempts >= request.limits.maxPhysicalAttempts) return { items: [], physicalAttempts: pageAttempts, scrolls, stopReason: "EXECUTION_BUDGET_REACHED" };
         listing = await this.port.scrollAndObserve(this.plan.continuation.deltaY);
+        for (const url of observedLinks(listing)) discoveredLinks.add(url);
         this.physicalAttempts++; pageAttempts++; scrolls++;
       }
     }
     if (listing.challengeState && listing.challengeState !== "NO_CHALLENGE") return { items: [], physicalAttempts: 1, stopReason: listing.challengeState === "LOGIN_REQUIRED" ? "AUTH_REQUIRED" : "CHALLENGE_REQUIRED" };
     if (!sameAdmittedOrigin(listing.url, this.plan.allowedOrigins)) throw new Error("source workflow listing origin denied");
-    const articleUrls = [...new Set(observedLinks(listing)
-      .filter((url): url is string => Boolean(url && isArticleUrl(url, this.plan))))]
-      .filter((url) => !this.seenArticles.has(url));
+    const articleUrls = [...discoveredLinks].filter((url) => isArticleUrl(url, this.plan) && !this.seenArticles.has(url));
     const items: AcquiredSourceItem[] = [];
     for (const url of articleUrls) {
       if (this.physicalAttempts >= request.limits.maxPhysicalAttempts) return { items, physicalAttempts: pageAttempts, stopReason: "EXECUTION_BUDGET_REACHED" };

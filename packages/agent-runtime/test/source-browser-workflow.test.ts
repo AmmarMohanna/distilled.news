@@ -112,6 +112,28 @@ describe("deterministic multi-item browser workflow", () => {
     expect(result.coverage).toMatchObject({ rangeCovered: false, stopReason: "SOURCE_PAGINATION_EXHAUSTED" });
   });
 
+  it("acquires items inserted only after successive listing scrolls", async () => {
+    let current = "", depth = 0;
+    const visits: string[] = [];
+    const port: SourceBrowserWorkflowPort = {
+      async open() {},
+      async navigateAndObserve(url) {
+        current = url; visits.push(url);
+        if (url === plan.entryUrl) { depth = 0; return listing(url, []); }
+        return article(url.split("/").at(-1)!, "2026-09-21T12:00:00Z");
+      },
+      async scrollAndObserve() {
+        if (current !== plan.entryUrl) throw new Error("scroll attempted on article");
+        depth++;
+        return listing(plan.entryUrl, depth === 1 ? [`${origin}/article/a`] : [`${origin}/article/b`]);
+      },
+      async close() {}
+    };
+    const result = await new DeterministicSourceBrowserWorkflowExecutor(port).execute({ ...request, limits: { ...request.limits, maxItems: 2 } }, { ...plan, continuation: { kind: "SCROLL", deltaY: 1200, terminalEvidence: "UNPROVEN" } });
+    expect(result.items.map(value => value.canonicalItemUrl)).toEqual([`${origin}/article/a`, `${origin}/article/b`]);
+    expect(visits.filter(url => url === plan.entryUrl)).toHaveLength(2);
+  });
+
   it("uses fixed acquisitionAsOf and always closes after a failed trusted observation", async () => {
     const pages = new Map<string, PublicBrowserObservation>([[plan.entryUrl, listing(plan.entryUrl, [`${origin}/article/a`])], [`${origin}/article/a`, article("a", "2026-09-22T01:00:00Z")]]);
     const fixed = fixture(pages);
