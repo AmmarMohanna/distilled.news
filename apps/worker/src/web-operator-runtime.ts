@@ -75,7 +75,10 @@ export function createWorkerContainerPublicWebOperatorLifecycle(env: Env, input:
     environment: env as unknown as Record<string, string | undefined>,
     browserPorts: { executor: browser, structured: browser, visual: browser },
     softwareVersion: "distilled-worker@0.1.0", toolSchemaVersion: "web-operator-tools@1",
-    leaseTtlMs: WORKER_AGENT_LEASE_TTL_MS, ...workerRuntimeTiming(env), workerIdFactory: () => "worker-container-public-web-operator"
+    // A single bounded remote model/browser call can exceed the generic 30 s
+    // lease while the Worker cannot run its heartbeat. The public discovery
+    // budget is 90 s; keep the lease valid across one such call.
+    leaseTtlMs: 120_000, ...workerRuntimeTiming(env), workerIdFactory: () => "worker-container-public-web-operator"
   });
 }
 
