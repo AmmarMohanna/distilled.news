@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Languages } from "lucide-react";
 
 export type Language = "en" | "fr" | "ar";
@@ -7,6 +7,19 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "Confirm deletion": ["Confirmer la suppression", "تأكيد الحذف"],
+  "Delete": ["Supprimer", "حذف"],
+  "A calmer perspective on a complex world.": ["Un regard plus serein sur un monde complexe.", "رؤية أكثر هدوءًا لعالم معقّد."],
+  "Search feeds": ["Rechercher des fils", "البحث في الخلاصات"],
+  "Search feeds…": ["Rechercher des fils…", "ابحث عن خلاصات…"],
+  "Advanced settings": ["Paramètres avancés", "إعدادات متقدمة"],
+  "Feed language": ["Langue du fil", "لغة الخلاصة"],
+  "The language of new briefings in this feed. Your website language stays the same.": ["La langue des nouveaux résumés de ce fil. La langue du site reste inchangée.", "لغة الملخصات الجديدة في هذه الخلاصة. تبقى لغة الموقع كما هي."],
+  "Writing style": ["Style de rédaction", "أسلوب الكتابة"],
+  "For example: concise, neutral, and easy to read.": ["Par exemple : concis, neutre et facile à lire.", "مثلاً: موجز ومحايد وسهل القراءة."],
+  "Time zone": ["Fuseau horaire", "المنطقة الزمنية"],
+  "Used for this feed’s publishing schedule.": ["Utilisé pour le calendrier de publication de ce fil.", "تُستخدم لجدول نشر هذه الخلاصة."],
+  "Enter a valid time zone, such as Asia/Beirut or UTC.": ["Indiquez un fuseau horaire valide, comme Asia/Beirut ou UTC.", "أدخل منطقة زمنية صحيحة، مثل Asia/Beirut أو UTC."],
   Home: ["Accueil", "الرئيسية"], Explore: ["Explorer", "استكشف"], Settings: ["Paramètres", "الإعدادات"],
   "Your feeds": ["Vos fils", "خلاصاتك"], "Add feed": ["Ajouter un fil", "إضافة خلاصة"],
   "Top feeds": ["Fils populaires", "أفضل الخلاصات"], "Popular topics": ["Sujets populaires", "مواضيع شائعة"],
@@ -38,13 +51,28 @@ export function useLanguage() {
   }, []);
   return { language, t: (text: string) => language === "en" ? text : translations[text]?.[language === "fr" ? 0 : 1] ?? text };
 }
-export function LanguageControl({ onChange }: { onChange?: (language: Language) => void }) {
+export function LanguageControl() {
   const { language } = useLanguage();
-  return <details className="language-control"><summary aria-label="Language"><Languages size={19}/><span>{({ en: "English", fr: "Français", ar: "العربية" })[language]}</span></summary>
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !ref.current?.contains(event.target)) ref.current?.removeAttribute("open");
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && ref.current?.open) {
+        event.preventDefault();
+        ref.current.removeAttribute("open");
+        ref.current.querySelector("summary")?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => { document.removeEventListener("pointerdown", closeOutside); document.removeEventListener("keydown", closeOnEscape); };
+  }, []);
+  return <details ref={ref} className="language-control"><summary aria-label="Website language"><Languages size={19}/><span>{({ en: "English", fr: "Français", ar: "العربية" })[language]}</span></summary>
     <div className="language-menu" role="group" aria-label="Language">{(["en", "fr", "ar"] as const).map(value => <button key={value} type="button" aria-pressed={language === value} onClick={event => {
       localStorage.setItem("dn_language", value);
       window.dispatchEvent(new Event("dn-language"));
-      onChange?.(value);
       event.currentTarget.closest("details")?.removeAttribute("open");
     }}><Languages size={17}/>{({ en: "English", fr: "Français", ar: "العربية" })[value]}</button>)}</div>
   </details>;

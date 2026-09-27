@@ -83,9 +83,11 @@ import {
 import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify } from "./helpers";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
-import { AppExperience, BrandMark, PublicExplorePage, GuestMenuItems } from "./AppExperience";
+import { AppExperience, BrandMark } from "./AppExperience";
 import { LanguageControl, preferredLanguage, useLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
+import { Dialog } from "./Dialog";
+import { useConfirmation } from "./useConfirmation";
 import { ThemeToggle } from "./ThemeToggle";
 import "./experience.css";
 import "./product.css";
@@ -123,11 +125,11 @@ declare global {
 
 function App() {
   const path = window.location.pathname;
-  if (path === "/explore" || path === "/explore/") return <PublicExplorePage/>;
+  if (path === "/explore" || path === "/explore/") return <AdminPage initialTab="explore"/>;
   if (path === "/verify-email") return <VerifyEmailPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
   if (path === "/reset-password") return <ResetPasswordPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
   const feedMatch = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
-  if (feedMatch && !["api", "admin", "auth", "feed"].includes(feedMatch[1])) {
+  if (feedMatch && !["api", "auth", "feed"].includes(feedMatch[1])) {
     return <FeedPage username={decodeURIComponent(feedMatch[1])} slug={decodeURIComponent(feedMatch[2])} />;
   }
   return <AdminPage />;
@@ -139,10 +141,13 @@ function languageLabel(language: "en" | "ar" | "fr"): string {
   return "english";
 }
 
-function AdminPage() {
+function AdminPage(props: { initialTab?: "home" | "explore" }) {
   const { language: interfaceLanguage } = useLanguage();
   useEffect(() => { document.documentElement.lang = interfaceLanguage; document.documentElement.dir = interfaceLanguage === "ar" ? "rtl" : "ltr"; }, [interfaceLanguage]);
   const [session, setSession] = useState<SessionStatus | null>(null);
+  const [authOpen, setAuthOpen] = useState(window.location.pathname === "/login" || new URLSearchParams(window.location.search).has("signup"));
+  const [creationOpen, setCreationOpen] = useState(false);
+  const [createAfterLogin, setCreateAfterLogin] = useState(false);
   const [briefings, setBriefings] = useState<BriefingConfig[]>([]);
   const [selectedBriefingId, setSelectedBriefingId] = useState<string | null>(null);
   const [sources, setSources] = useState<SourceRecord[]>([]);
@@ -270,7 +275,7 @@ function AdminPage() {
     setError("");
     setBusyAction("create-feed");
     try {
-      const draft = { ...createBriefingDraft(briefings, account), ...input, language: preferredLanguage() };
+      const draft = { ...createBriefingDraft(briefings, account), language: preferredLanguage(), ...input };
       const created = await persistBriefing(draft, "feed created");
       await loadBriefings(created.id);
       if (input) {
@@ -393,39 +398,34 @@ function AdminPage() {
     if (autosave) scheduleBriefingAutosave(next);
   }
 
-  if (!session) {
+  if (!session?.authenticated) {
     return (
-      <Shell title="create">
-        <p className="muted">loading</p>
-      </Shell>
-    );
-  }
-
-  if (!session.authenticated) {
-    return (
-      <main className="auth-experience guest-auth-home">
-        <header className="auth-header"><div className="experience-brand" aria-label="Distilled News"><BrandMark/></div><div className="auth-header-controls experience-header-actions"><LanguageControl/><ThemeToggle/></div></header>
-        <div className="auth-columns">
-          <section className="auth-introduction">
-            <div className="auth-product-name">distilled.news</div>
-            <h1>A calmer perspective<br/>on a complex world.</h1>
-            <p>Personalized news briefings that help you see the bigger picture.</p>
-          </section>
-          <AuthPanel
-            setupRequired={session.setupRequired}
-            turnstileSiteKey={session.turnstileSiteKey}
-            onAuthenticated={async () => {
-              const next = await refreshSession();
-              if (next.authenticated) {
-                await loadBriefings();
-                if (next.account?.role === "admin") setAccounts(await listAccounts());
-              }
-            }}
-          />
-        </div>
-        <nav className="bottom-navigation" aria-label="Main navigation"><div className="sidebar-logo experience-brand" aria-label="Distilled.news"><BrandMark/></div><GuestMenuItems active="home"/></nav>
-        {error ? <p className="error">{error}</p> : null}
-      </main>
+      <>
+        <AppExperience account={null} briefings={[]} initialTab="explore"
+          onAccount={() => setAuthOpen(true)} onHelp={() => {}}
+          onCreate={() => { setCreateAfterLogin(true); setAuthOpen(true); }}
+          error={error ? "We couldn’t load your session. Please refresh and try again." : undefined}/>
+        {authOpen && <Dialog label="Login or sign up" className="auth-dialog" onClose={() => { setAuthOpen(false); setCreateAfterLogin(false); }}>
+          <div className="auth-experience auth-modal-content">
+            <button type="button" className="dialog-close quiet-icon" aria-label="Close dialog" onClick={() => { setAuthOpen(false); setCreateAfterLogin(false); }}><X size={20}/></button>
+            {session ? <AuthPanel
+              setupRequired={session.setupRequired}
+              turnstileSiteKey={session.turnstileSiteKey}
+              onAuthenticated={async () => {
+                const next = await getSession();
+                if (next.authenticated) {
+                  await loadBriefings();
+                  if (next.account?.role === "admin") setAccounts(await listAccounts());
+                  setCreationOpen(createAfterLogin);
+                  setAuthOpen(false);
+                  setCreateAfterLogin(false);
+                  setSession(next);
+                }
+              }}
+            /> : <p className="auth-pending" role={error ? "alert" : "status"}>{error ? "Sign-in is unavailable right now. Please refresh and try again." : "Loading account access…"}</p>}
+          </div>
+        </Dialog>}
+      </>
     );
   }
 
@@ -439,12 +439,13 @@ function AdminPage() {
 
   return (
     <>
-      <AppExperience account={account} briefings={orderedBriefings} briefing={briefing ?? undefined} health={health}
+      <AppExperience key="account" account={account} briefings={orderedBriefings} briefing={briefing ?? undefined} health={health} initialTab={props.initialTab}
         onAccount={() => setAccountDialogOpen(true)}
-        onCreate={createBriefing} onHelp={() => setHelpOpen(true)} error={error}>
+        onCreate={() => setCreationOpen(true)} onHelp={() => setHelpOpen(true)} error={error}>
 {account.role === "admin" ? <AdminAccountsSection accounts={accounts} currentAccountId={account.id} onAccountsChanged={setAccounts}/> : null}
       </AppExperience>
       {accountDialog}
+      {creationOpen && <FeedEditor onClose={() => setCreationOpen(false)} onSave={async input => { await createBriefing(input); setCreationOpen(false); }}/>}
       {helpOpen ? <FeedHelpSheet onClose={() => setHelpOpen(false)} /> : null}
 
     </>
@@ -625,8 +626,8 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       {(mode === "register" || props.setupRequired) ? (
         <label>
           <span className="auth-input"><span className="sr-only">username</span><User size={21} aria-hidden/>
-          <input required placeholder="Username" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></span>
-          <span className="field-help">{usernamePreview ? `your feed URLs start with /${usernamePreview}/` : "letters and numbers become your feed URL name"}</span>
+          <input required aria-label="username" aria-describedby="auth-username-help" placeholder="Username" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></span>
+          <span className="field-help" id="auth-username-help">{usernamePreview ? `your feed URLs start with /${usernamePreview}/` : "letters and numbers become your feed URL name"}</span>
         </label>
       ) : null}
       {mode !== "forgot" ? (
@@ -880,22 +881,9 @@ function Sheet(props: {
   onClose: () => void;
   wide?: boolean;
 }) {
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") props.onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [props.onClose]);
-
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) props.onClose();
-      }}
-    >
-      <section className={`sheet${props.wide ? " sheet-wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={`${slugify(props.title)}-sheet-title`}>
+    <Dialog label={props.title} className={`sheet-dialog${props.wide ? " sheet-dialog-wide" : ""}`} onClose={props.onClose}>
+      <section className="sheet">
         <div className="sheet-head">
           <div className="section-title">
             {props.icon}
@@ -907,7 +895,7 @@ function Sheet(props: {
         </div>
         {props.children}
       </section>
-    </div>
+    </Dialog>
   );
 }
 
@@ -1421,6 +1409,7 @@ function AdminAccountDialog(props: {
   onBriefingsChanged: (briefings: BriefingConfig[]) => void;
   onRefreshBriefings: () => Promise<void>;
 }) {
+  const { confirm, confirmation } = useConfirmation();
   const [username, setUsername] = useState(props.account.username);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -1462,7 +1451,7 @@ function AdminAccountDialog(props: {
   }
 
   async function removeAdminBriefing(feed: BriefingConfig) {
-    if (!window.confirm(`Delete "${feed.title}" and all of its sources and published items?`)) return;
+    if (!await confirm(`Delete "${feed.title}" and all of its sources and published items?`)) return;
     setBusy(`feed:${feed.id}:delete`);
     setError("");
     setMessage("");
@@ -1483,7 +1472,7 @@ function AdminAccountDialog(props: {
       setError("cannot delete the signed-in admin");
       return;
     }
-    if (!window.confirm(`Delete "${props.account.username}" and all of this user's feeds, sources, and published items?`)) return;
+    if (!await confirm(`Delete "${props.account.username}" and all of this user's feeds, sources, and published items?`)) return;
     setBusy("delete-account");
     setError("");
     setMessage("");
@@ -1501,6 +1490,7 @@ function AdminAccountDialog(props: {
 
   return (
     <Sheet title="manage account" closeLabel="close account management" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
+      {confirmation}
       <div className="account-meta">
         <span>{props.account.email}</span>
         <span>{props.account.disabledAt ? "disabled" : props.account.emailVerifiedAt ? "verified" : "unverified"}</span>
@@ -1817,13 +1807,9 @@ function FeedPage(props: { username: string; slug: string }) {
       feed={payload?.briefing}
       pageLanguage={language}
       headingAction={ownedFeed ? <button className="primary-button" onClick={() => setEditorOpen(true)}><Settings size={17}/>{t("Edit feed settings")}</button> : undefined}
-      onLanguageChange={ownedFeed ? async language => {
-        try { const saved = await saveBriefing({ ...ownedFeed, language }); setOwnedFeed(saved); }
-        catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-      } : undefined}
     >
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
-        const saved = await saveBriefing({ ...ownedFeed, ...input, language: preferredLanguage() });
+        const saved = await saveBriefing({ ...ownedFeed, ...input });
         if (input.interestProfile !== ownedFeed.interestProfile) {
           try { await addSource(saved.id, input.interestProfile); }
           catch (cause) { sessionStorage.setItem(`feed-notice:${saved.id}`, `Feed saved, but topic discovery could not be updated: ${cause instanceof Error ? cause.message : String(cause)}`); }
@@ -2304,7 +2290,6 @@ function Shell(props: {
   onLogout?: () => Promise<void>;
   pageLanguage?: "en" | "ar" | "fr";
   headingAction?: React.ReactNode;
-  onLanguageChange?: (language: "en" | "ar" | "fr") => void;
 }) {
   const { language: selectedLanguage } = useLanguage();
   const titleText = props.titleText ?? (typeof props.title === "string" ? props.title : "briefing");
@@ -2344,7 +2329,7 @@ function Shell(props: {
             {props.feed ? <a href={`/${props.feed.ownerUsername}/${props.feed.slug}/`}>{feedNavLabel(shellLanguage)}</a> : null}
           </nav>
           <div className="header-controls">
-            <LanguageControl onChange={props.onLanguageChange}/>
+            <LanguageControl/>
             {props.onAccount ? (
               <button type="button" className="icon-button" aria-label="account settings" title="account settings" onClick={props.onAccount}>
                 <User size={16} aria-hidden />
@@ -2356,6 +2341,10 @@ function Shell(props: {
         </div>
       </header>
       <div className="page-heading">
+        {props.feed && <a className="button-link feed-back" href="/" onClick={event => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          if (document.referrer && new URL(document.referrer).origin === window.location.origin && window.history.length > 1) { event.preventDefault(); window.history.back(); }
+        }}><ChevronLeft size={18}/>{selectedLanguage === "ar" ? "رجوع" : selectedLanguage === "fr" ? "Retour" : "Back"}</a>}
         <div className="page-title-row"><h1>{props.title}</h1>{props.headingAction}</div>
         <p>{props.meta ?? getPageMeta(titleText)}</p>
       </div>

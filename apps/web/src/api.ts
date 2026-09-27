@@ -54,6 +54,11 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return payload;
 }
 
+export async function generateFeedSketch(briefingId: string): Promise<void> {
+  await requestJson(`/api/me/briefings/${encodeURIComponent(briefingId)}/sketch`, { method: "POST" });
+  window.dispatchEvent(new Event("feed-sketch-updated"));
+}
+
 export async function getSession(): Promise<SessionStatus> {
   return requestJson<SessionStatus>("/api/auth/session");
 }
