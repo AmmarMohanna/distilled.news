@@ -88,6 +88,7 @@ export async function verifyBrowserUseProposal(input: {
   try {
     const listing = await port.navigateAndObserve(listingUrl);
     assertTrustedObservation(listing, listingUrl, capability);
+    console.log(JSON.stringify({ event: "browser_use_trusted_listing", sourceListing: listingUrl === sourceUrl, listedLinks: listing.listingLinks?.length ?? 0, controls: listing.controls.length, articlePresent: Boolean(listing.article), visibleTextLength: listing.visibleText.length }));
     let afterScroll: PublicBrowserObservation | undefined;
     let scrollObservations = 0;
     const observedLinks = new Set<string>();
@@ -108,18 +109,58 @@ export async function verifyBrowserUseProposal(input: {
       }
     }
     const articles: PublicBrowserObservation[] = [];
-    for (const url of proposal.articleUrls.slice(0, Math.min(8, request.limits.maxPhysicalAttempts - 1))) {
-      if (!observedLinks.has(url)) continue;
+    const articleAttemptLimit = Math.min(10, Math.max(0, request.limits.maxPhysicalAttempts - 1 - scrollObservations));
+    let articleAttempts = 0;
+    const observeArticle = async (url: string): Promise<void> => {
+      articleAttempts++;
       const observation = await port.navigateAndObserve(url);
       assertTrustedObservation(observation, url, capability);
+      console.log(JSON.stringify({ event: "browser_use_trusted_article", proposed: proposal.articleUrls.includes(url), articlePresent: Boolean(observation.article), bodyPresent: Boolean(observation.article?.body), validDate: Boolean(observation.article && Number.isFinite(Date.parse(observation.article.publisherTimestamp))), sameOriginCanonical: Boolean(observation.article && isAdmittedUrl(observation.article.canonicalUrl, capability.allowedOrigins)) }));
       if (observation.article?.body && Number.isFinite(Date.parse(observation.article.publisherTimestamp)) &&
-        capability.allowedOrigins.includes(new URL(observation.article.canonicalUrl).origin)) articles.push(observation);
-      if (articles.length >= 2) break;
+        isAdmittedUrl(observation.article.canonicalUrl, capability.allowedOrigins) &&
+        !articles.some(previous => previous.article?.canonicalUrl === observation.article!.canonicalUrl)) articles.push(observation);
+    };
+    for (const url of proposal.articleUrls) {
+      if (articleAttempts >= articleAttemptLimit || articles.length >= 2) break;
+      if (!observedLinks.has(url)) continue;
+      await observeArticle(url);
+    }
+    // A verified agent hint grounds discovery. Other links come only from the
+    // fresh Distilled listing observation, never from the model's URL claims.
+    if (articles.length === 1) {
+      const firstPath = new URL(articles[0].article!.canonicalUrl).pathname.split("/").filter(Boolean);
+      const candidates = [...observedLinks].filter(url => !proposal.articleUrls.includes(url) && isPlausibleObservedArticle(url, capability.allowedOrigins));
+      candidates.sort((left, right) => sharedPathPrefix(right, firstPath) - sharedPathPrefix(left, firstPath));
+      for (const url of candidates) {
+        if (articleAttempts >= articleAttemptLimit || articles.length >= 2) break;
+        await observeArticle(url);
+      }
     }
     const plan = compileSourceBrowserWorkflowPlan({ sourceUrl: listingUrl, listing, sampledArticles: articles, afterScroll });
     if (!plan) throw new BrowserUseEvidenceError({ proposalArticles: proposal.articleUrls.length, visitedPages: proposal.visitedUrls.length, observedLinks: observedLinks.size, trustedArticles: articles.length, scrollObservations, continuation: proposal.continuation });
     return { plan, listing, articles, afterScroll };
   } finally { await port.close(); }
+}
+
+function isPlausibleObservedArticle(value: string, allowedOrigins: string[]): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && allowedOrigins.includes(url.origin) &&
+      url.pathname.split("/").filter(Boolean).length >= 2 &&
+      !/\.(?:js|mjs|css|json|xml|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|map)$/i.test(url.pathname);
+  } catch { return false; }
+}
+
+function isAdmittedUrl(value: string, allowedOrigins: string[]): boolean {
+  try { const url = new URL(value); return url.protocol === "https:" && allowedOrigins.includes(url.origin); }
+  catch { return false; }
+}
+
+function sharedPathPrefix(value: string, firstPath: string[]): number {
+  const parts = new URL(value).pathname.split("/").filter(Boolean);
+  let count = 0;
+  while (count < parts.length - 1 && count < firstPath.length - 1 && parts[count] === firstPath[count]) count++;
+  return count;
 }
 
 function assertTrustedObservation(observation: PublicBrowserObservation, expectedUrl: string, capability: PublicAcquisitionCapability): void {

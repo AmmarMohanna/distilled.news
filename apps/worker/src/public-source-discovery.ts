@@ -25,10 +25,12 @@ export async function discoverPublicSourceBrowserPlan(
   await port.open({ sourceUrl, allowedOrigins: [origin], request: input.request });
   try {
     const listing = await port.navigateAndObserve(sourceUrl); operations++;
+    console.log(JSON.stringify({ event: "public_source_trusted_probe", phase: "listing", listedLinks: listing.listingLinks?.length ?? 0, controls: listing.controls.length, articlePresent: Boolean(listing.article), visibleTextLength: listing.visibleText.length, challenge: listing.challengeState ?? "NO_CHALLENGE" }));
     if (listing.challengeState && listing.challengeState !== "NO_CHALLENGE") throw challengeStop(listing);
     let afterScroll: PublicBrowserObservation | undefined;
     if (port.scrollAndObserve && input.request.limits.maxScrolls > 0) {
       afterScroll = await port.scrollAndObserve(1200); operations++;
+      console.log(JSON.stringify({ event: "public_source_trusted_probe", phase: "scroll", listedLinks: afterScroll.listingLinks?.length ?? 0, controls: afterScroll.controls.length, articlePresent: Boolean(afterScroll.article), visibleTextLength: afterScroll.visibleText.length, challenge: afterScroll.challengeState ?? "NO_CHALLENGE" }));
       if (afterScroll.challengeState && afterScroll.challengeState !== "NO_CHALLENGE") throw challengeStop(afterScroll);
     }
     const urls = [...new Set([listing, afterScroll].filter((value): value is PublicBrowserObservation => Boolean(value))
@@ -39,6 +41,7 @@ export async function discoverPublicSourceBrowserPlan(
     const maxProbes = Math.min(10, Math.max(0, input.request.limits.maxPhysicalAttempts - operations));
     for (const url of urls.slice(0, maxProbes)) {
       const observed = await port.navigateAndObserve(url); operations++;
+      console.log(JSON.stringify({ event: "public_source_trusted_probe", phase: "article", articlePresent: Boolean(observed.article), bodyPresent: Boolean(observed.article?.body), validDate: Boolean(observed.article && Number.isFinite(Date.parse(observed.article.publisherTimestamp))), challenge: observed.challengeState ?? "NO_CHALLENGE" }));
       if (observed.challengeState && observed.challengeState !== "NO_CHALLENGE") throw challengeStop(observed);
       if (observed.article?.body && Number.isFinite(Date.parse(observed.article.publisherTimestamp)) && new URL(observed.article.canonicalUrl).origin === origin) sampledArticles.push(observed);
       if (sampledArticles.length >= 2) break;

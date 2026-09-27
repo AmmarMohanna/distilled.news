@@ -55,8 +55,11 @@ describe("Browser Use discovery boundary", () => {
     expect(verified.plan.articlePathPrefix).toBe("/article/");
     expect(verified.articles).toHaveLength(2);
     expect(closes).toBe(1);
-    await expect(verifyBrowserUseProposal({ request, capability, proposal: { ...proposal, visitedUrls: [listing.url, a, "https://news.example/article/unobserved"], articleUrls: [a, "https://news.example/article/unobserved"], continuation: "none" }, port })).rejects.toThrow("browser_use_trusted_evidence_insufficient");
+    const fallback = await verifyBrowserUseProposal({ request, capability, proposal: { ...proposal, visitedUrls: [listing.url, a, "https://news.example/article/unobserved"], articleUrls: [a, "https://news.example/article/unobserved"], continuation: "none" }, port });
+    expect(fallback.articles.map(article => article.article?.canonicalUrl)).toEqual([a, b]);
     expect(closes).toBe(2);
+    await expect(verifyBrowserUseProposal({ request, capability, proposal: { ...proposal, visitedUrls: [listing.url, "https://news.example/article/unobserved"], articleUrls: ["https://news.example/article/unobserved"], continuation: "none" }, port })).rejects.toThrow("browser_use_trusted_evidence_insufficient");
+    expect(closes).toBe(3);
   });
   it("verifies links that appear only after a second bounded scroll", async () => {
     const source="https://news.example/", a="https://news.example/article/a", b="https://news.example/article/b";
@@ -67,6 +70,18 @@ describe("Browser Use discovery boundary", () => {
     const request={source:{canonicalSourceUrl:source},limits:{maxScrolls:3,maxPhysicalAttempts:8}} as never;
     const verified=await verifyBrowserUseProposal({request,capability,proposal:{...proposal,visitedUrls:[source,a,b],articleUrls:[a,b],continuation:"none"},port});
     expect(scrolls).toBe(2);expect(verified.articles).toHaveLength(2);expect(verified.plan.continuation.kind).toBe("SCROLL");expect(closes).toBe(1);
+  });
+  it("continues past duplicate canonical hints using only a fresh observed listing link", async () => {
+    const source="https://news.example/", a="https://news.example/article/a", duplicate="https://news.example/article/a?ref=listing", b="https://news.example/article/b";
+    const listing:PublicBrowserObservation={url:source,title:"Listing",pageRevision:"listing",visibleText:"",controls:[],listingLinks:[a,duplicate,b]};
+    const article=(url:string,canonicalUrl:string):PublicBrowserObservation=>({url,title:"Article",pageRevision:url,visibleText:"",controls:[],article:{canonicalUrl,title:"Article",body:"Independently observed complete body",excerpt:"",publisherTimestamp:"2026-09-24T00:00:00Z"}});
+    const pages=new Map([[source,listing],[a,article(a,a)],[duplicate,article(duplicate,a)],[b,article(b,b)]]);
+    const visited:string[]=[];
+    const port={open:async()=>{},navigateAndObserve:async(url:string)=>{visited.push(url);return pages.get(url)!},close:async()=>{}};
+    const request={source:{canonicalSourceUrl:source},limits:{maxScrolls:0,maxPhysicalAttempts:8}} as never;
+    const verified=await verifyBrowserUseProposal({request,capability,proposal:{...proposal,visitedUrls:[source,a,duplicate],listingUrls:[source],articleUrls:[a,duplicate],continuation:"none"},port});
+    expect(verified.articles.map(value=>value.article?.canonicalUrl)).toEqual([a,b]);
+    expect(visited).toContain(b);
   });
   it("rejects unbounded or authenticated Browser Use bridge operations", () => {
     const base = { protocol: "v1", operationId: "op", capability: { bridgeExecutionId: "run", bootstrapRequestId: "run", runId: "run", tenantId: "tenant", ownerId: "owner", profileId: "source", expectedProfileVersion: 0, browserGeneration: 1, authFlowId: "flow", siteKind: "PUBLIC", authEntryPoint: "https://news.example/", sessionProbeUrl: "https://news.example/", allowedOrigins: ["https://news.example"], writeOrigins: [], issuedAt: "2026-09-25T00:00:00Z", expiresAt: "2026-09-25T00:02:00Z", operationBudget: 20 }, operation: "DISCOVER_SOURCE_WITH_BROWSER_USE", sourceUrl: "https://news.example/", modelRef: "openai/model", maxSteps: 12 };
