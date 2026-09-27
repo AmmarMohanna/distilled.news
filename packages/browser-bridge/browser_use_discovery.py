@@ -18,10 +18,14 @@ from urllib.parse import urlparse
 
 
 class DiscoveryFailure(Exception):
-    def __init__(self, category: str, bridge_code: str | None = None, bridge_status: int | None = None):
+    def __init__(self, category: str, bridge_code: str | None = None, bridge_status: int | None = None,
+                 policy_rule: str | None = None, denied_hostname: str | None = None, bridge_operation: str | None = None):
         self.category = category
         self.bridge_code = bridge_code
         self.bridge_status = bridge_status
+        self.policy_rule = policy_rule
+        self.denied_hostname = denied_hostname
+        self.bridge_operation = bridge_operation
         super().__init__(category)
 
 
@@ -153,14 +157,24 @@ async def discover(payload: dict) -> dict:
         except urllib.error.HTTPError as error:
             try:
                 failure = json.loads(error.read(4096))
-                code = failure.get("error", {}).get("code")
+                detail = failure.get("error", {})
+                code = detail.get("code")
+                diagnostic = detail.get("diagnostic") or {}
             except (ValueError, TypeError, AttributeError):
                 code = None
+                diagnostic = {}
             allowed = {"BRIDGE_UNAVAILABLE", "BRIDGE_UNAUTHORIZED", "BRIDGE_REPLAY_REJECTED", "BRIDGE_EXECUTION_EXPIRED",
                        "BRIDGE_FENCE_MISMATCH", "BRIDGE_OBSERVATION_STALE", "BRIDGE_NETWORK_POLICY_DENIED",
                        "BRIDGE_EFFECT_UNKNOWN", "BRIDGE_BROWSER_FAILURE", "BRIDGE_PROTOCOL_UNSUPPORTED",
                        "BRIDGE_PAYLOAD_TOO_LARGE", "BRIDGE_OPERATION_UNKNOWN"}
-            raise DiscoveryFailure("ACTION_BRIDGE_FAILED", code if isinstance(code, str) and code in allowed else None, error.code) from error
+            rules = {"ORIGIN_NOT_ADMITTED", "REDIRECT_ORIGIN_NOT_ADMITTED", "FINAL_ORIGIN_NOT_ADMITTED",
+                     "SCHEME_NOT_ALLOWED", "PRIVATE_OR_UNRESOLVED_ORIGIN", "METHOD_NOT_ALLOWED", "REQUEST_BLOCKED"}
+            rule = diagnostic.get("policyRule") if isinstance(diagnostic, dict) else None
+            hostname = diagnostic.get("deniedHostname") if isinstance(diagnostic, dict) else None
+            raise DiscoveryFailure("ACTION_BRIDGE_FAILED", code if isinstance(code, str) and code in allowed else None,
+                                   error.code, rule if rule in rules else None,
+                                   hostname if isinstance(hostname, str) and re.fullmatch(r"[A-Za-z0-9.-]{1,253}", hostname) else None,
+                                   operation) from error
         if envelope.get("ok") is not True:
             raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
         result = envelope["result"]
@@ -297,5 +311,8 @@ if __name__ == "__main__":
                           "failureTrace": safe_trace(origin),
                           "runtimeHint": runtime_hint(origin),
                           "bridgeFailureCode": error.bridge_code if isinstance(error, DiscoveryFailure) else None,
-                          "bridgeHttpStatus": error.bridge_status if isinstance(error, DiscoveryFailure) else None}))
+                          "bridgeHttpStatus": error.bridge_status if isinstance(error, DiscoveryFailure) else None,
+                          "policyRule": error.policy_rule if isinstance(error, DiscoveryFailure) else None,
+                          "deniedHostname": error.denied_hostname if isinstance(error, DiscoveryFailure) else None,
+                          "bridgeOperation": error.bridge_operation if isinstance(error, DiscoveryFailure) else None}))
         sys.exit(1)

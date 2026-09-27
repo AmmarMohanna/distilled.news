@@ -84,10 +84,10 @@ export class AuthenticatedBrowserBridgeService{
         if(settled)return;
         try{
           if(code!==0){
-            let category:BrowserUseFailureCategory="AGENT_RUN_FAILED",failureType:string|undefined,causeType:string|undefined,failureTrace:string[]|undefined,runtimeHint:string|undefined,bridgeFailureCode:AuthenticatedBrowserBridgeFailureCode|undefined,bridgeHttpStatus:number|undefined;
+            let category:BrowserUseFailureCategory="AGENT_RUN_FAILED",failureType:string|undefined,causeType:string|undefined,failureTrace:string[]|undefined,runtimeHint:string|undefined,bridgeFailureCode:AuthenticatedBrowserBridgeFailureCode|undefined,bridgeHttpStatus:number|undefined,policyRule:BrowserNetworkPolicyDiagnostic["policyRule"]|undefined,deniedHostname:string|undefined,bridgeOperation:"NAVIGATE_PUBLIC_PAGE"|"OBSERVE_PUBLIC_PAGE"|"SCROLL_PUBLIC_PAGE"|undefined;
             const runnerExit=signal?"SIGNAL":output.trim()?"EXIT_CODE":"EMPTY_OUTPUT";
             try{
-              const failure=JSON.parse(output) as {category?:unknown;failureType?:unknown;causeType?:unknown;failureTrace?:unknown;runtimeHint?:unknown;bridgeFailureCode?:unknown;bridgeHttpStatus?:unknown};
+              const failure=JSON.parse(output) as {category?:unknown;failureType?:unknown;causeType?:unknown;failureTrace?:unknown;runtimeHint?:unknown;bridgeFailureCode?:unknown;bridgeHttpStatus?:unknown;policyRule?:unknown;deniedHostname?:unknown;bridgeOperation?:unknown};
               if(BROWSER_USE_FAILURE_CATEGORIES.includes(failure.category as BrowserUseFailureCategory))category=failure.category as BrowserUseFailureCategory;
               if(typeof failure.failureType==="string"&&/^[A-Za-z0-9_.]{1,120}$/.test(failure.failureType))failureType=failure.failureType;
               if(typeof failure.causeType==="string"&&/^[A-Za-z0-9_.]{1,120}$/.test(failure.causeType))causeType=failure.causeType;
@@ -95,9 +95,12 @@ export class AuthenticatedBrowserBridgeService{
               if(typeof failure.runtimeHint==="string"&&/^[A-Z_]{1,40}$/.test(failure.runtimeHint))runtimeHint=failure.runtimeHint;
               if(BRIDGE_FAILURE_CODES.includes(failure.bridgeFailureCode as AuthenticatedBrowserBridgeFailureCode))bridgeFailureCode=failure.bridgeFailureCode as AuthenticatedBrowserBridgeFailureCode;
               if(typeof failure.bridgeHttpStatus==="number"&&Number.isInteger(failure.bridgeHttpStatus)&&failure.bridgeHttpStatus>=400&&failure.bridgeHttpStatus<=599)bridgeHttpStatus=failure.bridgeHttpStatus;
+              if(["ORIGIN_NOT_ADMITTED","REDIRECT_ORIGIN_NOT_ADMITTED","FINAL_ORIGIN_NOT_ADMITTED","SCHEME_NOT_ALLOWED","PRIVATE_OR_UNRESOLVED_ORIGIN","METHOD_NOT_ALLOWED","REQUEST_BLOCKED"].includes(String(failure.policyRule)))policyRule=failure.policyRule as BrowserNetworkPolicyDiagnostic["policyRule"];
+              if(typeof failure.deniedHostname==="string"&&/^[A-Za-z0-9.-]{1,253}$/.test(failure.deniedHostname))deniedHostname=failure.deniedHostname;
+              if(["NAVIGATE_PUBLIC_PAGE","OBSERVE_PUBLIC_PAGE","SCROLL_PUBLIC_PAGE"].includes(String(failure.bridgeOperation)))bridgeOperation=failure.bridgeOperation as typeof bridgeOperation;
             }catch{/* bounded diagnostic only */}
-            console.log(JSON.stringify({event:"browser_use_runner_failure",category,failureType,causeType,failureTrace,runtimeHint,bridgeFailureCode,bridgeHttpStatus,runnerExit}));
-            finish(new AuthenticatedBrowserBridgeError("BRIDGE_BROWSER_FAILURE",{browserUseFailure:category,failureType,causeType,failureTrace,runtimeHint,bridgeFailureCode,bridgeHttpStatus,runnerExit}));return;
+            console.log(JSON.stringify({event:"browser_use_runner_failure",category,failureType,causeType,failureTrace,runtimeHint,bridgeFailureCode,bridgeHttpStatus,policyRule,deniedHostname,bridgeOperation,runnerExit}));
+            finish(new AuthenticatedBrowserBridgeError("BRIDGE_BROWSER_FAILURE",{browserUseFailure:category,failureType,causeType,failureTrace,runtimeHint,bridgeFailureCode,bridgeHttpStatus,policyRule,deniedHostname,bridgeOperation,runnerExit}));return;
           }
           const parsed=JSON.parse(output) as BrowserUseDiscoveryProposal;
           assertBoundedProposal(parsed,{runId:cap.runId,tenantId:cap.tenantId,ownerId:cap.ownerId,resourceId:cap.profileId,browserGeneration:cap.browserGeneration,allowedOrigins:cap.allowedOrigins,siteKind:"PUBLIC",readOnly:true,expiresAt:cap.expiresAt});
