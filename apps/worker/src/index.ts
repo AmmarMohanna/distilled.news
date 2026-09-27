@@ -11,6 +11,7 @@ import { D1AgentRuntimeStore } from "./agent-runtime-store";
 import { processLivePublicAcquisitionSmoke } from "./live-public-acquisition-smoke";
 import { dispatchPendingPublicAcquisitionRequests, processPublicAcquisitionRequest } from "./public-acquisition-request";
 import { dispatchPendingAuthenticatedXAcquisitionRequests,processAuthenticatedXAcquisitionRequest } from "./authenticated-x-acquisition-request";
+import { expireAcquisitionDiagnostics } from "./acquisition-diagnostic-retention";
 import { createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { dispatchPendingOpenRouterModelDiagnostics,processOpenRouterModelDiagnostic } from "./openrouter-model-diagnostic";
 import { dispatchPendingAuthenticatedProfileBootstraps,processAuthenticatedProfileBootstrap } from "./authenticated-profile-bootstrap-trigger";
@@ -239,6 +240,7 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
   try{await dispatchPendingAuthenticatedSurfaceDiagnostics(env,now)}catch(error){console.warn("Could not dispatch pending authenticated surface diagnostic",error)}
   try{await dispatchPendingPublicAcquisitionRequests(env)}catch(error){console.warn("Could not dispatch pending public acquisition requests",error)}
   try{await dispatchPendingAuthenticatedXAcquisitionRequests(env)}catch(error){console.warn("Could not dispatch pending authenticated X acquisition requests",error)}
+  try{await expireAcquisitionDiagnostics(env.DB,now)}catch(error){console.warn("Could not expire acquisition diagnostics",error)}
   if (env.DISTILLED_WEB_OPERATOR_ENABLED === "true") {
     try { await relayPendingWebOperatorOutbox(env,undefined,25,now); }
     catch (error) { console.warn("Could not relay pending Web Operator runs",error); }
