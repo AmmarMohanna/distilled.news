@@ -111,6 +111,7 @@ async def discover(payload: dict) -> dict:
                                    "switch", "close", "extract", "screenshot", "dropdown_options",
                                    "select_dropdown", "write_file", "read_file", "replace_file"])
     visited: list[str] = []
+    observed_links: set[str] = set()
     model_calls = 0
     browser_actions = 0
     agent_actions = 0
@@ -136,6 +137,12 @@ async def discover(payload: dict) -> dict:
             raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
         if result["url"] not in visited:
             visited.append(result["url"])
+        for value in result.get("listingLinks", []):
+            if isinstance(value, str) and admitted(value, origin):
+                observed_links.add(value)
+        for control in result.get("controls", []):
+            if isinstance(control, dict) and isinstance(control.get("destinationUrl"), str) and admitted(control["destinationUrl"], origin):
+                observed_links.add(control["destinationUrl"])
         browser_actions += 1
         return result
 
@@ -186,9 +193,9 @@ async def discover(payload: dict) -> dict:
         agent = Agent(
             task=(f"Explore the public news listing {source_url} using navigate_source, scroll_source and observe_source. "
                   f"Distilled already observed these bounded listing states: {initial_observations}. "
-                  "Use navigate_source on at least two observed article links before finishing when two are available. "
-                  "If no article links are visible, use scroll_source and observe_source to find them. "
-                  "Return article_urls only for article pages you visited through navigate_source. "
+                  "Select article_urls from the observed listing links; propose at least two when two are visible. "
+                  "You may use navigate_source, scroll_source and observe_source to investigate further. "
+                  "Distilled will visit your proposed article URLs through its fenced browser and verify them independently. "
                   "Identify listing and article URLs, continuation, timestamp hints, and visible challenges. "
                   "Do not submit forms, authenticate, or claim a challenge was solved."),
             llm=CountedChatOpenAI(model=model, api_key=os.environ["OPENAI_API_KEY"],
@@ -211,7 +218,17 @@ async def discover(payload: dict) -> dict:
     visited = visited[:32]
     structured = result.model_dump()
     listings = [url for url in structured["listing_urls"] if url in visited]
-    articles = [url for url in structured["article_urls"] if url in visited]
+    # The model selects hypotheses only from links actually seen by the fenced
+    # browser. Execute selected visits here; the Worker later re-observes them
+    # in a fresh session before compiling any workflow.
+    articles = []
+    for url in structured["article_urls"][:8]:
+        if url not in observed_links:
+            continue
+        if url not in visited:
+            await asyncio.to_thread(bridge, "NAVIGATE_PUBLIC_PAGE", url=url)
+        if url in visited:
+            articles.append(url)
     continuation = structured["continuation"]
     if continuation not in {"none", "pagination", "load_more", "scroll"}:
         continuation = "none"
