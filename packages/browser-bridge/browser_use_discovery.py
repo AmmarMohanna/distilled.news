@@ -88,8 +88,13 @@ def article_candidate_score(value: str) -> int:
         return -100
     if parts[0] in {"account", "search", "login", "signin", "tag", "tags", "author"}:
         return -100
-    dated = bool(re.search(r"/20\d{2}/\d{1,2}/\d{1,2}/", path))
-    return (100 if dated else 0) + min(30, len(parts[-1]) // 4) + min(20, len(parts) * 4)
+    dated = re.search(r"/((?:20)\d{2})/(\d{1,2})/(\d{1,2})/", path)
+    calendar_hint = 0
+    if dated:
+        year, month, day = map(int, dated.groups())
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            calendar_hint = (year * 10000 + month * 100 + day) * 100
+    return calendar_hint + (100 if dated else 0) + min(30, len(parts[-1]) // 4) + min(20, len(parts) * 4)
 
 
 async def discover(payload: dict) -> dict:
@@ -271,7 +276,9 @@ async def discover(payload: dict) -> dict:
     model_hints = [url for url in structured["article_urls"] if url in observed_links]
     observed_candidates = sorted((url for url in initial_listing_links if article_candidate_score(url) >= 20),
                                  key=lambda value: (-article_candidate_score(value), value))
-    for url in list(dict.fromkeys(model_hints + observed_candidates))[:4]:
+    ranked_hints = sorted(set(model_hints + observed_candidates),
+                          key=lambda value: (-article_candidate_score(value), value))
+    for url in ranked_hints[:4]:
         if url not in observed_links:
             continue
         if url not in visited:

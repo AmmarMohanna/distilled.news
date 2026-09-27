@@ -254,7 +254,10 @@ interface DomNodeSnapshot {
 }
 
 const READ_ONLY_BROWSER_METHODS = new Set(["GET", "HEAD"]);
-const MAX_HTTP_REQUESTS_PER_SESSION = 200;
+// A multi-page public discovery may load several article documents in one fenced
+// context. Keep a finite aggregate cap while allowing their ordinary read-only
+// assets; origin, address, method, and redirect checks still apply per request.
+const MAX_HTTP_REQUESTS_PER_SESSION = 600;
 const PUBLIC_PAGE_READINESS_DEADLINE_MS = 8_000;
 const PUBLIC_PAGE_READINESS_POLL_MS = 250;
 const ACTIVE_TRANSPORT_HARDENING = `(() => {
