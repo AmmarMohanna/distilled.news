@@ -1,4 +1,4 @@
-"""Bounded Browser Use Path 3 discovery worker. Stdin/stdout carry only public URLs.
+"""Bounded Browser Use Path 3 discovery worker. Stdin/stdout carry only source URLs.
 
 This process is not an authority boundary: its output must be checked against
 Distilled's trusted Chromium observations before a workflow can be promoted.
@@ -105,12 +105,16 @@ async def discover(payload: dict) -> dict:
     except Exception as error:
         raise DiscoveryFailure("BROWSER_USE_IMPORT_FAILED") from error
 
+    site_mode = payload.get("siteMode", "PUBLIC")
+    if site_mode not in {"PUBLIC", "X_TIMELINE"}:
+        raise ValueError("invalid_discovery_input")
+
     class Discovery(BaseModel):
         listing_urls: list[str] = Field(max_length=16)
         # Workflow compilation needs two independent dated samples. Requiring
         # two hypotheses prevents a premature empty Agent completion; each is
         # still checked against observed links and reverified by Distilled.
-        article_urls: list[str] = Field(min_length=2, max_length=32)
+        article_urls: list[str] = Field(min_length=0 if site_mode == "X_TIMELINE" else 2, max_length=32)
         continuation: str
         timestamp_hints: list[str] = Field(max_length=16)
         challenge_observed: bool
@@ -119,6 +123,8 @@ async def discover(payload: dict) -> dict:
     origin = payload["allowedOrigin"]
     run_id = payload["runId"]
     if not isinstance(run_id, str) or len(run_id) > 128 or not admitted(source_url, origin):
+        raise ValueError("invalid_discovery_input")
+    if site_mode == "X_TIMELINE" and (urlparse(source_url).hostname != "x.com" or not re.fullmatch(r"/[A-Za-z0-9_]{1,15}/?", urlparse(source_url).path)):
         raise ValueError("invalid_discovery_input")
     model = payload.get("modelRef", "")
     max_steps = payload.get("maxSteps", 0)
@@ -197,6 +203,12 @@ async def discover(payload: dict) -> dict:
         return result
 
     def summary(result: dict) -> str:
+        if site_mode == "X_TIMELINE":
+            posts = result.get("timelinePosts") or []
+            safe_posts = [{"id": item.get("sourceItemId"), "publishedAt": item.get("publishedAt")}
+                          for item in posts[:30] if isinstance(item, dict)]
+            return json.dumps({"url": result["url"], "posts": safe_posts,
+                               "challengeState": result.get("challengeState")}, separators=(",", ":"))[:12000]
         controls = result.get("controls", [])
         links = [value for value in result.get("listingLinks", []) if isinstance(value, str) and admitted(value, origin)]
         links += [control.get("destinationUrl") for control in controls if isinstance(control, dict) and isinstance(control.get("destinationUrl"), str) and admitted(control["destinationUrl"], origin)]
@@ -210,41 +222,45 @@ async def discover(payload: dict) -> dict:
     @tools.action("Navigate to a public same-origin page through Distilled's fenced Chromium browser")
     async def navigate_source(url: str) -> ActionResult:
         nonlocal agent_actions
-        if not admitted(url, origin):
+        if not admitted(url, origin) or (site_mode == "X_TIMELINE" and url != source_url):
             return ActionResult(extracted_content="Navigation denied by Distilled origin policy")
-        result = await asyncio.to_thread(bridge, "NAVIGATE_PUBLIC_PAGE", url=url)
+        result = await asyncio.to_thread(bridge, "NAVIGATE_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "NAVIGATE_PUBLIC_PAGE", **({"sourceUrl": url} if site_mode == "X_TIMELINE" else {"url": url}))
         agent_actions += 1
         return ActionResult(extracted_content=summary(result))
 
     @tools.action("Scroll the current Distilled public page by up to 1200 pixels and inspect it")
     async def scroll_source() -> ActionResult:
         nonlocal agent_actions
-        result = await asyncio.to_thread(bridge, "SCROLL_PUBLIC_PAGE", deltaY=1200)
+        result = await asyncio.to_thread(bridge, "SCROLL_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "SCROLL_PUBLIC_PAGE", deltaY=1200)
         agent_actions += 1
         return ActionResult(extracted_content=summary(result))
 
     @tools.action("Observe the current Distilled public page")
     async def observe_source() -> ActionResult:
         nonlocal agent_actions
-        result = await asyncio.to_thread(bridge, "OBSERVE_PUBLIC_PAGE")
+        result = await asyncio.to_thread(bridge, "OBSERVE_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "OBSERVE_PUBLIC_PAGE")
         agent_actions += 1
         return ActionResult(extracted_content=summary(result))
     # A bounded, fenced listing probe gives the agent real links on sites that
     # render items only after scrolling. These are hints, never trusted evidence.
-    initial = await asyncio.to_thread(bridge, "NAVIGATE_PUBLIC_PAGE", url=source_url)
+    initial = await asyncio.to_thread(bridge, "NAVIGATE_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "NAVIGATE_PUBLIC_PAGE", **({"sourceUrl": source_url} if site_mode == "X_TIMELINE" else {"url": source_url}))
     initial_observations = [summary(initial)]
-    if (not initial.get("challengeState") or initial.get("challengeState") == "NO_CHALLENGE") and sum(article_candidate_score(url) >= 100 for url in observed_links) < 2:
+    if (not initial.get("challengeState") or initial.get("challengeState") == "NO_CHALLENGE") and (site_mode == "X_TIMELINE" or sum(article_candidate_score(url) >= 100 for url in observed_links) < 2):
         for _ in range(2):
-            initial = await asyncio.to_thread(bridge, "SCROLL_PUBLIC_PAGE", deltaY=1200)
+            initial = await asyncio.to_thread(bridge, "SCROLL_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "SCROLL_PUBLIC_PAGE", deltaY=1200)
             initial_observations.append(summary(initial))
             if initial.get("challengeState") and initial.get("challengeState") != "NO_CHALLENGE":
                 break
-            if sum(article_candidate_score(url) >= 100 for url in observed_links) >= 2:
+            if site_mode != "X_TIMELINE" and sum(article_candidate_score(url) >= 100 for url in observed_links) >= 2:
                 break
     initial_listing_links = set(observed_links)
     try:
         agent = Agent(
-            task=(f"Explore the public news listing {source_url} using navigate_source, scroll_source and observe_source. "
+            task=((f"Inspect the authorized public X profile timeline {source_url} using only navigate_source, scroll_source and observe_source. "
+                   f"Distilled observed bounded post IDs and timestamps: {initial_observations}. "
+                   "Propose listing_urls containing only the profile URL, an empty article_urls list, and whether scrolling continues to reveal posts. "
+                   "Do not authenticate, submit forms, visit messages or settings, or claim a challenge was solved.") if site_mode == "X_TIMELINE" else
+                  f"Explore the public news listing {source_url} using navigate_source, scroll_source and observe_source. "
                   f"Distilled already observed these bounded listing states: {initial_observations}. "
                   "Select article_urls from the observed listing links; propose at least two when two are visible. "
                   "You may use navigate_source, scroll_source and observe_source to investigate further. "
@@ -280,7 +296,7 @@ async def discover(payload: dict) -> dict:
                                  key=lambda value: (-article_candidate_score(value), value))
     ranked_hints = sorted(set(model_hints + observed_candidates),
                           key=lambda value: (-article_candidate_score(value), value))
-    for url in ranked_hints[:4]:
+    for url in ([] if site_mode == "X_TIMELINE" else ranked_hints[:4]):
         if url not in observed_links:
             continue
         if url not in visited:

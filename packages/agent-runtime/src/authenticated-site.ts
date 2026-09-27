@@ -84,6 +84,10 @@ export const AUTHENTICATED_READ_ONLY_DENIED_ACTIONS=["post","reply","like","repo
 export function assertAuthenticatedReadOnlyAction(action:string){if(AUTHENTICATED_READ_ONLY_DENIED_ACTIONS.includes(action as typeof AUTHENTICATED_READ_ONLY_DENIED_ACTIONS[number]))throw new Error("authenticated profile is read-only");if(!["navigate","inspect","extract","scroll","follow_content_link"].includes(action))throw new Error("authenticated action is not allowlisted");}
 
 export interface AuthenticatedBrowserExecutorPort extends BrowserExecutorPort,StructuredBrowserUsePort{
+  navigateAuthenticatedSource?(scope:BrowserScope,sourceUrl:string):Promise<import("./browser").PublicBrowserObservation>;
+  observeAuthenticatedSource?(scope:BrowserScope):Promise<import("./browser").PublicBrowserObservation>;
+  scrollAuthenticatedSource?(scope:BrowserScope,deltaY:number):Promise<import("./browser").PublicBrowserObservation>;
+  discoverAuthenticatedSource?(scope:BrowserScope,sourceUrl:string,modelRef:string,maxSteps:number):Promise<import("./browser-use-discovery").BrowserUseDiscoveryProposal>;
   exportAuthenticatedSession(scope:BrowserScope):Promise<BrowserSessionState>;
   attachAuthenticatedSession(scope:BrowserScope,state:BrowserSessionState):Promise<void>;
   detectAuthenticatedState(scope:BrowserScope,adapter:AuthenticatedSiteAdapter):Promise<AuthenticatedSiteDetection>;

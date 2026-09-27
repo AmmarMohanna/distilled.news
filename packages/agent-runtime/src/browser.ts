@@ -10,6 +10,7 @@ import type { AuthenticatedBootstrapObserver,AuthenticatedSiteAdapter,Authentica
 import type { CredentialMaterial } from "./auth-profile";
 import { DetectOnlyBrowserChallengeProvider,type BrowserChallengeProvider } from "./challenge-coordinator";
 import type { BrowserNetworkPolicyDiagnostic } from "./authenticated-browser-bridge";
+import { extractXTimelinePosts, type XTimelinePostEvidence } from "./x-timeline-evidence";
 
 /** Bounded identities carried with trusted observations so Worker/bridge skew is observable. */
 export const BROWSER_BRIDGE_PROTOCOL_VERSION="v1" as const;
@@ -61,6 +62,7 @@ export interface BrowserObservationData {
     excerpt: string;
     body: string;
   };
+  timelinePosts?: XTimelinePostEvidence[];
 }
 
 export interface PublicBrowserObservation {
@@ -70,6 +72,7 @@ export interface PublicBrowserObservation {
   challengeDiagnostics?: BrowserObservationData["challengeDiagnostics"];
   watermarkObserved?:boolean;
   article?:BrowserObservationData["article"];
+  timelinePosts?:XTimelinePostEvidence[];
   documentCountCategory?:BrowserObservationData["documentCountCategory"];
   iframeCountCategory?:BrowserObservationData["iframeCountCategory"];
   domNodeCountCategory?:BrowserObservationData["domNodeCountCategory"];
@@ -216,6 +219,7 @@ interface TrustedBrowserObservation {
   markup: string;
   watermarkObserved: boolean;
   article?: BrowserObservationData["article"];
+  timelinePosts?: XTimelinePostEvidence[];
   observationSource: BrowserObservationData["observationSource"];
   protocolSnapshotVersion: string;
   bridgeProtocolVersion: typeof BROWSER_BRIDGE_PROTOCOL_VERSION;
@@ -941,6 +945,7 @@ export class PlaywrightBrowserAdapter
             body: observed.article.body.slice(0, 4_000)
           }
         : undefined,
+      timelinePosts: observed.timelinePosts,
       visibleText: observed.visibleText.slice(0, 4_000)
     };
     return {
@@ -966,7 +971,8 @@ export class PlaywrightBrowserAdapter
       challengeState,
       challengeDiagnostics,
       watermarkObserved: observed.watermarkObserved,
-      article: observed.article
+      article: observed.article,
+      timelinePosts: observed.timelinePosts
     };
   }
 
@@ -1106,6 +1112,7 @@ class CdpBrowserObservationProvider implements BrowserObservationProvider {
     const listingLinks = discoverListingLinks(nodes, pageUrl, baseUrl);
     const formCountCategory=countCategory([...nodes.values()].filter(node=>node.name==="form").length);
     const article = discoverArticle(nodes, pageUrl, baseUrl, visibleText);
+    const timelinePosts = extractXTimelinePosts(nodes, pageUrl);
     const watermarkObserved = [...nodes.values()].some((node) => node.attributes.get("data-watermark-observed") === "true");
     const protocolSnapshotVersion = "cdp-dom-snapshot-v1";
     const pageRevision = await snapshotRevision(pageUrl, document, snapshot.strings);
@@ -1126,6 +1133,7 @@ class CdpBrowserObservationProvider implements BrowserObservationProvider {
       markup: JSON.stringify(sanitizedSnapshot),
       watermarkObserved,
       article,
+      timelinePosts,
       observationSource: image ? "CDP_SCREENSHOT" : "CDP_DOM_SNAPSHOT",
       protocolSnapshotVersion,
       bridgeProtocolVersion: BROWSER_BRIDGE_PROTOCOL_VERSION,

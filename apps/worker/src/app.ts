@@ -50,6 +50,7 @@ import { createWorkerPublicSourceAcquisitionService, createWorkerWebOperatorRunt
 import { D1UpstreamResourceStore } from "./upstream-resource-store";
 import { discoverAndPromotePublicSourceWorkflow } from "./public-source-discovery";
 import { D1BrowserUseRunTelemetry } from "./browser-use-run-telemetry";
+import { createWorkerXAcquisitionService } from "./authenticated-x-acquisition";
 import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
 import { handleBridgePreflight,handleContainerPreflight,handleProviderDiagnostic } from "./bridge-preflight";
 import { handlePublicBrowserAcquisition } from "./public-browser-acquisition";
@@ -183,6 +184,14 @@ const livePublicAcquisitionSmokeSchema = z.object({
     maxPhysicalAttempts: z.number().int().min(1).max(30),
     maxExecutionMs: z.number().int().min(1_000).max(90_000)
   }).strict().optional()
+}).strict();
+const xAcquisitionSchema=z.object({
+  authenticatedProfileId:z.string().startsWith("authenticated_profile_").max(100),
+  ownerAccountId:z.string().startsWith("account_").max(128),
+  sourceUrl:z.string().url().max(2048),
+  startTime:z.string().datetime({offset:true}),endTime:z.string().datetime({offset:true}),
+  idempotencyKey:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/),
+  limits:z.object({maxItems:z.number().int().min(1).max(30),maxPages:z.number().int().min(1).max(5),maxScrolls:z.number().int().min(1).max(5),maxPhysicalAttempts:z.number().int().min(1).max(30),maxExecutionMs:z.number().int().min(1000).max(90000)}).strict().optional()
 }).strict();
 
 const feedStarInputSchema = z.object({
@@ -339,9 +348,36 @@ export function createApp(options: AppOptions = {}) {
     if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
     if (!isRuntimeAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
     const runId = c.req.param("runId");
-    if (!/^public_source_run_[a-f0-9]{32}_browser_use$/.test(runId)) return c.json({ error: "invalid_run_id" }, 400);
+    if (!/^(?:public_source_run|x_source_run)_[a-f0-9]{32}_browser_use$/.test(runId)) return c.json({ error: "invalid_run_id" }, 400);
     const row = await new D1BrowserUseRunTelemetry(c.env.DB).get(runId);
     return row ? c.json(row) : c.json({ error: "not found" }, 404);
+  });
+  app.get("/v1/browser-use-runs/:runId",async(c)=>{
+    if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
+    const runId=c.req.param("runId");
+    if(!/^(?:public_source_run|x_source_run)_[a-f0-9]{32}_browser_use$/.test(runId))return c.json({error:"invalid_run_id"},400);
+    const row=await new D1BrowserUseRunTelemetry(c.env.DB).get(runId);
+    return row?c.json(row):c.json({error:"not found"},404);
+  });
+
+  app.post("/v1/authenticated-sources/x/acquisition",async(c)=>{
+    if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
+    const parsed=xAcquisitionSchema.safeParse(await c.req.json().catch(()=>null));
+    if(!parsed.success)return c.json({error:"invalid_request"},400);
+    const input=parsed.data,source=new URL(input.sourceUrl),now=nowFor();
+    if(source.origin!=="https://x.com"||!/^\/[A-Za-z0-9_]{1,15}\/?$/.test(source.pathname)||source.search||source.hash||Date.parse(input.startTime)>=Date.parse(input.endTime)||Date.parse(input.startTime)>=now.getTime())return c.json({error:"invalid_x_source_window"},400);
+    const owner=await repoFor(c).getAccountById(input.ownerAccountId);
+    if(!owner||owner.disabledAt)return c.json({error:"owner_not_found"},404);
+    const canonical=`https://x.com/${source.pathname.split("/").filter(Boolean)[0]}`;
+    const resource=await new D1UpstreamResourceStore(c.env.DB).resolveOrCreate({tenantId:owner.id,canonicalSourceUrl:canonical,sourceFamily:"x",now:now.toISOString()});
+    const runId=makeId("x_source_run",resource.id,input.idempotencyKey);
+    const service=createWorkerXAcquisitionService(c.env,{tenantId:owner.id,ownerId:owner.id,profileId:input.authenticatedProfileId,resourceId:resource.id,runId,idempotencyKey:input.idempotencyKey});
+    const limits=input.limits??{maxItems:10,maxPages:3,maxScrolls:3,maxPhysicalAttempts:16,maxExecutionMs:90000};
+    let outcome:Awaited<ReturnType<typeof service.acquire>>;
+    try{outcome=await service.acquire({tenantId:owner.id,ownerId:owner.id,resourceId:resource.id,source:{sourceFamily:"x",canonicalSourceUrl:canonical},window:{startTime:new Date(input.startTime).toISOString(),endTime:new Date(input.endTime).toISOString()},limits,authentication:"AUTH_REQUIRED",acquisitionAsOf:now.toISOString()})}
+    catch{await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,"STRUCTURAL_FAILURE");return c.json({error:"x_acquisition_failed"},500)}
+    await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,outcome.status==="SUCCESS"?"SUCCESS":outcome.stopReason==="CHALLENGE_REQUIRED"?"CHALLENGE_REQUIRED":outcome.stopReason==="AUTH_REQUIRED"?"AUTH_REQUIRED":"STRUCTURAL_FAILURE");
+    return c.json({status:outcome.status,stages:outcome.stages,stopReason:outcome.stopReason,upstreamResourceId:resource.id,activeWorkflow:outcome.activeWorkflow,candidateWorkflow:outcome.candidateWorkflow,webOperatorCalls:outcome.webOperatorCalls,discoveryModelCalls:outcome.discoveryModelCalls,discoveryBrowserOperations:outcome.discoveryBrowserOperations,coverage:outcome.result?.coverage,continuation:outcome.result?.continuation,items:outcome.result?.items.map(item=>({sourceItemId:item.sourceItemId,canonicalItemUrl:item.canonicalItemUrl,publishedAt:item.publishedAt,contentLength:item.text?.length})),committedHighWater:outcome.committedHighWater});
   });
 
   app.get("/api/auth/session", async (c) => {

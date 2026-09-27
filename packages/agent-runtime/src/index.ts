@@ -27,6 +27,7 @@ export * from "./http-html-acquisition";
 export * from "./workflow";
 export * from "./source-browser-workflow";
 export * from "./authenticated-source-workflow";
+export * from "./x-timeline-evidence";
 export * from "./origin";
 export * from "./public-source-stages";
 
