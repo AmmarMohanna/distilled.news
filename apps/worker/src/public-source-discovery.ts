@@ -1,10 +1,10 @@
-import { BrowserUseDiscoveryBackend, BrowserUseEvidenceError, BrowserUseTrustedChallengeError, BROWSER_USE_FAILURE_CATEGORIES, BRIDGE_FAILURE_CODES, compileSourceBrowserWorkflowPlan, verifyBrowserUseProposal, DEFAULT_SLICE_BUDGET, makeId, validateSourceBrowserWorkflowPlan, type AcquisitionStageOutcome, type ModelCapability, type ModelRoutingConfig, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserDiscoveryEvidence, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort, type WebOperatorDiscovery, type WorkflowCandidate } from "@distilled/agent-runtime";
+import { BrowserUseDiscoveryBackend, BrowserUseEvidenceError, BrowserUseTrustedChallengeError, BROWSER_USE_FAILURE_CATEGORIES, BRIDGE_FAILURE_CODES, compileSourceBrowserWorkflowPlan, verifyBrowserUseProposal, DEFAULT_SLICE_BUDGET, makeId, validateSourceBrowserWorkflowPlan, type AcquisitionStageOutcome, type ModelCapability, type ModelRoutingConfig, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserDiscoveryEvidence, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort, type WebOperatorDiscovery, type WorkflowCandidate, type WorkflowCaptureBundle } from "@distilled/agent-runtime";
 import { ContainerSourceBrowserPort } from "./container-source-browser-port";
 import type { Env } from "./types";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
 import { createWorkerContainerPublicWebOperatorLifecycle, executeWorkerSourcePlan } from "./web-operator-runtime";
 
-export interface PublicSourceDiscoveryResult { evidence: SourceBrowserDiscoveryEvidence; plan: SourceBrowserWorkflowPlan; candidateUrl: string; browserOperations: number; discoveryModelCalls?: number }
+export interface PublicSourceDiscoveryResult { evidence: SourceBrowserDiscoveryEvidence; plan: SourceBrowserWorkflowPlan; candidateUrl: string; browserOperations: number; discoveryModelCalls?: number; agentRunId?: string }
 class PublicSourceDiscoveryStop extends Error { constructor(readonly status: "AUTH_REQUIRED" | "CHALLENGE_REQUIRED" | "POLICY_DENIED", readonly diagnostics?: PublicBrowserObservation["challengeDiagnostics"], readonly originHost?: string, readonly observedPath?: string, readonly observedTitle?: string) { super(status); } }
 function challengeStop(observation: PublicBrowserObservation): PublicSourceDiscoveryStop {
   let originHost: string | undefined, observedPath: string | undefined;
@@ -77,7 +77,7 @@ export async function discoverBrowserUseSourcePlan(env: Env, input: { request: S
   catch (error) { if (error instanceof BrowserUseTrustedChallengeError) throw challengeStop(error.observation); throw tagBrowserUseStage(error, "TRUSTED_VERIFY"); }
   if (trusted.plan.continuation.kind === "NONE") return undefined;
   console.log(JSON.stringify({ event: "browser_use_discovery_verified", modelCalls: proposal.modelCalls ?? null, browserActions: proposal.browserActions ?? null, agentBrowserActions: proposal.agentBrowserActions ?? null, trustedArticles: trusted.articles.length }));
-  return { evidence: { sourceUrl, listing: trusted.listing, sampledArticles: trusted.articles }, plan: trusted.plan, candidateUrl: trusted.articles[0].article!.canonicalUrl, browserOperations: (proposal.browserActions ?? proposal.steps) + trusted.articles.length + 1, discoveryModelCalls: proposal.modelCalls ?? proposal.steps };
+  return { evidence: { sourceUrl, listing: trusted.listing, sampledArticles: trusted.articles, afterScroll: trusted.afterScroll }, plan: trusted.plan, candidateUrl: trusted.articles[0].article!.canonicalUrl, browserOperations: (proposal.browserActions ?? proposal.steps) + trusted.articles.length + 1, discoveryModelCalls: proposal.modelCalls ?? proposal.steps, agentRunId: proposal.runId };
 }
 
 function tagBrowserUseStage(error: unknown, stage: "AGENT_OPEN" | "AGENT_RUN" | "AGENT_CLOSE" | "TRUSTED_VERIFY"): unknown {
@@ -125,6 +125,10 @@ export async function discoverAndPromotePublicSourceWorkflow(
   }
   if (!probe) return { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: "trusted source probe did not establish two dated articles" };
   if (probe.plan.continuation.kind === "NONE") return { stage: "WEB_OPERATOR", status: "INSUFFICIENT", reason: "source continuation was not established" };
+  if (probe.agentRunId) {
+    try { return await compileVerifiedBrowserUseDiscovery(env, input, probe); }
+    catch (error) { return bridgeStop(error, "WORKFLOW_EXPLORATION"); }
+  }
   const model = env.DISTILLED_LIVE_OPENROUTER_MODEL?.trim();
   const provider = env.DISTILLED_LIVE_OPENROUTER_PROVIDER?.trim();
   if (!model || !provider || !env.OPENROUTER_API_KEY) return { stage: "WEB_OPERATOR", status: "TRANSIENT_FAILURE", reason: "discovery model configuration unavailable" };
@@ -194,6 +198,80 @@ export async function discoverAndPromotePublicSourceWorkflow(
     modelCalls: outcome.modelCalls + (probe.discoveryModelCalls ?? 0),
     browserOperations: probe.browserOperations
   };
+}
+
+/** Browser Use has already supplied the discovery hypothesis. Preserve its
+ * actual run and the independent CDP observations as a capture, then use the
+ * same Candidate/Validated/ACTIVE repository path as other source workflows. */
+export async function compileVerifiedBrowserUseDiscovery(
+  env: Env,
+  input: { request: SourceAcquisitionRequest; tenantId: string; ownerId: string; resourceId: string; runId: string; idempotencyKey: string },
+  probe: PublicSourceDiscoveryResult
+): Promise<WebOperatorDiscovery> {
+  const sourceUrl = input.request.source.canonicalSourceUrl ?? input.request.source.resourceLocator!;
+  const origin = new URL(sourceUrl).origin;
+  const runId = probe.agentRunId!;
+  const now = new Date().toISOString();
+  const article = probe.evidence.sampledArticles[0].article!;
+  const identity = { candidateId: makeId("source_candidate", probe.candidateUrl), canonicalUrl: probe.candidateUrl, publisherId: new URL(sourceUrl).hostname, acquisitionAttempt: input.idempotencyKey };
+  await env.DB.prepare(`INSERT OR IGNORE INTO agent_runs
+    (run_id,tenant_id,resource_id,idempotency_key,candidate_id,candidate_url,publisher_id,acquisition_attempt,objective,mode,state,generation,policy_snapshot_id,completion_contract_version,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(
+    runId,input.tenantId,input.resourceId,`${input.idempotencyKey}:browser_use`,identity.candidateId,identity.canonicalUrl,identity.publisherId,identity.acquisitionAttempt,
+    "Bounded read-only Browser Use source discovery","discovery","completed",1,makeId("public_source_policy",input.resourceId),"browser-use-discovery-v1",now,now
+  ).run();
+  const observations = [probe.evidence.listing, probe.evidence.afterScroll, ...probe.evidence.sampledArticles].filter((value): value is PublicBrowserObservation => Boolean(value));
+  const observationId = (value: PublicBrowserObservation) => makeId("trusted_source_observation",runId,value.url,value.pageRevision);
+  const capture: WorkflowCaptureBundle = {
+    id: makeId("workflow_capture",runId,observations.map(observationId).join(",")),runId,tenantId:input.tenantId,resourceId:input.resourceId,candidate:identity,
+    actions:[],observationIds:observations.map(observationId),successfulAlternatives:[],failedAlternatives:[],
+    discoveryEvidence:{
+      canonicalResourceIdentity:{resourceId:input.resourceId,candidateCanonicalUrl:probe.candidateUrl,publisherId:identity.publisherId},
+      listingUrlCandidates:[probe.evidence.listing.url],
+      paginationBehavior:{watermarkObserved:false,exhausted:false,evidenceObservationIds:probe.evidence.afterScroll?[observationId(probe.evidence.afterScroll)]:[]},
+      articleUrlPatterns:[`${origin}${probe.plan.articlePathPrefix}{slug}`],
+      publicationTimeEvidence:probe.evidence.sampledArticles.map(value=>({observationId:observationId(value),publisherTimestamp:value.article!.publisherTimestamp})),
+      pageTypeObservations:observations.map(value=>({observationId:observationId(value),url:value.url,pageType:value.article?"article" as const:"listing" as const,title:value.title})),
+      locatorEvidence:(probe.evidence.listing.listingLinks??[]).map(destinationUrl=>({observationId:observationId(probe.evidence.listing),kind:"link",destinationUrl,safeAction:"follow"})),
+      requiredReadCapabilities:["follow_read_link"],stoppingWatermarkEvidence:[]
+    },
+    extractionEvidence:await Promise.all(probe.evidence.sampledArticles.map(async value=>({observationId:observationId(value),canonicalUrl:value.article!.canonicalUrl,contentHash:await hashSourceBody(value.article!.body)}))),
+    completionEvidence:{citedObservationIds:probe.evidence.sampledArticles.map(observationId),watermarkObserved:false},
+    runtime:{softwareVersion:"distilled-worker@0.1.0",toolSchemaVersion:"browser-use-discovery-v1",workflowSchemaVersion:"workflow-capture-v1"},createdAt:now
+  };
+  const repository = new D1WorkflowRepository(env.DB);
+  await repository.saveCaptureBundle(capture);
+  const versions = await repository.listWorkflowCandidates(input.resourceId);
+  const candidate: WorkflowCandidate = {
+    id:makeId("source_workflow",input.resourceId,runId,JSON.stringify(probe.plan)),tenantId:input.tenantId,resourceId:input.resourceId,sourceCaptureId:capture.id,candidate:identity,
+    sourceAcquisition:probe.plan,state:"CANDIDATE",version:Math.max(0,...versions.map(value=>value.version))+1,
+    operations:[
+      {id:makeId("source_op",input.resourceId,"entry"),kind:"navigate",locatorAlternatives:[{kind:"url_pattern",value:sourceUrl,confidence:1}]},
+      {id:makeId("source_op",input.resourceId,"listing"),kind:"extract_listing",locatorAlternatives:[{kind:"page_type",value:"listing",confidence:1}]},
+      {id:makeId("source_op",input.resourceId,"continuation"),kind:"paginate",locatorAlternatives:[{kind:"page_type",value:"listing",confidence:1}]},
+      {id:makeId("source_op",input.resourceId,"article"),kind:"extract_article",locatorAlternatives:[{kind:"article_canonical",value:probe.candidateUrl,confidence:1}]}
+    ],unsupportedGaps:[],createdAt:now
+  };
+  await repository.saveWorkflowCandidate(candidate);
+  const execute = async (request: SourceAcquisitionRequest, workflow: WorkflowCandidate) => executeWorkerSourcePlan(env,{tenantId:input.tenantId,ownerId:input.ownerId,resourceId:input.resourceId,runId:makeId("source_execution",input.runId,workflow.id),request,workflow});
+  return {
+    candidate:{id:candidate.id,version:candidate.version,state:"CANDIDATE",execute:request=>execute(request,candidate)},
+    validate:async()=>{
+      validateSourceBrowserWorkflowPlan(probe.plan,input.request);
+      const criteria={sourceIdentity:new URL(probe.evidence.listing.url).origin===origin,twoDatedArticles:probe.evidence.sampledArticles.length>=2&&probe.evidence.sampledArticles.every(value=>Boolean(value.article?.body)&&Number.isFinite(Date.parse(value.article!.publisherTimestamp))),groundedAgentArticle:probe.discoveryModelCalls!==undefined&&probe.discoveryModelCalls>0&&article.canonicalUrl===probe.candidateUrl,deterministicContinuation:probe.plan.continuation.kind!=="NONE",readOnlyOrigins:probe.plan.allowedOrigins.length===1&&probe.plan.allowedOrigins[0]===origin};
+      const passed=Object.values(criteria).every(Boolean);
+      await repository.saveValidationResult({workflowId:candidate.id,passed,criteria,failureClass:passed?undefined:"structural_site_change",validatedAt:now});
+      if(!passed)throw new Error("source workflow validation failed");
+      return {id:candidate.id,version:candidate.version,state:"VALIDATED",execute:(request:SourceAcquisitionRequest)=>execute(request,{...candidate,state:"VALIDATED"})};
+    },
+    activate:async()=>{const active=await repository.promoteWorkflow(candidate.id,"source-workflow-validator",now);return {id:active.id,version:active.version,execute:(request:SourceAcquisitionRequest)=>execute(request,active)};},
+    runId,modelCalls:probe.discoveryModelCalls??0,browserOperations:probe.browserOperations
+  };
+}
+
+async function hashSourceBody(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,"0")).join("");
 }
 
 export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE_DISCOVERY" | "WORKFLOW_EXPLORATION" | "UNKNOWN" = "UNKNOWN"): AcquisitionStageOutcome {

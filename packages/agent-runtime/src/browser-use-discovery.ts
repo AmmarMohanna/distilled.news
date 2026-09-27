@@ -78,7 +78,7 @@ export async function verifyBrowserUseProposal(input: {
   capability: PublicAcquisitionCapability;
   proposal: BrowserUseDiscoveryProposal;
   port: SourceBrowserWorkflowPort;
-}): Promise<{ plan: SourceBrowserWorkflowPlan; listing: PublicBrowserObservation; articles: PublicBrowserObservation[] }> {
+}): Promise<{ plan: SourceBrowserWorkflowPlan; listing: PublicBrowserObservation; articles: PublicBrowserObservation[]; afterScroll?: PublicBrowserObservation }> {
   const { request, capability, proposal, port } = input;
   assertBoundedProposal(proposal, capability);
   const sourceUrl = request.source.canonicalSourceUrl ?? request.source.resourceLocator;
@@ -118,7 +118,7 @@ export async function verifyBrowserUseProposal(input: {
     }
     const plan = compileSourceBrowserWorkflowPlan({ sourceUrl: listingUrl, listing, sampledArticles: articles, afterScroll });
     if (!plan) throw new BrowserUseEvidenceError({ proposalArticles: proposal.articleUrls.length, visitedPages: proposal.visitedUrls.length, observedLinks: observedLinks.size, trustedArticles: articles.length, scrollObservations, continuation: proposal.continuation });
-    return { plan, listing, articles };
+    return { plan, listing, articles, afterScroll };
   } finally { await port.close(); }
 }
 
