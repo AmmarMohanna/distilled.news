@@ -3,7 +3,7 @@ import type { CandidateWorkflowHandle } from "./source-acquisition-orchestrator"
 import type { PublicAcquisitionCapability, WebOperatorDiscoveryPort } from "./production-web-operator-adapter";
 import type { SourceBrowserWorkflowPort, SourceBrowserWorkflowPlan } from "./source-browser-workflow";
 import { compileSourceBrowserWorkflowPlan } from "./source-browser-workflow";
-import type { PublicBrowserObservation } from "./browser";
+import { MIN_TRUSTED_PUBLIC_ARTICLE_BODY_CHARS, type PublicBrowserObservation } from "./browser";
 
 /** Agent proposals are untrusted. The compiler must verify each claim against Distilled observations. */
 export interface BrowserUseDiscoveryProposal {
@@ -119,7 +119,7 @@ export async function verifyBrowserUseProposal(input: {
       const observation = await port.navigateAndObserve(url);
       assertTrustedObservation(observation, url, capability);
       console.log(JSON.stringify({ event: "browser_use_trusted_article", proposed: proposal.articleUrls.includes(url), articlePresent: Boolean(observation.article), bodyPresent: Boolean(observation.article?.body), validDate: Boolean(observation.article && Number.isFinite(Date.parse(observation.article.publisherTimestamp))), sameOriginCanonical: Boolean(observation.article && isAdmittedUrl(observation.article.canonicalUrl, capability.allowedOrigins)) }));
-      if (observation.article?.body && Number.isFinite(Date.parse(observation.article.publisherTimestamp)) &&
+      if (observation.article && observation.article.body.trim().length >= MIN_TRUSTED_PUBLIC_ARTICLE_BODY_CHARS && Number.isFinite(Date.parse(observation.article.publisherTimestamp)) &&
         isAdmittedUrl(observation.article.canonicalUrl, capability.allowedOrigins) &&
         !articles.some(previous => previous.article?.canonicalUrl === observation.article!.canonicalUrl)) articles.push(observation);
     };

@@ -5,7 +5,7 @@ import { bridgeStop, discoverBrowserUseSourcePlan, discoverPublicSourceBrowserPl
 import type { Env } from "./types";
 
 const source = "https://publisher.example/news";
-const article = (id: string): PublicBrowserObservation => ({ url: `https://publisher.example/article/${id}`, title: id, pageRevision: id, visibleText: "", controls: [], article: { canonicalUrl: `https://publisher.example/article/${id}`, title: id, body: `Body ${id}`, excerpt: id, publisherTimestamp: "2026-09-21T00:00:00Z" } });
+const article = (id: string): PublicBrowserObservation => ({ url: `https://publisher.example/article/${id}`, title: id, pageRevision: id, visibleText: "", controls: [], article: { canonicalUrl: `https://publisher.example/article/${id}`, title: id, body: `Body ${id} `.repeat(20), excerpt: id, publisherTimestamp: "2026-09-21T00:00:00Z" } });
 const request: SourceAcquisitionRequest = { source: { canonicalSourceUrl: source }, window: { startTime: "2026-09-20T00:00:00Z", endTime: "2026-09-22T00:00:00Z" }, limits: { maxItems: 5, maxPages: 2, maxScrolls: 1, maxPhysicalAttempts: 5, maxExecutionMs: 20_000 } };
 
 describe("public source discovery from trusted Container structure", () => {
@@ -78,3 +78,4 @@ describe("public source discovery from trusted Container structure", () => {
     expect([agentClosed, verifierClosed]).toEqual([1, 1]);
   });
 });
+

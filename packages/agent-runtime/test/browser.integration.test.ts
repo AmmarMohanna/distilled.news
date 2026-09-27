@@ -595,6 +595,16 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     } finally { await browser.close(scope).catch(()=>undefined); }
   },30_000);
 
+  it("waits for a client-rendered article body instead of accepting a dated loading shell",async()=>{
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const scope=await browser.allocate({runId:"article-shell",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    try {
+      const observed=await browser.navigatePublicPage(scope,`${fixture.origin}/delayed-article-body`,[fixture.origin]);
+      expect(observed.article?.body.length).toBeGreaterThanOrEqual(100);
+      expect(observed.article?.body).toContain("verified article body");
+    } finally { await browser.close(scope).catch(()=>undefined); }
+  },30_000);
+
   it("waits boundedly for meaningful public SPA structure",async()=>{
     const browser=PlaywrightBrowserAdapter.forTest();
     const scope=await browser.allocate({runId:"delayed-listing",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
@@ -663,7 +673,7 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
       expect(observed.listingLinks).toContain(`${fixture.origin}/news/article/article`);
       expect(observed.listingLinks).not.toContain(`${fixture.origin}/news/article/`);
     }finally{await browser.close(scope).catch(()=>undefined)}
-  },30_000);
+  },45_000);
 
   it("records a mutation followed by a blocked redirect as effect_unknown and never replays it",async()=>{
     fixture.resetMutations(); const store=new MemoryRuntimeStore(); const artifacts=new MemoryArtifactStore(); const browser=PlaywrightBrowserAdapter.forTest();

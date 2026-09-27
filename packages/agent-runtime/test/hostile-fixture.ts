@@ -69,6 +69,10 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       `));
       return;
     }
+    if (url.pathname === "/delayed-article-body") {
+      response.end(page("Delayed article", `<article><h1>Delayed article</h1><time datetime="2026-09-27T12:00:00Z">Today</time><div data-article-body id="article-body">aj-logo Loading...</div></article><link rel="canonical" href="${url.origin}/delayed-article-body"><script>setTimeout(()=>{document.querySelector('#article-body').textContent='A verified article body with enough independently observed publication text to distinguish the completed document from its loading shell. This second sentence confirms that the browser waited for the client rendered content before returning trusted evidence.'},1800)</script>`));
+      return;
+    }
     if (url.pathname === "/challenge") {
       response.end(page("Challenge", `<main><h1>Simulated CAPTCHA required</h1><p>Do not retry this challenge forever.</p></main>`));
       return;

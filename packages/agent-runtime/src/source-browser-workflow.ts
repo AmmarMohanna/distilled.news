@@ -1,4 +1,4 @@
-import type { PublicBrowserObservation } from "./browser";
+import { MIN_TRUSTED_PUBLIC_ARTICLE_BODY_CHARS, type PublicBrowserObservation } from "./browser";
 import {
   TemporalSourceAcquisition,
   type AcquiredSourceItem,
@@ -42,7 +42,7 @@ export function compileSourceBrowserWorkflowPlan(evidence: SourceBrowserDiscover
   if (source.protocol !== "https:" || new URL(evidence.listing.url).origin !== source.origin) return undefined;
   const articles = evidence.sampledArticles.map((observation) => observation.article).filter((article): article is NonNullable<PublicBrowserObservation["article"]> => Boolean(article));
   const canonicalUrls = [...new Set(articles.filter((article) =>
-    article.body.trim().length > 0 && Number.isFinite(Date.parse(article.publisherTimestamp)) && sameAdmittedOrigin(article.canonicalUrl, [source.origin])
+    article.body.trim().length >= MIN_TRUSTED_PUBLIC_ARTICLE_BODY_CHARS && Number.isFinite(Date.parse(article.publisherTimestamp)) && sameAdmittedOrigin(article.canonicalUrl, [source.origin])
   ).map((article) => article.canonicalUrl))];
   if (canonicalUrls.length < 2) return undefined;
   const paths = canonicalUrls.map((url) => new URL(url).pathname.split("/").filter(Boolean));
@@ -188,7 +188,7 @@ function sameAdmittedOrigin(value: string, allowed: string[]): boolean {
 
 function trustedArticle(observation: PublicBrowserObservation, request: SourceAcquisitionRequest, originalUrl: string): AcquiredSourceItem | undefined {
   const article = observation.article;
-  if (!article || !sameAdmittedOrigin(article.canonicalUrl, [new URL(originalUrl).origin])) return undefined;
+  if (!article || article.body.trim().length < MIN_TRUSTED_PUBLIC_ARTICLE_BODY_CHARS || !sameAdmittedOrigin(article.canonicalUrl, [new URL(originalUrl).origin])) return undefined;
   const publishedAt = Number.isFinite(Date.parse(article.publisherTimestamp)) ? new Date(article.publisherTimestamp).toISOString() : undefined;
   return {
     sourceResource: request.source.canonicalSourceUrl ?? request.source.resourceLocator ?? originalUrl,

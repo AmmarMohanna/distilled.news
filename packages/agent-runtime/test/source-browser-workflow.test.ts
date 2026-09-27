@@ -26,7 +26,7 @@ function listing(url: string, links: string[], next?: string): PublicBrowserObse
 }
 function article(id: string, publishedAt: string): PublicBrowserObservation {
   const url = `${origin}/article/${id}`;
-  return { url, title: id, pageRevision: id, visibleText: "", controls: [], article: { canonicalUrl: url, title: id, body: `Full body ${id}`, excerpt: id, publisherTimestamp: publishedAt } };
+  return { url, title: id, pageRevision: id, visibleText: "", controls: [], article: { canonicalUrl: url, title: id, body: `Full body ${id} `.repeat(12), excerpt: id, publisherTimestamp: publishedAt } };
 }
 function fixture(pages: Map<string, PublicBrowserObservation>) {
   const visits: string[] = [];
@@ -44,6 +44,7 @@ describe("deterministic multi-item browser workflow", () => {
     const evidence = { sourceUrl: `${origin}/news`, listing: listing(`${origin}/news`, [`${origin}/article/a`, `${origin}/article/b`]), sampledArticles: [article("a", "2026-09-21T00:00:00Z"), article("b", "2026-09-20T00:00:00Z")] };
     expect(compileSourceBrowserWorkflowPlan(evidence)).toMatchObject({ articlePathPrefix: "/article/", continuation: { kind: "NONE", terminalEvidence: "UNPROVEN" } });
     expect(compileSourceBrowserWorkflowPlan({ ...evidence, sampledArticles: [article("a", "2026-09-21T00:00:00Z")] })).toBeUndefined();
+    expect(compileSourceBrowserWorkflowPlan({ ...evidence, sampledArticles: evidence.sampledArticles.map(value => ({ ...value, article: { ...value.article!, body: "aj-logo Loading..." } })) })).toBeUndefined();
     expect(compileSourceBrowserWorkflowPlan({ ...evidence, afterScroll: { ...evidence.listing, pageRevision: "scrolled", controls: [...evidence.listing.controls, link(`${origin}/article/c`)] } })).toMatchObject({ continuation: { kind: "SCROLL" } });
     expect(compileSourceBrowserWorkflowPlan({ ...evidence, listing: { ...evidence.listing, controls: [], listingLinks: [`${origin}/article/a`, `${origin}/article/b`] }, afterScroll: { ...evidence.listing, controls: [], listingLinks: [`${origin}/article/a`, `${origin}/article/b`, `${origin}/article/c`], pageRevision: "scrolled" } })).toMatchObject({ continuation: { kind: "SCROLL" } });
   });
@@ -85,6 +86,15 @@ describe("deterministic multi-item browser workflow", () => {
     const exhausted = await new DeterministicSourceBrowserWorkflowExecutor(physical.port).execute({ ...request, limits: { ...request.limits, maxPhysicalAttempts: 1 } }, plan);
     expect(exhausted.coverage.stopReason).toBe("EXECUTION_BUDGET_REACHED");
     expect(exhausted.continuation?.physicalAttempts).toBe(1);
+  });
+
+  it("does not return a timestamped loading placeholder as article content", async () => {
+    const url=`${origin}/article/shell`;
+    const shell={...article("shell","2026-09-21T00:00:00Z"),article:{...article("shell","2026-09-21T00:00:00Z").article!,body:"aj-logo Loading..."}};
+    const pages=new Map<string,PublicBrowserObservation>([[plan.entryUrl,listing(plan.entryUrl,[url])],[url,shell]]);
+    const result=await new DeterministicSourceBrowserWorkflowExecutor(fixture(pages).port).execute(request,{...plan,continuation:{kind:"NONE",terminalEvidence:"UNPROVEN"}});
+    expect(result.items).toHaveLength(0);
+    expect(result.coverage.rangeCovered).toBe(false);
   });
 
   it("restores listing scroll depth after article navigation and does not scroll the article", async () => {

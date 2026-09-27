@@ -47,7 +47,7 @@ describe("Browser Use discovery boundary", () => {
   it("compiles only independently observed article links and dated bodies", async () => {
     const a = "https://news.example/article/a", b = "https://news.example/article/b";
     const listing: PublicBrowserObservation = { url: "https://news.example/", title: "News", pageRevision: "listing", visibleText: "", controls: [a, b].map(url => ({ handle: url, kind: "link", role: "link", label: "Article", safeAction: "follow", destinationUrl: url })) };
-    const pages = new Map<string, PublicBrowserObservation>([[listing.url, listing], ...[a, b].map((url, index) => [url, { url, title: "Article", pageRevision: url, visibleText: "", controls: [], article: { canonicalUrl: url, title: "Article", body: "Verified full body", excerpt: "", publisherTimestamp: `2026-09-${20 + index}T00:00:00Z` } } as PublicBrowserObservation] as const)]);
+    const pages = new Map<string, PublicBrowserObservation>([[listing.url, listing], ...[a, b].map((url, index) => [url, { url, title: "Article", pageRevision: url, visibleText: "", controls: [], article: { canonicalUrl: url, title: "Article", body: "Verified full body ".repeat(8), excerpt: "", publisherTimestamp: `2026-09-${20 + index}T00:00:00Z` } } as PublicBrowserObservation] as const)]);
     let closes = 0;
     const port = { open: async () => {}, navigateAndObserve: async (url: string) => { const result = pages.get(url); if (!result) throw new Error("missing fixture"); return result; }, close: async () => { closes++; } };
     const request = { source: { canonicalSourceUrl: listing.url }, limits: { maxScrolls: 0, maxPhysicalAttempts: 8 } } as never;
@@ -64,7 +64,7 @@ describe("Browser Use discovery boundary", () => {
   it("verifies links that appear only after a second bounded scroll", async () => {
     const source="https://news.example/", a="https://news.example/article/a", b="https://news.example/article/b";
     const observed=(url:string,links:string[]):PublicBrowserObservation=>({url,title:"News",pageRevision:`${url}:${links.length}`,visibleText:"",controls:[],listingLinks:links});
-    const articles=new Map([a,b].map((url,index)=>[url,{...observed(url,[]),article:{canonicalUrl:url,title:"Article",body:"Verified full body",excerpt:"",publisherTimestamp:`2026-09-${20+index}T00:00:00Z`}}]));
+    const articles=new Map([a,b].map((url,index)=>[url,{...observed(url,[]),article:{canonicalUrl:url,title:"Article",body:"Verified full body ".repeat(8),excerpt:"",publisherTimestamp:`2026-09-${20+index}T00:00:00Z`}}]));
     let scrolls=0, closes=0;
     const port={open:async()=>{},navigateAndObserve:async(url:string)=>url===source?observed(source,[]):articles.get(url)!,scrollAndObserve:async()=>observed(source,++scrolls===1?[a]:[a,b]),close:async()=>{closes++}};
     const request={source:{canonicalSourceUrl:source},limits:{maxScrolls:3,maxPhysicalAttempts:8}} as never;
@@ -74,7 +74,7 @@ describe("Browser Use discovery boundary", () => {
   it("tests continuation even when the model's two article hints were already visible", async () => {
     const source="https://news.example/",a="https://news.example/article/a",b="https://news.example/article/b",c="https://news.example/article/c";
     const listing=(links:string[]):PublicBrowserObservation=>({url:source,title:"News",pageRevision:links.join(","),visibleText:"",controls:[],listingLinks:links});
-    const article=(url:string):PublicBrowserObservation=>({url,title:"Article",pageRevision:url,visibleText:"",controls:[],article:{canonicalUrl:url,title:"Article",body:"Verified full body",excerpt:"",publisherTimestamp:"2026-09-27T00:00:00Z"}});
+    const article=(url:string):PublicBrowserObservation=>({url,title:"Article",pageRevision:url,visibleText:"",controls:[],article:{canonicalUrl:url,title:"Article",body:"Verified full body ".repeat(8),excerpt:"",publisherTimestamp:"2026-09-27T00:00:00Z"}});
     let scrolls=0;
     const port={open:async()=>{},navigateAndObserve:async(url:string)=>url===source?listing([a,b]):article(url),scrollAndObserve:async()=>listing(++scrolls===1?[a,b]:[a,b,c]),close:async()=>{}};
     const request={source:{canonicalSourceUrl:source},limits:{maxScrolls:3,maxPhysicalAttempts:8}} as never;
@@ -86,7 +86,7 @@ describe("Browser Use discovery boundary", () => {
   it("continues past duplicate canonical hints using only a fresh observed listing link", async () => {
     const source="https://news.example/", a="https://news.example/article/a", duplicate="https://news.example/article/a?ref=listing", b="https://news.example/article/b";
     const listing:PublicBrowserObservation={url:source,title:"Listing",pageRevision:"listing",visibleText:"",controls:[],listingLinks:[a,duplicate,b]};
-    const article=(url:string,canonicalUrl:string):PublicBrowserObservation=>({url,title:"Article",pageRevision:url,visibleText:"",controls:[],article:{canonicalUrl,title:"Article",body:"Independently observed complete body",excerpt:"",publisherTimestamp:"2026-09-24T00:00:00Z"}});
+    const article=(url:string,canonicalUrl:string):PublicBrowserObservation=>({url,title:"Article",pageRevision:url,visibleText:"",controls:[],article:{canonicalUrl,title:"Article",body:"Independently observed complete body ".repeat(4),excerpt:"",publisherTimestamp:"2026-09-24T00:00:00Z"}});
     const pages=new Map([[source,listing],[a,article(a,a)],[duplicate,article(duplicate,a)],[b,article(b,b)]]);
     const visited:string[]=[];
     const port={open:async()=>{},navigateAndObserve:async(url:string)=>{visited.push(url);return pages.get(url)!},close:async()=>{}};
@@ -102,3 +102,4 @@ describe("Browser Use discovery boundary", () => {
     expect(() => assertBridgeRequestShape({ ...base, capability: { ...base.capability, siteKind: "X" } })).toThrow();
   });
 });
+

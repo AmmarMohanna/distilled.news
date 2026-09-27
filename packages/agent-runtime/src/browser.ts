@@ -14,6 +14,8 @@ import type { BrowserNetworkPolicyDiagnostic } from "./authenticated-browser-bri
 /** Bounded identities carried with trusted observations so Worker/bridge skew is observable. */
 export const BROWSER_BRIDGE_PROTOCOL_VERSION="v1" as const;
 export const TRUSTED_OBSERVATION_SCHEMA_VERSION="trusted-observation-v1" as const;
+/** Reject hydration shells as news article bodies in source workflow evidence. */
+export const MIN_TRUSTED_PUBLIC_ARTICLE_BODY_CHARS=100;
 
 export interface BrowserScope {
   runId: string;
@@ -1468,12 +1470,13 @@ function collapseWhitespace(value: string): string {
 }
 
 function publicObservationMeaningful(observation:BrowserObservationData):boolean {
+  if(observation.challengeState!==undefined&&observation.challengeState!=="NO_CHALLENGE")return true;
+  if(observation.article)return observation.article.body.trim().length>=MIN_TRUSTED_PUBLIC_ARTICLE_BODY_CHARS;
   const contentLinks=(observation.listingLinks??[]).filter(value=>{
     try { const path=new URL(value).pathname; return path.split("/").filter(Boolean).length>=2; }
     catch { return false; }
   }).length;
-  return (observation.challengeState!==undefined&&observation.challengeState!=="NO_CHALLENGE") ||
-    Boolean(observation.article?.body) || contentLinks>=2;
+  return contentLinks>=2;
 }
 
 function boundedDelay(milliseconds:number,signal?:AbortSignal):Promise<void>{

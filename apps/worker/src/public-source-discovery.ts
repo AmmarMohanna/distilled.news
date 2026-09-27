@@ -1,4 +1,4 @@
-import { BrowserUseDiscoveryBackend, BrowserUseEvidenceError, BrowserUseTrustedChallengeError, BROWSER_USE_FAILURE_CATEGORIES, BRIDGE_FAILURE_CODES, compileSourceBrowserWorkflowPlan, verifyBrowserUseProposal, DEFAULT_SLICE_BUDGET, makeId, validateSourceBrowserWorkflowPlan, type AcquisitionStageOutcome, type ModelCapability, type ModelRoutingConfig, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserDiscoveryEvidence, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort, type WebOperatorDiscovery, type WorkflowCandidate, type WorkflowCaptureBundle } from "@distilled/agent-runtime";
+import { BrowserUseDiscoveryBackend, BrowserUseEvidenceError, BrowserUseTrustedChallengeError, BROWSER_USE_FAILURE_CATEGORIES, BRIDGE_FAILURE_CODES, MIN_TRUSTED_PUBLIC_ARTICLE_BODY_CHARS, compileSourceBrowserWorkflowPlan, verifyBrowserUseProposal, DEFAULT_SLICE_BUDGET, makeId, validateSourceBrowserWorkflowPlan, type AcquisitionStageOutcome, type ModelCapability, type ModelRoutingConfig, type PublicBrowserObservation, type SourceAcquisitionRequest, type SourceBrowserDiscoveryEvidence, type SourceBrowserWorkflowPlan, type SourceBrowserWorkflowPort, type WebOperatorDiscovery, type WorkflowCandidate, type WorkflowCaptureBundle } from "@distilled/agent-runtime";
 import { ContainerSourceBrowserPort } from "./container-source-browser-port";
 import type { Env } from "./types";
 import { D1WorkflowRepository } from "./web-operator-workflow-store";
@@ -43,7 +43,7 @@ export async function discoverPublicSourceBrowserPlan(
       const observed = await port.navigateAndObserve(url); operations++;
       console.log(JSON.stringify({ event: "public_source_trusted_probe", phase: "article", articlePresent: Boolean(observed.article), bodyPresent: Boolean(observed.article?.body), validDate: Boolean(observed.article && Number.isFinite(Date.parse(observed.article.publisherTimestamp))), challenge: observed.challengeState ?? "NO_CHALLENGE" }));
       if (observed.challengeState && observed.challengeState !== "NO_CHALLENGE") throw challengeStop(observed);
-      if (observed.article?.body && Number.isFinite(Date.parse(observed.article.publisherTimestamp)) && new URL(observed.article.canonicalUrl).origin === origin) sampledArticles.push(observed);
+      if (observed.article && observed.article.body.trim().length >= MIN_TRUSTED_PUBLIC_ARTICLE_BODY_CHARS && Number.isFinite(Date.parse(observed.article.publisherTimestamp)) && new URL(observed.article.canonicalUrl).origin === origin) sampledArticles.push(observed);
       if (sampledArticles.length >= 2) break;
     }
     const evidence = { sourceUrl, listing, sampledArticles, afterScroll };
@@ -261,7 +261,7 @@ export async function compileVerifiedBrowserUseDiscovery(
     candidate:{id:candidate.id,version:candidate.version,state:"CANDIDATE",execute:request=>execute(request,candidate)},
     validate:async()=>{
       validateSourceBrowserWorkflowPlan(probe.plan,input.request);
-      const criteria={sourceIdentity:new URL(probe.evidence.listing.url).origin===origin,twoDatedArticles:probe.evidence.sampledArticles.length>=2&&probe.evidence.sampledArticles.every(value=>Boolean(value.article?.body)&&Number.isFinite(Date.parse(value.article!.publisherTimestamp))),groundedAgentArticle:probe.discoveryModelCalls!==undefined&&probe.discoveryModelCalls>0&&article.canonicalUrl===probe.candidateUrl,deterministicContinuation:probe.plan.continuation.kind!=="NONE",readOnlyOrigins:probe.plan.allowedOrigins.length===1&&probe.plan.allowedOrigins[0]===origin};
+      const criteria={sourceIdentity:new URL(probe.evidence.listing.url).origin===origin,twoDatedArticles:probe.evidence.sampledArticles.length>=2&&probe.evidence.sampledArticles.every(value=>Boolean(value.article&&value.article.body.trim().length>=MIN_TRUSTED_PUBLIC_ARTICLE_BODY_CHARS)&&Number.isFinite(Date.parse(value.article!.publisherTimestamp))),groundedAgentArticle:probe.discoveryModelCalls!==undefined&&probe.discoveryModelCalls>0&&article.canonicalUrl===probe.candidateUrl,deterministicContinuation:probe.plan.continuation.kind!=="NONE",readOnlyOrigins:probe.plan.allowedOrigins.length===1&&probe.plan.allowedOrigins[0]===origin};
       const passed=Object.values(criteria).every(Boolean);
       await repository.saveValidationResult({workflowId:candidate.id,passed,criteria,failureClass:passed?undefined:"structural_site_change",validatedAt:now});
       if(!passed)throw new Error("source workflow validation failed");
