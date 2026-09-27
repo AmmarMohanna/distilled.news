@@ -257,7 +257,7 @@ const READ_ONLY_BROWSER_METHODS = new Set(["GET", "HEAD"]);
 // A multi-page public discovery may load several article documents in one fenced
 // context. Keep a finite aggregate cap while allowing their ordinary read-only
 // assets; origin, address, method, and redirect checks still apply per request.
-const MAX_HTTP_REQUESTS_PER_SESSION = 600;
+const MAX_HTTP_REQUESTS_PER_SESSION = 1200;
 const PUBLIC_PAGE_READINESS_DEADLINE_MS = 8_000;
 const PUBLIC_PAGE_READINESS_POLL_MS = 250;
 const ACTIVE_TRANSPORT_HARDENING = `(() => {
@@ -433,7 +433,7 @@ export class PlaywrightBrowserAdapter
         // and incorrectly rejected same-origin top-level requests as REQUEST_BLOCKED.
         if (request.frame() !== live.page.mainFrame()) throw new BrowserPreDispatchError("new browser context denied");
         live.httpRequestCount+=1;
-        if (live.httpRequestCount>MAX_HTTP_REQUESTS_PER_SESSION) throw new BrowserPreDispatchError("browser HTTP request budget exhausted");
+        if (live.httpRequestCount>MAX_HTTP_REQUESTS_PER_SESSION) throw new BrowserPreDispatchError("browser HTTP request budget exhausted",{policyRule:"REQUEST_BUDGET_EXCEEDED",deniedHostname:hostnameOf(request.url()),redirectHop:false,topLevelNavigation:request.isNavigationRequest(),admittedOriginCount:live.allowedOrigins.size});
         if (request.resourceType()==="eventsource") throw new BrowserPreDispatchError("EventSource transport denied");
         await this.assertRequestAllowed(live, request.url(), request.method());
         await route.continue();

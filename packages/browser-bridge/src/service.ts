@@ -95,7 +95,7 @@ export class AuthenticatedBrowserBridgeService{
               if(typeof failure.runtimeHint==="string"&&/^[A-Z_]{1,40}$/.test(failure.runtimeHint))runtimeHint=failure.runtimeHint;
               if(BRIDGE_FAILURE_CODES.includes(failure.bridgeFailureCode as AuthenticatedBrowserBridgeFailureCode))bridgeFailureCode=failure.bridgeFailureCode as AuthenticatedBrowserBridgeFailureCode;
               if(typeof failure.bridgeHttpStatus==="number"&&Number.isInteger(failure.bridgeHttpStatus)&&failure.bridgeHttpStatus>=400&&failure.bridgeHttpStatus<=599)bridgeHttpStatus=failure.bridgeHttpStatus;
-              if(["ORIGIN_NOT_ADMITTED","REDIRECT_ORIGIN_NOT_ADMITTED","FINAL_ORIGIN_NOT_ADMITTED","SCHEME_NOT_ALLOWED","PRIVATE_OR_UNRESOLVED_ORIGIN","METHOD_NOT_ALLOWED","REQUEST_BLOCKED"].includes(String(failure.policyRule)))policyRule=failure.policyRule as BrowserNetworkPolicyDiagnostic["policyRule"];
+              if(["ORIGIN_NOT_ADMITTED","REDIRECT_ORIGIN_NOT_ADMITTED","FINAL_ORIGIN_NOT_ADMITTED","SCHEME_NOT_ALLOWED","PRIVATE_OR_UNRESOLVED_ORIGIN","METHOD_NOT_ALLOWED","REQUEST_BLOCKED","REQUEST_BUDGET_EXCEEDED"].includes(String(failure.policyRule)))policyRule=failure.policyRule as BrowserNetworkPolicyDiagnostic["policyRule"];
               if(typeof failure.deniedHostname==="string"&&/^[A-Za-z0-9.-]{1,253}$/.test(failure.deniedHostname))deniedHostname=failure.deniedHostname;
               if(["NAVIGATE_PUBLIC_PAGE","OBSERVE_PUBLIC_PAGE","SCROLL_PUBLIC_PAGE"].includes(String(failure.bridgeOperation)))bridgeOperation=failure.bridgeOperation as typeof bridgeOperation;
             }catch{/* bounded diagnostic only */}

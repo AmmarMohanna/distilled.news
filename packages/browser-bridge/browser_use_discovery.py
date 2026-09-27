@@ -173,7 +173,7 @@ async def discover(payload: dict) -> dict:
                        "BRIDGE_EFFECT_UNKNOWN", "BRIDGE_BROWSER_FAILURE", "BRIDGE_PROTOCOL_UNSUPPORTED",
                        "BRIDGE_PAYLOAD_TOO_LARGE", "BRIDGE_OPERATION_UNKNOWN"}
             rules = {"ORIGIN_NOT_ADMITTED", "REDIRECT_ORIGIN_NOT_ADMITTED", "FINAL_ORIGIN_NOT_ADMITTED",
-                     "SCHEME_NOT_ALLOWED", "PRIVATE_OR_UNRESOLVED_ORIGIN", "METHOD_NOT_ALLOWED", "REQUEST_BLOCKED"}
+                     "SCHEME_NOT_ALLOWED", "PRIVATE_OR_UNRESOLVED_ORIGIN", "METHOD_NOT_ALLOWED", "REQUEST_BLOCKED", "REQUEST_BUDGET_EXCEEDED"}
             rule = diagnostic.get("policyRule") if isinstance(diagnostic, dict) else None
             hostname = diagnostic.get("deniedHostname") if isinstance(diagnostic, dict) else None
             raise DiscoveryFailure("ACTION_BRIDGE_FAILED", code if isinstance(code, str) and code in allowed else None,
@@ -233,11 +233,13 @@ async def discover(payload: dict) -> dict:
     # render items only after scrolling. These are hints, never trusted evidence.
     initial = await asyncio.to_thread(bridge, "NAVIGATE_PUBLIC_PAGE", url=source_url)
     initial_observations = [summary(initial)]
-    if not initial.get("challengeState") or initial.get("challengeState") == "NO_CHALLENGE":
+    if (not initial.get("challengeState") or initial.get("challengeState") == "NO_CHALLENGE") and sum(article_candidate_score(url) >= 100 for url in observed_links) < 2:
         for _ in range(2):
             initial = await asyncio.to_thread(bridge, "SCROLL_PUBLIC_PAGE", deltaY=1200)
             initial_observations.append(summary(initial))
             if initial.get("challengeState") and initial.get("challengeState") != "NO_CHALLENGE":
+                break
+            if sum(article_candidate_score(url) >= 100 for url in observed_links) >= 2:
                 break
     initial_listing_links = set(observed_links)
     try:

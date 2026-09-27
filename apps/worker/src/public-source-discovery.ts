@@ -305,7 +305,7 @@ export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE
   const bridgeHttpStatus = diagnostic && typeof diagnostic.bridgeHttpStatus === "number" && Number.isInteger(diagnostic.bridgeHttpStatus) && diagnostic.bridgeHttpStatus >= 400 && diagnostic.bridgeHttpStatus <= 599 ? diagnostic.bridgeHttpStatus : undefined;
   const bridgeOperation = diagnostic && ["NAVIGATE_PUBLIC_PAGE", "OBSERVE_PUBLIC_PAGE", "SCROLL_PUBLIC_PAGE"].includes(String(diagnostic.bridgeOperation)) ? String(diagnostic.bridgeOperation) : undefined;
   if (browserUseFailure) console.log(JSON.stringify({ event: "public_acquisition_browser_use_failure", category: browserUseFailure }));
-  const allowedRules = ["ORIGIN_NOT_ADMITTED", "REDIRECT_ORIGIN_NOT_ADMITTED", "FINAL_ORIGIN_NOT_ADMITTED", "SCHEME_NOT_ALLOWED", "PRIVATE_OR_UNRESOLVED_ORIGIN", "METHOD_NOT_ALLOWED", "REQUEST_BLOCKED"];
+  const allowedRules = ["ORIGIN_NOT_ADMITTED", "REDIRECT_ORIGIN_NOT_ADMITTED", "FINAL_ORIGIN_NOT_ADMITTED", "SCHEME_NOT_ALLOWED", "PRIVATE_OR_UNRESOLVED_ORIGIN", "METHOD_NOT_ALLOWED", "REQUEST_BLOCKED", "REQUEST_BUDGET_EXCEEDED"];
   const policy = diagnostic && allowedRules.includes(String(diagnostic.policyRule)) ? {
     rule: String(diagnostic.policyRule),
     ...(typeof diagnostic.deniedHostname === "string" && /^[a-z0-9.-]{1,253}$/i.test(diagnostic.deniedHostname) ? { deniedHostname: diagnostic.deniedHostname } : {}),
