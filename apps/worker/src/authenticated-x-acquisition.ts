@@ -1,5 +1,6 @@
 import {
   DeterministicAuthenticatedSourceWorkflowExecutor,makeId,validateAuthenticatedSourceWorkflowPlan,
+  AuthenticatedBootstrapError,AuthenticatedBrowserBridgeError,AuthenticatedProfileError,BrowserAllocationError,BrowserPreDispatchError,
   type AcquisitionStageOutcome,type AuthenticatedSourceTimelineObservation,type AuthenticatedSourceWorkflowPlan,
   type BrowserUseDiscoveryProposal,type SourceAcquisitionRequest,type WebOperatorDiscovery,
   type WorkflowCandidate,type WorkflowCaptureBundle
@@ -44,15 +45,18 @@ async function discoverXWorkflow(env:Env,context:Context,request:SourceAcquisiti
   let started=Date.now();
   const agent=ports.agent??new ContainerXTimelinePort(env,{...context,runId:agentRunId});
   let proposal:BrowserUseDiscoveryProposal;
+  let phase="SESSION_ATTACH";
   try{
     await agent.open({sourceUrl,allowedOrigins:["https://x.com"],request});
+    phase="TIMELINE_OBSERVE";
     const initial=await agent.observe();
     if(initial.challengeState&&initial.challengeState!=="NO_CHALLENGE")return{stage:"WEB_OPERATOR",status:initial.challengeState==="LOGIN_REQUIRED"?"AUTH_REQUIRED":"CHALLENGE_REQUIRED",reason:"authenticated source requires runtime challenge resolution"};
     started=Date.now();
     await telemetry.begin({runId:agentRunId,acquisitionRunId:context.runId,tenantId:context.tenantId,resourceId:context.resourceId,startedAt:new Date(started).toISOString()});
+    phase="BROWSER_USE_DISCOVERY";
     proposal=await agent.discoverWithBrowserUse(model,6);
     await telemetry.stage(agentRunId,"PROPOSAL_ACCEPTED",{modelCalls:proposal.modelCalls,browserOperations:proposal.browserActions,agentBrowserActions:proposal.agentBrowserActions,agentDurationMs:Date.now()-started});
-  }catch{await telemetry.stage(agentRunId,"FAILED");return{stage:"WEB_OPERATOR",status:"STRUCTURAL_FAILURE",reason:"bounded X Browser Use discovery failed"}}
+  }catch(error){await telemetry.stage(agentRunId,"FAILED");return{stage:"WEB_OPERATOR",status:"STRUCTURAL_FAILURE",reason:`${phase}:${safeXFailure(error)}`}}
   finally{await agent.close().catch(()=>undefined)}
   if(proposal.runId!==agentRunId||proposal.articleUrls.length||!proposal.visitedUrls.includes(sourceUrl)||proposal.modelCalls===undefined||proposal.modelCalls<1||proposal.continuation!=="scroll")return{stage:"WEB_OPERATOR",status:"STRUCTURAL_FAILURE",reason:"X discovery proposal insufficient"};
   const verifier=ports.verifier??new ContainerXTimelinePort(env,{...context,runId:`${context.runId}_verify`});
@@ -108,3 +112,12 @@ async function discoverXWorkflow(env:Env,context:Context,request:SourceAcquisiti
   };
 }
 async function hash(value:string){const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));return Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,"0")).join("")}
+function safeXFailure(error:unknown):string{
+  if(error instanceof AuthenticatedBootstrapError)return error.code;
+  if(error instanceof AuthenticatedBrowserBridgeError)return error.code;
+  if(error instanceof AuthenticatedProfileError)return error.code;
+  if(error instanceof BrowserAllocationError)return error.code;
+  if(error instanceof BrowserPreDispatchError)return"NETWORK_POLICY_DENIED";
+  if(error instanceof Error&&error.cause)return safeXFailure(error.cause);
+  return"UNCLASSIFIED_RUNTIME_FAILURE";
+}

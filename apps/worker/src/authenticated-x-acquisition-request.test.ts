@@ -21,14 +21,14 @@ describe("queued authenticated X acquisition",()=>{
       const invoke=vi.fn(async(request:Request)=>{
         expect(request.headers.get("authorization")).toBe("Bearer worker-held-secret");
         expect(await request.json()).toEqual(payload);
-        return Response.json({status:"SUCCESS",webOperatorCalls:1,discoveryModelCalls:4,discoveryBrowserOperations:7,activeWorkflow:{id:"workflow-x",version:1,state:"ACTIVE",secret:"untrusted"},coverage:{rangeCovered:false,truncated:true,stopReason:"MAX_ITEMS_REACHED",secret:"untrusted"},items:[{sourceItemId:"123",publishedAt:"2026-09-27T00:00:00Z",contentLength:80,text:"secret body",canonicalItemUrl:"https://x.com/source/status/123"}]});
+        return Response.json({status:"SUCCESS",stages:[{stage:"WEB_OPERATOR",status:"SUCCESS",reason:"SESSION_ATTACH:AUTH_REQUIRED",secret:"untrusted"}],webOperatorCalls:1,discoveryModelCalls:4,discoveryBrowserOperations:7,activeWorkflow:{id:"workflow-x",version:1,state:"ACTIVE",secret:"untrusted"},coverage:{rangeCovered:false,truncated:true,stopReason:"MAX_ITEMS_REACHED",secret:"untrusted"},items:[{sourceItemId:"123",publishedAt:"2026-09-27T00:00:00Z",contentLength:80,text:"secret body",canonicalItemUrl:"https://x.com/source/status/123"}]});
       });
       await processAuthenticatedXAcquisitionRequest(env,{type:"authenticated_x_acquisition_request",requestId:"request-1"},invoke);
       await processAuthenticatedXAcquisitionRequest(env,{type:"authenticated_x_acquisition_request",requestId:"request-1"},invoke);
       expect(invoke).toHaveBeenCalledTimes(1);
       const row=await db.prepare("SELECT state,outcome,result_json FROM authenticated_x_acquisition_requests WHERE request_id='request-1'").first<{state:string;outcome:string;result_json:string}>();
       expect(row?.state).toBe("completed");
-      expect(JSON.parse(row!.result_json)).toMatchObject({status:"SUCCESS",discoveryModelCalls:4,activeWorkflow:{id:"workflow-x",version:1,state:"ACTIVE"},items:[{sourceItemId:"123",contentLength:80}]});
+      expect(JSON.parse(row!.result_json)).toMatchObject({status:"SUCCESS",discoveryModelCalls:4,stages:[{stage:"WEB_OPERATOR",reason:"SESSION_ATTACH:AUTH_REQUIRED"}],activeWorkflow:{id:"workflow-x",version:1,state:"ACTIVE"},items:[{sourceItemId:"123",contentLength:80}]});
       expect(row!.result_json).not.toMatch(/secret body|untrusted|worker-held-secret|canonicalItemUrl/);
     }finally{await mf.dispose()}
   });

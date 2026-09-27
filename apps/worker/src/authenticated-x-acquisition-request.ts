@@ -23,6 +23,10 @@ export async function processAuthenticatedXAcquisitionRequest(
     const bounded={
       status:safeString(result.status,40),stopReason:safeString(result.stopReason,40),
       upstreamResourceId:safeString(result.upstreamResourceId,100),
+      stages:Array.isArray(result.stages)?result.stages.slice(0,6).map(value=>{
+        const stage=value&&typeof value==="object"?value as Record<string,unknown>:{};
+        return{stage:safeString(stage.stage,40),status:safeString(stage.status,40),reason:safeString(stage.reason,100)};
+      }):[],
       activeWorkflow:boundedWorkflow(result.activeWorkflow),candidateWorkflow:boundedWorkflow(result.candidateWorkflow),
       webOperatorCalls:boundedNumber(result.webOperatorCalls),discoveryModelCalls:boundedNumber(result.discoveryModelCalls),
       discoveryBrowserOperations:boundedNumber(result.discoveryBrowserOperations),
