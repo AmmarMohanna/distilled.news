@@ -173,7 +173,7 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     try {
       const observed=await browser.navigate(allocation,`${fixture.origin}/active-transports`);
       const representation=JSON.stringify(observed.representation);
-      expect(representation).toContain("WebSocket:undefined");
+      expect(representation).toContain("WebSocket:function");
       expect(representation).toContain("WebTransport:undefined");
       expect(representation).toContain("RTCPeerConnection:undefined");
       expect(representation).toContain("EventSource:undefined");
@@ -611,6 +611,18 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
       const observed=await browser.navigatePublicPage(scope,`${fixture.origin}/display-contents-listing`,[fixture.origin]);
       expect(observed.listingLinks).toContain(`${fixture.origin}/article`);
       expect(observed.controls.some((control)=>control.destinationUrl===`${fixture.origin}/article`)).toBe(true);
+    } finally { await browser.close(scope).catch(()=>undefined); }
+  },30_000);
+
+  it("hydrates a listing that checks WebSocket availability without opening a socket",async()=>{
+    const browser=PlaywrightBrowserAdapter.forTest();
+    const scope=await browser.allocate({runId:"websocket-inert",tenantId:"tenant",generation:1,allowedOrigins:[fixture.origin]});
+    const mutations=fixture.mutationCount();
+    try {
+      const observed=await browser.navigatePublicPage(scope,`${fixture.origin}/websocket-dependent-listing`,[fixture.origin]);
+      expect(observed.listingLinks).toContain(`${fixture.origin}/article`);
+      expect(observed.challengeState).toBe("NO_CHALLENGE");
+      expect(fixture.mutationCount()).toBe(mutations);
     } finally { await browser.close(scope).catch(()=>undefined); }
   },30_000);
 

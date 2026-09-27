@@ -258,10 +258,29 @@ const MAX_HTTP_REQUESTS_PER_SESSION = 200;
 const PUBLIC_PAGE_READINESS_DEADLINE_MS = 8_000;
 const PUBLIC_PAGE_READINESS_POLL_MS = 250;
 const ACTIVE_TRANSPORT_HARDENING = `(() => {
+  // Some read-only site bundles require the WebSocket interface to exist at
+  // initialization even when acquisition never opens a socket. This inert
+  // compatibility object does not create a browser transport or send bytes.
+  class InertWebSocket extends EventTarget {
+    static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
+    CONNECTING = 0; OPEN = 1; CLOSING = 2; CLOSED = 3;
+    readyState = 3; bufferedAmount = 0; binaryType = 'blob'; extensions = ''; protocol = '';
+    onopen = null; onmessage = null; onerror = null; onclose = null;
+    constructor(url) {
+      super(); this.url = String(url);
+      queueMicrotask(() => {
+        this.dispatchEvent(new Event('error'));
+        this.dispatchEvent(new CloseEvent('close', { code: 1006, wasClean: false }));
+      });
+    }
+    send() { throw new DOMException('WebSocket transport disabled', 'InvalidStateError'); }
+    close() {}
+  }
+  try { Object.defineProperty(globalThis, 'WebSocket', { value: InertWebSocket, writable: false, configurable: false }); } catch {}
   const deny = name => {
     try { Object.defineProperty(globalThis, name, { value: undefined, writable: false, configurable: false }); } catch {}
   };
-  for (const name of ['WebSocket','WebTransport','RTCPeerConnection','webkitRTCPeerConnection','Worker','SharedWorker','EventSource']) deny(name);
+  for (const name of ['WebTransport','RTCPeerConnection','webkitRTCPeerConnection','Worker','SharedWorker','EventSource']) deny(name);
   try { Object.defineProperty(globalThis, 'open', { value: undefined, writable: false, configurable: false }); } catch {}
   try { Object.defineProperty(Navigator.prototype, 'serviceWorker', { value: undefined, writable: false, configurable: false }); } catch {}
 })();`;

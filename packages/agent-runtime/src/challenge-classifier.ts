@@ -45,9 +45,13 @@ export function classifyBrowserChallengeEvidence(signals: BrowserChallengeSignal
       /autocomplete=["']one-time-code["']/.test(markup)) {
     return result("MFA_REQUIRED", visibleMatch(["multi-factor authentication", "two-factor authentication", "verification code", "one-time code", "mfa required"]) ? "VISIBLE_MFA" : "ACTIVE_ONE_TIME_CODE_CONTROL", visibleMatch(["multi-factor authentication", "two-factor authentication", "verification code", "one-time code", "mfa required"]), true);
   }
-  if (visibleMatch(["captcha", "recaptcha", "hcaptcha", "cf-turnstile", "turnstile-response"]) ||
-      /(?:id|class|src|data-sitekey)=["'][^"']*(?:captcha|challenge-platform|turnstile)/.test(markup)) {
-    return result("CAPTCHA_REQUIRED", visibleMatch(["captcha", "recaptcha", "hcaptcha", "cf-turnstile", "turnstile-response"]) ? "VISIBLE_CAPTCHA" : "ACTIVE_CAPTCHA_MARKER", visibleMatch(["captcha", "recaptcha", "hcaptcha", "cf-turnstile", "turnstile-response"]), true);
+  const captchaPrompt = /(?:complete|solve|enter|verify|pass|check)[^\n.]{0,80}(?:captcha|recaptcha|hcaptcha|human)|(?:captcha|recaptcha|hcaptcha)[^\n.]{0,80}(?:required|continue|verify|complete|solve)|(?:i am|i'm) not a robot|تحقق من أنك (?:إنسان|بشري)/i.test(visible);
+  const captchaMarker = /(?:id|class|src|data-sitekey)=["'][^"']*(?:captcha|challenge-platform|turnstile)/.test(markup);
+  // A publisher may mention reCAPTCHA in a login or search disclaimer while
+  // still showing its complete public listing. A marker alone is sufficient
+  // only on a short challenge surface; an explicit prompt always is.
+  if (captchaPrompt || (captchaMarker && text.length < 800)) {
+    return result("CAPTCHA_REQUIRED", captchaPrompt ? "VISIBLE_CAPTCHA" : "ACTIVE_CAPTCHA_MARKER", captchaPrompt, captchaMarker);
   }
   if (visibleMatch(["automated requests", "automation blocked", "bot detected", "unusual traffic", "automated access is prohibited"])) {
     return result("AUTOMATION_BLOCKED", "VISIBLE_AUTOMATION_BLOCKED", true, false);

@@ -85,6 +85,13 @@ export async function startHostileFixture(): Promise<HostileFixture> {
       response.end(page("Display contents listing", `<main><a href="/article" style="display:contents"><span style="display:block">Read nested article</span></a></main>`));
       return;
     }
+    if (url.pathname === "/websocket-dependent-listing") {
+      response.end(page("WebSocket compatible listing", `<main id="listing">Loading</main><script>
+        const socket = new WebSocket('ws://127.0.0.1:${url.port}/mutate');
+        if (socket.readyState === WebSocket.CLOSED) document.querySelector('#listing').innerHTML = '<a href="/article">Read public article</a>';
+      </script>`));
+      return;
+    }
     if (url.pathname === "/hydration-listing") {
       response.end(page("Hydration listing", `<main>Client-rendered listing shell</main><script type="application/json">${JSON.stringify({props:{items:[{canonicalUrl:`${url.origin}/article`},{path:"/other-article"},{url:"https://tracker.invalid/ignored"}],asset:{url:"/_next/static/app.js"}}})}</script><script>self.__flight=self.__flight||[];self.__flight.push("/news/2026/09/24/serialized-article-path")</script>`));
       return;
@@ -131,7 +138,7 @@ export async function startHostileFixture(): Promise<HostileFixture> {
         const results=[];
         for (const name of ['WebSocket','WebTransport','RTCPeerConnection','Worker','SharedWorker','EventSource']) results.push(name+':'+typeof globalThis[name]);
         try { const rtc=new RTCPeerConnection(); rtc.createDataChannel('mutating-channel'); results.push('data-channel:created'); } catch { results.push('data-channel:denied'); }
-        try { new WebSocket('ws://127.0.0.1:${url.port}/socket'); results.push('websocket:created'); } catch { results.push('websocket:denied'); }
+        try { new WebSocket('ws://127.0.0.1:${url.port}/socket').send('unsafe'); results.push('websocket:sent'); } catch { results.push('websocket:denied'); }
         try { new WebTransport('${url.origin}/transport'); results.push('webtransport:created'); } catch { results.push('webtransport:denied'); }
         try { new EventSource('/event-stream'); results.push('eventsource:created'); } catch { results.push('eventsource:denied'); }
         document.querySelector('#results').textContent=results.join(',');
