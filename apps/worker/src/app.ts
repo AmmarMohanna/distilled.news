@@ -51,6 +51,7 @@ import { D1UpstreamResourceStore } from "./upstream-resource-store";
 import { discoverAndPromotePublicSourceWorkflow } from "./public-source-discovery";
 import { D1BrowserUseRunTelemetry } from "./browser-use-run-telemetry";
 import { createWorkerXAcquisitionService } from "./authenticated-x-acquisition";
+import { D1AuthenticatedProfileRepository } from "./authenticated-profile-store";
 import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
 import { handleBridgePreflight,handleContainerPreflight,handleProviderDiagnostic } from "./bridge-preflight";
 import { handlePublicBrowserAcquisition } from "./public-browser-acquisition";
@@ -368,6 +369,8 @@ export function createApp(options: AppOptions = {}) {
     if(source.origin!=="https://x.com"||!/^\/[A-Za-z0-9_]{1,15}\/?$/.test(source.pathname)||source.search||source.hash||Date.parse(input.startTime)>=Date.parse(input.endTime)||Date.parse(input.startTime)>=now.getTime())return c.json({error:"invalid_x_source_window"},400);
     const owner=await repoFor(c).getAccountById(input.ownerAccountId);
     if(!owner||owner.disabledAt)return c.json({error:"owner_not_found"},404);
+    const profile=await new D1AuthenticatedProfileRepository(c.env.DB).getSiteProfile(input.authenticatedProfileId);
+    if(!profile||profile.tenantId!==owner.id||profile.ownerId!==owner.id||profile.siteFamily!=="x")return c.json({error:"profile_not_found"},404);
     const canonical=`https://x.com/${source.pathname.split("/").filter(Boolean)[0]}`;
     const resource=await new D1UpstreamResourceStore(c.env.DB).resolveOrCreate({tenantId:owner.id,canonicalSourceUrl:canonical,sourceFamily:"x",now:now.toISOString()});
     const runId=makeId("x_source_run",resource.id,input.idempotencyKey);
@@ -378,6 +381,37 @@ export function createApp(options: AppOptions = {}) {
     catch{await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,"STRUCTURAL_FAILURE");return c.json({error:"x_acquisition_failed"},500)}
     await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,outcome.status==="SUCCESS"?"SUCCESS":outcome.stopReason==="CHALLENGE_REQUIRED"?"CHALLENGE_REQUIRED":outcome.stopReason==="AUTH_REQUIRED"?"AUTH_REQUIRED":"STRUCTURAL_FAILURE");
     return c.json({status:outcome.status,stages:outcome.stages,stopReason:outcome.stopReason,upstreamResourceId:resource.id,activeWorkflow:outcome.activeWorkflow,candidateWorkflow:outcome.candidateWorkflow,webOperatorCalls:outcome.webOperatorCalls,discoveryModelCalls:outcome.discoveryModelCalls,discoveryBrowserOperations:outcome.discoveryBrowserOperations,coverage:outcome.result?.coverage,continuation:outcome.result?.continuation,items:outcome.result?.items.map(item=>({sourceItemId:item.sourceItemId,canonicalItemUrl:item.canonicalItemUrl,publishedAt:item.publishedAt,contentLength:item.text?.length})),committedHighWater:outcome.committedHighWater});
+  });
+
+  app.post("/v1/authenticated-sources/x/acquisition/submit",async(c)=>{
+    if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
+    const parsed=xAcquisitionSchema.safeParse(await c.req.json().catch(()=>null));
+    if(!parsed.success)return c.json({error:"invalid_request"},400);
+    const input=parsed.data,source=new URL(input.sourceUrl),now=nowFor();
+    if(source.origin!=="https://x.com"||!/^\/[A-Za-z0-9_]{1,15}\/?$/.test(source.pathname)||source.search||source.hash||Date.parse(input.startTime)>=Date.parse(input.endTime)||Date.parse(input.startTime)>=now.getTime())return c.json({error:"invalid_x_source_window"},400);
+    const owner=await repoFor(c).getAccountById(input.ownerAccountId);
+    if(!owner||owner.disabledAt)return c.json({error:"owner_not_found"},404);
+    const profile=await new D1AuthenticatedProfileRepository(c.env.DB).getSiteProfile(input.authenticatedProfileId);
+    if(!profile||profile.tenantId!==owner.id||profile.ownerId!==owner.id||profile.siteFamily!=="x")return c.json({error:"profile_not_found"},404);
+    const canonical=`https://x.com/${source.pathname.split("/").filter(Boolean)[0]}`;
+    const requestId=makeId("authenticated_x_acquisition_request",owner.id,canonical,input.authenticatedProfileId,input.idempotencyKey);
+    const inserted=await c.env.DB.prepare("INSERT OR IGNORE INTO authenticated_x_acquisition_requests(request_id,idempotency_key,owner_account_id,authenticated_profile_id,request_json,state,created_at) VALUES(?,?,?,?,?,'pending',?)")
+      .bind(requestId,input.idempotencyKey,owner.id,input.authenticatedProfileId,JSON.stringify({...input,sourceUrl:canonical}),now.toISOString()).run();
+    if(Number(inserted.meta.changes)===1){
+      await c.env.WEB_OPERATOR_QUEUE.send({type:"authenticated_x_acquisition_request",requestId});
+      await c.env.DB.prepare("UPDATE authenticated_x_acquisition_requests SET state='queued' WHERE request_id=? AND state='pending'").bind(requestId).run();
+    }
+    const state=await c.env.DB.prepare("SELECT state FROM authenticated_x_acquisition_requests WHERE request_id=?").bind(requestId).first<{state:string}>();
+    return c.json({requestId,state:state?.state??"pending"},202);
+  });
+  app.get("/v1/authenticated-sources/x/acquisition/requests/:requestId",async(c)=>{
+    if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
+    const requestId=c.req.param("requestId");
+    if(!/^authenticated_x_acquisition_request_[a-f0-9]{32}$/.test(requestId))return c.json({error:"invalid_request_id"},400);
+    const row=await c.env.DB.prepare("SELECT request_id,state,outcome,result_json,failure_class,created_at,started_at,completed_at FROM authenticated_x_acquisition_requests WHERE request_id=?")
+      .bind(requestId).first<{request_id:string;state:string;outcome:string|null;result_json:string|null;failure_class:string|null;created_at:string;started_at:string|null;completed_at:string|null}>();
+    if(!row)return c.json({error:"not_found"},404);
+    return c.json({requestId:row.request_id,state:row.state,outcome:row.outcome,result:row.result_json?JSON.parse(row.result_json):null,failureClass:row.failure_class,createdAt:row.created_at,startedAt:row.started_at,completedAt:row.completed_at});
   });
 
   app.get("/api/auth/session", async (c) => {

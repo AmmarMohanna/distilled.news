@@ -147,6 +147,7 @@ export interface WebOperatorLiveSmokeMessage {
   requestId: string;
 }
 export interface PublicAcquisitionRequestMessage { type: "public_acquisition_request"; requestId: string }
+export interface AuthenticatedXAcquisitionRequestMessage { type: "authenticated_x_acquisition_request"; requestId: string }
 
 export interface OpenRouterModelDiagnosticMessage {
   type:"openrouter_model_diagnostic";
@@ -155,7 +156,7 @@ export interface OpenRouterModelDiagnosticMessage {
 export interface AuthenticatedProfileBootstrapMessage{type:"authenticated_profile_bootstrap";requestId:string}
 export interface AuthenticatedSurfaceDiagnosticMessage{type:"authenticated_surface_diagnostic";requestId:string}
 
-export type WebOperatorQueueMessage = WebOperatorRunMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | AuthenticatedSurfaceDiagnosticMessage;
+export type WebOperatorQueueMessage = WebOperatorRunMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | AuthenticatedXAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | AuthenticatedSurfaceDiagnosticMessage;
 
 export interface ProcessingJobMessage {
   type?: "process_raw_message";
