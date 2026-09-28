@@ -51,6 +51,10 @@ export default {
         else if(isAuthenticatedProfileBootstrapMessage(message.body))await processAuthenticatedProfileBootstrap(env,message.body);
         else if(isAuthenticatedSurfaceDiagnosticMessage(message.body))await processAuthenticatedSurfaceDiagnostic(env,message.body);
         else await processDistilledQueueMessage(repo, env, message.body, summaryAdapter, reviewAdapter);
+        if(isProcessingJobMessage(message.body)){
+          const [next]=await repo.listProcessingJobs({briefingId:message.body.briefingId,states:["queued"],order:"oldest",limit:1});
+          if(next)await env.PROCESSING_QUEUE.send({type:"process_raw_message",jobId:next.id,briefingId:next.briefingId,rawMessageId:next.rawMessageId});
+        }
         const durationMs = Date.now() - startedAt;
         if (durationMs >= SLOW_QUEUE_JOB_MS) {
           console.warn("Slow queue job completed", {
@@ -63,7 +67,9 @@ export default {
         }
         message.ack();
       } catch (error) {
-        if(error instanceof ProcessingLeaseBusy){message.retry({delaySeconds:30});continue}
+        // Contention is not a failed attempt. The completed job drains the next
+        // durable job; the existing stale-job relay recovers a crashed leader.
+        if(error instanceof ProcessingLeaseBusy){message.ack();continue}
         const errorMessage = error instanceof Error ? error.message : String(error);
         const shouldQuarantine = shouldQuarantineQueueFailure(error, message.attempts);
         await recordQueueFailure(repo,agentStore,message.body,errorMessage,shouldQuarantine);
