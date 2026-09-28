@@ -273,9 +273,11 @@ export function createApp(options: AppOptions = {}) {
         const raw=await repo.getRawMessage(id);if(!raw?.news)continue;
         const source=await repo.getSource(raw.source.id),feed=source?await repo.getBriefingById(source.briefingId):null;
         if(!source?.enabled||!feed||feed.paused||feed.ownerAccountId!==owner.id)continue;
-        if((await repo.getExistingItems(feed.id,now)).some(item=>item.evidence.some(ref=>ref.messageId===id)))continue;
-        if((await repo.listProcessingJobs({briefingId:feed.id,states:["queued","failed"],limit:500})).some(job=>job.rawMessageId===id))continue;
-        const jobId=await repo.createProcessingJob(feed.id,id,now);
+        const existing=(await repo.listProcessingJobs({briefingId:feed.id,states:["queued","failed"],limit:500})).find(job=>job.rawMessageId===id);
+        if(existing?.state==="queued")continue;
+        if(!existing&&(await repo.getExistingItems(feed.id,now)).some(item=>item.evidence.some(ref=>ref.messageId===id)))continue;
+        const jobId=existing?.id??await repo.createProcessingJob(feed.id,id,now);
+        if(existing)await repo.requeueProcessingJob(jobId,now);
         await c.env.PROCESSING_QUEUE.send({type:"process_raw_message",jobId,briefingId:feed.id,rawMessageId:id});queued++;
       }
       return c.json({queued});

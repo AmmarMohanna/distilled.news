@@ -1,5 +1,6 @@
 import {eventTokens,jaccardSimilarity,normalizeText,stableHash,firstSentence} from "./text";
 import {hasAuthoritySignal,isRelevantToInterest} from "./filtering";
+import {sanitizeEvidenceText} from "./summarization";
 import type {BriefingConfig,BriefingEvidence,BriefingItem,DevelopmentState,GroundedClaim,NormalizedMessage} from "./types";
 
 /** Preserve article query identity; remove tracking only. */
@@ -40,9 +41,10 @@ export function validateGroundedClaims(claims:GroundedClaim[],evidence:BriefingE
 export function extractiveClaims(evidence:BriefingEvidence[]):GroundedClaim[] {
   const result:GroundedClaim[]=[];
   for(const source of evidence){
-    const text=firstSentence(source.text).trim().slice(0,1000);
+    const quote=firstSentence(source.text).trim().slice(0,1000);
+    const text=sanitizeEvidenceText(quote).trim();
     if(text.length<12||result.some(claim=>sameFact(claim.text,text)))continue;
-    result.push({id:`claim_${stableHash(normalizeText(text))}`,text,support:[{messageId:source.messageId,quote:text}]});
+    result.push({id:`claim_${stableHash(normalizeText(text))}`,text,support:[{messageId:source.messageId,quote}]});
     if(result.length===3)break;
   }
   return result;

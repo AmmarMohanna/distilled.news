@@ -121,7 +121,7 @@ async function processNewsMessage(repo:Repository,job:ProcessingJobMessage,brief
   if(!item){await repo.completeProcessingJob(job.jobId,now);return result}
   let method:"DETERMINISTIC"|"SEMANTIC_REVIEW"="DETERMINISTIC";
   if(review&&!previous.has(item.id)){
-    const candidates=existing.filter(candidate=>Math.abs(Date.parse(candidate.itemAt)-Date.parse(raw.postedAt))<=72*3600000).map(candidate=>({candidate,score:jaccardSimilarity(eventTokens(raw.text),eventTokens(candidate.evidence.map(entry=>entry.text).join(" ")))})).sort((a,b)=>b.score-a.score);
+    const candidates=existing.filter(candidate=>Math.abs(Date.parse(candidate.itemAt)-Date.parse(raw.postedAt))<=72*3600000).map(candidate=>({candidate,score:Math.max(jaccardSimilarity(eventTokens(raw.text),eventTokens(candidate.evidence.map(entry=>entry.text).join(" "))),...candidate.evidence.map(entry=>jaccardSimilarity(eventTokens(raw.news?.headline??raw.text),eventTokens(entry.headline??entry.text))))})).sort((a,b)=>b.score-a.score);
     let attempts=0;
     for(const {candidate,score} of candidates){
       const crossLanguage=/[\u0600-\u06ff]/.test(raw.text)!==/[\u0600-\u06ff]/.test(candidate.evidence.map(entry=>entry.text).join(" "));
