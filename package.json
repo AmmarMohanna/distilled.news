@@ -21,7 +21,8 @@
     "db:migrate": "pnpm --filter @distilled/worker db:migrate",
     "web-operator:live-smoke:trigger": "node scripts/trigger-live-public-acquisition-smoke.mjs",
     "openrouter:diagnostic:trigger": "node scripts/trigger-openrouter-model-diagnostic.mjs",
-    "setup": "node scripts/setup.mjs"
+    "setup": "node scripts/setup.mjs",
+    "bootstrap:x:manual": "node scripts/bootstrap-authenticated-profile-manual.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.0",

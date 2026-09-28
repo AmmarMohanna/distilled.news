@@ -54,3 +54,74 @@ Binds `127.0.0.1:8789` by default. Startup prints only: provider, listen mode, t
 ## Tests
 
 `corepack pnpm --filter @distilled/browser-bridge test` runs, against real Chromium and a local synthetic site with no external credentials: the full lifecycle, session restore/capture, CAPTCHA `DETECT_ONLY`, handle fencing, redirect/private-network denial, cleanup on abandonment/shutdown/cancellation, the adversarial protocol matrix, and synthetic-marker secret-leak checks (logs, responses, errors, observations, service state, browser temp files).
+
+## Manual X login from Windows CMD
+
+The existing `corepack pnpm bootstrap:x --profile ...` queues an automated,
+headless bootstrap using stored credentials. For operator-driven login, deploy
+this revision of the Worker (it adds the protected
+`POST /v1/authenticated-profiles/manual-bootstrap` route), then run from the
+repository root:
+
+```cmd
+corepack pnpm bootstrap:x:manual
+```
+
+This automatically selects the sole eligible existing X profile. If multiple X
+profiles exist, select one explicitly (the ID is safe metadata):
+
+```cmd
+corepack pnpm bootstrap:x:manual --profile authenticated_profile_id
+```
+
+The command reads only the operator endpoint and service-token configuration from
+`apps/worker/.dev.vars` and the process environment. `WEB_OPERATOR_RUNTIME_URL`
+defaults to `https://distilled.news`; HTTPS is mandatory. It uses
+`AUTH_PROFILE_BOOTSTRAP_TOKEN` when configured, otherwise
+`WEB_OPERATOR_RUNTIME_TOKEN`. These are operator service credentials, never X
+login information. Do not put X credentials, cookies, MFA codes, or session tokens
+in arguments or environment variables. The command accepts only `--profile`.
+No encryption keys or stored X passwords are downloaded. Chromium receives only
+OS and display environment settings; operator secrets are never inherited by it.
+Chromium must already be installed for Playwright; if needed:
+
+```cmd
+corepack pnpm exec playwright install chromium
+```
+
+The manual path intentionally uses the existing `SelfHostedChromiumProvider` on
+this computer: remote Cloudflare browsers cannot display a local window. It
+retains the provider's origin, request-method, redirect and transport guards.
+Sign into X and complete verification in the visible isolated Chromium window
+within ten minutes. Challenge observations go through the existing
+`ChallengeCoordinator` with a detect-only provider; the operator resolves them
+in the browser. The CLI polls the existing X adapter, requiring the signed-in
+account navigation as well as an authenticated URL before capture.
+
+The Worker fences the admission to the active owner, profile version and expiry.
+`AuthenticatedBrowserLifecycle.captureManualSession` uses the existing
+`AuthenticatedProfileService` / `ProfileEnvelopeCrypto` session store to encrypt
+with AES-256-GCM and persist in R2. Credential retrieval is skipped entirely.
+Session state travels transiently over HTTPS; no plaintext session file is
+created. Protocol debug logging is disabled and errors never include provider
+text, session material or response bodies.
+
+The original browser is closed. The Worker decrypts the persisted R2 session and returns it transiently through
+the protected route. The CLI imports it into a fresh isolated
+browser context, visits X home and checks signed-in account navigation and the
+restored authentication cookie. Only successful verification enables acquisition.
+Until then, the profile stays `REAUTH_REQUIRED`, including after cancellation,
+restore failure or an abandoned command. An admission is single-attempt and
+expires after ten minutes; restore material is no longer accessible through that
+admission after verification. Both browser contexts are cleaned up.
+
+Success prints only:
+
+```text
+Encrypted X session persisted. Fresh browser context restored successfully. Profile is ready for acquisition.
+```
+
+The encrypted blob and fresh-context restore are tested against Miniflare D1/R2
+and real Chromium using synthetic X state. A live X session is verified only
+when the operator finishes this command; synthetic tests do not establish a
+live login.

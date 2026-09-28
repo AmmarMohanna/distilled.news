@@ -1,6 +1,7 @@
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import {processQueueMessage} from "./processor";
 import {enrollRetainedNewsForSource} from "./retained-news-enrollment";
+import { manualAuthenticatedProfileBootstrap } from "./authenticated-profile-manual-bootstrap";
 import {
   DEFAULT_SLICE_BUDGET,
   makeId,
@@ -316,6 +317,7 @@ export function createApp(options: AppOptions = {}) {
     const handler = createWorkerWebOperatorRuntimeHandler(c.env);
     return handler(c.req.raw);
   });
+  app.post("/v1/authenticated-profiles/manual-bootstrap", async (c) => manualAuthenticatedProfileBootstrap(c.req.raw,c.env));
   app.post("/v1/authenticated-profiles", async (c) => provisionAuthenticatedProfile(c.req.raw,c.env));
   app.post("/v1/authenticated-profiles/bridge-preflight", async (c) => handleBridgePreflight(c.req.raw,c.env));
   app.post("/v1/authenticated-profiles/container-preflight", async (c) => handleContainerPreflight(c.req.raw,c.env));
