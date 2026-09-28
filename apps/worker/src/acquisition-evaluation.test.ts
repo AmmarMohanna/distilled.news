@@ -9,6 +9,7 @@ import {enqueueScheduledSourceAcquisitions} from "./scheduled-source-acquisition
 import {processPublicAcquisitionRequest} from "./public-acquisition-request";
 import {acquisitionEvaluationDocument} from "./acquisition-evaluation-fixtures";
 import {enrollRetainedNewsForSource} from "./retained-news-enrollment";
+import {addSourceFromInput} from "./sources";
 import type {Env,ProcessingJobMessage,PublicAcquisitionRequestMessage} from "./types";
 
 it("evaluates the real account/queue/service/D1 handoff and scheduled next window with exact boundaries",async()=>{
@@ -113,5 +114,10 @@ it("evaluates the real account/queue/service/D1 handoff and scheduled next windo
     expect((await db.prepare("SELECT count(*) AS n FROM processing_jobs WHERE briefing_id='warm-deferred-feed' AND state='queued'").first<{n:number}>())?.n).toBe(2);
     expect(await enrollRetainedNewsForSource(db,{...enrollment,source:{...warm,sourceUrl:'https://other.example.com/feed.xml'}})).toEqual({enrolled:0,queued:0,deferred:0});
     expect(await enrollRetainedNewsForSource(db,{...enrollment,source:warm,now:new Date('2026-11-01T00:00:00Z')})).toEqual({enrolled:0,queued:0,deferred:0});
+    await freshRepo.upsertBriefing({...firstFeed!,id:'new-subscription-feed',slug:'new-subscription'},now);
+    const newFeed=await freshRepo.getBriefingById('new-subscription-feed');
+    const subscription=await addSourceFromInput({briefing:newFeed!,repo:freshRepo,bucket:{put:async()=>{}},queue:enrollment.queue,env,now,sourceInput:source.sourceUrl!});
+    expect(subscription).toMatchObject({imported:2,queued:2});
+    expect((await db.prepare("SELECT count(*) AS n FROM raw_messages WHERE briefing_id='new-subscription-feed'").first<{n:number}>())?.n).toBe(2);
   }finally{await mf.dispose()}
 },60000);
