@@ -15,10 +15,11 @@ describe("queued protected acquisition", () => {
       await db.prepare("INSERT INTO public_acquisition_requests(request_id,idempotency_key,owner_account_id,request_json,state,created_at) VALUES(?,?,?,?,'pending',?)")
         .bind("request-1",payload.idempotencyKey,"owner",JSON.stringify(payload),new Date().toISOString()).run();
       const messages:unknown[]=[];
-      const env={DB:db,DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE:"true",WEB_OPERATOR_RUNTIME_TOKEN:"worker-held-secret",WEB_OPERATOR_QUEUE:{send:async(message:unknown)=>{messages.push(message)}}} as unknown as Env;
+      const env={DB:db,DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE:"false",WEB_OPERATOR_RUNTIME_TOKEN:"worker-held-secret",WEB_OPERATOR_QUEUE:{send:async(message:unknown)=>{messages.push(message)}}} as unknown as Env;
       expect(await dispatchPendingPublicAcquisitionRequests(env)).toBe(1);
       expect(messages).toEqual([{type:"public_acquisition_request",requestId:"request-1"}]);
       const invoke=vi.fn(async(request:Request)=>{
+        expect(new URL(request.url).pathname).toBe("/v1/sources/acquisition");
         expect(request.headers.get("authorization")).toBe("Bearer worker-held-secret");
         expect(await request.json()).toEqual(payload);
         return Response.json({status:"SUCCESS",webOperatorCalls:1,discoveryModelCalls:6,discoveryBrowserOperations:17,items:[{sourceItemId:"post-1",publishedAt:"2026-09-20T12:00:00Z",contentLength:4200,title:"title",text:"raw secret-bearing body"}]});

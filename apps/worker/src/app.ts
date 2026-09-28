@@ -271,7 +271,8 @@ export function createApp(options: AppOptions = {}) {
   app.post("/v1/authenticated-profiles", async (c) => provisionAuthenticatedProfile(c.req.raw,c.env));
   app.post("/v1/authenticated-profiles/bridge-preflight", async (c) => handleBridgePreflight(c.req.raw,c.env));
   app.post("/v1/authenticated-profiles/container-preflight", async (c) => handleContainerPreflight(c.req.raw,c.env));
-  app.post("/v1/public-browser/acquisition", async (c) => handlePublicBrowserAcquisition(c.req.raw,c.env));
+  // Legacy direct browser probe is restricted to explicit evaluation mode.
+  app.post("/v1/public-browser/acquisition", async (c) => c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE === "true" ? handlePublicBrowserAcquisition(c.req.raw,c.env) : c.json({error:"not found"},404));
   app.post("/v1/bounded-decisions",async(c)=>handleBoundedDecision(c.req.raw,c.env));
   app.post("/v1/bounded-decisions/outcome",async(c)=>handleBoundedDecisionOutcome(c.req.raw,c.env));
   app.on(["GET","POST"], "/v1/authenticated-profiles/provider-diagnostic", async (c) => handleProviderDiagnostic(c.req.raw,c.env));
@@ -297,10 +298,11 @@ export function createApp(options: AppOptions = {}) {
     return c.html(`<!doctype html><html><head><title>Fixture article ${id}</title><link rel="canonical" href="${canonical}"><meta property="article:published_time" content="${published}"><script type="application/ld+json">${metadata}</script></head><body><article><h1>Fixture article ${id}</h1><time datetime="${published}">${published}</time><p>${body}</p></article></body></html>`,200,{"cache-control":"no-store"});
   });
 
-  app.post("/v1/live-smoke/public-acquisition", async (c) => {
-    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
+  app.on("POST", ["/v1/sources/acquisition","/v1/live-smoke/public-acquisition"], async (c) => {
+    if (c.req.path.startsWith("/v1/live-smoke/") && c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
     if (!isRuntimeAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
     const input = livePublicAcquisitionSmokeSchema.parse(await c.req.json().catch(() => ({})));
+    if (!c.req.path.startsWith("/v1/live-smoke/") && (input.evaluationId || new URL(input.sourceUrl).pathname.startsWith("/v1/live-smoke/"))) return c.json({error:"evaluation_only"},400);
     const now = nowFor();
     const source = new URL(input.sourceUrl);
     if (source.protocol !== "https:" || source.username || source.password || Date.parse(input.startTime) >= Date.parse(input.endTime) || Date.parse(input.startTime) >= now.getTime()) return c.json({ error: "invalid_source_window" }, 400);
@@ -319,11 +321,12 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ browserUseDiscoveryRuns:discoveryTelemetry?.browserUseDiscoveryRuns??0,jevCalls:discoveryTelemetry?.jevCalls??0,decisionFallbacks:discoveryTelemetry?.decisionFallbacks??0,status: outcome.status, stages: outcome.stages, stopReason: outcome.stopReason, upstreamResourceId: resource.id, activeWorkflow: outcome.activeWorkflow, candidateWorkflow: outcome.candidateWorkflow, webOperatorCalls: outcome.webOperatorCalls, webOperatorRunId: outcome.webOperatorRunId, discoveryModelCalls: outcome.discoveryModelCalls, discoveryBrowserOperations: outcome.discoveryBrowserOperations, requestedWindow: outcome.result?.requestedWindow ?? outcome.request.window, effectiveWindow: outcome.result?.effectiveWindow, acquisitionAsOf: outcome.result?.acquisitionAsOf ?? outcome.request.acquisitionAsOf, coverage: outcome.result?.coverage, continuation: outcome.result?.continuation, items: outcome.result?.items.map((item) => ({ canonicalItemUrl: item.canonicalItemUrl, sourceItemId: item.sourceItemId, title: item.title, publishedAt: item.publishedAt, contentLength: item.text?.length, originalSourceReference: item.originalSourceReference })), committedHighWater: outcome.committedHighWater });
   });
 
-  app.post("/v1/live-smoke/public-acquisition/submit", async (c) => {
-    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({error:"not found"},404);
+  app.on("POST", ["/v1/sources/acquisition/submit","/v1/live-smoke/public-acquisition/submit"], async (c) => {
+    if (c.req.path.startsWith("/v1/live-smoke/") && c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({error:"not found"},404);
     if (!isRuntimeAuthorized(c)) return c.json({error:"unauthorized"},401);
     const input = livePublicAcquisitionSmokeSchema.safeParse(await c.req.json().catch(()=>null));
     if (!input.success) return c.json({error:"invalid_request"},400);
+    if (!c.req.path.startsWith("/v1/live-smoke/") && (input.data.evaluationId || new URL(input.data.sourceUrl).pathname.startsWith("/v1/live-smoke/"))) return c.json({error:"evaluation_only"},400);
     const source = new URL(input.data.sourceUrl);
     if (source.protocol!=="https:" || source.username || source.password || source.search || source.hash || Date.parse(input.data.startTime)>=Date.parse(input.data.endTime)) return c.json({error:"invalid_source_window"},400);
     const owner=await repoFor(c).getAccountById(input.data.ownerAccountId);
@@ -340,8 +343,8 @@ export function createApp(options: AppOptions = {}) {
     return c.json({requestId,state:state?.state??"pending"},202);
   });
 
-  app.get("/v1/live-smoke/public-acquisition/requests/:requestId", async (c) => {
-    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({error:"not found"},404);
+  app.on("GET", ["/v1/sources/acquisition/requests/:requestId","/v1/live-smoke/public-acquisition/requests/:requestId"], async (c) => {
+    if (c.req.path.startsWith("/v1/live-smoke/") && c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({error:"not found"},404);
     if (!isRuntimeAuthorized(c)) return c.json({error:"unauthorized"},401);
     const requestId=c.req.param("requestId");
     if (!/^public_acquisition_request_[a-f0-9]{32}$/.test(requestId)) return c.json({error:"invalid_request_id"},400);
@@ -553,6 +556,23 @@ export function createApp(options: AppOptions = {}) {
 
   app.use("/api/me/*", accountAuth(repoFor));
   app.use("/api/admin/*", adminAuth(repoFor));
+
+  // Account identity is derived from the session, never from caller-owned tenant fields.
+  app.post("/api/me/acquisitions", async (c) => {
+    if (!c.env.WEB_OPERATOR_RUNTIME_TOKEN) return c.json({error:"acquisition_unconfigured"},503);
+    const body=await c.req.json().catch(()=>null);
+    if (!body || typeof body!=="object" || Array.isArray(body)) return c.json({error:"invalid_request"},400);
+    return app.fetch(new Request("https://worker.internal/v1/sources/acquisition/submit", {
+      method:"POST",headers:{authorization:`Bearer ${c.env.WEB_OPERATOR_RUNTIME_TOKEN}`,"content-type":"application/json"},
+      body:JSON.stringify({...body,ownerAccountId:c.get("account")!.id,evaluationId:undefined})
+    }),c.env);
+  });
+  app.get("/api/me/acquisitions/:requestId",async(c)=>{
+    const row=await c.env.DB.prepare("SELECT request_id,state,outcome,result_json,failure_class,created_at,started_at,completed_at FROM public_acquisition_requests WHERE request_id=? AND owner_account_id=?")
+      .bind(c.req.param("requestId"),c.get("account")!.id).first();
+    if (!row) return c.json({error:"not found"},404);
+    return c.json({...row,result:row.result_json?JSON.parse(String(row.result_json)):null,result_json:undefined});
+  });
 
   app.get("/api/me/account", async (c) => {
     return c.json({ account: publicAccount(c.get("account")!) });

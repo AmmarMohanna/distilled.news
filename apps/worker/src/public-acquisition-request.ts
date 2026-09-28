@@ -10,11 +10,17 @@ export async function processPublicAcquisitionRequest(env: Pick<Env,"DB"|"WEB_OP
   const row = await env.DB.prepare("SELECT request_id,request_json,state FROM public_acquisition_requests WHERE request_id=?")
     .bind(message.requestId).first<Row>();
   if (!row) return;
-  if (env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true" || !env.WEB_OPERATOR_RUNTIME_TOKEN) {
-    await finish(env.DB,row.request_id,"failed",null,"smoke_disabled_or_unconfigured"); return;
+  if (!env.WEB_OPERATOR_RUNTIME_TOKEN) {
+    await finish(env.DB,row.request_id,"failed",null,"runtime_unconfigured"); return;
   }
   try {
-    const response = await invoke(new Request("https://worker.internal/v1/live-smoke/public-acquisition",{
+    const payload=JSON.parse(row.request_json);
+    const evaluation=Boolean(payload.evaluationId || new URL(payload.sourceUrl).pathname.startsWith("/v1/live-smoke/"));
+    if (evaluation && env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") {
+      await finish(env.DB,row.request_id,"failed",null,"smoke_disabled"); return;
+    }
+    const executionStarted=Date.now();
+    const response = await invoke(new Request(`https://worker.internal/v1/${evaluation?"live-smoke/public-acquisition":"sources/acquisition"}`,{
       method:"POST", headers:{authorization:`Bearer ${env.WEB_OPERATOR_RUNTIME_TOKEN}`,"content-type":"application/json"}, body:row.request_json
     }));
     if (!response.ok) { await finish(env.DB,row.request_id,"failed",null,`http_${response.status}`); return; }
@@ -22,6 +28,11 @@ export async function processPublicAcquisitionRequest(env: Pick<Env,"DB"|"WEB_OP
     // The route already returns a bounded read-only report. Store only typed counters,
     // IDs, temporal coverage, and item summaries; never model or browser transcripts.
     const bounded = {
+      latencyMs: Date.now()-executionStarted,
+      selectedStage: Array.isArray(result.stages)?safeString((result.stages as Record<string,unknown>[]).find(stage=>stage.status==="SUCCESS")?.stage,40):null,
+      requestedWindow: result.requestedWindow ?? null,
+      effectiveWindow: result.effectiveWindow ?? null,
+      committedHighWater: result.committedHighWater ?? null,
       status: typeof result.status === "string" ? result.status.slice(0,40) : "UNKNOWN",
       stopReason: typeof result.stopReason === "string" ? result.stopReason.slice(0,40) : null,
       stages: Array.isArray(result.stages) ? result.stages.slice(0,5).map(stage=>{
@@ -51,7 +62,6 @@ export async function processPublicAcquisitionRequest(env: Pick<Env,"DB"|"WEB_OP
 }
 
 export async function dispatchPendingPublicAcquisitionRequests(env: Pick<Env,"DB"|"WEB_OPERATOR_QUEUE"|"DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE">): Promise<number> {
-  if (env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return 0;
   await env.DB.prepare(`UPDATE public_acquisition_requests SET state='failed',failure_class='execution_deadline_exceeded',completed_at=?
     WHERE state='running' AND started_at<?`)
     .bind(new Date().toISOString(),new Date(Date.now()-15*60_000).toISOString()).run();
