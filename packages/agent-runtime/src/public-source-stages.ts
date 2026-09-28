@@ -19,6 +19,8 @@ export class PublicSourceStages {
     let document: Awaited<ReturnType<PublicSourceFetchPort["get"]>>;
     try { document = await this.load(source); }
     catch (error) { return fetchFailure("STRUCTURED", error); }
+    if (document.status === 401 || document.status === 403) return {stage:"STRUCTURED",status:"AUTH_REQUIRED",reason:`source_access_denied_${document.status}`};
+    if (document.status >= 400) return {stage:"STRUCTURED",status:"TRANSIENT_FAILURE",reason:`source_http_${document.status}`};
     const feed = directFeed(document) ? source : discoveredFeed(document.body, source);
     if (!feed) return { stage: "STRUCTURED", status: "UNSUPPORTED", reason: "no native feed discovered" };
     try {
@@ -35,6 +37,16 @@ export class PublicSourceStages {
     try { document = await this.load(source); }
     catch (error) { return fetchFailure("HTTP", error); }
     if (!document.contentType.toLowerCase().includes("html")) return { stage: "HTTP", status: "UNSUPPORTED", reason: "source is not HTML" };
+    // A source can itself be one complete dated article. No listing or browser
+    // discovery is required to acquire that finite document.
+    const article = parseStructuredHtmlArticle(document.body, source, source);
+    if (article) {
+      const result = await new TemporalSourceAcquisition(this.clock).acquire(request, {
+        authentication:"PUBLIC",open:async()=>{},close:async()=>{},
+        next:async()=>({items:[article],sourceExhausted:true})
+      });
+      return {stage:"HTTP",status:"SUCCESS",result};
+    }
     if (!articleLinks(document.body, source).length) return { stage: "HTTP", status: "INSUFFICIENT", reason: "no deterministic listing article links" };
     const workflow: HttpHtmlSourceWorkflow = {
       listingUrl: (_request, page) => page === 1 ? source : source,

@@ -14,7 +14,7 @@ it("applies the complete migration chain to clean D1 with workflow and decision 
       if(statements.length)await db.batch(statements.map(statement=>db.prepare(statement)));
     }
     expect((await db.prepare("PRAGMA foreign_key_check").all()).results).toEqual([]);
-    for(const table of ["upstream_resources","web_operator_workflows","source_acquisition_state","browser_use_discovery_runs","bounded_decision_events","public_acquisition_requests","authenticated_x_acquisition_requests"]){
+    for(const table of ["upstream_resources","web_operator_workflows","source_acquisition_state","browser_use_discovery_runs","bounded_decision_events","public_acquisition_requests","authenticated_x_acquisition_requests","acquired_source_items","source_acquisition_leases"]){
       expect(await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").bind(table).first()).not.toBeNull();
     }
     const columns=await db.prepare("PRAGMA table_info(bounded_decision_events)").all<{name:string}>();

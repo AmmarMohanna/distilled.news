@@ -3,6 +3,7 @@ import { buildGoogleNewsRssUrl } from "./rss";
 import { parsePublicTelegramChannelUrl } from "./telegram";
 
 export type DetectedSourceInput =
+  | {provider:"web";kind:"web_page";input:string;title:string;sourceUrl:string}
   | {
       provider: "telegram";
       kind: "telegram_channel";
@@ -103,7 +104,9 @@ export function detectSourceInput(input: string): DetectedSourceInput {
 
   if (!/^https?:\/\//i.test(trimmed)) return googleNewsInput(trimmed, trimmed);
 
-  throw new Error("Paste a full Telegram or X URL, or type a search topic.");
+  const page=new URL(trimmed);
+  if(page.protocol!=="https:"||page.username||page.password)throw new Error("Public web sources require HTTPS without credentials.");
+  return {provider:"web",kind:"web_page",input:trimmed,title:hostTitle(page.href),sourceUrl:page.href};
 }
 
 export function defaultActorIdForKind(kind: SourceKind, env: {
@@ -120,6 +123,7 @@ export function defaultActorIdForKind(kind: SourceKind, env: {
 }
 
 export function sourceProviderLabel(provider: SourceProvider, kind: SourceKind): string {
+  if(provider==="web")return "Web";
   if (provider === "telegram") return "Telegram";
   if (kind === "google_news") return "Google News";
   if (kind === "x_profile" || kind === "x_search") return "X";

@@ -1,12 +1,13 @@
 export type SourceType = "channel" | "group";
 export type BriefingLanguage = "en" | "ar" | "fr";
 export type BriefingIntensity = "low" | "medium" | "high";
-export type SourceProvider = "telegram" | "rss" | "apify";
+export type SourceProvider = "telegram" | "rss" | "apify" | "web";
 export type BriefingCadence = "hourly" | "daily" | "weekly" | "monthly";
 export type SourceKind =
   | "telegram_channel"
   | "telegram_group"
   | "rss_feed"
+  | "web_page"
   | "google_news"
   | "x_profile"
   | "x_search"

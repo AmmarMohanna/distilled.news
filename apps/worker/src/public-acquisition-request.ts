@@ -13,12 +13,17 @@ export async function processPublicAcquisitionRequest(env: Pick<Env,"DB"|"WEB_OP
   if (!env.WEB_OPERATOR_RUNTIME_TOKEN) {
     await finish(env.DB,row.request_id,"failed",null,"runtime_unconfigured"); return;
   }
+  let leaseScope:string|undefined;
   try {
     const payload=JSON.parse(row.request_json);
     const evaluation=Boolean(payload.evaluationId || new URL(payload.sourceUrl).pathname.startsWith("/v1/live-smoke/"));
     if (evaluation && env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") {
       await finish(env.DB,row.request_id,"failed",null,"smoke_disabled"); return;
     }
+    leaseScope=`${payload.ownerAccountId}:${new URL(payload.sourceUrl).href}:${payload.evaluationId??""}`;
+    const lease=await env.DB.prepare("INSERT INTO source_acquisition_leases(scope_key,request_id,expires_at) VALUES(?,?,?) ON CONFLICT(scope_key) DO UPDATE SET request_id=excluded.request_id,expires_at=excluded.expires_at WHERE source_acquisition_leases.expires_at<?")
+      .bind(leaseScope,row.request_id,new Date(Date.now()+15*60000).toISOString(),new Date().toISOString()).run();
+    if(Number(lease.meta.changes)!==1){await env.DB.prepare("UPDATE public_acquisition_requests SET state='pending',started_at=NULL WHERE request_id=? AND state='running'").bind(row.request_id).run();return}
     const executionStarted=Date.now();
     const response = await invoke(new Request(`https://worker.internal/v1/${evaluation?"live-smoke/public-acquisition":"sources/acquisition"}`,{
       method:"POST", headers:{authorization:`Bearer ${env.WEB_OPERATOR_RUNTIME_TOKEN}`,"content-type":"application/json"}, body:row.request_json
@@ -33,6 +38,8 @@ export async function processPublicAcquisitionRequest(env: Pick<Env,"DB"|"WEB_OP
       requestedWindow: result.requestedWindow ?? null,
       effectiveWindow: result.effectiveWindow ?? null,
       committedHighWater: result.committedHighWater ?? null,
+      highWaterBefore:result.highWaterBefore??null,
+      itemHandoff:result.itemHandoff??null,
       status: typeof result.status === "string" ? result.status.slice(0,40) : "UNKNOWN",
       stopReason: typeof result.stopReason === "string" ? result.stopReason.slice(0,40) : null,
       stages: Array.isArray(result.stages) ? result.stages.slice(0,5).map(stage=>{
@@ -56,19 +63,23 @@ export async function processPublicAcquisitionRequest(env: Pick<Env,"DB"|"WEB_OP
       continuation: result.continuation ?? null,
       items: Array.isArray(result.items) ? result.items.slice(0,30).map((item) => {
         const value = item && typeof item === "object" ? item as Record<string,unknown> : {};
-        return { sourceItemId: safeString(value.sourceItemId,256), publishedAt:safeString(value.publishedAt,40), contentLength:numberOrNull(value.contentLength) };
+        return { canonicalItemUrl:safeString(value.canonicalItemUrl,2048),sourceItemId: safeString(value.sourceItemId,256), publishedAt:safeString(value.publishedAt,40), contentLength:numberOrNull(value.contentLength) };
       }) : []
     };
     await finish(env.DB,row.request_id,"completed",JSON.stringify(bounded),null,bounded.status);
   } catch {
     await finish(env.DB,row.request_id,"failed",null,"internal_execution_failure");
-  }
+  } finally {if(leaseScope)await env.DB.prepare("DELETE FROM source_acquisition_leases WHERE scope_key=? AND request_id=?").bind(leaseScope,row.request_id).run();}
 }
 
 export async function dispatchPendingPublicAcquisitionRequests(env: Pick<Env,"DB"|"WEB_OPERATOR_QUEUE"|"DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE">): Promise<number> {
   await env.DB.prepare(`UPDATE public_acquisition_requests SET state='failed',failure_class='execution_deadline_exceeded',completed_at=?
     WHERE state='running' AND started_at<?`)
     .bind(new Date().toISOString(),new Date(Date.now()-15*60_000).toISOString()).run();
+  // Queue termination can prevent finally from recording the discovery outcome.
+  // Browser authority is already expired at this deadline; retain bounded failure.
+  await env.DB.prepare("UPDATE browser_use_discovery_runs SET state='FAILED',outcome='STRUCTURAL_FAILURE',completed_at=? WHERE completed_at IS NULL AND started_at<?")
+    .bind(new Date().toISOString(),new Date(Date.now()-15*60000).toISOString()).run();
   const rows = await env.DB.prepare("SELECT request_id FROM public_acquisition_requests WHERE state='pending' ORDER BY created_at LIMIT 5").all<{request_id:string}>();
   for (const row of rows.results) {
     await env.WEB_OPERATOR_QUEUE.send({type:"public_acquisition_request",requestId:row.request_id} satisfies PublicAcquisitionRequestMessage);

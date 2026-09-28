@@ -8,6 +8,7 @@ describe("acquisition diagnostic retention",()=>{
     const mf=new Miniflare({modules:true,script:"export default {fetch(){return new Response('ok')}}",d1Databases:["DB"]});
     try{
       const db=await mf.getD1Database("DB");
+      await db.exec("CREATE TABLE acquired_source_items(expires_at TEXT); CREATE TABLE source_acquisition_leases(expires_at TEXT);");
       for(const name of ["0028_browser_use_discovery_runs.sql","0029_public_acquisition_requests.sql","0030_authenticated_x_acquisition_requests.sql","0031_bounded_decision_events.sql","0032_openrouter_decision_metadata.sql"]){
         const sql=readFileSync(new URL(`../migrations/${name}`,import.meta.url),"utf8");
         for(const statement of sql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();

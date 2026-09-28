@@ -12,6 +12,7 @@ import { processLivePublicAcquisitionSmoke } from "./live-public-acquisition-smo
 import { dispatchPendingPublicAcquisitionRequests, processPublicAcquisitionRequest } from "./public-acquisition-request";
 import { dispatchPendingAuthenticatedXAcquisitionRequests,processAuthenticatedXAcquisitionRequest } from "./authenticated-x-acquisition-request";
 import { expireAcquisitionDiagnostics } from "./acquisition-diagnostic-retention";
+import {enqueueScheduledSourceAcquisitions} from "./scheduled-source-acquisition";
 import { createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { dispatchPendingOpenRouterModelDiagnostics,processOpenRouterModelDiagnostic } from "./openrouter-model-diagnostic";
 import { dispatchPendingAuthenticatedProfileBootstraps,processAuthenticatedProfileBootstrap } from "./authenticated-profile-bootstrap-trigger";
@@ -231,6 +232,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function runScheduledMaintenance(env: Env): Promise<void> {
   const repo = new D1Repository(env.DB);
   const now = new Date();
+  try{await enqueueScheduledSourceAcquisitions(env,now)}catch{console.warn("Could not enqueue scheduled source acquisition")}
   try {
     await dispatchPendingOpenRouterModelDiagnostics(env,now);
   } catch (error) {
@@ -287,6 +289,7 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
   for (const briefing of briefings) {
     try {
       enqueued += await enqueueDueSourceRefreshJobs({
+        env,
         briefing,
         repo,
         queue: env.PROCESSING_QUEUE,

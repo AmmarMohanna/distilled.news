@@ -54,6 +54,7 @@ export interface SourceRefreshInput {
 }
 
 export interface SourceRefreshDispatchInput {
+  env?:Partial<Env>;
   briefing: BriefingConfig;
   repo: Repository;
   queue: { send(message: SourceRefreshJobMessage): Promise<unknown> };
@@ -68,6 +69,7 @@ export async function addSourceFromInput(input: SourceRefreshInput & { sourceInp
   }
 
   const source = await upsertDetectedSource(input.repo, input.briefing.id, detected, input.env ?? {}, input.now);
+  if(detected.provider==="web")return {sourceId:source.id,url:detected.sourceUrl,fetched:0,imported:0,queued:0,skipped:0,title:source.title,provider:source.provider,kind:source.kind};
   if (detected.provider === "rss") {
     return ingestRssSource({ ...input, source });
   }
@@ -85,6 +87,8 @@ export async function refreshEnabledSources(input: SourceRefreshInput): Promise<
 
   for (const source of sources) {
     if (!input.force && !isSourceRefreshDue(input.briefing, source, now)) continue;
+    // These configured sources are admitted by the durable acquisition cron.
+    if(source.provider==="web"||(input.env?.WEB_OPERATOR_RUNTIME_TOKEN&&source.provider==="rss"&&source.kind!=="google_news"))continue;
     const result = await refreshSource({ ...input, source, now });
     if (result) results.push(result);
   }
@@ -101,6 +105,7 @@ export async function enqueueDueSourceRefreshJobs(input: SourceRefreshDispatchIn
   let enqueued = 0;
 
   for (const source of sources) {
+    if(source.provider==="web"||(input.env?.WEB_OPERATOR_RUNTIME_TOKEN&&source.provider==="rss"&&source.kind!=="google_news"))continue;
     if (!input.force && !isSourceRefreshDue(input.briefing, source, now)) continue;
     if ((source.provider === "apify" || source.kind === "google_news") && await hasActiveApifyRun(input.repo, source.id)) continue;
 

@@ -49,6 +49,8 @@ import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository 
 import { createWorkerPublicSourceAcquisitionService, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { D1UpstreamResourceStore } from "./upstream-resource-store";
 import { discoverAndPromotePublicSourceWorkflow } from "./public-source-discovery";
+import { persistAcquiredSourceItems } from "./acquisition-item-handoff";
+import { D1SourceHighWaterStore } from "./source-acquisition-store";
 import { D1BrowserUseRunTelemetry } from "./browser-use-run-telemetry";
 import { createWorkerXAcquisitionService } from "./authenticated-x-acquisition";
 import { handleBoundedDecision,handleBoundedDecisionOutcome } from "./bounded-decision-provider";
@@ -56,6 +58,7 @@ import { D1AuthenticatedProfileRepository } from "./authenticated-profile-store"
 import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
 import { handleBridgePreflight,handleContainerPreflight,handleProviderDiagnostic } from "./bridge-preflight";
 import { handlePublicBrowserAcquisition } from "./public-browser-acquisition";
+import {acquisitionEvaluationDocument} from "./acquisition-evaluation-fixtures";
 
 type Variables = {
   repo: Repository;
@@ -174,6 +177,7 @@ const healthInputSchema = z.object({
   briefingId: z.string().min(1).optional()
 });
 const livePublicAcquisitionSmokeSchema = z.object({
+  sourceId:z.string().min(1).max(128).optional(),
   evaluationId:z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
   sourceUrl: z.string().url().max(2_048),
   ownerAccountId: z.string().min(1).max(128),
@@ -278,6 +282,7 @@ export function createApp(options: AppOptions = {}) {
   app.on(["GET","POST"], "/v1/authenticated-profiles/provider-diagnostic", async (c) => handleProviderDiagnostic(c.req.raw,c.env));
 
   // Public, read-only fixture for bounded production acquisition validation.
+  app.get("/v1/live-smoke/acquisition-fixture/:kind",c=>c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE==="true"?acquisitionEvaluationDocument(c.req.param("kind"),new URL(c.req.url).origin):c.text("not found",404));
   // It exists only while the protected smoke flag is temporarily enabled.
   app.on("GET",["/v1/live-smoke/browser-use-fixture","/v1/live-smoke/browser-use-fixture/listing/:evaluationId"], (c) => {
     if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.text("not found",404);
@@ -310,6 +315,10 @@ export function createApp(options: AppOptions = {}) {
     const owner = await repoFor(c).getAccountById(input.ownerAccountId);
     if (!owner || owner.disabledAt) return c.json({ error: "owner_not_found" }, 404);
     const resource = await new D1UpstreamResourceStore(c.env.DB).resolveOrCreate({ tenantId: owner.id, canonicalSourceUrl: source.href, resourceLocator:input.evaluationId?`discovery-evaluation:${input.evaluationId}`:undefined,now: now.toISOString() });
+    const configuredSource=input.sourceId?await repoFor(c).getSource(input.sourceId):null;
+    const configuredBriefing=configuredSource?await repoFor(c).getBriefingById(configuredSource.briefingId):null;
+    if(input.sourceId&&(!configuredSource||!configuredSource.enabled||!configuredBriefing||configuredBriefing.paused||configuredBriefing.ownerAccountId!==owner.id||new URL(configuredSource.sourceUrl??configuredSource.url??"https://invalid.invalid").href!==source.href))return c.json({error:"source_fence_mismatch"},403);
+    const highWaterBefore=await new D1SourceHighWaterStore(c.env.DB,owner.id).get(`${owner.id}:${resource.id}`);
     const limits = input.limits ?? { maxItems: 10, maxPages: 3, maxScrolls: 3, maxPhysicalAttempts: 16, maxExecutionMs: 60_000 };
     const runId = makeId("public_source_run", resource.id, input.idempotencyKey);
     const service = createWorkerPublicSourceAcquisitionService(c.env, { tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, sourceUrl: source.href, fetcher, webOperator: (request) => discoverAndPromotePublicSourceWorkflow(c.env, { request, tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, idempotencyKey: input.idempotencyKey }) });
@@ -317,8 +326,9 @@ export function createApp(options: AppOptions = {}) {
     try { outcome = await service.acquire({ tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, source: { canonicalSourceUrl: source.href }, window, limits, authentication: "PUBLIC", acquisitionAsOf: now.toISOString() }); }
     catch (error) { await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,"STRUCTURAL_FAILURE"); throw error; }
     await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId, outcome.status === "SUCCESS" ? "SUCCESS" : outcome.stopReason === "CHALLENGE_REQUIRED" ? "CHALLENGE_REQUIRED" : outcome.stopReason === "POLICY_DENIED" ? "POLICY_DENIED" : "STRUCTURAL_FAILURE");
+    const itemHandoff=outcome.result?await persistAcquiredSourceItems(c.env.DB,{tenantId:owner.id,resourceId:resource.id,result:outcome.result,now,source:configuredSource??undefined,retentionDays:configuredBriefing?.retentionDays,queue:c.env.PROCESSING_QUEUE}):null;
     const discoveryTelemetry=outcome.webOperatorCalls===0?null:await new D1BrowserUseRunTelemetry(c.env.DB).get(`${runId}_browser_use`);
-    return c.json({ browserUseDiscoveryRuns:discoveryTelemetry?.browserUseDiscoveryRuns??0,jevSuccessfulChoices:discoveryTelemetry?.jevSuccessfulChoices??0,jevExecutedActions:discoveryTelemetry?.jevExecutedActions??0,jevCostUsd:discoveryTelemetry?.jevCostUsd??null,jevCalls:discoveryTelemetry?.jevCalls??0,decisionFallbacks:discoveryTelemetry?.decisionFallbacks??0,status: outcome.status, stages: outcome.stages, stopReason: outcome.stopReason, upstreamResourceId: resource.id, activeWorkflow: outcome.activeWorkflow, candidateWorkflow: outcome.candidateWorkflow, webOperatorCalls: outcome.webOperatorCalls, webOperatorRunId: outcome.webOperatorRunId ?? discoveryTelemetry?.runId, discoveryModelCalls: outcome.discoveryModelCalls ?? discoveryTelemetry?.discoveryModelCalls, discoveryBrowserOperations: outcome.discoveryBrowserOperations ?? discoveryTelemetry?.browserOperations, requestedWindow: outcome.result?.requestedWindow ?? outcome.request.window, effectiveWindow: outcome.result?.effectiveWindow, acquisitionAsOf: outcome.result?.acquisitionAsOf ?? outcome.request.acquisitionAsOf, coverage: outcome.result?.coverage, continuation: outcome.result?.continuation, items: outcome.result?.items.map((item) => ({ canonicalItemUrl: item.canonicalItemUrl, sourceItemId: item.sourceItemId, title: item.title, publishedAt: item.publishedAt, contentLength: item.text?.length, originalSourceReference: item.originalSourceReference })), committedHighWater: outcome.committedHighWater });
+    return c.json({ highWaterBefore,itemHandoff,browserUseDiscoveryRuns:discoveryTelemetry?.browserUseDiscoveryRuns??0,jevSuccessfulChoices:discoveryTelemetry?.jevSuccessfulChoices??0,jevExecutedActions:discoveryTelemetry?.jevExecutedActions??0,jevCostUsd:discoveryTelemetry?.jevCostUsd??null,jevCalls:discoveryTelemetry?.jevCalls??0,decisionFallbacks:discoveryTelemetry?.decisionFallbacks??0,status: outcome.status, stages: outcome.stages, stopReason: outcome.stopReason, upstreamResourceId: resource.id, activeWorkflow: outcome.activeWorkflow, candidateWorkflow: outcome.candidateWorkflow, webOperatorCalls: outcome.webOperatorCalls, webOperatorRunId: outcome.webOperatorRunId ?? discoveryTelemetry?.runId, discoveryModelCalls: outcome.discoveryModelCalls ?? discoveryTelemetry?.discoveryModelCalls, discoveryBrowserOperations: outcome.discoveryBrowserOperations ?? discoveryTelemetry?.browserOperations, requestedWindow: outcome.result?.requestedWindow ?? outcome.request.window, effectiveWindow: outcome.result?.effectiveWindow, acquisitionAsOf: outcome.result?.acquisitionAsOf ?? outcome.request.acquisitionAsOf, coverage: outcome.result?.coverage, continuation: outcome.result?.continuation, items: outcome.result?.items.map((item) => ({ canonicalItemUrl: item.canonicalItemUrl, sourceItemId: item.sourceItemId, title: item.title, publishedAt: item.publishedAt, contentLength: item.text?.length, originalSourceReference: item.originalSourceReference })), committedHighWater: outcome.committedHighWater });
   });
 
   app.on("POST", ["/v1/sources/acquisition/submit","/v1/live-smoke/public-acquisition/submit"], async (c) => {
