@@ -24,7 +24,8 @@ describe("bounded decision provider",()=>{
   });
   it("sends only finite typed state and never caller prose or extra secret fields",async()=>{
     let sent:unknown;
-    const provider=new OpenRouterJevDecisionProvider("test-only","typesafe/jev-1.13",5000,async(url,options)=>{
+    const provider=new OpenRouterJevDecisionProvider("test-only","typesafe/jev-1.13",5000,async function(this:unknown,url,options){
+      expect(this).toBeUndefined();
       expect(url).toBe("https://openrouter.ai/api/alpha/decisions");
       sent=JSON.parse(String(options?.body));
       return Response.json({answers:{action:{type:"choice",choice:"choice_1",confidence:0.9,probabilities:{choice_0:0.1,choice_1:0.9}}},usage:{input_tokens:300,cost:0.0000126}});

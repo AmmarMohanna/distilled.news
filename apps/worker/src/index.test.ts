@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+// Queue helpers are tested in Node; Container class executes only in workerd.
+vi.mock("./cloudflare-container-browser",()=>({AuthenticatedBrowserContainer:class {}}));
 import { processWebOperatorRunMessage, shouldQuarantineQueueFailure } from "./index";
 import type { Env } from "./types";
 

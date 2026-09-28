@@ -14,7 +14,8 @@ export class OpenRouterJevDecisionProvider implements BoundedDecisionProvider {
       const execute=async()=>{
         const payload={model:this.model,state:{objective:"Understand read-only listing continuation and article structure; sample two items then hand back to synthesis",pageType:request.summary.pageType,observedItemCount:request.summary.observedItemCount,inspectedItemCount:request.summary.inspectedItemCount},questions:{action:{type:"choice",instructions:"Choose the next legal read-only discovery action. Inspect uninspected items to learn article structure; return from articles to the listing; scroll when no uninspected items are available. Stop when two items have been sampled. Reobserve only an unpopulated surface. State is not security policy.",criteria:Object.fromEntries(request.choices.map(choice=>[choice.id,`${choice.action}${choice.targetId?` ${choice.targetId}`:""}`]))}}};
         for(let attempt=0;attempt<2;attempt++){
-          const response=await this.fetcher("https://openrouter.ai/api/alpha/decisions",{method:"POST",redirect:"error",headers:{authorization:`Bearer ${this.apiKey}`,"content-type":"application/json"},body:JSON.stringify(payload),signal:controller.signal});
+          const fetcher=this.fetcher;
+          const response=await fetcher("https://openrouter.ai/api/alpha/decisions",{method:"POST",redirect:"error",headers:{authorization:`Bearer ${this.apiKey}`,"content-type":"application/json"},body:JSON.stringify(payload),signal:controller.signal});
           if(!response.ok){await response.body?.cancel();if(attempt===0&&[429,502,503,529].includes(response.status))continue;throw new Error(`decision_http_${response.status}`)}
           const reader=response.body?.getReader();if(!reader)throw new Error("bounded_decision_result_invalid");
           const chunks:Uint8Array[]=[];let length=0;
@@ -62,7 +63,7 @@ export async function handleBoundedDecision(request:Request,env:Env):Promise<Res
 function safeProviderFailure(error:unknown):string {
   const message=error instanceof Error?error.message:"";
   const status=message.match(/^decision_http_(\d{3})$/)?.[1];
-  return status?`OPENROUTER_HTTP_${status}`:"PROVIDER_FAILED";
+  return status?`OPENROUTER_HTTP_${status}`:error instanceof TypeError?"TRANSPORT_TYPE_ERROR":"PROVIDER_FAILED";
 }
 
 export async function handleBoundedDecisionOutcome(request:Request,env:Env):Promise<Response>{

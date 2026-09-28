@@ -15,7 +15,8 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
     if (url.origin !== this.origin) throw new PublicSourcePolicyError();
     let response: Response;
     const signal = AbortSignal.timeout(15_000);
-    try { response = await this.fetcher(url.href, { redirect: "manual", signal, headers: { accept: "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml" } }); }
+    const fetcher=this.fetcher;
+    try { response = await fetcher(url.href, { redirect: "manual", signal, headers: { accept: "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml" } }); }
     catch (error) {
       if (knownCloudflareSubrequestDenial(error)) throw new PublicSourcePolicyError();
       throw new PublicSourceFetchFailure(signal.aborted ? "FETCH_TIMEOUT" : "FETCH_REJECTED");
