@@ -24,6 +24,10 @@ export async function processPublicAcquisitionRequest(env: Pick<Env,"DB"|"WEB_OP
     const bounded = {
       status: typeof result.status === "string" ? result.status.slice(0,40) : "UNKNOWN",
       stopReason: typeof result.stopReason === "string" ? result.stopReason.slice(0,40) : null,
+      stages: Array.isArray(result.stages) ? result.stages.slice(0,5).map(stage=>{
+        const value=stage as Record<string,unknown>;
+        return {stage:safeString(value.stage,40),status:safeString(value.status,40),reason:safeString(value.reason,1500)};
+      }) : [],
       upstreamResourceId: typeof result.upstreamResourceId === "string" ? result.upstreamResourceId.slice(0,100) : null,
       activeWorkflow: result.activeWorkflow ?? null,
       candidateWorkflow: result.candidateWorkflow ?? null,

@@ -1,6 +1,6 @@
 import {AuthenticatedBrowserBridgeError,chooseWithFallback,validateBoundedDecision,type BoundedDecisionProvider,type BoundedDecisionRequest,type BrowserAllocation,type AuthenticatedBrowserExecutionCapability,type SelfHostedChromiumProvider,type BrowserObservationData} from "@distilled/agent-runtime";
 
-export async function advancePublicDiscovery(input:{provider:SelfHostedChromiumProvider;scope:BrowserAllocation;capability:AuthenticatedBrowserExecutionCapability;pageRevision:string;inspected:Set<string>;decisionProvider?:BoundedDecisionProvider}){
+export async function advancePublicDiscovery(input:{provider:SelfHostedChromiumProvider;scope:BrowserAllocation;capability:AuthenticatedBrowserExecutionCapability;pageRevision:string;inspected:Set<string>;decisionProvider?:BoundedDecisionProvider;signal?:AbortSignal}){
   const {provider,scope,capability:cap}=input;
   if(cap.siteKind!=="PUBLIC"||cap.allowedOrigins.length!==1)throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
   const observed=await provider.observePublicPage(scope);
@@ -17,14 +17,15 @@ export async function advancePublicDiscovery(input:{provider:SelfHostedChromiumP
   }
   const request:BoundedDecisionRequest={runId:cap.runId,kind:"PUBLIC_DISCOVERY",browserGeneration:cap.browserGeneration,observationRevision:observed.pageRevision,expiresAt:cap.expiresAt,summary:{pageType:article?"article":observed.url===cap.authEntryPoint?"listing":"unknown",observedItemCount:links.length,inspectedItemCount:input.inspected.size},choices};
   const decisionProvider=input.decisionProvider??httpDecisionProvider();
-  const decision=await chooseWithFallback(decisionProvider,request,0.75);
+  const decision=await chooseWithFallback(decisionProvider,request,0.75,input.signal);
   if(!decision)return{fallback:true};
+  input.signal?.throwIfAborted();
   const fresh=await provider.observePublicPage(scope);
   let choice:BoundedDecisionRequest["choices"][number];
-  try{choice=validateBoundedDecision(request,decision,{revision:fresh.pageRevision,generation:scope.generation,now:Date.now()},0.75)}catch{throw new AuthenticatedBrowserBridgeError("BRIDGE_OBSERVATION_STALE")}
+  try{choice=validateBoundedDecision(request,decision,{revision:fresh.pageRevision,generation:scope.generation,now:Date.now()},0.75)}catch{await decisionProvider.recordOutcome?.(request,decision,"STALE").catch(()=>undefined);throw new AuthenticatedBrowserBridgeError("BRIDGE_OBSERVATION_STALE")}
   let observation:BrowserObservationData|undefined;
-  switch(choice.action){
-    case"STOP":return{fallback:false,action:"STOP"};
+  try{switch(choice.action){
+    case"STOP":await decisionProvider.recordOutcome?.(request,decision,"STOPPED").catch(()=>undefined);return{fallback:false,action:"STOP"};
     case"REOBSERVE":observation=fresh;break;
     case"SCROLL":observation=await provider.scroll(scope,1200);break;
     case"RETURN_TO_LISTING":observation=await provider.navigatePublicPage(scope,cap.authEntryPoint,cap.allowedOrigins);break;
@@ -35,6 +36,8 @@ export async function advancePublicDiscovery(input:{provider:SelfHostedChromiumP
     }
   }
   if(!observation||!cap.allowedOrigins.includes(new URL(observation.url).origin))throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
+  }catch(error){await decisionProvider.recordOutcome?.(request,decision,"EXECUTION_FAILED").catch(()=>undefined);throw error}
+  await decisionProvider.recordOutcome?.(request,decision,"EXECUTED").catch(()=>undefined);
   return{fallback:false,action:choice.action,observation};
 }
 
@@ -45,4 +48,8 @@ function httpDecisionProvider():BoundedDecisionProvider{return{async choose(requ
   if(!response.ok||Number(response.headers.get("content-length")??0)>8192)throw new Error("decision_provider_failed");
   const text=await response.text();if(text.length>8192)throw new Error("decision_provider_oversized");
   const result=JSON.parse(text);if(!result.decision)throw new Error("decision_fallback");return result.decision;
+},async recordOutcome(request,result,outcome){
+  const endpoint=process.env.DISTILLED_DECISION_URL,token=process.env.DISTILLED_DECISION_AUTH;
+  if(!endpoint||!token||!result.decisionId)return;
+  await fetch(`${endpoint}/outcome`,{method:"POST",redirect:"error",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({runId:request.runId,decisionId:result.decisionId,outcome}),signal:AbortSignal.timeout(2000)});
 }}}

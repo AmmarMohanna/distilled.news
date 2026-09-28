@@ -75,11 +75,23 @@ export class AuthenticatedBrowserBridgeService{
       const gid=process.env.DISTILLED_BROWSER_USE_GID?Number(process.env.DISTILLED_BROWSER_USE_GID):undefined;
       const {DISTILLED_DECISION_AUTH:decisionAuth,...runnerEnvironment}=process.env;
       if((uid!==undefined&&(!Number.isInteger(uid)||uid<1))||(gid!==undefined&&(!Number.isInteger(gid)||gid<1)))throw new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"RUNNER_START_FAILED"});
-      const child=spawn(python,[script],{shell:false,...(uid!==undefined?{uid}:{}),...(gid!==undefined?{gid}:{}),stdio:["pipe","pipe","ignore"],env:{...runnerEnvironment,HOME:process.env.DISTILLED_BROWSER_USE_HOME??process.env.HOME,ANONYMIZED_TELEMETRY:"false",BROWSER_USE_CLOUD_SYNC:"false",OPENAI_API_KEY:process.env.OPENROUTER_API_KEY,OPENAI_BASE_URL:"https://openrouter.ai/api/v1",DISTILLED_BRIDGE_URL:"http://127.0.0.1:8080/v1/internal-authenticated-browser"}});
+      const child=spawn(python,[script],{shell:false,...(uid!==undefined?{uid}:{}),...(gid!==undefined?{gid}:{}),stdio:["pipe","pipe","pipe"],env:{...runnerEnvironment,HOME:process.env.DISTILLED_BROWSER_USE_HOME??process.env.HOME,ANONYMIZED_TELEMETRY:"false",BROWSER_USE_CLOUD_SYNC:"false",OPENAI_API_KEY:process.env.OPENROUTER_API_KEY,OPENAI_BASE_URL:"https://openrouter.ai/api/v1",DISTILLED_BRIDGE_URL:"http://127.0.0.1:8080/v1/internal-authenticated-browser"}});
       let output="",settled=false;
+      let progress:Record<string,string|number>={},progressBuffer="";
+      child.stderr.on("data",(chunk:Buffer)=>{
+        progressBuffer=(progressBuffer+chunk.toString("utf8")).slice(-4096);
+        const lines=progressBuffer.split("\n");progressBuffer=lines.pop()??"";
+        for(const line of lines){if(!line.startsWith("DISTILLED_PROGRESS "))continue;try{
+          const value=JSON.parse(line.slice(19));
+          if(!["FENCED_PROBE","AGENT_INITIALIZATION","AGENT_RUN","MODEL_REQUEST","MODEL_COMPLETED","AGENT_COMPLETED"].includes(value.stage))continue;
+          const safe:Record<string,string|number>={stage:value.stage};
+          for(const key of ["modelCalls","browserOperations","agentBrowserActions","jevCalls","decisionFallbacks"]){if(Number.isInteger(value[key])&&value[key]>=0&&value[key]<=128)safe[key]=value[key]}
+          progress=safe;
+        }catch{/* discard all package logs and untrusted diagnostic text */}}
+      });
       const finish=(error?:Error,value?:BrowserUseDiscoveryProposal)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener("abort",cancel);if(error)reject(error);else resolve(value!)};
       const cancel=()=>{child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"CANCELLED"}))};
-      const timer=setTimeout(()=>{child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"TIMEOUT"}))},Math.min(90_000,Math.max(1,Date.parse(cap.expiresAt)-this.now())));
+      const timer=setTimeout(()=>{child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"TIMEOUT",progress}))},Math.min(90_000,Math.max(1,Date.parse(cap.expiresAt)-this.now())));
       signal?.addEventListener("abort",cancel,{once:true});if(signal?.aborted)cancel();
       child.stdout.on("data",(chunk:Buffer)=>{output+=chunk.toString("utf8");if(output.length>32_768){child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE"))}});
       child.on("error",()=>finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"RUNNER_START_FAILED"})));
@@ -155,7 +167,7 @@ export class AuthenticatedBrowserBridgeService{
       case"SCROLL_PUBLIC_PAGE":{if(capability.siteKind!=="PUBLIC")throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");const observed=await this.provider.scroll(scope,message.deltaY);if(!originAllowed(observed.url,capability.allowedOrigins,this.input.allowTestMode))throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED",finalOriginDiagnostic(observed.url,capability.allowedOrigins));const result=publicObservation(observed);if(byteLength(JSON.stringify(result))>BRIDGE_MAX_OBSERVATION_BYTES)throw new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE");return result}
       case"ADVANCE_PUBLIC_DISCOVERY":{
         const key=execution as Execution&{decisionInspected?:Set<string>};key.decisionInspected??=new Set();
-        const result=await advancePublicDiscovery({provider:this.provider,scope,capability,pageRevision:message.pageRevision,inspected:key.decisionInspected});
+        const result=await advancePublicDiscovery({provider:this.provider,scope,capability,pageRevision:message.pageRevision,inspected:key.decisionInspected,signal:execution.abort.signal});
         return{fallback:result.fallback,action:result.action,observation:result.observation?boundedPublicObservation(result.observation):undefined};
       }
       case"INJECT_AUTH_FIELD":await this.provider.injectAuthenticationField(scope,{fieldKind:message.fieldKind,fieldHandle:message.fieldHandle,pageRevision:message.pageRevision,secretValue:message.secretValue});return{accepted:true};

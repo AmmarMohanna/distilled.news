@@ -6,8 +6,9 @@ export interface BoundedDecisionRequest {
   summary:{pageType:"listing"|"article"|"unknown";observedItemCount:number;inspectedItemCount:number};
   choices:BoundedDecisionChoice[];
 }
-export interface BoundedDecisionResult {choiceId:string;confidence:number;probabilities:Record<string,number>;provider:string;model:string;inputTokens?:number}
-export interface BoundedDecisionProvider {choose(request:BoundedDecisionRequest,signal?:AbortSignal):Promise<BoundedDecisionResult>}
+export interface BoundedDecisionResult {choiceId:string;confidence:number;probabilities:Record<string,number>;provider:string;model:string;inputTokens?:number;decisionId?:string}
+export type BoundedDecisionExecutionOutcome="EXECUTED"|"STALE"|"STOPPED"|"EXECUTION_FAILED";
+export interface BoundedDecisionProvider {choose(request:BoundedDecisionRequest,signal?:AbortSignal):Promise<BoundedDecisionResult>;recordOutcome?(request:BoundedDecisionRequest,result:BoundedDecisionResult,outcome:BoundedDecisionExecutionOutcome):Promise<void>}
 export function assertBoundedDecisionRequest(value:BoundedDecisionRequest):void{
   if(!value||value.kind!=="PUBLIC_DISCOVERY"||!/^[-A-Za-z0-9_]{1,128}$/.test(value.runId)||!Number.isInteger(value.browserGeneration)||value.browserGeneration<1||typeof value.observationRevision!=="string"||value.observationRevision.length>128||!Number.isFinite(Date.parse(value.expiresAt))||!value.summary||!["listing","article","unknown"].includes(value.summary.pageType)||!Number.isInteger(value.summary.observedItemCount)||value.summary.observedItemCount<0||value.summary.observedItemCount>32||!Number.isInteger(value.summary.inspectedItemCount)||value.summary.inspectedItemCount<0||value.summary.inspectedItemCount>32||!Array.isArray(value.choices)||value.choices.length<2||value.choices.length>12)throw new Error("bounded_decision_request_invalid");
   const ids=new Set<string>();
@@ -15,9 +16,10 @@ export function assertBoundedDecisionRequest(value:BoundedDecisionRequest):void{
 }
 export function validateBoundedDecision(request:BoundedDecisionRequest,result:BoundedDecisionResult,current:{revision:string;generation:number;now:number},threshold:number):BoundedDecisionChoice{
   assertBoundedDecisionRequest(request);
+  if(!Number.isFinite(threshold)||threshold<0||threshold>1)throw new Error("bounded_decision_threshold_invalid");
   if(current.revision!==request.observationRevision||current.generation!==request.browserGeneration||current.now>=Date.parse(request.expiresAt))throw new Error("bounded_decision_stale");
   const choice=request.choices.find(value=>value.id===result?.choiceId);
-  if(!choice||!Number.isFinite(result.confidence)||result.confidence<0||result.confidence>1||!result.probabilities||Object.entries(result.probabilities).some(([id,p])=>!request.choices.some(value=>value.id===id)||!Number.isFinite(p)||p<0||p>1))throw new Error("bounded_decision_result_invalid");
+  if(!choice||!Number.isFinite(result.confidence)||result.confidence<0||result.confidence>1||!result.probabilities||!Number.isFinite(result.probabilities[result.choiceId])||Object.entries(result.probabilities).some(([id,p])=>!request.choices.some(value=>value.id===id)||!Number.isFinite(p)||p<0||p>1)||Math.abs(Object.values(result.probabilities).reduce((total,p)=>total+p,0)-1)>0.05)throw new Error("bounded_decision_result_invalid");
   if(result.confidence<threshold)throw new Error("bounded_decision_low_confidence");
   return choice;
 }

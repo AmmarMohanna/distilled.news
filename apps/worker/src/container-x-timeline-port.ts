@@ -7,7 +7,7 @@ import {
 } from "@distilled/agent-runtime";
 import { D1AccountTenantOwnershipPolicy,D1AuthenticatedProfileRepository,D1AuthenticationChallengeStore,R2AuthenticatedSecretStore } from "./authenticated-profile-store";
 import { authenticatedBackend } from "./authenticated-profile-bootstrap";
-import {safeFingerprint,safeObservationStructure,safeObservationIdentity} from "./authenticated-surface-diagnostic";
+import {safeFingerprint,safeObservationStructure,safeObservationIdentity,safeAuthSurfaceContent} from "./authenticated-surface-diagnostic";
 import type { Env } from "./types";
 
 /** One X profile per browser execution. Login/session secrets are handled by the existing lifecycle. */
@@ -50,7 +50,7 @@ export class ContainerXTimelinePort implements AuthenticatedSourceWorkflowPort {
         try{
           const snapshot=await this.browser.observeAuthenticatedSurface(scope,"IMMEDIATE");
           const fingerprint=this.adapter.fingerprint(snapshot);
-          await repository.appendAuthAudit({id:crypto.randomUUID(),profileId:profile.id,tenantId:profile.tenantId,runId:scope.runId,type:"BOOTSTRAP_FAILED",safeMetadata:{failureCode:error.code,failureStage:error.stage,...safeFingerprint(fingerprint),...safeObservationStructure(snapshot),...safeObservationIdentity(snapshot)},createdAt:new Date().toISOString()});
+          await repository.appendAuthAudit({id:crypto.randomUUID(),profileId:profile.id,tenantId:profile.tenantId,runId:scope.runId,type:"BOOTSTRAP_FAILED",safeMetadata:{failureCode:error.code,failureStage:error.stage,...safeFingerprint(fingerprint),...safeObservationStructure(snapshot),...safeObservationIdentity(snapshot),...safeAuthSurfaceContent(snapshot)},createdAt:new Date().toISOString()});
         }catch{/* diagnostics never replace the original typed failure */}
       }
       await this.close();throw error;

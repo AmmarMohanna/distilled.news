@@ -23,7 +23,7 @@ export async function executeAuthenticatedSurfaceDiagnostic(input:AuthenticatedS
     const lineage=new RuntimeAuthenticationFlowLineage(adapter.authenticationEntryPoint!,{tenantId:profile.tenantId,ownerId:profile.ownerId,profileId:profile.id,profileVersion:profile.version,requestId,browserGeneration:allocation.generation,browserContextId:allocation.contextId,allowedOrigins:[...adapter.allowedOrigins],expiresAt:new Date(Date.now()+120_000).toISOString()},async()=>{const current=await env.DB.prepare(`SELECT version,revoked_at FROM authenticated_site_profiles WHERE id=?`).bind(profile.id).first<{version:number;revoked_at:string|null}>();return !!current&&current.version===profile.version&&!current.revoked_at;});
     await lineage.start();await selected.executor.navigate(allocation,adapter.authenticationEntryPoint!.url);
     const snapshot=await selected.executor.observeAuthenticatedSurface(allocation,"AUTH_SURFACE");const flow=await lineage.observe(snapshot.url);const fingerprint=adapter.fingerprint(snapshot,flow,false);
-    return Response.json({status:"OBSERVED",operation:"AUTH_SURFACE_DIAGNOSTIC",diagnostic:{...safeFingerprint(fingerprint),...safeObservationStructure(snapshot),...safeObservationIdentity(snapshot),browserProvider:selected.providerIdentity,browserBackend:selected.backend,browserGeneration:allocation.generation}});
+    return Response.json({status:"OBSERVED",operation:"AUTH_SURFACE_DIAGNOSTIC",diagnostic:{...safeFingerprint(fingerprint),...safeObservationStructure(snapshot),...safeObservationIdentity(snapshot),...safeAuthSurfaceContent(snapshot),browserProvider:selected.providerIdentity,browserBackend:selected.backend,browserGeneration:allocation.generation}});
   }catch{return Response.json({error:"AUTH_SURFACE_DIAGNOSTIC_FAILED",diagnostic:{browserProvider:selected.providerIdentity,browserBackend:selected.backend,browserGeneration:allocation?.generation??1}},{status:500});}
   finally{if(allocation)await selected.executor.close(allocation).catch(()=>undefined);}
 }
@@ -32,6 +32,17 @@ export function safeFingerprint(value:ReturnType<XAuthenticatedSiteAdapter["fing
 
 export function safeObservationStructure(value:{documentCountCategory?:string;iframeCountCategory?:string;domNodeCountCategory?:string;accessibilityNodeCountCategory?:string}){return{documentCountCategory:value.documentCountCategory??"unavailable",iframeCountCategory:value.iframeCountCategory??"unavailable",domNodeCountCategory:value.domNodeCountCategory??"unavailable",accessibilityNodeCountCategory:value.accessibilityNodeCountCategory??"unavailable"};}
 export function safeObservationIdentity(value:{bridgeProtocolVersion?:string;trustedObservationSchemaVersion?:string}){return{bridgeProtocolVersion:value.bridgeProtocolVersion??"unknown",trustedObservationSchemaVersion:value.trustedObservationSchemaVersion??"unknown"};}
+
+/** Fixed diagnostic categories, never the actual title/body or form values. */
+export function safeAuthSurfaceContent(value:{visibleText?:string;title?:string}){
+  const text=(value.visibleText??"").slice(0,4000);
+  return{visibleTextCategory:text.trim().length===0?"empty":text.length<100?"short":"populated",
+    javascriptUnavailable:/javascript (?:is )?(?:not available|disabled)|enable javascript/i.test(text),
+    temporaryError:/something went wrong|try again|temporarily unavailable/i.test(text),
+    browserUnsupported:/unsupported browser|browser is not supported/i.test(text),
+    accessDenied:/access denied|request blocked|forbidden/i.test(text),
+    titleCategory:!value.title?.trim()?"empty":/^(?:x|twitter)(?:\s|$)/i.test(value.title)?"site":"other"};
+}
 
 export function isEligibleDiagnosticProvider(provider: string|undefined): provider is "SELF_HOSTED_CHROMIUM"|"CLOUDFLARE_CONTAINER" {
   return provider === "SELF_HOSTED_CHROMIUM" || provider === "CLOUDFLARE_CONTAINER";

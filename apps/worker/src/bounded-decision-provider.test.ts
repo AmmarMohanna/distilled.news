@@ -10,6 +10,8 @@ describe("bounded decision provider",()=>{
     expect(()=>validateBoundedDecision(request,{...result,choiceId:"invented"},{revision:"revision_1",generation:1,now:Date.now()},0.75)).toThrow("invalid");
     expect(()=>validateBoundedDecision(request,result,{revision:"stale",generation:1,now:Date.now()},0.75)).toThrow("stale");
     expect(()=>validateBoundedDecision(request,result,{revision:"revision_1",generation:2,now:Date.now()},0.75)).toThrow("stale");
+    expect(()=>validateBoundedDecision(request,{...result,probabilities:{choice_1:0.1}},{revision:"revision_1",generation:1,now:Date.now()},0.75)).toThrow("invalid");
+    expect(()=>validateBoundedDecision(request,result,{revision:"revision_1",generation:1,now:Date.now()},NaN)).toThrow("threshold");
   });
   it("falls back on low confidence, malformed output, timeout, and cancellation",async()=>{
     expect(await chooseWithFallback({choose:async()=>({...result,confidence:0.3})},request,0.75)).toBeUndefined();

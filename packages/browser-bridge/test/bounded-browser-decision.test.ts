@@ -1,7 +1,7 @@
-import {describe,expect,it} from "vitest";
+import {describe,expect,it,vi} from "vitest";
 import {advancePublicDiscovery} from "../src/bounded-browser-decision";
 import {MockBrowserProvider,baseCapability} from "./support";
-import type {BrowserAllocation,BrowserObservationData} from "@distilled/agent-runtime";
+import {bridgeRequestFingerprint,type BrowserAllocation,type BrowserObservationData} from "@distilled/agent-runtime";
 
 const url="https://news.example/listing",item="https://news.example/article/a";
 const observation={url,title:"Listing",pageRevision:"rev_1",representation:{visibleText:"listing"},controls:[],listingLinks:[item],challengeState:"NO_CHALLENGE"} as unknown as BrowserObservationData;
@@ -19,5 +19,20 @@ describe("fenced Jev browser micro-decisions",()=>{
     await expect(advancePublicDiscovery({provider:new Provider(),scope,capability,pageRevision:"rev_1",inspected:new Set(),decisionProvider:{choose:async()=>({choiceId:"choice_3",confidence:1,probabilities:{choice_3:1},provider:"test",model:"test"})}})).rejects.toMatchObject({code:"BRIDGE_OBSERVATION_STALE"});
     calls=0;
     expect(await advancePublicDiscovery({provider:new Provider(),scope,capability,pageRevision:"rev_1",inspected:new Set(),decisionProvider:{choose:async()=>({choiceId:"https://metadata.google.internal",confidence:1,probabilities:{},provider:"test",model:"test"})}})).toEqual({fallback:true});
+  });
+  it("cancels before action execution and records denied execution without weakening network policy",async()=>{
+    const navigate=vi.fn(async()=>{throw Object.assign(new Error("denied"),{code:"BRIDGE_NETWORK_POLICY_DENIED"})});
+    class Provider extends MockBrowserProvider{override async observePublicPage(){return observation}override navigatePublicPage=navigate}
+    const recordOutcome=vi.fn(async()=>undefined);
+    const choose=async()=>({choiceId:"choice_3",confidence:1,probabilities:{choice_3:1},provider:"test",model:"test"});
+    const controller=new AbortController();controller.abort();
+    expect(await advancePublicDiscovery({provider:new Provider(),scope,capability,pageRevision:"rev_1",inspected:new Set(),signal:controller.signal,decisionProvider:{choose}})).toEqual({fallback:true});
+    expect(navigate).not.toHaveBeenCalled();
+    await expect(advancePublicDiscovery({provider:new Provider(),scope,capability,pageRevision:"rev_1",inspected:new Set(),decisionProvider:{choose,recordOutcome}})).rejects.toMatchObject({code:"BRIDGE_NETWORK_POLICY_DENIED"});
+    expect(recordOutcome).toHaveBeenCalledWith(expect.anything(),expect.anything(),"EXECUTION_FAILED");
+  });
+  it("binds mutation idempotency to the observation revision",()=>{
+    const message={protocol:"v1" as const,operation:"ADVANCE_PUBLIC_DISCOVERY" as const,capability,operationId:"id",pageRevision:"rev_1"};
+    expect(bridgeRequestFingerprint(message)).not.toBe(bridgeRequestFingerprint({...message,pageRevision:"rev_2"}));
   });
 });

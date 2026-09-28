@@ -26,13 +26,24 @@ export async function handleBoundedDecision(request:Request,env:Env):Promise<Res
   const body=await request.text();if(body.length>8192)return Response.json({error:"invalid_request"},{status:400});
   let input:BoundedDecisionRequest;
   try{input=JSON.parse(body);assertBoundedDecisionRequest(input)}catch{return Response.json({error:"invalid_request"},{status:400})}
-  const started=Date.now();let outcome="PROVIDER_FAILED",decision:BoundedDecisionResult|undefined;
+  const started=Date.now();let outcome="PROVIDER_FAILED",decision:BoundedDecisionResult|undefined,inputTokens:number|null=null;
   try{
     decision=await new WorkersAiBoundedDecisionProvider(env.DECISION_AI,env.DISTILLED_JEV_MODEL??"typesafe/jev").choose(input,request.signal);
+    inputTokens=Number.isInteger(decision.inputTokens)&&decision.inputTokens!>=0&&decision.inputTokens!<=1000000?decision.inputTokens!:null;
     validateBoundedDecision(input,decision,{revision:input.observationRevision,generation:input.browserGeneration,now:Date.now()},Number(env.DISTILLED_JEV_CONFIDENCE_THRESHOLD??"0.75"));
     outcome="SELECTED";
-  }catch{decision=undefined}
+  }catch(error){const category=error instanceof Error?error.message:"";outcome=({decision_timeout:"TIMEOUT",decision_cancelled:"CANCELLED",bounded_decision_low_confidence:"LOW_CONFIDENCE",bounded_decision_result_invalid:"MALFORMED",bounded_decision_stale:"STALE",bounded_decision_threshold_invalid:"CONFIGURATION_INVALID"} as Record<string,string>)[category]??"PROVIDER_FAILED";decision=undefined}
+  const id=crypto.randomUUID();
   await env.DB.prepare("INSERT INTO bounded_decision_events(id,run_id,provider,model,outcome,choice,confidence,duration_ms,input_tokens,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
-    .bind(crypto.randomUUID(),input.runId,"workers_ai",env.DISTILLED_JEV_MODEL??"typesafe/jev",outcome,decision?.choiceId??null,decision?.confidence??null,Date.now()-started,Number.isInteger(decision?.inputTokens)?decision!.inputTokens:null,new Date().toISOString()).run();
+    .bind(id,input.runId,"workers_ai",env.DISTILLED_JEV_MODEL??"typesafe/jev",outcome,decision?.choiceId??null,decision?.confidence??null,Date.now()-started,inputTokens,new Date().toISOString()).run();
+  if(decision)decision.decisionId=id;
   return Response.json(decision?{decision}:{fallback:true});
+}
+
+export async function handleBoundedDecisionOutcome(request:Request,env:Env):Promise<Response>{
+  if(!env.WEB_OPERATOR_RUNTIME_TOKEN||request.headers.get("authorization")!==`Bearer ${env.WEB_OPERATOR_RUNTIME_TOKEN}`)return Response.json({error:"unauthorized"},{status:401});
+  const body=await request.text();if(body.length>1000)return Response.json({error:"invalid_request"},{status:400});
+  let input:{runId:string;decisionId:string;outcome:string};try{input=JSON.parse(body);if(!/^[-A-Za-z0-9_]{1,128}$/.test(input.runId)||!/^[-a-f0-9]{36}$/.test(input.decisionId)||!["EXECUTED","STALE","STOPPED","EXECUTION_FAILED"].includes(input.outcome))throw Error()}catch{return Response.json({error:"invalid_request"},{status:400})}
+  await env.DB.prepare("UPDATE bounded_decision_events SET outcome=? WHERE id=? AND run_id=? AND outcome='SELECTED'").bind(input.outcome,input.decisionId,input.runId).run();
+  return Response.json({accepted:true});
 }

@@ -51,7 +51,7 @@ import { D1UpstreamResourceStore } from "./upstream-resource-store";
 import { discoverAndPromotePublicSourceWorkflow } from "./public-source-discovery";
 import { D1BrowserUseRunTelemetry } from "./browser-use-run-telemetry";
 import { createWorkerXAcquisitionService } from "./authenticated-x-acquisition";
-import { handleBoundedDecision } from "./bounded-decision-provider";
+import { handleBoundedDecision,handleBoundedDecisionOutcome } from "./bounded-decision-provider";
 import { D1AuthenticatedProfileRepository } from "./authenticated-profile-store";
 import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
 import { handleBridgePreflight,handleContainerPreflight,handleProviderDiagnostic } from "./bridge-preflight";
@@ -174,6 +174,7 @@ const healthInputSchema = z.object({
   briefingId: z.string().min(1).optional()
 });
 const livePublicAcquisitionSmokeSchema = z.object({
+  evaluationId:z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
   sourceUrl: z.string().url().max(2_048),
   ownerAccountId: z.string().min(1).max(128),
   startTime: z.string().datetime({ offset: true }),
@@ -272,6 +273,7 @@ export function createApp(options: AppOptions = {}) {
   app.post("/v1/authenticated-profiles/container-preflight", async (c) => handleContainerPreflight(c.req.raw,c.env));
   app.post("/v1/public-browser/acquisition", async (c) => handlePublicBrowserAcquisition(c.req.raw,c.env));
   app.post("/v1/bounded-decisions",async(c)=>handleBoundedDecision(c.req.raw,c.env));
+  app.post("/v1/bounded-decisions/outcome",async(c)=>handleBoundedDecisionOutcome(c.req.raw,c.env));
   app.on(["GET","POST"], "/v1/authenticated-profiles/provider-diagnostic", async (c) => handleProviderDiagnostic(c.req.raw,c.env));
 
   // Public, read-only fixture for bounded production acquisition validation.
@@ -304,7 +306,7 @@ export function createApp(options: AppOptions = {}) {
     const window = { startTime: new Date(input.startTime).toISOString(), endTime: new Date(input.endTime).toISOString() };
     const owner = await repoFor(c).getAccountById(input.ownerAccountId);
     if (!owner || owner.disabledAt) return c.json({ error: "owner_not_found" }, 404);
-    const resource = await new D1UpstreamResourceStore(c.env.DB).resolveOrCreate({ tenantId: owner.id, canonicalSourceUrl: source.href, now: now.toISOString() });
+    const resource = await new D1UpstreamResourceStore(c.env.DB).resolveOrCreate({ tenantId: owner.id, canonicalSourceUrl: source.href, resourceLocator:input.evaluationId?`discovery-evaluation:${input.evaluationId}`:undefined,now: now.toISOString() });
     const limits = input.limits ?? { maxItems: 10, maxPages: 3, maxScrolls: 3, maxPhysicalAttempts: 16, maxExecutionMs: 60_000 };
     const runId = makeId("public_source_run", resource.id, input.idempotencyKey);
     const service = createWorkerPublicSourceAcquisitionService(c.env, { tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, sourceUrl: source.href, fetcher, webOperator: (request) => discoverAndPromotePublicSourceWorkflow(c.env, { request, tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, idempotencyKey: input.idempotencyKey }) });

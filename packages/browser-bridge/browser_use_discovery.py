@@ -152,11 +152,21 @@ async def discover(payload: dict) -> dict:
     jev_calls = 0
     decision_fallbacks = 0
 
+    def progress(stage: str):
+        # Fixed stage names and integer counters only. Package logs and model
+        # messages are deliberately not forwarded across this channel.
+        sys.stderr.write("DISTILLED_PROGRESS " + json.dumps({"stage": stage, "modelCalls": model_calls,
+                         "browserOperations": browser_actions, "agentBrowserActions": agent_actions,
+                         "jevCalls": jev_calls, "decisionFallbacks": decision_fallbacks}) + "\n")
+        sys.stderr.flush()
+
     class CountedChatOpenAI(ChatOpenAI):
         async def ainvoke(self, *args, **kwargs):
             nonlocal model_calls
+            progress("MODEL_REQUEST")
             result = await super().ainvoke(*args, **kwargs)
             model_calls += 1
+            progress("MODEL_COMPLETED")
             return result
 
     def bridge(operation: str, **arguments: object) -> dict:
@@ -257,6 +267,7 @@ async def discover(payload: dict) -> dict:
         return ActionResult(extracted_content=summary(result))
     # A bounded, fenced listing probe gives the agent real links on sites that
     # render items only after scrolling. These are hints, never trusted evidence.
+    progress("FENCED_PROBE")
     initial = await asyncio.to_thread(bridge, "NAVIGATE_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "NAVIGATE_PUBLIC_PAGE", **({"sourceUrl": source_url} if site_mode == "X_TIMELINE" else {"url": source_url}))
     initial_observations = [summary(initial)]
     if (not initial.get("challengeState") or initial.get("challengeState") == "NO_CHALLENGE") and (site_mode == "X_TIMELINE" or sum(article_candidate_score(url) >= 100 for url in observed_links) < 2):
@@ -273,8 +284,18 @@ async def discover(payload: dict) -> dict:
     # read-only action. Failure hands the same state back to Browser Use.
     if payload.get("decisionMode") == "JEV_HYBRID" and site_mode == "PUBLIC" and initial.get("challengeState") == "NO_CHALLENGE":
         for _ in range(5):
-            advanced = await asyncio.to_thread(bridge, "ADVANCE_PUBLIC_DISCOVERY", pageRevision=initial["pageRevision"])
             jev_calls += 1
+            try:
+                advanced = await asyncio.to_thread(bridge, "ADVANCE_PUBLIC_DISCOVERY", pageRevision=initial["pageRevision"])
+            except DiscoveryFailure as error:
+                if error.bridge_code != "BRIDGE_OBSERVATION_STALE":
+                    raise
+                # No action was executed. Refresh the trusted state and hand
+                # discovery back to the generative agent; never relax fencing.
+                initial = await asyncio.to_thread(bridge, "OBSERVE_PUBLIC_PAGE")
+                initial_observations.append(summary(initial))
+                decision_fallbacks += 1
+                break
             if advanced.get("fallback"):
                 decision_fallbacks += 1
                 break
@@ -289,6 +310,7 @@ async def discover(payload: dict) -> dict:
             if initial.get("challengeState") != "NO_CHALLENGE":
                 break
     try:
+        progress("AGENT_INITIALIZATION")
         agent = Agent(
             task=((f"Inspect the authorized public X profile timeline {source_url} using only navigate_source, scroll_source and observe_source. "
                    f"Distilled observed bounded post IDs and timestamps: {initial_observations}. "
@@ -309,6 +331,7 @@ async def discover(payload: dict) -> dict:
     except Exception as error:
         raise DiscoveryFailure("AGENT_INITIALIZATION_FAILED") from error
     try:
+        progress("AGENT_RUN")
         history = await agent.run(max_steps=max_steps)
     except DiscoveryFailure:
         raise
@@ -316,6 +339,7 @@ async def discover(payload: dict) -> dict:
         category = "MODEL_REQUEST_FAILED" if type(error).__name__ in {"APIStatusError", "AuthenticationError", "APIConnectionError", "RateLimitError"} else "AGENT_RUN_FAILED"
         raise DiscoveryFailure(category) from error
     result = history.structured_output
+    progress("AGENT_COMPLETED")
     if result is None:
         raise DiscoveryFailure("STRUCTURED_OUTPUT_INVALID")
     visited = visited[:32]

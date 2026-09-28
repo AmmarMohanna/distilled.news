@@ -74,7 +74,8 @@ export async function discoverBrowserUseSourcePlan(env: Env, input: { request: S
     proposal = await backend.propose({ request: input.request, capability: { runId: `${input.runId}_browser_use`, tenantId: input.tenantId, ownerId: input.ownerId, resourceId: input.resourceId, browserGeneration: 1, allowedOrigins: [origin], siteKind: "PUBLIC", readOnly: true, expiresAt: new Date(Date.now() + 120_000).toISOString() } });
   } catch (error) {
     agentFailure = error;
-    await telemetry.stage(agentRunId,"FAILED");
+    const progress = boundedRunnerProgress(error);
+    await telemetry.stage(agentRunId,"FAILED",{modelCalls:progress?.modelCalls,browserOperations:progress?.browserOperations,agentBrowserActions:progress?.agentBrowserActions,jevCalls:progress?.jevCalls,decisionFallbacks:progress?.decisionFallbacks,decisionMode:env.DISTILLED_DISCOVERY_DECISION_MODE,agentDurationMs:Date.now()-agentStarted});
     throw tagBrowserUseStage(error, "AGENT_RUN");
   }
   finally { try { await agentPort.close(); } catch (error) { if (!agentFailure) { await telemetry.stage(agentRunId,"FAILED"); throw tagBrowserUseStage(error, "AGENT_CLOSE"); } } }
@@ -306,6 +307,7 @@ export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE
   const operation = ["OPEN_AUTH_BROWSER", "NAVIGATE_PUBLIC_PAGE", "OBSERVE_PUBLIC_PAGE", "SCROLL_PUBLIC_PAGE", "CLOSE_AUTH_BROWSER"].includes(String(rawOperation)) ? rawOperation : undefined;
   const raw = error && typeof error === "object" && "diagnostic" in error ? (error as { diagnostic?: unknown }).diagnostic : undefined;
   const diagnostic = raw && typeof raw === "object" ? raw as Record<string, unknown> : undefined;
+  const progress=boundedRunnerProgress(error);
   const browserUseFailure = diagnostic && BROWSER_USE_FAILURE_CATEGORIES.includes(diagnostic.browserUseFailure as typeof BROWSER_USE_FAILURE_CATEGORIES[number]) ? diagnostic.browserUseFailure as typeof BROWSER_USE_FAILURE_CATEGORIES[number] : undefined;
   const failureType = diagnostic && typeof diagnostic.failureType === "string" && /^[A-Za-z0-9_.]{1,120}$/.test(diagnostic.failureType) ? diagnostic.failureType : undefined;
   const causeType = diagnostic && typeof diagnostic.causeType === "string" && /^[A-Za-z0-9_.]{1,120}$/.test(diagnostic.causeType) ? diagnostic.causeType : undefined;
@@ -315,7 +317,7 @@ export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE
   const bridgeFailureCode = diagnostic && BRIDGE_FAILURE_CODES.includes(diagnostic.bridgeFailureCode as typeof BRIDGE_FAILURE_CODES[number]) ? diagnostic.bridgeFailureCode as string : undefined;
   const bridgeHttpStatus = diagnostic && typeof diagnostic.bridgeHttpStatus === "number" && Number.isInteger(diagnostic.bridgeHttpStatus) && diagnostic.bridgeHttpStatus >= 400 && diagnostic.bridgeHttpStatus <= 599 ? diagnostic.bridgeHttpStatus : undefined;
   const bridgeOperation = diagnostic && ["NAVIGATE_PUBLIC_PAGE", "OBSERVE_PUBLIC_PAGE", "SCROLL_PUBLIC_PAGE"].includes(String(diagnostic.bridgeOperation)) ? String(diagnostic.bridgeOperation) : undefined;
-  if (browserUseFailure) console.log(JSON.stringify({ event: "public_acquisition_browser_use_failure", category: browserUseFailure }));
+  if (browserUseFailure) console.log(JSON.stringify({ event: "public_acquisition_browser_use_failure", category: browserUseFailure,progress }));
   const allowedRules = ["ORIGIN_NOT_ADMITTED", "REDIRECT_ORIGIN_NOT_ADMITTED", "FINAL_ORIGIN_NOT_ADMITTED", "SCHEME_NOT_ALLOWED", "PRIVATE_OR_UNRESOLVED_ORIGIN", "METHOD_NOT_ALLOWED", "REQUEST_BLOCKED", "REQUEST_BUDGET_EXCEEDED"];
   const policy = diagnostic && allowedRules.includes(String(diagnostic.policyRule)) ? {
     rule: String(diagnostic.policyRule),
@@ -325,11 +327,19 @@ export function bridgeStop(error: unknown, phase: "TRUSTED_PROBE" | "BROWSER_USE
   } : undefined;
   return code === "BRIDGE_NETWORK_POLICY_DENIED"
     ? { stage: "WEB_OPERATOR", status: "POLICY_DENIED", reason: "browser network policy denied", details: { phase, ...(operation ? { operation } : {}), ...(policy ? { policy } : {}) } }
-    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: `public Web Operator discovery failed: ${phase}/${browserUseStage ?? "UNKNOWN_STAGE"}/${String(operation ?? "UNKNOWN_OPERATION")}/${bridgeCode ?? "UNCLASSIFIED"}${browserUseFailure ? `/${browserUseFailure}` : ""}${bridgeFailureCode ? `/${bridgeFailureCode}` : ""}${bridgeHttpStatus ? `/${bridgeHttpStatus}` : ""}${bridgeOperation ? `/${bridgeOperation}` : ""}${policy ? `/${policy.rule}/${policy.deniedHostname ?? "UNKNOWN_HOST"}` : ""}${failureType ? `/${failureType}` : ""}${causeType ? `/${causeType}` : ""}${runnerExit ? `/${runnerExit}` : ""}${runtimeHint ? `/${runtimeHint}` : ""}${failureTrace?.length ? `/${failureTrace.join(",")}` : ""}${errorName ? `/${errorName}` : ""}${trustedError ? `/${trustedError}` : ""}${evidenceCounts ? `/${evidenceCounts.visitedPages},${evidenceCounts.proposalArticles},${evidenceCounts.observedLinks},${evidenceCounts.trustedArticles},${evidenceCounts.scrollObservations},${evidenceCounts.continuation}` : ""}`, details: { phase, browserUseStage, operation, bridgeCode: bridgeCode ?? "UNCLASSIFIED", ...(browserUseFailure ? { browserUseFailure } : {}), ...(bridgeFailureCode ? { bridgeFailureCode } : {}), ...(bridgeHttpStatus ? { bridgeHttpStatus } : {}), ...(bridgeOperation ? { bridgeOperation } : {}), ...(policy ? { policy } : {}), ...(failureType ? { failureType } : {}), ...(causeType ? { causeType } : {}), ...(runnerExit ? { runnerExit } : {}), ...(runtimeHint ? { runtimeHint } : {}), ...(failureTrace ? { failureTrace } : {}), ...(errorName ? { errorName } : {}), ...(trustedError ? { trustedError } : {}), ...(evidenceCounts ? { evidenceCounts } : {}) } };
+    : { stage: "WEB_OPERATOR", status: "STRUCTURAL_FAILURE", reason: `public Web Operator discovery failed: ${phase}/${browserUseStage ?? "UNKNOWN_STAGE"}/${String(operation ?? "UNKNOWN_OPERATION")}/${bridgeCode ?? "UNCLASSIFIED"}${browserUseFailure ? `/${browserUseFailure}` : ""}${bridgeFailureCode ? `/${bridgeFailureCode}` : ""}${bridgeHttpStatus ? `/${bridgeHttpStatus}` : ""}${bridgeOperation ? `/${bridgeOperation}` : ""}${policy ? `/${policy.rule}/${policy.deniedHostname ?? "UNKNOWN_HOST"}` : ""}${failureType ? `/${failureType}` : ""}${causeType ? `/${causeType}` : ""}${runnerExit ? `/${runnerExit}` : ""}${runtimeHint ? `/${runtimeHint}` : ""}${failureTrace?.length ? `/${failureTrace.join(",")}` : ""}${progress ? `/RUNNER_${progress.stage}/MODELS_${progress.modelCalls ?? "UNKNOWN"}/OPS_${progress.browserOperations ?? "UNKNOWN"}` : ""}${errorName ? `/${errorName}` : ""}${trustedError ? `/${trustedError}` : ""}${evidenceCounts ? `/${evidenceCounts.visitedPages},${evidenceCounts.proposalArticles},${evidenceCounts.observedLinks},${evidenceCounts.trustedArticles},${evidenceCounts.scrollObservations},${evidenceCounts.continuation}` : ""}`, details: { phase, browserUseStage, operation, bridgeCode: bridgeCode ?? "UNCLASSIFIED", ...(browserUseFailure ? { browserUseFailure } : {}), ...(bridgeFailureCode ? { bridgeFailureCode } : {}), ...(bridgeHttpStatus ? { bridgeHttpStatus } : {}), ...(bridgeOperation ? { bridgeOperation } : {}), ...(policy ? { policy } : {}), ...(failureType ? { failureType } : {}), ...(causeType ? { causeType } : {}), ...(runnerExit ? { runnerExit } : {}), ...(runtimeHint ? { runtimeHint } : {}), ...(failureTrace ? { failureTrace } : {}), ...(errorName ? { errorName } : {}), ...(trustedError ? { trustedError } : {}), ...(evidenceCounts ? { evidenceCounts } : {}) } };
 }
 function liveModelRouting(model: string): ModelRoutingConfig {
   return { mode: "api", apiGateway: "openrouter", selfHostedGateway: "openai_compatible", roles: { NAVIGATION_FAST: { primary: { deployment: "api", model }, fallbacks: [] }, VISION_FAST: { primary: { deployment: "api", model }, fallbacks: [] } } };
 }
 function liveModelCapability(model: string, provider: string): ModelCapability {
   return { modelRef: model, provider, toolCalling: true, vision: false, structuredOutput: true, reasoningClass: "fast", enabled: true, inputCostPerMillion: 0, outputCostPerMillion: 0, deployment: "api", externallyHosted: true, privacyEligibility: ["public"], retentionClass: "zero_data_retention" };
+}
+
+function boundedRunnerProgress(error:unknown):{stage:string;modelCalls?:number;browserOperations?:number;agentBrowserActions?:number;jevCalls?:number;decisionFallbacks?:number}|undefined{
+  const raw=(error as {diagnostic?:{progress?:Record<string,unknown>}}|undefined)?.diagnostic?.progress;
+  if(!raw||!["FENCED_PROBE","AGENT_INITIALIZATION","AGENT_RUN","MODEL_REQUEST","MODEL_COMPLETED","AGENT_COMPLETED"].includes(String(raw.stage)))return;
+  const safe:{stage:string;modelCalls?:number;browserOperations?:number;agentBrowserActions?:number;jevCalls?:number;decisionFallbacks?:number}={stage:String(raw.stage)};
+  for(const key of ["modelCalls","browserOperations","agentBrowserActions","jevCalls","decisionFallbacks"] as const){const value=raw[key];if(typeof value==="number"&&Number.isInteger(value)&&value>=0&&value<=128)safe[key]=value}
+  return safe;
 }
