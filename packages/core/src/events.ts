@@ -1,6 +1,7 @@
 import { createEvidenceOnlySummary, isLowInformationSummary } from "./summarization";
 import { eventTokens, jaccardSimilarity, normalizeEventText, stableHash } from "./text";
 import type { BriefingConfig, BriefingEvidence, BriefingItem } from "./types";
+import {normalizedDocumentUrl,evidenceFingerprint} from "./developments";
 
 const SAME_EVENT_TOKEN_THRESHOLD = 0.72;
 const SAME_EVENT_CONTAINMENT_THRESHOLD = 0.86;
@@ -9,9 +10,9 @@ export function eventKeysForEvidence(evidence: BriefingEvidence): string[] {
   const keys = new Set<string>();
   keys.add(`raw:${evidence.messageId}`);
 
-  for (const link of [evidence.sourceUrl, ...evidence.links]) {
+  for (const link of evidence.documentId?[evidence.sourceUrl]:[evidence.sourceUrl, ...evidence.links]) {
     const canonical = canonicalUrl(link);
-    if (canonical) keys.add(`url:${canonical}`);
+    if (canonical && canonical.split("?")[0].includes("/")) keys.add(`url:${canonical}`);
   }
 
   const normalized = normalizeEventText(evidence.text);
@@ -44,6 +45,8 @@ export function areSameEventDeterministic(left: BriefingEvidence[], right: Brief
   for (const key of leftKeys) {
     if (rightKeys.has(key) && !key.startsWith("tokens:")) return true;
   }
+  const leftTime=Math.max(...left.map(entry=>Date.parse(entry.postedAt))),rightTime=Math.max(...right.map(entry=>Date.parse(entry.postedAt)));
+  if(Number.isFinite(leftTime)&&Number.isFinite(rightTime)&&Math.abs(leftTime-rightTime)>72*3600000)return false;
 
   for (const leftEvidence of left) {
     const leftText = normalizeEventText(leftEvidence.text);
@@ -106,19 +109,24 @@ export function mergeBriefingItem(
     survivor.summary = duplicate.summary;
   }
 
+  if(survivor.development||duplicate.development){
+    const states=[survivor.development,duplicate.development].filter((state):state is NonNullable<BriefingItem['development']>=>Boolean(state));
+    const newest=states.slice().sort((a,b)=>b.version-a.version)[0];
+    const claims=Array.from(new Map(states.flatMap(state=>state.claims).map(claim=>[claim.id,claim])).values());
+    survivor.development={...newest,claims:claims.slice(-24),
+      evidenceFingerprint:evidenceFingerprint(survivor.evidence),
+      changes:Array.from(new Map(states.flatMap(state=>state.changes).map(change=>[change.id,change])).values()).slice(-32),
+      membership:Array.from(new Map(states.flatMap(state=>state.membership).map(member=>[member.messageId,member])).values())};
+    survivor.summary=survivor.development.claims.slice(-4).map(claim=>claim.text).join(' ');
+  }
   return survivor;
 }
 
 export function canonicalUrl(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    const url = new URL(value);
-    const host = url.hostname.toLowerCase().replace(/^www\./, "").replace(/^twitter\.com$/, "x.com");
-    const path = url.pathname.replace(/\/+$/, "");
-    return `${host}${path}`;
-  } catch {
-    return undefined;
-  }
+  const normalized=normalizedDocumentUrl(value);
+  if(!normalized)return undefined;
+  const url=new URL(normalized);
+  return `${url.hostname.replace(/^twitter\.com$/,"x.com")}${url.pathname==='/'?'':url.pathname}${url.search}`;
 }
 
 function tokenContainment(left: string[], right: string[]): number {

@@ -1,3 +1,4 @@
+import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import {
   DEFAULT_SLICE_BUDGET,
   makeId,
@@ -258,6 +259,25 @@ export function createApp(options: AppOptions = {}) {
   const fetcher = options.fetcher ?? fetch;
   const nowFor = options.now ?? (() => new Date());
 
+  // Protected bounded evaluation of the same product helpers used by /api/me.
+  app.post("/v1/news-pipeline/evaluate",async(c)=>{
+    if(c.env.DISTILLED_NEWS_PIPELINE_EVALUATION!=="true")return c.json({error:"not found"},404);
+    if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
+    const input=z.object({ownerAccountId:z.string().min(1).max(100),action:z.enum(["READ","PUBLISH","ACKNOWLEDGE"]).default("READ"),catchUpId:z.string().max(100).optional()}).strict().parse(await c.req.json());
+    const repo=repoFor(c),owner=await repo.getAccountById(input.ownerAccountId),now=nowFor();
+    if(!owner||owner.disabledAt)return c.json({error:"not found"},404);
+    const store=new D1CatchUpStore(c.env.DB);
+    if(input.action==="ACKNOWLEDGE")return c.json({ok:input.catchUpId?await store.acknowledge(owner.id,input.catchUpId,now):false});
+    const feeds=await repo.listBriefings(owner.id);
+    if(input.action==="PUBLISH")for(const briefing of feeds.filter(feed=>!feed.paused))await publishManualBriefingEdition({repo,briefing,now,summaryAdapter:createSummaryAdapterFromEnv(c.env,repo)});
+    return c.json({catchUp:publicCatchUp(await generateCatchUp(repo,store,owner.id,now)),feeds:await Promise.all(feeds.map(async feed=>{
+      const items=(await repo.getExistingItems(feed.id,now)).filter(item=>item.development);
+      const usage=await c.env.DB.prepare("SELECT phase,provider,model,outcome,count(*) AS calls,sum(input_tokens) AS inputTokens,sum(output_tokens) AS outputTokens,sum(reported_cost_usd) AS reportedCostUsd,sum(latency_ms) AS latencyMs FROM llm_usage_events WHERE briefing_id=? GROUP BY phase,provider,model,outcome").bind(feed.id).all();
+      const jobs=await c.env.DB.prepare("SELECT state,count(*) AS jobs,sum(attempts) AS attempts,sum(CASE WHEN lease_until>? THEN 1 ELSE 0 END) AS activeLeases FROM processing_jobs WHERE briefing_id=? GROUP BY state").bind(now.toISOString(),feed.id).all();
+      return {feed:{id:feed.id,title:feed.title,slug:feed.slug},developments:items.map(publicDevelopment),grounding:items.flatMap(item=>item.development!.claims.map(claim=>({developmentId:item.id,claimId:claim.id,text:claim.text,support:claim.support.map(ref=>({messageId:ref.messageId,quote:ref.quote,url:item.evidence.find(entry=>entry.messageId===ref.messageId)?.sourceUrl,quotePresent:item.evidence.some(entry=>entry.messageId===ref.messageId&&entry.text.normalize('NFKC').replace(/\s+/g,' ').includes(ref.quote.normalize('NFKC').replace(/\s+/g,' ')))}))}))),usage:usage.results,jobs:jobs.results,editions:await repo.listBriefingEditions(feed.id,true,now,2)};
+    }))});
+  });
+
   app.use("*", async (c, next) => {
     const url = new URL(c.req.url);
     if (url.hostname === `www.${CANONICAL_HOST}` || LEGACY_HOSTS.has(url.hostname) || (url.hostname === CANONICAL_HOST && url.protocol === "http:")) {
@@ -322,7 +342,7 @@ export function createApp(options: AppOptions = {}) {
     const limits = input.limits ?? { maxItems: 10, maxPages: 3, maxScrolls: 3, maxPhysicalAttempts: 16, maxExecutionMs: 60_000 };
     const runId = makeId("public_source_run", resource.id, input.idempotencyKey);
     let itemHandoff:Awaited<ReturnType<typeof persistAcquiredSourceItems>>|null=null;
-    const service = createWorkerPublicSourceAcquisitionService(c.env, { tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, sourceUrl: source.href, fetcher, persistItems:async(result)=>{itemHandoff=await persistAcquiredSourceItems(c.env.DB,{tenantId:owner.id,resourceId:resource.id,result,now,source:configuredSource??undefined,retentionDays:configuredBriefing?.retentionDays,queue:c.env.PROCESSING_QUEUE})}, webOperator: (request) => discoverAndPromotePublicSourceWorkflow(c.env, { request, tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, idempotencyKey: input.idempotencyKey }) });
+    const service = createWorkerPublicSourceAcquisitionService(c.env, { tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, sourceUrl: source.href, fetcher, persistItems:async(result)=>{itemHandoff=await persistAcquiredSourceItems(c.env.DB,{tenantId:owner.id,resourceId:resource.id,result,now,runId,source:configuredSource??undefined,retentionDays:configuredBriefing?.retentionDays,queue:c.env.PROCESSING_QUEUE})}, webOperator: (request) => discoverAndPromotePublicSourceWorkflow(c.env, { request, tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, idempotencyKey: input.idempotencyKey }) });
     let outcome: Awaited<ReturnType<typeof service.acquire>>;
     try { outcome = await service.acquire({ tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, source: { canonicalSourceUrl: source.href }, window, limits, authentication: "PUBLIC", acquisitionAsOf: now.toISOString() }); }
     catch (error) { await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,"STRUCTURAL_FAILURE"); throw error; }
@@ -394,7 +414,7 @@ export function createApp(options: AppOptions = {}) {
     const resource=await new D1UpstreamResourceStore(c.env.DB).resolveOrCreate({tenantId:owner.id,canonicalSourceUrl:canonical,sourceFamily:"x",now:now.toISOString()});
     const runId=makeId("x_source_run",resource.id,input.idempotencyKey);
     let itemHandoff:Awaited<ReturnType<typeof persistAcquiredSourceItems>>|null=null;
-    const service=createWorkerXAcquisitionService(c.env,{tenantId:owner.id,ownerId:owner.id,profileId:input.authenticatedProfileId,resourceId:resource.id,runId,idempotencyKey:input.idempotencyKey},{persistItems:async(result)=>{itemHandoff=await persistAcquiredSourceItems(c.env.DB,{tenantId:owner.id,resourceId:resource.id,result,now})}});
+    const service=createWorkerXAcquisitionService(c.env,{tenantId:owner.id,ownerId:owner.id,profileId:input.authenticatedProfileId,resourceId:resource.id,runId,idempotencyKey:input.idempotencyKey},{persistItems:async(result)=>{itemHandoff=await persistAcquiredSourceItems(c.env.DB,{tenantId:owner.id,resourceId:resource.id,result,now,runId})}});
     const limits=input.limits??{maxItems:10,maxPages:3,maxScrolls:3,maxPhysicalAttempts:16,maxExecutionMs:90000};
     let outcome:Awaited<ReturnType<typeof service.acquire>>;
     try{outcome=await service.acquire({tenantId:owner.id,ownerId:owner.id,resourceId:resource.id,source:{sourceFamily:"x",canonicalSourceUrl:canonical},window:{startTime:new Date(input.startTime).toISOString(),endTime:new Date(input.endTime).toISOString()},limits,authentication:"AUTH_REQUIRED",acquisitionAsOf:now.toISOString()})}
@@ -583,6 +603,24 @@ export function createApp(options: AppOptions = {}) {
       .bind(c.req.param("requestId"),c.get("account")!.id).first();
     if (!row) return c.json({error:"not found"},404);
     return c.json({...row,result:row.result_json?JSON.parse(String(row.result_json)):null,result_json:undefined});
+  });
+
+  app.get("/api/me/home",async(c)=>{
+    const account=c.get("account")!,repo=c.get("repo"),now=new Date();
+    const feeds=await repo.listBriefings(account.id);
+    const catchUp=await generateCatchUp(repo,new D1CatchUpStore(c.env.DB),account.id,now);
+    return c.json({feeds:await Promise.all(feeds.map(async feed=>({id:feed.id,slug:feed.slug,title:feed.title,language:feed.language,frequency:feed.briefingCadence,newCount:catchUp.cards.filter(card=>card.feedIds.includes(feed.id)).length,newCountIsPartial:catchUp.truncated}))),catchUp:publicCatchUp(catchUp)});
+  });
+  app.get("/api/me/catch-up",async(c)=>c.json(publicCatchUp(await generateCatchUp(c.get("repo"),new D1CatchUpStore(c.env.DB),c.get("account")!.id))));
+  app.post("/api/me/catch-up/:id/acknowledge",async(c)=>{
+    const ok=await new D1CatchUpStore(c.env.DB).acknowledge(c.get("account")!.id,c.req.param("id"),new Date());
+    return ok?c.json({ok:true}):c.json({error:"not found"},404);
+  });
+  app.get("/api/me/briefings/:id/developments",async(c)=>{
+    const repo=c.get("repo"),feed=await repo.getBriefingById(c.req.param("id"));
+    if(!feed||feed.ownerAccountId!==c.get("account")!.id)return c.json({error:"not found"},404);
+    const items=await repo.getExistingItems(feed.id);
+    return c.json({feed:{id:feed.id,title:feed.title,language:feed.language,frequency:feed.briefingCadence},developments:items.filter(item=>item.development).sort((a,b)=>(b.development?.ranking.score??0)-(a.development?.ranking.score??0)).map(publicDevelopment)});
   });
 
   app.get("/api/me/account", async (c) => {
@@ -850,6 +888,12 @@ export function createApp(options: AppOptions = {}) {
       editions: editions.map((edition) => publicEdition(edition, briefing, false)),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
     });
+  });
+
+  app.get("/api/feed/:username/:briefingSlug/developments",async(c)=>{
+    const resolved=await resolvePublicFeed(c);if(resolved instanceof Response)return resolved;
+    const items=await resolved.repo.getExistingItems(resolved.briefing.id);
+    return c.json({developments:items.filter(item=>item.development).sort((a,b)=>(b.development?.ranking.score??0)-(a.development?.ranking.score??0)).map(publicDevelopment)});
   });
 
   app.get("/api/feed/:username/:briefingSlug/editions/:editionId", async (c) => {

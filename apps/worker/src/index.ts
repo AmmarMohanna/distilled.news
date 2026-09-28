@@ -1,7 +1,7 @@
 import { createApp } from "./app";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
 import { publishDueBriefingEditions } from "./editions";
-import { processQueueMessage } from "./processor";
+import { processQueueMessage,ProcessingLeaseBusy } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
@@ -63,6 +63,7 @@ export default {
         }
         message.ack();
       } catch (error) {
+        if(error instanceof ProcessingLeaseBusy){message.retry({delaySeconds:30});continue}
         const errorMessage = error instanceof Error ? error.message : String(error);
         const shouldQuarantine = shouldQuarantineQueueFailure(error, message.attempts);
         await recordQueueFailure(repo,agentStore,message.body,errorMessage,shouldQuarantine);

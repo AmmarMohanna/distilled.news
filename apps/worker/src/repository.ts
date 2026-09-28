@@ -126,6 +126,7 @@ interface SourceRow {
 }
 
 interface RawMessageRow {
+  news_json?:string|null;
   id: string;
   source_id: string;
   message_source_title?: string | null;
@@ -150,6 +151,7 @@ interface RawMessageRow {
 }
 
 interface BriefingItemRow {
+  development_json?:string|null;
   id: string;
   cluster_id: string;
   event_key?: string | null;
@@ -161,6 +163,9 @@ interface BriefingItemRow {
 }
 
 interface EvidenceRow {
+  document_id?:string|null;
+  content_hash?:string|null;
+  headline?:string|null;
   raw_message_id: string;
   source_id: string;
   source_title: string;
@@ -782,8 +787,8 @@ export class D1Repository implements Repository {
         `INSERT OR IGNORE INTO raw_messages (
           id, briefing_id, source_id, source_title, source_type, source_provider, source_kind, source_username,
           message_id, text, links_json, media_json, posted_at,
-          received_at, source_url, raw_payload_key, expires_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          received_at, source_url, raw_payload_key, expires_at, created_at, news_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         message.id,
@@ -803,7 +808,8 @@ export class D1Repository implements Repository {
         message.sourceUrl ?? null,
         message.rawPayloadKey ?? null,
         message.expiresAt,
-        now.toISOString()
+        now.toISOString(),
+        message.news?JSON.stringify(message.news):null
       )
       .run();
   }
@@ -892,16 +898,27 @@ export class D1Repository implements Repository {
     return id;
   }
 
+  async recordProcessingOutcome(jobId:string,result:Record<string,unknown>){await this.db.prepare("UPDATE processing_jobs SET result_json=? WHERE id=? AND state='completed'").bind(JSON.stringify(result),jobId).run()}
+  async getProcessingJob(jobId:string):Promise<ProcessingJobRecord|null>{
+    const row=await this.db.prepare('SELECT id,briefing_id,raw_message_id,state,error,updated_at FROM processing_jobs WHERE id=?').bind(jobId).first<ProcessingJobRow>();
+    return row?rowToProcessingJob(row):null;
+  }
+  async claimProcessingJob(jobId:string,briefingId:string,now=new Date()):Promise<boolean>{
+    const stamp=now.toISOString();
+    const result=await this.db.prepare("UPDATE processing_jobs SET state='queued',lease_until=?,updated_at=?,attempts=attempts+1 WHERE id=? AND briefing_id=? AND state!='completed' AND (lease_until IS NULL OR lease_until<=?) AND NOT EXISTS(SELECT 1 FROM processing_jobs other WHERE other.briefing_id=? AND other.lease_until>?)")
+      .bind(new Date(now.getTime()+300000).toISOString(),stamp,jobId,briefingId,stamp,briefingId,stamp).run();
+    return Number(result.meta.changes)===1;
+  }
   async completeProcessingJob(jobId: string, now = new Date()): Promise<void> {
     await this.db
-      .prepare("UPDATE processing_jobs SET state = 'completed', updated_at = ? WHERE id = ?")
+      .prepare("UPDATE processing_jobs SET state = 'completed', lease_until=NULL, updated_at = ? WHERE id = ?")
       .bind(now.toISOString(), jobId)
       .run();
   }
 
   async failProcessingJob(jobId: string, error: string, now = new Date()): Promise<void> {
     await this.db
-      .prepare("UPDATE processing_jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ?")
+      .prepare("UPDATE processing_jobs SET state = 'failed', lease_until=NULL, error = ?, updated_at = ? WHERE id = ?")
       .bind(error, now.toISOString(), jobId)
       .run();
   }
@@ -960,7 +977,7 @@ export class D1Repository implements Repository {
     const rows = await all<BriefingItemRow>(
       this.db
         .prepare(
-          `SELECT id, cluster_id, event_key, summary, item_at, updated_at, expires_at, merged_update_count FROM briefing_items WHERE briefing_id = ? AND expires_at > ? ORDER BY item_at DESC${limit ? " LIMIT ?" : ""}`
+          `SELECT id, cluster_id, event_key, summary, item_at, updated_at, expires_at, merged_update_count, development_json FROM briefing_items WHERE briefing_id = ? AND expires_at > ? ORDER BY item_at DESC${limit ? " LIMIT ?" : ""}`
         )
         .bind(...bindings)
     );
@@ -1038,7 +1055,7 @@ export class D1Repository implements Repository {
       this.db
         .prepare(
           `SELECT raw_message_id, source_id, source_title, source_type, source_provider, source_kind,
-            source_url, posted_at, text, links_json, media_json
+            source_url, posted_at, text, links_json, media_json, document_id, headline, content_hash
           FROM briefing_item_evidence
           JOIN briefing_items ON briefing_items.id = briefing_item_evidence.briefing_item_id
           WHERE briefing_item_evidence.briefing_item_id = ?
@@ -1320,6 +1337,7 @@ export class D1Repository implements Repository {
   }
 
   async recordLlmUsage(input: {
+    provider?:string;phase?:string;outcome?:string;latencyMs?:number;reportedCostUsd?:number;
     briefingId: string;
     model: string;
     purpose: "summary" | "importance_review" | "event_review";
@@ -1330,8 +1348,8 @@ export class D1Repository implements Repository {
     await this.db
       .prepare(
         `INSERT INTO llm_usage_events (
-          id, briefing_id, model, purpose, input_tokens, output_tokens, estimated_cost_usd, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          id, briefing_id, model, purpose, input_tokens, output_tokens, estimated_cost_usd, created_at, provider, phase, outcome, latency_ms, reported_cost_usd
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         `llm_usage_${crypto.randomUUID()}`,
@@ -1341,7 +1359,7 @@ export class D1Repository implements Repository {
         input.inputTokens,
         input.outputTokens,
         input.estimatedCostUsd,
-        now.toISOString()
+        now.toISOString(),input.provider??null,input.phase??null,input.outcome??null,input.latencyMs??null,input.reportedCostUsd??null
       )
       .run();
   }
@@ -1399,6 +1417,8 @@ export class D1Repository implements Repository {
     await this.db
       .prepare("DELETE FROM briefing_item_event_keys WHERE briefing_item_id NOT IN (SELECT id FROM briefing_items)")
       .run();
+    await this.db.prepare("DELETE FROM account_catchups WHERE expires_at <= ?").bind(timestamp).run();
+    await this.db.prepare("DELETE FROM account_development_reads WHERE expires_at <= ?").bind(timestamp).run();
     await this.db.prepare("DELETE FROM auth_tokens WHERE expires_at <= ?").bind(timestamp).run();
     await this.db
       .prepare("DELETE FROM auth_attempts WHERE created_at <= ?")
@@ -1412,7 +1432,7 @@ export class D1Repository implements Repository {
       this.db
         .prepare(
           `SELECT raw_message_id, source_id, source_title, source_type, source_provider, source_kind,
-            source_url, posted_at, text, links_json, media_json
+            source_url, posted_at, text, links_json, media_json, document_id, headline, content_hash
           FROM briefing_item_evidence
           WHERE briefing_item_id = ?
           ORDER BY posted_at ASC`
@@ -1436,7 +1456,7 @@ export class D1Repository implements Repository {
         this.db
           .prepare(
             `SELECT briefing_item_id, raw_message_id, source_id, source_title, source_type, source_provider, source_kind,
-              source_url, posted_at, text, links_json, media_json
+              source_url, posted_at, text, links_json, media_json, document_id, headline, content_hash
             FROM briefing_item_evidence
             WHERE briefing_item_id IN (${placeholders})
             ORDER BY briefing_item_id ASC, posted_at ASC`
@@ -1511,7 +1531,7 @@ export class D1Repository implements Repository {
     const row = await first<BriefingItemRow>(
       this.db
         .prepare(
-          `SELECT id, cluster_id, event_key, summary, item_at, updated_at, expires_at, merged_update_count
+          `SELECT id, cluster_id, event_key, summary, item_at, updated_at, expires_at, merged_update_count, development_json
            FROM briefing_items
            WHERE briefing_id = ?
              AND id = ?
@@ -1533,7 +1553,8 @@ export class D1Repository implements Repository {
       mergedUpdateCount: Math.max(0, inputItem.evidence.length - 1)
     };
 
-    await this.db
+    const commands:D1PreparedStatement[]=[];
+    commands.push(this.db
       .prepare(
         `INSERT INTO clusters (id, briefing_id, status, first_seen_at, last_updated_at, expires_at)
         VALUES (?, ?, 'published', ?, ?, ?)
@@ -1542,14 +1563,13 @@ export class D1Repository implements Repository {
           last_updated_at = excluded.last_updated_at,
           expires_at = excluded.expires_at`
       )
-      .bind(item.clusterId, briefingId, item.itemAt, item.updatedAt, item.expiresAt)
-      .run();
+      .bind(item.clusterId, briefingId, item.itemAt, item.updatedAt, item.expiresAt));
 
-    await this.db
+    commands.push(this.db
       .prepare(
         `INSERT INTO briefing_items (
-          id, briefing_id, cluster_id, event_key, summary, item_at, updated_at, expires_at, merged_update_count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, briefing_id, cluster_id, event_key, summary, item_at, updated_at, expires_at, merged_update_count, development_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           cluster_id = excluded.cluster_id,
           event_key = excluded.event_key,
@@ -1557,7 +1577,8 @@ export class D1Repository implements Repository {
           item_at = excluded.item_at,
           updated_at = excluded.updated_at,
           expires_at = excluded.expires_at,
-          merged_update_count = excluded.merged_update_count`
+          merged_update_count = excluded.merged_update_count,
+          development_json = excluded.development_json`
       )
       .bind(
         item.id,
@@ -1568,32 +1589,30 @@ export class D1Repository implements Repository {
         item.itemAt,
         item.updatedAt,
         item.expiresAt,
-        item.mergedUpdateCount
-      )
-      .run();
+        item.mergedUpdateCount,
+        item.development?JSON.stringify(item.development):null
+      ));
 
-    await this.db
+    commands.push(this.db
       .prepare("DELETE FROM briefing_item_event_keys WHERE briefing_item_id = ?")
-      .bind(item.id)
-      .run();
+      .bind(item.id));
 
     for (const eventKey of eventKeysForItem(item)) {
-      await this.db
+      commands.push(this.db
         .prepare(
           `INSERT OR IGNORE INTO briefing_item_event_keys (briefing_id, event_key, briefing_item_id, created_at)
            VALUES (?, ?, ?, ?)`
         )
-        .bind(briefingId, eventKey, item.id, timestamp)
-        .run();
+        .bind(briefingId, eventKey, item.id, timestamp));
     }
 
     for (const evidence of item.evidence) {
-      await this.db
+      commands.push(this.db
         .prepare(
           `INSERT OR IGNORE INTO briefing_item_evidence (
             id, briefing_item_id, raw_message_id, source_id, source_title, source_type,
-            source_provider, source_kind, source_url, posted_at, text, links_json, media_json
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            source_provider, source_kind, source_url, posted_at, text, links_json, media_json, document_id, headline, content_hash
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           `evidence_${item.id}_${evidence.messageId}`,
@@ -1608,10 +1627,11 @@ export class D1Repository implements Repository {
           evidence.postedAt,
           evidence.text,
           JSON.stringify(evidence.links),
-          JSON.stringify(evidence.media)
-        )
-        .run();
+          JSON.stringify(evidence.media),
+          evidence.documentId??null,evidence.headline??null,evidence.contentHash??null
+        ));
     }
+    await this.db.batch(commands);
   }
 
   private async deleteBriefingItems(itemIds: string[]): Promise<void> {
@@ -1645,14 +1665,7 @@ export class InMemoryRepository implements Repository {
   itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
   editionsByBriefing = new Map<string, Map<string, BriefingEdition>>();
   starsByBriefing = new Map<string, Set<string>>();
-  jobs = new Map<string, {
-    id: string;
-    briefingId: string;
-    rawMessageId: string;
-    state: "queued" | "completed" | "failed";
-    error?: string;
-    updatedAt: string;
-  }>();
+  jobs = new Map<string, ProcessingJobRecord>();
   settings = new Map<string, string>();
 
   async createAccount(input: {
@@ -2051,10 +2064,19 @@ export class InMemoryRepository implements Repository {
     return id;
   }
 
+  processingOutcomes=new Map<string,Record<string,unknown>>();
+  async recordProcessingOutcome(jobId:string,result:Record<string,unknown>){this.processingOutcomes.set(jobId,result)}
+  async getProcessingJob(jobId:string){return this.jobs.get(jobId)??null}
+  async claimProcessingJob(jobId:string,briefingId:string,now=new Date()){
+    const job=this.jobs.get(jobId);if(!job||job.briefingId!==briefingId||job.state==='completed')return false;
+    if([...this.jobs.values()].some(other=>other.briefingId===briefingId&&other.leaseUntil&&Date.parse(other.leaseUntil)>now.getTime()))return false;
+    job.leaseUntil=new Date(now.getTime()+300000).toISOString();job.attempts=(job.attempts??0)+1;return true;
+  }
   async completeProcessingJob(jobId: string, now = new Date()): Promise<void> {
     const job = this.jobs.get(jobId);
     if (job) {
       job.state = "completed";
+      delete job.leaseUntil;
       job.updatedAt = now.toISOString();
     }
   }
@@ -2063,6 +2085,7 @@ export class InMemoryRepository implements Repository {
     const job = this.jobs.get(jobId);
     if (job) {
       job.state = "failed";
+      delete job.leaseUntil;
       job.error = error;
       job.updatedAt = now.toISOString();
     }
@@ -2300,6 +2323,7 @@ export class InMemoryRepository implements Repository {
   }
 
   async recordLlmUsage(input: {
+    provider?:string;phase?:string;outcome?:string;latencyMs?:number;reportedCostUsd?:number;
     briefingId: string;
     model: string;
     purpose: "summary" | "importance_review" | "event_review";
@@ -2483,6 +2507,7 @@ function rowToSource(row: SourceRow): SourceRecord {
 function rowToRawMessage(row: RawMessageRow): NormalizedMessage {
   return {
     id: row.id,
+    news:row.news_json?parseJson(row.news_json,undefined):undefined,
     source: {
       id: row.source_id,
       title: row.message_source_title ?? row.title,
@@ -2507,6 +2532,7 @@ function rowToBriefingItem(row: BriefingItemRow): Omit<BriefingItem, "evidence">
   return {
     id: row.id,
     clusterId: row.cluster_id,
+    development:row.development_json?parseJson(row.development_json,undefined):undefined,
     eventKey: row.event_key ?? undefined,
     summary: sanitizeSummary(row.summary) || row.summary,
     itemAt: row.item_at,
@@ -2531,6 +2557,8 @@ function collapseBriefingItemsByStoredEventKey(items: BriefingItem[]): BriefingI
 function rowToEvidence(row: EvidenceRow): BriefingEvidence {
   return {
     messageId: row.raw_message_id,
+    documentId:row.document_id??undefined,
+    contentHash:row.content_hash??undefined,headline:row.headline??undefined,
     sourceId: row.source_id,
     sourceTitle: row.source_title,
     sourceType: row.source_type,

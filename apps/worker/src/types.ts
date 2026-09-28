@@ -48,6 +48,8 @@ export interface AuthTokenRecord {
 }
 
 export interface ProcessingJobRecord {
+  leaseUntil?:string;
+  attempts?:number;
   id: string;
   briefingId: string;
   rawMessageId: string;
@@ -57,6 +59,7 @@ export interface ProcessingJobRecord {
 }
 
 export interface Env extends Cloudflare.Env {
+  DISTILLED_NEWS_PIPELINE_EVALUATION?:string;
   DISTILLED_DISCOVERY_DECISION_MODE?:"GENERATIVE_ONLY"|"JEV_HYBRID";
   DISTILLED_JEV_MODEL?:string;
   DISTILLED_JEV_CONFIDENCE_THRESHOLD?:string;
@@ -306,6 +309,9 @@ export interface Repository {
   listRecentRawMessages(briefingId: string, now?: Date, limit?: number): Promise<NormalizedMessage[]>;
   listRawMessagesForWindow(briefingId: string, windowStart: string, windowEnd: string, limit?: number): Promise<NormalizedMessage[]>;
   createProcessingJob(briefingId: string, rawMessageId: string, now?: Date): Promise<string>;
+  recordProcessingOutcome(jobId:string,result:Record<string,unknown>):Promise<void>;
+  getProcessingJob(jobId:string):Promise<ProcessingJobRecord|null>;
+  claimProcessingJob(jobId:string,briefingId:string,now?:Date):Promise<boolean>;
   completeProcessingJob(jobId: string, now?: Date): Promise<void>;
   failProcessingJob(jobId: string, error: string, now?: Date): Promise<void>;
   listProcessingJobs(input?: {
@@ -360,6 +366,7 @@ export interface Repository {
     since: string;
   }): Promise<number>;
   recordLlmUsage(input: {
+    provider?:string;phase?:string;outcome?:string;latencyMs?:number;reportedCostUsd?:number;
     briefingId: string;
     model: string;
     purpose: "summary" | "importance_review" | "event_review";

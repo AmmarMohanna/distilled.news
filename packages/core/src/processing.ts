@@ -24,7 +24,7 @@ import type {
   SuppressedMessage
 } from "./types";
 
-const UPDATE_MERGE_THRESHOLD = 0.42;
+const UPDATE_MERGE_THRESHOLD = 0.72;
 
 export function processMessages(input: ProcessingInput): ProcessingResult {
   const accepted: NormalizedMessage[] = [];
@@ -159,7 +159,7 @@ function createBriefingItem(briefing: ProcessingInput["briefing"], cluster: Clus
 
   return {
     id: `item_${stableHash(`${briefing.id}:${eventKey}`)}`,
-    clusterId: `cluster_${stableHash(eventKey)}`,
+    clusterId: `cluster_${stableHash(`${briefing.id}:${eventKey}`)}`,
     eventKey,
     summary,
     itemAt,
@@ -172,6 +172,9 @@ function createBriefingItem(briefing: ProcessingInput["briefing"], cluster: Clus
 
 function toEvidence(message: NormalizedMessage): BriefingEvidence {
   return {
+    documentId:message.news?.acquiredItemId,
+    contentHash:message.news?.contentHash,
+    headline:message.news?.headline,
     messageId: message.id,
     sourceId: message.source.id,
     sourceTitle: message.source.title,
@@ -298,7 +301,7 @@ function shouldKeepDuplicateAsEvidence(
   duplicate: NormalizedMessage,
   important: boolean
 ): boolean {
-  if (!important) return false;
+  // Similar reporting from different publishers is evidence, not one document.
   if (message.id === duplicate.id) return false;
   if (message.sourceUrl && duplicate.sourceUrl && message.sourceUrl === duplicate.sourceUrl) return false;
   return message.source.id !== duplicate.source.id || message.links.some((link) => !duplicate.links.includes(link));

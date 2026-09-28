@@ -52,6 +52,7 @@ export interface MediaReference {
 }
 
 export interface NormalizedMessage {
+  news?:NormalizedNewsMetadata;
   id: string;
   source: MessageSource;
   messageId: string;
@@ -66,6 +67,9 @@ export interface NormalizedMessage {
 }
 
 export interface BriefingEvidence {
+  documentId?:string;
+  contentHash?:string;
+  headline?:string;
   messageId: string;
   sourceId: string;
   sourceTitle: string;
@@ -80,6 +84,7 @@ export interface BriefingEvidence {
 }
 
 export interface BriefingItem {
+  development?:DevelopmentState;
   id: string;
   clusterId: string;
   eventKey?: string;
@@ -92,6 +97,10 @@ export interface BriefingItem {
 }
 
 export interface BriefingEditionSection {
+  developmentId?:string;
+  claims?:GroundedClaim[];
+  changes?:DevelopmentChange[];
+  ranking?:DevelopmentRank;
   title: string;
   summary: string;
   evidence: BriefingEvidence[];
@@ -147,12 +156,14 @@ export interface ProcessingResult {
 }
 
 export interface SummaryInput {
+  knownClaims?:GroundedClaim[];
   briefing: BriefingConfig;
   evidence: BriefingEvidence[];
 }
 
 export interface SummaryAdapter {
   summarize(input: SummaryInput): Promise<string>;
+  summarizeGrounded?(input:SummaryInput):Promise<GroundedClaim[]>;
 }
 
 export interface EventEquivalenceInput {
@@ -170,3 +181,13 @@ export interface EventReviewAdapter {
   areSameEvent(input: EventEquivalenceInput): Promise<boolean>;
   isImportant(input: ImportanceReviewInput): Promise<boolean>;
 }
+
+/** Internal acquisition references. Public citation output excludes runtime details. */
+export interface NormalizedNewsMetadata {
+ tenantId:string;acquiredItemId:string;upstreamResourceId:string;canonicalIdentity:string;contentHash:string;
+ headline?:string;language?:string;acquisitionRunId?:string;
+}
+export interface GroundedClaim {id:string;text:string;support:Array<{messageId:string;quote:string}>}
+export interface DevelopmentChange {id:string;at:string;kind:"NEW_DEVELOPMENT"|"NEW_INFORMATION"|"CORROBORATION"|"CORRECTION_OR_CONFLICT";claimIds:string[];messageIds:string[]}
+export interface DevelopmentRank {relevance:number;importance:number;novelty:number;recency:number;confidence:number;score:number}
+export interface DevelopmentState {version:number;evidenceFingerprint:string;claims:GroundedClaim[];changes:DevelopmentChange[];ranking:DevelopmentRank;membership:Array<{messageId:string;method:"INITIAL"|"DETERMINISTIC"|"SEMANTIC_REVIEW"}>}

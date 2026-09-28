@@ -30,6 +30,9 @@ export async function publishDueBriefingEditions(input: {
     const window = latestSettledDueWindow(briefing, now);
     if (!window) continue;
     const contentWindow = await unsummarizedScheduledWindow(input.repo, briefing, window, now);
+    // Acquisition data is durable, but publication waits for its processing jobs.
+    const pending=await input.repo.listProcessingJobs({briefingId:briefing.id,states:["queued","failed"],limit:500});
+    if((await Promise.all(pending.map(job=>input.repo.getRawMessage(job.rawMessageId)))).some(message=>message?.news))continue;
 
     const messages = contentWindow
       ? await input.repo.listRawMessagesForWindow(
@@ -45,16 +48,17 @@ export async function publishDueBriefingEditions(input: {
         messages,
         windowStart: contentWindow?.windowStart ?? window.windowEnd,
         windowEnd: contentWindow?.windowEnd ?? window.windowEnd,
-        now
+        now,
+        processedItems:await developmentWindow(input.repo,briefing.id,contentWindow?.windowStart??window.windowEnd,contentWindow?.windowEnd??window.windowEnd,now)
       }),
       briefing,
       input.summaryAdapter
     );
+    if (edition.status === "published") {
+      await input.repo.saveBriefingEdition(edition, now);
+      published += 1;
+    }
     await input.repo.upsertBriefing({ ...briefing, nextBriefingAt: window.nextBriefingAt }, now);
-    if (edition.status !== "published") continue;
-
-    await input.repo.saveBriefingEdition(edition, now);
-    published += 1;
   }
 
   return published;
@@ -83,7 +87,8 @@ export async function publishManualBriefingEdition(input: {
       messages,
       windowStart,
       windowEnd,
-      now
+      now,
+      processedItems:await developmentWindow(input.repo,input.briefing.id,windowStart,windowEnd,now)
     }),
     input.briefing,
     input.summaryAdapter
@@ -144,6 +149,12 @@ async function localizeEdition(
 
   const sections: BriefingEdition["sections"] = [];
   for (const section of edition.sections) {
+    if(section.claims?.length){
+      // These exact sentences have already passed claim-level grounding. Never
+      // replace them with an unreferenced translation during edition creation.
+      if(sectionSummaryMatchesFeedLanguage(section.summary,briefing.language))sections.push(section);
+      continue;
+    }
     if (section.evidence.length === 0) {
       sections.push(section);
       continue;
@@ -186,4 +197,10 @@ function shouldLocalizeSectionSummary(summary: string, language: BriefingConfig[
   if (language === "en") return hasArabic && !hasLatin;
   if (language === "fr") return hasArabic && !hasLatin;
   return false;
+}
+
+async function developmentWindow(repo:Repository,briefingId:string,start:string,end:string,now:Date){
+ const items=await repo.getExistingItems(briefingId,now);
+ if(!items.some(item=>item.development))return undefined;
+ return items.filter(item=>item.development&&item.updatedAt>=start&&item.updatedAt<end).sort((a,b)=>(b.development?.ranking.score??0)-(a.development?.ranking.score??0));
 }

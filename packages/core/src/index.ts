@@ -8,3 +8,4 @@ export * from "./processing";
 export * from "./summarization";
 export * from "./text";
 export * from "./types";
+export * from "./developments";
