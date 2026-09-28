@@ -46,8 +46,8 @@ it('retains documents, incrementally clusters specific developments, grounds cla
     await processQueueMessage(new D1Repository(db),{jobId:article.jobId,briefingId:feed.id,rawMessageId:article.raw.id},later,summary,review);
     await ingest(bbc,article.raw.text,'https://bbc.example/articles/polo?utm_campaign=repeat');
     expect(summary.summarizeGrounded).toHaveBeenCalledTimes(calls);
-    // Same broad location is not the same development.
-    await ingest(bbc,'Mexico government approved a new central bank interest rate decision for inflation.','https://bbc.example/articles/bank');
+    // Another named storm in the same region is a distinct development.
+    await ingest(bbc,'Hurricane Rosa killed 18 people after making landfall in Baja California, Mexico.','https://bbc.example/articles/rosa');
     items=await repo.getExistingItems(feed.id,now);expect(items).toHaveLength(2);
     await ingest(other,'Police arrested 2 suspects after a court hearing in Sydney.','https://other.example/articles/arrests');
     const store=new D1CatchUpStore(db),snapshot=await generateCatchUp(new D1Repository(db),store,owner.id,later,1);

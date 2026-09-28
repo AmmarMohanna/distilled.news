@@ -2,6 +2,7 @@ import { clusterMessages } from "./clustering";
 import {
   areSameEventDeterministic,
   collapseDuplicateBriefingItems,
+  haveConflictingNamedStorms,
   primaryEventKeyForEvidence
 } from "./events";
 import {
@@ -216,6 +217,7 @@ function findMergeTarget(
   const clusterEvidence = cluster.messages.map(toEvidence);
 
   return candidates.find((item) => {
+    if (haveConflictingNamedStorms(clusterEvidence,item.evidence)) return false;
     if (areSameEventDeterministic(clusterEvidence, item.evidence)) return true;
 
     const itemTexts = [item.summary, ...item.evidence.map((evidence) => evidence.text)];

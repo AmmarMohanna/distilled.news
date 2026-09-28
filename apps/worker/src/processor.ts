@@ -1,5 +1,6 @@
 import {
   areSameEventDeterministic,
+  haveConflictingNamedStorms,
   eventTokens,
   jaccardSimilarity,
   mergeBriefingItem,
@@ -124,6 +125,7 @@ async function processNewsMessage(repo:Repository,job:ProcessingJobMessage,brief
     const candidates=existing.filter(candidate=>Math.abs(Date.parse(candidate.itemAt)-Date.parse(raw.postedAt))<=72*3600000).map(candidate=>({candidate,score:Math.max(jaccardSimilarity(eventTokens(raw.text),eventTokens(candidate.evidence.map(entry=>entry.text).join(" "))),...candidate.evidence.map(entry=>jaccardSimilarity(eventTokens(raw.news?.headline??raw.text),eventTokens(entry.headline??entry.text))))})).sort((a,b)=>b.score-a.score);
     let attempts=0;
     for(const {candidate,score} of candidates){
+      if(haveConflictingNamedStorms(item.evidence,candidate.evidence))continue;
       const crossLanguage=/[\u0600-\u06ff]/.test(raw.text)!==/[\u0600-\u06ff]/.test(candidate.evidence.map(entry=>entry.text).join(" "));
       if(score<0.12&&!crossLanguage)continue;
       if(attempts++>=3)break;

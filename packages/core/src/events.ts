@@ -47,6 +47,9 @@ export function areSameEventDeterministic(left: BriefingEvidence[], right: Brief
   }
   const leftTime=Math.max(...left.map(entry=>Date.parse(entry.postedAt))),rightTime=Math.max(...right.map(entry=>Date.parse(entry.postedAt)));
   if(Number.isFinite(leftTime)&&Number.isFinite(rightTime)&&Math.abs(leftTime-rightTime)>72*3600000)return false;
+  // Shared location and disaster terms are not enough when both reports name
+  // different storms. A report without a storm name can still be corroboration.
+  if(haveConflictingNamedStorms(left,right))return false;
 
   for (const leftEvidence of left) {
     const leftText = normalizeEventText(leftEvidence.text);
@@ -127,6 +130,15 @@ export function canonicalUrl(value: string | undefined): string | undefined {
   if(!normalized)return undefined;
   const url=new URL(normalized);
   return `${url.hostname.replace(/^twitter\.com$/,"x.com")}${url.pathname==='/'?'':url.pathname}${url.search}`;
+}
+
+export function haveConflictingNamedStorms(left:BriefingEvidence[],right:BriefingEvidence[]):boolean{
+  const a=namedStorms(left),b=namedStorms(right);
+  return Boolean(a.size&&b.size&&![...a].some(name=>b.has(name)));
+}
+
+function namedStorms(evidence:BriefingEvidence[]):Set<string>{
+  return new Set(evidence.flatMap(entry=>[...entry.text.matchAll(/\b(?:[Hh]urricane|[Tt]yphoon|[Cc]yclone|[Tt]ropical [Ss]torm)\s+([A-Z][a-z]+)\b/g)].map(match=>match[1].toLowerCase())));
 }
 
 function tokenContainment(left: string[], right: string[]): number {
