@@ -3,7 +3,7 @@ import {
   AuthenticatedBootstrapError,AuthenticatedBrowserBridgeError,AuthenticatedProfileError,BrowserAllocationError,BrowserPreDispatchError,
   type AcquisitionStageOutcome,type AuthenticatedSourceTimelineObservation,type AuthenticatedSourceWorkflowPlan,
   type BrowserUseDiscoveryProposal,type SourceAcquisitionRequest,type WebOperatorDiscovery,
-  type WorkflowCandidate,type WorkflowCaptureBundle
+  type WorkflowCandidate,type WorkflowCaptureBundle,type ProductionSourceAcquisitionDependencies
 } from "@distilled/agent-runtime";
 import { ContainerXTimelinePort } from "./container-x-timeline-port";
 import { D1BrowserUseRunTelemetry } from "./browser-use-run-telemetry";
@@ -13,11 +13,12 @@ import type { Env } from "./types";
 
 type Context={tenantId:string;ownerId:string;profileId:string;resourceId:string;runId:string;idempotencyKey:string};
 type XPort=Pick<ContainerXTimelinePort,"open"|"observe"|"scrollAndObserve"|"close"|"discoverWithBrowserUse">;
-type Ports={agent?:XPort;verifier?:XPort;replay?:XPort};
+type Ports={agent?:XPort;verifier?:XPort;replay?:XPort;persistItems?:ProductionSourceAcquisitionDependencies["persistItems"]};
 
 export function createWorkerXAcquisitionService(env:Env,context:Context,ports:Ports={}){
   return createWorkerProductionSourceAcquisitionService(env,{
     tenantId:context.tenantId,ownerId:context.ownerId,
+    persistItems:ports.persistItems,
     structured:async()=>({stage:"STRUCTURED",status:"UNSUPPORTED",reason:"authenticated X requires browser session"}),
     http:async()=>({stage:"HTTP",status:"UNSUPPORTED",reason:"authenticated X requires browser session"}),
     executeActiveWorkflow:async({request,workflow})=>executeXWorkflow(env,context,request,workflow,ports.replay),

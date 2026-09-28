@@ -129,7 +129,7 @@ export function workerCloudflareBrowser(
 /** Production source-neutral stage composition. A workflow may only execute a validated source plan. */
 export function createWorkerPublicSourceAcquisitionService(
   env: Env,
-  options: { tenantId: string; ownerId: string; resourceId: string; runId: string; sourceUrl: string; fetcher?: typeof fetch; webOperator?: (request: SourceAcquisitionRequest) => Promise<WebOperatorDiscovery | AcquisitionStageOutcome> }
+  options: { tenantId: string; ownerId: string; resourceId: string; runId: string; sourceUrl: string; fetcher?: typeof fetch; persistItems?: ProductionSourceAcquisitionDependencies["persistItems"]; webOperator?: (request: SourceAcquisitionRequest) => Promise<WebOperatorDiscovery | AcquisitionStageOutcome> }
 ) {
   const stages = new PublicSourceStages(new WorkerPublicSourceFetch(options.sourceUrl, options.fetcher));
   const executeActiveWorkflow = async (input: { request: SourceAcquisitionRequest; workflow: import("@distilled/agent-runtime").WorkflowCandidate }): Promise<AcquisitionStageOutcome> =>
@@ -137,6 +137,7 @@ export function createWorkerPublicSourceAcquisitionService(
   return createWorkerProductionSourceAcquisitionService(env, {
     tenantId: options.tenantId,
     ownerId: options.ownerId,
+    persistItems: options.persistItems,
     executeActiveWorkflow: async ({ request, workflow }) => executeActiveWorkflow({ request, workflow }),
     structured: (request) => stages.structured(request),
     http: (request) => stages.http(request),

@@ -6,6 +6,18 @@ const result=(covered=true)=>({items:[],requestedWindow:input.window,effectiveWi
 describe("production source acquisition service",()=>{it("routes HTTP success through temporal result and commits safe high-water",async()=>{const store=new MemorySourceHighWaterStore();const service=new ProductionSourceAcquisitionService({highWater:store,structured:async()=>({stage:"STRUCTURED",status:"UNSUPPORTED"}),http:async()=>({stage:"HTTP",status:"SUCCESS",result:result()})});const out=await service.acquire(input);expect(out.status).toBe("SUCCESS");expect(out.committedHighWater?.lastSuccessfulBoundary).toBe(input.window.endTime);});it("keeps retry state across incomplete runs",async()=>{const store=new MemorySourceHighWaterStore();await store.put({key:"tenant:resource",lastSuccessfulBoundary:"2026-09-20T00:00:00Z"});const service=new ProductionSourceAcquisitionService({highWater:store,structured:async()=>({stage:"STRUCTURED",status:"UNSUPPORTED"}),http:async()=>({stage:"HTTP",status:"SUCCESS",result:result(false)})});const out=await service.acquire(input);expect(out.committedHighWater?.lastSuccessfulBoundary).toBe("2026-09-20T00:00:00Z");expect(out.committedHighWater?.unresolvedWindow).toEqual(input.window);});it("stops policy denial without agent bypass",async()=>{let agent=0;const store=new MemorySourceHighWaterStore();const out=await new ProductionSourceAcquisitionService({highWater:store,structured:async()=>({stage:"STRUCTURED",status:"UNSUPPORTED"}),http:async()=>({stage:"HTTP",status:"POLICY_DENIED"}),webOperator:async()=>{agent++;throw Error()}}).acquire(input);expect(out.status).toBe("STOPPED");expect(out.stopReason).toBe("POLICY_DENIED");expect(agent).toBe(0);expect((await store.get("tenant:resource"))?.unresolvedWindow).toEqual(input.window);});});
 
 describe("production discovery routing",()=>{
+  it("does not advance coverage when durable item handoff fails and safely retries",async()=>{
+    const highWater=new MemorySourceHighWaterStore();
+    let fail=true,persisted=0;
+    const service=new ProductionSourceAcquisitionService({highWater,structured:async()=>({stage:"STRUCTURED",status:"SUCCESS",result:result()}),persistItems:async()=>{expect((await highWater.get("tenant:resource"))?.lastSuccessfulBoundary).toBeUndefined();if(fail)throw Error("storage_unavailable");persisted++}});
+    await expect(service.acquire(input)).rejects.toThrow("storage_unavailable");
+    expect(await highWater.get("tenant:resource")).toEqual({key:"tenant:resource",unresolvedWindow:input.window});
+    fail=false;
+    const replay=await service.acquire(input);
+    expect(persisted).toBe(1);
+    expect(replay.committedHighWater?.lastSuccessfulBoundary).toBe(input.window.endTime);
+    expect(replay.committedHighWater?.unresolvedWindow).toBeUndefined();
+  });
   it.each([
     {name:"structured",structured:"SUCCESS",http:"UNSUPPORTED",active:false,expected:["structured"]},
     {name:"HTTP",structured:"INSUFFICIENT",http:"SUCCESS",active:false,expected:["structured","http"]},

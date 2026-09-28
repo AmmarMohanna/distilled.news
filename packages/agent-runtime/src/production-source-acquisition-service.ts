@@ -15,6 +15,8 @@ export interface ProductionSourceAcquisitionInput {
 
 export interface ProductionSourceAcquisitionDependencies {
   highWater: SourceHighWaterStore;
+  /** Persist trusted items before coverage can advance the durable boundary. */
+  persistItems?: (result: SourceAcquisitionResult) => Promise<void>;
   lookupActiveWorkflow?: (input: { tenantId: string; ownerId: string; resourceId: string; source: SourceAcquisitionRequest["source"] }) => Promise<ActiveWorkflowHandle | undefined>;
   structured?: (request: SourceAcquisitionRequest) => Promise<AcquisitionStageOutcome>;
   http?: (request: SourceAcquisitionRequest) => Promise<AcquisitionStageOutcome>;
@@ -51,6 +53,12 @@ export class ProductionSourceAcquisitionService {
     let committedHighWater: SourceHighWaterState | undefined;
     if (outcome.status === "SUCCESS" && outcome.result) {
       const key=`${input.tenantId}:${input.resourceId}`;
+      try { await this.dependencies.persistItems?.(outcome.result); }
+      catch (error) {
+        const current=await this.dependencies.highWater.get(key)??{key};
+        await this.dependencies.highWater.put({...current,unresolvedWindow:request.window});
+        throw error;
+      }
       await commitSourceHighWater(this.dependencies.highWater,key,outcome.result);
       // Durable stores can conservatively merge older unresolved windows.
       // Report the actual committed state, not merely the proposed update.
