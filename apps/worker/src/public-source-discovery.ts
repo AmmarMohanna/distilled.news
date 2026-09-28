@@ -78,7 +78,7 @@ export async function discoverBrowserUseSourcePlan(env: Env, input: { request: S
     throw tagBrowserUseStage(error, "AGENT_RUN");
   }
   finally { try { await agentPort.close(); } catch (error) { if (!agentFailure) { await telemetry.stage(agentRunId,"FAILED"); throw tagBrowserUseStage(error, "AGENT_CLOSE"); } } }
-  await telemetry.stage(agentRunId,"PROPOSAL_ACCEPTED",{ modelCalls: proposal.modelCalls, browserOperations: proposal.browserActions, agentBrowserActions: proposal.agentBrowserActions, agentDurationMs: Date.now()-agentStarted });
+  await telemetry.stage(agentRunId,"PROPOSAL_ACCEPTED",{ modelCalls: proposal.modelCalls, browserOperations: proposal.browserActions, agentBrowserActions: proposal.agentBrowserActions, agentDurationMs: Date.now()-agentStarted,decisionMode:proposal.decisionMode,jevCalls:proposal.jevCalls,decisionFallbacks:proposal.decisionFallbacks });
   console.log(JSON.stringify({ event: "browser_use_agent_proposal", modelCalls: proposal.modelCalls ?? null, browserActions: proposal.browserActions ?? null, agentBrowserActions: proposal.agentBrowserActions ?? null, visitedPages: proposal.visitedUrls.length, articleHints: proposal.articleUrls.length }));
   // A model-reported challenge is only a hint; the verification session owns the typed result.
   const verifier = ports?.verifier ?? new ContainerSourceBrowserPort(env, { ...input, runId: `${input.runId}_browser_use_verify`, generation: 1 });

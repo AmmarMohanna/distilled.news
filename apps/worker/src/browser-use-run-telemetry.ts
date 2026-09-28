@@ -16,15 +16,16 @@ export class D1BrowserUseRunTelemetry {
       .bind(input.runId,input.acquisitionRunId,input.tenantId,input.resourceId,input.startedAt).run();
   }
 
-  async stage(runId: string, state: BrowserUseRunState, input: { modelCalls?: number; browserOperations?: number; agentBrowserActions?: number; agentDurationMs?: number; verificationDurationMs?: number } = {}): Promise<void> {
+  async stage(runId: string, state: BrowserUseRunState, input: { modelCalls?: number; browserOperations?: number; agentBrowserActions?: number; agentDurationMs?: number; verificationDurationMs?: number;decisionMode?:string;jevCalls?:number;decisionFallbacks?:number } = {}): Promise<void> {
     await this.db.prepare(`UPDATE browser_use_discovery_runs SET state=?,
       discovery_model_calls=COALESCE(?,discovery_model_calls),
       browser_operations=COALESCE(?,browser_operations),
       agent_browser_actions=COALESCE(?,agent_browser_actions),
       agent_duration_ms=COALESCE(?,agent_duration_ms),
       verification_duration_ms=COALESCE(?,verification_duration_ms)
+      ,decision_mode=COALESCE(?,decision_mode),jev_calls=COALESCE(?,jev_calls),decision_fallbacks=COALESCE(?,decision_fallbacks)
       WHERE run_id=? AND completed_at IS NULL`)
-      .bind(state,bounded(input.modelCalls,32),bounded(input.browserOperations,128),bounded(input.agentBrowserActions,64),bounded(input.agentDurationMs,600000),bounded(input.verificationDurationMs,600000),runId).run();
+      .bind(state,bounded(input.modelCalls,32),bounded(input.browserOperations,128),bounded(input.agentBrowserActions,64),bounded(input.agentDurationMs,600000),bounded(input.verificationDurationMs,600000),input.decisionMode??null,bounded(input.jevCalls,5),bounded(input.decisionFallbacks,5),runId).run();
   }
 
   async completeAcquisition(acquisitionRunId: string, outcome: BrowserUseRunOutcome, completedAt = new Date().toISOString()): Promise<void> {
@@ -40,6 +41,6 @@ export class D1BrowserUseRunTelemetry {
       state,outcome,browser_use_discovery_runs AS browserUseDiscoveryRuns,discovery_model_calls AS discoveryModelCalls,
       browser_operations AS browserOperations,agent_browser_actions AS agentBrowserActions,started_at AS startedAt,
       completed_at AS completedAt,total_duration_ms AS totalDurationMs,agent_duration_ms AS agentDurationMs,
-      verification_duration_ms AS verificationDurationMs FROM browser_use_discovery_runs WHERE run_id=?`).bind(runId).first<Record<string, unknown>>();
+      verification_duration_ms AS verificationDurationMs,decision_mode AS decisionMode,jev_calls AS jevCalls,decision_fallbacks AS decisionFallbacks FROM browser_use_discovery_runs WHERE run_id=?`).bind(runId).first<Record<string, unknown>>();
   }
 }

@@ -39,3 +39,4 @@ export * from "./browser-use-discovery";
 export * from "./production-source-acquisition-service";
 
 export * from './upstream-resource';
+export * from "./bounded-decision";

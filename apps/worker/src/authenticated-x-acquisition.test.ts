@@ -19,7 +19,7 @@ describe("authenticated X workflow lifecycle",()=>{
     const mf=new Miniflare({modules:true,script:"export default {fetch(){return new Response('ok')}}",d1Databases:["DB"]});
     try{
       const db=await mf.getD1Database("DB");
-      for(const name of ["0011_agent_runtime.sql","0013_web_operator_workflow_lifecycle.sql","0026_source_acquisition_state.sql","0028_browser_use_discovery_runs.sql"]){
+      for(const name of ["0011_agent_runtime.sql","0013_web_operator_workflow_lifecycle.sql","0026_source_acquisition_state.sql","0028_browser_use_discovery_runs.sql","0031_bounded_decision_events.sql"]){
         const sql=readFileSync(new URL(`../migrations/${name}`,import.meta.url),"utf8").replace(/^PRAGMA foreign_keys = ON;\s*/m,"");
         for(const statement of sql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();
       }

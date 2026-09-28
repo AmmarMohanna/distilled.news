@@ -1,11 +1,13 @@
 import {
   AuthenticatedBrowserLifecycle,AuthenticatedProfileService,ChallengeCoordinator,ProfileEnvelopeCrypto,
   XAuthenticatedSiteAdapter,issueAuthenticatedProfileCapability,makeId,
+  AuthenticatedBrowserBridgeExecutor,AuthenticatedBootstrapError,
   type AuthenticatedBrowserExecutorPort,type AuthenticatedSourceTimelineObservation,type AuthenticatedSourceWorkflowPort,
   type BrowserAllocation,type PublicBrowserObservation,type SourceAcquisitionRequest
 } from "@distilled/agent-runtime";
 import { D1AccountTenantOwnershipPolicy,D1AuthenticatedProfileRepository,D1AuthenticationChallengeStore,R2AuthenticatedSecretStore } from "./authenticated-profile-store";
 import { authenticatedBackend } from "./authenticated-profile-bootstrap";
+import {safeFingerprint,safeObservationStructure,safeObservationIdentity} from "./authenticated-surface-diagnostic";
 import type { Env } from "./types";
 
 /** One X profile per browser execution. Login/session secrets are handled by the existing lifecycle. */
@@ -43,7 +45,16 @@ export class ContainerXTimelinePort implements AuthenticatedSourceWorkflowPort {
         return;
       }
       await this.browser.navigateAuthenticatedSource(scope,this.sourceUrl);
-    }catch(error){await this.close();throw error}
+    }catch(error){
+      if(error instanceof AuthenticatedBootstrapError&&this.browser instanceof AuthenticatedBrowserBridgeExecutor){
+        try{
+          const snapshot=await this.browser.observeAuthenticatedSurface(scope,"IMMEDIATE");
+          const fingerprint=this.adapter.fingerprint(snapshot);
+          await repository.appendAuthAudit({id:crypto.randomUUID(),profileId:profile.id,tenantId:profile.tenantId,runId:scope.runId,type:"BOOTSTRAP_FAILED",safeMetadata:{failureCode:error.code,failureStage:error.stage,...safeFingerprint(fingerprint),...safeObservationStructure(snapshot),...safeObservationIdentity(snapshot)},createdAt:new Date().toISOString()});
+        }catch{/* diagnostics never replace the original typed failure */}
+      }
+      await this.close();throw error;
+    }
   }
 
   async observe():Promise<AuthenticatedSourceTimelineObservation>{

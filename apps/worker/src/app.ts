@@ -51,6 +51,7 @@ import { D1UpstreamResourceStore } from "./upstream-resource-store";
 import { discoverAndPromotePublicSourceWorkflow } from "./public-source-discovery";
 import { D1BrowserUseRunTelemetry } from "./browser-use-run-telemetry";
 import { createWorkerXAcquisitionService } from "./authenticated-x-acquisition";
+import { handleBoundedDecision } from "./bounded-decision-provider";
 import { D1AuthenticatedProfileRepository } from "./authenticated-profile-store";
 import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
 import { handleBridgePreflight,handleContainerPreflight,handleProviderDiagnostic } from "./bridge-preflight";
@@ -270,11 +271,12 @@ export function createApp(options: AppOptions = {}) {
   app.post("/v1/authenticated-profiles/bridge-preflight", async (c) => handleBridgePreflight(c.req.raw,c.env));
   app.post("/v1/authenticated-profiles/container-preflight", async (c) => handleContainerPreflight(c.req.raw,c.env));
   app.post("/v1/public-browser/acquisition", async (c) => handlePublicBrowserAcquisition(c.req.raw,c.env));
+  app.post("/v1/bounded-decisions",async(c)=>handleBoundedDecision(c.req.raw,c.env));
   app.on(["GET","POST"], "/v1/authenticated-profiles/provider-diagnostic", async (c) => handleProviderDiagnostic(c.req.raw,c.env));
 
   // Public, read-only fixture for bounded production acquisition validation.
   // It exists only while the protected smoke flag is temporarily enabled.
-  app.get("/v1/live-smoke/browser-use-fixture", (c) => {
+  app.on("GET",["/v1/live-smoke/browser-use-fixture","/v1/live-smoke/browser-use-fixture/listing/:evaluationId"], (c) => {
     if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.text("not found",404);
     return c.html(`<!doctype html><html><head><title>Browser acquisition fixture</title></head><body><main><h1>Fixture news</h1><div id="stories"></div><div style="height:5000px"></div></main><script>
       let count=0; addEventListener('scroll',()=>{count++; if(count>2)return; const id=count===1?'a':'b';

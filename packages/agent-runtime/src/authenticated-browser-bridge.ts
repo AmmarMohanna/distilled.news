@@ -20,10 +20,10 @@ export type BrowserUseFailureCategory=typeof BROWSER_USE_FAILURE_CATEGORIES[numb
 export interface BrowserUseFailureDiagnostic{browserUseFailure:BrowserUseFailureCategory;failureType?:string;causeType?:string;failureTrace?:string[];runtimeHint?:string;runnerExit?:"SIGNAL"|"EMPTY_OUTPUT"|"EXIT_CODE";bridgeFailureCode?:AuthenticatedBrowserBridgeFailureCode;bridgeHttpStatus?:number;policyRule?:BrowserNetworkPolicyRule;deniedHostname?:string;bridgeOperation?:"NAVIGATE_PUBLIC_PAGE"|"OBSERVE_PUBLIC_PAGE"|"SCROLL_PUBLIC_PAGE"}
 export type BrowserBridgeDiagnostic=BrowserNetworkPolicyDiagnostic|BrowserUseFailureDiagnostic;
 export class AuthenticatedBrowserBridgeError extends Error{constructor(public readonly code:AuthenticatedBrowserBridgeFailureCode,public readonly diagnostic?:BrowserBridgeDiagnostic){super(code);this.name="AuthenticatedBrowserBridgeError"}}
-export const BRIDGE_OPERATIONS=["OPEN_AUTH_BROWSER","RESTORE_AUTH_STATE","NAVIGATE_AUTH_ENTRYPOINT","OBSERVE_AUTH_SURFACE","NAVIGATE_AUTH_SOURCE","OBSERVE_AUTH_SOURCE","SCROLL_AUTH_SOURCE","DISCOVER_AUTH_SOURCE_WITH_BROWSER_USE","NAVIGATE_PUBLIC_PAGE","OBSERVE_PUBLIC_PAGE","SCROLL_PUBLIC_PAGE","DISCOVER_SOURCE_WITH_BROWSER_USE","INJECT_AUTH_FIELD","ACTIVATE_AUTH_CONTROL","CAPTURE_AUTH_STATE","CLOSE_AUTH_BROWSER"] as const;
+export const BRIDGE_OPERATIONS=["OPEN_AUTH_BROWSER","RESTORE_AUTH_STATE","NAVIGATE_AUTH_ENTRYPOINT","OBSERVE_AUTH_SURFACE","NAVIGATE_AUTH_SOURCE","OBSERVE_AUTH_SOURCE","SCROLL_AUTH_SOURCE","DISCOVER_AUTH_SOURCE_WITH_BROWSER_USE","NAVIGATE_PUBLIC_PAGE","OBSERVE_PUBLIC_PAGE","SCROLL_PUBLIC_PAGE","ADVANCE_PUBLIC_DISCOVERY","DISCOVER_SOURCE_WITH_BROWSER_USE","INJECT_AUTH_FIELD","ACTIVATE_AUTH_CONTROL","CAPTURE_AUTH_STATE","CLOSE_AUTH_BROWSER"] as const;
 export type AuthenticatedBrowserBridgeOperation=typeof BRIDGE_OPERATIONS[number];
 /** Operations whose transport-level outcome must never be blindly repeated: an unknown result is BRIDGE_EFFECT_UNKNOWN. */
-export const BRIDGE_MUTATION_OPERATIONS:ReadonlySet<string>=new Set(["RESTORE_AUTH_STATE","NAVIGATE_AUTH_ENTRYPOINT","NAVIGATE_AUTH_SOURCE","SCROLL_AUTH_SOURCE","DISCOVER_AUTH_SOURCE_WITH_BROWSER_USE","INJECT_AUTH_FIELD","ACTIVATE_AUTH_CONTROL","SCROLL_PUBLIC_PAGE","DISCOVER_SOURCE_WITH_BROWSER_USE"]);
+export const BRIDGE_MUTATION_OPERATIONS:ReadonlySet<string>=new Set(["RESTORE_AUTH_STATE","NAVIGATE_AUTH_ENTRYPOINT","NAVIGATE_AUTH_SOURCE","SCROLL_AUTH_SOURCE","DISCOVER_AUTH_SOURCE_WITH_BROWSER_USE","INJECT_AUTH_FIELD","ACTIVATE_AUTH_CONTROL","SCROLL_PUBLIC_PAGE","ADVANCE_PUBLIC_DISCOVERY","DISCOVER_SOURCE_WITH_BROWSER_USE"]);
 export type BridgeNavigationDestination="ENTRYPOINT"|"SESSION_PROBE";
 
 export interface AuthenticatedBrowserExecutionCapability {bridgeExecutionId:string;bootstrapRequestId:string;runId:string;tenantId:string;ownerId:string;profileId:string;expectedProfileVersion:number;browserGeneration:number;authFlowId:string;siteKind:string;authEntryPoint:string;sessionProbeUrl:string;allowedOrigins:string[];writeOrigins:string[];issuedAt:string;expiresAt:string;operationBudget:number;}
@@ -40,12 +40,13 @@ export type AuthenticatedBrowserBridgeRequest=
   | (BoundOperation&{operation:"NAVIGATE_PUBLIC_PAGE";url:string})
   | (BoundOperation&{operation:"OBSERVE_PUBLIC_PAGE"})
   | (BoundOperation&{operation:"SCROLL_PUBLIC_PAGE";deltaY:number})
+  | (BoundOperation&{operation:"ADVANCE_PUBLIC_DISCOVERY";pageRevision:string})
   | (BoundOperation&{operation:"DISCOVER_SOURCE_WITH_BROWSER_USE";sourceUrl:string;modelRef:string;maxSteps:number})
   | (BoundOperation&{operation:"INJECT_AUTH_FIELD";fieldKind:AuthFieldKind;fieldHandle:string;pageRevision:string;secretValue:string})
   | (BoundOperation&{operation:"ACTIVATE_AUTH_CONTROL";controlKind:AuthControlKind;controlHandle:string;pageRevision:string})
   | (BoundOperation&{operation:"CAPTURE_AUTH_STATE"})
   | (BoundOperation&{operation:"CLOSE_AUTH_BROWSER"});
-export type AuthenticatedBrowserBridgeResult=BrowserAllocation|AuthenticatedBrowserSurface|PublicBrowserObservation|BrowserSessionState|BrowserUseDiscoveryProposal|{closed:true}|{accepted:true};
+export type AuthenticatedBrowserBridgeResult=BrowserAllocation|AuthenticatedBrowserSurface|PublicBrowserObservation|BrowserSessionState|BrowserUseDiscoveryProposal|{closed:true}|{accepted:true}|{fallback:boolean;action?:string;observation?:PublicBrowserObservation};
 export type AuthenticatedBrowserBridgeResponse={protocol:typeof AUTHENTICATED_BROWSER_BRIDGE_PROTOCOL;ok:true;result:AuthenticatedBrowserBridgeResult}|{protocol:typeof AUTHENTICATED_BROWSER_BRIDGE_PROTOCOL;ok:false;error:{code:AuthenticatedBrowserBridgeFailureCode;diagnostic?:BrowserBridgeDiagnostic}};
 
 export interface BrowserBridgeTransport{execute(request:AuthenticatedBrowserBridgeRequest):Promise<AuthenticatedBrowserBridgeResult>}
@@ -147,10 +148,11 @@ export function assertBridgeRequestShape(value:unknown):asserts value is Authent
   switch(v.operation){
     case"RESTORE_AUTH_STATE":if(!v.state||typeof v.state!=="object"||!Array.isArray((v.state as {cookies?:unknown}).cookies))bad();break;
     case"NAVIGATE_AUTH_ENTRYPOINT":if(v.destination!==undefined&&v.destination!=="ENTRYPOINT"&&v.destination!=="SESSION_PROBE")bad();break;
-    case"OBSERVE_AUTH_SURFACE":if(v.wait!==undefined&&v.wait!=="AUTH_SURFACE"&&v.wait!=="PASSWORD_FIELD")bad();break;
+    case"OBSERVE_AUTH_SURFACE":if(v.wait!==undefined&&v.wait!=="AUTH_SURFACE"&&v.wait!=="PASSWORD_FIELD"&&v.wait!=="IMMEDIATE")bad();break;
     case"NAVIGATE_PUBLIC_PAGE":text("url",2048);break;
     case"NAVIGATE_AUTH_SOURCE":text("sourceUrl",2048);if((v.capability as AuthenticatedBrowserExecutionCapability).siteKind!=="x")bad();break;
     case"SCROLL_PUBLIC_PAGE":case"SCROLL_AUTH_SOURCE":if(!Number.isInteger(v.deltaY)||Number(v.deltaY)<1||Number(v.deltaY)>2000)bad();break;
+    case"ADVANCE_PUBLIC_DISCOVERY":if(typeof v.pageRevision!=="string"||!v.pageRevision||v.pageRevision.length>128)bad();break;
     case"DISCOVER_AUTH_SOURCE_WITH_BROWSER_USE":text("sourceUrl",2048);text("modelRef",128);if(!Number.isInteger(v.maxSteps)||Number(v.maxSteps)<1||Number(v.maxSteps)>16)bad();if((v.capability as AuthenticatedBrowserExecutionCapability).siteKind!=="x")bad();break;
     case"DISCOVER_SOURCE_WITH_BROWSER_USE":text("sourceUrl",2048);text("modelRef",128);if(!Number.isInteger(v.maxSteps)||Number(v.maxSteps)<1||Number(v.maxSteps)>16)bad();if((v.capability as AuthenticatedBrowserExecutionCapability).siteKind!=="PUBLIC")bad();break;
     case"INJECT_AUTH_FIELD":if(!(AUTH_FIELD_KINDS as readonly unknown[]).includes(v.fieldKind))bad();text("fieldHandle");text("pageRevision");if(typeof v.secretValue!=="string"||v.secretValue.length>BRIDGE_MAX_SECRET_CHARS)bad();break;

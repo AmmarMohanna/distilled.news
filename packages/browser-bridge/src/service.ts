@@ -4,6 +4,7 @@ import { assertBoundedProposal, type BrowserUseDiscoveryProposal } from "@distil
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
+import { advancePublicDiscovery } from "./bounded-browser-decision";
 
 type Recorded=AuthenticatedBrowserBridgeResponse;
 type Execution={capability:AuthenticatedBrowserExecutionCapability;scope?:BrowserAllocation;ready:Promise<BrowserAllocation>;state:"OPENING"|"OPEN"|"CLOSING"|"CLOSED"|"EXPIRED";operations:number;discovery?:Promise<BrowserUseDiscoveryProposal>;authSourceUrl?:string;sessionReady?:boolean;/** Idempotency records for mutations only: outcome envelopes carry no secret material. */records:Map<string,{fingerprint:string;response:Recorded}>;inflight:Map<string,{fingerprint:string;promise:Promise<Recorded>}>;queue:Promise<unknown>;abort:AbortController;idleTimer?:ReturnType<typeof setTimeout>;absoluteTimer?:ReturnType<typeof setTimeout>};
@@ -65,15 +66,16 @@ export class AuthenticatedBrowserBridgeService{
     if(xTimeline){admittedXProfileUrl(message.sourceUrl,cap)}
     else if(!originAllowed(message.sourceUrl,cap.allowedOrigins,this.input.allowTestMode)||message.sourceUrl!==cap.authEntryPoint)throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     if(!process.env.OPENROUTER_API_KEY||!process.env.DISTILLED_BROWSER_USE_PYTHON)throw new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE");
-    const payload={runId:cap.runId,sourceUrl:message.sourceUrl,allowedOrigin:new URL(message.sourceUrl).origin,siteMode:xTimeline?"X_TIMELINE":"PUBLIC",modelRef:message.modelRef,maxSteps:message.maxSteps,capability:cap};
+    const payload={runId:cap.runId,sourceUrl:message.sourceUrl,allowedOrigin:new URL(message.sourceUrl).origin,siteMode:xTimeline?"X_TIMELINE":"PUBLIC",decisionMode:process.env.DISTILLED_DISCOVERY_DECISION_MODE??"GENERATIVE_ONLY",modelRef:message.modelRef,maxSteps:message.maxSteps,capability:cap};
     const python=process.env.DISTILLED_BROWSER_USE_PYTHON;
     const script=fileURLToPath(new URL("../browser_use_discovery.py",import.meta.url));
     clearTimeout(execution.idleTimer);
     const discovery=new Promise<BrowserUseDiscoveryProposal>((resolve,reject)=>{
       const uid=process.env.DISTILLED_BROWSER_USE_UID?Number(process.env.DISTILLED_BROWSER_USE_UID):undefined;
       const gid=process.env.DISTILLED_BROWSER_USE_GID?Number(process.env.DISTILLED_BROWSER_USE_GID):undefined;
+      const {DISTILLED_DECISION_AUTH:decisionAuth,...runnerEnvironment}=process.env;
       if((uid!==undefined&&(!Number.isInteger(uid)||uid<1))||(gid!==undefined&&(!Number.isInteger(gid)||gid<1)))throw new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"RUNNER_START_FAILED"});
-      const child=spawn(python,[script],{shell:false,...(uid!==undefined?{uid}:{}),...(gid!==undefined?{gid}:{}),stdio:["pipe","pipe","ignore"],env:{...process.env,HOME:process.env.DISTILLED_BROWSER_USE_HOME??process.env.HOME,ANONYMIZED_TELEMETRY:"false",BROWSER_USE_CLOUD_SYNC:"false",OPENAI_API_KEY:process.env.OPENROUTER_API_KEY,OPENAI_BASE_URL:"https://openrouter.ai/api/v1",DISTILLED_BRIDGE_URL:"http://127.0.0.1:8080/v1/internal-authenticated-browser"}});
+      const child=spawn(python,[script],{shell:false,...(uid!==undefined?{uid}:{}),...(gid!==undefined?{gid}:{}),stdio:["pipe","pipe","ignore"],env:{...runnerEnvironment,HOME:process.env.DISTILLED_BROWSER_USE_HOME??process.env.HOME,ANONYMIZED_TELEMETRY:"false",BROWSER_USE_CLOUD_SYNC:"false",OPENAI_API_KEY:process.env.OPENROUTER_API_KEY,OPENAI_BASE_URL:"https://openrouter.ai/api/v1",DISTILLED_BRIDGE_URL:"http://127.0.0.1:8080/v1/internal-authenticated-browser"}});
       let output="",settled=false;
       const finish=(error?:Error,value?:BrowserUseDiscoveryProposal)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener("abort",cancel);if(error)reject(error);else resolve(value!)};
       const cancel=()=>{child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"CANCELLED"}))};
@@ -151,6 +153,11 @@ export class AuthenticatedBrowserBridgeService{
       case"NAVIGATE_PUBLIC_PAGE":{if(capability.siteKind!=="PUBLIC")throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");const observed=await this.provider.navigatePublicPage(scope,message.url,capability.allowedOrigins);if(!originAllowed(observed.url,capability.allowedOrigins,this.input.allowTestMode))throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED",finalOriginDiagnostic(observed.url,capability.allowedOrigins));const result=publicObservation(observed);if(byteLength(JSON.stringify(result))>BRIDGE_MAX_OBSERVATION_BYTES)throw new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE");return result}
       case"OBSERVE_PUBLIC_PAGE":{if(capability.siteKind!=="PUBLIC")throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");const observed=await this.provider.observePublicPage(scope);if(!originAllowed(observed.url,capability.allowedOrigins,this.input.allowTestMode))throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED",finalOriginDiagnostic(observed.url,capability.allowedOrigins));const result=publicObservation(observed);if(byteLength(JSON.stringify(result))>BRIDGE_MAX_OBSERVATION_BYTES)throw new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE");return result}
       case"SCROLL_PUBLIC_PAGE":{if(capability.siteKind!=="PUBLIC")throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");const observed=await this.provider.scroll(scope,message.deltaY);if(!originAllowed(observed.url,capability.allowedOrigins,this.input.allowTestMode))throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED",finalOriginDiagnostic(observed.url,capability.allowedOrigins));const result=publicObservation(observed);if(byteLength(JSON.stringify(result))>BRIDGE_MAX_OBSERVATION_BYTES)throw new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE");return result}
+      case"ADVANCE_PUBLIC_DISCOVERY":{
+        const key=execution as Execution&{decisionInspected?:Set<string>};key.decisionInspected??=new Set();
+        const result=await advancePublicDiscovery({provider:this.provider,scope,capability,pageRevision:message.pageRevision,inspected:key.decisionInspected});
+        return{fallback:result.fallback,action:result.action,observation:result.observation?boundedPublicObservation(result.observation):undefined};
+      }
       case"INJECT_AUTH_FIELD":await this.provider.injectAuthenticationField(scope,{fieldKind:message.fieldKind,fieldHandle:message.fieldHandle,pageRevision:message.pageRevision,secretValue:message.secretValue});return{accepted:true};
       case"ACTIVATE_AUTH_CONTROL":await this.provider.activateAuthenticationControl(scope,{controlKind:message.controlKind,controlHandle:message.controlHandle,pageRevision:message.pageRevision});return{accepted:true};
       case"CAPTURE_AUTH_STATE":{const captured=await this.provider.exportAuthenticatedSession(scope);if(byteLength(JSON.stringify(captured))>BRIDGE_MAX_STORAGE_STATE_BYTES)throw new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE");execution.sessionReady=true;return captured}

@@ -57,6 +57,10 @@ export interface ProcessingJobRecord {
 }
 
 export interface Env extends Cloudflare.Env {
+  DECISION_AI?:{run(model:string,input:unknown):Promise<unknown>};
+  DISTILLED_DISCOVERY_DECISION_MODE?:"GENERATIVE_ONLY"|"JEV_HYBRID";
+  DISTILLED_JEV_MODEL?:string;
+  DISTILLED_JEV_CONFIDENCE_THRESHOLD?:string;
   BROWSER: Cloudflare.Env["BROWSER"];
   AUTHENTICATED_BROWSER_CONTAINER: DurableObjectNamespace<AuthenticatedBrowserContainer>;
   PROCESSING_QUEUE: Queue<DistilledQueueMessage>;

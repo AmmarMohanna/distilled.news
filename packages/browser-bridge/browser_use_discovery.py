@@ -149,6 +149,8 @@ async def discover(payload: dict) -> dict:
     model_calls = 0
     browser_actions = 0
     agent_actions = 0
+    jev_calls = 0
+    decision_fallbacks = 0
 
     class CountedChatOpenAI(ChatOpenAI):
         async def ainvoke(self, *args, **kwargs):
@@ -189,6 +191,18 @@ async def discover(payload: dict) -> dict:
         if envelope.get("ok") is not True:
             raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
         result = envelope["result"]
+        if operation == "ADVANCE_PUBLIC_DISCOVERY":
+            browser_actions += 1
+            observation = result.get("observation")
+            if isinstance(observation, dict):
+                if not admitted(observation.get("url", ""), origin):
+                    raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
+                if observation["url"] not in visited:
+                    visited.append(observation["url"])
+                for value in observation.get("listingLinks", []):
+                    if isinstance(value, str) and admitted(value, origin):
+                        observed_links.add(value)
+            return result
         if not isinstance(result, dict) or not admitted(result.get("url", ""), origin):
             raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
         if result["url"] not in visited:
@@ -254,6 +268,26 @@ async def discover(payload: dict) -> dict:
             if site_mode != "X_TIMELINE" and sum(article_candidate_score(url) >= 100 for url in observed_links) >= 2:
                 break
     initial_listing_links = set(observed_links)
+    # An optional bounded experiment. The runtime, not Python or Jev, enumerates
+    # observed targets, checks revision/generation, and executes the selected
+    # read-only action. Failure hands the same state back to Browser Use.
+    if payload.get("decisionMode") == "JEV_HYBRID" and site_mode == "PUBLIC" and initial.get("challengeState") == "NO_CHALLENGE":
+        for _ in range(5):
+            advanced = await asyncio.to_thread(bridge, "ADVANCE_PUBLIC_DISCOVERY", pageRevision=initial["pageRevision"])
+            jev_calls += 1
+            if advanced.get("fallback"):
+                decision_fallbacks += 1
+                break
+            if advanced.get("action") == "STOP":
+                break
+            observation = advanced.get("observation")
+            if not isinstance(observation, dict):
+                decision_fallbacks += 1
+                break
+            initial = observation
+            initial_observations.append(summary(initial))
+            if initial.get("challengeState") != "NO_CHALLENGE":
+                break
     try:
         agent = Agent(
             task=((f"Inspect the authorized public X profile timeline {source_url} using only navigate_source, scroll_source and observe_source. "
@@ -315,6 +349,9 @@ async def discover(payload: dict) -> dict:
         "modelCalls": min(32, model_calls),
         "browserActions": min(64, browser_actions),
         "agentBrowserActions": min(32, agent_actions),
+        "jevCalls": jev_calls,
+        "decisionFallbacks": decision_fallbacks,
+        "decisionMode": payload.get("decisionMode", "GENERATIVE_ONLY"),
         "challengeObserved": structured["challenge_observed"],
     }
 
