@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { detectSourceInput } from "../src";
 
 describe("detectSourceInput", () => {
+  it("configures a generic HTTPS web source without weakening credential admission",()=>{
+    expect(detectSourceInput("https://www.aljazeera.net/")).toMatchObject({provider:"web",kind:"web_page",sourceUrl:"https://www.aljazeera.net/"});
+    expect(()=>detectSourceInput("https://user:password@example.com/")).toThrow();
+    expect(()=>detectSourceInput("http://example.com/news")).toThrow();
+  });
   it("auto-detects Telegram, RSS, Google News, and X inputs", () => {
     expect(detectSourceInput("t: LebUpdate")).toMatchObject({
       provider: "telegram",

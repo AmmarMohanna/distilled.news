@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { WorkerPublicSourceFetch } from "./public-source-fetch";
 
 describe("public source HTTP admission", () => {
+  it.each(["https://localhost/","https://127.1/","https://2130706433/","https://[::1]/","https://[fd00::1]/","https://169.254.169.254/","https://metadata.internal/","https://news.example.com:8443/"])("rejects non-public authority %s before fetch",url=>{
+    expect(()=>new WorkerPublicSourceFetch(url)).toThrow("public source policy denied");
+  });
   it("fetches bounded same-origin HTML without following redirects", async () => {
     const called: string[] = [];
     const fetcher = (async (url: string, init: RequestInit) => {

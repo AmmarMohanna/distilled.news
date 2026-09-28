@@ -69,7 +69,7 @@ export async function addSourceFromInput(input: SourceRefreshInput & { sourceInp
   }
 
   const source = await upsertDetectedSource(input.repo, input.briefing.id, detected, input.env ?? {}, input.now);
-  if(detected.provider==="web")return {sourceId:source.id,url:detected.sourceUrl,fetched:0,imported:0,queued:0,skipped:0,title:source.title,provider:source.provider,kind:source.kind};
+  if(detected.provider==="web"||(detected.provider==="rss"&&detected.kind!=="google_news"&&input.env?.WEB_OPERATOR_RUNTIME_TOKEN))return {sourceId:source.id,url:detected.sourceUrl,fetched:0,imported:0,queued:0,skipped:0,title:source.title,provider:source.provider,kind:source.kind};
   if (detected.provider === "rss") {
     return ingestRssSource({ ...input, source });
   }

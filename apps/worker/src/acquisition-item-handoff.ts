@@ -13,7 +13,7 @@ export async function persistAcquiredSourceItems(db:Env["DB"],input:{tenantId:st
     const id=makeId("acquired_item",input.tenantId,input.resourceId,identity);
     ids.push(id);
     // Whitelist provenance fields; never persist browser/model envelopes or auth state.
-    const evidence={mechanism:input.result.provenance?.mechanism??safe(item.acquisitionEvidence.mechanism),timestampSource:safe(item.acquisitionEvidence.timestampSource),sourceTimestampField:safe(item.acquisitionEvidence.sourceTimestampField),pageRevision:safe(item.acquisitionEvidence.pageRevision),trustedObservationSchemaVersion:safe(item.acquisitionEvidence.trustedObservationSchemaVersion)};
+    const evidence={kind:safe(item.acquisitionEvidence.kind),mechanism:input.result.provenance?.mechanism??safe(item.acquisitionEvidence.mechanism),timestampSource:safe(item.acquisitionEvidence.timestampSource),sourceTimestampField:safe(item.acquisitionEvidence.sourceTimestampField),pageRevision:safe(item.acquisitionEvidence.pageRevision),trustedObservationSchemaVersion:safe(item.acquisitionEvidence.trustedObservationSchemaVersion)};
     const commands=[db.prepare(`INSERT OR IGNORE INTO acquired_source_items(id,tenant_id,resource_id,identity,canonical_url,source_item_id,source_url,title,body,published_at,evidence_json,workflow_id,workflow_version,acquired_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(id,input.tenantId,input.resourceId,identity,item.canonicalItemUrl??null,item.sourceItemId??null,item.originalSourceReference??item.sourceResource,item.title??null,item.text,item.publishedAt,JSON.stringify(evidence),input.result.provenance?.workflowId??null,input.result.provenance?.workflowVersion??null,acquiredAt,expiresAt)];
     const source=input.source;

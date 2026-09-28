@@ -189,7 +189,7 @@ const livePublicAcquisitionSmokeSchema = z.object({
     maxPages: z.number().int().min(1).max(5),
     maxScrolls: z.number().int().min(1).max(5),
     maxPhysicalAttempts: z.number().int().min(1).max(30),
-    maxExecutionMs: z.number().int().min(1_000).max(90_000)
+    maxExecutionMs: z.number().int().min(1_000).max(110_000)
   }).strict().optional()
 }).strict();
 const xAcquisitionSchema=z.object({
@@ -399,6 +399,7 @@ export function createApp(options: AppOptions = {}) {
     try{outcome=await service.acquire({tenantId:owner.id,ownerId:owner.id,resourceId:resource.id,source:{sourceFamily:"x",canonicalSourceUrl:canonical},window:{startTime:new Date(input.startTime).toISOString(),endTime:new Date(input.endTime).toISOString()},limits,authentication:"AUTH_REQUIRED",acquisitionAsOf:now.toISOString()})}
     catch{await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,"STRUCTURAL_FAILURE");return c.json({error:"x_acquisition_failed"},500)}
     await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,outcome.status==="SUCCESS"?"SUCCESS":outcome.stopReason==="CHALLENGE_REQUIRED"?"CHALLENGE_REQUIRED":outcome.stopReason==="AUTH_REQUIRED"?"AUTH_REQUIRED":"STRUCTURAL_FAILURE");
+    const itemHandoff=outcome.result?await persistAcquiredSourceItems(c.env.DB,{tenantId:owner.id,resourceId:resource.id,result:outcome.result,now}):null;
     return c.json({status:outcome.status,stages:outcome.stages,stopReason:outcome.stopReason,upstreamResourceId:resource.id,activeWorkflow:outcome.activeWorkflow,candidateWorkflow:outcome.candidateWorkflow,webOperatorCalls:outcome.webOperatorCalls,discoveryModelCalls:outcome.discoveryModelCalls,discoveryBrowserOperations:outcome.discoveryBrowserOperations,coverage:outcome.result?.coverage,continuation:outcome.result?.continuation,items:outcome.result?.items.map(item=>({sourceItemId:item.sourceItemId,canonicalItemUrl:item.canonicalItemUrl,publishedAt:item.publishedAt,contentLength:item.text?.length})),committedHighWater:outcome.committedHighWater});
   });
 

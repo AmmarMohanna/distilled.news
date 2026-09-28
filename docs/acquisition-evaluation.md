@@ -26,23 +26,34 @@ Authorized operators use `POST /v1/sources/acquisition/submit` and `GET /v1/sour
 
 D1 retains bounded run counters, stage durations, typed outcomes, and decision metadata. Decision records include provider, model, kind, choice count, selected choice/probability, execution outcome, latency, input tokens, and reported cost. Prompts, provider response bodies, credentials, and browser session material are not telemetry.
 
+## Scheduling and downstream handoff
+
+Configured `web` and ordinary RSS sources use the existing cron and public acquisition queue. The scheduler selects the unresolved window first, otherwise the last successful boundary, with retention-based initial history. It uses a durable request admission check and a tenant/source lease to prevent concurrent execution. Queue delivery is idempotent. Partial acquisition retains unresolved work; only complete coverage advances high-water. Google News, Telegram and Apify keep their existing connector paths.
+
+Successful source items persist in `acquired_source_items` with tenant/resource-scoped canonical identity, publication time, body, source reference, bounded trusted provenance and workflow version. Configured subscriptions atomically create the existing `raw_messages` and deterministic `processing_jobs` records. The existing processing queue handles event clustering, ranking and synthesis. Repeated acquisition does not create duplicate processing jobs. A crash after persistence but before sending is recovered by the existing stale-job relay. Item expiry follows configured retention; no model/browser transcript or session material is part of the handoff.
+
+The API reports high-water read back from durable storage, including conservatively merged unresolved windows. It must not report a proposed smaller retry window as the complete stored state.
+
+Worker deployments must enable `global_fetch_strictly_public`. Without it, same-zone URLs may fetch an origin instead of their public Worker document. This follows [Cloudflare's public fetch routing documentation](https://developers.cloudflare.com/workers/configuration/compatibility-flags/#global-fetch-strictly-public); it does not remove HTTPS/origin admission, redirect rejection, byte limits or browser network authority.
+
 ## Reproduction
 
-1. Apply the complete D1 migration chain, including decision metadata migration `0032`. `migrations-clean.test.ts` verifies the chain on an empty local D1 database.
+1. Apply the complete D1 migration chain, including decision metadata migration `0032` and item-handoff/lease migration `0033`. `migrations-clean.test.ts` verifies the chain on an empty local D1 database.
 2. Deploy compatible Worker and Container versions. Keep `GENERATIVE_ONLY` and smoke disabled for ordinary operation.
 3. Set `DISTILLED_RUNTIME_TOKEN_FILE` to the authorized local runtime token file. Never place the token in a command argument or report.
 4. Run `node scripts/evaluate-public-discovery.mjs --base <worker-origin> --owner <account-id> --source <source-url> --start <ISO-start> --end <ISO-end> --key <unique-idempotency-key>`.
-5. For isolated discovery comparisons, temporarily enable the protected smoke fixture and use `--evaluation <unique-evaluation-id>`. Use distinct fresh evaluation identities for each mode, identical fixture behavior, windows, model, and limits. Preserve existing production ACTIVE workflows.
-6. Poll the durable request and retrieve its authoritative run telemetry. The harness writes sanitized artifacts under ignored `.local-reports/`.
-7. Redeploy/reconstruct the service context, then submit the same resource/window with a new idempotency key and the same evaluation identity. Require `BROWSER_WORKFLOW`, the same persisted workflow/version and items, and zero Browser Use, full-model, and Jev calls.
-8. Restore smoke disabled and `GENERATIVE_ONLY`; verify protected fixtures and diagnostic smoke routes are unavailable, and no run or browser execution remains active.
+5. Use `node scripts/evaluate-acquisition-suite.mjs --base <worker-origin> --owner <account-id> --prefix <unique-prefix> --phase cheap` for structured boundary, finite HTTP, access-denied, real RSS and Al Jazeera replay cases. Phase `synthetic` executes the authenticated and production-composition integration fixtures and labels fixture-reported model counts separately from real external calls. Phases `baseline`, `hybrid`, and `replay` use comparable fresh SPA discovery identities. Deploy the corresponding decision mode before each discovery phase; never infer hybrid execution from its label. Optional `--fixtureBase <fixture-origin>` supports reuse of these read-only documents on a separate evaluation host. All artifacts remain ignored. Browser phases explicitly request 110 seconds; the existing independent capability ceiling remains 120 seconds and ordinary defaults are unchanged.
+6. For isolated discovery comparisons, temporarily enable the protected smoke fixture and use `--evaluation <unique-evaluation-id>`. Use distinct fresh evaluation identities for each mode, identical fixture behavior, windows, model, and limits. Preserve existing production ACTIVE workflows.
+7. Poll the durable request and retrieve its authoritative run telemetry. The harness writes sanitized artifacts under ignored `.local-reports/`.
+8. Redeploy/reconstruct the service context, then submit the same resource/window with a new idempotency key and the same evaluation identity. Require `BROWSER_WORKFLOW`, the same persisted workflow/version and items, and zero Browser Use, full-model, and Jev calls.
+9. Restore smoke disabled and `GENERATIVE_ONLY`; verify protected fixtures and diagnostic smoke routes are unavailable, and no run or browser execution remains active.
 
 Compare selected stage, success, item count, requested/effective window, coverage, truncation, stopping reason, discovery/model/Jev calls, successful and executed Jev choices, fallback count, browser operations, latency, workflow promotion/reuse, and high-water behavior. Agent browser operations and total discovery operations (including verification) are different counters. Report both explicitly. Provider-reported Jev cost alone does not establish total acquisition cost.
 
 ## Evidence labels and limitations
 
-- **Live production proof:** real Worker, queue, Container, Python Agent/model, fenced actions, independent verification, and durable D1 workflow replay. Public Al Jazeera acceptance uses `https://www.aljazeera.net/`, separately from `.com`.
-- **Synthetic proof:** controlled listings and authenticated timeline fixtures demonstrate contracts, lifecycle, security, and replay. They do not prove live authenticated X access.
+- **Live production proof:** complete temporal RSS coverage, exact boundary filtering, finite HTTP acquisition, scheduled queue execution and persisted item handoff are evaluated separately from full publisher article content. RSS descriptions remain native feed content; do not describe them as independently fetched full articles.A real Worker, queue, Container, Python Agent/model, fenced actions, independent verification, and durable D1 workflow replay. Public Al Jazeera acceptance uses `https://www.aljazeera.net/`, separately from `.com`.
+- **Synthetic proof:** the clean-D1 production-composition integration test verifies boundary inclusion/exclusion, canonical deduplication, source fencing, merged high-water, duplicate-job prevention, unresolved retries and next scheduled windows.Controlled listings and authenticated timeline fixtures demonstrate contracts, lifecycle, security, and replay. They do not prove live authenticated X access.
 - **Experimental measurement:** compare fresh generative and hybrid discovery runs. A successful Jev choice is necessary but insufficient evidence of lower latency or cost. Keep the baseline default until repeated measurements justify a change.
 - **External limitation:** live X login has returned HTTP 403 before timeline discovery. Do not describe synthetic authenticated replay as live X success or provider changes as an authentication fix.
 

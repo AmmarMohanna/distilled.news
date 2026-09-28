@@ -35,6 +35,9 @@ it("evaluates the real account/queue/service/D1 handoff and scheduled next windo
     expect(full.result).toMatchObject({status:"SUCCESS",selectedStage:"STRUCTURED",webOperatorCalls:0,discoveryModelCalls:0,jevCalls:0,coverage:{rangeCovered:true,truncated:false,stopReason:"START_BOUNDARY_REACHED"},committedHighWater:{lastSuccessfulBoundary:"2026-09-25T12:00:00.000Z"},itemHandoff:{inserted:2,processingJobsCreated:2}});
     expect(full.result.items.map((item:any)=>item.publishedAt).sort()).toEqual(["2026-09-24T12:00:00.000Z","2026-09-25T00:00:00.000Z"]);
     expect(processing).toHaveLength(2);
+    const fullStateKey=full.result.committedHighWater.key;
+    const broaderRetry={startTime:"2026-09-23T00:00:00.000Z",endTime:"2026-09-27T00:00:00.000Z"};
+    await new D1SourceHighWaterStore(db,"owner").put({key:fullStateKey,unresolvedWindow:broaderRetry});
     const freshRepo=new D1Repository(db);
     const raw=await freshRepo.getRawMessage(processing[0].rawMessageId);
     expect(raw).toMatchObject({source:{id:source.id,provider:"rss"},sourceUrl:full.result.items[0].canonicalItemUrl});
@@ -42,6 +45,7 @@ it("evaluates the real account/queue/service/D1 handoff and scheduled next windo
     // Repeated acquisition has no duplicate normalized items or processing jobs.
     const replay=await (await invoke('/v1/live-smoke/public-acquisition',{...payload,idempotencyKey:"fresh-full-window"})).json() as any;
     expect(replay.itemHandoff).toMatchObject({inserted:0,alreadyPersisted:2,processingJobsCreated:0});
+    expect(replay.committedHighWater.unresolvedWindow).toEqual(broaderRetry);
     expect(processing).toHaveLength(2);
     const partial=await (await invoke('/v1/live-smoke/public-acquisition',{...payload,evaluationId:"strict-partial",idempotencyKey:"strict-partial-window",limits:{...payload.limits,maxItems:1}})).json() as any;
     // An incomplete cheap stage may escalate; it must never claim full coverage.

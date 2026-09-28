@@ -49,7 +49,13 @@ export class ProductionSourceAcquisitionService {
     });
     const outcome = await orchestrator.acquire(request);
     let committedHighWater: SourceHighWaterState | undefined;
-    if (outcome.status === "SUCCESS" && outcome.result) committedHighWater = await commitSourceHighWater(this.dependencies.highWater, `${input.tenantId}:${input.resourceId}`, outcome.result);
+    if (outcome.status === "SUCCESS" && outcome.result) {
+      const key=`${input.tenantId}:${input.resourceId}`;
+      await commitSourceHighWater(this.dependencies.highWater,key,outcome.result);
+      // Durable stores can conservatively merge older unresolved windows.
+      // Report the actual committed state, not merely the proposed update.
+      committedHighWater=await this.dependencies.highWater.get(key);
+    }
     else {
       const key = `${input.tenantId}:${input.resourceId}`;
       const current = await this.dependencies.highWater.get(key) ?? { key };

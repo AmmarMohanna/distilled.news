@@ -1,7 +1,7 @@
 // Bounded, read-only production evaluation. Credentials are loaded only at runtime.
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {parseArgs} from 'node:util';
-const {values}=parseArgs({options:{base:{type:'string'},owner:{type:'string'},source:{type:'string'},start:{type:'string'},end:{type:'string'},key:{type:'string'},evaluation:{type:'string'},output:{type:'string'}}});
+const {values}=parseArgs({options:{base:{type:'string'},owner:{type:'string'},source:{type:'string'},start:{type:'string'},end:{type:'string'},key:{type:'string'},evaluation:{type:'string'},output:{type:'string'},maxItems:{type:'string',default:'2'},maxPages:{type:'string',default:'3'},maxScrolls:{type:'string',default:'3'},maxAttempts:{type:'string',default:'16'},maxExecutionMs:{type:'string',default:'90000'},sourceId:{type:'string'}}});
 for(const name of ['base','owner','source','start','end','key'])if(!values[name])throw Error(`Missing --${name}`);
 const base=new URL(values.base);if(base.protocol!=='https:')throw Error('HTTPS required');
 if(!process.env.DISTILLED_RUNTIME_TOKEN_FILE)throw Error('Set DISTILLED_RUNTIME_TOKEN_FILE');
@@ -12,7 +12,7 @@ async function call(path,body){
   if(!response.ok)throw Error(`Evaluation HTTP ${response.status}`);
   return response.json();
 }
-const submitted=await call(`${prefix}/submit`,{ownerAccountId:values.owner,sourceUrl:values.source,startTime:values.start,endTime:values.end,idempotencyKey:values.key,...(values.evaluation?{evaluationId:values.evaluation}:{}),limits:{maxItems:2,maxPages:3,maxScrolls:3,maxPhysicalAttempts:16,maxExecutionMs:90000}});
+const submitted=await call(`${prefix}/submit`,{ownerAccountId:values.owner,sourceUrl:values.source,startTime:values.start,endTime:values.end,idempotencyKey:values.key,...(values.evaluation?{evaluationId:values.evaluation}:{}),...(values.sourceId?{sourceId:values.sourceId}:{}),limits:{maxItems:Number(values.maxItems),maxPages:Number(values.maxPages),maxScrolls:Number(values.maxScrolls),maxPhysicalAttempts:Number(values.maxAttempts),maxExecutionMs:Number(values.maxExecutionMs)}});
 console.log(JSON.stringify({requestId:submitted.requestId,state:submitted.state}));
 let report;
 for(let attempts=0;attempts<90;attempts++){
