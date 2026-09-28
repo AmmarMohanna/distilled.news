@@ -263,10 +263,23 @@ export function createApp(options: AppOptions = {}) {
   app.post("/v1/news-pipeline/evaluate",async(c)=>{
     if(c.env.DISTILLED_NEWS_PIPELINE_EVALUATION!=="true")return c.json({error:"not found"},404);
     if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
-    const input=z.object({ownerAccountId:z.string().min(1).max(100),action:z.enum(["READ","PUBLISH","ACKNOWLEDGE"]).default("READ"),catchUpId:z.string().max(100).optional()}).strict().parse(await c.req.json());
+    const input=z.object({ownerAccountId:z.string().min(1).max(100),action:z.enum(["READ","PUBLISH","ACKNOWLEDGE","REPROCESS"]).default("READ"),catchUpId:z.string().max(100).optional(),rawMessageIds:z.array(z.string().max(160)).max(4).optional()}).strict().parse(await c.req.json());
     const repo=repoFor(c),owner=await repo.getAccountById(input.ownerAccountId),now=nowFor();
     if(!owner||owner.disabledAt)return c.json({error:"not found"},404);
     const store=new D1CatchUpStore(c.env.DB);
+    if(input.action==="REPROCESS"){
+      let queued=0;
+      for(const id of input.rawMessageIds??[]){
+        const raw=await repo.getRawMessage(id);if(!raw?.news)continue;
+        const source=await repo.getSource(raw.source.id),feed=source?await repo.getBriefingById(source.briefingId):null;
+        if(!source?.enabled||!feed||feed.paused||feed.ownerAccountId!==owner.id)continue;
+        if((await repo.getExistingItems(feed.id,now)).some(item=>item.evidence.some(ref=>ref.messageId===id)))continue;
+        if((await repo.listProcessingJobs({briefingId:feed.id,states:["queued","failed"],limit:500})).some(job=>job.rawMessageId===id))continue;
+        const jobId=await repo.createProcessingJob(feed.id,id,now);
+        await c.env.PROCESSING_QUEUE.send({type:"process_raw_message",jobId,briefingId:feed.id,rawMessageId:id});queued++;
+      }
+      return c.json({queued});
+    }
     if(input.action==="ACKNOWLEDGE")return c.json({ok:input.catchUpId?await store.acknowledge(owner.id,input.catchUpId,now):false});
     const feeds=await repo.listBriefings(owner.id);
     if(input.action==="PUBLISH")for(const briefing of feeds.filter(feed=>!feed.paused))await publishManualBriefingEdition({repo,briefing,now,summaryAdapter:createSummaryAdapterFromEnv(c.env,repo)});

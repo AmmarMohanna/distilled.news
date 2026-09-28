@@ -1,3 +1,4 @@
+import {readFileSync,readdirSync} from 'node:fs';
 import { Miniflare } from "miniflare";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app";
@@ -13,8 +14,11 @@ describe("generic live source route", () => {
     const mf = new Miniflare({ modules: true, script: "export default {fetch(){return new Response('ok')}}", d1Databases: ["DB"] });
     try {
       const db = await mf.getD1Database("DB");
-      await db.exec("CREATE TABLE upstream_resources(id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,canonical_source_url TEXT NOT NULL,resource_locator TEXT,source_family TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(tenant_id,canonical_source_url,resource_locator));");
-      await db.exec("CREATE TABLE source_acquisition_state(scope_key TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,resource_id TEXT NOT NULL,last_successful_boundary TEXT,unresolved_start TEXT,unresolved_end TEXT,state_version INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL,UNIQUE(tenant_id,resource_id));");
+      const directory=new URL('../migrations/',import.meta.url);
+      for(const name of readdirSync(directory).filter(name=>/^\d+.*\.sql$/.test(name)).sort()){
+        const statements=readFileSync(new URL(name,directory),'utf8').split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(value=>value.replace(/--[^\r\n]*/g,'').trim());
+        if(statements.length)await db.batch(statements.map(value=>db.prepare(value)));
+      }
       const repo = new InMemoryRepository();
       await repo.createAccount({ email: "owner@example.com", username: "owner", role: "admin", passwordHash: "not-a-real-password" });
       const fetcher = (async (url: string) => {

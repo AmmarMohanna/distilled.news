@@ -30,6 +30,7 @@ const POLITICAL_SPEECH_PATTERNS = [
 ];
 
 const FACT_PATTERNS = [
+  /\b(scrapped|withdrawn|cancelled|canceled|resigned|rejected|died|banned|stepped down|released on bail)\b/i,
   /\b(deploy|deployed|strike|strikes|hit|killed|injured|arrested|closed|opened|approved|signed|launched|resumed|halted|evacuated|entered|left|announced)\b/i,
   /\b\d+([.,]\d+)?\b/,
   /\b(percent|%|usd|dollar|lira|euro|km|people|soldiers|civilians|hours|minutes)\b/i,
