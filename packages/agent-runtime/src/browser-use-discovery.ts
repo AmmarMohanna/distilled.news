@@ -64,6 +64,7 @@ export function assertBoundedProposal(proposal: BrowserUseDiscoveryProposal, cap
   if (!proposal || proposal.protocol !== "distilled.browser-use.discovery.v1" || proposal.runId !== capability.runId || !Number.isInteger(proposal.steps) || proposal.steps < 0 || proposal.steps > 32 || !Array.isArray(proposal.visitedUrls) || !Array.isArray(proposal.listingUrls) || !Array.isArray(proposal.articleUrls) || !Array.isArray(proposal.timestampHints)) throw new Error("invalid_browser_use_proposal");
   for (const [value, maximum] of [[proposal.modelCalls, 32], [proposal.browserActions, 64], [proposal.agentBrowserActions, 32],[proposal.jevCalls,5],[proposal.decisionFallbacks,5]] as const)
     if (value !== undefined && (!Number.isInteger(value) || value < 0 || value > maximum)) throw new Error("invalid_browser_use_proposal");
+  if(proposal.decisionMode!==undefined&&!["GENERATIVE_ONLY","JEV_HYBRID"].includes(proposal.decisionMode))throw new Error("invalid_browser_use_proposal");
   const urls = [...proposal.visitedUrls, ...proposal.listingUrls, ...proposal.articleUrls];
   if (urls.length > 96 || proposal.visitedUrls.length > 32 || proposal.timestampHints.length > 32 || proposal.timestampHints.some(value => typeof value !== "string" || value.length > 128) || !["none", "pagination", "load_more", "scroll"].includes(proposal.continuation)) throw new Error("invalid_browser_use_proposal");
   for (const value of urls) {

@@ -292,8 +292,9 @@ export function createApp(options: AppOptions = {}) {
     const id=c.req.param("id"); if(id!=="a"&&id!=="b")return c.text("not found",404);
     const canonical=new URL(c.req.url).origin+`/v1/live-smoke/browser-use-fixture/article/${id}`;
     const published=id==="a"?"2026-09-24T12:00:00Z":"2026-09-25T12:00:00Z";
-    const metadata=JSON.stringify({"@context":"https://schema.org","@type":"NewsArticle",headline:`Fixture article ${id}`,datePublished:published,mainEntityOfPage:canonical,articleBody:`Verified fixture article ${id} has a complete read-only body for temporal acquisition.`});
-    return c.html(`<!doctype html><html><head><title>Fixture article ${id}</title><link rel="canonical" href="${canonical}"><meta property="article:published_time" content="${published}"><script type="application/ld+json">${metadata}</script></head><body><article><h1>Fixture article ${id}</h1><time datetime="${published}">${published}</time><p>Verified fixture article ${id} has a complete read-only body for temporal acquisition.</p></article></body></html>`,200,{"cache-control":"no-store"});
+    const body=`Verified fixture article ${id} contains independently observable publication metadata and substantive read-only reporting. Its complete body is long enough to satisfy the same trusted content threshold used for real publishers, so the benchmark measures discovery rather than incomplete-content rejection.`;
+    const metadata=JSON.stringify({"@context":"https://schema.org","@type":"NewsArticle",headline:`Fixture article ${id}`,datePublished:published,mainEntityOfPage:canonical,articleBody:body});
+    return c.html(`<!doctype html><html><head><title>Fixture article ${id}</title><link rel="canonical" href="${canonical}"><meta property="article:published_time" content="${published}"><script type="application/ld+json">${metadata}</script></head><body><article><h1>Fixture article ${id}</h1><time datetime="${published}">${published}</time><p>${body}</p></article></body></html>`,200,{"cache-control":"no-store"});
   });
 
   app.post("/v1/live-smoke/public-acquisition", async (c) => {
