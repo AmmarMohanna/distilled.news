@@ -35,7 +35,7 @@ export function validateGroundedClaims(claims:GroundedClaim[],evidence:BriefingE
     });
     const quoted=compact(support.map(ref=>ref.quote).join(" "));
     for(const number of claim.text.match(/\d+(?:[.,]\d+)*/g)??[])if(!quoted.includes(number))throw Error("UNSUPPORTED_CLAIM_NUMBER");
-    return{id:`claim_${stableHash(normalizeText(claim.text))}`,text:claim.text.trim(),support};
+    return{id:`claim_${stableHash(normalizeText(claim.text))}`,text:claim.text.trim(),support,...(claim.isNew===false?{isNew:false}:{})};
   });
 }
 export function extractiveClaims(evidence:BriefingEvidence[]):GroundedClaim[] {
@@ -60,7 +60,7 @@ export function updateDevelopment(item:BriefingItem,previous:BriefingItem|undefi
   const added:string[]=[];
   for(const claim of claims){const match=nextClaims.find(known=>sameFact(known.text,claim.text));
     if(match){for(const ref of claim.support)if(!match.support.some(existing=>existing.messageId===ref.messageId&&existing.quote===ref.quote))match.support.push(ref)}
-    else{nextClaims.push(claim);added.push(claim.id)}
+    else if(claim.isNew!==false){nextClaims.push(claim);added.push(claim.id)}
   }
   const previousIds=new Set(previous?.evidence.map(entry=>entry.messageId)??[]),newIds=item.evidence.filter(entry=>!previousIds.has(entry.messageId)).map(entry=>entry.messageId);
   const changes=[...(prior?.changes??[])];

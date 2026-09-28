@@ -5,7 +5,7 @@ import type {Env,SourceRecord,ProcessingJobMessage} from "./types";
 export async function persistAcquiredSourceItems(db:Env["DB"],input:{tenantId:string;resourceId:string;result:SourceAcquisitionResult;now:Date;runId?:string;source?:SourceRecord;retentionDays?:number;queue?:{send(message:ProcessingJobMessage):Promise<unknown>}}){
   const acquiredAt=input.now.toISOString();
   const expiresAt=new Date(input.now.getTime()+(input.retentionDays??30)*86400000).toISOString();
-  let inserted=0,queued=0;
+  let inserted=0,queued=0,deferred=0;
   const ids:string[]=[];
   for(const item of input.result.items){
     const identity=canonicalItemIdentity(item);
@@ -31,10 +31,10 @@ export async function persistAcquiredSourceItems(db:Env["DB"],input:{tenantId:st
     inserted+=Number(results[0].meta.changes);
     // A crash after this transaction is recovered by the existing stale-job relay.
     if(source&&jobId&&rawId&&Number(results[2].meta.changes)===1){
-      if(input.queue)await input.queue.send({jobId,briefingId:source.briefingId,rawMessageId:rawId});
+      if(input.queue)try{await input.queue.send({jobId,briefingId:source.briefingId,rawMessageId:rawId})}catch{deferred++;console.warn("PROCESSING_HANDOFF_SEND_DEFERRED")}
       queued++;
     }
   }
-  return {persistedItemIds:ids,inserted,alreadyPersisted:ids.length-inserted,processingJobsCreated:queued};
+  return {persistedItemIds:ids,inserted,alreadyPersisted:ids.length-inserted,processingJobsCreated:queued,processingQueueDeferred:deferred};
 }
 function safe(value:unknown){return typeof value==="string"?value.slice(0,128):undefined}

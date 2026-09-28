@@ -187,7 +187,7 @@ export interface NormalizedNewsMetadata {
  tenantId:string;acquiredItemId:string;upstreamResourceId:string;canonicalIdentity:string;contentHash:string;
  headline?:string;language?:string;acquisitionRunId?:string;
 }
-export interface GroundedClaim {id:string;text:string;support:Array<{messageId:string;quote:string}>}
+export interface GroundedClaim {id:string;text:string;support:Array<{messageId:string;quote:string}>;isNew?:boolean}
 export interface DevelopmentChange {id:string;at:string;kind:"NEW_DEVELOPMENT"|"NEW_INFORMATION"|"CORROBORATION"|"CORRECTION_OR_CONFLICT";claimIds:string[];messageIds:string[]}
 export interface DevelopmentRank {relevance:number;importance:number;novelty:number;recency:number;confidence:number;score:number}
 export interface DevelopmentState {version:number;evidenceFingerprint:string;claims:GroundedClaim[];changes:DevelopmentChange[];ranking:DevelopmentRank;membership:Array<{messageId:string;method:"INITIAL"|"DETERMINISTIC"|"SEMANTIC_REVIEW"}>}

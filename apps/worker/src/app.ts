@@ -1,4 +1,5 @@
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
+import {processQueueMessage} from "./processor";
 import {
   DEFAULT_SLICE_BUDGET,
   makeId,
@@ -268,19 +269,21 @@ export function createApp(options: AppOptions = {}) {
     if(!owner||owner.disabledAt)return c.json({error:"not found"},404);
     const store=new D1CatchUpStore(c.env.DB);
     if(input.action==="REPROCESS"){
-      let queued=0;
+      let queued=0,completed=0;
       for(const id of input.rawMessageIds??[]){
         const raw=await repo.getRawMessage(id);if(!raw?.news)continue;
         const source=await repo.getSource(raw.source.id),feed=source?await repo.getBriefingById(source.briefingId):null;
-        if(!source?.enabled||!feed||feed.paused||feed.ownerAccountId!==owner.id)continue;
+        if(!feed||feed.ownerAccountId!==owner.id)continue;
         const existing=(await repo.listProcessingJobs({briefingId:feed.id,states:["queued","failed"],limit:500})).find(job=>job.rawMessageId===id);
+        if(feed.paused&&existing){await processQueueMessage(repo,{jobId:existing.id,briefingId:feed.id,rawMessageId:id},now);completed++;continue}
+        if(!source?.enabled||feed.paused)continue;
         if(existing?.state==="queued")continue;
         if(!existing&&(await repo.getExistingItems(feed.id,now)).some(item=>item.evidence.some(ref=>ref.messageId===id)))continue;
         const jobId=existing?.id??await repo.createProcessingJob(feed.id,id,now);
         if(existing)await repo.requeueProcessingJob(jobId,now);
         await c.env.PROCESSING_QUEUE.send({type:"process_raw_message",jobId,briefingId:feed.id,rawMessageId:id});queued++;
       }
-      return c.json({queued});
+      return c.json({queued,completed});
     }
     if(input.action==="ACKNOWLEDGE")return c.json({ok:input.catchUpId?await store.acknowledge(owner.id,input.catchUpId,now):false});
     const feeds=await repo.listBriefings(owner.id);

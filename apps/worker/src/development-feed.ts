@@ -12,7 +12,7 @@ export function publicDevelopment(item:BriefingItem) {
     summary:claims.slice(-4).map(claim=>claim.text).join(' '),publishedAt:item.itemAt,updatedAt:item.updatedAt,
     version:item.development?.version??1,claims:claims.map(claim=>({id:claim.id,text:claim.text,
       sourceIds:claim.support.filter(ref=>sources.some(source=>source.id===ref.messageId)).map(ref=>ref.messageId)})),
-    sources,sourceCount:new Set(item.evidence.map(entry=>entry.sourceId)).size,
+    sources,supportingArticles:item.evidence.filter(entry=>entry.sourceUrl).map(entry=>({id:entry.messageId,url:entry.sourceUrl!,publisher:entry.sourceTitle,headline:entry.headline,publishedAt:entry.postedAt})),sourceCount:new Set(item.evidence.map(entry=>entry.sourceId)).size,
     ranking:item.development?.ranking,changes:item.development?.changes.map(change=>({id:change.id,at:change.at,kind:change.kind,claimIds:change.claimIds}))??[]};
 }
 

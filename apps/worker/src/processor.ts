@@ -141,7 +141,7 @@ async function processNewsMessage(repo:Repository,job:ProcessingJobMessage,brief
   }else claims=extractiveClaims(item.evidence.filter(entry=>entry.messageId===raw.id));
   if(!claims.length){await repo.completeProcessingJob(job.jobId,now);return result}
   updateDevelopment(item,prior,claims,briefing,now,method);
-  item.summary=claims.map(claim=>claim.text).join(" ");
+  item.summary=item.development!.claims.slice(-4).map(claim=>claim.text).join(" ");
   await repo.saveBriefingItems(briefing.id,[item],now);
   await repo.completeProcessingJob(job.jobId,now);
   return result;

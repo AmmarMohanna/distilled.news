@@ -86,5 +86,16 @@ it("evaluates the real account/queue/service/D1 handoff and scheduled next windo
     release();await running;
     expect((await db.prepare("SELECT count(*) AS n FROM source_acquisition_leases").first<{n:number}>())?.n).toBe(0);
     expect((await db.prepare("SELECT count(*) AS n FROM processing_jobs").first<{n:number}>())?.n).toBe(2);
+    // Queue admission failure leaves normalized evidence and durable processing
+    // work intact; it must not turn a completed acquisition into reacquisition.
+    env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE='true';
+    const firstFeed=await freshRepo.getBriefingById('feed');
+    await freshRepo.upsertBriefing({...firstFeed!,id:'deferred-feed',slug:'deferred'},now);
+    const deferredSource=await freshRepo.upsertConfiguredSource({briefingId:'deferred-feed',provider:'rss',kind:'rss_feed',title:'Deferred delivery',sourceUrl:source.sourceUrl,enabled:true},now);
+    env.PROCESSING_QUEUE={send:async()=>{throw Error('queue_unavailable')}} as unknown as Env['PROCESSING_QUEUE'];
+    const deferred=await(await invoke('/v1/live-smoke/public-acquisition',{...payload,sourceId:deferredSource.id,idempotencyKey:'deferred-admission'})).json() as any;
+    expect(deferred).toMatchObject({status:'SUCCESS',itemHandoff:{inserted:0,processingJobsCreated:2,processingQueueDeferred:2}});
+    expect((await db.prepare("SELECT count(*) AS n FROM raw_messages WHERE briefing_id='deferred-feed'").first<{n:number}>())?.n).toBe(2);
+    expect((await db.prepare("SELECT count(*) AS n FROM processing_jobs WHERE briefing_id='deferred-feed' AND state='queued'").first<{n:number}>())?.n).toBe(2);
   }finally{await mf.dispose()}
 },60000);

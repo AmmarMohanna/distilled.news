@@ -20,3 +20,10 @@ it('rejects a model sentence which its evidence checker cannot entail',async()=>
   const adapter=new OpenAIGatewaySummaryAdapter({accountId:'',gatewayId:'',apiKey:'test',model:'fixture',provider:'OPENROUTER',fetcher});
   await expect(adapter.summarizeGrounded(input)).rejects.toThrow('GROUNDING_REJECTED');
 });
+it('separates repeated reporting from materially new facts using a bounded claim-ID delta',async()=>{
+  let calls=0;
+  const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:JSON.stringify(++calls===1?{claims:[{text,support:[{messageId:'source-1',quote:text}]}]}:calls===2?{supported:true}:{newClaimIds:[]})}}]})) as typeof fetch;
+  const adapter=new OpenAIGatewaySummaryAdapter({accountId:'',gatewayId:'',apiKey:'test',model:'fixture',provider:'OPENROUTER',fetcher});
+  const claims=await adapter.summarizeGrounded({...input,knownClaims:[{id:'known',text:'Police said 12 people were injured after Hurricane Polo reached category 3.',support:[{messageId:'source-1',quote:text}]}]});
+  expect(calls).toBe(3);expect(claims[0].isNew).toBe(false);
+});
