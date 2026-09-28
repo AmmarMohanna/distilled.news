@@ -148,6 +148,7 @@ export interface AuthenticatedBrowserSurface {
   url:string;title:string;pageRevision:string;challengeState:ChallengeState;visibleText:string;bridgeProtocolVersion?:string;trustedObservationSchemaVersion?:string;formCountCategory?:"none"|"one"|"few"|"many";
   documentCountCategory?:"none"|"one"|"few"|"many";iframeCountCategory?:"none"|"one"|"few"|"many";domNodeCountCategory?:"none"|"one"|"few"|"many";accessibilityNodeCountCategory?:"none"|"one"|"few"|"many";
   controls:Array<{handle:string;kind:string;role?:string;label:string;type?:string;autocomplete?:string;insideForm:boolean;disabled:boolean;visible?:boolean;focusable?:boolean}>;
+  runtimeDiagnostics?:{documentStatus?:number;scriptResponses:number;scriptFailures:number;scriptDenials:number;pageErrors:number};
 }
 
 export interface StructuredBrowserUsePort {
@@ -201,6 +202,7 @@ interface LiveSession {
   cdp: CDPSession;
   lastMainDocumentStatus?: number;
   httpRequestCount: number;
+  scriptResponses:number;scriptFailures:number;scriptDenials:number;pageErrors:number;
 }
 
 interface BrowserObservationProvider {
@@ -428,6 +430,7 @@ export class PlaywrightBrowserAdapter
       pinnedAddresses,
       cdp,
       httpRequestCount:0,
+      scriptResponses:0,scriptFailures:0,scriptDenials:0,pageErrors:0,
       signal:input.signal,
       state: "healthy"
     };
@@ -444,6 +447,7 @@ export class PlaywrightBrowserAdapter
         await this.assertRequestAllowed(live, request.url(), request.method());
         await route.continue();
       } catch (error) {
+        if(request.resourceType()==="script")live.scriptDenials=Math.min(128,live.scriptDenials+1);
         let topLevelNavigation=false;
         try { topLevelNavigation=request.isNavigationRequest()&&request.frame()===live.page.mainFrame(); } catch { /* A denied popup can issue a request before its frame exists. */ }
         const diagnostic=error instanceof BrowserPreDispatchError?error.diagnostic:undefined;
@@ -478,7 +482,10 @@ export class PlaywrightBrowserAdapter
     page.on("response", (response) => {
       const request = response.request();
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) live.lastMainDocumentStatus = response.status();
+      if(request.resourceType()==="script"){live.scriptResponses=Math.min(128,live.scriptResponses+1);if(response.status()>=400)live.scriptFailures=Math.min(128,live.scriptFailures+1)}
     });
+    page.on("requestfailed",request=>{if(request.resourceType()==="script")live.scriptFailures=Math.min(128,live.scriptFailures+1)});
+    page.on("pageerror",()=>{live.pageErrors=Math.min(128,live.pageErrors+1)});
     if (this.options.enforceRedirectHops !== false) {
       try {
         await this.guardRedirectHops(live, await context.newCDPSession(page));
@@ -540,7 +547,7 @@ export class PlaywrightBrowserAdapter
   async navigatePublicPage(scope:BrowserScope,url:string,allowedOrigins:string[]){const live=this.requireHealthy(scope);let parsed:URL;try{parsed=new URL(url)}catch{throw new BrowserPreDispatchError("public destination invalid")}if(!allowedOrigins.includes(parsed.origin)||!live.allowedOrigins.has(parsed.origin))throw new BrowserPreDispatchError("public destination outside browser policy",{policyRule:"ORIGIN_NOT_ADMITTED",deniedHostname:parsed.hostname,redirectHop:false,topLevelNavigation:true,admittedOriginCount:live.allowedOrigins.size});live.authenticationBootstrap=false;live.authenticationWriteOrigins=undefined;const initial=await this.navigateDirectly(live,url,"domcontentloaded");return await this.waitForPublicPageReadiness(live,initial);}
   async observePublicPage(scope:BrowserScope){return await this.observe(this.requireHealthy(scope),"page_state");}
 
-  async observeAuthenticationSurface(scope:BrowserScope,wait?:AuthSurfaceWait):Promise<AuthenticatedBrowserSurface>{const live=this.requireHealthy(scope);if(wait==="AUTH_SURFACE")await live.page.locator('input:visible,button:visible,[role="button"]:visible,[role="textbox"]:visible,iframe:visible').first().waitFor({state:"visible",timeout:10_000});else if(wait==="PASSWORD_FIELD")await live.page.locator('input[type="password"]').first().waitFor({state:"visible",timeout:10_000});const observed=await this.observe(live,"page_state");const visibleText=String((observed.representation as {visibleText?:string}).visibleText??"").slice(0,AUTH_SURFACE_MAX_TEXT);return{url:observed.url,title:observed.title.slice(0,300),pageRevision:observed.pageRevision,challengeState:observed.challengeState,visibleText,bridgeProtocolVersion:BROWSER_BRIDGE_PROTOCOL_VERSION,trustedObservationSchemaVersion:TRUSTED_OBSERVATION_SCHEMA_VERSION,formCountCategory:observed.formCountCategory??"none",documentCountCategory:observed.documentCountCategory,iframeCountCategory:observed.iframeCountCategory,domNodeCountCategory:observed.domNodeCountCategory,accessibilityNodeCountCategory:observed.accessibilityNodeCountCategory,controls:observed.controls.slice(0,AUTH_SURFACE_MAX_CONTROLS).map(control=>({handle:control.handle,kind:control.kind,role:control.role,label:control.label.slice(0,200),type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",visible:control.attributes?.["auth-visible"]==="true",focusable:control.attributes?.["auth-focusable"]==="true"}))};}
+  async observeAuthenticationSurface(scope:BrowserScope,wait?:AuthSurfaceWait):Promise<AuthenticatedBrowserSurface>{const live=this.requireHealthy(scope);if(wait==="AUTH_SURFACE")await live.page.locator('input:visible,button:visible,[role="button"]:visible,[role="textbox"]:visible,iframe:visible').first().waitFor({state:"visible",timeout:10_000});else if(wait==="PASSWORD_FIELD")await live.page.locator('input[type="password"]').first().waitFor({state:"visible",timeout:10_000});const observed=await this.observe(live,"page_state");const visibleText=String((observed.representation as {visibleText?:string}).visibleText??"").slice(0,AUTH_SURFACE_MAX_TEXT);return{url:observed.url,title:observed.title.slice(0,300),pageRevision:observed.pageRevision,challengeState:observed.challengeState,visibleText,runtimeDiagnostics:{documentStatus:live.lastMainDocumentStatus,scriptResponses:live.scriptResponses,scriptFailures:live.scriptFailures,scriptDenials:live.scriptDenials,pageErrors:live.pageErrors},bridgeProtocolVersion:BROWSER_BRIDGE_PROTOCOL_VERSION,trustedObservationSchemaVersion:TRUSTED_OBSERVATION_SCHEMA_VERSION,formCountCategory:observed.formCountCategory??"none",documentCountCategory:observed.documentCountCategory,iframeCountCategory:observed.iframeCountCategory,domNodeCountCategory:observed.domNodeCountCategory,accessibilityNodeCountCategory:observed.accessibilityNodeCountCategory,controls:observed.controls.slice(0,AUTH_SURFACE_MAX_CONTROLS).map(control=>({handle:control.handle,kind:control.kind,role:control.role,label:control.label.slice(0,200),type:control.attributes?.type,autocomplete:control.attributes?.autocomplete,insideForm:control.attributes?.["inside-form"]==="true",disabled:control.attributes?.disabled!==undefined||control.attributes?.["aria-disabled"]==="true",visible:control.attributes?.["auth-visible"]==="true",focusable:control.attributes?.["auth-focusable"]==="true"}))};}
 
   async injectAuthenticationField(scope:BrowserScope,input:{fieldKind:AuthFieldKind;fieldHandle:string;pageRevision:string;secretValue:string}){const live=this.requireHealthy(scope);const binding=await this.requireAuthenticationHandle(live,input.fieldHandle,input.pageRevision);if(!AUTH_FIELD_KINDS.includes(input.fieldKind)||typeof input.secretValue!=="string")throw new BrowserPreDispatchError("authentication field kind mismatch");const isPassword=binding.type?.toLowerCase()==="password"||binding.autocomplete?.toLowerCase()==="current-password";if((input.fieldKind==="PASSWORD")!==isPassword)throw new BrowserPreDispatchError("authentication field kind mismatch");if(!["textbox","searchbox"].includes((binding.role??"").toLowerCase()))throw new BrowserPreDispatchError("authentication field handle is not editable");await live.page.getByRole(binding.role as "textbox",{name:binding.label,exact:true}).fill(input.secretValue);this.invalidateTransientBindings(live);}
 

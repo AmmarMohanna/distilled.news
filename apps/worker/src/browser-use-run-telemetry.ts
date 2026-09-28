@@ -30,6 +30,7 @@ export class D1BrowserUseRunTelemetry {
 
   async completeAcquisition(acquisitionRunId: string, outcome: BrowserUseRunOutcome, completedAt = new Date().toISOString()): Promise<void> {
     await this.db.prepare(`UPDATE browser_use_discovery_runs SET outcome=?, completed_at=?,
+      jev_calls=(SELECT COUNT(*) FROM bounded_decision_events WHERE bounded_decision_events.run_id=browser_use_discovery_runs.run_id),
       total_duration_ms=MIN(600000,MAX(0,ROUND((julianday(?) - julianday(started_at))*86400000))),
       state=CASE WHEN state IN ('ACTIVE','VALIDATED','CANDIDATE','VERIFIED') THEN state ELSE 'FAILED' END
       WHERE acquisition_run_id=? AND completed_at IS NULL`)

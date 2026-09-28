@@ -7,7 +7,7 @@ import { chromium } from "@playwright/test";
 import { advancePublicDiscovery } from "./bounded-browser-decision";
 
 type Recorded=AuthenticatedBrowserBridgeResponse;
-type Execution={capability:AuthenticatedBrowserExecutionCapability;scope?:BrowserAllocation;ready:Promise<BrowserAllocation>;state:"OPENING"|"OPEN"|"CLOSING"|"CLOSED"|"EXPIRED";operations:number;discovery?:Promise<BrowserUseDiscoveryProposal>;authSourceUrl?:string;sessionReady?:boolean;/** Idempotency records for mutations only: outcome envelopes carry no secret material. */records:Map<string,{fingerprint:string;response:Recorded}>;inflight:Map<string,{fingerprint:string;promise:Promise<Recorded>}>;queue:Promise<unknown>;abort:AbortController;idleTimer?:ReturnType<typeof setTimeout>;absoluteTimer?:ReturnType<typeof setTimeout>};
+type Execution={capability:AuthenticatedBrowserExecutionCapability;scope?:BrowserAllocation;ready:Promise<BrowserAllocation>;state:"OPENING"|"OPEN"|"CLOSING"|"CLOSED"|"EXPIRED";operations:number;discovery?:Promise<BrowserUseDiscoveryProposal>;discoveryActive?:boolean;authSourceUrl?:string;sessionReady?:boolean;/** Idempotency records for mutations only: outcome envelopes carry no secret material. */records:Map<string,{fingerprint:string;response:Recorded}>;inflight:Map<string,{fingerprint:string;promise:Promise<Recorded>}>;queue:Promise<unknown>;abort:AbortController;idleTimer?:ReturnType<typeof setTimeout>;absoluteTimer?:ReturnType<typeof setTimeout>};
 const MAX_CAPABILITY_TTL_MS=15*60_000;
 const MAX_CLOCK_SKEW_MS=30_000;
 const MAX_TRACKED_NONCES=10_000;
@@ -60,6 +60,7 @@ export class AuthenticatedBrowserBridgeService{
   }
   private async discoverWithBrowserUse(execution:Execution,message:Extract<AuthenticatedBrowserBridgeRequest,{operation:"DISCOVER_SOURCE_WITH_BROWSER_USE"|"DISCOVER_AUTH_SOURCE_WITH_BROWSER_USE"}>,signal?:AbortSignal):Promise<BrowserUseDiscoveryProposal>{
     const cap=execution.capability;
+    signal=signal?AbortSignal.any([signal,execution.abort.signal]):execution.abort.signal;
     if(execution.discovery)throw new AuthenticatedBrowserBridgeError("BRIDGE_REPLAY_REJECTED");
     const xTimeline=message.operation==="DISCOVER_AUTH_SOURCE_WITH_BROWSER_USE";
     if(execution.state!=="OPEN"||(xTimeline?(cap.siteKind!=="x"||!execution.sessionReady):(cap.siteKind!=="PUBLIC"||cap.allowedOrigins.length!==1)))throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
@@ -69,6 +70,7 @@ export class AuthenticatedBrowserBridgeService{
     const payload={runId:cap.runId,sourceUrl:message.sourceUrl,allowedOrigin:new URL(message.sourceUrl).origin,siteMode:xTimeline?"X_TIMELINE":"PUBLIC",decisionMode:process.env.DISTILLED_DISCOVERY_DECISION_MODE??"GENERATIVE_ONLY",modelRef:message.modelRef,maxSteps:message.maxSteps,capability:cap};
     const python=process.env.DISTILLED_BROWSER_USE_PYTHON;
     const script=fileURLToPath(new URL("../browser_use_discovery.py",import.meta.url));
+    execution.discoveryActive=true;
     clearTimeout(execution.idleTimer);
     const discovery=new Promise<BrowserUseDiscoveryProposal>((resolve,reject)=>{
       const uid=process.env.DISTILLED_BROWSER_USE_UID?Number(process.env.DISTILLED_BROWSER_USE_UID):undefined;
@@ -90,7 +92,7 @@ export class AuthenticatedBrowserBridgeService{
         }catch{/* discard all package logs and untrusted diagnostic text */}}
       });
       const finish=(error?:Error,value?:BrowserUseDiscoveryProposal)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener("abort",cancel);if(error)reject(error);else resolve(value!)};
-      const cancel=()=>{child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"CANCELLED"}))};
+      const cancel=()=>{child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"CANCELLED",progress}))};
       const timer=setTimeout(()=>{child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"TIMEOUT",progress}))},Math.min(90_000,Math.max(1,Date.parse(cap.expiresAt)-this.now())));
       signal?.addEventListener("abort",cancel,{once:true});if(signal?.aborted)cancel();
       child.stdout.on("data",(chunk:Buffer)=>{output+=chunk.toString("utf8");if(output.length>32_768){child.kill();finish(new AuthenticatedBrowserBridgeError("BRIDGE_PAYLOAD_TOO_LARGE"))}});
@@ -129,7 +131,7 @@ export class AuthenticatedBrowserBridgeService{
       child.stdin.end(JSON.stringify(payload));
     });
     execution.discovery=discovery;
-    try{return await discovery}finally{if(execution.state==="OPEN")this.refreshIdle(execution)}
+    try{return await discovery}finally{execution.discoveryActive=false;if(execution.state==="OPEN")this.refreshIdle(execution)}
   }
   /** Serialises operations per execution, deduplicates by operationId, and records mutation outcomes so a retry can never re-execute one. */
   private dispatch(execution:Execution,message:AuthenticatedBrowserBridgeRequest):Promise<Recorded>{
@@ -189,7 +191,7 @@ export class AuthenticatedBrowserBridgeService{
     execution.absoluteTimer=unref(setTimeout(()=>void this.expire(execution),Math.max(1,Math.min(this.input.absoluteTimeoutMs??120_000,Date.parse(capability.expiresAt)-this.now()))));
     return execution.ready;
   }
-  private refreshIdle(execution:Execution){clearTimeout(execution.idleTimer);execution.idleTimer=unref(setTimeout(()=>void this.expire(execution),this.input.idleTimeoutMs??30_000))}
+  private refreshIdle(execution:Execution){clearTimeout(execution.idleTimer);if(execution.discoveryActive)return;execution.idleTimer=unref(setTimeout(()=>void this.expire(execution),this.input.idleTimeoutMs??30_000))}
   private async expire(execution:Execution){if(execution.state==="CLOSED"||execution.state==="EXPIRED")return;execution.state="EXPIRED";execution.abort.abort();await this.release(execution);this.retire(execution,"EXPIRED")}
   private async close(execution:Execution){if(execution.state==="CLOSED"||execution.state==="EXPIRED")return;execution.state="CLOSING";execution.abort.abort();await this.release(execution);this.retire(execution,"CLOSED")}
   private async release(execution:Execution){const scope=execution.scope??await execution.ready.catch(()=>undefined);if(scope)await this.provider.close(scope).catch(()=>undefined)}

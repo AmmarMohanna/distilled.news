@@ -14,10 +14,11 @@ describe("durable bounded Browser Use telemetry", () => {
       await first.begin({ runId: "run_browser_use", acquisitionRunId: "run", tenantId: "owner", resourceId: "resource", startedAt: "2026-09-27T12:00:00.000Z" });
       await first.stage("run_browser_use", "PROPOSAL_ACCEPTED", { modelCalls: 6, browserOperations: 17, agentBrowserActions: 8, agentDurationMs: 1200 });
       await first.stage("run_browser_use", "VERIFIED", { verificationDurationMs: 900 });
-      await first.stage("run_browser_use", "ACTIVE");
+      await first.stage("run_browser_use", "ACTIVE",{jevCalls:5});
+      await db.prepare("INSERT INTO bounded_decision_events(id,run_id,provider,model,outcome,duration_ms,created_at) VALUES('decision_1','run_browser_use','workers_ai','typesafe/jev','EXECUTED',30,'2026-09-27T12:00:01Z')").run();
       await first.completeAcquisition("run", "SUCCESS", "2026-09-27T12:00:03.000Z");
       const fresh = new D1BrowserUseRunTelemetry(db);
-      expect(await fresh.get("run_browser_use")).toMatchObject({ state: "ACTIVE", outcome: "SUCCESS", browserUseDiscoveryRuns: 1, discoveryModelCalls: 6, browserOperations: 17, agentBrowserActions: 8, totalDurationMs: 3000, agentDurationMs: 1200, verificationDurationMs: 900 });
+      expect(await fresh.get("run_browser_use")).toMatchObject({ state: "ACTIVE", outcome: "SUCCESS", browserUseDiscoveryRuns: 1, discoveryModelCalls: 6, browserOperations: 17, agentBrowserActions: 8, totalDurationMs: 3000, agentDurationMs: 1200, verificationDurationMs: 900,jevCalls:1 });
       await fresh.completeAcquisition("run", "STRUCTURAL_FAILURE", "2026-09-27T12:00:05.000Z");
       expect((await fresh.get("run_browser_use"))?.outcome).toBe("SUCCESS");
       const columns = await db.prepare("PRAGMA table_info(browser_use_discovery_runs)").all<{ name: string }>();

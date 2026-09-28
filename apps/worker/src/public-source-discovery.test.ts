@@ -24,6 +24,12 @@ describe("public source discovery from trusted Container structure", () => {
     expect(outcome).toMatchObject({ status: "STRUCTURAL_FAILURE", details: { browserUseFailure: "MODEL_REQUEST_FAILED" } });
     expect(JSON.stringify(outcome)).not.toMatch(/Bearer|secret-provider-value/);
   });
+  it("retains only fixed runner stages and bounded counters after a timeout",()=>{
+    const error=new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE",{browserUseFailure:"TIMEOUT",progress:{stage:"MODEL_REQUEST",modelCalls:2,browserOperations:4,secret:"SECRET_MARKER"}});
+    const result=bridgeStop(error,"BROWSER_USE_DISCOVERY");
+    expect(result.reason).toContain("RUNNER_MODEL_REQUEST/MODELS_2/OPS_4");
+    expect(JSON.stringify(result)).not.toContain("SECRET_MARKER");
+  });
   it("carries sanitized exception class metadata for runner failures", () => {
     const error = new AuthenticatedBrowserBridgeError("BRIDGE_BROWSER_FAILURE", { browserUseFailure: "AGENT_RUN_FAILED", failureType: "browser_use.exceptions.BrowserError", causeType: "builtins.RuntimeError" });
     const outcome = bridgeStop(error, "BROWSER_USE_DISCOVERY");

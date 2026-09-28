@@ -34,9 +34,11 @@ export function safeObservationStructure(value:{documentCountCategory?:string;if
 export function safeObservationIdentity(value:{bridgeProtocolVersion?:string;trustedObservationSchemaVersion?:string}){return{bridgeProtocolVersion:value.bridgeProtocolVersion??"unknown",trustedObservationSchemaVersion:value.trustedObservationSchemaVersion??"unknown"};}
 
 /** Fixed diagnostic categories, never the actual title/body or form values. */
-export function safeAuthSurfaceContent(value:{visibleText?:string;title?:string}){
+export function safeAuthSurfaceContent(value:{visibleText?:string;title?:string;runtimeDiagnostics?:{documentStatus?:number;scriptResponses:number;scriptFailures:number;scriptDenials:number;pageErrors:number}}){
   const text=(value.visibleText??"").slice(0,4000);
-  return{visibleTextCategory:text.trim().length===0?"empty":text.length<100?"short":"populated",
+  const runtime:Record<string,number>={};
+  for(const key of ["documentStatus","scriptResponses","scriptFailures","scriptDenials","pageErrors"] as const){const item=value.runtimeDiagnostics?.[key];if(typeof item==="number"&&Number.isInteger(item)&&item>=0&&item<=(key==="documentStatus"?599:128))runtime[key]=item}
+  return{...runtime,visibleTextCategory:text.trim().length===0?"empty":text.length<100?"short":"populated",
     javascriptUnavailable:/javascript (?:is )?(?:not available|disabled)|enable javascript/i.test(text),
     temporaryError:/something went wrong|try again|temporarily unavailable/i.test(text),
     browserUnsupported:/unsupported browser|browser is not supported/i.test(text),

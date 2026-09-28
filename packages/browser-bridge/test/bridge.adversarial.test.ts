@@ -371,6 +371,16 @@ describe("transport loss and client behaviour",()=>{
 });
 
 describe("cleanup",()=>{
+  it("does not rearm the idle lease during a bounded discovery model gap, while preserving absolute expiry",async()=>{
+    const {service,mock}=newService({idleTimeoutMs:40,absoluteTimeoutMs:300});const cap=await open(service);
+    const execution=(service as unknown as {executions:Map<string,{discoveryActive:boolean}>}).executions.get(cap.bridgeExecutionId)!;
+    execution.discoveryActive=true;
+    expect((await send(service,req("OBSERVE_AUTH_SURFACE",cap,"op_probe"))).status).toBe(200);
+    await new Promise(resolve=>setTimeout(resolve,120));
+    expect(mock.closed).toBe(false);
+    await new Promise(resolve=>setTimeout(resolve,250));
+    expect(mock.closed).toBe(true);expect(service.activeExecutionCount).toBe(0);
+  });
   it("closes an abandoned execution after the idle timeout and answers EXPIRED afterwards",async()=>{
     const {service,mock}=newService({idleTimeoutMs:60});const cap=await open(service);
     expect(mock.closed).toBe(false);await new Promise(resolve=>setTimeout(resolve,200));
