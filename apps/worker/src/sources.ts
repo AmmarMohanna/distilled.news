@@ -9,6 +9,7 @@ import {
   type DetectedSourceInput
 } from "@distilled/connectors";
 import { ingestPublicTelegramChannel, type PublicTelegramIngestResult } from "./publicTelegram";
+import {enrollRetainedNewsForSource} from "./retained-news-enrollment";
 import type {
   Env,
   ProcessingJobMessage,
@@ -69,7 +70,10 @@ export async function addSourceFromInput(input: SourceRefreshInput & { sourceInp
   }
 
   const source = await upsertDetectedSource(input.repo, input.briefing.id, detected, input.env ?? {}, input.now);
-  if(detected.provider==="web"||(detected.provider==="rss"&&detected.kind!=="google_news"&&input.env?.WEB_OPERATOR_RUNTIME_TOKEN))return {sourceId:source.id,url:detected.sourceUrl,fetched:0,imported:0,queued:0,skipped:0,title:source.title,provider:source.provider,kind:source.kind};
+  if(detected.provider==="web"||(detected.provider==="rss"&&detected.kind!=="google_news"&&input.env?.WEB_OPERATOR_RUNTIME_TOKEN)){
+    const retained=input.env?.DB&&typeof input.env.DB.prepare==='function'?await enrollRetainedNewsForSource(input.env.DB,{tenantId:input.briefing.ownerAccountId,source,retentionDays:input.briefing.retentionDays,now:input.now,queue:input.queue}):{enrolled:0,queued:0};
+    return {sourceId:source.id,url:detected.sourceUrl,fetched:0,imported:retained.enrolled,queued:retained.queued,skipped:0,title:source.title,provider:source.provider,kind:source.kind};
+  }
   if (detected.provider === "rss") {
     return ingestRssSource({ ...input, source });
   }

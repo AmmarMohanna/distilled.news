@@ -1,5 +1,6 @@
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import {processQueueMessage} from "./processor";
+import {enrollRetainedNewsForSource} from "./retained-news-enrollment";
 import {
   DEFAULT_SLICE_BUDGET,
   makeId,
@@ -264,10 +265,15 @@ export function createApp(options: AppOptions = {}) {
   app.post("/v1/news-pipeline/evaluate",async(c)=>{
     if(c.env.DISTILLED_NEWS_PIPELINE_EVALUATION!=="true")return c.json({error:"not found"},404);
     if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
-    const input=z.object({ownerAccountId:z.string().min(1).max(100),action:z.enum(["READ","PUBLISH","ACKNOWLEDGE","REPROCESS"]).default("READ"),catchUpId:z.string().max(100).optional(),rawMessageIds:z.array(z.string().max(160)).max(4).optional()}).strict().parse(await c.req.json());
+    const input=z.object({ownerAccountId:z.string().min(1).max(100),action:z.enum(["READ","PUBLISH","ACKNOWLEDGE","REPROCESS","ENROLL"]).default("READ"),catchUpId:z.string().max(100).optional(),rawMessageIds:z.array(z.string().max(160)).max(4).optional(),sourceId:z.string().max(160).optional()}).strict().parse(await c.req.json());
     const repo=repoFor(c),owner=await repo.getAccountById(input.ownerAccountId),now=nowFor();
     if(!owner||owner.disabledAt)return c.json({error:"not found"},404);
     const store=new D1CatchUpStore(c.env.DB);
+    if(input.action==="ENROLL"){
+      const source=input.sourceId?await repo.getSource(input.sourceId):null,feed=source?await repo.getBriefingById(source.briefingId):null;
+      if(!source||!feed||feed.ownerAccountId!==owner.id)return c.json({error:"not found"},404);
+      return c.json(await enrollRetainedNewsForSource(c.env.DB,{tenantId:owner.id,source,retentionDays:feed.retentionDays,now,queue:c.env.PROCESSING_QUEUE}));
+    }
     if(input.action==="REPROCESS"){
       let queued=0,completed=0;
       for(const id of input.rawMessageIds??[]){

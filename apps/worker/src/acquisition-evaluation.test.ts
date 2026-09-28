@@ -8,6 +8,7 @@ import {D1Repository} from "./repository";
 import {enqueueScheduledSourceAcquisitions} from "./scheduled-source-acquisition";
 import {processPublicAcquisitionRequest} from "./public-acquisition-request";
 import {acquisitionEvaluationDocument} from "./acquisition-evaluation-fixtures";
+import {enrollRetainedNewsForSource} from "./retained-news-enrollment";
 import type {Env,ProcessingJobMessage,PublicAcquisitionRequestMessage} from "./types";
 
 it("evaluates the real account/queue/service/D1 handoff and scheduled next window with exact boundaries",async()=>{
@@ -97,5 +98,20 @@ it("evaluates the real account/queue/service/D1 handoff and scheduled next windo
     expect(deferred).toMatchObject({status:'SUCCESS',itemHandoff:{inserted:0,processingJobsCreated:2,processingQueueDeferred:2}});
     expect((await db.prepare("SELECT count(*) AS n FROM raw_messages WHERE briefing_id='deferred-feed'").first<{n:number}>())?.n).toBe(2);
     expect((await db.prepare("SELECT count(*) AS n FROM processing_jobs WHERE briefing_id='deferred-feed' AND state='queued'").first<{n:number}>())?.n).toBe(2);
+    await freshRepo.upsertBriefing({...firstFeed!,id:'warm-feed',slug:'warm'},now);
+    const warm=await freshRepo.upsertConfiguredSource({briefingId:'warm-feed',provider:'rss',kind:'rss_feed',title:'Retained evidence',sourceUrl:source.sourceUrl,enabled:true},now);
+    const delivered:ProcessingJobMessage[]=[];
+    const enrollment={tenantId:'owner',source:warm,retentionDays:15,now,queue:{send:async(message:ProcessingJobMessage)=>{delivered.push(message)}}};
+    expect(await enrollRetainedNewsForSource(db,{...enrollment,tenantId:'foreign'})).toEqual({enrolled:0,queued:0,deferred:0});
+    expect(await enrollRetainedNewsForSource(db,enrollment)).toEqual({enrolled:2,queued:2,deferred:0});
+    expect(await enrollRetainedNewsForSource(db,enrollment)).toEqual({enrolled:0,queued:0,deferred:0});
+    expect(delivered).toHaveLength(2);
+    expect(await new D1Repository(db).getRawMessage(delivered[0].rawMessageId)).toMatchObject({news:{tenantId:'owner',upstreamResourceId:full.result.upstreamResourceId},receivedAt:now.toISOString()});
+    await freshRepo.upsertBriefing({...firstFeed!,id:'warm-deferred-feed',slug:'warm-deferred'},now);
+    const warmDeferred=await freshRepo.upsertConfiguredSource({briefingId:'warm-deferred-feed',provider:'rss',kind:'rss_feed',title:'Retained during outage',sourceUrl:source.sourceUrl,enabled:true},now);
+    expect(await enrollRetainedNewsForSource(db,{...enrollment,source:warmDeferred,queue:{send:async()=>{throw Error('queue_unavailable')}}})).toEqual({enrolled:2,queued:2,deferred:2});
+    expect((await db.prepare("SELECT count(*) AS n FROM processing_jobs WHERE briefing_id='warm-deferred-feed' AND state='queued'").first<{n:number}>())?.n).toBe(2);
+    expect(await enrollRetainedNewsForSource(db,{...enrollment,source:{...warm,sourceUrl:'https://other.example.com/feed.xml'}})).toEqual({enrolled:0,queued:0,deferred:0});
+    expect(await enrollRetainedNewsForSource(db,{...enrollment,source:warm,now:new Date('2026-11-01T00:00:00Z')})).toEqual({enrolled:0,queued:0,deferred:0});
   }finally{await mf.dispose()}
 },60000);
