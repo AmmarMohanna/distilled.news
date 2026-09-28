@@ -30,7 +30,7 @@ run_worker_first = true
 
 [vars]
 DISTILLED_DISCOVERY_DECISION_MODE = "GENERATIVE_ONLY"
-DISTILLED_JEV_MODEL = "typesafe/jev"
+DISTILLED_JEV_MODEL = "typesafe/jev-1.13"
 DISTILLED_JEV_CONFIDENCE_THRESHOLD = "0.75"
 PUBLIC_API_BASE_URL = "https://distilled.news"
 PUBLIC_WEB_BASE_URL = "https://distilled.news"
@@ -101,5 +101,4 @@ head_sampling_rate = 1
 
 [triggers]
 crons = ["* * * * *"]
-[ai]
-binding = "DECISION_AI"
+

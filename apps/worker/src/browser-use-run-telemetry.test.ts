@@ -8,7 +8,7 @@ describe("durable bounded Browser Use telemetry", () => {
     const mf = new Miniflare({ modules: true, script: "export default {fetch(){return new Response('ok')}}", d1Databases: ["DB"] });
     try {
       const db = await mf.getD1Database("DB");
-      const sql = ["0028_browser_use_discovery_runs.sql","0031_bounded_decision_events.sql"].map(name=>readFileSync(new URL(`../migrations/${name}`,import.meta.url),"utf8")).join("\n");
+      const sql = ["0028_browser_use_discovery_runs.sql","0031_bounded_decision_events.sql","0032_openrouter_decision_metadata.sql"].map(name=>readFileSync(new URL(`../migrations/${name}`,import.meta.url),"utf8")).join("\n");
       for (const statement of sql.split(/;\s*(?:\r?\n|$)/).map(value => value.trim()).filter(Boolean)) await db.prepare(statement).run();
       const first = new D1BrowserUseRunTelemetry(db);
       await first.begin({ runId: "run_browser_use", acquisitionRunId: "run", tenantId: "owner", resourceId: "resource", startedAt: "2026-09-27T12:00:00.000Z" });

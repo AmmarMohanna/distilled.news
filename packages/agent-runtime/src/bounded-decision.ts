@@ -6,7 +6,7 @@ export interface BoundedDecisionRequest {
   summary:{pageType:"listing"|"article"|"unknown";observedItemCount:number;inspectedItemCount:number};
   choices:BoundedDecisionChoice[];
 }
-export interface BoundedDecisionResult {choiceId:string;confidence:number;probabilities:Record<string,number>;provider:string;model:string;inputTokens?:number;decisionId?:string}
+export interface BoundedDecisionResult {choiceId:string;confidence:number;probabilities:Record<string,number>;provider:string;model:string;inputTokens?:number;costUsd?:number;decisionId?:string}
 export type BoundedDecisionExecutionOutcome="EXECUTED"|"STALE"|"STOPPED"|"EXECUTION_FAILED";
 export interface BoundedDecisionProvider {choose(request:BoundedDecisionRequest,signal?:AbortSignal):Promise<BoundedDecisionResult>;recordOutcome?(request:BoundedDecisionRequest,result:BoundedDecisionResult,outcome:BoundedDecisionExecutionOutcome):Promise<void>}
 export function assertBoundedDecisionRequest(value:BoundedDecisionRequest):void{
