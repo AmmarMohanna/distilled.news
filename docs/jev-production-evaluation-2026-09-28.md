@@ -46,7 +46,7 @@ acquisition service and D1 repository. The two sources have separate resources.
 | Runner bridge operations | 11 | 9 |
 | Reported discovery operations including verification | 14 | 12 |
 | Agent duration | 78,261 ms | 64,270 ms |
-| Verification duration | 27,125 ms | See durable run row |
+| Verification duration | 27,125 ms | 26,456 ms |
 | Discovery through acquisition completion | 134,153 ms | 138,882 ms |
 | Entire queued execution | 163,115 ms | 163,816 ms |
 | Candidate → VALIDATED → ACTIVE | Passed | Passed |
@@ -117,7 +117,7 @@ Cloudflare references:
 Resource `upstream_a0015dd6`, `https://x.com/AJEnglish`, still stops at
 SESSION_ATTACH:AUTH_SURFACE_TIMEOUT, before Browser Use or Jev.
 
-The trusted diagnostic at 2026-09-28T04:20:57Z shows:
+The trusted diagnostic at 2026-09-28T04:20:56.935Z shows:
 
 - Top-level `x.com/login`, HTTP 403.
 - One document, many DOM nodes, few accessibility nodes.
@@ -157,3 +157,25 @@ script counters. A hidden first input no longer prevents visible later login
 controls from satisfying readiness. Raw page error messages are discarded.
 
 Migration: `0031_bounded_decision_events.sql`, applied remotely.
+
+## Final production and checks
+
+- Worker: `78b43232-5100-42fd-8bf1-635dd8a88ea0`.
+- Container: `78b43232`.
+- Image digest: `sha256:9571f319d714590eb0224cce5ad1a62bf78ae6f343a53132ade4d93a70356f21`.
+- Browser Use: 0.13.10; Python 3.12 runtime retained and package import asserted
+  during the final image build.
+- Final platform health: healthy=2, failed=0, starting=0, active=0, assigned=0.
+- Default mode: GENERATIVE_ONLY. Smoke disabled; fixture and smoke request routes
+  returned HTTP 404 after deployment. Durable run reads remain token-protected.
+- Final bridge regression: 73/73, including real Chromium authentication,
+  cancellation/expiry cleanup, redirect and private-network fencing, stale
+  handles/revisions, credential isolation and bounded decision checks.
+- Acquisition/temporal/lifecycle suites: 51/51.
+- Focused Worker checks: 22 passing unique tests across provider, persistence,
+  lifecycle, authenticated X, diagnostics, retention, queue and fixture suites.
+- Python ranking checks: 2/2; Worker and bridge type checks pass.
+
+Container publication used the existing WSL Linux Docker/Wrangler path.
+Uploads succeeded without repeating the broken Docker Desktop proxy path.
+Pre-existing untracked build artifacts were preserved.
