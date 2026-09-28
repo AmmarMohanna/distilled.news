@@ -32,8 +32,11 @@ export async function processPublicAcquisitionRequest(env: Pick<Env,"DB"|"WEB_OP
       activeWorkflow: result.activeWorkflow ?? null,
       candidateWorkflow: result.candidateWorkflow ?? null,
       webOperatorCalls: numberOrNull(result.webOperatorCalls),
-      discoveryModelCalls: numberOrNull(result.discoveryModelCalls),
-      discoveryBrowserOperations: numberOrNull(result.discoveryBrowserOperations),
+      discoveryModelCalls: result.webOperatorCalls===0?0:numberOrNull(result.discoveryModelCalls),
+      discoveryBrowserOperations: result.webOperatorCalls===0?0:numberOrNull(result.discoveryBrowserOperations),
+      browserUseDiscoveryRuns: result.webOperatorCalls===0?0:numberOrNull(result.browserUseDiscoveryRuns),
+      jevCalls: result.webOperatorCalls===0?0:numberOrNull(result.jevCalls),
+      decisionFallbacks: result.webOperatorCalls===0?0:numberOrNull(result.decisionFallbacks),
       coverage: result.coverage ?? null,
       continuation: result.continuation ?? null,
       items: Array.isArray(result.items) ? result.items.slice(0,30).map((item) => {
