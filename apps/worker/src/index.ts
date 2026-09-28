@@ -1,4 +1,5 @@
 import { createApp } from "./app";
+import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
 import { publishDueBriefingEditions } from "./editions";
 import { processQueueMessage,ProcessingLeaseBusy } from "./processor";
@@ -40,6 +41,7 @@ export default {
       const startedAt = Date.now();
       const bodyType = queueBodyType(message.body);
       const bodyId = queueBodyId(message.body);
+      let completedProcessing=false;
       try {
         if (isWebOperatorRunMessage(message.body)) await processWebOperatorRunMessage(env,message.body);
         else if (isWebOperatorLiveSmokeMessage(message.body)) {
@@ -50,10 +52,9 @@ export default {
         else if (isOpenRouterModelDiagnosticMessage(message.body)) await processOpenRouterModelDiagnostic(env,message.body);
         else if(isAuthenticatedProfileBootstrapMessage(message.body))await processAuthenticatedProfileBootstrap(env,message.body);
         else if(isAuthenticatedSurfaceDiagnosticMessage(message.body))await processAuthenticatedSurfaceDiagnostic(env,message.body);
-        else await processDistilledQueueMessage(repo, env, message.body, summaryAdapter, reviewAdapter);
-        if(isProcessingJobMessage(message.body)){
-          const [next]=await repo.listProcessingJobs({briefingId:message.body.briefingId,states:["queued"],order:"oldest",limit:1});
-          if(next)await env.PROCESSING_QUEUE.send({type:"process_raw_message",jobId:next.id,briefingId:next.briefingId,rawMessageId:next.rawMessageId});
+        else completedProcessing=await processDistilledQueueMessage(repo, env, message.body, summaryAdapter, reviewAdapter);
+        if(completedProcessing&&isProcessingJobMessage(message.body)){
+          await drainNextProcessingJob(repo,env.PROCESSING_QUEUE,message.body.briefingId,completedProcessing);
         }
         const durationMs = Date.now() - startedAt;
         if (durationMs >= SLOW_QUEUE_JOB_MS) {
@@ -99,7 +100,7 @@ async function processDistilledQueueMessage(
   body: unknown,
   summaryAdapter: ReturnType<typeof createSummaryAdapterFromEnv>,
   reviewAdapter: ReturnType<typeof createEventReviewAdapterFromEnv>
-): Promise<void> {
+): Promise<boolean> {
   if (isSourceRefreshJobMessage(body)) {
     const briefing = await repo.getBriefingById(body.briefingId);
     if (!briefing) throw new PermanentQueueError("Briefing not found.");
@@ -113,12 +114,11 @@ async function processDistilledQueueMessage(
       now: new Date(),
       force: body.force
     });
-    return;
+    return false;
   }
 
   if (isProcessingJobMessage(body)) {
-    await processQueueMessage(repo, body, new Date(), summaryAdapter, reviewAdapter);
-    return;
+    return Boolean(await processQueueMessage(repo, body, new Date(), summaryAdapter, reviewAdapter));
   }
 
   throw new PermanentQueueError("Invalid queue message.");
