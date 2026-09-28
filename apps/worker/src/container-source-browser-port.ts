@@ -35,6 +35,7 @@ export class ContainerSourceBrowserPort implements SourceBrowserWorkflowPort {
     const source = new URL(input.sourceUrl);
     const sourceOrigin = normalizeHttpsOrigin(source.href);
     if (!originMatches(sourceOrigin, input.allowedOrigins)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
+    if(this.transport instanceof CloudflareContainerBrowserBridgeTransport)await this.transport.prepareExecution(this.context.runId);
     const now = Date.now();
     const operationBudget = Math.min(64, Math.max(4, input.request.limits.maxPhysicalAttempts * 2 + 2));
     const capability: AuthenticatedBrowserExecutionCapability = {

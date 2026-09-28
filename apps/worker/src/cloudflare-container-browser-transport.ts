@@ -5,6 +5,11 @@ export interface AuthenticatedBrowserContainerRpc{executeAuthenticatedBrowser(re
 /** Runtime-neutral typed DO RPC transport; it deliberately has no container fetch, shell, or arbitrary URL API. */
 export class CloudflareContainerBrowserBridgeTransport implements BrowserBridgeTransport{
   constructor(private readonly binding:{idFromName(name:string):unknown;get(id:unknown):AuthenticatedBrowserContainerRpc}){}
+  /** Infrastructure readiness precedes issuing the short-lived browser authority. */
+  async prepareExecution(executionId:string):Promise<void>{
+    const target=this.binding.get(this.binding.idFromName(`auth-browser:${executionId}`));
+    if(target.health && (await target.health()).state!=="READY")throw new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE");
+  }
   async execute(request:AuthenticatedBrowserBridgeRequest){try{return await this.binding.get(this.binding.idFromName(`auth-browser:${request.capability.bridgeExecutionId}`)).executeAuthenticatedBrowser(request)}catch(error){
     const isInstance=error instanceof AuthenticatedBrowserBridgeError;
     const rawCode=error&&typeof error==="object"&&"code"in error?(error as {code?:unknown}).code:undefined;

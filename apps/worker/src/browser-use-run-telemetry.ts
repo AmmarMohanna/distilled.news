@@ -42,6 +42,10 @@ export class D1BrowserUseRunTelemetry {
       state,outcome,browser_use_discovery_runs AS browserUseDiscoveryRuns,discovery_model_calls AS discoveryModelCalls,
       browser_operations AS browserOperations,agent_browser_actions AS agentBrowserActions,started_at AS startedAt,
       completed_at AS completedAt,total_duration_ms AS totalDurationMs,agent_duration_ms AS agentDurationMs,
-      verification_duration_ms AS verificationDurationMs,decision_mode AS decisionMode,jev_calls AS jevCalls,decision_fallbacks AS decisionFallbacks FROM browser_use_discovery_runs WHERE run_id=?`).bind(runId).first<Record<string, unknown>>();
+      verification_duration_ms AS verificationDurationMs,decision_mode AS decisionMode,jev_calls AS jevCalls,decision_fallbacks AS decisionFallbacks,
+      (SELECT COUNT(*) FROM bounded_decision_events d WHERE d.run_id=browser_use_discovery_runs.run_id AND d.outcome IN ('SELECTED','EXECUTED','STOPPED','STALE','EXECUTION_FAILED')) AS jevSuccessfulChoices,
+      (SELECT COUNT(*) FROM bounded_decision_events d WHERE d.run_id=browser_use_discovery_runs.run_id AND d.outcome='EXECUTED') AS jevExecutedActions,
+      (SELECT SUM(cost_usd) FROM bounded_decision_events d WHERE d.run_id=browser_use_discovery_runs.run_id) AS jevCostUsd
+      FROM browser_use_discovery_runs WHERE run_id=?`).bind(runId).first<Record<string, unknown>>();
   }
 }

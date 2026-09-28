@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedBrowserBridgeRequest, BrowserBridgeTransport, SourceAcquisitionRequest } from "@distilled/agent-runtime";
 import { ContainerSourceBrowserPort } from "./container-source-browser-port";
 import type { Env } from "./types";
@@ -59,5 +59,25 @@ describe("Container public source workflow port", () => {
     await port.close();
     expect(operations.map(value => value.operation)).toEqual(["OPEN_AUTH_BROWSER", "DISCOVER_SOURCE_WITH_BROWSER_USE", "CLOSE_AUTH_BROWSER"]);
     expect(operations[1].capability.writeOrigins).toEqual([]);
+  });
+  it("issues browser authority only after cold Container readiness",async()=>{
+    let clock=Date.now();const initial=clock;let issued=0;
+    const now=vi.spyOn(Date,"now").mockImplementation(()=>clock);
+    const binding={idFromName:(name:string)=>name,get:()=>({
+      health:async()=>{clock+=45000;return{state:"READY" as const}},
+      executeAuthenticatedBrowser:async(operation:AuthenticatedBrowserBridgeRequest)=>{
+        if(operation.operation==="OPEN_AUTH_BROWSER"){
+          issued=Date.parse(operation.capability.issuedAt);
+          expect(Date.parse(operation.capability.expiresAt)-issued).toBe(request.limits.maxExecutionMs+10000);
+          return{runId:"run_a",tenantId:"tenant_a",sessionId:"session_a",contextId:"context_a",pageId:"page_a",generation:2,viewport:{width:1,height:1,deviceScaleFactor:1}};
+        }
+        return{closed:true};
+      }
+    })};
+    try{
+      const port=new ContainerSourceBrowserPort({...env,AUTHENTICATED_BROWSER_CONTAINER:binding} as unknown as Env,context);
+      await port.open({sourceUrl,allowedOrigins:[new URL(sourceUrl).origin],request});await port.close();
+      expect(issued).toBe(initial+45000);
+    }finally{now.mockRestore()}
   });
 });

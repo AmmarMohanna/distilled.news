@@ -20,8 +20,9 @@ for(let attempts=0;attempts<90;attempts++){
   if(['completed','failed'].includes(report.state))break;
   await new Promise(resolve=>setTimeout(resolve,10000));
 }
+const telemetry=report.result?.webOperatorRunId?await call(`/v1/browser-use-runs/${report.result.webOperatorRunId}`):null;
 // No request payload, credentials, provider responses or browser transcripts in artifact.
-const artifact={schema:'distilled.acquisition.evaluation.v1',proof:'LIVE_PRODUCTION',observedAt:new Date().toISOString(),...report};
+const artifact={schema:'distilled.acquisition.evaluation.v1',proof:'LIVE_PRODUCTION',observedAt:new Date().toISOString(),...report,telemetry};
 await mkdir('benchmark-results',{recursive:true});
 await writeFile(values.output??`benchmark-results/${submitted.requestId}.json`,JSON.stringify(artifact,null,2));
 console.log(JSON.stringify(artifact));

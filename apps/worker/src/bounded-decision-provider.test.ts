@@ -40,10 +40,22 @@ describe("bounded decision provider",()=>{
       await expect(provider.choose(request)).rejects.toThrow("invalid");
     }
   });
+  it("cancels an in-flight request and bounds oversized provider responses",async()=>{
+    const controller=new AbortController();
+    const hanging=new OpenRouterJevDecisionProvider("test-only","typesafe/jev-1.13",5000,async()=>new Promise(()=>undefined));
+    const pending=hanging.choose(request,controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toThrow("decision_cancelled");
+    const oversized=new OpenRouterJevDecisionProvider("test-only","typesafe/jev-1.13",5000,async()=>new Response("x".repeat(8193)));
+    await expect(oversized.choose(request)).rejects.toThrow("invalid");
+    let calls=0;
+    const redirect=new OpenRouterJevDecisionProvider("test-only","typesafe/jev-1.13",5000,async()=>{calls++;return new Response(null,{status:302,headers:{location:"https://unrelated.example"}})});
+    await expect(redirect.choose(request)).rejects.toThrow("decision_http_302");expect(calls).toBe(1);
+  });
   it("retries only bounded transient HTTP failures and rejects redirects",async()=>{
     let calls=0;
     const provider=new OpenRouterJevDecisionProvider("test-only","typesafe/jev-1.13",5000,async(_url,options)=>{
-      expect(options?.redirect).toBe("error");calls++;
+      expect(options?.redirect).toBe("manual");calls++;
       return new Response("SECRET_MARKER",{status:503});
     });
     await expect(provider.choose(request)).rejects.toThrow("decision_http_503");expect(calls).toBe(2);
@@ -54,9 +66,23 @@ describe("bounded decision provider",()=>{
     const original=globalThis.fetch;globalThis.fetch=async()=>new Response("SECRET_MARKER",{status:402});
     try{
       const response=await handleBoundedDecision(new Request("https://worker.test/v1/bounded-decisions",{method:"POST",headers:{authorization:"Bearer runtime_test"},body:JSON.stringify(request)}),env);
-      expect(await response.json()).toEqual({fallback:true,outcome:"OPENROUTER_HTTP_402"});
+      expect(await response.json()).toEqual({fallback:true,outcome:"OPENROUTER_HTTP_402_PROVIDER_CHOOSE"});
       expect(persisted[0]).toContain("OPENROUTER");expect(persisted[0]).toContain("typesafe/jev-1.13");
       expect(JSON.stringify(persisted)).not.toMatch(/SECRET_MARKER|runtime_test|test-only/);
+    }finally{globalThis.fetch=original}
+  });
+  it("ranks equivalent targets in runtime and retains paid low-confidence metadata without executing",async()=>{
+    const rows:unknown[][]=[];
+    const env={WEB_OPERATOR_RUNTIME_TOKEN:"runtime_test",DISTILLED_DISCOVERY_DECISION_MODE:"JEV_HYBRID",OPENROUTER_API_KEY:"test-only",DB:{prepare:()=>({bind:(...args:unknown[])=>({run:async()=>{rows.push(args)}})})}} as unknown as Env;
+    const original=globalThis.fetch;globalThis.fetch=async(_url,options)=>{
+      const payload=JSON.parse(String(options?.body));expect(Object.keys(payload.questions.action.criteria)).toEqual(["choice_0","choice_1"]);
+      return Response.json({answers:{action:{type:"choice",choice:"choice_1",confidence:0.55,probabilities:{choice_0:0.3,choice_1:0.7}}},usage:{input_tokens:300,cost:0.0000126}});
+    };
+    try{
+      const input={...request,choices:[...request.choices,{...request.choices[1],id:"choice_2",targetId:"target_1"}]};
+      const response=await handleBoundedDecision(new Request("https://worker.test/v1/bounded-decisions",{method:"POST",headers:{authorization:"Bearer runtime_test"},body:JSON.stringify(input)}),env);
+      expect(await response.json()).toEqual({fallback:true,outcome:"LOW_CONFIDENCE"});
+      expect(rows[0]).toContain(0.55);expect(rows[0]).toContain(0.7);expect(rows[0]).toContain(0.0000126);
     }finally{globalThis.fetch=original}
   });
 });
