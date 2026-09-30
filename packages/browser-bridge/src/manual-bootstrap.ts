@@ -77,4 +77,5 @@ try{
 }finally{
   if(scope)await browser.close(scope).catch(()=>undefined);
   if(captured&&!verified&&requestId)await call({action:"verify",requestId,restored:false},new AbortController().signal).catch(()=>undefined);
+  if(!captured&&requestId)await call({action:"abort",requestId},new AbortController().signal).catch(()=>undefined);
 }

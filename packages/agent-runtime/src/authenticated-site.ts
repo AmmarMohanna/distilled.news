@@ -40,7 +40,7 @@ export class XAuthenticatedSiteAdapter implements AuthenticatedSiteAdapter{
   constructor(private readonly requireAuthenticatedNavigation=false){}
   readonly siteFamily="x";readonly allowedOrigins=["https://x.com","https://twitter.com"] as const;readonly loginOrigin="https://x.com";readonly authenticationEntryPoint={kind:"X_LOGIN",url:"https://x.com/login"} as const;
   readonly authenticationNetworkOrigins=[...this.allowedOrigins,"https://api.x.com","https://api.twitter.com","https://jf.x.com","https://abs.twimg.com","https://pbs.twimg.com","https://ton.twimg.com","https://video.twimg.com","https://syndication.twitter.com"] as const;
-  readonly authenticationWriteOrigins=["https://x.com","https://twitter.com","https://api.x.com","https://api.twitter.com"] as const;
+  readonly authenticationWriteOrigins=["https://x.com","https://twitter.com","https://api.x.com","https://api.twitter.com","https://jf.x.com"] as const;
   fingerprint(snapshot:AuthenticatedSiteSnapshot,flow:AuthenticationFlowObservation=INACTIVE_FLOW,identifierInjected=false):XAuthenticationSurfaceFingerprint{
     let url:URL|undefined;try{url=new URL(snapshot.url)}catch{}
     const authOriginValid=!!url&&this.allowedOrigins.includes(url.origin as typeof this.allowedOrigins[number]);const pathnameCategory=this.pathnameCategory(url,authOriginValid);const pathnamePattern=this.pathnamePattern(url,authOriginValid);

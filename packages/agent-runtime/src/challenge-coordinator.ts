@@ -1,7 +1,7 @@
 import { makeId } from "./contracts";
 
 export type AuthenticationChallengeKind = "CAPTCHA" | "MFA" | "EMAIL_VERIFICATION" | "SECURITY_CHALLENGE" | "UNKNOWN";
-export type AuthenticationChallengeState = "DETECTED" | "CHALLENGE_HANDLING" | "RESOLUTION_REQUESTED" | "RESOLVING" | "RESOLVED" | "FAILED" | "UNSUPPORTED" | "EXPIRED" | "CANCELLED";
+export type AuthenticationChallengeState = "DETECTED" | "RESOLUTION_REQUESTED" | "RESOLVING" | "RESOLVED" | "FAILED" | "UNSUPPORTED" | "EXPIRED" | "CANCELLED";
 export type ChallengeProviderCapability = "NONE" | "DETECT_ONLY" | "ASYNC_RESOLUTION";
 export type AuthenticationChallengePhase = "PRE_IDENTIFIER" | "POST_IDENTIFIER" | "PRE_PASSWORD" | "POST_PASSWORD" | "UNKNOWN";
 
@@ -70,7 +70,6 @@ export class ChallengeCoordinator {
     const capability=this.provider.capabilities()[input.kind]??"NONE";
     if(capability==="DETECT_ONLY"){
       if(record.state==="UNSUPPORTED"||record.state==="FAILED"||record.state==="EXPIRED"||record.state==="CANCELLED")return{record,mayContinue:false};
-      if(record.state==="DETECTED")record=await this.store.transition(record.challengeId,["DETECTED"],{state:"CHALLENGE_HANDLING",updatedAt:new Date().toISOString(),elapsedMs:Date.now()-started});
       const attempts=Math.max(0,Math.min(3,this.options.passiveReobservations??2));
       const deadline=Math.min(new Date(input.expiresAt).getTime()-(this.options.settlementReserveMs??1_000),started+(this.options.overallTimeoutMs??30_000));
       for(let attempt=0;attempt<attempts;attempt++){

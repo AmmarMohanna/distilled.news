@@ -10,6 +10,7 @@ const schema=z.discriminatedUnion("action",[
   z.object({action:z.literal("begin"),profileId:z.string().startsWith("authenticated_profile_").optional()}).strict(),
   z.object({action:z.literal("challenge"),requestId:z.string(),kind:z.enum(["CAPTCHA","MFA","EMAIL_VERIFICATION","SECURITY_CHALLENGE","UNKNOWN"])}).strict(),
   z.object({action:z.literal("capture"),requestId:z.string(),state:session}).strict(),
+  z.object({action:z.literal("abort"),requestId:z.string()}).strict(),
   z.object({action:z.literal("restore"),requestId:z.string()}).strict(),
   z.object({action:z.literal("verify"),requestId:z.string(),restored:z.boolean()}).strict()
 ]);
@@ -41,7 +42,12 @@ export async function manualAuthenticatedProfileBootstrap(request:Request,env:En
       return reply({requestId,profileId:profile.id,tenantId:profile.tenantId,expiresAt});
     }
     const admission=await env.DB.prepare("SELECT * FROM authenticated_profile_bootstrap_requests WHERE request_id=? AND request_id LIKE 'authenticated_manual_%'").bind(input.requestId).first<Admission>();
-    if(!admission||admission.expires_at<=new Date().toISOString())return reply({error:"admission_expired"},409);
+    if(!admission)return reply({error:"admission_expired"},409);
+    if(input.action==="abort"){
+      const result=await env.DB.prepare("UPDATE authenticated_profile_bootstrap_requests SET state='failed',completed_at=?,failure_code='MANUAL_LOGIN_NOT_COMPLETED',outcome_reason='MANUAL_LOGIN_NOT_COMPLETED' WHERE request_id=? AND state='running' AND attempt_count=0").bind(new Date().toISOString(),input.requestId).run();
+      return reply({closed:Number(result.meta.changes)===1});
+    }
+    if(admission.expires_at<=new Date().toISOString())return reply({error:"admission_expired"},409);
     const profile=await repository.getSiteProfile(admission.profile_id);
     if(!profile||profile.siteFamily!=="x"||profile.tenantId!==admission.tenant_id||profile.ownerId!==admission.owner_id)return reply({error:"profile_denied"},403);
     await service.assertActiveOwner(profile);

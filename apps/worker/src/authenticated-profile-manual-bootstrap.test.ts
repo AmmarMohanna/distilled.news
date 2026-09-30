@@ -66,6 +66,10 @@ it("manually captures with existing encryption, fences writes, restores in fresh
     const second=await (await call({action:"begin",profileId})).json() as {requestId:string};
     await call({action:"capture",requestId:second.requestId,state:captured});await call({action:"verify",requestId:second.requestId,restored:false});
     expect(await db.prepare("SELECT session_state FROM authenticated_site_profiles WHERE id=?").bind(profileId).first()).toMatchObject({session_state:"REAUTH_REQUIRED"});
+    const abandoned=await (await call({action:"begin",profileId})).json() as {requestId:string};
+    expect(await (await call({action:"abort",requestId:abandoned.requestId})).json()).toEqual({closed:true});
+    expect(await db.prepare("SELECT state,failure_code FROM authenticated_profile_bootstrap_requests WHERE request_id=?").bind(abandoned.requestId).first()).toMatchObject({state:"failed",failure_code:"MANUAL_LOGIN_NOT_COMPLETED"});
+    expect((await call({action:"capture",requestId:abandoned.requestId,state:captured})).status).toBe(409);
     expect((await call({action:"begin",profileId,secret:"DO_NOT_ECHO"})).status).toBe(400);
     expect(JSON.stringify(logs.mock.calls)).not.toMatch(/SYNTHETIC_SESSION_SECRET|never-read|DO_NOT_ECHO/);
     const audits=await db.prepare("SELECT safe_metadata_json FROM authenticated_profile_audit").all();expect(JSON.stringify(audits)).not.toMatch(/SYNTHETIC_SESSION_SECRET|never-read/);
