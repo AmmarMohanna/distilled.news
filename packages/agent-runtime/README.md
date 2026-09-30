@@ -143,7 +143,7 @@ Workflow states are `CANDIDATE`, `VALIDATED`, `ACTIVE`, `SUPERSEDED`, `REJECTED`
 
 ## Authorized browser profiles
 
-`AuthProfile` stores encrypted browser state by reference with tenant, owner, allowed domains, allowed operation class, version, expiry, and revocation. The model-visible `AuthProfileCapability` excludes passwords, cookies, session tokens, MFA secrets, and API keys. CAPTCHA/MFA remains a typed challenge and human-resume boundary.
+`AuthProfile` stores encrypted browser state by reference with tenant, owner, allowed domains, allowed operation class, version, expiry, and revocation. The model-visible `AuthProfileCapability` excludes passwords, cookies, session tokens, MFA secrets, and API keys. Challenges remain typed and bounded. The current built-in browser challenge provider is detect-only; supported resolver providers may be integrated for authorized read-only acquisition. Account-owner authentication factors still require the owner's action when they cannot be completed by an authorized capability.
 
 ## Evaluation instrumentation
 

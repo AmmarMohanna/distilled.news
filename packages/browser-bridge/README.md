@@ -41,7 +41,7 @@ Limits: request 256 KB, response 512 KB, session state 192 KB, observation 96 KB
 
 ## Challenges
 
-The self-hosted provider's CAPTCHA capability is `DETECT_ONLY`. A challenge is detected, recorded by `ChallengeCoordinator` as `UNSUPPORTED`, the bootstrap reports `CHALLENGE_REQUIRED`, and the browser is closed. There is no solving.
+The self-hosted provider's current CAPTCHA capability is `DETECT_ONLY`. A detected challenge is recorded by `ChallengeCoordinator`; this bridge does not currently ship a solver. A supported resolver or compatible executor can be added for authorized read-only acquisition, with bounded retries and re-observation. Source and account authorization remain separate from anti-bot compatibility.
 
 ## Running locally
 

@@ -95,6 +95,26 @@ are reported only when the provider actually returns them.
 Browser Use and Al Jazeera Arabic acquisition and zero-agent replay are live
 proven. OpenRouter Jev execution is live proven, but its performance advantage
 is not proven: `GENERATIVE_ONLY` remains default and `JEV_HYBRID` experimental.
-Authenticated downstream acquisition is synthetically proven. Live X remains
-externally blocked at login before discovery. None of these limitations should
-be interpreted as universal website support.
+Authenticated downstream acquisition is synthetically proven. Live X login and
+fresh-session replay still require production validation. None of these
+limitations should be interpreted as universal website support.
+
+## v1.5 acquisition and challenge policy
+
+The target acquisition path is deterministic source retrieval, a specialized
+connector, provider retrieval when appropriate, deterministic browser replay,
+then a compatible authenticated executor and bounded Web Operator repair.
+Challenges are recoverable states: re-observe, use a supported challenge
+capability, try an eligible executor with the same authorized profile, verify
+access independently, and resume from the durable checkpoint. Keep retries,
+cost and elapsed time bounded. A human authentication step is necessary only
+when an account owner must personally provide or approve a factor, authorized
+automated routes are exhausted, or the budget expires.
+
+Anti-bot compatibility, proxy-backed browser providers, and supported CAPTCHA
+handling may be used for permitted read-only acquisition. They do not grant
+access authority. Source and account authorization, tenant isolation, SSRF
+protection, secret containment, and prohibitions on posting or account changes
+are enforced independently. A challenge clearing is not proof of successful
+acquisition; trusted source content must still pass normal temporal coverage,
+candidate intake, normalization, persistence and checkpoint checks.

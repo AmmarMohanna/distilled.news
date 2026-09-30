@@ -1,7 +1,7 @@
 import { makeId } from "./contracts";
 
 export type AuthenticationChallengeKind = "CAPTCHA" | "MFA" | "EMAIL_VERIFICATION" | "SECURITY_CHALLENGE" | "UNKNOWN";
-export type AuthenticationChallengeState = "DETECTED" | "RESOLUTION_REQUESTED" | "RESOLVING" | "RESOLVED" | "FAILED" | "UNSUPPORTED" | "EXPIRED" | "CANCELLED";
+export type AuthenticationChallengeState = "DETECTED" | "CHALLENGE_HANDLING" | "RESOLUTION_REQUESTED" | "RESOLVING" | "RESOLVED" | "FAILED" | "UNSUPPORTED" | "EXPIRED" | "CANCELLED";
 export type ChallengeProviderCapability = "NONE" | "DETECT_ONLY" | "ASYNC_RESOLUTION";
 export type AuthenticationChallengePhase = "PRE_IDENTIFIER" | "POST_IDENTIFIER" | "PRE_PASSWORD" | "POST_PASSWORD" | "UNKNOWN";
 
@@ -59,7 +59,7 @@ export interface ChallengeCoordinationResult {
 }
 
 export class ChallengeCoordinator {
-  constructor(private readonly store: AuthenticationChallengeStore, private readonly provider: BrowserChallengeProvider, private readonly options: { pollingIntervalMs?: number; providerRequestTimeoutMs?:number; overallTimeoutMs?: number; settlementReserveMs?:number; wait?: (ms: number, signal?: AbortSignal) => Promise<void> } = {}) {}
+  constructor(private readonly store: AuthenticationChallengeStore, private readonly provider: BrowserChallengeProvider, private readonly options: { pollingIntervalMs?: number; providerRequestTimeoutMs?:number; overallTimeoutMs?: number; settlementReserveMs?:number; passiveReobservations?:number; wait?: (ms: number, signal?: AbortSignal) => Promise<void> } = {}) {}
 
   async coordinate(input: AuthenticationChallengeBinding & { kind: AuthenticationChallengeKind; phase: AuthenticationChallengePhase; validateFences: () => Promise<boolean>; reobserve: () => Promise<ChallengeReobservation>; signal?: AbortSignal }): Promise<ChallengeCoordinationResult> {
     const started = Date.now();
@@ -68,6 +68,21 @@ export class ChallengeCoordinator {
     if (!(await input.validateFences())) return this.cancel(record,"FENCE_REJECTED");
     if (input.signal?.aborted) return this.cancel(record,"CANCELLED");
     const capability=this.provider.capabilities()[input.kind]??"NONE";
+    if(capability==="DETECT_ONLY"){
+      if(record.state==="UNSUPPORTED"||record.state==="FAILED"||record.state==="EXPIRED"||record.state==="CANCELLED")return{record,mayContinue:false};
+      if(record.state==="DETECTED")record=await this.store.transition(record.challengeId,["DETECTED"],{state:"CHALLENGE_HANDLING",updatedAt:new Date().toISOString(),elapsedMs:Date.now()-started});
+      const attempts=Math.max(0,Math.min(3,this.options.passiveReobservations??2));
+      const deadline=Math.min(new Date(input.expiresAt).getTime()-(this.options.settlementReserveMs??1_000),started+(this.options.overallTimeoutMs??30_000));
+      for(let attempt=0;attempt<attempts;attempt++){
+        if(input.signal?.aborted)return this.cancel(record,"CANCELLED");
+        if(!(await input.validateFences()))return this.cancel(record,"FENCE_REJECTED");
+        if(Date.now()>=deadline)return this.expire(record);
+        await (this.options.wait??waitFor)(Math.min(this.options.pollingIntervalMs??500,Math.max(0,deadline-Date.now())),input.signal);
+        let observed:ChallengeReobservation;try{observed=await input.reobserve()}catch{return this.finish(record,"FAILED","REOBSERVATION_FAILED")}
+        if(!observed.challengePresent){record=await this.store.transition(record.challengeId,[record.state],{state:"RESOLVED",subsequentSurfaceKind:observed.surfaceKind,resolutionOutcome:"REOBSERVED_CLEAR",updatedAt:new Date().toISOString(),elapsedMs:Date.now()-started});return{record,mayContinue:true}}
+      }
+      return this.finish(record,"UNSUPPORTED","DETECT_ONLY_AFTER_REOBSERVATION");
+    }
     if(capability!=="ASYNC_RESOLUTION") return this.finish(record,"UNSUPPORTED",capability);
     if(record.attemptNumber>=record.attemptBudget&&!["RESOLUTION_REQUESTED","RESOLVING","RESOLVED"].includes(record.state))return this.finish(record,"FAILED","ATTEMPT_BUDGET_EXHAUSTED");
     if(record.state==="DETECTED")record=await this.store.transition(record.challengeId,["DETECTED"],{state:"RESOLUTION_REQUESTED",attemptNumber:1,updatedAt:new Date().toISOString(),elapsedMs:Date.now()-started});

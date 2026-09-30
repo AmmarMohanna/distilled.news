@@ -17,7 +17,7 @@ export class ContainerXTimelinePort implements AuthenticatedSourceWorkflowPort {
   private sourceUrl?:string;
   private challengeState?:"LOGIN_REQUIRED"|"CHALLENGE_REQUIRED";
   private readonly adapter=new XAuthenticatedSiteAdapter();
-  constructor(private readonly env:Env,private readonly context:{tenantId:string;ownerId:string;profileId:string;runId:string}){}
+  constructor(private readonly env:Env,private readonly context:{tenantId:string;ownerId:string;profileId:string;runId:string},private readonly providerOverride?:"self_hosted"|"cloudflare_container"|"cloudflare"){}
 
   async open(input:{sourceUrl:string;allowedOrigins:string[];request:SourceAcquisitionRequest}):Promise<void>{
     if(this.scope||input.request.authentication!=="AUTH_REQUIRED")throw new Error("authenticated source scope invalid");
@@ -28,7 +28,7 @@ export class ContainerXTimelinePort implements AuthenticatedSourceWorkflowPort {
     if(!profile||profile.tenantId!==this.context.tenantId||profile.ownerId!==this.context.ownerId||profile.siteFamily!=="x")throw new Error("authenticated profile owner denied");
     if(!this.env.AUTH_PROFILE_ENCRYPTION_KEYS||!this.env.AUTH_PROFILE_ACTIVE_KEY_ID)throw new Error("authenticated profile storage unavailable");
     const keys=JSON.parse(this.env.AUTH_PROFILE_ENCRYPTION_KEYS) as Record<string,string>;
-    const backend=authenticatedBackend(this.env,{runId:this.context.runId,bootstrapRequestId:this.context.runId,profile,adapter:this.adapter});
+    const backend=authenticatedBackend(this.providerOverride?{...this.env,DISTILLED_BROWSER_PROVIDER:this.providerOverride}:this.env,{runId:this.context.runId,bootstrapRequestId:this.context.runId,profile,adapter:this.adapter});
     this.browser=backend.executor;
     if(!this.browser.navigateAuthenticatedSource||!this.browser.observeAuthenticatedSource||!this.browser.scrollAuthenticatedSource)throw new Error("authenticated timeline bridge unavailable");
     const scope=await this.browser.allocate({runId:this.context.runId,tenantId:profile.tenantId,generation:1,allowedOrigins:[...this.adapter.authenticationNetworkOrigins]});

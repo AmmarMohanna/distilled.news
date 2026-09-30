@@ -26,15 +26,87 @@ export function createWorkerXAcquisitionService(env:Env,context:Context,ports:Po
   });
 }
 
-async function executeXWorkflow(env:Env,context:Context,request:SourceAcquisitionRequest,workflow:WorkflowCandidate,port?:XPort):Promise<AcquisitionStageOutcome>{
+export async function executeXWorkflow(env:Env,context:Context,request:SourceAcquisitionRequest,workflow:WorkflowCandidate,port?:XPort,createPort:(attempt:number,provider?:"self_hosted"|"cloudflare")=>XPort=(attempt,provider)=>new ContainerXTimelinePort(env,{...context,runId:makeId("x_replay",context.runId,workflow.id,attempt)},provider)):Promise<AcquisitionStageOutcome>{
   if(!workflow.authenticatedSourceAcquisition)return{stage:"BROWSER_WORKFLOW",status:"STRUCTURAL_FAILURE",reason:"authenticated workflow plan missing"};
-  try{
-    const browser=port??new ContainerXTimelinePort(env,{...context,runId:makeId("x_replay",context.runId,workflow.id)});
-    const result=await new DeterministicAuthenticatedSourceWorkflowExecutor(browser).execute(request,workflow.authenticatedSourceAcquisition);
-    const reason=result.coverage.stopReason;
-    if(reason==="AUTH_REQUIRED"||reason==="CHALLENGE_REQUIRED")return{stage:"BROWSER_WORKFLOW",status:reason};
-    return{stage:"BROWSER_WORKFLOW",status:"SUCCESS",result:{...result,provenance:{...result.provenance,workflowId:workflow.id,workflowVersion:workflow.version}}};
-  }catch{return{stage:"BROWSER_WORKFLOW",status:"STRUCTURAL_FAILURE",reason:"authenticated deterministic browser workflow failed"}}
+  const deadline=Date.now()+request.limits.maxExecutionMs;
+  const primary=(env.DISTILLED_BROWSER_PROVIDER??env.DISTILLED_BROWSER_BACKEND??"").trim().toLowerCase();
+  const alternateProvider=eligibleXAlternateProvider(env,primary);
+  const canFailover=!port&&Boolean(alternateProvider);
+  const maxAttempts=Math.max(1,Math.min(request.limits.maxPhysicalAttempts,canFailover?3:2));
+  let last:AcquisitionStageOutcome={stage:"BROWSER_WORKFLOW",status:"TRANSIENT_FAILURE",reason:"authenticated replay unavailable"};
+  let challenged=false;
+  for(let attempt=0;attempt<maxAttempts&&Date.now()<deadline;attempt++){
+    const failover=canFailover&&attempt===maxAttempts-1&&attempt>0;
+    if(attempt>0){
+      if(challenged)await recordXRecovery(env,context,"CHALLENGE_HANDLING",attempt);
+      if(failover)await recordXRecovery(env,context,"EXECUTOR_FAILOVER",attempt);
+      await recordXRecovery(env,context,"SESSION_RESTORE",attempt);
+      await new Promise(resolve=>setTimeout(resolve,Math.min(750,Math.max(0,deadline-Date.now()))));
+    }
+    const browser=port??createPort(attempt,failover?alternateProvider:undefined);
+    try{
+      const result=await new DeterministicAuthenticatedSourceWorkflowExecutor(browser).execute(request,workflow.authenticatedSourceAcquisition);
+      const reason=result.coverage.stopReason;
+      if(reason!=="AUTH_REQUIRED"&&reason!=="CHALLENGE_REQUIRED"){
+        if(challenged)await recordXRecovery(env,context,"CHALLENGE_CLEARED",attempt);
+        if(attempt>0)await recordXRecovery(env,context,"ACQUISITION_RESUMED",attempt);
+        return{stage:"BROWSER_WORKFLOW",status:"SUCCESS",result:{...result,provenance:{...result.provenance,workflowId:workflow.id,workflowVersion:workflow.version}}};
+      }
+      last={stage:"BROWSER_WORKFLOW",status:reason,reason:"authenticated challenge persisted after trusted observation"};
+      if(!challenged){challenged=true;await recordXRecovery(env,context,"CHALLENGE_DETECTED",attempt)}
+    }catch(error){
+      if(error instanceof BrowserPreDispatchError||error instanceof AuthenticatedProfileError)return{stage:"BROWSER_WORKFLOW",status:"POLICY_DENIED",reason:safeXFailure(error)};
+      last={stage:"BROWSER_WORKFLOW",status:"TRANSIENT_FAILURE",reason:safeXFailure(error)};
+    }
+    if(port)break;
+  }
+  if(challenged&&(last.status==="CHALLENGE_REQUIRED"||last.status==="AUTH_REQUIRED"))await recordXRecovery(env,context,"HUMAN_ASSISTANCE_REQUIRED",maxAttempts);
+  return last;
+}
+
+type XRecoveryState="CHALLENGE_DETECTED"|"CHALLENGE_HANDLING"|"EXECUTOR_FAILOVER"|"SESSION_RESTORE"|"CHALLENGE_CLEARED"|"ACQUISITION_RESUMED"|"HUMAN_ASSISTANCE_REQUIRED";
+async function recordXRecovery(env:Env,context:Context,state:XRecoveryState,attempt:number){
+  const now=new Date().toISOString();
+  await env.DB.prepare("INSERT OR IGNORE INTO authenticated_profile_audit(id,profile_id,tenant_id,run_id,event_type,safe_metadata_json,created_at) VALUES(?,?,?,?,'BOOTSTRAP_PROGRESS',?,?)")
+    .bind(makeId("x_recovery",context.runId,state,attempt),context.profileId,context.tenantId,context.runId,JSON.stringify({recoveryState:state,attempt}),now).run();
+}
+
+async function openXWithRecovery(env:Env,context:Context,request:SourceAcquisitionRequest,sourceUrl:string,phase:"agent"|"verify",injected?:XPort):Promise<{port:XPort;observation:AuthenticatedSourceTimelineObservation}|AcquisitionStageOutcome>{
+  const primary=(env.DISTILLED_BROWSER_PROVIDER??env.DISTILLED_BROWSER_BACKEND??"").trim().toLowerCase();
+  const alternateProvider=eligibleXAlternateProvider(env,primary);
+  const canFailover=!injected&&Boolean(alternateProvider);
+  const maxAttempts=injected?1:Math.max(1,Math.min(request.limits.maxPhysicalAttempts,canFailover?3:2));
+  const deadline=Date.now()+request.limits.maxExecutionMs;
+  let last:AcquisitionStageOutcome={stage:"WEB_OPERATOR",status:"TRANSIENT_FAILURE",reason:"authenticated observation unavailable"};
+  let challenged=false;
+  for(let attempt=0;attempt<maxAttempts&&Date.now()<deadline;attempt++){
+    const failover=canFailover&&attempt===maxAttempts-1&&attempt>0;
+    if(attempt>0){if(challenged)await recordXRecovery(env,context,"CHALLENGE_HANDLING",attempt);if(failover)await recordXRecovery(env,context,"EXECUTOR_FAILOVER",attempt);await recordXRecovery(env,context,"SESSION_RESTORE",attempt);await new Promise(resolve=>setTimeout(resolve,Math.min(750,Math.max(0,deadline-Date.now()))));}
+    const port=injected??new ContainerXTimelinePort(env,{...context,runId:makeId("x_discovery",context.runId,phase,attempt)},failover?alternateProvider:undefined);
+    try{
+      await port.open({sourceUrl,allowedOrigins:["https://x.com"],request});
+      const observation=await port.observe();
+      if(!observation.challengeState||observation.challengeState==="NO_CHALLENGE"){
+        if(challenged)await recordXRecovery(env,context,"CHALLENGE_CLEARED",attempt);
+        if(attempt>0)await recordXRecovery(env,context,"ACQUISITION_RESUMED",attempt);
+        return{port,observation};
+      }
+      last={stage:"WEB_OPERATOR",status:observation.challengeState==="LOGIN_REQUIRED"?"AUTH_REQUIRED":"CHALLENGE_REQUIRED",reason:"authenticated observation challenge persists"};
+      if(!challenged){challenged=true;await recordXRecovery(env,context,"CHALLENGE_DETECTED",attempt)}
+    }catch(error){
+      if(error instanceof BrowserPreDispatchError||error instanceof AuthenticatedProfileError){await port.close().catch(()=>undefined);return{stage:"WEB_OPERATOR",status:"POLICY_DENIED",reason:safeXFailure(error)}}
+      last={stage:"WEB_OPERATOR",status:"TRANSIENT_FAILURE",reason:safeXFailure(error)};
+    }
+    await port.close().catch(()=>undefined);
+  }
+  if(last.status==="AUTH_REQUIRED"||last.status==="CHALLENGE_REQUIRED")await recordXRecovery(env,context,"HUMAN_ASSISTANCE_REQUIRED",maxAttempts);
+  return last;
+}
+
+function eligibleXAlternateProvider(env:Env,primary:string):"self_hosted"|"cloudflare"|undefined{
+  if(primary!=="self_hosted"&&env.SELF_HOSTED_BROWSER_BRIDGE_URL?.trim()&&env.SELF_HOSTED_BROWSER_BRIDGE_AUTH?.trim())return"self_hosted";
+  if(primary!=="cloudflare"&&env.BROWSER)return"cloudflare";
+  return undefined;
 }
 
 async function discoverXWorkflow(env:Env,context:Context,request:SourceAcquisitionRequest,ports:Ports):Promise<WebOperatorDiscovery|AcquisitionStageOutcome>{
@@ -44,33 +116,35 @@ async function discoverXWorkflow(env:Env,context:Context,request:SourceAcquisiti
   const agentRunId=`${context.runId}_browser_use`;
   const telemetry=new D1BrowserUseRunTelemetry(env.DB);
   let started=Date.now();
-  const agent=ports.agent??new ContainerXTimelinePort(env,{...context,runId:agentRunId});
+  let agent:XPort|undefined;
   let proposal:BrowserUseDiscoveryProposal;
   let phase="SESSION_ATTACH";
   try{
-    await agent.open({sourceUrl,allowedOrigins:["https://x.com"],request});
+    const ready=await openXWithRecovery(env,context,request,sourceUrl,"agent",ports.agent);
+    if("status" in ready)return ready;
+    agent=ready.port;
     phase="TIMELINE_OBSERVE";
-    const initial=await agent.observe();
-    if(initial.challengeState&&initial.challengeState!=="NO_CHALLENGE")return{stage:"WEB_OPERATOR",status:initial.challengeState==="LOGIN_REQUIRED"?"AUTH_REQUIRED":"CHALLENGE_REQUIRED",reason:"authenticated source requires runtime challenge resolution"};
+    const initial=ready.observation;
     started=Date.now();
     await telemetry.begin({runId:agentRunId,acquisitionRunId:context.runId,tenantId:context.tenantId,resourceId:context.resourceId,startedAt:new Date(started).toISOString()});
     phase="BROWSER_USE_DISCOVERY";
     proposal=await agent.discoverWithBrowserUse(model,6);
     await telemetry.stage(agentRunId,"PROPOSAL_ACCEPTED",{modelCalls:proposal.modelCalls,browserOperations:proposal.browserActions,agentBrowserActions:proposal.agentBrowserActions,agentDurationMs:Date.now()-started});
   }catch(error){await telemetry.stage(agentRunId,"FAILED");return{stage:"WEB_OPERATOR",status:"STRUCTURAL_FAILURE",reason:`${phase}:${safeXFailure(error)}`}}
-  finally{await agent.close().catch(()=>undefined)}
+  finally{await agent?.close().catch(()=>undefined)}
   if(proposal.runId!==agentRunId||proposal.articleUrls.length||!proposal.visitedUrls.includes(sourceUrl)||proposal.modelCalls===undefined||proposal.modelCalls<1||proposal.continuation!=="scroll")return{stage:"WEB_OPERATOR",status:"STRUCTURAL_FAILURE",reason:"X discovery proposal insufficient"};
-  const verifier=ports.verifier??new ContainerXTimelinePort(env,{...context,runId:`${context.runId}_verify`});
+  let verifier:XPort|undefined;
   let listing:AuthenticatedSourceTimelineObservation,continued:AuthenticatedSourceTimelineObservation;
   const verifyStarted=Date.now();
   try{
-    await verifier.open({sourceUrl,allowedOrigins:["https://x.com"],request});
-    listing=await verifier.observe();
-    if(listing.challengeState&&listing.challengeState!=="NO_CHALLENGE")return{stage:"WEB_OPERATOR",status:listing.challengeState==="LOGIN_REQUIRED"?"AUTH_REQUIRED":"CHALLENGE_REQUIRED",reason:"trusted X verification requires runtime challenge resolution"};
+    const ready=await openXWithRecovery(env,context,request,sourceUrl,"verify",ports.verifier);
+    if("status" in ready)return ready;
+    verifier=ready.port;
+    listing=ready.observation;
     continued=await verifier.scrollAndObserve(1200);
     if(continued.challengeState&&continued.challengeState!=="NO_CHALLENGE")return{stage:"WEB_OPERATOR",status:continued.challengeState==="LOGIN_REQUIRED"?"AUTH_REQUIRED":"CHALLENGE_REQUIRED",reason:"trusted X continuation requires runtime challenge resolution"};
   }catch{await telemetry.stage(agentRunId,"FAILED");return{stage:"WEB_OPERATOR",status:"STRUCTURAL_FAILURE",reason:"trusted X timeline verification failed"}}
-  finally{await verifier.close().catch(()=>undefined)}
+  finally{await verifier?.close().catch(()=>undefined)}
   const initialIds=new Set(listing.items.map(item=>item.sourceItemId));
   const independent=[...listing.items,...continued.items].filter((item,index,array)=>item.sourceItemId&&array.findIndex(candidate=>candidate.sourceItemId===item.sourceItemId)===index);
   if(independent.length<2||!continued.items.some(item=>!initialIds.has(item.sourceItemId))||independent.some(item=>!item.publishedAt||!Number.isFinite(Date.parse(item.publishedAt)))){
