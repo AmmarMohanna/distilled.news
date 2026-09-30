@@ -184,11 +184,15 @@ def test_apify_submit_poll_download_and_resume_without_resubmission(tmp_path):
         def handler(request):
             calls.append((request.method, request.url.path))
             assert request.headers["authorization"] == "Bearer fake-secret"
-            if request.method == "POST": return httpx.Response(201, json={"data": {"id": "remote1"}})
+            if request.method == "POST":
+                assert request.url.params["maxTotalChargeUsd"] == "0.1"
+                assert request.url.params["maxItems"] == str(DEFAULT_LIMITS["max_items"])
+                return httpx.Response(201, json={"data": {"id": "remote1"}})
             if "/actor-runs/" in request.url.path: return httpx.Response(200, json={"data": {"status": "SUCCEEDED", "defaultDatasetId": "dataset1", "usageTotalUsd": .03}})
             assert request.url.params["offset"] == "0"
             return httpx.Response(200, headers={"x-apify-pagination-total": "1"}, json=[{"id": "one", "text": "fake-secret"}])
         ctx = context(tmp_path, handler)
+        ctx.route["cost_ceiling_usd"] = .1
         capture = await adapters.acquire(ctx)
         assert json.loads(capture["payload"])[0]["id"] == "one"
         assert ctx.state.jobs("test")[0]["remote"]["id"] == "remote1"

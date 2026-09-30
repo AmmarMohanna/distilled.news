@@ -808,6 +808,13 @@ export class D1Repository implements Repository {
       .run();
   }
 
+  async updateRawMessage(message: NormalizedMessage): Promise<void> {
+    await this.db.prepare(`UPDATE raw_messages SET text = ?, links_json = ?, media_json = ?,
+      received_at = ?, raw_payload_key = ?, processed_at = NULL WHERE id = ?`)
+      .bind(message.text, JSON.stringify(message.links), JSON.stringify(message.media),
+        message.receivedAt, message.rawPayloadKey ?? null, message.id).run();
+  }
+
   async getRawMessage(id: string): Promise<NormalizedMessage | null> {
     const row = await first<RawMessageRow>(
       this.db
@@ -1590,10 +1597,14 @@ export class D1Repository implements Repository {
     for (const evidence of item.evidence) {
       await this.db
         .prepare(
-          `INSERT OR IGNORE INTO briefing_item_evidence (
+          `INSERT INTO briefing_item_evidence (
             id, briefing_item_id, raw_message_id, source_id, source_title, source_type,
             source_provider, source_kind, source_url, posted_at, text, links_json, media_json
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            text = excluded.text,
+            links_json = excluded.links_json,
+            media_json = excluded.media_json`
         )
         .bind(
           `evidence_${item.id}_${evidence.messageId}`,
@@ -2015,6 +2026,13 @@ export class InMemoryRepository implements Repository {
 
   async saveRawMessage(_briefingId: string, message: NormalizedMessage): Promise<void> {
     this.rawMessages.set(message.id, message);
+  }
+
+  async updateRawMessage(message: NormalizedMessage): Promise<void> {
+    const previous = this.rawMessages.get(message.id);
+    if (previous) this.rawMessages.set(message.id, { ...previous, text: message.text,
+      links: message.links, media: message.media, receivedAt: message.receivedAt,
+      rawPayloadKey: message.rawPayloadKey });
   }
 
   async getRawMessage(id: string): Promise<NormalizedMessage | null> {

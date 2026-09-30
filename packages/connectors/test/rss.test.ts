@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { buildGoogleNewsRssUrl, parseGoogleNewsRssFeed, parseRssFeed } from "../src";
 
 describe("parseRssFeed", () => {
+  it.each(["media:content", "media:thumbnail", "enclosure"])("decodes XML entities in %s image URLs", (tag) => {
+    const messages = parseRssFeed(`<rss><channel><item>
+      <title>Image story</title><pubDate>Tue, 01 Sep 2026 10:00:00 GMT</pubDate>
+      <${tag} url="https://example.com/image?width=140&amp;quality=85&#38;crop=faces" type="image/jpeg" />
+    </item></channel></rss>`, {
+      sourceId: "feed", sourceTitle: "Feed", sourceUrl: "https://example.com/feed"
+    });
+    expect(messages[0].media[0].url).toBe("https://example.com/image?width=140&quality=85&crop=faces");
+  });
+
   it("normalizes RSS items with publisher evidence links", () => {
     const messages = parseRssFeed(
       `<?xml version="1.0"?>

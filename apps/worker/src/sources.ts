@@ -521,11 +521,20 @@ async function persistMessages(input: SourceRefreshInput & {
     };
     const existing = await input.repo.getRawMessage(persistedMessage.id);
     if (existing) {
-      skipped += 1;
-      continue;
+      const isX = message.source.kind === "x_profile" || message.source.kind === "x_search";
+      const changed = existing.text !== message.text ||
+        JSON.stringify([...existing.links].sort()) !== JSON.stringify([...message.links].sort());
+      if (!isX || !changed || Date.parse(message.receivedAt) < Date.parse(existing.receivedAt)) {
+        skipped += 1;
+        continue;
+      }
+      // Keep original identity, publication date, permalink and retention deadline.
+      await input.repo.updateRawMessage({ ...existing, text: message.text, links: message.links,
+        media: message.media, receivedAt: message.receivedAt, rawPayloadKey: message.rawPayloadKey });
+    } else {
+      await input.repo.saveRawMessage(input.briefing.id, persistedMessage, input.now);
     }
 
-    await input.repo.saveRawMessage(input.briefing.id, persistedMessage, input.now);
     const jobId = await input.repo.createProcessingJob(input.briefing.id, persistedMessage.id, input.now);
     await input.queue.send({ jobId, briefingId: input.briefing.id, rawMessageId: persistedMessage.id });
     imported += 1;

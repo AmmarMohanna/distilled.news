@@ -62,7 +62,7 @@ nano configs/stage1.local.json
 In `stage1.local.json`:
 
 - Add `credentials_file` with the full absolute credentials path. Keep `data_dir` as `../data/live` to use the paths below.
-- Set `costs.server_monthly_usd`, `budget.total_usd`, and the provider budgets to your actual figures.
+- Set `costs.server_monthly_usd` when known, or leave it `null` to test quality with cost metrics unavailable. Set `budget.total_usd` and the provider budgets to the authorized figures; paid-route requirements still apply.
 - Enable only the routes selected for the pilot; all start disabled. Set confirmed whole-job price ceilings, actor/dataset inputs, account/schema confirmations and browser settings as described in the main README. Local reservations are not provider billing caps.
 - Replace the example targets. Use matching collection windows and filters, and independently checked reference files. Do not copy synthetic fixture answers as live references.
 - If testing Telegram's API, use the README's `telegram-login` command first and retain its session privately.

@@ -86,6 +86,8 @@ async def remote_collection(ctx):
             actor = settings.get("task_id") or settings.get("actor_id")
             if not actor: raise Unavailable("actor_id or task_id required")
             params = {"timeout": int(ctx.limits["job_seconds"]), "maxItems": ctx.limits["max_items"]}
+            if ctx.route.get("cost_ceiling_usd") is not None:
+                params["maxTotalChargeUsd"] = ctx.route["cost_ceiling_usd"]
             if settings.get("build"): params["build"] = settings["build"]
             collection = "actor-tasks" if settings.get("task_id") else "acts"
             url = f"https://{host}/v2/{collection}/{quote(actor.replace('/', '~'), safe='~')}/runs?{urlencode(params)}"

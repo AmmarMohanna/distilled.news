@@ -360,7 +360,7 @@ async def process_payloads(state, run, operations="all"):
                         step.pop("normalization_ms", None)
                         step.pop("source_score", None)
                         processing_started = time.monotonic()
-                        step["normalized"] = await processing.normalize(payload, spec["target"], route, step["started_at"], offline=config["mode"] == "offline")
+                        step["normalized"] = await processing.normalize(payload, spec["target"], route, step["started_at"], offline=config["mode"] == "offline", max_items=config["limits"]["max_items"])
                         step["normalization_ms"] = round((time.monotonic() - processing_started) * 1000)
                     if operations in {"all", "score"} and "normalized" in step:
                         step["source_score"] = processing.score_source(step["normalized"], spec["reference"], spec["target"], step["started_at"])

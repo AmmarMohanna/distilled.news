@@ -168,11 +168,15 @@ def test_attach_reference_reports_the_round_window_it_must_match(tmp_path, capsy
     assert output["reference_window_error"] == "reference_window_missing"
 
 
-def test_preflight_requires_server_cost_and_round_references(tmp_path):
+def test_preflight_warns_about_unknown_server_cost_but_requires_round_references(tmp_path):
     config = demo(tmp_path, mode="live")
     config["routes"] = [route | {"enabled": False} for route in config["routes"]]
     checks = {check.get("check"): check for check in preflight(config)["checks"]}
-    assert checks["server_cost"]["status"] == "NOT_READY"
+    assert checks["server_cost"]["status"] == "WARNING"
+    assert preflight(config)["ready"]
+    direct = next(route for route in config["routes"] if route["id"] == "direct")
+    direct["enabled"] = True
+    assert preflight(config)["ready"]
     config["costs"] = {"server_monthly_usd": 20}
     assert "server_cost" not in {check.get("check") for check in preflight(config)["checks"]}
     config["schedule"] = {"rolling_window_hours": 24}
@@ -190,19 +194,21 @@ def test_preflight_only_requires_namespaces_for_the_isolated_browser(tmp_path, m
     assert not any("unshare" in issue for issue in checks["browser_standard"]["issues"])
 
 
-def test_server_check_skips_chromium_when_namespaces_fail_and_sends_no_acquisition_requests(tmp_path, monkeypatch):
+@pytest.mark.parametrize("monthly_cost", [None, 20])
+def test_server_check_skips_chromium_when_namespaces_fail_and_sends_no_acquisition_requests(tmp_path, monkeypatch, monthly_cost):
     def fake_run(argv, **kwargs):
         outputs = {"node": (0, "v24.1.0"), "unshare": (1, "unshare: write failed /proc/self/uid_map: Operation not permitted"), "timedatectl": (0, "yes")}
         code, text = outputs[argv[0]]
         return subprocess.CompletedProcess(argv, code, stdout=text if code == 0 else "", stderr="" if code == 0 else text)
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setitem(sys.modules, "playwright.async_api", None)  # Any Chromium launch attempt would fail loudly.
-    config = demo(tmp_path, mode="live", costs={"server_monthly_usd": 20})
+    config = demo(tmp_path, mode="live", costs={"server_monthly_usd": monthly_cost})
     for route in config["routes"]: route["enabled"] = route["id"] == "browser"
     result = asyncio.run(server_check(config))
     checks = {check["check"]: check for check in result["checks"]}
     assert checks["user_network_namespace"]["status"] == "NOT_READY" and "Operation not permitted" in checks["user_network_namespace"]["detail"]
     assert "chromium_launch_isolated" not in checks
-    assert checks["node_24_plus"]["status"] == "READY" and checks["server_cost_configured"]["status"] == "READY"
+    assert checks["node_24_plus"]["status"] == "READY"
+    assert checks["server_cost_configured"]["status"] == ("WARNING" if monthly_cost is None else "READY")
     assert checks["clock_synchronized"]["status"] == "READY"
     assert not result["ready"] and result["acquisition_requests"] == 0

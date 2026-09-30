@@ -23,14 +23,32 @@ class NetworkError(Exception):
 
 
 class PublicBackend(AutoBackend):
+    address_connect_seconds = 3.0
+
     async def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
         # Resolve once, reject mixed unsafe answers, then connect to a literal IP.
         # HTTPCore still performs TLS using the original request hostname.
-        answers = await asyncio.get_running_loop().getaddrinfo(host, port, type=__import__('socket').SOCK_STREAM)
-        addresses = list(dict.fromkeys(answer[4][0] for answer in answers))
-        if not addresses or any(not is_public_address(address) for address in addresses):
-            raise UnsafeTargetError("Non-public connection address")
-        return await super().connect_tcp(addresses[0], port, timeout, local_address, socket_options)
+        try:
+            async with asyncio.timeout(timeout):
+                answers = await asyncio.get_running_loop().getaddrinfo(host, port, type=__import__('socket').SOCK_STREAM)
+                addresses = list(dict.fromkeys(answer[4][0] for answer in answers))
+                if not addresses or any(not is_public_address(address) for address in addresses):
+                    raise UnsafeTargetError("Non-public connection address")
+                # Bound each address so a stalled first address cannot consume the
+                # entire request deadline. Never re-resolve or skip validation.
+                last_error = None
+                for address in addresses:
+                    try:
+                        async with asyncio.timeout(self.address_connect_seconds):
+                            return await super().connect_tcp(
+                                address, port, self.address_connect_seconds, local_address, socket_options)
+                    except TimeoutError:
+                        last_error = httpcore.ConnectTimeout("Public address connection timed out")
+                    except (httpcore.ConnectError, httpcore.ConnectTimeout) as error:
+                        last_error = error
+                raise last_error
+        except TimeoutError as error:
+            raise httpcore.ConnectTimeout("Connection deadline exceeded") from error
 
     async def connect_unix_socket(self, *args, **kwargs):
         raise UnsafeTargetError("Unix sockets are not acquisition targets")

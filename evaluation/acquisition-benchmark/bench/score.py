@@ -10,7 +10,7 @@ from bench.validator import article_validation
 
 
 def normalize_text(text):
-    text = unicodedata.normalize("NFKC", str(text)).lower()
+    text = unicodedata.normalize("NFKC", "" if text is None else str(text)).lower()
     text = re.sub(r"[\u064b-\u065f\u0670\u0640]", "", text)
     text = re.sub(r"[أإآٱ]", "ا", text)
     return " ".join(re.findall(r"\w+", text, re.UNICODE))
@@ -138,6 +138,7 @@ def score_source(normalized, reference, target, fetched_at=None):
     if fetched_at:
         stamp = datetime.fromisoformat(fetched_at)
         result["publication_age_seconds"] = [round((stamp-datetime.fromisoformat(parsed_date(item["published_at"]))).total_seconds()) for item in items if parsed_date(item.get("published_at"))]
+    if "item_limit" in normalized: result["item_limit"] = normalized["item_limit"]
     if not reference: return result
     expected = reference.get("items", [])
     if not expected: return result | {"reference_error": "empty_reference_does_not_establish_recall"}

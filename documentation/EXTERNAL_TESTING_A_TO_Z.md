@@ -95,7 +95,7 @@ GDELT, automatic robots.txt checks, incremental polling improvements, and Docker
 | Exact benchmark commit | Local checkout/team decision | Freeze code |
 | Reviewed sources/queries | Intended news workload | Pilot |
 | Allowed spending | Account owner/project budget | Before paid candidates |
-| Monthly VPS cost | Provider invoice or university cost owner | Before any live run; required by preflight |
+| Monthly VPS cost | Provider invoice or university cost owner | Needed for server-inclusive cost comparisons; leave null if unknown during quality testing |
 | Private backup destination | Laptop or agreed storage | Before unattended runs |
 
 You can prepare the environment and run the synthetic demo before obtaining paid accounts. The project notes describe a two-core, 8 GB VPS; verify the actual machine. Confirm access and funding cover the experiment.
@@ -660,7 +660,7 @@ Configuration fields:
 - **budget.providers:** cumulative allowance for each provider key.
 - **route.cost_ceiling_usd:** conservative bound for the whole attempt/job.
 - **route.cost_bound_confirmed:** true only after checking the external bound.
-- **costs.server_monthly_usd:** the VPS's actual monthly price, from the invoice or cost owner. Live preflight refuses to run without it. Use **0** only when the server genuinely costs the project nothing, and say so in the report.
+- **costs.server_monthly_usd:** the VPS's actual monthly price, from the invoice or cost owner. Leave **null** when unknown: live preflight and server-check warn but allow quality testing, while server-inclusive cost metrics remain unavailable. Use **0** only when the server genuinely costs the project nothing, and say so in the report.
 
 Why the server cost is mandatory: direct HTTP, RSS, public Telegram and the local browser have no provider fee, so without it they look free and would win any cost comparison. The report charges each attempt for the share of the server it actually occupied (Section 15.5).
 
@@ -892,9 +892,8 @@ jq '{planned_jobs, planned_maximum_usd}' "$BENCH_CAMPAIGN/reports/stage1-plan.js
 
 Both commands are local and nonbillable. They do not prove API permissions, connectivity, valid remote schemas, or account billing enforcement. Preflight checks all enabled routes, even if the eventual command selects only articles or only sources.
 
-Live preflight also reports NOT_READY for:
+Live preflight reports **WARNING** when **costs.server_monthly_usd** is missing. This allows collection while keeping server-inclusive cost metrics unavailable. It reports NOT_READY for:
 
-- **server_cost**: **costs.server_monthly_usd** is missing.
 - **reference_window**: a schedule with **rolling_window_hours** still points a source target at a fixed complete reference.
 - **browser**: the isolated variant is enabled but namespaces are unavailable. Run `server-check`; the standard variant does not need namespaces.
 
@@ -2318,7 +2317,7 @@ Raw benchmark artifacts do not inherit the production app's default news-retenti
 | Config rejected: "Confirm the host egress firewall" | browser_standard enabled in live mode before Section 4.5 was verified |
 | Firewall test times out instead of "Connection refused" | nft rule not loaded or wrong user; `sudo nft list table inet distilled_bench_egress` and check meta skuid |
 | DNS fails for the benchmark user after firewall | Resolver lives in a blocked range; add an accept rule for that resolver before the reject lines |
-| Preflight NOT_READY: server_cost | Set costs.server_monthly_usd to the actual monthly VPS price |
+| Preflight WARNING: server_cost | Quality testing can continue; set costs.server_monthly_usd from actual evidence when available for cost comparisons |
 | Preflight NOT_READY: reference_window | Rolling schedule still has a fixed complete source reference; remove it and use per-round references (Section 12.3) |
 | Source label SOURCE_VERIFIED_SAMPLE despite complete reference | Check reference_window_error; set window to the printed collection_window |
 | Report cost_per_usable_result_usd is null | Read cost_status: reconcile bills, configure server cost, or there were no usable results |

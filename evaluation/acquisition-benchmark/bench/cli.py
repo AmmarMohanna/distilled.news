@@ -57,7 +57,7 @@ def preflight(config):
                 issues.append("Linux unshare required for the isolated browser; run server-check")
         checks.append({"route": route["id"], "status": "NOT_READY" if issues else "READY", "issues": issues})
     if config["mode"] == "live" and config.get("costs", {}).get("server_monthly_usd") is None:
-        checks.append({"check": "server_cost", "status": "NOT_READY",
+        checks.append({"check": "server_cost", "status": "WARNING",
                        "issues": ["Set costs.server_monthly_usd so cost per usable result includes the server; unpaid routes are not free"]})
     if config.get("schedule", {}).get("rolling_window_hours"):
         for target in config["targets"]:
@@ -236,7 +236,7 @@ async def server_check(config):
     if session and Path(session).expanduser().exists():
         add("telegram_session_private", Path(session).expanduser().stat().st_mode & 0o077 == 0, required=False)
     if config["mode"] == "live":
-        add("server_cost_configured", config.get("costs", {}).get("server_monthly_usd") is not None)
+        add("server_cost_configured", config.get("costs", {}).get("server_monthly_usd") is not None, required=False)
     networks = {route["settings"].get("network", "isolated") for route in config["routes"] if route["enabled"] and route["adapter"] == "browser_playwright"}
     namespace_ok = False
     if "isolated" in networks:

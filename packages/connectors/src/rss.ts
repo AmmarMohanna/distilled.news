@@ -145,11 +145,12 @@ function extractItemLink(block: string): string | undefined {
 }
 
 function extractMediaUrl(block: string): string | undefined {
-  return (
+  const url = (
     block.match(/<media:content\b[^>]*url=["']([^"']+)["'][^>]*>/i)?.[1] ??
     block.match(/<media:thumbnail\b[^>]*url=["']([^"']+)["'][^>]*>/i)?.[1] ??
     block.match(/<enclosure\b[^>]*url=["']([^"']+)["'][^>]*type=["']image\//i)?.[1]
   );
+  return url ? decodeHtml(url) : undefined;
 }
 
 function parseDate(value: string): string | undefined {

@@ -8,6 +8,8 @@ Start with [External Testing: A to Z](EXTERNAL_TESTING_A_TO_Z.md) for the comple
 
 | Document | Use |
 |---|---|
+| [External testing results — living record](testing-evidence/README.md) | Accumulating pilot results, per-article PASS/PARTIAL explanations, scoring limitations, evidence links and remaining work. |
+| [VPS Testing Execution Log](VPS_TESTING_EXECUTION_LOG.md) | Commands and confirmed results from the actual VPS setup through the offline demo, the Playwright compatibility workaround, saved transcript, and Stage 1 handoff. |
 | [External Testing: A to Z](EXTERNAL_TESTING_A_TO_Z.md) | Start-to-finish external testing instructions, actual CLI commands, each source/candidate, references, schedules, recovery, costs, backups, and final deliverables. |
 | [Runnable benchmark and commands](../evaluation/acquisition-benchmark/README.md) | Implemented CLI, all source adapters, stage configs, offline demo, scoring and recovery. |
 | [General image](<general image.md>) | Quick source-by-source table of specific APIs/scrapers, plus an explanation of the existing Telegram scraper. |

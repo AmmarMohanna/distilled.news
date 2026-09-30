@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "campaign_id": "controlled-510-v1",
+  "status": "stage2_partial_stage3_free_and_paid_running",
+  "live_launch_after_user_reset": true,
+  "independent_review_target": 100,
+  "media_acceptance": false,
+  "stage3_days": 5,
+  "budgets": {
+    "official_x_campaign_usd": 25,
+    "other_providers": "Carry forward documented allocations; no new allocation inferred."
+  },
+  "families": [
+    {
+      "id": "web",
+      "targets": 30,
+      "items_per_target": 1,
+      "publishers": 10,
+      "languages": [
+        "en",
+        "ar",
+        "fr"
+      ],
+      "status": "reviewed_partial",
+      "config": null,
+      "blockers": [
+        "Expanded Zyte billing/budget reconciliation",
+        "Full independent body references and acceptance of recorded extraction failures"
+      ],
+      "collection_status": "expanded_capture_reviewed"
+    },
+    {
+      "id": "rss",
+      "targets": 12,
+      "items_per_target": 10,
+      "status": "reviewed_partial",
+      "config": null,
+      "blockers": [
+        "Freeze feed roster and eligible windows",
+        "Independent reference inventories",
+        "Include RSS/Atom and controlled snapshots"
+      ],
+      "collection_status": "expanded_capture_reviewed"
+    },
+    {
+      "id": "google",
+      "targets": 6,
+      "items_per_target": 10,
+      "status": "reviewed_partial",
+      "config": null,
+      "blockers": [
+        "Freeze matched query/language/region settings",
+        "Check original links and metadata"
+      ],
+      "collection_status": "expanded_capture_reviewed"
+    },
+    {
+      "id": "telegram",
+      "targets": 6,
+      "items_per_target": 10,
+      "status": "reviewed_partial",
+      "config": null,
+      "blockers": [
+        "Freeze public channels and matching windows",
+        "Independent message IDs and edit/repost references"
+      ],
+      "collection_status": "expanded_capture_reviewed"
+    },
+    {
+      "id": "x_profiles",
+      "targets": 6,
+      "items_per_target": 10,
+      "status": "reviewed_partial",
+      "config": null,
+      "blockers": [
+        "Independent source text/completeness references",
+        "One shared-ID text discrepancy and profile selection semantics"
+      ],
+      "planned_providers": [
+        "apify",
+        "twitterapi_io"
+      ],
+      "excluded_providers": [
+        "x_api"
+      ],
+      "scope_note": "Official X API excluded. Alternative public-data collection performed after user terms discussion; production/legal clearance not asserted.",
+      "collection_status": "expanded_capture_reviewed"
+    },
+    {
+      "id": "x_search",
+      "targets": 4,
+      "items_per_target": 10,
+      "status": "reviewed_partial",
+      "config": null,
+      "blockers": [
+        "Independent source text/completeness references",
+        "One shared-ID text discrepancy and profile selection semantics"
+      ],
+      "planned_providers": [
+        "apify",
+        "twitterapi_io"
+      ],
+      "excluded_providers": [
+        "x_api"
+      ],
+      "scope_note": "Official X API excluded. Alternative public-data collection performed after user terms discussion; production/legal clearance not asserted.",
+      "collection_status": "expanded_capture_reviewed"
+    },
+    {
+      "id": "linkedin_companies",
+      "targets": 4,
+      "items_per_target": 5,
+      "status": "reviewed_partial",
+      "config": null,
+      "blockers": [
+        "Independent source references and nested repost semantics",
+        "Empty Bill Gates profile remains unverified"
+      ],
+      "collection_status": "expanded_capture_reviewed",
+      "collection_note": "35 total posts across eight targets; no-result target retained in evidence"
+    },
+    {
+      "id": "linkedin_profiles",
+      "targets": 4,
+      "items_per_target": 5,
+      "status": "reviewed_partial",
+      "config": null,
+      "blockers": [
+        "Independent source references and nested repost semantics",
+        "Empty Bill Gates profile remains unverified"
+      ],
+      "collection_status": "expanded_capture_reviewed",
+      "collection_note": "35 total posts across eight targets; no-result target retained in evidence"
+    }
+  ],
+  "evidence_directory": "documentation/testing-evidence/controlled-510-v1",
+  "acceptance_note": "Initial captures exist; family pending statuses retain acceptance blockers. See README for actual collected counts and failures.",
+  "latest_status_document": "documentation/testing-evidence/STAGE2_STATUS.md",
+  "requested_source_items": 410,
+  "campaign_id_note": "Legacy ID retained; detailed sample sizes total 410, not 510.",
+  "stage3_execution": {
+    "campaign": "stage3-free-20260927",
+    "scope": "free routes only",
+    "rounds": 21,
+    "interval_seconds": 21600,
+    "paid_routes_started": true,
+    "status_document": "documentation/testing-evidence/STAGE3_STATUS.md",
+    "paid_campaign": "stage3-paid-20260927",
+    "paid_allocations_usd": {
+      "X_combined": 12.6,
+      "Google_News": 5.04,
+      "LinkedIn": 3.36,
+      "Websites": 1.89
+    },
+    "paid_alternative_ceiling_usd": 20,
+    "paid_alternative_allocations_usd": {
+      "X_Apify": 8.4,
+      "X_TwitterAPI_io": 4.2,
+      "Google_News_Apify": 5.04,
+      "LinkedIn_Apify": 3.36,
+      "Websites_Zyte": 1.89
+    }
+  }
+}
