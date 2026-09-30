@@ -69,7 +69,7 @@ it("acquires supplied payload with no external route and keeps resolvable normal
 it("retains supplied work when queue send fails and replays without reacquisition",async()=>{
   const {mf,db,resource}=await setup();
   try{
-    const source={id:"feed-source",briefingId:"feed",title:"Feed",type:"rss",provider:"rss",kind:"rss_feed",enabled:true,lastSeenAt:"2026-09-29T13:00:00Z"} as SourceRecord;
+    const source={id:"feed-source",briefingId:"feed",title:"Feed",type:"channel",provider:"rss",kind:"rss_feed",enabled:true,lastSeenAt:"2026-09-29T13:00:00Z"} satisfies SourceRecord;
     const {candidate}=await new CandidateIntake(db).accept("owner",{...proposal(resource),suppliedPayloadRef:"r2:payload"});
     let reads=0,sends=0;
     const strategies={suppliedPayload:async()=>{reads++;return {text:"Trusted article body",title:"Article",publishedAt:"2026-09-29T12:00:00Z"}}};
