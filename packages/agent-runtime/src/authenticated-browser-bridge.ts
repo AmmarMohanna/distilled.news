@@ -85,12 +85,13 @@ export class AuthenticatedBrowserBridgeExecutor implements AuthenticatedBrowserE
     const current=this.require(scope);
     const observe=async(wait?:AuthSurfaceWait)=>{const surface=await this.operation(scope,wait?{operation:"OBSERVE_AUTH_SURFACE",wait}:{operation:"OBSERVE_AUTH_SURFACE"}) as AuthenticatedBrowserSurface;current.surface=surface;return surface};
     const snapshot=async()=>surfaceToSnapshot(await observe());
+    const retryStaleControl=async(action:()=>Promise<void>)=>{try{await action()}catch(error){if(!(error instanceof AuthenticatedBrowserBridgeError&&error.code==="BRIDGE_OBSERVATION_STALE"))throw error;current.surface=undefined;await observe();await action()}};
     try{return await adapter.bootstrap({
       goto:async(url)=>{if(url!==current.capability.authEntryPoint)throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");current.surface=undefined;await this.operation(scope,{operation:"NAVIGATE_AUTH_ENTRYPOINT",destination:"ENTRYPOINT"})},
       fill:async()=>{throw new AuthenticatedBrowserBridgeError("BRIDGE_OPERATION_UNKNOWN")},
       click:async()=>{throw new AuthenticatedBrowserBridgeError("BRIDGE_OPERATION_UNKNOWN")},
-      fillControl:async(control,value)=>{const found=await this.control(scope,current,control,observe);await this.operation(scope,{operation:"INJECT_AUTH_FIELD",fieldKind:found.type?.toLowerCase()==="password"||found.autocomplete?.toLowerCase()==="current-password"?"PASSWORD":"IDENTIFIER",fieldHandle:found.handle,pageRevision:current.surface!.pageRevision,secretValue:value});current.surface=undefined},
-      clickControl:async(control)=>{const found=await this.control(scope,current,control,observe);await this.operation(scope,{operation:"ACTIVATE_AUTH_CONTROL",controlKind:controlKind(found.label),controlHandle:found.handle,pageRevision:current.surface!.pageRevision});current.surface=undefined},
+      fillControl:async(control,value)=>retryStaleControl(async()=>{const found=await this.control(scope,current,control,observe);await this.operation(scope,{operation:"INJECT_AUTH_FIELD",fieldKind:found.type?.toLowerCase()==="password"||found.autocomplete?.toLowerCase()==="current-password"?"PASSWORD":"IDENTIFIER",fieldHandle:found.handle,pageRevision:current.surface!.pageRevision,secretValue:value});current.surface=undefined}),
+      clickControl:async(control)=>retryStaleControl(async()=>{const found=await this.control(scope,current,control,observe);await this.operation(scope,{operation:"ACTIVATE_AUTH_CONTROL",controlKind:controlKind(found.label),controlHandle:found.handle,pageRevision:current.surface!.pageRevision});current.surface=undefined}),
       waitForAuthenticationSurface:async()=>surfaceToSnapshot(await observe("AUTH_SURFACE")),
       waitForPasswordSurface:async()=>{await observe("PASSWORD_FIELD")},
       snapshot,importSession:async(state)=>this.attachAuthenticatedSession(scope,state),exportSession:async()=>this.exportAuthenticatedSession(scope)
