@@ -123,7 +123,7 @@ describe("real HTTP bridge → real SelfHostedChromiumProvider → synthetic aut
       expect(detection).toMatchObject({state:"CHALLENGE_REQUIRED",challengeKind:"CAPTCHA",challengeProviderOutcome:"UNSUPPORTED"});
       const records=[...flow.store.records.values()];
       expect(records).toHaveLength(1);
-      expect(records[0]).toMatchObject({state:"UNSUPPORTED",resolutionOutcome:"DETECT_ONLY",providerKind:"self_hosted_chromium",challengeKind:"CAPTCHA"});
+      expect(records[0]).toMatchObject({state:"UNSUPPORTED",resolutionOutcome:"DETECT_ONLY_AFTER_REOBSERVATION",providerKind:"self_hosted_chromium",challengeKind:"CAPTCHA"});
       expect(site.received.filter(entry=>entry.path.startsWith("/login/"))).not.toContainEqual(expect.objectContaining({body:expect.stringContaining("captcha")}));
     }finally{await flow.executor.close(scope)}
     expect(providerSessions(service)).toBe(0);

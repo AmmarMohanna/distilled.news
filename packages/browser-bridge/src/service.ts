@@ -15,7 +15,7 @@ const TOMBSTONE_MS=5*60_000;
 export class AuthenticatedBrowserBridgeService{
   private readonly executions=new Map<string,Execution>();private readonly nonces=new Map<string,number>();
   constructor(private readonly input:{serviceCredential:string;provider?:SelfHostedChromiumProvider;allowTestMode?:boolean;clock?:()=>number;requestWindowMs?:number;idleTimeoutMs?:number;absoluteTimeoutMs?:number;maxExecutions?:number}){if(!input.serviceCredential)throw new Error("bridge service credential is required");if(input.allowTestMode&&typeof process!=="undefined"&&process.env.NODE_ENV==="production")throw new Error("test mode is forbidden in production mode");}
-  private get provider(){return this.input.provider??(this.input.provider=this.input.allowTestMode?SelfHostedChromiumProvider.forTest():new SelfHostedChromiumProvider({launchBrowser:options=>chromium.launch(options)}))}
+  private get provider(){return this.input.provider??(this.input.provider=this.input.allowTestMode?SelfHostedChromiumProvider.forTest():new SelfHostedChromiumProvider({launchBrowser:options=>chromium.launch({...options,headless:process.env.BROWSER_BRIDGE_HEADFUL!=="true",...(process.env.BROWSER_BRIDGE_BROWSER_CHANNEL==="chrome"?{channel:"chrome" as const}:{})})}))}
   private now(){return this.input.clock?.()??Date.now()}
   get activeExecutionCount(){return[...this.executions.values()].filter(execution=>execution.state==="OPENING"||execution.state==="OPEN"||execution.state==="CLOSING").length}
   async handle(request:Request):Promise<Response>{

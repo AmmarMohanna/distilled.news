@@ -43,6 +43,8 @@ Limits: request 256 KB, response 512 KB, session state 192 KB, observation 96 KB
 
 The self-hosted provider's current CAPTCHA capability is `DETECT_ONLY`. A detected challenge is recorded by `ChallengeCoordinator`; this bridge does not currently ship a solver. A supported resolver or compatible executor can be added for authorized read-only acquisition, with bounded retries and re-observation. Source and account authorization remain separate from anti-bot compatibility.
 
+For an explicitly operated compatible local executor, `BROWSER_BRIDGE_BROWSER_CHANNEL=chrome` selects installed Chrome and `BROWSER_BRIDGE_HEADFUL=true` opens its window. Both settings are local operator configuration; they do not widen the bridge's URL, operation, or credential authority. A remote bridge still requires an approved HTTPS transport and its dedicated HMAC credential.
+
 ## Running locally
 
 ```bash
