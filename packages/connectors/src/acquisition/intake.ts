@@ -46,4 +46,3 @@ export async function reuseSuppliedPayload(proposal: CandidateProposal, requeste
   return { candidateKey:proposal.candidateKey, suppliedPayloadRef:proposal.suppliedPayloadRef, content:observation,
     provenance:{ kind:"deterministic" as const, connector:proposal.connector, payloadSha256:proposal.payloadSha256 } };
 }
-
