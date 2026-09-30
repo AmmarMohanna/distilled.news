@@ -1,5 +1,6 @@
 import {canonicalItemIdentity,makeId,type SourceAcquisitionResult} from "@distilled/agent-runtime";
 import type {Env,SourceRecord,ProcessingJobMessage} from "./types";
+import {CandidateIntake,acquireCandidate} from "./candidate-pipeline";
 
 /** Trusted acquired content enters the existing raw-message/processing pipeline. */
 export async function persistAcquiredSourceItems(db:Env["DB"],input:{tenantId:string;resourceId:string;result:SourceAcquisitionResult;now:Date;runId?:string;source?:SourceRecord;retentionDays?:number;queue?:{send(message:ProcessingJobMessage):Promise<unknown>}}){
@@ -12,6 +13,16 @@ export async function persistAcquiredSourceItems(db:Env["DB"],input:{tenantId:st
     if(!identity||!item.text?.trim()||!item.publishedAt||!Number.isFinite(Date.parse(item.publishedAt)))throw new Error("acquisition_item_contract_invalid");
     const id=makeId("acquired_item",input.tenantId,input.resourceId,identity);
     ids.push(id);
+    // Existing deterministic and Web Operator acquisition both project into the
+    // connector-facing canonical boundary before the proven legacy handoff.
+    const intake=new CandidateIntake(db);
+    const {candidate}=await intake.accept(input.tenantId,{
+      upstreamResourceId:input.resourceId,accessScope:"public",connectorType:input.result.provenance?.mechanism??"source_acquisition",
+      sourceId:input.resourceId,upstreamId:item.sourceItemId,url:item.canonicalItemUrl,titleHint:item.title,
+      publishedAtHint:item.publishedAt,discoveredAt:acquiredAt,
+      discovery:{provider:input.result.provenance?.mechanism??"source_acquisition",runId:input.runId??id}
+    });
+    await acquireCandidate(db,candidate,{directHttp:async()=>({text:item.text!,title:item.title,publishedAt:item.publishedAt,author:item.author,resolvedUrl:item.canonicalItemUrl,provider:input.result.provenance?.mechanism,quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:true}}),browser:async()=>({text:item.text!,title:item.title,publishedAt:item.publishedAt,author:item.author,resolvedUrl:item.canonicalItemUrl,provider:"web_operator",quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:true}})},input.result.provenance?.mechanism?.includes("browser")||input.result.provenance?.mechanism?.includes("web_operator")?"browser":"direct_http");
     // Whitelist provenance fields; never persist browser/model envelopes or auth state.
     const evidence={kind:safe(item.acquisitionEvidence.kind),mechanism:input.result.provenance?.mechanism??safe(item.acquisitionEvidence.mechanism),timestampSource:safe(item.acquisitionEvidence.timestampSource),sourceTimestampField:safe(item.acquisitionEvidence.sourceTimestampField),pageRevision:safe(item.acquisitionEvidence.pageRevision),trustedObservationSchemaVersion:safe(item.acquisitionEvidence.trustedObservationSchemaVersion)};
     const commands=[db.prepare(`INSERT OR IGNORE INTO acquired_source_items(id,tenant_id,resource_id,identity,canonical_url,source_item_id,source_url,title,body,published_at,evidence_json,workflow_id,workflow_version,acquired_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)

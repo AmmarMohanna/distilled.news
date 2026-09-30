@@ -24,9 +24,11 @@ describe("authenticated X workflow lifecycle",()=>{
         const sql=readFileSync(new URL(`../migrations/${name}`,import.meta.url),"utf8").replace(/^PRAGMA foreign_keys = ON;\s*/m,"");
         for(const statement of sql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();
       }
-      await db.exec("CREATE TABLE upstream_resources(id TEXT PRIMARY KEY); INSERT INTO upstream_resources VALUES('resource-x');");
+      await db.exec("CREATE TABLE upstream_resources(id TEXT PRIMARY KEY,tenant_id TEXT); INSERT INTO upstream_resources VALUES('resource-x','owner');");
       const handoffSql=readFileSync(new URL("../migrations/0033_acquisition_item_handoff.sql",import.meta.url),"utf8");
       for(const statement of handoffSql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();
+      const candidateSql=readFileSync(new URL("../migrations/0035_candidate_intake.sql",import.meta.url),"utf8");
+      for(const statement of candidateSql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();
       const env={DB:db,DISTILLED_LIVE_OPENROUTER_MODEL:"openai/test",OPENROUTER_API_KEY:"test-only"} as Env;
       const counts={discover:0};
       const input={tenantId:"owner",ownerId:"owner",resourceId:"resource-x",source:{sourceFamily:"x",canonicalSourceUrl:sourceUrl},window,limits,authentication:"AUTH_REQUIRED" as const,acquisitionAsOf:"2026-09-27T12:00:00Z"};

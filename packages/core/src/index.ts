@@ -9,3 +9,4 @@ export * from "./summarization";
 export * from "./text";
 export * from "./types";
 export * from "./developments";
+export * from "./candidate-intake";
