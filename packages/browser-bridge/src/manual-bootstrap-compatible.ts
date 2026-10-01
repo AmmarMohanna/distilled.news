@@ -15,7 +15,7 @@ const {chromium}=await import("@playwright/test");
 const endpoint=new URL("/v1/authenticated-profiles/manual-bootstrap",process.env.WEB_OPERATOR_RUNTIME_URL||configuration.WEB_OPERATOR_RUNTIME_URL||"https://distilled.news");
 const token=process.env.AUTH_PROFILE_BOOTSTRAP_TOKEN??configuration.AUTH_PROFILE_BOOTSTRAP_TOKEN??process.env.WEB_OPERATOR_RUNTIME_TOKEN??configuration.WEB_OPERATOR_RUNTIME_TOKEN;
 const abort=new AbortController();process.once("SIGINT",()=>abort.abort());process.once("SIGTERM",()=>abort.abort());
-let browser:Browser|undefined,context:BrowserContext|undefined,requestId:string|undefined,captured=false,verified=false;
+let browser:Browser|undefined,context:BrowserContext|undefined,requestId:string|undefined,captured=false,verified=false,loginTemporarilyLimited=false;
 async function call(body:unknown,signal=abort.signal):Promise<Record<string,any>>{
   const response=await fetch(endpoint,{method:"POST",redirect:"error",signal:AbortSignal.any([signal,AbortSignal.timeout(30_000)]),headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify(body)});
   if(!response.ok)throw new Error("OPERATOR_REQUEST_FAILED");
@@ -43,6 +43,7 @@ try{
   console.log("Sign into X once in the visible Chrome window. Complete any account verification there. Waiting up to 10 minutes.");
   while(true){
     if(abort.signal.aborted||Date.now()>=deadline-15_000)throw new Error("MANUAL_LOGIN_CANCELLED_OR_EXPIRED");
+    if(await page.getByText(/temporarily limited your login/i).first().isVisible()){loginTemporarilyLimited=true;throw new Error("LOGIN_TEMPORARILY_LIMITED")}
     if(await authenticated(page,context))break;
     await new Promise(resolve=>setTimeout(resolve,1000));
   }
@@ -60,10 +61,10 @@ try{
   if(!restored||result.freshContextRestored!==true)throw new Error("RESTORE_FAILED");
   console.log("Encrypted X session persisted and verified in a fresh Chrome context.");
 }catch{
-  console.error("Compatible X bootstrap did not complete. The encrypted profile was not activated.");process.exitCode=1;
+  console.error(loginTemporarilyLimited?"X temporarily limited login. Stop sign-in attempts for at least one hour; the encrypted profile was not activated.":"Compatible X bootstrap did not complete. The encrypted profile was not activated.");process.exitCode=1;
 }finally{
   if(context)await context.close().catch(()=>undefined);
   if(browser)await browser.close().catch(()=>undefined);
   if(captured&&!verified&&requestId)await call({action:"verify",requestId,restored:false},new AbortController().signal).catch(()=>undefined);
-  if(!captured&&requestId)await call({action:"abort",requestId},new AbortController().signal).catch(()=>undefined);
+  if(!captured&&requestId)await call({action:"abort",requestId,...(loginTemporarilyLimited?{reason:"LOGIN_TEMPORARILY_LIMITED"}:{})},new AbortController().signal).catch(()=>undefined);
 }

@@ -10,7 +10,7 @@ const schema=z.discriminatedUnion("action",[
   z.object({action:z.literal("begin"),profileId:z.string().startsWith("authenticated_profile_").optional()}).strict(),
   z.object({action:z.literal("challenge"),requestId:z.string(),kind:z.enum(["CAPTCHA","MFA","EMAIL_VERIFICATION","SECURITY_CHALLENGE","UNKNOWN"])}).strict(),
   z.object({action:z.literal("capture"),requestId:z.string(),state:session}).strict(),
-  z.object({action:z.literal("abort"),requestId:z.string()}).strict(),
+  z.object({action:z.literal("abort"),requestId:z.string(),reason:z.enum(["LOGIN_TEMPORARILY_LIMITED"]).optional()}).strict(),
   z.object({action:z.literal("restore"),requestId:z.string()}).strict(),
   z.object({action:z.literal("verify"),requestId:z.string(),restored:z.boolean()}).strict()
 ]);
@@ -35,6 +35,8 @@ export async function manualAuthenticatedProfileBootstrap(request:Request,env:En
       const rows=await env.DB.prepare("SELECT p.id FROM authenticated_site_profiles p JOIN accounts a ON a.id=p.owner_id WHERE p.site_family='x' AND p.revoked_at IS NULL AND a.disabled_at IS NULL AND (? IS NULL OR p.id=?) LIMIT 2").bind(input.profileId??null,input.profileId??null).all<{id:string}>();
       if(rows.results.length!==1)return reply({error:"specify_one_existing_x_profile"},409);
       const profile=(await repository.getSiteProfile(rows.results[0].id))!;await service.assertActiveOwner(profile);
+      const cooldown=await env.DB.prepare("SELECT completed_at FROM authenticated_profile_bootstrap_requests WHERE profile_id=? AND failure_code='LOGIN_TEMPORARILY_LIMITED' AND completed_at>? ORDER BY completed_at DESC LIMIT 1").bind(profile.id,new Date(Date.now()-60*60_000).toISOString()).first<{completed_at:string}>();
+      if(cooldown){const retryAfter=Math.max(1,Math.ceil((Date.parse(cooldown.completed_at)+60*60_000-Date.now())/1000));return Response.json({error:"login_temporarily_limited",retryAfterSeconds:retryAfter},{status:429,headers:{"cache-control":"no-store","retry-after":String(retryAfter)}})}
       const requestId=`authenticated_manual_${crypto.randomUUID()}`,now=new Date().toISOString(),expiresAt=new Date(Date.now()+600_000).toISOString();
       issueAuthenticatedProfileCapability(profile,{tenantId:profile.tenantId,ownerId:profile.ownerId,runId:requestId,browserGeneration:1});
       // Running admissions are never picked up by the automated bootstrap dispatcher.
@@ -44,7 +46,8 @@ export async function manualAuthenticatedProfileBootstrap(request:Request,env:En
     const admission=await env.DB.prepare("SELECT * FROM authenticated_profile_bootstrap_requests WHERE request_id=? AND request_id LIKE 'authenticated_manual_%'").bind(input.requestId).first<Admission>();
     if(!admission)return reply({error:"admission_expired"},409);
     if(input.action==="abort"){
-      const result=await env.DB.prepare("UPDATE authenticated_profile_bootstrap_requests SET state='failed',completed_at=?,failure_code='MANUAL_LOGIN_NOT_COMPLETED',outcome_reason='MANUAL_LOGIN_NOT_COMPLETED' WHERE request_id=? AND state='running' AND attempt_count=0").bind(new Date().toISOString(),input.requestId).run();
+      const failureCode=input.reason??"MANUAL_LOGIN_NOT_COMPLETED";
+      const result=await env.DB.prepare("UPDATE authenticated_profile_bootstrap_requests SET state='failed',completed_at=?,failure_code=?,outcome_reason=? WHERE request_id=? AND state='running' AND attempt_count=0").bind(new Date().toISOString(),failureCode,failureCode,input.requestId).run();
       return reply({closed:Number(result.meta.changes)===1});
     }
     if(admission.expires_at<=new Date().toISOString())return reply({error:"admission_expired"},409);

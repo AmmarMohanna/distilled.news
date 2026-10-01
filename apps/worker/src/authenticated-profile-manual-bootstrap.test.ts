@@ -71,6 +71,13 @@ it("manually captures with existing encryption, fences writes, restores in fresh
     expect(await db.prepare("SELECT state,failure_code FROM authenticated_profile_bootstrap_requests WHERE request_id=?").bind(abandoned.requestId).first()).toMatchObject({state:"failed",failure_code:"MANUAL_LOGIN_NOT_COMPLETED"});
     expect((await call({action:"capture",requestId:abandoned.requestId,state:captured})).status).toBe(409);
     expect((await call({action:"begin",profileId,secret:"DO_NOT_ECHO"})).status).toBe(400);
+    const limited=await (await call({action:"begin",profileId})).json() as {requestId:string};
+    expect(await (await call({action:"abort",requestId:limited.requestId,reason:"LOGIN_TEMPORARILY_LIMITED"})).json()).toEqual({closed:true});
+    const cooldown=await call({action:"begin",profileId});
+    expect(cooldown.status).toBe(429);
+    expect(cooldown.headers.get("retry-after")).toMatch(/^\d+$/);
+    expect(await cooldown.json()).toMatchObject({error:"login_temporarily_limited"});
+    expect(await db.prepare("SELECT failure_code FROM authenticated_profile_bootstrap_requests WHERE request_id=?").bind(limited.requestId).first()).toMatchObject({failure_code:"LOGIN_TEMPORARILY_LIMITED"});
     expect(JSON.stringify(logs.mock.calls)).not.toMatch(/SYNTHETIC_SESSION_SECRET|never-read|DO_NOT_ECHO/);
     const audits=await db.prepare("SELECT safe_metadata_json FROM authenticated_profile_audit").all();expect(JSON.stringify(audits)).not.toMatch(/SYNTHETIC_SESSION_SECRET|never-read/);
   }finally{await browser.close(scope).catch(()=>undefined)}
