@@ -49,7 +49,7 @@ export function authenticatedBackend(env:Env,input:{runId:string;bootstrapReques
   const provider=(env.DISTILLED_BROWSER_PROVIDER??env.DISTILLED_BROWSER_BACKEND).trim().toLowerCase();
   if(provider==="cloudflare_container"){
     if(!env.AUTHENTICATED_BROWSER_CONTAINER)throw new Error("cloudflare container browser provider requires a Container binding");
-    return bridgeBackend(new CloudflareContainerBrowserBridgeTransport(env.AUTHENTICATED_BROWSER_CONTAINER),input,"container","CLOUDFLARE_CONTAINER");
+    return bridgeBackend(new CloudflareContainerBrowserBridgeTransport(env.AUTHENTICATED_BROWSER_CONTAINER),input,"container",env.BROWSERLESS_CDP_ENDPOINT&&env.BROWSERLESS_API_TOKEN?"BROWSERLESS_CDP":"CLOUDFLARE_CONTAINER");
   }
   if(provider!=="self_hosted")return selectBrowserBackend({environment:env,cloudflare:workerCloudflareBrowser(env)});
   if(!env.SELF_HOSTED_BROWSER_BRIDGE_URL?.trim()||!env.SELF_HOSTED_BROWSER_BRIDGE_AUTH?.trim())throw new Error("self-hosted browser provider requires bridge URL and dedicated authentication");
@@ -57,7 +57,7 @@ export function authenticatedBackend(env:Env,input:{runId:string;bootstrapReques
   return bridgeBackend(transport,input,"local","SELF_HOSTED_CHROMIUM");
 }
 
-function bridgeBackend(transport:ConstructorParameters<typeof AuthenticatedBrowserBridgeExecutor>[0],input:{runId:string;bootstrapRequestId:string;profile:{id:string;tenantId:string;ownerId:string;version:number};adapter:XAuthenticatedSiteAdapter},backend:"local"|"container",providerIdentity:"SELF_HOSTED_CHROMIUM"|"CLOUDFLARE_CONTAINER"){
+function bridgeBackend(transport:ConstructorParameters<typeof AuthenticatedBrowserBridgeExecutor>[0],input:{runId:string;bootstrapRequestId:string;profile:{id:string;tenantId:string;ownerId:string;version:number};adapter:XAuthenticatedSiteAdapter},backend:"local"|"container",providerIdentity:"SELF_HOSTED_CHROMIUM"|"CLOUDFLARE_CONTAINER"|"BROWSERLESS_CDP"){
   const {adapter,profile}=input;const entry=adapter.authenticationEntryPoint!.url;
   const executor=new AuthenticatedBrowserBridgeExecutor(transport,allocation=>{const contextId=makeId("browser_context",allocation.runId,allocation.tenantId,allocation.generation);const issuedAt=Date.now();return{bridgeExecutionId:makeId("bridge_execution",input.bootstrapRequestId,allocation.runId,allocation.generation),bootstrapRequestId:input.bootstrapRequestId,runId:allocation.runId,tenantId:allocation.tenantId,ownerId:profile.ownerId,profileId:profile.id,expectedProfileVersion:profile.version,browserGeneration:allocation.generation,authFlowId:makeId("auth_flow",allocation.runId,profile.id,profile.version,allocation.generation,contextId),siteKind:adapter.siteFamily,authEntryPoint:entry,sessionProbeUrl:adapter.loginOrigin==="https://x.com"?"https://x.com/home":adapter.loginOrigin,allowedOrigins:allocation.allowedOrigins,writeOrigins:[...(adapter.authenticationWriteOrigins??adapter.allowedOrigins)],issuedAt:new Date(issuedAt).toISOString(),expiresAt:new Date(issuedAt+120_000).toISOString(),operationBudget:32}});
   return{backend,providerIdentity,executor,challengeProvider:new DetectOnlyBrowserChallengeProvider("self_hosted_chromium")};

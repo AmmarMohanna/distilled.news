@@ -45,6 +45,12 @@ The self-hosted provider's current CAPTCHA capability is `DETECT_ONLY`. A detect
 
 For an explicitly operated compatible local executor, `BROWSER_BRIDGE_BROWSER_CHANNEL=chrome` selects installed Chrome and `BROWSER_BRIDGE_HEADFUL=true` opens its window. Both settings are local operator configuration; they do not widen the bridge's URL, operation, or credential authority. A remote bridge still requires an approved HTTPS transport and its dedicated HMAC credential.
 
+## Optional managed X browser
+
+The Cloudflare Container bridge can connect X executions to a Browserless CDP browser. Configure `BROWSERLESS_CDP_ENDPOINT` with a `wss://*.browserless.io` endpoint (for example a supported `/stealth` endpoint) and store `BROWSERLESS_API_TOKEN` as a Cloudflare Worker secret. The Worker passes that provider token only to the fenced Container; the X account credentials remain in the existing encrypted `AuthCapability`/`BrowserProfile` path. Public-source executions continue using the Container's local Chromium. The CDP browser uses the provider's default context so its proxy and browser settings remain active; Distilled still captures session state into encrypted R2 storage and closes each browser after the run.
+
+This route needs a Browserless account and API token. Supplying a token authorizes Browserless to process the transient X login browser session. No provider token is configured by default, and the route is not active without both settings. A configured route still requires a fresh-context restore and real-post verification before its X profile becomes active.
+
 ## Running locally
 
 ```bash

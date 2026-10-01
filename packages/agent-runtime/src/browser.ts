@@ -340,6 +340,8 @@ export class PlaywrightBrowserAdapter
     enforceRedirectHops?: boolean;
     /** Only for a browser provider that enforces the admitted domain list outside page JavaScript. */
     allowAuthenticationSiteFeatures?: true;
+    /** Use a provider's isolated default CDP context so its proxy and browser profile settings remain active. */
+    useConnectedDefaultContext?: true;
   } = {}) {
     if (options.testOnlyPrivateNetwork && (typeof process === "undefined" || process.env.NODE_ENV !== "test")) {
       throw new Error("private-network browser access is test-only");
@@ -400,13 +402,15 @@ export class PlaywrightBrowserAdapter
       ? this.options.launchBrowser(launchOptions)
       : launchLocalChromium(launchOptions),this.options.launchTimeoutMs??30_000,"browser launch timeout",browser=>browser.close())}catch(error){throw new BrowserAllocationError("BROWSER_ALLOCATION_FAILED",{cause:error})}
     const compatibleAuthentication=input.authenticationBootstrap===true&&this.options.allowAuthenticationSiteFeatures===true;
-    let context:BrowserContext;let page:Page;try{context=await browser.newContext({
+    let context:BrowserContext;let page:Page;try{context=this.options.useConnectedDefaultContext?browser.contexts()[0]:await browser.newContext({
       viewport: { width: 960, height: 720 },
       deviceScaleFactor: 1,
       serviceWorkers: compatibleAuthentication ? "allow" : "block",
       acceptDownloads: false,
       storageState: input.authenticatedSessionState
     });
+    if(!context)throw new Error("connected browser has no default context");
+    if(this.options.useConnectedDefaultContext)for(const existing of context.pages())await existing.close();
     if(!compatibleAuthentication)await context.addInitScript({ content: ACTIVE_TRANSPORT_HARDENING });
     page = await context.newPage();}catch(error){await browser.close().catch(()=>undefined);throw new BrowserAllocationError("BROWSER_CONTEXT_INITIALIZATION_FAILED",{cause:error})}
     page.setDefaultTimeout(10_000);
@@ -503,6 +507,7 @@ export class PlaywrightBrowserAdapter
       }
     }
     this.sessions.set(sessionId, live);
+    if(this.options.useConnectedDefaultContext&&input.authenticatedSessionState){try{await this.attachAuthenticatedSession(scope,input.authenticatedSessionState)}catch(error){await this.close(scope).catch(()=>undefined);throw new BrowserAllocationError("BROWSER_CONTEXT_INITIALIZATION_FAILED",{cause:error})}}
     context.on("page",(opened)=>{
       if (opened===page) return;
       live.blockedRequest={method:"POPUP",url:opened.url(),deniedHostname:hostnameOf(opened.url()),policyRule:"REQUEST_BLOCKED"};
@@ -1026,7 +1031,7 @@ export class PlaywrightBrowserAdapter
 
 export class SelfHostedChromiumProvider extends PlaywrightBrowserAdapter {
   readonly providerIdentity = "SELF_HOSTED_CHROMIUM" as const;
-  constructor(options: { testOnlyPrivateNetwork?: true; maxConcurrentSessions?: number; launchTimeoutMs?: number; navigationTimeoutMs?: number; launchBrowser?: (options: { headless: boolean; args: string[]; allowedDomains: string[] }) => Promise<Browser> } = {}) {
+  constructor(options: { testOnlyPrivateNetwork?: true; maxConcurrentSessions?: number; launchTimeoutMs?: number; navigationTimeoutMs?: number; useConnectedDefaultContext?: true; launchBrowser?: (options: { headless: boolean; args: string[]; allowedDomains: string[] }) => Promise<Browser> } = {}) {
     super({maxConcurrentSessions:2,launchTimeoutMs:30_000,navigationTimeoutMs:15_000,...options});
   }
 

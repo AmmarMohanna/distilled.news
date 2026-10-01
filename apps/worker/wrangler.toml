@@ -9,7 +9,7 @@ binding = "BROWSER"
 
 [[containers]]
 class_name = "AuthenticatedBrowserContainer"
-image = "registry.cloudflare.com/37a6bb83b085bd6739426e7c2d4aeda8/distilled-authenticated-browser@sha256:3e51104d157b5952aad0a7dcd148b0268da643a25c4522c11361b3c8a4ce1ef7"
+image = "registry.cloudflare.com/37a6bb83b085bd6739426e7c2d4aeda8/distilled-authenticated-browser@sha256:d8f2dc7adb1eb556d4b590c323a55a109401c8b523b891ee97ad6c841f31b557"
 instance_type = "standard-1"
 max_instances = 2
 
