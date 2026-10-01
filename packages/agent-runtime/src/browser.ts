@@ -92,6 +92,7 @@ export interface BrowserExecutorPort {
     generation: number;
     allowedOrigins: string[];
     authenticatedSessionState?: BrowserSessionState;
+    authenticationBootstrap?: true;
     signal?: AbortSignal;
   }): Promise<BrowserAllocation>;
   exportAuthenticatedSession?(scope: BrowserScope): Promise<BrowserSessionState>;
@@ -337,6 +338,8 @@ export class PlaywrightBrowserAdapter
     navigationTimeoutMs?: number;
     /** Validate every redirect hop before Chromium follows it. On by default; only a provider whose browser already enforces the origin allowlist itself may opt out. */
     enforceRedirectHops?: boolean;
+    /** Only for a browser provider that enforces the admitted domain list outside page JavaScript. */
+    allowAuthenticationSiteFeatures?: true;
   } = {}) {
     if (options.testOnlyPrivateNetwork && (typeof process === "undefined" || process.env.NODE_ENV !== "test")) {
       throw new Error("private-network browser access is test-only");
@@ -356,6 +359,7 @@ export class PlaywrightBrowserAdapter
     generation: number;
     allowedOrigins: string[];
     authenticatedSessionState?: BrowserSessionState;
+    authenticationBootstrap?: true;
     signal?: AbortSignal;
   }): Promise<BrowserAllocation> {
     input.signal?.throwIfAborted();
@@ -395,14 +399,15 @@ export class PlaywrightBrowserAdapter
     let browser:Browser;try{browser=await withTimeout(this.options.launchBrowser
       ? this.options.launchBrowser(launchOptions)
       : launchLocalChromium(launchOptions),this.options.launchTimeoutMs??30_000,"browser launch timeout",browser=>browser.close())}catch(error){throw new BrowserAllocationError("BROWSER_ALLOCATION_FAILED",{cause:error})}
+    const compatibleAuthentication=input.authenticationBootstrap===true&&this.options.allowAuthenticationSiteFeatures===true;
     let context:BrowserContext;let page:Page;try{context=await browser.newContext({
       viewport: { width: 960, height: 720 },
       deviceScaleFactor: 1,
-      serviceWorkers: "block",
+      serviceWorkers: compatibleAuthentication ? "allow" : "block",
       acceptDownloads: false,
       storageState: input.authenticatedSessionState
     });
-    await context.addInitScript({ content: ACTIVE_TRANSPORT_HARDENING });
+    if(!compatibleAuthentication)await context.addInitScript({ content: ACTIVE_TRANSPORT_HARDENING });
     page = await context.newPage();}catch(error){await browser.close().catch(()=>undefined);throw new BrowserAllocationError("BROWSER_CONTEXT_INITIALIZATION_FAILED",{cause:error})}
     page.setDefaultTimeout(10_000);
     page.setDefaultNavigationTimeout(this.options.navigationTimeoutMs??15_000);
@@ -1045,7 +1050,7 @@ export class CloudflareBrowserExecutor extends PlaywrightBrowserAdapter {
   readonly providerIdentity = "CLOUDFLARE_BROWSER" as const;
   constructor(input: { binding: CloudflareBrowserBinding; launch: CloudflareBrowserLauncher }) {
     // Browser Run enforces allowedDomains inside the remote browser; the local CDP Fetch guard is not verified against it, so it is not enabled here.
-    super({ launchBrowser: (options) => input.launch(input.binding,{allowedDomains:options.allowedDomains}), enforceRedirectHops: false });
+    super({ launchBrowser: (options) => input.launch(input.binding,{allowedDomains:options.allowedDomains}), enforceRedirectHops: false, allowAuthenticationSiteFeatures:true });
   }
 }
 
