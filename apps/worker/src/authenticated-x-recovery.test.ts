@@ -44,4 +44,21 @@ describe("authenticated X challenge recovery", () => {
     expect(providers).toEqual([undefined, undefined, "self_hosted"]);
     expect(events.map(event => event.recoveryState)).toEqual(["CHALLENGE_DETECTED", "CHALLENGE_HANDLING", "SESSION_RESTORE", "CHALLENGE_HANDLING", "EXECUTOR_FAILOVER", "SESSION_RESTORE", "CHALLENGE_CLEARED", "ACQUISITION_RESUMED"]);
   });
+  it("does not classify an unresolved generic challenge as owner assistance", async () => {
+    const events: Array<{ recoveryState: string }> = [];
+    const env = {
+      DISTILLED_BROWSER_PROVIDER: "cloudflare_container",
+      DB: { prepare: () => ({ bind: (...args: unknown[]) => ({ run: async () => { events.push(JSON.parse(args[4] as string)); } }) }) }
+    } as unknown as Env;
+    const port = {
+      async open() {},
+      async observe() { return { url: sourceUrl, pageRevision: "login-wall", items: [], challengeState: "LOGIN_REQUIRED" as const }; },
+      async scrollAndObserve() { throw new Error("unexpected scroll"); },
+      async close() {},
+      async discoverWithBrowserUse() { throw new Error("unexpected discovery"); }
+    };
+    const outcome = await executeXWorkflow(env, context, request, workflow, port);
+    expect(outcome.status).toBe("AUTH_REQUIRED");
+    expect(events.map(event => event.recoveryState)).toEqual(["CHALLENGE_DETECTED", "AUTOMATED_ROUTES_EXHAUSTED"]);
+  });
 });

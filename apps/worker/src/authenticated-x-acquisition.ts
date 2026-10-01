@@ -60,11 +60,11 @@ export async function executeXWorkflow(env:Env,context:Context,request:SourceAcq
     }
     if(port)break;
   }
-  if(challenged&&(last.status==="CHALLENGE_REQUIRED"||last.status==="AUTH_REQUIRED"))await recordXRecovery(env,context,"HUMAN_ASSISTANCE_REQUIRED",maxAttempts);
+  if(challenged&&(last.status==="CHALLENGE_REQUIRED"||last.status==="AUTH_REQUIRED"))await recordXRecovery(env,context,"AUTOMATED_ROUTES_EXHAUSTED",maxAttempts);
   return last;
 }
 
-type XRecoveryState="CHALLENGE_DETECTED"|"CHALLENGE_HANDLING"|"EXECUTOR_FAILOVER"|"SESSION_RESTORE"|"CHALLENGE_CLEARED"|"ACQUISITION_RESUMED"|"HUMAN_ASSISTANCE_REQUIRED";
+type XRecoveryState="CHALLENGE_DETECTED"|"CHALLENGE_HANDLING"|"EXECUTOR_FAILOVER"|"SESSION_RESTORE"|"CHALLENGE_CLEARED"|"ACQUISITION_RESUMED"|"AUTOMATED_ROUTES_EXHAUSTED"|"HUMAN_ASSISTANCE_REQUIRED";
 async function recordXRecovery(env:Env,context:Context,state:XRecoveryState,attempt:number){
   const now=new Date().toISOString();
   await env.DB.prepare("INSERT OR IGNORE INTO authenticated_profile_audit(id,profile_id,tenant_id,run_id,event_type,safe_metadata_json,created_at) VALUES(?,?,?,?,'BOOTSTRAP_PROGRESS',?,?)")
@@ -99,7 +99,7 @@ async function openXWithRecovery(env:Env,context:Context,request:SourceAcquisiti
     }
     await port.close().catch(()=>undefined);
   }
-  if(last.status==="AUTH_REQUIRED"||last.status==="CHALLENGE_REQUIRED")await recordXRecovery(env,context,"HUMAN_ASSISTANCE_REQUIRED",maxAttempts);
+  if(last.status==="AUTH_REQUIRED"||last.status==="CHALLENGE_REQUIRED")await recordXRecovery(env,context,"AUTOMATED_ROUTES_EXHAUSTED",maxAttempts);
   return last;
 }
 
