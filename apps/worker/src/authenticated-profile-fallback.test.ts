@@ -21,4 +21,5 @@ it("fails over when container allocation fails before browser initialization",()
   expect(shouldBootstrapFailoverOnFailure("BOOTSTRAP_INFRASTRUCTURE_FAILED","credential_retrieved","CLOUDFLARE_CONTAINER")).toBe(false);
   expect(shouldBootstrapFailoverOnFailure("BOOTSTRAP_INFRASTRUCTURE_FAILED","profile_resolved","SELF_HOSTED_CHROMIUM")).toBe(false);
   expect(shouldBootstrapFailoverOnFailure("PASSWORD_ROUTE_TRANSITION_FAILED","password_alternative_selected","SELF_HOSTED_CHROMIUM")).toBe(true);
+  expect(shouldBootstrapFailoverOnFailure("EXECUTOR_ENVIRONMENT_REJECTED","navigation_completed","CLOUDFLARE_CONTAINER")).toBe(true);
 });

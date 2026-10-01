@@ -9,8 +9,7 @@ binding = "BROWSER"
 
 [[containers]]
 class_name = "AuthenticatedBrowserContainer"
-image = "./browser-container.Dockerfile"
-image_build_context = "../.."
+image = "registry.cloudflare.com/37a6bb83b085bd6739426e7c2d4aeda8/distilled-authenticated-browser@sha256:3e51104d157b5952aad0a7dcd148b0268da643a25c4522c11361b3c8a4ce1ef7"
 instance_type = "standard-1"
 max_instances = 2
 
