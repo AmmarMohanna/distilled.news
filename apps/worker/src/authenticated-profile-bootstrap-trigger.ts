@@ -8,6 +8,7 @@ export type BootstrapTriggerResult={status:"ignored"|"completed"|"failed"|"expir
 export async function dispatchPendingAuthenticatedProfileBootstraps(env:Pick<Env,"DB"|"WEB_OPERATOR_QUEUE">,now=new Date()):Promise<number>{
   const timestamp=now.toISOString();
   await env.DB.prepare(`UPDATE authenticated_profile_bootstrap_requests SET state='expired',completed_at=?,failure_code='REQUEST_EXPIRED' WHERE state IN ('pending','queued') AND expires_at<=?`).bind(timestamp,timestamp).run();
+  await env.DB.prepare(`UPDATE authenticated_profile_bootstrap_requests SET state='expired',completed_at=?,failure_code='REQUEST_EXPIRED',outcome_reason='REQUEST_EXPIRED' WHERE request_id LIKE 'authenticated_manual_%' AND state='running' AND attempt_count=0 AND expires_at<=?`).bind(timestamp,timestamp).run();
   const rows=await env.DB.prepare(`SELECT request_id FROM authenticated_profile_bootstrap_requests WHERE operation='AUTHENTICATION_BOOTSTRAP' AND state='pending' AND expires_at>? AND attempt_count<attempt_budget ORDER BY created_at,request_id LIMIT 10`).bind(timestamp).all<{request_id:string}>();
   let count=0;for(const row of rows.results){await env.WEB_OPERATOR_QUEUE.send({type:"authenticated_profile_bootstrap",requestId:row.request_id} satisfies AuthenticatedProfileBootstrapMessage);const result=await env.DB.prepare(`UPDATE authenticated_profile_bootstrap_requests SET state='queued',queued_at=? WHERE request_id=? AND state='pending' AND expires_at>?`).bind(timestamp,row.request_id,timestamp).run();if(Number(result.meta.changes)===1)count++;}return count;
 }
