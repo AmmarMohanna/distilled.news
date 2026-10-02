@@ -14,7 +14,7 @@ import { getCookie } from "hono/cookie";
 import { z } from "zod";
 import { createSummaryAdapterFromEnv } from "./ai";
 import { pushConfigured, subscriptionSchema } from "./push";
-import { generateSketch, SketchError, sketchFingerprint, sketchKey } from "./sketches";
+import { generateSketch, reserveSketchAttempt, SketchError, sketchFingerprint, sketchKey } from "./sketches";
 import {
   accountAuth,
   adminAuth,
@@ -175,12 +175,12 @@ function buildManifestPayload(input: {
     theme_color: "#4bac9d",
     icons: [
       {
-        src: "/icon-192.png",
+        src: "/icon-192.png?v=globe-1",
         sizes: "192x192",
         type: "image/png"
       },
       {
-        src: "/icon-512.png",
+        src: "/icon-512.png?v=globe-1",
         sizes: "512x512",
         type: "image/png"
       }
@@ -440,13 +440,12 @@ export function createApp(options: AppOptions = {}) {
         try {
           const cached = await c.env.RAW_ARCHIVE.head(sketchKey(briefing));
           if (cached?.customMetadata?.fingerprint === await sketchFingerprint(briefing)) return;
-          const since = new Date(Date.now() - 86_400_000).toISOString();
-          if (await repo.countRecentAuthAttempts({ key: account.id, action: "feed_sketch", since }) >= 5) return;
-          await repo.recordAuthAttempt({ key: account.id, action: "feed_sketch" });
-          await generateSketch(c.env, briefing, async () => {
+          await reserveSketchAttempt(repo, account.id);
+          const generated = await generateSketch(c.env, briefing, async () => {
             const current = await repo.getBriefingById(briefing.id);
             return !!current && await sketchFingerprint(current) === await sketchFingerprint(briefing);
           });
+          if (generated) await repo.recordAuthAttempt({ key: account.id, action: "feed_sketch_saved" });
         } catch (error) {
           console.error(JSON.stringify({ event: "automatic_feed_sketch_failed", code: error instanceof SketchError ? error.code : "SKETCH_FAILED" }));
         }
@@ -473,17 +472,21 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ code: "SKETCH_STORAGE_READ", error: "Could not check existing sketches in R2. Check the RAW_ARCHIVE binding. Image generation was not attempted." }, 502);
     }
     if (saved?.customMetadata?.fingerprint === await sketchFingerprint(briefing)) return c.json({ generated: false });
-    const since = new Date(Date.now() - 86_400_000).toISOString();
-    if (await repo.countRecentAuthAttempts({ key: account.id, action: "feed_sketch", since }) >= 5) {
-      return c.json({ error: "Sketch limit reached. Try again tomorrow." }, 429);
-    }
-    await repo.recordAuthAttempt({ key: account.id, action: "feed_sketch" });
     try {
-      await generateSketch(c.env, briefing);
-      return c.json({ generated: true });
+      await reserveSketchAttempt(repo, account.id);
+      const generated = await generateSketch(c.env, briefing, async () => {
+        const current = await repo.getBriefingById(briefing.id);
+        return !!current && await sketchFingerprint(current) === await sketchFingerprint(briefing);
+      });
+      if (generated) await repo.recordAuthAttempt({ key: account.id, action: "feed_sketch_saved" });
+      return c.json({ generated });
     } catch (error) {
       const failure = error instanceof SketchError ? error : new SketchError("SKETCH_FAILED", "Sketch generation failed unexpectedly. Check the server configuration before retrying.");
       console.error(JSON.stringify({ event: "feed_sketch_failed", code: failure.code }));
+      if (failure.retryAfter) {
+        c.header("Retry-After", String(failure.retryAfter));
+        return c.json({ error: failure.message, code: failure.code, retryAfter: failure.retryAfter }, 429);
+      }
       return c.json({ error: failure.message, code: failure.code }, 502);
     }
   });
@@ -721,11 +724,14 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const object = await c.env.RAW_ARCHIVE?.get(sketchKey(resolved.briefing));
-    if (!object || object.customMetadata?.fingerprint !== await sketchFingerprint(resolved.briefing)) {
+    // Keep the saved illustration visible until its replacement is stored.
+    // Fingerprints still determine whether generation needs to replace it.
+    if (!object) {
       return c.body(null, 404, { "Cache-Control": "no-store" });
     }
     return new Response(object.body, { headers: {
-      "Content-Type": "image/jpeg", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"
+      "Content-Type": "image/jpeg", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+      "X-Sketch-Current": String(object.customMetadata?.fingerprint === await sketchFingerprint(resolved.briefing))
     } });
   });
 

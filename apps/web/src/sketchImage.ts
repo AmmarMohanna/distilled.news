@@ -16,7 +16,8 @@ export async function transparentSketch(blob: Blob): Promise<Blob> {
       const i = (y * canvas.width + x) * 4;
       const darkness = 255 - Math.min(pixels.data[i], pixels.data[i + 1], pixels.data[i + 2]);
       const alpha = Math.min(255, Math.max(0, (darkness - 32) * 2.5));
-      pixels.data[i] = 75; pixels.data[i + 1] = 172; pixels.data[i + 2] = 157; pixels.data[i + 3] = alpha;
+      // #5E5CE6: also recolor cached covers to the current accent.
+      pixels.data[i] = 94; pixels.data[i + 1] = 92; pixels.data[i + 2] = 230; pixels.data[i + 3] = alpha;
       if (alpha > 40) { left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y); }
     }
     ctx.putImageData(pixels, 0, 0);

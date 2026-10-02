@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Languages } from "lucide-react";
 
 export type Language = "en" | "fr" | "ar";
 export function preferredLanguage(): Language {
@@ -133,6 +132,8 @@ const translations: Record<string, [string, string]> = {
   "Cancel": ["Annuler", "إلغاء"], "Create feed": ["Créer le fil", "إنشاء خلاصة"],
   "Save changes": ["Enregistrer", "حفظ التغييرات"], "Edit feed settings": ["Modifier le fil", "تعديل إعدادات الخلاصة"],
   "Pause feed": ["Suspendre", "إيقاف الخلاصة"], "Resume feed": ["Reprendre", "استئناف الخلاصة"],
+  "Retry illustration": ["Réessayer l’illustration", "إعادة محاولة الرسم"],
+  "Feed options": ["Options du fil", "خيارات الخلاصة"],
   "Copy URL": ["Copier le lien", "نسخ الرابط"], "Delete feed": ["Supprimer", "حذف الخلاصة"],
   "Search topics, feeds, or keywords…": ["Rechercher des sujets, fils ou mots-clés…", "ابحث عن مواضيع أو خلاصات…"],
 };
@@ -151,5 +152,5 @@ export function LanguageControl() {
   return <button type="button" className="language-control language-cycle" aria-label={`Website language: ${language.toUpperCase()}. Switch to ${next.toUpperCase()}`} onClick={() => {
     localStorage.setItem("dn_language", next);
     window.dispatchEvent(new Event("dn-language"));
-  }}><Languages size={18}/><span>{language}</span></button>;
+  }}><svg width="18" height="18" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="16" cy="16" r="13"/><ellipse cx="16" cy="16" rx="6" ry="13"/><path d="M3 16h26"/></svg><span>{language}</span></button>;
 }

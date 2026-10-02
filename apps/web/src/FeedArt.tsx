@@ -42,6 +42,7 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
   const [image, setImage] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [failure, setFailure] = useState("");
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     setImage(""); setLoaded(false); setFailure("");
     if (!feed?.ownerUsername || !feed?.slug) return;
@@ -53,14 +54,27 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
       try {
         const response = await fetch(`/api/feed/${encodeURIComponent(feed.ownerUsername!)}/${encodeURIComponent(feed.slug!)}/sketch`, { signal: controller.signal, cache: "no-store" });
         if (response.ok && response.headers.get("content-type")?.startsWith("image/")) {
-          const blob = await transparentSketch(await response.blob());
+          const original = await response.blob();
+          // A cosmetic conversion failure must not hide a valid stored image.
+          const blob = await transparentSketch(original).catch(() => original);
           if (controller.signal.aborted) return;
-          objectUrl = URL.createObjectURL(blob); setImage(objectUrl); return;
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          objectUrl = URL.createObjectURL(blob); setImage(objectUrl);
+          if (response.headers.get("x-sketch-current") === "false" && canGenerate && feed.id && !requested) {
+            requested = true;
+            await requestMissingSketch(feed.id, JSON.stringify([feed.title, feed.interestProfile]));
+            if (!controller.signal.aborted) timer = setTimeout(check, 0);
+          }
+          return;
         }
         if (response.status === 404 && canGenerate && feed.id && !requested && !controller.signal.aborted) {
           requested = true;
           await requestMissingSketch(feed.id, JSON.stringify([feed.title, feed.interestProfile]));
           if (!controller.signal.aborted) timer = setTimeout(check, 0);
+        } else if (response.status === 404 && requested) {
+          throw new Error("The illustration was not saved. Retry generation or check the server logs.");
+        } else if (response.status !== 404) {
+          throw new Error(`Could not load illustration (HTTP ${response.status}).`);
         }
       } catch (error) {
         if (!controller.signal.aborted) setFailure(error instanceof Error ? error.message : "Illustration unavailable. Your feed is still ready to use.");
@@ -68,7 +82,7 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
     };
     void check();
     return () => { controller.abort(); clearTimeout(timer); if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [feed?.ownerUsername, feed?.slug, feed?.title, feed?.interestProfile, feed?.id, canGenerate]);
+  }, [feed?.ownerUsername, feed?.slug, feed?.title, feed?.interestProfile, feed?.id, canGenerate, retry]);
   // Resolve title first so incidental words in a longer profile don't replace
   // the feed's main topic. Public cards need only the public title.
   const match = subjects.find(item => item.pattern.test(feed?.title ?? ""))
@@ -77,6 +91,10 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
   return <span className="topic-art pencil-art" title={failure || undefined} aria-label={failure || undefined} aria-hidden={failure ? undefined : true}>
     {!loaded && <span className="pencil-drawing"><Icon strokeWidth={0.95}/><Icon className="pencil-trace" strokeWidth={0.45}/></span>}
     {image && <img src={image} alt="" onLoad={() => setLoaded(true)} onError={() => setLoaded(false)}/>}
-    {failure && <span className="sketch-status">{t("Illustration unavailable")}</span>}
+    {failure && <span className="sketch-status">{t("Illustration unavailable")}{canGenerate && <button type="button" onClick={event => {
+      event.preventDefault(); event.stopPropagation();
+      if (feed?.id) generationAttempts.delete(`${feed.id}:${JSON.stringify([feed.title, feed.interestProfile])}`);
+      setRetry(value => value + 1);
+    }}>{t("Retry illustration")}</button>}</span>}
   </span>;
 }

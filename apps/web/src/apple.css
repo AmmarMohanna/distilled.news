@@ -12,10 +12,10 @@
   --muted: #606064;
   --line: #dedee3;
   --line-strong: #aaaab0;
-  --accent: #76c0ec;
-  --accent-soft: #76c0ec;
-  --accent-warm: #76c0ec;
-  --accent-gold: #76c0ec;
+  --accent: #5e5ce6;
+  --accent-soft: #5e5ce6;
+  --accent-warm: #5e5ce6;
+  --accent-gold: #5e5ce6;
   --danger: #1d1d1f;
   --secondary-size: 0.875rem;
   --chrome: rgb(255 255 255 / 88%);
@@ -116,7 +116,7 @@
 }
 :root.apple-ui.apple-ui :is(input,textarea,select) { color: var(--text); border-color: var(--line); border-radius: 12px; background: var(--surface-quiet); }
 :root.apple-ui.apple-ui :is(input,textarea)::placeholder { color: var(--muted); opacity: 1; }
-:root.apple-ui.apple-ui :is(.explore-search,.search,.auth-input):focus-within { border-color: var(--text); outline: 3px solid rgb(118 192 236 / 35%); outline-offset: 2px; }
+:root.apple-ui.apple-ui :is(.explore-search,.search,.auth-input):focus-within { border-color: var(--text); outline: 3px solid rgb(94 92 230 / 30%); outline-offset: 2px; }
 :root.apple-ui.apple-ui :is(button,a,input,textarea,select,summary):focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
 
 /* Restrained interaction: immediate pressure, brief hover feedback, no idle motion. */
@@ -128,12 +128,12 @@
 }
 :root.apple-ui.apple-ui :is(button,.button-link):active:not(:disabled) { transform: scale(0.97); transition-duration: 0ms; }
 :root.apple-ui.apple-ui :is(.primary-button,.auth-submit) {
-  background: var(--text); color: var(--page); border-color: transparent;
+  background: var(--accent); color: #fff; border-color: transparent;
   border-radius: 999px; padding-inline: 1.25rem; min-height: 48px; box-shadow: none; font-weight: 600;
 }
 :root.apple-ui.apple-ui .category-chips { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-block: 1rem 1.5rem; overflow: visible; }
 :root.apple-ui.apple-ui .category-chips button { background: var(--surface-quiet); border: 0; min-height: 40px; padding: 0.625rem 1rem; border-radius: 999px; font-size: 0.8125rem; }
-:root.apple-ui.apple-ui .category-chips button.selected { background: var(--text); color: var(--page); box-shadow: none; }
+:root.apple-ui.apple-ui .category-chips button.selected { background: var(--accent); color: #fff; box-shadow: none; }
 
 /* Feed sketches are the signature; solid paper cards keep the content quiet. */
 :root.apple-ui.apple-ui :is(.topic-card,.ranked-feed,.settings-group,.login,.section,.news-row) {
@@ -142,7 +142,7 @@
 }
 :root.apple-ui.apple-ui .topic-card { display: block; overflow: hidden; text-align: start; padding: 0; }
 :root.apple-ui.apple-ui .topic-card > a { display: block; color: inherit; text-decoration: none; }
-:root.apple-ui.apple-ui .topic-art { background: var(--surface-quiet); filter: grayscale(1); border-radius: 0; width: 100%; height: 140px; max-height: 140px; aspect-ratio: auto; }
+:root.apple-ui.apple-ui .topic-art { background: var(--surface-quiet); filter: none; border-radius: 0; width: 100%; height: 140px; max-height: 140px; aspect-ratio: auto; }
 :root.apple-ui.apple-ui .topic-art.pencil-art { color: var(--muted); }
 :root.apple-ui.apple-ui .topic-art.pencil-art > img { filter: none; }
 :root.apple-ui.apple-ui .topic-name { padding: 0.875rem 1rem 0.5rem; font-size: 0.9375rem; font-weight: 600; min-height: 48px; line-height: 1.35; }
@@ -197,6 +197,10 @@
 :root.apple-ui.apple-ui #change-password-form { border-top: 0; }
 :root.apple-ui.apple-ui .auth-modal-content { min-height: 0; width: 100%; margin: 0; padding: 0; }
 :root.apple-ui.apple-ui .auth-modal-content .login { border: 0; box-shadow: none; }
+:root.apple-ui.apple-ui .auth-dialog .auth-modal-content { width: 100%; max-width: none; margin-inline: 0; padding: 0; height: auto; }
+:root.apple-ui.apple-ui .auth-dialog .login { grid-template-columns: minmax(0, 1fr); justify-self: stretch; max-width: none; box-sizing: border-box; }
+:root.apple-ui.apple-ui .auth-dialog .login > * { grid-column: 1; min-width: 0; }
+:root.apple-ui.apple-ui .auth-tabs button { white-space: nowrap; }
 :root.apple-ui.apple-ui .auth-forgot, :root.apple-ui.apple-ui .auth-switch p button { color: var(--text); }
 
 /* Compact shared sizing, with natural scrolling for longer content. */
@@ -224,7 +228,7 @@ html.apple-ui, .apple-ui body, .apple-ui #root { height: 100%; overflow: hidden;
 }
 :root.apple-ui.apple-ui .bottom-navigation .active svg { fill: none; stroke: currentColor; }
 @media (min-width: 900px) {
-  :root.apple-ui.apple-ui :is(.experience.product-refresh,.experience.product-refresh.guest-landing,.auth-experience,.shell) {
+  :root.apple-ui.apple-ui :is(.experience.product-refresh,.experience.product-refresh.guest-landing,.auth-experience:not(.auth-modal-content),.shell) {
     width: calc(100% - 210px); max-width: none; margin-left: 210px; margin-right: 0; padding-inline: clamp(28px, 4vw, 64px);
   }
   :root.apple-ui.apple-ui .bottom-navigation {
@@ -234,12 +238,14 @@ html.apple-ui, .apple-ui body, .apple-ui #root { height: 100%; overflow: hidden;
   }
   :root.apple-ui.apple-ui .bottom-navigation :is(button,a) { display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: 0.875rem; min-height: 50px; padding: 0.875rem; font-size: 0.9375rem; }
   :root.apple-ui.apple-ui .bottom-navigation .sidebar-logo { position: absolute; top: 28px; left: 15px; display: flex; }
+  :root.apple-ui.apple-ui .bottom-navigation .navigation-settings { margin-top: auto; position: relative; }
+  :root.apple-ui.apple-ui .bottom-navigation .navigation-settings::before { content: ""; position: absolute; top: -0.75rem; inset-inline: 0; border-top: 1px solid var(--line); }
   :root.apple-ui.apple-ui .shell > header .brand-lockup { visibility: hidden; }
   :root.apple-ui.apple-ui .personal-feed-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 1rem; }
   :root.apple-ui.apple-ui .topic-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 }
 @media (max-width: 899px) {
-  :root.apple-ui.apple-ui :is(.experience.product-refresh,.experience.product-refresh.guest-landing,.shell,.auth-experience) { padding-inline: 1rem; padding-bottom: 104px; margin-inline: 0; width: 100%; }
+  :root.apple-ui.apple-ui :is(.experience.product-refresh,.experience.product-refresh.guest-landing,.shell,.auth-experience:not(.auth-modal-content)) { padding-inline: 1rem; padding-bottom: 104px; margin-inline: 0; width: 100%; }
   :root.apple-ui.apple-ui .bottom-navigation {
     position: fixed; inset: auto 0 0; width: 100%; height: calc(80px + env(safe-area-inset-bottom));
     display: flex; justify-content: space-around; align-items: center; gap: 0.375rem;
@@ -281,6 +287,48 @@ html.apple-ui, .apple-ui body, .apple-ui #root { height: 100%; overflow: hidden;
 }
 html.apple-ui[lang="ar"] :is(p,h1,h2,h3,label,.topic-name,.setting-row span,.field-help,.dialog-inner,.empty-copy,.welcome-copy,.auth-copy,.landing-introduction) { direction: rtl; text-align: right; letter-spacing: 0; }
 html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right; }
-html.apple-ui[lang="ar"] :is(.experience-header,.auth-header,.bottom-navigation,.feed-card-actions,.voice-field,.experience-dialog-actions) { direction: ltr; }
+
 
 :root.apple-ui.apple-ui .search-clear { flex: 0 0 auto; width: 36px; height: 36px; min-height: 36px; min-width: 36px; padding: 0.5rem; background: transparent; color: var(--muted); border: 0; border-radius: 50%; }
+
+/* Purple accents and symmetrical layouts share the same quiet foundations. */
+:root.apple-ui.apple-ui .distilled-logo-symbol { background: var(--accent); }
+:root.apple-ui.apple-ui .topic-art.pencil-art, :root.apple-ui.apple-ui .topic-name > svg { color: var(--accent); }
+:root.apple-ui.apple-ui .bottom-navigation :is(button.active,a[aria-current="page"]) { background: rgb(94 92 230 / 12%); color: var(--accent); box-shadow: none; }
+:root.apple-ui.apple-ui :is(.experience-header,.auth-header,.shell > header) { background: var(--page); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root.apple-ui.apple-ui .experience.product-refresh.guest-landing.landing-no-menu { width: 100%; max-width: none; margin-inline: 0; padding-bottom: 32px; }
+:root.apple-ui.apple-ui .landing-no-menu .experience-header > .experience-brand { display: flex; }
+:root.apple-ui.apple-ui .landing-no-menu .bottom-navigation { display: none; }
+:root.apple-ui.apple-ui .auth-experience .login { gap: 20px; padding: clamp(24px, 4vw, 40px); width: 100%; min-width: 0; }
+:root.apple-ui.apple-ui .auth-dialog .login { padding-top: 56px; }
+:root.apple-ui.apple-ui .auth-input { width: 100%; min-width: 0; box-sizing: border-box; }
+:root.apple-ui.apple-ui .auth-input input { width: 100%; flex: 1; }
+:root.apple-ui.apple-ui .auth-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(24px, 4vw, 64px); }
+:root.apple-ui.apple-ui .voice-field :is(input,textarea) { padding-right: 0.75rem; padding-inline-end: 3rem; }
+:root.apple-ui.apple-ui .voice-field .voice-input { right: auto; inset-inline-end: 0.25rem; }
+:root.apple-ui.apple-ui[dir="rtl"] :is(.experience,.shell,.auth-experience,.bottom-navigation) { direction: rtl; text-align: start; }
+:root.apple-ui.apple-ui[dir="rtl"] :is(.topic-name,.setting-row,.feed-back,.auth-submit) > svg:last-child { transform: scaleX(-1); }
+:root.apple-ui.apple-ui[dir="rtl"] .auth-submit svg { right: auto; left: 20px; }
+:root.apple-ui.apple-ui[dir="rtl"] .dialog-close { right: auto; left: 1rem; }
+:root.apple-ui.apple-ui[dir="rtl"] input:is([type="email"],[type="url"],[autocomplete="username"]) { direction: ltr; text-align: start; }
+@media (min-width: 900px) {
+  :root.apple-ui.apple-ui[dir="rtl"] :is(.experience.product-refresh,.auth-experience:not(.auth-modal-content),.shell) { margin-left: 0; margin-right: 210px; }
+  :root.apple-ui.apple-ui[dir="rtl"] .bottom-navigation { inset: 0 0 0 auto; border-right: 0; border-left: 1px solid var(--line); }
+  :root.apple-ui.apple-ui[dir="rtl"] .bottom-navigation .sidebar-logo { left: auto; right: 15px; }
+  :root.apple-ui.apple-ui[dir="rtl"] .experience.landing-no-menu { margin-inline: 0; width: 100%; }
+}
+@media (max-width: 899px) {
+  :root.apple-ui.apple-ui .auth-columns { grid-template-columns: minmax(0, 1fr); }
+}
+
+:root.apple-ui.apple-ui .avatar-button { font-family: inherit; font-size: 0.875rem; font-weight: 650; }
+:root.apple-ui.apple-ui .feed-card-actions { position: relative; justify-content: space-between; }
+:root.apple-ui.apple-ui :is(.topic-card,.guest-browse .ranked-feed) { overflow: visible; }
+:root.apple-ui.apple-ui .feed-options { position: relative; margin-inline-start: auto; }
+:root.apple-ui.apple-ui .feed-options > summary { display: flex; align-items: center; justify-content: center; list-style: none; cursor: pointer; min-width: 40px; min-height: 40px; border-radius: 999px; background: var(--surface-quiet); }
+:root.apple-ui.apple-ui .feed-options > summary::-webkit-details-marker { display: none; }
+:root.apple-ui.apple-ui .feed-options > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:root.apple-ui.apple-ui .feed-options-popover { position: absolute; inset-inline-end: 0; top: calc(100% + 6px); z-index: 15; min-width: 180px; padding: 0.375rem; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-soft); }
+:root.apple-ui.apple-ui .feed-options-popover :is(button,a) { display: flex; align-items: center; gap: 0.625rem; width: 100%; border-radius: 9px; background: transparent; text-decoration: none; font-size: 0.875rem; text-align: start; }
+:root.apple-ui.apple-ui .feed-options-popover :is(button,a):hover { background: var(--surface-quiet); }
+@media (max-width: 899px) { :root.apple-ui.apple-ui .feed-options > summary { min-width: 44px; min-height: 44px; } }

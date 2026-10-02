@@ -64,17 +64,22 @@ describe("feed sketches", () => {
     expect(f.run).not.toHaveBeenCalled();
   });
 
-  it("stores, serves and reuses a sketch, and hides it after the prompt changes", async () => {
+  it("stores, serves and reuses a sketch, and keeps it visible until replacement", async () => {
     const f = await fixture();
     expect((await f.app.request(f.publicPath, {}, f.env)).status).toBe(404);
     expect((await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env)).status).toBe(200);
     const image = await f.app.request(f.publicPath, {}, f.env);
     expect(image.headers.get("content-type")).toBe("image/jpeg");
+    expect(image.headers.get("x-sketch-current")).toBe("true");
     expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array([255, 216, 255, 217]));
     await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env);
     expect(f.run).toHaveBeenCalledTimes(1);
     await f.repo.upsertBriefing({ ...f.feed, interestProfile: "Cedar forests and conservation" });
-    expect((await f.app.request(f.publicPath, {}, f.env)).status).toBe(404);
+    const stale = await f.app.request(f.publicPath, {}, f.env);
+    expect(stale.status).toBe(200);
+    expect(stale.headers.get("x-sketch-current")).toBe("false");
+    expect((await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env)).status).toBe(200);
+    expect(f.run).toHaveBeenCalledTimes(2);
   });
 
   it("reports missing AI and provider failures without saving broken images", async () => {
@@ -85,11 +90,69 @@ describe("feed sketches", () => {
     expect(f.env.RAW_ARCHIVE.put).not.toHaveBeenCalled();
   });
 
-  it("limits generation attempts per account", async () => {
+  it("limits repeated attempts with a short cooldown", async () => {
     const f = await fixture();
     for (let index = 0; index < 5; index++) await f.repo.recordAuthAttempt({ key: f.account.id, action: "feed_sketch" });
-    expect((await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env)).status).toBe(429);
+    const response = await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("600");
+    expect(await response.json()).toMatchObject({ code: "SKETCH_RETRY_LIMIT" });
     expect(f.run).not.toHaveBeenCalled();
+  });
+
+  it("allows recovery from legacy failed attempts after ten minutes", async () => {
+    const f = await fixture();
+    const earlier = new Date(Date.now() - 11 * 60_000);
+    for (let index = 0; index < 5; index++) await f.repo.recordAuthAttempt({ key: f.account.id, action: "feed_sketch" }, earlier);
+    expect((await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env)).status).toBe(200);
+    expect(f.run).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts only saved images toward the daily allowance", async () => {
+    const f = await fixture();
+    f.run.mockRejectedValueOnce(new Error("provider unavailable"));
+    expect((await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env)).status).toBe(502);
+    vi.mocked(f.env.RAW_ARCHIVE.put).mockRejectedValueOnce(new Error("storage unavailable"));
+    expect((await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env)).status).toBe(502);
+    const count = () => f.repo.countRecentAuthAttempts({ key: f.account.id, action: "feed_sketch_saved", since: new Date(Date.now() - 86_400_000).toISOString() });
+    expect(await count()).toBe(0);
+    expect((await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env)).status).toBe(200);
+    expect(await count()).toBe(1);
+    expect((await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env)).status).toBe(200);
+    expect(await count()).toBe(1);
+  });
+
+  it("enforces the saved-image limit while still serving and reusing cached images", async () => {
+    const f = await fixture();
+    await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env);
+    for (let index = 0; index < 4; index++) await f.repo.recordAuthAttempt({ key: f.account.id, action: "feed_sketch_saved" });
+    expect((await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env)).status).toBe(200);
+    await f.repo.upsertBriefing({ ...f.feed, title: "New topic" });
+    const response = await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env);
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({ code: "SKETCH_DAILY_LIMIT" });
+    expect((await f.app.request(f.publicPath, {}, f.env)).status).toBe(200);
+    expect(f.run).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the same daily allowance for automatic generation", async () => {
+    const f = await fixture();
+    for (let index = 0; index < 5; index++) await f.repo.recordAuthAttempt({ key: f.account.id, action: "feed_sketch_saved" });
+    const response = await f.app.request("/api/me/briefings", { method: "POST", headers: { ...f.headers, "content-type": "application/json" }, body: JSON.stringify({ ...f.feed, title: "New topic" }) }, f.env);
+    expect(response.status).toBe(200);
+    expect(f.run).not.toHaveBeenCalled();
+  });
+
+  it("does not save or charge an illustration when its feed changes during inference", async () => {
+    const f = await fixture();
+    f.run.mockImplementationOnce(async () => {
+      await f.repo.upsertBriefing({ ...f.feed, title: "Changed during inference" });
+      return { image: btoa(String.fromCharCode(255, 216, 255, 217)) };
+    });
+    const response = await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env);
+    expect(await response.json()).toMatchObject({ generated: false });
+    expect(f.env.RAW_ARCHIVE.put).not.toHaveBeenCalled();
+    expect(await f.repo.countRecentAuthAttempts({ key: f.account.id, action: "feed_sketch_saved", since: new Date(0).toISOString() })).toBe(0);
   });
 
   it.each([
@@ -135,17 +198,17 @@ describe("feed sketches", () => {
   it("gives broad topics concrete subjects in the app's line-art style", () => {
     const politics = sketchPrompt({ title: "politics", interestProfile: "politics" });
     expect(politics).toContain("ballot box");
-    expect(politics).toContain("#4bac9d");
+    expect(politics).toContain("#5E5CE6");
     expect(politics).toContain("Exclude pencils");
     expect(sketchPrompt({ title: "football", interestProfile: "football" })).toContain("football beside a simple trophy");
   });
 
-  it("replaces cached covers from the previous drawing style", async () => {
+  it("serves cached covers from the previous style while generating replacements", async () => {
     const f = await fixture();
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(["pencil-v1", f.feed.title, f.feed.interestProfile])));
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(["lavender-line-v2", f.feed.title, f.feed.interestProfile])));
     const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
     await f.env.RAW_ARCHIVE.put("old-cover", new Uint8Array([255, 216]), { customMetadata: { fingerprint } });
-    expect((await f.app.request(f.publicPath, {}, f.env)).status).toBe(404);
+    expect((await f.app.request(f.publicPath, {}, f.env)).status).toBe(200);
     expect((await f.app.request(f.path, { method: "POST", headers: f.headers }, f.env)).status).toBe(200);
     expect(f.run).toHaveBeenCalledTimes(1);
   });

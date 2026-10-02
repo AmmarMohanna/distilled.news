@@ -20,7 +20,6 @@ import {
   Globe,
   Github,
   HelpCircle,
-  Languages,
   LayoutDashboard,
   ListChecks,
   LogIn,
@@ -149,7 +148,7 @@ function languageLabel(language: "en" | "ar" | "fr"): string {
 
 function AdminPage(props: { initialTab?: "home" | "explore" }) {
   const { language: interfaceLanguage } = useLanguage();
-  useEffect(() => { document.documentElement.lang = interfaceLanguage; document.documentElement.dir = "ltr"; }, [interfaceLanguage]);
+  useEffect(() => { document.documentElement.lang = interfaceLanguage; document.documentElement.dir = interfaceLanguage === "ar" ? "rtl" : "ltr"; }, [interfaceLanguage]);
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [authOpen, setAuthOpen] = useState(window.location.pathname === "/login" || new URLSearchParams(window.location.search).has("signup"));
   const [creationOpen, setCreationOpen] = useState(false);
@@ -951,7 +950,7 @@ function FeedSettingsSheet(props: {
                 title={languageLabel(language)}
                 onClick={() => props.onPatch({ language })}
               >
-                <Languages size={15} aria-hidden /> {languageLabel(language)}
+                <Globe size={15} aria-hidden /> {languageLabel(language)}
               </button>
             ))}
           </div>
@@ -1718,6 +1717,30 @@ function FeedPage(props: { username: string; slug: string }) {
   }, [props.username, props.slug]);
 
   useEffect(() => {
+    let active = true;
+    let pending = false;
+    const update = async () => {
+      if (document.visibilityState !== "visible" || pending) return;
+      pending = true;
+      try {
+        const next = await getFeed(props.username, props.slug);
+        if (active) setPayload(next);
+      } catch {
+        // Keep the last successful feed visible during temporary network failures.
+      } finally { pending = false; }
+    };
+    const interval = window.setInterval(() => void update(), 60_000);
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("focus", update);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("focus", update);
+    };
+  }, [props.username, props.slug]);
+
+  useEffect(() => {
     const raw = localStorage.getItem(`ln_read:${props.username}:${props.slug}`);
     setReadIds(new Set(raw ? (JSON.parse(raw) as string[]) : []));
   }, [props.username, props.slug]);
@@ -1766,7 +1789,6 @@ function FeedPage(props: { username: string; slug: string }) {
   const reportSection = reportEdition && selectedReport ? reportEdition.sections[selectedReport.sectionIndex] : undefined;
   const feedTitle = payload ? (
     <span className="feed-page-title">
-      <span className={`status-dot ${payload.briefing.paused ? "paused" : "live"}`} aria-hidden />
       <span>{payload.briefing.title}</span>
     </span>
   ) : "briefing";
@@ -1831,19 +1853,9 @@ function FeedPage(props: { username: string; slug: string }) {
         if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
-      {payload ? (
-        <FeedSignalPanel
-          briefing={payload.briefing}
-          editionCount={editions.length}
-          unreadCount={unreadEditions.length}
-          language={language}
-          nowMs={clock}
-        />
-      ) : null}
-      <div className="feed-tools" dir="ltr">
+      <div className="feed-tools" dir={pageDir}>
         <div className="feed-actions">
           {payload?.briefing.publicFeedEnabled && <><button type="button" onClick={() => void navigator.clipboard.writeText(window.location.origin + window.location.pathname).then(() => setSummaryMessage(t("URL copied"))).catch(() => setError(t("Could not copy URL")))}><Copy size={15}/>{t("Copy URL")}</button><button type="button" onClick={() => { const url = window.location.origin + window.location.pathname; void (navigator.share ? navigator.share({ title: payload.briefing.title, url }) : navigator.clipboard.writeText(url)).catch(() => {}); }}><Share size={15}/>{t("Share")}</button></>}
-          <button type="button" title={refreshControlLabel(language)} onClick={() => refresh()}><RefreshCw size={15} aria-hidden /> {refreshControlLabel(language)}</button>
           <button
             type="button"
             title={summaryRequestTitleLabel(language)}
@@ -2309,11 +2321,10 @@ function Shell(props: {
   const titleText = props.titleText ?? (typeof props.title === "string" ? props.title : "briefing");
   const shellLanguage = selectedLanguage;
   const shellMode = props.feed ? "feed-shell" : props.onAccount ? "admin-shell" : "auth-shell";
-  const showCreateNav = shellMode !== "auth-shell";
 
   useEffect(() => {
     document.documentElement.lang = selectedLanguage;
-    document.documentElement.dir = "ltr";
+    document.documentElement.dir = selectedLanguage === "ar" ? "rtl" : "ltr";
     document.title = titleText === "Distilled.news" ? "Distilled.news" : `${titleText} · Distilled.news`;
     const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     if (manifest) {
@@ -2337,11 +2348,6 @@ function Shell(props: {
           </div>
         </div>
         <div className="header-actions">
-          <nav>
-            {showCreateNav ? <a href="/" title={createNavLabel(shellLanguage)}>{createNavLabel(shellLanguage)}</a> : null}
-            {props.feed ? <span className="nav-separator" aria-hidden="true">|</span> : null}
-            {props.feed ? <a href={`/${props.feed.ownerUsername}/${props.feed.slug}/`}>{feedNavLabel(shellLanguage)}</a> : null}
-          </nav>
           <div className="header-controls">
             <LanguageControl/>
             {props.onAccount ? (
