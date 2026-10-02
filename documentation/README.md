@@ -1,6 +1,11 @@
 # Documentation
 
-The immediate priority is to compare scraper and acquisition API options before committing to new integrations.
+For parallel v1 implementation, start with [Architecture v1](ARCHITECTURE_v1.md),
+especially normative Appendix C, the [working agreement and handoff interface](PARALLEL_IMPLEMENTATION_AGREEMENT.md),
+and the [shared contract package](../packages/contracts/README.md). These supersede conflicting
+older architecture proposals; they do not claim the new production pipeline is integrated.
+
+The acquisition testing material below remains evidence and operational reference.
 
 Start with [External Testing: A to Z](EXTERNAL_TESTING_A_TO_Z.md) for the complete Windows-to-VPS operating guide, source configuration, all three testing stages, recovery, billing, and report export. Use [Scraper and API Testing on the University VPS](SCRAPER_TESTING_STEPS.md) for the broader experiment design and [Scraper and API Evaluation Plan](SCRAPER_AND_API_EVALUATION_PLAN.md) for scoring and methodological detail.
 

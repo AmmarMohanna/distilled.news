@@ -2,6 +2,12 @@
 
 The old V1 blueprint has been retired. Treat the current implementation as the product direction unless the user gives newer instructions.
 
+For the newly agreed v1 parallel implementation, use `documentation/ARCHITECTURE_v1.md`
+(Appendix C is normative), `documentation/PARALLEL_IMPLEMENTATION_AGREEMENT.md`, and
+`packages/contracts`. They supersede conflicting historical architecture proposals.
+The production paths have not yet been migrated; preserve existing behavior until an
+explicit integration change switches a source. Coordinate shared contract changes.
+
 ## Current Direction
 
 - Distilled.news is a Cloudflare-first, self-hostable public briefing product.

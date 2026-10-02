@@ -13,7 +13,7 @@
     "browser-bridge:dev": "pnpm --filter @distilled/browser-bridge dev",
     "browser-bridge:build": "pnpm --filter @distilled/browser-bridge build",
     "dev": "pnpm --filter @distilled/worker dev",
-    "build": "pnpm --filter @distilled/core build && pnpm --filter @distilled/connectors build && pnpm --filter @distilled/web build && pnpm --filter @distilled/worker build",
+    "build": "pnpm --filter @distilled/contracts build && pnpm --filter @distilled/core build && pnpm --filter @distilled/connectors build && pnpm --filter @distilled/web build && pnpm --filter @distilled/worker build",
     "typecheck": "pnpm -r typecheck",
     "test": "node --test scripts/*.test.mjs && pnpm -r test",
     "test:e2e": "playwright test",

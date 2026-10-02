@@ -72,6 +72,9 @@ importers:
       '@distilled/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
+      '@distilled/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@distilled/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -150,9 +153,25 @@ importers:
 
   packages/connectors:
     dependencies:
+      '@distilled/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@distilled/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@24.13.2)(jsdom@26.1.0)(tsx@4.23.13)
+
+  packages/contracts:
+    dependencies:
+      zod:
+        specifier: ^3.25.67
+        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.8.3
