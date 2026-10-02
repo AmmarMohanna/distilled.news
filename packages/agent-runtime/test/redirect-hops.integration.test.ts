@@ -14,6 +14,7 @@ const html=(res:ServerResponse,body:string,status=200)=>{res.writeHead(status,{"
 
 describe("pre-dispatch redirect-hop enforcement",()=>{
   const foreign={hits:[] as string[],bodies:[] as string[]};
+  const admittedFrameHits:string[]=[];
   let foreignServer:Server,siteServer:Server,siblingServer:Server;let foreignOrigin:string,siteOrigin:string,siblingOrigin:string,siblingLocalhost:string;
   let provider:SelfHostedChromiumProvider;
 
@@ -37,6 +38,8 @@ describe("pre-dispatch redirect-hop enforcement",()=>{
         case"/form":return html(res,`<form id="f" method="POST" action="/post-307"><input name="password" value="TEST_PASSWORD_SECRET_redirect"></form><script>document.getElementById("f").submit()</script>`);
         case"/post-307":return redirect(307,`${foreignOrigin}/from-post`);
         case"/frame":return html(res,`<iframe src="/to-foreign"></iframe><p>FRAME_PARENT</p>`);
+        case"/allowed-frame":return html(res,`<iframe src="/allowed-frame-child"></iframe><p>FRAME_PARENT</p>`);
+        case"/allowed-frame-child":admittedFrameHits.push(req.url??"");return html(res,"<p>ALLOWED_FRAME_CHILD</p>");
         case"/oopif":return html(res,`<iframe src="${siblingLocalhost}/to-foreign"></iframe><p>OOPIF_PARENT</p>`);
         default:return html(res,"<p>SITE</p>");
       }
@@ -90,6 +93,12 @@ describe("pre-dispatch redirect-hop enforcement",()=>{
   it("blocks a foreign redirect issued by a subframe navigation",async()=>{
     const scope=await session("hop-frame",[siteOrigin]);
     try{await visit(scope,`${siteOrigin}/frame`);await settle();expect(foreign.hits).toEqual([])}finally{await provider.close(scope)}
+  },60_000);
+
+  it("allows an admitted child frame in the same page",async()=>{
+    admittedFrameHits.length=0;
+    const scope=await session("allowed-frame",[siteOrigin]);
+    try{await visit(scope,`${siteOrigin}/allowed-frame`);await settle();expect(admittedFrameHits).toContain("/allowed-frame-child")}finally{await provider.close(scope)}
   },60_000);
 
   it("blocks a foreign redirect issued from a cross-site (out-of-process) iframe",async()=>{

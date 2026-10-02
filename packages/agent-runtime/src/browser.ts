@@ -449,10 +449,12 @@ export class PlaywrightBrowserAdapter
     await context.route("**/*", async (route) => {
       const request = route.request();
       try {
-        // Compare the request frame with the admitted page's main frame. Comparing
-        // Page object identity is not stable across Chromium/CDP navigation events
-        // and incorrectly rejected same-origin top-level requests as REQUEST_BLOCKED.
-        if (request.frame() !== live.page.mainFrame()) throw new BrowserPreDispatchError("new browser context denied");
+        // X may use child frames and a service worker during authentication.
+        // Keep the page fence: a popup belongs to a different Page, and a worker
+        // is admitted only for the independently domain-fenced executor.
+        const ownedFrame=(()=>{try{return request.frame().page()===live.page}catch{return false}})();
+        const ownedWorker=compatibleAuthentication&&this.options.allowServiceWorkers&&!!request.serviceWorker()&&live.allowedOrigins.has(new URL(request.serviceWorker()!.url()).origin);
+        if(!ownedFrame&&!ownedWorker)throw new BrowserPreDispatchError("new browser context denied");
         live.httpRequestCount+=1;
         if (live.httpRequestCount>MAX_HTTP_REQUESTS_PER_SESSION) throw new BrowserPreDispatchError("browser HTTP request budget exhausted",{policyRule:"REQUEST_BUDGET_EXCEEDED",deniedHostname:hostnameOf(request.url()),redirectHop:false,topLevelNavigation:request.isNavigationRequest(),admittedOriginCount:live.allowedOrigins.size});
         if (request.resourceType()==="eventsource") throw new BrowserPreDispatchError("EventSource transport denied");
@@ -461,7 +463,7 @@ export class PlaywrightBrowserAdapter
       } catch (error) {
         if(request.resourceType()==="script"){live.scriptDenials=Math.min(128,live.scriptDenials+1);if(["x.com","api.x.com","jf.x.com","abs.twimg.com"].includes(hostnameOf(request.url())??""))live.scriptDeniedX=Math.min(128,live.scriptDeniedX+1)}
         let topLevelNavigation=false;
-        try { topLevelNavigation=request.isNavigationRequest()&&request.frame()===live.page.mainFrame(); } catch { /* A denied popup can issue a request before its frame exists. */ }
+        try { const frame=request.frame();topLevelNavigation=request.isNavigationRequest()&&frame.page()===live.page&&frame.parentFrame()===null; } catch { /* A denied popup or worker may not have a frame. */ }
         const diagnostic=error instanceof BrowserPreDispatchError?error.diagnostic:undefined;
         const incidentalReadOnlyResource=
           !topLevelNavigation &&
