@@ -51,7 +51,12 @@ export async function processQueueMessage(
       return undefined;
     }
 
-    const existingItems = limitExistingItemsForProcessing(await repo.getExistingItems(briefing.id, now));
+    const allExistingItems = await repo.getExistingItems(briefing.id, now);
+    // Always include items affected by this post, even outside the recent context cap.
+    const existingItems = Array.from(new Map([
+      ...limitExistingItemsForProcessing(allExistingItems),
+      ...allExistingItems.filter((item) => item.evidence.some((entry) => entry.messageId === rawMessage.id))
+    ].map((item) => [item.id, item])).values());
     if(rawMessage.news){
       const started=Date.now();const result=await processNewsMessage(repo,message,briefing,rawMessage,existingItems,now,summaryAdapter,reviewAdapter);
       const touched=result.publishedItems.filter(item=>item.evidence.some(entry=>entry.messageId===rawMessage.id));
@@ -93,7 +98,7 @@ export async function processQueueMessage(
     }
 
     const changedItems = result.publishedItems.filter((item) =>
-      Boolean(item.summary) && item.evidence.some((evidence) => evidence.messageId === rawMessage.id)
+      (Boolean(item.summary) || existingItemIds.has(item.id)) && item.evidence.some((evidence) => evidence.messageId === rawMessage.id)
     );
     await repo.saveBriefingItems(briefing.id, changedItems, now);
     await repo.completeProcessingJob(message.jobId, now);

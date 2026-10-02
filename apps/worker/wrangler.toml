@@ -4,6 +4,10 @@ compatibility_date = "2026-06-16"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 workers_dev = true
 
+# Keep local requests off production-host canonical redirects.
+[dev]
+host = "localhost"
+local_protocol = "http"
 [browser]
 binding = "BROWSER"
 
@@ -102,4 +106,3 @@ head_sampling_rate = 1
 
 [triggers]
 crons = ["* * * * *"]
-

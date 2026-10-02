@@ -4,6 +4,10 @@ Distilled.news is a Cloudflare-first, self-hostable personal news briefing filte
 
 Distilled.news ingests public Telegram channel URLs plus optional RSS, Google News, X, LinkedIn, and Apify-backed sources, filters noisy posts against an interest profile, merges repeated updates, and publishes a calm monospace briefing with expandable evidence links. It does not include chatbot or Q&A behavior.
 
+## Acquisition Evaluation
+
+The next acquisition milestone is a measured scraper and API comparison. See the [Scraper and API Evaluation Plan](documentation/SCRAPER_AND_API_EVALUATION_PLAN.md) for the pilot, test cases, scoring, cost accounting, and provider-selection criteria. The [documentation index](documentation/README.md) explains how the existing plans relate to the current implementation.
+
 ## What It Does
 
 - Public email signup with verified accounts, password login/reset, and admin oversight.

@@ -242,14 +242,22 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
   });
 
   const parser = isGoogleNews ? parseGoogleNewsRssFeed : parseRssFeed;
-  const messages = parser(xml, {
-    sourceId: input.source.id,
-    sourceTitle: input.source.title,
-    sourceUrl: url,
-    receivedAt: now,
-    retentionDays: input.briefing.retentionDays,
-    rawPayloadKey
-  });
+  let messages: NormalizedMessage[];
+  try {
+    messages = parser(xml, {
+      sourceId: input.source.id,
+      sourceTitle: input.source.title,
+      sourceUrl: url,
+      receivedAt: now,
+      retentionDays: input.briefing.retentionDays,
+      rawPayloadKey
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Invalid feed response";
+    const message = `Could not parse ${isGoogleNews ? "Google News RSS" : "RSS"} source: ${detail}`;
+    await input.repo.updateSourceState({ sourceId: input.source.id, lastCheckedAt: now.toISOString(), lastError: message }, now);
+    throw new Error(message);
+  }
   const result = await persistMessages({ ...input, messages, now });
   await markSourceFetch(input.repo, input.briefing.id, now);
   if (result.imported > 0) await markImportedMessage(input.repo, input.briefing.id, now);
@@ -522,11 +530,20 @@ async function persistMessages(input: SourceRefreshInput & {
     };
     const existing = await input.repo.getRawMessage(persistedMessage.id);
     if (existing) {
-      skipped += 1;
-      continue;
+      const isX = message.source.kind === "x_profile" || message.source.kind === "x_search";
+      const changed = existing.text !== message.text ||
+        JSON.stringify([...existing.links].sort()) !== JSON.stringify([...message.links].sort());
+      if (!isX || !changed || Date.parse(message.receivedAt) < Date.parse(existing.receivedAt)) {
+        skipped += 1;
+        continue;
+      }
+      // Keep original identity, publication date, permalink and retention deadline.
+      await input.repo.updateRawMessage({ ...existing, text: message.text, links: message.links,
+        media: message.media, receivedAt: message.receivedAt, rawPayloadKey: message.rawPayloadKey });
+    } else {
+      await input.repo.saveRawMessage(input.briefing.id, persistedMessage, input.now);
     }
 
-    await input.repo.saveRawMessage(input.briefing.id, persistedMessage, input.now);
     const jobId = await input.repo.createProcessingJob(input.briefing.id, persistedMessage.id, input.now);
     await input.queue.send({ jobId, briefingId: input.briefing.id, rawMessageId: persistedMessage.id });
     imported += 1;

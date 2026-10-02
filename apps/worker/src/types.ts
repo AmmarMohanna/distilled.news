@@ -305,6 +305,7 @@ export interface Repository {
   }, now?: Date): Promise<void>;
   upsertSourceFromMessage(briefingId: string, message: NormalizedMessage, now?: Date): Promise<SourceRecord>;
   saveRawMessage(briefingId: string, message: NormalizedMessage, now?: Date): Promise<void>;
+  updateRawMessage(message: NormalizedMessage): Promise<void>;
   getRawMessage(id: string): Promise<NormalizedMessage | null>;
   listRecentRawMessages(briefingId: string, now?: Date, limit?: number): Promise<NormalizedMessage[]>;
   listRawMessagesForWindow(briefingId: string, windowStart: string, windowEnd: string, limit?: number): Promise<NormalizedMessage[]>;

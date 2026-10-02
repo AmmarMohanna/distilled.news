@@ -17,4 +17,44 @@ experiment-results/
 runtime-traces/
 *.tsbuildinfo
 
+# Local Python environments and generated caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Credentials and authenticated local sessions (keep documented examples)
+.env.*
+!.env.example
+*.env
+!*.env.example
+.dev.vars.*
+*.session
+*.session-journal
+*.session-wal
+*.session-shm
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local databases and runtime state
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Testing evidence contains third-party content and private operational data.
+# Keep only top-level human-written summaries and reusable review scripts.
+/documentation/testing-evidence/*
+!/documentation/testing-evidence/*.md
+!/documentation/testing-evidence/*.py
+/documentation/testing-evidence/__pycache__/
+
+# Abandoned local temporary test directories
+/evaluation/acquisition-benchmark/scripts/tmp*/
 .local-reports/
