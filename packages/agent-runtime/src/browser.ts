@@ -312,7 +312,7 @@ export class BrowserPreDispatchError extends BrowserScopeError {
 export class BrowserPostDispatchError extends BrowserScopeError {
   constructor(message: string) { super(message); this.name = "BrowserPostDispatchError"; }
 }
-export class BrowserNavigationError extends BrowserPostDispatchError{constructor(public readonly code:"NAVIGATION_TIMEOUT"|"UNEXPECTED_AUTH_ORIGIN"|"NETWORK_POLICY_DENIED"|"INITIAL_NAVIGATION_FAILED",public readonly diagnostic?:BrowserNetworkPolicyDiagnostic){super(code);this.name="BrowserNavigationError";}}
+export class BrowserNavigationError extends BrowserPostDispatchError{constructor(public readonly code:"NAVIGATION_TIMEOUT"|"UNEXPECTED_AUTH_ORIGIN"|"NETWORK_POLICY_DENIED"|"INITIAL_NAVIGATION_FAILED"|"INITIAL_OBSERVATION_FAILED"|"NAVIGATION_BLOCKED_BY_CLIENT"|"NAVIGATION_CERTIFICATE_ERROR"|"NAVIGATION_CONNECTION_ERROR"|"NAVIGATION_HTTP_PROTOCOL_ERROR"|"NAVIGATION_TARGET_CLOSED",public readonly diagnostic?:BrowserNetworkPolicyDiagnostic){super(code);this.name="BrowserNavigationError";}}
 export class BrowserAllocationError extends BrowserScopeError{constructor(public readonly code:"BROWSER_ALLOCATION_FAILED"|"BROWSER_CONTEXT_INITIALIZATION_FAILED",options?:{cause?:unknown}){super(code);this.name="BrowserAllocationError";if(options?.cause!==undefined)this.cause=options.cause;}}
 
 interface RedirectHopEvent { requestId: string; request: { url: string; method: string }; responseStatusCode?: number; responseHeaders?: Array<{ name: string; value: string }> }
@@ -338,8 +338,10 @@ export class PlaywrightBrowserAdapter
     navigationTimeoutMs?: number;
     /** Validate every redirect hop before Chromium follows it. On by default; only a provider whose browser already enforces the origin allowlist itself may opt out. */
     enforceRedirectHops?: boolean;
-    /** Only for a browser provider that enforces the admitted domain list outside page JavaScript. */
+    /** Preserve ordinary page/Web Worker APIs during a fenced authentication execution. */
     allowAuthenticationSiteFeatures?: true;
+    /** Service workers bypass Playwright's request router; allow them only with an independent egress fence. */
+    allowServiceWorkers?: true;
     /** Use a provider's isolated default CDP context so its proxy and browser profile settings remain active. */
     useConnectedDefaultContext?: true;
   } = {}) {
@@ -405,7 +407,7 @@ export class PlaywrightBrowserAdapter
     let context:BrowserContext;let page:Page;try{context=this.options.useConnectedDefaultContext?browser.contexts()[0]:await browser.newContext({
       viewport: { width: 960, height: 720 },
       deviceScaleFactor: 1,
-      serviceWorkers: compatibleAuthentication ? "allow" : "block",
+      serviceWorkers: compatibleAuthentication && this.options.allowServiceWorkers ? "allow" : "block",
       acceptDownloads: false,
       storageState: input.authenticatedSessionState
     });
@@ -854,12 +856,20 @@ export class PlaywrightBrowserAdapter
     } catch (error) {
       if(live.blockedRequest)throw new BrowserNavigationError("NETWORK_POLICY_DENIED",networkDiagnostic(live));
       if(error instanceof Error&&(error.name==="TimeoutError"||/timeout/i.test(error.message)))throw new BrowserNavigationError("NAVIGATION_TIMEOUT");
+      if(error instanceof Error){const message=error.message;
+        if(/ERR_BLOCKED_BY_CLIENT/.test(message))throw new BrowserNavigationError("NAVIGATION_BLOCKED_BY_CLIENT");
+        if(/ERR_CERT_|ERR_SSL_/.test(message))throw new BrowserNavigationError("NAVIGATION_CERTIFICATE_ERROR");
+        if(/ERR_HTTP2_|ERR_QUIC_|ERR_HTTP_RESPONSE_CODE_FAILURE/.test(message))throw new BrowserNavigationError("NAVIGATION_HTTP_PROTOCOL_ERROR");
+        if(/ERR_CONNECTION_|ERR_TUNNEL_CONNECTION_|ERR_PROXY_|ERR_NAME_NOT_RESOLVED|ERR_DNS_|ERR_EMPTY_RESPONSE|ERR_NETWORK_CHANGED/.test(message))throw new BrowserNavigationError("NAVIGATION_CONNECTION_ERROR");
+        if(/Target closed|Browser has been closed|Page closed/.test(message))throw new BrowserNavigationError("NAVIGATION_TARGET_CLOSED");
+      }
       throw new BrowserNavigationError("INITIAL_NAVIGATION_FAILED");
     }
     if (live.blockedRequest) throw new BrowserNavigationError("NETWORK_POLICY_DENIED",networkDiagnostic(live));
     try { this.assertFinalOrigin(live); } catch { throw new BrowserNavigationError("UNEXPECTED_AUTH_ORIGIN",{policyRule:"FINAL_ORIGIN_NOT_ADMITTED",deniedHostname:hostnameOf(live.page.url()),redirectHop:true,topLevelNavigation:true,admittedOriginCount:live.allowedOrigins.size}); }
     this.invalidateTransientBindings(live);
-    return this.observe(live, "page_state");
+    try { return await this.observe(live, "page_state"); }
+    catch { throw new BrowserNavigationError("INITIAL_OBSERVATION_FAILED"); }
   }
 
   /** Bounded browser-owned structural readiness for client-rendered public pages. */
@@ -1031,7 +1041,7 @@ export class PlaywrightBrowserAdapter
 
 export class SelfHostedChromiumProvider extends PlaywrightBrowserAdapter {
   readonly providerIdentity = "SELF_HOSTED_CHROMIUM" as const;
-  constructor(options: { testOnlyPrivateNetwork?: true; maxConcurrentSessions?: number; launchTimeoutMs?: number; navigationTimeoutMs?: number; useConnectedDefaultContext?: true; launchBrowser?: (options: { headless: boolean; args: string[]; allowedDomains: string[] }) => Promise<Browser> } = {}) {
+  constructor(options: { testOnlyPrivateNetwork?: true; maxConcurrentSessions?: number; launchTimeoutMs?: number; navigationTimeoutMs?: number; allowAuthenticationSiteFeatures?: true; useConnectedDefaultContext?: true; launchBrowser?: (options: { headless: boolean; args: string[]; allowedDomains: string[] }) => Promise<Browser> } = {}) {
     super({maxConcurrentSessions:2,launchTimeoutMs:30_000,navigationTimeoutMs:15_000,...options});
   }
 
@@ -1055,7 +1065,7 @@ export class CloudflareBrowserExecutor extends PlaywrightBrowserAdapter {
   readonly providerIdentity = "CLOUDFLARE_BROWSER" as const;
   constructor(input: { binding: CloudflareBrowserBinding; launch: CloudflareBrowserLauncher }) {
     // Browser Run enforces allowedDomains inside the remote browser; the local CDP Fetch guard is not verified against it, so it is not enabled here.
-    super({ launchBrowser: (options) => input.launch(input.binding,{allowedDomains:options.allowedDomains}), enforceRedirectHops: false, allowAuthenticationSiteFeatures:true });
+    super({ launchBrowser: (options) => input.launch(input.binding,{allowedDomains:options.allowedDomains}), enforceRedirectHops: false, allowAuthenticationSiteFeatures:true, allowServiceWorkers:true });
   }
 }
 

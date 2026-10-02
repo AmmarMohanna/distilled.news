@@ -14,6 +14,7 @@ it("uses at most two eligible alternate executors for X bootstrap", () => {
   expect(nextBootstrapProvider(env, { providerOverride: "cloudflare" })).toBeUndefined();
   expect(nextBootstrapProvider(env, { selectBackend: () => undefined })).toBeUndefined();
   expect(nextBootstrapProvider({ ...env, SELF_HOSTED_BROWSER_BRIDGE_URL: undefined }, {})).toBe("cloudflare");
+  expect(nextBootstrapProvider({ ...env, SELF_HOSTED_BROWSER_BRIDGE_URL: undefined, BROWSER_BRIDGE_X_BROWSER_CHANNEL: "chrome" }, {})).toBe("cloudflare");
 });
 
 it("fails over when container allocation fails before browser initialization",()=>{

@@ -93,6 +93,7 @@ export interface Env extends Cloudflare.Env {
   SELF_HOSTED_BROWSER_BRIDGE_AUTH?: string;
   BROWSERLESS_CDP_ENDPOINT?: string;
   BROWSERLESS_API_TOKEN?: string;
+  BROWSER_BRIDGE_X_BROWSER_CHANNEL?: string;
   BRIDGE_PREFLIGHT_TOKEN?: string;
   ENVIRONMENT?: string;
   DISTILLED_MODEL_CALL_TIMEOUT_MS: string;

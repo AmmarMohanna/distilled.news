@@ -14,20 +14,23 @@ const MAX_TRACKED_NONCES=10_000;
 const TOMBSTONE_MS=5*60_000;
 export class AuthenticatedBrowserBridgeService{
   private readonly executions=new Map<string,Execution>();private readonly nonces=new Map<string,number>();
-  private localProvider?:SelfHostedChromiumProvider;private remoteProvider?:SelfHostedChromiumProvider;
+  private localProvider?:SelfHostedChromiumProvider;private remoteProvider?:SelfHostedChromiumProvider;private xChromeProvider?:SelfHostedChromiumProvider;
   constructor(private readonly input:{serviceCredential:string;provider?:SelfHostedChromiumProvider;allowTestMode?:boolean;clock?:()=>number;requestWindowMs?:number;idleTimeoutMs?:number;absoluteTimeoutMs?:number;maxExecutions?:number}){if(!input.serviceCredential)throw new Error("bridge service credential is required");if(input.allowTestMode&&typeof process!=="undefined"&&process.env.NODE_ENV==="production")throw new Error("test mode is forbidden in production mode");}
   private get provider(){
     if(this.input.provider)return this.input.provider;
     if(this.localProvider)return this.localProvider;
     if(this.input.allowTestMode)return this.localProvider=SelfHostedChromiumProvider.forTest();
-    return this.localProvider=new SelfHostedChromiumProvider({launchBrowser:options=>chromium.launch({...options,headless:process.env.BROWSER_BRIDGE_HEADFUL!=="true",...(process.env.BROWSER_BRIDGE_BROWSER_CHANNEL==="chrome"?{channel:"chrome" as const}:{})})});
+    return this.localProvider=new SelfHostedChromiumProvider({allowAuthenticationSiteFeatures:true,launchBrowser:options=>chromium.launch({...options,headless:process.env.BROWSER_BRIDGE_HEADFUL!=="true",...(process.env.BROWSER_BRIDGE_BROWSER_CHANNEL==="chrome"?{channel:"chrome" as const}:{})})});
   }
   private providerFor(capability:AuthenticatedBrowserExecutionCapability){
     if(this.input.provider||this.input.allowTestMode||capability.siteKind!=="x")return this.provider;
     const endpoint=process.env.BROWSERLESS_CDP_ENDPOINT?.trim(),token=process.env.BROWSERLESS_API_TOKEN?.trim();
-    if(!endpoint&&!token)return this.provider;
+    if(!endpoint&&!token){
+      if(process.env.BROWSER_BRIDGE_X_BROWSER_CHANNEL!=="chrome")return this.provider;
+      return this.xChromeProvider??(this.xChromeProvider=new SelfHostedChromiumProvider({allowAuthenticationSiteFeatures:true,launchBrowser:options=>chromium.launch({...options,channel:"chrome",headless:true,ignoreDefaultArgs:["--enable-automation"]})}));
+    }
     if(!endpoint||!token)throw new Error("remote browser configuration incomplete");
-    if(!this.remoteProvider){const url=browserlessCdpUrl(endpoint,token);this.remoteProvider=new SelfHostedChromiumProvider({useConnectedDefaultContext:true,launchBrowser:()=>chromium.connectOverCDP(url,{timeout:30_000})})}
+    if(!this.remoteProvider){const url=browserlessCdpUrl(endpoint,token);this.remoteProvider=new SelfHostedChromiumProvider({allowAuthenticationSiteFeatures:true,useConnectedDefaultContext:true,launchBrowser:()=>chromium.connectOverCDP(url,{timeout:30_000})})}
     return this.remoteProvider;
   }
   private now(){return this.input.clock?.()??Date.now()}
@@ -199,7 +202,7 @@ export class AuthenticatedBrowserBridgeService{
     for(const execution of this.executions.values()){if(execution.state!=="CLOSED"&&execution.state!=="EXPIRED"&&execution.capability.profileId===capability.profileId&&execution.capability.browserGeneration>=capability.browserGeneration)throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH")}
     if(this.activeExecutionCount>=(this.input.maxExecutions??2))throw new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE");
     const abort=new AbortController();const execution={capability,provider:this.providerFor(capability),state:"OPENING",operations:1,records:new Map(),inflight:new Map(),queue:Promise.resolve(),abort} as Execution;
-    execution.ready=(async()=>{try{const scope=await execution.provider.allocate({runId:capability.runId,tenantId:capability.tenantId,generation:capability.browserGeneration,allowedOrigins:capability.allowedOrigins,signal:abort.signal});execution.scope=scope;if(execution.state==="OPENING"){execution.state="OPEN";this.refreshIdle(execution)}else await execution.provider.close(scope).catch(()=>undefined);return scope}catch(error){clearTimeout(execution.idleTimer);clearTimeout(execution.absoluteTimer);execution.state="CLOSED";execution.records.clear();if(this.executions.get(capability.bridgeExecutionId)===execution)this.executions.delete(capability.bridgeExecutionId);throw error}})();
+    execution.ready=(async()=>{try{const scope=await execution.provider.allocate({runId:capability.runId,tenantId:capability.tenantId,generation:capability.browserGeneration,allowedOrigins:capability.allowedOrigins,...(capability.siteKind==="x"?{authenticationBootstrap:true as const}:{}),signal:abort.signal});execution.scope=scope;if(execution.state==="OPENING"){execution.state="OPEN";this.refreshIdle(execution)}else await execution.provider.close(scope).catch(()=>undefined);return scope}catch(error){clearTimeout(execution.idleTimer);clearTimeout(execution.absoluteTimer);execution.state="CLOSED";execution.records.clear();if(this.executions.get(capability.bridgeExecutionId)===execution)this.executions.delete(capability.bridgeExecutionId);throw error}})();
     execution.ready.catch(()=>undefined);this.executions.set(capability.bridgeExecutionId,execution);
     /* The idle lease starts once the browser is open (a slow launch must not consume it); the absolute deadline bounds the whole execution. */
     execution.absoluteTimer=unref(setTimeout(()=>void this.expire(execution),Math.max(1,Math.min(this.input.absoluteTimeoutMs??120_000,Date.parse(capability.expiresAt)-this.now()))));
@@ -220,7 +223,7 @@ export class AuthenticatedBrowserBridgeService{
  * Maps a provider error to a typed failure. Only the code leaves the service: error text can echo page or field content, so it is never returned or logged.
  * A mutation that fails for any reason not provably pre-dispatch is EFFECT_UNKNOWN and must not be retried by the caller.
  */
-function failureDiagnostic(operation:string,error:unknown):BrowserBridgeDiagnostic|undefined{if(error instanceof AuthenticatedBrowserBridgeError)return error.diagnostic;if(error instanceof Error&&(error.name==="BrowserNavigationError"||error.name==="BrowserPreDispatchError")){const diagnostic=(error as {diagnostic?:BrowserNetworkPolicyDiagnostic}).diagnostic;if(diagnostic)return diagnostic;}return undefined;}
+function failureDiagnostic(operation:string,error:unknown):BrowserBridgeDiagnostic|undefined{if(error instanceof AuthenticatedBrowserBridgeError)return error.diagnostic;if(error instanceof Error&&(error.name==="BrowserNavigationError"||error.name==="BrowserPreDispatchError")){const diagnostic=(error as {diagnostic?:BrowserNetworkPolicyDiagnostic}).diagnostic;if(diagnostic)return diagnostic;}if(error instanceof Error&&(error.name==="BrowserNavigationError"||error.name==="BrowserAllocationError")){const code=(error as {code?:string}).code;if(["NAVIGATION_TIMEOUT","UNEXPECTED_AUTH_ORIGIN","NETWORK_POLICY_DENIED","INITIAL_NAVIGATION_FAILED","INITIAL_OBSERVATION_FAILED","NAVIGATION_BLOCKED_BY_CLIENT","NAVIGATION_CERTIFICATE_ERROR","NAVIGATION_CONNECTION_ERROR","NAVIGATION_HTTP_PROTOCOL_ERROR","NAVIGATION_TARGET_CLOSED","BROWSER_ALLOCATION_FAILED","BROWSER_CONTEXT_INITIALIZATION_FAILED"].includes(code??""))return{runtimeFailureCode:code as "NAVIGATION_TIMEOUT"}}return undefined;}
 function classifyFailure(operation:string,error:unknown):AuthenticatedBrowserBridgeFailureCode{
   if(error instanceof AuthenticatedBrowserBridgeError)return error.code;
   const name=error instanceof Error?error.name:"",message=error instanceof Error?error.message:"";

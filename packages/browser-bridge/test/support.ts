@@ -40,6 +40,7 @@ export function baseCapability(overrides:Partial<AuthenticatedBrowserExecutionCa
 export class MockBrowserProvider extends SelfHostedChromiumProvider{
   attachedState?:BrowserSessionState;
   allocations=0;
+  lastAuthenticationBootstrap?:boolean;
   navigations:Array<{url:string;writeOrigins:string[]}>=[];
   injectedFields:Array<{fieldKind:string;secretValue:string}>=[];
   activatedControls:string[]=[];
@@ -48,8 +49,9 @@ export class MockBrowserProvider extends SelfHostedChromiumProvider{
   failNextInject?:Error;
   allocateDelayMs=0;
 
-  override async allocate(input:{runId:string;tenantId:string;generation:number;allowedOrigins:string[]}):Promise<BrowserAllocation>{
+  override async allocate(input:{runId:string;tenantId:string;generation:number;allowedOrigins:string[];authenticationBootstrap?:boolean}):Promise<BrowserAllocation>{
     this.allocations++;
+    this.lastAuthenticationBootstrap=input.authenticationBootstrap;
     if(this.allocateDelayMs)await new Promise(resolve=>setTimeout(resolve,this.allocateDelayMs));
     return{
       runId:input.runId,

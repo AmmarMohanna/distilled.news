@@ -9,7 +9,7 @@ binding = "BROWSER"
 
 [[containers]]
 class_name = "AuthenticatedBrowserContainer"
-image = "registry.cloudflare.com/37a6bb83b085bd6739426e7c2d4aeda8/distilled-authenticated-browser@sha256:d8f2dc7adb1eb556d4b590c323a55a109401c8b523b891ee97ad6c841f31b557"
+image = "registry.cloudflare.com/37a6bb83b085bd6739426e7c2d4aeda8/distilled-authenticated-browser@sha256:8be1562e653327e5e545aec8b4099c02339380d400be646cc9923d90c0d8c551"
 instance_type = "standard-1"
 max_instances = 2
 
@@ -40,6 +40,7 @@ OPENAI_MODEL = "gpt-4.1-mini"
 DISTILLED_WEB_OPERATOR_ENABLED = "true"
 DISTILLED_BROWSER_BACKEND = "cloudflare"
 DISTILLED_BROWSER_PROVIDER = "cloudflare_container"
+BROWSER_BRIDGE_X_BROWSER_CHANNEL = "chrome"
 DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE = "false"
 DISTILLED_LIVE_OPENROUTER_MODEL = "openai/gpt-4.1-mini"
 DISTILLED_LIVE_OPENROUTER_PROVIDER = "openai"

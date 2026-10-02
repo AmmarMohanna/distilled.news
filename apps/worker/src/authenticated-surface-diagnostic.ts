@@ -1,4 +1,4 @@
-import { AuthenticatedBrowserBridgeExecutor,RuntimeAuthenticationFlowLineage,XAuthenticatedSiteAdapter } from "@distilled/agent-runtime";
+import { AuthenticatedBrowserBridgeError,AuthenticatedBrowserBridgeExecutor,BrowserAllocationError,BrowserNavigationError,RuntimeAuthenticationFlowLineage,XAuthenticatedSiteAdapter } from "@distilled/agent-runtime";
 import { authenticatedBackend } from "./authenticated-profile-bootstrap";
 import type { Env } from "./types";
 
@@ -16,16 +16,16 @@ export async function executeAuthenticatedSurfaceDiagnostic(input:AuthenticatedS
   if(profile.siteFamily!=="x")return Response.json({error:"DIAGNOSTIC_SITE_UNSUPPORTED"},{status:409});
   const adapter=new XAuthenticatedSiteAdapter();const runId=`auth_surface_diagnostic_${crypto.randomUUID().replaceAll("-","")}`;
   let selected:ReturnType<typeof authenticatedBackend>;try{selected=dependencies.selectBackend?.()??authenticatedBackend(env,{runId,bootstrapRequestId:requestId,profile,adapter});}catch{return Response.json({error:"DIAGNOSTIC_PROVIDER_UNRESOLVED"},{status:503});}
-  if(!isEligibleDiagnosticProvider(selected.providerIdentity)||!(selected.executor instanceof AuthenticatedBrowserBridgeExecutor))return Response.json({error:"DIAGNOSTIC_SELF_HOSTED_PROVIDER_REQUIRED",diagnostic:{browserProvider:selected.providerIdentity??"UNKNOWN",browserBackend:selected.backend}},{status:409});
-  let allocation:Awaited<ReturnType<AuthenticatedBrowserBridgeExecutor["allocate"]>>|undefined;
+  const executor=selected.executor;if(!isEligibleDiagnosticProvider(selected.providerIdentity)||!(executor instanceof AuthenticatedBrowserBridgeExecutor))return Response.json({error:"DIAGNOSTIC_SELF_HOSTED_PROVIDER_REQUIRED",diagnostic:{browserProvider:selected.providerIdentity??"UNKNOWN",browserBackend:selected.backend}},{status:409});
+  let allocation:Awaited<ReturnType<AuthenticatedBrowserBridgeExecutor["allocate"]>>|undefined;let failureStage:"allocation"|"navigation"|"observation"="allocation";
   try{
-    allocation=await selected.executor.allocate({runId,tenantId:profile.tenantId,generation:1,allowedOrigins:[...(adapter.authenticationNetworkOrigins??adapter.allowedOrigins)]});
+    allocation=await executor.allocate({runId,tenantId:profile.tenantId,generation:1,allowedOrigins:[...(adapter.authenticationNetworkOrigins??adapter.allowedOrigins)]});const scope=allocation;
     const lineage=new RuntimeAuthenticationFlowLineage(adapter.authenticationEntryPoint!,{tenantId:profile.tenantId,ownerId:profile.ownerId,profileId:profile.id,profileVersion:profile.version,requestId,browserGeneration:allocation.generation,browserContextId:allocation.contextId,allowedOrigins:[...adapter.allowedOrigins],expiresAt:new Date(Date.now()+120_000).toISOString()},async()=>{const current=await env.DB.prepare(`SELECT version,revoked_at FROM authenticated_site_profiles WHERE id=?`).bind(profile.id).first<{version:number;revoked_at:string|null}>();return !!current&&current.version===profile.version&&!current.revoked_at;});
-    await lineage.start();await selected.executor.navigate(allocation,adapter.authenticationEntryPoint!.url);
-    const snapshot=await selected.executor.observeAuthenticatedSurface(allocation,"AUTH_SURFACE");const flow=await lineage.observe(snapshot.url);const fingerprint=adapter.fingerprint(snapshot,flow,false);
+    await lineage.start();failureStage="navigation";await executor.navigate(scope,adapter.authenticationEntryPoint!.url);
+    failureStage="observation";const snapshot=await executor.observeAuthenticatedSurface(scope,"AUTH_SURFACE").catch(()=>executor.observeAuthenticatedSurface(scope));const flow=await lineage.observe(snapshot.url);const fingerprint=adapter.fingerprint(snapshot,flow,false);
     return Response.json({status:"OBSERVED",operation:"AUTH_SURFACE_DIAGNOSTIC",diagnostic:{...safeFingerprint(fingerprint),...safeObservationStructure(snapshot),...safeObservationIdentity(snapshot),...safeAuthSurfaceContent(snapshot),browserProvider:selected.providerIdentity,browserBackend:selected.backend,browserGeneration:allocation.generation}});
-  }catch{return Response.json({error:"AUTH_SURFACE_DIAGNOSTIC_FAILED",diagnostic:{browserProvider:selected.providerIdentity,browserBackend:selected.backend,browserGeneration:allocation?.generation??1}},{status:500});}
-  finally{if(allocation)await selected.executor.close(allocation).catch(()=>undefined);}
+  }catch(error){const bridgeFailureCode=error instanceof AuthenticatedBrowserBridgeError?error.code:error instanceof BrowserAllocationError||error instanceof BrowserNavigationError?error.code:"UNCLASSIFIED";const runtimeFailureCode=error instanceof AuthenticatedBrowserBridgeError&&error.diagnostic&&"runtimeFailureCode"in error.diagnostic?error.diagnostic.runtimeFailureCode:undefined;return Response.json({error:"AUTH_SURFACE_DIAGNOSTIC_FAILED",diagnostic:{browserProvider:selected.providerIdentity,browserBackend:selected.backend,browserGeneration:allocation?.generation??1,failureStage,bridgeFailureCode,runtimeFailureCode}},{status:500});}
+  finally{if(allocation)await executor.close(allocation).catch(()=>undefined);}
 }
 
 export function safeFingerprint(value:ReturnType<XAuthenticatedSiteAdapter["fingerprint"]>){const keys=["surfaceKind","hostname","pathnameCategory","pathnamePattern","authOriginValid","authFlowLineageValid","formCountCategory","activeFormPresent","activeFormUnambiguous","identifierTextboxPresent","identifierTextboxVisible","identifierTextboxEnabled","identifierTextboxFocusable","identifierTextboxInsideActiveForm","knownIdentifierTextboxLabel","passwordTextboxPresent","passwordTextboxVisible","passwordTextboxEnabled","passwordTextboxFocusable","passwordTextboxInsideActiveForm","passwordAutocompleteCategory","knownPasswordTextboxLabel","identifierTextboxCountCategory","passwordTextboxCountCategory","knownControlLabels","submitControlSemanticKind","submitControlVisible","submitControlEnabled","captchaWidgetPresent","securityVerificationSurfacePresent"] as const;const output:Record<string,string|boolean>={};for(const key of keys){const item=value[key];output[key]=key==="knownControlLabels"?(item as readonly string[]).join("|"):item as string|boolean;}return output;}
@@ -46,6 +46,6 @@ export function safeAuthSurfaceContent(value:{visibleText?:string;title?:string;
     titleCategory:!value.title?.trim()?"empty":/^(?:x|twitter)(?:\s|$)/i.test(value.title)?"site":"other"};
 }
 
-export function isEligibleDiagnosticProvider(provider: string|undefined): provider is "SELF_HOSTED_CHROMIUM"|"CLOUDFLARE_CONTAINER" {
-  return provider === "SELF_HOSTED_CHROMIUM" || provider === "CLOUDFLARE_CONTAINER";
+export function isEligibleDiagnosticProvider(provider: string|undefined): provider is "SELF_HOSTED_CHROMIUM"|"CLOUDFLARE_CONTAINER"|"CLOUDFLARE_CONTAINER_CHROME"|"BROWSERLESS_CDP" {
+  return provider === "SELF_HOSTED_CHROMIUM" || provider === "CLOUDFLARE_CONTAINER" || provider === "CLOUDFLARE_CONTAINER_CHROME" || provider === "BROWSERLESS_CDP";
 }

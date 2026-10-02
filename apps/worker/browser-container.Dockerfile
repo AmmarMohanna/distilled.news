@@ -29,6 +29,12 @@ RUN set -eu; packages=/opt/distilled-browser-use/lib/python3.12/site-packages; \
 FROM mcr.microsoft.com/playwright:v1.61.0-noble
 WORKDIR /app
 RUN corepack enable
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/google-chrome-stable.deb \
+    && apt-get install -y --no-install-recommends /tmp/google-chrome-stable.deb \
+    && rm -f /tmp/google-chrome-stable.deb \
+    && rm -rf /var/lib/apt/lists/* \
+    && google-chrome --version
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/package.json
