@@ -4,7 +4,7 @@ import {
   projectAuthenticatedProfileForModel,type AuthAuditEvent,type AuthenticatedProfileRepository,type AuthenticatedSiteProfile,
   type AuthenticatedProfileOwnershipPolicy,type CredentialProfile,type SecretBlobStore
 } from "../src/auth-profile";
-import { AuthenticatedBootstrapError,AuthenticatedBrowserLifecycle,RuntimeAuthenticationFlowLineage,XAuthenticatedSiteAdapter,assertAuthenticatedReadOnlyAction } from "../src/authenticated-site";
+import { AuthenticatedBootstrapError,AuthenticatedBrowserLifecycle,RuntimeAuthenticationFlowLineage,XAuthenticatedSiteAdapter,assertAuthenticatedReadOnlyAction,type AuthenticatedSiteSnapshot,type RuntimeAuthenticationBrowser } from "../src/authenticated-site";
 import { BrowserNavigationError,PlaywrightBrowserAdapter } from "../src/browser";
 import { ChallengeCoordinator,DetectOnlyBrowserChallengeProvider,DeterministicTestChallengeProvider,InMemoryAuthenticationChallengeStore } from "../src/challenge-coordinator";
 
@@ -13,6 +13,29 @@ class Blobs implements SecretBlobStore{values=new Map<string,Uint8Array>();async
 class Repo implements AuthenticatedProfileRepository{credentials=new Map<string,CredentialProfile>();profiles=new Map<string,AuthenticatedSiteProfile>();audits:AuthAuditEvent[]=[];async createCredentialProfile(v:CredentialProfile){this.credentials.set(v.id,structuredClone(v))}async createSiteProfile(v:AuthenticatedSiteProfile){if(!this.profiles.has(v.id))this.profiles.set(v.id,structuredClone(v))}async getCredentialProfile(id:string){return structuredClone(this.credentials.get(id)??null)}async getSiteProfile(id:string){return structuredClone(this.profiles.get(id)??null)}async updateSiteProfile(v:AuthenticatedSiteProfile){this.profiles.set(v.id,structuredClone(v))}async appendAuthAudit(v:AuthAuditEvent){this.audits.push(structuredClone(v))}}
 class Owners implements AuthenticatedProfileOwnershipPolicy{accounts=new Map([["account-a",{disabled:false}],["account-b",{disabled:false}]]);async assertActiveOwner(input:{tenantId:string;ownerId:string}){const account=this.accounts.get(input.ownerId);if(!account)throw new Error("AUTH_OWNER_NOT_FOUND");if(account.disabled)throw new Error("AUTH_OWNER_DISABLED");}}
 const NOW=new Date("2026-09-16T00:00:00Z");
+it("does not renew runtime authority across a concurrent profile revocation during restore",async()=>{
+  const f=await fixture();const active=await f.service.saveSession(f.profile,{cookies:[],origins:[]},{runId:"seed"});
+  let established=false;
+  const browser={...fakeBrowser([],"ACTIVE"),detectAuthenticatedState:async()=>{await f.service.transition(active,"REVOKED",{reason:"fixture_revoked"});return{state:"SESSION_EXPIRED",reason:"fixture_expired"}},establishAuthenticatedSession:async()=>{established=true;return{state:"ACTIVE",reason:"unexpected"}}};
+  const capability=issueAuthenticatedProfileCapability(active,{tenantId:"account-a",ownerId:"account-a",runId:"revoked-run",browserGeneration:2});
+  await expect(new AuthenticatedBrowserLifecycle(f.repository,f.service,browser as never,new Map([["x",new XAuthenticatedSiteAdapter()]])).attach({capability,scope:{runId:"revoked-run",tenantId:"account-a",sessionId:"s",contextId:"c",generation:2},ownerId:"account-a"})).rejects.toMatchObject({code:"AUTH_STALE_CAPABILITY"});
+  expect(established).toBe(false);expect((await f.repository.getSiteProfile(active.id))?.sessionState).toBe("REVOKED");
+});
+it("keeps runtime auth fences valid after expiring a restored session before automatic credential login",async()=>{
+  const f=await fixture();
+  const active=await f.service.saveSession(f.profile,{cookies:[],origins:[]},{runId:"seed"});
+  const adapter=new XAuthenticatedSiteAdapter();
+  const browser={...fakeBrowser([],"ACTIVE"),detectAuthenticatedState:async()=>({state:"SESSION_EXPIRED",reason:"fixture_expired"}),establishAuthenticatedSession:async(_scope:unknown,_adapter:unknown,_credential:unknown,_observer:unknown,lineage:RuntimeAuthenticationFlowLineage)=>{
+    expect((await lineage.start()).authFlowLineageValid).toBe(true);
+    expect((await lineage.observe("https://x.com/i/flow/login")).authFlowLineageValid).toBe(true);
+    return{state:"ACTIVE",reason:"fixture_reauthenticated"};
+  }};
+  const capability=issueAuthenticatedProfileCapability(active,{tenantId:"account-a",ownerId:"account-a",runId:"expiry-run",browserGeneration:2});
+  const result=await new AuthenticatedBrowserLifecycle(f.repository,f.service,browser as never,new Map([["x",adapter]])).attach({capability,scope:{runId:"expiry-run",tenantId:"account-a",sessionId:"s",contextId:"c",generation:2},ownerId:"account-a"});
+  expect(result).toMatchObject({sessionReused:false,profile:{version:active.version+2,sessionState:"ACTIVE"}});
+  expect(capability.profileVersion).toBe(active.version);
+  expect(f.repository.audits.map(item=>item.toState)).toContain("SESSION_EXPIRED");
+});
 async function fixture(){const repository=new Repo();const blobs=new Blobs();const crypto=new ProfileEnvelopeCrypto({current:ROOT},"current");const owners=new Owners();const service=new AuthenticatedProfileService(repository,blobs,crypto,owners);const safe=await service.provision({tenantId:"account-a",ownerId:"account-a",siteFamily:"x",allowedOrigins:["https://x.com"],credential:{username:"secret-user@example.com",password:"correct horse battery staple"},now:NOW});const profile=(await repository.getSiteProfile(safe.authenticatedProfileId))!;return{repository,blobs,crypto,owners,service,safe,profile};}
 
 describe("authenticated profile security",()=>{
@@ -91,7 +114,7 @@ describe("authenticated bootstrap browser allocation diagnostics",()=>{
 });
 
 function fakeBrowser(calls:string[],state:"ACTIVE"|"MFA_REQUIRED"){return{attachAuthenticatedSession:async()=>{calls.push("attach")},navigate:async()=>{calls.push("navigate")},detectAuthenticatedState:async()=>{calls.push("detect");return{state,reason:"fixture"}},establishAuthenticatedSession:async()=>{calls.push("establish");return{state,reason:"fixture"}},exportAuthenticatedSession:async()=>{calls.push("export");return{cookies:[],origins:[]}}};}
-function bootstrapBrowser(snapshots:Array<{url:string;title:string;visibleText:string;controls:Array<{role?:string;label:string;type?:string;autocomplete?:string;insideForm?:boolean;disabled?:boolean;focused?:boolean}>}>,failControlLabel?:string,advanceAfterFirstFill=false){const calls:string[]=[];let index=0,fillCount=0;return{calls,browser:{goto:async()=>{calls.push("goto")},fill:async(selector:string)=>{calls.push(`fill:${selector}`)},fillControl:async(control:{role:"textbox";label:string})=>{calls.push(`fill-control:${control.role}:${control.label}`);fillCount++;if(advanceAfterFirstFill&&fillCount===1)index++},click:async(selector:string)=>{calls.push(`click:${selector}`)},clickControl:async(control:{role:"button"|"link";label:string})=>{calls.push(`control:${control.role}:${control.label}`);if(control.label===failControlLabel)throw new Error("control fixture");index++},waitForAuthenticationSurface:undefined as undefined|(()=>Promise<(typeof snapshots)[number]>),snapshot:async()=>snapshots[index],importSession:async()=>{},exportSession:async()=>({cookies:[],origins:[]})}};}
+function bootstrapBrowser(snapshots:AuthenticatedSiteSnapshot[],failControlLabel?:string,advanceAfterFirstFill=false):{calls:string[];browser:RuntimeAuthenticationBrowser}{const calls:string[]=[];let index=0,fillCount=0;return{calls,browser:{goto:async()=>{calls.push("goto")},fill:async(selector:string)=>{calls.push(`fill:${selector}`)},fillControl:async(control:{role:"textbox";label:string})=>{calls.push(`fill-control:${control.role}:${control.label}`);fillCount++;if(advanceAfterFirstFill&&fillCount===1)index++},click:async(selector:string)=>{calls.push(`click:${selector}`)},clickControl:async(control:{role:"button"|"link";label:string})=>{calls.push(`control:${control.role}:${control.label}`);if(control.label===failControlLabel)throw new Error("control fixture");index++},waitForAuthenticationSurface:undefined as undefined|(()=>Promise<(typeof snapshots)[number]>),snapshot:async()=>snapshots[index],importSession:async()=>{},exportSession:async()=>({cookies:[],origins:[]})}};}
 function faultBrowser(fault:{goto?:string;fill?:number;control?:number}){const calls:string[]=[];let index=0,fill=0,control=0;const snapshots=[{url:"https://x.com/i/flow/login",title:"X",visibleText:"Log in to X",controls:[{role:"textbox",label:"Phone, email, or username",type:"text"},{role:"button",label:"Next"}]},{url:"https://x.com/i/flow/login",title:"X",visibleText:"Enter your password",controls:[{role:"textbox",label:"Password",type:"password",autocomplete:"current-password",insideForm:true},{role:"button",label:"Log in",type:"submit",insideForm:true}]},{url:"https://x.com/home",title:"X",visibleText:"For you Following",controls:[]}];return{calls,goto:async()=>{calls.push("goto");if(fault.goto)throw new Error("fixture")},fill:async()=>{},fillControl:async()=>{fill++;calls.push("fill");if(fault.fill===fill)throw new Error("fixture")},click:async()=>{},clickControl:async()=>{control++;calls.push("control");if(fault.control===control)throw new Error("fixture");index++},snapshot:async()=>snapshots[index],importSession:async()=>{},exportSession:async()=>({cookies:[],origins:[]})};}
 
 
