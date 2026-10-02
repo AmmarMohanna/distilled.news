@@ -1,5 +1,6 @@
 import { AUTH_CONTROL_LABEL_PATTERNS,AUTH_FIELD_KINDS,BROWSER_BRIDGE_PROTOCOL_VERSION,type AuthControlKind,type AuthenticatedBrowserSurface,type AuthFieldKind,type AuthSurfaceWait,type BrowserAllocation,type BrowserObservationData,type BrowserScope,type PublicBrowserObservation } from "./browser";
 import type { SemanticControl } from "./contracts";
+import {AUTHENTICATED_EXECUTOR_BASE_CAPABILITIES} from "./browser";
 import type { BrowserUseDiscoveryProposal } from "./browser-use-discovery";
 import type { BrowserSessionState,CredentialMaterial } from "./auth-profile";
 import type { AuthenticatedBootstrapObserver,AuthenticatedBrowserExecutorPort,AuthenticatedSiteAdapter,AuthenticatedSiteDetection,AuthenticatedSiteSnapshot,AuthenticationChallengeRuntime,AuthenticationFlowLineage } from "./authenticated-site";
@@ -70,6 +71,7 @@ export class HttpAuthenticatedBrowserBridgeClient implements BrowserBridgeTransp
 
 type ExecutorSession={capability:AuthenticatedBrowserExecutionCapability;surface?:AuthenticatedBrowserSurface;state:"healthy"|"closed"|"crashed"};
 export class AuthenticatedBrowserBridgeExecutor implements AuthenticatedBrowserExecutorPort{
+  getCapabilities(){return AUTHENTICATED_EXECUTOR_BASE_CAPABILITIES}
   private readonly sessions=new Map<string,ExecutorSession>();
   constructor(private readonly transport:BrowserBridgeTransport,private readonly capability:(input:{runId:string;tenantId:string;generation:number;allowedOrigins:string[]})=>AuthenticatedBrowserExecutionCapability){}
   async allocate(input:{runId:string;tenantId:string;generation:number;allowedOrigins:string[];authenticatedSessionState?:BrowserSessionState;signal?:AbortSignal}){

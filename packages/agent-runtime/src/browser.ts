@@ -85,7 +85,27 @@ export interface ScreenshotData extends BrowserObservationData {
   viewport: { width: number; height: number; deviceScaleFactor: number };
 }
 
+/** Supported operations, not evidence that a target site accepts this executor. */
+export interface BrowserExecutorCapabilities {
+  supportsAuthenticatedProfiles:boolean;
+  supportsPersistentSessions:boolean;
+  supportsSecretInjection:boolean;
+  supportsServiceWorkers:boolean;
+  supportsCaptchaDetection:boolean;
+  supportsCaptchaSolver:boolean;
+  supportsChallengeHandling:boolean;
+  supportsProxyRouting:boolean;
+  supportsStealthCompatibility:boolean;
+  supportsFreshContextRestore:boolean;
+}
+export const AUTHENTICATED_EXECUTOR_BASE_CAPABILITIES:Readonly<BrowserExecutorCapabilities>=Object.freeze({
+  supportsAuthenticatedProfiles:true,supportsPersistentSessions:true,supportsSecretInjection:true,
+  supportsServiceWorkers:false,supportsCaptchaDetection:true,supportsCaptchaSolver:false,
+  supportsChallengeHandling:true,supportsProxyRouting:false,supportsStealthCompatibility:false,
+  supportsFreshContextRestore:true
+});
 export interface BrowserExecutorPort {
+  getCapabilities?():Readonly<BrowserExecutorCapabilities>;
   allocate(input: {
     runId: string;
     tenantId: string;
@@ -356,6 +376,8 @@ export class PlaywrightBrowserAdapter
     }
     return new PlaywrightBrowserAdapter({ testOnlyPrivateNetwork: true });
   }
+
+  getCapabilities():Readonly<BrowserExecutorCapabilities>{return Object.freeze({...AUTHENTICATED_EXECUTOR_BASE_CAPABILITIES,supportsServiceWorkers:this.options.allowServiceWorkers===true&&this.options.allowAuthenticationSiteFeatures===true})}
 
   async allocate(input: {
     runId: string;
@@ -1252,7 +1274,11 @@ function discoverControls(
 ): SemanticControl[] {
   const controls: SemanticControl[] = [];
   for (const node of nodes.values()) {
-    if (!["a", "button", "input", "select", "textarea"].includes(node.name)) continue;
+    // SPAs use non-native elements for authentication actions. Ground these
+    // through explicit DOM roles and the browser accessibility tree, keeping
+    // the same visibility, handle, origin and action fences as native controls.
+    const explicitRole=node.attributes.get("role")?.toLowerCase();
+    if (!["a", "button", "input", "select", "textarea"].includes(node.name)&&!["button","link"].includes(explicitRole??"")) continue;
     if (node.attributes.get("aria-hidden") === "true") continue;
     if (!isRenderableControl(node,nodes)) continue;
     const ax = node.backendNodeId === undefined ? undefined : axByBackend.get(node.backendNodeId);
@@ -1263,17 +1289,18 @@ function discoverControls(
       node.attributes.get("placeholder") ||
       textOf(node, nodes)
     );
+    const role=ax?.role ?? implicitRole(node.name,node.attributes);
     const destinationUrl = node.name === "a" ? resolveRuntimeUrl(node.attributes.get("href"), baseUrl || pageUrl) : undefined;
     const target = node.attributes.get("target") ?? "";
     const isDownload = node.attributes.has("download");
     const opensNewContext = Boolean(target && target.toLowerCase() !== "_self");
-    const kind: SemanticControl["kind"] = node.name === "a" ? "link" : node.name === "button" ? "button" : node.name === "input" ? "input" : "other";
+    const kind: SemanticControl["kind"] = node.name === "a"||role==="link" ? "link" : node.name === "button"||role==="button" ? "button" : node.name === "input" ? "input" : "other";
     const projectedAttributes=relevantAttributes(node.attributes);if(hasAncestor(node,nodes,"form"))projectedAttributes["inside-form"]="true";projectedAttributes["auth-visible"]=isVisibleControl(node,viewport)?"true":"false";projectedAttributes["auth-focusable"]=isFocusableControl(node)?"true":"false";
     controls.push({
       handle: "",
       nodeId: node.backendNodeId === undefined ? `snapshot:${node.index}` : `backend:${node.backendNodeId}`,
       kind,
-      role: ax?.role ?? implicitRole(node.name, node.attributes),
+      role,
       label: label.slice(0, 160),
       attributes: projectedAttributes,
       geometry: node.geometry,
