@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Languages } from "lucide-react";
 
 export type Language = "en" | "fr" | "ar";
@@ -7,6 +7,100 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "Clear search": ["Effacer la recherche", "\u0645\u0633\u062d \u0627\u0644\u0628\u062d\u062b"],
+  "Sources": ["Sources", "\u0627\u0644\u0645\u0635\u0627\u062f\u0631"],
+  "Share": ["Partager", "\u0645\u0634\u0627\u0631\u0643\u0629"],
+  "Select sources": ["Choisir les sources", "\u0627\u062e\u062a\u0631 \u0627\u0644\u0645\u0635\u0627\u062f\u0631"],
+  "Recommend sources with AI": ["Recommander des sources avec IA", "\u0627\u0642\u062a\u0631\u0627\u062d \u0645\u0635\u0627\u062f\u0631 \u0628\u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064a"],
+  "Finding sources...": ["Recherche de sources...", "\u062c\u0627\u0631\u064a \u0627\u0644\u0628\u062d\u062b \u0639\u0646 \u0645\u0635\u0627\u062f\u0631..."],
+  "One source URL or name per line": ["Une URL ou un nom de source par ligne", "\u0631\u0627\u0628\u0637 \u0623\u0648 \u0627\u0633\u0645 \u0645\u0635\u062f\u0631 \u0641\u064a \u0643\u0644 \u0633\u0637\u0631"],
+  "Welcome back!": ["Bon retour !", "مرحبًا بعودتك!"],
+  "You choose what matters.": ["Vous choisissez ce qui compte.", "أنت تختار ما يهمك."],
+  "Feed visibility": ["Visibilité du fil", "خصوصية الخلاصة"],
+  "Public": ["Public", "عامة"],
+  "Private": ["Privé", "خاصة"],
+  "Anyone with the link can read this feed.": ["Toute personne disposant du lien peut lire ce fil.", "يمكن لأي شخص لديه الرابط قراءة هذه الخلاصة."],
+  "Only you can read this feed.": ["Vous seul pouvez lire ce fil.", "أنت وحدك تستطيع قراءة هذه الخلاصة."],
+  "Public feeds are visible to everyone. Private feeds are visible only to their owner.": ["Les fils publics sont visibles par tous. Les fils privés sont réservés à leur propriétaire.", "الخلاصات العامة متاحة للجميع. الخلاصات الخاصة متاحة لصاحبها فقط."],
+  "Your feed URLs start with": ["Vos liens commencent par", "تبدأ روابط خلاصاتك بـ"],
+  "letters and numbers become your feed URL name": ["Les lettres et chiffres forment le nom dans votre lien", "تُستخدم الحروف والأرقام لتكوين اسم رابط خلاصتك"],
+  "Account profile": ["Profil du compte", "الملف الشخصي"],
+  "Topic categories": ["Catégories", "فئات المواضيع"],
+  "Main navigation": ["Navigation principale", "التنقل الرئيسي"],
+  "Close dialog": ["Fermer la fenêtre", "إغلاق النافذة"],
+  "Switch to light mode": ["Passer au mode clair", "التبديل إلى الوضع الفاتح"],
+  "Switch to dark mode": ["Passer au mode sombre", "التبديل إلى الوضع الداكن"],
+  "account": ["compte", "الحساب"], "username": ["nom d’utilisateur", "اسم المستخدم"],
+  "save username": ["enregistrer le nom", "حفظ اسم المستخدم"],
+  "current password": ["mot de passe actuel", "كلمة المرور الحالية"],
+  "new password": ["nouveau mot de passe", "كلمة المرور الجديدة"],
+  "change password": ["modifier le mot de passe", "تغيير كلمة المرور"],
+  "logout": ["déconnexion", "تسجيل الخروج"],
+  "username saved": ["nom enregistré", "تم حفظ اسم المستخدم"],
+  "password changed": ["mot de passe modifié", "تم تغيير كلمة المرور"],
+  "feed help": ["aide sur les fils", "مساعدة الخلاصات"],
+  "name": ["nom", "الاسم"], "profile": ["intérêts", "الاهتمامات"],
+  "sources": ["sources", "المصادر"], "share": ["partager", "المشاركة"],
+  "Choose a short feed name. The URL updates from that name.": ["Choisissez un nom court. Le lien suit ce nom.", "اختر اسمًا قصيرًا للخلاصة. يُحدّث الرابط بناءً عليه."],
+  "Write the exact kind of updates that should make it through.": ["Décrivez précisément les actualités souhaitées.", "حدد نوع الأخبار التي ترغب في متابعتها."],
+  "Paste a Telegram or X URL, or type a search topic.": ["Collez un lien Telegram ou X, ou saisissez un sujet.", "ألصق رابط تيليغرام أو إكس، أو اكتب موضوعًا للبحث."],
+  "Copy the feed URL when you want someone to read it.": ["Copiez le lien du fil pour le partager.", "انسخ رابط الخلاصة لمشاركتها مع الآخرين."],
+  "Login": ["Connexion", "تسجيل الدخول"], "login": ["Connexion", "تسجيل الدخول"], "Log in": ["Connexion", "تسجيل الدخول"],
+  "Sign up": ["S’inscrire", "إنشاء حساب"], "Email address": ["Adresse e-mail", "البريد الإلكتروني"],
+  "Username": ["Nom d’utilisateur", "اسم المستخدم"], "Password": ["Mot de passe", "كلمة المرور"],
+  "Forgot password?": ["Mot de passe oublié ?", "نسيت كلمة المرور؟"],
+  "Please wait…": ["Veuillez patienter…", "يرجى الانتظار…"], "or": ["ou", "أو"],
+  "Don’t have an account?": ["Pas encore de compte ?", "ليس لديك حساب؟"],
+  "Already have an account?": ["Vous avez déjà un compte ?", "لديك حساب بالفعل؟"],
+  "at least 8 characters": ["8 caractères minimum", "٨ أحرف على الأقل"],
+  "Welcome back": ["Bon retour", "مرحبًا بعودتك"],
+  "Log in to your Distilled News account.": ["Connectez-vous à votre compte Distilled News.", "سجّل الدخول إلى حسابك في Distilled News."],
+  "Create your account": ["Créez votre compte", "أنشئ حسابك"],
+  "Choose a username, then verify your email before signing in.": ["Choisissez un nom d’utilisateur, puis vérifiez votre e-mail avant de vous connecter.", "اختر اسم مستخدم ثم تحقق من بريدك الإلكتروني قبل تسجيل الدخول."],
+  "reset password": ["Réinitialiser le mot de passe", "إعادة تعيين كلمة المرور"],
+  "Enter your email and we will send a reset link if the account exists.": ["Saisissez votre e-mail pour recevoir un lien si le compte existe.", "أدخل بريدك الإلكتروني لإرسال رابط إعادة التعيين إن كان الحساب موجودًا."],
+  "create account": ["Créer un compte", "إنشاء حساب"], "send reset link": ["Envoyer le lien", "إرسال رابط التعيين"],
+  "Hide password": ["Masquer le mot de passe", "إخفاء كلمة المرور"], "Show password": ["Afficher le mot de passe", "إظهار كلمة المرور"],
+  "Illustration unavailable": ["Illustration indisponible", "الرسم غير متاح"],
+  "Paused": ["En pause", "متوقفة"],
+  "View briefing": ["Voir le résumé", "عرض الملخص"],
+  "Create your first feed to start following what matters to you.": ["Créez votre premier fil pour suivre ce qui compte pour vous.", "أنشئ خلاصتك الأولى لمتابعة ما يهمك."],
+  "Loading feeds…": ["Chargement des fils…", "جارٍ تحميل الخلاصات…"],
+  "App": ["Application", "التطبيق"],
+  "Lebanon": ["Liban", "لبنان"], "World": ["Monde", "العالم"],
+  "Tech": ["Technologie", "التكنولوجيا"], "Business": ["Économie", "الأعمال"],
+  "Science": ["Science", "العلوم"], "Culture": ["Culture", "الثقافة"],
+  "Global Affairs": ["Actualité mondiale", "الشؤون العالمية"],
+  "AI & Technology": ["IA et technologie", "الذكاء الاصطناعي والتكنولوجيا"],
+  "Business & Markets": ["Économie et marchés", "الأعمال والأسواق"],
+  "Health & Science": ["Santé et sciences", "الصحة والعلوم"],
+  "Culture & Media": ["Culture et médias", "الثقافة والإعلام"],
+  "Speak feed name": ["Dicter le nom", "إملاء اسم الخلاصة"],
+  "Describe by voice": ["Dicter la description", "إملاء الوصف"],
+  "Stop listening": ["Arrêter l'écoute", "إيقاف الاستماع"],
+  "Listening…": ["À l'écoute…", "جارٍ الاستماع…"],
+  "Your browser may process speech online.": ["Votre navigateur peut traiter la voix en ligne.", "قد يعالج متصفحك الصوت عبر الإنترنت."],
+  "Your illustration is created automatically.": ["Votre illustration est créée automatiquement.", "يُنشأ الرسم تلقائيًا."],
+  "URL copied": ["Lien copié", "تم نسخ الرابط"],
+  "Voice input is unavailable in this browser. You can still type your interests.": ["La dictée n’est pas disponible dans ce navigateur. Vous pouvez saisir votre texte.", "الإملاء غير متاح في هذا المتصفح. يمكنك الكتابة."],
+  "Microphone access was denied. Allow it in your browser settings, or type instead.": ["Accès au microphone refusé. Autorisez-le dans le navigateur ou saisissez votre texte.", "تم رفض الوصول للميكروفون. اسمح به من إعدادات المتصفح أو اكتب النص."],
+  "Could not hear your description. Try again or type it.": ["Voix non reconnue. Réessayez ou saisissez le texte.", "لم يتم التعرف على الصوت. حاول مجددًا أو اكتب النص."],
+  "Could not start the microphone. Please type instead.": ["Impossible de démarrer le microphone. Saisissez le texte.", "تعذر تشغيل الميكروفون. يرجى كتابة النص."],
+  "Notifications enabled for new briefings in your feeds.": ["Notifications activées pour les nouveaux résumés de vos fils.", "تم تفعيل إشعارات الملخصات الجديدة في خلاصاتك."],
+  "Notifications disabled on this device.": ["Notifications désactivées sur cet appareil.", "تم إيقاف الإشعارات على هذا الجهاز."],
+  "Allow notifications in your browser settings to enable them.": ["Autorisez les notifications dans les paramètres du navigateur.", "اسمح بالإشعارات في إعدادات المتصفح لتفعيلها."],
+  "Notifications are not supported in this browser. On iPhone, install the app first.": ["Notifications indisponibles dans ce navigateur. Sur iPhone, installez d’abord l’application.", "الإشعارات غير متاحة في هذا المتصفح. على آيفون، ثبّت التطبيق أولًا."],
+  "Notifications need server setup before they can be enabled.": ["Les notifications nécessitent une configuration du serveur.", "تحتاج الإشعارات إلى إعداد الخادم قبل تفعيلها."],
+  "Could not update notifications. Please try again.": ["Impossible de modifier les notifications. Réessayez.", "تعذر تحديث الإشعارات. حاول مجددًا."],
+  "App installed.": ["Application installée.", "تم تثبيت التطبيق."],
+  "Installation cancelled.": ["Installation annulée.", "تم إلغاء التثبيت."],
+  "The app is already open as an installed application.": ["L’application est déjà ouverte en mode installé.", "التطبيق مفتوح بالفعل كتطبيق مثبّت."],
+  "Choose Add to Home Screen or Install app in your browser menu, if available.": ["Choisissez Ajouter à l’écran d’accueil ou Installer dans le menu du navigateur.", "اختر إضافة إلى الشاشة الرئيسية أو تثبيت التطبيق من قائمة المتصفح."],
+  "Published feeds are public. Your account settings are available from Profile.": ["Les fils publiés sont publics. Gérez votre compte dans Profil.", "الخلاصات المنشورة عامة. إعدادات حسابك متاحة من الملف الشخصي."],
+  "Feed name": ["Nom du fil", "اسم الخلاصة"],
+  "What would you like to follow?": ["Que souhaitez-vous suivre ?", "ما الذي ترغب في متابعته؟"],
+  "Feed details": ["Détails du fil", "تفاصيل الخلاصة"],
+  "Preferences": ["Préférences", "التفضيلات"],
   "Confirm deletion": ["Confirmer la suppression", "تأكيد الحذف"],
   "Delete": ["Supprimer", "حذف"],
   "A calmer perspective on a complex world.": ["Un regard plus serein sur un monde complexe.", "رؤية أكثر هدوءًا لعالم معقّد."],
@@ -53,27 +147,9 @@ export function useLanguage() {
 }
 export function LanguageControl() {
   const { language } = useLanguage();
-  const ref = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    const closeOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !ref.current?.contains(event.target)) ref.current?.removeAttribute("open");
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && ref.current?.open) {
-        event.preventDefault();
-        ref.current.removeAttribute("open");
-        ref.current.querySelector("summary")?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => { document.removeEventListener("pointerdown", closeOutside); document.removeEventListener("keydown", closeOnEscape); };
-  }, []);
-  return <details ref={ref} className="language-control"><summary aria-label="Website language"><Languages size={19}/><span>{({ en: "English", fr: "Français", ar: "العربية" })[language]}</span></summary>
-    <div className="language-menu" role="group" aria-label="Language">{(["en", "fr", "ar"] as const).map(value => <button key={value} type="button" aria-pressed={language === value} onClick={event => {
-      localStorage.setItem("dn_language", value);
-      window.dispatchEvent(new Event("dn-language"));
-      event.currentTarget.closest("details")?.removeAttribute("open");
-    }}><Languages size={17}/>{({ en: "English", fr: "Français", ar: "العربية" })[value]}</button>)}</div>
-  </details>;
+  const next = ({ en: "fr", fr: "ar", ar: "en" } as const)[language];
+  return <button type="button" className="language-control language-cycle" aria-label={`Website language: ${language.toUpperCase()}. Switch to ${next.toUpperCase()}`} onClick={() => {
+    localStorage.setItem("dn_language", next);
+    window.dispatchEvent(new Event("dn-language"));
+  }}><Languages size={18}/><span>{language}</span></button>;
 }

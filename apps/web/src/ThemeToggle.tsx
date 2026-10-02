@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "./LanguageControl";
 import { Moon, Sun } from "lucide-react";
 
 export function ThemeToggle() {
+  const { t } = useLanguage();
   const [theme, setTheme] = useState(() => localStorage.getItem("dn_theme") === "dark" ? "dark" : "light");
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -12,7 +14,7 @@ export function ThemeToggle() {
       <feColorMatrix in="SourceGraphic" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -3 -3 -3 0 8.55" result="keyedGlobe"/>
       <feComposite in="keyedGlobe" in2="SourceAlpha" operator="in"/>
     </filter>
-  </defs></svg><button type="button" className="icon-button theme-toggle" aria-label={`switch to ${theme === "dark" ? "light" : "dark"} mode`} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+  </defs></svg><button type="button" className="icon-button theme-toggle" aria-label={t(theme === "dark" ? "Switch to light mode" : "Switch to dark mode")} title={t(theme === "dark" ? "Switch to light mode" : "Switch to dark mode")} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
     {theme === "dark" ? <Sun size={20} aria-hidden/> : <Moon size={20} aria-hidden/>}
   </button></>;
 }

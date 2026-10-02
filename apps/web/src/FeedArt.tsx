@@ -1,3 +1,4 @@
+import { useLanguage } from "./LanguageControl";
 import { Atom, BookOpen, Building2, Cpu, Globe2, Landmark, Music, Newspaper, Palette, Plane, Scale, Sprout, Trees, Trophy, Utensils } from "lucide-react";
 
 import { useEffect, useState } from "react";
@@ -37,6 +38,7 @@ const subjects = [
 ];
 
 export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; canGenerate?: boolean; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string } }) {
+  const { t } = useLanguage();
   const [image, setImage] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [failure, setFailure] = useState("");
@@ -75,6 +77,6 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
   return <span className="topic-art pencil-art" title={failure || undefined} aria-label={failure || undefined} aria-hidden={failure ? undefined : true}>
     {!loaded && <span className="pencil-drawing"><Icon strokeWidth={0.95}/><Icon className="pencil-trace" strokeWidth={0.45}/></span>}
     {image && <img src={image} alt="" onLoad={() => setLoaded(true)} onError={() => setLoaded(false)}/>}
-    {failure && <span className="sketch-status">Illustration unavailable</span>}
+    {failure && <span className="sketch-status">{t("Illustration unavailable")}</span>}
   </span>;
 }

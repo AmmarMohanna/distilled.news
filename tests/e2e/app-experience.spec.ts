@@ -8,7 +8,7 @@ async function mock(page: any, authenticated = true, username = 'joud') {
  const body = path.endsWith('/star') ? {stars:4,viewerHasStarred:true}
  : path === '/api/auth/session' ? { authenticated, setupRequired:false, account:authenticated ? {id:'joud',username,email:'joud@example.test',role:'user'} : null }
  : path === '/api/me/briefings' ? (route.request().method()==='POST' ? {briefing:currentFeed} : {briefings:[currentFeed]})
- : path === '/api/explore/feeds' ? {feeds:[feed]}
+ : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[feed]}
  : path === '/api/feed/' + username + '/' + currentFeed.slug ? {briefing:currentFeed,editions:[],viewerHasStarred:false}
  : path === '/api/me/sources' ? {sources:[]}
  : path === '/api/me/health' ? {health:{processing:{queued:0,completed:0,failed:0}}} : {};
@@ -17,14 +17,14 @@ async function mock(page: any, authenticated = true, username = 'joud') {
 }
 test('home has one creation entry and no decorative globe or briefing card',async({page})=>{
  await mock(page); await page.goto('/');
- await expect(page.getByRole('heading',{name:'Welcome back, joud'})).toBeVisible();
- await expect(page.getByText('Distilling to you what is important.')).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Welcome back!'})).toBeVisible();
+ await expect(page.getByText('You choose what matters.')).toBeVisible();
  await expect(page.locator('.orbit-art, .today-card')).toHaveCount(0);
- await expect(page.getByRole('button',{name:'Add feed',exact:true})).toHaveCount(1);
- await page.getByRole('button',{name:'Add feed',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(1);
+ await page.getByRole('button',{name:'Create feed',exact:true}).click();
  const dialog=page.getByRole('dialog');
- await expect(dialog.getByRole('textbox')).toHaveCount(2);
- await expect(dialog.getByRole('combobox')).toHaveCount(1);
+ await expect(dialog.getByRole('textbox')).toHaveCount(3);
+ await expect(dialog.getByRole('combobox')).toHaveCount(0);
  await page.keyboard.press('Escape');
  await expect(dialog).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -34,7 +34,7 @@ test('guests can explore and star feeds',async({page})=>{
  await expect(page.getByRole('heading',{name:'Top feeds',level:2})).toBeVisible();
  await page.getByRole('button',{name:'Star Lebanon',exact:true}).click();
  await expect(page.getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
- await expect(page.getByRole('button',{name:'Add feed',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(1);
  await expect(page.locator('.experience-brand a')).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
@@ -42,17 +42,18 @@ test('owner opens feed settings from feed page',async({page})=>{
  await mock(page); await page.goto('/joud/lebanon/');
  await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
  const dialog=page.getByRole('dialog');
- await expect(dialog.getByLabel('Feed title')).toHaveValue('Lebanon');
+ await expect(dialog.getByLabel('Feed name')).toHaveValue('Lebanon');
+ await dialog.getByRole('button',{name:'Preferences',exact:true}).click();
  await expect(dialog.getByRole('button',{name:'Pause feed',exact:true})).toBeVisible();
  await expect(dialog.getByRole('button',{name:'Copy URL',exact:true})).toBeVisible();
  await expect(dialog.getByRole('button',{name:'Delete feed',exact:true})).toBeVisible();
 });
 test('admin username feed card opens its feed and settings',async({page})=>{
  await mock(page,true,'admin'); await page.goto('/');
- await page.locator('.personal-feed-grid a').click();
+ await page.locator('.personal-feed-grid .topic-card > a').click();
  await expect(page).toHaveURL(/\/admin\/lebanon\/$/);
  await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
- await expect(page.getByRole('dialog').getByLabel('Feed title')).toHaveValue('Lebanon');
+ await expect(page.getByRole('dialog').getByLabel('Feed name')).toHaveValue('Lebanon');
 });
 test('login link opens a dismissible dialog over the landing page',async({page})=>{
  await mock(page,false); await page.goto('/login');
@@ -66,29 +67,36 @@ test('feed pause persists and header language changes the interface',async({page
  await mock(page); await page.goto('/joud/lebanon/');
  await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
  const saved=page.waitForRequest(r=>r.url().endsWith('/api/me/briefings')&&r.method()==='POST');
+ await page.getByRole('button',{name:'Preferences',exact:true}).click();
  await page.getByRole('button',{name:'Pause feed',exact:true}).click();
  expect((await saved).postDataJSON().paused).toBe(true);
  await expect(page.getByRole('dialog')).toHaveCount(0);
  await page.goto('/explore');
- await page.locator('.language-control summary').click();
- await page.locator('.language-menu button').nth(1).click();
+ await page.getByRole('button',{name:/^Website language:/}).click();
  await expect(page.getByRole('heading',{name:'Fils populaires',level:2})).toBeVisible();
 });
 test('desktop pages avoid empty vertical overflow',async({page},info)=>{
  test.skip(info.project.name==='mobile');
  await mock(page); await page.goto('/');
- await expect(page.getByRole('heading',{name:'Welcome back, joud'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Welcome back!'})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollHeight<=innerHeight+1)).toBe(true);
  await page.screenshot({path:'test-results/home-updated.png'});
  await page.goto('/explore');
  await expect(page.getByRole('heading',{name:'Top feeds',level:2})).toBeVisible();
  await page.screenshot({path:'test-results/explore-updated.png'});
 });
-test('guest home offers public feeds and create feed without navigation',async({page})=>{
+test('guest home offers public feeds and create feed with shared navigation',async({page})=>{
  await mock(page,false); await page.goto('/');
  await expect(page.getByRole('heading',{name:'Top feeds',level:2})).toBeVisible();
- await expect(page.getByRole('navigation')).toHaveCount(0);
+ await expect(page.getByRole('navigation')).toHaveCount(1);
  await expect(page.getByRole('button',{name:'Create feed',exact:true})).toBeVisible();
+ const logo=await page.locator('.experience-header > .experience-brand:visible, .bottom-navigation .sidebar-logo:visible').first().boundingBox();
+ const search=await page.locator('.explore-search').boundingBox();
+ const create=await page.locator('.landing-create').boundingBox();
+ expect(logo!.x).toBeLessThan(60);
+ expect(Math.abs(search!.y + search!.height/2 - create!.y - create!.height/2)).toBeLessThan(3);
+ expect(create!.x).toBeGreaterThan(search!.x);
+
 });
 test('normal users never see admin account management',async({page})=>{
  await mock(page); await page.goto('/');
@@ -100,7 +108,7 @@ test('guest search filters illustrated public feeds inline',async({page})=>{
  await mock(page,false); await page.goto('/');
  await expect(page.locator('.ranked-feed .topic-art')).toBeVisible();
  await expect(page.getByRole('searchbox',{name:'Search feeds'})).toBeVisible();
- await expect(page.locator('.topic-grid .topic-card')).toHaveCount(6);
+ await expect(page.locator('.topic-grid .topic-card')).toHaveCount(7);
  await page.getByRole('searchbox').fill('technology');
  await expect(page.locator('.ranked-feed')).toHaveCount(0);
  await page.getByRole('searchbox').fill('Lebanon');
@@ -111,25 +119,24 @@ test('feed language and advanced settings persist independently of website langu
  await mock(page); await page.goto('/joud/lebanon/');
  const edits: any[]=[];
  page.on('request',request=>{if(request.url().endsWith('/api/me/briefings')&&request.method()==='POST')edits.push(request.postDataJSON());});
- await page.locator('.language-control summary').click();
- await page.locator('.language-menu').getByRole('button',{name:'Français'}).click();
+ await page.getByRole('button',{name:/^Website language:/}).click();
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  const dialog=page.getByRole('dialog');
- await dialog.locator('.feed-advanced summary').click();
- await expect(dialog.getByLabel('Langue du fil')).toHaveValue('en');
+ await dialog.locator('.feed-form-tabs button').nth(1).click();
+ await expect(dialog.getByRole('button',{name:'Feed language: en'})).toBeVisible();
  expect(edits).toHaveLength(0);
- await dialog.getByLabel('Langue du fil').selectOption('ar');
+ await dialog.getByRole('button',{name:'Feed language: en'}).click(); await dialog.getByRole('button',{name:'Feed language: fr'}).click();
  await dialog.getByLabel('Style de rédaction').fill('Short, calm sentences.');
- await dialog.getByLabel('Fuseau horaire').fill('Europe/Paris');
+ await expect(dialog.getByLabel('Fuseau horaire')).toHaveCount(0);
  const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/briefings')&&request.method()==='POST');
  await dialog.getByRole('button',{name:'Enregistrer',exact:true}).click();
- expect((await saved).postDataJSON()).toMatchObject({language:'ar',styleInstruction:'Short, calm sentences.',briefingTimezone:'Europe/Paris'});
+ expect((await saved).postDataJSON()).toMatchObject({language:'ar',styleInstruction:'Short, calm sentences.',briefingTimezone:'Asia/Beirut'});
  await expect(page.getByRole('dialog')).toHaveCount(0);
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
- await page.locator('.feed-advanced summary').click();
- await expect(page.getByLabel('Langue du fil')).toHaveValue('ar');
+ await page.locator('.feed-form-tabs button').nth(1).click();
+ await expect(page.getByRole('button',{name:'Feed language: ar'})).toBeVisible();
  await page.mouse.click(4,4);
  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
@@ -139,6 +146,7 @@ test('clicking outside delete confirmation cancels without deleting the feed',as
  const deletions:string[]=[];
  page.on('request',request=>{if(request.method()==='DELETE')deletions.push(request.url());});
  await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
+ await page.getByRole('button',{name:'Preferences',exact:true}).click();
  await page.getByRole('button',{name:'Delete feed',exact:true}).click();
  await expect(page.getByRole('dialog',{name:'Confirm deletion'})).toBeVisible();
  await page.mouse.click(4,4);
@@ -151,20 +159,22 @@ test('clicking outside delete confirmation cancels without deleting the feed',as
 
 test('new feed keeps the language selected in advanced settings',async({page})=>{
  await mock(page); await page.goto('/');
- await page.getByRole('button',{name:'Add feed',exact:true}).click();
+ await page.getByRole('button',{name:'Create feed',exact:true}).click();
  const dialog=page.getByRole('dialog');
- await dialog.getByLabel('Feed title').fill('Science today');
- await dialog.getByLabel('Prompt',{exact:true}).fill('Important science discoveries');
- await dialog.locator('.feed-advanced summary').click();
- await dialog.getByLabel('Feed language').selectOption('ar');
- await dialog.getByLabel('Time zone').fill('Asia/Beirut');
+ await dialog.getByLabel('Feed name').fill('Science today');
+ await dialog.getByRole('button',{name:'Private',exact:true}).click();
+ await dialog.getByLabel('What would you like to follow?',{exact:true}).fill('Important science discoveries');
+ await dialog.locator('.feed-form-tabs button').nth(1).click();
+ await dialog.getByRole('button',{name:'Feed language: en'}).click(); await dialog.getByRole('button',{name:'Feed language: fr'}).click();
+ const deviceZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
  const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/briefings')&&request.method()==='POST');
  await dialog.getByRole('button',{name:'Create feed',exact:true}).click();
- expect((await saved).postDataJSON()).toMatchObject({language:'ar',title:'Science today',briefingTimezone:'Asia/Beirut'});
+ expect((await saved).postDataJSON()).toMatchObject({language:'ar',title:'Science today',briefingTimezone:deviceZone,publicFeedEnabled:false});
  await expect(page).toHaveURL(/\/joud\/science-today\/$/);
  await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
- await page.locator('.feed-advanced summary').click();
- await expect(page.getByLabel('Feed language')).toHaveValue('ar');
+ await page.locator('.feed-form-tabs button').nth(1).click();
+ await expect(page.getByRole('button',{name:'Feed language: ar'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Private',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(page.locator('html')).toHaveAttribute('lang','en');
 });
 

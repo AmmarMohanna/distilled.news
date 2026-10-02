@@ -8,7 +8,7 @@ Distilled.news ingests public Telegram channel URLs plus optional RSS, Google Ne
 
 - Public email signup with verified accounts, password login/reset, and admin oversight.
 - User-owned briefings with plain-language interest profiles.
-- Username-scoped public feed URLs such as `/ammar-mohanna/my-sports-feed/`.
+- Username-scoped feed URLs such as `/ammar-mohanna/my-sports-feed/`. Feed settings offer Public (anyone can read) or Private (signed-in owner only). Private feeds are excluded from Explore, and their content, search, evidence, and sketches require the owner's session. Existing visibility values are preserved; new feeds default to Public.
 - Source setup by one simple field: `t: channel`, public `https://t.me/...` URLs, `rss: https://...`, `news: query`, or `x: handle`.
 - Rule-first filtering with optional OpenAI summaries through Cloudflare AI Gateway.
 - Feed intensity toggle for low, medium, or high publishing strictness.
@@ -45,6 +45,13 @@ cp .env.example .env
 npx pnpm@10.12.1 --filter @distilled/worker db:migrate
 npx pnpm@10.12.1 dev
 ```
+
+For the frontend and local API together, run `npm run dev:app` (`npm.cmd run dev:app` in Windows PowerShell).
+This applies local D1 migrations, builds assets if needed, and starts both Vite and the local Worker.
+Open **http://127.0.0.1:5173** directly in Edge, Chrome, or another browser and keep the terminal running.
+Vite forwards `/api` requests to the Worker at `http://127.0.0.1:8787`. Stop both with Ctrl+C.
+Ports 5173 and 8787 must be free; stop earlier development servers before running this command.
+The local database is separate from production, so a fresh local installation needs administrator setup.
 
 For deployment:
 
@@ -84,7 +91,7 @@ destination addresses in the Cloudflare account.
 5. Add sources such as `t: LebUpdate`, `rss: https://example.com/feed.xml`, `news: Lebanon Electricity`, or `x: NASA`.
 6. Write the interest profile and save.
 7. Use `fetch latest` once to validate ingestion.
-8. Share the username-scoped public feed URL when ready.
+8. Choose Public before sharing the feed URL. Private feeds remain accessible only to their signed-in owner.
 
 Default Apify actors:
 
@@ -139,3 +146,15 @@ See `examples/` for starting interest profiles:
 - `local-community.json`
 
 These are examples only; configuration stays simple in the admin UI.
+
+### Feed pencil sketches
+
+The landing page keeps the existing theme and centers the logo, headline, subtitle and Create feed action. Account creation and feed editing continue to use the existing Worker backend.
+
+Open an existing feed's settings and choose **Generate feed sketch** after saving its title and prompt. The owner-only endpoint `POST /api/me/briefings/:briefingId/sketch` uses Workers AI (`@cf/black-forest-labs/flux-1-schnell`) to illustrate the saved title and interest profile, then stores one JPEG per feed in the existing R2 bucket. It does not depict or verify individual news events. Public cards read the saved image through `GET /api/feed/:username/:briefingSlug/sketch`; browsing never invokes generation. Until a sketch exists, cards use simple pencil-style topic placeholders.
+
+The `[ai] binding = "AI"` configuration is included in both Wrangler and generated setup configs. No separate image provider API key is needed. Workers AI access and quota, Cloudflare authentication for local remote inference, and the existing `RAW_ARCHIVE` R2 binding are required. Image inference may incur Cloudflare charges. This usage is separate from the existing OpenAI text-token budget reporting. Generation reuses an unchanged prompt's image and allows up to five attempts per account per rolling day. Provider failures are shown in the editor. Changing the saved title or prompt hides the old image until another sketch is generated.
+
+Local configuration audit (September 20, 2026; presence only, no live credential validation): `.env` and `apps/worker/.dev.vars` lack usable `OPENAI_API_KEY`, `APIFY_API_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AI_GATEWAY_TOKEN`, and `EMAIL_FROM`. The checked-in Wrangler config has an account ID and sender, but blank local overrides should be replaced for local operation. Session/setup/maintenance secrets are present. Turnstile keys are absent and optional. Gateway authentication is needed only when the gateway requires it; Apify is needed for Apify-backed sources. Production secret values and delivery/provider access were not inspected or changed.
+
+Workers AI references: https://developers.cloudflare.com/workers-ai/configuration/bindings/ and https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/

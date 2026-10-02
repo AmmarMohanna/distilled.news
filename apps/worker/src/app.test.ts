@@ -1854,59 +1854,41 @@ describe("worker app accounts", () => {
     expect(queue.messages).toHaveLength(0);
   });
 
-  it("serves feed links without auth even when an old row has the removed private flag", async () => {
+  it("enforces private feeds across public endpoints and preserves the owner's choice", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
-    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
-    expect(briefing).not.toBeNull();
-    await repo.upsertBriefing({ ...briefing!, publicFeedEnabled: false, retentionDays: 60 });
-
-    const edition: BriefingEdition = {
-      id: "edition_old_private",
-      briefingId: briefing!.id,
-      cadence: "hourly",
-      windowStart: "2026-06-16T07:00:00.000Z",
-      windowEnd: "2026-06-16T08:00:00.000Z",
-      title: "Hourly briefing",
-      summary: "Old private rows now serve through normal feed links.",
-      sections: [
-        {
-          title: "Update",
-          summary: "Old private rows now serve through normal feed links.",
-          evidence: []
-        }
-      ],
-      status: "published",
-      publishedAt: "2026-06-16T08:00:00.000Z",
-      createdAt: "2026-06-16T08:00:00.000Z",
-      updatedAt: "2026-06-16T08:00:00.000Z"
-    };
-    await repo.saveBriefingEdition(edition);
-
-    const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
-    expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as {
-      briefing: { publicFeedEnabled: boolean; retentionDays: number };
-      editions: Array<{ summary: string }>;
-    };
-    expect(feed.briefing.publicFeedEnabled).toBe(true);
-    expect(feed.briefing.retentionDays).toBe(15);
-    expect(feed.editions[0].summary).toContain("Old private rows");
-
-    const searchResponse = await app.request("/api/feed/feed-owner/personal/search?q=private", {}, env());
-    expect(searchResponse.status).toBe(200);
-
-    const starResponse = await app.request(
-      "/api/feed/feed-owner/personal/star",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ starred: true })
-      },
-      env()
-    );
-    expect(starResponse.status).toBe(200);
+    const other = await createVerifiedUser(app, repo, "other@test.com", "Other");
+    const briefing = (await repo.getBriefingBySlug(user.account.id, "personal"))!;
+    const save = await app.request("/api/me/briefings", {
+      method: "POST", headers: { "content-type": "application/json", cookie: user.cookie },
+      body: JSON.stringify({ ...briefing, publicFeedEnabled: false, stars: 5 })
+    }, env());
+    expect(save.status).toBe(200);
+    expect((await repo.getBriefingById(briefing.id))!.publicFeedEnabled).toBe(false);
+    await repo.upsertBriefing({ ...(await repo.getBriefingById(briefing.id))!, stars: 5 });
+    expect(await repo.listExploreBriefings(10)).toEqual([]);
+    for (const cookie of ["", other.cookie]) {
+      for (const path of ["", "/sketch", "/search?q=private", "/editions/test", "/items/test/evidence"]) {
+        const response = await app.request(`/api/feed/feed-owner/personal${path}`, { headers: { cookie } }, env());
+        expect(response.status).toBe(404);
+      }
+      for (const path of ["star", "request-summary"]) {
+        const response = await app.request(`/api/feed/feed-owner/personal/${path}`, {
+          method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ starred: true })
+        }, env());
+        expect(response.status).toBe(404);
+      }
+    }
+    const owner = await app.request("/api/feed/feed-owner/personal", { headers: { cookie: user.cookie } }, env());
+    expect(owner.status).toBe(200);
+    expect(owner.headers.get("cache-control")).toContain("no-store");
+    expect(await owner.json()).toMatchObject({ briefing: { publicFeedEnabled: false } });
+    const manifest = await app.request("/manifest.webmanifest?user=feed-owner&feed=personal", {}, env());
+    expect(await manifest.json()).toMatchObject({ name: "Distilled.news", start_url: "/" });
+    await repo.upsertBriefing({ ...briefing, publicFeedEnabled: true, stars: 5 });
+    expect((await app.request("/api/feed/feed-owner/personal", {}, env())).status).toBe(200);
+    expect(await repo.listExploreBriefings(10)).toHaveLength(1);
   });
 
   it("merges saved items that reuse the same raw evidence", async () => {
@@ -2326,3 +2308,33 @@ function tokenFromMessage(text: string | undefined): string {
   if (!token) throw new Error("token not found in email");
   return decodeURIComponent(token);
 }
+
+
+describe("source recommendations and curated popular feeds", () => {
+  it("requires authentication and reports missing AI configuration honestly", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "sources@example.test", "sources");
+    const init = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Science", description: "Space exploration" }) };
+    expect((await app.request("/api/me/sources/recommend", init, env())).status).toBe(401);
+    const response = await app.request("/api/me/sources/recommend", { ...init, headers: { ...init.headers, cookie: user.cookie } }, env());
+    expect(response.status).toBe(503);
+  });
+
+  it("lets only admins curate public feeds without changing star counts", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const admin = await createVerifiedUser(app, repo, "curator@example.test", "curator", "admin");
+    const user = await createVerifiedUser(app, repo, "reader@example.test", "reader");
+    const feed = (await repo.listBriefings(admin.account.id))[0];
+    const path = `/api/admin/briefings/${feed.id}/popular`;
+    const init = { method: "POST", headers: { "content-type": "application/json", cookie: user.cookie }, body: JSON.stringify({ featured: true }) };
+    expect((await app.request(path, init, env())).status).toBe(401);
+    expect((await app.request(path, { ...init, headers: { ...init.headers, cookie: admin.cookie } }, env())).status).toBe(200);
+    const popular = await (await app.request("/api/explore/popular", {}, env())).json() as { feeds: { id: string; stars: number }[] };
+    expect(popular.feeds.map(item => item.id)).toContain(feed.id);
+    expect(popular.feeds[0].stars).toBe(feed.stars);
+    await app.request(path, { ...init, headers: { ...init.headers, cookie: admin.cookie }, body: JSON.stringify({ featured: false }) }, env());
+    expect(await (await app.request("/api/explore/popular", {}, env())).json()).toEqual({ feeds: [] });
+  });
+});

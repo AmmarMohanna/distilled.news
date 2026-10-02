@@ -1,4 +1,5 @@
 import { createApp } from "./app";
+import { sendBriefingNotifications } from "./push";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
 import { publishDueBriefingEditions } from "./editions";
 import { processQueueMessage } from "./processor";
@@ -184,6 +185,8 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
   } catch (error) {
     console.error("Could not publish briefing editions", error);
   }
+  try { await sendBriefingNotifications(env); }
+  catch { console.warn("Could not run briefing notifications; check push configuration and migrations"); }
 
   try {
     await pollApifySourceRuns({

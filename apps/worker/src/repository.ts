@@ -441,7 +441,7 @@ export class D1Repository implements Repository {
           `SELECT briefings.*, accounts.username as owner_username
           FROM briefings
           JOIN accounts ON accounts.id = briefings.owner_account_id
-          WHERE accounts.disabled_at IS NULL AND briefings.stars > 0
+          WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.stars > 0
           ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ?`
         )
@@ -1817,7 +1817,7 @@ export class InMemoryRepository implements Repository {
   async listExploreBriefings(limit: number): Promise<BriefingConfig[]> {
     if (limit <= 0) return [];
     return Array.from(this.briefings.values())
-      .filter((briefing) => briefing.stars > 0 && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
+      .filter((briefing) => briefing.publicFeedEnabled && briefing.stars > 0 && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
       .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
       .slice(0, limit);

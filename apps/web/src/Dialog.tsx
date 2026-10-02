@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { ScreenPages } from "./ScreenPages";
 
 let openDialogs = 0;
 let previousOverflow = "";
@@ -20,7 +21,12 @@ export function Dialog(props: {
       document.body.style.overflow = "hidden";
     }
     dialog.showModal();
+    // Opacity only: fitting measurements stay stable, and controls work immediately.
+    const entry = !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? dialog.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: "ease-out" })
+      : undefined;
     return () => {
+      entry?.cancel();
       dialog.close();
       if (--openDialogs === 0) document.body.style.overflow = previousOverflow;
       if (previousFocus?.isConnected) previousFocus.focus();
@@ -45,5 +51,5 @@ export function Dialog(props: {
       if (startedOutside.current && outside(event)) props.onClose();
       startedOutside.current = false;
     }}
-  >{props.children}</dialog>;
+  ><ScreenPages dialog>{props.children}</ScreenPages></dialog>;
 }

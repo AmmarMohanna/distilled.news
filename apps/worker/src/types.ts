@@ -56,6 +56,9 @@ export interface ProcessingJobRecord {
 }
 
 export interface Env {
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
   AI?: Ai;
   DB: D1Database;
   RAW_ARCHIVE: R2Bucket;

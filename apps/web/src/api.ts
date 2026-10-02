@@ -308,3 +308,15 @@ export async function setFeedStar(username: string, slug: string, starred: boole
     body: JSON.stringify({ starred })
   });
 }
+
+export async function recommendSources(title: string, description: string): Promise<string[]> {
+  const payload = await requestJson<{ sources: string[] }>("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });
+  return payload.sources;
+}
+
+export async function getPopularFeeds(): Promise<PublicBriefing[]> {
+  return (await requestJson<{ feeds: PublicBriefing[] }>("/api/explore/popular")).feeds;
+}
+export async function setPopularFeed(id: string, featured: boolean): Promise<void> {
+  await requestJson(`/api/admin/briefings/${encodeURIComponent(id)}/popular`, { method: "POST", body: JSON.stringify({ featured }) });
+}
