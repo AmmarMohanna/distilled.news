@@ -12,7 +12,7 @@ export const testPolicy: IntakePolicy = {
 export async function createIntakeDatabase() {
   const mf = new Miniflare({modules:true, script:"export default {fetch(){return new Response('ok')}}", d1Databases:['DB']});
   const db = await mf.getD1Database('DB') as unknown as D1Database;
-  for(const name of ['0035_v1_intake_evidence.sql','0036_v1_acquisition_results.sql']) {
+  for(const name of ['0035_v1_intake_evidence.sql','0036_v1_acquisition_results.sql','0037_v1_feed_intelligence.sql']) {
     const path = new URL(`../../migrations/${name}`, import.meta.url);
     if (existsSync(path)) await db.exec(readFileSync(path,'utf8').replace(/\r?\n/g,' '));
   }
