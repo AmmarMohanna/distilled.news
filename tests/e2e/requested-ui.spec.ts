@@ -13,6 +13,33 @@ async function mock(page: import("@playwright/test").Page, authenticated = true)
   return route.fulfill({ json: body });
  });
 }
+test("feed cards have rounded artwork, plain controls, and real update times", async ({ page }) => {
+ await page.clock.install({ time: new Date("2026-10-02T14:00:00Z") });
+ await mock(page);
+ await page.route("**/api/feed/owner/science", route => route.fulfill({ json: {
+  briefing: feed, viewerHasStarred: false,
+  editions: [{ id: "edition", publishedAt: "2026-10-02T11:00:00Z", updatedAt: "2026-10-02T12:00:00Z", sections: [] }]
+ } }));
+ await page.goto("/");
+ const card = page.locator(".personal-feed-grid .topic-card");
+ await expect(card.locator("time")).toHaveText("Updated 2 hours ago");
+ await expect(card.locator("time")).toHaveAttribute("datetime", "2026-10-02T12:00:00Z");
+ await expect(card).toHaveCSS("border-radius", "28px");
+ await expect(card.locator(".topic-art")).toHaveCSS("border-top-left-radius", "27px");
+ for (const selector of [".theme-toggle", ".language-cycle", ".personal-feed-grid .feed-card-actions > button", ".personal-feed-grid .feed-options > summary"]) {
+  await expect(page.locator(selector)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+ }
+ await expect(page.locator(".avatar-button")).toHaveCSS("color", "rgb(94, 92, 230)");
+ await card.locator("summary").click();
+ await expect(card.getByRole("link", { name: "Edit feed settings" })).toBeVisible();
+ await card.locator("summary").press("Escape");
+ await expect(card.locator("details")).not.toHaveAttribute("open", "");
+ await page.locator(".theme-toggle").click();
+ await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+ await expect(page.locator(".theme-toggle")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+ await expect(card.locator(".feed-options > summary")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+ expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
 test("cards expose owner edit and stars; speech controls are icons and sources selectable", async ({ page }) => {
  await mock(page); await page.goto("/");
  await expect(page.locator(".personal-feed-grid").getByRole("link", { name: "Edit feed settings" })).toBeVisible();

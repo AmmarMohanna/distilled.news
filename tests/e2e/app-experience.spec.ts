@@ -48,6 +48,24 @@ test('owner opens feed settings from feed page',async({page})=>{
  await expect(dialog.getByRole('button',{name:'Copy URL',exact:true})).toBeVisible();
  await expect(dialog.getByRole('button',{name:'Delete feed',exact:true})).toBeVisible();
 });
+test('feed header matches home and opens the signed-in account profile',async({page})=>{
+ await mock(page); await page.goto('/');
+ await expect(page.locator('.experience-header .avatar-button')).toBeVisible();
+ const headerState = () => page.locator('.experience-header').evaluate(node => ({
+  height: node.getBoundingClientRect().height,
+  controls: Array.from(node.querySelectorAll('button')).map(button => button.getAttribute('aria-label')),
+  logo: node.querySelector('.distilled-logo-wordmark')?.textContent
+ }));
+ const homeHeader = await headerState();
+ await page.goto('/joud/lebanon/');
+ await expect(page.locator('.experience-header .avatar-button')).toHaveText('J');
+ expect(await headerState()).toEqual(homeHeader);
+ await page.getByRole('button',{name:'Account profile',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'account',exact:true})).toBeVisible();
+ await expect(page.getByRole('dialog').getByLabel('username',{exact:true})).toHaveValue('joud');
+ await page.keyboard.press('Escape');
+ await expect(page.getByRole('dialog')).toHaveCount(0);
+});
 test('admin username feed card opens its feed and settings',async({page})=>{
  await mock(page,true,'admin'); await page.goto('/');
  await page.locator('.personal-feed-grid .topic-card > a').click();

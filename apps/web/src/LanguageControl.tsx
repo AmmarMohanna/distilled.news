@@ -152,5 +152,5 @@ export function LanguageControl() {
   return <button type="button" className="language-control language-cycle" aria-label={`Website language: ${language.toUpperCase()}. Switch to ${next.toUpperCase()}`} onClick={() => {
     localStorage.setItem("dn_language", next);
     window.dispatchEvent(new Event("dn-language"));
-  }}><svg width="18" height="18" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="16" cy="16" r="13"/><ellipse cx="16" cy="16" rx="6" ry="13"/><path d="M3 16h26"/></svg><span>{language}</span></button>;
+  }}><svg width="18" height="18" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="16" cy="16" r="13"/><ellipse cx="16" cy="16" rx="6" ry="13"/><path d="M3 16h26"/></svg><span>{language.toUpperCase()}</span></button>;
 }

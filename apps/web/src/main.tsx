@@ -84,7 +84,7 @@ import {
 import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify } from "./helpers";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
-import { AppExperience, BrandMark, PublicNavigation } from "./AppExperience";
+import { AppExperience, AppHeader, BrandMark, PublicNavigation } from "./AppExperience";
 import { LanguageControl, preferredLanguage, useLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
 import { Dialog } from "./Dialog";
@@ -657,12 +657,6 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       ) : null}
       {!props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
-      {!props.setupRequired ? (
-        <div className="auth-switch">
-          <div className="auth-divider"><span>{t("or")}</span></div>
-          <p>{t(mode === "login" ? "Don’t have an account?" : "Already have an account?")} <button type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); setMessage(""); }}>{t(mode === "login" ? "Sign up" : "Log in")}</button></p>
-        </div>
-      ) : null}
       {message ? <p className="muted">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
     </form>
@@ -1653,11 +1647,15 @@ function AdminAccountDialog(props: {
 
 function FeedPage(props: { username: string; slug: string }) {
   const { language: uiLanguage, t } = useLanguage();
+  const [account, setAccount] = useState<AccountRecord | null>(null);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [ownedFeed, setOwnedFeed] = useState<BriefingConfig | null>(null);
   const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
   useEffect(() => {
     let active = true;
     getSession().then(async session => {
+      if (!active) return;
+      setAccount(session.authenticated ? session.account ?? null : null);
       if (!session.authenticated || session.account?.username !== props.username) return;
       const owned = await getBriefings();
       if (active) setOwnedFeed(owned.find(feed => feed.slug === props.slug) ?? null);
@@ -1836,6 +1834,7 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
+      header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : loadingFeedLabel(language)}
@@ -1843,6 +1842,12 @@ function FeedPage(props: { username: string; slug: string }) {
       pageLanguage={language}
       headingAction={ownedFeed ? <button className="primary-button" onClick={() => setEditorOpen(true)}><Settings size={17}/>{t("Edit feed settings")}</button> : undefined}
     >
+      {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
+        onLogout={async () => { await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); }}
+        onSaved={async (nextAccount, nextBriefings) => {
+          setAccount(nextAccount);
+          setOwnedFeed(nextBriefings.find(feed => feed.ownerUsername === props.username && feed.slug === props.slug) ?? null);
+        }}/>}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
         const saved = await saveBriefing({ ...ownedFeed, ...input });
         if (input.sourceInputs?.length || input.interestProfile !== ownedFeed.interestProfile) {
@@ -2307,6 +2312,7 @@ function FeedNotice(props: { message: string; language: "en" | "ar" | "fr" }) {
 }
 
 function Shell(props: {
+  header?: React.ReactNode;
   title: React.ReactNode;
   titleText?: string;
   children: React.ReactNode;
@@ -2336,7 +2342,7 @@ function Shell(props: {
 
   return (
     <main className={`shell ${shellMode}`}><PublicNavigation/>
-      <header>
+      {props.header ?? <header>
         <div className="header-primary">
           <div className="brand-lockup">
             <div className="brand" aria-label="Distilled.news" title="Distilled.news">
@@ -2359,7 +2365,7 @@ function Shell(props: {
             {props.onLogout ? <button type="button" title="logout" onClick={() => void props.onLogout?.()}><LogOut size={15} aria-hidden /> logout</button> : null}
           </div>
         </div>
-      </header>
+      </header>}
       <div className="page-heading">
         {props.feed && <a className="button-link feed-back" href="/" onClick={event => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
