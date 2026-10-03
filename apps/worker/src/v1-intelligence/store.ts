@@ -1,12 +1,14 @@
-import {HandoffError,eventMembershipSchema,eventVersionSchema,type EventVersion,type EvidenceRevision,type NormalizedEvidenceItem} from '@distilled/contracts';
+import {HandoffError,eventMembershipSchema,eventVersionSchema,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,type BriefingCandidate,type EventVersion,type EvidenceRevision,type NormalizedEvidenceItem} from '@distilled/contracts';
 import {z} from 'zod';
 import {canonicalJson} from '../v1-intake/canonical';
 import type {DownstreamJob} from '../v1-intake/types';
 import type {FeedRecord,EventRecord,StorylineRecord,StorylineVersion,DuplicateDecision,RoleDecision} from './types';
-export type DocumentKind='roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs';
+import type {SelectionRecord} from './scoring';
+import type {BriefingEditionRecord} from './publication';
+export type DocumentKind='roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions';
 interface DocumentWrite {kind:DocumentKind;id:string;value:unknown}
 interface Snapshot {feed:FeedRecord;epoch:number;scopes:{id:string;epoch:number}[]}
-const mutable=new Set<DocumentKind>(['events','storylines','publication_status','delivery_jobs']);
+const mutable=new Set<DocumentKind>(['events','storylines','publication_status','delivery_jobs','synthesis_jobs']);
 const feedSchema=z.object({id:z.string().min(1),ownerId:z.string().min(1),title:z.string(),interests:z.array(z.string()),geography:z.array(z.string()),outputLanguage:z.string().min(1),briefingFrequency:z.enum(['30M','HOURLY','DAILY','WEEKLY']),paused:z.boolean(),revision:z.number().int().positive(),createdAt:z.string().datetime(),updatedAt:z.string().datetime(),deletedAt:z.string().datetime().optional()}).strict();
 export class V1FeedStore {
  constructor(readonly db:D1Database){}
@@ -104,6 +106,38 @@ export class FeedTransaction {
    } else if(w.kind==='duplicates') {
     const duplicate=w.value as DuplicateDecision;
     if(!await this.revision(duplicate.evidenceRevisionId) || duplicate.duplicateOfRevisionId && !await this.revision(duplicate.duplicateOfRevisionId)) throw new HandoffError('SCOPE_DENIED');
+   } else if(['salience','relevance','window_scores'].includes(w.kind)) {
+    const schema=w.kind==='salience'?eventSalienceAssessmentSchema:w.kind==='relevance'?userRelevanceSchema:windowScoreSchema;
+    const parsed=schema.safeParse(w.value);
+    if(!parsed.success || !await this.read(parsed.data.targetType==='EVENT'?'event_versions':'storyline_versions',parsed.data.targetVersionId)) throw new HandoffError('SCOPE_DENIED');
+   } else if(w.kind==='candidates') {
+    const parsed=briefingCandidateSchema.safeParse(w.value);if(!parsed.success) throw new HandoffError('SCOPE_DENIED');
+    const c=parsed.data;
+    for(const [kind,id] of [['salience',c.salienceAssessmentId],['relevance',c.relevanceAssessmentId],['window_scores',c.windowScoreId]] as const) {
+     const assessment=await this.read<{feedRevision:number;targetType:string;targetVersionId:string}>(kind,id);
+     if(!assessment || assessment.feedRevision!==c.feedRevision || assessment.targetType!==c.targetType || assessment.targetVersionId!==c.targetVersionId) throw new HandoffError('SCOPE_DENIED');
+    }
+   } else if(w.kind==='selections') {
+    const s=w.value as SelectionRecord;
+    if(s.selectedCandidateIds.some(id=>!s.candidateIds.includes(id))) throw new HandoffError('SCOPE_DENIED');
+    for(const id of s.candidateIds) {
+     const c=await this.read<BriefingCandidate>('candidates',id),score=c?await this.read<{windowStart:string;windowEnd:string}>('window_scores',c.windowScoreId):undefined;
+     if(!c || c.feedRevision!==s.feedRevision || !score || score.windowStart!==s.window.start || score.windowEnd!==s.window.end || (c.selectionState==='SELECTED')!==s.selectedCandidateIds.includes(id)) throw new HandoffError('SCOPE_DENIED');
+    }
+   } else if(w.kind==='editions') {
+    const e=w.value as BriefingEditionRecord,s=await this.read<SelectionRecord>('selections',e.selectionId);
+    if(!s || s.feedRevision!==e.feedRevision || s.window.start!==e.windowStart || s.window.end!==e.windowEnd || e.selectedCandidateIds.some(id=>!s.selectedCandidateIds.includes(id))) throw new HandoffError('SCOPE_DENIED');
+    const eventIds=new Set<string>(),storylineIds=new Set<string>();
+    for(const id of e.selectedCandidateIds) {
+     const c=await this.read<BriefingCandidate>('candidates',id);if(!c) throw new HandoffError('SCOPE_DENIED');
+     if(c.targetType==='EVENT') eventIds.add(c.targetVersionId);
+     else {const v=await this.read<StorylineVersion>('storyline_versions',c.targetVersionId);if(!v) throw new HandoffError('SCOPE_DENIED');storylineIds.add(v.id);for(const id of v.eventVersionIds) eventIds.add(id)}
+    }
+    const same=(a:Set<string>,b:string[])=>a.size===b.length && b.every(id=>a.has(id));
+    const support=new Set((await this.list<{id:string;eventVersionId:string;evidenceRevisionId:string}>('memberships')).filter(m=>eventIds.has(m.eventVersionId)).map(m=>m.evidenceRevisionId));
+    if(!same(eventIds,e.eventVersionIds) || !same(storylineIds,e.storylineVersionIds) || !same(support,e.evidenceRevisionIds)) throw new HandoffError('SCOPE_DENIED');
+    for(const id of e.evidenceRevisionIds) if(!await this.revision(id)) throw new HandoffError('SCOPE_DENIED');
+    if(e.stories.some(story=>!e.selectedCandidateIds.includes(story.candidateId) || story.claims.some(claim=>claim.support.some(ref=>!support.has(ref.evidenceRevisionId))))) throw new HandoffError('SCOPE_DENIED');
    }
   }
  }

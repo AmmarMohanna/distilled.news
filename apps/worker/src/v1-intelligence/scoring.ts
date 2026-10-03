@@ -8,13 +8,13 @@ import {INTELLIGENCE_POLICY,tokens,features,overlap} from './policies';
 import type {DuplicateDecision,EventRecord,StorylineRecord,StorylineVersion} from './types';
 
 const SCORING_POLICY='deterministic-scoring-v1',SELECTION_POLICY='bounded-selection-v1';
-export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number}
-export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:1,maxCostUsd:.1,maxPerPublisher:2};
+export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
+export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:2,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
 export interface PublicationWindow {start:string;end:string;kind:'30M'|'HOURLY'|'DAILY'|'WEEKLY'}
 export interface SelectionRecord {id:string;feedId:string;feedRevision:number;window:PublicationWindow;candidateIds:string[];selectedCandidateIds:string[];evidenceByCandidate:Record<string,string[]>;budget:BriefingBudget;policyVersion:string;computedAt:string;omissions:{candidateId:string;reason:string}[]}
 interface Target {type:TargetType;id:string;stableId:string;storylineId?:string;text:string;updatedAt:string;version:number;evidence:EvidenceRevision[];eventVersionIds:string[];storylineVersionId?:string;persistence:number;turningPoint:number}
 const windowSchema=z.object({start:z.string().datetime(),end:z.string().datetime(),kind:z.enum(['30M','HOURLY','DAILY','WEEKLY'])}).strict().refine(w=>Date.parse(w.start)<Date.parse(w.end));
-const budgetSchema=z.object({maxStories:z.number().int().min(1).max(20),maxReadingWords:z.number().int().min(20).max(3000),maxEvidenceInspections:z.number().int().min(1).max(100),maxInputTokens:z.number().int().min(100).max(64000),maxOutputTokens:z.number().int().min(100).max(8000),maxModelCalls:z.number().int().min(0).max(2),maxCostUsd:z.number().min(0).max(2),maxPerPublisher:z.number().int().min(1).max(20)}).strict();
+const budgetSchema=z.object({maxStories:z.number().int().min(1).max(20),maxReadingWords:z.number().int().min(20).max(3000),maxEvidenceInspections:z.number().int().min(1).max(100),maxInputTokens:z.number().int().min(100).max(64000),maxOutputTokens:z.number().int().min(100).max(8000),maxModelCalls:z.number().int().min(0).max(2),maxCostUsd:z.number().min(0).max(2),maxPerPublisher:z.number().int().min(1).max(20),maxWallClockMs:z.number().int().min(1000).max(120000)}).strict();
 function score(n:number):number {return Math.round(Math.max(0,Math.min(1,n))*1e6)/1e6}
 export async function publisherIdentity(tx:FeedTransaction,revision:EvidenceRevision):Promise<string> {
  const row=await new V1IntakeStore(tx.store.db).read<AcceptedInput>('inputs',revision.sourceObservationId);
