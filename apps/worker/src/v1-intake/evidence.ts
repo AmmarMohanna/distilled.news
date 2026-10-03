@@ -9,9 +9,10 @@ import { canonicalJson } from './canonical';
 import { transact } from './transaction';
 import { currentEvidence, observationOrdering, representationDowngrade, validateQueryRestrictions, type CurrentEvidence } from './policy';
 import { enqueue } from './intake';
+import { requireAcquisitionLease } from './acquisition-lease';
 import type { AcceptedAcquiredContent, AcceptedInput, DownstreamJob, IntakePolicy } from './types';
 
-const acquiredSchema=z.object({id:idSchema,feedId:idSchema,candidateId:idSchema,sourceObservationId:idSchema,representation:representationSchema,contentCompleteness:completenessSchema,title:z.string().optional(),body:z.string().refine(s=>s.trim().length>0),language:idSchema.optional(),publishedAt:timestampSchema.optional(),canonicalUrl:z.string().url().refine(s=>{const u=new URL(s);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password}).optional(),acquiredAt:timestampSchema,acquisitionMethod:z.enum(['supplied_payload','platform_api','direct_http','browser']),acquisitionProvider:idSchema.optional()}).strict();
+export const acquiredSchema=z.object({id:idSchema,feedId:idSchema,candidateId:idSchema,sourceObservationId:idSchema,representation:representationSchema,contentCompleteness:completenessSchema,title:z.string().optional(),body:z.string().max(512000).refine(s=>s.trim().length>0),language:idSchema.optional(),publishedAt:timestampSchema.optional(),canonicalUrl:z.string().url().refine(s=>{const u=new URL(s);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password}).optional(),acquiredAt:timestampSchema,acquisitionMethod:z.enum(['supplied_payload','platform_api','direct_http','browser']),acquisitionProvider:idSchema.optional(),sourceId:idSchema.optional(),resolvedUrl:z.string().url().optional(),quality:z.object({transportSuccess:z.literal(true),extractionSuccess:z.literal(true),extractionComplete:z.boolean()}).strict().optional(),provenance:z.object({routerVersion:idSchema,stages:z.array(idSchema).max(5),rawPayloadRef:idSchema.optional()}).strict().optional()}).strict();
 
 function conflictReason(input:AcceptedInput,current:CurrentEvidence|undefined):EvidenceRevisionConflict['reason'] {
   const a=input.observation.sourceRevision,b=current?.item.currentSourceRevision;
@@ -20,7 +21,7 @@ function conflictReason(input:AcceptedInput,current:CurrentEvidence|undefined):E
   return 'INCOMPARABLE_REVISION_REQUIRES_AUTHORITATIVE_CHECK';
 }
 
-export async function acceptAcquiredContent(store:V1IntakeStore,raw:AcceptedAcquiredContent,policy:IntakePolicy):Promise<EvidenceAcceptanceReceipt> {
+export async function acceptAcquiredContent(store:V1IntakeStore,raw:AcceptedAcquiredContent,policy:IntakePolicy,lease?:{jobId:string;token:string}):Promise<EvidenceAcceptanceReceipt> {
   const parsed=acquiredSchema.safeParse(raw);
   if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
   const content=parsed.data,stored=await store.read<AcceptedInput>('inputs',content.sourceObservationId);
@@ -30,7 +31,11 @@ export async function acceptAcquiredContent(store:V1IntakeStore,raw:AcceptedAcqu
     const input=await tx.read<AcceptedInput>('inputs',content.sourceObservationId),intake=await tx.read<IntakeReceipt>('intake_receipts',content.sourceObservationId);
     if(!input || !intake || intake.decision!=='ACCEPTED' || intake.candidateItemId!==content.candidateId) throw new HandoffError('INVALID_REQUEST');
     const o=input.observation,id=itemId(o.feedSourceId,o.sourceItemKey),now=timestampSchema.parse(policy.now());
-    if(content.feedId!==o.feedId || o.feedId!==tx.snapshot.scope.feedId || o.sourceId!==tx.snapshot.scope.sourceId) throw new HandoffError('SCOPE_DENIED');
+    if(content.feedId!==o.feedId || o.feedId!==tx.snapshot.scope.feedId || o.sourceId!==tx.snapshot.scope.sourceId || (content.sourceId && content.sourceId!==o.sourceId)) throw new HandoffError('SCOPE_DENIED');
+    if(lease) {
+      if(lease.jobId!==JSON.stringify(['ACQUIRE',o.id,''])) throw new HandoffError('INVALID_REQUEST');
+      await requireAcquisitionLease(tx,lease.jobId,lease.token,now);
+    }
     if(validateQueryRestrictions(tx.snapshot.scope,o,await policy.factsFor(o))!=='MATCH') throw new HandoffError('SCOPE_DENIED');
     const previous=await tx.read<AcceptedAcquiredContent>('acquired',content.id);
     if(previous && canonicalJson(previous)!==canonicalJson(content)) throw new HandoffError('IDEMPOTENCY_CONFLICT');
@@ -65,7 +70,7 @@ export async function acceptAcquiredContent(store:V1IntakeStore,raw:AcceptedAcqu
     const result=evidenceAcceptanceReceiptSchema.parse(receipt);
     tx.write('evidence_receipts',o.id,result,o.sourceItemKey,true);
     const jobId=JSON.stringify(['ACQUIRE',o.id,'']),job=await tx.read<DownstreamJob>('jobs',jobId);
-    if(job) tx.write('jobs',jobId,{...job,state:'DONE'},o.sourceItemKey);
+    if(job) tx.write('jobs',jobId,{...job,state:'DONE',leaseToken:undefined,leaseUntil:undefined},o.sourceItemKey);
     return result;
   });
 }

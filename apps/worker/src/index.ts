@@ -1,4 +1,5 @@
 import { createApp } from "./app";
+import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
 import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
 import { publishDueBriefingEditions } from "./editions";
@@ -43,7 +44,8 @@ export default {
       const bodyId = queueBodyId(message.body);
       let completedProcessing=false;
       try {
-        if (isWebOperatorRunMessage(message.body)) await processWebOperatorRunMessage(env,message.body);
+        if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(env,message.body.jobId);
+        else if (isWebOperatorRunMessage(message.body)) await processWebOperatorRunMessage(env,message.body);
         else if (isWebOperatorLiveSmokeMessage(message.body)) {
           await processLivePublicAcquisitionSmoke(env, message.body, async (request) => app.fetch(request, env));
         }
@@ -237,6 +239,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 async function runScheduledMaintenance(env: Env): Promise<void> {
+  try {await dispatchV1Acquisitions(env)} catch {console.warn('Could not dispatch v1 acquisition jobs')}
   const repo = new D1Repository(env.DB);
   const now = new Date();
   try{await enqueueScheduledSourceAcquisitions(env,now)}catch{console.warn("Could not enqueue scheduled source acquisition")}

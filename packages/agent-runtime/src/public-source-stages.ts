@@ -120,7 +120,7 @@ function nextPage(html: string, base: string): string | undefined {
   }
   return undefined;
 }
-function parseStructuredHtmlArticle(html: string, url: string, source: string): AcquiredSourceItem | undefined {
+export function parseStructuredHtmlArticle(html: string, url: string, source: string): AcquiredSourceItem | undefined {
   const canonical = [...html.matchAll(/<link\b[^>]{0,1200}>/gi)].map((match) => attributes(match[0])).find((attrs) => /\bcanonical\b/i.test(attrs.rel ?? ""))?.href;
   const date = [...html.matchAll(/<meta\b[^>]{0,1200}>/gi)].map((match) => attributes(match[0])).find((attrs) => ["article:published_time", "datepublished"].includes((attrs.property ?? attrs.name ?? "").toLowerCase()))?.content;
   const article = html.match(/<article\b[^>]*>([\s\S]{0,200000}?)<\/article>/i)?.[1];

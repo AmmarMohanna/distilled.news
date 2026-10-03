@@ -13,14 +13,19 @@ export interface IntakePolicy {
 }
 export interface DownstreamJob {
   id: string; feedId: string; feedSourceId: string; observationId: string;
-  kind: 'ACQUIRE' | 'REASSESS' | 'AUTHORITATIVE_RECHECK'; state: 'PENDING' | 'RUNNING' | 'DONE'; attempts: number;
+  kind: 'ACQUIRE' | 'REASSESS' | 'AUTHORITATIVE_RECHECK'; state: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED'; attempts: number;
   nextAttemptAt?: string; exhausted?: boolean; conflictId?: string;
+  leaseToken?: string; leaseUntil?: string; failureCode?: string;
+  resumeAttempts?: number;
 }
 export interface AcceptedAcquiredContent {
   id: string; feedId: string; candidateId: string; sourceObservationId: string;
   representation: RepresentationKind; contentCompleteness: ContentCompleteness;
   title?: string; body: string; language?: string; publishedAt?: string; canonicalUrl?: string; acquiredAt: string;
   acquisitionMethod: 'supplied_payload' | 'platform_api' | 'direct_http' | 'browser'; acquisitionProvider?: string;
+  sourceId?: string; resolvedUrl?: string;
+  quality?: { transportSuccess: boolean; extractionSuccess: boolean; extractionComplete: boolean };
+  provenance?: { routerVersion: string; stages: string[]; rawPayloadRef?: string };
 }
 export interface AcceptedInput { observation: SourceObservation; proposal?: CandidateProposal }
 export interface CandidateRecord {

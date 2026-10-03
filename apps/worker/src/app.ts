@@ -1,4 +1,6 @@
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
+import { HandoffError } from '@distilled/contracts';
+import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
 import {processQueueMessage} from "./processor";
 import {enrollRetainedNewsForSource} from "./retained-news-enrollment";
 import { manualAuthenticatedProfileBootstrap } from "./authenticated-profile-manual-bootstrap";
@@ -261,6 +263,22 @@ export function createApp(options: AppOptions = {}) {
   const queueFor = (c: { env: Env }) => options.queue ?? c.env.PROCESSING_QUEUE;
   const fetcher = options.fetcher ?? fetch;
   const nowFor = options.now ?? (() => new Date());
+
+  app.post('/v1/downstream/handoff',async c=>{
+    if(c.env.V1_DOWNSTREAM_ENABLED!=='true') return c.json({error:'not found'},404);
+    if(!isRuntimeAuthorized(c)) return c.json({error:'unauthorized'},401);
+    try {
+      const text=await c.req.text();if(text.length>2_000_000) return c.json({error:'INVALID_REQUEST'},413);
+      let raw:unknown;try {raw=JSON.parse(text)} catch {return c.json({error:'INVALID_REQUEST'},400)}
+      const response=await acceptV1Handoff(c.env,raw);
+      // Intake is already durable: a lost queue send is recovered by the bounded cron relay.
+      try {await dispatchV1Acquisitions(c.env,nowFor())} catch {console.warn('V1 handoff queue send deferred')}
+      return c.json(response);
+    } catch(error) {
+      if(error instanceof HandoffError) return c.json({error:error.code},error.code==='TEMPORARY_UNAVAILABLE'?503:error.code==='SCOPE_DENIED'?403:400);
+      return c.json({error:'TEMPORARY_UNAVAILABLE'},503);
+    }
+  });
 
   // Protected bounded evaluation of the same product helpers used by /api/me.
   app.post("/v1/news-pipeline/evaluate",async(c)=>{

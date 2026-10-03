@@ -3,11 +3,11 @@ import { z } from 'zod';
 import type { DownstreamJob, IntakeScope } from './types';
 
 const scopeSchema = z.object({feedId:z.string().min(1),feedSourceId:z.string().min(1),sourceId:z.string().min(1),feedRevision:z.number().int().positive().max(Number.MAX_SAFE_INTEGER),enabled:z.boolean(),deletedAt:z.string().datetime().optional(),restrictions:z.object({startTime:z.string().datetime().optional(),endTime:z.string().datetime().optional(),publisherIds:z.array(z.string().min(1)).optional(),accountIds:z.array(z.string().min(1)).optional()}).strict()}).strict().refine(s=>!s.restrictions.startTime || !s.restrictions.endTime || Date.parse(s.restrictions.startTime)<Date.parse(s.restrictions.endTime));
-export type Table = 'handoffs'|'inputs'|'candidates'|'intake_receipts'|'jobs'|'evidence'|'revisions'|'tombstones'|'acquired'|'evidence_receipts'|'conflicts';
+export type Table = 'handoffs'|'inputs'|'candidates'|'intake_receipts'|'jobs'|'evidence'|'revisions'|'tombstones'|'acquired'|'evidence_receipts'|'conflicts'|'acquisition_results';
 export interface Stored<T> { feedSourceId: string; value: T }
 export interface ScopeSnapshot { scope: IntakeScope; epoch: number }
 export interface Write { table: Table; id: string; itemKey?: string; value: unknown; immutable?: boolean }
-const tables: Table[] = ['handoffs','inputs','candidates','intake_receipts','jobs','evidence','revisions','tombstones','acquired','evidence_receipts','conflicts'];
+const tables: Table[] = ['handoffs','inputs','candidates','intake_receipts','jobs','evidence','revisions','tombstones','acquired','evidence_receipts','conflicts','acquisition_results'];
 function tableName(table: Table) { if(!tables.includes(table)) throw new Error('V1_INVALID_TABLE'); return `v1_${table}` }
 export function itemId(feedSourceId:string, itemKey:string) { return JSON.stringify([feedSourceId,itemKey]) }
 
