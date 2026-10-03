@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { Miniflare } from 'miniflare';
+import { handoffFixture, type ConnectorHandoffRequest } from '@distilled/contracts';
 import type { IntakeScope, IntakePolicy } from './types';
 import { V1IntakeStore } from './store';
 export const scopeFixture: IntakeScope = { feedId:'feed-1', feedSourceId:'feed-source-1', sourceId:'source-1', feedRevision:1, enabled:true, restrictions:{} };
@@ -16,3 +17,10 @@ export async function createIntakeDatabase() {
   return {db, dispose:()=>mf.dispose()};
 }
 export async function seedIntakeScope(store: V1IntakeStore) { await store.registerScope(scopeFixture) }
+export function batchFixture(sequence=1):ConnectorHandoffRequest {
+  const request=handoffFixture(); request.observations=request.observations.slice(0,1);
+  request.handoffId=`handoff-${sequence}`; request.coverage.fetchStartSequence=sequence; request.coverage.fetchRunId=`fetch-${sequence}`; request.coverage.id=`coverage-${sequence}`;
+  request.observations[0]={...request.observations[0],id:`observation-${sequence}`,fetchStartSequence:sequence,fetchRunId:`fetch-${sequence}`};
+  request.proposals[0]={...request.proposals[0],observationId:`observation-${sequence}`,discoveryRunId:`fetch-${sequence}`};
+  return request;
+}

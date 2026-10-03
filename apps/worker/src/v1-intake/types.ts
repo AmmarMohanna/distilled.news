@@ -1,4 +1,4 @@
-import type { ContentCompleteness, OrderingPolicy, RepresentationKind, SourceObservation } from '@distilled/contracts';
+import type { CandidateProposal, ContentCompleteness, OrderingPolicy, RepresentationKind, SourceObservation } from '@distilled/contracts';
 
 export interface QueryRestrictions { startTime?: string; endTime?: string; publisherIds?: string[]; accountIds?: string[] }
 export interface IntakeScope { feedId: string; feedSourceId: string; sourceId: string; feedRevision: number; enabled: boolean; deletedAt?: string; restrictions: QueryRestrictions }
@@ -21,4 +21,9 @@ export interface AcceptedAcquiredContent {
   representation: RepresentationKind; contentCompleteness: ContentCompleteness;
   title?: string; body: string; language?: string; publishedAt?: string; canonicalUrl?: string; acquiredAt: string;
   acquisitionMethod: 'supplied_payload' | 'platform_api' | 'direct_http' | 'browser'; acquisitionProvider?: string;
+}
+export interface AcceptedInput { observation: SourceObservation; proposal?: CandidateProposal }
+export interface CandidateRecord {
+  id:string; feedId:string; feedSourceId:string; sourceId:string; sourceItemKey:string;
+  latestObservationId:string; discoveredAt:string; intakePolicyVersion:string;
 }
