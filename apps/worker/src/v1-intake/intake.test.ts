@@ -82,3 +82,59 @@ it('DELETE lacking independent runtime verification is quarantined',async()=>{
   expect((await createCandidateIntakePort(store,testPolicy).acceptBatch(request)).receipts[0].decision).toBe('QUARANTINED');
   expect(await store.list('tombstones','feed-source-1')).toHaveLength(0);
 });
+it('quarantine resolution returns the newer receipt without rewriting terminal decisions',async()=>{
+  await store.registerScope({...scopeFixture,feedRevision:2,restrictions:{accountIds:['owner']}});
+  const port=createCandidateIntakePort(store,testPolicy);
+  const first=await port.acceptBatch(batchFixture());expect(first.receipts[0].decision).toBe('QUARANTINED');
+  const verifiedPolicy={...testPolicy,factsFor:async()=>({accountId:'owner'})};
+  const resolved=await port.resolveQuarantinedObservation('observation-1',verifiedPolicy);
+  expect(resolved).toMatchObject({id:first.receipts[0].id,decision:'ACCEPTED',checkpointResolution:'RESOLVED'});
+  expect((await port.acceptBatch(batchFixture())).receipts[0]).toEqual(resolved);
+  expect(await port.resolveQuarantinedObservation('observation-1',testPolicy)).toEqual(resolved);
+  expect((await store.listPendingJobs('feed-source-1')).map(j=>j.kind)).toEqual(['ACQUIRE']);
+});
+it('scope restrictions changing during validation invalidate the stale acceptance snapshot',async()=>{
+  let changed=false;
+  const policy={...testPolicy,factsFor:async()=>{if(!changed){changed=true;await store.registerScope({...scopeFixture,feedRevision:2,restrictions:{publisherIds:['only-approved']}})}return {}}};
+  const result=await createCandidateIntakePort(store,policy).acceptBatch(batchFixture());
+  expect(result.receipts[0].decision).toBe('QUARANTINED');expect(await store.list('candidates','feed-source-1')).toHaveLength(0);
+});
+it('concurrent cross-scope reuse of an observation ID never commits mixed ownership',async()=>{
+  await store.registerScope({...scopeFixture,feedId:'feed-2',feedSourceId:'feed-source-2',sourceId:'source-2'});
+  const first=batchFixture(),second=batchFixture();
+  second.coverage.feedId='feed-2';second.coverage.feedSourceId='feed-source-2';
+  Object.assign(second.observations[0],{feedId:'feed-2',feedSourceId:'feed-source-2',sourceId:'source-2'});
+  Object.assign(second.proposals[0],{feedId:'feed-2',feedSourceId:'feed-source-2',sourceId:'source-2'});
+  const port=createCandidateIntakePort(store,testPolicy),results=await Promise.allSettled([port.acceptBatch(first),port.acceptBatch(second)]);
+  expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+  expect(results.find(r=>r.status==='rejected')).toMatchObject({reason:{code:'IDEMPOTENCY_CONFLICT'}});
+  const candidates=[...await store.list('candidates','feed-source-1'),...await store.list('candidates','feed-source-2')];expect(candidates).toHaveLength(1);
+});
+it('failed D1 job persistence rolls back the entire handoff including candidate and receipt',async()=>{
+  await ctx.db.exec("CREATE TRIGGER fail_job BEFORE INSERT ON v1_jobs BEGIN SELECT RAISE(ABORT,'provider-private-diagnostic'); END;");
+  await expect(createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE',message:'TEMPORARY_UNAVAILABLE'});
+  for(const table of ['handoffs','inputs','candidates','intake_receipts','jobs'] as const) expect(await store.list(table,'feed-source-1')).toHaveLength(0);
+});
+it('one durable batch returns mixed accepted, rejected, quarantined and deleted receipts',async()=>{
+  await store.registerScope({...scopeFixture,feedRevision:2,restrictions:{publisherIds:['publisher']}});
+  const request=batchFixture();request.observations[0].publisherId='publisher';
+  for(const [id,publisher,operation] of [['reject','other','UPSERT'],['quarantine',undefined,'UPSERT'],['delete','publisher','DELETE']] as const) {
+    const o={...request.observations[0],id,sourceItemKey:id,publisherId:publisher,operation,authoritativeCurrentState:operation==='DELETE'};
+    request.observations.push(o);
+    if(operation==='UPSERT') request.proposals.push({...request.proposals[0],observationId:id,sourceItemKey:id});
+  }
+  const policy={...testPolicy,orderingFor:async(o:typeof request.observations[0])=>({...await testPolicy.orderingFor(o),authoritativeReplacementAllowed:o.operation==='DELETE'})};
+  const result=await handoffConnectorBatch(createCandidateIntakePort(store,policy),request);
+  expect(result.receipts.map(r=>r.decision)).toEqual(['ACCEPTED','REJECTED','QUARANTINED','DELETION_ACCEPTED']);
+  expect((await createCandidateIntakePort(new V1IntakeStore(ctx.db),policy).acceptBatch({...request,observations:[...request.observations].reverse(),proposals:[...request.proposals].reverse()})).receipts.map(r=>r.decision)).toEqual(['DELETION_ACCEPTED','QUARANTINED','REJECTED','ACCEPTED']);
+  expect(await store.list('candidates','feed-source-1')).toHaveLength(1);
+});
+it('comparable revision beats fetch sequence; mixed revision metadata is quarantined',async()=>{
+  const seeded=await seedCurrentEvidence(store);const revision={scheme:'provider_integer',value:'2',comparability:'COMPARABLE' as const,authority:'PROVIDER' as const};
+  await store.commit(await store.snapshot('feed-source-1'),[{table:'evidence',id:seeded.evidence.id,itemKey:'guid-1',value:{...seeded.evidence,currentSourceRevision:revision}}]);
+  const port=createCandidateIntakePort(store,testPolicy),older=batchFixture(12);older.observations[0].sourceRevision={...revision,value:'1'};
+  expect((await port.acceptBatch(older)).receipts[0].decision).toBe('IGNORED');
+  expect((await port.acceptBatch(batchFixture(13))).receipts[0].decision).toBe('QUARANTINED');
+  const newer=batchFixture(9);newer.observations[0].sourceRevision={...revision,value:'3'};
+  expect((await port.acceptBatch(newer)).receipts[0].decision).toBe('ACCEPTED');
+});

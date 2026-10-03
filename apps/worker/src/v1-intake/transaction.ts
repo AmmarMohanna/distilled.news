@@ -14,10 +14,12 @@ export class IntakeTransaction {
   write(table:Table,id:string,value:unknown,itemKey?:string,immutable=false) { this.writes.set(JSON.stringify([table,id]),{table,id,value,itemKey,immutable}) }
 }
 export async function transact<T>(store:V1IntakeStore,feedSourceId:string,run:(tx:IntakeTransaction)=>Promise<T>):Promise<T> {
-  for(let attempt=0;attempt<12;attempt++) {
-    const tx=new IntakeTransaction(store,await store.snapshot(feedSourceId));
-    const result=await run(tx);
-    if(await store.commit(tx.snapshot,[...tx.writes.values()])) return result;
-  }
-  throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  try {
+    for(let attempt=0;attempt<12;attempt++) {
+      const tx=new IntakeTransaction(store,await store.snapshot(feedSourceId));
+      const result=await run(tx);
+      if(await store.commit(tx.snapshot,[...tx.writes.values()])) return result;
+    }
+    throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  } catch(error) { if(error instanceof HandoffError) throw error; throw new HandoffError('TEMPORARY_UNAVAILABLE') }
 }

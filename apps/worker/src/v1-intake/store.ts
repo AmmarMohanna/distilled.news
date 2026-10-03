@@ -45,6 +45,11 @@ export class V1IntakeStore {
     for(const w of writes) statements.push(this.db.prepare(`INSERT INTO ${tableName(w.table)}(id,feed_source_id,item_key,json) VALUES(?,?,?,?) ${w.immutable?'ON CONFLICT(id) DO NOTHING':'ON CONFLICT(id) DO UPDATE SET json=excluded.json'}`).bind(w.id,snapshot.scope.feedSourceId,w.itemKey??null,JSON.stringify(w.value)));
     statements.push(this.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(snapshot.scope.feedSourceId), this.db.prepare('DELETE FROM v1_transaction_guards WHERE id=?').bind(nonce));
     try { await this.db.batch(statements); return true }
-    catch(error) { if(String(error).includes('CHECK constraint failed: v1_cas')) return false; throw error }
+    catch(error) {
+      if(String(error).includes('CHECK constraint failed: v1_cas')) return false;
+      if(String(error).includes('V1_IDEMPOTENCY')) throw new HandoffError('IDEMPOTENCY_CONFLICT');
+      // Provider/database diagnostics can contain external text: never put them on the wire.
+      throw new HandoffError('TEMPORARY_UNAVAILABLE');
+    }
   }
 }

@@ -37,3 +37,8 @@ CREATE TRIGGER v1_revision_immutable BEFORE UPDATE ON v1_revisions BEGIN SELECT 
 CREATE TRIGGER v1_tombstone_immutable BEFORE UPDATE ON v1_tombstones BEGIN SELECT RAISE(ABORT,'V1_IMMUTABLE'); END;
 CREATE TRIGGER v1_acquired_immutable BEFORE UPDATE ON v1_acquired BEGIN SELECT RAISE(ABORT,'V1_IMMUTABLE'); END;
 CREATE TRIGGER v1_evidence_receipt_immutable BEFORE UPDATE ON v1_evidence_receipts BEGIN SELECT RAISE(ABORT,'V1_IMMUTABLE'); END;
+CREATE TRIGGER v1_input_scope BEFORE INSERT ON v1_inputs WHEN EXISTS(SELECT 1 FROM v1_inputs WHERE id=NEW.id AND feed_source_id!=NEW.feed_source_id) BEGIN SELECT RAISE(ABORT,'V1_IDEMPOTENCY'); END;
+CREATE TRIGGER v1_acquired_scope BEFORE INSERT ON v1_acquired WHEN EXISTS(SELECT 1 FROM v1_acquired WHERE id=NEW.id AND feed_source_id!=NEW.feed_source_id) BEGIN SELECT RAISE(ABORT,'V1_IDEMPOTENCY'); END;
+CREATE TRIGGER v1_receipt_scope BEFORE INSERT ON v1_intake_receipts WHEN EXISTS(SELECT 1 FROM v1_intake_receipts WHERE id=NEW.id AND feed_source_id!=NEW.feed_source_id) BEGIN SELECT RAISE(ABORT,'V1_IDEMPOTENCY'); END;
+CREATE TRIGGER v1_evidence_receipt_scope BEFORE INSERT ON v1_evidence_receipts WHEN EXISTS(SELECT 1 FROM v1_evidence_receipts WHERE id=NEW.id AND feed_source_id!=NEW.feed_source_id) BEGIN SELECT RAISE(ABORT,'V1_IDEMPOTENCY'); END;
+CREATE TRIGGER v1_job_scope BEFORE INSERT ON v1_jobs WHEN EXISTS(SELECT 1 FROM v1_jobs WHERE id=NEW.id AND feed_source_id!=NEW.feed_source_id) BEGIN SELECT RAISE(ABORT,'V1_IDEMPOTENCY'); END;

@@ -9,7 +9,7 @@ import { canonicalJson } from './canonical';
 import { transact } from './transaction';
 import { currentEvidence, observationOrdering, representationDowngrade, validateQueryRestrictions, type CurrentEvidence } from './policy';
 import { enqueue } from './intake';
-import type { AcceptedAcquiredContent, AcceptedInput, IntakePolicy } from './types';
+import type { AcceptedAcquiredContent, AcceptedInput, DownstreamJob, IntakePolicy } from './types';
 
 const acquiredSchema=z.object({id:idSchema,feedId:idSchema,candidateId:idSchema,sourceObservationId:idSchema,representation:representationSchema,contentCompleteness:completenessSchema,title:z.string().optional(),body:z.string().refine(s=>s.trim().length>0),language:idSchema.optional(),publishedAt:timestampSchema.optional(),canonicalUrl:z.string().url().refine(s=>{const u=new URL(s);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password}).optional(),acquiredAt:timestampSchema,acquisitionMethod:z.enum(['supplied_payload','platform_api','direct_http','browser']),acquisitionProvider:idSchema.optional()}).strict();
 
@@ -64,6 +64,9 @@ export async function acceptAcquiredContent(store:V1IntakeStore,raw:AcceptedAcqu
     }
     const result=evidenceAcceptanceReceiptSchema.parse(receipt);
     tx.write('evidence_receipts',o.id,result,o.sourceItemKey,true);
+    const jobId=JSON.stringify(['ACQUIRE',o.id,'']),job=await tx.read<DownstreamJob>('jobs',jobId);
+    if(job) tx.write('jobs',jobId,{...job,state:'DONE'},o.sourceItemKey);
     return result;
   });
 }
+export { resolveEvidenceConflict } from './conflicts';

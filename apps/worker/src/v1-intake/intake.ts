@@ -56,6 +56,10 @@ async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:Inta
     }
   }
   if(receipt.decision==='QUARANTINED') enqueue(tx,input,'AUTHORITATIVE_RECHECK');
+  else if(prior?.decision==='QUARANTINED') {
+    const jobId=JSON.stringify(['AUTHORITATIVE_RECHECK',o.id,'']),job=await tx.read<DownstreamJob>('jobs',jobId);
+    if(job) tx.write('jobs',jobId,{...job,state:'DONE'},o.sourceItemKey);
+  }
   tx.write('intake_receipts',o.id,intakeReceiptSchema.parse(receipt),o.sourceItemKey);
   return receipt;
 }
