@@ -23,11 +23,16 @@ export async function resolveEvidenceConflict(store:V1IntakeStore,id:string,reso
     if(!current) throw new HandoffError('INVALID_REQUEST');
     const order=await policy.orderingFor(recheck.observation);
     if(resolution.kind==='KEEP_CURRENT') {
-      if(!recheck.observation.authoritativeCurrentState || !order.authoritativeReplacementAllowed || !current.revision) throw new HandoffError('INVALID_REQUEST');
-      const verified=await policy.verifySuppliedContent(recheck.observation);
-      const suppliedReplay=receipt.decision==='REPLAY' && verified?.contentHash===current.revision.contentHash && verified?.contentHash===recheck.observation.contentHash;
-      const acquiredReplay=acceptance?.decision==='REPLAY_CURRENT_CONTENT' && acceptance.resultingRevisionId===current.revision.id;
-      if(!suppliedReplay && !acquiredReplay) throw new HandoffError('INVALID_REQUEST');
+      if(!recheck.observation.authoritativeCurrentState || !order.authoritativeReplacementAllowed) throw new HandoffError('INVALID_REQUEST');
+      if(current.item.state==='DELETED') {
+        if(recheck.observation.operation!=='DELETE' || receipt.decision!=='DELETION_ACCEPTED' || receipt.tombstoneId!==current.item.currentTombstoneId) throw new HandoffError('INVALID_REQUEST');
+      } else {
+        if(!current.revision) throw new HandoffError('INVALID_REQUEST');
+        const verified=await policy.verifySuppliedContent(recheck.observation);
+        const suppliedReplay=receipt.decision==='REPLAY' && verified?.contentHash===current.revision.contentHash && verified?.contentHash===recheck.observation.contentHash;
+        const acquiredReplay=acceptance?.decision==='REPLAY_CURRENT_CONTENT' && acceptance.resultingRevisionId===current.revision.id;
+        if(!suppliedReplay && !acquiredReplay) throw new HandoffError('INVALID_REQUEST');
+      }
     } else {
       if(current.item.currentObservationId!==observationId) throw new HandoffError('INVALID_REQUEST');
       const incoming=current.ordering,originalOrder={operation:original.observation.operation,fetchStartSequence:original.observation.fetchStartSequence,sourceRevision:original.observation.sourceRevision,contentHash:conflict.incomingContentHash};

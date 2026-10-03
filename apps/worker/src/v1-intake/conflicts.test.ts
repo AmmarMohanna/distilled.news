@@ -55,3 +55,18 @@ it('arbitrary IDs and conflicting completions cannot resolve a pending conflict'
   await expect(resolveEvidenceConflict(store,id,{kind:'LATER_OBSERVATION',observationId:'observation-2'},testPolicy)).rejects.toMatchObject({code:'INVALID_REQUEST'});
   expect((await store.read<EvidenceRevisionConflict>('conflicts',id))?.value.state).toBe('PENDING_AUTHORITATIVE_RECHECK');
 });
+it('trusted deletion recheck can resolve a conflict by keeping the current tombstone',async()=>{
+  const port=createCandidateIntakePort(store,testPolicy),first=await port.acceptBatch(versionedRequest(1,'1'));
+  await acceptAcquiredContent(store,content(1,'A',first.receipts[0].candidateItemId!),testPolicy);
+  const pending=await port.acceptBatch(versionedRequest(2));
+  const deletion=versionedRequest(2);deletion.handoffId='delete-handoff';deletion.observations[0].id='delete-2';deletion.observations[0].operation='DELETE';deletion.observations[0].authoritativeCurrentState=true;deletion.proposals=[];
+  const policy={...testPolicy,orderingFor:async()=>({...await testPolicy.orderingFor(deletion.observations[0]),authoritativeReplacementAllowed:true})};
+  const deleted=await createCandidateIntakePort(store,policy).acceptBatch(deletion);
+  const acceptance=await acceptAcquiredContent(store,content(2,'B',pending.receipts[0].candidateItemId!),testPolicy);
+  expect(acceptance.decision).toBe('QUARANTINED_REVISION_CONFLICT');
+  const recheck=versionedRequest(3);recheck.observations[0].operation='DELETE';recheck.observations[0].authoritativeCurrentState=true;recheck.proposals=[];
+  expect((await createCandidateIntakePort(store,policy).acceptBatch(recheck)).receipts[0]).toMatchObject({decision:'DELETION_ACCEPTED',tombstoneId:deleted.receipts[0].tombstoneId});
+  expect((await resolveEvidenceConflict(store,acceptance.conflictId!,{kind:'KEEP_CURRENT',authoritativeObservationId:'observation-3'},policy)).state).toBe('RESOLVED_KEEP_CURRENT');
+  expect((await store.list<{state:string}>('evidence','feed-source-1'))[0].state).toBe('DELETED');
+  expect(await store.list('tombstones','feed-source-1')).toHaveLength(1);
+});
