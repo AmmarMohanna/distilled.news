@@ -64,12 +64,12 @@ No changes to connector implementations, existing processor dispatch, public rou
 - Produces `registerScope(scope: IntakeScope): Promise<void>` and `getScope(feedSourceId: string): Promise<IntakeScope | undefined>`. Registration is an internal trusted provisioning boundary, not an unauthenticated endpoint. Feed configuration integration is a later milestone.
 - Produces test fixture `createIntakeDatabase(): Promise<{ db: D1Database; dispose(): Promise<void> }>` and `seedIntakeScope(store: V1IntakeStore): Promise<void>`.
 
-- [ ] Write tests `scope survives a new store instance`, `scope cannot be rebound to another feed or source`, and `disabled or deleted scope cannot accept work`. Assert actual database contents, not mock invocation counts.
-- [ ] Run `corepack pnpm --filter @distilled/worker test -- src/v1-intake/store.test.ts`; confirm failures show missing persistence behavior.
-- [ ] Add indexed tables for scope, handoff identity, immutable acceptance inputs, candidates, intake receipts, observation-bound outbox jobs, evidence identity/current state, evidence revisions/tombstones, acceptance receipts and conflicts. No cascade deletion of retained evidence. Use unique item keys and observation-effect keys, not unique historical content hashes.
-- [ ] Implement scope registration/read and guard primitives. Registering configuration does not authorize arbitrary request-provided feed/source identity.
-- [ ] Run the focused test command and worker typecheck; expect success.
-- [ ] Commit migration, types, persistence and tests: `feat: add v1 intake persistence foundations`.
+- [x] Write tests `scope survives a new store instance`, `scope cannot be rebound to another feed or source`, and `disabled or deleted scope cannot accept work`. Assert actual database contents, not mock invocation counts.
+- [x] Run `corepack pnpm --filter @distilled/worker test -- src/v1-intake/store.test.ts`; confirm failures show missing persistence behavior.
+- [x] Add indexed tables for scope, handoff identity, immutable acceptance inputs, candidates, intake receipts, observation-bound outbox jobs, evidence identity/current state, evidence revisions/tombstones, acceptance receipts and conflicts. No cascade deletion of retained evidence. Use unique item keys and observation-effect keys, not unique historical content hashes.
+- [x] Implement scope registration/read and guard primitives. Registering configuration does not authorize arbitrary request-provided feed/source identity.
+- [x] Run the focused test command and worker typecheck; expect success.
+- [x] Commit migration, types, persistence and tests: `feat: add v1 intake persistence foundations`.
 
 ### Task 2: Durable idempotent handoff and accepted retry jobs
 
@@ -83,12 +83,12 @@ No changes to connector implementations, existing processor dispatch, public rou
 - Produces `canonicalRequest(request: ConnectorHandoffRequest): string`, sorting object keys and treating observation/proposal lists by their stable identities; preserve meaningful nested array order.
 - Store produces `listPendingJobs(feedSourceId: string): Promise<DownstreamJob[]>`, where `DownstreamJob { id: string; feedId: string; feedSourceId: string; observationId: string; kind: 'ACQUIRE' | 'REASSESS' | 'AUTHORITATIVE_RECHECK'; state: 'PENDING' | 'RUNNING' | 'DONE'; attempts: number }`.
 
-- [ ] Write D1 tests: accepted UPSERT returns a resolved receipt with exactly one candidate and acquisition job; fresh store returns the same terminal receipt after a lost-response retry; reordered JSON keys do not conflict; changing immutable content under a reused handoff ID throws `IDEMPOTENCY_CONFLICT`; reused observation ID in another batch cannot repeat effects or change immutable content.
-- [ ] Add `Promise.all` concurrent acceptance tests for the same item and same handoff. Assert stable candidate identity and one job per accepted observation, with no effects if the transaction fails.
-- [ ] Run the focused intake tests and observe the missing behavior failures.
-- [ ] Implement strict request validation, authorized scope checks and canonical request comparison. Persist candidate, immutable observation/proposal binding, receipt and outbox atomically. Return only validated receipts read from committed state. A D1 batch error returns no durable success.
-- [ ] Run focused tests and worker typecheck; expect success.
-- [ ] Commit: `feat: bind connector handoff to durable candidate intake`.
+- [x] Write D1 tests: accepted UPSERT returns a resolved receipt with exactly one candidate and acquisition job; fresh store returns the same terminal receipt after a lost-response retry; reordered JSON keys do not conflict; changing immutable content under a reused handoff ID throws `IDEMPOTENCY_CONFLICT`; reused observation ID in another batch cannot repeat effects or change immutable content.
+- [x] Add `Promise.all` concurrent acceptance tests for the same item and same handoff. Assert stable candidate identity and one job per accepted observation, with no effects if the transaction fails.
+- [x] Run the focused intake tests and observe the missing behavior failures.
+- [x] Implement strict request validation, authorized scope checks and canonical request comparison. Persist candidate, immutable observation/proposal binding, receipt and outbox atomically. Return only validated receipts read from committed state. A D1 batch error returns no durable success.
+- [x] Run focused tests and worker typecheck; expect success.
+- [x] Commit: `feat: bind connector handoff to durable candidate intake`.
 
 ### Task 3: Query enforcement, ordering, replay, quarantine and deletion
 
@@ -99,14 +99,14 @@ No changes to connector implementations, existing processor dispatch, public rou
 - Produces `validateQueryRestrictions(scope: IntakeScope, observation: SourceObservation, facts: ValidationFacts): 'MATCH' | 'VIOLATION' | 'UNVERIFIABLE'`.
 - Produces `resolveQuarantinedObservation(observationId: string, policy: IntakePolicy): Promise<IntakeReceipt>` on the intake binding, reusing the original immutable input and current authorized scope. A terminal receipt is never rewritten.
 
-- [ ] Write tests asserting explicit restriction violation -> `REJECTED/RESOLVED`; missing required publisher/date/account -> `QUARANTINED/UNRESOLVED`; newer feed restriction revision invalidates stale validation assumptions; no proposal -> terminal unsupported/invalid rejection where provable, otherwise missing-validation quarantine.
-- [ ] Write tests for comparable older revision -> `IGNORED`; mixed revisions and equal-order differing content -> quarantine; identical verified current content with higher sequence -> replay plus advanced ordering metadata; no verified current content -> acquisition rather than assumed replay.
-- [ ] Write tests for authoritative ordered DELETE -> tombstone and reassessment, no new candidate/acquisition job; unverified deletion -> quarantine; delayed old UPSERT cannot resurrect a tombstone; lower completeness cannot overwrite richer content without an independently verified authoritative replacement.
-- [ ] Run focused tests and confirm behavior failures.
-- [ ] Implement fail-closed restrictions and trusted comparator/replacement policy. Check latest canonical state atomically, use conditional guard/CAS retry on contention, and commit each receipt with its effects. Accepted UPSERT remains acquisition work until final content is available; do not manufacture an ACTIVE evidence revision from a hash. Winning verified replay and deletion advance canonical ordering state.
-- [ ] Implement explicit quarantine resolution without changing terminal receipts. A repeated handoff returns current receipts, including resolved quarantine.
-- [ ] Run focused tests and worker typecheck; expect success.
-- [ ] Commit: `feat: enforce v1 intake ordering and deletion semantics`.
+- [x] Write tests asserting explicit restriction violation -> `REJECTED/RESOLVED`; missing required publisher/date/account -> `QUARANTINED/UNRESOLVED`; newer feed restriction revision invalidates stale validation assumptions; no proposal -> terminal unsupported/invalid rejection where provable, otherwise missing-validation quarantine.
+- [x] Write tests for comparable older revision -> `IGNORED`; mixed revisions and equal-order differing content -> quarantine; identical verified current content with higher sequence -> replay plus advanced ordering metadata; no verified current content -> acquisition rather than assumed replay.
+- [x] Write tests for authoritative ordered DELETE -> tombstone and reassessment, no new candidate/acquisition job; unverified deletion -> quarantine; delayed old UPSERT cannot resurrect a tombstone; lower completeness cannot overwrite richer content without an independently verified authoritative replacement.
+- [x] Run focused tests and confirm behavior failures.
+- [x] Implement fail-closed restrictions and trusted comparator/replacement policy. Check latest canonical state atomically, use conditional guard/CAS retry on contention, and commit each receipt with its effects. Accepted UPSERT remains acquisition work until final content is available; do not manufacture an ACTIVE evidence revision from a hash. Winning verified replay and deletion advance canonical ordering state.
+- [x] Implement explicit quarantine resolution without changing terminal receipts. A repeated handoff returns current receipts, including resolved quarantine.
+- [x] Run focused tests and worker typecheck; expect success.
+- [x] Commit: `feat: enforce v1 intake ordering and deletion semantics`.
 
 ### Task 4: Atomic acquired-content acceptance
 
@@ -117,12 +117,12 @@ No changes to connector implementations, existing processor dispatch, public rou
 - Produces `acceptAcquiredContent(store: V1IntakeStore, content: AcceptedAcquiredContent, policy: IntakePolicy): Promise<EvidenceAcceptanceReceipt>`.
 - Produces `AcceptedAcquiredContent { id: string; feedId: string; candidateId: string; sourceObservationId: string; representation: RepresentationKind; contentCompleteness: ContentCompleteness; title?: string; body: string; language?: string; publishedAt?: string; canonicalUrl?: string; acquiredAt: string; acquisitionMethod: 'supplied_payload' | 'platform_api' | 'direct_http' | 'browser'; acquisitionProvider?: string }`. Persist provenance and enforce candidate/feed/observation consistency. Transport failures never call this acceptance function.
 
-- [ ] Write tests: sequence 11 extraction finishing after accepted sequence 12 cannot overwrite current state; identical current content advances ordering without revision/reassessment; A -> B -> A produces revisions 1, 2, 3; replaying one acquired result has one durable acceptance effect; newer eligible UPSERT reactivates a tombstone.
-- [ ] Write tests for scope deletion during acquisition, content hash recomputation, provenance linkage, representation downgrade, immutable historical revisions, and concurrent different results with equal ordering metadata preserving current content.
-- [ ] Run focused evidence tests and confirm missing behavior failures.
-- [ ] Implement recomputed `hashContent`, immutable acquired-result persistence and atomic recheck against latest canonical state. Conditional promotion writes revision, current pointer/order metadata, receipt and reassessment job in one batch. Reload/retry a failed CAS; never return a promotion receipt for a transaction that lost contention.
-- [ ] Run intake/evidence tests and worker typecheck; expect success.
-- [ ] Commit: `feat: promote immutable evidence with atomic ordering checks`.
+- [x] Write tests: sequence 11 extraction finishing after accepted sequence 12 cannot overwrite current state; identical current content advances ordering without revision/reassessment; A -> B -> A produces revisions 1, 2, 3; replaying one acquired result has one durable acceptance effect; newer eligible UPSERT reactivates a tombstone.
+- [x] Write tests for scope deletion during acquisition, content hash recomputation, provenance linkage, representation downgrade, immutable historical revisions, and concurrent different results with equal ordering metadata preserving current content.
+- [x] Run focused evidence tests and confirm missing behavior failures.
+- [x] Implement recomputed `hashContent`, immutable acquired-result persistence and atomic recheck against latest canonical state. Conditional promotion writes revision, current pointer/order metadata, receipt and reassessment job in one batch. Reload/retry a failed CAS; never return a promotion receipt for a transaction that lost contention.
+- [x] Run intake/evidence tests and worker typecheck; expect success.
+- [x] Commit: `feat: promote immutable evidence with atomic ordering checks`.
 
 ### Task 5: Durable post-acquisition conflicts and recheck lifecycle
 
@@ -133,11 +133,11 @@ No changes to connector implementations, existing processor dispatch, public rou
 - Produces `resolveEvidenceConflict(store: V1IntakeStore, conflictId: string, resolution: { kind: 'KEEP_CURRENT'; authoritativeObservationId: string } | { kind: 'LATER_OBSERVATION'; observationId: string }, policy: IntakePolicy): Promise<EvidenceRevisionConflict>`.
 - Resolution requires durable trusted authoritative-check evidence for KEEP_CURRENT, or an accepted later strictly ordered observation for LATER_OBSERVATION. Caller assertions alone cannot resolve a conflict.
 
-- [ ] Write tests: equal-order differing result -> `QUARANTINED_REVISION_CONFLICT`, one pending conflict and bounded recheck job; original intake receipt remains resolved; repeated failing rechecks preserve explicit unresolved state; trusted keep-current resolution and later ordered acceptance resolve durably; neither completion order nor an arbitrary ID resolves conflicts.
-- [ ] Run focused tests and observe missing behavior failures.
-- [ ] Persist conflicts and recheck work atomically with acceptance receipts; implement explicit audited resolution. Keep attempt count/backoff state durable. A pending conflict does not erase a terminal intake outcome or modify checkpoint state.
-- [ ] Run intake/evidence tests and worker typecheck; expect success.
-- [ ] Commit: `feat: persist authoritative evidence conflict resolution`.
+- [x] Write tests: equal-order differing result -> `QUARANTINED_REVISION_CONFLICT`, one pending conflict and bounded recheck job; original intake receipt remains resolved; repeated failing rechecks preserve explicit unresolved state; trusted keep-current resolution and later ordered acceptance resolve durably; neither completion order nor an arbitrary ID resolves conflicts.
+- [x] Run focused tests and observe missing behavior failures.
+- [x] Persist conflicts and recheck work atomically with acceptance receipts; implement explicit audited resolution. Keep attempt count/backoff state durable. A pending conflict does not erase a terminal intake outcome or modify checkpoint state.
+- [x] Run intake/evidence tests and worker typecheck; expect success.
+- [x] Commit: `feat: persist authoritative evidence conflict resolution`.
 
 ### Task 6: Integration exports, acceptance catalogue and handoff documentation
 
@@ -145,15 +145,15 @@ No changes to connector implementations, existing processor dispatch, public rou
 
 **Interfaces:** Export the named binding, store, acquired-content acceptance and conflict-resolution functions from prior tasks. Documentation identifies trusted scope provisioning and payload/order adapter dependencies; it must not claim production polling or an edition pipeline is already integrated.
 
-- [ ] Map every C12 fixture to a D1/provider/downstream test or an explicit later milestone; do not equate shared pure tests with storage guarantees.
-- [ ] Add fresh-store integration coverage for mixed accepted/rejected/quarantined/deleted batches, transactional rollback and disabled scopes. Run the focused command and confirm new assertions fail before fixing missing behavior.
-- [ ] Export the binding and document the exact caller setup, pending-job durability, retry handling, migration reservation and remaining connector/provider obligations. Show no unauthenticated HTTP interface.
-- [ ] Run `corepack pnpm --filter @distilled/contracts test`, `corepack pnpm --filter @distilled/worker test -- src/v1-intake`, `corepack pnpm typecheck`, and `corepack pnpm test`. Record actual failures by name if existing browser/system dependencies prevent the full suite; no unqualified all-tests-pass claim.
-- [ ] Review the whole branch against Appendix C, particularly scope guards, SQL atomicity, replay watermark advancement and retained immutable history. Fix material findings with regression tests.
-- [ ] Run `git diff --check` and commit: `docs: publish durable downstream integration contract`.
+- [x] Map every C12 fixture to a D1/provider/downstream test or an explicit later milestone; do not equate shared pure tests with storage guarantees.
+- [x] Add fresh-store integration coverage for mixed accepted/rejected/quarantined/deleted batches, transactional rollback and disabled scopes. Run the focused command and confirm new assertions fail before fixing missing behavior.
+- [x] Export the binding and document the exact caller setup, pending-job durability, retry handling, migration reservation and remaining connector/provider obligations. Show no unauthenticated HTTP interface.
+- [x] Run `corepack pnpm --filter @distilled/contracts test`, `corepack pnpm --filter @distilled/worker test -- src/v1-intake`, `corepack pnpm typecheck`, and `corepack pnpm test`. Record actual failures by name if existing browser/system dependencies prevent the full suite; no unqualified all-tests-pass claim.
+- [x] Review the whole branch against Appendix C, particularly scope guards, SQL atomicity, replay watermark advancement and retained immutable history. Fix material findings with regression tests.
+- [x] Run `git diff --check` and commit: `docs: publish durable downstream integration contract`.
 
 ## Planning self-review
 
 The six tasks cover the first downstream boundary and C1–C6 durability requirements. Intelligence, publication retention integration, queue execution and live provider fixtures are explicitly later milestones. Shared wire schemas are reused; internal provisioning/acquisition types do not redefine the connector handoff. Task 2 depends on Task 1 persistence; Tasks 3–5 share current ordering state, so their implementation and review must agree on conditional transaction guards. Each review-focus failure mode has a named D1 test task.
 
-**Status:** Plan prepared for user review; product implementation has not started. Branch: `codex/v1-downstream-pipeline`, base: `8ca0859`.
+**Status:** Approved milestone implemented and independently reviewed. Verification and remaining integration boundaries are recorded in `documentation/V1_DOWNSTREAM_HANDOFF.md`; the full repository suite has an unchanged browser-runtime guard failure. Branch: `codex/v1-downstream-pipeline`, base: `8ca0859`.

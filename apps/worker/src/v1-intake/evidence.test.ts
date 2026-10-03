@@ -75,3 +75,24 @@ it('lower completeness is quarantined at promotion rather than overwriting riche
   expect((await acceptAcquiredContent(store,{...second,contentCompleteness:'PARTIAL'},testPolicy)).decision).toBe('QUARANTINED_REVISION_CONFLICT');
   expect((await store.list<EvidenceRevision>('revisions','feed-source-1')).map(r=>r.body)).toEqual(['rich']);
 });
+it('equal fallback sequence with different extracted content stays explicitly conflicted',async()=>{
+  const first=await acquire(1,'A'),request=batchFixture(1);request.handoffId='same-sequence-other-observation';request.observations[0].id='observation-2';request.proposals[0].observationId='observation-2';
+  const second=await createCandidateIntakePort(store,testPolicy).acceptBatch(request);
+  await acceptAcquiredContent(store,first,testPolicy);
+  const result=await acceptAcquiredContent(store,{...first,id:'acquired-2',sourceObservationId:'observation-2',candidateId:second.receipts[0].candidateItemId!,body:'B'},testPolicy);
+  expect(result.decision).toBe('QUARANTINED_REVISION_CONFLICT');
+  expect((await store.read<{reason:string}>('conflicts',result.conflictId!))?.value.reason).toBe('EQUAL_FETCH_SEQUENCE_DIFFERENT_STATE');
+  expect((await store.list<EvidenceRevision>('revisions','feed-source-1')).map(r=>r.body)).toEqual(['A']);
+});
+it.each(['ARTICLE_EXCERPT','TELEGRAM_MESSAGE','LISTING_RESULT'] as const)('accepts usable %s evidence without relabeling it as a full article',async representation=>{
+  const request=batchFixture();request.observations[0].representation=representation;request.proposals[0].representation=representation;
+  const intake=await createCandidateIntakePort(store,testPolicy).acceptBatch(request);
+  await acceptAcquiredContent(store,{id:'content',feedId:'feed-1',candidateId:intake.receipts[0].candidateItemId!,sourceObservationId:'observation-1',representation,contentCompleteness:'COMPLETE',body:'Usable source content',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);
+  expect((await store.list<EvidenceRevision>('revisions','feed-source-1'))[0].representation).toBe(representation);
+});
+it('empty listing does not infer deletion or change current evidence',async()=>{
+  await acceptAcquiredContent(store,await acquire(1,'A'),testPolicy);
+  const before=await store.list('evidence','feed-source-1'),request=batchFixture(2);request.observations=[];request.proposals=[];
+  expect((await createCandidateIntakePort(store,testPolicy).acceptBatch(request)).receipts).toEqual([]);
+  expect(await store.list('evidence','feed-source-1')).toEqual(before);expect(await store.list('tombstones','feed-source-1')).toHaveLength(0);
+});
