@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync,readdirSync } from 'node:fs';
 import { Miniflare } from 'miniflare';
 import { handoffFixture, hashContent, type ConnectorHandoffRequest, type NormalizedEvidenceItem, type EvidenceRevision } from '@distilled/contracts';
 import type { IntakeScope, IntakePolicy } from './types';
@@ -9,12 +9,12 @@ export const testPolicy: IntakePolicy = {
   orderingFor:async()=> ({compareRevisions:(a,b)=> a.scheme===b.scheme && a.authority===b.authority && /^\d+$/.test(a.value) && /^\d+$/.test(b.value) ? BigInt(a.value)===BigInt(b.value)?0:BigInt(a.value)>BigInt(b.value)?1:-1 : null, authoritativeReplacementAllowed:false}),
   verifySuppliedContent:async()=> undefined
 };
-export async function createIntakeDatabase() {
+export async function createIntakeDatabase(options:{product?:boolean}={}) {
   const mf = new Miniflare({modules:true, script:"export default {fetch(){return new Response('ok')}}", d1Databases:['DB']});
   const db = await mf.getD1Database('DB') as unknown as D1Database;
-  for(const name of ['0035_v1_intake_evidence.sql','0036_v1_acquisition_results.sql','0037_v1_feed_intelligence.sql','0038_v1_publication_jobs.sql']) {
+  for(const name of options.product?readdirSync(new URL('../../migrations/',import.meta.url)).filter(n=>n.endsWith('.sql')).sort():['0035_v1_intake_evidence.sql','0036_v1_acquisition_results.sql','0037_v1_feed_intelligence.sql','0038_v1_publication_jobs.sql','0039_v1_product_sources.sql','0041_v1_briefing_outbox.sql','0042_v1_feed_versions.sql']) {
     const path = new URL(`../../migrations/${name}`, import.meta.url);
-    if (existsSync(path)) await db.exec(readFileSync(path,'utf8').replace(/\r?\n/g,' '));
+    if (existsSync(path)) {const sql=readFileSync(path,'utf8').replace(/^\s*--[^\n]*$/gm,'').replace(/\r?\n/g,' ').trim();if(sql) await db.exec(sql)}
   }
   return {db, dispose:()=>mf.dispose()};
 }

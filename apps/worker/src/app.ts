@@ -1,6 +1,9 @@
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
+import {enrollV1Source} from './v1-intelligence/product';
+import {processV1Briefing} from './v1-intelligence/runtime';
+import {publicV1Edition,publicV1Evidence,withdrawV1Edition} from './v1-intelligence/public-read';
 import {processQueueMessage} from "./processor";
 import {enrollRetainedNewsForSource} from "./retained-news-enrollment";
 import { manualAuthenticatedProfileBootstrap } from "./authenticated-profile-manual-bootstrap";
@@ -278,6 +281,28 @@ export function createApp(options: AppOptions = {}) {
       if(error instanceof HandoffError) return c.json({error:error.code},error.code==='TEMPORARY_UNAVAILABLE'?503:error.code==='SCOPE_DENIED'?403:400);
       return c.json({error:'TEMPORARY_UNAVAILABLE'},503);
     }
+  });
+
+  app.post('/v1/downstream/enroll',async c=>{
+    if(c.env.V1_DOWNSTREAM_ENABLED!=='true') return c.json({error:'not found'},404);
+    if(!isRuntimeAuthorized(c)) return c.json({error:'unauthorized'},401);
+    const input=z.object({sourceId:z.string().min(1).max(200),ownerId:z.string().min(1).max(200)}).strict().parse(await c.req.json());
+    if(!((c.env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).includes(input.sourceId))) return c.json({error:'SCOPE_DENIED'},403);
+    try {return c.json(await enrollV1Source(c.env.DB,input.sourceId,input.ownerId,nowFor().toISOString()))}
+    catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
+  });
+  app.post('/v1/downstream/briefing',async c=>{
+    if(c.env.V1_DOWNSTREAM_ENABLED!=='true') return c.json({error:'not found'},404);
+    if(!isRuntimeAuthorized(c)) return c.json({error:'unauthorized'},401);
+    const input=z.object({feedId:z.string().min(1).max(200),window:z.object({start:z.string().datetime(),end:z.string().datetime(),kind:z.enum(['30M','HOURLY','DAILY','WEEKLY'])}).strict()}).strict().parse(await c.req.json());
+    try {const edition=await processV1Briefing(c.env,{type:'v1_briefing',...input},()=>nowFor().toISOString());return c.json({editionId:edition?.id,state:edition?'PUBLISHED':'NO_NEWS'})}
+    catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
+  });
+  app.get('/api/v1/editions/:id',async c=>{
+    const edition=await publicV1Edition(c.env.DB,c.req.param('id'));return edition?c.json(edition):c.json({error:'not found'},404);
+  });
+  app.get('/api/v1/editions/:id/evidence/:revisionId',async c=>{
+    const evidence=await publicV1Evidence(c.env.DB,c.req.param('id'),c.req.param('revisionId'));return evidence?c.json(evidence):c.json({error:'not found'},404);
   });
 
   // Protected bounded evaluation of the same product helpers used by /api/me.
@@ -697,6 +722,12 @@ export function createApp(options: AppOptions = {}) {
     const repo = c.get("repo");
     const account = c.get("account")!;
     return c.json({ briefings: await repo.listBriefings(account.id) });
+  });
+
+  app.post('/api/me/v1/editions/:id/withdraw',async c=>{
+    const input=z.object({reason:z.enum(['POLICY_REQUIRED','OWNER_REQUEST'])}).strict().parse(await c.req.json());
+    try {await withdrawV1Edition(c.env.DB,c.req.param('id'),c.get('account')!.id,input.reason,nowFor().toISOString());return c.json({status:'WITHDRAWN'})}
+    catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
   });
 
   app.post("/api/me/briefings", async (c) => {

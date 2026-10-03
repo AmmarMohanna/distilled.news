@@ -1,4 +1,5 @@
 import type { BriefingConfig, NormalizedMessage } from "@distilled/core";
+import {isV1ProductSource} from './v1-intelligence/product';
 import {
   buildGoogleNewsRssUrl,
   defaultActorIdForKind,
@@ -90,6 +91,7 @@ export async function refreshEnabledSources(input: SourceRefreshInput): Promise<
   const results: SourceIngestResult[] = [];
 
   for (const source of sources) {
+    if(input.env && await isV1ProductSource(input.env,source.id)) continue;
     if (!input.force && !isSourceRefreshDue(input.briefing, source, now)) continue;
     // These configured sources are admitted by the durable acquisition cron.
     if(source.provider==="web"||(input.env?.WEB_OPERATOR_RUNTIME_TOKEN&&source.provider==="rss"&&source.kind!=="google_news"))continue;
@@ -109,6 +111,7 @@ export async function enqueueDueSourceRefreshJobs(input: SourceRefreshDispatchIn
   let enqueued = 0;
 
   for (const source of sources) {
+    if(input.env && await isV1ProductSource(input.env,source.id)) continue;
     if(source.provider==="web"||(input.env?.WEB_OPERATOR_RUNTIME_TOKEN&&source.provider==="rss"&&source.kind!=="google_news"))continue;
     if (!input.force && !isSourceRefreshDue(input.briefing, source, now)) continue;
     if ((source.provider === "apify" || source.kind === "google_news") && await hasActiveApifyRun(input.repo, source.id)) continue;
@@ -137,6 +140,7 @@ export async function refreshSourceById(input: SourceRefreshInput & { sourceId: 
 }
 
 async function refreshSource(input: SourceRefreshInput & { source: SourceRecord }): Promise<SourceIngestResult | undefined> {
+  if(input.env && await isV1ProductSource(input.env,input.source.id)) return undefined;
   if (input.briefing.paused || !input.source.enabled) return undefined;
   const now = input.now ?? new Date();
 

@@ -2,9 +2,10 @@ import {makeId} from "@distilled/agent-runtime";
 import {D1UpstreamResourceStore} from "./upstream-resource-store";
 import {D1SourceHighWaterStore} from "./source-acquisition-store";
 import type {Env,PublicAcquisitionRequestMessage} from "./types";
+import {isV1ProductSource} from './v1-intelligence/product';
 
 /** Cron uses the same durable request/queue/service as account acquisition. */
-export async function enqueueScheduledSourceAcquisitions(env:Pick<Env,"DB"|"WEB_OPERATOR_QUEUE"|"WEB_OPERATOR_RUNTIME_TOKEN">,now=new Date()){
+export async function enqueueScheduledSourceAcquisitions(env:Pick<Env,"DB"|"WEB_OPERATOR_QUEUE"|"WEB_OPERATOR_RUNTIME_TOKEN"|"V1_DOWNSTREAM_ENABLED"|"V1_DOWNSTREAM_FEED_SOURCE_IDS">,now=new Date()){
   if(!env.WEB_OPERATOR_RUNTIME_TOKEN)return 0;
   const rows=await env.DB.prepare(`SELECT s.id,s.source_url,b.owner_account_id,b.retention_days FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id
     WHERE s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND s.provider IN ('web','rss') AND s.kind!='google_news'
@@ -12,6 +13,7 @@ export async function enqueueScheduledSourceAcquisitions(env:Pick<Env,"DB"|"WEB_
     .bind(new Date(now.getTime()-5*60000).toISOString()).all<{id:string;source_url:string|null;owner_account_id:string;retention_days:number}>();
   let count=0;
   for(const row of rows.results){
+    if(await isV1ProductSource(env,row.id)) continue;
     const sourceUrl=row.source_url;if(!sourceUrl)continue;
     const resource=await new D1UpstreamResourceStore(env.DB).resolveOrCreate({tenantId:row.owner_account_id,canonicalSourceUrl:new URL(sourceUrl).href,now:now.toISOString()});
     const state=await new D1SourceHighWaterStore(env.DB,row.owner_account_id).get(`${row.owner_account_id}:${resource.id}`);

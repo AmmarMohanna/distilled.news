@@ -68,7 +68,7 @@ async function targets(tx:FeedTransaction,window:PublicationWindow):Promise<Targ
 export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:PublicationWindow,rawBudget:BriefingBudget,now:string):Promise<SelectionRecord> {
  const parsedWindow=windowSchema.safeParse(rawWindow),parsedBudget=budgetSchema.safeParse(rawBudget);
  if(!parsedWindow.success || !parsedBudget.success || !Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
- const window=parsedWindow.data,budget=parsedBudget.data;
+ const window={...parsedWindow.data,start:new Date(parsedWindow.data.start).toISOString(),end:new Date(parsedWindow.data.end).toISOString()},budget=parsedBudget.data;
  return feedTransact(store,feedId,async tx=>{
   const candidates=await targets(tx,window),identity=await sha256(canonicalJson({feedId,revision:tx.snapshot.feed.revision,window,budget,targets:candidates.map(t=>[t.type,t.id]).sort(),policy:SELECTION_POLICY}));
   const prior=await tx.read<SelectionRecord>('selections',identity);if(prior) return prior;

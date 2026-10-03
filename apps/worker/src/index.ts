@@ -1,5 +1,7 @@
 import { createApp } from "./app";
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
+import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment} from './v1-intelligence/runtime';
+import {HandoffError} from '@distilled/contracts';
 import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
 import { publishDueBriefingEditions } from "./editions";
@@ -45,6 +47,8 @@ export default {
       let completedProcessing=false;
       try {
         if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(env,message.body.jobId);
+        else if(isRecord(message.body) && message.body.type==='v1_reassess' && typeof message.body.jobId==='string') await processV1Reassessment(env,message.body.jobId);
+        else if(isRecord(message.body) && message.body.type==='v1_briefing') await processV1Briefing(env,message.body as import('./v1-intelligence/runtime').V1BriefingMessage);
         else if (isWebOperatorRunMessage(message.body)) await processWebOperatorRunMessage(env,message.body);
         else if (isWebOperatorLiveSmokeMessage(message.body)) {
           await processLivePublicAcquisitionSmoke(env, message.body, async (request) => app.fetch(request, env));
@@ -70,6 +74,12 @@ export default {
         }
         message.ack();
       } catch (error) {
+        if(isRecord(message.body) && typeof message.body.type==='string' && message.body.type.startsWith('v1_')) {
+          if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') message.ack();
+          else if(message.attempts<MAX_QUEUE_ATTEMPTS) message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
+          else message.ack();
+          console.warn('V1 queue work deferred or terminal',{bodyType,code:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'});continue;
+        }
         // Contention is not a failed attempt. The completed job drains the next
         // durable job; the existing stale-job relay recovers a crashed leader.
         if(error instanceof ProcessingLeaseBusy){message.ack();continue}
@@ -240,6 +250,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 async function runScheduledMaintenance(env: Env): Promise<void> {
   try {await dispatchV1Acquisitions(env)} catch {console.warn('Could not dispatch v1 acquisition jobs')}
+  try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
   const repo = new D1Repository(env.DB);
   const now = new Date();
   try{await enqueueScheduledSourceAcquisitions(env,now)}catch{console.warn("Could not enqueue scheduled source acquisition")}

@@ -7,6 +7,8 @@ import { createCandidateAcquisitionRouter } from './v1-intake/acquisition-router
 import { runAcquisitionJob, AcquisitionFailure } from './v1-intake/acquisition';
 import type { IntakePolicy } from './v1-intake/types';
 import { WorkerPublicSourceFetch } from './public-source-fetch';
+import {synchronizeV1ProductSource} from './v1-intelligence/product';
+import {createV1BrowserStages} from './v1-intake/browser-stages';
 
 function enabledSources(env:Env):string[] {
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
@@ -36,14 +38,16 @@ export async function acceptV1Handoff(env:Env,raw:unknown) {
  const parsed=connectorHandoffRequestSchema.safeParse(raw);
  if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  if(!v1SourceEnabled(env,parsed.data.coverage.feedSourceId)) throw new HandoffError('SCOPE_DENIED');
+ await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
  return createCandidateIntakePort(new V1IntakeStore(env.DB),createV1RuntimePolicy()).acceptBatch(parsed.data);
 }
 const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),publishedAt:z.string().datetime().optional()}).strict();
 export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetch=fetch) {
  const store=new V1IntakeStore(env.DB),job=await store.read<{feedSourceId:string}>('jobs',id);
  if(!job || !v1SourceEnabled(env,job.feedSourceId)) return 'SKIPPED' as const;
+ await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
  const policy=createV1RuntimePolicy(fetcher);
- const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,readPayload:async claim=>{
+ const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,stagesForClaim:claim=>createV1BrowserStages(env,claim),readPayload:async claim=>{
   const ref=claim.input.observation.suppliedPayloadRef;
   // Scoped payload object keys are a capability, never an arbitrary R2 pointer supplied by a client.
   if(!ref?.startsWith(`v1/payloads/${encodeURIComponent(claim.job.feedSourceId)}/`)) return undefined;
@@ -62,6 +66,7 @@ export async function dispatchV1Acquisitions(env:Env,now=new Date()):Promise<num
  const ids=enabledSources(env);
  let sent=0;
  for(const id of ids) {
+  try {await synchronizeV1ProductSource(env.DB,id,now.toISOString())} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
   const rows=await env.DB.prepare(`SELECT j.id FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE j.feed_source_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL AND json_extract(j.json,'$.kind')='ACQUIRE' AND (json_extract(j.json,'$.state')='PENDING' OR (json_extract(j.json,'$.state')='RUNNING' AND json_extract(j.json,'$.leaseUntil')<=?)) AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0 AND (json_extract(j.json,'$.nextAttemptAt') IS NULL OR json_extract(j.json,'$.nextAttemptAt')<=?) ORDER BY j.id LIMIT 5`).bind(id,now.toISOString(),now.toISOString()).all<{id:string}>();
   for(const row of rows.results) {await env.PROCESSING_QUEUE.send({type:'v1_acquisition',jobId:row.id});sent++}
  }

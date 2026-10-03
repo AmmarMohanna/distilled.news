@@ -15,7 +15,8 @@ it('persists exact referenced assessments and reproducible bounded selection acr
  const b=await scoreAndSelect(new V1FeedStore(ctx.db),feedFixture.id,window,DEFAULT_BRIEFING_BUDGET,testPolicy.now());expect(a).toEqual(b);expect(a.selectedCandidateIds).toHaveLength(1);
  const candidate=(await store.list<BriefingCandidate>('feed-1','candidates'))[0];
  const salience=await store.read<EventSalienceAssessment>('feed-1','salience',candidate.salienceAssessmentId),score=await store.read<WindowScore>('feed-1','window_scores',candidate.windowScoreId);
- expect(salience?.targetVersionId).toBe(candidate.targetVersionId);expect(score?.targetVersionId).toBe(candidate.targetVersionId);expect(score?.windowStart).toBe(window.start);
+ expect(salience?.targetVersionId).toBe(candidate.targetVersionId);expect(score?.targetVersionId).toBe(candidate.targetVersionId);expect(score?.windowStart).toBe(new Date(window.start).toISOString());
+ expect((await scoreAndSelect(store,feedFixture.id,{...window,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()},DEFAULT_BRIEFING_BUDGET,testPolicy.now())).id).toBe(a.id);
  expect(await store.list('feed-1','selections')).toHaveLength(1);
 });
 it('publication windows are distinct assessments and weekly selects storyline versions rather than multiplying daily',async()=>{
