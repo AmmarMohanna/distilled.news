@@ -1,8 +1,8 @@
 import { beforeEach, afterEach, expect, it } from 'vitest';
-import { handoffConnectorBatch, type IntakeReceipt } from '@distilled/contracts';
+import { handoffConnectorBatch, type IntakeReceipt, type NormalizedEvidenceItem } from '@distilled/contracts';
 import { V1IntakeStore } from './store';
 import { createCandidateIntakePort } from './intake';
-import { createIntakeDatabase, seedIntakeScope, batchFixture, testPolicy } from './test-utils';
+import { createIntakeDatabase, seedIntakeScope, batchFixture, testPolicy, scopeFixture, seedCurrentEvidence } from './test-utils';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>, store:V1IntakeStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store)});
 afterEach(async()=>ctx.dispose());
@@ -39,4 +39,46 @@ it('concurrent same handoff and different observations preserve one candidate an
   expect(await store.list('candidates','feed-source-1')).toHaveLength(1);
   expect(await store.list('jobs','feed-source-1')).toHaveLength(3);
   expect(await store.list<IntakeReceipt>('intake_receipts','feed-source-1')).toHaveLength(3);
+});
+it.each([
+  ['violation','other','REJECTED','RESOLVED'],['missing',undefined,'QUARANTINED','UNRESOLVED'],['matching','publisher','ACCEPTED','RESOLVED']
+])('publisher restriction %s has a durable individual decision',async(_name,publisherId,decision,resolution)=>{
+  await store.registerScope({...scopeFixture,feedRevision:2,restrictions:{publisherIds:['publisher']}});
+  const request=batchFixture();request.observations[0].publisherId=publisherId;
+  const result=await createCandidateIntakePort(store,testPolicy).acceptBatch(request);
+  expect(result.receipts[0]).toMatchObject({decision,checkpointResolution:resolution});
+  expect((await store.listPendingJobs('feed-source-1')).filter(j=>j.kind==='ACQUIRE')).toHaveLength(decision==='ACCEPTED'?1:0);
+});
+it('missing account and date fields quarantine; explicit violation rejects even if another field is missing',async()=>{
+  await store.registerScope({...scopeFixture,feedRevision:2,restrictions:{startTime:'2026-10-02T00:00:00Z',accountIds:['owner']}});
+  const port=createCandidateIntakePort(store,testPolicy);
+  expect((await port.acceptBatch(batchFixture())).receipts[0].decision).toBe('QUARANTINED');
+  const other=batchFixture(2);other.observations[0].publishedAtHint='2026-10-01T00:00:00Z';other.proposals[0].publishedAtHint=other.observations[0].publishedAtHint;
+  expect((await port.acceptBatch(other)).receipts[0].decision).toBe('REJECTED');
+});
+it('already stale observations are ignored without acquisition',async()=>{
+  await seedCurrentEvidence(store);
+  expect((await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture(9))).receipts[0]).toMatchObject({decision:'IGNORED',reasonCode:'IGNORED_STALE_OBSERVATION'});
+  expect(await store.list('jobs','feed-source-1')).toHaveLength(0);
+});
+it('winning verified identical content advances ordering without revision or reassessment',async()=>{
+  const {hash}=await seedCurrentEvidence(store);const request=batchFixture(12);request.observations[0].contentHash=hash;
+  const policy={...testPolicy,verifySuppliedContent:async()=>({representation:'ARTICLE_EXCERPT' as const,contentCompleteness:'COMPLETE' as const,contentHash:hash})};
+  expect((await createCandidateIntakePort(store,policy).acceptBatch(request)).receipts[0].decision).toBe('REPLAY');
+  expect((await store.list<NormalizedEvidenceItem>('evidence','feed-source-1'))[0].currentFetchStartSequence).toBe(12);
+  expect(await store.list('revisions','feed-source-1')).toHaveLength(1);expect(await store.list('jobs','feed-source-1')).toHaveLength(0);
+  expect((await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture(11))).receipts[0].decision).toBe('IGNORED');
+});
+it('ordered authoritative deletion bypasses acquisition and prevents stale resurrection',async()=>{
+  await seedCurrentEvidence(store);const request=batchFixture(12);request.observations[0].operation='DELETE';request.observations[0].authoritativeCurrentState=true;delete request.observations[0].contentHash;delete request.observations[0].suppliedPayloadRef;request.proposals=[];
+  const policy={...testPolicy,orderingFor:async()=>({...await testPolicy.orderingFor(request.observations[0]),authoritativeReplacementAllowed:true})};
+  expect((await createCandidateIntakePort(store,policy).acceptBatch(request)).receipts[0]).toMatchObject({decision:'DELETION_ACCEPTED',checkpointResolution:'RESOLVED'});
+  expect(await store.listPendingJobs('feed-source-1')).toMatchObject([{kind:'REASSESS'}]);
+  expect((await store.list<NormalizedEvidenceItem>('evidence','feed-source-1'))[0].state).toBe('DELETED');
+  expect((await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture(11))).receipts[0].decision).toBe('IGNORED');
+});
+it('DELETE lacking independent runtime verification is quarantined',async()=>{
+  const request=batchFixture();request.observations[0].operation='DELETE';request.observations[0].authoritativeCurrentState=true;request.proposals=[];
+  expect((await createCandidateIntakePort(store,testPolicy).acceptBatch(request)).receipts[0].decision).toBe('QUARANTINED');
+  expect(await store.list('tombstones','feed-source-1')).toHaveLength(0);
 });

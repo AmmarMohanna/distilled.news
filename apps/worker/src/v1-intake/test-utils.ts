@@ -1,8 +1,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { Miniflare } from 'miniflare';
-import { handoffFixture, type ConnectorHandoffRequest } from '@distilled/contracts';
+import { handoffFixture, hashContent, type ConnectorHandoffRequest, type NormalizedEvidenceItem, type EvidenceRevision } from '@distilled/contracts';
 import type { IntakeScope, IntakePolicy } from './types';
-import { V1IntakeStore } from './store';
+import { itemId, V1IntakeStore } from './store';
 export const scopeFixture: IntakeScope = { feedId:'feed-1', feedSourceId:'feed-source-1', sourceId:'source-1', feedRevision:1, enabled:true, restrictions:{} };
 export const testPolicy: IntakePolicy = {
   version:'v1', now:()=> '2026-10-03T12:00:00Z', factsFor:async()=> ({}),
@@ -23,4 +23,12 @@ export function batchFixture(sequence=1):ConnectorHandoffRequest {
   request.observations[0]={...request.observations[0],id:`observation-${sequence}`,fetchStartSequence:sequence,fetchRunId:`fetch-${sequence}`};
   request.proposals[0]={...request.proposals[0],observationId:`observation-${sequence}`,discoveryRunId:`fetch-${sequence}`};
   return request;
+}
+export async function seedCurrentEvidence(store:V1IntakeStore,body='A',sequence=10) {
+  const id=itemId('feed-source-1','guid-1'),now=testPolicy.now();
+  const hash=await hashContent({representation:'ARTICLE_EXCERPT',body});
+  const evidence:NormalizedEvidenceItem={id,feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:'source-1',sourceItemKey:'guid-1',state:'ACTIVE',currentRevisionId:'revision-seed',currentObservationId:'seed-observation',currentFetchStartSequence:sequence,firstSeenAt:now,updatedAt:now};
+  const revision:EvidenceRevision={id:'revision-seed',evidenceId:id,feedId:'feed-1',revision:1,sourceObservationId:'seed-observation',acquiredContentId:'seed-content',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',body,contentHash:hash,fetchStartSequence:sequence,acceptedAt:now};
+  await store.commit(await store.snapshot('feed-source-1'),[{table:'evidence',id,itemKey:'guid-1',value:evidence},{table:'revisions',id:revision.id,value:revision,immutable:true},{table:'candidates',id,itemKey:'guid-1',value:{id,feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:'source-1',sourceItemKey:'guid-1',latestObservationId:'seed-observation',discoveredAt:now,intakePolicyVersion:'v1'}}]);
+  return {evidence,revision,hash};
 }
