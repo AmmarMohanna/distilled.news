@@ -14,6 +14,7 @@ export interface CandidateAcquisitionOptions {
  fetcher?:typeof fetch;
  /** Trusted runtime adapters; the caller cannot supply browser/model authority. */
  stages?:Omit<SourceAcquisitionOrchestratorOptions,'http'>;
+ stagesForClaim?(claim:AcquisitionClaim):Omit<SourceAcquisitionOrchestratorOptions,'http'>;
 }
 /** Uses the existing ordered acquisition mechanism selector, without its collection/high-water service.
  * Exact-candidate binding is verified after every route; no discovered sibling can become evidence. */
@@ -46,7 +47,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    return {stage:'HTTP',status:'SUCCESS',result:{items:[item],requestedWindow:request.window,effectiveWindow:request.window,acquisitionAsOf:options.now(),coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'}}};
   };
   try {
-   const outcome=await new SourceAcquisitionOrchestrator({...options.stages,http}).acquire(request);
+   const outcome=await new SourceAcquisitionOrchestrator({...options.stages,...options.stagesForClaim?.(claim),http}).acquire(request);
    const items=outcome.result?.items;
    if(outcome.status!=='SUCCESS' || !items?.length) {
     const reason=outcome.stopReason;
@@ -57,7 +58,8 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    const normalizedUrl=(value:string)=>{const u=new URL(value);u.hash='';return u.href};
    if(!item.canonicalItemUrl || normalizedUrl(item.canonicalItemUrl)!==normalizedUrl(o.canonicalUrl)) throw new AcquisitionFailure('INVALID_RESULT',false);
    const stage=outcome.stages.at(-1)?.stage;
-   const parsed=acquiredSchema.safeParse({...base,title:item.title,body:item.text,publishedAt:item.publishedAt,canonicalUrl:item.canonicalItemUrl,resolvedUrl:item.originalSourceReference??item.canonicalItemUrl,representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',acquisitionMethod:stage==='STRUCTURED'?'platform_api':stage==='HTTP'?'direct_http':'browser',acquisitionProvider:outcome.result?.provenance?.mechanism,quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:true},provenance:{routerVersion:'v1-existing-orchestrator',stages:outcome.stages.map(s=>s.stage)}});
+   const browserEvidence=stage==='BROWSER_WORKFLOW' || stage==='WEB_OPERATOR'?Object.fromEntries(['acceptanceId','observationId','rawArtifactRef'].filter(key=>typeof item.acquisitionEvidence?.[key]==='string').map(key=>[key,item.acquisitionEvidence[key]])):undefined;
+   const parsed=acquiredSchema.safeParse({...base,title:item.title,body:item.text,language:o.languageHint,publishedAt:item.publishedAt,canonicalUrl:item.canonicalItemUrl,resolvedUrl:item.originalSourceReference??item.canonicalItemUrl,representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',acquisitionMethod:stage==='STRUCTURED'?'platform_api':stage==='HTTP'?'direct_http':'browser',acquisitionProvider:outcome.result?.provenance?.mechanism,quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:true},provenance:{routerVersion:'v1-existing-orchestrator',stages:outcome.stages.map(s=>s.stage),...(browserEvidence?{browserEvidence}:{})}});
    if(!parsed.success) throw new AcquisitionFailure('INVALID_RESULT',false);
    return parsed.data;
   } catch(error) {

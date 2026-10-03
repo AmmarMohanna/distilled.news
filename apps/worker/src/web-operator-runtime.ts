@@ -66,8 +66,8 @@ export function createWorkerClosedLoopWebOperatorLifecycle(
   });
 }
 
-export function createWorkerContainerPublicWebOperatorLifecycle(env: Env, input: { ownerId: string; resourceId: string; sourceUrl: string; operationBudget: number }) {
-  const browser = new ContainerPublicWebOperatorBrowser(env, input.ownerId, input.resourceId, input.sourceUrl, input.operationBudget);
+export function createWorkerContainerPublicWebOperatorLifecycle(env: Env, input: { ownerId: string; resourceId: string; sourceUrl: string; operationBudget: number;exactCandidateOnly?:boolean }) {
+  const browser = new ContainerPublicWebOperatorBrowser(env, input.ownerId, input.resourceId, input.sourceUrl, input.operationBudget,undefined,input.exactCandidateOnly);
   const store = new D1AgentRuntimeStore(env.DB);
   const workflowStore = new D1WorkflowRepository(env.DB);
   return createClosedLoopWebOperatorLifecycle({

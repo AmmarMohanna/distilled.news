@@ -25,7 +25,7 @@ export interface AcceptedAcquiredContent {
   acquisitionMethod: 'supplied_payload' | 'platform_api' | 'direct_http' | 'browser'; acquisitionProvider?: string;
   sourceId?: string; resolvedUrl?: string;
   quality?: { transportSuccess: boolean; extractionSuccess: boolean; extractionComplete: boolean };
-  provenance?: { routerVersion: string; stages: string[]; rawPayloadRef?: string };
+  provenance?: { routerVersion: string; stages: string[]; rawPayloadRef?: string; browserEvidence?: {acceptanceId?:string;observationId?:string;rawArtifactRef?:string} };
 }
 export interface AcceptedInput { observation: SourceObservation; proposal?: CandidateProposal }
 export interface CandidateRecord {

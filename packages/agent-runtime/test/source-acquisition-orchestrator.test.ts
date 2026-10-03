@@ -9,6 +9,16 @@ const failure = (stage: AcquisitionStageOutcome["stage"], status: AcquisitionSta
 function workflow(id: string, version: number, outcome: AcquisitionStageOutcome): ActiveWorkflowHandle { return { id, version, execute: async () => outcome }; }
 
 describe("generic source acquisition orchestrator", () => {
+  it("accepts verifier-owned Web Operator content without claiming workflow promotion", async () => {
+    const out = await new SourceAcquisitionOrchestrator({ http: async () => failure("HTTP", "INSUFFICIENT"), webOperator: async () => success("WEB_OPERATOR") }).acquire(request);
+    expect(out.status).toBe("SUCCESS"); expect(out.result).toBe(result);
+    expect(out.webOperatorCalls).toBe(1); expect(out.candidateWorkflow).toBeUndefined();
+    expect(out.stages.map(s => s.stage)).toEqual(["HTTP", "WEB_OPERATOR"]);
+  });
+  it("does not accept a Web Operator success without acquired content", async () => {
+    const out = await new SourceAcquisitionOrchestrator({ webOperator: async () => ({ stage: "WEB_OPERATOR", status: "SUCCESS" }) }).acquire(request);
+    expect(out.status).toBe("STOPPED"); expect(out.result).toBeUndefined();
+  });
   it("uses structured acquisition and never invokes later stages", async () => {
     let later = 0;
     const out = await new SourceAcquisitionOrchestrator({ structured: async () => success("STRUCTURED"), http: async () => { later++; return success("HTTP"); }, webOperator: async () => { later++; throw new Error("must not run"); } }).acquire(request);

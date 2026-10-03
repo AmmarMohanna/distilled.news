@@ -7,6 +7,19 @@ const origin = "https://publisher.example";
 const env = { DISTILLED_BROWSER_PROVIDER: "cloudflare_container", AUTHENTICATED_BROWSER_CONTAINER: {} } as Env;
 
 describe("restricted Web Operator Container browser", () => {
+  it('candidate-only mode rejects sibling navigation before dispatch and rejects redirected observations',async()=>{
+    let operations=0;
+    const transport:BrowserBridgeTransport={async execute(message){operations++;
+      if(message.operation==='OPEN_AUTH_BROWSER') return {runId:'r',tenantId:'t',sessionId:'s',contextId:'c',pageId:'p',generation:1,viewport:{width:1,height:1,deviceScaleFactor:1}};
+      if(message.operation==='OBSERVE_PUBLIC_PAGE') return {url:`${origin}/other`,title:'Other',pageRevision:'x',visibleText:'Other',controls:[],challengeState:'NO_CHALLENGE'};
+      return {accepted:true};
+    }};
+    const browser=new ContainerPublicWebOperatorBrowser(env,'owner','resource',`${origin}/article`,10,transport,true);
+    const scope=await browser.allocate({runId:'r',tenantId:'t',generation:1,allowedOrigins:[origin]});
+    await expect(browser.navigate(scope,`${origin}/other`)).rejects.toThrow('BRIDGE_NETWORK_POLICY_DENIED');expect(operations).toBe(1);
+    await expect(browser.navigate(scope,`${origin}/article`)).rejects.toThrow('BRIDGE_NETWORK_POLICY_DENIED');
+    await browser.close(scope);
+  });
   it("opens, navigates, observes, and closes with PUBLIC read-only fences", async () => {
     const operations: string[] = [];
     const transport: BrowserBridgeTransport = { async execute(message) {

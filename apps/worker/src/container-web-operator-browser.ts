@@ -31,7 +31,8 @@ export class ContainerPublicWebOperatorBrowser implements BrowserExecutorPort, S
     private readonly resourceId: string,
     private readonly entryUrl: string,
     private readonly operationBudget: number,
-    transport?: BrowserBridgeTransport
+    transport?: BrowserBridgeTransport,
+    private readonly exactCandidateOnly=false
   ) {
     if ((env.DISTILLED_BROWSER_PROVIDER ?? "").trim().toLowerCase() !== "cloudflare_container" || !env.AUTHENTICATED_BROWSER_CONTAINER) throw new AuthenticatedBrowserBridgeError("BRIDGE_UNAVAILABLE");
     this.transport = transport ?? new CloudflareContainerBrowserBridgeTransport(env.AUTHENTICATED_BROWSER_CONTAINER);
@@ -73,6 +74,7 @@ export class ContainerPublicWebOperatorBrowser implements BrowserExecutorPort, S
 
   async navigate(scope: BrowserScope, url: string): Promise<BrowserObservationData> {
     const session = this.require(scope);
+    this.requireCandidateUrl(url);
     if (!originMatches(url, session.capability.allowedOrigins)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     await this.transport.execute({ protocol: "v1", operationId: crypto.randomUUID(), capability: session.capability, operation: "NAVIGATE_PUBLIC_PAGE", url });
     return this.observe(session);
@@ -120,6 +122,7 @@ export class ContainerPublicWebOperatorBrowser implements BrowserExecutorPort, S
   private acceptObserved(session: Session, observed: unknown): BrowserObservationData {
     if (!observed || typeof observed !== "object" || !("pageRevision" in observed)) throw new AuthenticatedBrowserBridgeError("BRIDGE_FENCE_MISMATCH");
     const value = observed as PublicBrowserObservation;
+    this.requireCandidateUrl(value.url);
     if (!originMatches(value.url, session.capability.allowedOrigins)) throw new AuthenticatedBrowserBridgeError("BRIDGE_NETWORK_POLICY_DENIED");
     session.current = value;
     const representation = { visibleText: value.visibleText, controls: value.controls, listingLinks: value.listingLinks, challengeDiagnostics: value.challengeDiagnostics, article: value.article ? { title: value.article.title, canonicalUrl: value.article.canonicalUrl, publisherTimestamp: value.article.publisherTimestamp } : undefined };
@@ -132,5 +135,10 @@ export class ContainerPublicWebOperatorBrowser implements BrowserExecutorPort, S
       documentCountCategory: value.documentCountCategory, iframeCountCategory: value.iframeCountCategory,
       domNodeCountCategory: value.domNodeCountCategory, accessibilityNodeCountCategory: value.accessibilityNodeCountCategory
     };
+  }
+  private requireCandidateUrl(value:string):void {
+    if(!this.exactCandidateOnly) return;
+    const normalize=(url:string)=>{const parsed=new URL(url);parsed.hash='';return parsed.href};
+    if(normalize(value)!==normalize(this.entryUrl)) throw new AuthenticatedBrowserBridgeError('BRIDGE_NETWORK_POLICY_DENIED');
   }
 }

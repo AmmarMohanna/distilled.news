@@ -64,6 +64,13 @@ it('verified supplied payload precedes native and HTTP routes',async()=>{
  expect(await runAcquisitionJob(store,JSON.stringify(['ACQUIRE','observation-2','']),testPolicy,router)).toBe('DONE');
  expect(externalCalls).toBe(0);expect((await store.list<AcceptedAcquiredContent>('acquired','feed-source-1'))[0].representation).toBe('ARTICLE_EXCERPT');
 });
+it('browser fallback preserves bounded verifier provenance in durable acquired content',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('<html>Article loading</html>'),stagesForClaim:claim=>({webOperator:async()=>({stage:'WEB_OPERATOR',status:'SUCCESS',result:{items:[{sourceResource:'candidate-resource',canonicalItemUrl:claim.input.observation.canonicalUrl,sourceItemId:claim.input.observation.sourceItemKey,title:'Development',text:'Parliament approved the banking reform.',publishedAt:'2026-10-03T10:00:00Z',acquisitionEvidence:{acceptanceId:'verified',observationId:'browser-observed',rawArtifactRef:'raw/artifact',unrelated:'not-retained'}}],requestedWindow:{startTime:now,endTime:now},effectiveWindow:{startTime:now,endTime:now},acquisitionAsOf:now,coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'}}})})});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('DONE');
+ const acquired=(await store.list<AcceptedAcquiredContent>('acquired','feed-source-1'))[0];
+ expect(acquired).toMatchObject({acquisitionMethod:'browser',provenance:{stages:['HTTP','WEB_OPERATOR'],browserEvidence:{acceptanceId:'verified',observationId:'browser-observed',rawArtifactRef:'raw/artifact'}}});
+ expect(acquired.provenance?.browserEvidence).not.toHaveProperty('unrelated');
+});
 it('crash after external fetch but before result persistence allows bounded refetch',async()=>{
  const first=(await claimAcquisition(store,jobId,now))!;
  // The first worker fetched content but died without calling persistAcquisitionResult.

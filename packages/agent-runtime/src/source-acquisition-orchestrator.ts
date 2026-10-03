@@ -94,6 +94,7 @@ export class SourceAcquisitionOrchestrator {
     const discovery = await this.options.webOperator(request);
     if ("stage" in discovery) {
       record(discovery);
+      if(discovery.status==='SUCCESS' && discovery.result) return {status:'SUCCESS',result:discovery.result,stages,webOperatorCalls:1};
       return { status: "STOPPED", stages, webOperatorCalls: 1, stopReason: discovery.status };
     }
     const candidateTrace: AcquisitionStageTrace = { stage: "WEB_OPERATOR", status: "SUCCESS", reason: "candidate_discovered" };
