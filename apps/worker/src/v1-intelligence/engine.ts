@@ -4,6 +4,7 @@ import type {AcceptedInput,DownstreamJob} from '../v1-intake/types';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {INTELLIGENCE_POLICY,classifyRole,duplicateSimilarity,features} from './policies';
 import {deterministicMatchers,validateEventMatch,validateStorylineMatch,type IntelligenceMatchers,type EventMatchInput} from './matchers';
+import {persistClaimMentions} from './claims';
 import type {DuplicateDecision,EventRecord,IntelligenceReceipt,RoleDecision,StorylineRecord,StorylineVersion,SupportedFact} from './types';
 
 function revisionText(revision:EvidenceRevision):string {return [revision.title,revision.body].filter(Boolean).join('\n')}
@@ -84,6 +85,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   const preferredStorylines=new Map<string,string>();
   let selected:EventRecord|undefined;
   if(target) {
+   await persistClaimMentions(tx,target.revision);
    const text=revisionText(target.revision),classification=classifyRole(text);
    const role:RoleDecision={id:JSON.stringify([target.revision.id,INTELLIGENCE_POLICY]),feedId:o.feedId,evidenceId:target.item.id,evidenceRevisionId:target.revision.id,...classification,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
    await tx.write('roles',role.id,role);

@@ -6,7 +6,8 @@ import type {DownstreamJob} from '../v1-intake/types';
 import type {FeedRecord,EventRecord,StorylineRecord,StorylineVersion,DuplicateDecision,RoleDecision} from './types';
 import type {SelectionRecord} from './scoring';
 import type {BriefingEditionRecord} from './publication';
-export type DocumentKind='roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance';
+import {claimMentionSchema,assertClaimSpan,type SourceDocument} from './claims';
+export type DocumentKind='roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'claim_mentions';
 interface DocumentWrite {kind:DocumentKind;id:string;value:unknown}
 interface Snapshot {feed:FeedRecord;epoch:number;scopes:{id:string;epoch:number}[]}
 const mutable=new Set<DocumentKind>(['events','storylines','publication_status','delivery_jobs','synthesis_jobs','briefing_requests']);
@@ -84,7 +85,15 @@ export class FeedTransaction {
  }
  async validateGraph():Promise<void> {
   for(const w of this.writes.values()) {
-   if(w.kind==='events') {
+   if(w.kind==='claim_mentions') {
+    const mention=claimMentionSchema.safeParse(w.value);if(!mention.success)throw new HandoffError('SCOPE_DENIED');
+    const revision=await this.revision(mention.data.evidenceRevisionId),document=await this.read<SourceDocument>('source_documents',mention.data.sourceDocumentId);
+    if(!revision || !document?.claimMentionIds.includes(mention.data.id) || document.evidenceRevisionId!==revision.id)throw new HandoffError('SCOPE_DENIED');assertClaimSpan(mention.data,revision);
+   } else if(w.kind==='source_documents') {
+    const document=w.value as SourceDocument,revision=await this.revision(document.evidenceRevisionId);
+    if(!revision || revision.contentHash!==document.contentHash)throw new HandoffError('SCOPE_DENIED');
+    for(const id of document.claimMentionIds)if(!await this.read('claim_mentions',id))throw new HandoffError('SCOPE_DENIED');
+   } else if(w.kind==='events') {
     const root=w.value as EventRecord,version=await this.read<EventVersion>('event_versions',root.currentVersionId);
     if(!version || version.eventId!==root.id) throw new HandoffError('SCOPE_DENIED');
    } else if(w.kind==='event_versions') {
