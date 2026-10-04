@@ -3,6 +3,7 @@ import {z} from 'zod';
 import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import type {SelectionRecord} from './scoring';
+import {communicationFingerprint} from './editorial';
 import type {EventRecord,FeedRecord,StorylineRecord,StorylineVersion} from './types';
 
 export interface ClaimSupport {evidenceRevisionId:string;quote:string}
@@ -30,8 +31,12 @@ export interface BriefingEditionRecord {
 const draftSchema=z.object({language:z.string().min(1),stories:z.array(z.object({candidateId:z.string().min(1),claims:z.array(z.object({text:z.string().min(1).max(1000),support:z.array(z.object({evidenceRevisionId:z.string().min(1),quote:z.string().min(1).max(1800)}).strict()).min(1).max(3)}).strict()).max(4)}).strict()).max(20)}).strict();
 const usageSchema=z.object({tokensIn:z.number().int().nonnegative(),tokensOut:z.number().int().nonnegative(),cost:z.number().finite().nonnegative(),confirmed:z.boolean()}).strict();
 const normalize=(s:string)=>s.normalize('NFKC').replace(/\s+/g,' ').trim();
+async function assertCommunicationCurrent(tx:FeedTransaction,selection:SelectionRecord):Promise<void> {
+ if(selection.communicationFingerprint && selection.communicationFingerprint!==await communicationFingerprint(tx,selection.window.end)) throw new HandoffError('TEMPORARY_UNAVAILABLE');
+}
 async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Promise<SynthesisInput> {
  if(selection.feedRevision!==tx.snapshot.feed.revision) throw new HandoffError('SCOPE_DENIED');
+ await assertCommunicationCurrent(tx,selection);
  const active=new Set((await tx.store.currentEvidence(tx.snapshot.feed.id)).map(e=>e.revision.id)),stories:SynthesisInput['stories']=[];
  const roots=await tx.list<EventRecord>('events'),storylines=await tx.list<StorylineRecord>('storylines'),memberships=await tx.list<EventMembership>('memberships');
  let inspected=0;
@@ -76,22 +81,32 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
  const selection=await store.read<SelectionRecord>(feedId,'selections',selectionId);if(!selection) throw new HandoffError('INVALID_REQUEST');
  const editionId=await sha256(canonicalJson({feedId,start:selection.window.start,end:selection.window.end}));
  const published=await store.read<BriefingEditionRecord>(feedId,'editions',editionId);if(published) return published;
+ if(!selection.selectedCandidateIds.length) throw new HandoffError('INVALID_REQUEST');
  const started=Date.now(),token=crypto.randomUUID();
  const claimed=await feedTransact(store,feedId,async tx=>{
   const edition=await tx.read<BriefingEditionRecord>('editions',editionId);if(edition) return {edition};
   const prior=await tx.read<PublicationJob>('synthesis_jobs',editionId),now=options.now();
-  if(prior && (prior.state==='DONE' || prior.selectionId!==selectionId)) throw new HandoffError('INVALID_REQUEST');
+  if(prior?.state==='DONE') throw new HandoffError('INVALID_REQUEST');
+  if(prior && prior.selectionId!==selectionId) {
+   const old=await tx.read<SelectionRecord>('selections',prior.selectionId);
+   // A known, settled call may be superseded after publication history changes.
+   // Keep its consumed budget and attempts; unknown outcomes never reopen.
+   if(prior.state!=='PENDING' || !old?.communicationFingerprint || old.communicationFingerprint===selection.communicationFingerprint || old.feedRevision!==selection.feedRevision || canonicalJson(old.budget)!==canonicalJson(selection.budget)) throw new HandoffError('INVALID_REQUEST');
+  }
   if(prior?.state==='RUNNING' && Date.parse(prior.leaseUntil)>Date.parse(now)) throw new HandoffError('TEMPORARY_UNAVAILABLE');
   if(prior?.pendingCall || (prior?.attempts??0)>=5 || prior?.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
   const input=await selectionInput(tx,selection);
   const job:PublicationJob={id:editionId,feedId,selectionId,state:'RUNNING',attempts:(prior?.attempts??0)+1,token,leaseUntil:new Date(Date.parse(now)+selection.budget.maxWallClockMs).toISOString(),callsUsed:prior?.callsUsed??0,tokensIn:prior?.tokensIn??0,tokensOut:prior?.tokensOut??0,cost:prior?.cost??0};
-  await tx.write('synthesis_jobs',editionId,job);return {input};
+  await tx.write('synthesis_jobs',editionId,job);return {input,authorizationScopes:tx.snapshot.scopes};
  });
  if(claimed.edition) return claimed.edition;
  const input=claimed.input!;
+ const authorizationScopes=canonicalJson(claimed.authorizationScopes!);
  const callModel=async<T extends {usage:ModelUsage}>(phase:string,payload:unknown,execute:(limits:{maxOutputTokens:number;signal:AbortSignal})=>Promise<T>):Promise<T>=>{
   const model=options.model!;
   const intent=await feedTransact(store,feedId,async tx=>{
+   if(canonicalJson(tx.snapshot.scopes)!==authorizationScopes) await selectionInput(tx,selection);
+   await assertCommunicationCurrent(tx,selection);
    const job=await requireJob(tx,editionId,token,options.now()),bytes=new TextEncoder().encode(JSON.stringify(payload)).length;
    if(!Number.isFinite(model.maxCallCostUsd) || model.maxCallCostUsd<0 || job.callsUsed>=selection.budget.maxModelCalls || job.cost+model.maxCallCostUsd>selection.budget.maxCostUsd || job.tokensIn+bytes>selection.budget.maxInputTokens || job.tokensOut>=selection.budget.maxOutputTokens) throw new HandoffError('INVALID_REQUEST');
    const id=crypto.randomUUID(),remaining=selection.budget.maxOutputTokens-job.tokensOut;
