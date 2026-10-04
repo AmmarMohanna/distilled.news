@@ -1,7 +1,6 @@
 # Editorial behavior v1 implementation record
 
-This records implemented behavior and local proof. The end-to-end phase remains
-in progress; the task ledger is `docs/superpowers/plans/2026-10-04-distillation-editorial-v1.md`.
+This records implemented behavior and local proof. Local implementation and verification checkpoints are complete; human quality comparison and deployment remain pending. The task ledger is `docs/superpowers/plans/2026-10-04-distillation-editorial-v1.md`.
 The frozen architecture and connector contracts remain authoritative.
 
 ## Previous communication
@@ -106,7 +105,7 @@ Grounding now checks information preservation as well as claim entailment. Quant
 
 A reading ceiling drops an over-budget story whole. A collective preservation verdict is never reused after clipping its opposing claim, and semantic verdicts are accepted only for the complete supported proposal set. Unsupported claims remain omitted and provider-call budgets/recovery remain unchanged. Historical optional verifier results remain readable; missing preservation verdicts can pass only via conservative literal preservation.
 
-Local fixtures: government20 vs unionover100 retains both source sides and unresolved discrepancy; truthful one-sided synthesis fails; loss of 'may' fails; separate 'not approved' outcome survives as a requirement; concise verified paraphrase succeeds with both revision supports; reading-budget clipping cannot create one-sided consensus. Final preservation file: 7 passed. This is local deterministic/synthetic-verifier proof, not a human quality evaluation or deployed production proof. Quantitative/caveat detection is deliberately conservative; semantic importance and prose usefulness still require frozen human labels.
+Local fixtures: government20 vs unionover100 retains both source sides and unresolved discrepancy; truthful one-sided synthesis fails; loss of 'may' fails; separate 'not approved' outcome survives as a requirement; concise verified paraphrase succeeds with both revision supports; reading-budget clipping cannot create one-sided consensus. Initial preservation file: 7 passed; final expanded fixtures: 9 passed. This is local deterministic/synthetic-verifier proof, not a human quality evaluation or deployed production proof. Quantitative/caveat detection is deliberately conservative; semantic importance and prose usefulness still require frozen human labels.
 
 Final G verification: preservation9 +model2 =11 passed. Word quantities/quantifiers (two versus three; all versus some) and Unicode numbers are protected. Unknown/non-English representations conservatively preserve all offered complete facts; translations rely on the same grounding verdict. Independent final review reported no further material G findings. Publication isolation: seven existing tests passed; recovery still hit its unchanged5s deadline in full-file and individual reruns under current load. This remains reported rather than hidden or relaxed.
 
@@ -119,3 +118,75 @@ The separate Storyline-change experiment is not promoted into production. Frozen
 Actual local baseline measurements: eight inputs, zero model calls/tokens, cost$0, about3–12ms total scoring in small cold runs. This is not a production throughput benchmark. JEV/GPT native latency/cost/quality are unmeasured because local provider keys were unavailable. Paid smoke is opt-in and skipped; there is no provider superiority claim. Human ranking/distillation quality remains PENDING HUMAN LABELS.
 
 New draft records persist actual prompt versions; full-context extractive output records deterministic-extractive-editorial-v2. Legacy drafts without that field retain selected-evidence-v1 on resume. Earlier immutable editions retain their original provenance. RSS assertions now check the explicit new extractive/prompt versions instead of silently attributing changed behavior to v1.
+
+## Final verification in progress
+
+Scorer/evaluation milestone pushed: 3e4b583. Both JEV and GPT use OpenRouter; the owner explicitly confirmed this provider choice. Exact model IDs and local credentials remain pending. No native provider result is claimed.
+
+Fresh workspace typecheck passed all seven projects. Contracts: 44 passed. Full worker publication file: all eight tests passed, including recovery at 2.96 seconds under its unchanged five-second deadline. Earlier deadline failures remain recorded as intermittent; no deadlines/assertions were weakened.
+
+The isolated trusted-browser-api-guard still fails on .dispatchEvent( in packages/agent-runtime/src/browser.ts. Git diff from 5116318 confirms that file and its guard are untouched in this phase. Full broader verification continues.
+
+## Actual bounded OpenRouter execution
+
+After the owner supplied an ignored, untracked local environment file, one explicitly authorized smoke used existing configured IDs `typesafe/jev-1.13` and `openai/gpt-4.1-mini`. No credential was printed, tracked or committed. Earlier unavailable-key statements describe the pre-smoke state.
+
+| Execution | Result | Latency | Reported cost USD | Tokens in/out |
+|---|---|---:|---:|---:|
+| JEV salience, approval fixture | HIGH (.75), no fallback | 1062.21 ms | .000020286 | 483/50 |
+| JEV storyline, approval to signing | MAJOR_STATE_CHANGE | 283.44 ms | .000022344 | 532/72 |
+| GPT salience, identical approval input | HIGH (.75), no fallback | 935.01 ms | .000176 | 260/45 |
+| GPT storyline, identical transition | MAJOR_STATE_CHANGE | 1029.62 ms | .000236 | 326/66 |
+
+Four requests reported total cost $0.000454630, within the $0.08 reservation ceiling. These are single-fixture smoke timings, not comparative throughput or human quality measurements. The deterministic Storyline baseline calls this transition TURNING_POINT; that disagreement needs human labels, not an invented gold answer. Both actual providers' quality remains PENDING_HUMAN_LABELS. Paid harness command used Node's `--env-file=.env` to supply the process environment, explicitly enabled the smoke and fixed both model IDs. Five evaluation tests passed. No paid request is automatically repeated.
+
+## Whole-phase review corrections
+
+The initial full worker run completed 63 files with 344 passed, six failed and 17 skipped. Two tests hit unchanged five-second deadlines; both full files then passed in isolation (14 tests, 27.90 seconds). Four individual SQL failures plus a 15-test bootstrap suite setup failure came from multiline migration0043 triggers being split by older line-oriented test loaders. Formatting each trigger as one statement, matching0040, fixed the concrete compatibility defect without altering SQL or assertions. Authentication/bootstrap/product/full-migration regression rerun:29 passed. Fix pushed as29b75f6.
+
+Final review reproduced an interaction across previous-communication and disagreement handling: after publishing government20, delta-only evidence could omit its support when union100 arrived. Selection now retains necessary comparison context from the latest related edition's first two material facts. Exact immutable published claim-to-evidence references support paraphrases; old metadata retains conservative matching compatibility. Only current active revisions on the exact target qualify. Two facts with at most three published supports each bound context to six revisions, and full evidence still counts against existing input/inspection budgets. Routine corroboration stays suppressed; history is not accumulated. Selection policy increments tov5. A D1 fixture keeps20/100/unresolved with both revisions, and another rejects a later one-sided100 output while retaining the first edition. Pure20-edition history and paraphrase tests protect bounds and exact support.
+
+Focused comparison-context regression run:33 passed across preservation/editorial/treatment/scoring/facts; final exact-map pure tests:6 passed. This remains conservative bounded context, not a claim of universal semantic memory: unrelated paraphrases can still evade lexical repeat equivalence and require human evaluation.
+
+Practical root `corepack pnpm test`:scripts4/contracts44/core43/connectors100/web5 passed; agent263 passed, two failed, two opt-in skips. Known unchanged `.dispatchEvent(` guard failed as before. The other failure was runtime-timeout's generation-change `flushUntil` scheduling assertion; its complete five-test file passed in isolation unchanged. Real Chromium integration57 passed in the root run. Root recursion stopped before browser-bridge/worker, which are verified separately.
+
+Additional final checks:all seven workspace types passed; focused acquisition adapters21 passed; full build compiled packages/web/worker bundle then failed on unavailable Docker CLI for the existing container. Worker-only `wrangler deploy --dry-run --containers-rollout=none --outdir dist` passed,5040.15KiB (gzip1008.34KiB). No deployment or remote migration occurred. Full worker rerun against corrected code and standalone browser-bridge verification are pending below.
+
+## Final full worker result
+
+`corepack pnpm --filter @distilled/worker exec vitest run --maxWorkers=1` passed all 63 files:369 tests passed, two explicit opt-in tests skipped,663.43 seconds. Both prior five-second deadline failures passed unchanged, all authentication migration-loader failures passed after the formatting correction, and both new previous-edition disagreement regressions passed. The regular full suite deliberately did not load local credentials or repeat the paid smoke. Deterministic eight-input compute in this run was2.13ms with zero calls/tokens/cost, a tiny synthetic sample rather than production throughput.
+
+Implementation commits after5116318:9c103af (previous communication/quiet),69479db (live intervals),e6ca7e0 (adaptive treatment/storyline deltas),3d77bdb (disagreement grounding),3e4b583 (experimental scoring/evaluation),29b75f6 (migration-loader compatibility),0dc01bc (bounded exact prior support). The final documentation commit records verification separately.
+
+No new ownership subsystem or deployed service was added. Editorial/schedule helpers extend existing modules; EventSalienceScorer supplies the requested replaceable evaluation boundary; the standard Temporal library handles timezone rules; the separate evaluation harness does not participate in live selection. Existing connector shared wire schemas stayed unchanged. Additive0043 and optional feed/schedule/selection/claim-support/grounding/draft-provenance fields are the only persistence-contract extensions in this phase. Thirty-one repository files changed across implementation, tests, configuration/lockfile, fixtures and documentation.
+
+## Final reproducible verification commands
+
+Run from the repository root. Results below describe the corrected implementation; aggregate failures and their isolated reruns remain separately reported.
+
+| Command | Result |
+|---|---|
+| `corepack pnpm --filter @distilled/worker exec vitest run --maxWorkers=1` |63 files,369 passed,2 opt-in skips; exit0 |
+| `corepack pnpm --filter @distilled/contracts test` |44 passed |
+| `corepack pnpm typecheck` |All7 workspace projects passed, including worker/browser adapters; final exit0 |
+| `corepack pnpm --filter @distilled/browser-bridge exec vitest run --maxWorkers=1` |8 files,82 passed,56.91s |
+| `corepack pnpm --filter @distilled/agent-runtime exec vitest run test/rss-acquisition.test.ts test/http-html-acquisition.test.ts test/source-acquisition-orchestrator.test.ts test/production-source-acquisition-service.test.ts --maxWorkers=1` |4 files,21 passed |
+| `corepack pnpm --filter @distilled/worker exec vitest run src/authenticated-profile-store.test.ts src/authenticated-profile-bootstrap-trigger.test.ts src/authenticated-profile-manual-bootstrap.test.ts src/v1-intelligence/product.test.ts src/migrations-clean.test.ts --maxWorkers=1` |5 files,29 passed after migration fix |
+| `corepack pnpm --filter @distilled/worker exec vitest run src/agent-runtime-store.test.ts src/v1-intelligence/engine.test.ts --maxWorkers=1` |Both initial deadline failures isolated:14 passed; final full suite also passed |
+| `corepack pnpm --filter @distilled/worker exec vitest run src/v1-intelligence/editorial-facts.test.ts src/v1-intelligence/preservation.test.ts src/v1-intelligence/editorial.test.ts src/v1-intelligence/treatment.test.ts src/v1-intelligence/scoring.test.ts --maxWorkers=1` |33 passed before final exact-map extension; latest full suite includes34 tests across those files, all passed |
+| `corepack pnpm --filter @distilled/worker exec vitest run src/v1-intelligence/editorial-facts.test.ts --maxWorkers=1` |Final exact-support/paraphrase/bounds6 passed |
+| `corepack pnpm test` |scripts4/contracts44/core43/connectors100/web5 passed; agent263 passed,2 failed,2 skipped; recursion stops before worker/bridge |
+| `corepack pnpm --filter @distilled/agent-runtime exec vitest run test/runtime-timeout.test.ts --maxWorkers=1` |Aggregate generation-change scheduling assertion passes unchanged in isolation:5 passed |
+| `corepack pnpm --filter @distilled/agent-runtime exec vitest run test/trusted-browser-api-guard.test.ts --maxWorkers=1` |Known deterministic guard still fails on unchanged WebSocket shim; no guard weakening |
+| `corepack pnpm build` |Packages/web compiled; worker bundled; existing container build fails because Docker CLI is unavailable |
+| `corepack pnpm --filter @distilled/worker exec wrangler deploy --dry-run --containers-rollout=none --outdir dist` |Final exit0;5041.88KiB, gzip1008.74KiB; dry run only |
+
+Actual paid smoke command (model IDs are existing configuration; no credential value appears in this command):
+
+```powershell
+node --env-file=.env -e "const {spawnSync}=require('node:child_process'); const env={...process.env,DISTILLED_EDITORIAL_PAID_SMOKE:'true',DISTILLED_JEV_MODEL:'typesafe/jev-1.13',DISTILLED_EDITORIAL_GPT_MODEL:'openai/gpt-4.1-mini'}; const r=spawnSync('corepack',['pnpm','--filter','@distilled/worker','exec','vitest','run','src/v1-intelligence/editorial-evaluation.test.ts','--maxWorkers=1'],{env,stdio:'inherit',shell:true}); process.exit(r.status??1);"
+```
+
+Result:five evaluation tests passed, four native provider requests confirmed, no fallbacks, total reported cost USD0.000454630. The ignored/untracked local credential file is not committed. Do not automatically repeat this paid experiment.
+
+Persisted-state proof is local Miniflare D1/R2 only: exact EvidenceRevision/EventVersion/StorylineVersion/assessment/candidate/edition support, publication request and retry/intent state, retained historical support, source revocation and absent quiet-window edition/delivery effects were asserted. No deployed D1/R2/queue or serving production proof was inspected in this phase. All six live durations and Beirut/NewYork DST/anchor behavior passed, historical weekly remains readable, and live weekly scheduling is excluded. Budgeted context uses latest two material facts; arbitrary paraphrase equivalence, semantic relevance and human compression/usefulness remain evaluation limitations. No JEV/GPT superiority or production promotion is claimed.

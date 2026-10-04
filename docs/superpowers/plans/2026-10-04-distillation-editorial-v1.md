@@ -61,9 +61,9 @@ Files: focused salience scorer adapters, frozen unlabeled evaluation inputs/sche
 - [x] Verify harness reproduces input identities and never changes frozen labels; commit and push.
 
 ### 6. Whole-phase behavior review and verification
-- [ ] Review important-information suppression, continuity, uncertainty, exact provenance, quiet windows and unnecessary abstractions.
-- [ ] Run affected focused and broader suites, full worker, contracts, workspace types/builds and practical workspace tests; isolate failures without weakening assertions/timeouts.
-- [ ] Push clean checkpoint and verify remote HEAD; deploy only after confirmed authorized target, otherwise explicitly report local proof and deployment dependency.
+- [x] Review important-information suppression, continuity, uncertainty, exact provenance, quiet windows and unnecessary abstractions.
+- [x] Run affected focused and broader suites, full worker, contracts, workspace types/builds and practical workspace tests; isolate failures without weakening assertions/timeouts.
+- [x] Push implementation checkpoints; close with final report commit and verified remote/clean status. Deployment remains pending a confirmed authorized target.
 
 ## Progress ledger
 
@@ -93,3 +93,7 @@ Milestone G: extended existing grounding call with required-fact preservation an
 Milestone I/evaluation: deterministic live scorer seam and experimental JEV/GPT adapters, separate Storyline judge, frozen unlabeled corpus, strict input/output-bound human label contracts and event/distillation metrics implemented. Actual deterministic measurements zero calls/cost; native provider experiments unavailablelocalkeys; quality pending genuinehumanlabels. Synthetic transports/arithmetic only are not human gold. Cost-overrun accounting review defect reproducedREDandfixed; late-result/unknown-call closure tested. Independent final review no materialremainingfinding. Broaderverification follows.
 
 Latest I focused verification: scoring/treatment/RSS/model/salience/evaluation — 6 files, 20 passed, 2 explicit opt-in skips; worker typecheck passed. User clarified both JEV and GPT must use OpenRouter. Both experimental adapters already do; exact model IDs and a local key are pending, so native calls remain unmeasured.
+
+Final review corrected migration loader compatibility and bounded exact prior material support (0dc01bc). Reviewer reports no further material findings. Full worker corrected rerun:63 files,369 passed,2 opt-in skipped; all earlier SQL/deadline failures passed without assertion/timeout changes. Native OpenRouter smoke subsequently succeeded four calls USD0.000454630 after owner supplied ignored localkey; human quality still pending. Standalone bridge/final cleanpush verification follows.
+
+Final corrected fullworker369pass2skip/63files; standalonebridge82pass; final7workspacetypespass; finalworker-onlydryrunpass5041.88KiB. Rootknownbrowserguardfailurepersists; generation-change scheduling failurepassedisolated5tests. Exact commands and concrete persisted-state examples are recorded in documentation/V1_EDITORIAL_BEHAVIOR.md. Humanlabels/deployedproof remain external dependencies, not claims of completion.

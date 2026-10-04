@@ -70,3 +70,17 @@ Measured locally before checkpoint: deterministic eight-input runs used zero cal
 Only with authorized local credentials, explicitly set `DISTILLED_EDITORIAL_PAID_SMOKE=true`, `OPENROUTER_API_KEY`, `DISTILLED_JEV_MODEL`, and `DISTILLED_EDITORIAL_GPT_MODEL`, then run the command above. It validates both model names before spending. It makes at most one Event and one separate Storyline request per provider: four requests with total reserved cost ceiling$0.08, response limit8KB and five-second deadlines. Actual unexpected overruns are recorded and stop that client. The output says `SMOKE_ONLY_NOT_COMPARATIVE_QUALITY`; one input is not a comparative benchmark. Do not repeat a lost-outcome smoke automatically or publish credentials/results with source secrets. Complete the frozen human-label protocol before larger quality experiments.
 
 No deployment or remote migration is part of this harness.
+
+## Local credential setup on Windows
+
+The Vitest harness reads process environment variables; it does not automatically load `.env`, `.env.local` or Wrangler's `apps/worker/.dev.vars`. Do not put credentials in `.env.example` or tracked files. In the PowerShell window that will launch the harness, enter the key through a hidden prompt:
+
+```powershell
+$secret = Read-Host "OpenRouter API key" -AsSecureString
+$env:OPENROUTER_API_KEY = [System.Net.NetworkCredential]::new("", $secret).Password
+Remove-Variable secret
+```
+
+Set `DISTILLED_JEV_MODEL` and `DISTILLED_EDITORIAL_GPT_MODEL` to the explicitly chosen OpenRouter model IDs. Both transports use OpenRouter. Set the paid-smoke opt-in only when ready to execute the bounded command. Variables set in a separate terminal are not automatically available to an already-running Codex process. After the experiment, remove the session key with `Remove-Item Env:OPENROUTER_API_KEY`.
+
+An owner-authorized native smoke was subsequently measured on 2026-10-04: four successful OpenRouter calls using the existing configured JEV/GPT IDs, total reported cost USD0.000454630. See documentation/V1_EDITORIAL_BEHAVIOR.md for exact per-call timings/usage and limitations. Single-fixture success does not establish comparative human quality or provider superiority. The local environment file is ignored/untracked and is not part of this checkpoint.
