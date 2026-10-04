@@ -4,8 +4,9 @@ import type {AcceptedInput,DownstreamJob} from '../v1-intake/types';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {INTELLIGENCE_POLICY,classifyRole,duplicateSimilarity,features} from './policies';
 import {deterministicMatchers,validateEventMatch,validateStorylineMatch,type IntelligenceMatchers,type EventMatchInput} from './matchers';
-import {persistClaimMentions} from './claims';
-import {refreshSourceCorrectionObligations} from './ledger';
+import {persistClaimMentions,type ClaimMention} from './claims';
+import {validateConstruction,persistEventSemanticState,persistStorylineMemory,type SemanticGroup,type EventSemanticState,type Proposition} from './semantic-state';
+import {refreshSourceCorrectionObligations,recordCorrectionObligation,type LedgerEntry} from './ledger';
 import {scheduleRematch} from './rematch';
 import type {DuplicateDecision,EventRecord,IntelligenceReceipt,RoleDecision,StorylineRecord,StorylineVersion,SupportedFact} from './types';
 
@@ -13,17 +14,22 @@ function revisionText(revision:EvidenceRevision):string {return [revision.title,
 export async function eventMemberships(tx:FeedTransaction,versionId:string):Promise<EventMembership[]> {
  return (await tx.list<EventMembership>('memberships')).filter(m=>m.eventVersionId===versionId);
 }
-async function versionEvent(tx:FeedTransaction,event:EventRecord,revisions:EvidenceRevision[],now:string):Promise<EventVersion> {
+async function versionEvent(tx:FeedTransaction,event:EventRecord,revisions:EvidenceRevision[],now:string,binding?:{group:SemanticGroup;provenance:import('./matchers').MatchProvenance}):Promise<EventVersion> {
  const old=await tx.read<EventVersion>('event_versions',event.currentVersionId);
  const ordered=[...revisions].sort((a,b)=>(b.publishedAt??b.acceptedAt).localeCompare(a.publishedAt??a.acceptedAt)||a.id.localeCompare(b.id));
- const text=ordered.map(r=>r.body??r.title??'').join('\n').slice(0,2400);
+ if(binding && old){
+  const previous=await tx.read<EventSemanticState>('event_semantic_states',old.id),activeIds=new Set(revisions.map(r=>r.id));
+  for(const id of previous?.propositionIds??[]){const p=await tx.read<Proposition>('propositions',id);if(p && p.evidenceRevisionIds.every(id=>activeIds.has(id)))for(const mentionId of p.claimMentionIds)if(!binding.group.claimMentionIds.includes(mentionId))binding.group.claimMentionIds.push(mentionId)}
+ }
+ const exact=binding?(await tx.list<ClaimMention>('claim_mentions')).filter(m=>binding.group.claimMentionIds.includes(m.id)):[];
+ const text=binding?exact.map(m=>m.sourceText).join('\n'):ordered.map(r=>r.body??r.title??'').join('\n').slice(0,2400);
  const value:EventVersion={id:crypto.randomUUID(),eventId:event.id,feedId:tx.snapshot.feed.id,version:(old?.version??0)+1,title:ordered[0]?.title??ordered[0]?.body?.slice(0,120)??old?.title,type:ordered.length?features(revisionText(ordered[0])).development:'WITHDRAWN',entities:[...new Set(ordered.flatMap(r=>features(revisionText(r)).entities))],geography:[],state:text,confidence:ordered.length?.6:0,algorithmVersion:INTELLIGENCE_POLICY,createdAt:now};
  await tx.write('event_versions',value.id,value);
  for(const r of ordered) {
   const membership:EventMembership={id:JSON.stringify([value.id,r.id]),eventVersionId:value.id,evidenceRevisionId:r.id,confidence:.6,algorithmVersion:INTELLIGENCE_POLICY,createdAt:now};
   await tx.write('memberships',membership.id,membership);
  }
- await tx.write('events',event.id,{...event,currentVersionId:value.id});return value;
+ await tx.write('events',event.id,{...event,currentVersionId:value.id});await persistEventSemanticState(tx,value,now,binding);return value;
 }
 async function supportingRevisions(tx:FeedTransaction,event:EventRecord):Promise<EvidenceRevision[]> {
  const members=await eventMemberships(tx,event.currentVersionId),rows=await Promise.all(members.map(m=>tx.revision(m.evidenceRevisionId)));
@@ -41,7 +47,8 @@ async function updateStorylines(tx:FeedTransaction,changed:EventVersion[],now:st
   let group:ReturnType<typeof groups.get>;
   const input={event,candidates:[...groups.values()].map(candidate=>({id:candidate.root.id,events:[...candidate.original,...candidate.events.values()]}))};
   const known=preferred.get(event.eventId);
-  const decision=validateStorylineMatch(known?{relation:'CONTINUES',storylineId:known,confidence:1,provenance:{scorer:'PREPARED',policyVersion:'event-structure-continuity-v1'}}:matchers.storyline.match(input),input);
+  const semantic=await tx.read<EventSemanticState>('event_semantic_states',event.id),forceNew=semantic?.structuralRelation==='NEW_STORYLINE' && !known;
+  const decision=validateStorylineMatch(known?{relation:'CONTINUES',storylineId:known,confidence:1,provenance:{scorer:'PREPARED',policyVersion:'event-structure-continuity-v1'}}:forceNew?{relation:'NEW',confidence:1,provenance:semantic!.provenance}:matchers.storyline.match(input),input);
   if(decision.relation==='CONTINUES')group=groups.get(decision.storylineId!);
   if(!group) {
    if(event.type==='WITHDRAWN') continue;
@@ -58,12 +65,15 @@ async function updateStorylines(tx:FeedTransaction,changed:EventVersion[],now:st
   for(const e of exact) {
    const members=await eventMemberships(tx,e.id),revisions=await Promise.all(members.map(m=>tx.revision(m.evidenceRevisionId)));
    const first=revisions.filter((r):r is EvidenceRevision=>Boolean(r)).sort((a,b)=>(a.publishedAt??a.acceptedAt).localeCompare(b.publishedAt??b.acceptedAt))[0];
-   if(first?.body) facts.push({text:first.body.slice(0,500),eventVersionId:e.id,evidenceRevisionIds:[first.id]});
+   const state=await tx.read<EventSemanticState>('event_semantic_states',e.id);
+   if(state && state.provenance.scorer!=='DETERMINISTIC_FOUNDATION'){for(const id of state.propositionIds){const p=await tx.read<Proposition>('propositions',id);if(p)facts.push({text:p.text,eventVersionId:e.id,evidenceRevisionIds:p.evidenceRevisionIds})}}
+   else if(first?.body) facts.push({text:first.body.slice(0,500),eventVersionId:e.id,evidenceRevisionIds:[first.id]});
    chronology.push({eventVersionId:e.id,observedAt:first?.publishedAt??e.createdAt,title:e.title??''});
   }
   chronology.sort((a,b)=>a.observedAt.localeCompare(b.observedAt)||a.eventVersionId.localeCompare(b.eventVersionId));
   const version:StorylineVersion={id:crypto.randomUUID(),storylineId:root.id,feedId:tx.snapshot.feed.id,version:(old?.version??0)+1,eventVersionIds:chronology.map(c=>c.eventVersionId),entities:[...new Set(exact.flatMap(e=>e.entities))],chronology,supportedFacts:facts,previousState:old?.currentState,currentState:facts.map(f=>f.text).join('\n'),turningPoints:facts.filter(f=>group.changed.has(f.eventVersionId)),confidence:exact.length?.6:0,algorithmVersion:INTELLIGENCE_POLICY,createdAt:now};
   await tx.write('storyline_versions',version.id,version);await tx.write('storylines',root.id,{...root,currentVersionId:version.id});
+  await persistStorylineMemory(tx,version,now);
   root.currentVersionId=version.id;changedIds.push(version.id);
  }
  return changedIds;
@@ -87,6 +97,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   const events=await tx.list<EventRecord>('events'),changed:EventVersion[]=[];
   const preferredStorylines=new Map<string,string>();
   let selected:EventRecord|undefined;
+  const selectedEvents:EventRecord[]=[],bindings=new Map<string,{group:SemanticGroup;provenance:import('./matchers').MatchProvenance}>();
   if(target) {
    await persistClaimMentions(tx,target.revision);
    const text=revisionText(target.revision),classification=classifyRole(text);
@@ -112,7 +123,8 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
      const newest=revisions.map(r=>r.publishedAt??r.acceptedAt).sort((a,b)=>Date.parse(a)-Date.parse(b)).at(-1)??version.createdAt;
      candidates.push({id:event.id,version,evidenceRevisionIds:members.map(m=>m.evidenceRevisionId),newestAt:newest});
     }
-   const matchInput={revision:target.revision,role:role.role,duplicateOfRevisionId:duplicate.duplicateOfRevisionId,candidates,storylineIds:(await tx.list<StorylineRecord>('storylines')).map(s=>s.id)};
+   const storylineRoots=await tx.list<StorylineRecord>('storylines');
+   const matchInput={revision:target.revision,role:role.role,duplicateOfRevisionId:duplicate.duplicateOfRevisionId,candidates,storylineIds:storylineRoots.map(s=>s.id),storylineVersions:Object.fromEntries(storylineRoots.map(s=>[s.id,s.currentVersionId]))};
    const decision=validateEventMatch(matchers.event.match(matchInput),matchInput);
    if(decision.structuralRelation==='SAME_EVENT')selected=events.find(e=>e.id===decision.eventId);
    else if(decision.structuralRelation!=='DEFER')selected={id:crypto.randomUUID(),feedId:o.feedId,currentVersionId:'',createdAt:now};
@@ -124,18 +136,34 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
     await scheduleRematch(tx,jobId,target.revision.id,now);
    }
    if(selected && decision.storylineId)preferredStorylines.set(selected.id,decision.storylineId);
+   const construction=matchers.construction?.(matchInput);
+   if(construction){
+    if(construction.originDependencyLabel){const id=JSON.stringify([target.revision.id,construction.provenance.judgmentId??construction.provenance.policyVersion]);await tx.write('source_origins',id,{id,feedId:o.feedId,evidenceRevisionId:target.revision.id,dependencyLabel:construction.originDependencyLabel,provenance:construction.provenance,policyVersion:'information-origin-v1'})}
+    const mentions=(await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id);validateConstruction(construction,mentions);
+    for(const group of construction.groups){
+     const d=validateEventMatch({structuralRelation:group.structuralRelation,eventId:group.eventId??undefined,storylineId:group.storylineId??undefined,epistemicEffects:group.epistemicEffects,confidence:decision.confidence,provenance:construction.provenance},matchInput);
+     const root=d.structuralRelation==='SAME_EVENT'?events.find(e=>e.id===d.eventId)!:{id:crypto.randomUUID(),feedId:o.feedId,currentVersionId:'',createdAt:now};
+     if(selectedEvents.some(e=>e.id===root.id))throw new HandoffError('SCOPE_DENIED');selectedEvents.push(root);bindings.set(root.id,{group:structuredClone(group),provenance:construction.provenance});
+     if(d.storylineId)preferredStorylines.set(root.id,d.storylineId);
+    }
+   }else if(selected){selectedEvents.push(selected);if(decision.provenance.scorer!=='DETERMINISTIC')bindings.set(selected.id,{group:{claimMentionIds:(await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id).map(m=>m.id),structuralRelation:decision.structuralRelation,eventId:decision.eventId??null,storylineId:decision.storylineId??null,epistemicEffects:decision.epistemicEffects,entities:[],slots:[]},provenance:decision.provenance})}
   }
   // Replace old support from this stable evidence identity, including reassignment/withdrawal.
   for(const event of events) {
    const previous=await supportingRevisions(tx,event),removed=previous.filter(r=>r.evidenceId!==current.value.id);
-   if(removed.length!==previous.length && event.id!==selected?.id) changed.push(await versionEvent(tx,event,removed,now));
+   if(removed.length!==previous.length && !selectedEvents.some(e=>e.id===event.id)) changed.push(await versionEvent(tx,event,removed,now));
   }
-  if(selected && target) {
+  for(const selected of selectedEvents)if(target) {
    const previous=selected.currentVersionId?await supportingRevisions(tx,selected):[];
-   changed.push(await versionEvent(tx,selected,[...previous.filter(r=>r.evidenceId!==target.item.id),target.revision],now));
+   changed.push(await versionEvent(tx,selected,[...previous.filter(r=>r.evidenceId!==target.item.id),target.revision],now,bindings.get(selected.id)));
   }
   receipt.decision=target?'PROCESSED':'WITHDRAWN';receipt.eventVersionIds=changed.map(e=>e.id);receipt.storylineVersionIds=await updateStorylines(tx,changed,now,matchers,preferredStorylines);
   await refreshSourceCorrectionObligations(tx,now);
+  for(const [eventId,binding] of bindings)for(const entry of await tx.list<LedgerEntry>('ledger_entries'))if(entry.eventIds.includes(eventId) || preferredStorylines.has(eventId) && entry.storylineIds.includes(preferredStorylines.get(eventId)!)){
+   const trigger=binding.provenance.judgmentId??target?.revision.id??jobId;
+   if(binding.group.epistemicEffects.includes('CONTRADICTS'))await recordCorrectionObligation(tx,entry,'CONTRADICTED',trigger,now);
+   if(binding.group.epistemicEffects.includes('RETRACTS'))await recordCorrectionObligation(tx,entry,'RETRACTED',trigger,now);
+  }
   await tx.write('intelligence_receipts',receiptId,receipt);tx.completeJob(job);return receipt;
  });
 }

@@ -7,7 +7,7 @@ import type {FeedRecord,EventRecord,StorylineRecord,StorylineVersion,DuplicateDe
 import type {SelectionRecord} from './scoring';
 import type {BriefingEditionRecord} from './publication';
 import {claimMentionSchema,assertClaimSpan,type SourceDocument} from './claims';
-export type DocumentKind='roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts';
+export type DocumentKind='roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts'|'entities'|'propositions'|'state_slots'|'event_semantic_states'|'storyline_memories'|'source_origins';
 interface DocumentWrite {kind:DocumentKind;id:string;value:unknown}
 interface Snapshot {feed:FeedRecord;epoch:number;scopes:{id:string;epoch:number}[]}
 const mutable=new Set<DocumentKind>(['events','storylines','publication_status','delivery_jobs','synthesis_jobs','briefing_requests']);
@@ -85,7 +85,19 @@ export class FeedTransaction {
  }
  async validateGraph():Promise<void> {
   for(const w of this.writes.values()) {
-   if(w.kind==='claim_mentions') {
+   if(w.kind==='propositions') {
+    const p=w.value as import('./semantic-state').Proposition;
+    if(p.kind!=='TEXT'||!p.claimMentionIds.length||!p.evidenceRevisionIds.length)throw new HandoffError('SCOPE_DENIED');
+    for(const id of p.claimMentionIds){const mention=await this.read<import('./claims').ClaimMention>('claim_mentions',id);if(!mention||!p.evidenceRevisionIds.includes(mention.evidenceRevisionId)||p.text!==mention.sourceText)throw new HandoffError('SCOPE_DENIED')}
+   }else if(w.kind==='state_slots'){
+    const s=w.value as import('./semantic-state').StateSlot,p=await this.read<import('./semantic-state').Proposition>('propositions',s.propositionId),m=await this.read<import('./claims').ClaimMention>('claim_mentions',s.claimMentionId);
+    if(!p||!m||!p.claimMentionIds.includes(m.id)||!m.sourceText.includes(s.value)||s.asOf && !m.sourceText.includes(s.asOf)||s.entityId && !await this.read('entities',s.entityId))throw new HandoffError('SCOPE_DENIED');
+   }else if(w.kind==='event_semantic_states'){
+    const s=w.value as import('./semantic-state').EventSemanticState;if(!await this.read('event_versions',s.eventVersionId))throw new HandoffError('SCOPE_DENIED');
+    for(const id of s.propositionIds){const p=await this.read<import('./semantic-state').Proposition>('propositions',id);if(!p)throw new HandoffError('SCOPE_DENIED');for(const evidenceId of p.evidenceRevisionIds)if(!await this.read('memberships',JSON.stringify([s.eventVersionId,evidenceId])))throw new HandoffError('SCOPE_DENIED')}
+   }else if(w.kind==='storyline_memories'){
+    const m=w.value as import('./semantic-state').StorylineMemory,v=await this.read<StorylineVersion>('storyline_versions',m.storylineVersionId);if(!v||m.storylineId!==v.storylineId||canonicalJson(m.eventVersionIds)!==canonicalJson(v.eventVersionIds))throw new HandoffError('SCOPE_DENIED');for(const id of m.propositionIds)if(!await this.read('propositions',id))throw new HandoffError('SCOPE_DENIED');
+   }else if(w.kind==='claim_mentions') {
     const mention=claimMentionSchema.safeParse(w.value);if(!mention.success)throw new HandoffError('SCOPE_DENIED');
     const revision=await this.revision(mention.data.evidenceRevisionId),document=await this.read<SourceDocument>('source_documents',mention.data.sourceDocumentId);
     if(!revision || !document?.claimMentionIds.includes(mention.data.id) || document.evidenceRevisionId!==revision.id)throw new HandoffError('SCOPE_DENIED');assertClaimSpan(mention.data,revision);

@@ -15,7 +15,7 @@ afterEach(async()=>ctx.dispose());
 it('prepares strong construction outside CAS and consumes persisted judgment without a second call',async()=>{
  const intake=new V1IntakeStore(ctx.db),accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batchFixture());
  await acceptAcquiredContent(intake,{id:'content',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-1',body:'Officials confirmed the banking reform passed.',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);
- let calls=0;const usage={calls:1,costUsd:.001,reported:true},strong={model:'fake-strong',usage:()=>usage,complete:async()=>{calls++;return {value:{structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:['CHANGES_STATE'],confidence:.9},usage}}};
+ let calls=0;const usage={calls:1,costUsd:.001,reported:true},strong={model:'fake-strong',usage:()=>usage,complete:async(_feedId:string,_phase:string,state:any)=>{calls++;return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:['CHANGES_STATE'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
  const job=JSON.stringify(['REASSESS','observation-1','']);
  const prepared=await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(prepared?.prepared.decision.provenance.scorer).toBe('GPT');
  await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});

@@ -32,6 +32,8 @@ export async function publisherIdentity(tx:FeedTransaction,revision:EvidenceRevi
 export async function independentSupportCount(tx:FeedTransaction,revisions:EvidenceRevision[]):Promise<number> {
  const groups=new Map<string,Set<string>>();
  for(const revision of revisions) {
+  const source=(await tx.list<import('./claims').SourceDocument>('source_documents')).find(d=>d.evidenceRevisionId===revision.id),inferred=(await tx.list<{id:string;evidenceRevisionId:string;dependencyLabel:string}>('source_origins')).find(o=>o.evidenceRevisionId===revision.id);
+  const origin=inferred?.dependencyLabel??(source?.origin.kind==='EXPLICIT_DEPENDENCY'?source.origin.label:undefined);
   let group=revision.id;const visited=new Set<string>();
   for(let depth=0;depth<100;depth++) {
    if(visited.has(group)) throw new HandoffError('INVALID_REQUEST');visited.add(group);
@@ -39,6 +41,7 @@ export async function independentSupportCount(tx:FeedTransaction,revisions:Evide
    if(!decision?.duplicateOfRevisionId) break;group=decision.duplicateOfRevisionId;
    if(depth===99) throw new HandoffError('INVALID_REQUEST');
   }
+  if(origin)group=`origin:${origin.normalize('NFKC').trim().toLowerCase()}`;
   const publishers=groups.get(group)??new Set<string>();publishers.add(await publisherIdentity(tx,revision));groups.set(group,publishers);
  }
  // Maximum bipartite matching counts neither copied groups nor repeated publishers twice.

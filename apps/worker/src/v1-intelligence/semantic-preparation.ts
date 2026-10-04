@@ -11,6 +11,9 @@ import {SEMANTIC_POLICY,escalationReasons,preparedMatchers,type PreparedSemantic
 import {OpenRouterJudgmentClient} from './salience';
 import {durableSemanticOperation} from './semantic-operations';
 import {createStrongSemanticModel,type StrongSemanticModel} from './semantic-model';
+import {extractClaimMentions} from './claims';
+import {parseConstruction,constructionWireSchema,constructionSchema} from './semantic-construction';
+import type {SemanticConstruction,Entity,StorylineMemory} from './semantic-state';
 const effects=['CORROBORATES','ADDS_DETAIL','CHANGES_STATE','CHANGES_CERTAINTY','CONTRADICTS','CORRECTS','RETRACTS'] as const;
 const decisionSchema=z.object({structuralRelation:z.enum(['SAME_EVENT','NEW_EVENT_EXISTING_STORYLINE','NEW_STORYLINE','DEFER']),eventId:z.string().nullable(),storylineId:z.string().nullable(),epistemicEffects:z.array(z.enum(effects)).max(7),confidence:z.number().min(0).max(1)}).strict();
 export const relationWireSchema={type:'object',additionalProperties:false,required:['structuralRelation','eventId','storylineId','epistemicEffects','confidence'],properties:{structuralRelation:{type:'string',enum:['SAME_EVENT','NEW_EVENT_EXISTING_STORYLINE','NEW_STORYLINE','DEFER']},eventId:{type:['string','null']},storylineId:{type:['string','null']},epistemicEffects:{type:'array',maxItems:7,items:{type:'string',enum:effects}},confidence:{type:'number',minimum:0,maximum:1}}};
@@ -27,12 +30,16 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
   if(!version||version.type==='WITHDRAWN'||!support.length||support.some(id=>!activeIds.has(id)))continue;
   candidates.push({id:root.id,version,evidenceRevisionIds:support,newestAt:version.createdAt});
  }
- candidates.sort((a,b)=>overlap(features(revision.body??'').keywords,features(b.version.state).keywords)-overlap(features(revision.body??'').keywords,features(a.version.state).keywords)||b.newestAt.localeCompare(a.newestAt));
- const shortlist=candidates.slice(0,4),storylines=(await store.list<StorylineRecord>(job.feedId,'storylines')).slice(-4);
+ const entityMemory=await store.list<Entity>(job.feedId,'entities'),entityAnchors=entityMemory.filter(e=>e.aliases.some(a=>(revision.body??'').includes(a)));
+ const priority=(c:EventMatchInput['candidates'][number])=>overlap(features(revision.body??'').keywords,features(c.version.state).keywords)+entityAnchors.filter(e=>e.aliases.some(a=>c.version.state.includes(a))).length;
+ candidates.sort((a,b)=>priority(b)-priority(a)||b.newestAt.localeCompare(a.newestAt));
+ const shortlist=candidates.slice(0,4),storylines:StorylineRecord[]=[];
+ for(const root of await store.list<StorylineRecord>(job.feedId,'storylines')){const version=await store.read<import('./types').StorylineVersion>(job.feedId,'storyline_versions',root.currentVersionId);if(version?.eventVersionIds.length && version.eventVersionIds.every(id=>candidates.some(c=>c.version.id===id)))storylines.push(root)}
+ storylines.splice(0,Math.max(0,storylines.length-4));
  const input:EventMatchInput={revision,role:classifyRole(revision.body??'').role,candidates:shortlist,storylineIds:storylines.map(s=>s.id)};
- const memory=await Promise.all(storylines.map(async s=>({id:s.id,version:await store.read<any>(job.feedId,'storyline_versions',s.currentVersionId)})));
+ const memory=await Promise.all(storylines.map(async s=>({id:s.id,version:await store.read<any>(job.feedId,'storyline_versions',s.currentVersionId),structured:await store.read<StorylineMemory>(job.feedId,'storyline_memories',s.currentVersionId)})));
  const state={source:{id:revision.id,text:(revision.body??revision.title??'').slice(0,2600)},events:shortlist.map(c=>({id:c.id,versionId:c.version.id,state:c.version.state.slice(0,500)})),storylines:memory.map(s=>({id:s.id,state:String(s.version?.currentState??'').slice(0,350)})),instruction:'Judge only supplied approved evidence. Separate bounded developments from ongoing Storylines. Preserve attributed conflicting claims and hedges. Structural identity is independent of epistemic effects. No external facts.'};
- const evidenceRevisionIds=[...new Set([revision.id,...shortlist.flatMap(c=>c.evidenceRevisionIds)])],operation={feedId:job.feedId,feedRevision:feed.revision,evidenceRevisionIds,policyVersion:SEMANTIC_POLICY,budgetKey:`semantic:${now.slice(0,10)}`,state:{...state,attempt:options.attempt??0}};
+ const evidenceRevisionIds=[...new Set([revision.id,...shortlist.flatMap(c=>c.evidenceRevisionIds),...memory.flatMap(m=>members.filter(x=>m.version?.eventVersionIds.includes(x.eventVersionId)).map(x=>x.evidenceRevisionId))])],operation={feedId:job.feedId,feedRevision:feed.revision,evidenceRevisionIds,policyVersion:SEMANTIC_POLICY,budgetKey:`semantic:${now.slice(0,10)}`,state:{...state,attempt:options.attempt??0}};
  let decision:EventMatchDecision={structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'NO_ACCEPTED_JUDGMENT'}},reasons=['CONSTRUCTION'];
  if(shortlist.length && env.OPENROUTER_API_KEY){
   const client=new OpenRouterJudgmentClient({kind:'JEV',model:env.V1_JEV_SALIENCE_MODEL??'typesafe/jev-1.13',apiKey:env.OPENROUTER_API_KEY,maxCalls:1,maxCostUsd:.02,maxCallCostUsd:.02,timeoutMs:10000,fetcher:options.fetcher});
@@ -46,14 +53,18 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
    if(!eventIndex || Number(eventIndex[1])!==0 || checks.forwardEntailment===undefined || checks.forwardEntailment<.9 || checks.reverseEntailment===undefined || checks.reverseEntailment<.9)reasons.push('ENTAILMENT_REVIEW');
   }
  }
- const strong=options.strong??createStrongSemanticModel(env,options.fetcher);
- if(reasons.length && strong){
-  const saved=await durableSemanticOperation(store,{...operation,kind:'RELATION_ESCALATION',model:strong.model,state:{...operation.state,prior:decision,reasons}},async()=>{
-   const result=await strong.complete(job.feedId,'SEMANTIC_RELATION',{...state,reasons,prior:decision},relationWireSchema),parsed=decisionSchema.parse(result.value);
-   return {value:validateEventMatch({...parsed,eventId:parsed.eventId??undefined,storylineId:parsed.storylineId??undefined,provenance:{scorer:'GPT',policyVersion:SEMANTIC_POLICY}},input),usage:result.usage};
+ const strong=options.strong??createStrongSemanticModel(env,options.fetcher),{mentions}=await extractClaimMentions(revision);let construction:SemanticConstruction|undefined;
+ if(mentions.length>1)reasons.push('MULTI_MENTION_CONSTRUCTION');
+ if(reasons.length && strong && mentions.length<=32 && mentions.every(m=>m.sourceText.length<=1800)){
+  const constructionState={...operation.state,prior:decision,reasons,knownEntities:entityMemory.slice(-20).map(e=>({entityId:e.entityId,canonicalLabel:e.canonicalLabel,aliases:e.aliases})),claimMentions:mentions.map(m=>({id:m.id,text:m.sourceText,reportingRoleHint:m.reportingRole,certainty:m.certainty,attribution:m.attribution})),memory:memory.map(m=>({id:m.id,versionId:m.version?.id,propositionIds:m.structured?.propositionIds,lifecycle:m.structured?.lifecycle})),instruction:state.instruction+' Group exact ClaimMention IDs into bounded developments; an article may contain multiple Events. Background labels cannot discard material quantities, attribution, negation or uncertainty. New developments may continue a supplied Storyline. Entities and multilingual aliases must be supported by supplied mention text; no external IDs required. Slots are opportunistic: only offered controlled attributes and exact source values/asOf text; otherwise keep TEXT propositions. Return every mention in a group or background. Do not synthesize prose facts.'};
+  const saved=await durableSemanticOperation(store,{...operation,kind:'SEMANTIC_CONSTRUCTION',model:strong.model,state:constructionState},async()=>{
+   const result=await strong.complete(job.feedId,'SEMANTIC_CONSTRUCTION',constructionState,constructionWireSchema),parsed=constructionSchema.parse(result.value),value=parseConstruction(result.value,mentions,input,{scorer:'GPT',policyVersion:SEMANTIC_POLICY});
+   return {value:{construction:value,confidence:parsed.confidence},usage:result.usage};
   },now,()=>strong.usage());
-  if(saved.status==='SUCCEEDED'&&saved.value && saved.value.confidence>=.6)decision={...saved.value,provenance:{...saved.value.provenance,judgmentId:saved.id}};
+  if(saved.status==='SUCCEEDED'&&saved.value && saved.value.confidence>=.6){construction={...saved.value.construction,provenance:{...saved.value.construction.provenance,judgmentId:saved.id}};const first=construction.groups[0];decision={structuralRelation:first.structuralRelation,eventId:first.eventId??undefined,storylineId:first.storylineId??undefined,epistemicEffects:[...new Set(construction.groups.flatMap(g=>g.epistemicEffects))],confidence:saved.value.confidence,provenance:construction.provenance}}
   else decision={structuralRelation:'DEFER',epistemicEffects:decision.epistemicEffects,confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:saved.failure}};
  }else if(reasons.length)decision={structuralRelation:'DEFER',epistemicEffects:decision.epistemicEffects,confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'STRONG_MODEL_UNAVAILABLE'}};
- const prepared:PreparedSemanticMatch={revisionId:revision.id,candidateVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),decision};return {input,prepared,matchers:preparedMatchers(prepared)};
+ const prepared:PreparedSemanticMatch={revisionId:revision.id,candidateVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),storylineVersions:Object.fromEntries(storylines.map(s=>[s.id,s.currentVersionId])),decision},matchers=preparedMatchers(prepared);
+ if(construction)matchers.construction=current=>matchers.event.match(current).provenance.judgmentId===decision.provenance.judgmentId?structuredClone(construction):undefined;
+ return {input,prepared,matchers};
 }

@@ -11,10 +11,10 @@ export function escalationReasons(decision:EventMatchDecision,checks:{forwardEnt
  if(decision.epistemicEffects.some(e=>protectedEffects.has(e)))reasons.push('HIGH_CONSEQUENCE');
  if(['NEW_STORYLINE','NEW_EVENT_EXISTING_STORYLINE'].includes(decision.structuralRelation))reasons.push('CONSTRUCTION');return reasons;
 }
-export interface PreparedSemanticMatch {revisionId:string;candidateVersions:Record<string,string>;decision:EventMatchDecision}
+export interface PreparedSemanticMatch {revisionId:string;candidateVersions:Record<string,string>;storylineVersions?:Record<string,string>;decision:EventMatchDecision}
 export function preparedMatchers(prepared:PreparedSemanticMatch):IntelligenceMatchers {
  return {event:{match:(input:EventMatchInput)=>{
-  if(input.revision.id!==prepared.revisionId || Object.entries(prepared.candidateVersions).some(([id,version])=>!input.candidates.some(c=>c.id===id && c.version.id===version)))return {structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'STALE_PREPARED_MEMORY'}};
+  if(input.revision.id!==prepared.revisionId || Object.entries(prepared.candidateVersions).some(([id,version])=>!input.candidates.some(c=>c.id===id && c.version.id===version)) || Object.entries(prepared.storylineVersions??{}).some(([id,version])=>input.storylineVersions?.[id]!==version))return {structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'STALE_PREPARED_MEMORY'}};
   return validateEventMatch(prepared.decision,input);
  }},storyline:deterministicMatchers.storyline};
 }
