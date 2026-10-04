@@ -6,6 +6,10 @@
 **Implementation:** The current repository's [acquisition benchmark](../evaluation/acquisition-benchmark/README.md).  
 **Status:** Commands and configuration are based on the implemented CLI. Local offline verification does not establish that a particular VPS, account, provider, or live source works; `server-check` and the Stage 1 pilot establish that.
 
+**Production connector work:** [Source providers and fallbacks](SOURCE_PROVIDER_INTEGRATION.md)
+documents the opt-in backend implementation and default provider order. It is separate
+from this benchmark campaign; local implementation tests do not certify live providers.
+
 > **Before declaring any winner** the campaign must have: both browser variants measured or explicitly unavailable (Section 9.1), a source reference for every scored collection window (Sections 8.5 and 12.3), reconciled provider bills plus a configured server cost (Section 15.5), process-tree resource evidence from the VPS (Section 14.2), and a passing `server-check` and small pilot on the real server (Sections 6.4 and 10). A report missing any of these can support a supervised pilot, not a provider decision.
 
 ## Contents
