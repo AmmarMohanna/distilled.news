@@ -1,6 +1,6 @@
 import {HandoffError,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,sha256,type EventVersion,type EventMembership,type EvidenceRevision,type EventSalienceAssessment,type UserRelevance,type WindowScore,type BriefingCandidate,type TargetType} from '@distilled/contracts';
 import {z} from 'zod';
-import {evaluateEditorialDelta,communicationFingerprint,type EditorialDecision} from './editorial';
+import {evaluateEditorialDelta,communicationFingerprint,boundedEditorialContext,type EditorialDecision} from './editorial';
 import {publicationWindowSchema,type LiveInterval} from './schedule';
 import {V1IntakeStore} from '../v1-intake/store';
 import type {AcceptedInput} from '../v1-intake/types';
@@ -9,7 +9,7 @@ import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {INTELLIGENCE_POLICY,tokens,features,overlap} from './policies';
 import type {DuplicateDecision,EventRecord,StorylineRecord,StorylineVersion} from './types';
 
-const SCORING_POLICY='deterministic-scoring-editorial-v2',SELECTION_POLICY='bounded-selection-editorial-v2';
+const SCORING_POLICY='deterministic-scoring-editorial-v3',SELECTION_POLICY='bounded-selection-editorial-v3';
 export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
 export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:2,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
 export interface PublicationWindow {start:string;end:string;kind:'30M'|'HOURLY'|'DAILY'|'WEEKLY';durationMinutes?:LiveInterval;timezone?:string;deliveryAnchor?:string;schedulePolicy?:'local-calendar-anchors-v1'}
@@ -58,13 +58,16 @@ async function targets(tx:FeedTransaction,window:PublicationWindow):Promise<Targ
   const evidence=ids.map(id=>active.get(id)!);
   events.set(version.id,{type:'EVENT',id:version.id,stableId:root.id,text:`${version.title??''}\n${version.state}`,updatedAt:version.createdAt,version:version.version,evidence,eventVersionIds:[version.id],persistence:0,turningPoint:version.version>1?1:0});
  }
- const result:Target[]=[];
+ const result:Target[]=[],groupedEvents=new Set<string>(),longWindow=window.kind==='WEEKLY' || (window.durationMinutes??0)>=720;
  for(const root of await tx.list<StorylineRecord>('storylines')) {
   const version=await tx.read<StorylineVersion>('storyline_versions',root.currentVersionId);if(!version?.eventVersionIds.length || version.eventVersionIds.some(id=>!events.has(id))) continue;
   for(const id of version.eventVersionIds) events.get(id)!.storylineId=root.id;
-  if(window.kind==='WEEKLY') result.push({type:'STORYLINE',id:version.id,stableId:root.id,storylineId:root.id,text:version.currentState,updatedAt:version.createdAt,version:version.version,evidence:[...new Map(version.eventVersionIds.flatMap(id=>events.get(id)!.evidence).map(r=>[r.id,r])).values()],eventVersionIds:version.eventVersionIds,storylineVersionId:version.id,persistence:score(version.eventVersionIds.length/4),turningPoint:score(version.turningPoints.length/3)});
+  if(longWindow) {
+   result.push({type:'STORYLINE',id:version.id,stableId:root.id,storylineId:root.id,text:version.currentState,updatedAt:version.createdAt,version:version.version,evidence:[...new Map(version.eventVersionIds.flatMap(id=>events.get(id)!.evidence).map(r=>[r.id,r])).values()],eventVersionIds:version.eventVersionIds,storylineVersionId:version.id,persistence:score(version.eventVersionIds.length/4),turningPoint:score(version.turningPoints.length/3)});
+   for(const id of version.eventVersionIds) groupedEvents.add(id);
+  }
  }
- if(window.kind!=='WEEKLY') result.push(...events.values());
+ if(window.kind!=='WEEKLY') result.push(...[...events.values()].filter(t=>!groupedEvents.has(t.id)));
  return result.filter(t=>Date.parse(t.updatedAt)>=Date.parse(window.start) && Date.parse(t.updatedAt)<Date.parse(window.end));
 }
 export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:PublicationWindow,rawBudget:BriefingBudget,now:string):Promise<SelectionRecord> {
@@ -79,17 +82,31 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    const base={feedId,feedRevision:tx.snapshot.feed.revision,targetType:target.type,targetVersionId:target.id,policyVersion:SCORING_POLICY,computedAt:now};
    const assessmentId=await sha256(canonicalJson({feedId,target:target.id,revision:base.feedRevision,policy:SCORING_POLICY}));
    const editorial=await evaluateEditorialDelta(tx,target,window.end);
-   const independent=await independentSupportCount(tx,target.evidence),novelty=editorial.decision==='SUPPRESS'?0:1;
+   const independent=await independentSupportCount(tx,target.evidence);
    const recency=score(1-(Date.parse(window.end)-Math.max(...target.evidence.map(r=>Date.parse(r.publishedAt??r.acceptedAt))))/(Date.parse(window.end)-Date.parse(window.start)));
    const impact=score(.35+.1*Math.min(3,features(target.text).entities.length));
-   const salience:EventSalienceAssessment=eventSalienceAssessmentSchema.parse({id:`salience:${assessmentId}`,...base,impact,novelty,changeMagnitude:target.version>1?.7:1,institutionalSignificance:/\b(parliament|government|court|central bank)\b/i.test(target.text)?.8:.3,corroboration:score(independent/3),persistence:target.persistence,recency,overallScore:score(.35*impact+.25*novelty+.2*score(independent/3)+.2*target.persistence)});
+   const salience:EventSalienceAssessment=eventSalienceAssessmentSchema.parse({id:`salience:${assessmentId}`,...base,impact,novelty:target.version>1?.7:1,changeMagnitude:target.version>1?.7:1,institutionalSignificance:/\b(parliament|government|court|central bank)\b/i.test(target.text)?.8:.3,corroboration:score(independent/3),persistence:target.persistence,recency,overallScore:score(.35*impact+.25*(target.version>1?.7:1)+.2*score(independent/3)+.2*target.persistence)});
    const interests=tokens(tx.snapshot.feed.interests.join(' ')),words=tokens(target.text),topicMatch=interests.length?score(interests.filter(w=>words.includes(w)).length/interests.length):.5;
    const geographyMatch=tx.snapshot.feed.geography.length?score(tx.snapshot.feed.geography.filter(g=>target.text.toLowerCase().includes(g.toLowerCase())).length/tx.snapshot.feed.geography.length):.5;
    const relevance:UserRelevance=userRelevanceSchema.parse({id:`relevance:${assessmentId}`,...base,topicMatch,geographyMatch,entityMatch:overlap(features(tx.snapshot.feed.interests.join(' ')).entities,features(target.text).entities),sourcePreference:.5,languageFit:1,overallScore:score(.75*topicMatch+.25*geographyMatch)});
+   if(editorial.decision==='INCLUDE') {
+    const feedWords=new Set(tokens([...tx.snapshot.feed.interests,...tx.snapshot.feed.geography].join(' ')));
+    const lowInformation=editorial.newUnderstanding.every(f=>{
+     if(!/\b(no substantive change|routine roundup|no material update)\b/i.test(f.text)) return false;
+     const remainder=f.text.replace(/\b(no substantive change|routine roundup|no material update)\b/gi,'');
+     return tokens(remainder).every(word=>feedWords.has(word));
+    });
+    // Literal term nonmatch is unknown semantic relevance, not proof of irrelevance.
+    if(lowInformation) {editorial.decision='SUPPRESS';editorial.reasonCodes=['LOW_INFORMATION_GAIN'];editorial.treatment='OMIT';editorial.contextNeed='NONE'}
+    else if((window.durationMinutes??0)>=720 && target.eventVersionIds.length>1) {editorial.contextNeed='HIGH';editorial.treatment='DETAILED'}
+    else if(salience.overallScore>=.8 && editorial.newUnderstanding.length>1 && editorial.treatment==='BRIEF') editorial.treatment='STANDARD';
+   }
+   const novelty=editorial.decision==='SUPPRESS'?0:score(1-.5*editorial.repeatPenalty);
    const windowContext=await sha256(canonicalJson({window,communication}));
    const windowId=await sha256(canonicalJson({assessmentId,windowContext}));
-   const weekly=window.kind==='WEEKLY';
-   const ws:WindowScore=windowScoreSchema.parse({id:`window:${windowId}`,...base,windowStart:window.start,windowEnd:window.end,windowKind:window.kind,components:{recency,novelty,changeMagnitude:salience.changeMagnitude,impact,persistence:target.persistence,turningPoint:target.turningPoint},finalScore:score(weekly?.25*impact+.25*target.persistence+.2*target.turningPoint+.2*novelty+.1*recency:.35*novelty+.3*recency+.2*impact+.15*salience.changeMagnitude),reasonCodes:[novelty?'NEW_DEVELOPMENT':'LOW_NOVELTY',...(weekly&&target.persistence>0?['PERSISTENT_STORYLINE']:[])],policyVersion:`${SCORING_POLICY}:window-context:${windowContext}`});
+   const duration=window.durationMinutes??(window.kind==='WEEKLY'?10080:window.kind==='DAILY'?1440:window.kind==='30M'?30:60),longWeight=score((duration-30)/(1440-30));
+   const shortScore=.35*novelty+.3*recency+.2*impact+.15*salience.changeMagnitude,longScore=.25*impact+.25*target.persistence+.2*target.turningPoint+.2*novelty+.1*recency;
+   const ws:WindowScore=windowScoreSchema.parse({id:`window:${windowId}`,...base,windowStart:window.start,windowEnd:window.end,windowKind:window.kind,components:{recency,novelty,changeMagnitude:salience.changeMagnitude,impact,persistence:target.persistence,turningPoint:target.turningPoint},finalScore:editorial.decision==='SUPPRESS'?0:score((1-longWeight)*shortScore+longWeight*longScore),reasonCodes:[novelty?'NEW_DEVELOPMENT':'LOW_NOVELTY',...(longWeight>=.5&&target.persistence>0?['PERSISTENT_STORYLINE']:[])],policyVersion:`${SCORING_POLICY}:window-context:${windowContext}`});
    await tx.write('salience',salience.id,(await tx.read('salience',salience.id))??salience);await tx.write('relevance',relevance.id,(await tx.read('relevance',relevance.id))??relevance);await tx.write('window_scores',ws.id,(await tx.read('window_scores',ws.id))??ws);
    const savedSalience=await tx.read<EventSalienceAssessment>('salience',salience.id),savedRelevance=await tx.read<UserRelevance>('relevance',relevance.id),savedWindow=await tx.read<WindowScore>('window_scores',ws.id);
    if(savedWindow?.windowKind!==window.kind) throw new HandoffError('INVALID_REQUEST');
@@ -98,10 +115,19 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
   }
   assessments.sort((a,b)=>b.candidate.initialScore-a.candidate.initialScore||a.candidate.targetVersionId.localeCompare(b.candidate.targetVersionId));
   const result:SelectionRecord={id:identity,feedId,feedRevision:tx.snapshot.feed.revision,window,candidateIds:assessments.map(a=>a.candidate.id),selectedCandidateIds:[],evidenceByCandidate:{},budget,policyVersion:SELECTION_POLICY,computedAt:now,omissions:[],editorialByCandidate:{},communicationFingerprint:communication};
-  const selectedStorylines=new Set<string>(),publishers=new Map<string,number>();let words=0,inspections=0,inputTokens=0;
+  const f=tx.snapshot.feed;
+  const selectedStorylines=new Set<string>(),publishers=new Map<string,number>();let words=0,inspections=0,inputTokens=new TextEncoder().encode(JSON.stringify({feed:{id:f.id,revision:f.revision,title:f.title,interests:f.interests,outputLanguage:f.outputLanguage},selectionId:identity,window,stories:[]})).length;
   for(const {target,candidate,publisherIds,editorial} of assessments) {
-   const inspectionEvidence=[...target.evidence].sort((a,b)=>(b.body?.length??0)-(a.body?.length??0)||a.id.localeCompare(b.id)).slice(0,3);
-   const cost=inspectionEvidence.reduce((sum,r)=>sum+new TextEncoder().encode((r.body??r.title??'').slice(0,1800)).length,0),storyWords=Math.min(100,tokens(target.text).length);
+   const uncovered=new Set(editorial.newUnderstanding.map((_,i)=>i)),inspectionEvidence:EvidenceRevision[]=[];
+   const available=[...target.evidence];
+   while(uncovered.size && available.length) {
+    available.sort((a,b)=>[...uncovered].filter(i=>editorial.newUnderstanding[i].evidenceRevisionIds.includes(b.id)).length-[...uncovered].filter(i=>editorial.newUnderstanding[i].evidenceRevisionIds.includes(a.id)).length || (a.body?.length??0)-(b.body?.length??0) || a.id.localeCompare(b.id));
+    const revision=available.shift()!;inspectionEvidence.push(revision);
+    for(const i of uncovered) if(editorial.newUnderstanding[i].evidenceRevisionIds.includes(revision.id)) uncovered.delete(i);
+   }
+   const eventVersions=(await Promise.all(target.eventVersionIds.map(id=>tx.read<EventVersion>('event_versions',id)))).map(v=>({...v!,state:v!.state.slice(0,1800)}));
+   const storyline=target.storylineVersionId?await tx.read<StorylineVersion>('storyline_versions',target.storylineVersionId):undefined;
+   const cost=new TextEncoder().encode(JSON.stringify({candidate:{...candidate,selectionState:'SELECTED'},eventVersions,editorial:boundedEditorialContext(editorial),storylineVersion:storyline?{...storyline,currentState:storyline.currentState.slice(0,1800),previousState:storyline.previousState?.slice(0,1000),supportedFacts:storyline.supportedFacts.slice(0,10),turningPoints:storyline.turningPoints.slice(0,10)}:undefined,evidence:inspectionEvidence.map(e=>({...e,excerptTruncated:false}))})).length+1,storyWords=Math.min(editorial.treatment==='DETAILED'?180:editorial.treatment==='STANDARD'?100:40,tokens(target.text).length);
    let reason:string|undefined;
    result.editorialByCandidate![candidate.id]=editorial;
    if(editorial.decision==='SUPPRESS') reason=editorial.reasonCodes[0];

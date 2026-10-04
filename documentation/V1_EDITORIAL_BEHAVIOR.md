@@ -87,3 +87,15 @@ No remote migration, deployment, real model experiment or deployed proof has run
 in this phase. Deployment still requires confirmation of the authorized
 development/test target. Adaptive synthesis, disagreement preservation,
 long-window grouping and comparative evaluation remain subsequent milestones.
+
+## Interval-aware treatment and synthesis
+
+The same window engine continuously shifts weight from novelty/recency/material change toward impact/persistence/turning points as nominal duration grows. WindowScore remains separate from salience and relevance; suppressed editorial decisions score zero for the window. Repeat penalty reduces novelty without hiding distinct supported facts.
+
+New live 12h/24h selections use exact current StorylineVersion targets where available, with ungrouped Events retained. A 24h approval/signing fixture emits one story citing both EventVersions and both evidence revisions; a short-window selection remains event-focused. Multi-event long-window stories receive HIGH context/DETAILED treatment; simple single-fact stories remain BRIEF. These are guidance categories, not fixed prose lengths.
+
+Synthesis receives typed supported delta and treatment/context guidance. Full communication history stays immutable in SelectionRecord; model context uses only the most recent relevant edition with bounded background. Selection budgets the shaped input payload, rather than evidence text alone. Evidence choice covers distinct delta facts; the deterministic fallback quotes complete short representations for every selected evidence item instead of silently dropping later sides/developments. Larger/translated inputs require the configured bounded model.
+
+Explicit boilerplate can be suppressed only when no additional non-feed terms survive removing the boilerplate. Literal keyword nonmatches remain unknown semantic relevance and influence ranking; they are not sufficient to suppress a local or paraphrased development. Human relevance evaluation is still required.
+
+Verification: treatment/editorial/facts focused run 18 passed; updated facts/model run 6 passed. Existing publication recovery hit its unchanged 5s deadline in the broader run and passed in isolation (4.34s). No timeout/assertion was relaxed. Worker typecheck and diff check rerun before commit. Disagreement-preservation enforcement and experimental scorer/evaluation work follow separately.

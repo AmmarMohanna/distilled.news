@@ -16,6 +16,11 @@ export interface EditorialDecision {
  contextNeed:'NONE'|'SMALL'|'MODERATE'|'HIGH';treatment:'OMIT'|'BRIEF'|'STANDARD'|'DETAILED';
 }
 export interface EditorialTarget {type:TargetType;id:string;stableId:string;storylineId?:string;evidence:EvidenceRevision[];eventVersionIds:string[]}
+/** Keep the complete immutable history in selection metadata, but give synthesis
+ * only the latest relevant edition's small context. The full delta is retained. */
+export function boundedEditorialContext(value:EditorialDecision):EditorialDecision {
+ return {...value,previouslyCommunicated:value.previouslyCommunicated.slice(0,1).map(p=>({...p,claimIds:p.claimIds.slice(0,2),facts:p.facts.slice(0,2).map(f=>f.slice(0,400)),evidenceRevisionIds:p.evidenceRevisionIds.slice(0,3)}))};
+}
 const aliases:Record<string,string>={approved:'approve',passed:'approve',approves:'approve',legislation:'law',resigned:'resign',signs:'sign',signed:'sign',affects:'affect',affected:'affect'};
 export function supportedSentences(text:string):string[] {
  return text.normalize('NFKC').trim().split(/(?<=[.!?])\s+(?=[\p{Lu}\p{N}])/u).map(s=>s.trim()).filter(Boolean);

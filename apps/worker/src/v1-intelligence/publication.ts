@@ -3,14 +3,14 @@ import {z} from 'zod';
 import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import type {SelectionRecord} from './scoring';
-import {communicationFingerprint} from './editorial';
+import {communicationFingerprint,boundedEditorialContext,type EditorialDecision} from './editorial';
 import type {EventRecord,FeedRecord,StorylineRecord,StorylineVersion} from './types';
 
 export interface ClaimSupport {evidenceRevisionId:string;quote:string}
 export interface DraftClaim {text:string;support:ClaimSupport[]}
 export interface BriefingDraft {language:string;stories:{candidateId:string;claims:DraftClaim[]}[]}
 export interface ModelUsage {tokensIn:number;tokensOut:number;cost:number;confirmed:boolean}
-export interface SynthesisInput {feed:Pick<FeedRecord,'id'|'revision'|'title'|'interests'|'outputLanguage'>;selectionId:string;stories:{candidate:BriefingCandidate;eventVersions:EventVersion[];storylineVersion?:StorylineVersion;evidence:(EvidenceRevision & {excerptTruncated:boolean})[]}[]}
+export interface SynthesisInput {feed:Pick<FeedRecord,'id'|'revision'|'title'|'interests'|'outputLanguage'>;selectionId:string;window?:SelectionRecord['window'];stories:{candidate:BriefingCandidate;eventVersions:EventVersion[];storylineVersion?:StorylineVersion;editorial?:EditorialDecision;evidence:(EvidenceRevision & {excerptTruncated:boolean})[]}[]}
 export interface VerificationClaim {id:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean}[]}
 export interface BriefingModelPort {
  model:string;provider:string;maxCallCostUsd:number;
@@ -57,19 +57,21 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Prom
   for(const revisionId of selection.evidenceByCandidate[id]??[]) {
    if(!permitted.has(revisionId) || !active.has(revisionId)) throw new HandoffError('SCOPE_DENIED');
    const revision=await tx.revision(revisionId);if(!revision?.body) throw new HandoffError('INVALID_REQUEST');
-   evidence.push({...revision,body:revision.body.slice(0,1800),excerptTruncated:revision.body.length>1800});inspected++;
+   evidence.push({...revision,excerptTruncated:false});inspected++;
   }
   if(!evidence.length) throw new HandoffError('INVALID_REQUEST');
-  stories.push({candidate,eventVersions,storylineVersion:storyline?{...storyline,currentState:storyline.currentState.slice(0,1800),previousState:storyline.previousState?.slice(0,1000),supportedFacts:storyline.supportedFacts.slice(0,10),turningPoints:storyline.turningPoints.slice(0,10)}:undefined,evidence});
+  const editorial=selection.editorialByCandidate?.[id];
+  stories.push({candidate,eventVersions,editorial:editorial?boundedEditorialContext(editorial):undefined,storylineVersion:storyline?{...storyline,currentState:storyline.currentState.slice(0,1800),previousState:storyline.previousState?.slice(0,1000),supportedFacts:storyline.supportedFacts.slice(0,10),turningPoints:storyline.turningPoints.slice(0,10)}:undefined,evidence});
  }
  if(inspected>selection.budget.maxEvidenceInspections || stories.length>selection.budget.maxStories) throw new HandoffError('INVALID_REQUEST');
- const f=tx.snapshot.feed;return {feed:{id:f.id,revision:f.revision,title:f.title,interests:f.interests,outputLanguage:f.outputLanguage},selectionId:selection.id,stories};
+ const f=tx.snapshot.feed;return {feed:{id:f.id,revision:f.revision,title:f.title,interests:f.interests,outputLanguage:f.outputLanguage},selectionId:selection.id,window:selection.window,stories};
 }
 function extractiveDraft(input:SynthesisInput):BriefingDraft {
- if(input.stories.some(s=>!s.evidence.some(e=>e.language===input.feed.outputLanguage && !e.excerptTruncated && e.body!.trim().length<=600))) throw new HandoffError('TEMPORARY_UNAVAILABLE');
+ if(input.stories.some(s=>s.evidence.length>4 || s.evidence.some(e=>e.language!==input.feed.outputLanguage || e.excerptTruncated || e.body!.trim().length>600))) throw new HandoffError('TEMPORARY_UNAVAILABLE');
  return {language:input.feed.outputLanguage,stories:input.stories.map(s=>{
-  const revision=s.evidence.find(e=>e.language===input.feed.outputLanguage && !e.excerptTruncated && e.body!.trim().length<=600)!,quote=revision.body!.trim();
-  return {candidateId:s.candidate.id,claims:quote?[{text:quote,support:[{evidenceRevisionId:revision.id,quote}]}]:[]};
+  return {candidateId:s.candidate.id,claims:s.evidence.flatMap(revision=>{
+   const quote=revision.body!.trim();return quote?[{text:quote,support:[{evidenceRevisionId:revision.id,quote}]}]:[];
+  })};
  })};
 }
 async function requireJob(tx:FeedTransaction,id:string,token:string,now:string):Promise<PublicationJob> {
