@@ -61,6 +61,9 @@ export interface ProcessingJobRecord {
 export interface Env extends Cloudflare.Env {
   V1_DOWNSTREAM_ENABLED?: string;
   V1_SYNTHESIS_MODEL_ENABLED?: string;
+  V1_SALIENCE_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
+  V1_JEV_SALIENCE_MODEL?: string;
+  V1_GPT_SALIENCE_MODEL?: string;
   V1_BROWSER_ACQUISITION_ENABLED?: string;
   V1_DOWNSTREAM_FEED_SOURCE_IDS?: string;
   DISTILLED_NEWS_PIPELINE_EVALUATION?:string;

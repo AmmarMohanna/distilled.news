@@ -6,9 +6,21 @@ import {feedFixture,seedIntelligence} from './test-utils';
 import {dispatchV1Intelligence,processV1Briefing,publicationWindow} from './runtime';
 import type {Env,DistilledQueueMessage} from '../types';
 import {livePublicationWindow} from './schedule';
+import {DeterministicSalienceScorer} from './salience';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env,sent:DistilledQueueMessage[];
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});await seedIntelligence(store);sent=[];env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env});
 afterEach(async()=>ctx.dispose());
+it('salience contention cannot exhaust request retries while one judgment is in flight',async()=>{
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
+ let finish!:(value:any)=>void;
+ const scorer={score:async(input:import('./salience').SalienceInput)=>new Promise<any>(resolve=>{finish=()=>resolve(new DeterministicSalienceScorer().score(input))})};
+ const pending=processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,scorer);
+ while(!finish)await new Promise(resolve=>setTimeout(resolve,10));
+ try{
+  for(let i=0;i<5;i++)await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,scorer)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+  expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'PENDING',attempts:0});
+ }finally{finish(undefined);await pending}
+},15000);
 it('cron dispatches only approved bounded feed windows; duplicate briefing delivery returns one persisted edition',async()=>{
  const now=new Date('2026-10-03T13:00:00Z');expect(await dispatchV1Intelligence(env,now)).toBe(1);
  const message=sent[0];expect(message.type).toBe('v1_briefing');

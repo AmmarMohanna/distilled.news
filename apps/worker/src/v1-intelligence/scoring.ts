@@ -2,7 +2,9 @@ import {HandoffError,eventSalienceAssessmentSchema,userRelevanceSchema,windowSco
 import {z} from 'zod';
 import {evaluateEditorialDelta,communicationFingerprint,boundedEditorialContext,priorContextEvidence,type EditorialDecision} from './editorial';
 import {publicationWindowSchema,type LiveInterval} from './schedule';
-import {DeterministicSalienceScorer} from './salience';
+import {DeterministicSalienceScorer,type EventSalienceScorer,type SalienceInput} from './salience';
+import {durableSalience} from './salience-persistence';
+import {SEMANTIC_SALIENCE_POLICY} from './salience-router';
 import {V1IntakeStore} from '../v1-intake/store';
 import type {AcceptedInput} from '../v1-intake/types';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -72,28 +74,9 @@ async function targets(tx:FeedTransaction,window:PublicationWindow):Promise<Targ
  if(window.kind!=='WEEKLY') result.push(...[...events.values()].filter(t=>!groupedEvents.has(t.id)));
  return result.filter(t=>Date.parse(t.updatedAt)>=Date.parse(window.start) && Date.parse(t.updatedAt)<Date.parse(window.end));
 }
-export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:PublicationWindow,rawBudget:BriefingBudget,now:string):Promise<SelectionRecord> {
- const parsedWindow=windowSchema.safeParse(rawWindow),parsedBudget=budgetSchema.safeParse(rawBudget);
- if(!parsedWindow.success || !parsedBudget.success || !Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
- const window={...parsedWindow.data,start:new Date(parsedWindow.data.start).toISOString(),end:new Date(parsedWindow.data.end).toISOString()},budget=parsedBudget.data;
- return feedTransact(store,feedId,async tx=>{
-  const candidates=await targets(tx,window),communication=await communicationFingerprint(tx,window.end),identity=await sha256(canonicalJson({feedId,revision:tx.snapshot.feed.revision,window,budget,communication,targets:candidates.map(t=>[t.type,t.id]).sort(),policy:SELECTION_POLICY}));
-  const prior=await tx.read<SelectionRecord>('selections',identity);if(prior) return prior;
-  const assessments:{target:Target;candidate:BriefingCandidate;publisherIds:string[];editorial:EditorialDecision}[]=[];
-  for(const target of candidates) {
-   const base={feedId,feedRevision:tx.snapshot.feed.revision,targetType:target.type,targetVersionId:target.id,policyVersion:SCORING_POLICY,computedAt:now};
-   const assessmentId=await sha256(canonicalJson({feedId,target:target.id,revision:base.feedRevision,policy:SCORING_POLICY}));
-   const editorial=await evaluateEditorialDelta(tx,target,window.end);
-   const independent=await independentSupportCount(tx,target.evidence);
-   const recency=score(1-(Date.parse(window.end)-Math.max(...target.evidence.map(r=>Date.parse(r.publishedAt??r.acceptedAt))))/(Date.parse(window.end)-Date.parse(window.start)));
-   const baseline=salienceScorer.score({feedId,feedRevision:base.feedRevision,targetType:target.type,targetVersionId:target.id,text:target.text.slice(0,6000),version:target.version,independentSupport:independent,persistence:target.persistence,recency});
-   const impact=baseline.components.impact;
-   const salience:EventSalienceAssessment=eventSalienceAssessmentSchema.parse({id:`salience:${assessmentId}`,...base,...baseline.components});
-   const interests=tokens(tx.snapshot.feed.interests.join(' ')),words=tokens(target.text),topicMatch=interests.length?score(interests.filter(w=>words.includes(w)).length/interests.length):.5;
-   const geographyMatch=tx.snapshot.feed.geography.length?score(tx.snapshot.feed.geography.filter(g=>target.text.toLowerCase().includes(g.toLowerCase())).length/tx.snapshot.feed.geography.length):.5;
-   const relevance:UserRelevance=userRelevanceSchema.parse({id:`relevance:${assessmentId}`,...base,topicMatch,geographyMatch,entityMatch:overlap(features(tx.snapshot.feed.interests.join(' ')).entities,features(target.text).entities),sourcePreference:.5,languageFit:1,overallScore:score(.75*topicMatch+.25*geographyMatch)});
-   if(editorial.decision==='INCLUDE') {
-    const feedWords=new Set(tokens([...tx.snapshot.feed.interests,...tx.snapshot.feed.geography].join(' ')));
+function deterministicPrefilter(editorial:EditorialDecision,interests:string[],geography:string[]):void {
+ if(editorial.decision!=='INCLUDE')return;
+    const feedWords=new Set(tokens([...interests,...geography].join(' ')));
     const lowInformation=editorial.newUnderstanding.every(f=>{
      if(!/\b(no substantive change|routine roundup|no material update)\b/i.test(f.text)) return false;
      const remainder=f.text.replace(/\b(no substantive change|routine roundup|no material update)\b/gi,'');
@@ -101,7 +84,47 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
     });
     // Literal term nonmatch is unknown semantic relevance, not proof of irrelevance.
     if(lowInformation) {editorial.decision='SUPPRESS';editorial.reasonCodes=['LOW_INFORMATION_GAIN'];editorial.treatment='OMIT';editorial.contextNeed='NONE'}
-    else if((window.durationMinutes??0)>=720 && target.eventVersionIds.length>1) {editorial.contextNeed='HIGH';editorial.treatment='DETAILED'}
+}
+export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:PublicationWindow,rawBudget:BriefingBudget,now:string,semanticScorer?:EventSalienceScorer):Promise<SelectionRecord> {
+ const parsedWindow=windowSchema.safeParse(rawWindow),parsedBudget=budgetSchema.safeParse(rawBudget);
+ if(!parsedWindow.success || !parsedBudget.success || !Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
+ const window={...parsedWindow.data,start:new Date(parsedWindow.data.start).toISOString(),end:new Date(parsedWindow.data.end).toISOString()},budget=parsedBudget.data;
+ const resolved=new Map<string,Awaited<ReturnType<typeof durableSalience>>>();
+ if(semanticScorer){
+  const inputs=await feedTransact(store,feedId,async tx=>{
+   const inputs:SalienceInput[]=[];
+   for(const target of await targets(tx,window)){
+    const editorial=await evaluateEditorialDelta(tx,target,window.end);deterministicPrefilter(editorial,tx.snapshot.feed.interests,tx.snapshot.feed.geography);
+    if(editorial.decision==='SUPPRESS')continue;
+    inputs.push({feedId,feedRevision:tx.snapshot.feed.revision,targetType:target.type,targetVersionId:target.id,text:target.text.slice(0,6000),version:target.version,independentSupport:await independentSupportCount(tx,target.evidence),persistence:target.persistence,recency:1});
+   }
+   return inputs;
+  });
+  const salienceWindowId=await sha256(canonicalJson({feedId,window,policy:semanticScorer.policyKey??SEMANTIC_SALIENCE_POLICY}));
+  for(const input of inputs)resolved.set(input.targetVersionId,await durableSalience(store,input,semanticScorer,now,salienceWindowId));
+ }
+ return feedTransact(store,feedId,async tx=>{
+  const candidates=await targets(tx,window),communication=await communicationFingerprint(tx,window.end),identity=await sha256(canonicalJson({feedId,revision:tx.snapshot.feed.revision,window,budget,communication,targets:candidates.map(t=>[t.type,t.id]).sort(),policy:semanticScorer?`${SELECTION_POLICY}:${semanticScorer.policyKey??SEMANTIC_SALIENCE_POLICY}`:SELECTION_POLICY}));
+  const prior=await tx.read<SelectionRecord>('selections',identity);if(prior) return prior;
+  const assessments:{target:Target;candidate:BriefingCandidate;publisherIds:string[];editorial:EditorialDecision}[]=[];
+  for(const target of candidates) {
+   const base={feedId,feedRevision:tx.snapshot.feed.revision,targetType:target.type,targetVersionId:target.id,policyVersion:semanticScorer?(semanticScorer.policyKey??SEMANTIC_SALIENCE_POLICY):SCORING_POLICY,computedAt:now};
+   const assessmentId=await sha256(canonicalJson({feedId,target:target.id,revision:base.feedRevision,policy:base.policyVersion}));
+   const editorial=await evaluateEditorialDelta(tx,target,window.end);deterministicPrefilter(editorial,tx.snapshot.feed.interests,tx.snapshot.feed.geography);
+   const independent=await independentSupportCount(tx,target.evidence);
+   const recency=score(1-(Date.parse(window.end)-Math.max(...target.evidence.map(r=>Date.parse(r.publishedAt??r.acceptedAt))))/(Date.parse(window.end)-Date.parse(window.start)));
+   const savedJudgment=resolved.get(target.id);
+   if(semanticScorer && editorial.decision!=='SUPPRESS' && (!savedJudgment || savedJudgment.input.feedRevision!==base.feedRevision))throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   const baseline=savedJudgment?.result??salienceScorer.score({feedId,feedRevision:base.feedRevision,targetType:target.type,targetVersionId:target.id,text:target.text.slice(0,6000),version:target.version,independentSupport:independent,persistence:target.persistence,recency});
+   if(savedJudgment && !await tx.read('salience_provenance',`salience:${assessmentId}`))await tx.write('salience_provenance',`salience:${assessmentId}`,{id:`salience:${assessmentId}`,feedId,assessmentId:`salience:${assessmentId}`,judgmentId:savedJudgment.id,input:savedJudgment.input,result:savedJudgment.result,createdAt:savedJudgment.createdAt});
+   if(semanticScorer && !savedJudgment && !await tx.read('salience_provenance',`salience:${assessmentId}`))await tx.write('salience_provenance',`salience:${assessmentId}`,{id:`salience:${assessmentId}`,feedId,assessmentId:`salience:${assessmentId}`,result:{...baseline,route:'DETERMINISTIC_PREFILTER',reasonCodes:editorial.reasonCodes},createdAt:now});
+   const impact=baseline.components.impact;
+   const salience:EventSalienceAssessment=eventSalienceAssessmentSchema.parse({id:`salience:${assessmentId}`,...base,...baseline.components});
+   const interests=tokens(tx.snapshot.feed.interests.join(' ')),words=tokens(target.text),topicMatch=interests.length?score(interests.filter(w=>words.includes(w)).length/interests.length):.5;
+   const geographyMatch=tx.snapshot.feed.geography.length?score(tx.snapshot.feed.geography.filter(g=>target.text.toLowerCase().includes(g.toLowerCase())).length/tx.snapshot.feed.geography.length):.5;
+   const relevance:UserRelevance=userRelevanceSchema.parse({id:`relevance:${assessmentId}`,...base,topicMatch,geographyMatch,entityMatch:overlap(features(tx.snapshot.feed.interests.join(' ')).entities,features(target.text).entities),sourcePreference:.5,languageFit:1,overallScore:score(.75*topicMatch+.25*geographyMatch)});
+   if(editorial.decision==='INCLUDE') {
+    if((window.durationMinutes??0)>=720 && target.eventVersionIds.length>1) {editorial.contextNeed='HIGH';editorial.treatment='DETAILED'}
     else if(salience.overallScore>=.8 && editorial.newUnderstanding.length>1 && editorial.treatment==='BRIEF') editorial.treatment='STANDARD';
    }
    const novelty=editorial.decision==='SUPPRESS'?0:score(1-.5*editorial.repeatPenalty);

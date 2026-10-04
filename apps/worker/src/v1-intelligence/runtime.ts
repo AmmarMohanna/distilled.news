@@ -11,6 +11,10 @@ import {processEvidenceIntelligence} from './engine';
 import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET,type PublicationWindow} from './scoring';
 import {publishSelection} from './publication';
 import {createStoredEvidenceModel} from './model';
+import {createSemanticSalienceScorer} from './salience-runtime';
+import type {EventSalienceScorer} from './salience';
+import {SalienceContentionError} from './salience-persistence';
+import {SynthesisCompatibilityError} from './language';
 import type {FeedRecord} from './types';
 import {synchronizeV1ProductSource} from './product';
 import {publicationWindowSchema,livePublicationWindow} from './schedule';
@@ -55,7 +59,7 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
   if(error instanceof HandoffError) throw error;throw new HandoffError('TEMPORARY_UNAVAILABLE');
  }
 }
-export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString()) {
+export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer) {
  const parsed=messageSchema.safeParse(raw);if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  const {feedId,window}=parsed.data;
  if(Date.parse(window.end)>Date.parse(now()) || Date.parse(window.start)>=Date.parse(window.end) || Date.parse(window.end)-Date.parse(window.start)>7*86400000) throw new HandoffError('INVALID_REQUEST');
@@ -76,7 +80,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
  try {
-  const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now());
+  const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env));
   const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:createStoredEvidenceModel(env)}):undefined;
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE'})});return edition;
  } catch(error) {
@@ -84,9 +88,9 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   // retry attempts while that lease is live or reopen a completed edition.
   await feedTransact(store,feedId,async tx=>{
    const current=await tx.read<BriefingRequest>('briefing_requests',id),job=await tx.read<{state:string;leaseUntil:string}>('synthesis_jobs',id);
-   if(!current || current.state!=='PENDING' || job?.state==='RUNNING' && Date.parse(job.leaseUntil)>Date.parse(now())) return;
+   if(!current || current.state!=='PENDING' || error instanceof SalienceContentionError || job?.state==='RUNNING' && Date.parse(job.leaseUntil)>Date.parse(now())) return;
    const attempts=current.attempts+1,terminal=attempts>=5 || job?.state==='FAILED' || error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE';
-   await tx.write('briefing_requests',id,{...current,state:terminal?'FAILED':'PENDING',attempts,nextAttemptAt:new Date(Date.parse(now())+60000*2**(attempts-1)).toISOString(),failure:error instanceof HandoffError?error.code:'PUBLICATION_FAILED'});
+   await tx.write('briefing_requests',id,{...current,state:terminal?'FAILED':'PENDING',attempts,nextAttemptAt:new Date(Date.parse(now())+60000*2**(attempts-1)).toISOString(),failure:error instanceof SynthesisCompatibilityError?error.reason:error instanceof HandoffError?error.code:'PUBLICATION_FAILED'});
   });throw error instanceof HandoffError?error:new HandoffError('TEMPORARY_UNAVAILABLE');
  }
 }

@@ -7,6 +7,7 @@ import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET} from './scoring';
 import {publishSelection} from './publication';
 import {processV1Briefing} from './runtime';
 import type {Env} from '../types';
+import {DeterministicSalienceScorer} from './salience';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 const first={start:'2026-10-03T11:00:00Z',end:'2026-10-03T12:01:00Z',kind:'HOURLY' as const};
 const next={start:first.end,end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
@@ -17,6 +18,13 @@ async function told(body:string) {
  const selected=await scoreAndSelect(store,'feed-1',first,DEFAULT_BRIEFING_BUDGET,testPolicy.now());
  return publishSelection(store,'feed-1',selected.id,{now:testPolicy.now});
 }
+it('suppressed corroboration retains omission provenance without opening a paid salience intent',async()=>{
+ await told('Lebanon Parliament approved banking reform legislation.');
+ await seedIntelligence(store,2,'Lebanon Parliament passed banking reform law.','publisher-2','2026-10-03T12:30:00Z');
+ let calls=0;const scorer={score:(input:import('./salience').SalienceInput)=>{calls++;return new DeterministicSalienceScorer().score(input)}};
+ const selected=await scoreAndSelect(store,'feed-1',next,DEFAULT_BRIEFING_BUDGET,next.end,scorer);
+ expect(selected.omissions.map(o=>o.reason)).toContain('CORROBORATION_ONLY');expect(calls).toBe(0);expect(await store.list('feed-1','salience_intents')).toHaveLength(0);
+},15000);
 it('independent corroboration increases evidence support but suppresses a previously communicated development',async()=>{
  const edition=await told('Lebanon Parliament approved banking reform legislation.');
  await seedIntelligence(store,2,'Lebanon Parliament passed banking reform law.','publisher-2','2026-10-03T12:30:00Z');
