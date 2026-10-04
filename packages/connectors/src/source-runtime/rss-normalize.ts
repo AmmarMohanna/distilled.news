@@ -57,7 +57,8 @@ export function normalizeRssSnapshot(xml: string, sourceUrl: string): RssItem[] 
     // Missing identity receives a snapshot-local key solely so intake can reject/quarantine it.
     const key = upstreamId ? `id:${upstreamId}` : url ? `url:${url}` : `invalid-row:${index}`;
     const updated = atom ? date(r.updated) : undefined;
-    const normalized:RssItem = { key, upstreamId, url, publisherId: url ? new URL(url).hostname : undefined,
+    const publisherUrl=httpUrl(text(r.source?.['@url']),base);
+    const normalized:RssItem = { key, upstreamId, url, publisherId: publisherUrl ? new URL(publisherUrl).hostname : url ? new URL(url).hostname : undefined,
       title: plain(r.title) || undefined,
       body: plain(r['content:encoded'] ?? r.content ?? r.description ?? r.summary),
       publishedAt: date(atom ? r.published : r.pubDate ?? r['dc:date']),
