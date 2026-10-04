@@ -15,17 +15,21 @@ export function boundShortlist<T extends {targetVersionId:string;priority:number
  for(const c of sorted)if(c.protectedReasons.length||ordinary++<ordinaryLimit)selected.push(c);else overflow.push(c);return {selected,overflow};
 }
 export async function shortlistInTransaction(tx:FeedTransaction,window:PublicationWindow,now:string,ordinaryLimit=20):Promise<ShortlistRecord> {
- const ledger=await tx.list<LedgerEntry>('ledger_entries'),resolved=new Set((await tx.list<{id:string;obligationId:string}>('correction_resolutions')).map(r=>r.obligationId));
+ const earlierEditions=new Set((await tx.list<import('./publication').BriefingEditionRecord>('editions')).filter(e=>Date.parse(e.windowEnd)<Date.parse(window.end)).map(e=>e.id));
+ const ledger=(await tx.list<LedgerEntry>('ledger_entries')).filter(e=>earlierEditions.has(e.editionId)),resolved=new Set((await tx.list<{id:string;obligationId:string}>('correction_resolutions')).map(r=>r.obligationId));
+ const completedWork=new Set((await tx.list<{id:string;workId:string}>('editorial_work_resolutions')).map(r=>r.workId)),pendingWork=(await tx.list<{id:string;stableTargetId:string;storylineId?:string}>('editorial_deferred_work')).filter(w=>!completedWork.has(w.id));
  const obligations=(await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>!resolved.has(o.id));
  const candidates:ShortlistCandidate[]=[];
  for(const target of await targets(tx,window,true)){
   const related=obligations.filter(o=>{const entry=ledger.find(e=>e.id===o.ledgerEntryId);return entry?.eventIds.includes(target.stableId)||target.storylineId && entry?.storylineIds.includes(target.storylineId)});
-  if(Date.parse(target.updatedAt)<Date.parse(window.start) && !related.length)continue;
+  const deferred=pendingWork.filter(w=>w.stableTargetId===target.stableId||target.storylineId && w.storylineId===target.storylineId);
+  if(Date.parse(target.updatedAt)<Date.parse(window.start) && !related.length && !deferred.length)continue;
   const states=(await Promise.all(target.eventVersionIds.map(id=>tx.read<EventSemanticState>('event_semantic_states',id)))).filter((s):s is EventSemanticState=>Boolean(s)),facts:ShortlistFact[]=[];
   for(const id of [...new Set(states.flatMap(s=>s.propositionIds))]){const p=await tx.read<Proposition>('propositions',id);if(p)facts.push({id:p.id,propositionId:p.id,text:p.text,evidenceRevisionIds:p.evidenceRevisionIds,claimMentionIds:p.claimMentionIds,certainty:p.certainty,attribution:p.attribution,reportTime:p.reportTime,eventTime:p.eventTime})}
   if(!facts.length)for(const evidence of target.evidence)for(const text of supportedSentences(evidence.body??evidence.title??''))facts.push({id:await sha256(canonicalJson({feedId:tx.snapshot.feed.id,evidenceId:evidence.id,text,policy:SHORTLIST_POLICY})),text,evidenceRevisionIds:[evidence.id],claimMentionIds:[]});
   const editorial=await evaluateEditorialDelta(tx,target,window.end),effects=[...new Set(states.flatMap(s=>s.epistemicEffects))],protectedReasons:string[]=effects.filter(e=>protectedEffects.has(e));
   if(related.length)protectedReasons.push('CORRECTION_OBLIGATION');
+  if(deferred.length)protectedReasons.push('DEFERRED_EDITORIAL_WORK');
   if(editorial.previouslyCommunicated.length && editorial.newUnderstanding.some(f=>/\p{N}|\b(may|might|could|confirmed|alleged|not|never)\b/iu.test(f.text)))protectedReasons.push('MATERIAL_QUALIFIER_DELTA');
   const flags=[...(editorial.decision==='SUPPRESS'?['POSSIBLE_REPEAT']:[]),...(states.some(s=>s.provisional)?['PROVISIONAL']:[]),...(facts.some(f=>f.certainty?.hedges.length)?['QUALIFIED']:[])];
   candidates.push({targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),facts,stateSlotIds:[...new Set(states.flatMap(s=>s.stateSlotIds))],effects,flags,protectedReasons:[...new Set(protectedReasons)],correctionObligationIds:related.map(o=>o.id),priority:protectedReasons.length?1:editorial.newUnderstanding.length?.6:.2,fallbackEditorial:editorial});

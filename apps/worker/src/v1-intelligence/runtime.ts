@@ -20,6 +20,8 @@ import {prepareSemanticMatch} from './semantic-preparation';
 import {nextRematch,type RematchRequest,type RematchAttempt} from './rematch';
 import {SemanticContentionError} from './semantic-operations';
 import {prepareSemanticShortlist} from './shortlist';
+import {prepareEditorialPlan} from './editorial-plan';
+import {createStrongSemanticModel} from './semantic-model';
 import type {FeedRecord} from './types';
 import {synchronizeV1ProductSource} from './product';
 import {publicationWindowSchema,livePublicationWindow} from './schedule';
@@ -97,8 +99,10 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
  try {
-  if(env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC'))await prepareSemanticShortlist(store,feedId,window,now());
-  const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env));
+  const shortlist=env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now()):undefined;
+  const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env)):undefined;
+  const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env),plan);
+  if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');
   const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:createStoredEvidenceModel(env)}):undefined;
   if(edition)await projectEditionLedger(store,feedId,edition.id);
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE'})});return edition;
