@@ -75,3 +75,32 @@ it.each([['two','three'],['all','some']])('preserves disagreeing quantities expr
   const story=input.stories[0],e=story.evidence.find(e=>e.body!.includes(`${first} depositors`))!;return {draft:{language:'en',stories:[{candidateId:story.candidate.id,claims:[{text:e.body!,support:[{evidenceRevisionId:e.id,quote:e.body!}]}]}]},usage:{tokensIn:100,tokensOut:20,cost:.001,confirmed:true}};
  },verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),usage:{tokensIn:100,tokensOut:10,cost:.001,confirmed:true}})}})).rejects.toMatchObject({code:'INVALID_REQUEST'});
 },15000);
+
+it('retains cited prior numerical context when a later independent report introduces disagreement',async()=>{
+ await seedIntelligence(store,1,'Lebanon banking reform affected 20 depositors according to the government.','government');
+ const first=await scoreAndSelect(store,'feed-1',{...window,end:'2026-10-03T13:00:00Z'},DEFAULT_BRIEFING_BUDGET,testPolicy.now());
+ const prior=await publishSelection(store,'feed-1',first.id,{now:testPolicy.now});
+ const governmentId=prior.evidenceRevisionIds[0];
+ await seedIntelligence(store,2,'Lebanon banking reform affected more than 100 depositors according to the union. The discrepancy remains unresolved.','union');
+ const later=await scoreAndSelect(store,'feed-1',{...window,end:'2026-10-03T14:00:00Z'},DEFAULT_BRIEFING_BUDGET,testPolicy.now());
+ expect(later.selectedCandidateIds).toHaveLength(1);
+ expect(later.evidenceByCandidate[later.selectedCandidateIds[0]]).toContain(governmentId);
+ const edition=await publishSelection(store,'feed-1',later.id,{now:testPolicy.now});
+ const text=edition.stories.flatMap(s=>s.claims).map(c=>c.text).join(' ');
+ expect(text).toContain('20 depositors');expect(text).toContain('more than 100');expect(text).toContain('unresolved');
+ expect(edition.evidenceRevisionIds).toContain(governmentId);
+},15000);
+
+it('rejects one-sided changed-count output even when the earlier count was already communicated',async()=>{
+ await seedIntelligence(store,1,'Lebanon banking reform affected 20 depositors according to the government.','government');
+ const first=await scoreAndSelect(store,'feed-1',{...window,end:'2026-10-03T13:00:00Z'},DEFAULT_BRIEFING_BUDGET,testPolicy.now());
+ await publishSelection(store,'feed-1',first.id,{now:testPolicy.now});
+ await seedIntelligence(store,2,'Lebanon banking reform affected more than 100 depositors according to the union.','union');
+ const later=await scoreAndSelect(store,'feed-1',{...window,end:'2026-10-03T14:00:00Z'},DEFAULT_BRIEFING_BUDGET,testPolicy.now());
+ const model:BriefingModelPort={model:'fixture',provider:'SYNTHETIC',maxCallCostUsd:.01,synthesize:async input=>{
+  const story=input.stories[0],e=story.evidence.find(e=>e.body!.includes('more than 100'))!;
+  return {draft:{language:'en',stories:[{candidateId:story.candidate.id,claims:[{text:e.body!,support:[{evidenceRevisionId:e.id,quote:e.body!}]}]}]},usage:{tokensIn:100,tokensOut:30,cost:.001,confirmed:true}};
+ },verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),usage:{tokensIn:100,tokensOut:10,cost:.001,confirmed:true}})};
+ await expect(publishSelection(store,'feed-1',later.id,{now:testPolicy.now,model})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(await store.list('feed-1','editions')).toHaveLength(1);
+},15000);

@@ -1,6 +1,6 @@
 import {HandoffError,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,sha256,type EventVersion,type EventMembership,type EvidenceRevision,type EventSalienceAssessment,type UserRelevance,type WindowScore,type BriefingCandidate,type TargetType} from '@distilled/contracts';
 import {z} from 'zod';
-import {evaluateEditorialDelta,communicationFingerprint,boundedEditorialContext,type EditorialDecision} from './editorial';
+import {evaluateEditorialDelta,communicationFingerprint,boundedEditorialContext,priorContextEvidence,type EditorialDecision} from './editorial';
 import {publicationWindowSchema,type LiveInterval} from './schedule';
 import {DeterministicSalienceScorer} from './salience';
 import {V1IntakeStore} from '../v1-intake/store';
@@ -10,7 +10,7 @@ import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {INTELLIGENCE_POLICY,tokens,features,overlap} from './policies';
 import type {DuplicateDecision,EventRecord,StorylineRecord,StorylineVersion} from './types';
 
-const SCORING_POLICY='deterministic-scoring-editorial-v4',SELECTION_POLICY='bounded-selection-editorial-v4';
+const SCORING_POLICY='deterministic-scoring-editorial-v4',SELECTION_POLICY='bounded-selection-editorial-v5';
 const salienceScorer=new DeterministicSalienceScorer();
 export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
 export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:2,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
@@ -128,6 +128,7 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
     const revision=available.shift()!;inspectionEvidence.push(revision);
     for(const i of uncovered) if(editorial.newUnderstanding[i].evidenceRevisionIds.includes(revision.id)) uncovered.delete(i);
    }
+   for(const revision of priorContextEvidence(editorial,target.evidence)) if(!inspectionEvidence.some(e=>e.id===revision.id)) inspectionEvidence.push(revision);
    const eventVersions=(await Promise.all(target.eventVersionIds.map(id=>tx.read<EventVersion>('event_versions',id)))).map(v=>({...v!,state:v!.state.slice(0,1800)}));
    const storyline=target.storylineVersionId?await tx.read<StorylineVersion>('storyline_versions',target.storylineVersionId):undefined;
    const cost=new TextEncoder().encode(JSON.stringify({candidate:{...candidate,selectionState:'SELECTED'},eventVersions,editorial:boundedEditorialContext(editorial),storylineVersion:storyline?{...storyline,currentState:storyline.currentState.slice(0,1800),previousState:storyline.previousState?.slice(0,1000),supportedFacts:storyline.supportedFacts.slice(0,10),turningPoints:storyline.turningPoints.slice(0,10)}:undefined,evidence:inspectionEvidence.map(e=>({...e,excerptTruncated:false}))})).length+1,storyWords=Math.min(editorial.treatment==='DETAILED'?180:editorial.treatment==='STANDARD'?100:40,tokens(target.text).length);

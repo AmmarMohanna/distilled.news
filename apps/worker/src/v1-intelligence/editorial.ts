@@ -8,7 +8,7 @@ import {features} from './policies';
 export const EDITORIAL_POLICY='supported-delta-v1';
 export type EditorialReason='MAJOR_STATE_CHANGE'|'MATERIAL_NEW_FACT'|'NEW_SUPPORTED_DEVELOPMENT'|'ALREADY_COMMUNICATED'|'CORROBORATION_ONLY'|'LOW_INFORMATION_GAIN'|'LOW_RELEVANCE';
 export interface EditorialFact {text:string;evidenceRevisionIds:string[]}
-export interface CommunicatedState {editionId:string;targetType:TargetType;targetVersionId:string;claimIds:string[];facts:string[];evidenceRevisionIds:string[]}
+export interface CommunicatedState {editionId:string;targetType:TargetType;targetVersionId:string;claimIds:string[];facts:string[];evidenceRevisionIds:string[];factEvidenceRevisionIds?:string[][]}
 export interface EditorialDecision {
  policyVersion:string;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;
  decision:'INCLUDE'|'SUPPRESS';reasonCodes:EditorialReason[];previouslyCommunicated:CommunicatedState[];
@@ -19,7 +19,7 @@ export interface EditorialTarget {type:TargetType;id:string;stableId:string;stor
 /** Keep the complete immutable history in selection metadata, but give synthesis
  * only the latest relevant edition's small context. The full delta is retained. */
 export function boundedEditorialContext(value:EditorialDecision):EditorialDecision {
- return {...value,previouslyCommunicated:value.previouslyCommunicated.slice(0,1).map(p=>({...p,claimIds:p.claimIds.slice(0,2),facts:p.facts.slice(0,2).map(f=>f.slice(0,400)),evidenceRevisionIds:p.evidenceRevisionIds.slice(0,3)}))};
+ return {...value,previouslyCommunicated:value.previouslyCommunicated.slice(0,1).map(p=>({...p,claimIds:p.claimIds.slice(0,2),facts:p.facts.slice(0,2).map(f=>f.slice(0,400)),factEvidenceRevisionIds:p.factEvidenceRevisionIds?.slice(0,2),evidenceRevisionIds:p.evidenceRevisionIds.slice(0,3)}))};
 }
 const aliases:Record<string,string>={approved:'approve',passed:'approve',approves:'approve',legislation:'law',resigned:'resign',signs:'sign',signed:'sign',affects:'affect',affected:'affect'};
 export function supportedSentences(text:string):string[] {
@@ -72,7 +72,7 @@ export async function communicatedState(tx:FeedTransaction,target:EditorialTarge
     if(old && !related) for(const id of old.eventVersionIds) {const event=await tx.read<EventVersion>('event_versions',id);if(event && lineage.has(event.eventId)) related=true}
    }
    if(!related) continue;
-   result.push({editionId:edition.id,targetType:candidate.targetType,targetVersionId:candidate.targetVersionId,claimIds:story.claims.map(c=>c.id),facts:story.claims.flatMap(c=>supportedSentences(c.text)),evidenceRevisionIds:[...new Set(story.claims.flatMap(c=>c.support.map(s=>s.evidenceRevisionId)))]});
+   result.push({editionId:edition.id,targetType:candidate.targetType,targetVersionId:candidate.targetVersionId,claimIds:story.claims.map(c=>c.id),facts:story.claims.flatMap(c=>supportedSentences(c.text)),factEvidenceRevisionIds:story.claims.flatMap(c=>supportedSentences(c.text).map(()=>[...new Set(c.support.map(s=>s.evidenceRevisionId))])),evidenceRevisionIds:[...new Set(story.claims.flatMap(c=>c.support.map(s=>s.evidenceRevisionId)))]});
   }
  }
  return result;
@@ -95,4 +95,29 @@ export async function evaluateEditorialDelta(tx:FeedTransaction,target:Editorial
  const caveats=newUnderstanding.some(f=>/\b(unresolved|uncertain|disputed|may|might|no new date|not confirmed|however|but)\b/i.test(f.text));
  const contextNeed=!include?'NONE':changedPhase || caveats?'MODERATE':previous.length?'SMALL':'NONE';
  return {policyVersion:EDITORIAL_POLICY,targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,decision:include?'INCLUDE':'SUPPRESS',reasonCodes,previouslyCommunicated:previous,newUnderstanding,repeatedFactCount,repeatPenalty,contextNeed,treatment:!include?'OMIT':caveats || newUnderstanding.length>=4?'DETAILED':changedPhase || newUnderstanding.length>1?'STANDARD':'BRIEF'};
+}
+
+/** Necessary prior comparison context follows the same latest-edition/two-fact
+ * bound as model history. Never accumulate every historical estimate or use a
+ * revoked/non-current revision. Every returned byte remains budgeted normally. */
+export function priorContextEvidence(value:EditorialDecision,evidence:EvidenceRevision[]):EvidenceRevision[] {
+ const material=(text:string)=>/\p{N}|\b(two|three|four|five|six|seven|eight|nine|ten|hundred|thousand|million|billion|all|some|none|most|minority|not|never|uncertain|unresolved|disputed|may|might|could)\b/iu.test(text);
+ if(value.decision!=='INCLUDE' || !(value.contextNeed==='MODERATE' || value.contextNeed==='HIGH' || value.newUnderstanding.some(f=>material(f.text)))) return [];
+ const previous=value.previouslyCommunicated[0];if(!previous) return [];
+ const selected=new Map<string,EvidenceRevision>();
+ for(const [index,fact] of previous.facts.slice(0,2).entries()) {
+  if(!material(fact)) continue;
+  const exact=previous.factEvidenceRevisionIds?.[index];
+  if(exact) {
+   // Grounded publication already validated this immutable claim-support map.
+   // Model paraphrases need not lexically equal their source. A published claim
+   // has at most three supports, so two context facts offer at most six sides.
+   for(const revision of evidence) if(exact.includes(revision.id)) selected.set(revision.id,revision);
+  } else {
+   // Compatibility for old selection metadata without per-fact references.
+   const matches=evidence.filter(e=>previous.evidenceRevisionIds.includes(e.id) && supportedSentences(e.body??e.title??'').some(sentence=>equivalentFact(sentence,fact))).sort((a,b)=>(a.body?.length??0)-(b.body?.length??0)||a.id.localeCompare(b.id));
+   if(matches[0]) selected.set(matches[0].id,matches[0]);
+  }
+ }
+ return [...selected.values()];
 }
