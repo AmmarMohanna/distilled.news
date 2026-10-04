@@ -6,12 +6,15 @@ import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import type {SelectionRecord} from './scoring';
 import {communicationFingerprint,boundedEditorialContext,supportedSentences,equivalentFact,type EditorialDecision} from './editorial';
 import type {EventRecord,FeedRecord,StorylineRecord,StorylineVersion} from './types';
+import type {EditorialPlanRecord,PlanStory} from './editorial-plan';
+import type {ShortlistRecord,ShortlistFact} from './shortlist';
 
 export interface ClaimSupport {evidenceRevisionId:string;quote:string}
 export interface DraftClaim {text:string;support:ClaimSupport[]}
 export interface BriefingDraft {language:string;stories:{candidateId:string;claims:DraftClaim[]}[]}
 export interface ModelUsage {tokensIn:number;tokensOut:number;cost:number;confirmed:boolean}
-export interface SynthesisInput {feed:Pick<FeedRecord,'id'|'revision'|'title'|'interests'|'outputLanguage'>;selectionId:string;window?:SelectionRecord['window'];stories:{candidate:BriefingCandidate;eventVersions:EventVersion[];storylineVersion?:StorylineVersion;editorial?:EditorialDecision;evidence:(EvidenceRevision & {excerptTruncated:boolean})[]}[]}
+export interface SelectedPlanStory extends PlanStory {facts:ShortlistFact[];previousLedgerEntries:ShortlistRecord['ledger']}
+export interface SynthesisInput {feed:Pick<FeedRecord,'id'|'revision'|'title'|'interests'|'outputLanguage'>;selectionId:string;window?:SelectionRecord['window'];editorialPlan?:{id:string;route:EditorialPlanRecord['route']};stories:{candidate:BriefingCandidate;eventVersions:EventVersion[];storylineVersion?:StorylineVersion;editorial?:EditorialDecision;plan?:SelectedPlanStory;evidence:(EvidenceRevision & {excerptTruncated:boolean})[]}[]}
 export interface PreservationFact {id:string;text:string;evidenceRevisionIds:string[]}
 export interface VerificationClaim {id:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean}[];requiredFacts?:PreservationFact[]}
 export interface BriefingModelPort {
@@ -34,6 +37,7 @@ const draftSchema=z.object({language:z.string().min(1),stories:z.array(z.object(
 const usageSchema=z.object({tokensIn:z.number().int().nonnegative(),tokensOut:z.number().int().nonnegative(),cost:z.number().finite().nonnegative(),confirmed:z.boolean()}).strict();
 const normalize=(s:string)=>s.normalize('NFKC').replace(/\s+/g,' ').trim();
 function preservationFacts(story:SynthesisInput['stories'][number]):PreservationFact[] {
+ if(story.plan){const ids=new Set([...story.plan.mustIncludeFactIds,...story.plan.attributionFactIds,...story.plan.certaintyFactIds,...story.plan.disagreementFactIds,...story.plan.openQuestionFactIds]);return story.plan.facts.filter(f=>ids.has(f.id)).map(f=>({id:f.id,text:f.text,evidenceRevisionIds:f.evidenceRevisionIds}))}
  const facts:PreservationFact[]=[];
  for(const evidence of story.evidence) for(const text of supportedSentences(evidence.body??'')) {
   // Quantities, qualification and open outcomes are conservative preservation
@@ -51,6 +55,8 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Prom
  if(selection.feedRevision!==tx.snapshot.feed.revision) throw new HandoffError('SCOPE_DENIED');
  await assertCommunicationCurrent(tx,selection);
  const active=new Set((await tx.store.currentEvidence(tx.snapshot.feed.id)).map(e=>e.revision.id)),stories:SynthesisInput['stories']=[];
+ const plan=selection.editorialPlanId?await tx.read<EditorialPlanRecord>('editorial_plans',selection.editorialPlanId):undefined,shortlist=plan?await tx.read<ShortlistRecord>('shortlists',plan.shortlistId):undefined;
+ if(selection.editorialPlanId && (!plan||!shortlist||plan.communicationFingerprint!==selection.communicationFingerprint||plan.feedRevision!==selection.feedRevision))throw new HandoffError('SCOPE_DENIED');
  const roots=await tx.list<EventRecord>('events'),storylines=await tx.list<StorylineRecord>('storylines'),memberships=await tx.list<EventMembership>('memberships');
  let inspected=0;
  for(const id of selection.selectedCandidateIds) {
@@ -74,12 +80,17 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Prom
   }
   if(!evidence.length) throw new HandoffError('INVALID_REQUEST');
   const editorial=selection.editorialByCandidate?.[id];
-  stories.push({candidate,eventVersions,editorial:editorial?boundedEditorialContext(editorial):undefined,storylineVersion:storyline?{...storyline,currentState:storyline.currentState.slice(0,1800),previousState:storyline.previousState?.slice(0,1000),supportedFacts:storyline.supportedFacts.slice(0,10),turningPoints:storyline.turningPoints.slice(0,10)}:undefined,evidence});
+  const planned=plan?.stories.find(s=>s.targetVersionId===candidate.targetVersionId),scope=shortlist?.candidates.find(c=>c.targetVersionId===candidate.targetVersionId);
+  if(plan && (!planned||planned.decision!=='SELECT'||!scope))throw new HandoffError('SCOPE_DENIED');
+  const writerPlan:SelectedPlanStory|undefined=planned&&scope?{...planned,facts:scope.facts,previousLedgerEntries:shortlist!.ledger.filter(e=>planned.previousLedgerEntryIds.includes(e.id))}:undefined;
+  if(writerPlan && preservationFacts({candidate,eventVersions,evidence,plan:writerPlan}).some(f=>!f.evidenceRevisionIds.some(id=>evidence.some(e=>e.id===id))))throw new HandoffError('SCOPE_DENIED');
+  stories.push({candidate,eventVersions,editorial:editorial?boundedEditorialContext(editorial):undefined,plan:writerPlan,storylineVersion:storyline?{...storyline,currentState:storyline.currentState.slice(0,1800),previousState:storyline.previousState?.slice(0,1000),supportedFacts:storyline.supportedFacts.slice(0,10),turningPoints:storyline.turningPoints.slice(0,10)}:undefined,evidence});
  }
  if(inspected>selection.budget.maxEvidenceInspections || stories.length>selection.budget.maxStories) throw new HandoffError('INVALID_REQUEST');
- const f=tx.snapshot.feed;return {feed:{id:f.id,revision:f.revision,title:f.title,interests:f.interests,outputLanguage:f.outputLanguage},selectionId:selection.id,window:selection.window,stories};
+ const f=tx.snapshot.feed;return {feed:{id:f.id,revision:f.revision,title:f.title,interests:f.interests,outputLanguage:f.outputLanguage},selectionId:selection.id,window:selection.window,editorialPlan:plan?{id:plan.id,route:plan.route}:undefined,stories};
 }
 function extractiveDraft(input:SynthesisInput):BriefingDraft {
+ if(input.editorialPlan && input.stories.some(s=>s.evidence.some(e=>supportedSentences(e.body??'').some(text=>!s.plan?.facts.some(f=>equivalentFact(f.text,text))))))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
  if(input.stories.some(s=>s.evidence.some(e=>extractiveLanguageCompatibility(e.language,input.feed.outputLanguage)==='TRANSLATION_REQUIRED'))) throw new SynthesisCompatibilityError('TRANSLATION_REQUIRED');
  if(input.stories.some(s=>s.evidence.length>4 || s.evidence.some(e=>e.excerptTruncated || e.body!.trim().length>600))) throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
  return {language:input.feed.outputLanguage,stories:input.stories.map(s=>{

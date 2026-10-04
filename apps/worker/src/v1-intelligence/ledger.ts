@@ -6,6 +6,9 @@ import type {PublicationStatus} from './public-read';
 import type {SelectionRecord} from './scoring';
 import type {StorylineVersion} from './types';
 import {extractClaimMentions,type ClaimMention} from './claims';
+import type {Proposition} from './semantic-state';
+import type {EditorialPlanRecord} from './editorial-plan';
+import type {ShortlistRecord} from './shortlist';
 
 export const LEDGER_POLICY='grounded-communication-ledger-v1';
 export interface LedgerEntry {
@@ -19,6 +22,7 @@ export interface CorrectionObligation {id:string;feedId:string;ledgerEntryId:str
 export interface LedgerProjection {id:string;feedId:string;editionId:string;entryIds:string[];policyVersion:string}
 export const ledgerProjectionId=(editionId:string)=>JSON.stringify([editionId,LEDGER_POLICY]);
 const facts=(text:string)=>text.normalize('NFKC').trim().split(/(?<=[.!?])\s+(?=[\p{Lu}\p{N}])/u).map(s=>s.trim()).filter(Boolean);
+const literal=(text:string,fact:string)=>text.normalize('NFKC').replace(/\s+/g,' ').includes(fact.normalize('NFKC').replace(/\s+/g,' '));
 export function communicatedCertainty(mentions:ClaimMention[]):LedgerEntry['certainty'] {
  const kinds=[...new Set(mentions.map(m=>m.certainty.kind))];
  return {kind:kinds.length>1?'MIXED':kinds[0]??'UNSPECIFIED',hedges:[...new Set(mentions.flatMap(m=>m.certainty.hedges))]};
@@ -34,7 +38,7 @@ export async function projectEditionLedger(store:V1FeedStore,feedId:string,editi
  const writes:{kind:DocumentKind;id:string;value:any}[]=[],entries:LedgerEntry[]=[];
  if(prior){for(const id of prior.entryIds){const entry=await store.read<LedgerEntry>(feedId,'ledger_entries',id);if(!entry)throw new HandoffError('SCOPE_DENIED');entries.push(entry)}}
  else {
-  const mentions=await store.list<ClaimMention>(feedId,'claim_mentions'),selection=await store.read<SelectionRecord>(feedId,'selections',edition.selectionId);
+  const mentions=await store.list<ClaimMention>(feedId,'claim_mentions'),propositions=await store.list<Proposition>(feedId,'propositions'),selection=await store.read<SelectionRecord>(feedId,'selections',edition.selectionId);
   for(const story of edition.stories){
    const candidate=await store.read<BriefingCandidate>(feedId,'candidates',story.candidateId);if(!candidate)throw new HandoffError('SCOPE_DENIED');
    const eventIds:string[]=[],storylineIds:string[]=[];
@@ -49,6 +53,7 @@ export async function projectEditionLedger(store:V1FeedStore,feedId:string,editi
     const metadata=await extractClaimMentions({id:claim.id,feedId,contentHash:await sha256(claim.text),body:claim.text,acceptedAt:status.publishedAt} as any);
     const claimMentionIds=mentions.filter(m=>claim.support.some(s=>s.evidenceRevisionId===m.evidenceRevisionId && (s.quote.includes(m.sourceText)||m.sourceText.includes(s.quote)))).map(m=>m.id);
     const entry:LedgerEntry={id,feedId,editionId,claimId:claim.id,candidateId:candidate.id,claimText:claim.text,claimFacts:facts(claim.text),claimMentionIds,propositionIds:[],eventIds:[...new Set(eventIds)],storylineIds,targetType:candidate.targetType,targetVersionId:candidate.targetVersionId,evidenceRevisionIds,certainty:communicatedCertainty(metadata.mentions),attribution:metadata.mentions.find(m=>m.attribution)?.attribution,communicatedAt:status.publishedAt,policyVersion:LEDGER_POLICY};
+    entry.propositionIds=propositions.filter(p=>p.evidenceRevisionIds.every(id=>evidenceRevisionIds.includes(id))&&literal(claim.text,p.text)).map(p=>p.id);
     entries.push(entry);writes.push({kind:'ledger_entries',id,value:entry});
    }
   }
@@ -58,6 +63,18 @@ export async function projectEditionLedger(store:V1FeedStore,feedId:string,editi
  const stateId=await sha256(canonicalJson({feedId,editionId,status:status.status,withdrawnAt:status.withdrawnAt,reason:status.reason,policy:LEDGER_POLICY}));
  if(!await store.read(feedId,'ledger_states',stateId))writes.push({kind:'ledger_states',id:stateId,value:{id:stateId,feedId,editionId,status:status.status,withdrawnAt:status.withdrawnAt,reason:status.reason,entryIds:projection.entryIds,policyVersion:LEDGER_POLICY}});
  if(status.status==='WITHDRAWN')for(const entry of entries){const obligation=await correctionRecord(entry,'RETRACTED',stateId,status.withdrawnAt??status.publishedAt);if(!await store.read(feedId,'correction_obligations',obligation.id))writes.push({kind:'correction_obligations',id:obligation.id,value:obligation})}
+ const selection=await store.read<SelectionRecord>(feedId,'selections',edition.selectionId),plan=selection?.editorialPlanId?await store.read<EditorialPlanRecord>(feedId,'editorial_plans',selection.editorialPlanId):undefined,shortlist=plan?await store.read<ShortlistRecord>(feedId,'shortlists',plan.shortlistId):undefined;
+ if(plan && shortlist && status.status==='PUBLISHED'){
+  const verification=await store.read<{preservedFactIds?:string[]}>(feedId,'verification_results',edition.selectionId),pending=await store.list<{id:string;stableTargetId:string}> (feedId,'editorial_deferred_work');
+  for(const story of edition.stories){const candidate=await store.read<BriefingCandidate>(feedId,'candidates',story.candidateId),planned=plan.stories.find(s=>s.targetVersionId===candidate?.targetVersionId),scope=shortlist.candidates.find(c=>c.targetVersionId===candidate?.targetVersionId);if(!planned||!scope)continue;
+   const preserved=scope.facts.filter(f=>story.claims.some(c=>literal(c.text,f.text))||verification?.preservedFactIds?.includes(f.id));
+   for(const fact of preserved){const id=JSON.stringify([editionId,story.candidateId,fact.id]);if(!await store.read(feedId,'ledger_fact_bindings',id))writes.push({kind:'ledger_fact_bindings',id,value:{id,feedId,editionId,candidateId:story.candidateId,factId:fact.id,propositionId:fact.propositionId,ledgerEntryIds:entries.filter(e=>e.candidateId===story.candidateId).map(e=>e.id),evidenceRevisionIds:fact.evidenceRevisionIds,policyVersion:LEDGER_POLICY}})}
+   if(planned.mustIncludeFactIds.every(id=>preserved.some(f=>f.id===id))){
+    for(const obligation of plan.obligations.filter(o=>o.handling==='ADDRESS'&&o.targetVersionId===scope.targetVersionId)){const id=JSON.stringify([obligation.obligationId,editionId]);if(!await store.read(feedId,'correction_resolutions',id))writes.push({kind:'correction_resolutions',id,value:{id,feedId,obligationId:obligation.obligationId,editionId,planId:plan.id,createdAt:edition.createdAt}})}
+    if(planned.deltaType!=='REPEAT')for(const work of pending.filter(w=>w.stableTargetId===scope.stableTargetId)){const id=JSON.stringify([work.id,editionId]);if(!await store.read(feedId,'editorial_work_resolutions',id))writes.push({kind:'editorial_work_resolutions',id,value:{id,feedId,workId:work.id,editionId,planId:plan.id,createdAt:edition.createdAt}})}
+   }
+  }
+ }
  // Every byte is derived from an immutable, formerly published edition. No
  // arbitrary projection payload enters this internal API. Scope/immutability
  // triggers protect cross-feed identity, including historical rebuilds.

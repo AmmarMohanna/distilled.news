@@ -1,0 +1,21 @@
+import {beforeEach,afterEach,it,expect} from 'vitest';
+import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
+import {V1IntakeStore} from '../v1-intake/store';
+import {V1FeedStore} from './store';
+import {feedFixture,seedIntelligence} from './test-utils';
+import {prepareSemanticShortlist} from './shortlist';
+import {prepareEditorialPlan} from './editorial-plan';
+import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET} from './scoring';
+import {publishSelection} from './publication';
+import {projectEditionLedger} from './ledger';
+let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
+const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
+beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await seedIntelligence(store)});
+afterEach(async()=>ctx.dispose());
+it('writer receives selected structured plan and exact required facts; publication replay preserves semantic ledger references',async()=>{
+ const shortlist=await prepareSemanticShortlist(store,'feed-1',window,window.end),plan=await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,window.end),selection=await scoreAndSelect(store,'feed-1',window,DEFAULT_BRIEFING_BUDGET,window.end,undefined,plan);let calls=0;
+ const usage={tokensIn:100,tokensOut:80,cost:.001,confirmed:true},model={model:'fake',provider:'TEST',maxCallCostUsd:.02,synthesize:async(input:any)=>{calls++;expect(input.editorialPlan.id).toBe(selection.editorialPlanId);expect(input.stories[0].plan.decision).toBe('SELECT');expect(input.stories[0].plan.mustIncludeFactIds).toEqual(shortlist.candidates[0].facts.map(f=>f.id));return {draft:{language:'en',stories:input.stories.map((s:any)=>({candidateId:s.candidate.id,claims:s.evidence.map((e:any)=>({text:e.body,support:[{evidenceRevisionId:e.id,quote:e.body}]}))}))},usage}},verify:async(claims:any[])=>{calls++;return {supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).map((f:any)=>f.id)),usage}}};
+ const edition=await publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model});await projectEditionLedger(store,'feed-1',edition.id);
+ expect(await publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model})).toEqual(edition);expect(calls).toBe(2);
+ expect((await store.list<any>('feed-1','ledger_entries'))[0].propositionIds).toEqual(shortlist.candidates[0].facts.map(f=>f.propositionId));
+},25000);
