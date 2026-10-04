@@ -3,7 +3,7 @@ import {z} from 'zod';
 import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import type {SelectionRecord} from './scoring';
-import {communicationFingerprint,boundedEditorialContext,type EditorialDecision} from './editorial';
+import {communicationFingerprint,boundedEditorialContext,supportedSentences,equivalentFact,type EditorialDecision} from './editorial';
 import type {EventRecord,FeedRecord,StorylineRecord,StorylineVersion} from './types';
 
 export interface ClaimSupport {evidenceRevisionId:string;quote:string}
@@ -11,11 +11,12 @@ export interface DraftClaim {text:string;support:ClaimSupport[]}
 export interface BriefingDraft {language:string;stories:{candidateId:string;claims:DraftClaim[]}[]}
 export interface ModelUsage {tokensIn:number;tokensOut:number;cost:number;confirmed:boolean}
 export interface SynthesisInput {feed:Pick<FeedRecord,'id'|'revision'|'title'|'interests'|'outputLanguage'>;selectionId:string;window?:SelectionRecord['window'];stories:{candidate:BriefingCandidate;eventVersions:EventVersion[];storylineVersion?:StorylineVersion;editorial?:EditorialDecision;evidence:(EvidenceRevision & {excerptTruncated:boolean})[]}[]}
-export interface VerificationClaim {id:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean}[]}
+export interface PreservationFact {id:string;text:string;evidenceRevisionIds:string[]}
+export interface VerificationClaim {id:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean}[];requiredFacts?:PreservationFact[]}
 export interface BriefingModelPort {
  model:string;provider:string;maxCallCostUsd:number;
  synthesize(input:SynthesisInput,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
- verify?(claims:VerificationClaim[],limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{supportedClaimIds:string[];usage:ModelUsage}>;
+ verify?(claims:VerificationClaim[],limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{supportedClaimIds:string[];preservedFactIds?:string[];usage:ModelUsage}>;
 }
 interface PublicationJob {id:string;feedId:string;selectionId:string;state:'PENDING'|'RUNNING'|'DONE'|'FAILED';attempts:number;token:string;leaseUntil:string;callsUsed:number;tokensIn:number;tokensOut:number;cost:number;pendingCall?:string;failure?:string}
 interface StoredDraft {id:string;feedId:string;draft:BriefingDraft;model:string;provider:string;createdAt:string}
@@ -31,6 +32,17 @@ export interface BriefingEditionRecord {
 const draftSchema=z.object({language:z.string().min(1),stories:z.array(z.object({candidateId:z.string().min(1),claims:z.array(z.object({text:z.string().min(1).max(1000),support:z.array(z.object({evidenceRevisionId:z.string().min(1),quote:z.string().min(1).max(1800)}).strict()).min(1).max(3)}).strict()).max(4)}).strict()).max(20)}).strict();
 const usageSchema=z.object({tokensIn:z.number().int().nonnegative(),tokensOut:z.number().int().nonnegative(),cost:z.number().finite().nonnegative(),confirmed:z.boolean()}).strict();
 const normalize=(s:string)=>s.normalize('NFKC').replace(/\s+/g,' ').trim();
+function preservationFacts(story:SynthesisInput['stories'][number]):PreservationFact[] {
+ const facts:PreservationFact[]=[];
+ for(const evidence of story.evidence) for(const text of supportedSentences(evidence.body??'')) {
+  // Quantities, qualification and open outcomes are conservative preservation
+  // requirements. Semantic importance of other details remains an evaluation task.
+  if(evidence.language==='en' && !/\p{N}|\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|trillions?|dozens|several|few|half|quarter|majority|minority|all|none|some|many|most|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|june|july|august|september|october|november|december|not|no|never|without|may|might|could|uncertain|uncertainty|disputed|discrepancy|unresolved|estimated|alleged|however|but|postponed|no new date|not confirmed|at least|more than|less than|up to)\b/iu.test(text)) continue;
+  const same=facts.find(f=>equivalentFact(f.text,text));
+  if(same) same.evidenceRevisionIds.push(evidence.id);else facts.push({id:`${story.candidate.id}:fact:${facts.length}`,text,evidenceRevisionIds:[evidence.id]});
+ }
+ return facts;
+}
 async function assertCommunicationCurrent(tx:FeedTransaction,selection:SelectionRecord):Promise<void> {
  if(selection.communicationFingerprint && selection.communicationFingerprint!==await communicationFingerprint(tx,selection.window.end)) throw new HandoffError('TEMPORARY_UNAVAILABLE');
 }
@@ -134,7 +146,9 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    } else if(phase==='GROUNDING') {
     const ids=z.array(z.string().min(1)).max(80).safeParse((result as T & {supportedClaimIds?:unknown}).supportedClaimIds);
     if(!ids.success) throw new HandoffError('INVALID_REQUEST');
-    await tx.write('verification_results',selectionId,{id:selectionId,feedId,supportedClaimIds:ids.data,createdAt:options.now()});
+    const preserved=z.array(z.string().min(1)).max(200).optional().safeParse((result as T & {preservedFactIds?:unknown}).preservedFactIds);
+    if(!preserved.success) throw new HandoffError('INVALID_REQUEST');
+    await tx.write('verification_results',selectionId,{id:selectionId,feedId,supportedClaimIds:ids.data,preservedFactIds:preserved.data,createdAt:options.now()});
    }
    await tx.write('synthesis_jobs',editionId,{...job,pendingCall:undefined,cost:intent.previous.cost+actual.cost,tokensIn:intent.previous.tokensIn+actual.tokensIn,tokensOut:intent.previous.tokensOut+actual.tokensOut});
   });return result;
@@ -164,21 +178,36 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
      proposals.push({candidateId:story.candidateId,claim:{id:await sha256(canonicalJson({candidate:story.candidateId,claim})),...claim},exact});
     }
    }
-   const nonextractive=proposals.filter(p=>!p.exact),supported=new Set(proposals.filter(p=>p.exact).map(p=>p.claim.id));
+   const nonextractive=proposals.filter(p=>!p.exact),supported=new Set(proposals.filter(p=>p.exact).map(p=>p.claim.id)),preservedFacts=new Set<string>();
    if(nonextractive.length && options.model?.verify) {
-    let result=await store.read<{supportedClaimIds:string[]}>(feedId,'verification_results',selectionId);
-    if(!result) {const claims:VerificationClaim[]=nonextractive.map(p=>({...p.claim,context:candidates.get(p.candidateId)!.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,text:e.body??'',truncated:e.excerptTruncated}))}));await callModel('GROUNDING',claims,limits=>options.model!.verify!(claims,limits));result=await store.read(feedId,'verification_results',selectionId)}
+    let result=await store.read<{supportedClaimIds:string[];preservedFactIds?:string[]}>(feedId,'verification_results',selectionId);
+    if(!result) {const seen=new Set<string>();const claims:VerificationClaim[]=nonextractive.map(p=>{
+     const first=!seen.has(p.candidateId);seen.add(p.candidateId);
+     return {...p.claim,requiredFacts:first?preservationFacts(candidates.get(p.candidateId)!):undefined,context:candidates.get(p.candidateId)!.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,text:e.body??'',truncated:e.excerptTruncated}))};
+    });await callModel('GROUNDING',claims,limits=>options.model!.verify!(claims,limits));result=await store.read(feedId,'verification_results',selectionId)}
     for(const id of result?.supportedClaimIds??[]) if(nonextractive.some(p=>p.claim.id===id)) supported.add(id);
+    for(const id of result?.preservedFactIds??[]) preservedFacts.add(id);
    }
    const stories:GroundingResult['stories']=[];let words=0;
    for(const id of selection.selectedCandidateIds) {
-    const claims:GroundedClaim[]=[];
+    const claims:GroundedClaim[]=[];let storyWords=0;
     for(const p of proposals.filter(p=>p.candidateId===id)) {
      const count=(p.claim.text.match(/\S+/g)??[]).length;
-     if(supported.has(p.claim.id) && words+count<=selection.budget.maxReadingWords) {claims.push(p.claim);words+=count}else rejected++;
-    }if(claims.length) stories.push({candidateId:id,claims});
+     if(supported.has(p.claim.id)) {claims.push(p.claim);storyWords+=count}else rejected++;
+    }
+    // A collective semantic preservation verdict applies to the verified claim
+    // set. Never clip a side afterward to fit the reading ceiling.
+    if(words+storyWords>selection.budget.maxReadingWords) {rejected+=claims.length;continue}
+    const fullVerifiedSet=proposals.filter(p=>p.candidateId===id).every(p=>supported.has(p.claim.id));
+    const required=preservationFacts(candidates.get(id)!);
+    const complete=required.every(f=>claims.some(c=>{
+     const quoted=c.support.some(s=>f.evidenceRevisionIds.includes(s.evidenceRevisionId) && normalize(s.quote).includes(normalize(f.text)));
+     const literal=normalize(c.text).includes(normalize(f.text)) || supportedSentences(c.text).some(text=>equivalentFact(text,f.text));
+     return quoted && (literal || fullVerifiedSet && preservedFacts.has(f.id));
+    }));
+    if(claims.length && complete) {stories.push({candidateId:id,claims});words+=storyWords}else rejected+=claims.length;
    }
-   grounding={id:selectionId,feedId,stories,rejectedClaims:rejected,policyVersion:'quotes-and-entailment-v1',createdAt:options.now()};
+   grounding={id:selectionId,feedId,stories,rejectedClaims:rejected,policyVersion:'quotes-entailment-preservation-v2',createdAt:options.now()};
    const value=grounding;await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await tx.write('grounding_results',selectionId,value)});
   }
   if(selection.selectedCandidateIds.length && !grounding.stories.length) throw new HandoffError('INVALID_REQUEST');
