@@ -30,6 +30,13 @@ it('cron dispatches only approved bounded feed windows; duplicate briefing deliv
  expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await dispatchV1Intelligence(env,now)).toBe(0);
  expect(await dispatchV1Intelligence({...env,V1_DOWNSTREAM_ENABLED:'false'},now)).toBe(0);
 });
+it('projects only actually communicated grounded claims after publication and recovers projection on replay',async()=>{
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
+ const edition=(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end))!;
+ const entries=await store.list<any>('feed-1','ledger_entries' as any);expect(entries).toHaveLength(edition.stories.flatMap(s=>s.claims).length);
+ expect(entries[0]).toMatchObject({editionId:edition.id,claimText:edition.stories[0].claims[0].text,evidenceRevisionIds:edition.stories[0].claims[0].support.map(s=>s.evidenceRevisionId)});
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end);expect(await store.list('feed-1','ledger_entries' as any)).toEqual(entries);
+});
 it('durable live scheduling carries IANA boundaries and supports quiet replay',async()=>{
  const schedule={durationMinutes:120 as const,timezone:'Asia/Beirut',deliveryAnchor:'08:00'};
  await store.registerFeed({...feedFixture,briefingSchedule:schedule,revision:2});

@@ -3,6 +3,7 @@ import {V1FeedStore} from './store';
 import {V1IntakeStore} from '../v1-intake/store';
 import type {AcceptedInput} from '../v1-intake/types';
 import type {BriefingEditionRecord} from './publication';
+import {projectEditionLedger} from './ledger';
 export interface PublicationStatus {id:string;feedId:string;status:'PUBLISHED'|'WITHDRAWN';publishedAt:string;withdrawnAt?:string;reason?:string}
 /** Historical reads use exact edition support; current pointers and deleted product rows are irrelevant. */
 export async function publicV1Edition(db:D1Database,id:string) {
@@ -27,7 +28,7 @@ export async function publicV1Evidence(db:D1Database,editionId:string,revisionId
 export async function withdrawV1Edition(db:D1Database,id:string,ownerId:string,reason:'POLICY_REQUIRED'|'OWNER_REQUEST',now:string):Promise<void> {
  const row=await db.prepare("SELECT e.feed_id,f.epoch FROM v1_feed_documents e JOIN v1_feeds f ON f.id=e.feed_id WHERE e.kind='editions' AND e.id=? AND json_extract(f.json,'$.ownerId')=?").bind(id,ownerId).first<{feed_id:string;epoch:number}>();
  if(!row) throw new HandoffError('SCOPE_DENIED');
- const store=new V1FeedStore(db),status=await store.read<PublicationStatus>(row.feed_id,'publication_status',id);if(status?.status==='WITHDRAWN') return;
+ const store=new V1FeedStore(db),status=await store.read<PublicationStatus>(row.feed_id,'publication_status',id);if(status?.status==='WITHDRAWN') {await projectEditionLedger(store,row.feed_id,id);return}
  if(!status || !Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
  const guard=crypto.randomUUID();
  await db.batch([
@@ -36,4 +37,5 @@ export async function withdrawV1Edition(db:D1Database,id:string,ownerId:string,r
   db.prepare('UPDATE v1_feeds SET epoch=epoch+1 WHERE id=?').bind(row.feed_id),
   db.prepare('DELETE FROM v1_enrollment_guards WHERE id=?').bind(guard)
  ]);
+ await projectEditionLedger(store,row.feed_id,id);
 }

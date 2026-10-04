@@ -15,6 +15,7 @@ import {createSemanticSalienceScorer} from './salience-runtime';
 import type {EventSalienceScorer} from './salience';
 import {SalienceContentionError} from './salience-persistence';
 import {SynthesisCompatibilityError} from './language';
+import {projectEditionLedger} from './ledger';
 import type {FeedRecord} from './types';
 import {synchronizeV1ProductSource} from './product';
 import {publicationWindowSchema,livePublicationWindow} from './schedule';
@@ -66,6 +67,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  await approvedFeed(env,feedId);const store=new V1FeedStore(env.DB),id=await windowIdentity(feedId,window);
  const existing=await store.read<import('./publication').BriefingEditionRecord>(feedId,'editions',id);
  if(existing) {
+  await projectEditionLedger(store,feedId,existing.id);
   // Publication is atomic, but the request acknowledgement is a later commit.
   // Recover a crash in that gap without reopening synthesis or paid calls.
   await feedTransact(store,feedId,async tx=>{
@@ -82,6 +84,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  try {
   const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env));
   const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:createStoredEvidenceModel(env)}):undefined;
+  if(edition)await projectEditionLedger(store,feedId,edition.id);
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE'})});return edition;
  } catch(error) {
   // The publication lease owns contention; concurrent deliveries cannot consume

@@ -5,6 +5,7 @@ import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {INTELLIGENCE_POLICY,classifyRole,duplicateSimilarity,features} from './policies';
 import {deterministicMatchers,validateEventMatch,validateStorylineMatch,type IntelligenceMatchers,type EventMatchInput} from './matchers';
 import {persistClaimMentions} from './claims';
+import {refreshSourceCorrectionObligations} from './ledger';
 import type {DuplicateDecision,EventRecord,IntelligenceReceipt,RoleDecision,StorylineRecord,StorylineVersion,SupportedFact} from './types';
 
 function revisionText(revision:EvidenceRevision):string {return [revision.title,revision.body].filter(Boolean).join('\n')}
@@ -125,6 +126,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
    changed.push(await versionEvent(tx,selected,[...previous.filter(r=>r.evidenceId!==target.item.id),target.revision],now));
   }
   receipt.decision=target?'PROCESSED':'WITHDRAWN';receipt.eventVersionIds=changed.map(e=>e.id);receipt.storylineVersionIds=await updateStorylines(tx,changed,now,matchers,preferredStorylines);
+  await refreshSourceCorrectionObligations(tx,now);
   await tx.write('intelligence_receipts',jobId,receipt);tx.completeJob(job);return receipt;
  });
 }
