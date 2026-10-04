@@ -2,7 +2,8 @@ import {HandoffError,type EventVersion,type EventMembership,type EvidenceRevisio
 import {V1IntakeStore} from '../v1-intake/store';
 import type {AcceptedInput,DownstreamJob} from '../v1-intake/types';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
-import {INTELLIGENCE_POLICY,classifyRole,duplicateSimilarity,eventSimilarity,features,overlap} from './policies';
+import {INTELLIGENCE_POLICY,classifyRole,duplicateSimilarity,features} from './policies';
+import {deterministicMatchers,validateEventMatch,validateStorylineMatch,type IntelligenceMatchers,type EventMatchInput} from './matchers';
 import type {DuplicateDecision,EventRecord,IntelligenceReceipt,RoleDecision,StorylineRecord,StorylineVersion,SupportedFact} from './types';
 
 function revisionText(revision:EvidenceRevision):string {return [revision.title,revision.body].filter(Boolean).join('\n')}
@@ -25,7 +26,7 @@ async function supportingRevisions(tx:FeedTransaction,event:EventRecord):Promise
  const members=await eventMemberships(tx,event.currentVersionId),rows=await Promise.all(members.map(m=>tx.revision(m.evidenceRevisionId)));
  return rows.filter((r):r is EvidenceRevision=>Boolean(r));
 }
-async function updateStorylines(tx:FeedTransaction,changed:EventVersion[],now:string):Promise<string[]> {
+async function updateStorylines(tx:FeedTransaction,changed:EventVersion[],now:string,matchers:IntelligenceMatchers,preferred:Map<string,string>):Promise<string[]> {
  const roots=await tx.list<StorylineRecord>('storylines'),changedIds:string[]=[];
  const groups=new Map<string,{root:StorylineRecord;old?:StorylineVersion;original:EventVersion[];events:Map<string,EventVersion>;changed:Set<string>}>();
  for(const root of roots) {
@@ -35,12 +36,10 @@ async function updateStorylines(tx:FeedTransaction,changed:EventVersion[],now:st
  }
  for(const event of changed) {
   let group:ReturnType<typeof groups.get>;
-  for(const candidate of groups.values()) {
-   const matching=[...candidate.original,...candidate.events.values()];
-   const sameIdentity=matching.some(e=>e.eventId===event.eventId);
-   const topical=event.type!=='WITHDRAWN' && matching.some(e=>e.type!=='WITHDRAWN' && overlap(features(`${e.title??''} ${e.state}`).keywords,features(`${event.title??''} ${event.state}`).keywords)>=.4 && (e.entities.some(x=>event.entities.includes(x)) || overlap(features(e.state).keywords,features(event.state).keywords)>=.7));
-   if(sameIdentity || topical) {group=candidate;break}
-  }
+  const input={event,candidates:[...groups.values()].map(candidate=>({id:candidate.root.id,events:[...candidate.original,...candidate.events.values()]}))};
+  const known=preferred.get(event.eventId);
+  const decision=validateStorylineMatch(known?{relation:'CONTINUES',storylineId:known,confidence:1,provenance:{scorer:'PREPARED',policyVersion:'event-structure-continuity-v1'}}:matchers.storyline.match(input),input);
+  if(decision.relation==='CONTINUES')group=groups.get(decision.storylineId!);
   if(!group) {
    if(event.type==='WITHDRAWN') continue;
    const root={id:crypto.randomUUID(),feedId:tx.snapshot.feed.id,currentVersionId:'',createdAt:now};
@@ -68,7 +67,7 @@ async function updateStorylines(tx:FeedTransaction,changed:EventVersion[],now:st
 }
 /** Atomic deterministic reassessment. Feed and every source epoch fence source changes/deletions.
  * No model call, external acquisition or source checkpoint mutation occurs in this transaction. */
-export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string,now:string):Promise<IntelligenceReceipt> {
+export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string,now:string,matchers:IntelligenceMatchers=deterministicMatchers):Promise<IntelligenceReceipt> {
  const intake=new V1IntakeStore(store.db),initial=await intake.read<DownstreamJob>('jobs',jobId);
  if(!initial || initial.value.kind!=='REASSESS') throw new HandoffError('INVALID_REQUEST');
  return feedTransact(store,initial.value.feedId,async tx=>{
@@ -82,6 +81,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   // Identical-content replay may advance the observation watermark without emitting a new reassessment job.
   if(!current || (target?target.revision.sourceObservationId!==o.id:current.value.currentObservationId!==o.id)) {await tx.write('intelligence_receipts',jobId,receipt);tx.completeJob(job);return receipt}
   const events=await tx.list<EventRecord>('events'),changed:EventVersion[]=[];
+  const preferredStorylines=new Map<string,string>();
   let selected:EventRecord|undefined;
   if(target) {
    const text=revisionText(target.revision),classification=classifyRole(text);
@@ -99,20 +99,19 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
     if(target.revision.contentHash===other.revision.contentHash || similarity>=.9 && sameDevelopment) {duplicate.kind=target.revision.contentHash===other.revision.contentHash?'EXACT':'NEAR';duplicate.similarity=similarity;duplicate.duplicateOfRevisionId=other.revision.id;break}
    }
    await tx.write('duplicates',duplicate.id,duplicate);
-   if(!['NOISE','PROMOTION','OPINION','UNVERIFIED_LEAD'].includes(role.role)) {
-    let best=.4;
+   const candidates:EventMatchInput['candidates']=[];
     for(const event of events) {
      const version=await tx.read<EventVersion>('event_versions',event.currentVersionId);if(!version || version.type==='WITHDRAWN') continue;
      const members=await eventMemberships(tx,version.id);
-     const compatible=features(text).development===features(`${version.title??''}\n${version.state}`).development;
-     const score=compatible && duplicate.duplicateOfRevisionId && members.some(m=>m.evidenceRevisionId===duplicate.duplicateOfRevisionId)?1:eventSimilarity(features(text),features(`${version.title??''}\n${version.state}`));
      const revisions=await supportingRevisions(tx,event);
-     const newest=revisions.map(r=>Date.parse(r.publishedAt??r.acceptedAt)).sort((a,b)=>b-a)[0];
-     const gap=Math.abs(Date.parse(target.revision.publishedAt??target.revision.acceptedAt)-newest);
-     if(score>=best && (gap<=3*86_400_000 || score>=.8 && gap<=14*86_400_000)) {selected=event;best=score+.000001}
+     const newest=revisions.map(r=>r.publishedAt??r.acceptedAt).sort((a,b)=>Date.parse(a)-Date.parse(b)).at(-1)??version.createdAt;
+     candidates.push({id:event.id,version,evidenceRevisionIds:members.map(m=>m.evidenceRevisionId),newestAt:newest});
     }
-    if(!selected && role.role!=='ANALYSIS') selected={id:crypto.randomUUID(),feedId:o.feedId,currentVersionId:'',createdAt:now};
-   }
+   const matchInput={revision:target.revision,role:role.role,duplicateOfRevisionId:duplicate.duplicateOfRevisionId,candidates,storylineIds:(await tx.list<StorylineRecord>('storylines')).map(s=>s.id)};
+   const decision=validateEventMatch(matchers.event.match(matchInput),matchInput);
+   if(decision.structuralRelation==='SAME_EVENT')selected=events.find(e=>e.id===decision.eventId);
+   else if(decision.structuralRelation!=='DEFER')selected={id:crypto.randomUUID(),feedId:o.feedId,currentVersionId:'',createdAt:now};
+   if(selected && decision.storylineId)preferredStorylines.set(selected.id,decision.storylineId);
   }
   // Replace old support from this stable evidence identity, including reassignment/withdrawal.
   for(const event of events) {
@@ -123,7 +122,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
    const previous=selected.currentVersionId?await supportingRevisions(tx,selected):[];
    changed.push(await versionEvent(tx,selected,[...previous.filter(r=>r.evidenceId!==target.item.id),target.revision],now));
   }
-  receipt.decision=target?'PROCESSED':'WITHDRAWN';receipt.eventVersionIds=changed.map(e=>e.id);receipt.storylineVersionIds=await updateStorylines(tx,changed,now);
+  receipt.decision=target?'PROCESSED':'WITHDRAWN';receipt.eventVersionIds=changed.map(e=>e.id);receipt.storylineVersionIds=await updateStorylines(tx,changed,now,matchers,preferredStorylines);
   await tx.write('intelligence_receipts',jobId,receipt);tx.completeJob(job);return receipt;
  });
 }

@@ -6,6 +6,7 @@ import {createCandidateIntakePort} from '../v1-intake/intake';
 import {acceptAcquiredContent} from '../v1-intake/evidence';
 import {V1FeedStore} from './store';
 import {processEvidenceIntelligence} from './engine';
+import {deterministicMatchers} from './matchers';
 import type {FeedRecord,EventRecord,StorylineVersion,DuplicateDecision} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,intake:V1IntakeStore,store:V1FeedStore;
 const now=testPolicy.now(),feed:FeedRecord={id:'feed-1',ownerId:'owner-1',title:'Lebanon news',interests:['banking reform'],geography:['Lebanon'],outputLanguage:'en',briefingFrequency:'DAILY',paused:false,revision:1,createdAt:now,updatedAt:now};
@@ -69,4 +70,21 @@ it('long copied background cannot merge distinct proposal and approval developme
  expect(await store.list('feed-1','events')).toHaveLength(2);
  expect((await store.list<DuplicateDecision>('feed-1','duplicates')).every(d=>d.kind==='UNIQUE')).toBe(true);
  expect(await store.list('feed-1','storylines')).toHaveLength(1);
+});
+it('prepared matcher decisions separate similar developments without overriding exact support',async()=>{
+ await processEvidenceIntelligence(store,await acquire(1,'Lebanon Parliament approved banking reform legislation.','first'),now);
+ const matchers={event:{match:()=>({structuralRelation:'NEW_STORYLINE',epistemicEffects:['CHANGES_STATE'],confidence:.9,provenance:{scorer:'PREPARED',policyVersion:'fixture'}})},storyline:{match:()=>({relation:'NEW',confidence:.9,provenance:{scorer:'PREPARED',policyVersion:'fixture'}})}};
+ await processEvidenceIntelligence(store,await acquire(2,'Lebanon Parliament approved banking reform legislation after a different vote.','second'),now,matchers as any);
+ expect(await store.list('feed-1','events')).toHaveLength(2);
+ expect(await store.list('feed-1','storylines')).toHaveLength(2);
+ const latest=(await store.list<EventVersion>('feed-1','event_versions')).filter(v=>v.version===1);expect(latest).toHaveLength(2);
+ for(const version of latest)expect((await store.list<EventMembership>('feed-1','memberships')).filter(m=>m.eventVersionId===version.id)).toHaveLength(1);
+});
+it('a prepared new Event can explicitly continue a known Storyline despite weak lexical continuity',async()=>{
+ await processEvidenceIntelligence(store,await acquire(1,'Lebanon Parliament approved banking reform legislation.','first'),now);
+ const storylineId=(await store.list<{id:string}>('feed-1','storylines'))[0].id;
+ const event={match:()=>({structuralRelation:'NEW_EVENT_EXISTING_STORYLINE',storylineId,epistemicEffects:['ADDS_DETAIL'],confidence:.9,provenance:{scorer:'PREPARED',policyVersion:'fixture'}})};
+ await processEvidenceIntelligence(store,await acquire(2,'Central bank begins implementing new capital requirements.','second'),now,{...deterministicMatchers,event} as any);
+ expect(await store.list('feed-1','events')).toHaveLength(2);expect(await store.list('feed-1','storylines')).toHaveLength(1);
+ const versions=await store.list<StorylineVersion>('feed-1','storyline_versions');expect(versions.find(v=>v.version===2)?.eventVersionIds).toHaveLength(2);
 });
