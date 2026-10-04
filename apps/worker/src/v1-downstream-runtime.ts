@@ -9,6 +9,7 @@ import type { IntakePolicy } from './v1-intake/types';
 import { WorkerPublicSourceFetch } from './public-source-fetch';
 import {synchronizeV1ProductSource} from './v1-intelligence/product';
 import {createV1BrowserStages} from './v1-intake/browser-stages';
+import {languageResolutionSchema} from './v1-intelligence/language';
 
 function enabledSources(env:Env):string[] {
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
@@ -41,7 +42,7 @@ export async function acceptV1Handoff(env:Env,raw:unknown) {
  await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
  return createCandidateIntakePort(new V1IntakeStore(env.DB),createV1RuntimePolicy()).acceptBatch(parsed.data);
 }
-const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),publishedAt:z.string().datetime().optional()}).strict();
+const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();
 export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetch=fetch) {
  const store=new V1IntakeStore(env.DB),job=await store.read<{feedSourceId:string}>('jobs',id);
  if(!job || !v1SourceEnabled(env,job.feedSourceId)) return 'SKIPPED' as const;

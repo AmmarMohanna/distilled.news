@@ -8,6 +8,32 @@ import {publishSelection,type BriefingModelPort} from './publication';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
 afterEach(async()=>ctx.dispose());
+it.each(['UNKNOWN',''])('unknown evidence language %s permits exact extraction without inventing metadata',async language=>{
+ await seedIntelligence(store,1,'Lebanon Parliament approved banking reform legislation.','publisher-1',testPolicy.now(),language||null);
+ const selected=await selection(),edition=await publishSelection(store,'feed-1',selected.id,{now:testPolicy.now});
+ expect(edition.stories[0].claims[0].text).toBe('Lebanon Parliament approved banking reform legislation.');
+ const revision=await store.revision('feed-1',edition.evidenceRevisionIds[0]);
+ expect(revision?.language).toBe(language||undefined);
+ expect(await publishSelection(store,'feed-1',selected.id,{now:testPolicy.now})).toEqual(edition);
+});
+it('known different language requires translation and fails explicitly without publishing',async()=>{
+ await seedIntelligence(store,1,'Lebanon Parliament approved banking reform legislation.','publisher-1',testPolicy.now(),'ar');
+ const selected=await selection();
+ await expect(publishSelection(store,'feed-1',selected.id,{now:testPolicy.now})).rejects.toMatchObject({reason:'TRANSLATION_REQUIRED'});
+ expect(await store.list('feed-1','editions')).toHaveLength(0);
+});
+it('unknown language does not bypass extractive capacity limits',async()=>{
+ await seedIntelligence(store,1,'Lebanon Parliament approved banking reform legislation. '.repeat(15),'publisher-1',testPolicy.now(),'UNKNOWN');
+ const selected=await selection();
+ await expect(publishSelection(store,'feed-1',selected.id,{now:testPolicy.now})).rejects.toMatchObject({reason:'EXTRACTIVE_CAPACITY_UNSUPPORTED'});
+});
+it('configured multilingual synthesis may translate Arabic evidence with exact quotes and verification',async()=>{
+ const body='وافق البرلمان اللبناني على إصلاح القطاع المصرفي.';
+ await seedIntelligence(store,1,body,'publisher-1',testPolicy.now(),'ar');const selected=await selection();
+ const model:BriefingModelPort={model:'multilingual-fixture',provider:'SYNTHETIC',maxCallCostUsd:.01,synthesize:async input=>({draft:{language:'en',stories:[{candidateId:input.stories[0].candidate.id,claims:[{text:'Lebanon Parliament approved banking reform.',support:[{evidenceRevisionId:input.stories[0].evidence[0].id,quote:body}]}]}]},usage:{tokensIn:50,tokensOut:20,cost:.001,confirmed:true}}),verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>f.id)),usage:{tokensIn:50,tokensOut:20,cost:.001,confirmed:true}})};
+ const edition=await publishSelection(store,'feed-1',selected.id,{now:testPolicy.now,model});
+ expect(edition.language).toBe('en');expect(edition.stories[0].claims[0].support[0].quote).toBe(body);expect((await store.revision('feed-1',edition.evidenceRevisionIds[0]))?.language).toBe('ar');
+});
 async function selection() {if(!(await store.list('feed-1','events')).length) await seedIntelligence(store);return scoreAndSelect(store,'feed-1',{start:'2026-10-03T00:00:00Z',end:'2026-10-04T00:00:00Z',kind:'DAILY'},DEFAULT_BRIEFING_BUDGET,testPolicy.now())}
 it('publishes exact grounded immutable support; lost acknowledgement returns the same edition and one delivery job',async()=>{
  const selected=await selection(),edition=await publishSelection(store,'feed-1',selected.id,{now:testPolicy.now});

@@ -4,6 +4,7 @@ import {
   type EvidenceAcceptanceReceipt, type EvidenceRevisionConflict, type IntakeReceipt
 } from '@distilled/contracts';
 import { z } from 'zod';
+import {languageResolutionSchema} from '../v1-intelligence/language';
 import { itemId, V1IntakeStore } from './store';
 import { canonicalJson } from './canonical';
 import { transact } from './transaction';
@@ -12,7 +13,7 @@ import { enqueue } from './intake';
 import { requireAcquisitionLease } from './acquisition-lease';
 import type { AcceptedAcquiredContent, AcceptedInput, DownstreamJob, IntakePolicy } from './types';
 
-export const acquiredSchema=z.object({id:idSchema,feedId:idSchema,candidateId:idSchema,sourceObservationId:idSchema,representation:representationSchema,contentCompleteness:completenessSchema,title:z.string().optional(),body:z.string().max(512000).refine(s=>s.trim().length>0),language:idSchema.optional(),publishedAt:timestampSchema.optional(),canonicalUrl:z.string().url().refine(s=>{const u=new URL(s);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password}).optional(),acquiredAt:timestampSchema,acquisitionMethod:z.enum(['supplied_payload','platform_api','direct_http','browser']),acquisitionProvider:idSchema.optional(),sourceId:idSchema.optional(),resolvedUrl:z.string().url().optional(),quality:z.object({transportSuccess:z.literal(true),extractionSuccess:z.literal(true),extractionComplete:z.boolean()}).strict().optional(),provenance:z.object({routerVersion:idSchema,stages:z.array(idSchema).max(5),rawPayloadRef:idSchema.optional(),browserEvidence:z.object({acceptanceId:idSchema.optional(),observationId:idSchema.optional(),rawArtifactRef:idSchema.optional()}).strict().optional()}).strict().optional()}).strict();
+export const acquiredSchema=z.object({id:idSchema,feedId:idSchema,candidateId:idSchema,sourceObservationId:idSchema,representation:representationSchema,contentCompleteness:completenessSchema,title:z.string().optional(),body:z.string().max(512000).refine(s=>s.trim().length>0),language:idSchema.optional(),publishedAt:timestampSchema.optional(),canonicalUrl:z.string().url().refine(s=>{const u=new URL(s);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password}).optional(),acquiredAt:timestampSchema,acquisitionMethod:z.enum(['supplied_payload','platform_api','direct_http','browser']),acquisitionProvider:idSchema.optional(),sourceId:idSchema.optional(),resolvedUrl:z.string().url().optional(),quality:z.object({transportSuccess:z.literal(true),extractionSuccess:z.literal(true),extractionComplete:z.boolean()}).strict().optional(),provenance:z.object({routerVersion:idSchema,stages:z.array(idSchema).max(5),rawPayloadRef:idSchema.optional(),languageResolution:languageResolutionSchema.optional(),browserEvidence:z.object({acceptanceId:idSchema.optional(),observationId:idSchema.optional(),rawArtifactRef:idSchema.optional()}).strict().optional()}).strict().optional()}).strict();
 
 function conflictReason(input:AcceptedInput,current:CurrentEvidence|undefined):EvidenceRevisionConflict['reason'] {
   const a=input.observation.sourceRevision,b=current?.item.currentSourceRevision;

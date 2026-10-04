@@ -1,5 +1,6 @@
 import {HandoffError,sha256,type BriefingCandidate,type EventVersion,type EventMembership,type EvidenceRevision} from '@distilled/contracts';
 import {z} from 'zod';
+import {extractiveLanguageCompatibility,SynthesisCompatibilityError} from './language';
 import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import type {SelectionRecord} from './scoring';
@@ -79,7 +80,8 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Prom
  const f=tx.snapshot.feed;return {feed:{id:f.id,revision:f.revision,title:f.title,interests:f.interests,outputLanguage:f.outputLanguage},selectionId:selection.id,window:selection.window,stories};
 }
 function extractiveDraft(input:SynthesisInput):BriefingDraft {
- if(input.stories.some(s=>s.evidence.length>4 || s.evidence.some(e=>e.language!==input.feed.outputLanguage || e.excerptTruncated || e.body!.trim().length>600))) throw new HandoffError('TEMPORARY_UNAVAILABLE');
+ if(input.stories.some(s=>s.evidence.some(e=>extractiveLanguageCompatibility(e.language,input.feed.outputLanguage)==='TRANSLATION_REQUIRED'))) throw new SynthesisCompatibilityError('TRANSLATION_REQUIRED');
+ if(input.stories.some(s=>s.evidence.length>4 || s.evidence.some(e=>e.excerptTruncated || e.body!.trim().length>600))) throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
  return {language:input.feed.outputLanguage,stories:input.stories.map(s=>{
   return {candidateId:s.candidate.id,claims:s.evidence.flatMap(revision=>{
    const quote=revision.body!.trim();return quote?[{text:quote,support:[{evidenceRevisionId:revision.id,quote}]}]:[];
@@ -230,7 +232,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    if(job?.state==='RUNNING' && job.token===token) {
     const transient=error instanceof HandoffError && error.code==='TEMPORARY_UNAVAILABLE' && !job.pendingCall && job.attempts<5;
     if(job.pendingCall) await tx.write('model_executions',job.pendingCall,{id:job.pendingCall,feedId,editionId,status:'OUTCOME_UNKNOWN',confirmed:false,reservationRetained:true,createdAt:options.now()});
-    await tx.write('synthesis_jobs',editionId,{...job,state:transient?'PENDING':'FAILED',failure:job.pendingCall?'MODEL_OUTCOME_UNKNOWN':error instanceof HandoffError?error.code:'SYNTHESIS_FAILED'});
+    await tx.write('synthesis_jobs',editionId,{...job,state:transient?'PENDING':'FAILED',failure:job.pendingCall?'MODEL_OUTCOME_UNKNOWN':error instanceof SynthesisCompatibilityError?error.reason:error instanceof HandoffError?error.code:'SYNTHESIS_FAILED'});
    }
   })} catch { /* A revoked Feed already prevents recovery/publication. */ }
   if(error instanceof HandoffError) throw error;throw new HandoffError('TEMPORARY_UNAVAILABLE');

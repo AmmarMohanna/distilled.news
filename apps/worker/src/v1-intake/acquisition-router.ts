@@ -6,8 +6,9 @@ import { WorkerPublicSourceFetch } from '../public-source-fetch';
 import { AcquisitionFailure, type AcquisitionClaim } from './acquisition';
 import { acquiredSchema } from './evidence';
 import type { AcceptedAcquiredContent } from './types';
+import type {LanguageResolution} from '../v1-intelligence/language';
 
-export interface SuppliedPayload {title?:string;body:string;language?:string;publishedAt?:string}
+export interface SuppliedPayload {title?:string;body:string;language?:string;languageResolution?:LanguageResolution;publishedAt?:string}
 export interface CandidateAcquisitionOptions {
  now():string;
  readPayload?(claim:AcquisitionClaim):Promise<SuppliedPayload|undefined>;
@@ -24,7 +25,9 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
   if(o.suppliedPayloadRef && options.readPayload) {
    const payload=await options.readPayload(claim);
    if(payload) {
-    const parsed=acquiredSchema.safeParse({...base,...payload,canonicalUrl:o.canonicalUrl,representation:o.representation,contentCompleteness:o.contentCompleteness,acquisitionMethod:'supplied_payload',quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:o.contentCompleteness==='COMPLETE'},provenance:{routerVersion:'v1-existing-orchestrator',stages:['SUPPLIED'],rawPayloadRef:o.suppliedPayloadRef}});
+    const {languageResolution,...content}=payload;
+    if(languageResolution && languageResolution.language!==payload.language)throw new AcquisitionFailure('INVALID_RESULT',false);
+    const parsed=acquiredSchema.safeParse({...base,...content,canonicalUrl:o.canonicalUrl,representation:o.representation,contentCompleteness:o.contentCompleteness,acquisitionMethod:'supplied_payload',quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:o.contentCompleteness==='COMPLETE'},provenance:{routerVersion:'v1-existing-orchestrator',stages:['SUPPLIED'],rawPayloadRef:o.suppliedPayloadRef,languageResolution}});
     if(!parsed.success) throw new AcquisitionFailure('INVALID_RESULT',false);
     const hash=await hashContent({representation:o.representation,title:payload.title,body:payload.body});
     if(o.contentHash && hash!==o.contentHash) throw new AcquisitionFailure('INVALID_RESULT',false);
