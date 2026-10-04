@@ -49,15 +49,16 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
   if(saved.status==='SUCCEEDED' && structure?.kind==='CHOICE' && effect?.kind==='CHOICE'){
    const chosen=structure.choice,eventIndex=/^EVENT_(\d)$/.exec(chosen),storyIndex=/^STORY_(\d)$/.exec(chosen);
    decision={structuralRelation:eventIndex?'SAME_EVENT':storyIndex?'NEW_EVENT_EXISTING_STORYLINE':chosen==='NEW'?'NEW_STORYLINE':'DEFER',eventId:eventIndex?shortlist[Number(eventIndex[1])].id:undefined,storylineId:storyIndex?storylines[Number(storyIndex[1])].id:undefined,epistemicEffects:[effect.choice as typeof effects[number]],confidence:structure.confidence,provenance:{scorer:'JEV',policyVersion:SEMANTIC_POLICY,judgmentId:saved.id}};
-   const checks={forwardEntailment:a?.forward?.kind==='BOOLEAN'?a.forward.probability:undefined,reverseEntailment:a?.reverse?.kind==='BOOLEAN'?a.reverse.probability:undefined};reasons=escalationReasons(decision,checks);
+   const checks={forwardEntailment:a?.forward?.kind==='BOOLEAN'?a.forward.probability:undefined,reverseEntailment:a?.reverse?.kind==='BOOLEAN'?a.reverse.probability:undefined};reasons=escalationReasons(decision,checks);if(a?.novelty?.kind==='SCORE'&&a.novelty.value>=.5)reasons.push('MATERIAL_NEW_INFORMATION');
    if(!eventIndex || Number(eventIndex[1])!==0 || checks.forwardEntailment===undefined || checks.forwardEntailment<.9 || checks.reverseEntailment===undefined || checks.reverseEntailment<.9)reasons.push('ENTAILMENT_REVIEW');
   }
  }
  const strong=options.strong??createStrongSemanticModel(env,options.fetcher),{mentions}=await extractClaimMentions(revision);let construction:SemanticConstruction|undefined;
- if(mentions.length>1)reasons.push('MULTI_MENTION_CONSTRUCTION');
+ // Truncated cheap inputs cannot establish whole-development entailment.
+ if((revision.body??revision.title??'').length>2600||shortlist[0]?.version.state.length>500)reasons.push('TRUNCATED_ENTAILMENT_INPUT');
  if(reasons.length && strong && mentions.length<=32 && mentions.every(m=>m.sourceText.length<=1800)){
   const constructionState={...operation.state,prior:decision,reasons,knownEntities:entityMemory.slice(-20).map(e=>({entityId:e.entityId,canonicalLabel:e.canonicalLabel,aliases:e.aliases})),claimMentions:mentions.map(m=>({id:m.id,text:m.sourceText,reportingRoleHint:m.reportingRole,certainty:m.certainty,attribution:m.attribution})),memory:memory.map(m=>({id:m.id,versionId:m.version?.id,propositionIds:m.structured?.propositionIds,lifecycle:m.structured?.lifecycle})),instruction:state.instruction+' Group exact ClaimMention IDs into bounded developments; an article may contain multiple Events. Background labels cannot discard material quantities, attribution, negation or uncertainty. New developments may continue a supplied Storyline. Entities and multilingual aliases must be supported by supplied mention text; no external IDs required. Slots are opportunistic: only offered controlled attributes and exact source values/asOf text; otherwise keep TEXT propositions. Return every mention in a group or background. Do not synthesize prose facts.'};
-  const saved=await durableSemanticOperation(store,{...operation,kind:'SEMANTIC_CONSTRUCTION',model:strong.model,state:constructionState},async()=>{
+  const saved=new TextEncoder().encode(JSON.stringify(constructionState)).length>48000?{id:'',status:'DEFERRED' as const,value:undefined,failure:'CONSTRUCTION_INPUT_LIMIT'}:await durableSemanticOperation(store,{...operation,kind:'SEMANTIC_CONSTRUCTION',model:strong.model,state:constructionState},async()=>{
    const result=await strong.complete(job.feedId,'SEMANTIC_CONSTRUCTION',constructionState,constructionWireSchema),parsed=constructionSchema.parse(result.value),value=parseConstruction(result.value,mentions,input,{scorer:'GPT',policyVersion:SEMANTIC_POLICY});
    return {value:{construction:value,confidence:parsed.confidence},usage:result.usage};
   },now,()=>strong.usage());

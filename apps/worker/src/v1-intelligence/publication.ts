@@ -8,19 +8,20 @@ import {communicationFingerprint,boundedEditorialContext,supportedSentences,equi
 import type {EventRecord,FeedRecord,StorylineRecord,StorylineVersion} from './types';
 import type {EditorialPlanRecord,PlanStory} from './editorial-plan';
 import type {ShortlistRecord,ShortlistFact} from './shortlist';
+import {checkReaderFidelity,verifiedCorrectionDelivery} from './fidelity';
 
 export interface ClaimSupport {evidenceRevisionId:string;quote:string}
 export interface DraftClaim {text:string;support:ClaimSupport[]}
 export interface BriefingDraft {language:string;stories:{candidateId:string;claims:DraftClaim[]}[]}
 export interface ModelUsage {tokensIn:number;tokensOut:number;cost:number;confirmed:boolean}
-export interface SelectedPlanStory extends PlanStory {facts:ShortlistFact[];previousLedgerEntries:ShortlistRecord['ledger']}
+export interface SelectedPlanStory extends PlanStory {facts:ShortlistFact[];previousLedgerEntries:ShortlistRecord['ledger'];correctionObligations:ShortlistRecord['obligations']}
 export interface SynthesisInput {feed:Pick<FeedRecord,'id'|'revision'|'title'|'interests'|'outputLanguage'>;selectionId:string;window?:SelectionRecord['window'];editorialPlan?:{id:string;route:EditorialPlanRecord['route']};stories:{candidate:BriefingCandidate;eventVersions:EventVersion[];storylineVersion?:StorylineVersion;editorial?:EditorialDecision;plan?:SelectedPlanStory;evidence:(EvidenceRevision & {excerptTruncated:boolean})[]}[]}
-export interface PreservationFact {id:string;text:string;evidenceRevisionIds:string[]}
-export interface VerificationClaim {id:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean}[];requiredFacts?:PreservationFact[]}
+export interface PreservationFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string}
+export interface VerificationClaim {id:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean}[];requiredFacts?:PreservationFact[];allowedFacts?:PreservationFact[];previousLedgerFacts?:string[];newUnderstandingFacts?:PreservationFact[];correctionObligations?:ShortlistRecord['obligations']}
 export interface BriefingModelPort {
  model:string;provider:string;maxCallCostUsd:number;promptVersion?:string;
  synthesize(input:SynthesisInput,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
- verify?(claims:VerificationClaim[],limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{supportedClaimIds:string[];preservedFactIds?:string[];usage:ModelUsage}>;
+ verify?(claims:VerificationClaim[],limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{supportedClaimIds:string[];preservedFactIds?:string[];addressedCorrectionObligationIds?:string[];novelFactIds?:string[];usage:ModelUsage}>;
 }
 interface PublicationJob {id:string;feedId:string;selectionId:string;state:'PENDING'|'RUNNING'|'DONE'|'FAILED';attempts:number;token:string;leaseUntil:string;callsUsed:number;tokensIn:number;tokensOut:number;cost:number;pendingCall?:string;failure?:string}
 interface StoredDraft {id:string;feedId:string;draft:BriefingDraft;model:string;provider:string;promptVersion?:string;createdAt:string}
@@ -37,7 +38,7 @@ const draftSchema=z.object({language:z.string().min(1),stories:z.array(z.object(
 const usageSchema=z.object({tokensIn:z.number().int().nonnegative(),tokensOut:z.number().int().nonnegative(),cost:z.number().finite().nonnegative(),confirmed:z.boolean()}).strict();
 const normalize=(s:string)=>s.normalize('NFKC').replace(/\s+/g,' ').trim();
 function preservationFacts(story:SynthesisInput['stories'][number]):PreservationFact[] {
- if(story.plan){const ids=new Set([...story.plan.mustIncludeFactIds,...story.plan.attributionFactIds,...story.plan.certaintyFactIds,...story.plan.disagreementFactIds,...story.plan.openQuestionFactIds]);return story.plan.facts.filter(f=>ids.has(f.id)).map(f=>({id:f.id,text:f.text,evidenceRevisionIds:f.evidenceRevisionIds}))}
+ if(story.plan){const ids=new Set([...story.plan.mustIncludeFactIds,...story.plan.attributionFactIds,...story.plan.certaintyFactIds,...story.plan.disagreementFactIds,...story.plan.openQuestionFactIds]);return story.plan.facts.filter(f=>ids.has(f.id)).map(f=>({id:f.id,text:f.text,evidenceRevisionIds:f.evidenceRevisionIds,attribution:f.attribution}))}
  const facts:PreservationFact[]=[];
  for(const evidence of story.evidence) for(const text of supportedSentences(evidence.body??'')) {
   // Quantities, qualification and open outcomes are conservative preservation
@@ -82,7 +83,7 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Prom
   const editorial=selection.editorialByCandidate?.[id];
   const planned=plan?.stories.find(s=>s.targetVersionId===candidate.targetVersionId),scope=shortlist?.candidates.find(c=>c.targetVersionId===candidate.targetVersionId);
   if(plan && (!planned||planned.decision!=='SELECT'||!scope))throw new HandoffError('SCOPE_DENIED');
-  const writerPlan:SelectedPlanStory|undefined=planned&&scope?{...planned,facts:scope.facts,previousLedgerEntries:shortlist!.ledger.filter(e=>planned.previousLedgerEntryIds.includes(e.id))}:undefined;
+  const writerPlan:SelectedPlanStory|undefined=planned&&scope?{...planned,facts:scope.facts,previousLedgerEntries:shortlist!.ledger.filter(e=>e.eventIds?.includes(scope.stableTargetId)||scope.storylineId&&e.storylineIds?.includes(scope.storylineId)),correctionObligations:shortlist!.obligations.filter(o=>plan!.obligations.some(p=>p.obligationId===o.id&&p.handling==='ADDRESS'&&p.targetVersionId===scope.targetVersionId))}:undefined;
   if(writerPlan && preservationFacts({candidate,eventVersions,evidence,plan:writerPlan}).some(f=>!f.evidenceRevisionIds.some(id=>evidence.some(e=>e.id===id))))throw new HandoffError('SCOPE_DENIED');
   stories.push({candidate,eventVersions,editorial:editorial?boundedEditorialContext(editorial):undefined,plan:writerPlan,storylineVersion:storyline?{...storyline,currentState:storyline.currentState.slice(0,1800),previousState:storyline.previousState?.slice(0,1000),supportedFacts:storyline.supportedFacts.slice(0,10),turningPoints:storyline.turningPoints.slice(0,10)}:undefined,evidence});
  }
@@ -161,7 +162,9 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     if(!ids.success) throw new HandoffError('INVALID_REQUEST');
     const preserved=z.array(z.string().min(1)).max(200).optional().safeParse((result as T & {preservedFactIds?:unknown}).preservedFactIds);
     if(!preserved.success) throw new HandoffError('INVALID_REQUEST');
-    await tx.write('verification_results',selectionId,{id:selectionId,feedId,supportedClaimIds:ids.data,preservedFactIds:preserved.data,createdAt:options.now()});
+    const novel=z.array(z.string().min(1)).max(200).optional().safeParse((result as T & {novelFactIds?:unknown}).novelFactIds);if(!novel.success)throw new HandoffError('INVALID_REQUEST');
+    const addressed=z.array(z.string().min(1)).max(100).optional().safeParse((result as T & {addressedCorrectionObligationIds?:unknown}).addressedCorrectionObligationIds);if(!addressed.success)throw new HandoffError('INVALID_REQUEST');
+    await tx.write('verification_results',selectionId,{id:selectionId,feedId,supportedClaimIds:ids.data,preservedFactIds:preserved.data,addressedCorrectionObligationIds:addressed.data,novelFactIds:novel.data,createdAt:options.now()});
    }
    await tx.write('synthesis_jobs',editionId,{...job,pendingCall:undefined,cost:intent.previous.cost+actual.cost,tokensIn:intent.previous.tokensIn+actual.tokensIn,tokensOut:intent.previous.tokensOut+actual.tokensOut});
   });return result;
@@ -183,7 +186,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    for(const story of storedDraft.draft.stories) {
     const candidate=candidates.get(story.candidateId);if(!candidate || seenStories.has(story.candidateId)) {rejected+=story.claims.length;continue}seenStories.add(story.candidateId);
     for(const claim of story.claims) {
-     const valid=claim.support.every(s=>candidate.evidence.some(e=>e.id===s.evidenceRevisionId && (normalize(e.body??'').includes(normalize(s.quote)) || normalize(e.title??'')===normalize(s.quote))));
+     const valid=claim.support.every(s=>candidate.evidence.some(e=>e.id===s.evidenceRevisionId && ((e.body??'').includes(s.quote) || e.title===s.quote)));
      if(!valid) {rejected++;continue}
      // Only the runtime's full-context extractive fallback can bypass entailment.
      // A model-selected exact quote may be embedded in a refutation or warning.
@@ -196,7 +199,8 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     let result=await store.read<{supportedClaimIds:string[];preservedFactIds?:string[]}>(feedId,'verification_results',selectionId);
     if(!result) {const seen=new Set<string>();const claims:VerificationClaim[]=nonextractive.map(p=>{
      const first=!seen.has(p.candidateId);seen.add(p.candidateId);
-     return {...p.claim,requiredFacts:first?preservationFacts(candidates.get(p.candidateId)!):undefined,context:candidates.get(p.candidateId)!.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,text:e.body??'',truncated:e.excerptTruncated}))};
+     const scope=candidates.get(p.candidateId)!;
+     return {...p.claim,requiredFacts:first?preservationFacts(scope):undefined,allowedFacts:scope.plan?.facts,previousLedgerFacts:scope.plan?.previousLedgerEntries.flatMap(e=>e.claimFacts),newUnderstandingFacts:first?scope.plan?.facts.filter(f=>scope.plan!.newUnderstandingFactIds.includes(f.id)):undefined,correctionObligations:first?scope.plan?.correctionObligations:undefined,context:scope.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,text:e.body??'',truncated:e.excerptTruncated}))};
     });await callModel('GROUNDING',claims,limits=>options.model!.verify!(claims,limits));result=await store.read(feedId,'verification_results',selectionId)}
     for(const id of result?.supportedClaimIds??[]) if(nonextractive.some(p=>p.claim.id===id)) supported.add(id);
     for(const id of result?.preservedFactIds??[]) preservedFacts.add(id);
@@ -224,6 +228,15 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    const value=grounding;await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await tx.write('grounding_results',selectionId,value)});
   }
   if(selection.selectedCandidateIds.length && !grounding.stories.length) throw new HandoffError('INVALID_REQUEST');
+  if(input.editorialPlan){
+   const verification=await store.read<{addressedCorrectionObligationIds?:string[];novelFactIds?:string[]}>(feedId,'verification_results',selectionId);
+   const checks=input.stories.map(story=>{const actual=grounding!.stories.find(s=>s.candidateId===story.candidate.id),required=preservationFacts(story),fidelity=checkReaderFidelity(actual?.claims.map(c=>c.text)??[],required,story.plan!.facts,input.feed.outputLanguage==='en'&&story.evidence.every(e=>e.language==='en'));
+    const known=story.plan!.previousLedgerEntries.flatMap(e=>e.claimFacts),novel=story.plan!.newUnderstandingFactIds.some(id=>{const f=story.plan!.facts.find(f=>f.id===id);return f&&!known.some(k=>equivalentFact(k,f.text))&&(storedDraft!.provider==='NONE'||verification?.novelFactIds?.includes(id))}),addressed=story.plan!.correctionObligations.filter(o=>verifiedCorrectionDelivery(actual?.claims.map(c=>c.text)??[],o.id,verification?.addressedCorrectionObligationIds??[],input.feed.outputLanguage==='en')).map(o=>o.id),correction=story.plan!.correctionObligations.length>0&&addressed.length===story.plan!.correctionObligations.length;
+    return {candidateId:story.candidate.id,passed:Boolean(actual)&&fidelity.passed&&novel&&(!story.plan!.correctionObligations.length||correction),addressedCorrectionObligationIds:addressed,fidelity,missingStory:!actual,novelty:novel?'NEW_SUPPORTED_FACT':correction?'CORRECTION_CONTEXT':'NO_SUPPORTED_DELTA',sourceSpan:'EXACT_STORED_QUOTE',entailment:storedDraft!.provider==='NONE'?'RUNTIME_FULL_CONTEXT_EXTRACTION':'MODEL_VERIFIED',mustInclude:'REQUIRED_COLLECTIVE_COVERAGE'};
+   });
+   await feedTransact(store,feedId,async tx=>{if(!await tx.read('fidelity_results',selectionId))await tx.write('fidelity_results',selectionId,{id:selectionId,feedId,editorialPlanId:input.editorialPlan!.id,checks,passed:checks.every(c=>c.passed),policyVersion:'semantic-publication-fidelity-v3',createdAt:options.now()})});
+   if(checks.some(c=>!c.passed))throw new HandoffError('INVALID_REQUEST');
+  }
   const finalDraft=storedDraft,finalGrounding=grounding;
   return await feedTransact(store,feedId,async tx=>{
    const existing=await tx.read<BriefingEditionRecord>('editions',editionId);if(existing) return existing;

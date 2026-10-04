@@ -7,7 +7,7 @@ import type {FeedRecord,EventRecord,StorylineRecord,StorylineVersion,DuplicateDe
 import type {SelectionRecord} from './scoring';
 import type {BriefingEditionRecord} from './publication';
 import {claimMentionSchema,assertClaimSpan,type SourceDocument} from './claims';
-export type DocumentKind='roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts'|'entities'|'propositions'|'state_slots'|'event_semantic_states'|'storyline_memories'|'source_origins'|'shortlists'|'editorial_plans'|'editorial_deferred_work'|'editorial_work_resolutions'|'ledger_fact_bindings';
+export type DocumentKind='roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts'|'entities'|'propositions'|'state_slots'|'event_semantic_states'|'storyline_memories'|'source_origins'|'shortlists'|'editorial_plans'|'editorial_deferred_work'|'editorial_work_resolutions'|'ledger_fact_bindings'|'fidelity_results';
 interface DocumentWrite {kind:DocumentKind;id:string;value:unknown}
 interface Snapshot {feed:FeedRecord;epoch:number;scopes:{id:string;epoch:number}[]}
 const mutable=new Set<DocumentKind>(['events','storylines','publication_status','delivery_jobs','synthesis_jobs','briefing_requests']);
@@ -62,6 +62,16 @@ export class FeedTransaction {
  async read<T>(kind:DocumentKind,id:string):Promise<T|undefined> {
   const key=JSON.stringify([kind,id]),staged=this.writes.get(key);if(staged) return staged.value as T;
   if(!this.reads.has(key)) this.reads.set(key,this.store.read(this.snapshot.feed.id,kind,id));return this.reads.get(key) as Promise<T|undefined>;
+ }
+ /** Populate immutable lookup cache in bounded batches while checking global ID scope. */
+ async preload(kind:DocumentKind,ids:string[]):Promise<void> {
+  const missing=[...new Set(ids)].filter(id=>!this.reads.has(JSON.stringify([kind,id]))&&!this.writes.has(JSON.stringify([kind,id])));
+  for(let offset=0;offset<missing.length;offset+=90){
+   const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT id,feed_id,json FROM v1_feed_documents WHERE kind=? AND id IN (${chunk.map(()=>'?').join(',')})`).bind(kind,...chunk).all<{id:string;feed_id:string;json:string}>();
+   if(rows.results.some(row=>row.feed_id!==this.snapshot.feed.id))throw new HandoffError('SCOPE_DENIED');
+   const values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json)]));
+   for(const id of chunk)this.reads.set(JSON.stringify([kind,id]),Promise.resolve(values.get(id)));
+  }
  }
  async list<T extends {id:string}>(kind:DocumentKind):Promise<T[]> {
   if(!this.lists.has(kind)) this.lists.set(kind,this.store.list(this.snapshot.feed.id,kind));

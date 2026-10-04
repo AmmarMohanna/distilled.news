@@ -52,5 +52,6 @@ export async function extractClaimMentions(revision:EvidenceRevision):Promise<{d
 }
 export async function persistClaimMentions(tx:FeedTransaction,revision:EvidenceRevision):Promise<ClaimMention[]> {
  const {document,mentions}=await extractClaimMentions(revision);
+ await tx.preload('claim_mentions',mentions.map(m=>m.id));
  await tx.write('source_documents',document.id,document);for(const mention of mentions)await tx.write('claim_mentions',mention.id,mention);return mentions;
 }

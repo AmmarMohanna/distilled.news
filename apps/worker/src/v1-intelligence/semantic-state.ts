@@ -34,8 +34,10 @@ export async function persistEventSemanticState(tx:FeedTransaction,event:EventVe
  const mentions=binding?all.filter(m=>binding.group.claimMentionIds.includes(m.id)):all;
  if(binding && binding.group.claimMentionIds.some(id=>!mentions.some(m=>m.id===id)))throw new HandoffError('SCOPE_DENIED');
  const propositionIds:string[]=[],stateSlotIds:string[]=[],entityIds:string[]=[],propositions=new Map<string,Proposition>();
+ const mentionIds=new Map(await Promise.all(mentions.map(async mention=>[mention.id,await sha256(canonicalJson({feedId:tx.snapshot.feed.id,mentionId:mention.id,policy:STATE_POLICY}))] as const)));
+ await tx.preload('propositions',[...mentionIds.values()]);
  for(const mention of mentions){const revision=await tx.revision(mention.evidenceRevisionId);if(!revision)throw new HandoffError('SCOPE_DENIED');assertClaimSpan(mention,revision);
-  const id=await sha256(canonicalJson({feedId:tx.snapshot.feed.id,mentionId:mention.id,policy:STATE_POLICY}));
+  const id=mentionIds.get(mention.id)!;
   const p:Proposition={id,feedId:tx.snapshot.feed.id,kind:'TEXT',text:mention.sourceText,claimMentionIds:[mention.id],evidenceRevisionIds:[mention.evidenceRevisionId],certainty:mention.certainty,attribution:mention.attribution,reportingRole:mention.reportingRole,eventTime:mention.eventTime,reportTime:mention.reportTime,origin:mention.origin,policyVersion:STATE_POLICY};await tx.write('propositions',id,p);propositionIds.push(id);propositions.set(mention.id,p);
  }
  for(const e of binding?.group.entities??[]){const entityId=await sha256(canonicalJson({feedId:tx.snapshot.feed.id,label:e.canonicalLabel.normalize('NFKC').toLowerCase()})),id=await sha256(canonicalJson({entityId,aliases:[...e.aliases].sort(),support:e.claimMentionIds,policy:STATE_POLICY}));await tx.write('entities',id,{id,entityId,feedId:tx.snapshot.feed.id,...e,provenance:binding!.provenance,policyVersion:STATE_POLICY} satisfies Entity);entityIds.push(id)}

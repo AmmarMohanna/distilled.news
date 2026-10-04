@@ -14,7 +14,7 @@ import type {DuplicateDecision,EventRecord,StorylineRecord,StorylineVersion} fro
 import type {EditorialPlanRecord,PlanStory} from './editorial-plan';
 import type {ShortlistRecord} from './shortlist';
 
-const SCORING_POLICY='deterministic-scoring-editorial-v4',SELECTION_POLICY='bounded-selection-editorial-v5';
+const SCORING_POLICY='deterministic-scoring-editorial-v4',SELECTION_POLICY='bounded-selection-editorial-v6';
 const salienceScorer=new DeterministicSalienceScorer();
 export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
 export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:2,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
@@ -159,12 +159,15 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
   const f=tx.snapshot.feed;
   const selectedStorylines=new Set<string>(),publishers=new Map<string,number>();let words=0,inspections=0,inputTokens=new TextEncoder().encode(JSON.stringify({feed:{id:f.id,revision:f.revision,title:f.title,interests:f.interests,outputLanguage:f.outputLanguage},selectionId:identity,window,stories:[]})).length;
   for(const {target,candidate,publisherIds,editorial} of assessments) {
-   const uncovered=new Set(editorial.newUnderstanding.map((_,i)=>i)),inspectionEvidence:EvidenceRevision[]=[];
+   const planned=plan?.stories.find(s=>s.targetVersionId===target.id),scope=plan?(await tx.read<ShortlistRecord>('shortlists',plan.shortlistId))?.candidates.find(c=>c.targetVersionId===target.id):undefined;
+   const requiredIds=new Set(planned?[...planned.mustIncludeFactIds,...planned.newUnderstandingFactIds,...planned.attributionFactIds,...planned.certaintyFactIds,...planned.disagreementFactIds,...planned.openQuestionFactIds]:[]);
+   const inspectionFacts=scope?scope.facts.filter(f=>requiredIds.has(f.id)):editorial.newUnderstanding;
+   const uncovered=new Set(inspectionFacts.map((_,i)=>i)),inspectionEvidence:EvidenceRevision[]=[];
    const available=[...target.evidence];
    while(uncovered.size && available.length) {
-    available.sort((a,b)=>[...uncovered].filter(i=>editorial.newUnderstanding[i].evidenceRevisionIds.includes(b.id)).length-[...uncovered].filter(i=>editorial.newUnderstanding[i].evidenceRevisionIds.includes(a.id)).length || (a.body?.length??0)-(b.body?.length??0) || a.id.localeCompare(b.id));
+    available.sort((a,b)=>[...uncovered].filter(i=>inspectionFacts[i].evidenceRevisionIds.includes(b.id)).length-[...uncovered].filter(i=>inspectionFacts[i].evidenceRevisionIds.includes(a.id)).length || (a.body?.length??0)-(b.body?.length??0) || a.id.localeCompare(b.id));
     const revision=available.shift()!;inspectionEvidence.push(revision);
-    for(const i of uncovered) if(editorial.newUnderstanding[i].evidenceRevisionIds.includes(revision.id)) uncovered.delete(i);
+    for(const i of uncovered) if(inspectionFacts[i].evidenceRevisionIds.includes(revision.id)) uncovered.delete(i);
    }
    for(const revision of priorContextEvidence(editorial,target.evidence)) if(!inspectionEvidence.some(e=>e.id===revision.id)) inspectionEvidence.push(revision);
    const eventVersions=(await Promise.all(target.eventVersionIds.map(id=>tx.read<EventVersion>('event_versions',id)))).map(v=>({...v!,state:v!.state.slice(0,1800)}));
@@ -173,6 +176,7 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    let reason:string|undefined;
    result.editorialByCandidate![candidate.id]=editorial;
    if(editorial.decision==='SUPPRESS') reason=editorial.reasonCodes[0];
+   else if(plan&&uncovered.size)reason='MISSING_REQUIRED_PLAN_SUPPORT';
    else if(result.selectedCandidateIds.length>=budget.maxStories) reason='STORY_BUDGET';
    else if(words+storyWords>budget.maxReadingWords || inspections+inspectionEvidence.length>budget.maxEvidenceInspections || inputTokens+cost>budget.maxInputTokens) reason='SYNTHESIS_BUDGET';
    else if(!plan && target.storylineId && selectedStorylines.has(target.storylineId)) reason='STORYLINE_DIVERSITY';
@@ -188,7 +192,7 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    await tx.write('editorial_plans',effectiveId,effective);result.editorialPlanId=effectiveId;
    result.deferredProtectedTargetIds=effective.stories.filter(s=>s.decision==='DEFER'&&shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)?.protectedReasons.length).map(s=>s.targetVersionId);
    if(effective.obligations.some(o=>o.handling==='DEFER'))result.deferredProtectedTargetIds.push(...effective.obligations.filter(o=>o.handling==='DEFER').map(o=>`obligation:${o.obligationId}`));
-   for(const s of effective.stories.filter(s=>s.decision==='DEFER')){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;if(c.protectedReasons.length){const id=JSON.stringify([effectiveId,s.targetVersionId]);await tx.write('editorial_deferred_work',id,{id,feedId,planId:effectiveId,targetVersionId:s.targetVersionId,stableTargetId:c.stableTargetId,storylineId:c.storylineId,protectedReasons:c.protectedReasons,reason:s.rationale,createdAt:now})}}
+   for(const s of effective.stories.filter(s=>s.decision==='DEFER'||s.decision==='SELECT')){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;if(c.protectedReasons.length){const id=JSON.stringify([effectiveId,s.targetVersionId]);await tx.write('editorial_deferred_work',id,{id,feedId,planId:effectiveId,targetVersionId:s.targetVersionId,stableTargetId:c.stableTargetId,storylineId:c.storylineId,protectedReasons:c.protectedReasons,reason:s.decision==='SELECT'?'AWAITING_SUPPORTED_PUBLICATION':s.rationale,createdAt:now})}}
   }
   await tx.write('selections',identity,result);return result;
  });

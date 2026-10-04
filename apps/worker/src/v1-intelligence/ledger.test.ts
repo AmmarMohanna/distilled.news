@@ -55,3 +55,13 @@ it('persisted communicated facts preserve decimal quantities instead of splittin
  await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end);
  const entry=(await store.list<LedgerEntry>('feed-1','ledger_entries')).find(e=>e.claimText===body)!;expect(entry).toBeDefined();expect(entry.claimFacts).toEqual([body]);
 },15000);
+
+it('backfill recovers deletion obligations after publication committed before projection',async()=>{
+ const edition=(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end))!;
+ // Simulate the publication/projection crash boundary using a fresh projection.
+ await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE feed_id='feed-1' AND kind IN ('ledger_entries','ledger_projections','ledger_states')").run();
+ const intake=new V1IntakeStore(ctx.db),batch=batchFixture(2);batch.observations[0]={...batch.observations[0],sourceItemKey:'item-1',operation:'DELETE',authoritativeCurrentState:true};batch.proposals=[];
+ await createCandidateIntakePort(intake,{...testPolicy,orderingFor:async()=>({...await testPolicy.orderingFor(batch.observations[0]),authoritativeReplacementAllowed:true})}).acceptBatch(batch);
+ await projectEditionLedger(store,'feed-1',edition.id);
+ expect(await store.list('feed-1','correction_obligations')).toMatchObject([{kind:'SOURCE_DELETED'}]);
+},25000);

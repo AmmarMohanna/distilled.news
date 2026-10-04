@@ -65,13 +65,14 @@ export async function projectEditionLedger(store:V1FeedStore,feedId:string,editi
  if(status.status==='WITHDRAWN')for(const entry of entries){const obligation=await correctionRecord(entry,'RETRACTED',stateId,status.withdrawnAt??status.publishedAt);if(!await store.read(feedId,'correction_obligations',obligation.id))writes.push({kind:'correction_obligations',id:obligation.id,value:obligation})}
  const selection=await store.read<SelectionRecord>(feedId,'selections',edition.selectionId),plan=selection?.editorialPlanId?await store.read<EditorialPlanRecord>(feedId,'editorial_plans',selection.editorialPlanId):undefined,shortlist=plan?await store.read<ShortlistRecord>(feedId,'shortlists',plan.shortlistId):undefined;
  if(plan && shortlist && status.status==='PUBLISHED'){
-  const verification=await store.read<{preservedFactIds?:string[]}>(feedId,'verification_results',edition.selectionId),pending=await store.list<{id:string;stableTargetId:string}> (feedId,'editorial_deferred_work');
+  const fidelity=await store.read<{passed:boolean;checks:{candidateId:string;addressedCorrectionObligationIds?:string[]}[]}>(feedId,'fidelity_results',edition.selectionId);
+  const verification=await store.read<{preservedFactIds?:string[]}>(feedId,'verification_results',edition.selectionId),pending=await store.list<{id:string;stableTargetId:string;targetVersionId:string;createdAt:string}> (feedId,'editorial_deferred_work');
   for(const story of edition.stories){const candidate=await store.read<BriefingCandidate>(feedId,'candidates',story.candidateId),planned=plan.stories.find(s=>s.targetVersionId===candidate?.targetVersionId),scope=shortlist.candidates.find(c=>c.targetVersionId===candidate?.targetVersionId);if(!planned||!scope)continue;
    const preserved=scope.facts.filter(f=>story.claims.some(c=>literal(c.text,f.text))||verification?.preservedFactIds?.includes(f.id));
    for(const fact of preserved){const id=JSON.stringify([editionId,story.candidateId,fact.id]);if(!await store.read(feedId,'ledger_fact_bindings',id))writes.push({kind:'ledger_fact_bindings',id,value:{id,feedId,editionId,candidateId:story.candidateId,factId:fact.id,propositionId:fact.propositionId,ledgerEntryIds:entries.filter(e=>e.candidateId===story.candidateId).map(e=>e.id),evidenceRevisionIds:fact.evidenceRevisionIds,policyVersion:LEDGER_POLICY}})}
    if(planned.mustIncludeFactIds.every(id=>preserved.some(f=>f.id===id))){
-    for(const obligation of plan.obligations.filter(o=>o.handling==='ADDRESS'&&o.targetVersionId===scope.targetVersionId)){const id=JSON.stringify([obligation.obligationId,editionId]);if(!await store.read(feedId,'correction_resolutions',id))writes.push({kind:'correction_resolutions',id,value:{id,feedId,obligationId:obligation.obligationId,editionId,planId:plan.id,createdAt:edition.createdAt}})}
-    if(planned.deltaType!=='REPEAT')for(const work of pending.filter(w=>w.stableTargetId===scope.stableTargetId)){const id=JSON.stringify([work.id,editionId]);if(!await store.read(feedId,'editorial_work_resolutions',id))writes.push({kind:'editorial_work_resolutions',id,value:{id,feedId,workId:work.id,editionId,planId:plan.id,createdAt:edition.createdAt}})}
+    for(const obligation of plan.obligations.filter(o=>o.handling==='ADDRESS'&&o.targetVersionId===scope.targetVersionId&&fidelity?.passed&&fidelity.checks.some(c=>c.candidateId===story.candidateId&&c.addressedCorrectionObligationIds?.includes(o.obligationId)))){const id=JSON.stringify([obligation.obligationId,editionId]);if(!await store.read(feedId,'correction_resolutions',id))writes.push({kind:'correction_resolutions',id,value:{id,feedId,obligationId:obligation.obligationId,editionId,planId:plan.id,createdAt:edition.createdAt}})}
+    if(planned.deltaType!=='REPEAT')for(const work of pending.filter(w=>w.stableTargetId===scope.stableTargetId&&w.targetVersionId===scope.targetVersionId&&Date.parse(w.createdAt)<=Date.parse(edition.createdAt))){const id=JSON.stringify([work.id,editionId]);if(!await store.read(feedId,'editorial_work_resolutions',id))writes.push({kind:'editorial_work_resolutions',id,value:{id,feedId,workId:work.id,editionId,planId:plan.id,createdAt:edition.createdAt}})}
    }
   }
  }
@@ -79,6 +80,15 @@ export async function projectEditionLedger(store:V1FeedStore,feedId:string,editi
  // arbitrary projection payload enters this internal API. Scope/immutability
  // triggers protect cross-feed identity, including historical rebuilds.
  if(writes.length)await store.db.batch(writes.map(w=>store.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='editions' AND id=? AND feed_id=?) ON CONFLICT(kind,id) DO NOTHING").bind(w.kind,w.id,feedId,JSON.stringify(w.value),editionId,feedId)));
+ // Entries are durable before inspecting current support, closing the crash
+ // boundary where source reassessment ran while the projection was absent.
+ const sourceWrites:typeof writes=[];
+ for(const entry of entries)for(const id of entry.evidenceRevisionIds){const revision=await store.revision(feedId,id);if(!revision)continue;
+  const row=await store.db.prepare("SELECT e.json FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id WHERE s.feed_id=? AND json_extract(e.json,'$.id')=?").bind(feedId,revision.evidenceId).first<{json:string}>();if(!row)continue;const current=JSON.parse(row.json);
+  const kind=current.state==='DELETED'?'SOURCE_DELETED':current.currentRevisionId&&current.currentRevisionId!==id?'SOURCE_REVISED':undefined;
+  if(kind){const obligation=await correctionRecord(entry,kind,current.state==='DELETED'?current.currentObservationId:current.currentRevisionId,new Date().toISOString());if(!await store.read(feedId,'correction_obligations',obligation.id))sourceWrites.push({kind:'correction_obligations',id:obligation.id,value:obligation})}
+ }
+ if(sourceWrites.length)await store.db.batch(sourceWrites.map(w=>store.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='editions' AND id=? AND feed_id=?) ON CONFLICT(kind,id) DO NOTHING").bind(w.kind,w.id,feedId,JSON.stringify(w.value),editionId,feedId)));
  return projection;
 }
 export async function rebuildCommunicationLedger(store:V1FeedStore,feedId:string):Promise<void> {

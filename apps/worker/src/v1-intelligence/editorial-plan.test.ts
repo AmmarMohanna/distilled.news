@@ -11,3 +11,15 @@ it('requires explicit decisions for every candidate and preserves selected treat
  const plan=fallbackEditorialPlan(shortlist);expect(validateEditorialPlan(plan,shortlist)).toEqual(plan);
  expect(()=>validateEditorialPlan({...plan,stories:[]},shortlist)).toThrow();
 });
+
+it('requires declared new understanding in reader-visible MUST_INCLUDE coverage',()=>{
+ const scope=structuredClone(shortlist);scope.candidates[0].protectedReasons=[];scope.candidates[0].facts.push({...scope.candidates[0].facts[0],id:'context',propositionId:'context',text:'Officials confirmed 12 people affected.'});
+ const plan=fallbackEditorialPlan(scope);plan.stories[0].mustIncludeFactIds=['context'];plan.stories[0].newUnderstandingFactIds=['fact'];
+ expect(()=>validateEditorialPlan(plan,scope)).toThrow();
+});
+
+it('cannot address a correction obligation by merely repeating the old claim',()=>{
+ const scope=structuredClone(shortlist);scope.candidates[0].facts[0].text='Officials confirmed 12 people affected.';scope.candidates[0].correctionObligationIds=['ob'];scope.obligations=[{id:'ob',feedId:'f',ledgerEntryId:'known',editionId:'old',kind:'SOURCE_DELETED',triggerId:'deleted',state:'OPEN',createdAt:'2026-10-03T12:00:00Z',policyVersion:'test'}];
+ const plan=fallbackEditorialPlan(scope);plan.stories[0].deltaType='CORRECTION';plan.stories[0].previousLedgerEntryIds=['known'];plan.obligations=[{obligationId:'ob',handling:'ADDRESS',targetVersionId:'v',reason:'Correction'}];
+ expect(()=>validateEditorialPlan(plan,scope)).toThrow();
+});

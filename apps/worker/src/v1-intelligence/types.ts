@@ -16,5 +16,5 @@ export interface StorylineVersion {
  chronology:{eventVersionId:string;observedAt:string;title:string}[];supportedFacts:SupportedFact[];
  previousState?:string;currentState:string;turningPoints:SupportedFact[];confidence:number;algorithmVersion:string;createdAt:string;
 }
-export interface IntelligenceReceipt {id:string;feedId:string;observationId:string;decision:'PROCESSED'|'STALE'|'WITHDRAWN';eventVersionIds:string[];storylineVersionIds:string[];computedAt:string}
+export interface IntelligenceReceipt {id:string;feedId:string;observationId:string;decision:'PROCESSED'|'STALE'|'WITHDRAWN';semanticDeferred?:boolean;eventVersionIds:string[];storylineVersionIds:string[];computedAt:string}
 export interface EventSupport {version:EventVersion;revisionIds:string[]}

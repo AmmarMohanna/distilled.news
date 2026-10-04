@@ -1,6 +1,6 @@
 import type {EventMatchDecision,IntelligenceMatchers,EventMatchInput} from './matchers';
 import {deterministicMatchers,validateEventMatch} from './matchers';
-export const SEMANTIC_POLICY='semantic-relations-v1';
+export const SEMANTIC_POLICY='semantic-relations-v2';
 export const protectedEffects=new Set(['CHANGES_STATE','CHANGES_CERTAINTY','CONTRADICTS','CORRECTS','RETRACTS']);
 /** Concentration thresholds are engineering escalation guards, not measured
  * semantic accuracy. Construction always needs the structured strong port. */

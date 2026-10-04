@@ -17,9 +17,17 @@ export async function eventMemberships(tx:FeedTransaction,versionId:string):Prom
 async function versionEvent(tx:FeedTransaction,event:EventRecord,revisions:EvidenceRevision[],now:string,binding?:{group:SemanticGroup;provenance:import('./matchers').MatchProvenance}):Promise<EventVersion> {
  const old=await tx.read<EventVersion>('event_versions',event.currentVersionId);
  const ordered=[...revisions].sort((a,b)=>(b.publishedAt??b.acceptedAt).localeCompare(a.publishedAt??a.acceptedAt)||a.id.localeCompare(b.id));
- if(binding && old){
-  const previous=await tx.read<EventSemanticState>('event_semantic_states',old.id),activeIds=new Set(revisions.map(r=>r.id));
-  for(const id of previous?.propositionIds??[]){const p=await tx.read<Proposition>('propositions',id);if(p && p.evidenceRevisionIds.every(id=>activeIds.has(id)))for(const mentionId of p.claimMentionIds)if(!binding.group.claimMentionIds.includes(mentionId))binding.group.claimMentionIds.push(mentionId)}
+ if(old){
+  const previous=await tx.read<EventSemanticState>('event_semantic_states',old.id),activeIds=new Set(revisions.map(r=>r.id)),surviving:string[]=[];
+  for(const id of previous?.propositionIds??[]){const p=await tx.read<Proposition>('propositions',id);if(p&&p.evidenceRevisionIds.every(id=>activeIds.has(id)))surviving.push(...p.claimMentionIds)}
+  if(!binding&&previous&&previous.provenance.scorer!=='DETERMINISTIC_FOUNDATION')binding={group:{claimMentionIds:[...new Set(surviving)],eventId:event.id,storylineId:null,structuralRelation:'SAME_EVENT',epistemicEffects:[],entities:[],slots:[]},provenance:previous.provenance};
+  if(binding){
+   binding.group.claimMentionIds=[...new Set([...binding.group.claimMentionIds,...surviving])];const allowed=new Set(binding.group.claimMentionIds);
+   for(const id of previous?.entityIds??[]){const e=await tx.read<import('./semantic-state').Entity>('entities',id);if(e&&e.claimMentionIds.every(id=>allowed.has(id))&&!binding.group.entities.some(item=>item.canonicalLabel===e.canonicalLabel))binding.group.entities.push({canonicalLabel:e.canonicalLabel,aliases:e.aliases,claimMentionIds:e.claimMentionIds})}
+   for(const id of previous?.stateSlotIds??[]){const slot=await tx.read<import('./semantic-state').StateSlot>('state_slots',id);if(slot&&allowed.has(slot.claimMentionId)&&!binding.group.slots.some(item=>item.claimMentionId===slot.claimMentionId&&item.kind===slot.attribute)){
+    const e=slot.entityId?await tx.read<import('./semantic-state').Entity>('entities',slot.entityId):undefined;binding.group.slots.push({kind:slot.attribute,claimMentionId:slot.claimMentionId,entityLabel:e?.canonicalLabel??null,value:slot.value,asOf:slot.asOf??null});
+   }}
+  }
  }
  const exact=binding?(await tx.list<ClaimMention>('claim_mentions')).filter(m=>binding.group.claimMentionIds.includes(m.id)):[];
  const text=binding?exact.map(m=>m.sourceText).join('\n'):ordered.map(r=>r.body??r.title??'').join('\n').slice(0,2400);
@@ -126,6 +134,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
    const storylineRoots=await tx.list<StorylineRecord>('storylines');
    const matchInput={revision:target.revision,role:role.role,duplicateOfRevisionId:duplicate.duplicateOfRevisionId,candidates,storylineIds:storylineRoots.map(s=>s.id),storylineVersions:Object.fromEntries(storylineRoots.map(s=>[s.id,s.currentVersionId]))};
    const decision=validateEventMatch(matchers.event.match(matchInput),matchInput);
+   receipt.semanticDeferred=decision.structuralRelation==='DEFER'&&decision.provenance.scorer!=='DETERMINISTIC';
    if(decision.structuralRelation==='SAME_EVENT')selected=events.find(e=>e.id===decision.eventId);
    else if(decision.structuralRelation!=='DEFER')selected={id:crypto.randomUUID(),feedId:o.feedId,currentVersionId:'',createdAt:now};
    else if(decision.provenance.scorer!=='DETERMINISTIC'){
@@ -138,6 +147,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
    if(selected && decision.storylineId)preferredStorylines.set(selected.id,decision.storylineId);
    const construction=matchers.construction?.(matchInput);
    if(construction){
+    if(construction.groups.some(group=>group.structuralRelation==='DEFER')){receipt.semanticDeferred=true;await scheduleRematch(tx,jobId,target.revision.id,now)}
     if(construction.originDependencyLabel){const id=JSON.stringify([target.revision.id,construction.provenance.judgmentId??construction.provenance.policyVersion]);await tx.write('source_origins',id,{id,feedId:o.feedId,evidenceRevisionId:target.revision.id,dependencyLabel:construction.originDependencyLabel,provenance:construction.provenance,policyVersion:'information-origin-v1'})}
     const mentions=(await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id);validateConstruction(construction,mentions);
     for(const group of construction.groups){

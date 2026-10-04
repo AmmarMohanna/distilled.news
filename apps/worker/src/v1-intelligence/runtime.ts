@@ -72,8 +72,9 @@ export async function processV1Rematch(env:Env,feedId:string,requestId:string,no
  const attempt=nextRematch(request,await store.list<RematchAttempt>(feedId,'rematch_attempts'),now);if(!attempt)return;
  const prepared=await prepareSemanticMatch(store,env,request.jobId,now,{attempt});
  const active=(await store.currentEvidence(feedId)).some(e=>e.revision.id===request.evidenceRevisionId);
- const succeeded=active && prepared && prepared.prepared.decision.structuralRelation!=='DEFER';
- if(succeeded)await processEvidenceIntelligence(store,request.jobId,now,prepared.matchers,JSON.stringify([request.id,attempt]));
+ const eligible=active&&prepared&&prepared.prepared.decision.structuralRelation!=='DEFER';
+ const consumed=eligible?await processEvidenceIntelligence(store,request.jobId,now,prepared.matchers,JSON.stringify([request.id,attempt])):undefined;
+ const succeeded=Boolean(consumed&&consumed.decision==='PROCESSED'&&!consumed.semanticDeferred);
  const id=JSON.stringify([request.id,attempt]);
  await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,state:succeeded?'SUCCEEDED':!active||attempt>=3?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:new Date(Date.parse(now)+300000*2**(attempt-1)).toISOString(),createdAt:now,reason:active?prepared?.prepared.decision.provenance.fallbackReason:'STALE_EVIDENCE'} satisfies RematchAttempt)});
 }
