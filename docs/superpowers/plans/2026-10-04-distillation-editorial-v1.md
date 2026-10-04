@@ -43,22 +43,22 @@ Files: add schedule helper/test; extend FeedRecord/product configuration/runtime
 
 ### 3. Explainable reasoning, adaptive treatment and storyline synthesis
 Files: editorial/scoring/publication/model and behavior fixtures.
-- [ ] Test quiet/noise/low-information windows, fewer-than-budget stories, 30m versus 24h treatment and long-window storyline grouping.
-- [ ] Derive treatment/context from supported delta, complexity and interval; pass this guidance to bounded synthesis, retain exact provenance.
-- [ ] Verify scores remain distinct, deterministic filtering occurs before generation, and no forced story count; commit and push.
+- [x] Test quiet/noise/low-information windows, fewer-than-budget stories, 30m versus 24h treatment and long-window storyline grouping.
+- [x] Derive treatment/context from supported delta, complexity and interval; pass this guidance to bounded synthesis, retain exact provenance.
+- [x] Verify scores remain distinct, deterministic filtering occurs before generation, and no forced story count; commit and push.
 
 ### 4. Disagreement and uncertainty preservation
 Files: publication/model/grounding fixtures.
-- [ ] Reproduce conflicting quantities and caveat loss in synthesis.
-- [ ] Preserve each material side with exact evidence support; reject/remove outputs that invent consensus or discard required caveats.
-- [ ] Verify model reservation/recovery and historical support regressions; commit and push.
+- [x] Reproduce conflicting quantities and caveat loss in synthesis.
+- [x] Preserve each material side with exact evidence support; reject/remove outputs that invent consensus or discard required caveats.
+- [x] Verify model reservation/recovery and historical support regressions; commit and push.
 
 ### 5. Optional scorer and evaluation seams
 Files: focused salience scorer adapters, frozen unlabeled evaluation inputs/schema and reproducible harness; separate storyline-change experiment.
-- [ ] Inspect existing JEV provider and labels; reuse suitable transport, not browser action-choice logic.
-- [ ] Test deterministic scorer and synthetic JEV/GPT adapters with strict schema/budgets/fallback; no production promotion.
-- [ ] Implement valid Recall@K/NDCG/noise/omission/repeat/information-loss metrics only with appropriate labels; report pending human labels separately from measured latency/cost.
-- [ ] Verify harness reproduces input identities and never changes frozen labels; commit and push.
+- [x] Inspect existing JEV provider and labels; reuse suitable transport, not browser action-choice logic.
+- [x] Test deterministic scorer and synthetic JEV/GPT adapters with strict schema/budgets/fallback; no production promotion.
+- [x] Implement valid Recall@K/NDCG/noise/omission/repeat/information-loss metrics only with appropriate labels; report pending human labels separately from measured latency/cost.
+- [x] Verify harness reproduces input identities and never changes frozen labels; commit and push.
 
 ### 6. Whole-phase behavior review and verification
 - [ ] Review important-information suppression, continuity, uncertainty, exact provenance, quiet windows and unnecessary abstractions.
@@ -89,3 +89,7 @@ Milestone B verification (2026-10-04): six live intervals with IANA local anchor
 Milestone C/F/H: interval-weighted WindowScore, typed adaptive guidance, long live Storyline targets, delta-covering evidence choice, bounded recent synthesis context and conservative explicit boilerplate suppression implemented. Important review defects (material clause suppression, lexical false irrelevance, unbounded model history) corrected. Focused18pass +facts/model6pass; publication recovery isolatedpass unchanged5s timeout. No new table/shared contract. G and I/evaluations remain in scope.
 
 Milestone G: extended existing grounding call with required-fact preservation and reader-visible coverage, whole-story reading budget, negation/caveat guards. Regression RED reproduced truthful one-sided loss and missing uncertainty. Review found collective-verdict clipping and split-negation holes; both fixed with fixtures. Final preservation7pass. Broader run editorial11+treatment4+preservation5 passed; publication8 hit unchanged5s deadline and isolated full file is being rerun. Experimental scorer work/evaluation remains in scope.
+
+Milestone I/evaluation: deterministic live scorer seam and experimental JEV/GPT adapters, separate Storyline judge, frozen unlabeled corpus, strict input/output-bound human label contracts and event/distillation metrics implemented. Actual deterministic measurements zero calls/cost; native provider experiments unavailablelocalkeys; quality pending genuinehumanlabels. Synthetic transports/arithmetic only are not human gold. Cost-overrun accounting review defect reproducedREDandfixed; late-result/unknown-call closure tested. Independent final review no materialremainingfinding. Broaderverification follows.
+
+Latest I focused verification: scoring/treatment/RSS/model/salience/evaluation — 6 files, 20 passed, 2 explicit opt-in skips; worker typecheck passed. User clarified both JEV and GPT must use OpenRouter. Both experimental adapters already do; exact model IDs and a local key are pending, so native calls remain unmeasured.

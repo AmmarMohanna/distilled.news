@@ -2,6 +2,7 @@ import {HandoffError,eventSalienceAssessmentSchema,userRelevanceSchema,windowSco
 import {z} from 'zod';
 import {evaluateEditorialDelta,communicationFingerprint,boundedEditorialContext,type EditorialDecision} from './editorial';
 import {publicationWindowSchema,type LiveInterval} from './schedule';
+import {DeterministicSalienceScorer} from './salience';
 import {V1IntakeStore} from '../v1-intake/store';
 import type {AcceptedInput} from '../v1-intake/types';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -9,7 +10,8 @@ import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {INTELLIGENCE_POLICY,tokens,features,overlap} from './policies';
 import type {DuplicateDecision,EventRecord,StorylineRecord,StorylineVersion} from './types';
 
-const SCORING_POLICY='deterministic-scoring-editorial-v3',SELECTION_POLICY='bounded-selection-editorial-v3';
+const SCORING_POLICY='deterministic-scoring-editorial-v4',SELECTION_POLICY='bounded-selection-editorial-v4';
+const salienceScorer=new DeterministicSalienceScorer();
 export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
 export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:2,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
 export interface PublicationWindow {start:string;end:string;kind:'30M'|'HOURLY'|'DAILY'|'WEEKLY';durationMinutes?:LiveInterval;timezone?:string;deliveryAnchor?:string;schedulePolicy?:'local-calendar-anchors-v1'}
@@ -84,8 +86,9 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    const editorial=await evaluateEditorialDelta(tx,target,window.end);
    const independent=await independentSupportCount(tx,target.evidence);
    const recency=score(1-(Date.parse(window.end)-Math.max(...target.evidence.map(r=>Date.parse(r.publishedAt??r.acceptedAt))))/(Date.parse(window.end)-Date.parse(window.start)));
-   const impact=score(.35+.1*Math.min(3,features(target.text).entities.length));
-   const salience:EventSalienceAssessment=eventSalienceAssessmentSchema.parse({id:`salience:${assessmentId}`,...base,impact,novelty:target.version>1?.7:1,changeMagnitude:target.version>1?.7:1,institutionalSignificance:/\b(parliament|government|court|central bank)\b/i.test(target.text)?.8:.3,corroboration:score(independent/3),persistence:target.persistence,recency,overallScore:score(.35*impact+.25*(target.version>1?.7:1)+.2*score(independent/3)+.2*target.persistence)});
+   const baseline=salienceScorer.score({feedId,feedRevision:base.feedRevision,targetType:target.type,targetVersionId:target.id,text:target.text.slice(0,6000),version:target.version,independentSupport:independent,persistence:target.persistence,recency});
+   const impact=baseline.components.impact;
+   const salience:EventSalienceAssessment=eventSalienceAssessmentSchema.parse({id:`salience:${assessmentId}`,...base,...baseline.components});
    const interests=tokens(tx.snapshot.feed.interests.join(' ')),words=tokens(target.text),topicMatch=interests.length?score(interests.filter(w=>words.includes(w)).length/interests.length):.5;
    const geographyMatch=tx.snapshot.feed.geography.length?score(tx.snapshot.feed.geography.filter(g=>target.text.toLowerCase().includes(g.toLowerCase())).length/tx.snapshot.feed.geography.length):.5;
    const relevance:UserRelevance=userRelevanceSchema.parse({id:`relevance:${assessmentId}`,...base,topicMatch,geographyMatch,entityMatch:overlap(features(tx.snapshot.feed.interests.join(' ')).entities,features(target.text).entities),sourcePreference:.5,languageFit:1,overallScore:score(.75*topicMatch+.25*geographyMatch)});

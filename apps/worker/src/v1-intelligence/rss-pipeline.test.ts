@@ -57,7 +57,7 @@ async function proof(live:boolean) {
   }
   if(live) console.info('Live RSS representation diagnostics',{declaredLanguage:language??'UNKNOWN',items:batch.observations.map(o=>({bodyCharacters:o.text.length,completeness:o.contentCompleteness}))});
   const asOf=new Date(Date.now()+1000),edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:{start:new Date(Date.parse(now)-3600000).toISOString(),end:asOf.toISOString(),kind:'HOURLY'}},()=>asOf.toISOString());
-  expect(edition?.stories.length).toBeGreaterThan(0);expect(edition!.generation.model).toBe('deterministic-extractive-v1');
+  expect(edition?.stories.length).toBeGreaterThan(0);expect(edition!.generation.model).toBe('deterministic-extractive-editorial-v2');expect(edition!.generation.promptVersion).toBe('full-context-extractive-editorial-v2');
   const publicEdition=await publicV1Edition(db,edition!.id);expect(publicEdition?.citations.length).toBeGreaterThan(0);
   expect(await handoffConnectorBatch(createCandidateIntakePort(new V1IntakeStore(db),createV1RuntimePolicy()),request)).toEqual(response);
   expect(await new V1FeedStore(db).list('feed-1','editions')).toHaveLength(1);expect(fetches).toBe(1);

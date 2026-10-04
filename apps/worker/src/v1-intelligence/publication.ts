@@ -14,12 +14,12 @@ export interface SynthesisInput {feed:Pick<FeedRecord,'id'|'revision'|'title'|'i
 export interface PreservationFact {id:string;text:string;evidenceRevisionIds:string[]}
 export interface VerificationClaim {id:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean}[];requiredFacts?:PreservationFact[]}
 export interface BriefingModelPort {
- model:string;provider:string;maxCallCostUsd:number;
+ model:string;provider:string;maxCallCostUsd:number;promptVersion?:string;
  synthesize(input:SynthesisInput,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
  verify?(claims:VerificationClaim[],limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{supportedClaimIds:string[];preservedFactIds?:string[];usage:ModelUsage}>;
 }
 interface PublicationJob {id:string;feedId:string;selectionId:string;state:'PENDING'|'RUNNING'|'DONE'|'FAILED';attempts:number;token:string;leaseUntil:string;callsUsed:number;tokensIn:number;tokensOut:number;cost:number;pendingCall?:string;failure?:string}
-interface StoredDraft {id:string;feedId:string;draft:BriefingDraft;model:string;provider:string;createdAt:string}
+interface StoredDraft {id:string;feedId:string;draft:BriefingDraft;model:string;provider:string;promptVersion?:string;createdAt:string}
 interface GroundedClaim extends DraftClaim {id:string}
 interface GroundingResult {id:string;feedId:string;stories:{candidateId:string;claims:GroundedClaim[]}[];rejectedClaims:number;policyVersion:string;createdAt:string}
 export interface BriefingEditionRecord {
@@ -142,7 +142,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    if(phase==='SYNTHESIS') {
     const parsed=draftSchema.safeParse((result as T & {draft?:unknown}).draft);
     if(!parsed.success || parsed.data.language!==input.feed.outputLanguage) throw new HandoffError('INVALID_REQUEST');
-    await tx.write('drafts',selectionId,{id:selectionId,feedId,draft:parsed.data,model:model.model,provider:model.provider,createdAt:options.now()});
+    await tx.write('drafts',selectionId,{id:selectionId,feedId,draft:parsed.data,model:model.model,provider:model.provider,promptVersion:model.promptVersion??'selected-evidence-editorial-v2',createdAt:options.now()});
    } else if(phase==='GROUNDING') {
     const ids=z.array(z.string().min(1)).max(80).safeParse((result as T & {supportedClaimIds?:unknown}).supportedClaimIds);
     if(!ids.success) throw new HandoffError('INVALID_REQUEST');
@@ -158,7 +158,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   if(!storedDraft) {
    if(options.model) {await callModel('SYNTHESIS',input,limits=>options.model!.synthesize(input,limits));storedDraft=await store.read<StoredDraft>(feedId,'drafts',selectionId)}
    else {
-    storedDraft={id:selectionId,feedId,draft:extractiveDraft(input),model:'deterministic-extractive-v1',provider:'NONE',createdAt:options.now()};
+    storedDraft={id:selectionId,feedId,draft:extractiveDraft(input),model:'deterministic-extractive-editorial-v2',provider:'NONE',promptVersion:'full-context-extractive-editorial-v2',createdAt:options.now()};
     const value=storedDraft;await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await tx.write('drafts',selectionId,value)});
    }
   }
@@ -219,7 +219,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    const eventVersionIds=[...new Set(selected.flatMap(s=>s.eventVersions.map(v=>v.id)))],storylineVersionIds=selected.flatMap(s=>s.storylineVersion?[s.storylineVersion.id]:[]);
    const evidenceRevisionIds=[...new Set((await tx.list<EventMembership>('memberships')).filter(m=>eventVersionIds.includes(m.eventVersionId)).map(m=>m.evidenceRevisionId))];
    if(job.tokensIn>selection.budget.maxInputTokens || job.tokensOut>selection.budget.maxOutputTokens || job.cost>selection.budget.maxCostUsd || Date.now()-started>selection.budget.maxWallClockMs) throw new HandoffError('INVALID_REQUEST');
-   const edition:BriefingEditionRecord={id:editionId,feedId,feedRevision:selection.feedRevision,windowStart:selection.window.start,windowEnd:selection.window.end,language:input.feed.outputLanguage,selectionId,selectedCandidateIds:usedCandidates,eventVersionIds,storylineVersionIds,evidenceRevisionIds,stories:finalGrounding.stories,generation:{model:finalDraft.model,provider:finalDraft.provider,promptVersion:'selected-evidence-v1',routerVersion:'stored-evidence-only-v1',tokensIn:job.tokensIn,tokensOut:job.tokensOut,cost:job.cost,latencyMs:Date.now()-started,usageConfirmed:(await tx.list<{id:string;editionId:string;confirmed:boolean}>('model_executions')).filter(e=>e.editionId===editionId).every(e=>e.confirmed)},selectionPolicyVersion:selection.policyVersion,groundingPolicyVersion:finalGrounding.policyVersion,createdAt:options.now()};
+   const edition:BriefingEditionRecord={id:editionId,feedId,feedRevision:selection.feedRevision,windowStart:selection.window.start,windowEnd:selection.window.end,language:input.feed.outputLanguage,selectionId,selectedCandidateIds:usedCandidates,eventVersionIds,storylineVersionIds,evidenceRevisionIds,stories:finalGrounding.stories,generation:{model:finalDraft.model,provider:finalDraft.provider,promptVersion:finalDraft.promptVersion??'selected-evidence-v1',routerVersion:'stored-evidence-only-v1',tokensIn:job.tokensIn,tokensOut:job.tokensOut,cost:job.cost,latencyMs:Date.now()-started,usageConfirmed:(await tx.list<{id:string;editionId:string;confirmed:boolean}>('model_executions')).filter(e=>e.editionId===editionId).every(e=>e.confirmed)},selectionPolicyVersion:selection.policyVersion,groundingPolicyVersion:finalGrounding.policyVersion,createdAt:options.now()};
    await tx.write('editions',editionId,edition);await tx.write('publication_status',editionId,{id:editionId,feedId,status:'PUBLISHED',publishedAt:edition.createdAt});
    await tx.write('delivery_jobs',editionId,{id:editionId,feedId,editionId,state:'PENDING',attempts:0,createdAt:edition.createdAt});
    await tx.write('synthesis_jobs',editionId,{...job,state:'DONE'});return edition;
