@@ -1,7 +1,9 @@
 import type {EventVersion} from '@distilled/contracts';
+import type {LiveSchedule} from './schedule';
 export interface FeedRecord {
  id:string;ownerId:string;title:string;interests:string[];geography:string[];outputLanguage:string;
  briefingFrequency:'30M'|'HOURLY'|'DAILY'|'WEEKLY';paused:boolean;revision:number;createdAt:string;updatedAt:string;deletedAt?:string;
+ briefingSchedule?:LiveSchedule;
 }
 export type EvidenceRole='PRIMARY_DEVELOPMENT'|'REPORTED_DEVELOPMENT'|'OFFICIAL_STATEMENT'|'INVESTIGATIVE_REPORT'|'ANALYSIS'|'OPINION'|'PROMOTION'|'UNVERIFIED_LEAD'|'NOISE';
 export interface RoleDecision {id:string;feedId:string;evidenceId:string;evidenceRevisionId:string;role:EvidenceRole;confidence:number;policyVersion:string;computedAt:string}

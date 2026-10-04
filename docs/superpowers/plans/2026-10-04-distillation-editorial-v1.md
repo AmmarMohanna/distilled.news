@@ -31,15 +31,15 @@
 ### 1. Previous-edition awareness and quiet-window decisions
 Files: new `apps/worker/src/v1-intelligence/editorial.ts` and `editorial.test.ts`; extend scoring/selection metadata, publication/runtime regression tests and test utilities.
 Produces `EditorialDecision` with exact prior edition/version references, supported new facts, reason codes, inclusion/suppression, context/treatment and repeat penalty. Consumes feed-fenced transaction, target identity/lineage and stored published claims.
-- [ ] Write real-D1 repeated/corroboration/material-change/uncommunicated-fact tests; run red.
-- [ ] Implement conservative supported-fact comparison and persist metadata in selections; suppress empty/repeat/corroboration-only windows.
-- [ ] Verify focused editorial/scoring/publication/runtime tests and workspace typecheck; inspect diff/check; commit and push.
+- [x] Write real-D1 repeated/corroboration/material-change/uncommunicated-fact tests; run red.
+- [x] Implement conservative supported-fact comparison and persist metadata in selections; suppress empty/repeat/corroboration-only windows.
+- [x] Verify focused editorial/scoring/publication/runtime tests and workspace typecheck; inspect diff/check; commit and push.
 
 ### 2. Live intervals and timezone windows
 Files: add schedule helper/test; extend FeedRecord/product configuration/runtime and additive migration only if current product fields cannot express duration.
-- [ ] Test all six durations, Beirut delivery anchor, DST forward/back transitions, historical UTC reproduction and weekly exclusion.
-- [ ] Use standard timezone-aware logic; persist concrete window bounds/configuration without six ranking engines.
-- [ ] Verify integration/types; inspect diff/check; commit and push.
+- [x] Test all six durations, Beirut delivery anchor, DST forward/back transitions, historical UTC reproduction and weekly exclusion.
+- [x] Use standard timezone-aware logic; persist concrete window bounds/configuration without six ranking engines.
+- [x] Verify integration/types; inspect diff/check; commit and push.
 
 ### 3. Explainable reasoning, adaptive treatment and storyline synthesis
 Files: editorial/scoring/publication/model and behavior fixtures.
@@ -83,3 +83,5 @@ Milestone A review/verification (2026-10-04):
 - Earlier publication-recovery runs hit the existing 5 s deadline under load; isolated rerun and final sequential focused run passed without changing its timeout/assertions. Newly authored multi-stage fixtures declare 15/25 s limits from creation.
 - Contracts: corepack pnpm --filter @distilled/contracts test — 44 passed. Workspace types are rerun before commit.
 - No deployment, remote migration, real model/provider call or production proof in this milestone. Tasks 2–6 remain in scope and follow this checkpoint.
+
+Milestone B verification (2026-10-04): six live intervals with IANA local anchors and explicit DST policy; historical UTC weekly retained, live weekly excluded. Focused product/schedule/runtime/scoring/RSS: 34 passed, 1 opt-in live RSS skipped. Full API: 50 passed, including regression-first anchor preservation. Workspace typecheck: all seven projects passed. Review found and fixed legacy cadence override and stored-anchor reset. Worker dry-run bundle passed with --containers-rollout=none; full workspace build completed web and worker bundle but existing container build requires unavailable Docker. No deployment or remote migrations. Milestones C-I remain in scope.

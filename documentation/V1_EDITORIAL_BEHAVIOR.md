@@ -1,0 +1,89 @@
+# Editorial behavior v1 implementation record
+
+This records implemented behavior and local proof. The end-to-end phase remains
+in progress; the task ledger is `docs/superpowers/plans/2026-10-04-distillation-editorial-v1.md`.
+The frozen architecture and connector contracts remain authoritative.
+
+## Previous communication
+
+Selections compare actual published claims with current supported facts through
+stable Event/Storyline lineage. Evidence supporting an earlier edition is not
+automatically reader knowledge. Typed selection metadata retains exact earlier
+edition/target/claim/support references, supported additions, repeat penalty and
+initial context/treatment guidance.
+
+Conservative deterministic equivalence preserves argument order, attribution
+punctuation, numbers and attached units/signs/operators, negation, temporal words
+and progressive versus completed actions. It recognizes a narrow set of lexical
+equivalents; it does not claim general semantic entailment.
+
+Independent reports can increase corroboration without producing another story.
+Quiet windows settle the existing durable request without an edition, synthesis
+or delivery job. A communication fingerprint fences cached selection, provider
+reservations and publication. Reconciliation retains spent budgets and never
+reopens an unknown provider outcome. Changed source epochs trigger selected
+support revalidation; unrelated ingestion does not itself revoke authorization.
+
+Milestone A pushed commit: `9c103af0d6654a13d838fcca065327cfacd2e6b8`.
+Local proof: 29 focused editorial/fact/selection/publication/runtime tests, 44
+contracts tests and all seven workspace typechecks passed. Reviewed defects were
+reproduced before fixing. Earlier recovery-test deadline failures passed in
+isolation and in final focused runs without changing the existing deadline.
+
+## Live intervals
+
+Normal live durations are 30, 60, 120, 360, 720 or 1440 minutes. `FeedRecord`
+optionally retains `briefingSchedule`; durable request/selection windows retain
+the duration, IANA timezone, optional local delivery anchor, concrete UTC bounds
+and schedule policy. Legacy `windowKind` stays a compatible coarse category:
+30 minutes → `30M`; 1/2/6/12 hours → `HOURLY`; 24 hours → `DAILY`.
+Window assessment identity includes the complete window configuration and
+communication context. There are no separate ranking engines for each interval.
+
+Policy `local-calendar-anchors-v1` closes windows at a local daily anchor
+(default `00:00`). A 24h schedule is one local calendar day: DST can make its
+elapsed bounds 23 or 25 hours. Shorter durations advance by elapsed minutes from
+the local anchor. Any remaining fragment closes at the next daily anchor, so
+adjacent windows leave no gap or overlap; that final DST-day fragment can be
+shorter than the nominal duration. The concrete bounds remain canonical.
+Nonexistent anchors move forward through the gap; repeated anchors select the
+earlier occurrence. This uses Temporal's explicit `compatible` disambiguation,
+not hand-coded timezone offsets. See the [Temporal timezone documentation](https://tc39.es/proposal-temporal/docs/zoneddatetime.html).
+
+The existing protected `/v1/downstream/enroll` accepts optional configuration:
+
+```json
+{
+  "sourceId": "an-already-approved-canary-source",
+  "ownerId": "its-owner",
+  "briefingSchedule": {
+    "durationMinutes": 1440,
+    "timezone": "Asia/Beirut",
+    "deliveryAnchor": "08:00"
+  }
+}
+```
+
+Runtime authorization, canary source scope, active owner/source checks and guarded
+product configuration updates apply before enrollment. Migration
+`0043_v1_live_intervals.sql` adds a nullable duration column and lifecycle
+triggers. Existing product cadence edits clear a previous custom live override;
+simultaneous explicit interval/cadence updates preserve their new interval.
+Schedule changes fence in-flight work and increment Feed revisions.
+
+Historical UTC/weekly windows remain readable and explicitly reproducible.
+Weekly configurations are excluded from new live cron scheduling. Historical
+tables are not rewritten or deleted. New live wire requests reject unsupported
+durations, fixed UTC offsets, missing policy/timezone and noncanonical bounds.
+
+Local milestone B proof: 18 timezone/wire tests; focused product, runtime,
+selection and RSS-with-real-local-R2 fixtures passed (34 passed, one opt-in live
+RSS test skipped). Workspace typechecks passed. The Worker bundled in a dry run
+with unchanged containers excluded. The declared full build compiled packages
+and web assets, then stopped because the Docker CLI required for the existing
+browser container was unavailable.
+
+No remote migration, deployment, real model experiment or deployed proof has run
+in this phase. Deployment still requires confirmation of the authorized
+development/test target. Adaptive synthesis, disagreement preservation,
+long-window grouping and comparative evaluation remain subsequent milestones.

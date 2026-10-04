@@ -2,6 +2,7 @@ import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
 import {enrollV1Source} from './v1-intelligence/product';
+import {liveScheduleSchema,publicationWindowSchema} from './v1-intelligence/schedule';
 import {processV1Briefing} from './v1-intelligence/runtime';
 import {publicV1Edition,publicV1Evidence,withdrawV1Edition} from './v1-intelligence/public-read';
 import {processQueueMessage} from "./processor";
@@ -286,15 +287,15 @@ export function createApp(options: AppOptions = {}) {
   app.post('/v1/downstream/enroll',async c=>{
     if(c.env.V1_DOWNSTREAM_ENABLED!=='true') return c.json({error:'not found'},404);
     if(!isRuntimeAuthorized(c)) return c.json({error:'unauthorized'},401);
-    const input=z.object({sourceId:z.string().min(1).max(200),ownerId:z.string().min(1).max(200)}).strict().parse(await c.req.json());
+    const input=z.object({sourceId:z.string().min(1).max(200),ownerId:z.string().min(1).max(200),briefingSchedule:liveScheduleSchema.optional()}).strict().parse(await c.req.json());
     if(!((c.env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).includes(input.sourceId))) return c.json({error:'SCOPE_DENIED'},403);
-    try {return c.json(await enrollV1Source(c.env.DB,input.sourceId,input.ownerId,nowFor().toISOString()))}
+    try {return c.json(await enrollV1Source(c.env.DB,input.sourceId,input.ownerId,nowFor().toISOString(),input.briefingSchedule))}
     catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
   });
   app.post('/v1/downstream/briefing',async c=>{
     if(c.env.V1_DOWNSTREAM_ENABLED!=='true') return c.json({error:'not found'},404);
     if(!isRuntimeAuthorized(c)) return c.json({error:'unauthorized'},401);
-    const input=z.object({feedId:z.string().min(1).max(200),window:z.object({start:z.string().datetime(),end:z.string().datetime(),kind:z.enum(['30M','HOURLY','DAILY','WEEKLY'])}).strict()}).strict().parse(await c.req.json());
+    const input=z.object({feedId:z.string().min(1).max(200),window:publicationWindowSchema}).strict().parse(await c.req.json());
     try {const edition=await processV1Briefing(c.env,{type:'v1_briefing',...input},()=>nowFor().toISOString());return c.json({editionId:edition?.id,state:edition?'PUBLISHED':'NO_NEWS'})}
     catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
   });
@@ -740,7 +741,7 @@ export function createApp(options: AppOptions = {}) {
     const existingSlug = await repo.getBriefingBySlug(account.id, slug);
     if (existingSlug && existingSlug.id !== input.id) return c.json({ error: "feed slug is already used" }, 409);
     const briefingCadence = input.briefingCadence;
-    const briefingTimeOfDay = FIXED_BRIEFING_TIME_OF_DAY;
+    const briefingTimeOfDay = existing?.briefingTimeOfDay ?? FIXED_BRIEFING_TIME_OF_DAY;
     const scheduleChanged = !existing ||
       existing.briefingCadence !== briefingCadence ||
       existing.briefingTimeOfDay !== briefingTimeOfDay ||

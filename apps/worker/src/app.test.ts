@@ -787,6 +787,15 @@ describe("worker app accounts", () => {
     expect(payload.briefing.briefingCadence).toBe("weekly");
     expect(payload.briefing.briefingTimeOfDay).toBe("00:00");
   });
+  it('preserves an authorized stored delivery anchor on an ordinary feed title edit',async()=>{
+    const repo=new InMemoryRepository(),app=createApp({repository:repo});
+    const user=await createVerifiedUser(app,repo,'anchor-owner@test.com','Anchor Owner');
+    const original=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+    const configured=await repo.upsertBriefing({...original,briefingTimeOfDay:'16:30',briefingTimezone:'Asia/Beirut'});
+    const response=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...configured,title:'Updated title',briefingTimeOfDay:'00:00'})},env());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({briefing:{title:'Updated title',briefingTimeOfDay:'16:30',briefingTimezone:'Asia/Beirut'}});
+  });
 
   it("serves synthesized public summaries for old count-style edition rows", async () => {
     const repo = new InMemoryRepository();

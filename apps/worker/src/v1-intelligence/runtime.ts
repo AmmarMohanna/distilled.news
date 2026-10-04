@@ -13,9 +13,10 @@ import {publishSelection} from './publication';
 import {createStoredEvidenceModel} from './model';
 import type {FeedRecord} from './types';
 import {synchronizeV1ProductSource} from './product';
+import {publicationWindowSchema,livePublicationWindow} from './schedule';
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
-const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:z.object({start:z.string().datetime(),end:z.string().datetime(),kind:z.enum(['30M','HOURLY','DAILY','WEEKLY'])}).strict()}).strict();
+const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
 interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string}
 const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
@@ -107,7 +108,10 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   // Reassessment must finish first; the next bounded relay publishes its result.
   const pending=await env.DB.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0").bind(id).first<{n:number}>();
   if(pending?.n) continue;
-  const window=publicationWindow(feed.briefingFrequency,now),editionId=await windowIdentity(id,window);
+  // Historical weekly windows remain callable/reproducible, but are not a new
+  // live scheduling option. Existing UTC schedules remain unchanged otherwise.
+  if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
+  const window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now),editionId=await windowIdentity(id,window);
   if(!await store.read(id,'editions',editionId)) await feedTransact(store,id,async tx=>{
    if(!await tx.read('briefing_requests',editionId)) await tx.write('briefing_requests',editionId,{id:editionId,feedId:id,window,state:'PENDING',attempts:0,createdAt:now.toISOString()} satisfies BriefingRequest);
   });

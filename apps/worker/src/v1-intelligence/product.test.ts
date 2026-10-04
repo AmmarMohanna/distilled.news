@@ -17,6 +17,26 @@ it('only a selected source can be enrolled; configuration and canonical publishe
  expect(enrolled.scope.enabled).toBe(true);expect(enrolled.source.canonicalUrl).toContain('feeds.bbci.co.uk');
  expect(await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now())).toEqual(enrolled);
 });
+it('owner-approved live interval configuration persists timezone and fences old work',async()=>{
+ const previous=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());
+ const schedule={durationMinutes:120 as const,timezone:'Asia/Beirut',deliveryAnchor:'08:00'};
+ await expect(enrollV1Source(ctx.db,'feed-source-1','other-owner',testPolicy.now(),schedule)).rejects.toMatchObject({code:'SCOPE_DENIED'});
+ const enrolled=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now(),schedule);
+ expect(enrolled.feed.briefingSchedule).toEqual(schedule);
+ expect(enrolled.feed.revision).toBeGreaterThan(previous.feed.revision);
+ expect(enrolled.scope.feedRevision).toBe(enrolled.feed.revision);
+ expect(await ctx.db.prepare("SELECT v1_briefing_interval_minutes AS duration,briefing_timezone AS zone,briefing_time_of_day AS anchor FROM briefings WHERE id='feed-1'").first()).toEqual({duration:120,zone:'Asia/Beirut',anchor:'08:00'});
+ expect((await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now())).feed).toEqual(enrolled.feed);
+},15000);
+it('ordinary product cadence edits replace an earlier explicit live interval',async()=>{
+ await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now(),{durationMinutes:120,timezone:'UTC'});
+ await ctx.db.prepare("UPDATE briefings SET briefing_cadence='daily' WHERE id='feed-1'").run();
+ const daily=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());
+ expect(daily.feed.briefingSchedule?.durationMinutes).toBe(1440);
+ await ctx.db.prepare("UPDATE briefings SET briefing_cadence='weekly' WHERE id='feed-1'").run();
+ const weekly=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());
+ expect(weekly.feed.briefingSchedule).toBeUndefined();
+},15000);
 it('source disable and Feed deletion atomically revoke in-flight scopes and preserve canonical tombstones',async()=>{
  await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());
  await ctx.db.prepare("UPDATE sources SET enabled=0 WHERE id='feed-source-1'").run();

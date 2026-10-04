@@ -1,6 +1,7 @@
 import {HandoffError,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,sha256,type EventVersion,type EventMembership,type EvidenceRevision,type EventSalienceAssessment,type UserRelevance,type WindowScore,type BriefingCandidate,type TargetType} from '@distilled/contracts';
 import {z} from 'zod';
 import {evaluateEditorialDelta,communicationFingerprint,type EditorialDecision} from './editorial';
+import {publicationWindowSchema,type LiveInterval} from './schedule';
 import {V1IntakeStore} from '../v1-intake/store';
 import type {AcceptedInput} from '../v1-intake/types';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -11,10 +12,10 @@ import type {DuplicateDecision,EventRecord,StorylineRecord,StorylineVersion} fro
 const SCORING_POLICY='deterministic-scoring-editorial-v2',SELECTION_POLICY='bounded-selection-editorial-v2';
 export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
 export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:2,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
-export interface PublicationWindow {start:string;end:string;kind:'30M'|'HOURLY'|'DAILY'|'WEEKLY'}
+export interface PublicationWindow {start:string;end:string;kind:'30M'|'HOURLY'|'DAILY'|'WEEKLY';durationMinutes?:LiveInterval;timezone?:string;deliveryAnchor?:string;schedulePolicy?:'local-calendar-anchors-v1'}
 export interface SelectionRecord {id:string;feedId:string;feedRevision:number;window:PublicationWindow;candidateIds:string[];selectedCandidateIds:string[];evidenceByCandidate:Record<string,string[]>;budget:BriefingBudget;policyVersion:string;computedAt:string;omissions:{candidateId:string;reason:string}[];editorialByCandidate?:Record<string,EditorialDecision>;communicationFingerprint?:string}
 interface Target {type:TargetType;id:string;stableId:string;storylineId?:string;text:string;updatedAt:string;version:number;evidence:EvidenceRevision[];eventVersionIds:string[];storylineVersionId?:string;persistence:number;turningPoint:number}
-const windowSchema=z.object({start:z.string().datetime(),end:z.string().datetime(),kind:z.enum(['30M','HOURLY','DAILY','WEEKLY'])}).strict().refine(w=>Date.parse(w.start)<Date.parse(w.end));
+const windowSchema=publicationWindowSchema;
 const budgetSchema=z.object({maxStories:z.number().int().min(1).max(20),maxReadingWords:z.number().int().min(20).max(3000),maxEvidenceInspections:z.number().int().min(1).max(100),maxInputTokens:z.number().int().min(100).max(64000),maxOutputTokens:z.number().int().min(100).max(8000),maxModelCalls:z.number().int().min(0).max(2),maxCostUsd:z.number().min(0).max(2),maxPerPublisher:z.number().int().min(1).max(20),maxWallClockMs:z.number().int().min(1000).max(120000)}).strict();
 function score(n:number):number {return Math.round(Math.max(0,Math.min(1,n))*1e6)/1e6}
 export async function publisherIdentity(tx:FeedTransaction,revision:EvidenceRevision):Promise<string> {
@@ -85,9 +86,10 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    const interests=tokens(tx.snapshot.feed.interests.join(' ')),words=tokens(target.text),topicMatch=interests.length?score(interests.filter(w=>words.includes(w)).length/interests.length):.5;
    const geographyMatch=tx.snapshot.feed.geography.length?score(tx.snapshot.feed.geography.filter(g=>target.text.toLowerCase().includes(g.toLowerCase())).length/tx.snapshot.feed.geography.length):.5;
    const relevance:UserRelevance=userRelevanceSchema.parse({id:`relevance:${assessmentId}`,...base,topicMatch,geographyMatch,entityMatch:overlap(features(tx.snapshot.feed.interests.join(' ')).entities,features(target.text).entities),sourcePreference:.5,languageFit:1,overallScore:score(.75*topicMatch+.25*geographyMatch)});
-   const windowId=await sha256(canonicalJson({assessmentId,start:window.start,end:window.end,communication}));
+   const windowContext=await sha256(canonicalJson({window,communication}));
+   const windowId=await sha256(canonicalJson({assessmentId,windowContext}));
    const weekly=window.kind==='WEEKLY';
-   const ws:WindowScore=windowScoreSchema.parse({id:`window:${windowId}`,...base,windowStart:window.start,windowEnd:window.end,windowKind:window.kind,components:{recency,novelty,changeMagnitude:salience.changeMagnitude,impact,persistence:target.persistence,turningPoint:target.turningPoint},finalScore:score(weekly?.25*impact+.25*target.persistence+.2*target.turningPoint+.2*novelty+.1*recency:.35*novelty+.3*recency+.2*impact+.15*salience.changeMagnitude),reasonCodes:[novelty?'NEW_DEVELOPMENT':'LOW_NOVELTY',...(weekly&&target.persistence>0?['PERSISTENT_STORYLINE']:[])],policyVersion:`${SCORING_POLICY}:communication:${communication}`});
+   const ws:WindowScore=windowScoreSchema.parse({id:`window:${windowId}`,...base,windowStart:window.start,windowEnd:window.end,windowKind:window.kind,components:{recency,novelty,changeMagnitude:salience.changeMagnitude,impact,persistence:target.persistence,turningPoint:target.turningPoint},finalScore:score(weekly?.25*impact+.25*target.persistence+.2*target.turningPoint+.2*novelty+.1*recency:.35*novelty+.3*recency+.2*impact+.15*salience.changeMagnitude),reasonCodes:[novelty?'NEW_DEVELOPMENT':'LOW_NOVELTY',...(weekly&&target.persistence>0?['PERSISTENT_STORYLINE']:[])],policyVersion:`${SCORING_POLICY}:window-context:${windowContext}`});
    await tx.write('salience',salience.id,(await tx.read('salience',salience.id))??salience);await tx.write('relevance',relevance.id,(await tx.read('relevance',relevance.id))??relevance);await tx.write('window_scores',ws.id,(await tx.read('window_scores',ws.id))??ws);
    const savedSalience=await tx.read<EventSalienceAssessment>('salience',salience.id),savedRelevance=await tx.read<UserRelevance>('relevance',relevance.id),savedWindow=await tx.read<WindowScore>('window_scores',ws.id);
    if(savedWindow?.windowKind!==window.kind) throw new HandoffError('INVALID_REQUEST');
