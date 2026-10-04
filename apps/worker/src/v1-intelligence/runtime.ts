@@ -16,6 +16,9 @@ import type {EventSalienceScorer} from './salience';
 import {SalienceContentionError} from './salience-persistence';
 import {SynthesisCompatibilityError} from './language';
 import {projectEditionLedger} from './ledger';
+import {prepareSemanticMatch} from './semantic-preparation';
+import {nextRematch,type RematchRequest,type RematchAttempt} from './rematch';
+import {SemanticContentionError} from './semantic-operations';
 import type {FeedRecord} from './types';
 import {synchronizeV1ProductSource} from './product';
 import {publicationWindowSchema,livePublicationWindow} from './schedule';
@@ -48,9 +51,10 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
  if(!row || row.value.kind!=='REASSESS' || row.value.state==='DONE' || row.value.exhausted || !v1SourceEnabled(env,row.feedSourceId)) return 'SKIPPED';
  await synchronizeV1ProductSource(env.DB,row.feedSourceId,now);
  const scope=await intake.snapshot(row.feedSourceId);await approvedFeed(env,scope.scope.feedId);
- try {await processEvidenceIntelligence(new V1FeedStore(env.DB),id,now);return 'DONE'}
+ try {const store=new V1FeedStore(env.DB),prepared=await prepareSemanticMatch(store,env,id,now);await processEvidenceIntelligence(store,id,now,prepared?.matchers);return 'DONE'}
  catch(error) {
-  // No provider calls: the existing per-Feed CAS serializes canonical effects.
+  if(error instanceof SemanticContentionError)throw error;
+  // Provider preparation is outside CAS; only canonical consumption retries.
   // Failure state and retry scheduling are durable, bounded and source-scoped.
   await transact(intake,row.feedSourceId,async tx=>{
    const job=await tx.read<DownstreamJob>('jobs',id);if(!job || job.state==='DONE' || job.exhausted) return;
@@ -59,6 +63,16 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
   });
   if(error instanceof HandoffError) throw error;throw new HandoffError('TEMPORARY_UNAVAILABLE');
  }
+}
+export async function processV1Rematch(env:Env,feedId:string,requestId:string,now=new Date().toISOString()):Promise<void> {
+ await approvedFeed(env,feedId);const store=new V1FeedStore(env.DB),request=await store.read<RematchRequest>(feedId,'rematch_requests',requestId);if(!request)return;
+ const attempt=nextRematch(request,await store.list<RematchAttempt>(feedId,'rematch_attempts'),now);if(!attempt)return;
+ const prepared=await prepareSemanticMatch(store,env,request.jobId,now,{attempt});
+ const active=(await store.currentEvidence(feedId)).some(e=>e.revision.id===request.evidenceRevisionId);
+ const succeeded=active && prepared && prepared.prepared.decision.structuralRelation!=='DEFER';
+ if(succeeded)await processEvidenceIntelligence(store,request.jobId,now,prepared.matchers,JSON.stringify([request.id,attempt]));
+ const id=JSON.stringify([request.id,attempt]);
+ await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,state:succeeded?'SUCCEEDED':!active||attempt>=3?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:new Date(Date.parse(now)+300000*2**(attempt-1)).toISOString(),createdAt:now,reason:active?prepared?.prepared.decision.provenance.fallbackReason:'STALE_EVIDENCE'} satisfies RematchAttempt)});
 }
 export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer) {
  const parsed=messageSchema.safeParse(raw);if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
@@ -112,6 +126,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
  for(const id of feeds) {
   const feed=await store.getFeed(id);if(!feed || feed.paused || feed.deletedAt) continue;
   try {await approvedFeed(env,id)} catch(error) {if(error instanceof HandoffError && error.code==='SCOPE_DENIED') continue;throw error}
+  const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts');
+  for(const request of rematches.filter(r=>nextRematch(r,attempts,now.toISOString())).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
   // Reassessment must finish first; the next bounded relay publishes its result.
   const pending=await env.DB.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0").bind(id).first<{n:number}>();
   if(pending?.n) continue;

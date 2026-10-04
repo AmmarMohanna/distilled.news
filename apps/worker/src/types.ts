@@ -62,6 +62,8 @@ export interface Env extends Cloudflare.Env {
   V1_DOWNSTREAM_ENABLED?: string;
   V1_SYNTHESIS_MODEL_ENABLED?: string;
   V1_SALIENCE_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
+  V1_SEMANTIC_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
+  V1_SEMANTIC_STRONG_MODEL?: string;
   V1_JEV_SALIENCE_MODEL?: string;
   V1_GPT_SALIENCE_MODEL?: string;
   V1_BROWSER_ACQUISITION_ENABLED?: string;
@@ -185,7 +187,7 @@ export interface SourceRefreshJobMessage {
   force?: boolean;
 }
 
-export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | {type:'v1_acquisition'|'v1_reassess';jobId:string} | import('./v1-intelligence/runtime').V1BriefingMessage;
+export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | {type:'v1_acquisition'|'v1_reassess';jobId:string} | {type:'v1_rematch';feedId:string;requestId:string} | import('./v1-intelligence/runtime').V1BriefingMessage;
 
 export interface SourceRecord {
   id: string;

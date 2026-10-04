@@ -6,6 +6,7 @@ import {INTELLIGENCE_POLICY,classifyRole,duplicateSimilarity,features} from './p
 import {deterministicMatchers,validateEventMatch,validateStorylineMatch,type IntelligenceMatchers,type EventMatchInput} from './matchers';
 import {persistClaimMentions} from './claims';
 import {refreshSourceCorrectionObligations} from './ledger';
+import {scheduleRematch} from './rematch';
 import type {DuplicateDecision,EventRecord,IntelligenceReceipt,RoleDecision,StorylineRecord,StorylineVersion,SupportedFact} from './types';
 
 function revisionText(revision:EvidenceRevision):string {return [revision.title,revision.body].filter(Boolean).join('\n')}
@@ -69,19 +70,20 @@ async function updateStorylines(tx:FeedTransaction,changed:EventVersion[],now:st
 }
 /** Atomic deterministic reassessment. Feed and every source epoch fence source changes/deletions.
  * No model call, external acquisition or source checkpoint mutation occurs in this transaction. */
-export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string,now:string,matchers:IntelligenceMatchers=deterministicMatchers):Promise<IntelligenceReceipt> {
+export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string,now:string,matchers:IntelligenceMatchers=deterministicMatchers,rematchId?:string):Promise<IntelligenceReceipt> {
  const intake=new V1IntakeStore(store.db),initial=await intake.read<DownstreamJob>('jobs',jobId);
  if(!initial || initial.value.kind!=='REASSESS') throw new HandoffError('INVALID_REQUEST');
  return feedTransact(store,initial.value.feedId,async tx=>{
-  const prior=await tx.read<IntelligenceReceipt>('intelligence_receipts',jobId);if(prior) return prior;
+  const receiptId=rematchId?JSON.stringify([jobId,'REMATCH',rematchId]):jobId;
+  const prior=await tx.read<IntelligenceReceipt>('intelligence_receipts',receiptId);if(prior) return prior;
   const row=await intake.read<DownstreamJob>('jobs',jobId),input=await intake.read<AcceptedInput>('inputs',initial.value.observationId);
   if(!row || !input || row.value.feedId!==tx.snapshot.feed.id || input.value.observation.feedId!==tx.snapshot.feed.id || row.feedSourceId!==input.feedSourceId) throw new HandoffError('SCOPE_DENIED');
   const job=row.value,o=input.value.observation,active=await store.currentEvidence(o.feedId);
   const current=await intake.read<NormalizedEvidenceItem>('evidence',JSON.stringify([o.feedSourceId,o.sourceItemKey]));
-  const receipt:IntelligenceReceipt={id:jobId,feedId:o.feedId,observationId:o.id,decision:'STALE',eventVersionIds:[],storylineVersionIds:[],computedAt:now};
+  const receipt:IntelligenceReceipt={id:receiptId,feedId:o.feedId,observationId:o.id,decision:'STALE',eventVersionIds:[],storylineVersionIds:[],computedAt:now};
   const target=active.find(r=>r.item.id===current?.value.id);
   // Identical-content replay may advance the observation watermark without emitting a new reassessment job.
-  if(!current || (target?target.revision.sourceObservationId!==o.id:current.value.currentObservationId!==o.id)) {await tx.write('intelligence_receipts',jobId,receipt);tx.completeJob(job);return receipt}
+  if(!current || (target?target.revision.sourceObservationId!==o.id:current.value.currentObservationId!==o.id)) {await tx.write('intelligence_receipts',receiptId,receipt);tx.completeJob(job);return receipt}
   const events=await tx.list<EventRecord>('events'),changed:EventVersion[]=[];
   const preferredStorylines=new Map<string,string>();
   let selected:EventRecord|undefined;
@@ -114,6 +116,13 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
    const decision=validateEventMatch(matchers.event.match(matchInput),matchInput);
    if(decision.structuralRelation==='SAME_EVENT')selected=events.find(e=>e.id===decision.eventId);
    else if(decision.structuralRelation!=='DEFER')selected={id:crypto.randomUUID(),feedId:o.feedId,currentVersionId:'',createdAt:now};
+   else if(decision.provenance.scorer!=='DETERMINISTIC'){
+    // Uncertain evidence remains a conservative provisional Event. Its normal
+    // REASSESS job completes; semantic repair is separate nonblocking work.
+    const existing=events.find(e=>candidates.find(c=>c.id===e.id)?.evidenceRevisionIds.includes(target.revision.id));
+    selected=existing??{id:crypto.randomUUID(),feedId:o.feedId,currentVersionId:'',createdAt:now};
+    await scheduleRematch(tx,jobId,target.revision.id,now);
+   }
    if(selected && decision.storylineId)preferredStorylines.set(selected.id,decision.storylineId);
   }
   // Replace old support from this stable evidence identity, including reassignment/withdrawal.
@@ -127,6 +136,6 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   }
   receipt.decision=target?'PROCESSED':'WITHDRAWN';receipt.eventVersionIds=changed.map(e=>e.id);receipt.storylineVersionIds=await updateStorylines(tx,changed,now,matchers,preferredStorylines);
   await refreshSourceCorrectionObligations(tx,now);
-  await tx.write('intelligence_receipts',jobId,receipt);tx.completeJob(job);return receipt;
+  await tx.write('intelligence_receipts',receiptId,receipt);tx.completeJob(job);return receipt;
  });
 }

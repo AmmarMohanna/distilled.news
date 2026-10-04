@@ -7,6 +7,14 @@ import {acceptAcquiredContent} from '../v1-intake/evidence';
 import {V1FeedStore} from './store';
 import {processEvidenceIntelligence} from './engine';
 import {deterministicMatchers} from './matchers';
+it('semantic DEFER creates provisional support and a separate rematch while REASSESS finishes',async()=>{
+ const job=await acquire(1,'Lebanon Parliament may approve banking reform.');
+ const matchers={...deterministicMatchers,event:{match:()=>({structuralRelation:'DEFER' as const,epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:'test',fallbackReason:'uncertain'}})}};
+ await processEvidenceIntelligence(store,job,now,matchers);
+ expect(await store.list('feed-1','events')).toHaveLength(1);expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
+ expect((await intake.read<any>('jobs',job))?.value.state).toBe('DONE');
+ await processEvidenceIntelligence(store,job,now,matchers);expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
+},15000);
 import type {FeedRecord,EventRecord,StorylineVersion,DuplicateDecision} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,intake:V1IntakeStore,store:V1FeedStore;
 const now=testPolicy.now(),feed:FeedRecord={id:'feed-1',ownerId:'owner-1',title:'Lebanon news',interests:['banking reform'],geography:['Lebanon'],outputLanguage:'en',briefingFrequency:'DAILY',paused:false,revision:1,createdAt:now,updatedAt:now};

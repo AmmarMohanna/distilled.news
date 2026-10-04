@@ -1,6 +1,6 @@
 import { createApp } from "./app";
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
-import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment} from './v1-intelligence/runtime';
+import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch} from './v1-intelligence/runtime';
 import {HandoffError} from '@distilled/contracts';
 import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
@@ -47,6 +47,7 @@ export default {
       let completedProcessing=false;
       try {
         if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(env,message.body.jobId);
+        else if(isRecord(message.body) && message.body.type==='v1_rematch' && typeof message.body.feedId==='string' && typeof message.body.requestId==='string') await processV1Rematch(env,message.body.feedId,message.body.requestId);
         else if(isRecord(message.body) && message.body.type==='v1_reassess' && typeof message.body.jobId==='string') await processV1Reassessment(env,message.body.jobId);
         else if(isRecord(message.body) && message.body.type==='v1_briefing') await processV1Briefing(env,message.body as import('./v1-intelligence/runtime').V1BriefingMessage);
         else if (isWebOperatorRunMessage(message.body)) await processWebOperatorRunMessage(env,message.body);
