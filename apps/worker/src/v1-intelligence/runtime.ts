@@ -19,6 +19,7 @@ import {projectEditionLedger} from './ledger';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {nextRematch,type RematchRequest,type RematchAttempt} from './rematch';
 import {SemanticContentionError} from './semantic-operations';
+import {prepareSemanticShortlist} from './shortlist';
 import type {FeedRecord} from './types';
 import {synchronizeV1ProductSource} from './product';
 import {publicationWindowSchema,livePublicationWindow} from './schedule';
@@ -96,6 +97,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
  try {
+  if(env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC'))await prepareSemanticShortlist(store,feedId,window,now());
   const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env));
   const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:createStoredEvidenceModel(env)}):undefined;
   if(edition)await projectEditionLedger(store,feedId,edition.id);

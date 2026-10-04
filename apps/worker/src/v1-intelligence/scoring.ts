@@ -18,7 +18,7 @@ export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvi
 export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:2,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
 export interface PublicationWindow {start:string;end:string;kind:'30M'|'HOURLY'|'DAILY'|'WEEKLY';durationMinutes?:LiveInterval;timezone?:string;deliveryAnchor?:string;schedulePolicy?:'local-calendar-anchors-v1'}
 export interface SelectionRecord {id:string;feedId:string;feedRevision:number;window:PublicationWindow;candidateIds:string[];selectedCandidateIds:string[];evidenceByCandidate:Record<string,string[]>;budget:BriefingBudget;policyVersion:string;computedAt:string;omissions:{candidateId:string;reason:string}[];editorialByCandidate?:Record<string,EditorialDecision>;communicationFingerprint?:string}
-interface Target {type:TargetType;id:string;stableId:string;storylineId?:string;text:string;updatedAt:string;version:number;evidence:EvidenceRevision[];eventVersionIds:string[];storylineVersionId?:string;persistence:number;turningPoint:number}
+export interface Target {type:TargetType;id:string;stableId:string;storylineId?:string;text:string;updatedAt:string;version:number;evidence:EvidenceRevision[];eventVersionIds:string[];storylineVersionId?:string;persistence:number;turningPoint:number}
 const windowSchema=publicationWindowSchema;
 const budgetSchema=z.object({maxStories:z.number().int().min(1).max(20),maxReadingWords:z.number().int().min(20).max(3000),maxEvidenceInspections:z.number().int().min(1).max(100),maxInputTokens:z.number().int().min(100).max(64000),maxOutputTokens:z.number().int().min(100).max(8000),maxModelCalls:z.number().int().min(0).max(2),maxCostUsd:z.number().min(0).max(2),maxPerPublisher:z.number().int().min(1).max(20),maxWallClockMs:z.number().int().min(1000).max(120000)}).strict();
 function score(n:number):number {return Math.round(Math.max(0,Math.min(1,n))*1e6)/1e6}
@@ -54,7 +54,7 @@ export async function independentSupportCount(tx:FeedTransaction,revisions:Evide
  };
  for(const group of [...groups.keys()].sort()) match(group,new Set());return assigned.size;
 }
-async function targets(tx:FeedTransaction,window:PublicationWindow):Promise<Target[]> {
+export async function targets(tx:FeedTransaction,window:PublicationWindow,includeOutsideWindow=false):Promise<Target[]> {
  const active=new Map((await tx.store.currentEvidence(tx.snapshot.feed.id)).map(r=>[r.revision.id,r.revision]));
  const roots=await tx.list<EventRecord>('events'),events=new Map<string,Target>();
  const memberships=await tx.list<EventMembership>('memberships');
@@ -75,7 +75,7 @@ async function targets(tx:FeedTransaction,window:PublicationWindow):Promise<Targ
   }
  }
  if(window.kind!=='WEEKLY') result.push(...[...events.values()].filter(t=>!groupedEvents.has(t.id)));
- return result.filter(t=>Date.parse(t.updatedAt)>=Date.parse(window.start) && Date.parse(t.updatedAt)<Date.parse(window.end));
+ return result.filter(t=>Date.parse(t.updatedAt)<Date.parse(window.end) && (includeOutsideWindow||Date.parse(t.updatedAt)>=Date.parse(window.start)));
 }
 function deterministicPrefilter(editorial:EditorialDecision,interests:string[],geography:string[]):void {
  if(editorial.decision!=='INCLUDE')return;
