@@ -1,4 +1,5 @@
 import { createApp } from "./app";
+import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch} from './v1-intelligence/runtime';
 import {HandoffError} from '@distilled/contracts';
@@ -250,6 +251,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 async function runScheduledMaintenance(env: Env): Promise<void> {
+  try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
   try {await dispatchV1Acquisitions(env)} catch {console.warn('Could not dispatch v1 acquisition jobs')}
   try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
   const repo = new D1Repository(env.DB);

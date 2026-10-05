@@ -404,6 +404,7 @@ export function createApp(options: AppOptions = {}) {
     const window = { startTime: new Date(input.startTime).toISOString(), endTime: new Date(input.endTime).toISOString() };
     const owner = await repoFor(c).getAccountById(input.ownerAccountId);
     if (!owner || owner.disabledAt) return c.json({ error: "owner_not_found" }, 404);
+    if(await c.env.DB.prepare("SELECT 1 FROM sources s JOIN briefings b ON b.id=s.briefing_id WHERE s.collection_owner='connector' AND b.owner_account_id=? AND (s.id=? OR s.source_url=?) LIMIT 1").bind(owner.id,input.sourceId??'',source.href).first())return c.json({error:'source_collection_owner_mismatch'},403);
     const resource = await new D1UpstreamResourceStore(c.env.DB).resolveOrCreate({ tenantId: owner.id, canonicalSourceUrl: source.href, resourceLocator:input.evaluationId?`discovery-evaluation:${input.evaluationId}`:undefined,now: now.toISOString() });
     const configuredSource=input.sourceId?await repoFor(c).getSource(input.sourceId):null;
     const configuredBriefing=configuredSource?await repoFor(c).getBriefingById(configuredSource.briefingId):null;

@@ -69,6 +69,7 @@ export async function synchronizeV1ProductSource(db:D1Database,id:string,now:str
 }
 
 export async function isV1ProductSource(env:{DB?:D1Database;V1_DOWNSTREAM_ENABLED?:string;V1_DOWNSTREAM_FEED_SOURCE_IDS?:string},id:string):Promise<boolean> {
+ if(env.DB && await env.DB.prepare("SELECT 1 FROM sources WHERE id=? AND collection_owner='connector'").bind(id).first()) return true;
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
  if(env.V1_DOWNSTREAM_ENABLED!=='true' || ids.length>10 || !ids.includes(id)) return false;
  if(!env.DB) throw new HandoffError('SCOPE_DENIED');

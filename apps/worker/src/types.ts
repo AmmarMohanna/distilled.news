@@ -59,7 +59,15 @@ export interface ProcessingJobRecord {
 }
 
 export interface Env extends Cloudflare.Env {
+  SOURCE_CONNECTORS_ENABLED?: string;
+  SOURCE_OPERATION_CEILINGS_JSON?: string;
+  SOURCE_EXECUTION_URL?: string;
+  SOURCE_EXECUTION_TOKEN?: string;
+  SOURCE_EXECUTION_SERVICE?: Fetcher;
+  TWITTERAPI_IO_API_KEY?: string;
+  ZYTE_API_KEY?: string;
   V1_DOWNSTREAM_ENABLED?: string;
+  V1_EDITORIAL_PLAN_ENABLED?: string;
   V1_SYNTHESIS_MODEL_ENABLED?: string;
   V1_SALIENCE_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
   V1_SEMANTIC_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
