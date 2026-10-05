@@ -1,7 +1,7 @@
 import type {BriefingDraft,ClaimSupport,SynthesisWriterInput,VerificationClaim} from './publication';
 import type {WriterFeedback} from './writer-feedback';
 import {z} from 'zod';
-import {faithfulFact} from './fidelity';
+import {faithfulFact,numbers} from './fidelity';
 const wireDraft=z.object({language:z.string(),stories:z.array(z.object({storyId:z.string(),claims:z.array(z.object({text:z.string(),supportIds:z.array(z.string()).min(1).max(3),communicatedFactIds:z.array(z.string()).max(100)}).strict()).max(4)}).strict()).max(20)}).strict();
 const obj=(properties:Record<string,unknown>)=>({type:'object',additionalProperties:false,required:Object.keys(properties),properties});
 const strings=(values:string[],max=100)=>({type:'array',maxItems:max,items:values.length?{type:'string',enum:values}:{type:'string'}});
@@ -17,7 +17,7 @@ export function writerWire(input:SynthesisWriterInput){
   for(const f of s.approvedFacts??[])facts.set(`fact_${i+1}_${facts.size+1}`,f.id);
   identities.set(storyId,{candidateId:s.candidate.id,supports,facts});
   const required=new Set(s.plan?[...s.plan.mustIncludeFactIds,...s.plan.attributionFactIds,...s.plan.certaintyFactIds,...s.plan.disagreementFactIds,...s.plan.openQuestionFactIds]:[]);
-  return {storyId,treatment:s.plan?.treatment??'STANDARD',approvedFacts:s.approvedFacts?.map(f=>({factId:[...facts].find(([,id])=>id===f.id)![0],text:f.text,mustInclude:required.has(f.id),attribution:f.attribution,certainty:f.certainty,reportTime:f.reportTime,eventTime:f.eventTime,supportIds:[...supports].filter(([,ref])=>f.support.some(s=>s.evidenceRevisionId===ref.evidenceRevisionId&&ref.quote.includes(s.quote))).map(([id])=>id)})),supportSpans:[...supports].map(([supportId,span])=>({supportId,...span,publisherId:s.evidence.find(e=>e.id===span.evidenceRevisionId)?.publisherId})),previousLedgerEntries:s.plan?.previousLedgerEntries,correctionObligations:s.plan?.correctionObligations};
+  return {storyId,treatment:s.plan?.treatment??'STANDARD',approvedFacts:s.approvedFacts?.map(f=>({factId:[...facts].find(([,id])=>id===f.id)![0],text:f.text,numericValues:[...numbers(f.text)],mustInclude:required.has(f.id),attribution:f.attribution,certainty:f.certainty,reportTime:f.reportTime,eventTime:f.eventTime,supportIds:[...supports].filter(([,ref])=>f.support.some(s=>s.evidenceRevisionId===ref.evidenceRevisionId&&ref.quote.includes(s.quote))).map(([id])=>id)})),supportSpans:[...supports].map(([supportId,span])=>({supportId,...span,publisherId:s.evidence.find(e=>e.id===span.evidenceRevisionId)?.publisherId})),previousLedgerEntries:s.plan?.previousLedgerEntries,correctionObligations:s.plan?.correctionObligations};
  });
  const storyIds=[...identities.keys()],supportIds=[...identities.values()].flatMap(x=>[...x.supports.keys()]),factIds=[...identities.values()].flatMap(x=>[...x.facts.keys()]);
  const schema=obj({language:{type:'string'},stories:{type:'array',minItems:stories.length,maxItems:stories.length,items:obj({storyId:{type:'string',enum:storyIds.length?storyIds:['NO_STORIES']},claims:{type:'array',minItems:1,maxItems:4,items:obj({text:{type:'string'},supportIds:{...strings(supportIds,3),minItems:1},communicatedFactIds:strings(factIds)})}})}});

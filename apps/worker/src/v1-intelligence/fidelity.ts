@@ -5,12 +5,19 @@ export interface ReaderFidelity {passed:boolean;failures:{code:'UNSUPPORTED_QUAN
 const normalized=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
 // URL path/query digits are provenance identifiers, not reader-facing quantities.
 const factualText=(text:string)=>normalized(text).replace(/https?:\/\/[^\s]+/gu,'');
-function numbers(text:string):Set<string> {
+function numericText(text:string):string {
  const words:Record<string,string>={zero:'0',one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',eleven:'11',twelve:'12',thirteen:'13',fourteen:'14',fifteen:'15',sixteen:'16',seventeen:'17',eighteen:'18',nineteen:'19',twenty:'20',thirty:'30',forty:'40',fifty:'50',sixty:'60',seventy:'70',eighty:'80',ninety:'90'};
- const source=factualText(text).replace(/[٠-٩۰-۹]/g,c=>String(c.charCodeAt(0)-(c.charCodeAt(0)>=0x6f0?0x6f0:0x660))).replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g,w=>words[w]);
+ return factualText(text).replace(/\b(?:(?:a|one)\s+)?century(?=[-\s]+old\b)/g,'100').replace(/\b(?:(?:a|one)\s+)?hundred(?=[-\s]+years?[-\s]+old\b)/g,'100').replace(/[٠-٩۰-۹]/g,c=>String(c.charCodeAt(0)-(c.charCodeAt(0)>=0x6f0?0x6f0:0x660))).replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g,w=>words[w]);
+}
+export function numbers(text:string):Set<string> {
+ const source=numericText(text);
  return new Set([...source.matchAll(/(\d+(?:[.,]\d+)*)(?:\s*(%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b))?/g)].map(m=>{
   const number=Number(/^\d{1,3}(?:,\d{3})+$/.test(m[1])?m[1].replace(/,/g,''):m[1].replace(',','.')),unit=m[2],scale=unit==='hundred'?100:unit==='thousand'?1000:unit==='million'?1e6:unit==='billion'?1e9:unit==='trillion'?1e12:1;return `${number*scale}${unit==='%'||unit==='percent'?'%':''}`;
  }));
+}
+function numericalBounds(text:string):Set<string>{
+ const operators:Record<string,string>={'at least':'>=','no fewer than':'>=','at most':'<=','no more than':'<=','more than':'>','over':'>','less than':'<','under':'<'};
+ return new Set([...numericText(text).matchAll(/\b(at least|no fewer than|at most|no more than|more than|over|less than|under)\s+(?:a\s+)?(\d+(?:[.,]\d+)*(?:\s*(?:%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b))?)/g)].flatMap(m=>[...numbers(m[2])].map(n=>operators[m[1]]+n)));
 }
 /** Extra deterministic floors, not a substitute for contextual entailment.
  * English qualifier guards are enabled only for compatible known language;
@@ -18,6 +25,7 @@ function numbers(text:string):Set<string> {
 export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],allowed:FidelityFact[],english:boolean,semantic?:{pending?:boolean;checks?:SemanticFactCheck[]}):ReaderFidelity {
  const text=factualText(claimTexts.join('\n')),support=factualText(allowed.map(f=>f.text).join('\n')),failures:ReaderFidelity['failures']=[];
  const offered=numbers(support),visible=numbers(text);if(english||offered.size)for(const value of visible)if(!offered.has(value))failures.push({code:'UNSUPPORTED_QUANTITY',value});
+ if(english){const bounds=numericalBounds(support);for(const value of numericalBounds(text))if(!bounds.has(value))failures.push({code:'UNSUPPORTED_QUANTITY',value});}
  for(const fact of required)for(const value of numbers(fact.text))if(!visible.has(value))failures.push({code:'LOST_QUANTITY',factId:fact.id,value});
  const dates=new Set(support.match(/\b\d{4}-\d{2}-\d{2}\b/g)??[]);for(const value of text.match(/\b\d{4}-\d{2}-\d{2}\b/g)??[])if(!dates.has(value))failures.push({code:'UNSUPPORTED_DATE',value});
  if(english)for(const fact of required){
