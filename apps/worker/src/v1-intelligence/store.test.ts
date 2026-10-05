@@ -1,12 +1,21 @@
 import {afterEach,beforeEach,expect,it} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope,scopeFixture,testPolicy} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
-import {V1FeedStore,feedTransact} from './store';
+import {V1FeedStore,FeedTransaction,feedTransact} from './store';
 import type {FeedRecord} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 const now=testPolicy.now(),feed:FeedRecord={id:'feed-1',ownerId:'owner-1',title:'Feed',interests:[],geography:[],outputLanguage:'en',briefingFrequency:'DAILY',paused:false,revision:1,createdAt:now,updatedAt:now};
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feed)});
 afterEach(async()=>ctx.dispose());
+it('read-only relay checks do not invalidate writers; real writes still fence stale snapshots',async()=>{
+ const snapshot=await store.snapshot(feed.id),writer=new FeedTransaction(store,snapshot);
+ await writer.write('intelligence_receipts','receipt-1',{id:'receipt-1',feedId:feed.id});
+ for(let i=0;i<3;i++)await feedTransact(store,feed.id,tx=>tx.list('briefing_requests'));
+ expect((await store.snapshot(feed.id)).epoch).toBe(snapshot.epoch);
+ expect(await store.commit(writer)).toBe(true);
+ expect((await store.snapshot(feed.id)).epoch).toBe(snapshot.epoch+1);
+ expect(await store.commit(new FeedTransaction(store,snapshot))).toBe(false);
+});
 it('concurrent source configuration mutation invalidates the feed snapshot before any intelligence effect',async()=>{
  let executions=0;
  await feedTransact(store,feed.id,async tx=>{

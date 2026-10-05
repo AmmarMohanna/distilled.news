@@ -34,6 +34,9 @@ it.each(['whole source','unapproved fact','missing required','attribution','cert
  const selected=await selection(),usage={tokensIn:100,tokensOut:40,cost:.001,confirmed:true};
  const model:BriefingModelPort={model:'controlled',provider:'TEST',maxCallCostUsd:.01,synthesize:async input=>{
   expect(JSON.stringify(input)).not.toContain(C);expect(input.stories[0]).not.toHaveProperty('eventVersions');
+  expect(input.stories[0].plan).not.toHaveProperty('facts');
+  expect(input.stories[0].approvedFacts?.map(f=>f.text)).toEqual([A,B]);
+  expect(input.stories[0].approvedFacts?.every(f=>f.support.length>0&&!('claimMentionIds' in f))).toBe(true);
   const s=input.stories[0],id=s.evidence[0].id;
   const texts=mode==='whole source'?[body]:mode==='unapproved fact'?[A,B,C]:mode==='missing required'?[A]:mode==='attribution'?[A.replace('Officials said ',''),B]:mode==='certainty'?[A,B.replace('may affect','affects')]:[A.replace('will start after','started before'),B];
   return {draft:{language:'en',stories:[{candidateId:s.candidate.id,claims:texts.map((text,i)=>({text,support:[{evidenceRevisionId:id,quote:mode==='whole source'?body:i===2?C:i===0?A:B}]}))}]},usage};

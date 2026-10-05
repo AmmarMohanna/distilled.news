@@ -18,7 +18,8 @@ export interface SelectedPlanStory extends PlanStory {facts:ShortlistFact[];prev
 export interface SynthesisInput {feed:Pick<FeedRecord,'id'|'revision'|'title'|'interests'|'outputLanguage'>;selectionId:string;window?:SelectionRecord['window'];editorialPlan?:{id:string;route:EditorialPlanRecord['route']};stories:{candidate:BriefingCandidate;eventVersions:EventVersion[];storylineVersion?:StorylineVersion;editorial?:EditorialDecision;plan?:SelectedPlanStory;evidence:(EvidenceRevision & {excerptTruncated:boolean})[]}[]}
 export interface PreservationFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string}
 export interface ApprovedWriterFact extends ShortlistFact {support:ClaimSupport[]}
-export interface SynthesisWriterInput {feed:SynthesisInput['feed'];selectionId:string;window?:SynthesisInput['window'];editorialPlan?:SynthesisInput['editorialPlan'];stories:{candidate:Pick<BriefingCandidate,'id'|'targetType'|'targetVersionId'>;plan?:SelectedPlanStory;editorial?:EditorialDecision;approvedFacts?:ApprovedWriterFact[];evidence:{id:string;body?:string;language?:string}[]}[]}
+export type WriterFact=Omit<ApprovedWriterFact,'claimMentionIds'|'evidenceRevisionIds'|'propositionId'>;
+export interface SynthesisWriterInput {feed:SynthesisInput['feed'];selectionId:string;window?:SynthesisInput['window'];editorialPlan?:SynthesisInput['editorialPlan'];stories:{candidate:Pick<BriefingCandidate,'id'|'targetType'|'targetVersionId'>;plan?:Omit<SelectedPlanStory,'facts'>;editorial?:EditorialDecision;approvedFacts?:WriterFact[];evidence:{id:string;body?:string;language?:string}[]}[]}
 export interface VerificationClaim {id:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean}[];requiredFacts?:PreservationFact[];allowedFacts?:PreservationFact[];previousLedgerFacts?:string[];newUnderstandingFacts?:PreservationFact[];correctionObligations?:ShortlistRecord['obligations']}
 export interface BriefingModelPort {
  model:string;provider:string;maxCallCostUsd:number;promptVersion?:string;
@@ -120,8 +121,12 @@ export function synthesisWriterInput(input:SynthesisInput):SynthesisWriterInput 
   const approvedFacts=s.plan?approvedWriterFacts(s):undefined;
   if(approvedFacts?.some(f=>!f.support.length))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
   const spans=s.plan?approvedSupportSpans(s):undefined;
-  const plan=s.plan?{...s.plan,facts:approvedFacts!.map(({support,...f})=>f),rationale:'Selected by EditorialPlan.',relevanceRationale:'Communicate approved facts only.'}:undefined;
-  return {candidate:{id:s.candidate.id,targetType:s.candidate.targetType,targetVersionId:s.candidate.targetVersionId},plan,editorial:s.plan?undefined:s.editorial,approvedFacts,evidence:s.evidence.map(e=>({id:e.id,language:e.language,body:spans?spans.filter(p=>p.evidenceRevisionId===e.id).map(p=>p.quote).join('\n'):e.body}))};
+  const {facts:unusedFacts,...selectedPlan}=s.plan??{facts:[]};
+  const plan=s.plan?{...selectedPlan,rationale:'Selected by EditorialPlan.',relevanceRationale:'Communicate approved facts only.'} as Omit<SelectedPlanStory,'facts'>:undefined;
+  // The support references carry provenance. Do not repeat internal graph IDs
+  // or a second copy of every proposition in the communication payload.
+  const writerFacts=approvedFacts?.map(({claimMentionIds,evidenceRevisionIds,propositionId,...fact})=>fact);
+  return {candidate:{id:s.candidate.id,targetType:s.candidate.targetType,targetVersionId:s.candidate.targetVersionId},plan,editorial:s.plan?undefined:s.editorial,approvedFacts:writerFacts,evidence:s.evidence.map(e=>({id:e.id,language:e.language,body:spans?spans.filter(p=>p.evidenceRevisionId===e.id).map(p=>p.quote).join('\n'):e.body}))};
  })};
 }
 export function extractiveDraft(input:SynthesisInput):BriefingDraft {
@@ -155,7 +160,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
  const editionId=await sha256(canonicalJson({feedId,start:selection.window.start,end:selection.window.end}));
  const published=await store.read<BriefingEditionRecord>(feedId,'editions',editionId);if(published) return published;
  if(!selection.selectedCandidateIds.length) throw new HandoffError('INVALID_REQUEST');
- const started=Date.now(),token=crypto.randomUUID();
+ const token=crypto.randomUUID();
  const claimed=await feedTransact(store,feedId,async tx=>{
   const edition=await tx.read<BriefingEditionRecord>('editions',editionId);if(edition) return {edition};
   const prior=await tx.read<PublicationJob>('synthesis_jobs',editionId),now=options.now();
@@ -175,6 +180,9 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   await tx.write('synthesis_jobs',editionId,job);return {input,authorizationScopes:tx.snapshot.scopes};
  });
  if(claimed.edition) return claimed.edition;
+ // Source/current-plan validation and CAS contention precede the owned lease.
+ // The execution clock measures synthesis under that lease, not preparation.
+ const started=Date.now();
  const input=claimed.input!;
  const authorizationScopes=canonicalJson(claimed.authorizationScopes!);
  const callModel=async<T extends {usage:ModelUsage}>(phase:string,payload:unknown,execute:(limits:{maxOutputTokens:number;signal:AbortSignal})=>Promise<T>):Promise<T>=>{
@@ -263,7 +271,8 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     if(!result) {const seen=new Set<string>();const claims:VerificationClaim[]=nonextractive.map(p=>{
      const first=!seen.has(p.candidateId);seen.add(p.candidateId);
      const scope=candidates.get(p.candidateId)!;
-     return {...p.claim,requiredFacts:first?preservationFacts(scope):undefined,allowedFacts:scope.plan?.facts,previousLedgerFacts:scope.plan?.previousLedgerEntries.flatMap(e=>e.claimFacts),newUnderstandingFacts:first?scope.plan?.facts.filter(f=>scope.plan!.newUnderstandingFactIds.includes(f.id)):undefined,correctionObligations:first?scope.plan?.correctionObligations:undefined,context:scope.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,text:e.body??'',truncated:e.excerptTruncated}))};
+     const facts=scope.plan?.facts.map(({id,text,evidenceRevisionIds,attribution})=>({id,text,evidenceRevisionIds,attribution}));
+     return {...p.claim,requiredFacts:first?preservationFacts(scope):undefined,allowedFacts:facts,previousLedgerFacts:scope.plan?.previousLedgerEntries.flatMap(e=>e.claimFacts),newUnderstandingFacts:first?facts?.filter(f=>scope.plan!.newUnderstandingFactIds.includes(f.id)):undefined,correctionObligations:first?scope.plan?.correctionObligations:undefined,context:scope.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,text:e.body??'',truncated:e.excerptTruncated}))};
     });await callModel('GROUNDING',claims,limits=>options.model!.verify!(claims,limits));result=await store.read(feedId,'verification_results',selectionId)}
     for(const id of result?.supportedClaimIds??[]) if(nonextractive.some(p=>p.claim.id===id)) supported.add(id);
     for(const id of result?.preservedFactIds??[]) preservedFacts.add(id);

@@ -49,7 +49,10 @@ export class V1FeedStore {
    statements.push(this.db.prepare('UPDATE v1_jobs SET json=? WHERE id=? AND feed_source_id=?').bind(JSON.stringify(job),job.id,job.feedSourceId));
    statements.push(this.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(job.feedSourceId));
   }
-  statements.push(this.db.prepare('UPDATE v1_feeds SET epoch=epoch+1 WHERE id=?').bind(s.feed.id),this.db.prepare('DELETE FROM v1_feed_guards WHERE id=?').bind(nonce));
+  // Read-only relays still validate their snapshot atomically, but must not
+  // invalidate concurrent writers merely by checking an existing request.
+  if(tx.writes.size || tx.jobs.size) statements.push(this.db.prepare('UPDATE v1_feeds SET epoch=epoch+1 WHERE id=?').bind(s.feed.id));
+  statements.push(this.db.prepare('DELETE FROM v1_feed_guards WHERE id=?').bind(nonce));
   try {await this.db.batch(statements);return true} catch(error) {if(String(error).includes('CHECK constraint failed: v1_feed_cas')) return false;throw new HandoffError('TEMPORARY_UNAVAILABLE')}
  }
 }
