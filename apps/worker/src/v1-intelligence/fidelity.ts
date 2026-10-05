@@ -1,5 +1,5 @@
 export interface FidelityFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string}
-export interface SemanticFactCheck {factId:string;communicated:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;reason:string}
+export interface SemanticFactCheck {factId:string;communicated:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;reason:string;readerSpans?:{claimId:string;text:string}[]}
 export const faithfulFact=(check:SemanticFactCheck)=>check.communicated&&check.attribution&&check.certainty&&check.temporal&&check.qualifiers;
 export interface ReaderFidelity {passed:boolean;failures:{code:'UNSUPPORTED_QUANTITY'|'LOST_QUANTITY'|'UNSUPPORTED_DATE'|'LOST_MODALITY'|'LOST_NEGATION'|'LOST_BOUND'|'LOST_ATTRIBUTION';factId?:string;value?:string}[];policyVersion:string}
 const normalized=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();

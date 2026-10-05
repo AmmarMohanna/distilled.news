@@ -19,12 +19,12 @@ it('deduplicates verifier context without dropping constraints and validates off
  const claim={candidateId:'candidate',text:'A fact',support:[{evidenceRevisionId:'r',quote:'A fact'}],context:[{evidenceRevisionId:'r',text:'A fact plus broader context',truncated:false}],requiredFacts:[{id:'fact',text:'A fact',evidenceRevisionIds:['r']}],allowedFacts:[{id:'fact',text:'A fact',evidenceRevisionIds:['r']}],newUnderstandingFacts:[{id:'fact',text:'A fact',evidenceRevisionIds:['r']}]};
  const wire=verificationWire([{...claim,id:'a'},{...claim,id:'b'}]);
  expect(wire.payload.stories[0].facts).toHaveLength(1);expect(wire.payload.stories[0].context).toHaveLength(1);expect(wire.payload.stories[0].requiredFactIds).toEqual(['fact_1']);
- expect(wire.decode({supportedClaimIds:['claim_1','claim_2'],preservedFactIds:['fact_1'],novelFactIds:['fact_1'],semanticChecks:[{factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Equivalent meaning.'}]})).toMatchObject({supportedClaimIds:['a','b'],preservedFactIds:['fact'],novelFactIds:['fact']});
+ expect(wire.decode({supportedClaimIds:['claim_1','claim_2'],preservedFactIds:['fact_1'],novelFactIds:['fact_1'],semanticChecks:[{factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Equivalent meaning.',readerSpans:[{claimId:'claim_1',text:'A fact'}]}]})).toMatchObject({supportedClaimIds:['a','b'],preservedFactIds:['fact'],novelFactIds:['fact']});
  expect(()=>wire.decode({preservedFactIds:['fact_1']})).toThrow('INCOMPLETE_SEMANTIC_VERDICT');
- expect(wire.decode({preservedFactIds:['fact_1'],semanticChecks:[{factId:'fact_1',communicated:true,attribution:true,certainty:false,temporal:true,qualifiers:true,reason:'Uncertainty became certainty.'}]})).toMatchObject({preservedFactIds:[]});
- const semanticChecks=[{factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Equivalent meaning.'}];
+ expect(wire.decode({supportedClaimIds:['claim_1'],preservedFactIds:['fact_1'],semanticChecks:[{factId:'fact_1',communicated:true,attribution:true,certainty:false,temporal:true,qualifiers:true,reason:'Uncertainty became certainty.',readerSpans:[{claimId:'claim_1',text:'A fact'}]}]})).toMatchObject({preservedFactIds:[]});
+ const semanticChecks=[{factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Equivalent meaning.',readerSpans:[{claimId:'claim_1',text:'A fact'}]}];
  expect(()=>wire.decode({supportedClaimIds:['unknown'],semanticChecks})).toThrow('UNRECOGNIZED_VERIFIER_ID');
- expect(()=>wire.decode({addressedCorrectionObligationIds:['unoffered'],semanticChecks})).toThrow('UNRECOGNIZED_VERIFIER_ID');
+ expect(()=>wire.decode({supportedClaimIds:['claim_1'],addressedCorrectionObligationIds:['unoffered'],semanticChecks})).toThrow('UNRECOGNIZED_VERIFIER_ID');
 });
 it('offers merged approved spans once with retained publisher identity and no extra provenance fields in decoded citations',()=>{
  const supplied=structuredClone(input);supplied.stories[0].evidence[0].publisherId='original-publisher';
@@ -32,4 +32,15 @@ it('offers merged approved spans once with retained publisher identity and no ex
  const wire=writerWire(supplied);expect(wire.payload.stories[0].supportSpans).toHaveLength(1);
  expect(wire.payload.stories[0].supportSpans[0].publisherId).toBe('original-publisher');
  expect(wire.decode({language:'en',stories:[{storyId:'story_1',claims:[{text:'The launch succeeded, officials reported.',supportIds:['span_1_1'],communicatedFactIds:['fact_1_1']}]}]}).stories[0].claims[0].support[0]).toEqual({evidenceRevisionId:'revision',quote:'Officials reported a successful launch.'});
+});
+it('requires coverage witnesses in actual supported reader prose, never source-only text or another story',()=>{
+ const claim={id:'a',candidateId:'story-a',text:'The minister stepped down.',support:[{evidenceRevisionId:'r',quote:'The minister resigned.'}],context:[],requiredFacts:[{id:'f',text:'The minister resigned.',evidenceRevisionIds:['r']}]};
+ const wire=verificationWire([claim,{...claim,id:'b',candidateId:'story-b',requiredFacts:[]}]);
+ const check={factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Resigned and stepped down are equivalent.'};
+ const verdict=(readerSpans:{claimId:string;text:string}[])=>({supportedClaimIds:['claim_1','claim_2'],preservedFactIds:['fact_1'],semanticChecks:[{...check,readerSpans}]});
+ expect(wire.decode(verdict([{claimId:'claim_1',text:'The minister stepped down.'}])).preservedFactIds).toEqual(['f']);
+ expect(()=>wire.decode(verdict([{claimId:'claim_1',text:'The minister resigned.'}]))).toThrow('INVALID_READER_WITNESS');
+ expect(()=>wire.decode(verdict([{claimId:'claim_2',text:'The minister stepped down.'}]))).toThrow('INVALID_READER_WITNESS');
+ expect(()=>wire.decode(verdict([]))).toThrow('MISSING_READER_WITNESS');
+ expect(()=>wire.decode({...verdict([{claimId:'claim_1',text:'The minister stepped down.'}]),supportedClaimIds:[]})).toThrow('INVALID_READER_WITNESS');
 });
