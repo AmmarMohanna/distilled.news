@@ -394,6 +394,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.on("POST", ["/v1/sources/acquisition","/v1/live-smoke/public-acquisition"], async (c) => {
+    if(c.env.SOURCE_LEGACY_POLLING_ENABLED==='false')return c.json({error:'source_collection_owner_mismatch'},403);
     if (c.req.path.startsWith("/v1/live-smoke/") && c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
     if (!isRuntimeAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
     const input = livePublicAcquisitionSmokeSchema.parse(await c.req.json().catch(() => ({})));

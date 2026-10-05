@@ -7,10 +7,17 @@ workers_dev = true
 preview_urls = false
 routes = []
 
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
 [vars]
 PUBLIC_API_BASE_URL = "https://distilled-news-staging.distillednews-platform.workers.dev"
 PUBLIC_WEB_BASE_URL = "https://distilled-news-staging.distillednews-platform.workers.dev"
 SOURCE_CONNECTORS_ENABLED = "true"
+SOURCE_LEGACY_POLLING_ENABLED = "false"
 SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0,"apify":0,"zyte":0}'
 SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
 V1_DOWNSTREAM_ENABLED = "true"

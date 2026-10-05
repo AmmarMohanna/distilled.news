@@ -65,6 +65,7 @@ export interface SourceRefreshDispatchInput {
 }
 
 export async function addSourceFromInput(input: SourceRefreshInput & { sourceInput: string }): Promise<SourceIngestResult> {
+  if(input.env?.SOURCE_LEGACY_POLLING_ENABLED==='false')throw new Error('LEGACY_COLLECTION_DISABLED');
   const detected = detectSourceInput(input.sourceInput);
   if (detected.provider === "telegram") {
     return ingestPublicTelegramChannel({ ...input, url: detected.sourceUrl, activateSource: true });
@@ -84,6 +85,7 @@ export async function addSourceFromInput(input: SourceRefreshInput & { sourceInp
 }
 
 export async function refreshEnabledSources(input: SourceRefreshInput): Promise<SourceIngestResult[]> {
+  if(input.env?.SOURCE_LEGACY_POLLING_ENABLED==='false')return [];
   if (input.briefing.paused) return [];
 
   const now = input.now ?? new Date();
@@ -103,6 +105,7 @@ export async function refreshEnabledSources(input: SourceRefreshInput): Promise<
 }
 
 export async function enqueueDueSourceRefreshJobs(input: SourceRefreshDispatchInput): Promise<number> {
+  if(input.env?.SOURCE_LEGACY_POLLING_ENABLED==='false')return 0;
   if (input.briefing.paused) return 0;
   if (!input.force && await hasLargeProcessingBacklog(input.repo, input.briefing.id)) return 0;
 
@@ -140,6 +143,7 @@ export async function refreshSourceById(input: SourceRefreshInput & { sourceId: 
 }
 
 async function refreshSource(input: SourceRefreshInput & { source: SourceRecord }): Promise<SourceIngestResult | undefined> {
+  if(input.env?.SOURCE_LEGACY_POLLING_ENABLED==='false')return undefined;
   if(input.env && await isV1ProductSource(input.env,input.source.id)) return undefined;
   if (input.briefing.paused || !input.source.enabled) return undefined;
   const now = input.now ?? new Date();
@@ -167,6 +171,7 @@ async function refreshSource(input: SourceRefreshInput & { source: SourceRecord 
 }
 
 export async function pollApifySourceRuns(input: Omit<SourceRefreshInput, "briefing">): Promise<void> {
+  if(input.env?.SOURCE_LEGACY_POLLING_ENABLED==='false')return;
   const runs = await input.repo.listSourceRuns({ states: ["queued", "running"], limit: 25 });
   for (const run of runs) {
     const source = await input.repo.getSource(run.sourceId);

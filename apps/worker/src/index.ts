@@ -256,7 +256,7 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
   try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
   const repo = new D1Repository(env.DB);
   const now = new Date();
-  try{await enqueueScheduledSourceAcquisitions(env,now)}catch{console.warn("Could not enqueue scheduled source acquisition")}
+  if(env.SOURCE_LEGACY_POLLING_ENABLED!=='false')try{await enqueueScheduledSourceAcquisitions(env,now)}catch{console.warn("Could not enqueue scheduled source acquisition")}
   try {
     await dispatchPendingOpenRouterModelDiagnostics(env,now);
   } catch (error) {
