@@ -16,7 +16,7 @@ interface PollJob {
 /** Backend service, not a deployed cron or queue consumer. Enqueue each periodic poll
  * with a new stable job/run identity; retries/continuations preserve the saved request. */
 export class D1RssPollScheduler {
-  constructor(private readonly db: SqlDatabase, private readonly collector: RssSourceCollector,
+  constructor(private readonly db: SqlDatabase, private readonly collector: Pick<RssSourceCollector,'collect'>,
     private readonly authorize: (request:RssRequest)=>Promise<boolean>,
     private readonly now:()=>number = Date.now) {}
 

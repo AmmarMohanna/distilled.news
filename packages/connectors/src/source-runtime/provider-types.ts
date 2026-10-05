@@ -14,6 +14,8 @@ export interface SourceDefinition {
   actorInput?: Record<string,unknown>;
 }
 export interface SourceFetchRequest {
+  /** Persisted downstream configuration fence, required by the Worker runtime. */
+  configurationRevision?: number;
   scope: SourceScope;
   runId: string;
   source: SourceDefinition;

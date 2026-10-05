@@ -40,6 +40,7 @@ export interface ImmutablePayloadStore {
   get(scope: SourceScope, ref: string): Promise<Uint8Array>;
 }
 export interface RssRequest {
+  configurationRevision?: number;
   scope: SourceScope;
   runId: string;
   url: string;

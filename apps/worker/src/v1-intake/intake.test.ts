@@ -6,6 +6,11 @@ import { createIntakeDatabase, seedIntakeScope, batchFixture, testPolicy, scopeF
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>, store:V1IntakeStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store)});
 afterEach(async()=>ctx.dispose());
+it('connector configuration revision is checked inside the durable acceptance transaction',async()=>{
+ await expect(createCandidateIntakePort(store,{...testPolicy,expectedFeedRevision:2}).acceptBatch(batchFixture())).rejects.toMatchObject({code:'SCOPE_DENIED'});
+ expect(await store.list('intake_receipts','feed-source-1')).toHaveLength(0);
+ expect(await store.listPendingJobs('feed-source-1')).toHaveLength(0);
+});
 it('accepted UPSERT commits a candidate, exact input binding and one acquisition job',async()=>{
   const result=await handoffConnectorBatch(createCandidateIntakePort(store,testPolicy),batchFixture());
   expect(result.receipts[0]).toMatchObject({decision:'ACCEPTED',checkpointResolution:'RESOLVED'});

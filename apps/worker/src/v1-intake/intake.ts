@@ -73,6 +73,7 @@ export function createCandidateIntakePort(store:V1IntakeStore,policy:IntakePolic
       if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
       const request=parsed.data,canonical=canonicalRequest(request);
       return transact(store,request.coverage.feedSourceId,async tx=>{
+        if(policy.expectedFeedRevision!==undefined && tx.snapshot.scope.feedRevision!==policy.expectedFeedRevision) throw new HandoffError('SCOPE_DENIED');
         if(tx.snapshot.scope.feedId!==request.coverage.feedId || request.observations.some(o=>o.sourceId!==tx.snapshot.scope.sourceId)) throw new HandoffError('SCOPE_DENIED');
         const key=itemId(request.coverage.feedSourceId,request.handoffId),existing=await tx.read<{canonical:string}>('handoffs',key);
         if(existing && existing.canonical!==canonical) throw new HandoffError('IDEMPOTENCY_CONFLICT');

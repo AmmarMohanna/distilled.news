@@ -5,6 +5,7 @@ export interface IntakeScope { feedId: string; feedSourceId: string; sourceId: s
 export interface ValidationFacts { accountId?: string }
 export interface VerifiedSuppliedContent { representation: RepresentationKind; contentCompleteness: ContentCompleteness; contentHash: string }
 export interface IntakePolicy {
+  expectedFeedRevision?: number;
   version: string;
   now(): string;
   factsFor(observation: SourceObservation): Promise<ValidationFacts>;

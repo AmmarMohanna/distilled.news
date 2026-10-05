@@ -10,6 +10,7 @@ import { WorkerPublicSourceFetch } from './public-source-fetch';
 import {synchronizeV1ProductSource} from './v1-intelligence/product';
 import {createV1BrowserStages} from './v1-intake/browser-stages';
 import {languageResolutionSchema} from './v1-intelligence/language';
+import {readConnectorPayload} from './connector-payload';
 
 function enabledSources(env:Env):string[] {
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
@@ -19,8 +20,11 @@ function enabledSources(env:Env):string[] {
 export function v1SourceEnabled(env:Env,id:string):boolean {
  return enabledSources(env).includes(id);
 }
-export function createV1RuntimePolicy(fetcher:typeof fetch=fetch):IntakePolicy {
- return {version:'v1-runtime-1',now:()=>new Date().toISOString(),factsFor:async()=>({}),verifySuppliedContent:async()=>undefined,
+export function createV1RuntimePolicy(fetcher:typeof fetch=fetch,bucket?:R2Bucket):IntakePolicy {
+ return {version:'v1-runtime-1',now:()=>new Date().toISOString(),factsFor:async()=>({}),verifySuppliedContent:async o=>{
+  const payload=bucket?await readConnectorPayload(bucket,o):undefined;
+  return payload?{representation:o.representation,contentCompleteness:o.contentCompleteness,contentHash:o.contentHash!}:undefined;
+ },
  orderingFor:async observation=>{
   let authoritativeReplacementAllowed=false;
   // An origin 410 is independent explicit deletion evidence. Provider-specific deletion checks remain connector integrations.
@@ -35,21 +39,23 @@ export function createV1RuntimePolicy(fetcher:typeof fetch=fetch):IntakePolicy {
   }};
  }};
 }
-export async function acceptV1Handoff(env:Env,raw:unknown) {
+export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:number) {
  const parsed=connectorHandoffRequestSchema.safeParse(raw);
  if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  if(!v1SourceEnabled(env,parsed.data.coverage.feedSourceId)) throw new HandoffError('SCOPE_DENIED');
  await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
- return createCandidateIntakePort(new V1IntakeStore(env.DB),createV1RuntimePolicy()).acceptBatch(parsed.data);
+ return createCandidateIntakePort(new V1IntakeStore(env.DB),{...createV1RuntimePolicy(fetch,env.RAW_ARCHIVE),expectedFeedRevision}).acceptBatch(parsed.data);
 }
 const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();
 export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetch=fetch) {
  const store=new V1IntakeStore(env.DB),job=await store.read<{feedSourceId:string}>('jobs',id);
  if(!job || !v1SourceEnabled(env,job.feedSourceId)) return 'SKIPPED' as const;
  await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
- const policy=createV1RuntimePolicy(fetcher);
+ const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE);
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,stagesForClaim:claim=>createV1BrowserStages(env,claim),readPayload:async claim=>{
   const ref=claim.input.observation.suppliedPayloadRef;
+  const connectorPayload=await readConnectorPayload(env.RAW_ARCHIVE,claim.input.observation);
+  if(connectorPayload)return connectorPayload;
   // Scoped payload object keys are a capability, never an arbitrary R2 pointer supplied by a client.
   if(!ref?.startsWith(`v1/payloads/${encodeURIComponent(claim.job.feedSourceId)}/`)) return undefined;
   const object=await env.RAW_ARCHIVE.get(ref);if(!object) return undefined;
