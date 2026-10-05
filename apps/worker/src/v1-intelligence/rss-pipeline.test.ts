@@ -60,7 +60,7 @@ async function proof(live:boolean,paid=false) {
   }
   if(live) console.info('Live RSS representation diagnostics',{declaredLanguage:language??'UNKNOWN',items:batch.observations.map(o=>({bodyCharacters:o.text.length,completeness:o.contentCompleteness}))});
   const asOf=new Date(Date.now()+1000),edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:{start:new Date(Date.parse(now)-3600000).toISOString(),end:asOf.toISOString(),kind:'HOURLY'}},()=>asOf.toISOString());
-  expect(edition?.stories.length).toBeGreaterThan(0);expect(edition!.generation.model).toBe(paid?'openai/gpt-4.1-mini':'deterministic-extractive-editorial-v2');expect(edition!.generation.promptVersion).toBe(paid?'editorial-delta-preservation-v2':'full-context-extractive-editorial-v2');
+  expect(edition?.stories.length).toBeGreaterThan(0);expect(edition!.generation.model).toBe(paid?'openai/gpt-4.1-mini':'deterministic-approved-facts-v3');expect(edition!.generation.promptVersion).toBe(paid?'approved-fact-spans-editorial-v9':'approved-fact-spans-v3');
   const publicEdition=await publicV1Edition(db,edition!.id);expect(publicEdition?.citations.length).toBeGreaterThan(0);
   if(paid) {
    const store=new V1FeedStore(db),version=await store.read<EventVersion>('feed-1','event_versions',edition!.eventVersionIds[0]);

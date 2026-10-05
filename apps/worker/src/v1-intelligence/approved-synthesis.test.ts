@@ -67,3 +67,45 @@ it('uses a safe deterministic draft after model failure, retains unknown-call re
  expect(await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model})).toEqual(edition);expect(calls).toBe(1);
  expect((await store.list<any>('feed-1','model_executions'))[0]).toMatchObject({status:'OUTCOME_UNKNOWN',reservationRetained:true});
 },25000);
+
+it.each(['missing declaration','false coverage IDs','invalid quote'])('repairs %s once with the same restricted facts and independently verifies prose',async mode=>{
+ const selected=await selection(),usage={tokensIn:100,tokensOut:40,cost:.001,confirmed:true};let writes=0,repairs=0,verifications=0;
+ const make=(input:any,complete:boolean)=>{const s=input.stories[0],facts=s.approvedFacts,id=s.evidence[0].id;
+  return {language:'en',stories:[{candidateId:s.candidate.id,claims:[{text:complete?A:mode==='invalid quote'?`Officials said "Lebanon banking reform will start after 2026-10-06."`:mode==='false coverage IDs'?A+' Reform may affect 100 people.':A,support:[{evidenceRevisionId:id,quote:A},...(!complete&&mode==='false coverage IDs'?[{evidenceRevisionId:id,quote:B}]:[])],communicatedFactIds:mode==='false coverage IDs'?facts.map((f:any)=>f.id):[facts[0].id]},...(complete?[{text:B,support:[{evidenceRevisionId:id,quote:B}],communicatedFactIds:[facts[1].id]}]:[])]}]};};
+ const model:BriefingModelPort={model:'controlled-writer',provider:'TEST',maxCallCostUsd:.01,synthesize:async input=>{writes++;return {draft:make(input,false),usage};},repair:async(input,draft,feedback)=>{
+  repairs++;expect(JSON.stringify(input)).not.toContain(C);expect(draft.stories[0].claims).toHaveLength(1);
+  expect(feedback.issues.some(i=>mode==='invalid quote'?i.code==='INVALID_DIRECT_QUOTE':i.code.startsWith('MISSING_'))).toBe(true);
+  if(mode!=='invalid quote')expect(feedback.missingFactIds.length).toBeGreaterThan(0);
+  return {draft:make(input,true),usage};
+ },verify:async claims=>{verifications++;const expressed=claims.map(c=>c.text).join(' ');return {supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>c.requiredFacts??[]).filter(f=>expressed.includes(f.text)).map(f=>f.id),novelFactIds:claims.flatMap(c=>c.newUnderstandingFacts??[]).filter(f=>expressed.includes(f.text)).map(f=>f.id),usage};}};
+ // Force a retry after the repair result and independent verification are durable.
+ await ctx.db.exec("CREATE TRIGGER fail_repaired_publication BEFORE INSERT ON v1_feed_documents WHEN NEW.kind='editions' BEGIN SELECT RAISE(ABORT,'simulated persistence outage'); END;");
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ await ctx.db.exec('DROP TRIGGER fail_repaired_publication;');
+ const calls=[writes,repairs,verifications],edition=await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model});
+ expect(edition.generation).toMatchObject({provider:'TEST',repairCount:1});
+ expect(edition.stories.flatMap(s=>s.claims).map(c=>c.text)).toEqual([A,B]);
+ expect([writes,repairs,verifications]).toEqual(calls);expect(writes).toBe(1);expect(repairs).toBe(1);
+ expect(verifications).toBe(mode==='false coverage IDs'?2:1);
+ expect(await store.list('feed-1','verification_feedback')).toHaveLength(1);
+ expect(await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model})).toEqual(edition);
+ expect(await store.list('feed-1','editions')).toHaveLength(1);
+},25000);
+
+it('fails closed after a second invalid draft without another repair or publication',async()=>{
+ const selected=await selection(),usage={tokensIn:100,tokensOut:40,cost:.001,confirmed:true};let writes=0,repairs=0;
+ const omit=(input:any)=>{const s=input.stories[0];return {language:'en',stories:[{candidateId:s.candidate.id,claims:[{text:A,support:[{evidenceRevisionId:s.evidence[0].id,quote:A}],communicatedFactIds:[s.approvedFacts[0].id]}]}]};};
+ const model:BriefingModelPort={model:'controlled',provider:'TEST',maxCallCostUsd:.01,synthesize:async input=>{writes++;return {draft:omit(input),usage};},repair:async input=>{repairs++;return {draft:omit(input),usage};}};
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(writes).toBe(1);expect(repairs).toBe(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect(await store.list('feed-1','verification_feedback')).toHaveLength(2);
+},25000);
+
+it('accepts a grounded plain paraphrase with all required facts and exact provenance',async()=>{
+ const selected=await selection(),usage={tokensIn:100,tokensOut:40,cost:.001,confirmed:true};
+ const model:BriefingModelPort={model:'controlled',provider:'TEST',maxCallCostUsd:.01,synthesize:async input=>{const s=input.stories[0];return {draft:{language:'en',stories:[{candidateId:s.candidate.id,claims:s.approvedFacts!.map(f=>({text:f.text===B?B.replace('may affect','could affect'):f.text,support:f.support,communicatedFactIds:[f.id]}))}]},usage};},verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>f.id)),novelFactIds:claims.flatMap(c=>(c.newUnderstandingFacts??[]).map(f=>f.id)),usage})};
+ const edition=await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model});
+ expect(edition.stories[0].claims.map(c=>c.text)).toEqual([A,B.replace('may affect','could affect')]);
+ expect(edition.stories[0].claims[1].support).toEqual([{evidenceRevisionId:edition.evidenceRevisionIds[0],quote:B}]);
+},25000);

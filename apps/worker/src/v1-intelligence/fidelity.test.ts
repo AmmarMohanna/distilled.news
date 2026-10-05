@@ -16,3 +16,8 @@ it('correction resolution requires both actual verified delivery and visible cor
  expect(verifiedCorrectionDelivery(['Officials confirmed 12 people.'],'o',['o'],true)).toBe(false);
  expect(verifiedCorrectionDelivery(['Earlier briefing reported 12; officials now report 40.'],'o',['o'],true)).toBe(true);
 });
+it('does not mistake URL identifiers for missing quantities or approved calendar dates',()=>{
+ const source='The death toll rose to 40. https://example.invalid/report/2026-10-03/483';
+ expect(checkReaderFidelity(['Forty people have now died.'],[fact(source)],[fact(source)],true).passed).toBe(true);
+ expect(checkReaderFidelity(['Forty people died on 2026-10-03.'],[fact(source)],[fact(source)],true).passed).toBe(false);
+});
