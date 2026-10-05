@@ -1,7 +1,12 @@
 import {expect,it} from 'vitest';
 import {Temporal} from '@js-temporal/polyfill';
-import {LIVE_INTERVALS,livePublicationWindow,liveScheduleSchema,publicationWindowSchema} from './schedule';
+import {LIVE_INTERVALS,livePublicationWindow,liveScheduleSchema,publicationWindowSchema,nextLiveBriefingAt} from './schedule';
 import {publicationWindow} from './runtime';
+it('calculates the next live boundary and daily delivery in the inferred local zone',()=>{
+ expect(nextLiveBriefingAt({durationMinutes:120,timezone:'Asia/Beirut'},new Date('2026-10-04T12:20:00Z'))).toBe('2026-10-04T13:00:00.000Z');
+ expect(nextLiveBriefingAt({durationMinutes:1440,timezone:'Asia/Beirut',deliveryAnchor:'08:00'},new Date('2026-10-04T05:00:00Z'))).toBe('2026-10-05T05:00:00.000Z');
+ expect(nextLiveBriefingAt({durationMinutes:1440,timezone:'America/New_York',deliveryAnchor:'08:00'},new Date('2026-03-07T14:00:00Z'))).toBe('2026-03-08T12:00:00.000Z');
+});
 it.each(LIVE_INTERVALS)('supports a closed %i-minute live window without separate ranking engines',durationMinutes=>{
  const window=livePublicationWindow({durationMinutes,timezone:'UTC'},new Date('2026-10-04T12:20:00Z'));
  expect(Date.parse(window.end)).toBeLessThanOrEqual(Date.parse('2026-10-04T12:20:00Z'));

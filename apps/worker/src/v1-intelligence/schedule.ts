@@ -45,6 +45,19 @@ export function livePublicationWindow(raw:LiveSchedule,now:Date):PublicationWind
  return {start:new Date(boundaries[index-1].epochMilliseconds).toISOString(),end:new Date(boundaries[index].epochMilliseconds).toISOString(),kind:schedule.durationMinutes===30?'30M':schedule.durationMinutes===1440?'DAILY':'HOURLY',...schedule,schedulePolicy:LIVE_SCHEDULE_POLICY};
 }
 
+/** Read-only next boundary using the same local anchor and interval policy. */
+export function nextLiveBriefingAt(raw:LiveSchedule, now:Date):string {
+ const schedule=liveScheduleSchema.parse(raw);
+ const instant=Temporal.Instant.fromEpochMilliseconds(now.getTime());
+ const day=instant.toZonedDateTimeISO(schedule.timezone).toPlainDate();
+ const time=Temporal.PlainTime.from(schedule.deliveryAnchor??'00:00');
+ let anchor=day.toPlainDateTime(time).toZonedDateTime(schedule.timezone,{disambiguation:'compatible'});
+ if(anchor.epochMilliseconds<=now.getTime()) anchor=day.add({days:1}).toPlainDateTime(time).toZonedDateTime(schedule.timezone,{disambiguation:'compatible'});
+ if(schedule.durationMinutes===1440) return new Date(anchor.epochMilliseconds).toISOString();
+ const end=Date.parse(livePublicationWindow(schedule,now).end)+schedule.durationMinutes*60000;
+ return new Date(Math.min(end,anchor.epochMilliseconds)).toISOString();
+}
+
 export const publicationWindowSchema=z.object({
  start:z.string().datetime(),end:z.string().datetime(),kind:z.enum(['30M','HOURLY','DAILY','WEEKLY']),
  durationMinutes:liveScheduleSchema.shape.durationMinutes.optional(),

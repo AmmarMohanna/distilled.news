@@ -1863,7 +1863,7 @@ describe("worker app accounts", () => {
     expect(queue.messages).toHaveLength(0);
   });
 
-  it("serves feed links without auth even when an old row has the removed private flag", async () => {
+  it("denies anonymous access to historical private rows and preserves owner reads", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
@@ -1894,17 +1894,19 @@ describe("worker app accounts", () => {
     await repo.saveBriefingEdition(edition);
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
-    expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as {
+    expect(feedResponse.status).toBe(404);
+    const ownerResponse = await app.request("/api/feed/feed-owner/personal", { headers: { cookie: user.cookie } }, env());
+    expect(ownerResponse.status).toBe(200);
+    const feed = (await ownerResponse.json()) as {
       briefing: { publicFeedEnabled: boolean; retentionDays: number };
       editions: Array<{ summary: string }>;
     };
-    expect(feed.briefing.publicFeedEnabled).toBe(true);
+    expect(feed.briefing.publicFeedEnabled).toBe(false);
     expect(feed.briefing.retentionDays).toBe(15);
     expect(feed.editions[0].summary).toContain("Old private rows");
 
     const searchResponse = await app.request("/api/feed/feed-owner/personal/search?q=private", {}, env());
-    expect(searchResponse.status).toBe(200);
+    expect(searchResponse.status).toBe(404);
 
     const starResponse = await app.request(
       "/api/feed/feed-owner/personal/star",
@@ -1915,7 +1917,7 @@ describe("worker app accounts", () => {
       },
       env()
     );
-    expect(starResponse.status).toBe(200);
+    expect(starResponse.status).toBe(404);
   });
 
   it("merges saved items that reuse the same raw evidence", async () => {

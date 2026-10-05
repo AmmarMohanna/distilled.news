@@ -284,8 +284,8 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
       const created = await persistBriefing(draft, "feed created");
       await loadBriefings(created.id);
       if (input) {
-        try { for (const source of input.sourceInputs?.length ? input.sourceInputs : [input.interestProfile]) await addSource(created.id, source); }
-        catch (cause) { sessionStorage.setItem(`feed-notice:${created.id}`, `Feed saved, but topic discovery could not be started: ${cause instanceof Error ? cause.message : String(cause)}`); }
+        try { for (const source of input.sourceInputs ?? []) await addSource(created.id, source); }
+        catch (cause) { sessionStorage.setItem(`feed-notice:${created.id}`, `Feed saved, but selected sources could not be added: ${cause instanceof Error ? cause.message : String(cause)}`); }
         window.location.href = `/${created.ownerUsername}/${created.slug}/`;
       }
     } finally {
@@ -911,110 +911,7 @@ function FeedSettingsSheet(props: {
   onPauseToggle: () => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
-  const previewSlug = deriveBriefingSlug(props.briefings, props.briefing.title, props.briefing.id);
-  const titleRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    titleRef.current?.focus();
-  }, []);
-
-  return (
-    <Sheet title="feed settings" closeLabel="close feed settings" icon={<Settings size={16} aria-hidden />} onClose={props.onClose} wide>
-      <div className="sheet-status">
-        <span className={props.autosaveState === "error" ? "error" : "muted"}>{formatAutosaveStatus(props.autosaveState, props.status)}</span>
-      </div>
-      <div className="settings-grid">
-        <label>
-          title
-          <input ref={titleRef} dir="ltr" value={props.briefing.title} onChange={(event) => props.onPatch({ title: event.target.value })} />
-        </label>
-        <div className="field-group">
-          <span>slug</span>
-          <code className="generated-slug">/{props.briefing.ownerUsername}/{previewSlug}/</code>
-        </div>
-        <div className="field-group">
-          <span>language</span>
-          <div className="segmented" role="group" aria-label="feed language">
-            {(["en", "fr", "ar"] as const).map((language) => (
-              <button
-                key={language}
-                type="button"
-                className={props.briefing.language === language ? "active" : ""}
-                aria-pressed={props.briefing.language === language}
-                title={languageLabel(language)}
-                onClick={() => props.onPatch({ language })}
-              >
-                <Globe size={15} aria-hidden /> {languageLabel(language)}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="field-group">
-          <span>update rhythm</span>
-          <div className="segmented" role="group" aria-label="briefing rhythm">
-            {(["hourly", "daily", "weekly"] as const).map((briefingCadence) => (
-              <button
-                key={briefingCadence}
-                type="button"
-                className={visibleBriefingCadence(props.briefing.briefingCadence) === briefingCadence ? "active" : ""}
-                aria-pressed={visibleBriefingCadence(props.briefing.briefingCadence) === briefingCadence}
-                title={`${briefingCadence} briefing`}
-                onClick={() => props.onPatch({ briefingCadence })}
-              >
-                {briefingCadence}
-              </button>
-            ))}
-          </div>
-        </div>
-        <label>
-          timezone
-          <input
-            dir="ltr"
-            value={props.briefing.briefingTimezone}
-            onChange={(event) => props.onPatch({ briefingTimezone: event.target.value || "UTC" })}
-          />
-        </label>
-        <div className="field-group">
-          <span>next briefing</span>
-          <code className="generated-slug">{props.briefing.nextBriefingAt ? formatTime(props.briefing.nextBriefingAt, props.briefing.language) : "after save"}</code>
-        </div>
-        <label>
-          interest profile
-          <textarea
-            dir="ltr"
-            required
-            rows={6}
-            value={props.briefing.interestProfile}
-            onChange={(event) => props.onPatch({ interestProfile: event.target.value })}
-          />
-        </label>
-        <label>
-          style instruction
-          <textarea
-            dir="ltr"
-            rows={3}
-            value={props.briefing.styleInstruction ?? ""}
-            onChange={(event) => props.onPatch({ styleInstruction: event.target.value })}
-          />
-        </label>
-      </div>
-      <div className="sheet-actions">
-        <button type="button" title={props.briefing.paused ? "resume feed" : "pause feed"} onClick={() => void props.onPauseToggle()}>
-          {props.briefing.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
-          {props.briefing.paused ? "resume feed" : "pause feed"}
-        </button>
-        <a className="button-link" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title="open feed">
-          <ExternalLink size={15} aria-hidden /> open feed
-        </a>
-        <button type="button" title="copy feed url" onClick={() => void props.onCopy()}>
-          <Copy size={15} aria-hidden /> copy url
-        </button>
-        <button type="button" className="danger-button" title="delete feed" disabled={!props.canDelete} onClick={() => void props.onDelete()}>
-          <Trash2 size={15} aria-hidden /> delete feed
-        </button>
-      </div>
-    </Sheet>
-  );
+  return <FeedEditor feed={props.briefing} onClose={props.onClose} onSave={async input => { props.onPatch(input); props.onClose(); }} onCopy={props.onCopy} onPause={props.onPauseToggle} onDelete={props.canDelete ? props.onDelete : undefined}/>;
 }
 
 function FeedHelpSheet(props: { onClose: () => void }) {
@@ -1686,9 +1583,9 @@ function FeedPage(props: { username: string; slug: string }) {
         }}/>}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
         const saved = await saveBriefing({ ...ownedFeed, ...input });
-        if (input.sourceInputs?.length || input.interestProfile !== ownedFeed.interestProfile) {
-          try { for (const source of input.sourceInputs?.length ? input.sourceInputs : [input.interestProfile]) await addSource(saved.id, source); }
-          catch (cause) { sessionStorage.setItem(`feed-notice:${saved.id}`, `Feed saved, but topic discovery could not be updated: ${cause instanceof Error ? cause.message : String(cause)}`); }
+        if (input.sourceInputs?.length) {
+          try { for (const source of input.sourceInputs ?? []) await addSource(saved.id, source); }
+          catch (cause) { sessionStorage.setItem(`feed-notice:${saved.id}`, `Feed saved, but selected sources could not be added: ${cause instanceof Error ? cause.message : String(cause)}`); }
         }
         setOwnedFeed(saved); setEditorOpen(false);
         if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;

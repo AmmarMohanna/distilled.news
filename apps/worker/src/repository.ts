@@ -80,6 +80,7 @@ interface BriefingRow {
   interest_profile: string;
   style_instruction: string | null;
   public_feed_enabled: number;
+  v1_briefing_interval_minutes?: BriefingConfig["updateIntervalMinutes"];
   paused?: number;
   language?: "en" | "ar" | "fr" | null;
   intensity?: "low" | "medium" | "high" | null;
@@ -446,7 +447,7 @@ export class D1Repository implements Repository {
           `SELECT briefings.*, accounts.username as owner_username
           FROM briefings
           JOIN accounts ON accounts.id = briefings.owner_account_id
-          WHERE accounts.disabled_at IS NULL AND briefings.stars > 0
+          WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.stars > 0
           ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ?`
         )
@@ -527,8 +528,8 @@ export class D1Repository implements Repository {
         `INSERT INTO briefings (
           id, owner_account_id, slug, title, stars, interest_profile, style_instruction,
           public_feed_enabled, paused, language, intensity, briefing_cadence, briefing_time_of_day,
-          briefing_timezone, next_briefing_at, retention_days, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          briefing_timezone, next_briefing_at, retention_days, created_at, updated_at, v1_briefing_interval_minutes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           slug = excluded.slug,
           title = excluded.title,
@@ -544,6 +545,7 @@ export class D1Repository implements Repository {
           briefing_timezone = excluded.briefing_timezone,
           next_briefing_at = excluded.next_briefing_at,
           retention_days = excluded.retention_days,
+          v1_briefing_interval_minutes = excluded.v1_briefing_interval_minutes,
           updated_at = excluded.updated_at`
       )
       .bind(
@@ -564,7 +566,8 @@ export class D1Repository implements Repository {
         input.nextBriefingAt ?? null,
         FIXED_RETENTION_DAYS,
         timestamp,
-        timestamp
+        timestamp,
+        input.updateIntervalMinutes ?? null
       )
       .run();
     const saved = await this.getBriefingById(input.id);
@@ -1840,7 +1843,7 @@ export class InMemoryRepository implements Repository {
   async listExploreBriefings(limit: number): Promise<BriefingConfig[]> {
     if (limit <= 0) return [];
     return Array.from(this.briefings.values())
-      .filter((briefing) => briefing.stars > 0 && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
+      .filter((briefing) => briefing.publicFeedEnabled && briefing.stars > 0 && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
       .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
       .slice(0, limit);
@@ -2469,6 +2472,7 @@ function rowToBriefing(row: BriefingRow): BriefingConfig {
     interestProfile: row.interest_profile,
     styleInstruction: row.style_instruction ?? undefined,
     publicFeedEnabled: row.public_feed_enabled === 1,
+    updateIntervalMinutes: row.v1_briefing_interval_minutes,
     paused: row.paused === 1,
     language: row.language === "ar" || row.language === "fr" ? row.language : "en",
     intensity: row.intensity === "low" || row.intensity === "high" ? row.intensity : "medium",

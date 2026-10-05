@@ -1,3 +1,4 @@
+const rhythmLabels = { 30: "Every 30 min", 60: "Every hour", 120: "Every 2 hours", 360: "Every 6 hours", 720: "Every 12 hours", 1440: "Daily" } as const;
 import { useRef, useState } from "react";
 import { ChevronDown, Globe, Plus, Search, Settings, SquarePlus, X } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
@@ -7,16 +8,17 @@ import { useConfirmation } from "./useConfirmation";
 import { recommendSources } from "./api";
 import { VoiceInput } from "./VoiceInput";
 
-export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "briefingCadence" | "language" | "styleInstruction" | "briefingTimezone" | "publicFeedEnabled"> & { sourceInputs?: string[] };
+export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
 export function FeedEditor(props: {
   feed?: BriefingConfig; onClose: () => void; onSave: (input: FeedInput) => Promise<void>;
   onPause?: () => Promise<void>; onCopy?: () => Promise<void>; onDelete?: () => Promise<void>;
 }) {
   const [title, setTitle] = useState(props.feed?.title ?? "");
   const [prompt, setPrompt] = useState(props.feed?.interestProfile ?? "");
-  const [rhythm, setRhythm] = useState<BriefingConfig["briefingCadence"]>(props.feed?.briefingCadence ?? "daily");
+  const [rhythm, setRhythm] = useState<FeedInput["updateIntervalMinutes"]>(props.feed?.updateIntervalMinutes ?? (props.feed?.briefingCadence === "hourly" ? 60 : 1440));
   const [feedLanguage, setFeedLanguage] = useState<BriefingConfig["language"]>(props.feed?.language ?? preferredLanguage());
-  const [style, setStyle] = useState(props.feed?.styleInstruction ?? "Use calm, balanced wording.");
+  const [visibility, setVisibility] = useState(props.feed?.publicFeedEnabled ?? true);
+  const [deliveryTime, setDeliveryTime] = useState(props.feed?.briefingTimeOfDay ?? "08:00");
   const [timezone] = useState(() => props.feed?.briefingTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [sources, setSources] = useState<string[]>([]);
   const [sourceQuery, setSourceQuery] = useState("");
@@ -43,7 +45,8 @@ export function FeedEditor(props: {
       event.preventDefault();
       try { new Intl.DateTimeFormat("en", { timeZone: timezone.trim() }).format(); }
       catch { setMessage(t("Enter a valid time zone, such as Asia/Beirut or UTC.")); return; }
-      void run(() => props.onSave({ title: title.trim(), interestProfile: prompt.trim(), briefingCadence: rhythm, language: feedLanguage, styleInstruction: style.trim(), publicFeedEnabled: true, briefingTimezone: timezone.trim(), sourceInputs: sources }));
+      if (!props.feed && sources.length === 0) { setMessage(t("Add at least one source.")); return; }
+      void run(() => props.onSave({ title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled: visibility, briefingTimezone: timezone.trim(), sourceInputs: sources }));
     }}>
       <button type="button" className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={props.onClose}><X size={20}/></button>
       <div className="feed-editor-heading"><span className="feed-heading-icon"><SquarePlus size={23}/></span><h2>{t(props.feed ? "Edit feed settings" : "Add feed")}</h2></div>
@@ -60,11 +63,12 @@ export function FeedEditor(props: {
         {sources.length > 0 && <div className="selected-sources"><span className="selected-sources-label">{t("Selected sources")}</span>{sources.map(source => <div className="selected-source-row" key={source}><SourceIdentity source={source}/><button type="button" aria-label={`${t("Remove source")}: ${source}`} onClick={() => setSources(current => current.filter(value => value !== source))}><X size={20}/></button></div>)}
         </div>}
       </div>
-      <button type="button" className="feed-preferences-disclosure" aria-label={t("Preferences")} aria-expanded={advanced} aria-controls="feed-preferences" onClick={() => setAdvanced(value => !value)}><Settings size={26}/><span><strong>{t("Preferences")}</strong><small>{t("Public")} · {t(({ hourly: "Hourly", daily: "Daily", weekly: "Weekly", monthly: "Monthly" } as const)[rhythm ?? "daily"])} · {t(({ en: "English", fr: "French", ar: "Arabic" } as const)[feedLanguage])}</small></span><ChevronDown size={20}/></button>
+      <button type="button" className="feed-preferences-disclosure" aria-label={t("Preferences")} aria-expanded={advanced} aria-controls="feed-preferences" onClick={() => setAdvanced(value => !value)}><Settings size={26}/><span><strong>{t("Preferences")}</strong><small>{t(visibility ? "Public" : "Private")} ? {t(rhythmLabels[rhythm])}{rhythm === 1440 ? ` at ${deliveryTime}` : ""} ? {t(({ en: "English", fr: "French", ar: "Arabic" } as const)[feedLanguage])}</small></span><ChevronDown size={20}/></button>
       <div id="feed-preferences" className="feed-preferences-fields" hidden={!advanced}>
-      <label>{t("Update rhythm")}<select value={rhythm} onChange={event => setRhythm(event.target.value as BriefingConfig["briefingCadence"])}><option value="hourly">{t("Hourly")}</option><option value="daily">{t("Daily")}</option><option value="weekly">{t("Weekly")}</option><option value="monthly">{t("Monthly")}</option></select></label>
-      <div className="feed-language-row"><span>{t("Feed language")}</span><button type="button" aria-label={`Feed language: ${feedLanguage}`} onClick={() => setFeedLanguage(({ en: "fr", fr: "ar", ar: "en" } as const)[feedLanguage])}>{feedLanguage}</button></div>
-          <label>{t("Writing style")}<textarea rows={2} value={style} onChange={event => setStyle(event.target.value)} placeholder={t("For example: concise, neutral, and easy to read.")}/></label>
+      <label>{t("Visibility")}<select value={visibility ? "public" : "private"} onChange={event => setVisibility(event.target.value === "public")}><option value="public">{t("Public")}</option><option value="private">{t("Private")}</option></select></label>
+      <label>{t("Update rhythm")}<select value={rhythm} onChange={event => setRhythm(Number(event.target.value) as FeedInput["updateIntervalMinutes"])}>{Object.entries(rhythmLabels).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label>
+      {rhythm === 1440 && <label>{t("Deliver at")}<input type="time" required value={deliveryTime} onChange={event => setDeliveryTime(event.target.value)}/></label>}
+      <div className="feed-language-row"><span>{t("Briefing language")}</span><button type="button" aria-label={`Feed language: ${feedLanguage}`} onClick={() => setFeedLanguage(({ en: "fr", fr: "ar", ar: "en" } as const)[feedLanguage])}>{feedLanguage}</button></div>
       </div>
       {message && <p role="status">{message}</p>}
       <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>

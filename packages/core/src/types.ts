@@ -16,6 +16,7 @@ export type SourceKind =
   | "apify_actor";
 
 export interface BriefingConfig {
+  updateIntervalMinutes?: 30 | 60 | 120 | 360 | 720 | 1440;
   id: string;
   ownerAccountId: string;
   ownerUsername: string;

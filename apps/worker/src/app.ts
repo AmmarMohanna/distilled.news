@@ -2,7 +2,7 @@ import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
 import {enrollV1Source} from './v1-intelligence/product';
-import {liveScheduleSchema,publicationWindowSchema} from './v1-intelligence/schedule';
+import {liveScheduleSchema,publicationWindowSchema,nextLiveBriefingAt} from './v1-intelligence/schedule';
 import {processV1Briefing} from './v1-intelligence/runtime';
 import {publicV1Edition,publicV1Evidence,withdrawV1Edition} from './v1-intelligence/public-read';
 import {processQueueMessage} from "./processor";
@@ -150,7 +150,7 @@ const briefingCadenceSchema = z.preprocess(
 
 const briefingInputSchema = z.object({
   id: z.string().min(1).default(() => `briefing_${crypto.randomUUID()}`),
-  slug: z.string().min(1).default("personal"),
+  slug: z.string().default(""),
   title: z.string().min(1).default("Personal Briefing"),
   stars: z.number().int().min(0).default(0),
   interestProfile: z.string().min(1),
@@ -162,6 +162,7 @@ const briefingInputSchema = z.object({
   briefingCadence: briefingCadenceSchema.default("hourly"),
   briefingTimeOfDay: z.string().regex(/^\d{1,2}:\d{2}$/).default("00:00"),
   briefingTimezone: z.string().min(1).default("UTC"),
+  updateIntervalMinutes: liveScheduleSchema.shape.durationMinutes.optional(),
   nextBriefingAt: z.string().optional(),
   retentionDays: z.number().int().min(1).max(90).default(FIXED_RETENTION_DAYS)
 });
@@ -300,9 +301,11 @@ export function createApp(options: AppOptions = {}) {
     catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
   });
   app.get('/api/v1/editions/:id',async c=>{
+    if (!await canReadPublishedEdition(c, c.req.param('id'))) return c.json({error:'not found'},404);
     const edition=await publicV1Edition(c.env.DB,c.req.param('id'));return edition?c.json(edition):c.json({error:'not found'},404);
   });
   app.get('/api/v1/editions/:id/evidence/:revisionId',async c=>{
+    if (!await canReadPublishedEdition(c, c.req.param('id'))) return c.json({error:'not found'},404);
     const evidence=await publicV1Evidence(c.env.DB,c.req.param('id'),c.req.param('revisionId'));return evidence?c.json(evidence):c.json({error:'not found'},404);
   });
 
@@ -742,26 +745,28 @@ export function createApp(options: AppOptions = {}) {
     const slug = normalizeUsername(input.slug || input.title);
     const existingSlug = await repo.getBriefingBySlug(account.id, slug);
     if (existingSlug && existingSlug.id !== input.id) return c.json({ error: "feed slug is already used" }, 409);
-    const briefingCadence = input.briefingCadence;
-    const briefingTimeOfDay = existing?.briefingTimeOfDay ?? FIXED_BRIEFING_TIME_OF_DAY;
+    const briefingCadence = input.updateIntervalMinutes ? (input.updateIntervalMinutes === 1440 ? "daily" : "hourly") : input.briefingCadence;
+    const briefingTimeOfDay = input.updateIntervalMinutes === 1440 ? input.briefingTimeOfDay : input.updateIntervalMinutes ? "00:00" : existing?.briefingTimeOfDay ?? FIXED_BRIEFING_TIME_OF_DAY;
+    if (input.updateIntervalMinutes) liveScheduleSchema.parse({ durationMinutes: input.updateIntervalMinutes, timezone: input.briefingTimezone, deliveryAnchor: briefingTimeOfDay });
     const scheduleChanged = !existing ||
+      existing.updateIntervalMinutes !== input.updateIntervalMinutes ||
       existing.briefingCadence !== briefingCadence ||
       existing.briefingTimeOfDay !== briefingTimeOfDay ||
       existing.briefingTimezone !== input.briefingTimezone;
     const nextBriefingAt = scheduleChanged
-      ? defaultNextBriefingAt({
+      ? input.updateIntervalMinutes ? nextLiveBriefingAt({durationMinutes: input.updateIntervalMinutes, timezone: input.briefingTimezone, deliveryAnchor: briefingTimeOfDay}, nowFor()) : defaultNextBriefingAt({
           cadence: briefingCadence,
           timeOfDay: briefingTimeOfDay,
           timezone: input.briefingTimezone
         })
-      : input.nextBriefingAt ?? existing.nextBriefingAt;
+      : existing.nextBriefingAt;
     const briefing = await repo.upsertBriefing({
       ...input,
       ownerAccountId: account.id,
       ownerUsername: account.username,
       slug,
       stars: existing?.stars ?? input.stars,
-      publicFeedEnabled: true,
+      publicFeedEnabled: input.publicFeedEnabled,
       intensity: input.intensity,
       briefingCadence,
       briefingTimeOfDay,
@@ -785,6 +790,11 @@ export function createApp(options: AppOptions = {}) {
     const briefing = await getOwnedBriefing(repo, c.get("account")!, c.req.query("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
     return c.json({ sources: await repo.listSources(briefing.id) });
+  });
+
+  app.post("/api/me/sources/recommend", async (c) => {
+    z.object({ title: z.string().trim().min(1).max(120), description: z.string().trim().min(1).max(4000) }).strict().parse(await c.req.json());
+    return c.json({ error: "Source recommendations are not configured on this deployment. Add a source URL directly." }, 503);
   });
 
   app.post("/api/me/sources", async (c) => {
@@ -1066,7 +1076,7 @@ export function createApp(options: AppOptions = {}) {
     if (username && feedSlug) {
       const resolved = await repo.resolveUsernameAlias(username);
       const briefing = resolved ? await repo.getBriefingBySlug(resolved.account.id, feedSlug) : null;
-      if (resolved && briefing) {
+      if (resolved && briefing?.publicFeedEnabled) {
         manifest = buildManifestPayload({
           id: `/${resolved.account.username}/${briefing.slug}/`,
           title: briefing.title,
@@ -1119,6 +1129,15 @@ export function createApp(options: AppOptions = {}) {
     return c.text("Distilled.news Worker is running. Build apps/web to serve the UI.", 200);
   });
 
+  async function canReadPublishedEdition(c: Context<{ Bindings: Env; Variables: Variables }>, id: string) {
+    const row = await c.env.DB.prepare("SELECT b.public_feed_enabled,b.owner_account_id,a.disabled_at FROM v1_feed_documents e JOIN briefings b ON b.id=e.feed_id JOIN accounts a ON a.id=b.owner_account_id WHERE e.kind='editions' AND e.id=?").bind(id).first<{public_feed_enabled:number;owner_account_id:string;disabled_at:string|null}>();
+    if (!row || row.disabled_at) return false;
+    if (row.public_feed_enabled === 1) return true;
+    const token = getCookie(c, SESSION_COOKIE);
+    const claims = token && c.env.ADMIN_SESSION_SECRET ? await verifySession(token, c.env.ADMIN_SESSION_SECRET) : null;
+    return claims?.sub === row.owner_account_id;
+  }
+
   async function resolvePublicFeed(c: Context<{ Bindings: Env; Variables: Variables }>) {
     const repo = repoFor(c);
     const username = c.req.param("username") ?? "";
@@ -1133,6 +1152,11 @@ export function createApp(options: AppOptions = {}) {
     }
     const briefing = await repo.getBriefingBySlug(resolved.account.id, briefingSlug);
     if (!briefing) return c.json({ error: "feed not found" }, 404);
+    if (!briefing.publicFeedEnabled) {
+      const token = getCookie(c, SESSION_COOKIE);
+      const claims = token && c.env.ADMIN_SESSION_SECRET ? await verifySession(token, c.env.ADMIN_SESSION_SECRET) : null;
+      if (claims?.sub !== briefing.ownerAccountId) return c.json({ error: "feed not found" }, 404);
+    }
     return { repo, account: resolved.account, briefing };
   }
 
@@ -1578,7 +1602,8 @@ function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interes
     slug: briefing.slug,
     title: briefing.title,
     stars: briefing.stars,
-    publicFeedEnabled: true,
+    publicFeedEnabled: briefing.publicFeedEnabled,
+    updateIntervalMinutes: briefing.updateIntervalMinutes,
     paused: briefing.paused,
     language: briefing.language,
     intensity: briefing.intensity,
