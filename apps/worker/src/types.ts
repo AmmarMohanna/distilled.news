@@ -60,6 +60,7 @@ export interface ProcessingJobRecord {
 
 export interface Env extends Cloudflare.Env {
   SOURCE_CONNECTORS_ENABLED?: string;
+  STAGING_ASSETS_PREFIX?: string;
   SOURCE_LEGACY_POLLING_ENABLED?: string;
   SOURCE_OPERATION_CEILINGS_JSON?: string;
   SOURCE_EXECUTION_URL?: string;
