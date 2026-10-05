@@ -23,6 +23,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
   intakeForRequest?:(request:SourceFetchRequest)=>CandidateIntakePort;
   authorize:(request:SourceFetchRequest)=>Promise<boolean>;
   fetcher?:typeof fetch;
+  providerPageLimit?:number;
 }) {
   const sql=sourceSqlFromD1(env.DB),payloads=new R2SourcePayloadStore(env.RAW_ARCHIVE);
   const dispatch=options.fetcher??fetch;
@@ -77,6 +78,6 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     return makeCollector(request).rss.collect(r,offset);
   }};
   return {collect:collector.collect,collectRss:rssCollector.collect,payloads,paidHttp,
-    scheduler:new D1ProviderPollScheduler(sql,collector,options.authorize),
+    scheduler:new D1ProviderPollScheduler(sql,collector,options.authorize,Date.now,options.providerPageLimit??100),
     rssScheduler:new D1RssPollScheduler(sql,rssCollector,r=>options.authorize(rssRequest(r)))};
 }

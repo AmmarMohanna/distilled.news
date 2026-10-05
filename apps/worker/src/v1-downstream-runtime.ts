@@ -34,7 +34,7 @@ export function createV1RuntimePolicy(fetcher:typeof fetch=fetch,bucket?:R2Bucke
   return {authoritativeReplacementAllowed,compareRevisions:(a,b)=>{
    if(a.scheme!==b.scheme || a.authority!==b.authority) return null;
    if(['provider_integer','telegram_edit_date'].includes(a.scheme) && /^\d{1,30}$/.test(a.value) && /^\d{1,30}$/.test(b.value)) return BigInt(a.value)===BigInt(b.value)?0:BigInt(a.value)>BigInt(b.value)?1:-1;
-   if(a.scheme==='telegram_edit_date' && Number.isFinite(Date.parse(a.value)) && Number.isFinite(Date.parse(b.value))) return Math.sign(Date.parse(a.value)-Date.parse(b.value)) as -1|0|1;
+   if(['telegram_edit_date','telegram_edit_timestamp'].includes(a.scheme) && Number.isFinite(Date.parse(a.value)) && Number.isFinite(Date.parse(b.value))) return Math.sign(Date.parse(a.value)-Date.parse(b.value)) as -1|0|1;
    return null;
   }};
  }};

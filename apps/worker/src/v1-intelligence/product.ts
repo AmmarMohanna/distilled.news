@@ -1,14 +1,14 @@
 import {HandoffError,sha256} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import type {IntakeScope} from '../v1-intake/types';
-import {WorkerPublicSourceFetch} from '../public-source-fetch';
+import {productConnectorSource} from '../connector-source';
 import {V1FeedStore} from './store';
 import type {FeedRecord} from './types';
 import {liveScheduleSchema,type LiveSchedule} from './schedule';
 
 const PRODUCT_SQL=`SELECT json_object('sourceId',s.id,'feedId',b.id,'ownerId',b.owner_account_id,'sourceTitle',s.title,'sourceKind',s.kind,'provider',s.provider,'sourceUrl',s.source_url,'input',s.input,'enabled',s.enabled,'feedTitle',b.title,'interests',b.interest_profile,'language',b.language,'paused',b.paused,'cadence',b.briefing_cadence,'liveInterval',b.v1_briefing_interval_minutes,'timezone',b.briefing_timezone,'deliveryAnchor',b.briefing_time_of_day,'createdAt',b.created_at,'accountDisabled',a.disabled_at) AS json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=?`;
 interface ProductRow {sourceId:string;feedId:string;ownerId:string;sourceTitle:string;sourceKind:string;provider:string;sourceUrl:string|null;input:string|null;enabled:number;feedTitle:string;interests:string;language:string;paused:number;cadence:string;liveInterval:number|null;timezone:string;deliveryAnchor:string|null;createdAt:string;accountDisabled:string|null}
-export interface CanonicalSource {id:string;type:'rss';displayName:string;canonicalUrl:string;connectorType:'rss';verificationStatus:'VERIFIED';createdAt:string}
+export interface CanonicalSource {id:string;type:'rss'|'telegram';displayName:string;canonicalUrl:string;connectorType:'rss'|'telegram';verificationStatus:'VERIFIED';createdAt:string}
 /** Trusted bridge from an already user-approved product source. No source discovery or approval bypass. */
 export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:string,requestedSchedule?:LiveSchedule):Promise<{feed:FeedRecord;scope:IntakeScope;source:CanonicalSource}> {
  if(!Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
@@ -17,11 +17,10 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
   const row=await db.prepare(PRODUCT_SQL).bind(id).first<{json:string}>();if(!row) throw new HandoffError('SCOPE_DENIED');
   const p=JSON.parse(row.json) as ProductRow;
   if(p.ownerId!==ownerId || !p.enabled || p.paused || p.accountDisabled) throw new HandoffError('SCOPE_DENIED');
-  // Initial production seam is RSS. Other providers keep their existing path
-  // until the connector owner supplies the frozen handoff and validation facts.
-  if(p.provider!=='rss' || p.sourceKind!=='rss_feed' || !p.sourceUrl || !['hourly','daily','weekly'].includes(p.cadence)) throw new HandoffError('INVALID_REQUEST');
-  const url=new URL(p.sourceUrl).href;new WorkerPublicSourceFetch(url); // identical public-network admission, no external call
-  const sourceId=await sha256(canonicalJson({type:'rss',canonicalUrl:url}));
+  const definitionSource=productConnectorSource({provider:p.provider,kind:p.sourceKind,source_url:p.sourceUrl,input:p.input});
+  if(!definitionSource || !['hourly','daily','weekly'].includes(p.cadence)) throw new HandoffError('INVALID_REQUEST');
+  const url=definitionSource.canonicalUrl;
+  const sourceId=await sha256(canonicalJson(definitionSource.identity));
   const [priorFeed,priorScope,catalog,binding]=await Promise.all([
    db.prepare('SELECT json,epoch FROM v1_feeds WHERE id=?').bind(p.feedId).first<{json:string;epoch:number}>(),
    db.prepare('SELECT json,epoch FROM v1_intake_scopes WHERE id=?').bind(id).first<{json:string;epoch:number}>(),
@@ -42,7 +41,8 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
   const unchanged=existingFeed && canonicalJson(Object.fromEntries(Object.keys(definition).map(k=>[k,existingFeed[k as keyof FeedRecord]])))===canonicalJson(definition);
   const feed:FeedRecord=unchanged && binding?.configuration===row.json && existingScope?.enabled?existingFeed:{id:p.feedId,ownerId,...definition,revision:existingFeed?existingFeed.revision+1:1,createdAt:existingFeed?.createdAt??p.createdAt,updatedAt:now};
   const scope:IntakeScope={feedId:p.feedId,feedSourceId:id,sourceId,feedRevision:feed.revision,enabled:true,restrictions:{}};
-  const source:CanonicalSource=catalog?JSON.parse(catalog.json):{id:sourceId,type:'rss',displayName:new URL(url).hostname,canonicalUrl:url,connectorType:'rss',verificationStatus:'VERIFIED',createdAt:now};
+  const family=definitionSource.source.family as 'rss'|'telegram';
+  const source:CanonicalSource=catalog?JSON.parse(catalog.json):{id:sourceId,type:family,displayName:family==='telegram'?definitionSource.source.locator:new URL(url).hostname,canonicalUrl:url,connectorType:family,verificationStatus:'VERIFIED',createdAt:now};
   if(feed===existingFeed && canonicalJson(existingScope)===canonicalJson(scope)) return {feed,scope,source};
   const guard=crypto.randomUUID();
   const sourceCheck=priorScope?'EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=?)':'NOT EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=?)';

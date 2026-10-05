@@ -41,4 +41,7 @@ it('registered comparable revision schemes order correctly; unknown schemes rema
  expect(ordering.compareRevisions({...revision,value:'9'},revision)).toBe(-1);
  expect(ordering.compareRevisions(revision,revision)).toBe(0);
  expect(ordering.compareRevisions({...revision,scheme:'opaque-vendor'},revision)).toBeNull();
+ const telegram={...revision,scheme:'telegram_edit_timestamp',value:'2026-10-05T10:00:00Z'};
+ expect(ordering.compareRevisions({...telegram,value:'2026-10-05T10:01:00Z'},telegram)).toBe(1);
+ expect(ordering.compareRevisions({...telegram,value:'invalid'},telegram)).toBeNull();
 });

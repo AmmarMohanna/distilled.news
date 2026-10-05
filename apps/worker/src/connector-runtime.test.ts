@@ -51,3 +51,29 @@ it('rejects stale and disabled sources before fetch, with persisted exclusive ow
  expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_fetch_runs').first()).toEqual({n:0});
 },15000);
 
+it('routes bounded approved Telegram through VPC, durable intake, evidence and publication without public fallback',async()=>{
+ const now=new Date().toISOString(),input=JSON.stringify({username:'telegram',channelId:'-100123',public:true});
+ await ctx.db.prepare("INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,public_feed_enabled,created_at,updated_at) VALUES('telegram-feed','owner-1','telegram','Telegram','platform changes',1,?,?)").bind(now,now).run();
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('telegram-source','telegram-feed','Telegram','channel','telegram','telegram_channel','https://t.me/telegram',?,1,'connector',?,?,?)").bind(input,now,now,now).run();
+ const enrolled=await enrollV1Source(ctx.db,'telegram-source','owner-1',now);
+ const privateFetch=vi.fn(async(_url:unknown,init:RequestInit)=>{
+  expect(JSON.parse(String(init.body))).toMatchObject({kind:'telethon',input:{channelId:'-100123',limit:3,afterId:0}});
+  return Response.json({channelId:'-100123',records:[{id:1,text:'Telegram announced stronger account verification protections.',publishedAt:now}],orderedFromCheckpoint:true,exhausted:true});
+ });
+ const publicFetch=vi.fn();Object.assign(env,{V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1,telegram-source',SOURCE_EXECUTION_TOKEN:'local-fixture-token-01234567890123456789',SOURCE_EXECUTION_URL:'http://127.0.0.1:8790/v1/source-execution',SOURCE_EXECUTION_SERVICE:{fetch:privateFetch}});
+ const r:SourceFetchRequest={scope:{feedId:'telegram-feed',feedSourceId:'telegram-source',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'telegram-run',source:{family:'telegram',locator:'telegram',channelId:'-100123',public:true},requestedBounds:{},limit:3};
+ const backend=createConnectorRuntime(env,publicFetch);
+ expect(await authorizeConnectorSource(env,r)).toBe(true);
+ expect(await authorizeConnectorSource(env,{...r,source:{...r.source,channelId:'-100999'}})).toBe(false);
+ const result=await backend.collect(r,['telegram_telethon']);
+ if(result.state==='FETCH_FAILED')throw new Error('Telegram fixture fetch failed');
+ expect(result.checkpoint).toBe('ADVANCED');
+ await backend.collect(r,['telegram_telethon']);expect(privateFetch).toHaveBeenCalledTimes(1);expect(publicFetch).not.toHaveBeenCalled();
+ const intake=new V1IntakeStore(ctx.db);expect(await intake.list('intake_receipts','telegram-source')).toHaveLength(1);
+ const job=(await intake.listPendingJobs('telegram-source')).find(j=>j.kind==='ACQUIRE')!;await processV1Acquisition(env,job.id);
+ const reassess=(await intake.listPendingJobs('telegram-source')).find(j=>j.kind==='REASSESS')!;const store=new V1FeedStore(ctx.db);
+ await processEvidenceIntelligence(store,reassess.id,new Date().toISOString());
+ const end=new Date(Date.now()+60000).toISOString();const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'telegram-feed',window:{start:new Date(Date.now()-3600000).toISOString(),end,kind:'HOURLY'}},()=>end);
+ expect(edition?.stories).toHaveLength(1);expect(edition?.evidenceRevisionIds).toHaveLength(1);
+},30000);
+
