@@ -48,7 +48,7 @@ rules were relaxed.
 | `8c31656ef8bf73295922ff1c018ce45e92ff604f0174803c3af2c82116549c7c` | $0.0020168 | Scheduled window; synthesis succeeded, publication failed closed. |
 | `d5183a3a5f01579c368e4d574acacd35e42025bd0964492008c44c7a8b0d2b74` | $0.0030624 | Initial compact-window attempt; synthesis succeeded, publication failed closed. |
 | `4145e6e1be6f9eee102a06bbe9e0c93c6c2ebf116b1f4cf4adba18808665e990` | $0.0021296 | Compact v7 writer draft altered a canonical candidate ID and omitted a required fact; rejected before GROUNDING. |
-| `c68e796ad8cc09a531eaf606582963a7aafc0a25be2733cc1c6b5605a5037932` | $0.0019700 | v8 IDs mapped correctly. An assembled quote changed source whitespace; literal support validation rejected it before GROUNDING. Review also found an unapproved October 1 date in reader prose. |
+| `c68e796ad8cc09a531eaf606582963a7aafc0a25be2733cc1c6b5605a5037932` | $0.0019700 | v8 IDs mapped correctly. Subsequent durable-record inspection corrected the original diagnosis: all offered support strings were exact source substrings. The verification request exceeded the remaining input budget before GROUNDING. Review also found an unapproved October 1 date in reader prose. |
 
 The model-based writer is therefore **authenticated but not proven through
 verification/publication**. No unsafe draft became public. The earlier approved
