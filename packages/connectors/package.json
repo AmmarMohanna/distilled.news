@@ -12,9 +12,11 @@
   },
   "dependencies": {
     "@distilled/contracts": "workspace:*",
-    "@distilled/core": "workspace:*"
+    "@distilled/core": "workspace:*",
+    "fast-xml-parser": "5.3.0"
   },
   "devDependencies": {
+    "miniflare": "4.20260611.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   }
