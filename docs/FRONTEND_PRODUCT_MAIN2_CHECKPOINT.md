@@ -55,11 +55,14 @@ The recommendation button now receives an authenticated, bounded-input, explicit
 ## Verification
 
 - Frontend unit/component suite: 12 passed.
-- Focused backend app/privacy/scheduling/migration suite: 70 passed before the additional D1 persistence and next-boundary assertions were added; subsequent verification is recorded in the completion message.
+- App endpoint suite: 50 passed. Final D1 persistence/privacy/scheduler suite: 21 passed, including real D1 interval insert/update, Explore filtering and next local/DST boundary assertions.
 - Web build: passed.
 - Staging Worker dry-run build: passed, using the preserved staging configuration.
 - git diff --check: passed.
-- Workspace typecheck and complete Worker suite were run; final results are recorded in the completion message.
+- All workspace packages passed typecheck after correcting test payload typings. A final complete recursive check was also run; its exit status is recorded in the handoff.
+- The complete Worker run was interrupted after timeout failures in unchanged engine/publication tests. Intake, connector end-to-end, approved synthesis, preservation and multiple durable recovery suites passed before interruption. This is **not a green complete Worker matrix**.
+- Engine tests rerun unchanged with one worker: 6 passed / 3 timeouts at their existing 5000ms limit. Publication tests rerun unchanged with one worker: 4 passed / 9 timeouts at the same existing limit. Both implementations and tests have no diff from the backend baseline. Timing failures remain unresolved; no timeout or assertion was weakened. Representative baseline comparison results are recorded in the completion message.
+- On the untouched `efb6e91` staging worktree, the representative "equal acceptance timestamps" engine test and "publishes exact grounded immutable support" publication test both reproduced the same 5000ms timeout. These two failures are verified baseline timing failures in this Windows environment; the other isolation timeouts remain unresolved.
 - No actual staging browser product proof or new staging deployment occurred.
 
 ## Owner-controlled blocker
@@ -71,3 +74,9 @@ The available OAuth login only accesses account `37a6bb83b085bd6739426e7c2d4aeda
 Staging resource configuration, provider operation ceilings (zero paid provider operations), semantic/salience policy and synthesis toggle were left unchanged. Installed remote secret names and actual deployed model settings could not be verified with this login.
 
 **Main, its unrelated local work, and production deployment were untouched.** Do not deploy this checkpoint as a completed product milestone.
+
+## Checkpoint commits
+
+- `b98d25ba146c893c08cce5cb318298f602308122`: real frontend merge with staging backend ownership resolution.
+- `a126df8477fb30b2cab6241bb856966ee8c88637`: Feed preferences, daily/interval persistence, privacy enforcement, regression coverage and this blocker report. Pushed to origin/main2.
+- A following report-only commit records final validation observations; the final branch tip is supplied in the handoff response.
