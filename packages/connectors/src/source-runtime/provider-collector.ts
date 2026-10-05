@@ -61,6 +61,15 @@ export class FallbackSourceCollector {
       try {
         const page=await provider.fetch(actual,run);
         if(page.items.length>10000 || !Number.isFinite(page.latencyMs) || page.latencyMs<0 || !Number.isSafeInteger(page.requests) || page.requests<0 || (page.complete&&page.continuationToken))throw new SourceProviderError('MALFORMED');
+        // Validate the entire snapshot before committing it, including later slices.
+        // Otherwise a malformed provider page permanently poisons replay and bypasses fallback.
+        const keys=new Set<string>(),observationKeys=new Set<string>();
+        for(const item of page.items){
+          const key=item.identityValid?item.sourceItemKey:`invalid:${run.id}:${item.sourceItemKey}`;
+          if(keys.has(item.sourceItemKey)||observationKeys.has(key)||
+            (item.operation==='DELETE'&&item.authoritativeCurrentState!==true))throw new SourceProviderError('MALFORMED');
+          keys.add(item.sourceItemKey);observationKeys.add(key);
+        }
         const raw=await this.payloads.put(request.scope,page.raw,'application/octet-stream');
         const {raw:ignored,...savedPage}=page;
         const savedPayload=await this.payloads.put(request.scope,new TextEncoder().encode(JSON.stringify(savedPage)),'application/json');

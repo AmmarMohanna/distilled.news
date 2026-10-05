@@ -15,6 +15,7 @@ export * from "./source-runtime/provider-storage";
 export * from "./source-runtime/provider-http";
 export * from "./source-runtime/provider-collector";
 export * from "./source-runtime/provider-factory";
+export * from "./source-runtime/execution-http";
 export * from "./source-runtime/provider-scheduler";
 export * from "./source-runtime/platform-providers";
 export * from "./source-runtime/social-providers";

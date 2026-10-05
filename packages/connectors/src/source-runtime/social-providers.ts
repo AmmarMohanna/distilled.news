@@ -60,6 +60,10 @@ export class ApifySourceProvider implements SourceProvider {
         {method:'POST',headers,body:JSON.stringify(this.actorInput(input))});requests++;requireProviderSuccess(response);
       actorRun=string(record(record(response.json).data).id);
       if(!actorRun)throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+      // Commit the actor identity through the collector's durable snapshot/handoff
+      // before any status or dataset operation can fail. Later reads always resume it.
+      return {items:[],raw:response.bytes,continuationToken:JSON.stringify({actor,runId:actorRun,offset}),
+        requests,latencyMs:Date.now()-start,providerCostUsd:null};
     }
     const status=await this.http.request(input.scope,run.id+':status',this.id,0.000001,`https://api.apify.com/v2/actor-runs/${actorRun}`,{headers});
     requests++;requireProviderSuccess(status);const data=record(record(status.json).data);

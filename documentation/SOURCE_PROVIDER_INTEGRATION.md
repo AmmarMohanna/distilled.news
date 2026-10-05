@@ -93,6 +93,36 @@ operator reconciliation; automatic resubmission could double-charge.
 
 ## Backend bindings
 
+`apps/worker/src/source-backend.ts` now provides `createSourceBackend(env, options)`
+to compose the provider factory with actual Worker D1/R2 bindings, scoped public HTTP,
+provider secrets and the private runtime HTTP client. Pass the downstream-owned durable
+`intake` and an `authorize(request)` callback checking persisted approval/configuration
+and disabled legacy polling. The returned `collect`, `scheduler`, `payloads` and `paidHttp`
+support all registered source families. This module is not yet mounted in the production
+Worker entry point. Keep `global_fetch_strictly_public` in the deployment configuration.
+
+Environment bindings: `TWITTERAPI_IO_API_KEY`, `APIFY_API_TOKEN`, `ZYTE_API_KEY`,
+`SOURCE_EXECUTION_URL`, `SOURCE_EXECUTION_TOKEN`, and `SOURCE_OPERATION_CEILINGS_JSON`.
+The latter accepts numeric `twitterApiIo`, `apify`, and `zyte` ceilings; omitted/zero
+ceilings prevent paid dispatch. Provider-wide D1 budgets still require explicit trusted
+configuration through `paidHttp.configureLimit`. Setup now copies these fields from the
+private environment file. Never put Telegram sessions/API credentials in Worker source
+definitions: keep those on the private execution host.
+
+Run `node scripts/source-execution-server.mjs` on the VPS with `SOURCE_EXECUTION_PYTHON`
+set to the virtualenv Python, a dedicated random `SOURCE_EXECUTION_TOKEN` of at least 32
+characters, and the existing Telegram/browser environment described below. It binds
+only `127.0.0.1:8790` (override with `SOURCE_EXECUTION_PORT`). Route
+`/v1/source-execution` through a TLS reverse proxy or tunnel, preserve Authorization,
+and use that HTTPS URL and the same dedicated token on the Worker. The service limits
+concurrent executions, request/output sizes, and subprocess duration; errors omit
+third-party exception strings. Host egress controls remain required for browser use.
+
+New-account setup is pending Wrangler authentication and selection of resources in
+that account. The checked-in production Wrangler config still names existing lownoise
+resources and must not be deployed into the new account unchanged. No remote resource,
+migration, scheduled source, credential, or paid call was created by these code changes.
+
 No Worker entry point, queue consumer, HTTP intake endpoint, deployment binding or
 production migration was added. Integration uses existing shared ports:
 
@@ -186,6 +216,21 @@ deployment route. Extraction uses Trafilatura; the Readability benchmark compari
 separate and is not added as an automatic voting stage.
 
 ## Validation and remaining integration
+
+Recovery fixes verified on 2026-10-04: Apify actor creation now returns a bounded empty
+page containing its actor-run continuation. The collector persists and hands off that
+page before any status/dataset read; scheduler retries retain the continuation and resume
+the same actor. A crash before that initial snapshot commits still blocks the uncertain
+run for operator reconciliation rather than starting another paid actor automatically.
+Duplicate source-item identities (including across snapshot slices), colliding observation
+keys and DELETE records without authoritative evidence fail before snapshot persistence,
+allowing configured fallback. Previously saved malformed snapshots still need operator
+repair; this change does not delete or rewrite immutable saved data.
+
+The connector suite now passes 166 tests, including scheduler restart recovery after
+synthetic Apify status/dataset HTTP 503 responses with exactly one actor submission,
+duplicate-page fallback/replay and unauthoritative-delete fallback. Connector typecheck
+also passes. No live provider calls or production deployment were performed.
 
 Tests use synthetic provider responses, fixture intake receipts and private execution
 stubs. Python execution tests stub third-party libraries. Miniflare tests use real local

@@ -85,6 +85,44 @@ describe('fallback policy and durable handoff',()=>{
     const first=await s.collector.collect(request,['primary']);expect(first.state==='HANDED_OFF'&&first.checkpoint).toBe('BLOCKED');
     await expect(s.collector.collect(request,['primary'],2)).rejects.toThrow('UNRESOLVED_SNAPSHOT_PREFIX');
   });
+  it('rejects duplicate identities across snapshot slices before saving and replays the fallback',async()=>{
+    const a=provider('primary',vi.fn(async()=>page(['1','2','1']))),b=provider('secondary'),s=setup([a,b]);
+    const first=await s.collector.collect(request,['primary','secondary']);
+    expect(first.state==='HANDED_OFF'&&first.providerId).toBe('secondary');
+    expect(first.attempts[0].failure).toBe('MALFORMED');
+    await s.collector.collect(request,['primary','secondary']);
+    expect(a.fetch).toHaveBeenCalledTimes(1);expect(b.fetch).toHaveBeenCalledTimes(1);
+    expect(s.intake.acceptBatch).toHaveBeenCalledTimes(2);
+  });
+  it('falls back before committing a deletion without authoritative evidence',async()=>{
+    const a=provider('primary',vi.fn(async()=>({...page(),items:[{...page().items[0],operation:'DELETE' as const}]}))),b=provider('secondary'),s=setup([a,b]);
+    const result=await s.collector.collect(request,['primary','secondary']);
+    expect(result.state==='HANDED_OFF'&&result.providerId).toBe('secondary');
+    expect(result.attempts[0].failure).toBe('MALFORMED');
+  });
+  it.each(['status','dataset'])('resumes the same paid Apify actor after a transient %s failure and scheduler restart',async failing=>{
+    const s=setup([]);let fail=true,starts=0,now=Date.parse(time);
+    const dispatch=vi.fn(async(url:string)=>{
+      if(url.includes('/actors/')){starts++;return Response.json({data:{id:'actorRun'}});}
+      const operation=url.includes('/actor-runs/')?'status':'dataset';
+      if(operation===failing&&fail){fail=false;return Response.json({error:'temporary'},{status:503});}
+      return Response.json(operation==='status'?{data:{status:'SUCCEEDED',defaultDatasetId:'dataset'}}:[{id:'1',text:'Text'}]);
+    });
+    const http=new DurableProviderHttp(s.db,s.payloads,dispatch);await http.configureLimit('x_apify',1);
+    const makeCollector=()=>new FallbackSourceCollector(new D1ProviderSourceRepository(s.db),s.payloads,s.intake,
+      [new ApifySourceProvider('x_apify',['x_profile'],http,async()=> 'private-token',0.1)],()=>time);
+    let scheduler=new D1ProviderPollScheduler(s.db,makeCollector(),async()=>true,()=>now);
+    await scheduler.schedule('apify-job',request,time,['x_apify']);
+    expect(await scheduler.runOne()).toBe('RETRY'); // actor identity is now durable
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    now+=2000;scheduler=new D1ProviderPollScheduler(s.db,makeCollector(),async()=>true,()=>now);
+    expect(await scheduler.runOne()).toBe('RETRY'); // failed read retains its continuation
+    now+=10000;scheduler=new D1ProviderPollScheduler(s.db,makeCollector(),async()=>true,()=>now);
+    expect(await scheduler.runOne()).toBe('DONE');
+    expect(starts).toBe(1);
+    const batches=vi.mocked(s.intake.acceptBatch).mock.calls.map(([batch])=>batch);
+    expect(batches.at(-1)?.observations[0].sourceItemKey).toBe('x:1');
+  });
   it('keeps invalid observations visible without acquisition proposals',async()=>{
     const a=provider('primary',vi.fn(async()=>({...page(),items:[{...page().items[0],identityValid:false}]}))),s=setup([a]);
     const result=await s.collector.collect(request,['primary']);
@@ -168,7 +206,10 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
       String(args[4]).includes('/actor-runs/')?{data:{status:'SUCCEEDED',defaultDatasetId:'dataset'}}:[{id:'item1',title:'Title',text:'Text',url:'https://publisher.example/post'}]))};
     const p=new ApifySourceProvider('test_actor',[family],http,async()=> 'private-token',0.1);
     const result=await p.fetch({...request,source:{family,locator:'https://publisher.example/source',actorId:'owner/custom'}},run);
-    expect(result.items).toHaveLength(1);expect(result.requests).toBe(3);expect(result.providerCostUsd).toBeNull();expect(result.complete).toBeUndefined();
+    expect(result.items).toHaveLength(0);expect(result.requests).toBe(1);expect(result.continuationToken).toBeDefined();
+    const resumed=await p.fetch({...request,source:{family,locator:'https://publisher.example/source',actorId:'owner/custom'},
+      continuation:{providerId:'test_actor',token:result.continuationToken!}},{...run,id:'next-run',sequence:2});
+    expect(resumed.items).toHaveLength(1);expect(resumed.requests).toBe(2);expect(resumed.providerCostUsd).toBeNull();expect(resumed.complete).toBeUndefined();
   });
 });
 

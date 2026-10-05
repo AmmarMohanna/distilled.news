@@ -12,7 +12,7 @@ interface Job {job_id:string;request:string;provider_order:string;lease_version:
 /** Explicit backend runner; does not register production cron, migrate a source, or
  * create an endpoint. Authorization must also ensure legacy polling is disabled. */
 export class D1ProviderPollScheduler {
-  constructor(private db:SqlDatabase,private collector:FallbackSourceCollector,
+  constructor(private db:SqlDatabase,private collector:Pick<FallbackSourceCollector,'collect'>,
     private authorize:(request:SourceFetchRequest)=>Promise<boolean>,private now=Date.now,private maxPages=100){}
   async schedule(id:string,request:SourceFetchRequest,dueAt:string,order=DEFAULT_SOURCE_ORDER[request.source.family]) {
     if(!id||!Number.isFinite(Date.parse(dueAt)))throw new Error('INVALID_SCHEDULE');
