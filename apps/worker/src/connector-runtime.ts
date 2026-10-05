@@ -38,7 +38,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
   const request:SourceFetchRequest={scope:{feedId:enrolled.scope.feedId,feedSourceId:id,sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:await sha256(JSON.stringify([id,enrolled.scope.feedRevision,approved.source.family==='rss'?Math.floor(now.getTime()/300000):'telegram-canary-v1'])),source:approved.source,requestedBounds:{},limit:approved.limit};
   if(await authorizeConnectorSource(env,request)) {
    if(request.source.family==='rss')await backend.rssScheduler.schedule(request.runId,{scope:request.scope,runId:request.runId,configurationRevision:request.configurationRevision,url:request.source.locator,requestedBounds:request.requestedBounds,maxItems:request.limit},now.toISOString());
-   else await backend.scheduler.schedule(request.runId,request,now.toISOString(),['telegram_telethon']);
+   else await backend.scheduler.schedule(request.runId,request,now.toISOString(),request.source.family==='telegram'?['telegram_telethon']:['x_twitterapi_io']);
   }
  }
  await backend.rssScheduler.runOne();

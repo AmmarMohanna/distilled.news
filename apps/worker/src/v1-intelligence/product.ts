@@ -8,7 +8,7 @@ import {liveScheduleSchema,type LiveSchedule} from './schedule';
 
 const PRODUCT_SQL=`SELECT json_object('sourceId',s.id,'feedId',b.id,'ownerId',b.owner_account_id,'sourceTitle',s.title,'sourceKind',s.kind,'provider',s.provider,'sourceUrl',s.source_url,'input',s.input,'enabled',s.enabled,'feedTitle',b.title,'interests',b.interest_profile,'language',b.language,'paused',b.paused,'cadence',b.briefing_cadence,'liveInterval',b.v1_briefing_interval_minutes,'timezone',b.briefing_timezone,'deliveryAnchor',b.briefing_time_of_day,'createdAt',b.created_at,'accountDisabled',a.disabled_at) AS json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=?`;
 interface ProductRow {sourceId:string;feedId:string;ownerId:string;sourceTitle:string;sourceKind:string;provider:string;sourceUrl:string|null;input:string|null;enabled:number;feedTitle:string;interests:string;language:string;paused:number;cadence:string;liveInterval:number|null;timezone:string;deliveryAnchor:string|null;createdAt:string;accountDisabled:string|null}
-export interface CanonicalSource {id:string;type:'rss'|'telegram';displayName:string;canonicalUrl:string;connectorType:'rss'|'telegram';verificationStatus:'VERIFIED';createdAt:string}
+export interface CanonicalSource {id:string;type:'rss'|'telegram'|'x_search';displayName:string;canonicalUrl:string;connectorType:'rss'|'telegram'|'x_search';verificationStatus:'VERIFIED';createdAt:string}
 /** Trusted bridge from an already user-approved product source. No source discovery or approval bypass. */
 export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:string,requestedSchedule?:LiveSchedule):Promise<{feed:FeedRecord;scope:IntakeScope;source:CanonicalSource}> {
  if(!Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
@@ -41,7 +41,7 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
   const unchanged=existingFeed && canonicalJson(Object.fromEntries(Object.keys(definition).map(k=>[k,existingFeed[k as keyof FeedRecord]])))===canonicalJson(definition);
   const feed:FeedRecord=unchanged && binding?.configuration===row.json && existingScope?.enabled?existingFeed:{id:p.feedId,ownerId,...definition,revision:existingFeed?existingFeed.revision+1:1,createdAt:existingFeed?.createdAt??p.createdAt,updatedAt:now};
   const scope:IntakeScope={feedId:p.feedId,feedSourceId:id,sourceId,feedRevision:feed.revision,enabled:true,restrictions:{}};
-  const family=definitionSource.source.family as 'rss'|'telegram';
+  const family=definitionSource.source.family as CanonicalSource['type'];
   const source:CanonicalSource=catalog?JSON.parse(catalog.json):{id:sourceId,type:family,displayName:family==='telegram'?definitionSource.source.locator:new URL(url).hostname,canonicalUrl:url,connectorType:family,verificationStatus:'VERIFIED',createdAt:now};
   if(feed===existingFeed && canonicalJson(existingScope)===canonicalJson(scope)) return {feed,scope,source};
   const guard=crypto.randomUUID();
