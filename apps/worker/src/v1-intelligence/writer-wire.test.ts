@@ -39,8 +39,8 @@ it('requires coverage witnesses in actual supported reader prose, never source-o
  const check={factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Resigned and stepped down are equivalent.'};
  const verdict=(readerSpans:{claimId:string;text:string}[])=>({supportedClaimIds:['claim_1','claim_2'],preservedFactIds:['fact_1'],semanticChecks:[{...check,readerSpans}]});
  expect(wire.decode(verdict([{claimId:'claim_1',text:'The minister stepped down.'}])).preservedFactIds).toEqual(['f']);
- expect(()=>wire.decode(verdict([{claimId:'claim_1',text:'The minister resigned.'}]))).toThrow('INVALID_READER_WITNESS');
- expect(()=>wire.decode(verdict([{claimId:'claim_2',text:'The minister stepped down.'}]))).toThrow('INVALID_READER_WITNESS');
- expect(()=>wire.decode(verdict([]))).toThrow('MISSING_READER_WITNESS');
- expect(()=>wire.decode({...verdict([{claimId:'claim_1',text:'The minister stepped down.'}]),supportedClaimIds:[]})).toThrow('INVALID_READER_WITNESS');
+ expect(wire.decode(verdict([{claimId:'claim_1',text:'The minister resigned.'}])).semanticChecks[0]).toMatchObject({communicated:false,reason:expect.stringContaining('INVALID_READER_WITNESS')});
+ expect(wire.decode(verdict([{claimId:'claim_2',text:'The minister stepped down.'}])).preservedFactIds).toEqual([]);
+ expect(wire.decode(verdict([])).semanticChecks[0]).toMatchObject({communicated:false,reason:expect.stringContaining('MISSING_READER_WITNESS')});
+ expect(wire.decode({...verdict([{claimId:'claim_1',text:'The minister stepped down.'}]),supportedClaimIds:[]}).preservedFactIds).toEqual([]);
 });

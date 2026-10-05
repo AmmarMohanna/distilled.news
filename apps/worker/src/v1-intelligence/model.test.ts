@@ -33,3 +33,9 @@ it('grounding submits only offered claims and treats missing provider cost as un
  const result=await model.verify!([{id:'c',text:'Supported fact',support:[{evidenceRevisionId:'r',quote:'Supported fact'}],context:[{evidenceRevisionId:'r',text:'Supported fact',truncated:false}]}],{maxOutputTokens:99,signal:new AbortController().signal});
  expect(body.max_tokens).toBe(99);expect(result.supportedClaimIds).toEqual(['c']);expect(result.usage.confirmed).toBe(false);
 });
+it('settles invalid source-only coverage as a negative verdict with confirmed usage',async()=>{
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic'} as Env,async()=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({supportedClaimIds:['claim_1'],preservedFactIds:['fact_1'],semanticChecks:[{factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Copied source incorrectly.',readerSpans:[{claimId:'claim_1',text:'The minister resigned.'}]}]})}}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}})))!;
+ const result=await model.verify!([{id:'c',candidateId:'story',text:'Unrelated prose.',support:[{evidenceRevisionId:'r',quote:'The minister resigned.'}],context:[],requiredFacts:[{id:'f',text:'The minister resigned.',evidenceRevisionIds:['r']}]}],{maxOutputTokens:200,signal:new AbortController().signal});
+ expect(result.preservedFactIds).toEqual([]);expect(result.semanticChecks?.[0].communicated).toBe(false);
+ expect(result.usage).toEqual({tokensIn:100,tokensOut:50,cost:.001,confirmed:true});
+});

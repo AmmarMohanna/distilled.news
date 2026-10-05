@@ -61,8 +61,11 @@ export function verificationWire(claims:VerificationClaim[]){
  const decode=(raw:unknown)=>{
   const seen=new Set<string>(),supported=ids(raw,'supportedClaimIds',claimIds);
   const semanticChecks=z.array(check).parse((raw as Record<string,unknown>).semanticChecks??[]).map(c=>{const factId=factIds.get(c.factId);if(!factId||seen.has(factId))throw new Error('UNRECOGNIZED_VERIFIER_ID');seen.add(factId);
-   const readerSpans=c.readerSpans.map(span=>{const claimId=claimIds.get(span.claimId),claim=claims.find(x=>x.id===claimId);if(!claim||!claim.text.includes(span.text)||!(claim.requiredFacts??[]).some(f=>f.id===factId)||!supported.includes(claim.id))throw new Error('INVALID_READER_WITNESS');return {claimId:claim.id,text:span.text};});
-   if(c.communicated&&!readerSpans.length)throw new Error('MISSING_READER_WITNESS');
+   let invalidWitness=false;
+   const readerSpans=c.readerSpans.flatMap(span=>{const claimId=claimIds.get(span.claimId),claim=claims.find(x=>x.id===claimId);if(!claim||!claim.text.includes(span.text)||!(claim.requiredFacts??[]).some(f=>f.id===factId)||!supported.includes(claim.id)){invalidWitness=true;return [];}return [{claimId:claim.id,text:span.text}];});
+   // Invalid semantic evidence is a durably settled negative verdict, not an
+   // uncertain provider execution. Preserve its usage and precise repair reason.
+   if(invalidWitness||(c.communicated&&!readerSpans.length))return {...c,factId,communicated:false,readerSpans:[],reason:invalidWitness?'INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.':'MISSING_READER_WITNESS: no reader prose establishes coverage.'};
    return {...c,factId,readerSpans};});
   if(requiredIds.some(id=>!seen.has(factIds.get(id)!)))throw new Error('INCOMPLETE_SEMANTIC_VERDICT');
   return {supportedClaimIds:ids(raw,'supportedClaimIds',claimIds),preservedFactIds:ids(raw,'preservedFactIds',factIds).filter(id=>semanticChecks.some(c=>c.factId===id&&faithfulFact(c))),semanticChecks,novelFactIds:ids(raw,'novelFactIds',factIds),addressedCorrectionObligationIds:z.array(z.string()).parse((raw as Record<string,unknown>).addressedCorrectionObligationIds??[]).map(id=>{if(!obligations.some(o=>o.id===id))throw new Error('UNRECOGNIZED_VERIFIER_ID');return id;})};
