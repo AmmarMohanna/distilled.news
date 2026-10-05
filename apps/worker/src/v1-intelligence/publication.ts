@@ -17,10 +17,12 @@ export interface ModelUsage {tokensIn:number;tokensOut:number;cost:number;confir
 export interface SelectedPlanStory extends PlanStory {facts:ShortlistFact[];previousLedgerEntries:ShortlistRecord['ledger'];correctionObligations:ShortlistRecord['obligations']}
 export interface SynthesisInput {feed:Pick<FeedRecord,'id'|'revision'|'title'|'interests'|'outputLanguage'>;selectionId:string;window?:SelectionRecord['window'];editorialPlan?:{id:string;route:EditorialPlanRecord['route']};stories:{candidate:BriefingCandidate;eventVersions:EventVersion[];storylineVersion?:StorylineVersion;editorial?:EditorialDecision;plan?:SelectedPlanStory;evidence:(EvidenceRevision & {excerptTruncated:boolean})[]}[]}
 export interface PreservationFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string}
+export interface ApprovedWriterFact extends ShortlistFact {support:ClaimSupport[]}
+export interface SynthesisWriterInput {feed:SynthesisInput['feed'];selectionId:string;window?:SynthesisInput['window'];editorialPlan?:SynthesisInput['editorialPlan'];stories:{candidate:Pick<BriefingCandidate,'id'|'targetType'|'targetVersionId'>;plan?:SelectedPlanStory;editorial?:EditorialDecision;approvedFacts?:ApprovedWriterFact[];evidence:{id:string;body?:string;language?:string}[]}[]}
 export interface VerificationClaim {id:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean}[];requiredFacts?:PreservationFact[];allowedFacts?:PreservationFact[];previousLedgerFacts?:string[];newUnderstandingFacts?:PreservationFact[];correctionObligations?:ShortlistRecord['obligations']}
 export interface BriefingModelPort {
  model:string;provider:string;maxCallCostUsd:number;promptVersion?:string;
- synthesize(input:SynthesisInput,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
+ synthesize(input:SynthesisWriterInput,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
  verify?(claims:VerificationClaim[],limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{supportedClaimIds:string[];preservedFactIds?:string[];addressedCorrectionObligationIds?:string[];novelFactIds?:string[];usage:ModelUsage}>;
 }
 interface PublicationJob {id:string;feedId:string;selectionId:string;state:'PENDING'|'RUNNING'|'DONE'|'FAILED';attempts:number;token:string;leaseUntil:string;callsUsed:number;tokensIn:number;tokensOut:number;cost:number;pendingCall?:string;failure?:string}
@@ -83,15 +85,58 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Prom
   const editorial=selection.editorialByCandidate?.[id];
   const planned=plan?.stories.find(s=>s.targetVersionId===candidate.targetVersionId),scope=shortlist?.candidates.find(c=>c.targetVersionId===candidate.targetVersionId);
   if(plan && (!planned||planned.decision!=='SELECT'||!scope))throw new HandoffError('SCOPE_DENIED');
-  const writerPlan:SelectedPlanStory|undefined=planned&&scope?{...planned,facts:scope.facts,previousLedgerEntries:shortlist!.ledger.filter(e=>e.eventIds?.includes(scope.stableTargetId)||scope.storylineId&&e.storylineIds?.includes(scope.storylineId)),correctionObligations:shortlist!.obligations.filter(o=>plan!.obligations.some(p=>p.obligationId===o.id&&p.handling==='ADDRESS'&&p.targetVersionId===scope.targetVersionId))}:undefined;
+  const approvedIds=planned?new Set([...planned.newUnderstandingFactIds,...planned.contextFactIds,...planned.mustIncludeFactIds,...planned.attributionFactIds,...planned.certaintyFactIds,...planned.disagreementFactIds,...planned.openQuestionFactIds]):undefined;
+  const writerPlan:SelectedPlanStory|undefined=planned&&scope?{...planned,facts:scope.facts.filter(f=>approvedIds!.has(f.id)),previousLedgerEntries:shortlist!.ledger.filter(e=>planned.previousLedgerEntryIds.includes(e.id)),correctionObligations:shortlist!.obligations.filter(o=>planned.correctionObligationIds.includes(o.id)&&plan!.obligations.some(p=>p.obligationId===o.id&&p.handling==='ADDRESS'&&p.targetVersionId===scope.targetVersionId))}:undefined;
   if(writerPlan && preservationFacts({candidate,eventVersions,evidence,plan:writerPlan}).some(f=>!f.evidenceRevisionIds.some(id=>evidence.some(e=>e.id===id))))throw new HandoffError('SCOPE_DENIED');
   stories.push({candidate,eventVersions,editorial:editorial?boundedEditorialContext(editorial):undefined,plan:writerPlan,storylineVersion:storyline?{...storyline,currentState:storyline.currentState.slice(0,1800),previousState:storyline.previousState?.slice(0,1000),supportedFacts:storyline.supportedFacts.slice(0,10),turningPoints:storyline.turningPoints.slice(0,10)}:undefined,evidence});
  }
  if(inspected>selection.budget.maxEvidenceInspections || stories.length>selection.budget.maxStories) throw new HandoffError('INVALID_REQUEST');
  const f=tx.snapshot.feed;return {feed:{id:f.id,revision:f.revision,title:f.title,interests:f.interests,outputLanguage:f.outputLanguage},selectionId:selection.id,window:selection.window,editorialPlan:plan?{id:plan.id,route:plan.route}:undefined,stories};
 }
-function extractiveDraft(input:SynthesisInput):BriefingDraft {
- if(input.editorialPlan && input.stories.some(s=>s.evidence.some(e=>supportedSentences(e.body??'').some(text=>!s.plan?.facts.some(f=>equivalentFact(f.text,text))))))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
+export function approvedWriterFacts(story:SynthesisInput['stories'][number]):ApprovedWriterFact[] {
+ if(!story.plan) return [];
+ const p=story.plan,ids=new Set([...p.newUnderstandingFactIds,...p.contextFactIds,...p.mustIncludeFactIds,...p.attributionFactIds,...p.certaintyFactIds,...p.disagreementFactIds,...p.openQuestionFactIds]);
+ return p.facts.filter(f=>ids.has(f.id)).map(f=>({...f,support:story.evidence.filter(e=>f.evidenceRevisionIds.includes(e.id)).flatMap(e=>{
+  const body=e.body??'',quote=body.includes(f.text)?f.text:body.trim().split(/(?<=[.!?])\s+|\n+/u).find(s=>normalize(s)===normalize(f.text));
+  return quote?[{evidenceRevisionId:e.id,quote}]:[];
+ })}));
+}
+/** Join only adjacent approved spans, preserving abbreviations/dates split into propositions. */
+export function approvedSupportSpans(story:SynthesisInput['stories'][number]):ClaimSupport[] {
+ const facts=approvedWriterFacts(story),out:ClaimSupport[]=[];
+ for(const e of story.evidence){const body=e.body??'',parts=facts.flatMap(f=>f.support.filter(s=>s.evidenceRevisionId===e.id).map(s=>({start:body.indexOf(s.quote),end:body.indexOf(s.quote)+s.quote.length}))).sort((a,b)=>a.start-b.start||a.end-b.end),merged:{start:number;end:number}[]=[];
+  for(const part of parts){const last=merged.at(-1);if(last&&part.start<=last.end || last&&/^\s*$/.test(body.slice(last.end,part.start)))last.end=Math.max(last.end,part.end);else merged.push({...part});}
+  for(const p of merged){const quote=body.slice(p.start,p.end),abbreviation=/\b(?:Oct|Nov|Dec|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Mr|Mrs|Dr|etc|a\.m|p\.m)\.$/i;
+   const prefix=body.slice(0,p.start),suffix=body.slice(p.end);
+   if(abbreviation.test(quote)||abbreviation.test(prefix.trim())||prefix.trim()&&!/[.!?]$/.test(prefix.trim())&&!/\n\s*$/.test(prefix)||suffix.trim()&&!/[.!?]$/.test(quote)&&!/^\s*\n/.test(suffix))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
+   out.push({evidenceRevisionId:e.id,quote});
+  }
+ }
+ return out;
+}
+/** The writer sees approved facts and their literal spans, never unselected source prose or graph state. */
+export function synthesisWriterInput(input:SynthesisInput):SynthesisWriterInput {
+ return {...input,stories:input.stories.map(s=>{
+  const approvedFacts=s.plan?approvedWriterFacts(s):undefined;
+  if(approvedFacts?.some(f=>!f.support.length))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
+  const spans=s.plan?approvedSupportSpans(s):undefined;
+  const plan=s.plan?{...s.plan,facts:approvedFacts!.map(({support,...f})=>f),rationale:'Selected by EditorialPlan.',relevanceRationale:'Communicate approved facts only.'}:undefined;
+  return {candidate:{id:s.candidate.id,targetType:s.candidate.targetType,targetVersionId:s.candidate.targetVersionId},plan,editorial:s.plan?undefined:s.editorial,approvedFacts,evidence:s.evidence.map(e=>({id:e.id,language:e.language,body:spans?spans.filter(p=>p.evidenceRevisionId===e.id).map(p=>p.quote).join('\n'):e.body}))};
+ })};
+}
+export function extractiveDraft(input:SynthesisInput):BriefingDraft {
+ if(input.editorialPlan){
+  const writer=synthesisWriterInput(input);
+  return {language:input.feed.outputLanguage,stories:writer.stories.map((s,i)=>{
+   const full=input.stories[i];
+   if(!s.plan || !s.approvedFacts?.length || full.evidence.some(e=>extractiveLanguageCompatibility(e.language,input.feed.outputLanguage)==='TRANSLATION_REQUIRED'))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
+   // Literal spans must not be extracted from a rebuttal or contrasting qualification.
+   if(full.evidence.some(e=>/\b(verdict|false|misleading|refuted|retracted|correction|however|but)\b/i.test(e.body??'')))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
+   const spans=approvedSupportSpans(full);
+   if(!spans.length||spans.length>4||spans.some(p=>p.quote.length>1000))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
+   return {candidateId:s.candidate.id,claims:spans.map(p=>({text:p.quote,support:[p]}))};
+  })};
+ }
  if(input.stories.some(s=>s.evidence.some(e=>extractiveLanguageCompatibility(e.language,input.feed.outputLanguage)==='TRANSLATION_REQUIRED'))) throw new SynthesisCompatibilityError('TRANSLATION_REQUIRED');
  if(input.stories.some(s=>s.evidence.length>4 || s.evidence.some(e=>e.excerptTruncated || e.body!.trim().length>600))) throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
  return {language:input.feed.outputLanguage,stories:input.stories.map(s=>{
@@ -122,9 +167,11 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    if(prior.state!=='PENDING' || !old?.communicationFingerprint || old.communicationFingerprint===selection.communicationFingerprint || old.feedRevision!==selection.feedRevision || canonicalJson(old.budget)!==canonicalJson(selection.budget)) throw new HandoffError('INVALID_REQUEST');
   }
   if(prior?.state==='RUNNING' && Date.parse(prior.leaseUntil)>Date.parse(now)) throw new HandoffError('TEMPORARY_UNAVAILABLE');
-  if(prior?.pendingCall || (prior?.attempts??0)>=5 || prior?.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
+  const cachedFallback=prior?.pendingCall?await tx.read<StoredDraft>('drafts',selectionId):undefined;
+  const safeFallback=cachedFallback?.provider==='NONE' && cachedFallback.promptVersion==='approved-fact-spans-v3';
+  if(prior?.pendingCall && !safeFallback || (prior?.attempts??0)>=5 || prior?.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
   const input=await selectionInput(tx,selection);
-  const job:PublicationJob={id:editionId,feedId,selectionId,state:'RUNNING',attempts:(prior?.attempts??0)+1,token,leaseUntil:new Date(Date.parse(now)+selection.budget.maxWallClockMs).toISOString(),callsUsed:prior?.callsUsed??0,tokensIn:prior?.tokensIn??0,tokensOut:prior?.tokensOut??0,cost:prior?.cost??0};
+  const job:PublicationJob={id:editionId,feedId,selectionId,state:'RUNNING',attempts:(prior?.attempts??0)+1,token,leaseUntil:new Date(Date.parse(now)+selection.budget.maxWallClockMs).toISOString(),callsUsed:prior?.callsUsed??0,tokensIn:prior?.tokensIn??0,tokensOut:prior?.tokensOut??0,cost:prior?.cost??0,pendingCall:prior?.pendingCall};
   await tx.write('synthesis_jobs',editionId,job);return {input,authorizationScopes:tx.snapshot.scopes};
  });
  if(claimed.edition) return claimed.edition;
@@ -172,9 +219,24 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
  try {
   let storedDraft=await store.read<StoredDraft>(feedId,'drafts',selectionId);
   if(!storedDraft) {
-   if(options.model) {await callModel('SYNTHESIS',input,limits=>options.model!.synthesize(input,limits));storedDraft=await store.read<StoredDraft>(feedId,'drafts',selectionId)}
+   if(options.model) {
+    const writer=synthesisWriterInput(input);
+    try {await callModel('SYNTHESIS',writer,limits=>options.model!.synthesize(writer,limits));}
+    catch(error) {
+     if(!input.editorialPlan)throw error;
+     // Unknown provider outcome retains its reservation and audit record. Only a
+     // locally safe approved-fact draft may recover; no second model call is made.
+     const draft=extractiveDraft(input);
+     await feedTransact(store,feedId,async tx=>{
+      const job=await requireJob(tx,editionId,token,options.now());
+      if(job.pendingCall)await tx.write('model_executions',job.pendingCall,{id:job.pendingCall,feedId,editionId,phase:'SYNTHESIS',status:'OUTCOME_UNKNOWN',confirmed:false,reservationRetained:true,createdAt:options.now()});
+      await tx.write('drafts',selectionId,{id:selectionId,feedId,draft,model:'deterministic-approved-facts-v3',provider:'NONE',promptVersion:'approved-fact-spans-v3',createdAt:options.now()});
+     });
+    }
+    storedDraft=await store.read<StoredDraft>(feedId,'drafts',selectionId);
+   }
    else {
-    storedDraft={id:selectionId,feedId,draft:extractiveDraft(input),model:'deterministic-extractive-editorial-v2',provider:'NONE',promptVersion:'full-context-extractive-editorial-v2',createdAt:options.now()};
+    storedDraft={id:selectionId,feedId,draft:extractiveDraft(input),model:'deterministic-approved-facts-v3',provider:'NONE',promptVersion:'approved-fact-spans-v3',createdAt:options.now()};
     const value=storedDraft;await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await tx.write('drafts',selectionId,value)});
    }
   }
@@ -184,16 +246,17 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    const candidates=new Map(input.stories.map(s=>[s.candidate.id,s])),proposals:{candidateId:string;claim:GroundedClaim;exact:boolean}[]=[];let rejected=0;
    const seenStories=new Set<string>();
    for(const story of storedDraft.draft.stories) {
-    const candidate=candidates.get(story.candidateId);if(!candidate || seenStories.has(story.candidateId)) {rejected+=story.claims.length;continue}seenStories.add(story.candidateId);
+    const candidate=candidates.get(story.candidateId);if(!candidate || seenStories.has(story.candidateId)) {rejected+=Math.max(1,story.claims.length);continue}seenStories.add(story.candidateId);
     for(const claim of story.claims) {
-     const valid=claim.support.every(s=>candidate.evidence.some(e=>e.id===s.evidenceRevisionId && ((e.body??'').includes(s.quote) || e.title===s.quote)));
+     const valid=claim.support.every(s=>candidate.evidence.some(e=>e.id===s.evidenceRevisionId && ((e.body??'').includes(s.quote) || e.title===s.quote)) && (!candidate.plan||approvedSupportSpans(candidate).some(p=>p.evidenceRevisionId===s.evidenceRevisionId&&p.quote.includes(s.quote))));
      if(!valid) {rejected++;continue}
      // Only the runtime's full-context extractive fallback can bypass entailment.
      // A model-selected exact quote may be embedded in a refutation or warning.
-     const exact=storedDraft.provider==='NONE' && claim.support.some(s=>normalize(s.quote)===normalize(claim.text) && candidate.evidence.some(e=>e.id===s.evidenceRevisionId && !e.excerptTruncated && normalize(e.body??'')===normalize(s.quote)));
+     const exact=storedDraft.provider==='NONE' && claim.support.some(s=>normalize(s.quote)===normalize(claim.text) && (candidate.plan?approvedSupportSpans(candidate).some(p=>p.evidenceRevisionId===s.evidenceRevisionId&&p.quote===s.quote):candidate.evidence.some(e=>e.id===s.evidenceRevisionId && !e.excerptTruncated && normalize(e.body??'')===normalize(s.quote))));
      proposals.push({candidateId:story.candidateId,claim:{id:await sha256(canonicalJson({candidate:story.candidateId,claim})),...claim},exact});
     }
    }
+   if(input.editorialPlan && rejected)throw new HandoffError('INVALID_REQUEST');
    const nonextractive=proposals.filter(p=>!p.exact),supported=new Set(proposals.filter(p=>p.exact).map(p=>p.claim.id)),preservedFacts=new Set<string>();
    if(nonextractive.length && options.model?.verify) {
     let result=await store.read<{supportedClaimIds:string[];preservedFactIds?:string[]}>(feedId,'verification_results',selectionId);
@@ -224,7 +287,8 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     }));
     if(claims.length && complete) {stories.push({candidateId:id,claims});words+=storyWords}else rejected+=claims.length;
    }
-   grounding={id:selectionId,feedId,stories,rejectedClaims:rejected,policyVersion:'quotes-entailment-preservation-v2',createdAt:options.now()};
+   if(input.editorialPlan && rejected)throw new HandoffError('INVALID_REQUEST');
+   grounding={id:selectionId,feedId,stories,rejectedClaims:rejected,policyVersion:'approved-spans-entailment-preservation-v3',createdAt:options.now()};
    const value=grounding;await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await tx.write('grounding_results',selectionId,value)});
   }
   if(selection.selectedCandidateIds.length && !grounding.stories.length) throw new HandoffError('INVALID_REQUEST');
@@ -254,8 +318,10 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   try {await feedTransact(store,feedId,async tx=>{
    const job=await tx.read<PublicationJob>('synthesis_jobs',editionId);
    if(job?.state==='RUNNING' && job.token===token) {
-    const transient=error instanceof HandoffError && error.code==='TEMPORARY_UNAVAILABLE' && !job.pendingCall && job.attempts<5;
-    if(job.pendingCall) await tx.write('model_executions',job.pendingCall,{id:job.pendingCall,feedId,editionId,status:'OUTCOME_UNKNOWN',confirmed:false,reservationRetained:true,createdAt:options.now()});
+    const fallback=job.pendingCall?await tx.read<StoredDraft>('drafts',selectionId):undefined;
+    const safeFallback=fallback?.provider==='NONE'&&fallback.promptVersion==='approved-fact-spans-v3';
+    const transient=error instanceof HandoffError && error.code==='TEMPORARY_UNAVAILABLE' && (!job.pendingCall||safeFallback) && job.attempts<5;
+    if(job.pendingCall && !await tx.read('model_executions',job.pendingCall)) await tx.write('model_executions',job.pendingCall,{id:job.pendingCall,feedId,editionId,status:'OUTCOME_UNKNOWN',confirmed:false,reservationRetained:true,createdAt:options.now()});
     await tx.write('synthesis_jobs',editionId,{...job,state:transient?'PENDING':'FAILED',failure:job.pendingCall?'MODEL_OUTCOME_UNKNOWN':error instanceof SynthesisCompatibilityError?error.reason:error instanceof HandoffError?error.code:'SYNTHESIS_FAILED'});
    }
   })} catch { /* A revoked Feed already prevents recovery/publication. */ }

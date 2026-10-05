@@ -65,7 +65,7 @@ it('stale-history retry retains material facts and consumed model budgets',async
  const overlapping={...next,start:first.start};
  const b=await scoreAndSelect(store,'feed-1',overlapping,DEFAULT_BRIEFING_BUDGET,next.end);
  const firstClaimModel={model:'fixture',provider:'SYNTHETIC',maxCallCostUsd:.01,
-  synthesize:async(input:import('./publication').SynthesisInput)=>({draft:{language:'en',stories:[{candidateId:input.stories[0].candidate.id,claims:[{text:body.split('. ')[0]+'.',support:[{evidenceRevisionId:input.stories[0].evidence[0].id,quote:body}]}]}]},usage:{tokensIn:100,tokensOut:30,cost:.001,confirmed:true}}),
+  synthesize:async(input:import('./publication').SynthesisWriterInput)=>({draft:{language:'en',stories:[{candidateId:input.stories[0].candidate.id,claims:[{text:body.split('. ')[0]+'.',support:[{evidenceRevisionId:input.stories[0].evidence[0].id,quote:body}]}]}]},usage:{tokensIn:100,tokensOut:30,cost:.001,confirmed:true}}),
   verify:async(claims:import('./publication').VerificationClaim[])=>({supportedClaimIds:claims.map(c=>c.id),usage:{tokensIn:100,tokensOut:10,cost:.001,confirmed:true}})};
  await expect(publishSelection(store,'feed-1',b.id,{now:()=>next.end,model:{...firstClaimModel,
   synthesize:async input=>{await publishSelection(store,'feed-1',a.id,{now:testPolicy.now,model:firstClaimModel});return firstClaimModel.synthesize(input)}}})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});

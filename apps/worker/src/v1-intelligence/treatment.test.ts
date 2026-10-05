@@ -5,7 +5,7 @@ import {V1FeedStore} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
 import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET} from './scoring';
 import {livePublicationWindow} from './schedule';
-import {publishSelection,type SynthesisInput} from './publication';
+import {publishSelection,type SynthesisWriterInput} from './publication';
 import type {BriefingCandidate} from '@distilled/contracts';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
@@ -27,7 +27,7 @@ it('combines related developments over 24h but keeps short-window event focus an
  expect(edition.stories[0].claims.map(c=>c.text).join(' ')).toContain('signed');
 },15000);
 it('sends typed treatment and supported delta to synthesis and keeps maximum a ceiling',async()=>{
- await seedIntelligence(store);let input:SynthesisInput|undefined;
+ await seedIntelligence(store);let input:SynthesisWriterInput|undefined;
  const selected=await scoreAndSelect(store,'feed-1',window(1440),{...DEFAULT_BRIEFING_BUDGET,maxStories:8},end);
  await publishSelection(store,'feed-1',selected.id,{now:()=>end,model:{model:'fixture',provider:'SYNTHETIC',maxCallCostUsd:.01,synthesize:async value=>{
   input=value;const story=value.stories[0],evidence=story.evidence[0],quote=evidence.body!;
