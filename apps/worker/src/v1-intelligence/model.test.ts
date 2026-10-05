@@ -1,6 +1,19 @@
 import {expect,it} from 'vitest';
 import {createStoredEvidenceModel} from './model';
 import type {Env} from '../types';
+it('constrains short writer identities and maps exact durable candidate/support references back',async()=>{
+ const candidateId='["immutable-selection-hash","EVENT","event-version"]';let offered:any,unknown=false;
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic'} as Env,async(_,init)=>{
+  offered=JSON.parse(String(init?.body));
+  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({language:'en',stories:[{candidateId:unknown?'unoffered':'story_1',claims:[{text:'Approved fact',support:[{evidenceRevisionId:'exact-revision',quote:'Approved fact'}]}]}]})}}],usage:{prompt_tokens:80,completion_tokens:10,cost:.001}}));
+ })!;
+ const input={feed:{id:'f',revision:1,title:'Feed',interests:[],outputLanguage:'en'},selectionId:'s',stories:[{candidate:{id:candidateId,targetType:'EVENT' as const,targetVersionId:'event-version'},approvedFacts:[{id:'fact',text:'Approved fact',support:[{evidenceRevisionId:'exact-revision',quote:'Approved fact'}]}],evidence:[{id:'exact-revision',body:'Approved fact',language:'en'}]}]};
+ const limits={maxOutputTokens:321,signal:new AbortController().signal},result=await model.synthesize(input,limits);
+ expect(JSON.parse(offered.messages[1].content).input.stories[0].candidate.id).toBe('story_1');
+ expect(offered.response_format.json_schema.schema.properties.stories.items.properties.candidateId.enum).toEqual(['story_1']);
+ expect(result.draft.stories[0]).toMatchObject({candidateId,claims:[{support:[{evidenceRevisionId:'exact-revision',quote:'Approved fact'}]}]});
+ unknown=true;await expect(model.synthesize(input,limits)).rejects.toThrow('UNRECOGNIZED_WRITER_ID');
+});
 it('uses the existing bounded transport, sends only selected evidence and applies the caller token limit',async()=>{
  let body:any;
  const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic-test-key'} as Env,async(_,init)=>{
