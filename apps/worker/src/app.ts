@@ -1,3 +1,7 @@
+import {sourceRecommendations} from './source-recommendations';
+import {detectSourceInput} from '@distilled/connectors';
+import {WorkerPublicSourceFetch} from './public-source-fetch';
+import {approveProductSource,publishedProductEditions} from './product-feeds';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
@@ -727,7 +731,7 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/me/briefings", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
-    return c.json({ briefings: await repo.listBriefings(account.id) });
+    return c.json({ briefings: (await repo.listBriefings(account.id)).map(feed => ({...feed,nextBriefingAt:readNextBriefingAt(feed)})) });
   });
 
   app.post('/api/me/v1/editions/:id/withdraw',async c=>{
@@ -776,6 +780,32 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ briefing });
   });
 
+  app.post('/api/me/feeds', async c => {
+    if(c.env.PRODUCT_FEEDS_ENABLED!=='true')return c.json({error:'Feed configuration is not enabled on this deployment.'},503);
+    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(120),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{const source=detectSourceInput(value);if(source.provider!=="rss"||source.kind!=="rss_feed")return false;new WorkerPublicSourceFetch(source.sourceUrl);return true}catch{return false}},"Add a public RSS feed URL supported by this deployment.")).min(1).max(5),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleSchema.shape.durationMinutes,briefingTimeOfDay:liveScheduleSchema.shape.deliveryAnchor,briefingTimezone:liveScheduleSchema.shape.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
+    if(input.updateIntervalMinutes===1440&&!input.briefingTimeOfDay)return c.json({error:'Choose a Daily delivery time.'},400);
+    const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
+    if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
+    // Validate every requested source before saving the Feed or changing approval.
+    const sourceUrls=[...new Set(input.sourceInputs.map(value=>{
+      const detected=detectSourceInput(value);
+      if(detected.provider!=='rss'||detected.kind!=='rss_feed')throw new Error('Add a public RSS feed URL. This deployment cannot configure this source type yet.');
+      new WorkerPublicSourceFetch(detected.sourceUrl);return new URL(detected.sourceUrl).href;
+    }))];
+    const prior=existing?await repo.listSources(existing.id):[];
+    const count=await c.env.DB.prepare("SELECT COUNT(*) AS n FROM sources WHERE collection_owner='connector'").first<{n:number}>();
+    if((count?.n??0)+sourceUrls.filter(url=>!prior.some(s=>s.sourceUrl===url)).length>10)return c.json({error:'This deployment has reached its ten-source collection limit.'},409);
+    const feeds=await repo.listBriefings(owner.id);
+    const base=normalizeUsername(input.title);let slug=existing?.slug??base,index=2;
+    while(!existing&&feeds.some(f=>f.slug===slug))slug=`${base}-${index++}`;
+    const savedResponse=await app.fetch(new Request(new URL('/api/me/briefings',c.req.url),{method:'POST',headers:c.req.raw.headers,body:JSON.stringify({...existing,...input,slug})}),c.env);
+    if(!savedResponse.ok)return savedResponse;
+    const {briefing}=await savedResponse.json() as {briefing:BriefingConfig};
+    for(const url of sourceUrls)await approveProductSource(c.env,repo,briefing,url);
+    for(const source of prior)if(!sourceUrls.includes(source.sourceUrl??source.url??''))await repo.deleteSource(source.id);
+    return c.json({briefing});
+  });
+
   app.delete("/api/me/briefings/:briefingId", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
@@ -792,9 +822,11 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ sources: await repo.listSources(briefing.id) });
   });
 
-  app.post("/api/me/sources/recommend", async (c) => {
-    z.object({ title: z.string().trim().min(1).max(120), description: z.string().trim().min(1).max(4000) }).strict().parse(await c.req.json());
-    return c.json({ error: "Source recommendations are not configured on this deployment. Add a source URL directly." }, 503);
+  app.post("/api/me/sources/recommend", async c => {
+    const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000)}).strict().parse(await c.req.json());
+    await assertRateLimit(c.get('repo'), 'source-recommend:'+c.get('account')!.id, 'source_recommend', 2, 60*60*1000);
+    try { return c.json({sources:await sourceRecommendations(c.env,input,fetcher)}); }
+    catch(error) { return c.json({error:error instanceof Error?error.message:'Source recommendations unavailable'}, c.env.SOURCE_RECOMMENDATIONS_ENABLED==='true'?502:503); }
   });
 
   app.post("/api/me/sources", async (c) => {
@@ -808,7 +840,7 @@ export function createApp(options: AppOptions = {}) {
     if ("url" in body || "input" in body) {
       let result;
       try {
-        result = await addSourceFromInput({
+        result = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await approveProductSource(c.env, repo, briefing, ("input" in body ? body.input : undefined) ?? ("url" in body ? body.url : "")) : await addSourceFromInput({
           briefing,
           sourceInput: ("input" in body ? body.input : undefined) ?? ("url" in body ? body.url : ""),
           repo,
@@ -875,7 +907,7 @@ export function createApp(options: AppOptions = {}) {
     const repo = c.get("repo");
     const briefing = await getOwnedBriefing(repo, c.get("account")!, c.req.query("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
-    return c.json({ health: await repo.getHealth(briefing.id) });
+    return c.json({ health: {...await repo.getHealth(briefing.id),nextBriefingAt:readNextBriefingAt(briefing)} });
   });
 
   app.post("/api/me/processing/retry", async (c) => {
@@ -966,11 +998,11 @@ export function createApp(options: AppOptions = {}) {
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     const voterId = await getVoterId(c);
-    const editions = (await repo.listBriefingEditions(briefing.id, true))
+    const editions = (c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : await repo.listBriefingEditions(briefing.id, true))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
       briefing: publicBriefing(briefing),
-      editions: editions.map((edition) => publicEdition(edition, briefing, false)),
+      editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
     });
   });
@@ -985,10 +1017,10 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const edition = await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
+    const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (await publishedProductEditions(c.env, briefing, c.req.param("editionId")))[0] : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
     if (!edition) return c.json({ error: "edition not found" }, 404);
     if (!isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
-    return c.json({ edition: publicEdition(edition, briefing, true) });
+    return c.json({ edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
   });
 
   app.get("/api/feed/:username/:briefingSlug/items/:itemId/evidence", async (c) => {
@@ -1003,13 +1035,13 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const editions = (await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
+    const editions = (c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
       editions: searchBriefingEditions(
         editions,
         c.req.query("q") ?? ""
-      ).map((edition) => publicEdition(edition, briefing, true))
+      ).map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true))
     });
   });
 
@@ -1018,6 +1050,7 @@ export function createApp(options: AppOptions = {}) {
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     if (briefing.paused) return c.json({ error: "feed is paused" }, 409);
+    if (c.env.PRODUCT_FEEDS_ENABLED === "true") return c.json({ edition: null, message: "Your next briefing will appear after the scheduled source checks complete." });
 
     try {
       await assertRateLimit(
@@ -1594,6 +1627,12 @@ function errorProperty(error: unknown, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function readNextBriefingAt(feed:BriefingConfig):string|undefined {
+  if(feed.paused)return undefined;
+  if(!feed.updateIntervalMinutes)return feed.nextBriefingAt;
+  return nextLiveBriefingAt({durationMinutes:feed.updateIntervalMinutes,timezone:feed.briefingTimezone,deliveryAnchor:feed.updateIntervalMinutes===1440?feed.briefingTimeOfDay:'00:00'},new Date());
+}
+
 function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interestProfile" | "styleInstruction"> {
   return {
     id: briefing.id,
@@ -1610,7 +1649,7 @@ function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interes
     briefingCadence: briefing.briefingCadence,
     briefingTimeOfDay: briefing.briefingTimeOfDay,
     briefingTimezone: briefing.briefingTimezone,
-    nextBriefingAt: briefing.nextBriefingAt,
+    nextBriefingAt: readNextBriefingAt(briefing),
     retentionDays: FIXED_RETENTION_DAYS
   };
 }

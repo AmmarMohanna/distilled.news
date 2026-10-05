@@ -1,18 +1,26 @@
 const rhythmLabels = { 30: "Every 30 min", 60: "Every hour", 120: "Every 2 hours", 360: "Every 6 hours", 720: "Every 12 hours", 1440: "Daily" } as const;
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Globe, Plus, Search, Settings, SquarePlus, X } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import { preferredLanguage, useLanguage } from "./LanguageControl";
 import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
-import { recommendSources } from "./api";
+import { getSources, recommendSources } from "./api";
 import { VoiceInput } from "./VoiceInput";
 
-export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
+export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { id: string; sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
 export function FeedEditor(props: {
   feed?: BriefingConfig; onClose: () => void; onSave: (input: FeedInput) => Promise<void>;
   onPause?: () => Promise<void>; onCopy?: () => Promise<void>; onDelete?: () => Promise<void>;
 }) {
+  const [id] = useState(() => props.feed?.id ?? `briefing_${crypto.randomUUID()}`);
+  const [sourcesReady, setSourcesReady] = useState(!props.feed);
+  useEffect(() => {
+    if (!props.feed) return;
+    let active = true;
+    getSources(props.feed.id).then(items => { if (active) { setSources(items.filter(s=>s.enabled).map(s=>s.sourceUrl || s.url || s.input || s.title)); setSourcesReady(true); } }).catch(cause => { if (active) setMessage(String(cause)); });
+    return () => { active = false; };
+  }, [props.feed?.id]);
   const [title, setTitle] = useState(props.feed?.title ?? "");
   const [prompt, setPrompt] = useState(props.feed?.interestProfile ?? "");
   const [rhythm, setRhythm] = useState<FeedInput["updateIntervalMinutes"]>(props.feed?.updateIntervalMinutes ?? (props.feed?.briefingCadence === "hourly" ? 60 : 1440));
@@ -45,8 +53,8 @@ export function FeedEditor(props: {
       event.preventDefault();
       try { new Intl.DateTimeFormat("en", { timeZone: timezone.trim() }).format(); }
       catch { setMessage(t("Enter a valid time zone, such as Asia/Beirut or UTC.")); return; }
-      if (!props.feed && sources.length === 0) { setMessage(t("Add at least one source.")); return; }
-      void run(() => props.onSave({ title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled: visibility, briefingTimezone: timezone.trim(), sourceInputs: sources }));
+      if (!sourcesReady || sources.length === 0) { setMessage(t("Add at least one source.")); return; }
+      void run(() => props.onSave({ id, title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled: visibility, briefingTimezone: timezone.trim(), sourceInputs: sources }));
     }}>
       <button type="button" className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={props.onClose}><X size={20}/></button>
       <div className="feed-editor-heading"><span className="feed-heading-icon"><SquarePlus size={23}/></span><h2>{t(props.feed ? "Edit feed settings" : "Add feed")}</h2></div>
@@ -71,7 +79,7 @@ export function FeedEditor(props: {
       <div className="feed-language-row"><span>{t("Briefing language")}</span><button type="button" aria-label={`Feed language: ${feedLanguage}`} onClick={() => setFeedLanguage(({ en: "fr", fr: "ar", ar: "en" } as const)[feedLanguage])}>{feedLanguage}</button></div>
       </div>
       {message && <p role="status">{message}</p>}
-      <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>
+      <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>
       {advanced && props.feed && <div className="feed-editor-actions">
         <button type="button" disabled={busy} onClick={() => void run(async () => { await props.onPause?.(); props.onClose(); })}>{t(props.feed?.paused ? "Resume feed" : "Pause feed")}</button>
         <button type="button" disabled={busy} onClick={() => void run(async () => { await props.onCopy?.(); setMessage(t("URL copied")); })}>{t("Copy URL")}</button>

@@ -6,26 +6,7 @@ import { confirmInstalledApp, installApp, notificationsEnabled, setNotifications
 
 export function NotificationsDialog({ onClose }: { onClose: () => void }) {
   const { t } = useLanguage();
-  const [enabled, setEnabled] = useState<boolean>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    notificationsEnabled().then(value => { if (active) setEnabled(value); }).catch(cause => { if (active) setError(String(cause)); });
-    return () => { active = false; };
-  }, []);
-  return <Dialog label={t("Notifications")} className="settings-status-dialog" onClose={onClose}><section className="dialog-inner">
-    <button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={onClose}><X size={22}/></button>
-    <h2>{t("Notifications")}</h2>
-    <div className="notification-switch-row"><span>{t(enabled ? "On" : "Off")}</span><button type="button" className="notification-switch" role="switch" aria-label={t("Notifications")} aria-checked={enabled ?? false} disabled={busy || enabled === undefined} onClick={async () => {
-      setBusy(true); setError("");
-      try { await setNotificationsEnabled(!enabled); setEnabled(!enabled); }
-      catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-      finally { setBusy(false); }
-    }}><span/></button></div>
-    <p role="status">{t(enabled === undefined ? "Loading…" : enabled ? "Notifications enabled" : "Notifications disabled")}</p>
-    {error && <p className="error" role="alert">{t(error)}</p>}
-  </section></Dialog>;
+  return <Dialog label={t("Notifications")} className="settings-status-dialog" onClose={onClose}><section className="dialog-inner"><button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={onClose}><X size={22}/></button><h2>{t("Notifications")}</h2><p role="status">{t("Notifications are not enabled on this deployment.")}</p></section></Dialog>;
 }
 
 export type InstallStatus = "pending" | Awaited<ReturnType<typeof installApp>> | "error";

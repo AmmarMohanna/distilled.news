@@ -70,6 +70,7 @@ import {
   resetPassword,
   retryProcessing,
   saveBriefing,
+  saveFeed,
   searchFeed,
   setFeedStar,
   setSourceEnabled,
@@ -281,11 +282,9 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     setBusyAction("create-feed");
     try {
       const draft = { ...createBriefingDraft(briefings, account), language: preferredLanguage(), ...input };
-      const created = await persistBriefing(draft, "feed created");
+      const created = input ? await saveFeed(input) : await persistBriefing(draft, "feed created");
       await loadBriefings(created.id);
       if (input) {
-        try { for (const source of input.sourceInputs ?? []) await addSource(created.id, source); }
-        catch (cause) { sessionStorage.setItem(`feed-notice:${created.id}`, `Feed saved, but selected sources could not be added: ${cause instanceof Error ? cause.message : String(cause)}`); }
         window.location.href = `/${created.ownerUsername}/${created.slug}/`;
       }
     } finally {
@@ -1582,11 +1581,7 @@ function FeedPage(props: { username: string; slug: string }) {
           setOwnedFeed(nextBriefings.find(feed => feed.ownerUsername === props.username && feed.slug === props.slug) ?? null);
         }}/>}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
-        const saved = await saveBriefing({ ...ownedFeed, ...input });
-        if (input.sourceInputs?.length) {
-          try { for (const source of input.sourceInputs ?? []) await addSource(saved.id, source); }
-          catch (cause) { sessionStorage.setItem(`feed-notice:${saved.id}`, `Feed saved, but selected sources could not be added: ${cause instanceof Error ? cause.message : String(cause)}`); }
-        }
+        const saved = await saveFeed(input);
         setOwnedFeed(saved); setEditorOpen(false);
         if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
         else await refresh();

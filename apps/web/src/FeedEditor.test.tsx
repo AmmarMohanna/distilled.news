@@ -6,7 +6,7 @@ import { personalNewsBriefing } from '@distilled/core';
 
 vi.mock('./Dialog', () => ({Dialog:({children,className}:{children:React.ReactNode;className:string})=><div className={className}>{children}</div>}));
 
-vi.mock('./api', () => ({recommendSources:vi.fn(async()=>['https://example.com/feed.xml'])}));
+vi.mock('./api', () => ({getSources:vi.fn(async()=>[{enabled:true,sourceUrl:'https://example.com/feed.xml'}]),recommendSources:vi.fn(async()=>['https://example.com/feed.xml'])}));
 
 it('offers the final preferences, conditional daily time and inferred timezone without editorial controls', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -23,7 +23,7 @@ it('offers the final preferences, conditional daily time and inferred timezone w
   await act(async()=>{rhythm.value='120';rhythm.dispatchEvent(new Event('change',{bubbles:true}));});
   expect(dialog.querySelector('input[type="time"]')).toBeNull();
   await act(async()=>{dialog.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});
-  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({updateIntervalMinutes:120,publicFeedEnabled:false,briefingTimezone:'Asia/Beirut',sourceInputs:[]}));
+  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({updateIntervalMinutes:120,publicFeedEnabled:false,briefingTimezone:'Asia/Beirut',sourceInputs:['https://example.com/feed.xml']}));
   expect(onSave.mock.calls[0][0]).not.toHaveProperty('styleInstruction');
   await act(async()=>root.unmount());host.remove();vi.unstubAllGlobals();
 });

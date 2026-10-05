@@ -18,7 +18,7 @@ export async function publicV1Edition(db:D1Database,id:string) {
   if(!observation || observation.value.observation.feedId!==row.feed_id) throw new HandoffError('SCOPE_DENIED');
   citations.push({evidenceRevisionId:revision.id,title:revision.title,url:revision.canonicalUrl,publisherId:observation.value.observation.publisherId??observation.value.observation.sourceId,publishedAt:revision.publishedAt});
  }
- return {id:edition.id,feedId:edition.feedId,title:publishedFeed.title,language:edition.language,windowStart:edition.windowStart,windowEnd:edition.windowEnd,createdAt:edition.createdAt,stories:edition.stories,citations};
+ return {id:edition.id,feedId:edition.feedId,title:publishedFeed.title,language:edition.language,windowStart:edition.windowStart,windowEnd:edition.windowEnd,createdAt:edition.createdAt,publishedAt:status.publishedAt,stories:edition.stories,citations};
 }
 export async function publicV1Evidence(db:D1Database,editionId:string,revisionId:string) {
  const edition=await publicV1Edition(db,editionId);if(!edition || !edition.citations.some(c=>c.evidenceRevisionId===revisionId)) return undefined;

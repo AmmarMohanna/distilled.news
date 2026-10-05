@@ -1,3 +1,4 @@
+import {productRuntimeEnv} from './product-feeds';
 import { createApp } from "./app";
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
@@ -32,11 +33,12 @@ const STALE_PROCESSING_JOB_REQUEUE_LIMIT = 25;
 const SLOW_QUEUE_JOB_MS = 10_000;
 
 export default {
-  fetch: app.fetch,
+  fetch: async (request: Request, env: Env, ctx: ExecutionContext) => app.fetch(request, await productRuntimeEnv(env), ctx),
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(runScheduledMaintenance(env));
   },
   async queue(batch: MessageBatch<DistilledQueueMessage | WebOperatorRunMessage>, env: Env): Promise<void> {
+    env = await productRuntimeEnv(env);
     const repo = new D1Repository(env.DB);
     const agentStore = new D1AgentRuntimeStore(env.DB);
     const summaryAdapter = createSummaryAdapterFromEnv(env, repo);
@@ -251,6 +253,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 async function runScheduledMaintenance(env: Env): Promise<void> {
+  env = await productRuntimeEnv(env);
   try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
   try {await dispatchV1Acquisitions(env)} catch {console.warn('Could not dispatch v1 acquisition jobs')}
   try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}

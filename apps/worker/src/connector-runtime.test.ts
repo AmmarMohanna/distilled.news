@@ -1,3 +1,5 @@
+import {publishedProductEditions} from './product-feeds';
+import {D1Repository} from './repository';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {createIntakeDatabase,testPolicy} from './v1-intake/test-utils';
 import {enrollV1Source,isV1ProductSource} from './v1-intelligence/product';
@@ -38,6 +40,8 @@ it('migrates empty D1 and connects RSS through receipts, acquisition, intelligen
  const message={type:'v1_briefing' as const,feedId:'feed-1',window:{start:'2026-10-01T00:00:00Z',end:now,kind:'DAILY' as const}};
  const edition=(await processV1Briefing(env,message,()=>now))!;
  expect((await feeds.list('feed-1','editorial_plans')).length).toBeGreaterThan(0);
+ const projection=await publishedProductEditions(env,(await new D1Repository(ctx.db).getBriefingById("feed-1"))!);
+ expect(projection).toHaveLength(1);expect(projection[0].sections[0].summary).toBe(edition.stories[0].claims.map(c=>c.text).join(" "));expect(projection[0].sections[0].evidence[0].sourceUrl).toBe("https://example.com/news/1");
  expect(edition.stories).toHaveLength(1);expect(edition.evidenceRevisionIds).toHaveLength(1);
  expect(edition.stories[0].claims[0].support[0].evidenceRevisionId).toBe(edition.evidenceRevisionIds[0]);
  expect(await processV1Briefing(env,message,()=>now)).toEqual(edition);expect(await feeds.list('feed-1','editions')).toHaveLength(1);
