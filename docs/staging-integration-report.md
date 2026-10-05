@@ -81,6 +81,10 @@ Duplicate publication delivery retained the same edition identity and public res
 
 At 10:07 UTC all 23 semantic jobs were DONE and there were 23 ClaimMentions, 23 Events and 23 Storylines, with no pending/failed acquisition or semantic jobs. The public evidence endpoint independently returned the exact cited immutable revision. The username-scoped feed endpoint returns 200 after completing the proof account's normal username alias. Its legacy edition list remains empty: these new editions are exposed through `/api/v1/editions/:id`, and the existing feed UI/legacy read model is not yet bridged to the new edition model. This staging proof establishes persisted publication and its real public edition/evidence API, not full browser presentation of the new pipeline.
 
+The actual automatic cron/relay path subsequently published closed-window edition `106ee9006d996c7dda92f2b53983528428b2bba8c2cdaf7212a631fd2e2d32e5` at `2026-10-05T10:10:25.728Z`, covering 09:30–10:00 UTC, without an operator publication message for that window. It contains two stories citing `e4923ee0-1c83-4e6a-8f55-5ca4ee3b08af` and `3c51d7aa-3cc4-4069-ad48-6c8456c32e32`. Both exact support checks pass, cost is zero, request is DONE and the real public API returns 200. This verifies the automatic scheduler through publication as well as the earlier bounded operator proof.
+
+At 10:10 UTC there were no unfinished downstream jobs and no dispatch warnings in the inspected ten-minute telemetry interval. Continuing polls advanced checkpoint version/sequence to 5. Two source content updates raised the revision count to 25 while candidates remained 23; grouping by item identity and content hash found zero duplicate content revisions. These later updates do not invalidate the earlier 23/23 replay snapshot. Paid-operation count remained zero.
+
 ## Tests and limitations
 
 Workspace typecheck passes. Contracts 44, core 43, connectors 168 and web unit tests 5 pass. Private execution Node tests 5 and Python tests 4 pass. Final focused integration tests: 7/7, including actual empty migration and full RSS-to-edition local execution. Git diff check and web build pass.
