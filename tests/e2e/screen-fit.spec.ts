@@ -56,13 +56,13 @@ test("change password expands and collapses the password fields", async ({ page 
   await page.goto('/');
   await page.getByRole('button', { name: 'Account profile', exact: true }).click();
   const toggle = page.locator('.password-disclosure');
-  await expect(page.getByLabel('current password', { exact: true })).toBeHidden();
+  await expect(page.getByLabel('Current Password', { exact: true })).toBeHidden();
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByLabel('current password', { exact: true })).toBeVisible();
-  await expect(page.getByLabel('new password', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Current Password', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('New Password', { exact: true })).toBeVisible();
   await toggle.click();
-  await expect(page.getByLabel('new password', { exact: true })).toBeHidden();
+  await expect(page.getByLabel('New Password', { exact: true })).toBeHidden();
 });
 
 test("voice controls keep feed name separate from description", async ({ page }) => {
@@ -171,9 +171,10 @@ test("install action invokes the browser installation prompt", async ({ page }) 
     window.dispatchEvent(event);
   });
   await page.getByRole('navigation').getByRole('button', {name:'Settings'}).click();
-  await page.getByRole('button', {name:'Install app (PWA)'}).click();
-  await expect(page.getByRole('status')).toHaveText('App installed.');
+  await page.getByRole('button', {name:'Install App (PWA)'}).click();
   expect(await page.evaluate(() => (window as any).installRequested)).toBe(true);
+  await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
+  await expect(page.getByRole('dialog', {name:'Install App (PWA)'}).getByRole('status')).toHaveText('Installation completed. Check your apps.');
 });
 
 test("notifications store a browser subscription and can be disabled", async ({ page }) => {

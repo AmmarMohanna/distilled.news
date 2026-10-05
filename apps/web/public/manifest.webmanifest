@@ -1,5 +1,7 @@
 {
   "id": "/",
+  "related_applications": [{ "platform": "webapp", "url": "/manifest.webmanifest", "id": "/" }],
+  "prefer_related_applications": false,
   "name": "Distilled.news",
   "short_name": "Distilled",
   "description": "A quiet personal news briefing.",

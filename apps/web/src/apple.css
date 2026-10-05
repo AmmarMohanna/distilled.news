@@ -347,3 +347,210 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui :is(.language-cycle,.theme-toggle,.feed-card-actions > button,.star-vote,.feed-options > summary):hover { background: transparent; color: var(--accent); }
 }
 @media (max-width: 899px) { :root.apple-ui.apple-ui .feed-options > summary { min-width: 44px; min-height: 44px; } }
+
+.apple-ui .explore-feed-owner { display: block; padding: 0 1rem 0.375rem; color: var(--muted); font-size: 0.875rem; }
+:root.apple-ui.apple-ui .category-chips { display: flex; flex-wrap: wrap; }
+:root.apple-ui.apple-ui .curated-feed-grid .topic-name { min-height: 0; padding-bottom: 0.25rem; }
+:root.apple-ui.apple-ui .explore-publishing-hint { margin-top: 1.25rem; color: var(--muted); font-size: 0.875rem; }
+
+/* Feed creation and account management reference layouts. */
+:root.apple-ui.apple-ui .feed-editor { width: min(680px, calc(100vw - 32px)); border-radius: 22px; }
+:root.apple-ui.apple-ui .feed-editor .dialog-inner { padding: 28px; gap: 20px; }
+:root.apple-ui.apple-ui .dialog-pages .screen-page-content { padding-bottom: 0; }
+:root.apple-ui.apple-ui .feed-editor-heading { display: flex; align-items: center; gap: 20px; padding-inline-end: 32px; }
+:root.apple-ui.apple-ui .feed-editor-heading h2 { font-size: 30px; font-weight: 700; padding: 0; }
+:root.apple-ui.apple-ui .feed-heading-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); flex: none; }
+:root.apple-ui.apple-ui .feed-editor .dialog-close { top: 22px; inset-inline-end: 22px; background: transparent; }
+:root.apple-ui.apple-ui .feed-details-fields { display: grid; gap: 22px; }
+:root.apple-ui.apple-ui .feed-editor.feed-editor label, :root.apple-ui.apple-ui .selected-sources-label { display: grid; gap: 8px; margin: 0; font-size: 17px; font-weight: 600; color: var(--text); }
+:root.apple-ui.apple-ui .feed-editor .voice-field :is(input,textarea) { min-height: 58px; padding: 15px 18px; padding-inline-end: 60px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); font-size: 17px; resize: vertical; }
+:root.apple-ui.apple-ui .feed-editor .voice-field .voice-input { top: 7px; inset-inline-end: 9px; }
+:root.apple-ui.apple-ui .feed-editor .voice-input button { width: 44px; height: 44px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+:root.apple-ui.apple-ui .feed-editor .voice-input button svg { width: 22px; height: 22px; }
+:root.apple-ui.apple-ui .feed-editor .voice-input button[aria-pressed="true"] { background: var(--accent); color: white; }
+:root.apple-ui.apple-ui .source-picker, :root.apple-ui.apple-ui .selected-sources { display: grid; gap: 10px; }
+:root.apple-ui.apple-ui .source-search-field { display: flex; align-items: center; gap: 14px; padding-inline: 16px; min-height: 54px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); }
+:root.apple-ui.apple-ui .source-search-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+:root.apple-ui.apple-ui .source-search-field input { min-width: 0; width: 100%; min-height: 50px; padding: 0; border: 0; background: transparent; box-shadow: none; font-size: 17px; }
+:root.apple-ui.apple-ui .source-search-field input:focus { outline: 0; box-shadow: none; }
+:root.apple-ui.apple-ui .source-search-field button, :root.apple-ui.apple-ui .selected-source-row > button { background: transparent; border: 0; padding: 8px; min-width: 36px; }
+:root.apple-ui.apple-ui .source-search-results { border: 1px solid var(--line); border-radius: 12px; padding: 7px; box-shadow: var(--shadow); max-height: 280px; overflow-y: auto; }
+:root.apple-ui.apple-ui .source-search-results > button, :root.apple-ui.apple-ui .selected-source-row { display: flex; align-items: center; gap: 16px; width: 100%; text-align: start; padding: 12px 14px; border: 0; border-bottom: 1px solid var(--line); background: transparent; border-radius: 0; }
+:root.apple-ui.apple-ui .source-search-results > button:last-child { border-bottom: 0; }
+:root.apple-ui.apple-ui .source-search-results > button.selected { background: color-mix(in srgb, var(--accent) 11%, var(--surface)); border-radius: 8px; border-color: transparent; }
+:root.apple-ui.apple-ui .source-platform-icon { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 11px; background: var(--surface-quiet); color: var(--text); font-size: 26px; }
+:root.apple-ui.apple-ui .platform-x { background: #090909; color: white; }
+:root.apple-ui.apple-ui .platform-telegram { background: #27a7df; color: white; }
+:root.apple-ui.apple-ui .platform-linkedin { background: #0a66c2; color: white; font-size: 22px; font-weight: 700; }
+:root.apple-ui.apple-ui .source-identity { display: grid; gap: 2px; min-width: 0; flex: 1; }
+:root.apple-ui.apple-ui .source-identity strong { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .source-identity small { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .source-platform-label { flex: none; color: var(--muted); font-size: 14px; font-weight: 400; }
+:root.apple-ui.apple-ui .source-recommend-button { justify-self: start; padding: 0; min-height: 30px; border: 0; background: transparent; color: var(--accent); font-size: 14px; }
+:root.apple-ui.apple-ui .selected-source-row { border: 1px solid var(--line); border-radius: 10px; }
+:root.apple-ui.apple-ui .add-source-button { display: flex; align-items: center; justify-content: flex-start; gap: 20px; padding: 12px 18px; min-height: 50px; border: 0; border-radius: 13px; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); color: var(--accent); font-weight: 600; }
+:root.apple-ui.apple-ui .feed-preferences-disclosure { display: flex; align-items: center; gap: 18px; padding: 15px 18px; text-align: start; border: 1px solid var(--line); background: transparent; border-radius: 10px; }
+:root.apple-ui.apple-ui .feed-preferences-disclosure > span { flex: 1; display: grid; gap: 2px; }
+:root.apple-ui.apple-ui .feed-preferences-disclosure strong { font-size: 17px; font-weight: 600; }
+:root.apple-ui.apple-ui .feed-preferences-disclosure small { color: var(--muted); font-size: 14px; font-weight: 400; }
+:root.apple-ui.apple-ui .feed-preferences-disclosure[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }
+:root.apple-ui.apple-ui .feed-preferences-fields:not([hidden]) { display: grid; gap: 16px; }
+:root.apple-ui.apple-ui .feed-editor .experience-dialog-actions { margin: 0; gap: 12px; }
+:root.apple-ui.apple-ui .feed-editor .experience-dialog-actions button { min-height: 54px; font-size: 17px; font-weight: 600; border-radius: 12px; }
+:root.apple-ui.apple-ui .feed-editor .experience-dialog-actions button:not(.primary-button) { background: var(--surface-quiet); color: var(--text); }
+:root.apple-ui.apple-ui .feed-editor .primary-button { background: #5e50f5; color: white; border-color: transparent; }
+
+:root.apple-ui.apple-ui .profile-dialog { width: min(560px, calc(100vw - 32px)); border-radius: 30px; }
+:root.apple-ui.apple-ui .profile-dialog-content { position: relative; padding: 64px 38px 36px; }
+:root.apple-ui.apple-ui .profile-dialog .dialog-close { top: 22px; inset-inline-end: 22px; }
+:root.apple-ui.apple-ui .profile-identity { display: grid; justify-items: center; gap: 10px; padding-bottom: 32px; text-align: center; }
+:root.apple-ui.apple-ui .profile-avatar { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 16%, var(--surface)); color: var(--accent); font-size: 34px; font-weight: 600; margin-bottom: 5px; }
+:root.apple-ui.apple-ui .profile-email { font-size: 19px; overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .profile-role { font-size: 16px; color: var(--muted); }
+:root.apple-ui.apple-ui .profile-dialog .account-form { border-top: 1px solid var(--line); padding-block: 24px; gap: 14px; }
+:root.apple-ui.apple-ui .profile-dialog label { font-size: 15px; font-weight: 400; color: var(--muted); display: grid; gap: 7px; }
+:root.apple-ui.apple-ui .profile-username-field { display: flex; align-items: center; background: var(--surface-quiet); border-radius: 16px; padding-inline: 16px 8px; }
+:root.apple-ui.apple-ui .profile-username-field input { border: 0; background: transparent; border-radius: 10px; min-width: 0; width: 100%; padding: 14px 4px; min-height: 54px; font-size: 18px; }
+:root.apple-ui.apple-ui .profile-edit-button { border: 0; background: transparent; min-width: 40px; padding: 8px; }
+:root.apple-ui.apple-ui .profile-password-section { padding-block: 24px; border-block: 1px solid var(--line); }
+:root.apple-ui.apple-ui .profile-dialog .password-disclosure { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; background: var(--surface-quiet); border: 0; border-radius: 16px; padding: 14px 18px; min-height: 54px; font-size: 17px; font-weight: 400; }
+:root.apple-ui.apple-ui .profile-dialog #change-password-form:not([hidden]) { padding-bottom: 0; }
+:root.apple-ui.apple-ui .profile-dialog [hidden] { display: none !important; }
+:root.apple-ui.apple-ui .profile-dialog .password-disclosure::after { content: none; }
+:root.apple-ui.apple-ui .profile-dialog .password-disclosure[aria-expanded="true"] > svg { transform: rotate(90deg); }
+:root.apple-ui.apple-ui .profile-dialog .account-actions { display: grid; grid-template-columns: 1fr; justify-items: center; gap: 14px; border: 0; padding-top: 30px; }
+:root.apple-ui.apple-ui .profile-dialog .account-actions > button { width: 62%; min-height: 52px; background: var(--surface-quiet); border: 0; border-radius: 15px; font-size: 17px; font-weight: 500; gap: 12px; }
+
+:root.apple-ui.apple-ui .accounts-section { grid-column: 1 / -1; margin-top: 24px; border: 0; padding: 0; }
+:root.apple-ui.apple-ui .accounts-summary { display: flex; align-items: center; gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; font-size: 16px; font-weight: 500; background: var(--surface); }
+:root.apple-ui.apple-ui .accounts-summary::-webkit-details-marker { display: none; }
+:root.apple-ui.apple-ui .accounts-summary > svg:nth-of-type(2) { margin-inline-start: auto; order: 1; }
+:root.apple-ui.apple-ui .accounts-back-label { display: none; }
+:root.apple-ui.apple-ui .settings-view:has(.accounts-section[open]) { display: block; max-width: none; margin: 0; }
+:root.apple-ui.apple-ui .settings-view:has(.accounts-section[open]) > :not(.accounts-section) { display: none; }
+:root.apple-ui.apple-ui .accounts-section[open] { margin: 0; }
+:root.apple-ui.apple-ui .accounts-section[open] > .accounts-summary { width: fit-content; border: 0; padding: 0 0 24px; background: transparent; font-size: 14px; gap: 14px; }
+:root.apple-ui.apple-ui .accounts-section[open] > .accounts-summary > svg:first-child { display: none; }
+:root.apple-ui.apple-ui .accounts-section[open] .accounts-back-label { display: inline; color: var(--muted); }
+:root.apple-ui.apple-ui .accounts-section[open] > .accounts-summary > svg:nth-of-type(2) { order: 0; margin: 0; color: var(--muted); }
+:root.apple-ui.apple-ui .user-management { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+:root.apple-ui.apple-ui .user-management.has-selection { grid-template-columns: minmax(0, 1fr) 320px; }
+:root.apple-ui.apple-ui .user-management-main { min-width: 0; }
+:root.apple-ui.apple-ui .user-management-heading h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.2; margin: 0 0 6px; }
+:root.apple-ui.apple-ui .user-management-heading p { margin: 0; font-size: 17px; color: var(--muted); }
+:root.apple-ui.apple-ui .users-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-block: 32px 22px; }
+:root.apple-ui.apple-ui .users-search { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 10px; padding-inline: 14px; flex: 1; min-width: 180px; max-width: 320px; color: var(--muted); }
+:root.apple-ui.apple-ui .users-search input { width: 100%; min-width: 0; border: 0; background: transparent; padding: 12px 0; min-height: 44px; box-shadow: none; }
+:root.apple-ui.apple-ui .users-toolbar select { width: auto; min-width: 120px; min-height: 46px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+:root.apple-ui.apple-ui .users-counts { display: flex; gap: 6px; margin-inline-start: auto; }
+:root.apple-ui.apple-ui .users-counts span { border: 1px solid var(--line); border-radius: 24px; color: var(--muted); padding: 5px 12px; font-size: 13px; white-space: nowrap; }
+:root.apple-ui.apple-ui .users-table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+:root.apple-ui.apple-ui .users-table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: start; }
+:root.apple-ui.apple-ui .users-table th { color: var(--muted); font-weight: 400; padding: 18px 16px; text-align: start; white-space: nowrap; }
+:root.apple-ui.apple-ui .users-table td { padding: 16px; border-top: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+:root.apple-ui.apple-ui .users-table tr.selected { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+:root.apple-ui.apple-ui .users-table th button { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--muted); font-weight: 400; min-height: 24px; }
+:root.apple-ui.apple-ui .user-name-button { display: flex; gap: 16px; align-items: center; border: 0; background: transparent; padding: 0; min-height: 40px; font-weight: 500; }
+:root.apple-ui.apple-ui .user-row-avatar { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 50%; color: var(--muted); background: var(--surface-quiet); font-size: 13px; }
+:root.apple-ui.apple-ui .user-row-avatar.admin { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); }
+:root.apple-ui.apple-ui .user-role-badge { display: inline-block; padding: 4px 14px; border-radius: 24px; background: var(--surface-quiet); color: var(--muted); font-size: 13px; text-transform: capitalize; }
+:root.apple-ui.apple-ui .user-role-badge.admin { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+:root.apple-ui.apple-ui .user-status { display: inline-flex; align-items: center; gap: 9px; }
+:root.apple-ui.apple-ui .user-status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+:root.apple-ui.apple-ui .user-status.suspended::before { background: #c3313c; }
+:root.apple-ui.apple-ui .user-manage-button { min-width: 32px; padding: 6px; border: 0; background: transparent; color: var(--muted); letter-spacing: 2px; }
+:root.apple-ui.apple-ui .users-empty { padding: 24px; color: var(--muted); }
+:root.apple-ui.apple-ui .managed-user-panel { position: relative; border: 1px solid var(--line); border-radius: 12px; padding: 28px; min-width: 0; display: flex; flex-direction: column; min-height: 560px; background: var(--surface); }
+:root.apple-ui.apple-ui .managed-user-close { position: absolute; top: 14px; inset-inline-end: 14px; border: 0; background: transparent; color: var(--muted); padding: 4px; min-width: 32px; }
+:root.apple-ui.apple-ui .managed-user-identity { display: grid; justify-items: start; gap: 8px; padding-bottom: 26px; }
+:root.apple-ui.apple-ui .managed-user-identity .profile-avatar { width: 80px; height: 80px; font-size: 30px; margin-bottom: 6px; }
+:root.apple-ui.apple-ui .managed-user-identity h2 { font-size: 25px; font-weight: 700; line-height: 1.2; margin: 0; }
+:root.apple-ui.apple-ui .managed-user-identity p { color: var(--muted); font-size: 15px; margin: 0; overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .managed-user-stats { display: grid; grid-template-columns: 1fr 1fr; border-block: 1px solid var(--line); padding-block: 24px; }
+:root.apple-ui.apple-ui .managed-user-stats > span { display: grid; gap: 5px; color: var(--muted); font-size: 13px; }
+:root.apple-ui.apple-ui .managed-user-stats > span + span { border-inline-start: 1px solid var(--line); padding-inline-start: 24px; }
+:root.apple-ui.apple-ui .managed-user-stats strong { color: var(--text); font-size: 18px; font-weight: 500; }
+:root.apple-ui.apple-ui .managed-user-panel details > summary { display: flex; align-items: center; gap: 14px; padding-block: 21px; cursor: pointer; font-size: 16px; font-weight: 400; }
+:root.apple-ui.apple-ui .managed-user-panel details > summary > svg:last-child { margin-inline-start: auto; }
+:root.apple-ui.apple-ui .managed-user-panel details[open] > summary > svg:last-child { transform: rotate(90deg); }
+:root.apple-ui.apple-ui .managed-user-panel .account-form { padding-block: 14px; }
+:root.apple-ui.apple-ui .managed-user-danger { margin-block-start: auto; color: var(--muted); border-top: 1px solid var(--line); }
+:root.apple-ui.apple-ui .managed-user-danger summary { font-size: 13px !important; padding-block: 12px !important; }
+:root.apple-ui.apple-ui .managed-user-suspend { display: flex; align-items: center; gap: 16px; width: 100%; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; color: #b52330; padding: 22px 0 4px; font-size: 16px; font-weight: 400; }
+:root.apple-ui.apple-ui .managed-user-suspend > svg:last-child { margin-inline-start: auto; }
+:root.apple-ui.apple-ui .admin-feed-row { display: grid; gap: 12px; padding-block: 14px; }
+:root.apple-ui.apple-ui .admin-feed-row .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (min-width: 1440px) {
+  :root.apple-ui.apple-ui .user-management.has-selection { grid-template-columns: minmax(0, 1fr) 360px; }
+}
+@media (max-width: 1199px) {
+  :root.apple-ui.apple-ui .user-management.has-selection { grid-template-columns: minmax(0, 1fr); }
+  :root.apple-ui.apple-ui .managed-user-panel { min-height: 0; }
+}
+@media (max-width: 600px) {
+  :root.apple-ui.apple-ui .feed-editor .dialog-inner { padding: 22px 18px; gap: 18px; }
+  :root.apple-ui.apple-ui .feed-editor-heading { gap: 12px; }
+  :root.apple-ui.apple-ui .feed-editor-heading h2 { font-size: 25px; }
+  :root.apple-ui.apple-ui .feed-editor .dialog-close { top: 16px; inset-inline-end: 12px; }
+  :root.apple-ui.apple-ui .source-platform-label { display: none; }
+  :root.apple-ui.apple-ui .profile-dialog-content { padding: 58px 24px 28px; }
+  :root.apple-ui.apple-ui .profile-dialog .account-actions > button { width: 80%; }
+  :root.apple-ui.apple-ui .users-counts { width: 100%; margin: 0; }
+  :root.apple-ui.apple-ui .user-management-heading h1 { font-size: 29px; }
+  :root.apple-ui.apple-ui .managed-user-panel { padding: 24px; }
+}
+:root.apple-ui.apple-ui input:focus-visible,
+:root.apple-ui.apple-ui textarea:focus-visible,
+:root.apple-ui.apple-ui select:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; box-shadow: none; }
+:root.apple-ui.apple-ui :is(.explore-search, .search, .auth-input, .voice-field, .source-search-field, .users-search, .profile-username-field):focus-within { outline: 2px solid var(--text); outline-offset: -2px; box-shadow: none; }
+:root.apple-ui.apple-ui .voice-field { border-radius: 9px; }
+:root.apple-ui.apple-ui :is(.explore-search, .search, .auth-input, .voice-field, .source-search-field, .users-search, .profile-username-field) :is(input, textarea):focus-visible { outline: none; box-shadow: none; }
+:root.apple-ui.apple-ui .profile-save-button { color: var(--accent); border: 0; background: transparent; padding: 4px 0; box-shadow: none; }
+:root.apple-ui.apple-ui .profile-dialog .account-actions > button { color: #b52330; }
+:root.apple-ui.apple-ui .managed-user-identity { justify-items: center; text-align: center; }
+:root.apple-ui.apple-ui .managed-user-suspend { margin-top: auto; }
+:root.apple-ui.apple-ui .users-toolbar select { padding: 12px 18px; min-width: 145px; }
+:root.apple-ui.apple-ui .users-role-filter { display: inline-flex; position: relative; align-items: center; }
+:root.apple-ui.apple-ui .users-role-filter select { appearance: none; padding-inline: 18px 46px; }
+:root.apple-ui.apple-ui .users-role-filter > svg { position: absolute; inset-inline-end: 18px; pointer-events: none; color: var(--text); }
+:root.apple-ui.apple-ui .account-role-options { border: 0; padding: 16px 0; display: flex; gap: 24px; }
+:root.apple-ui.apple-ui .account-role-options label { display: flex; align-items: center; gap: 8px; }
+:root.apple-ui.apple-ui .account-role-options input { width: 18px; height: 18px; min-height: 0; margin: 0; accent-color: var(--accent); }
+:root.apple-ui.apple-ui .admin-feed-row { display: flex; align-items: center; justify-content: space-between; }
+:root.apple-ui.apple-ui .admin-feed-row > strong { min-width: 0; overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .settings-view .accounts-summary > svg:last-of-type { width: 17px; height: 17px; color: var(--muted); }
+:root.apple-ui.apple-ui .settings-status-dialog { width: min(430px, calc(100vw - 32px)); }
+:root.apple-ui.apple-ui .settings-status-dialog .dialog-inner { padding: 36px; }
+:root.apple-ui.apple-ui .notification-switch-row { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; }
+:root.apple-ui.apple-ui .notification-switch { width: 54px; min-height: 30px; height: 30px; padding: 3px; border: 0; border-radius: 20px; background: #a9a9b2; }
+:root.apple-ui.apple-ui .notification-switch > span { display: block; width: 24px; height: 24px; background: white; border-radius: 50%; }
+:root.apple-ui.apple-ui .notification-switch[aria-checked="true"] { background: var(--accent); }
+:root.apple-ui.apple-ui .notification-switch[aria-checked="true"] > span { transform: translateX(24px); }
+:root.apple-ui.apple-ui .install-status-dialog { text-align: center; }
+:root.apple-ui.apple-ui .install-status-icon { display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%; background: var(--accent-tint, #efedff); color: var(--accent); margin: 12px 0; }
+@media (min-width: 900px) { :root.apple-ui.apple-ui .sidebar-logo { transform: translateX(-8px); } }
+
+/* Remove the legacy inset highlights from native controls. */
+:root.apple-ui.apple-ui :is(button, .button-link, input, textarea, select) { box-shadow: none; }
+:root.apple-ui.apple-ui .profile-username-field :is(input, button) { outline: none; border: 0; box-shadow: none; }
+:root.apple-ui.apple-ui .profile-username-field:focus-within { outline: 2px solid var(--text); outline-offset: -2px; }
+:root.apple-ui.apple-ui .source-recommend-button { border: 0; box-shadow: none; background: transparent; }
+:root.apple-ui.apple-ui .settings-view .accounts-section { background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .users-table :is(button, .user-name-button, .user-manage-button) { border: 0; box-shadow: none; background: transparent; }
+:root.apple-ui.apple-ui .account-role-options input { padding: 0; background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .notification-switch { display: block; position: relative; padding: 3px; }
+:root.apple-ui.apple-ui .notification-switch > span { position: absolute; top: 3px; left: 3px; transform: none; }
+:root.apple-ui.apple-ui .notification-switch[aria-checked="true"] > span { left: calc(100% - 27px); transform: none; }
+:root.apple-ui.apple-ui .support-dialog .dialog-inner { padding: 36px; background: transparent; }
+:root.apple-ui.apple-ui .support-dialog .screen-page-viewport { scrollbar-gutter: auto; }
+:root.apple-ui.apple-ui .admin-feed-row { background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .admin-feed-actions { display: flex; min-width: 0; gap: 4px; }
+:root.apple-ui.apple-ui .admin-feed-actions button { width: 44px; min-width: 44px; min-height: 44px; padding: 10px; justify-content: center; border: 0; background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .admin-feed-actions .danger-button { color: #e5484d; }
+:root.apple-ui.apple-ui .install-status-icon.success { background: var(--accent); color: white; }
+:root.apple-ui.apple-ui .support-dialog .dialog-inner > p:first-of-type { color: var(--accent); }
+:root.apple-ui.apple-ui .auth-dialog .screen-page-viewport { scrollbar-gutter: auto; }
+:root.apple-ui.apple-ui .auth-dialog .auth-modal-content,
+:root.apple-ui.apple-ui .auth-dialog .login { background: transparent; border-radius: 0; }
+:root.apple-ui.apple-ui .install-status-dialog .dialog-inner { display: flex; flex-direction: column; align-items: center; }
+:root.apple-ui.apple-ui .install-status-dialog h2 { padding-inline: 0; }

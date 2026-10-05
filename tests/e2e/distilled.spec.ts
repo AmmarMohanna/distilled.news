@@ -469,8 +469,8 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
   await page.getByRole("button", { name: "Account profile" }).click();
   await expect(page.getByRole("dialog", { name: "account" })).toBeVisible();
   await expect(page.getByLabel("username")).toHaveValue("ammar-mohanna");
-  await expect(page.getByLabel("current password")).toBeVisible();
-  await expect(page.getByLabel("new password")).toBeVisible();
+  await expect(page.getByLabel("Current Password")).toBeVisible();
+  await expect(page.getByLabel("New Password")).toBeVisible();
   await page.getByRole("button", { name: "close account settings" }).click();
   await expect(page.getByRole("link", { name: "open Local Briefing", exact: true })).toHaveAttribute(
     "href",

@@ -80,6 +80,33 @@ afterEach(() => {
 });
 
 describe("worker app accounts", () => {
+  it("serves installed-app detection metadata from the deployed manifest", async () => {
+    const app = createApp({ repository: new InMemoryRepository() });
+    const response = await app.request("https://selfhost.example/manifest.webmanifest", {}, env());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id: "/", prefer_related_applications: false,
+      related_applications: [{ platform: "webapp", url: "https://selfhost.example/manifest.webmanifest", id: "https://selfhost.example/" }]
+    });
+  });
+  it("keeps usernames unique on every self rename and rejects admin renames", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const admin = await createVerifiedUser(app, repo, "owner@example.test", "owner", "admin");
+    const user = await createVerifiedUser(app, repo, "reader@example.test", "reader");
+    const rename = (username: string) => app.request("/api/me/account", {
+      method: "PATCH", headers: { "content-type": "application/json", cookie: user.cookie }, body: JSON.stringify({ username })
+    }, env());
+    expect((await rename("OWNER")).status).toBe(409);
+    expect((await rename("new-reader")).status).toBe(200);
+    expect((await rename("Owner")).status).toBe(409);
+    expect((await repo.getAccountById(user.account.id))?.username).toBe("new-reader");
+    const reserved = await app.request("/api/auth/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "another@example.test", username: "reader", password: "password123" }) }, env());
+    expect(reserved.status).toBe(409);
+    const forbidden = await app.request(`/api/admin/accounts/${user.account.id}`, { method: "PATCH", headers: { "content-type": "application/json", cookie: admin.cookie }, body: JSON.stringify({ username: "admin-renamed" }) }, env());
+    expect(forbidden.status).toBe(400);
+    expect((await repo.getAccountById(user.account.id))?.username).toBe("new-reader");
+  });
   it("sets up the first verified admin account and session", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
@@ -1934,42 +1961,38 @@ describe("worker app accounts", () => {
     expect(feedItems[0].evidence).toHaveLength(1);
   });
 
-  it("lists top explored feeds by stars and oldest tie", async () => {
+  it("lists only selected active admin feeds in publication order, regardless of stars", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
 
-    const older = await createVerifiedUser(app, repo, "older@test.com", "Older Owner");
-    const newer = await createVerifiedUser(app, repo, "newer@test.com", "Newer Owner");
-    const top = await createVerifiedUser(app, repo, "top@test.com", "Top Owner");
-    const disabled = await createVerifiedUser(app, repo, "disabled@test.com", "Disabled Owner");
-    const lowerOwners = await Promise.all(
-      Array.from({ length: 8 }, (_, index) =>
-        createVerifiedUser(app, repo, `lower-${index}@test.com`, `Lower Owner ${index}`)
-      )
-    );
-    const owners = [older, newer, top, disabled, ...lowerOwners];
-
+    const older = await createVerifiedUser(app, repo, "older@test.com", "Older Owner", "admin");
+    const newer = await createVerifiedUser(app, repo, "newer@test.com", "Newer Owner", "admin");
+    const reader = await createVerifiedUser(app, repo, "reader@test.com", "Reader Owner");
+    const disabled = await createVerifiedUser(app, repo, "disabled@test.com", "Disabled Owner", "admin");
+    const unpublished = await createVerifiedUser(app, repo, "unpublished@test.com", "Unpublished Owner", "admin");
     const updates = [
-      { owner: owners[0], title: "Older Tie", stars: 5 },
-      { owner: owners[1], title: "Newer Tie", stars: 5 },
-      { owner: owners[2], title: "Top Feed", stars: 9 },
-      { owner: owners[3], title: "Disabled Feed", stars: 99 },
-      ...owners.slice(4).map((owner, index) => ({ owner, title: `Lower Feed ${index}`, stars: 4 - (index % 4) }))
+      { owner: older, title: "Older Selected Feed", stars: 99 },
+      { owner: newer, title: "Newer Selected Feed", stars: 0 },
+      { owner: reader, title: "Reader Feed", stars: 999 },
+      { owner: disabled, title: "Disabled Feed", stars: 999 },
+      { owner: unpublished, title: "Unpublished Feed", stars: 999 }
     ];
 
     for (const update of updates) {
       const briefing = await repo.getBriefingBySlug(update.owner.account.id, "personal");
       expect(briefing).not.toBeNull();
       await repo.upsertBriefing({ ...briefing!, title: update.title, stars: update.stars });
+      if (update.owner !== unpublished) await repo.setSetting(`popular:${briefing!.id}`, "1");
+      if (update.owner === older || update.owner === newer) await repo.setSetting(`explore_published_at:${briefing!.id}`, update.owner === older ? "2026-06-15T10:00:00Z" : "2026-06-16T10:00:00Z");
     }
-    await repo.updateAccount({ id: owners[3].account.id, disabled: true });
+    await repo.updateAccount({ id: disabled.account.id, disabled: true });
 
     const response = await app.request("/api/explore/feeds", {}, env());
     expect(response.status).toBe(200);
     const payload = (await response.json()) as { feeds: Array<{ title: string; stars: number }> };
-    expect(payload.feeds).toHaveLength(10);
-    expect(payload.feeds.map((feed) => feed.title).slice(0, 3)).toEqual(["Top Feed", "Older Tie", "Newer Tie"]);
-    expect(payload.feeds.some((feed) => feed.title === "Disabled Feed")).toBe(false);
+    expect(payload.feeds.map(feed => feed.title)).toEqual(["Newer Selected Feed", "Older Selected Feed"]);
+    expect(payload.feeds.map(feed => feed.stars)).toEqual([0, 99]);
+    expect(await (await app.request("/api/explore/popular", {}, env())).json()).toEqual(payload);
   });
 
   it("redirects reserved old usernames after username changes", async () => {
@@ -2327,14 +2350,37 @@ describe("source recommendations and curated popular feeds", () => {
     const admin = await createVerifiedUser(app, repo, "curator@example.test", "curator", "admin");
     const user = await createVerifiedUser(app, repo, "reader@example.test", "reader");
     const feed = (await repo.listBriefings(admin.account.id))[0];
-    const path = `/api/admin/briefings/${feed.id}/popular`;
+    const path = `/api/admin/briefings/${feed.id}/explore`;
     const init = { method: "POST", headers: { "content-type": "application/json", cookie: user.cookie }, body: JSON.stringify({ featured: true }) };
+    expect(await (await app.request("/api/explore/feeds", {}, env())).json()).toEqual({ feeds: [] });
+    expect((await app.request(path, { ...init, headers: { "content-type": "application/json" } }, env())).status).toBe(401);
     expect((await app.request(path, init, env())).status).toBe(401);
     expect((await app.request(path, { ...init, headers: { ...init.headers, cookie: admin.cookie } }, env())).status).toBe(200);
     const popular = await (await app.request("/api/explore/popular", {}, env())).json() as { feeds: { id: string; stars: number }[] };
     expect(popular.feeds.map(item => item.id)).toContain(feed.id);
     expect(popular.feeds[0].stars).toBe(feed.stars);
+    expect(await repo.getSetting(`explore_published_at:${feed.id}`)).toBeTruthy();
+    const publishedAt = await repo.getSetting(`explore_published_at:${feed.id}`);
+    await app.request(path, { ...init, headers: { ...init.headers, cookie: admin.cookie } }, env());
+    expect(await repo.getSetting(`explore_published_at:${feed.id}`)).toBe(publishedAt);
+    const readerFeed = (await repo.listBriefings(user.account.id))[0];
+    expect((await app.request(`/api/admin/briefings/${readerFeed.id}/explore`, { ...init, headers: { ...init.headers, cookie: admin.cookie } }, env())).status).toBe(400);
     await app.request(path, { ...init, headers: { ...init.headers, cookie: admin.cookie }, body: JSON.stringify({ featured: false }) }, env());
     expect(await (await app.request("/api/explore/popular", {}, env())).json()).toEqual({ feeds: [] });
+    expect(await (await app.request("/api/explore/feeds", {}, env())).json()).toEqual({ feeds: [] });
+  });
+
+  it("returns every selected admin feed and honors existing selections", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const admin = await createVerifiedUser(app, repo, "collection@example.test", "collection", "admin");
+    const template = (await repo.listBriefings(admin.account.id))[0];
+    for (let index = 0; index < 12; index++) {
+      const feed = await repo.upsertBriefing({ ...template, id: `curated_${index}`, slug: `curated-${index}`, title: `Curated ${index}`, stars: 0 });
+      await repo.setSetting(`popular:${feed.id}`, "1");
+    }
+    const result = await (await app.request("/api/explore/feeds", {}, env())).json() as { feeds: { id: string; interestProfile?: string; styleInstruction?: string }[] };
+    expect(result.feeds).toHaveLength(12);
+    expect(result.feeds.every(feed => feed.interestProfile === undefined && feed.styleInstruction === undefined)).toBe(true);
   });
 });

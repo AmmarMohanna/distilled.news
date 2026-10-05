@@ -24,13 +24,13 @@ test("guest landing browses and searches public feeds without a menu", async ({ 
   await expect(page.getByText("Distilling to you what is important.")).toBeVisible();
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Top feeds" })).toBeVisible();
-  await expect(page.locator(".ranked-feed")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Featured feeds" })).toBeVisible();
+  await expect(page.locator(".curated-feed-grid .topic-card")).toHaveCount(1);
   await page.getByRole("searchbox", { name: "Search feeds" }).fill("nonexistent");
-  await expect(page.locator(".ranked-feed")).toHaveCount(0);
-  await expect(page.locator(".top-feeds")).toHaveCount(0);
+  await expect(page.locator(".curated-feed-grid .topic-card")).toHaveCount(0);
+  await expect(page.getByText("No feeds match your search.")).toBeVisible();
   await page.getByRole("searchbox").fill("joud");
-  await expect(page.locator(".ranked-feed")).toHaveCount(1);
+  await expect(page.locator(".curated-feed-grid .topic-card")).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("searchbox").fill("");
   await page.screenshot({ path: "test-results/landing-" + test.info().project.name + ".png" });
@@ -50,7 +50,7 @@ test("create feed opens login and signup with outside, inside, and Escape behavi
   await dialog.getByLabel("username", { exact: true }).fill("joud");
   await dialog.getByLabel("password", { exact: true }).fill("example-password");
   const registered = page.waitForRequest(request => request.url().endsWith("/api/auth/register"));
-  await dialog.getByRole("button", { name: "create account", exact: true }).click();
+  await dialog.getByRole("button", { name: "Create Account", exact: true }).click();
   expect((await registered).postDataJSON()).toMatchObject({ username: "joud", email: "joud@example.test" });
   await expect(dialog.getByText(/verification email sent/i)).toBeVisible();
   await page.screenshot({ path: "test-results/auth-popup-" + test.info().project.name + ".png" });
@@ -69,7 +69,7 @@ test("create feed continues to the editor after login", async ({ page }) => {
   const dialog = page.getByRole("dialog", { name: "Login or sign up" });
   await dialog.getByLabel("email", { exact: true }).fill("joud@example.test");
   await dialog.getByLabel("password", { exact: true }).fill("example-password");
-  await dialog.getByRole("button", { name: "login", exact: true }).last().click();
+  await dialog.getByRole("button", { name: "Login", exact: true }).last().click();
   await expect(page.getByRole("dialog", { name: "Add feed" })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Login or sign up" })).toHaveCount(0);
   await page.mouse.click(4, 4);

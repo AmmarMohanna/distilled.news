@@ -42,7 +42,9 @@ test("feed cards have rounded artwork, plain controls, and real update times", a
 });
 test("cards expose owner edit and stars; speech controls are icons and sources selectable", async ({ page }) => {
  await mock(page); await page.goto("/");
+ await page.locator('.personal-feed-grid .feed-options > summary').click();
  await expect(page.locator(".personal-feed-grid").getByRole("link", { name: "Edit feed settings" })).toBeVisible();
+ await page.locator('.personal-feed-grid .feed-options > summary').press('Escape');
  await expect(page.locator(".personal-feed-grid").getByRole("button", { name: "Star", exact: true })).toBeVisible();
  await expect(page.getByText("View briefing", { exact: true })).toHaveCount(0);
  await page.getByRole("button", { name: "Create feed", exact: true }).click();
@@ -52,8 +54,8 @@ test("cards expose owner edit and stars; speech controls are icons and sources s
  await expect(dialog.getByText("Your browser may process speech online.")).toHaveCount(0);
  await expect(dialog.locator(".voice-input button").first()).toHaveText("");
  await dialog.getByRole("button", { name: "Recommend sources with AI" }).click();
- await dialog.getByRole("checkbox", { name: "NASA" }).check();
- await expect(dialog.getByLabel("Sources", { exact: true })).toHaveValue("NASA");
+ await dialog.locator('.source-search-results button').filter({ hasText: 'NASA' }).click();
+ await expect(dialog.locator('.selected-source-row')).toContainText('NASA');
 });
 test("guest landing has login, curated feeds, and no owner edit", async ({ page }) => {
  await mock(page, false); await page.goto("/");

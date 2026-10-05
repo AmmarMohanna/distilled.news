@@ -96,10 +96,9 @@ const accountUpdateSchema = z.object({
 });
 
 const adminAccountUpdateSchema = z.object({
-  username: z.string().min(1).optional(),
   role: z.enum(["admin", "user"]).optional(),
   disabled: z.boolean().optional()
-});
+}).strict();
 
 const adminBriefingUpdateSchema = z.object({
   paused: z.boolean().optional()
@@ -161,9 +160,12 @@ function buildManifestPayload(input: {
   description: string;
   startUrl: string;
   id: string;
+  manifestUrl: string;
 }) {
   return {
     id: input.id,
+    related_applications: [{ platform: "webapp", url: input.manifestUrl, id: new URL(input.id, input.manifestUrl).href }],
+    prefer_related_applications: false,
     name: input.title,
     short_name: input.title,
     description: input.description,
@@ -633,18 +635,11 @@ export function createApp(options: AppOptions = {}) {
     const target = await repo.getAccountById(c.req.param("accountId"));
     if (!target) return c.json({ error: "account not found" }, 404);
     const input = adminAccountUpdateSchema.parse(await c.req.json().catch(() => ({})));
-    const username = input.username ? normalizeUsername(input.username) : undefined;
-    try {
-      if (username) await assertUsernameAvailable(repo, username, target.id);
-    } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : "username is already taken" }, 409);
-    }
     if (target.role === "admin" && (input.disabled === true || input.role === "user") && (await repo.countAdmins()) <= 1) {
       return c.json({ error: "keep at least one admin" }, 400);
     }
     const account = await repo.updateAccount({
       id: target.id,
-      username,
       role: input.role,
       disabled: input.disabled
     });
@@ -694,29 +689,25 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ briefings: await repo.listBriefings(), accounts: await repo.listAccounts() });
   });
 
-  app.post("/api/admin/briefings/:briefingId/popular", async (c) => {
+  // Preserve the older publishing URL for existing admin clients.
+  for (const path of ["/api/admin/briefings/:briefingId/explore", "/api/admin/briefings/:briefingId/popular"] as const) app.post(path, async (c) => {
     const repo = c.get("repo");
     const feed = await repo.getBriefingById(c.req.param("briefingId"));
-    if (!feed || !feed.publicFeedEnabled) return c.json({ error: "Choose a public feed." }, 400);
     const { featured } = z.object({ featured: z.boolean() }).parse(await c.req.json());
+    if (!feed) return c.json({ error: "Feed not found." }, 404);
+    if (featured) {
+      const owner = await repo.getAccountById(feed.ownerAccountId);
+      if (!feed.publicFeedEnabled || !owner || owner.role !== "admin" || owner.disabledAt) return c.json({ error: "Choose a public feed owned by an active admin." }, 400);
+      // Republish to move a feed to the front without changing its stars.
+      if (await repo.getSetting(`popular:${feed.id}`) !== "1") await repo.setSetting(`explore_published_at:${feed.id}`, (options.now?.() ?? new Date()).toISOString());
+    }
     await repo.setSetting(`popular:${feed.id}`, featured ? "1" : "0");
     return c.json({ featured });
   });
-  app.get("/api/explore/popular", async (c) => {
+  for (const path of ["/api/explore/feeds", "/api/explore/popular"]) app.get(path, async (c) => {
     c.header("Cache-Control", "no-store");
     const repo = repoFor(c);
-    const feeds = await repo.listBriefings();
-    const selected = await Promise.all(feeds.filter(feed => feed.publicFeedEnabled).map(async feed => {
-      const account = await repo.getAccountById(feed.ownerAccountId);
-      return account && !account.disabledAt && await repo.getSetting(`popular:${feed.id}`) === "1" ? publicBriefing(feed) : null;
-    }));
-    return c.json({ feeds: selected.filter(Boolean) });
-  });
-
-  app.get("/api/explore/feeds", async (c) => {
-    c.header("Cache-Control", "no-store");
-    const repo = repoFor(c);
-    const feeds = await repo.listExploreBriefings(10);
+    const feeds = await curatedExploreBriefings(repo);
     return c.json({ feeds: feeds.map(publicBriefing) });
   });
 
@@ -838,6 +829,7 @@ export function createApp(options: AppOptions = {}) {
 
     let manifest = buildManifestPayload({
       id: "/",
+      manifestUrl: c.req.url,
       title: "Distilled.news",
       description: "A quiet personal news briefing.",
       startUrl: "/"
@@ -849,6 +841,7 @@ export function createApp(options: AppOptions = {}) {
       if (resolved && briefing?.publicFeedEnabled) {
         manifest = buildManifestPayload({
           id: `/${resolved.account.username}/${briefing.slug}/`,
+          manifestUrl: c.req.url,
           title: briefing.title,
           description: "Published briefing items only.",
           startUrl: `/${resolved.account.username}/${briefing.slug}/`
@@ -1137,6 +1130,18 @@ function errorProperty(error: unknown, key: string): string | undefined {
   if (!error || typeof error !== "object") return undefined;
   const value = (error as Record<string, unknown>)[key];
   return typeof value === "string" ? value : undefined;
+}
+
+async function curatedExploreBriefings(repo: Repository): Promise<BriefingConfig[]> {
+  const [accounts, feeds] = await Promise.all([repo.listAccounts(), repo.listBriefings()]);
+  const adminIds = new Set(accounts.filter(account => account.role === "admin" && !account.disabledAt).map(account => account.id));
+  const selected = await Promise.all(feeds.filter(feed => feed.publicFeedEnabled && adminIds.has(feed.ownerAccountId)).map(async feed => {
+    if (await repo.getSetting(`popular:${feed.id}`) !== "1") return null;
+    return { feed, publishedAt: await repo.getSetting(`explore_published_at:${feed.id}`) ?? "" };
+  }));
+  return selected.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || a.feed.title.localeCompare(b.feed.title) || a.feed.id.localeCompare(b.feed.id))
+    .map(entry => entry.feed);
 }
 
 function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interestProfile" | "styleInstruction"> {

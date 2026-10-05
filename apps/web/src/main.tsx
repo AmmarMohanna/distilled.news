@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
+  Ban,
   Eye,
   EyeOff,
   Mail,
@@ -27,6 +28,7 @@ import {
   Moon,
   Newspaper,
   Pause,
+  Pencil,
   Play,
   Plus,
   RadioTower,
@@ -46,10 +48,8 @@ import {
 import type { BriefingConfig, BriefingEdition, BriefingEditionSection, BriefingEvidence } from "@distilled/core";
 import { personalNewsBriefing } from "@distilled/core";
 import {
-  setPopularFeed,
   addSource,
   deleteBriefing,
-  deleteAdminAccount,
   deleteAdminBriefing,
   deleteSource,
   forgotPassword,
@@ -84,7 +84,7 @@ import {
 import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify } from "./helpers";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
-import { AppExperience, AppHeader, BrandMark, PublicNavigation } from "./AppExperience";
+import { accountInitials, AppExperience, AppHeader, BrandMark, PublicNavigation } from "./AppExperience";
 import { LanguageControl, preferredLanguage, useLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
 import { Dialog } from "./Dialog";
@@ -672,13 +672,13 @@ function getAuthPanelCopy(setupRequired: boolean, mode: "login" | "register" | "
   }
   if (mode === "register") {
     return {
-      title: "Create your account",
+      title: "Create your Account",
       description: "Choose a username, then verify your email before signing in."
     };
   }
   if (mode === "forgot") {
     return {
-      title: "reset password",
+      title: "Reset Password",
       description: "Enter your email and we will send a reset link if the account exists."
     };
   }
@@ -689,10 +689,10 @@ function getAuthPanelCopy(setupRequired: boolean, mode: "login" | "register" | "
 }
 
 function getAuthSubmitLabel(setupRequired: boolean, mode: "login" | "register" | "forgot"): string {
-  if (setupRequired) return "Create admin account";
-  if (mode === "register") return "create account";
-  if (mode === "forgot") return "send reset link";
-  return "login";
+  if (setupRequired) return "Create Admin Account";
+  if (mode === "register") return "Create Account";
+  if (mode === "forgot") return "Send Reset Link";
+  return "Login";
 }
 
 function TurnstileField(props: { siteKey: string; resetSignal: number; onToken: (token: string) => void }) {
@@ -789,7 +789,7 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
 
   if (error) return <p className="error">{error}</p>;
   if (!feeds) return <p className="muted">{loadingFeedsLabel(language)}</p>;
-  if (feeds.length === 0) return <p className="muted">{noStarredFeedsLabel(language)}</p>;
+  if (feeds.length === 0) return <p className="muted">{noFeaturedFeedsLabel(language)}</p>;
 
   return (
     <div className="explore-list">
@@ -851,7 +851,7 @@ function ResetPasswordPage(props: { token: string }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   return (
-    <Shell title="reset password">
+    <Shell title="Reset Password">
       <form className="login" onSubmit={async (event) => {
         event.preventDefault();
         try {
@@ -862,7 +862,7 @@ function ResetPasswordPage(props: { token: string }) {
         }
       }}>
         <label>
-          new password
+          New Password
           <input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} />
         </label>
         <button type="submit" title="save password"><Save size={15} aria-hidden /> save password</button>
@@ -1020,26 +1020,11 @@ function FeedSettingsSheet(props: {
 function FeedHelpSheet(props: { onClose: () => void }) {
   const { t } = useLanguage();
   return (
-    <Sheet title={t("feed help")} closeLabel="close feed help" icon={<HelpCircle size={16} aria-hidden />} onClose={props.onClose}>
-      <ol className="help-steps">
-        <li>
-          <strong>{t("name")}</strong>
-          <span>{t("Choose a short feed name. The URL updates from that name.")}</span>
-        </li>
-        <li>
-          <strong>{t("profile")}</strong>
-          <span>{t("Write the exact kind of updates that should make it through.")}</span>
-        </li>
-        <li>
-          <strong>{t("sources")}</strong>
-          <span>{t("Paste a Telegram or X URL, or type a search topic.")}</span>
-        </li>
-        <li>
-          <strong>{t("share")}</strong>
-          <span>{t("Copy the feed URL when you want someone to read it.")}</span>
-        </li>
-      </ol>
-    </Sheet>
+    <Dialog label={t("Help & Support")} className="support-dialog" onClose={props.onClose}><section className="dialog-inner"><button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={props.onClose}><X size={22}/></button><h2>{t("Help & Support")}</h2>
+      <p>{t("Email us for help and support.")}</p>
+      <p><a href="mailto:distillednews.platform@gmail.com">distillednews.platform@gmail.com</a></p>
+      <p><a href="mailto:distilled.news@outlook.com">distilled.news@outlook.com</a></p>
+    </section></Dialog>
   );
 }
 
@@ -1196,6 +1181,7 @@ function AccountDialog(props: {
 }) {
   const { t } = useLanguage();
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
   const [username, setUsername] = useState(props.account.username);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -1209,14 +1195,17 @@ function AccountDialog(props: {
   }, [props.account.username]);
 
   useEffect(() => {
-    usernameFieldRef.current?.focus();
-  }, []);
+    if (editingUsername) usernameFieldRef.current?.focus();
+  }, [editingUsername]);
 
   return (
-    <Sheet title={t("account")} closeLabel="close account settings" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
-      <div className="account-meta">
-        <span>{props.account.email}</span>
-        <span>{props.account.role}</span>
+    <Dialog label={t("account")} className="profile-dialog" onClose={props.onClose}>
+      <section className="profile-dialog-content">
+      <button type="button" className="dialog-close" aria-label={t("close account settings")} onClick={props.onClose}><X size={22}/></button>
+      <div className="profile-identity">
+        <span className="profile-avatar" aria-hidden="true">{accountInitials(props.account.username)}</span>
+        <span className="profile-email">{props.account.email}</span>
+        <span className="profile-role">{t(props.account.role === "admin" ? "Admin" : "User")}</span>
       </div>
 
       <form
@@ -1230,6 +1219,7 @@ function AccountDialog(props: {
             const result = await updateAccount({ username });
             await props.onSaved(result.account, result.briefings, "username saved");
             setMessage("username saved");
+            setEditingUsername(false);
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : String(cause));
           } finally {
@@ -1237,16 +1227,16 @@ function AccountDialog(props: {
           }
         }}
       >
-        <label>
-          {t("username")}
-          <input ref={usernameFieldRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
+        <label htmlFor="profile-username">
+          {t("Username")}
         </label>
-        <button type="submit" title="save username" disabled={busy === "username"}>
-          <Save size={15} aria-hidden /> {t("save username")}
+        <span className="profile-username-field"><input id="profile-username" aria-label={t("username")} ref={usernameFieldRef} readOnly={!editingUsername} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /><button type="button" className="profile-edit-button" aria-label={t("Edit username")} aria-pressed={editingUsername} disabled={busy !== null} onClick={() => { if (editingUsername) setUsername(props.account.username); setEditingUsername(value => !value); }}><Pencil size={19}/></button></span>
+        <button hidden={!editingUsername} type="submit" className="profile-save-button" title="Save" disabled={busy === "username"}>
+          {t("Save")}
         </button>
       </form>
 
-      <button type="button" className="password-disclosure" aria-expanded={passwordOpen} aria-controls="change-password-form" onClick={() => setPasswordOpen(value => !value)}>{t("change password")}</button>
+      <div className="profile-password-section"><button type="button" className="password-disclosure" aria-expanded={passwordOpen} aria-controls="change-password-form" onClick={() => setPasswordOpen(value => !value)}><span>{t("Change Password")}</span><ChevronRight size={20}/></button>
       <form id="change-password-form" hidden={!passwordOpen}
         className="account-form"
         onSubmit={async (event) => {
@@ -1269,7 +1259,7 @@ function AccountDialog(props: {
         }}
       >
         <label>
-          {t("current password")}
+          {t("Current Password")}
           <input
             type="password"
             autoComplete="current-password"
@@ -1279,7 +1269,7 @@ function AccountDialog(props: {
           />
         </label>
         <label>
-          {t("new password")}
+          {t("New Password")}
           <input
             type="password"
             autoComplete="new-password"
@@ -1289,11 +1279,11 @@ function AccountDialog(props: {
             onChange={(event) => setNewPassword(event.target.value)}
           />
         </label>
-        <button type="submit" title="change password" disabled={busy === "password"}>
-          <Save size={15} aria-hidden /> {t("change password")}
+        <button type="submit" className="profile-save-button" title="Save" disabled={busy === "password"}>
+          {t("Save")}
         </button>
       </form>
-
+      </div>
       <div className="account-actions">
         <button
           type="button"
@@ -1304,12 +1294,13 @@ function AccountDialog(props: {
             await props.onLogout();
           }}
         >
-          <LogOut size={15} aria-hidden /> {t("logout")}
+          <LogOut size={22} aria-hidden /> {t("Log out")}
         </button>
         {message ? <p className="muted">{t(message)}</p> : null}
         {error ? <p className="error">{error}</p> : null}
       </div>
-    </Sheet>
+      </section>
+    </Dialog>
   );
 }
 
@@ -1318,6 +1309,10 @@ function AdminAccountsSection(props: {
   currentAccountId: string;
   onAccountsChanged: (accounts: AccountWithStats[]) => void;
 }) {
+  const { t } = useLanguage();
+  const [query, setQuery] = useState("");
+  const [role, setRole] = useState("all");
+  const [sortAscending, setSortAscending] = useState(true);
   const [managedAccountId, setManagedAccountId] = useState<string | null>(null);
   const [adminBriefings, setAdminBriefings] = useState<BriefingConfig[]>([]);
   const [loadingFeeds, setLoadingFeeds] = useState(false);
@@ -1355,43 +1350,32 @@ function AdminAccountsSection(props: {
     setAdminBriefings(nextBriefings);
   }
 
+  const visibleAccounts = props.accounts.filter(account => (role === "all" || account.role === role) && `${account.username} ${account.email}`.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => (sortAscending ? 1 : -1) * a.username.localeCompare(b.username));
+  const feedCountFor = (account: AccountWithStats) => loadingFeeds || error ? account.briefingCount : adminBriefings.filter(feed => feed.ownerAccountId === account.id).length;
+
   return (
     <>
-      <details className="section accounts-section">
-        <summary className="section-title accounts-summary" title="accounts">
+      <details className="accounts-section">
+        <summary className="accounts-summary" title="accounts">
           <User size={16} aria-hidden />
-          <span className="accounts-label">Accounts</span>
-          <span className="pill">{props.accounts.length}</span>
-          <span className="pill">{adminBriefings.length} feeds</span>
+          <span className="accounts-back-label">{t("Settings")}</span><ChevronRight size={18}/><span className="accounts-label">{t("User Management")}</span>
         </summary>
+        <div className={`user-management ${managedAccount ? "has-selection" : ""}`}>
+        <div className="user-management-main">
+        <div className="user-management-heading"><h1>{t("User Management")}</h1><p>{t("Manage registered users and their feeds.")}</p></div>
+        <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><select aria-label={t("Filter users by role")} value={role} onChange={event => setRole(event.target.value)}><option value="all">{t("All Roles")}</option><option value="admin">{t("Admin")}</option><option value="user">{t("User")}</option></select><ChevronDown size={18} aria-hidden="true"/></span><div className="users-counts"><span>{props.accounts.length} {t("users")}</span><span>{props.accounts.reduce((total, account) => total + feedCountFor(account), 0)} {t("feeds")}</span></div></div>
         {loadingFeeds ? <p className="muted">loading feeds</p> : null}
         {error ? <p className="error">{error}</p> : null}
-        <div className="source-list">
-          {props.accounts.map((account) => {
-            const feedCount = adminBriefings.filter((briefing) => briefing.ownerAccountId === account.id).length;
-            return (
-              <div key={account.id} className="source-row">
-                <div className="source-copy">
-                  <strong>{account.username}</strong>
-                  <span className="muted">{account.email} / {account.role} / feeds {feedCount || account.briefingCount}</span>
-                  <span className="muted">{account.disabledAt ? "disabled" : account.emailVerifiedAt ? "verified" : "unverified"}</span>
-                </div>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label={`manage ${account.username}`}
-                  title="manage account"
-                  onClick={() => setManagedAccountId(account.id)}
-                >
-                  <Settings size={15} aria-hidden />
-                </button>
-              </div>
-            );
-          })}
+        <div className="users-table-scroll"><table className="users-table"><thead><tr><th><button type="button" onClick={() => setSortAscending(value => !value)}>{t("Name")} <ChevronDown size={14} style={{ transform: sortAscending ? "none" : "rotate(180deg)" }}/></button></th><th>{t("Email")}</th><th>{t("Role")}</th><th>{t("Feeds")}</th><th>{t("Status")}</th><th><span className="sr-only">{t("Actions")}</span></th></tr></thead><tbody>{visibleAccounts.map(account => <tr key={account.id} className={account.id === managedAccountId ? "selected" : ""}>
+          <td><button className="user-name-button" type="button" aria-label={`View ${account.username}`} onClick={() => setManagedAccountId(account.id)}><span className={`user-row-avatar ${account.role === "admin" ? "admin" : ""}`}>{accountInitials(account.username)}</span><span>{account.username}</span></button></td><td>{account.email}</td><td><span className={`user-role-badge ${account.role}`}>{t(account.role === "admin" ? "Admin" : "User")}</span></td><td>{feedCountFor(account)}</td><td><span className={`user-status ${account.disabledAt ? "suspended" : ""}`}>{t(account.disabledAt ? "Suspended" : account.emailVerifiedAt ? "Verified" : "Pending")}</span></td><td>{!managedAccount && <button type="button" className="user-manage-button" aria-label={`manage ${account.username}`} onClick={() => setManagedAccountId(account.id)}>•••</button>}</td>
+        </tr>)}</tbody></table>{visibleAccounts.length === 0 && <p className="users-empty">{t("No users found.")}</p>}</div>
         </div>
-      </details>
       {managedAccount ? (
         <AdminAccountDialog
+          key={managedAccount.id}
+          inline
+          feedCount={feedCountFor(managedAccount)}
           account={managedAccount}
           currentAccountId={props.currentAccountId}
           briefings={adminBriefings.filter((briefing) => briefing.ownerAccountId === managedAccount.id)}
@@ -1401,11 +1385,15 @@ function AdminAccountsSection(props: {
           onRefreshBriefings={refreshAdminBriefings}
         />
       ) : null}
+        </div>
+      </details>
     </>
   );
 }
 
 function AdminAccountDialog(props: {
+  inline?: boolean;
+  feedCount?: number;
   account: AccountWithStats;
   currentAccountId: string;
   briefings: BriefingConfig[];
@@ -1414,23 +1402,17 @@ function AdminAccountDialog(props: {
   onBriefingsChanged: (briefings: BriefingConfig[]) => void;
   onRefreshBriefings: () => Promise<void>;
 }) {
+  const { language, t } = useLanguage();
   const { confirm, confirmation } = useConfirmation();
-  const [username, setUsername] = useState(props.account.username);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const usernameFieldRef = useRef<HTMLInputElement | null>(null);
   const isSignedInAdmin = props.account.id === props.currentAccountId;
+  const Panel = props.inline ? InlineAccountPanel : Sheet;
+  const joinedAt = props.account.createdAt && Number.isFinite(Date.parse(props.account.createdAt))
+    ? new Intl.DateTimeFormat(language, { year: "numeric", month: "short", day: "numeric" }).format(new Date(props.account.createdAt)) : t("Unavailable");
 
-  useEffect(() => {
-    setUsername(props.account.username);
-  }, [props.account.username]);
-
-  useEffect(() => {
-    usernameFieldRef.current?.focus();
-  }, []);
-
-  async function updateAccountAndRefresh(input: { username?: string; role?: "admin" | "user"; disabled?: boolean }, nextMessage: string) {
+  async function updateAccountAndRefresh(input: { role?: "admin" | "user"; disabled?: boolean }, nextMessage: string) {
     setError("");
     setMessage("");
     const result = await updateAdminAccount(props.account.id, input);
@@ -1472,177 +1454,31 @@ function AdminAccountDialog(props: {
     }
   }
 
-  async function removeAccount() {
-    if (isSignedInAdmin) {
-      setError("cannot delete the signed-in admin");
-      return;
-    }
-    if (!await confirm(`Delete "${props.account.username}" and all of this user's feeds, sources, and published items?`)) return;
-    setBusy("delete-account");
-    setError("");
-    setMessage("");
-    try {
-      const result = await deleteAdminAccount(props.account.id);
-      props.onAccountsChanged(result.accounts);
-      props.onBriefingsChanged(result.briefings);
-      props.onClose();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(null);
-    }
-  }
-
   return (
-    <Sheet title="manage account" closeLabel="close account management" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
+    <Panel title="manage account" closeLabel="close account management" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
       {confirmation}
-      <div className="account-meta">
-        <span>{props.account.email}</span>
-        <span>{props.account.disabledAt ? "disabled" : props.account.emailVerifiedAt ? "verified" : "unverified"}</span>
-        <span>{props.briefings.length} feed{props.briefings.length === 1 ? "" : "s"}</span>
-        {isSignedInAdmin ? <span>current admin</span> : null}
-      </div>
-
-      <form
-        className="account-form"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          setBusy("username");
-          try {
-            await updateAccountAndRefresh({ username }, "username saved");
-          } catch (cause) {
-            setError(cause instanceof Error ? cause.message : String(cause));
-          } finally {
-            setBusy(null);
-          }
-        }}
-      >
-        <label>
-          username
-          <input ref={usernameFieldRef} value={username} onChange={(event) => setUsername(event.target.value)} />
-        </label>
-        <button type="submit" title="save username" disabled={busy === "username"}>
-          <Save size={15} aria-hidden /> save username
-        </button>
-      </form>
-
-      <div className="account-form">
-        <div className="field-group">
-          <span>role</span>
-          <div className="segmented" role="group" aria-label={`role for ${props.account.username}`}>
-            {(["user", "admin"] as const).map((role) => (
-              <button
-                key={role}
-                type="button"
-                className={props.account.role === role ? "active" : ""}
-                disabled={busy === "role"}
-                aria-pressed={props.account.role === role}
-                title={`set role ${role}`}
-                onClick={async () => {
-                  if (props.account.role === role) return;
-                  setBusy("role");
-                  try {
-                    await updateAccountAndRefresh({ role }, `role changed to ${role}`);
-                  } catch (cause) {
-                    setError(cause instanceof Error ? cause.message : String(cause));
-                  } finally {
-                    setBusy(null);
-                  }
-                }}
-              >
-                {role}
-              </button>
-            ))}
-          </div>
-        </div>
-        <button
-          type="button"
-          className={props.account.disabledAt ? "" : "danger-button"}
-          title={props.account.disabledAt ? "enable account" : "disable account"}
-          disabled={busy === "disabled"}
-          onClick={async () => {
-            setBusy("disabled");
-            try {
-              await updateAccountAndRefresh(
-                { disabled: !props.account.disabledAt },
-                props.account.disabledAt ? "account enabled" : "account disabled"
-              );
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause));
-            } finally {
-              setBusy(null);
-            }
-          }}
-        >
-          {props.account.disabledAt ? "enable account" : "disable account"}
-        </button>
-      </div>
-
-      <div className="account-form admin-feed-control">
-        <div className="field-group">
-          <span>feeds</span>
-          {props.briefings.length > 0 ? (
-            <div className="admin-feed-list">
-              {props.briefings.map((feed) => (
-                <div key={feed.id} className="admin-feed-row">
-                  <div className="admin-feed-copy">
-                    <strong><bdi>{feed.title}</bdi></strong>
-                    <span className="muted">/{feed.ownerUsername}/{feed.slug}/</span>
-                    <span className="muted">{feed.paused ? "paused" : "live"} / {feed.briefingCadence} / {feed.stars} stars</span>
-                  </div>
-                  <div className="row-actions">
-                    {feed.publicFeedEnabled && <><button type="button" onClick={() => void setPopularFeed(feed.id, true).then(() => setMessage("Added to popular topics")).catch(cause => setError(String(cause)))}>Add to popular topics</button><button type="button" onClick={() => void setPopularFeed(feed.id, false).then(() => setMessage("Removed from popular topics")).catch(cause => setError(String(cause)))}>Remove from popular topics</button></>}
-                    <button
-                      type="button"
-                      title={feed.paused ? "resume feed" : "pause feed"}
-                      disabled={busy === `feed:${feed.id}:pause`}
-                      onClick={() => void toggleAdminBriefing(feed)}
-                    >
-                      {feed.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
-                      {feed.paused ? "resume" : "pause"}
-                    </button>
-                    <a className="button-link icon-button" href={`/${feed.ownerUsername}/${feed.slug}/`} aria-label={`open ${feed.title}`} title="open feed">
-                      <ExternalLink size={15} aria-hidden />
-                    </a>
-                    <button
-                      type="button"
-                      className="danger-button"
-                      title="delete feed"
-                      disabled={busy === `feed:${feed.id}:delete`}
-                      onClick={() => void removeAdminBriefing(feed)}
-                    >
-                      <Trash2 size={15} aria-hidden /> delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="muted">no feeds</p>
-          )}
-        </div>
-      </div>
-
-      <div className="account-form account-danger-zone">
-        <div className="field-group">
-          <span>danger zone</span>
-          <p className="muted">Deleting an account removes its feeds, sources, tokens, and published history.</p>
-        </div>
-        <button
-          type="button"
-          className="danger-button"
-          title={isSignedInAdmin ? "cannot delete the signed-in admin" : "delete account"}
-          disabled={isSignedInAdmin || busy === "delete-account"}
-          onClick={() => void removeAccount()}
-        >
-          <Trash2 size={15} aria-hidden /> delete account
-        </button>
-      </div>
-
+      <div className="managed-user-identity"><span className="profile-avatar">{accountInitials(props.account.username)}</span><h2>{props.account.username}</h2><p>{props.account.email}</p><span className={`user-role-badge ${props.account.role}`}>{props.account.role === "admin" ? "Admin" : "User"}</span></div>
+      <div className="managed-user-stats"><span>{t("Feeds")}<strong>{props.feedCount ?? props.briefings.length}</strong></span><span>{t("Joined")}<strong>{joinedAt}</strong></span></div>
+      <details className="managed-user-settings"><summary><Pencil size={20}/>Account Settings<ChevronRight size={18}/></summary>
+        <fieldset className="account-role-options"><legend>{t("Role")}</legend>{(["user", "admin"] as const).map(role => <label key={role}><input type="radio" name={`role-${props.account.id}`} checked={props.account.role === role} disabled={busy !== null} onChange={async () => { setBusy("role"); try { await updateAccountAndRefresh({ role }, `role changed to ${role}`); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(null); } }}/>{t(role === "admin" ? "Admin" : "User")}</label>)}</fieldset>
+      </details>
+      <details className="managed-user-feeds"><summary><Newspaper size={22}/>View Feeds<ChevronRight size={18}/></summary>
+        <div className="admin-feed-list">{props.briefings.map(feed => <div key={feed.id} className="admin-feed-row"><strong><bdi>{feed.title}</bdi></strong><div className="row-actions"><a className="icon-button" href={`/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${feed.title} in new tab`}><ExternalLink size={18}/></a><details className="feed-options"><summary aria-label={`Options for ${feed.title}`}>...</summary><div className="feed-options-popover admin-feed-actions"><button type="button" aria-label={t(feed.paused ? "Resume feed" : "Pause feed")} title={t(feed.paused ? "Resume feed" : "Pause feed")} disabled={busy !== null} onClick={() => void toggleAdminBriefing(feed)}>{feed.paused ? <Play size={16}/> : <Pause size={16}/>}</button><button type="button" className="danger-button" aria-label={t("Delete feed")} title={t("Delete feed")} disabled={busy !== null} onClick={() => void removeAdminBriefing(feed)}><Trash2 size={18}/></button></div></details></div></div>)}</div>
+      </details>
+      <button type="button" className="managed-user-suspend" disabled={busy !== null || isSignedInAdmin} onClick={async () => {
+        setBusy("disabled");
+        try { await updateAccountAndRefresh({ disabled: !props.account.disabledAt }, props.account.disabledAt ? "account enabled" : "account disabled"); }
+        catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+        finally { setBusy(null); }
+      }}><Ban size={24}/><span>{props.account.disabledAt ? "Enable Account" : "Suspend Account"}</span><ChevronRight size={18}/></button>
       {message ? <p className="muted">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
-    </Sheet>
+    </Panel>
   );
+}
+
+function InlineAccountPanel(props: { title: string; closeLabel: string; icon: React.ReactNode; children: React.ReactNode; onClose: () => void }) {
+  return <aside className="managed-user-panel" aria-label={props.title}><button type="button" className="managed-user-close" aria-label={props.closeLabel} onClick={props.onClose}><X size={22}/></button>{props.children}</aside>;
 }
 
 function FeedPage(props: { username: string; slug: string }) {
@@ -2384,7 +2220,7 @@ function getPageMeta(title: string): string {
   if (title === "briefing") return "Published briefing items only.";
   if (title.includes("Briefing")) return "Published briefing items only.";
   if (title === "verify email") return "Account verification.";
-  if (title === "reset password") return "Account recovery.";
+  if (title === "Reset Password") return "Account recovery.";
   return "Less clutter. Personalized news, to the point.";
 }
 
@@ -2653,10 +2489,10 @@ function loadingFeedsLabel(language: "en" | "ar" | "fr"): string {
   return "loading feeds";
 }
 
-function noStarredFeedsLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "لا توجد موجزات مميّزة بعد";
-  if (language === "fr") return "aucun fil favori pour l'instant";
-  return "no starred feeds yet";
+function noFeaturedFeedsLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "لم يتم نشر أي خلاصات في الاستكشاف بعد.";
+  if (language === "fr") return "Aucun fil n’a encore été publié dans Explorer.";
+  return "No feeds have been published to Explore yet.";
 }
 
 function searchPublishedLabel(language: "en" | "ar" | "fr"): string {

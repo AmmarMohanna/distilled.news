@@ -221,7 +221,7 @@ export async function listAccounts(): Promise<AccountWithStats[]> {
 
 export async function updateAdminAccount(
   accountId: string,
-  input: { username?: string; role?: "admin" | "user"; disabled?: boolean }
+  input: { role?: "admin" | "user"; disabled?: boolean }
 ): Promise<{ account: AccountRecord; accounts: AccountWithStats[] }> {
   return requestJson<{ account: AccountRecord; accounts: AccountWithStats[] }>(
     `/api/admin/accounts/${encodeURIComponent(accountId)}`,
@@ -314,9 +314,6 @@ export async function recommendSources(title: string, description: string): Prom
   return payload.sources;
 }
 
-export async function getPopularFeeds(): Promise<PublicBriefing[]> {
-  return (await requestJson<{ feeds: PublicBriefing[] }>("/api/explore/popular")).feeds;
-}
-export async function setPopularFeed(id: string, featured: boolean): Promise<void> {
-  await requestJson(`/api/admin/briefings/${encodeURIComponent(id)}/popular`, { method: "POST", body: JSON.stringify({ featured }) });
+export async function setExploreFeed(id: string, featured: boolean): Promise<void> {
+  await requestJson(`/api/admin/briefings/${encodeURIComponent(id)}/explore`, { method: "POST", body: JSON.stringify({ featured }) });
 }

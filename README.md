@@ -8,6 +8,7 @@ Distilled.news ingests public Telegram channel URLs plus optional RSS, Google Ne
 
 - Public email signup with verified accounts, password login/reset, and admin oversight.
 - User-owned briefings with plain-language interest profiles.
+- Explore currently shows only feeds explicitly selected by admins from active admin-owned public feeds, newest selection first. Create a feed on Home, open its menu, and choose **Publish to Explore**; use **Remove from Explore** to withdraw it. Stars remain available but do not determine Explore placement. User trends are a later product phase.
 - Username-scoped feed URLs such as `/ammar-mohanna/my-sports-feed/`. Feed settings offer Public (anyone can read) or Private (signed-in owner only). Private feeds are excluded from Explore, and their content, search, evidence, and sketches require the owner's session. Existing visibility values are preserved; new feeds default to Public.
 - Source setup by one simple field: `t: channel`, public `https://t.me/...` URLs, `rss: https://...`, `news: query`, or `x: handle`.
 - Rule-first filtering with optional OpenAI summaries through Cloudflare AI Gateway.
