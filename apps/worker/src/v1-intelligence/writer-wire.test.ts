@@ -20,8 +20,16 @@ it('deduplicates verifier context without dropping constraints and validates off
  const wire=verificationWire([{...claim,id:'a'},{...claim,id:'b'}]);
  expect(wire.payload.stories[0].facts).toHaveLength(1);expect(wire.payload.stories[0].context).toHaveLength(1);expect(wire.payload.stories[0].requiredFactIds).toEqual(['fact_1']);
  expect(wire.decode({supportedClaimIds:['claim_1','claim_2'],preservedFactIds:['fact_1'],novelFactIds:['fact_1'],semanticChecks:[{factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Equivalent meaning.'}]})).toMatchObject({supportedClaimIds:['a','b'],preservedFactIds:['fact'],novelFactIds:['fact']});
- expect(wire.decode({preservedFactIds:['fact_1']})).toMatchObject({preservedFactIds:[]});
+ expect(()=>wire.decode({preservedFactIds:['fact_1']})).toThrow('INCOMPLETE_SEMANTIC_VERDICT');
  expect(wire.decode({preservedFactIds:['fact_1'],semanticChecks:[{factId:'fact_1',communicated:true,attribution:true,certainty:false,temporal:true,qualifiers:true,reason:'Uncertainty became certainty.'}]})).toMatchObject({preservedFactIds:[]});
- expect(()=>wire.decode({supportedClaimIds:['unknown']})).toThrow('UNRECOGNIZED_VERIFIER_ID');
- expect(()=>wire.decode({addressedCorrectionObligationIds:['unoffered']})).toThrow('UNRECOGNIZED_VERIFIER_ID');
+ const semanticChecks=[{factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Equivalent meaning.'}];
+ expect(()=>wire.decode({supportedClaimIds:['unknown'],semanticChecks})).toThrow('UNRECOGNIZED_VERIFIER_ID');
+ expect(()=>wire.decode({addressedCorrectionObligationIds:['unoffered'],semanticChecks})).toThrow('UNRECOGNIZED_VERIFIER_ID');
+});
+it('offers merged approved spans once with retained publisher identity and no extra provenance fields in decoded citations',()=>{
+ const supplied=structuredClone(input);supplied.stories[0].evidence[0].publisherId='original-publisher';
+ supplied.stories[0].approvedSpans=[{evidenceRevisionId:'revision',quote:'Officials reported a successful launch.'}];
+ const wire=writerWire(supplied);expect(wire.payload.stories[0].supportSpans).toHaveLength(1);
+ expect(wire.payload.stories[0].supportSpans[0].publisherId).toBe('original-publisher');
+ expect(wire.decode({language:'en',stories:[{storyId:'story_1',claims:[{text:'The launch succeeded, officials reported.',supportIds:['span_1_1'],communicatedFactIds:['fact_1_1']}]}]}).stories[0].claims[0].support[0]).toEqual({evidenceRevisionId:'revision',quote:'Officials reported a successful launch.'});
 });

@@ -36,5 +36,6 @@ it.each([
  ['Officials reported at least 40 deaths.','Forty people died.','qualifiers'],
  ['The minister resigned.','The minister resigned after a corruption scandal.','communicated'],
  ['The minister resigned.','A government official left office.','communicated'],
- ['NASA launched Mission X on Monday. Mission X will study solar activity.','NASA launched Mission X on Monday.','communicated']
+ ['NASA launched Mission X on Monday. Mission X will study solar activity.','NASA launched Mission X on Monday.','communicated'],
+ ['If you were living on the station for six months, what would you bring?','The crew will live on the station for six months.','temporal']
 ] as const)('rejects semantic drift even when fact IDs claim coverage: %s',async(source,text,facet)=>run(source,text,facet),25000);
