@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BriefingConfig } from "@distilled/core";
-import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
+import { deriveBriefingSlug, formatFeedUpdated, formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
 
 const baseBriefing: BriefingConfig = {
   id: "briefing_default",
@@ -22,6 +22,17 @@ const baseBriefing: BriefingConfig = {
 };
 
 describe("web helpers", () => {
+  it("formats feed freshness across time boundaries and languages", () => {
+    const now = Date.parse("2026-10-02T14:00:00Z");
+    expect(formatFeedUpdated("2026-10-02T12:00:00Z", "en", now)).toBe("Updated 2 hours ago");
+    expect(formatFeedUpdated("2026-10-02T13:00:00Z", "en", now)).toBe("Updated 1 hour ago");
+    expect(formatFeedUpdated("2026-10-02T13:59:00Z", "en", now)).toBe("Updated 1 minute ago");
+    expect(formatFeedUpdated("2026-10-01T14:00:00Z", "en", now)).toBe("Updated 1 day ago");
+    expect(formatFeedUpdated("2026-10-02T15:00:00Z", "en", now)).toBe("Updated just now");
+    expect(formatFeedUpdated("invalid", "en", now)).toBe("");
+    expect(formatFeedUpdated("2026-10-02T12:00:00Z", "fr", now)).toBe("Mis à jour il y a 2 heures");
+    expect(formatFeedUpdated("2026-10-02T12:00:00Z", "ar", now)).toMatch(/^تم التحديث /);
+  });
   it("slugifies feed names conservatively", () => {
     expect(slugify(" Beirut / Security Feed ")).toBe("beirut-security-feed");
     expect(slugify("###")).toBe("briefing");

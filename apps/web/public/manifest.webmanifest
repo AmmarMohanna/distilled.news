@@ -1,14 +1,16 @@
 {
   "id": "/",
+  "related_applications": [{ "platform": "webapp", "url": "/manifest.webmanifest", "id": "/" }],
+  "prefer_related_applications": false,
   "name": "Distilled.news",
   "short_name": "Distilled",
   "description": "A quiet personal news briefing.",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "scope": "/",
   "start_url": "/",
   "background_color": "#faf8f1",
-  "theme_color": "#faf8f1",
+  "theme_color": "#4bac9d",
   "icons": [
     {
       "src": "/icon-192.png",

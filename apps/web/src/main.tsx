@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
+  Ban,
   Eye,
   EyeOff,
   Mail,
@@ -20,7 +21,6 @@ import {
   Globe,
   Github,
   HelpCircle,
-  Languages,
   LayoutDashboard,
   ListChecks,
   LogIn,
@@ -28,6 +28,7 @@ import {
   Moon,
   Newspaper,
   Pause,
+  Pencil,
   Play,
   Plus,
   RadioTower,
@@ -35,6 +36,7 @@ import {
   Save,
   Search,
   Settings,
+  Share,
   ShieldCheck,
   Sparkles,
   Star,
@@ -48,7 +50,6 @@ import { personalNewsBriefing } from "@distilled/core";
 import {
   addSource,
   deleteBriefing,
-  deleteAdminAccount,
   deleteAdminBriefing,
   deleteSource,
   forgotPassword,
@@ -83,12 +84,18 @@ import {
 import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify } from "./helpers";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
-import { AppExperience, BrandMark, PublicExplorePage, GuestMenuItems } from "./AppExperience";
+import { accountInitials, AppExperience, AppHeader, BrandMark, PublicNavigation } from "./AppExperience";
 import { LanguageControl, preferredLanguage, useLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
+import { Dialog } from "./Dialog";
+import { useConfirmation } from "./useConfirmation";
 import { ThemeToggle } from "./ThemeToggle";
+import { ScreenPages } from "./ScreenPages";
 import "./experience.css";
 import "./product.css";
+import "./apple.css";
+
+document.documentElement.classList.add("apple-ui");
 
 const FEED_BATCH_SIZE = 20;
 
@@ -123,11 +130,11 @@ declare global {
 
 function App() {
   const path = window.location.pathname;
-  if (path === "/explore" || path === "/explore/") return <PublicExplorePage/>;
+  if (path === "/explore" || path === "/explore/") return <AdminPage initialTab="explore"/>;
   if (path === "/verify-email") return <VerifyEmailPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
   if (path === "/reset-password") return <ResetPasswordPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
   const feedMatch = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
-  if (feedMatch && !["api", "admin", "auth", "feed"].includes(feedMatch[1])) {
+  if (feedMatch && !["api", "auth", "feed"].includes(feedMatch[1])) {
     return <FeedPage username={decodeURIComponent(feedMatch[1])} slug={decodeURIComponent(feedMatch[2])} />;
   }
   return <AdminPage />;
@@ -139,10 +146,13 @@ function languageLabel(language: "en" | "ar" | "fr"): string {
   return "english";
 }
 
-function AdminPage() {
+function AdminPage(props: { initialTab?: "home" | "explore" }) {
   const { language: interfaceLanguage } = useLanguage();
   useEffect(() => { document.documentElement.lang = interfaceLanguage; document.documentElement.dir = interfaceLanguage === "ar" ? "rtl" : "ltr"; }, [interfaceLanguage]);
   const [session, setSession] = useState<SessionStatus | null>(null);
+  const [authOpen, setAuthOpen] = useState(window.location.pathname === "/login" || new URLSearchParams(window.location.search).has("signup"));
+  const [creationOpen, setCreationOpen] = useState(false);
+  const [createAfterLogin, setCreateAfterLogin] = useState(false);
   const [briefings, setBriefings] = useState<BriefingConfig[]>([]);
   const [selectedBriefingId, setSelectedBriefingId] = useState<string | null>(null);
   const [sources, setSources] = useState<SourceRecord[]>([]);
@@ -270,11 +280,11 @@ function AdminPage() {
     setError("");
     setBusyAction("create-feed");
     try {
-      const draft = { ...createBriefingDraft(briefings, account), ...input, language: preferredLanguage() };
+      const draft = { ...createBriefingDraft(briefings, account), language: preferredLanguage(), ...input };
       const created = await persistBriefing(draft, "feed created");
       await loadBriefings(created.id);
       if (input) {
-        try { await addSource(created.id, input.interestProfile); }
+        try { for (const source of input.sourceInputs?.length ? input.sourceInputs : [input.interestProfile]) await addSource(created.id, source); }
         catch (cause) { sessionStorage.setItem(`feed-notice:${created.id}`, `Feed saved, but topic discovery could not be started: ${cause instanceof Error ? cause.message : String(cause)}`); }
         window.location.href = `/${created.ownerUsername}/${created.slug}/`;
       }
@@ -364,7 +374,7 @@ function AdminPage() {
           ownerUsername: nextAccount.username,
           title: input.title,
           interestProfile: input.interestProfile,
-          publicFeedEnabled: true,
+          publicFeedEnabled: latestBriefing.publicFeedEnabled,
           intensity: latestBriefing.intensity ?? "medium",
           retentionDays: 15
         },
@@ -393,34 +403,34 @@ function AdminPage() {
     if (autosave) scheduleBriefingAutosave(next);
   }
 
-  if (!session) {
+  if (!session?.authenticated) {
     return (
-      <Shell title="create">
-        <p className="muted">loading</p>
-      </Shell>
-    );
-  }
-
-  if (!session.authenticated) {
-    return (
-      <main className="auth-experience guest-auth-home">
-        <header className="auth-header"><div className="experience-brand" aria-label="Distilled News"><BrandMark/></div><div className="auth-header-controls"><ThemeToggle/><LanguageControl/></div></header>
-        <div className="auth-columns">
-          <AuthPanel
-            setupRequired={session.setupRequired}
-            turnstileSiteKey={session.turnstileSiteKey}
-            onAuthenticated={async () => {
-              const next = await refreshSession();
-              if (next.authenticated) {
-                await loadBriefings();
-                if (next.account?.role === "admin") setAccounts(await listAccounts());
-              }
-            }}
-          />
-        </div>
-        <nav className="bottom-navigation" aria-label="Main navigation"><div className="sidebar-logo experience-brand" aria-label="Distilled.news"><BrandMark/></div><GuestMenuItems active="home"/></nav>
-        {error ? <p className="error">{error}</p> : null}
-      </main>
+      <>
+        <AppExperience account={null} briefings={[]} initialTab="explore"
+          onAccount={() => setAuthOpen(true)} onHelp={() => {}}
+          onCreate={() => { setCreateAfterLogin(true); setAuthOpen(true); }}
+          error={error ? "We couldn’t load your session. Please refresh and try again." : undefined}/>
+        {authOpen && <Dialog label="Login or sign up" className="auth-dialog" onClose={() => { setAuthOpen(false); setCreateAfterLogin(false); }}>
+          <div className="auth-experience auth-modal-content">
+            <button type="button" className="dialog-close quiet-icon" aria-label="Close dialog" onClick={() => { setAuthOpen(false); setCreateAfterLogin(false); }}><X size={20}/></button>
+            {session ? <AuthPanel
+              setupRequired={session.setupRequired}
+              turnstileSiteKey={session.turnstileSiteKey}
+              onAuthenticated={async () => {
+                const next = await getSession();
+                if (next.authenticated) {
+                  await loadBriefings();
+                  if (next.account?.role === "admin") setAccounts(await listAccounts());
+                  setCreationOpen(createAfterLogin);
+                  setAuthOpen(false);
+                  setCreateAfterLogin(false);
+                  setSession(next);
+                }
+              }}
+            /> : <p className="auth-pending" role={error ? "alert" : "status"}>{error ? "Sign-in is unavailable right now. Please refresh and try again." : "Loading account access…"}</p>}
+          </div>
+        </Dialog>}
+      </>
     );
   }
 
@@ -434,12 +444,13 @@ function AdminPage() {
 
   return (
     <>
-      <AppExperience account={account} briefings={orderedBriefings} briefing={briefing ?? undefined} health={health}
+      <AppExperience key="account" account={account} briefings={orderedBriefings} briefing={briefing ?? undefined} health={health} initialTab={props.initialTab}
         onAccount={() => setAccountDialogOpen(true)}
-        onCreate={createBriefing} onHelp={() => setHelpOpen(true)} error={error}>
+        onCreate={() => setCreationOpen(true)} onHelp={() => setHelpOpen(true)} error={error}>
 {account.role === "admin" ? <AdminAccountsSection accounts={accounts} currentAccountId={account.id} onAccountsChanged={setAccounts}/> : null}
       </AppExperience>
       {accountDialog}
+      {creationOpen && <FeedEditor onClose={() => setCreationOpen(false)} onSave={async input => { await createBriefing(input); setCreationOpen(false); }}/>}
       {helpOpen ? <FeedHelpSheet onClose={() => setHelpOpen(false)} /> : null}
 
     </>
@@ -538,6 +549,7 @@ function AdminCommandPanel(props: {
 }
 
 function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
+  const { t } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "register" : "login");
@@ -601,10 +613,10 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         }
       }}
     >
-      {!props.setupRequired && <div className="auth-tabs" aria-label="Account access"><button type="button" aria-pressed={mode === "login"} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>Login</button><button type="button" title="new account" aria-pressed={mode === "register"} onClick={() => { setMode("register"); setError(""); setMessage(""); }}>Sign up</button></div>}
+      {!props.setupRequired && <div className="auth-tabs" aria-label="Account access"><button type="button" aria-pressed={mode === "login"} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Login")}</button><button type="button" title="new account" aria-pressed={mode === "register"} onClick={() => { setMode("register"); setError(""); setMessage(""); }}>{t("Sign up")}</button></div>}
       <div className="auth-copy">
-        <h2>{copy.title}</h2>
-        <p>{copy.description}</p>
+        <h2>{t(copy.title)}</h2>
+        <p>{t(copy.description)}</p>
       </div>
       {props.setupRequired ? (
         <label>
@@ -615,13 +627,13 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       ) : null}
       <label className="auth-input">
         <span className="sr-only">email</span><Mail size={21} aria-hidden/>
-        <input type="email" required placeholder="Email address" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <input type="email" required placeholder={t("Email address")} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
       {(mode === "register" || props.setupRequired) ? (
         <label>
           <span className="auth-input"><span className="sr-only">username</span><User size={21} aria-hidden/>
-          <input required placeholder="Username" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></span>
-          <span className="field-help">{usernamePreview ? `your feed URLs start with /${usernamePreview}/` : "letters and numbers become your feed URL name"}</span>
+          <input required aria-label="username" aria-describedby="auth-username-help" placeholder={t("Username")} autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></span>
+          <span className="field-help" id="auth-username-help">{usernamePreview ? <>{t("Your feed URLs start with")} <bdi>/{usernamePreview}/</bdi></> : t("letters and numbers become your feed URL name")}</span>
         </label>
       ) : null}
       {mode !== "forgot" ? (
@@ -629,7 +641,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           <LockKeyhole size={21} aria-hidden/>
           <input
             aria-label="password"
-            placeholder="Password"
+            placeholder={t("Password")}
             required
             type={showPassword ? "text" : "password"}
             autoComplete={mode === "register" || props.setupRequired ? "new-password" : "current-password"}
@@ -637,20 +649,14 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          <button type="button" className="quiet-icon" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}</button>
-        </div>{(mode === "register" || props.setupRequired) && <span className="field-help">at least 8 characters</span>}</div>
+          <button type="button" className="quiet-icon" aria-label={t(showPassword ? "Hide password" : "Show password")} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}</button>
+        </div>{(mode === "register" || props.setupRequired) && <span className="field-help">{t("at least 8 characters")}</span>}</div>
       ) : null}
       {requiresTurnstile && props.turnstileSiteKey ? (
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
-      {!props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>Forgot password?</button>}
-      <button type="submit" disabled={submitting} className="primary-button auth-submit" title={submitLabel}>{submitting ? "Please wait…" : submitLabel}<ArrowRight size={22} aria-hidden/></button>
-      {!props.setupRequired ? (
-        <div className="auth-switch">
-          <div className="auth-divider"><span>or</span></div>
-          <p>{mode === "login" ? "Don’t have an account?" : "Already have an account?"} <button type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); setMessage(""); }}>{mode === "login" ? "Sign up" : "Log in"}</button></p>
-        </div>
-      ) : null}
+      {!props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
+      <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
       {message ? <p className="muted">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
     </form>
@@ -666,13 +672,13 @@ function getAuthPanelCopy(setupRequired: boolean, mode: "login" | "register" | "
   }
   if (mode === "register") {
     return {
-      title: "Create your account",
+      title: "Create your Account",
       description: "Choose a username, then verify your email before signing in."
     };
   }
   if (mode === "forgot") {
     return {
-      title: "reset password",
+      title: "Reset Password",
       description: "Enter your email and we will send a reset link if the account exists."
     };
   }
@@ -683,10 +689,10 @@ function getAuthPanelCopy(setupRequired: boolean, mode: "login" | "register" | "
 }
 
 function getAuthSubmitLabel(setupRequired: boolean, mode: "login" | "register" | "forgot"): string {
-  if (setupRequired) return "Create admin account";
-  if (mode === "register") return "create account";
-  if (mode === "forgot") return "send reset link";
-  return "login";
+  if (setupRequired) return "Create Admin Account";
+  if (mode === "register") return "Create Account";
+  if (mode === "forgot") return "Send Reset Link";
+  return "Login";
 }
 
 function TurnstileField(props: { siteKey: string; resetSignal: number; onToken: (token: string) => void }) {
@@ -783,7 +789,7 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
 
   if (error) return <p className="error">{error}</p>;
   if (!feeds) return <p className="muted">{loadingFeedsLabel(language)}</p>;
-  if (feeds.length === 0) return <p className="muted">{noStarredFeedsLabel(language)}</p>;
+  if (feeds.length === 0) return <p className="muted">{noFeaturedFeedsLabel(language)}</p>;
 
   return (
     <div className="explore-list">
@@ -845,7 +851,7 @@ function ResetPasswordPage(props: { token: string }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   return (
-    <Shell title="reset password">
+    <Shell title="Reset Password">
       <form className="login" onSubmit={async (event) => {
         event.preventDefault();
         try {
@@ -856,7 +862,7 @@ function ResetPasswordPage(props: { token: string }) {
         }
       }}>
         <label>
-          new password
+          New Password
           <input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} />
         </label>
         <button type="submit" title="save password"><Save size={15} aria-hidden /> save password</button>
@@ -875,22 +881,9 @@ function Sheet(props: {
   onClose: () => void;
   wide?: boolean;
 }) {
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") props.onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [props.onClose]);
-
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) props.onClose();
-      }}
-    >
-      <section className={`sheet${props.wide ? " sheet-wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={`${slugify(props.title)}-sheet-title`}>
+    <Dialog label={props.title} className={`sheet-dialog${props.wide ? " sheet-dialog-wide" : ""}`} onClose={props.onClose}>
+      <section className="sheet">
         <div className="sheet-head">
           <div className="section-title">
             {props.icon}
@@ -902,7 +895,7 @@ function Sheet(props: {
         </div>
         {props.children}
       </section>
-    </div>
+    </Dialog>
   );
 }
 
@@ -951,7 +944,7 @@ function FeedSettingsSheet(props: {
                 title={languageLabel(language)}
                 onClick={() => props.onPatch({ language })}
               >
-                <Languages size={15} aria-hidden /> {languageLabel(language)}
+                <Globe size={15} aria-hidden /> {languageLabel(language)}
               </button>
             ))}
           </div>
@@ -1025,27 +1018,13 @@ function FeedSettingsSheet(props: {
 }
 
 function FeedHelpSheet(props: { onClose: () => void }) {
+  const { t } = useLanguage();
   return (
-    <Sheet title="feed help" closeLabel="close feed help" icon={<HelpCircle size={16} aria-hidden />} onClose={props.onClose}>
-      <ol className="help-steps">
-        <li>
-          <strong>name</strong>
-          <span>Choose a short feed name. The URL updates from that name.</span>
-        </li>
-        <li>
-          <strong>profile</strong>
-          <span>Write the exact kind of updates that should make it through.</span>
-        </li>
-        <li>
-          <strong>sources</strong>
-          <span>Paste a Telegram or X URL, or type a search topic.</span>
-        </li>
-        <li>
-          <strong>share</strong>
-          <span>Copy the feed URL when you want someone to read it.</span>
-        </li>
-      </ol>
-    </Sheet>
+    <Dialog label={t("Help & Support")} className="support-dialog" onClose={props.onClose}><section className="dialog-inner"><button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={props.onClose}><X size={22}/></button><h2>{t("Help & Support")}</h2>
+      <p>{t("Email us for help and support.")}</p>
+      <p><a href="mailto:distillednews.platform@gmail.com">distillednews.platform@gmail.com</a></p>
+      <p><a href="mailto:distilled.news@outlook.com">distilled.news@outlook.com</a></p>
+    </section></Dialog>
   );
 }
 
@@ -1200,6 +1179,9 @@ function AccountDialog(props: {
   onLogout: () => Promise<void>;
   onSaved: (account: AccountRecord, briefings: BriefingConfig[], message: string) => Promise<void>;
 }) {
+  const { t } = useLanguage();
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
   const [username, setUsername] = useState(props.account.username);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -1213,14 +1195,17 @@ function AccountDialog(props: {
   }, [props.account.username]);
 
   useEffect(() => {
-    usernameFieldRef.current?.focus();
-  }, []);
+    if (editingUsername) usernameFieldRef.current?.focus();
+  }, [editingUsername]);
 
   return (
-    <Sheet title="account" closeLabel="close account settings" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
-      <div className="account-meta">
-        <span>{props.account.email}</span>
-        <span>{props.account.role}</span>
+    <Dialog label={t("account")} className="profile-dialog" onClose={props.onClose}>
+      <section className="profile-dialog-content">
+      <button type="button" className="dialog-close" aria-label={t("close account settings")} onClick={props.onClose}><X size={22}/></button>
+      <div className="profile-identity">
+        <span className="profile-avatar" aria-hidden="true">{accountInitials(props.account.username)}</span>
+        <span className="profile-email">{props.account.email}</span>
+        <span className="profile-role">{t(props.account.role === "admin" ? "Admin" : "User")}</span>
       </div>
 
       <form
@@ -1234,6 +1219,7 @@ function AccountDialog(props: {
             const result = await updateAccount({ username });
             await props.onSaved(result.account, result.briefings, "username saved");
             setMessage("username saved");
+            setEditingUsername(false);
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : String(cause));
           } finally {
@@ -1241,16 +1227,17 @@ function AccountDialog(props: {
           }
         }}
       >
-        <label>
-          username
-          <input ref={usernameFieldRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
+        <label htmlFor="profile-username">
+          {t("Username")}
         </label>
-        <button type="submit" title="save username" disabled={busy === "username"}>
-          <Save size={15} aria-hidden /> save username
+        <span className="profile-username-field"><input id="profile-username" aria-label={t("username")} ref={usernameFieldRef} readOnly={!editingUsername} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /><button type="button" className="profile-edit-button" aria-label={t("Edit username")} aria-pressed={editingUsername} disabled={busy !== null} onClick={() => { if (editingUsername) setUsername(props.account.username); setEditingUsername(value => !value); }}><Pencil size={19}/></button></span>
+        <button hidden={!editingUsername} type="submit" className="profile-save-button" title="Save" disabled={busy === "username"}>
+          {t("Save")}
         </button>
       </form>
 
-      <form
+      <div className="profile-password-section"><button type="button" className="password-disclosure" aria-expanded={passwordOpen} aria-controls="change-password-form" onClick={() => setPasswordOpen(value => !value)}><span>{t("Change Password")}</span><ChevronRight size={20}/></button>
+      <form id="change-password-form" hidden={!passwordOpen}
         className="account-form"
         onSubmit={async (event) => {
           event.preventDefault();
@@ -1263,6 +1250,7 @@ function AccountDialog(props: {
             setCurrentPassword("");
             setNewPassword("");
             setMessage("password changed");
+            setPasswordOpen(false);
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : String(cause));
           } finally {
@@ -1271,7 +1259,7 @@ function AccountDialog(props: {
         }}
       >
         <label>
-          current password
+          {t("Current Password")}
           <input
             type="password"
             autoComplete="current-password"
@@ -1281,7 +1269,7 @@ function AccountDialog(props: {
           />
         </label>
         <label>
-          new password
+          {t("New Password")}
           <input
             type="password"
             autoComplete="new-password"
@@ -1291,11 +1279,11 @@ function AccountDialog(props: {
             onChange={(event) => setNewPassword(event.target.value)}
           />
         </label>
-        <button type="submit" title="change password" disabled={busy === "password"}>
-          <Save size={15} aria-hidden /> change password
+        <button type="submit" className="profile-save-button" title="Save" disabled={busy === "password"}>
+          {t("Save")}
         </button>
       </form>
-
+      </div>
       <div className="account-actions">
         <button
           type="button"
@@ -1306,12 +1294,13 @@ function AccountDialog(props: {
             await props.onLogout();
           }}
         >
-          <LogOut size={15} aria-hidden /> logout
+          <LogOut size={22} aria-hidden /> {t("Log out")}
         </button>
-        {message ? <p className="muted">{message}</p> : null}
+        {message ? <p className="muted">{t(message)}</p> : null}
         {error ? <p className="error">{error}</p> : null}
       </div>
-    </Sheet>
+      </section>
+    </Dialog>
   );
 }
 
@@ -1320,6 +1309,10 @@ function AdminAccountsSection(props: {
   currentAccountId: string;
   onAccountsChanged: (accounts: AccountWithStats[]) => void;
 }) {
+  const { t } = useLanguage();
+  const [query, setQuery] = useState("");
+  const [role, setRole] = useState("all");
+  const [sortAscending, setSortAscending] = useState(true);
   const [managedAccountId, setManagedAccountId] = useState<string | null>(null);
   const [adminBriefings, setAdminBriefings] = useState<BriefingConfig[]>([]);
   const [loadingFeeds, setLoadingFeeds] = useState(false);
@@ -1357,43 +1350,32 @@ function AdminAccountsSection(props: {
     setAdminBriefings(nextBriefings);
   }
 
+  const visibleAccounts = props.accounts.filter(account => (role === "all" || account.role === role) && `${account.username} ${account.email}`.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => (sortAscending ? 1 : -1) * a.username.localeCompare(b.username));
+  const feedCountFor = (account: AccountWithStats) => loadingFeeds || error ? account.briefingCount : adminBriefings.filter(feed => feed.ownerAccountId === account.id).length;
+
   return (
     <>
-      <details className="section accounts-section">
-        <summary className="section-title accounts-summary" title="accounts">
+      <details className="accounts-section">
+        <summary className="accounts-summary" title="accounts">
           <User size={16} aria-hidden />
-          <span className="accounts-label">Accounts</span>
-          <span className="pill">{props.accounts.length}</span>
-          <span className="pill">{adminBriefings.length} feeds</span>
+          <span className="accounts-back-label">{t("Settings")}</span><ChevronRight size={18}/><span className="accounts-label">{t("User Management")}</span>
         </summary>
+        <div className={`user-management ${managedAccount ? "has-selection" : ""}`}>
+        <div className="user-management-main">
+        <div className="user-management-heading"><h1>{t("User Management")}</h1><p>{t("Manage registered users and their feeds.")}</p></div>
+        <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><select aria-label={t("Filter users by role")} value={role} onChange={event => setRole(event.target.value)}><option value="all">{t("All Roles")}</option><option value="admin">{t("Admin")}</option><option value="user">{t("User")}</option></select><ChevronDown size={18} aria-hidden="true"/></span><div className="users-counts"><span>{props.accounts.length} {t("users")}</span><span>{props.accounts.reduce((total, account) => total + feedCountFor(account), 0)} {t("feeds")}</span></div></div>
         {loadingFeeds ? <p className="muted">loading feeds</p> : null}
         {error ? <p className="error">{error}</p> : null}
-        <div className="source-list">
-          {props.accounts.map((account) => {
-            const feedCount = adminBriefings.filter((briefing) => briefing.ownerAccountId === account.id).length;
-            return (
-              <div key={account.id} className="source-row">
-                <div className="source-copy">
-                  <strong>{account.username}</strong>
-                  <span className="muted">{account.email} / {account.role} / feeds {feedCount || account.briefingCount}</span>
-                  <span className="muted">{account.disabledAt ? "disabled" : account.emailVerifiedAt ? "verified" : "unverified"}</span>
-                </div>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label={`manage ${account.username}`}
-                  title="manage account"
-                  onClick={() => setManagedAccountId(account.id)}
-                >
-                  <Settings size={15} aria-hidden />
-                </button>
-              </div>
-            );
-          })}
+        <div className="users-table-scroll"><table className="users-table"><thead><tr><th><button type="button" onClick={() => setSortAscending(value => !value)}>{t("Name")} <ChevronDown size={14} style={{ transform: sortAscending ? "none" : "rotate(180deg)" }}/></button></th><th>{t("Email")}</th><th>{t("Role")}</th><th>{t("Feeds")}</th><th>{t("Status")}</th><th><span className="sr-only">{t("Actions")}</span></th></tr></thead><tbody>{visibleAccounts.map(account => <tr key={account.id} className={account.id === managedAccountId ? "selected" : ""}>
+          <td><button className="user-name-button" type="button" aria-label={`View ${account.username}`} onClick={() => setManagedAccountId(account.id)}><span className={`user-row-avatar ${account.role === "admin" ? "admin" : ""}`}>{accountInitials(account.username)}</span><span>{account.username}</span></button></td><td>{account.email}</td><td><span className={`user-role-badge ${account.role}`}>{t(account.role === "admin" ? "Admin" : "User")}</span></td><td>{feedCountFor(account)}</td><td><span className={`user-status ${account.disabledAt ? "suspended" : ""}`}>{t(account.disabledAt ? "Suspended" : account.emailVerifiedAt ? "Verified" : "Pending")}</span></td><td>{!managedAccount && <button type="button" className="user-manage-button" aria-label={`manage ${account.username}`} onClick={() => setManagedAccountId(account.id)}>•••</button>}</td>
+        </tr>)}</tbody></table>{visibleAccounts.length === 0 && <p className="users-empty">{t("No users found.")}</p>}</div>
         </div>
-      </details>
       {managedAccount ? (
         <AdminAccountDialog
+          key={managedAccount.id}
+          inline
+          feedCount={feedCountFor(managedAccount)}
           account={managedAccount}
           currentAccountId={props.currentAccountId}
           briefings={adminBriefings.filter((briefing) => briefing.ownerAccountId === managedAccount.id)}
@@ -1403,11 +1385,15 @@ function AdminAccountsSection(props: {
           onRefreshBriefings={refreshAdminBriefings}
         />
       ) : null}
+        </div>
+      </details>
     </>
   );
 }
 
 function AdminAccountDialog(props: {
+  inline?: boolean;
+  feedCount?: number;
   account: AccountWithStats;
   currentAccountId: string;
   briefings: BriefingConfig[];
@@ -1416,22 +1402,17 @@ function AdminAccountDialog(props: {
   onBriefingsChanged: (briefings: BriefingConfig[]) => void;
   onRefreshBriefings: () => Promise<void>;
 }) {
-  const [username, setUsername] = useState(props.account.username);
+  const { language, t } = useLanguage();
+  const { confirm, confirmation } = useConfirmation();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const usernameFieldRef = useRef<HTMLInputElement | null>(null);
   const isSignedInAdmin = props.account.id === props.currentAccountId;
+  const Panel = props.inline ? InlineAccountPanel : Sheet;
+  const joinedAt = props.account.createdAt && Number.isFinite(Date.parse(props.account.createdAt))
+    ? new Intl.DateTimeFormat(language, { year: "numeric", month: "short", day: "numeric" }).format(new Date(props.account.createdAt)) : t("Unavailable");
 
-  useEffect(() => {
-    setUsername(props.account.username);
-  }, [props.account.username]);
-
-  useEffect(() => {
-    usernameFieldRef.current?.focus();
-  }, []);
-
-  async function updateAccountAndRefresh(input: { username?: string; role?: "admin" | "user"; disabled?: boolean }, nextMessage: string) {
+  async function updateAccountAndRefresh(input: { role?: "admin" | "user"; disabled?: boolean }, nextMessage: string) {
     setError("");
     setMessage("");
     const result = await updateAdminAccount(props.account.id, input);
@@ -1457,7 +1438,7 @@ function AdminAccountDialog(props: {
   }
 
   async function removeAdminBriefing(feed: BriefingConfig) {
-    if (!window.confirm(`Delete "${feed.title}" and all of its sources and published items?`)) return;
+    if (!await confirm(`Delete "${feed.title}" and all of its sources and published items?`)) return;
     setBusy(`feed:${feed.id}:delete`);
     setError("");
     setMessage("");
@@ -1473,184 +1454,44 @@ function AdminAccountDialog(props: {
     }
   }
 
-  async function removeAccount() {
-    if (isSignedInAdmin) {
-      setError("cannot delete the signed-in admin");
-      return;
-    }
-    if (!window.confirm(`Delete "${props.account.username}" and all of this user's feeds, sources, and published items?`)) return;
-    setBusy("delete-account");
-    setError("");
-    setMessage("");
-    try {
-      const result = await deleteAdminAccount(props.account.id);
-      props.onAccountsChanged(result.accounts);
-      props.onBriefingsChanged(result.briefings);
-      props.onClose();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(null);
-    }
-  }
-
   return (
-    <Sheet title="manage account" closeLabel="close account management" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
-      <div className="account-meta">
-        <span>{props.account.email}</span>
-        <span>{props.account.disabledAt ? "disabled" : props.account.emailVerifiedAt ? "verified" : "unverified"}</span>
-        <span>{props.briefings.length} feed{props.briefings.length === 1 ? "" : "s"}</span>
-        {isSignedInAdmin ? <span>current admin</span> : null}
-      </div>
-
-      <form
-        className="account-form"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          setBusy("username");
-          try {
-            await updateAccountAndRefresh({ username }, "username saved");
-          } catch (cause) {
-            setError(cause instanceof Error ? cause.message : String(cause));
-          } finally {
-            setBusy(null);
-          }
-        }}
-      >
-        <label>
-          username
-          <input ref={usernameFieldRef} value={username} onChange={(event) => setUsername(event.target.value)} />
-        </label>
-        <button type="submit" title="save username" disabled={busy === "username"}>
-          <Save size={15} aria-hidden /> save username
-        </button>
-      </form>
-
-      <div className="account-form">
-        <div className="field-group">
-          <span>role</span>
-          <div className="segmented" role="group" aria-label={`role for ${props.account.username}`}>
-            {(["user", "admin"] as const).map((role) => (
-              <button
-                key={role}
-                type="button"
-                className={props.account.role === role ? "active" : ""}
-                disabled={busy === "role"}
-                aria-pressed={props.account.role === role}
-                title={`set role ${role}`}
-                onClick={async () => {
-                  if (props.account.role === role) return;
-                  setBusy("role");
-                  try {
-                    await updateAccountAndRefresh({ role }, `role changed to ${role}`);
-                  } catch (cause) {
-                    setError(cause instanceof Error ? cause.message : String(cause));
-                  } finally {
-                    setBusy(null);
-                  }
-                }}
-              >
-                {role}
-              </button>
-            ))}
-          </div>
-        </div>
-        <button
-          type="button"
-          className={props.account.disabledAt ? "" : "danger-button"}
-          title={props.account.disabledAt ? "enable account" : "disable account"}
-          disabled={busy === "disabled"}
-          onClick={async () => {
-            setBusy("disabled");
-            try {
-              await updateAccountAndRefresh(
-                { disabled: !props.account.disabledAt },
-                props.account.disabledAt ? "account enabled" : "account disabled"
-              );
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause));
-            } finally {
-              setBusy(null);
-            }
-          }}
-        >
-          {props.account.disabledAt ? "enable account" : "disable account"}
-        </button>
-      </div>
-
-      <div className="account-form admin-feed-control">
-        <div className="field-group">
-          <span>feeds</span>
-          {props.briefings.length > 0 ? (
-            <div className="admin-feed-list">
-              {props.briefings.map((feed) => (
-                <div key={feed.id} className="admin-feed-row">
-                  <div className="admin-feed-copy">
-                    <strong><bdi>{feed.title}</bdi></strong>
-                    <span className="muted">/{feed.ownerUsername}/{feed.slug}/</span>
-                    <span className="muted">{feed.paused ? "paused" : "live"} / {feed.briefingCadence} / {feed.stars} stars</span>
-                  </div>
-                  <div className="row-actions">
-                    <button
-                      type="button"
-                      title={feed.paused ? "resume feed" : "pause feed"}
-                      disabled={busy === `feed:${feed.id}:pause`}
-                      onClick={() => void toggleAdminBriefing(feed)}
-                    >
-                      {feed.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
-                      {feed.paused ? "resume" : "pause"}
-                    </button>
-                    <a className="button-link icon-button" href={`/${feed.ownerUsername}/${feed.slug}/`} aria-label={`open ${feed.title}`} title="open feed">
-                      <ExternalLink size={15} aria-hidden />
-                    </a>
-                    <button
-                      type="button"
-                      className="danger-button"
-                      title="delete feed"
-                      disabled={busy === `feed:${feed.id}:delete`}
-                      onClick={() => void removeAdminBriefing(feed)}
-                    >
-                      <Trash2 size={15} aria-hidden /> delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="muted">no feeds</p>
-          )}
-        </div>
-      </div>
-
-      <div className="account-form account-danger-zone">
-        <div className="field-group">
-          <span>danger zone</span>
-          <p className="muted">Deleting an account removes its feeds, sources, tokens, and published history.</p>
-        </div>
-        <button
-          type="button"
-          className="danger-button"
-          title={isSignedInAdmin ? "cannot delete the signed-in admin" : "delete account"}
-          disabled={isSignedInAdmin || busy === "delete-account"}
-          onClick={() => void removeAccount()}
-        >
-          <Trash2 size={15} aria-hidden /> delete account
-        </button>
-      </div>
-
+    <Panel title="manage account" closeLabel="close account management" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
+      {confirmation}
+      <div className="managed-user-identity"><span className="profile-avatar">{accountInitials(props.account.username)}</span><h2>{props.account.username}</h2><p>{props.account.email}</p><span className={`user-role-badge ${props.account.role}`}>{props.account.role === "admin" ? "Admin" : "User"}</span></div>
+      <div className="managed-user-stats"><span>{t("Feeds")}<strong>{props.feedCount ?? props.briefings.length}</strong></span><span>{t("Joined")}<strong>{joinedAt}</strong></span></div>
+      <details className="managed-user-settings"><summary><Pencil size={20}/>Account Settings<ChevronRight size={18}/></summary>
+        <fieldset className="account-role-options"><legend>{t("Role")}</legend>{(["user", "admin"] as const).map(role => <label key={role}><input type="radio" name={`role-${props.account.id}`} checked={props.account.role === role} disabled={busy !== null} onChange={async () => { setBusy("role"); try { await updateAccountAndRefresh({ role }, `role changed to ${role}`); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(null); } }}/>{t(role === "admin" ? "Admin" : "User")}</label>)}</fieldset>
+      </details>
+      <details className="managed-user-feeds"><summary><Newspaper size={22}/>View Feeds<ChevronRight size={18}/></summary>
+        <div className="admin-feed-list">{props.briefings.map(feed => <div key={feed.id} className="admin-feed-row"><strong><bdi>{feed.title}</bdi></strong><div className="row-actions"><a className="icon-button" href={`/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${feed.title} in new tab`}><ExternalLink size={18}/></a><details className="feed-options"><summary aria-label={`Options for ${feed.title}`}>...</summary><div className="feed-options-popover admin-feed-actions"><button type="button" aria-label={t(feed.paused ? "Resume feed" : "Pause feed")} title={t(feed.paused ? "Resume feed" : "Pause feed")} disabled={busy !== null} onClick={() => void toggleAdminBriefing(feed)}>{feed.paused ? <Play size={16}/> : <Pause size={16}/>}</button><button type="button" className="danger-button" aria-label={t("Delete feed")} title={t("Delete feed")} disabled={busy !== null} onClick={() => void removeAdminBriefing(feed)}><Trash2 size={18}/></button></div></details></div></div>)}</div>
+      </details>
+      <button type="button" className="managed-user-suspend" disabled={busy !== null || isSignedInAdmin} onClick={async () => {
+        setBusy("disabled");
+        try { await updateAccountAndRefresh({ disabled: !props.account.disabledAt }, props.account.disabledAt ? "account enabled" : "account disabled"); }
+        catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+        finally { setBusy(null); }
+      }}><Ban size={24}/><span>{props.account.disabledAt ? "Enable Account" : "Suspend Account"}</span><ChevronRight size={18}/></button>
       {message ? <p className="muted">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
-    </Sheet>
+    </Panel>
   );
+}
+
+function InlineAccountPanel(props: { title: string; closeLabel: string; icon: React.ReactNode; children: React.ReactNode; onClose: () => void }) {
+  return <aside className="managed-user-panel" aria-label={props.title}><button type="button" className="managed-user-close" aria-label={props.closeLabel} onClick={props.onClose}><X size={22}/></button>{props.children}</aside>;
 }
 
 function FeedPage(props: { username: string; slug: string }) {
   const { language: uiLanguage, t } = useLanguage();
+  const [account, setAccount] = useState<AccountRecord | null>(null);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [ownedFeed, setOwnedFeed] = useState<BriefingConfig | null>(null);
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
   useEffect(() => {
     let active = true;
     getSession().then(async session => {
+      if (!active) return;
+      setAccount(session.authenticated ? session.account ?? null : null);
       if (!session.authenticated || session.account?.username !== props.username) return;
       const owned = await getBriefings();
       if (active) setOwnedFeed(owned.find(feed => feed.slug === props.slug) ?? null);
@@ -1710,6 +1551,30 @@ function FeedPage(props: { username: string; slug: string }) {
   }, [props.username, props.slug]);
 
   useEffect(() => {
+    let active = true;
+    let pending = false;
+    const update = async () => {
+      if (document.visibilityState !== "visible" || pending) return;
+      pending = true;
+      try {
+        const next = await getFeed(props.username, props.slug);
+        if (active) setPayload(next);
+      } catch {
+        // Keep the last successful feed visible during temporary network failures.
+      } finally { pending = false; }
+    };
+    const interval = window.setInterval(() => void update(), 60_000);
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("focus", update);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("focus", update);
+    };
+  }, [props.username, props.slug]);
+
+  useEffect(() => {
     const raw = localStorage.getItem(`ln_read:${props.username}:${props.slug}`);
     setReadIds(new Set(raw ? (JSON.parse(raw) as string[]) : []));
   }, [props.username, props.slug]);
@@ -1758,7 +1623,6 @@ function FeedPage(props: { username: string; slug: string }) {
   const reportSection = reportEdition && selectedReport ? reportEdition.sections[selectedReport.sectionIndex] : undefined;
   const feedTitle = payload ? (
     <span className="feed-page-title">
-      <span className={`status-dot ${payload.briefing.paused ? "paused" : "live"}`} aria-hidden />
       <span>{payload.briefing.title}</span>
     </span>
   ) : "briefing";
@@ -1806,39 +1670,33 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
+      header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : loadingFeedLabel(language)}
       feed={payload?.briefing}
       pageLanguage={language}
       headingAction={ownedFeed ? <button className="primary-button" onClick={() => setEditorOpen(true)}><Settings size={17}/>{t("Edit feed settings")}</button> : undefined}
-      onLanguageChange={ownedFeed ? async language => {
-        try { const saved = await saveBriefing({ ...ownedFeed, language }); setOwnedFeed(saved); }
-        catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-      } : undefined}
     >
+      {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
+        onLogout={async () => { await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); }}
+        onSaved={async (nextAccount, nextBriefings) => {
+          setAccount(nextAccount);
+          setOwnedFeed(nextBriefings.find(feed => feed.ownerUsername === props.username && feed.slug === props.slug) ?? null);
+        }}/>}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
-        const saved = await saveBriefing({ ...ownedFeed, ...input, language: preferredLanguage() });
-        if (input.interestProfile !== ownedFeed.interestProfile) {
-          try { await addSource(saved.id, input.interestProfile); }
+        const saved = await saveBriefing({ ...ownedFeed, ...input });
+        if (input.sourceInputs?.length || input.interestProfile !== ownedFeed.interestProfile) {
+          try { for (const source of input.sourceInputs?.length ? input.sourceInputs : [input.interestProfile]) await addSource(saved.id, source); }
           catch (cause) { sessionStorage.setItem(`feed-notice:${saved.id}`, `Feed saved, but topic discovery could not be updated: ${cause instanceof Error ? cause.message : String(cause)}`); }
         }
         setOwnedFeed(saved); setEditorOpen(false);
         if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
-      {payload ? (
-        <FeedSignalPanel
-          briefing={payload.briefing}
-          editionCount={editions.length}
-          unreadCount={unreadEditions.length}
-          language={language}
-          nowMs={clock}
-        />
-      ) : null}
       <div className="feed-tools" dir={pageDir}>
         <div className="feed-actions">
-          <button type="button" title={refreshControlLabel(language)} onClick={() => refresh()}><RefreshCw size={15} aria-hidden /> {refreshControlLabel(language)}</button>
+          {payload?.briefing.publicFeedEnabled && <><button type="button" onClick={() => void navigator.clipboard.writeText(window.location.origin + window.location.pathname).then(() => setSummaryMessage(t("URL copied"))).catch(() => setError(t("Could not copy URL")))}><Copy size={15}/>{t("Copy URL")}</button><button type="button" onClick={() => { const url = window.location.origin + window.location.pathname; void (navigator.share ? navigator.share({ title: payload.briefing.title, url }) : navigator.clipboard.writeText(url)).catch(() => {}); }}><Share size={15}/>{t("Share")}</button></>}
           <button
             type="button"
             title={summaryRequestTitleLabel(language)}
@@ -2290,6 +2148,7 @@ function FeedNotice(props: { message: string; language: "en" | "ar" | "fr" }) {
 }
 
 function Shell(props: {
+  header?: React.ReactNode;
   title: React.ReactNode;
   titleText?: string;
   children: React.ReactNode;
@@ -2299,17 +2158,15 @@ function Shell(props: {
   onLogout?: () => Promise<void>;
   pageLanguage?: "en" | "ar" | "fr";
   headingAction?: React.ReactNode;
-  onLanguageChange?: (language: "en" | "ar" | "fr") => void;
 }) {
   const { language: selectedLanguage } = useLanguage();
   const titleText = props.titleText ?? (typeof props.title === "string" ? props.title : "briefing");
-  const shellLanguage = props.pageLanguage ?? "en";
+  const shellLanguage = selectedLanguage;
   const shellMode = props.feed ? "feed-shell" : props.onAccount ? "admin-shell" : "auth-shell";
-  const showCreateNav = shellMode !== "auth-shell";
 
   useEffect(() => {
     document.documentElement.lang = selectedLanguage;
-    document.documentElement.dir = textDirection(selectedLanguage);
+    document.documentElement.dir = selectedLanguage === "ar" ? "rtl" : "ltr";
     document.title = titleText === "Distilled.news" ? "Distilled.news" : `${titleText} · Distilled.news`;
     const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     if (manifest) {
@@ -2320,8 +2177,8 @@ function Shell(props: {
   }, [props.feed, selectedLanguage, titleText]);
 
   return (
-    <main className={`shell ${shellMode}`}>
-      <header>
+    <main className={`shell ${shellMode}`}><PublicNavigation/>
+      {props.header ?? <header>
         <div className="header-primary">
           <div className="brand-lockup">
             <div className="brand" aria-label="Distilled.news" title="Distilled.news">
@@ -2333,13 +2190,8 @@ function Shell(props: {
           </div>
         </div>
         <div className="header-actions">
-          <nav>
-            {showCreateNav ? <a href="/" title={createNavLabel(shellLanguage)}>{createNavLabel(shellLanguage)}</a> : null}
-            {props.feed ? <span className="nav-separator" aria-hidden="true">|</span> : null}
-            {props.feed ? <a href={`/${props.feed.ownerUsername}/${props.feed.slug}/`}>{feedNavLabel(shellLanguage)}</a> : null}
-          </nav>
           <div className="header-controls">
-            <LanguageControl onChange={props.onLanguageChange}/>
+            <LanguageControl/>
             {props.onAccount ? (
               <button type="button" className="icon-button" aria-label="account settings" title="account settings" onClick={props.onAccount}>
                 <User size={16} aria-hidden />
@@ -2349,8 +2201,12 @@ function Shell(props: {
             {props.onLogout ? <button type="button" title="logout" onClick={() => void props.onLogout?.()}><LogOut size={15} aria-hidden /> logout</button> : null}
           </div>
         </div>
-      </header>
+      </header>}
       <div className="page-heading">
+        {props.feed && <a className="button-link feed-back" href="/" onClick={event => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          if (document.referrer && new URL(document.referrer).origin === window.location.origin && window.history.length > 1) { event.preventDefault(); window.history.back(); }
+        }}><ChevronLeft size={18}/>{selectedLanguage === "ar" ? "رجوع" : selectedLanguage === "fr" ? "Retour" : "Back"}</a>}
         <div className="page-title-row"><h1>{props.title}</h1>{props.headingAction}</div>
         <p>{props.meta ?? getPageMeta(titleText)}</p>
       </div>
@@ -2364,7 +2220,7 @@ function getPageMeta(title: string): string {
   if (title === "briefing") return "Published briefing items only.";
   if (title.includes("Briefing")) return "Published briefing items only.";
   if (title === "verify email") return "Account verification.";
-  if (title === "reset password") return "Account recovery.";
+  if (title === "Reset Password") return "Account recovery.";
   return "Less clutter. Personalized news, to the point.";
 }
 
@@ -2633,10 +2489,10 @@ function loadingFeedsLabel(language: "en" | "ar" | "fr"): string {
   return "loading feeds";
 }
 
-function noStarredFeedsLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "لا توجد موجزات مميّزة بعد";
-  if (language === "fr") return "aucun fil favori pour l'instant";
-  return "no starred feeds yet";
+function noFeaturedFeedsLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "لم يتم نشر أي خلاصات في الاستكشاف بعد.";
+  if (language === "fr") return "Aucun fil n’a encore été publié dans Explorer.";
+  return "No feeds have been published to Explore yet.";
 }
 
 function searchPublishedLabel(language: "en" | "ar" | "fr"): string {
@@ -3003,7 +2859,7 @@ function prepareBriefingForSave(briefing: BriefingConfig, existing: BriefingConf
   return {
     ...briefing,
     slug: slugify(nextSlug),
-    publicFeedEnabled: true,
+    publicFeedEnabled: briefing.publicFeedEnabled,
     intensity: briefing.intensity ?? "medium",
     briefingCadence: visibleBriefingCadence(briefing.briefingCadence ?? "hourly"),
     briefingTimeOfDay: "00:00",
@@ -3019,4 +2875,4 @@ function sortBriefings(briefings: BriefingConfig[]): BriefingConfig[] {
   });
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(<ScreenPages><App /></ScreenPages>);

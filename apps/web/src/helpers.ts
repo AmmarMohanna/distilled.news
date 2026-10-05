@@ -79,3 +79,14 @@ export function formatDateTime(value: string, language: "en" | "ar" | "fr" = "en
 export function formatTime(value: string, language: "en" | "ar" | "fr"): string {
   return formatDateTime(value, language);
 }
+
+export function formatFeedUpdated(value: string, language: "en" | "ar" | "fr", now = Date.now()): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "";
+  const seconds = Math.max(0, Math.floor((now - timestamp) / 1000));
+  if (seconds < 60) return language === "fr" ? "Mis à jour à l’instant" : language === "ar" ? "تم التحديث الآن" : "Updated just now";
+  const unit = seconds < 3600 ? "minute" : seconds < 86400 ? "hour" : "day";
+  const amount = Math.floor(seconds / (unit === "minute" ? 60 : unit === "hour" ? 3600 : 86400));
+  const relative = new Intl.RelativeTimeFormat(language, { numeric: "always" }).format(-amount, unit);
+  return language === "fr" ? `Mis à jour ${relative}` : language === "ar" ? `تم التحديث ${relative}` : `Updated ${relative}`;
+}

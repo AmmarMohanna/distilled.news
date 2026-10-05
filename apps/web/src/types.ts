@@ -13,6 +13,7 @@ export interface AccountRecord {
 
 export interface AccountWithStats extends AccountRecord {
   briefingCount: number;
+  createdAt?: string;
 }
 
 export interface SourceRecord {
