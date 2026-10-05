@@ -44,3 +44,9 @@ it('requires coverage witnesses in actual supported reader prose, never source-o
  expect(wire.decode(verdict([])).semanticChecks[0]).toMatchObject({communicated:false,reason:expect.stringContaining('MISSING_READER_WITNESS')});
  expect(wire.decode({...verdict([{claimId:'claim_1',text:'The minister stepped down.'}]),supportedClaimIds:[]}).preservedFactIds).toEqual([]);
 });
+it('accepts witnesses from a second supported claim in the same story whose fact inventory is shared once',()=>{
+ const first={id:'a',candidateId:'same-story',text:'The minister stepped down.',support:[{evidenceRevisionId:'r',quote:'The minister resigned.'}],context:[],requiredFacts:[{id:'f1',text:'The minister resigned.',evidenceRevisionIds:['r']},{id:'f2',text:'The vote is Monday.',evidenceRevisionIds:['r']}]};
+ const wire=verificationWire([first,{...first,id:'b',text:'Voting is planned for Monday.',requiredFacts:undefined}]);
+ const checks=[{factId:'fact_1',readerSpans:[{claimId:'claim_1',text:first.text}]},{factId:'fact_2',readerSpans:[{claimId:'claim_2',text:'Voting is planned for Monday.'}]}].map(c=>({...c,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Faithful meaning in actual supported reader prose.'}));
+ expect(wire.decode({supportedClaimIds:['claim_1','claim_2'],preservedFactIds:['fact_1','fact_2'],semanticChecks:checks}).preservedFactIds).toEqual(['f1','f2']);
+});

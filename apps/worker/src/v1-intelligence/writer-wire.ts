@@ -62,7 +62,7 @@ export function verificationWire(claims:VerificationClaim[]){
   const seen=new Set<string>(),supported=ids(raw,'supportedClaimIds',claimIds);
   const semanticChecks=z.array(check).parse((raw as Record<string,unknown>).semanticChecks??[]).map(c=>{const factId=factIds.get(c.factId);if(!factId||seen.has(factId))throw new Error('UNRECOGNIZED_VERIFIER_ID');seen.add(factId);
    let invalidWitness=false;
-   const readerSpans=c.readerSpans.flatMap(span=>{const claimId=claimIds.get(span.claimId),claim=claims.find(x=>x.id===claimId);if(!claim||!claim.text.includes(span.text)||!(claim.requiredFacts??[]).some(f=>f.id===factId)||!supported.includes(claim.id)){invalidWitness=true;return [];}return [{claimId:claim.id,text:span.text}];});
+   const readerSpans=c.readerSpans.flatMap(span=>{const claimId=claimIds.get(span.claimId),claim=claims.find(x=>x.id===claimId);const storyFacts=claim?groups.get(claim.candidateId??claim.id)?.flatMap(c=>c.requiredFacts??[]):undefined;if(!claim||!claim.text.includes(span.text)||!storyFacts?.some(f=>f.id===factId)||!supported.includes(claim.id)){invalidWitness=true;return [];}return [{claimId:claim.id,text:span.text}];});
    // Invalid semantic evidence is a durably settled negative verdict, not an
    // uncertain provider execution. Preserve its usage and precise repair reason.
    if(invalidWitness||(c.communicated&&!readerSpans.length))return {...c,factId,communicated:false,readerSpans:[],reason:invalidWitness?'INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.':'MISSING_READER_WITNESS: no reader prose establishes coverage.'};

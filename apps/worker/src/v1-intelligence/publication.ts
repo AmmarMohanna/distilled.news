@@ -10,7 +10,7 @@ import {communicationFingerprint,boundedEditorialContext,supportedSentences,equi
 import type {EventRecord,FeedRecord,StorylineRecord,StorylineVersion} from './types';
 import type {EditorialPlanRecord,PlanStory} from './editorial-plan';
 import type {ShortlistRecord,ShortlistFact} from './shortlist';
-import {checkReaderFidelity,verifiedCorrectionDelivery,faithfulFact,type SemanticFactCheck} from './fidelity';
+import {checkReaderFidelity,verifiedCorrectionDelivery,faithfulFact,hasReaderWitness,type SemanticFactCheck} from './fidelity';
 import {DraftVerificationError,inspectWriterDraft,type WriterFeedback,type WriterIssue} from './writer-feedback';
 
 export interface ClaimSupport {evidenceRevisionId:string;quote:string}
@@ -336,6 +336,10 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   if(selection.selectedCandidateIds.length && !grounding.stories.length)await rejectDraft(draftKey,[{code:'NO_SUPPORTED_STORIES'}]);
   if(input.editorialPlan){
    const verification=await store.read<{addressedCorrectionObligationIds?:string[];novelFactIds?:string[];semanticChecks?:SemanticFactCheck[]}>(feedId,'verification_results',draftKey);
+   if(storedDraft.provider!=='NONE'&&verification?.semanticChecks){
+    const missing=input.stories.flatMap(story=>preservationFacts(story).filter(f=>{const check=verification.semanticChecks!.find(c=>c.factId===f.id);return !check||!faithfulFact(check)||!hasReaderWitness(check,grounding!.stories.find(s=>s.candidateId===story.candidate.id)?.claims??[]);}).map(f=>({code:'MISSING_REQUIRED_FACT',candidateId:story.candidate.id,factId:f.id,value:'No faithful verdict with exact supported reader-prose witnesses.'})));
+    if(missing.length)await rejectDraft(draftKey,missing);
+   }
    const checks=input.stories.map(story=>{const actual=grounding!.stories.find(s=>s.candidateId===story.candidate.id),required=preservationFacts(story),fidelity=checkReaderFidelity(actual?.claims.map(c=>c.text)??[],required,story.plan!.facts,input.feed.outputLanguage==='en'&&story.evidence.every(e=>e.language==='en'),storedDraft.provider!=='NONE'&&verification?.semanticChecks?{checks:verification.semanticChecks}:undefined);
     const known=story.plan!.previousLedgerEntries.flatMap(e=>e.claimFacts),novel=story.plan!.newUnderstandingFactIds.some(id=>{const f=story.plan!.facts.find(f=>f.id===id);return f&&!known.some(k=>equivalentFact(k,f.text))&&(storedDraft!.provider==='NONE'||verification?.novelFactIds?.includes(id))}),addressed=story.plan!.correctionObligations.filter(o=>verifiedCorrectionDelivery(actual?.claims.map(c=>c.text)??[],o.id,verification?.addressedCorrectionObligationIds??[],input.feed.outputLanguage==='en')).map(o=>o.id),correction=story.plan!.correctionObligations.length>0&&addressed.length===story.plan!.correctionObligations.length;
     return {candidateId:story.candidate.id,passed:Boolean(actual)&&fidelity.passed&&novel&&(!story.plan!.correctionObligations.length||correction),addressedCorrectionObligationIds:addressed,fidelity,missingStory:!actual,novelty:novel?'NEW_SUPPORTED_FACT':correction?'CORRECTION_CONTEXT':'NO_SUPPORTED_DELTA',sourceSpan:'EXACT_STORED_QUOTE',entailment:storedDraft!.provider==='NONE'?'RUNTIME_FULL_CONTEXT_EXTRACTION':'MODEL_VERIFIED',mustInclude:'REQUIRED_COLLECTIVE_COVERAGE'};
