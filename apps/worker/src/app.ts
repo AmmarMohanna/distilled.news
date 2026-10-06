@@ -802,7 +802,9 @@ export function createApp(options: AppOptions = {}) {
     if(!savedResponse.ok)return savedResponse;
     const {briefing}=await savedResponse.json() as {briefing:BriefingConfig};
     for(const url of sourceUrls)await approveProductSource(c.env,repo,briefing,url);
-    for(const source of prior)if(!sourceUrls.includes(source.sourceUrl??source.url??''))await repo.deleteSource(source.id);
+    // Ordinary editor lists active sources. Preserve independently paused sources
+    // that the user did not see or explicitly remove in this edit.
+    for(const source of prior)if(source.enabled&&!sourceUrls.includes(source.sourceUrl??source.url??''))await repo.deleteSource(source.id);
     return c.json({briefing});
   });
 

@@ -31,6 +31,9 @@ it('saves explicit owner sources into connector approval, retries without duplic
   expect((await save({...input,sourceInputs:[]})).status).toBe(400);
   expect((await save({...input,sourceInputs:['infrastructure']})).status).toBe(400);
   expect((await save({...input,sourceInputs:['https://127.0.0.1/rss.xml']})).status).toBe(400);
+  const paused=await repo.upsertConfiguredSource({briefingId:input.id,title:'Paused source',provider:'rss',kind:'rss_feed',sourceUrl:'https://example.com/paused.xml',input:'https://example.com/paused.xml',enabled:false});
+  expect((await save(input)).status).toBe(200);
+  expect((await repo.getSource(paused.id))?.enabled).toBe(false);
   expect((await app.request('/api/feed/product/lebanon-news',{},env)).status).toBe(404);
   expect((await app.request('/api/me/sources/recommend',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify({title:'News',description:'Lebanon'})},env)).status).toBe(503);
  }finally{await ctx.dispose()}
