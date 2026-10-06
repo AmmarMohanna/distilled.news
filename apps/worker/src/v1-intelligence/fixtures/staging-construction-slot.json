@@ -1,0 +1,91 @@
+{
+  "operationId": "0580405f1d6ecf1c20a7a4f967ea2144d491fabdc04faa9db786495b54b93551",
+  "mention": {
+    "id": "8b172d4b0c4329f38710737caaa0cff9929d5298e75ac4dccf95167e9dc5ea86",
+    "feedId": "quality-soak-20261006-world",
+    "evidenceRevisionId": "ed1b5743-896b-4738-a309-a7e14124cf53",
+    "sourceDocumentId": "d5a0a1ea8aa42634b43ef265565e63eb2529fd65f68934a26fd47cabcb6e37df",
+    "extractionKey": "017768b6caca521820cba75689f36d76fa2eb92820761c90930b1cf7a1dcdc98",
+    "span": {
+      "field": "body",
+      "start": 0,
+      "end": 148
+    },
+    "sourceText": "The bodycam footage also shows a police officer finding a gun in Mangione's backpack, days after the killing of UnitedHealthcare CEO Brian Thompson.",
+    "reportingRole": "OTHER_UNCERTAIN",
+    "certainty": {
+      "kind": "UNSPECIFIED",
+      "hedges": []
+    },
+    "quantities": [],
+    "qualifiers": [
+      "after"
+    ],
+    "reportTime": "2026-10-02T20:37:34.000Z",
+    "origin": {
+      "kind": "UNKNOWN",
+      "fingerprint": "bf6271d104fb343088e72ce43c8acc4256662086ba43f124d1d7af6eea1c7574"
+    },
+    "extractorVersion": "exact-sentence-spans-v1",
+    "extractionPolicyVersion": "deterministic-claim-foundation-v1"
+  },
+  "invalidConstruction": {
+    "confidence": 0.65,
+    "originDependencyLabel": null,
+    "groups": [
+      {
+        "claimMentionIds": [
+          "8b172d4b0c4329f38710737caaa0cff9929d5298e75ac4dccf95167e9dc5ea86"
+        ],
+        "eventId": null,
+        "storylineId": null,
+        "structuralRelation": "NEW_STORYLINE",
+        "epistemicEffects": [],
+        "entities": [
+          {
+            "canonicalLabel": "Mangione",
+            "aliases": [
+              "Mangione"
+            ],
+            "claimMentionIds": [
+              "8b172d4b0c4329f38710737caaa0cff9929d5298e75ac4dccf95167e9dc5ea86"
+            ]
+          },
+          {
+            "canonicalLabel": "UnitedHealthcare CEO Brian Thompson",
+            "aliases": [
+              "UnitedHealthcare CEO Brian Thompson"
+            ],
+            "claimMentionIds": [
+              "8b172d4b0c4329f38710737caaa0cff9929d5298e75ac4dccf95167e9dc5ea86"
+            ]
+          }
+        ],
+        "storylineState": {
+          "lifecycle": "ACTIVE",
+          "openQuestionMentionIds": [],
+          "expectedNextDate": null
+        },
+        "slots": [
+          {
+            "kind": "role_holder",
+            "claimMentionId": "8b172d4b0c4329f38710737caaa0cff9929d5298e75ac4dccf95167e9dc5ea86",
+            "entityLabel": "Mangione",
+            "value": "found with a gun in backpack",
+            "asOf": null
+          },
+          {
+            "kind": "role_holder",
+            "claimMentionId": "8b172d4b0c4329f38710737caaa0cff9929d5298e75ac4dccf95167e9dc5ea86",
+            "entityLabel": "UnitedHealthcare CEO Brian Thompson",
+            "value": "killed days before",
+            "asOf": null
+          }
+        ]
+      }
+    ],
+    "backgroundMentionIds": [
+      "8b172d4b0c4329f38710737caaa0cff9929d5298e75ac4dccf95167e9dc5ea86"
+    ]
+  }
+}

@@ -48,6 +48,9 @@ export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],
  const offered=numbers(quantitySupport),visible=numbers(quantityText);if(english||offered.size)for(const value of visible)if(!offered.has(value))failures.push({code:'UNSUPPORTED_QUANTITY',value});
  if(english){const bounds=numericalBounds(quantitySupport);for(const value of numericalBounds(quantityText))if(!bounds.has(value))failures.push({code:'UNSUPPORTED_QUANTITY',value});}
  for(const fact of required)for(const value of numbers(withoutSupportedDates(fact.text,dateKeys)))if(!visible.has(value))failures.push({code:'LOST_QUANTITY',factId:fact.id,value});
+ // Approximate magnitudes are information too, not interchangeable with "some".
+ // This hard floor cannot be overridden by a permissive semantic attestation.
+ if(english)for(const fact of required)for(const match of normalized(fact.text).matchAll(/\b(dozens|hundreds|thousands|millions|billions|trillions)\b/g))if(!new RegExp(`\\b${match[1]}\\b`).test(text))failures.push({code:'LOST_QUANTITY',factId:fact.id,value:match[1]});
  for(const date of calendarDates(text))if(!dateKeys.has(date.key))failures.push({code:'UNSUPPORTED_DATE',value:date.text});
  for(const fact of required)if(fact.timing?.framingRequired&&!semantic?.pending&&!semantic?.checks?.some(c=>c.factId===fact.id&&faithfulFact(c)))failures.push({code:'TEMPORAL_FRAMING_REQUIRED',factId:fact.id});
  if(english)for(const fact of required){
@@ -60,7 +63,7 @@ export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],
   for(const [phrase,equivalent] of [['at least',/\b(at least|no fewer than)\b/],['at most',/\b(at most|no more than)\b/],['more than',/\b(more than|over)\b/],['less than',/\b(less than|under)\b/],['before',/\b(before|earlier than|prior to)\b/],['after',/\b(after|later than|following)\b/]] as const)if(source.includes(phrase)&&!equivalent.test(text))failures.push({code:'LOST_BOUND',factId:fact.id,value:phrase});
   if(fact.attribution&&!text.includes(normalized(fact.attribution)))failures.push({code:'LOST_ATTRIBUTION',factId:fact.id,value:fact.attribution});
  }
- return {passed:!failures.length,failures,policyVersion:'reader-fidelity-floors-v3'};
+ return {passed:!failures.length,failures,policyVersion:'reader-fidelity-floors-v4'};
 }
 
 /** Model attestation must concern actual supported reader prose. English adds

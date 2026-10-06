@@ -1,3 +1,4 @@
+import {normalizeLanguage} from './language';
 import {HandoffError} from '@distilled/contracts';
 import {checkReaderFidelity} from './fidelity';
 import type {BriefingDraft,SynthesisInput} from './publication';
@@ -43,7 +44,7 @@ export function inspectWriterDraft(input:SynthesisInput,draft:BriefingDraft,allo
   }
   // Missing declarations alone never establish an omitted proposition. The
   // semantic verifier judges reader prose, regardless of writer bookkeeping.
-  if(story.plan){const fidelity=checkReaderFidelity(offered.claims.map(c=>c.text),facts.filter(f=>requiredIds.has(f.id)),facts,input.feed.outputLanguage==='en'&&story.evidence.every(e=>e.language==='en'),semanticPending?{pending:true}:undefined);for(const failure of fidelity.failures){issues.push({...failure,candidateId:offered.candidateId});if(failure.code==='LOST_QUANTITY'&&failure.factId)issues.push({code:'MISSING_REQUIRED_FACT',candidateId:offered.candidateId,factId:failure.factId});}}
+  if(story.plan){const fidelity=checkReaderFidelity(offered.claims.map(c=>c.text),facts.filter(f=>requiredIds.has(f.id)),facts,normalizeLanguage(input.feed.outputLanguage)==='en'&&story.evidence.every(e=>normalizeLanguage(e.language)==='en'),semanticPending?{pending:true}:undefined);for(const failure of fidelity.failures){issues.push({...failure,candidateId:offered.candidateId});if(failure.code==='LOST_QUANTITY'&&failure.factId)issues.push({code:'MISSING_REQUIRED_FACT',candidateId:offered.candidateId,factId:failure.factId});}}
  }
  for(const story of input.stories)if(!seen.has(story.candidate.id))issues.push({code:'MISSING_STORY',candidateId:story.candidate.id});
  return issues;

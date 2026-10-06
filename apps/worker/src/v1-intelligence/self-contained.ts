@@ -36,7 +36,10 @@ export function leadingReference(text:string):{kind:'PRONOUN'|'ANAPHORIC_NOUN';h
 export function assessSelfContainment(text:string,support:Pick<EvidenceRevision,'id'|'title'|'language'>[]):ContainmentAssessment {
  const language=support[0]?.language;
  if(language && language!=='en' && !language.startsWith('en-'))return {status:'UNASSESSED'};
- const gap=leadingReference(text);
+ // Embedded descriptive possessives can hide an unnamed actor even when
+ // the opening subject is explicit ("people received ... the store's app").
+ const embedded=/\bthe\s+[^.!?,;]{1,65}['’]s\s+(app|website|platform|service|product|decision|proposal|plan|statement|policy)\b/iu.exec(text);
+ const gap=leadingReference(text)??(embedded?{kind:'ANAPHORIC_NOUN' as const,head:embedded[1].toLowerCase()}:undefined);
  if(!gap)return {status:'YES'};
  for(const e of support){
   const title=(e.title??'').trim();if(!title||leadingReference(title))continue;
