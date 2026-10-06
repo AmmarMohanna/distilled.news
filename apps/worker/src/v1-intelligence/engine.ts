@@ -109,10 +109,13 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   if(target) {
    await persistClaimMentions(tx,target.revision);
    const text=revisionText(target.revision),classification=classifyRole(text);
-   const role:RoleDecision={id:JSON.stringify([target.revision.id,INTELLIGENCE_POLICY]),feedId:o.feedId,evidenceId:target.item.id,evidenceRevisionId:target.revision.id,...classification,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
-   await tx.write('roles',role.id,role);
-   const duplicate:DuplicateDecision={id:role.id,feedId:o.feedId,evidenceRevisionId:target.revision.id,kind:'UNIQUE',similarity:0,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
-   for(const other of active) {
+   const roleId=JSON.stringify([target.revision.id,INTELLIGENCE_POLICY]);
+   const savedRole=await tx.read<RoleDecision>('roles',roleId);
+   const role:RoleDecision=savedRole??{id:roleId,feedId:o.feedId,evidenceId:target.item.id,evidenceRevisionId:target.revision.id,...classification,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
+   if(!savedRole)await tx.write('roles',role.id,role);
+   const savedDuplicate=await tx.read<DuplicateDecision>('duplicates',role.id);
+   const duplicate:DuplicateDecision=savedDuplicate??{id:role.id,feedId:o.feedId,evidenceRevisionId:target.revision.id,kind:'UNIQUE',similarity:0,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
+   if(!savedDuplicate)for(const other of active) {
     if(other.revision.id===target.revision.id) continue;
     if(other.item.id===target.item.id) continue;
     // A representative must already have an immutable decision. Feed serialization
@@ -122,7 +125,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
     const sameDevelopment=features(text).development===features(revisionText(other.revision)).development;
     if(target.revision.contentHash===other.revision.contentHash || similarity>=.9 && sameDevelopment) {duplicate.kind=target.revision.contentHash===other.revision.contentHash?'EXACT':'NEAR';duplicate.similarity=similarity;duplicate.duplicateOfRevisionId=other.revision.id;break}
    }
-   await tx.write('duplicates',duplicate.id,duplicate);
+   if(!savedDuplicate)await tx.write('duplicates',duplicate.id,duplicate);
    const candidates:EventMatchInput['candidates']=[];
     for(const event of events) {
      const version=await tx.read<EventVersion>('event_versions',event.currentVersionId);if(!version || version.type==='WITHDRAWN') continue;
