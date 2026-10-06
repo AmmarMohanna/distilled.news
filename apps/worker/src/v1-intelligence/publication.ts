@@ -24,7 +24,7 @@ export interface PreservationFact {id:string;text:string;evidenceRevisionIds:str
 export interface ApprovedWriterFact extends ShortlistFact {support:ClaimSupport[]}
 export type WriterFact=Omit<ApprovedWriterFact,'claimMentionIds'|'evidenceRevisionIds'|'propositionId'>;
 export interface SynthesisWriterInput {feed:SynthesisInput['feed'];selectionId:string;window?:SynthesisInput['window'];editorialPlan?:SynthesisInput['editorialPlan'];stories:{candidate:Pick<BriefingCandidate,'id'|'targetType'|'targetVersionId'>;plan?:Omit<SelectedPlanStory,'facts'>;editorial?:EditorialDecision;approvedFacts?:WriterFact[];approvedSpans?:ClaimSupport[];evidence:{id:string;body?:string;language?:string;publisherId?:string}[]}[]}
-export interface VerificationClaim {id:string;candidateId?:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean;publisherId?:string}[];requiredFacts?:PreservationFact[];allowedFacts?:PreservationFact[];previousLedgerFacts?:string[];newUnderstandingFacts?:PreservationFact[];correctionObligations?:ShortlistRecord['obligations']}
+export interface VerificationClaim {id:string;candidateId?:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean;publisherId?:string}[];requiredFacts?:PreservationFact[];allowedFacts?:PreservationFact[];previousLedgerFacts?:string[];previousReaderClaims?:ShortlistRecord['ledger'];newUnderstandingFacts?:PreservationFact[];correctionObligations?:ShortlistRecord['obligations']}
 export interface BriefingModelPort {
  model:string;provider:string;maxCallCostUsd:number;promptVersion?:string;
  synthesize(input:SynthesisWriterInput,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
@@ -186,9 +186,15 @@ async function requireJob(tx:FeedTransaction,id:string,token:string,now:string):
 }
 /** The port gets selected stored objects only. Durable call intents consume budget before any provider call. */
 export async function publishSelection(store:V1FeedStore,feedId:string,selectionId:string,options:{now():string;model?:BriefingModelPort;requireModel?:boolean}):Promise<BriefingEditionRecord> {
- if(options.requireModel&&!options.model?.verify)throw new HandoffError('INVALID_REQUEST');
  const selection=await store.read<SelectionRecord>(feedId,'selections',selectionId);if(!selection) throw new HandoffError('INVALID_REQUEST');
  const editionId=await sha256(canonicalJson({feedId,start:selection.window.start,end:selection.window.end}));
+ const requirement=await feedTransact(store,feedId,async tx=>{
+  const prior=await tx.read<{id:string;requireModel?:boolean}>('briefing_requests',editionId);
+  if(options.requireModel&&!prior?.requireModel)await tx.write('briefing_requests',editionId,{...(prior??{id:editionId,feedId,window:selection.window,state:'PENDING',attempts:0,createdAt:options.now()}),requireModel:true});
+  return options.requireModel||prior?.requireModel;
+ });
+ options={...options,requireModel:requirement};
+ if(options.requireModel&&!options.model?.verify)throw new HandoffError('INVALID_REQUEST');
  const published=await store.read<BriefingEditionRecord>(feedId,'editions',editionId);if(published){if(options.requireModel&&published.generation.provider==='NONE')throw new HandoffError('INVALID_REQUEST');return published;}
  if(!selection.selectedCandidateIds.length) throw new HandoffError('INVALID_REQUEST');
  const token=crypto.randomUUID();
@@ -325,7 +331,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
      const first=!seen.has(p.candidateId);seen.add(p.candidateId);
      const scope=candidates.get(p.candidateId)!;
      const facts=scope.plan?.facts.map(({id,text,evidenceRevisionIds,attribution,context,timing})=>({id,text,evidenceRevisionIds,attribution,context,timing}));
-     return {...p.claim,candidateId:p.candidateId,requiredFacts:first?preservationFacts(scope):undefined,allowedFacts:facts,previousLedgerFacts:scope.plan?.previousLedgerEntries.flatMap(e=>e.claimFacts),newUnderstandingFacts:first?facts?.filter(f=>scope.plan!.newUnderstandingFactIds.includes(f.id)):undefined,correctionObligations:first?scope.plan?.correctionObligations:undefined,context:scope.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,publisherId:e.publisherId,text:e.body??'',truncated:e.excerptTruncated}))};
+     return {...p.claim,candidateId:p.candidateId,requiredFacts:first?preservationFacts(scope):undefined,allowedFacts:facts,previousLedgerFacts:scope.plan?.previousLedgerEntries.flatMap(e=>e.claimFacts),previousReaderClaims:scope.plan?.previousLedgerEntries,newUnderstandingFacts:first?facts?.filter(f=>scope.plan!.newUnderstandingFactIds.includes(f.id)):undefined,correctionObligations:first?scope.plan?.correctionObligations:undefined,context:scope.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,publisherId:e.publisherId,text:e.body??'',truncated:e.excerptTruncated}))};
     });await callModel('GROUNDING',options.model!.verificationPayload?.(claims)??claims,limits=>options.model!.verify!(claims,limits),draftKey);result=await store.read(feedId,'verification_results',draftKey)}
     for(const id of result?.supportedClaimIds??[]) if(nonextractive.some(p=>p.claim.id===id)) supported.add(id);
     semanticChecks=result?.semanticChecks;
@@ -393,6 +399,9 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   return await feedTransact(store,feedId,async tx=>{
    const existing=await tx.read<BriefingEditionRecord>('editions',editionId);if(existing) return existing;
    const job=await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection);
+   const requirement=await tx.read<{requireModel?:boolean}>('briefing_requests',editionId);
+   // Fence a concurrent policy upgrade as well as later ordinary retries.
+   if(requirement?.requireModel&&(finalDraft.provider==='NONE'||input.editorialPlan?.route!=='GPT'||!await tx.read('verification_results',draftKey)))throw new HandoffError('INVALID_REQUEST');
    const usedCandidates=finalGrounding.stories.map(s=>s.candidateId),selected=input.stories.filter(s=>usedCandidates.includes(s.candidate.id));
    const eventVersionIds=[...new Set(selected.flatMap(s=>s.eventVersions.map(v=>v.id)))],storylineVersionIds=selected.flatMap(s=>s.storylineVersion?[s.storylineVersion.id]:[]);
    const evidenceRevisionIds=[...new Set((await tx.list<EventMembership>('memberships')).filter(m=>eventVersionIds.includes(m.eventVersionId)).map(m=>m.evidenceRevisionId))];

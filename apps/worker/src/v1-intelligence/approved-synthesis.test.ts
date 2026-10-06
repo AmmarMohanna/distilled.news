@@ -118,7 +118,21 @@ it('required real-model publication fails closed without extractive recovery or 
  let calls=0;
  const model:BriefingModelPort={model:'controlled',provider:'TEST',maxCallCostUsd:.01,synthesize:async()=>{calls++;throw Error('simulated provider failure')},verify:async()=>{throw Error('must not verify a fallback')}};
  await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
- await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ // An ordinary retry must inherit the stored requirement even without the flag.
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model})).rejects.toMatchObject({code:'INVALID_REQUEST'});
  expect(calls).toBe(1);expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','drafts')).toHaveLength(0);
  expect(await store.list('feed-1','model_intents')).toHaveLength(1);
+ expect((await store.list<{requireModel?:boolean}>('feed-1','briefing_requests'))[0].requireModel).toBe(true);
+},25000);
+
+it('persists the real-model requirement before a pre-call failure and rejects an ordinary offline retry',async()=>{
+ const selected=await selection();
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,requireModel:true})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(await store.list('feed-1','model_intents')).toHaveLength(0);
+ // Without a durable requirement this second call would publish an extractive
+ // draft from the approved facts; the retry intentionally has no strict flag.
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect(await store.list('feed-1','drafts')).toHaveLength(0);
+ expect((await store.list<{requireModel?:boolean}>('feed-1','briefing_requests'))[0].requireModel).toBe(true);
 },25000);

@@ -28,7 +28,7 @@ import {publicationWindowSchema,livePublicationWindow} from './schedule';
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
-interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string}
+interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean}
 const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') throw new HandoffError('SCOPE_DENIED');
@@ -83,9 +83,14 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  const {feedId,window}=parsed.data;
  if(Date.parse(window.end)>Date.parse(now()) || Date.parse(window.start)>=Date.parse(window.end) || Date.parse(window.end)-Date.parse(window.start)>7*86400000) throw new HandoffError('INVALID_REQUEST');
  await approvedFeed(env,feedId);const store=new V1FeedStore(env.DB),id=await windowIdentity(feedId,window);
+ const required=await feedTransact(store,feedId,async tx=>{
+  const prior=await tx.read<BriefingRequest>('briefing_requests',id);
+  if(publicationOptions?.requireModel&&!prior?.requireModel){const value:BriefingRequest={...(prior??{id,feedId,window,state:'PENDING' as const,attempts:0,createdAt:now()}),requireModel:true};await tx.write('briefing_requests',id,value);return true;}
+  return prior?.requireModel??false;
+ });
  const existing=await store.read<import('./publication').BriefingEditionRecord>(feedId,'editions',id);
  if(existing) {
-  if(publicationOptions?.requireModel&&existing.generation.provider==='NONE')throw new HandoffError('INVALID_REQUEST');
+  if(required&&existing.generation.provider==='NONE')throw new HandoffError('INVALID_REQUEST');
   await projectEditionLedger(store,feedId,existing.id);
   // Publication is atomic, but the request acknowledgement is a later commit.
   // Recover a crash in that gap without reopening synthesis or paid calls.
@@ -106,9 +111,10 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   const writer=createStoredEvidenceModel(env,fetcher);
   const shortlist=env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now()):undefined;
   const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env,fetcher)):undefined;
+  if(required&&shortlist?.candidates.length&&plan?.route!=='GPT')throw new HandoffError('TEMPORARY_UNAVAILABLE');
   const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env),plan);
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');
-  const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:writer,...publicationOptions}):undefined;
+  const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:writer,requireModel:required}):undefined;
   if(edition)await projectEditionLedger(store,feedId,edition.id);
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE'})});return edition;
  } catch(error) {
