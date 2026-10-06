@@ -142,7 +142,7 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
     if((window.durationMinutes??0)>=720 && target.eventVersionIds.length>1) {editorial.contextNeed='HIGH';editorial.treatment='DETAILED'}
     else if(salience.overallScore>=.8 && editorial.newUnderstanding.length>1 && editorial.treatment==='BRIEF') editorial.treatment='STANDARD';
    }
-   const novelty=editorial.decision==='SUPPRESS'?0:score(1-.5*editorial.repeatPenalty);
+   const novelty=editorial.decision==='SUPPRESS'?0:score((1-.5*editorial.repeatPenalty)*(editorial.reasonCodes.includes('OLD_RECAP')?.5:1));
    const windowContext=await sha256(canonicalJson({window,communication}));
    const windowId=await sha256(canonicalJson({assessmentId,windowContext}));
    const duration=window.durationMinutes??(window.kind==='WEEKLY'?10080:window.kind==='DAILY'?1440:window.kind==='30M'?30:60),longWeight=score((duration-30)/(1440-30));

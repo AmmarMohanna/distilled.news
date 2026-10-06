@@ -20,14 +20,14 @@ async function told(body:string) {
 }
 it('suppressed corroboration retains omission provenance without opening a paid salience intent',async()=>{
  await told('Lebanon Parliament approved banking reform legislation.');
- await seedIntelligence(store,2,'Lebanon Parliament passed banking reform law.','publisher-2','2026-10-03T12:30:00Z');
+ await seedIntelligence(store,2,'The Lebanon Parliament approved banking reform legislation.','publisher-2','2026-10-03T12:30:00Z');
  let calls=0;const scorer={score:(input:import('./salience').SalienceInput)=>{calls++;return new DeterministicSalienceScorer().score(input)}};
  const selected=await scoreAndSelect(store,'feed-1',next,DEFAULT_BRIEFING_BUDGET,next.end,scorer);
  expect(selected.omissions.map(o=>o.reason)).toContain('CORROBORATION_ONLY');expect(calls).toBe(0);expect(await store.list('feed-1','salience_intents')).toHaveLength(0);
 },15000);
 it('independent corroboration increases evidence support but suppresses a previously communicated development',async()=>{
  const edition=await told('Lebanon Parliament approved banking reform legislation.');
- await seedIntelligence(store,2,'Lebanon Parliament passed banking reform law.','publisher-2','2026-10-03T12:30:00Z');
+ await seedIntelligence(store,2,'The Lebanon Parliament approved banking reform legislation.','publisher-2','2026-10-03T12:30:00Z');
  const selection=await scoreAndSelect(store,'feed-1',next,DEFAULT_BRIEFING_BUDGET,next.end);
  expect(selection.selectedCandidateIds).toHaveLength(0);
  expect(selection.omissions.map(o=>o.reason)).toContain('CORROBORATION_ONLY');
@@ -170,6 +170,10 @@ it('extractive drafts and grounded claims show a duplicated sentence once and ke
 });
 it('alias map does not merge unrelated senses',async()=>{
  const {equivalentFact}=await import('./editorial');
- expect(equivalentFact('The senator passed away.','The senator approved away.')).toBe(false);
- expect(equivalentFact('The bill passed.','The bill approved.')).toBe(true);
+ // Synonymy is a semantic judgment (JEV/entailment), never a lexical table.
+ expect(equivalentFact('The bill passed.','The bill approved.')).toBe(false);
+ expect(equivalentFact('The senator passed away.','The senator approved.')).toBe(false);
+ expect(equivalentFact('Parliament approved banking legislation.','Parliament approved banking law.')).toBe(false);
+ expect(equivalentFact('The minister signs the bill.','The minister signed the bill.')).toBe(false);
+ expect(equivalentFact('The ads broke the law.','The advertisements broke the laws.')).toBe(true);
 });

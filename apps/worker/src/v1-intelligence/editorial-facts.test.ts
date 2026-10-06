@@ -18,8 +18,10 @@ it('preserves quantities, negation and future uncertainty',()=>{
  expect(equivalentFact('The bank approved payments.','The bank did not approve payments.')).toBe(false);
  expect(equivalentFact('The bank may approve payments.','The bank approved payments.')).toBe(false);
 });
-it('recognizes conservative lexical equivalents',()=>{
- expect(equivalentFact('Lebanon Parliament approved banking legislation.','Lebanon Parliament passed banking law.')).toBe(true);
+it('recognizes only inflectional/abbreviation equivalents, not synonyms',()=>{
+ expect(equivalentFact('Lebanon Parliament approved banking legislation.','Lebanon Parliament passed banking law.')).toBe(false);
+ expect(equivalentFact('Lebanon Parliament approved banking law.','The Lebanon Parliament approves banking laws.')).toBe(false);
+ expect(equivalentFact('Lebanon Parliament approved banking law.','The Lebanon Parliament approved banking law.')).toBe(true);
 });
 it('bounds model history without altering the persisted delta or complete decision',()=>{
  const previous={editionId:'edition',targetType:'EVENT' as const,targetVersionId:'event',claimIds:['claim'],facts:['x'.repeat(12000)],evidenceRevisionIds:['evidence']};

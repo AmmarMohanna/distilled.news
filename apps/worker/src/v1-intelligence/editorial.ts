@@ -31,7 +31,9 @@ export interface EditorialTarget {type:TargetType;id:string;stableId:string;stor
 export function boundedEditorialContext(value:EditorialDecision):EditorialDecision {
  return {...value,previouslyCommunicated:value.previouslyCommunicated.slice(0,1).map(p=>({...p,claimIds:p.claimIds.slice(0,2),facts:p.facts.slice(0,2).map(f=>f.slice(0,400)),factEvidenceRevisionIds:p.factEvidenceRevisionIds?.slice(0,2),evidenceRevisionIds:p.evidenceRevisionIds.slice(0,3)}))};
 }
-const aliases:Record<string,string>={approved:'approve',passed:'approve',approves:'approve',legislation:'law',resigned:'resign',signs:'sign',signed:'sign',affects:'affect',affected:'affect',ads:'advertisement',advertisements:'advertisement',laws:'law'};
+// Deterministic equivalence is limited to number (plural) and abbreviation of the same word; verb tense is never normalised because it carries temporal state. Real synonymy
+// (approved/passed, legislation/law) is a semantic judgment for the JEV/entailment path, never a lexical table.
+const aliases:Record<string,string>={ads:'advertisement',advertisements:'advertisement',laws:'law'};
 // Epistemic strength classes. "may/might/could" are interchangeable hedges of
 // the same strength; stronger or weaker markers are never merged with them.
 const modalClass:Record<string,string>={may:'possible',might:'possible',could:'possible',possibly:'possible',reportedly:'reported',allegedly:'alleged',alleged:'alleged'};
@@ -47,7 +49,7 @@ export function equivalentFact(a:string,b:string):boolean {
  const quantities=(s:string)=>JSON.stringify(normalized(s).match(/\b\d+(?:[.,]\d+)*%?\b/g)??[]);
  const qualifiers=(s:string)=>JSON.stringify([...new Set((normalized(s).match(/\b(?:not|no|never|without|may|might|could|possibly|expected|alleged|allegedly|reportedly|unconfirmed|unresolved|estimated|more than|less than|at least|up to)\b/g)??[]).map(q=>modalClass[q]??q))].sort());
  if(quantities(a)!==quantities(b) || qualifiers(a)!==qualifiers(b)) return false;
- const words=(s:string)=>(normalized(s).match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map((w,i,all)=>modalClass[w]?'<'+modalClass[w]+'>':w==='passed'&&all[i+1]==='away'?w:aliases[w]??w).filter(w=>!droppable.has(w));
+ const words=(s:string)=>(normalized(s).match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map(w=>modalClass[w]?'<'+modalClass[w]+'>':aliases[w]??w).filter(w=>!droppable.has(w));
  // Preserve argument order and attribution. A shared bag of words does not
  // establish that the same actor performed the same action on the same object.
  // Retain punctuation in its position: signs/units attach to quantities and
@@ -130,14 +132,14 @@ export async function evaluateEditorialDelta(tx:FeedTransaction,target:Editorial
   return phase!=='report' && !priorPhases.has(phase);
  });
  const freshness=windowStart?assessFreshness(target.evidence,{start:windowStart,end:windowEnd}):undefined;
- // Old reporting the Feed only just saw, with nothing previously told to compare against, is not a development of this window.
- // Exempt a Feed's first edition: a reader who has been told nothing has no earlier briefing to repeat.
+ // Old reporting the Feed only just saw is not a development of this window, but the reader may genuinely never have been told it.
+ // Source age alone therefore never suppresses: it is labelled OLD_RECAP, demoted and dated, and left to the editor. A Feed's first edition is exempt.
  const staleRecap=freshness?.state==='STALE' && !previous.length && (await tx.list<BriefingEditionRecord>('editions')).some(e=>Date.parse(e.windowEnd)<Date.parse(windowEnd));
- const include=newUnderstanding.length>0 && !staleRecap;
- const reasonCodes:EditorialReason[]=staleRecap?['OLD_RECAP']:!include?[previous.length && target.evidence.some(e=>!previous.some(p=>p.evidenceRevisionIds.includes(e.id)))?'CORROBORATION_ONLY':'ALREADY_COMMUNICATED']:!previous.length?['NEW_SUPPORTED_DEVELOPMENT']:changedPhase?['MAJOR_STATE_CHANGE']:['MATERIAL_NEW_FACT'];
+ const include=newUnderstanding.length>0;
+ const reasonCodes:EditorialReason[]=include&&staleRecap?['OLD_RECAP']:!include?[previous.length && target.evidence.some(e=>!previous.some(p=>p.evidenceRevisionIds.includes(e.id)))?'CORROBORATION_ONLY':'ALREADY_COMMUNICATED']:!previous.length?['NEW_SUPPORTED_DEVELOPMENT']:changedPhase?['MAJOR_STATE_CHANGE']:['MATERIAL_NEW_FACT'];
  const caveats=newUnderstanding.some(f=>/\b(unresolved|uncertain|disputed|may|might|no new date|not confirmed|however|but)\b/i.test(f.text));
- const contextNeed=!include?'NONE':changedPhase || caveats?'MODERATE':previous.length?'SMALL':'NONE';
- return {freshness,policyVersion:EDITORIAL_POLICY,targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,decision:include?'INCLUDE':'SUPPRESS',reasonCodes,previouslyCommunicated:previous,newUnderstanding,repeatedFactCount,repeatPenalty,contextNeed,treatment:!include?'OMIT':caveats || newUnderstanding.length>=4?'DETAILED':changedPhase || newUnderstanding.length>1?'STANDARD':'BRIEF'};
+ const contextNeed=!include?'NONE':changedPhase || caveats?'MODERATE':previous.length||staleRecap?'SMALL':'NONE';
+ return {freshness,policyVersion:EDITORIAL_POLICY,targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,decision:include?'INCLUDE':'SUPPRESS',reasonCodes,previouslyCommunicated:previous,newUnderstanding,repeatedFactCount,repeatPenalty,contextNeed,treatment:!include?'OMIT':staleRecap&&!changedPhase&&!caveats?'BRIEF':caveats || newUnderstanding.length>=4?'DETAILED':changedPhase || newUnderstanding.length>1?'STANDARD':'BRIEF'};
 }
 
 /** Necessary prior comparison context follows the same latest-edition/two-fact

@@ -20,15 +20,16 @@ const first={start:'2026-10-03T11:00:00Z',end:'2026-10-03T12:01:00Z',kind:'HOURL
 const later={start:'2026-10-06T11:00:00Z',end:'2026-10-06T12:00:00Z',kind:'HOURLY' as const};
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
 afterEach(async()=>ctx?.dispose());
-it('an old article newly ingested is an old recap, not a development, once the Feed has published before',async()=>{
+it('an old article newly ingested is labelled and demoted but never silently suppressed',async()=>{
  await seedIntelligence(store,1,'Lebanon Parliament approved banking reform legislation.');
  await publishSelection(store,'feed-1',(await scoreAndSelect(store,'feed-1',first,DEFAULT_BRIEFING_BUDGET,testPolicy.now())).id,{now:testPolicy.now});
  await seedIntelligence(store,2,'Ukraine opened a new grain corridor on Monday.','publisher-2','2026-10-06T11:30:00Z','en','2026-10-02T09:00:00Z');
  const shortlist=await prepareSemanticShortlist(store,'feed-1',later,later.end);
  const c=shortlist.candidates.find(c=>c.evidenceRevisionIds.length)!;
- expect(c.fallbackEditorial.reasonCodes).toEqual(['OLD_RECAP']);expect(c.flags).toContain('OLD_RECAP');
+ expect(c.fallbackEditorial.decision).toBe('INCLUDE');expect(c.fallbackEditorial.reasonCodes).toEqual(['OLD_RECAP']);expect(c.flags).toContain('OLD_RECAP');expect(c.priority).toBeLessThan(.6);
+ expect(c.facts.every(f=>f.reportTime==='2026-10-02T09:00:00Z')).toBe(true);
  const selected=await scoreAndSelect(store,'feed-1',later,DEFAULT_BRIEFING_BUDGET,later.end);
- expect(selected.selectedCandidateIds).toHaveLength(0);
+ expect(selected.selectedCandidateIds).toHaveLength(1);
 },30000);
 it('the same article with an unknown or current publication time is still reported, and a first edition is not emptied',async()=>{
  await seedIntelligence(store,1,'Ukraine opened a new grain corridor on Monday.','publisher-1','2026-10-06T11:30:00Z','en',null);
