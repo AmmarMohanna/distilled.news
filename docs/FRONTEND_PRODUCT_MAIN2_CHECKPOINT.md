@@ -1,6 +1,6 @@
 # Frontend product integration checkpoint
 
-Status: **incomplete; staging account access blocked**. This is a resumable checkpoint, not a release or a completed product milestone.
+Historical checkpoint, superseded by [the current integration report](FRONTEND_PRODUCT_MAIN2_REPORT.md). Cloudflare account access was subsequently fixed and the core product path deployed and verified on staging. The observations below record the earlier checkpoint only.
 
 ## Verified Git state
 
