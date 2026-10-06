@@ -18,7 +18,7 @@ export interface LedgerEntry {
  certainty:{kind:string;hedges:string[]};attribution?:string;communicatedAt:string;policyVersion:string;
 }
 export type CorrectionKind='CONTRADICTED'|'RETRACTED'|'SOURCE_REVISED'|'SOURCE_DELETED';
-export interface CorrectionObligation {id:string;feedId:string;ledgerEntryId:string;editionId:string;kind:CorrectionKind;triggerId:string;state:'OPEN';createdAt:string;policyVersion:string}
+export interface CorrectionObligation {id:string;feedId:string;ledgerEntryId:string;editionId:string;kind:CorrectionKind;triggerId:string;state:'OPEN';createdAt:string;policyVersion:string;publicationWithdrawal?:{reason:string}}
 export interface LedgerProjection {id:string;feedId:string;editionId:string;entryIds:string[];policyVersion:string}
 export const ledgerProjectionId=(editionId:string)=>JSON.stringify([editionId,LEDGER_POLICY]);
 const facts=(text:string)=>text.normalize('NFKC').trim().split(/(?<=[.!?])\s+(?=[\p{Lu}\p{N}])/u).map(s=>s.trim()).filter(Boolean);

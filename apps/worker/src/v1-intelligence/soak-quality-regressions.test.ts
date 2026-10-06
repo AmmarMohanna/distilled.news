@@ -3,6 +3,8 @@ import planner from './fixtures/staging-planner-reference-categories.json';
 import construction from './fixtures/staging-construction-slot.json';
 import quantity from './fixtures/staging-approximate-quantity.json';
 import deferredCorrection from './fixtures/staging-deferred-correction.json';
+import withdrawals from './fixtures/staging-publication-withdrawals.json';
+import verifierBudget from './fixtures/staging-correction-verifier-budget.json';
 import {compactEditorialInput} from './editorial-transport';
 import {editorialPlanWireSchemaFor,validateEditorialPlan,fallbackEditorialPlan,type EditorialPlanBody} from './editorial-plan';
 import type {ShortlistRecord} from './shortlist';
@@ -10,8 +12,48 @@ import {parseConstruction} from './semantic-construction';
 import type {ClaimMention} from './claims';
 import {checkReaderFidelity} from './fidelity';
 import {inspectWriterDraft} from './writer-feedback';
-import type {SynthesisInput} from './publication';
+import type {SynthesisInput,VerificationClaim} from './publication';
+import {createStoredEvidenceModel} from './model';
+import {DEFAULT_BRIEFING_BUDGET} from './scoring';
+import type {Env} from '../types';
 import {assessSelfContainment} from './self-contained';
+
+it('the exact failed live correction draft and all its support fit the unchanged verifier allowance',()=>{
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'unused-test-key'} as Env)!;
+ const bytes=new TextEncoder().encode(JSON.stringify(model.verificationPayload!(verifierBudget.claims as VerificationClaim[]))).length;
+ expect(bytes+verifierBudget.writerInputTokens).toBeLessThanOrEqual(DEFAULT_BRIEFING_BUDGET.maxInputTokens);
+});
+
+it('the observed two-story correction verifier fits the existing allowance after the real writer charge',()=>{
+ const scope=withdrawals.shortlist as unknown as ShortlistRecord;
+ const claims:VerificationClaim[]=scope.candidates.slice(0,2).map((c,i)=>{
+  const obligations=scope.obligations.filter(o=>c.correctionObligationIds.includes(o.id)),history=scope.ledger.filter(e=>obligations.some(o=>o.ledgerEntryId===e.id));
+  const facts=c.facts.map(f=>({id:f.id,text:f.text,evidenceRevisionIds:f.evidenceRevisionIds,attribution:f.attribution,timing:f.timing,context:f.context}));
+  return {id:`claim_${i}`,candidateId:c.targetVersionId,text:c.facts[0].text,support:[{evidenceRevisionId:c.facts[0].evidenceRevisionIds[0],quote:c.facts[0].text}],context:c.facts.map(f=>({evidenceRevisionId:f.evidenceRevisionIds[0],text:f.text,truncated:false})),requiredFacts:facts,allowedFacts:facts,previousLedgerFacts:history.flatMap(e=>e.claimFacts),previousReaderClaims:history,correctionObligations:obligations};
+ });
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'unused-test-key'} as Env)!;
+ const bytes=new TextEncoder().encode(JSON.stringify(model.verificationPayload!(claims))).length;
+ expect(bytes+2138).toBeLessThanOrEqual(DEFAULT_BRIEFING_BUDGET.maxInputTokens);
+});
+
+it('all seven persisted publication withdrawals can be planned without inventing a new news fact',()=>{
+ const scope=withdrawals.shortlist as unknown as ShortlistRecord;
+ expect(scope.obligations).toHaveLength(7);
+ expect(scope.obligations.every(o=>o.publicationWithdrawal)).toBe(true);
+ const plan=fallbackEditorialPlan(scope);
+ for(const story of plan.stories){const c=scope.candidates.find(c=>c.targetVersionId===story.targetVersionId)!;if(!c.correctionObligationIds.length)continue;Object.assign(story,{decision:'SELECT',treatment:'STANDARD',deltaType:'CORRECTION',mustIncludeFactIds:c.facts.map(f=>f.id),newUnderstandingFactIds:[],previousLedgerEntryIds:scope.obligations.filter(o=>c.correctionObligationIds.includes(o.id)).map(o=>o.ledgerEntryId)});}
+ plan.obligations=scope.obligations.map(o=>({obligationId:o.id,handling:'ADDRESS',targetVersionId:scope.candidates.find(c=>c.correctionObligationIds.includes(o.id))!.targetVersionId,reason:'Correct the prior withdrawn reader communication with supported facts.'}));
+ expect(validateEditorialPlan(plan,scope)).toEqual(plan);
+ expect(validateEditorialPlan(plan,scope,{requirePublicationCorrection:true})).toEqual(plan);
+ expect(()=>validateEditorialPlan(fallbackEditorialPlan(scope),scope,{requirePublicationCorrection:true})).toThrow();
+ const wire=editorialPlanWireSchemaFor(compactEditorialInput(scope).state);
+ expect(wire.properties.stories.items.anyOf.every(b=>b.properties.decision.enum[0]==='SELECT')).toBe(true);
+ const obligationWire=wire.properties.obligations.items as unknown as {anyOf:{properties:{handling:{enum:string[]};targetVersionId:{enum:string[]}}}[]};
+ expect(obligationWire.anyOf).toHaveLength(7);
+ expect(obligationWire.anyOf.every(b=>b.properties.handling.enum.join()==='ADDRESS'&&b.properties.targetVersionId.enum.length===1)).toBe(true);
+ const unsupported=structuredClone(scope);for(const o of unsupported.obligations)delete o.publicationWithdrawal;
+ expect(()=>validateEditorialPlan(plan,unsupported)).toThrow();
+});
 
 it('the persisted planner attempt cannot use ledger history as approved fact context',()=>{
  const shortlist=planner.shortlist as unknown as ShortlistRecord;
@@ -20,7 +62,10 @@ it('the persisted planner attempt cannot use ledger history as approved fact con
  const branch=schema.properties.stories.items.anyOf[0].properties as unknown as Record<string,{items?:{enum?:string[]}}>;
  const ledger=transport.state.ledger.map(e=>e.id),facts=transport.state.candidates.flatMap(c=>c.facts.map(f=>f.id));
  expect(branch.contextFactIds.items!.enum).toEqual([...new Set(facts)]);
- expect(branch.previousLedgerEntryIds.items!.enum).toEqual(ledger);
+ expect(branch.previousLedgerEntryIds.items!.enum).toEqual(['R10']);
+ expect(branch.previousLedgerEntryIds.items!.enum).not.toContain('R11'); // unrelated Event history
+ expect(schema.properties.stories).toMatchObject({minItems:shortlist.candidates.length,maxItems:shortlist.candidates.length});
+ expect(schema.properties.obligations).toMatchObject({minItems:shortlist.obligations.length,maxItems:shortlist.obligations.length});
  expect(branch.contextFactIds.items!.enum!.some(id=>ledger.includes(id))).toBe(false);
 });
 it('cannot select the observed withdrawn target while deferring its correction obligation',()=>{

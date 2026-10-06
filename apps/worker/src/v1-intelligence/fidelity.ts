@@ -1,6 +1,6 @@
 export interface FidelityFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string;timing?:import('./freshness').FactTiming;context?:{text:string}}
-export interface SemanticFactCheck {factId:string;communicated:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;reason:string;readerSpans?:{claimId:string;text:string}[]}
-export const faithfulFact=(check:SemanticFactCheck)=>check.communicated&&check.attribution&&check.certainty&&check.temporal&&check.qualifiers;
+export interface SemanticFactCheck {factId:string;communicated:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;nonRepetitive?:boolean;reason:string;readerSpans?:{claimId:string;text:string}[]}
+export const faithfulFact=(check:SemanticFactCheck)=>check.communicated&&check.attribution&&check.certainty&&check.temporal&&check.qualifiers&&check.nonRepetitive!==false;
 export function hasReaderWitness(check:SemanticFactCheck,claims:{id:string;text:string}[]):boolean {
  return !!check.readerSpans?.length&&check.readerSpans.every(span=>claims.some(c=>c.id===span.claimId&&c.text.includes(span.text)));
 }
@@ -53,6 +53,13 @@ export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],
  if(english)for(const fact of required)for(const match of normalized(fact.text).matchAll(/\b(dozens|hundreds|thousands|millions|billions|trillions)\b/g))if(!new RegExp(`\\b${match[1]}\\b`).test(text))failures.push({code:'LOST_QUANTITY',factId:fact.id,value:match[1]});
  for(const date of calendarDates(text))if(!dateKeys.has(date.key))failures.push({code:'UNSUPPORTED_DATE',value:date.text});
  for(const fact of required)if(fact.timing?.framingRequired&&!semantic?.pending&&!semantic?.checks?.some(c=>c.factId===fact.id&&faithfulFact(c)))failures.push({code:'TEMPORAL_FRAMING_REQUIRED',factId:fact.id});
+ // Relative event sequence ("days after the killing") does not communicate
+ // reporting age. A permissive model verdict cannot erase this reader floor.
+ if(english&&!semantic?.pending)for(const fact of required)if(fact.timing?.framingRequired){
+  const olderReport=/\b(?:earlier|older|previous|past|prior|original)\b\s+(?:source\s+|news\s+)?(?:report|reporting|coverage|account)\b|\b(?:report|reporting|reported|coverage|account)\b[^.!?]{0,45}\b(?:earlier|older|previous|previously)\b/i.test(text);
+  const datedReport=calendarDates(text).length>0&&/\b(?:report|reported|reporting|coverage)\b/i.test(text);
+  if(!olderReport&&!datedReport)failures.push({code:'TEMPORAL_FRAMING_REQUIRED',factId:fact.id});
+ }
  if(english)for(const fact of required){
   // Only an explicit independent semantic verdict may resolve a lexical floor.
   // Numbers/dates above remain hard checks. Pending semantic judgment is not a pass.

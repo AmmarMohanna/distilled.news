@@ -14,6 +14,7 @@ import {V1FeedStore} from './store';
 import type {Env} from '../types';
 import {OpenRouterJudgmentClient,JevSalienceScorer,GptSalienceScorer,type SalienceInput} from './salience';
 import type {EventVersion} from '@distilled/contracts';
+import {APPROVED_FACT_PROMPT_VERSION} from './model';
 
 const FEED_URL='https://feeds.bbci.co.uk/news/world/rss.xml';
 const SYNTHETIC_RSS='<rss><channel><language>en</language><item><guid>rss-1</guid><title>Parliament approves reform</title><description>Parliament approved banking reform legislation after a public vote.</description><link>https://www.bbc.com/news/reform</link><pubDate>Sat, 03 Oct 2026 10:00:00 GMT</pubDate></item></channel></rss>';
@@ -60,7 +61,7 @@ async function proof(live:boolean,paid=false) {
   }
   if(live) console.info('Live RSS representation diagnostics',{declaredLanguage:language??'UNKNOWN',items:batch.observations.map(o=>({bodyCharacters:o.text.length,completeness:o.contentCompleteness}))});
   const asOf=new Date(Date.now()+1000),edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:{start:new Date(Date.parse(now)-3600000).toISOString(),end:asOf.toISOString(),kind:'HOURLY'}},()=>asOf.toISOString());
-  expect(edition?.stories.length).toBeGreaterThan(0);expect(edition!.generation.model).toBe(paid?'openai/gpt-4.1-mini':'deterministic-approved-facts-v3');expect(edition!.generation.promptVersion).toBe(paid?'approved-fact-spans-editorial-v19':'approved-fact-spans-v3');
+  expect(edition?.stories.length).toBeGreaterThan(0);expect(edition!.generation.model).toBe(paid?'openai/gpt-4.1-mini':'deterministic-approved-facts-v3');expect(edition!.generation.promptVersion).toBe(paid?APPROVED_FACT_PROMPT_VERSION:'approved-fact-spans-v3');
   const publicEdition=await publicV1Edition(db,edition!.id);expect(publicEdition?.citations.length).toBeGreaterThan(0);
   if(paid) {
    const store=new V1FeedStore(db),version=await store.read<EventVersion>('feed-1','event_versions',edition!.eventVersionIds[0]);

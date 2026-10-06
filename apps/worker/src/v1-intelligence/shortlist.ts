@@ -8,7 +8,7 @@ import {type LedgerEntry,type CorrectionObligation} from './ledger';
 import type {EventSemanticState,Proposition} from './semantic-state';
 import {factTiming,type FactTiming} from './freshness';
 import {protectedEffects} from './semantic-routing';
-export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v7';
+export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v8';
 export type {NoveltyClass};
 export interface ShortlistFact {id:string;timing?:FactTiming;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
 export interface ShortlistCandidate {novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
@@ -21,7 +21,11 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
  const earlierEditions=new Set((await tx.list<import('./publication').BriefingEditionRecord>('editions')).filter(e=>Date.parse(e.windowEnd)<Date.parse(window.end)).map(e=>e.id));
  const ledger=(await tx.list<LedgerEntry>('ledger_entries')).filter(e=>earlierEditions.has(e.editionId)),resolved=new Set((await tx.list<{id:string;obligationId:string}>('correction_resolutions')).map(r=>r.obligationId));
  const completedWork=new Set((await tx.list<{id:string;workId:string}>('editorial_work_resolutions')).map(r=>r.workId)),pendingWork=(await tx.list<{id:string;stableTargetId:string;storylineId?:string}>('editorial_deferred_work')).filter(w=>!completedWork.has(w.id));
- const obligations=(await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>!resolved.has(o.id));
+ const withdrawnStates=await tx.list<{id:string;editionId:string;status:string;reason:string}>('ledger_states');
+ const obligations=(await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>!resolved.has(o.id)).map(o=>{
+  const withdrawal=withdrawnStates.find(s=>s.id===o.triggerId&&s.editionId===o.editionId&&s.status==='WITHDRAWN');
+  return withdrawal?{...o,publicationWithdrawal:{reason:withdrawal.reason}}:o;
+ });
  const candidates:ShortlistCandidate[]=[];
  for(const target of await targets(tx,window,true)){
   const related=obligations.filter(o=>{const entry=ledger.find(e=>e.id===o.ledgerEntryId);return entry?.eventIds.includes(target.stableId)||target.storylineId && entry?.storylineIds.includes(target.storylineId)});

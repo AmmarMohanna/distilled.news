@@ -1,6 +1,20 @@
 import {it,expect} from 'vitest';
 import {checkReaderFidelity,verifiedCorrectionDelivery} from './fidelity';
+import temporalFalsePass from './fixtures/staging-temporal-false-pass.json';
 const fact=(text:string)=>({id:'fact',text,evidenceRevisionIds:['r']});
+it('rejects the exact persisted Mangione false pass despite real verifier approval',()=>{
+ const f=temporalFalsePass.fact;
+ expect(f.timing.framingRequired).toBe(true);
+ expect(checkReaderFidelity([temporalFalsePass.claim],[f],[f],true,{checks:temporalFalsePass.semanticChecks}).failures).toContainEqual({code:'TEMPORAL_FRAMING_REQUIRED',factId:f.id});
+});
+it('a positive verifier cannot confuse old reporting age with relative event sequence',()=>{
+ const source='Bodycam footage shows an officer finding a gun, days after the killing.',approved={...fact(source),timing:{sourcePublishedAt:'2026-10-02T20:37:34Z',firstSeenByFeedAt:'2026-10-06T16:52:43Z',observedAt:'2026-10-06T16:52:43Z',framingRequired:true}};
+ const checks=[{factId:'fact',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Permissive positive verdict.'}];
+ expect(checkReaderFidelity([source],[approved],[approved],true,{checks}).failures).toContainEqual({code:'TEMPORAL_FRAMING_REQUIRED',factId:'fact'});
+ expect(checkReaderFidelity(['A prior Distilled briefing that reported bodycam footage showing an officer finding a gun has been withdrawn. Bodycam footage shows an officer finding a gun, days after the killing.'],[approved],[approved],true,{checks}).failures).toContainEqual({code:'TEMPORAL_FRAMING_REQUIRED',factId:'fact'});
+ expect(checkReaderFidelity(['An earlier report shows an officer finding a gun, days after the killing.'],[approved],[approved],true,{checks}).passed).toBe(true);
+ expect(checkReaderFidelity([source],[{...approved,timing:{...approved.timing,framingRequired:false}}],[approved],true,{checks}).passed).toBe(true);
+});
 it('rejects invented quantities, magnitudes and dates even with a supplied supporting quote',()=>{
  for(const [source,text] of [['Officials reported 12 people affected.','Officials reported 40 people affected.'],['The cost is 12 million.','The cost is 12 billion.'],['The vote is on 2026-10-03.','The vote is on 2026-10-04.']])expect(checkReaderFidelity([text],[fact(source)],[fact(source)],true).passed).toBe(false);
  expect(checkReaderFidelity(['People were affected.'],[fact('Officials reported 40 people affected.')],[fact('Officials reported 40 people affected.')],true).passed).toBe(false);
