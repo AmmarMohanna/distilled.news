@@ -13,17 +13,19 @@ export interface ContainmentAssessment {status:SelfContainment;context?:FactCont
 // only means the fact is treated as already self-contained.
 const anaphoricHeads=new Set(['incident','ads','advertisements','advertisement','attack','proposal','plan','move','decision','report','deal','merger','bill','measure','announcement','statement','case','crash','explosion','accident','claim','claims','move','policy','campaign','probe','investigation','talks','meeting','vote','ruling','move']);
 const pronouns=new Set(['he','she','they','it','his','her','their','its','this','that','these','those','him','them']);
+const genericSubjects=new Set(['person','regulator','company','agency','organisation','organization','firm']);
 const letters=(s:string)=>s.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
 const stem=(w:string)=>w.replace(/(ies|es|s)$/,'');
 
 /** The unresolved reference a fact starts with, if any. English only. */
-export function leadingReference(text:string):{kind:'PRONOUN'|'ANAPHORIC_NOUN';head:string;anchor?:string}|undefined {
+export function leadingReference(text:string):{kind:'PRONOUN'|'ANAPHORIC_NOUN'|'GENERIC_SUBJECT';head:string;anchor?:string}|undefined {
  const abstract=/^([^.!?]{1,100})['?]s\s+(success|decision|move|proposal|result|failure|victory|loss|achievement)\b(.*)$/iu.exec(text.trim());
  // A named actor does not explain a vague outcome. Concrete complements do.
  if(abstract&&!/^\s+(?:in|at|with|to|of|over|against|on|about)\b/i.test(abstract[3]))return {kind:'ANAPHORIC_NOUN',head:abstract[2].toLowerCase(),anchor:abstract[1]};
  const words=letters(text);if(!words.length)return;
  const first=words[0]!,second=words[1];
  if(pronouns.has(first))return {kind:'PRONOUN',head:first};
+ if(first==='the'&&second&&genericSubjects.has(second))return {kind:'GENERIC_SUBJECT',head:second};
  if((first==='the'||first==='these'||first==='those'||first==='this'||first==='that')&&second&&anaphoricHeads.has(second))return {kind:'ANAPHORIC_NOUN',head:second};
  return undefined;
 }

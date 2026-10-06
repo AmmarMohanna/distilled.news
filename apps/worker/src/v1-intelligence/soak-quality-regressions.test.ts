@@ -72,3 +72,10 @@ it('the observed $300m financing expands to millions without treating a distance
  expect(checkReaderFidelity(['LIV Golf has secured possible financing of $300 million from BC Partners Credit to emerge from restructuring before the 2027 season.'],[fact],[fact],true).passed).toBe(true);
  expect(checkReaderFidelity(['The route is 300 million metres long.'],[{id:'d',text:'The route is 300m long.',evidenceRevisionIds:['r']}],[{id:'d',text:'The route is 300m long.',evidenceRevisionIds:['r']}],true).passed).toBe(false);
 });
+it('the observed generic regulator and sentenced person need their own supported source context',()=>{
+ const regulator={id:'r',language:'en-gb',title:'Ofcom investigates Meta over Instagram Instants feature'};
+ expect(assessSelfContainment('The regulator said Instagram had not fully assessed risks posed by its Instants feature prior to launching it.',[regulator])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:regulator.title}});
+ const fraud={id:'f',language:'en-gb',title:"Lego fraudster among last year's most high-profile insurance scammers"};
+ expect(assessSelfContainment('The person was sentenced to 28 months in prison after an investigation found the claims were made up, the insurance trade body, the ABI said.',[fraud])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:fraud.title}});
+ expect(assessSelfContainment('The person was sentenced to 28 months in prison.',[{...fraud,title:''}]).status).toBe('UNRESOLVED');
+});
