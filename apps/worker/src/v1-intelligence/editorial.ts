@@ -4,17 +4,26 @@ import type {FeedTransaction} from './store';
 import type {BriefingEditionRecord} from './publication';
 import type {StorylineVersion} from './types';
 import {features} from './policies';
+import {assessFreshness,type Freshness} from './freshness';
 import {ledgerProjectionId,type LedgerEntry,type LedgerProjection} from './ledger';
 
-export const EDITORIAL_POLICY='supported-delta-ledger-v2';
-export type EditorialReason='MAJOR_STATE_CHANGE'|'MATERIAL_NEW_FACT'|'NEW_SUPPORTED_DEVELOPMENT'|'ALREADY_COMMUNICATED'|'CORROBORATION_ONLY'|'LOW_INFORMATION_GAIN'|'LOW_RELEVANCE';
+export const EDITORIAL_POLICY='supported-delta-ledger-v3';
+export type EditorialReason='MAJOR_STATE_CHANGE'|'MATERIAL_NEW_FACT'|'NEW_SUPPORTED_DEVELOPMENT'|'ALREADY_COMMUNICATED'|'CORROBORATION_ONLY'|'LOW_INFORMATION_GAIN'|'LOW_RELEVANCE'|'OLD_RECAP';
+/** Reader-state novelty: what this target adds relative to what the reader was already told. */
+export type NoveltyClass='NEW_EVENT'|'NEW_FACT'|'ADDS_DETAIL'|'CHANGES_STATE'|'CHANGES_CERTAINTY'|'CONTRADICTS'|'CORRECTS'|'RETRACTS'|'CORROBORATION_ONLY'|'OLD_RECAP'|'ALREADY_COMMUNICATED';
+const effectNovelty:Record<string,NoveltyClass>={RETRACTS:'RETRACTS',CORRECTS:'CORRECTS',CONTRADICTS:'CONTRADICTS',CHANGES_CERTAINTY:'CHANGES_CERTAINTY',CHANGES_STATE:'CHANGES_STATE'};
+/** Epistemic effects from the semantic path outrank the lexical reason: they must survive ordinary suppression. */
+export function noveltyClass(reason:EditorialReason,effects:string[]=[]):NoveltyClass {
+ for(const e of ['RETRACTS','CORRECTS','CONTRADICTS','CHANGES_CERTAINTY','CHANGES_STATE'])if(effects.includes(e))return effectNovelty[e];
+ return {MAJOR_STATE_CHANGE:'CHANGES_STATE',MATERIAL_NEW_FACT:'ADDS_DETAIL',NEW_SUPPORTED_DEVELOPMENT:'NEW_EVENT',ALREADY_COMMUNICATED:'ALREADY_COMMUNICATED',CORROBORATION_ONLY:'CORROBORATION_ONLY',LOW_INFORMATION_GAIN:'ALREADY_COMMUNICATED',LOW_RELEVANCE:'ALREADY_COMMUNICATED',OLD_RECAP:'OLD_RECAP'}[reason] as NoveltyClass;
+}
 export interface EditorialFact {text:string;evidenceRevisionIds:string[]}
 export interface CommunicatedState {editionId:string;targetType:TargetType;targetVersionId:string;claimIds:string[];facts:string[];evidenceRevisionIds:string[];factEvidenceRevisionIds?:string[][];withdrawn?:boolean;ledgerEntryIds?:string[]}
 export interface EditorialDecision {
  policyVersion:string;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;
  decision:'INCLUDE'|'SUPPRESS';reasonCodes:EditorialReason[];previouslyCommunicated:CommunicatedState[];
  newUnderstanding:EditorialFact[];repeatedFactCount:number;repeatPenalty:number;
- contextNeed:'NONE'|'SMALL'|'MODERATE'|'HIGH';treatment:'OMIT'|'BRIEF'|'STANDARD'|'DETAILED';
+ contextNeed:'NONE'|'SMALL'|'MODERATE'|'HIGH';treatment:'OMIT'|'BRIEF'|'STANDARD'|'DETAILED';freshness?:Freshness;
 }
 export interface EditorialTarget {type:TargetType;id:string;stableId:string;storylineId?:string;evidence:EvidenceRevision[];eventVersionIds:string[]}
 /** Keep the complete immutable history in selection metadata, but give synthesis
@@ -107,7 +116,7 @@ export async function communicatedState(tx:FeedTransaction,target:EditorialTarge
  }
  return result;
 }
-export async function evaluateEditorialDelta(tx:FeedTransaction,target:EditorialTarget,windowEnd:string):Promise<EditorialDecision> {
+export async function evaluateEditorialDelta(tx:FeedTransaction,target:EditorialTarget,windowEnd:string,windowStart?:string):Promise<EditorialDecision> {
  const previous=await communicatedState(tx,target,windowEnd),facts:EditorialFact[]=[];
  for(const evidence of target.evidence) for(const text of supportedSentences(evidence.body??evidence.title??'')) {
   const same=facts.find(f=>equivalentFact(f.text,text));
@@ -120,11 +129,15 @@ export async function evaluateEditorialDelta(tx:FeedTransaction,target:Editorial
   const phase=features(f.text).development;
   return phase!=='report' && !priorPhases.has(phase);
  });
- const include=newUnderstanding.length>0;
- const reasonCodes:EditorialReason[]=!include?[previous.length && target.evidence.some(e=>!previous.some(p=>p.evidenceRevisionIds.includes(e.id)))?'CORROBORATION_ONLY':'ALREADY_COMMUNICATED']:!previous.length?['NEW_SUPPORTED_DEVELOPMENT']:changedPhase?['MAJOR_STATE_CHANGE']:['MATERIAL_NEW_FACT'];
+ const freshness=windowStart?assessFreshness(target.evidence,{start:windowStart,end:windowEnd}):undefined;
+ // Old reporting the Feed only just saw, with nothing previously told to compare against, is not a development of this window.
+ // Exempt a Feed's first edition: a reader who has been told nothing has no earlier briefing to repeat.
+ const staleRecap=freshness?.state==='STALE' && !previous.length && (await tx.list<BriefingEditionRecord>('editions')).some(e=>Date.parse(e.windowEnd)<Date.parse(windowEnd));
+ const include=newUnderstanding.length>0 && !staleRecap;
+ const reasonCodes:EditorialReason[]=staleRecap?['OLD_RECAP']:!include?[previous.length && target.evidence.some(e=>!previous.some(p=>p.evidenceRevisionIds.includes(e.id)))?'CORROBORATION_ONLY':'ALREADY_COMMUNICATED']:!previous.length?['NEW_SUPPORTED_DEVELOPMENT']:changedPhase?['MAJOR_STATE_CHANGE']:['MATERIAL_NEW_FACT'];
  const caveats=newUnderstanding.some(f=>/\b(unresolved|uncertain|disputed|may|might|no new date|not confirmed|however|but)\b/i.test(f.text));
  const contextNeed=!include?'NONE':changedPhase || caveats?'MODERATE':previous.length?'SMALL':'NONE';
- return {policyVersion:EDITORIAL_POLICY,targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,decision:include?'INCLUDE':'SUPPRESS',reasonCodes,previouslyCommunicated:previous,newUnderstanding,repeatedFactCount,repeatPenalty,contextNeed,treatment:!include?'OMIT':caveats || newUnderstanding.length>=4?'DETAILED':changedPhase || newUnderstanding.length>1?'STANDARD':'BRIEF'};
+ return {freshness,policyVersion:EDITORIAL_POLICY,targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,decision:include?'INCLUDE':'SUPPRESS',reasonCodes,previouslyCommunicated:previous,newUnderstanding,repeatedFactCount,repeatPenalty,contextNeed,treatment:!include?'OMIT':caveats || newUnderstanding.length>=4?'DETAILED':changedPhase || newUnderstanding.length>1?'STANDARD':'BRIEF'};
 }
 
 /** Necessary prior comparison context follows the same latest-edition/two-fact

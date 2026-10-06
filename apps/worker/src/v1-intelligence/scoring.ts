@@ -101,7 +101,7 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
   const selected=values.filter(t=>plan.stories.some(s=>s.targetVersionId===t.id));if(selected.length!==plan.stories.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');return selected;
  };
  const planEditorial=async(tx:FeedTransaction,target:Target):Promise<EditorialDecision>=>{
-  const editorial=await evaluateEditorialDelta(tx,target,window.end);if(!plan){deterministicPrefilter(editorial,tx.snapshot.feed.interests,tx.snapshot.feed.geography);return editorial}
+  const editorial=await evaluateEditorialDelta(tx,target,window.end,window.start);if(!plan){deterministicPrefilter(editorial,tx.snapshot.feed.interests,tx.snapshot.feed.geography);return editorial}
   const story=plan.stories.find(s=>s.targetVersionId===target.id)!,shortlist=await tx.read<ShortlistRecord>('shortlists',plan.shortlistId),candidate=shortlist?.candidates.find(c=>c.targetVersionId===target.id);if(!candidate)throw new HandoffError('SCOPE_DENIED');
   editorial.decision=story.decision==='SELECT'?'INCLUDE':'SUPPRESS';editorial.treatment=story.treatment;editorial.newUnderstanding=candidate.facts.filter(f=>[...story.mustIncludeFactIds,...story.newUnderstandingFactIds,...story.contextFactIds].includes(f.id)).map(f=>({text:f.text,evidenceRevisionIds:f.evidenceRevisionIds}));editorial.reasonCodes=story.decision==='SELECT'?['MATERIAL_NEW_FACT']:['ALREADY_COMMUNICATED'];return editorial;
  };

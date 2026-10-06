@@ -3,13 +3,14 @@ import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {targets,type PublicationWindow} from './scoring';
 import {assessSelfContainment,type FactContext,type SelfContainment} from './self-contained';
-import {communicationFingerprint,evaluateEditorialDelta,mergeEquivalentFacts,supportedSentences,type EditorialDecision} from './editorial';
+import {communicationFingerprint,evaluateEditorialDelta,noveltyClass,type NoveltyClass,mergeEquivalentFacts,supportedSentences,type EditorialDecision} from './editorial';
 import {type LedgerEntry,type CorrectionObligation} from './ledger';
 import type {EventSemanticState,Proposition} from './semantic-state';
 import {protectedEffects} from './semantic-routing';
 export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v1';
+export type {NoveltyClass};
 export interface ShortlistFact {id:string;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
-export interface ShortlistCandidate {targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
+export interface ShortlistCandidate {novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
 export interface ShortlistRecord {id:string;feedId:string;feedRevision:number;window:PublicationWindow;communicationFingerprint:string;candidates:ShortlistCandidate[];overflow:ShortlistCandidate[];obligations:CorrectionObligation[];ledger:{id:string;claimText:string;claimFacts:string[];eventIds:string[];storylineIds:string[];certainty:LedgerEntry['certainty'];editionId:string}[];evidenceRevisionIds:string[];policyVersion:string;createdAt:string}
 export function boundShortlist<T extends {targetVersionId:string;priority:number;protectedReasons:string[]}>(candidates:T[],ordinaryLimit:number):{selected:T[];overflow:T[]} {
  const sorted=[...candidates].sort((a,b)=>b.priority-a.priority||a.targetVersionId.localeCompare(b.targetVersionId));let ordinary=0;const selected:T[]=[],overflow:T[]=[];
@@ -31,12 +32,12 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   // One reader-facing fact per supported meaning: equivalent propositions from different mentions/publishers keep every support reference.
   const sameTime=(a?:string,b?:string)=>a===b,facts=mergeEquivalentFacts(rawFacts,(survivor,duplicate)=>{survivor.claimMentionIds=[...new Set([...survivor.claimMentionIds,...duplicate.claimMentionIds])];survivor.mergedPropositionIds=[...new Set([...(survivor.mergedPropositionIds??[]),...(duplicate.propositionId?[duplicate.propositionId]:[])])]},(a,b)=>a.attribution===b.attribution&&sameTime(a.eventTime,b.eventTime)&&(a.certainty?.kind??'UNSPECIFIED')===(b.certainty?.kind??'UNSPECIFIED'));
   for(const fact of facts){const a=assessSelfContainment(fact.text,target.evidence.filter(e=>fact.evidenceRevisionIds.includes(e.id)));fact.selfContained=a.status;if(a.context)fact.context=a.context}
-  const editorial=await evaluateEditorialDelta(tx,target,window.end),effects=[...new Set(states.flatMap(s=>s.epistemicEffects))],protectedReasons:string[]=effects.filter(e=>protectedEffects.has(e));
+  const editorial=await evaluateEditorialDelta(tx,target,window.end,window.start),effects=[...new Set(states.flatMap(s=>s.epistemicEffects))],protectedReasons:string[]=effects.filter(e=>protectedEffects.has(e));
   if(related.length)protectedReasons.push('CORRECTION_OBLIGATION');
   if(deferred.length)protectedReasons.push('DEFERRED_EDITORIAL_WORK');
   if(editorial.previouslyCommunicated.length && editorial.newUnderstanding.some(f=>/\p{N}|\b(may|might|could|confirmed|alleged|not|never)\b/iu.test(f.text)))protectedReasons.push('MATERIAL_QUALIFIER_DELTA');
-  const flags=[...(editorial.decision==='SUPPRESS'?['POSSIBLE_REPEAT']:[]),...(states.some(s=>s.provisional)?['PROVISIONAL']:[]),...(facts.some(f=>f.certainty?.hedges.length)?['QUALIFIED']:[]),...(facts.some(f=>f.selfContained==='UNRESOLVED')?['NON_SELF_CONTAINED']:[])];
-  candidates.push({targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),facts,stateSlotIds:[...new Set(states.flatMap(s=>s.stateSlotIds))],effects,flags,protectedReasons:[...new Set(protectedReasons)],correctionObligationIds:related.map(o=>o.id),priority:protectedReasons.length?1:editorial.newUnderstanding.length?.6:.2,fallbackEditorial:editorial});
+  const flags=[...(editorial.decision==='SUPPRESS'?[editorial.reasonCodes.includes('OLD_RECAP')?'OLD_RECAP':'POSSIBLE_REPEAT']:[]),...(states.some(s=>s.provisional)?['PROVISIONAL']:[]),...(facts.some(f=>f.certainty?.hedges.length)?['QUALIFIED']:[]),...(facts.some(f=>f.selfContained==='UNRESOLVED')?['NON_SELF_CONTAINED']:[])];
+  candidates.push({novelty:noveltyClass(editorial.reasonCodes[0],effects),targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),facts,stateSlotIds:[...new Set(states.flatMap(s=>s.stateSlotIds))],effects,flags,protectedReasons:[...new Set(protectedReasons)],correctionObligationIds:related.map(o=>o.id),priority:protectedReasons.length?1:editorial.newUnderstanding.length?.6:.2,fallbackEditorial:editorial});
  }
  const communication=await communicationFingerprint(tx,window.end),bounded=boundShortlist(candidates,ordinaryLimit),id=await sha256(canonicalJson({feedId:tx.snapshot.feed.id,revision:tx.snapshot.feed.revision,window,communication,candidates:candidates.map(c=>[c.targetVersionId,c.protectedReasons,c.correctionObligationIds]).sort(),ordinaryLimit,policy:SHORTLIST_POLICY}));
  const prior=await tx.read<ShortlistRecord>('shortlists',id);if(prior)return prior;
