@@ -6,6 +6,15 @@ import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {enrollV1Source} from './v1-intelligence/product';
 import {publicV1Edition} from './v1-intelligence/public-read';
 
+export async function productPublicationState(env:Env,feedId:string):Promise<'waiting'|'checking'|'quiet'|'failed'|'published'> {
+ const request=await env.DB.prepare("SELECT id,json_extract(json,'$.state') AS state FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1").bind(feedId).first<{id:string;state:string}>();
+ if(!request)return 'waiting';
+ if(request.state==='FAILED')return 'failed';
+ if(request.state!=='DONE')return 'checking';
+ const edition=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='editions' AND id=?").bind(feedId,request.id).first();
+ return edition?'published':'quiet';
+}
+
 // This deployment opt-in admits only sources explicitly approved by an owner.
 // The existing ten-source runtime ceiling and paid-provider ceilings still apply.
 export async function productRuntimeEnv(env:Env):Promise<Env> {

@@ -3,7 +3,7 @@ import {createIntakeDatabase} from './v1-intake/test-utils';
 import {D1Repository} from './repository';
 import {createApp} from './app';
 import {createSession} from './auth';
-import {productRuntimeEnv} from './product-feeds';
+import {productRuntimeEnv,productPublicationState} from './product-feeds';
 import {V1IntakeStore} from './v1-intake/store';
 import type {Env} from './types';
 
@@ -21,6 +21,11 @@ it('saves explicit owner sources into connector approval, retries without duplic
   expect(await ctx.db.prepare('SELECT collection_owner FROM sources WHERE id=?').bind(sources[0].id).first()).toEqual({collection_owner:'connector'});
   const before=await new V1IntakeStore(ctx.db).getScope(sources[0].id);expect(before?.enabled).toBe(true);
   expect((await productRuntimeEnv(env)).V1_DOWNSTREAM_FEED_SOURCE_IDS).toBe(sources[0].id);
+  expect(await productPublicationState(env,input.id)).toBe('waiting');
+  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','quiet-test',?,?)").bind(input.id,JSON.stringify({id:'quiet-test',state:'DONE',createdAt:new Date().toISOString()})).run();
+  expect(await productPublicationState(env,input.id)).toBe('quiet');
+  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','failed-test',?,?)").bind(input.id,JSON.stringify({id:'failed-test',state:'FAILED',createdAt:new Date(Date.now()+1000).toISOString()})).run();
+  expect(await productPublicationState(env,input.id)).toBe('failed');
   expect((await save({...input,updateIntervalMinutes:120,language:'fr'})).status).toBe(200);
   const after=await new V1IntakeStore(ctx.db).getScope(sources[0].id);expect(after!.feedRevision).toBeGreaterThan(before!.feedRevision);
   expect((await save({...input,sourceInputs:[]})).status).toBe(400);

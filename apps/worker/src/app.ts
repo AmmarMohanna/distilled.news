@@ -1,7 +1,7 @@
 import {sourceRecommendations} from './source-recommendations';
 import {detectSourceInput} from '@distilled/connectors';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
-import {approveProductSource,publishedProductEditions} from './product-feeds';
+import {approveProductSource,publishedProductEditions,productPublicationState} from './product-feeds';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
@@ -1002,6 +1002,7 @@ export function createApp(options: AppOptions = {}) {
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
       briefing: publicBriefing(briefing),
+      publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
     });
