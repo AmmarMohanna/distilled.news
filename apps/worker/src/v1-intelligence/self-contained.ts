@@ -11,7 +11,7 @@ export interface ContainmentAssessment {status:SelfContainment;context?:FactCont
 // Topic-agnostic anaphoric heads: nouns that normally refer back to something
 // introduced elsewhere ("the incident", "the ads"). Deliberately small; a miss
 // only means the fact is treated as already self-contained.
-const anaphoricHeads=new Set(['incident','ads','advertisements','advertisement','attack','proposal','plan','move','decision','report','deal','bill','measure','announcement','statement','case','crash','explosion','accident','claim','claims','move','policy','campaign','probe','investigation','talks','meeting','vote','ruling','move']);
+const anaphoricHeads=new Set(['incident','ads','advertisements','advertisement','attack','proposal','plan','move','decision','report','deal','merger','bill','measure','announcement','statement','case','crash','explosion','accident','claim','claims','move','policy','campaign','probe','investigation','talks','meeting','vote','ruling','move']);
 const pronouns=new Set(['he','she','they','it','his','her','their','its','this','that','these','those','him','them']);
 const letters=(s:string)=>s.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
 const stem=(w:string)=>w.replace(/(ies|es|s)$/,'');
@@ -39,7 +39,8 @@ export function assessSelfContainment(text:string,support:Pick<EvidenceRevision,
  // Embedded descriptive possessives can hide an unnamed actor even when
  // the opening subject is explicit ("people received ... the store's app").
  const embedded=/\bthe\s+[^.!?,;]{1,65}['’]s\s+(app|website|platform|service|product|decision|proposal|plan|statement|policy)\b/iu.exec(text);
- const gap=leadingReference(text)??(embedded?{kind:'ANAPHORIC_NOUN' as const,head:embedded[1].toLowerCase()}:undefined);
+ const award=/\b(?:has|have)\s+won\s+(?:for|because|after)\b/iu.test(text);
+ const gap=leadingReference(text)??(award?{kind:'ANAPHORIC_NOUN' as const,head:'win'}:undefined)??(embedded?{kind:'ANAPHORIC_NOUN' as const,head:embedded[1].toLowerCase()}:undefined);
  if(!gap)return {status:'YES'};
  for(const e of support){
   const title=(e.title??'').trim();if(!title||leadingReference(title))continue;

@@ -45,3 +45,11 @@ it('embedded descriptive possessives need context from their own evidence, not g
  expect(assessSelfContainment(quantity.sourceText,[{id:'r',language:quantity.language,title:'Daily retail roundup'}]).status).toBe('UNRESOLVED');
  expect(assessSelfContainment('Dozens of people received an ASOS app notification.',[{id:'r',language:'en',title:quantity.title}]).status).toBe('YES');
 });
+it('the observed award and merger facts offer the missing object and participants from exact titles',()=>{
+ const award={id:'r',language:'en-gb',title:"'Ghost particles' from space telescope wins physics Nobel"};
+ expect(assessSelfContainment('Belgian physicist Prof Francis Halzen has won for his pioneering work on an observatory that detects particles from space.',[award])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:award.title}});
+ expect(assessSelfContainment('Professor Halzen has won a physics prize for his work.',[award]).status).toBe('YES');
+ const merger={id:'m',language:'en-gb',title:'Paramount takes over Warner Bros in $110bn Hollywood merger'};
+ expect(assessSelfContainment("The merger of two of Hollywood's biggest movie studios comes after months of legal disputes and concern over competition.",[merger])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:merger.title}});
+ expect(assessSelfContainment('Professor Halzen has won for his work.',[{...award,title:'Science roundup'}]).status).toBe('UNRESOLVED');
+});

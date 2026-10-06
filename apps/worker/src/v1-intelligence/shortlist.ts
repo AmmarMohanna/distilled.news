@@ -8,7 +8,7 @@ import {type LedgerEntry,type CorrectionObligation} from './ledger';
 import type {EventSemanticState,Proposition} from './semantic-state';
 import {factTiming,type FactTiming} from './freshness';
 import {protectedEffects} from './semantic-routing';
-export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v4';
+export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v5';
 export type {NoveltyClass};
 export interface ShortlistFact {id:string;timing?:FactTiming;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
 export interface ShortlistCandidate {novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
