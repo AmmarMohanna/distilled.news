@@ -78,13 +78,14 @@ export async function processV1Rematch(env:Env,feedId:string,requestId:string,no
  const id=JSON.stringify([request.id,attempt]);
  await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,state:succeeded?'SUCCEEDED':!active||attempt>=3?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:new Date(Date.parse(now)+300000*2**(attempt-1)).toISOString(),createdAt:now,reason:active?prepared?.prepared.decision.provenance.fallbackReason:'STALE_EVIDENCE'} satisfies RematchAttempt)});
 }
-export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch) {
+export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch,publicationOptions?:{requireModel?:boolean}) {
  const parsed=messageSchema.safeParse(raw);if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  const {feedId,window}=parsed.data;
  if(Date.parse(window.end)>Date.parse(now()) || Date.parse(window.start)>=Date.parse(window.end) || Date.parse(window.end)-Date.parse(window.start)>7*86400000) throw new HandoffError('INVALID_REQUEST');
  await approvedFeed(env,feedId);const store=new V1FeedStore(env.DB),id=await windowIdentity(feedId,window);
  const existing=await store.read<import('./publication').BriefingEditionRecord>(feedId,'editions',id);
  if(existing) {
+  if(publicationOptions?.requireModel&&existing.generation.provider==='NONE')throw new HandoffError('INVALID_REQUEST');
   await projectEditionLedger(store,feedId,existing.id);
   // Publication is atomic, but the request acknowledgement is a later commit.
   // Recover a crash in that gap without reopening synthesis or paid calls.
@@ -107,7 +108,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env,fetcher)):undefined;
   const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env),plan);
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');
-  const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:writer}):undefined;
+  const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:writer,...publicationOptions}):undefined;
   if(edition)await projectEditionLedger(store,feedId,edition.id);
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE'})});return edition;
  } catch(error) {

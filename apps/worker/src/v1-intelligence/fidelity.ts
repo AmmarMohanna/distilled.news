@@ -1,4 +1,4 @@
-export interface FidelityFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string;timing?:import('./freshness').FactTiming}
+export interface FidelityFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string;timing?:import('./freshness').FactTiming;context?:{text:string}}
 export interface SemanticFactCheck {factId:string;communicated:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;reason:string;readerSpans?:{claimId:string;text:string}[]}
 export const faithfulFact=(check:SemanticFactCheck)=>check.communicated&&check.attribution&&check.certainty&&check.temporal&&check.qualifiers;
 export function hasReaderWitness(check:SemanticFactCheck,claims:{id:string;text:string}[]):boolean {
@@ -10,17 +10,17 @@ const normalized=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/\s
 const factualText=(text:string)=>normalized(text).replace(/https?:\/\/[^\s]+/gu,'');
 function numericText(text:string):string {
  const words:Record<string,string>={zero:'0',one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',eleven:'11',twelve:'12',thirteen:'13',fourteen:'14',fifteen:'15',sixteen:'16',seventeen:'17',eighteen:'18',nineteen:'19',twenty:'20',thirty:'30',forty:'40',fifty:'50',sixty:'60',seventy:'70',eighty:'80',ninety:'90'};
- return factualText(text).replace(/\b(?:(?:a|one)\s+)?century(?=[-\s]+old\b)/g,'100').replace(/\b(?:(?:a|one)\s+)?hundred(?=[-\s]+years?[-\s]+old\b)/g,'100').replace(/[٠-٩۰-۹]/g,c=>String(c.charCodeAt(0)-(c.charCodeAt(0)>=0x6f0?0x6f0:0x660))).replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g,w=>words[w]);
+ return factualText(text).replace(/([£€$]\s*\d+(?:[.,]\d+)*)\s*m\b/g,'$1 million').replace(/\b(?:(?:a|one)\s+)?century(?=[-\s]+old\b)/g,'100').replace(/\b(?:(?:a|one)\s+)?hundred(?=[-\s]+years?[-\s]+old\b)/g,'100').replace(/[٠-٩۰-۹]/g,c=>String(c.charCodeAt(0)-(c.charCodeAt(0)>=0x6f0?0x6f0:0x660))).replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g,w=>words[w]);
 }
 export function numbers(text:string):Set<string> {
  const source=numericText(text);
- return new Set([...source.matchAll(/(\d+(?:[.,]\d+)*)(?:\s*(%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b))?/g)].map(m=>{
-  const number=Number(/^\d{1,3}(?:,\d{3})+$/.test(m[1])?m[1].replace(/,/g,''):m[1].replace(',','.')),unit=m[2],scale=unit==='hundred'?100:unit==='thousand'?1000:unit==='million'?1e6:unit==='billion'?1e9:unit==='trillion'?1e12:1;return `${number*scale}${unit==='%'||unit==='percent'?'%':''}`;
+ return new Set([...source.matchAll(/(\d+(?:[.,]\d+)*)(?:\s*(%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b|bn\b|mn\b|tn\b))?/g)].map(m=>{
+  const number=Number(/^\d{1,3}(?:,\d{3})+$/.test(m[1])?m[1].replace(/,/g,''):m[1].replace(',','.')),unit=m[2],scale=unit==='hundred'?100:unit==='thousand'?1000:unit==='million'||unit==='mn'?1e6:unit==='billion'||unit==='bn'?1e9:unit==='trillion'||unit==='tn'?1e12:1;return `${number*scale}${unit==='%'||unit==='percent'?'%':''}`;
  }));
 }
 function numericalBounds(text:string):Set<string>{
  const operators:Record<string,string>={'at least':'>=','no fewer than':'>=','at most':'<=','no more than':'<=','more than':'>','over':'>','less than':'<','under':'<'};
- return new Set([...numericText(text).matchAll(/\b(at least|no fewer than|at most|no more than|more than|over|less than|under)\s+(?:a\s+)?(\d+(?:[.,]\d+)*(?:\s*(?:%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b))?)/g)].flatMap(m=>[...numbers(m[2])].map(n=>operators[m[1]]+n)));
+ return new Set([...numericText(text).matchAll(/\b(at least|no fewer than|at most|no more than|more than|over|less than|under)\s+(?:a\s+)?(\d+(?:[.,]\d+)*(?:\s*(?:%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b|bn\b|mn\b|tn\b))?)/g)].flatMap(m=>[...numbers(m[2])].map(n=>operators[m[1]]+n)));
 }
 /** Calendar dates are provenance-qualified dates, not casualty counts or ages.
  * Only exact supported calendar dates may bypass the quantity floor; semantic
@@ -41,7 +41,7 @@ function withoutSupportedDates(text:string,keys:Set<string>):string {
  * English qualifier guards are enabled only for compatible known language;
  * translations retain the mandatory structured model verification path. */
 export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],allowed:FidelityFact[],english:boolean,semantic?:{pending?:boolean;checks?:SemanticFactCheck[]}):ReaderFidelity {
- const text=factualText(claimTexts.join('\n')),support=factualText(allowed.map(f=>f.text).join('\n')),failures:ReaderFidelity['failures']=[];
+ const text=factualText(claimTexts.join('\n')),support=factualText(allowed.flatMap(f=>[f.text,...(f.context?[f.context.text]:[])]).join('\n')),failures:ReaderFidelity['failures']=[];
  const dateKeys=new Set(calendarDates(support).map(d=>d.key));for(const f of allowed)for(const date of [f.timing?.sourcePublishedAt,f.timing?.reportTime,f.timing?.eventTime])if(date)for(const d of calendarDates(date))dateKeys.add(d.key);
  for(const key of [...dateKeys])dateKeys.add(key.split('-').slice(0,2).join('-'));
  const quantityText=withoutSupportedDates(text,dateKeys),quantitySupport=withoutSupportedDates(support,dateKeys);

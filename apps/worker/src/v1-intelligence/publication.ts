@@ -185,10 +185,11 @@ async function requireJob(tx:FeedTransaction,id:string,token:string,now:string):
  if(!job || job.state!=='RUNNING' || job.token!==token || Date.parse(job.leaseUntil)<=Date.parse(now)) throw new HandoffError('TEMPORARY_UNAVAILABLE');return job;
 }
 /** The port gets selected stored objects only. Durable call intents consume budget before any provider call. */
-export async function publishSelection(store:V1FeedStore,feedId:string,selectionId:string,options:{now():string;model?:BriefingModelPort}):Promise<BriefingEditionRecord> {
+export async function publishSelection(store:V1FeedStore,feedId:string,selectionId:string,options:{now():string;model?:BriefingModelPort;requireModel?:boolean}):Promise<BriefingEditionRecord> {
+ if(options.requireModel&&!options.model?.verify)throw new HandoffError('INVALID_REQUEST');
  const selection=await store.read<SelectionRecord>(feedId,'selections',selectionId);if(!selection) throw new HandoffError('INVALID_REQUEST');
  const editionId=await sha256(canonicalJson({feedId,start:selection.window.start,end:selection.window.end}));
- const published=await store.read<BriefingEditionRecord>(feedId,'editions',editionId);if(published) return published;
+ const published=await store.read<BriefingEditionRecord>(feedId,'editions',editionId);if(published){if(options.requireModel&&published.generation.provider==='NONE')throw new HandoffError('INVALID_REQUEST');return published;}
  if(!selection.selectedCandidateIds.length) throw new HandoffError('INVALID_REQUEST');
  const token=crypto.randomUUID();
  const claimed=await feedTransact(store,feedId,async tx=>{
@@ -206,6 +207,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   const safeFallback=cachedFallback?.provider==='NONE' && cachedFallback.promptVersion==='approved-fact-spans-v3';
   if(prior?.pendingCall && !safeFallback || (prior?.attempts??0)>=5 || prior?.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
   const input=await selectionInput(tx,selection);
+  if(options.requireModel&&input.editorialPlan?.route!=='GPT')throw new HandoffError('INVALID_REQUEST');
   const job:PublicationJob={id:editionId,feedId,selectionId,state:'RUNNING',attempts:(prior?.attempts??0)+1,token,leaseUntil:new Date(Date.parse(now)+selection.budget.maxWallClockMs).toISOString(),callsUsed:prior?.callsUsed??0,tokensIn:prior?.tokensIn??0,tokensOut:prior?.tokensOut??0,cost:prior?.cost??0,pendingCall:prior?.pendingCall,repairRequested:prior?.repairRequested};
   await tx.write('synthesis_jobs',editionId,job);return {input,authorizationScopes:tx.snapshot.scopes};
  });
@@ -263,7 +265,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     const writer=synthesisWriterInput(input);
     try {await callModel('SYNTHESIS',options.model.synthesisPayload?.(writer)??writer,limits=>options.model!.synthesize(writer,limits));}
     catch(error) {
-     if(!input.editorialPlan)throw error;
+     if(options.requireModel||!input.editorialPlan)throw error;
      // Unknown provider outcome retains its reservation and audit record. Only a
      // locally safe approved-fact draft may recover; no second model call is made.
      const draft=extractiveDraft(input);
@@ -281,6 +283,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    }
   }
   if(!storedDraft) throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  if(options.requireModel&&storedDraft.provider==='NONE')throw new HandoffError('INVALID_REQUEST');
   const rejectDraft=async(draftId:string,issues:WriterIssue[]):Promise<never>=>{
    const id=JSON.stringify([draftId,'writer-feedback-v1']),prior=await store.read<WriterFeedback>(feedId,'verification_feedback',id);
    const feedback:WriterFeedback=prior??{id,feedId,selectionId,draftId,editorialPlanId:input.editorialPlan?.id,issues,missingFactIds:[...new Set(issues.flatMap(i=>i.factId&&['MISSING_REQUIRED_FACT','MISSING_DECLARED_FACT'].includes(i.code)?[i.factId]:[]))],createdAt:options.now()};

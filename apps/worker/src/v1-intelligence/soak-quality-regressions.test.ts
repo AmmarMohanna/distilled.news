@@ -2,8 +2,9 @@ import {expect,it} from 'vitest';
 import planner from './fixtures/staging-planner-reference-categories.json';
 import construction from './fixtures/staging-construction-slot.json';
 import quantity from './fixtures/staging-approximate-quantity.json';
+import deferredCorrection from './fixtures/staging-deferred-correction.json';
 import {compactEditorialInput} from './editorial-transport';
-import {editorialPlanWireSchemaFor,validateEditorialPlan,type EditorialPlanBody} from './editorial-plan';
+import {editorialPlanWireSchemaFor,validateEditorialPlan,fallbackEditorialPlan,type EditorialPlanBody} from './editorial-plan';
 import type {ShortlistRecord} from './shortlist';
 import {parseConstruction} from './semantic-construction';
 import type {ClaimMention} from './claims';
@@ -21,6 +22,13 @@ it('the persisted planner attempt cannot use ledger history as approved fact con
  expect(branch.contextFactIds.items!.enum).toEqual([...new Set(facts)]);
  expect(branch.previousLedgerEntryIds.items!.enum).toEqual(ledger);
  expect(branch.contextFactIds.items!.enum!.some(id=>ledger.includes(id))).toBe(false);
+});
+it('cannot select the observed withdrawn target while deferring its correction obligation',()=>{
+ const shortlist=deferredCorrection.shortlist as unknown as ShortlistRecord;
+ expect(()=>validateEditorialPlan(deferredCorrection.plan as EditorialPlanBody,shortlist)).toThrow();
+ const fallback=fallbackEditorialPlan(shortlist);
+ expect(fallback.stories.filter(s=>shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!.correctionObligationIds.length).every(s=>s.decision==='DEFER')).toBe(true);
+ expect(validateEditorialPlan(fallback,shortlist)).toEqual(fallback);
 });
 it('the exact construction cannot invent slot values; TEXT preserves the whole fact',()=>{
  const mention=construction.mention as ClaimMention,input={candidates:[],storylines:[]} as any;
@@ -52,4 +60,15 @@ it('the observed award and merger facts offer the missing object and participant
  const merger={id:'m',language:'en-gb',title:'Paramount takes over Warner Bros in $110bn Hollywood merger'};
  expect(assessSelfContainment("The merger of two of Hollywood's biggest movie studios comes after months of legal disputes and concern over competition.",[merger])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:merger.title}});
  expect(assessSelfContainment('Professor Halzen has won for his work.',[{...award,title:'Science roundup'}]).status).toBe('UNRESOLVED');
+});
+it('accepts the exact approved headline amount in natural expanded units, never an unsupported amount',()=>{
+ const fact={id:'f',text:'The merger of two studios comes after months of legal disputes.',evidenceRevisionIds:['r'],context:{text:'Paramount takes over Warner Bros in $110bn Hollywood merger'}};
+ expect(checkReaderFidelity(['Paramount has taken over Warner Bros in a $110 billion merger combining two studios after months of legal disputes.'],[fact],[fact],true).passed).toBe(true);
+ expect(checkReaderFidelity(['Paramount has taken over Warner Bros in a $120 billion merger.'],[fact],[fact],true).failures).toContainEqual({code:'UNSUPPORTED_QUANTITY',value:'120000000000'});
+ expect(checkReaderFidelity(['The merger was worth $110 billion.'],[{...fact,context:undefined}],[{...fact,context:undefined}],true).passed).toBe(false);
+});
+it('the observed $300m financing expands to millions without treating a distance m as money',()=>{
+ const fact={id:'f',text:'LIV Golf secures a possible $300m in financing from BC Partners Credit in order to emerge from restructuring before the 2027 season.',evidenceRevisionIds:['r']};
+ expect(checkReaderFidelity(['LIV Golf has secured possible financing of $300 million from BC Partners Credit to emerge from restructuring before the 2027 season.'],[fact],[fact],true).passed).toBe(true);
+ expect(checkReaderFidelity(['The route is 300 million metres long.'],[{id:'d',text:'The route is 300m long.',evidenceRevisionIds:['r']}],[{id:'d',text:'The route is 300m long.',evidenceRevisionIds:['r']}],true).passed).toBe(false);
 });

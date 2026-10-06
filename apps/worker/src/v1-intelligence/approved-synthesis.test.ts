@@ -4,7 +4,8 @@ import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,feedTransact} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
 import {prepareSemanticShortlist} from './shortlist';
-import {prepareEditorialPlan} from './editorial-plan';
+import {prepareEditorialPlan,fallbackEditorialPlan} from './editorial-plan';
+import {compactEditorialInput} from './editorial-transport';
 import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET} from './scoring';
 import {publishSelection,extractiveDraft,approvedSupportSpans,type BriefingModelPort,type SynthesisInput} from './publication';
 const A='Officials said Lebanon banking reform will start after 2026-10-06.';
@@ -108,4 +109,16 @@ it('accepts a grounded plain paraphrase with all required facts and exact proven
  const edition=await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model});
  expect(edition.stories[0].claims.map(c=>c.text)).toEqual([A,B.replace('may affect','could affect')]);
  expect(edition.stories[0].claims[1].support).toEqual([{evidenceRevisionId:edition.evidenceRevisionIds[0],quote:B}]);
+},25000);
+
+it('required real-model publication fails closed without extractive recovery or a repeated unknown call',async()=>{
+ const shortlist=await prepareSemanticShortlist(store,'feed-1',window,window.end),plan=await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,window.end,{model:'controlled-planner',usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async()=>({value:compactEditorialInput(shortlist).encode(fallbackEditorialPlan(shortlist)),usage:{calls:1,costUsd:.001,reported:true}})});
+ expect(plan.route).toBe('GPT');
+ const selected=await scoreAndSelect(store,'feed-1',window,DEFAULT_BRIEFING_BUDGET,window.end,undefined,plan);
+ let calls=0;
+ const model:BriefingModelPort={model:'controlled',provider:'TEST',maxCallCostUsd:.01,synthesize:async()=>{calls++;throw Error('simulated provider failure')},verify:async()=>{throw Error('must not verify a fallback')}};
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(calls).toBe(1);expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','drafts')).toHaveLength(0);
+ expect(await store.list('feed-1','model_intents')).toHaveLength(1);
 },25000);
