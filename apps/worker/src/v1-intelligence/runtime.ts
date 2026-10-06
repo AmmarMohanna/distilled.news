@@ -78,7 +78,7 @@ export async function processV1Rematch(env:Env,feedId:string,requestId:string,no
  const id=JSON.stringify([request.id,attempt]);
  await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,state:succeeded?'SUCCEEDED':!active||attempt>=3?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:new Date(Date.parse(now)+300000*2**(attempt-1)).toISOString(),createdAt:now,reason:active?prepared?.prepared.decision.provenance.fallbackReason:'STALE_EVIDENCE'} satisfies RematchAttempt)});
 }
-export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer) {
+export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch) {
  const parsed=messageSchema.safeParse(raw);if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  const {feedId,window}=parsed.data;
  if(Date.parse(window.end)>Date.parse(now()) || Date.parse(window.start)>=Date.parse(window.end) || Date.parse(window.end)-Date.parse(window.start)>7*86400000) throw new HandoffError('INVALID_REQUEST');
@@ -100,11 +100,14 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
  try {
-  const shortlist=env.V1_EDITORIAL_PLAN_ENABLED==='true' || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now()):undefined;
-  const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env)):undefined;
+  // A configured writer model only ever sees the approved facts of an EditorialPlan, so model-backed synthesis implies the plan path;
+  // the deterministic fallback plan is used when no strong planning model is available. The writer never fixes upstream selection.
+  const writer=createStoredEvidenceModel(env,fetcher);
+  const shortlist=env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now()):undefined;
+  const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env,fetcher)):undefined;
   const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env),plan);
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');
-  const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:createStoredEvidenceModel(env)}):undefined;
+  const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:writer}):undefined;
   if(edition)await projectEditionLedger(store,feedId,edition.id);
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE'})});return edition;
  } catch(error) {

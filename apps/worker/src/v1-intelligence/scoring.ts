@@ -169,6 +169,10 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
     const revision=available.shift()!;inspectionEvidence.push(revision);
     for(const i of uncovered) if(inspectionFacts[i].evidenceRevisionIds.includes(revision.id)) uncovered.delete(i);
    }
+   // A merged proposition keeps every independent supporter: add up to two further supporting revisions so the published claim cites
+   // corroborating sources (bounded by the inspection budget; never at the cost of a required fact's own cover).
+   const extraSupport=[...new Set(inspectionFacts.flatMap(f=>f.evidenceRevisionIds))].filter(id=>!inspectionEvidence.some(e=>e.id===id)).slice(0,2).map(id=>target.evidence.find(e=>e.id===id)).filter((e):e is EvidenceRevision=>Boolean(e));
+   if(inspections+inspectionEvidence.length+extraSupport.length<=budget.maxEvidenceInspections)inspectionEvidence.push(...extraSupport);
    for(const revision of priorContextEvidence(editorial,target.evidence)) if(!inspectionEvidence.some(e=>e.id===revision.id)) inspectionEvidence.push(revision);
    const eventVersions=(await Promise.all(target.eventVersionIds.map(id=>tx.read<EventVersion>('event_versions',id)))).map(v=>({...v!,state:v!.state.slice(0,1800)}));
    const storyline=target.storylineVersionId?await tx.read<StorylineVersion>('storyline_versions',target.storylineVersionId):undefined;
