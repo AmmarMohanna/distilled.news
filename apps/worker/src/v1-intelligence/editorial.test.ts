@@ -153,3 +153,18 @@ it('state transition across Events in one Storyline adds understanding without l
  expect(decision.reasonCodes).toContain('MAJOR_STATE_CHANGE');expect(decision.previouslyCommunicated[0].editionId).toBe(edition.id);
  expect(await store.read('feed-1','editions',edition.id)).toEqual(edition);
 },15000);
+it('equivalent paraphrases with the same hedge merge but changed values, certainty and attribution do not',async()=>{
+ const {equivalentFact,mergeEquivalentFacts}=await import('./editorial');
+ expect(equivalentFact('The ads could have violated federal law.','The advertisements may have violated federal law.')).toBe(true);
+ expect(equivalentFact('12 people died.','40 people died.')).toBe(false);
+ expect(equivalentFact('The minister may resign.','The minister resigned.')).toBe(false);
+ expect(equivalentFact('Police suspect a gas leak caused the explosion.','A gas leak caused the explosion.')).toBe(false);
+ expect(equivalentFact('The ads could have violated federal law.','The ads did not violate federal law.')).toBe(false);
+ const merged=mergeEquivalentFacts([{text:'The ads could have violated federal law.',evidenceRevisionIds:['a']},{text:'The advertisements may have violated federal law.',evidenceRevisionIds:['b']},{text:'12 people died.',evidenceRevisionIds:['c']},{text:'40 people died.',evidenceRevisionIds:['d']}]);
+ expect(merged).toHaveLength(3);expect(merged[0].evidenceRevisionIds).toEqual(['a','b']);
+});
+it('extractive drafts and grounded claims show a duplicated sentence once and keep both supports',async()=>{
+ const {mergeEquivalentClaims}=await import('./publication');
+ const claims=mergeEquivalentClaims([{text:'The ads could have violated federal law.',support:[{evidenceRevisionId:'a',quote:'The ads could have violated federal law.'}]},{text:'The advertisements may have violated federal law.',support:[{evidenceRevisionId:'b',quote:'The advertisements may have violated federal law.'}]}]);
+ expect(claims).toHaveLength(1);expect(claims[0].support.map(s=>s.evidenceRevisionId)).toEqual(['a','b']);
+});

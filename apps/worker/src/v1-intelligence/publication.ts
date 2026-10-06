@@ -138,6 +138,19 @@ export function synthesisWriterInput(input:SynthesisInput):SynthesisWriterInput 
   return {candidate:{id:s.candidate.id,targetType:s.candidate.targetType,targetVersionId:s.candidate.targetVersionId},plan,editorial:s.plan?undefined:s.editorial,approvedFacts:writerFacts,approvedSpans:spans,evidence:s.evidence.map(e=>({id:e.id,language:e.language,publisherId:e.publisherId,body:spans?spans.filter(p=>p.evidenceRevisionId===e.id).map(p=>p.quote).join('\n'):e.body}))};
  })};
 }
+/** One reader-facing claim per supported meaning. Equivalent claims collapse
+ * into the first one and keep up to three distinct supports, so citations from
+ * every independent source survive while the prose is never repeated. */
+export function mergeEquivalentClaims<T extends DraftClaim>(claims:T[]):T[] {
+ const out:T[]=[];
+ for(const claim of claims){
+  const same=out.find(c=>equivalentFact(c.text,claim.text));
+  if(!same){out.push({...claim,support:[...claim.support]});continue}
+  for(const s of claim.support)if(same.support.length<3&&!same.support.some(x=>x.evidenceRevisionId===s.evidenceRevisionId&&x.quote===s.quote))same.support.push(s);
+  if(claim.communicatedFactIds?.length)same.communicatedFactIds=[...new Set([...(same.communicatedFactIds??[]),...claim.communicatedFactIds])];
+ }
+ return out;
+}
 export function extractiveDraft(input:SynthesisInput):BriefingDraft {
  if(input.editorialPlan){
   const writer=synthesisWriterInput(input);
@@ -148,15 +161,15 @@ export function extractiveDraft(input:SynthesisInput):BriefingDraft {
    if(full.evidence.some(e=>/\b(verdict|false|misleading|refuted|retracted|correction|however|but)\b/i.test(e.body??'')))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
    const spans=approvedSupportSpans(full);
    if(!spans.length||spans.length>4||spans.some(p=>p.quote.length>1000))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
-   return {candidateId:s.candidate.id,claims:spans.map(p=>({text:p.quote,support:[p]}))};
+   return {candidateId:s.candidate.id,claims:mergeEquivalentClaims(spans.map(p=>({text:p.quote,support:[p]})))};
   })};
  }
  if(input.stories.some(s=>s.evidence.some(e=>extractiveLanguageCompatibility(e.language,input.feed.outputLanguage)==='TRANSLATION_REQUIRED'))) throw new SynthesisCompatibilityError('TRANSLATION_REQUIRED');
  if(input.stories.some(s=>s.evidence.length>4 || s.evidence.some(e=>e.excerptTruncated || e.body!.trim().length>600))) throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
  return {language:input.feed.outputLanguage,stories:input.stories.map(s=>{
-  return {candidateId:s.candidate.id,claims:s.evidence.flatMap(revision=>{
+  return {candidateId:s.candidate.id,claims:mergeEquivalentClaims(s.evidence.flatMap(revision=>{
    const quote=revision.body!.trim();return quote?[{text:quote,support:[{evidenceRevisionId:revision.id,quote}]}]:[];
-  })};
+  }))};
  })};
 }
 async function requireJob(tx:FeedTransaction,id:string,token:string,now:string):Promise<PublicationJob> {
@@ -327,7 +340,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
      return quoted && (semanticChecks?fullVerifiedSet&&preservedFacts.has(f.id):literal || fullVerifiedSet && preservedFacts.has(f.id));
     }));
     for(const f of missing){const verdict=semanticChecks?.find(c=>c.factId===f.id);issues.push({code:'MISSING_REQUIRED_FACT',candidateId:id,factId:f.id,value:verdict?.reason});}
-    if(claims.length && !missing.length) {stories.push({candidateId:id,claims});words+=storyWords}else rejected+=claims.length;
+    if(claims.length && !missing.length) {stories.push({candidateId:id,claims:mergeEquivalentClaims(claims)});words+=storyWords}else rejected+=claims.length;
    }
    if(input.editorialPlan && rejected)await rejectDraft(draftKey,[{code:'UNSUPPORTED_OR_INCOMPLETE_CLAIMS'},...issues]);
    grounding={id:draftKey,feedId,stories,rejectedClaims:rejected,policyVersion:'approved-spans-semantic-coverage-v4',createdAt:options.now()};

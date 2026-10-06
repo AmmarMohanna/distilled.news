@@ -22,7 +22,11 @@ export interface EditorialTarget {type:TargetType;id:string;stableId:string;stor
 export function boundedEditorialContext(value:EditorialDecision):EditorialDecision {
  return {...value,previouslyCommunicated:value.previouslyCommunicated.slice(0,1).map(p=>({...p,claimIds:p.claimIds.slice(0,2),facts:p.facts.slice(0,2).map(f=>f.slice(0,400)),factEvidenceRevisionIds:p.factEvidenceRevisionIds?.slice(0,2),evidenceRevisionIds:p.evidenceRevisionIds.slice(0,3)}))};
 }
-const aliases:Record<string,string>={approved:'approve',passed:'approve',approves:'approve',legislation:'law',resigned:'resign',signs:'sign',signed:'sign',affects:'affect',affected:'affect'};
+const aliases:Record<string,string>={approved:'approve',passed:'approve',approves:'approve',legislation:'law',resigned:'resign',signs:'sign',signed:'sign',affects:'affect',affected:'affect',ads:'advertisement',advertisements:'advertisement',ad:'advertisement',laws:'law'};
+// Epistemic strength classes. "may/might/could" are interchangeable hedges of
+// the same strength; stronger or weaker markers are never merged with them.
+const modalClass:Record<string,string>={may:'possible',might:'possible',could:'possible',possibly:'possible',reportedly:'reported',allegedly:'alleged',alleged:'alleged'};
+const droppable=new Set(['the','a','an']);
 export function supportedSentences(text:string):string[] {
  return text.normalize('NFKC').trim().split(/(?<=[.!?])\s+(?=[\p{Lu}\p{N}])/u).map(s=>s.trim()).filter(Boolean);
 }
@@ -32,14 +36,28 @@ export function equivalentFact(a:string,b:string):boolean {
  const normalized=(s:string)=>s.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
  if(normalized(a)===normalized(b)) return true;
  const quantities=(s:string)=>JSON.stringify(normalized(s).match(/\b\d+(?:[.,]\d+)*%?\b/g)??[]);
- const qualifiers=(s:string)=>JSON.stringify([...new Set(normalized(s).match(/\b(?:not|no|never|without|may|might|could|expected|alleged|unconfirmed|unresolved|estimated|more than|less than|at least|up to)\b/g)??[])].sort());
+ const qualifiers=(s:string)=>JSON.stringify([...new Set((normalized(s).match(/\b(?:not|no|never|without|may|might|could|possibly|expected|alleged|allegedly|reportedly|unconfirmed|unresolved|estimated|more than|less than|at least|up to)\b/g)??[]).map(q=>modalClass[q]??q))].sort());
  if(quantities(a)!==quantities(b) || qualifiers(a)!==qualifiers(b)) return false;
- const words=(s:string)=>(normalized(s).match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map(w=>aliases[w]??w);
+ const words=(s:string)=>(normalized(s).match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map(w=>modalClass[w]?'<'+modalClass[w]+'>':aliases[w]??w).filter(w=>!droppable.has(w));
  // Preserve argument order and attribution. A shared bag of words does not
  // establish that the same actor performed the same action on the same object.
  // Retain punctuation in its position: signs/units attach to quantities and
  // quotation/parenthetical punctuation can change attribution.
- return JSON.stringify(words(a))===JSON.stringify(words(b));
+ const strip=(w:string[])=>w.filter(x=>!/^[.!?]$/.test(x));
+ return JSON.stringify(strip(words(a)))===JSON.stringify(strip(words(b)));
+}
+/** Collapse equivalent reader-facing facts into one entry. Every support
+ * reference of the collapsed entries is retained on the survivor, so citations
+ * are never lost. Equivalence stays conservative: changed values, certainty or
+ * attribution never merge. The first (stable-order) entry survives. */
+export function mergeEquivalentFacts<T extends {text:string;evidenceRevisionIds:string[]}>(facts:T[],merge:(survivor:T,duplicate:T)=>void=()=>{},compatible:(a:T,b:T)=>boolean=()=>true):T[] {
+ const out:T[]=[];
+ for(const fact of facts){
+  const same=out.find(f=>compatible(f,fact)&&equivalentFact(f.text,fact.text));
+  if(!same){out.push(fact);continue}
+  same.evidenceRevisionIds=[...new Set([...same.evidenceRevisionIds,...fact.evidenceRevisionIds])];merge(same,fact);
+ }
+ return out;
 }
 /** Immutable edition IDs stand for immutable claims; published status remains
  * mutable. Fence both cache reuse and publication against changed reader state. */
