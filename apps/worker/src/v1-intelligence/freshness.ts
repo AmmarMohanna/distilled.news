@@ -8,7 +8,7 @@ export type FreshnessState='CURRENT'|'STALE'|'UNKNOWN';
 export interface Freshness {
  state:FreshnessState;
  /** Latest known source publication time across the supporting evidence. */
- developmentAt?:string;
+ sourcePublishedAt?:string;
  /** First time any supporting revision was accepted by this Feed. */
  firstSeenByFeedAt:string;
  /** Most recent acceptance of supporting evidence. */
@@ -23,5 +23,21 @@ export function assessFreshness(evidence:Pick<EvidenceRevision,'publishedAt'|'ac
  // Any revision without a usable publication time makes recency unknowable.
  if(!evidence.length||published.some(p=>!Number.isFinite(p)))return {state:'UNKNOWN',firstSeenByFeedAt,observedAt};
  const newest=Math.max(...published),start=Date.parse(window.start),horizon=Math.max(MIN_HORIZON_MS,Date.parse(window.end)-start),staleByMs=start-newest;
- return {state:staleByMs>horizon?'STALE':'CURRENT',developmentAt:new Date(newest).toISOString(),firstSeenByFeedAt,observedAt,staleByMs:staleByMs>0?staleByMs:undefined};
+ return {state:staleByMs>horizon?'STALE':'CURRENT',sourcePublishedAt:new Date(newest).toISOString(),firstSeenByFeedAt,observedAt,staleByMs:staleByMs>0?staleByMs:undefined};
+}
+
+/** Dates from source metadata are reporting dates, never inferred event dates.
+ * Apply the same window-relative freshness horizon to each approved fact, even
+ * for a Feed's first edition or a protected change. */
+export interface FactTiming {
+ sourcePublishedAt?:string;
+ eventTime?:string;
+ reportTime?:string;
+ firstSeenByFeedAt:string;
+ observedAt:string;
+ framingRequired:boolean;
+}
+export function factTiming(evidence:Pick<EvidenceRevision,'publishedAt'|'acceptedAt'>[],window:{start:string;end:string},fact:{reportTime?:string;eventTime?:string}={}):FactTiming {
+ const freshness=assessFreshness(evidence,window);
+ return {sourcePublishedAt:freshness.sourcePublishedAt,reportTime:fact.reportTime,eventTime:fact.eventTime,firstSeenByFeedAt:freshness.firstSeenByFeedAt,observedAt:freshness.observedAt,framingRequired:freshness.state==='STALE'};
 }

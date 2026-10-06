@@ -1,5 +1,6 @@
 import {HandoffError,sha256,type BriefingCandidate,type EventVersion,type EventMembership,type EvidenceRevision} from '@distilled/contracts';
 import {z} from 'zod';
+import type {FactTiming} from './freshness';
 import {V1IntakeStore} from '../v1-intake/store';
 import type {AcceptedInput} from '../v1-intake/types';
 import {extractiveLanguageCompatibility,SynthesisCompatibilityError} from './language';
@@ -19,7 +20,7 @@ export interface BriefingDraft {language:string;stories:{candidateId:string;clai
 export interface ModelUsage {tokensIn:number;tokensOut:number;cost:number;confirmed:boolean}
 export interface SelectedPlanStory extends PlanStory {facts:ShortlistFact[];previousLedgerEntries:ShortlistRecord['ledger'];correctionObligations:ShortlistRecord['obligations']}
 export interface SynthesisInput {feed:Pick<FeedRecord,'id'|'revision'|'title'|'interests'|'outputLanguage'>;selectionId:string;window?:SelectionRecord['window'];editorialPlan?:{id:string;route:EditorialPlanRecord['route']};stories:{candidate:BriefingCandidate;eventVersions:EventVersion[];storylineVersion?:StorylineVersion;editorial?:EditorialDecision;plan?:SelectedPlanStory;evidence:(EvidenceRevision & {excerptTruncated:boolean;publisherId?:string})[]}[]}
-export interface PreservationFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string}
+export interface PreservationFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string;timing?:FactTiming;context?:ShortlistFact['context']}
 export interface ApprovedWriterFact extends ShortlistFact {support:ClaimSupport[]}
 export type WriterFact=Omit<ApprovedWriterFact,'claimMentionIds'|'evidenceRevisionIds'|'propositionId'>;
 export interface SynthesisWriterInput {feed:SynthesisInput['feed'];selectionId:string;window?:SynthesisInput['window'];editorialPlan?:SynthesisInput['editorialPlan'];stories:{candidate:Pick<BriefingCandidate,'id'|'targetType'|'targetVersionId'>;plan?:Omit<SelectedPlanStory,'facts'>;editorial?:EditorialDecision;approvedFacts?:WriterFact[];approvedSpans?:ClaimSupport[];evidence:{id:string;body?:string;language?:string;publisherId?:string}[]}[]}
@@ -48,7 +49,7 @@ const draftSchema=z.object({language:z.string().min(1),stories:z.array(z.object(
 const usageSchema=z.object({tokensIn:z.number().int().nonnegative(),tokensOut:z.number().int().nonnegative(),cost:z.number().finite().nonnegative(),confirmed:z.boolean()}).strict();
 const normalize=(s:string)=>s.normalize('NFKC').replace(/\s+/g,' ').trim();
 function preservationFacts(story:SynthesisInput['stories'][number]):PreservationFact[] {
- if(story.plan){const ids=new Set([...story.plan.mustIncludeFactIds,...story.plan.attributionFactIds,...story.plan.certaintyFactIds,...story.plan.disagreementFactIds,...story.plan.openQuestionFactIds]);return story.plan.facts.filter(f=>ids.has(f.id)).map(f=>({id:f.id,text:f.text,evidenceRevisionIds:f.evidenceRevisionIds,attribution:f.attribution}))}
+ if(story.plan){const ids=new Set([...story.plan.mustIncludeFactIds,...story.plan.attributionFactIds,...story.plan.certaintyFactIds,...story.plan.disagreementFactIds,...story.plan.openQuestionFactIds]);return story.plan.facts.filter(f=>ids.has(f.id)).map(f=>({id:f.id,text:f.text,evidenceRevisionIds:f.evidenceRevisionIds,attribution:f.attribution,timing:f.timing,context:f.context}))}
  const facts:PreservationFact[]=[];
  for(const evidence of story.evidence) for(const text of supportedSentences(evidence.body??'')) {
   // Quantities, qualification and open outcomes are conservative preservation
@@ -320,7 +321,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     if(!result) {const seen=new Set<string>();const claims:VerificationClaim[]=nonextractive.map(p=>{
      const first=!seen.has(p.candidateId);seen.add(p.candidateId);
      const scope=candidates.get(p.candidateId)!;
-     const facts=scope.plan?.facts.map(({id,text,evidenceRevisionIds,attribution,context})=>({id,text,evidenceRevisionIds,attribution,context}));
+     const facts=scope.plan?.facts.map(({id,text,evidenceRevisionIds,attribution,context,timing})=>({id,text,evidenceRevisionIds,attribution,context,timing}));
      return {...p.claim,candidateId:p.candidateId,requiredFacts:first?preservationFacts(scope):undefined,allowedFacts:facts,previousLedgerFacts:scope.plan?.previousLedgerEntries.flatMap(e=>e.claimFacts),newUnderstandingFacts:first?facts?.filter(f=>scope.plan!.newUnderstandingFactIds.includes(f.id)):undefined,correctionObligations:first?scope.plan?.correctionObligations:undefined,context:scope.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,publisherId:e.publisherId,text:e.body??'',truncated:e.excerptTruncated}))};
     });await callModel('GROUNDING',options.model!.verificationPayload?.(claims)??claims,limits=>options.model!.verify!(claims,limits),draftKey);result=await store.read(feedId,'verification_results',draftKey)}
     for(const id of result?.supportedClaimIds??[]) if(nonextractive.some(p=>p.claim.id===id)) supported.add(id);

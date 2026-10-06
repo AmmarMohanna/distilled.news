@@ -10,7 +10,7 @@ import {prepareSemanticShortlist} from './shortlist';
 const win={start:'2026-10-06T11:00:00Z',end:'2026-10-06T12:00:00Z'};
 it('distinguishes source publication time from observation time',()=>{
  const old=assessFreshness([{publishedAt:'2026-10-02T09:00:00Z',acceptedAt:'2026-10-06T11:30:00Z'}],win);
- expect(old.state).toBe('STALE');expect(old.developmentAt).toBe('2026-10-02T09:00:00.000Z');expect(old.firstSeenByFeedAt).toBe('2026-10-06T11:30:00.000Z');
+ expect(old.state).toBe('STALE');expect(old.sourcePublishedAt).toBe('2026-10-02T09:00:00.000Z');expect(old.firstSeenByFeedAt).toBe('2026-10-06T11:30:00.000Z');
  expect(assessFreshness([{publishedAt:'2026-10-06T10:30:00Z',acceptedAt:'2026-10-06T11:30:00Z'}],win).state).toBe('CURRENT');
  expect(assessFreshness([{acceptedAt:'2026-10-06T11:30:00Z'}],win).state).toBe('UNKNOWN');
  expect(assessFreshness([{publishedAt:'2026-10-02T09:00:00Z',acceptedAt:'x'},{publishedAt:'2026-10-06T10:59:00Z',acceptedAt:'x'}],win).state).toBe('CURRENT');
@@ -27,7 +27,7 @@ it('an old article newly ingested is labelled and demoted but never silently sup
  const shortlist=await prepareSemanticShortlist(store,'feed-1',later,later.end);
  const c=shortlist.candidates.find(c=>c.evidenceRevisionIds.length)!;
  expect(c.fallbackEditorial.decision).toBe('INCLUDE');expect(c.fallbackEditorial.reasonCodes).toEqual(['OLD_RECAP']);expect(c.flags).toContain('OLD_RECAP');expect(c.priority).toBeLessThan(.6);
- expect(c.facts.every(f=>f.reportTime==='2026-10-02T09:00:00Z')).toBe(true);
+ expect(c.facts.every(f=>f.timing?.sourcePublishedAt==='2026-10-02T09:00:00.000Z'&&f.timing.framingRequired)).toBe(true);
  const selected=await scoreAndSelect(store,'feed-1',later,DEFAULT_BRIEFING_BUDGET,later.end);
  expect(selected.selectedCandidateIds).toHaveLength(1);
 },30000);
@@ -37,6 +37,7 @@ it('the same article with an unknown or current publication time is still report
 },30000);
 it('a stale-dated first edition is kept because the reader was told nothing before',async()=>{
  await seedIntelligence(store,1,'Ukraine opened a new grain corridor on Monday.','publisher-1','2026-10-06T11:30:00Z','en','2026-10-02T09:00:00Z');
+ const shortlist=await prepareSemanticShortlist(store,'feed-1',later,later.end);expect(shortlist.candidates[0].flags).toContain('OLD_RECAP');expect(shortlist.candidates[0].facts[0].timing?.framingRequired).toBe(true);
  expect((await scoreAndSelect(store,'feed-1',later,DEFAULT_BRIEFING_BUDGET,later.end)).selectedCandidateIds).toHaveLength(1);
 },30000);
 it('an old-dated article that changes a previously communicated value is still a meaningful update',async()=>{

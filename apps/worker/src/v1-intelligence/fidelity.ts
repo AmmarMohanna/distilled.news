@@ -1,10 +1,10 @@
-export interface FidelityFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string}
+export interface FidelityFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string;timing?:import('./freshness').FactTiming}
 export interface SemanticFactCheck {factId:string;communicated:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;reason:string;readerSpans?:{claimId:string;text:string}[]}
 export const faithfulFact=(check:SemanticFactCheck)=>check.communicated&&check.attribution&&check.certainty&&check.temporal&&check.qualifiers;
 export function hasReaderWitness(check:SemanticFactCheck,claims:{id:string;text:string}[]):boolean {
  return !!check.readerSpans?.length&&check.readerSpans.every(span=>claims.some(c=>c.id===span.claimId&&c.text.includes(span.text)));
 }
-export interface ReaderFidelity {passed:boolean;failures:{code:'UNSUPPORTED_QUANTITY'|'LOST_QUANTITY'|'UNSUPPORTED_DATE'|'LOST_MODALITY'|'LOST_NEGATION'|'LOST_BOUND'|'LOST_ATTRIBUTION';factId?:string;value?:string}[];policyVersion:string}
+export interface ReaderFidelity {passed:boolean;failures:{code:'UNSUPPORTED_QUANTITY'|'LOST_QUANTITY'|'UNSUPPORTED_DATE'|'LOST_MODALITY'|'LOST_NEGATION'|'LOST_BOUND'|'LOST_ATTRIBUTION'|'TEMPORAL_FRAMING_REQUIRED';factId?:string;value?:string}[];policyVersion:string}
 const normalized=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
 // URL path/query digits are provenance identifiers, not reader-facing quantities.
 const factualText=(text:string)=>normalized(text).replace(/https?:\/\/[^\s]+/gu,'');
@@ -22,15 +22,34 @@ function numericalBounds(text:string):Set<string>{
  const operators:Record<string,string>={'at least':'>=','no fewer than':'>=','at most':'<=','no more than':'<=','more than':'>','over':'>','less than':'<','under':'<'};
  return new Set([...numericText(text).matchAll(/\b(at least|no fewer than|at most|no more than|more than|over|less than|under)\s+(?:a\s+)?(\d+(?:[.,]\d+)*(?:\s*(?:%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b))?)/g)].flatMap(m=>[...numbers(m[2])].map(n=>operators[m[1]]+n)));
 }
+/** Calendar dates are provenance-qualified dates, not casualty counts or ages.
+ * Only exact supported calendar dates may bypass the quantity floor; semantic
+ * verification still checks whether prose uses them as report or event dates. */
+function calendarDates(text:string):{text:string;key:string}[] {
+ const months=['january','february','march','april','may','june','july','august','september','october','november','december'];
+ const month=months.join('|'),out:{text:string;key:string}[]=[];
+ for(const m of text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})(?:T[0-9:.]+Z)?\b/g))out.push({text:m[0],key:`${Number(m[2])}-${Number(m[3])}-${m[1]}`});
+ const pattern=new RegExp(`\\b(?:(\\d{1,2})\\s+(${month})|(${month})\\s+(\\d{1,2}))(?:,?\\s+(\\d{4}))?\\b`,'gi');
+ for(const m of text.matchAll(pattern))out.push({text:m[0],key:`${months.indexOf((m[2]??m[3]).toLowerCase())+1}-${Number(m[1]??m[4])}${m[5]?`-${m[5]}`:''}`});
+ return out;
+}
+function withoutSupportedDates(text:string,keys:Set<string>):string {
+ for(const date of calendarDates(text))if(keys.has(date.key))text=text.replace(date.text,' ');
+ return text;
+}
 /** Extra deterministic floors, not a substitute for contextual entailment.
  * English qualifier guards are enabled only for compatible known language;
  * translations retain the mandatory structured model verification path. */
 export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],allowed:FidelityFact[],english:boolean,semantic?:{pending?:boolean;checks?:SemanticFactCheck[]}):ReaderFidelity {
  const text=factualText(claimTexts.join('\n')),support=factualText(allowed.map(f=>f.text).join('\n')),failures:ReaderFidelity['failures']=[];
- const offered=numbers(support),visible=numbers(text);if(english||offered.size)for(const value of visible)if(!offered.has(value))failures.push({code:'UNSUPPORTED_QUANTITY',value});
- if(english){const bounds=numericalBounds(support);for(const value of numericalBounds(text))if(!bounds.has(value))failures.push({code:'UNSUPPORTED_QUANTITY',value});}
- for(const fact of required)for(const value of numbers(fact.text))if(!visible.has(value))failures.push({code:'LOST_QUANTITY',factId:fact.id,value});
- const dates=new Set(support.match(/\b\d{4}-\d{2}-\d{2}\b/g)??[]);for(const value of text.match(/\b\d{4}-\d{2}-\d{2}\b/g)??[])if(!dates.has(value))failures.push({code:'UNSUPPORTED_DATE',value});
+ const dateKeys=new Set(calendarDates(support).map(d=>d.key));for(const f of allowed)for(const date of [f.timing?.sourcePublishedAt,f.timing?.reportTime,f.timing?.eventTime])if(date)for(const d of calendarDates(date))dateKeys.add(d.key);
+ for(const key of [...dateKeys])dateKeys.add(key.split('-').slice(0,2).join('-'));
+ const quantityText=withoutSupportedDates(text,dateKeys),quantitySupport=withoutSupportedDates(support,dateKeys);
+ const offered=numbers(quantitySupport),visible=numbers(quantityText);if(english||offered.size)for(const value of visible)if(!offered.has(value))failures.push({code:'UNSUPPORTED_QUANTITY',value});
+ if(english){const bounds=numericalBounds(quantitySupport);for(const value of numericalBounds(quantityText))if(!bounds.has(value))failures.push({code:'UNSUPPORTED_QUANTITY',value});}
+ for(const fact of required)for(const value of numbers(withoutSupportedDates(fact.text,dateKeys)))if(!visible.has(value))failures.push({code:'LOST_QUANTITY',factId:fact.id,value});
+ for(const date of calendarDates(text))if(!dateKeys.has(date.key))failures.push({code:'UNSUPPORTED_DATE',value:date.text});
+ for(const fact of required)if(fact.timing?.framingRequired&&!semantic?.pending&&!semantic?.checks?.some(c=>c.factId===fact.id&&faithfulFact(c)))failures.push({code:'TEMPORAL_FRAMING_REQUIRED',factId:fact.id});
  if(english)for(const fact of required){
   // Only an explicit independent semantic verdict may resolve a lexical floor.
   // Numbers/dates above remain hard checks. Pending semantic judgment is not a pass.
@@ -41,7 +60,7 @@ export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],
   for(const [phrase,equivalent] of [['at least',/\b(at least|no fewer than)\b/],['at most',/\b(at most|no more than)\b/],['more than',/\b(more than|over)\b/],['less than',/\b(less than|under)\b/],['before',/\b(before|earlier than|prior to)\b/],['after',/\b(after|later than|following)\b/]] as const)if(source.includes(phrase)&&!equivalent.test(text))failures.push({code:'LOST_BOUND',factId:fact.id,value:phrase});
   if(fact.attribution&&!text.includes(normalized(fact.attribution)))failures.push({code:'LOST_ATTRIBUTION',factId:fact.id,value:fact.attribution});
  }
- return {passed:!failures.length,failures,policyVersion:'reader-fidelity-floors-v2'};
+ return {passed:!failures.length,failures,policyVersion:'reader-fidelity-floors-v3'};
 }
 
 /** Model attestation must concern actual supported reader prose. English adds

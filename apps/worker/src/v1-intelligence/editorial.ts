@@ -7,7 +7,7 @@ import {features} from './policies';
 import {assessFreshness,type Freshness} from './freshness';
 import {ledgerProjectionId,type LedgerEntry,type LedgerProjection} from './ledger';
 
-export const EDITORIAL_POLICY='supported-delta-ledger-v3';
+export const EDITORIAL_POLICY='supported-delta-ledger-v4';
 export type EditorialReason='MAJOR_STATE_CHANGE'|'MATERIAL_NEW_FACT'|'NEW_SUPPORTED_DEVELOPMENT'|'ALREADY_COMMUNICATED'|'CORROBORATION_ONLY'|'LOW_INFORMATION_GAIN'|'LOW_RELEVANCE'|'OLD_RECAP';
 /** Reader-state novelty: what this target adds relative to what the reader was already told. */
 export type NoveltyClass='NEW_EVENT'|'NEW_FACT'|'ADDS_DETAIL'|'CHANGES_STATE'|'CHANGES_CERTAINTY'|'CONTRADICTS'|'CORRECTS'|'RETRACTS'|'CORROBORATION_ONLY'|'OLD_RECAP'|'ALREADY_COMMUNICATED';
@@ -133,8 +133,8 @@ export async function evaluateEditorialDelta(tx:FeedTransaction,target:Editorial
  });
  const freshness=windowStart?assessFreshness(target.evidence,{start:windowStart,end:windowEnd}):undefined;
  // Old reporting the Feed only just saw is not a development of this window, but the reader may genuinely never have been told it.
- // Source age alone therefore never suppresses: it is labelled OLD_RECAP, demoted and dated, and left to the editor. A Feed's first edition is exempt.
- const staleRecap=freshness?.state==='STALE' && !previous.length && (await tx.list<BriefingEditionRecord>('editions')).some(e=>Date.parse(e.windowEnd)<Date.parse(windowEnd));
+ // Source age alone therefore never suppresses: it is labelled OLD_RECAP, demoted and dated, and left to the editor. First editions still require temporally honest framing.
+ const staleRecap=freshness?.state==='STALE' && !previous.length;
  const include=newUnderstanding.length>0;
  const reasonCodes:EditorialReason[]=include&&staleRecap?['OLD_RECAP']:!include?[previous.length && target.evidence.some(e=>!previous.some(p=>p.evidenceRevisionIds.includes(e.id)))?'CORROBORATION_ONLY':'ALREADY_COMMUNICATED']:!previous.length?['NEW_SUPPORTED_DEVELOPMENT']:changedPhase?['MAJOR_STATE_CHANGE']:['MATERIAL_NEW_FACT'];
  const caveats=newUnderstanding.some(f=>/\b(unresolved|uncertain|disputed|may|might|no new date|not confirmed|however|but)\b/i.test(f.text));
