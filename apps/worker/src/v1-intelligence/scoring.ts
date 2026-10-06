@@ -90,7 +90,9 @@ function deterministicPrefilter(editorial:EditorialDecision,interests:string[],g
     // Literal term nonmatch is unknown semantic relevance, not proof of irrelevance.
     if(lowInformation) {editorial.decision='SUPPRESS';editorial.reasonCodes=['LOW_INFORMATION_GAIN'];editorial.treatment='OMIT';editorial.contextNeed='NONE'}
 }
-export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:PublicationWindow,rawBudget:BriefingBudget,now:string,semanticScorer?:EventSalienceScorer,plan?:EditorialPlanRecord):Promise<SelectionRecord> {
+export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:PublicationWindow,rawBudget:BriefingBudget,now:string,requestedScorer?:EventSalienceScorer,plan?:EditorialPlanRecord):Promise<SelectionRecord> {
+ // Under a comparative EditorialPlan salience is only a pre-ranking/fallback signal: it never gates publication, so no paid judgment is bought for it.
+ const semanticScorer=plan?undefined:requestedScorer;
  const parsedWindow=windowSchema.safeParse(rawWindow),parsedBudget=budgetSchema.safeParse(rawBudget);
  if(!parsedWindow.success || !parsedBudget.success || !Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
  const window={...parsedWindow.data,start:new Date(parsedWindow.data.start).toISOString(),end:new Date(parsedWindow.data.end).toISOString()},budget=parsedBudget.data;

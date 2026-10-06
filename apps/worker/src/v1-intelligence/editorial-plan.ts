@@ -36,8 +36,8 @@ export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistR
 /** Offline construction is explicitly labeled. It preserves exact facts and
  * suspected-repeat flags rather than pretending to be a semantic editor. */
 export function fallbackEditorialPlan(shortlist:ShortlistRecord):EditorialPlanBody {
- // Old-source reporting ranks below genuine developments of the window.
- const old=(i:number)=>shortlist.candidates[i].flags.includes('OLD_RECAP')&&!shortlist.candidates[i].protectedReasons.length,ranked=[...shortlist.candidates.keys()].sort((a,b)=>Number(old(a))-Number(old(b))||a-b);
+ // Protected deltas first, then by priority; old-source reporting ranks below genuine developments of the window.
+ const old=(i:number)=>shortlist.candidates[i].flags.includes('OLD_RECAP')&&!shortlist.candidates[i].protectedReasons.length,ranked=[...shortlist.candidates.keys()].sort((a,b)=>Number(old(a))-Number(old(b))||shortlist.candidates[b].protectedReasons.length-shortlist.candidates[a].protectedReasons.length||shortlist.candidates[b].priority-shortlist.candidates[a].priority||a-b);
  const stories:PlanStory[]=shortlist.candidates.map((c,index)=>{
   const order=ranked.indexOf(index);
   const repeated=c.fallbackEditorial.decision==='SUPPRESS'&&!c.protectedReasons.length,understanding=c.facts.filter(f=>c.fallbackEditorial.newUnderstanding.some(n=>equivalentFact(n.text,f.text))).map(f=>f.id),required=c.protectedReasons.length?c.facts.map(f=>f.id):understanding.length?understanding:c.facts.map(f=>f.id);
@@ -61,7 +61,10 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
   operationId=saved.id;if(saved.status==='SUCCEEDED'&&saved.value){body=saved.value;route='GPT';fallbackReason=undefined as any}else fallbackReason=saved.failure??'EDITORIAL_DEFERRED';
  }
  let selected=0;body={...body,stories:body.stories.map(s=>({...s})).sort((a,b)=>a.order-b.order)};
- for(const s of body.stories)if(s.decision==='SELECT'&&selected++>=budget.maxStories){s.decision='DEFER';s.treatment='OMIT';s.rationale='Explicit hard story budget deferral; retained for a later window.'}
+ // Hard capacity is allocated protected-first (changed state/certainty, contradiction, correction, retraction, obligations), then by editorial order:
+ // an ordinary story can never displace protected information, however the planner ranked it.
+ const protectedTarget=(id:string)=>Boolean(shortlist.candidates.find(c=>c.targetVersionId===id)?.protectedReasons.length),allocation=body.stories.filter(s=>s.decision==='SELECT').sort((a,b)=>Number(protectedTarget(b.targetVersionId))-Number(protectedTarget(a.targetVersionId))||a.order-b.order);
+ for(const s of allocation)if(selected++>=budget.maxStories){s.decision='DEFER';s.treatment='OMIT';s.rationale='Explicit hard story budget deferral; retained for a later window.'}
  for(const o of body.obligations)if(o.handling==='ADDRESS'&&!body.stories.some(s=>s.decision==='SELECT'&&s.targetVersionId===o.targetVersionId)){o.handling='DEFER';o.reason='Supported target deferred by hard story capacity.'}
  validateEditorialPlan(body,shortlist);
  return feedTransact(store,shortlist.feedId,async tx=>{
