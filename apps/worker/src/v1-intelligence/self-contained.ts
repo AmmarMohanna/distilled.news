@@ -17,7 +17,10 @@ const letters=(s:string)=>s.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+
 const stem=(w:string)=>w.replace(/(ies|es|s)$/,'');
 
 /** The unresolved reference a fact starts with, if any. English only. */
-export function leadingReference(text:string):{kind:'PRONOUN'|'ANAPHORIC_NOUN';head:string}|undefined {
+export function leadingReference(text:string):{kind:'PRONOUN'|'ANAPHORIC_NOUN';head:string;anchor?:string}|undefined {
+ const abstract=/^([^.!?]{1,100})['?]s\s+(success|decision|move|proposal|result|failure|victory|loss|achievement)\b(.*)$/iu.exec(text.trim());
+ // A named actor does not explain a vague outcome. Concrete complements do.
+ if(abstract&&!/^\s+(?:in|at|with|to|of|over|against|on|about)\b/i.test(abstract[3]))return {kind:'ANAPHORIC_NOUN',head:abstract[2].toLowerCase(),anchor:abstract[1]};
  const words=letters(text);if(!words.length)return;
  const first=words[0]!,second=words[1];
  if(pronouns.has(first))return {kind:'PRONOUN',head:first};
@@ -38,7 +41,7 @@ export function assessSelfContainment(text:string,support:Pick<EvidenceRevision,
  for(const e of support){
   const title=(e.title??'').trim();if(!title||leadingReference(title))continue;
   const titleStems=new Set(letters(title).map(stem));
-  const names=gap.kind==='ANAPHORIC_NOUN'?titleStems.has(stem(gap.head)):titleStems.size>=2;
+  const names=gap.anchor?letters(gap.anchor).map(stem).every(w=>titleStems.has(w)):gap.kind==='ANAPHORIC_NOUN'?titleStems.has(stem(gap.head)):titleStems.size>=2;
   if(names)return {status:'RESOLVED_BY_CONTEXT',context:{evidenceRevisionId:e.id,field:'title',text:title}};
  }
  return {status:'UNRESOLVED'};

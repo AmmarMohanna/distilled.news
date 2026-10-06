@@ -25,3 +25,10 @@ it('fallback plan defers a non-protected story whose only facts are unresolved a
  const only=fallbackEditorialPlan(base([bad])).stories[0];expect(only.decision).toBe('DEFER');expect(only.treatment).toBe('OMIT');expect(only.mustIncludeFactIds).toEqual([]);
  const mixed=fallbackEditorialPlan(base([bad,good])).stories[0];expect(mixed.decision).toBe('SELECT');expect(mixed.mustIncludeFactIds).toEqual(['f2']);
 });
+
+it('a named but unexplained outcome needs supported context; concrete outcomes do not',()=>{
+ const source={id:'r',language:'en',title:'OrbitalCo completes its first orbital launch'};
+ expect(assessSelfContainment("OrbitalCo's success could encourage investment.",[source])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:source.title}});
+ expect(assessSelfContainment("OrbitalCo's success in launching a satellite could encourage investment.",[source]).status).toBe('YES');
+ expect(assessSelfContainment("OtherCo's success could encourage investment.",[source]).status).toBe('UNRESOLVED');
+});
