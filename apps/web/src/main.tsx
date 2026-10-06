@@ -1653,6 +1653,7 @@ function FeedPage(props: { username: string; slug: string }) {
         />
       ) : null}
       {error ? <FeedNotice message={error} language={language} /> : null}
+      {payload?.publicationState === 'correction_pending' ? <FeedNotice message={t('A correction to an earlier briefing is pending. Affected briefings have been withdrawn where necessary.')} language={language}/> : null}
       {payload?.publicationState === 'failed' ? <FeedNotice message={t('The latest briefing could not be completed. Your published briefings remain available.')} language={language}/> : null}
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {payload?.publicationState === 'checking' ? <p className="muted feed-status-message" role="status">{t('Checking sources for the next briefing…')}</p> : null}

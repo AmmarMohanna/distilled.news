@@ -1000,7 +1000,7 @@ export function createApp(options: AppOptions = {}) {
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     const voterId = await getVoterId(c);
-    const editions = (c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : await repo.listBriefingEditions(briefing.id, true))
+    const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
       briefing: publicBriefing(briefing),
@@ -1022,7 +1022,7 @@ export function createApp(options: AppOptions = {}) {
     const { repo, briefing } = resolved;
     const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (await publishedProductEditions(c.env, briefing, c.req.param("editionId")))[0] : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
     if (!edition) return c.json({ error: "edition not found" }, 404);
-    if (!isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
+    if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
     return c.json({ edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
   });
 
@@ -1038,7 +1038,7 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const editions = (c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
+    const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
       editions: searchBriefingEditions(
