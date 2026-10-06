@@ -168,3 +168,8 @@ it('extractive drafts and grounded claims show a duplicated sentence once and ke
  const claims=mergeEquivalentClaims([{text:'The ads could have violated federal law.',support:[{evidenceRevisionId:'a',quote:'The ads could have violated federal law.'}]},{text:'The advertisements may have violated federal law.',support:[{evidenceRevisionId:'b',quote:'The advertisements may have violated federal law.'}]}]);
  expect(claims).toHaveLength(1);expect(claims[0].support.map(s=>s.evidenceRevisionId)).toEqual(['a','b']);
 });
+it('alias map does not merge unrelated senses',async()=>{
+ const {equivalentFact}=await import('./editorial');
+ expect(equivalentFact('The senator passed away.','The senator approved away.')).toBe(false);
+ expect(equivalentFact('The bill passed.','The bill approved.')).toBe(true);
+});

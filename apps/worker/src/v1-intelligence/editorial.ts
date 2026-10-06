@@ -22,7 +22,7 @@ export interface EditorialTarget {type:TargetType;id:string;stableId:string;stor
 export function boundedEditorialContext(value:EditorialDecision):EditorialDecision {
  return {...value,previouslyCommunicated:value.previouslyCommunicated.slice(0,1).map(p=>({...p,claimIds:p.claimIds.slice(0,2),facts:p.facts.slice(0,2).map(f=>f.slice(0,400)),factEvidenceRevisionIds:p.factEvidenceRevisionIds?.slice(0,2),evidenceRevisionIds:p.evidenceRevisionIds.slice(0,3)}))};
 }
-const aliases:Record<string,string>={approved:'approve',passed:'approve',approves:'approve',legislation:'law',resigned:'resign',signs:'sign',signed:'sign',affects:'affect',affected:'affect',ads:'advertisement',advertisements:'advertisement',ad:'advertisement',laws:'law'};
+const aliases:Record<string,string>={approved:'approve',passed:'approve',approves:'approve',legislation:'law',resigned:'resign',signs:'sign',signed:'sign',affects:'affect',affected:'affect',ads:'advertisement',advertisements:'advertisement',laws:'law'};
 // Epistemic strength classes. "may/might/could" are interchangeable hedges of
 // the same strength; stronger or weaker markers are never merged with them.
 const modalClass:Record<string,string>={may:'possible',might:'possible',could:'possible',possibly:'possible',reportedly:'reported',allegedly:'alleged',alleged:'alleged'};
@@ -38,7 +38,7 @@ export function equivalentFact(a:string,b:string):boolean {
  const quantities=(s:string)=>JSON.stringify(normalized(s).match(/\b\d+(?:[.,]\d+)*%?\b/g)??[]);
  const qualifiers=(s:string)=>JSON.stringify([...new Set((normalized(s).match(/\b(?:not|no|never|without|may|might|could|possibly|expected|alleged|allegedly|reportedly|unconfirmed|unresolved|estimated|more than|less than|at least|up to)\b/g)??[]).map(q=>modalClass[q]??q))].sort());
  if(quantities(a)!==quantities(b) || qualifiers(a)!==qualifiers(b)) return false;
- const words=(s:string)=>(normalized(s).match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map(w=>modalClass[w]?'<'+modalClass[w]+'>':aliases[w]??w).filter(w=>!droppable.has(w));
+ const words=(s:string)=>(normalized(s).match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map((w,i,all)=>modalClass[w]?'<'+modalClass[w]+'>':w==='passed'&&all[i+1]==='away'?w:aliases[w]??w).filter(w=>!droppable.has(w));
  // Preserve argument order and attribution. A shared bag of words does not
  // establish that the same actor performed the same action on the same object.
  // Retain punctuation in its position: signs/units attach to quantities and

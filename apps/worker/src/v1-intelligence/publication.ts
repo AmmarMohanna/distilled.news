@@ -107,14 +107,15 @@ export function approvedWriterFacts(story:SynthesisInput['stories'][number]):App
  if(!story.plan) return [];
  const p=story.plan,ids=new Set([...p.newUnderstandingFactIds,...p.contextFactIds,...p.mustIncludeFactIds,...p.attributionFactIds,...p.certaintyFactIds,...p.disagreementFactIds,...p.openQuestionFactIds]);
  return p.facts.filter(f=>ids.has(f.id)).map(f=>({...f,support:story.evidence.filter(e=>f.evidenceRevisionIds.includes(e.id)).flatMap(e=>{
-  const body=e.body??'',quote=body.includes(f.text)?f.text:body.trim().split(/(?<=[.!?])\s+|\n+/u).find(s=>normalize(s)===normalize(f.text));
+  // A merged fact keeps the exact sentence of every equivalent supporter, even when worded differently.
+  const body=e.body??'',quote=body.includes(f.text)?f.text:body.trim().split(/(?<=[.!?])\s+|\n+/u).find(s=>normalize(s)===normalize(f.text)||equivalentFact(s,f.text));
   return quote?[{evidenceRevisionId:e.id,quote}]:[];
- })}));
+ }).concat(f.context&&story.evidence.some(e=>e.id===f.context!.evidenceRevisionId&&e.title===f.context!.text)?[{evidenceRevisionId:f.context.evidenceRevisionId,quote:f.context.text}]:[])}));
 }
 /** Join only adjacent approved spans, preserving abbreviations/dates split into propositions. */
 export function approvedSupportSpans(story:SynthesisInput['stories'][number]):ClaimSupport[] {
  const facts=approvedWriterFacts(story),out:ClaimSupport[]=[];
- for(const e of story.evidence){const body=e.body??'',parts=facts.flatMap(f=>f.support.filter(s=>s.evidenceRevisionId===e.id).map(s=>({start:body.indexOf(s.quote),end:body.indexOf(s.quote)+s.quote.length}))).sort((a,b)=>a.start-b.start||a.end-b.end),merged:{start:number;end:number}[]=[];
+ for(const e of story.evidence){const body=e.body??'',parts=facts.flatMap(f=>f.support.filter(s=>s.evidenceRevisionId===e.id&&body.includes(s.quote)).map(s=>({start:body.indexOf(s.quote),end:body.indexOf(s.quote)+s.quote.length}))).sort((a,b)=>a.start-b.start||a.end-b.end),merged:{start:number;end:number}[]=[];
   for(const part of parts){const last=merged.at(-1);if(last&&part.start<=last.end || last&&/^\s*$/.test(body.slice(last.end,part.start)))last.end=Math.max(last.end,part.end);else merged.push({...part});}
   for(const p of merged){const quote=body.slice(p.start,p.end),abbreviation=/\b(?:Oct|Nov|Dec|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Mr|Mrs|Dr|etc|a\.m|p\.m)\.$/i;
    const prefix=body.slice(0,p.start),suffix=body.slice(p.end);
@@ -122,6 +123,8 @@ export function approvedSupportSpans(story:SynthesisInput['stories'][number]):Cl
    out.push({evidenceRevisionId:e.id,quote});
   }
  }
+ // Supported context (the revision's own title) is an exact, citable span too.
+ for(const f of facts)if(f.context&&!out.some(p=>p.evidenceRevisionId===f.context!.evidenceRevisionId&&p.quote===f.context!.text)&&story.evidence.some(e=>e.id===f.context!.evidenceRevisionId&&e.title===f.context!.text))out.push({evidenceRevisionId:f.context.evidenceRevisionId,quote:f.context.text});
  return out;
 }
 /** The writer sees approved facts and their literal spans, never unselected source prose or graph state. */
@@ -139,8 +142,10 @@ export function synthesisWriterInput(input:SynthesisInput):SynthesisWriterInput 
  })};
 }
 /** One reader-facing claim per supported meaning. Equivalent claims collapse
- * into the first one and keep up to three distinct supports, so citations from
- * every independent source survive while the prose is never repeated. */
+ * into the first one. The published claim contract (draftSchema) allows at most
+ * three supports per claim, so that bound is a contract limit, not a choice;
+ * supports beyond it remain on the shortlist/ledger fact (mergeEquivalentFacts
+ * keeps every evidence ID) and are only omitted from the reader-visible claim. */
 export function mergeEquivalentClaims<T extends DraftClaim>(claims:T[]):T[] {
  const out:T[]=[];
  for(const claim of claims){
@@ -161,7 +166,9 @@ export function extractiveDraft(input:SynthesisInput):BriefingDraft {
    if(full.evidence.some(e=>/\b(verdict|false|misleading|refuted|retracted|correction|however|but)\b/i.test(e.body??'')))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
    const spans=approvedSupportSpans(full);
    if(!spans.length||spans.length>4||spans.some(p=>p.quote.length>1000))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
-   return {candidateId:s.candidate.id,claims:mergeEquivalentClaims(spans.map(p=>({text:p.quote,support:[p]})))};
+   // A fact that needs its title context shows that exact title first; the deterministic path never rewrites prose.
+   const contexts=new Set(approvedWriterFacts(full).flatMap(f=>f.context?[f.context.text]:[])),ordered=[...spans.filter(p=>contexts.has(p.quote)&&!full.evidence.some(e=>(e.body??'').includes(p.quote))),...spans.filter(p=>!(contexts.has(p.quote)&&!full.evidence.some(e=>(e.body??'').includes(p.quote))))];
+   return {candidateId:s.candidate.id,claims:mergeEquivalentClaims(ordered.map(p=>({text:p.quote,support:[p]})))};
   })};
  }
  if(input.stories.some(s=>s.evidence.some(e=>extractiveLanguageCompatibility(e.language,input.feed.outputLanguage)==='TRANSLATION_REQUIRED'))) throw new SynthesisCompatibilityError('TRANSLATION_REQUIRED');
@@ -313,7 +320,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     if(!result) {const seen=new Set<string>();const claims:VerificationClaim[]=nonextractive.map(p=>{
      const first=!seen.has(p.candidateId);seen.add(p.candidateId);
      const scope=candidates.get(p.candidateId)!;
-     const facts=scope.plan?.facts.map(({id,text,evidenceRevisionIds,attribution})=>({id,text,evidenceRevisionIds,attribution}));
+     const facts=scope.plan?.facts.map(({id,text,evidenceRevisionIds,attribution,context})=>({id,text,evidenceRevisionIds,attribution,context}));
      return {...p.claim,candidateId:p.candidateId,requiredFacts:first?preservationFacts(scope):undefined,allowedFacts:facts,previousLedgerFacts:scope.plan?.previousLedgerEntries.flatMap(e=>e.claimFacts),newUnderstandingFacts:first?facts?.filter(f=>scope.plan!.newUnderstandingFactIds.includes(f.id)):undefined,correctionObligations:first?scope.plan?.correctionObligations:undefined,context:scope.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,publisherId:e.publisherId,text:e.body??'',truncated:e.excerptTruncated}))};
     });await callModel('GROUNDING',options.model!.verificationPayload?.(claims)??claims,limits=>options.model!.verify!(claims,limits),draftKey);result=await store.read(feedId,'verification_results',draftKey)}
     for(const id of result?.supportedClaimIds??[]) if(nonextractive.some(p=>p.claim.id===id)) supported.add(id);
