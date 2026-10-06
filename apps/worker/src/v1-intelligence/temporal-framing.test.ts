@@ -37,8 +37,10 @@ it('current sources need no date clutter and unknown dates remain unknown',()=>{
  const current=factTiming([{publishedAt:fixture.window.start,acceptedAt:fixture.window.end}],fixture.window);
  expect(current.framingRequired).toBe(false);
  expect(checkReaderFidelity([fixture.fact.text],[{...fact,timing:current}],[{...fact,timing:current}],true).passed).toBe(true);
- const unknown=factTiming([{acceptedAt:fixture.window.end}],fixture.window);
- expect(unknown.sourcePublishedAt).toBeUndefined();expect(unknown.eventTime).toBeUndefined();expect(unknown.framingRequired).toBe(false);
+ const unknown=factTiming([{acceptedAt:fixture.window.end}],fixture.window,{reportTime:fixture.window.end});
+ expect(unknown.sourcePublishedAt).toBeUndefined();expect(unknown.reportTime).toBeUndefined();expect(unknown.eventTime).toBeUndefined();expect(unknown.framingRequired).toBe(false);
+ const known=factTiming([{publishedAt:fixture.sourcePublishedAt,acceptedAt:fixture.window.end}],fixture.window,{reportTime:fixture.sourcePublishedAt});
+ expect(known.reportTime).toBe(fixture.sourcePublishedAt);
 });
 it('source date never replaces a known distinct event time and does not authorize other dates or quantities',()=>{
  const distinct=factTiming([{publishedAt:fixture.sourcePublishedAt,acceptedAt:fixture.window.end}],fixture.window,{eventTime:'2026-09-30T10:00:00Z'});

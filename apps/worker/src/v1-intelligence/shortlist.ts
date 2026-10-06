@@ -8,7 +8,7 @@ import {type LedgerEntry,type CorrectionObligation} from './ledger';
 import type {EventSemanticState,Proposition} from './semantic-state';
 import {factTiming,type FactTiming} from './freshness';
 import {protectedEffects} from './semantic-routing';
-export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v6';
+export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v7';
 export type {NoveltyClass};
 export interface ShortlistFact {id:string;timing?:FactTiming;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
 export interface ShortlistCandidate {novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
@@ -33,7 +33,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   // One reader-facing fact per supported meaning: equivalent propositions from different mentions/publishers keep every support reference.
   const sameTime=(a?:string,b?:string)=>a===b,facts=mergeEquivalentFacts(rawFacts,(survivor,duplicate)=>{survivor.claimMentionIds=[...new Set([...survivor.claimMentionIds,...duplicate.claimMentionIds])];survivor.mergedPropositionIds=[...new Set([...(survivor.mergedPropositionIds??[]),...(duplicate.propositionId?[duplicate.propositionId]:[])])]},(a,b)=>a.attribution===b.attribution&&sameTime(a.eventTime,b.eventTime)&&(a.certainty?.kind??'UNSPECIFIED')===(b.certainty?.kind??'UNSPECIFIED'));
   // Preserve proposition report/event times separately from source publication and Feed observation.
-  for(const fact of facts)fact.timing=factTiming(target.evidence.filter(e=>fact.evidenceRevisionIds.includes(e.id)),window,fact);
+  for(const fact of facts){fact.timing=factTiming(target.evidence.filter(e=>fact.evidenceRevisionIds.includes(e.id)),window,fact);fact.reportTime=fact.timing.reportTime;}
   for(const fact of facts){const a=assessSelfContainment(fact.text,target.evidence.filter(e=>fact.evidenceRevisionIds.includes(e.id)));fact.selfContained=a.status;if(a.context)fact.context=a.context}
   const editorial=await evaluateEditorialDelta(tx,target,window.end,window.start),effects=[...new Set(states.flatMap(s=>s.epistemicEffects))],protectedReasons:string[]=effects.filter(e=>protectedEffects.has(e));
   if(related.length)protectedReasons.push('CORRECTION_OBLIGATION');
