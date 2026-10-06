@@ -44,13 +44,27 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
  if(shortlist.length && env.OPENROUTER_API_KEY){
   const client=new OpenRouterJudgmentClient({kind:'JEV',model:env.V1_JEV_SALIENCE_MODEL??'typesafe/jev-1.13',apiKey:env.OPENROUTER_API_KEY,maxCalls:1,maxCostUsd:.02,maxCallCostUsd:.02,timeoutMs:10000,fetcher:options.fetcher});
   const criteria=Object.fromEntries([...shortlist.map((c,i)=>[`EVENT_${i}`,`Same bounded development as supplied Event ${c.id}`]),...storylines.map((s,i)=>[`STORY_${i}`,`Distinct new development in supplied Storyline ${s.id}`]),['NEW','New Storyline'],['DEFER','Uncertain relation']]);
-  const saved=await durableSemanticOperation(store,{...operation,kind:'RELATION',model:client.model},async()=>{const result=await client.decide(state,{structure:{kind:'CHOICE',instructions:'Choose structural relation. Similar topic does not imply same development.',criteria},effect:{kind:'CHOICE',instructions:'Choose the most consequential epistemic effect relative to supplied Event 0.',criteria:Object.fromEntries(effects.map(e=>[e,e]))},forward:{kind:'BOOLEAN',instructions:'Does supplied Event 0 entail every factual detail and qualifier of source?'},reverse:{kind:'BOOLEAN',instructions:'Does source entail every factual detail and qualifier of Event 0?'},novelty:{kind:'SCORE',instructions:'Material new information, not wording novelty',levels:['none','small detail','material change','major consequence']},priority:{kind:'SCORE',instructions:'Priority for editorial examination, not final story selection',levels:['low','ordinary','protected material change']}});return {value:result.answers,usage:result.usage}},now,()=>client.usage());
-  const a=saved.value,structure=a?.structure,effect=a?.effect;
-  if(saved.status==='SUCCEEDED' && structure?.kind==='CHOICE' && effect?.kind==='CHOICE'){
-   const chosen=structure.choice,eventIndex=/^EVENT_(\d)$/.exec(chosen),storyIndex=/^STORY_(\d)$/.exec(chosen);
-   decision={structuralRelation:eventIndex?'SAME_EVENT':storyIndex?'NEW_EVENT_EXISTING_STORYLINE':chosen==='NEW'?'NEW_STORYLINE':'DEFER',eventId:eventIndex?shortlist[Number(eventIndex[1])].id:undefined,storylineId:storyIndex?storylines[Number(storyIndex[1])].id:undefined,epistemicEffects:[effect.choice as typeof effects[number]],confidence:structure.confidence,provenance:{scorer:'JEV',policyVersion:SEMANTIC_POLICY,judgmentId:saved.id}};
-   const checks={forwardEntailment:a?.forward?.kind==='BOOLEAN'?a.forward.probability:undefined,reverseEntailment:a?.reverse?.kind==='BOOLEAN'?a.reverse.probability:undefined};reasons=escalationReasons(decision,checks);if(a?.novelty?.kind==='SCORE'&&a.novelty.value>=.5)reasons.push('MATERIAL_NEW_INFORMATION');
-   if(!eventIndex || Number(eventIndex[1])!==0 || checks.forwardEntailment===undefined || checks.forwardEntailment<.9 || checks.reverseEntailment===undefined || checks.reverseEntailment<.9)reasons.push('ENTAILMENT_REVIEW');
+  // Stage 1 decides structure only. Epistemic effect and entailment are meaningful only relative to the Event actually chosen.
+  const saved=await durableSemanticOperation(store,{...operation,kind:'RELATION',model:client.model},async()=>{const result=await client.decide(state,{structure:{kind:'CHOICE',instructions:'Choose structural relation. Similar topic does not imply same development.',criteria}});return {value:result.answers,usage:result.usage}},now,()=>client.usage());
+  const structure=saved.value?.structure;
+  if(saved.status==='SUCCEEDED' && structure?.kind==='CHOICE'){
+   const chosen=structure.choice,eventIndex=/^EVENT_(\d)$/.exec(chosen),storyIndex=/^STORY_(\d)$/.exec(chosen),target=eventIndex?shortlist[Number(eventIndex[1])]:undefined;
+   let effectChoice:typeof effects[number]|undefined,checks:{forwardEntailment?:number;reverseEntailment?:number}={},material=false,entailmentReviewed=true;
+   decision={structuralRelation:eventIndex?'SAME_EVENT':storyIndex?'NEW_EVENT_EXISTING_STORYLINE':chosen==='NEW'?'NEW_STORYLINE':'DEFER',eventId:target?.id,storylineId:storyIndex?storylines[Number(storyIndex[1])].id:undefined,epistemicEffects:[],confidence:structure.confidence,provenance:{scorer:'JEV',policyVersion:SEMANTIC_POLICY,judgmentId:saved.id}};
+   if(target){
+    // Stage 2 (cheap): effect, bilateral entailment and material novelty against the chosen Event only.
+    const effectState={source:state.source,event:{id:target.id,versionId:target.version.id,state:target.version.state.slice(0,500)},instruction:state.instruction},effectClient=new OpenRouterJudgmentClient({kind:'JEV',model:client.model,apiKey:env.OPENROUTER_API_KEY,maxCalls:1,maxCostUsd:.02,maxCallCostUsd:.02,timeoutMs:10000,fetcher:options.fetcher});
+    const second=await durableSemanticOperation(store,{...operation,kind:'RELATION_EFFECT',model:effectClient.model,state:{...effectState,attempt:options.attempt??0,structureJudgment:saved.id}},async()=>{const result=await effectClient.decide(effectState,{effect:{kind:'CHOICE',instructions:'Choose the most consequential epistemic effect of the source relative to the supplied Event.',criteria:Object.fromEntries(effects.map(e=>[e,e]))},forward:{kind:'BOOLEAN',instructions:'Does the supplied Event entail every factual detail and qualifier of source?'},reverse:{kind:'BOOLEAN',instructions:'Does source entail every factual detail and qualifier of the supplied Event?'},novelty:{kind:'SCORE',instructions:'Material new information, not wording novelty',levels:['none','small detail','material change','major consequence']}});return {value:result.answers,usage:result.usage}},now,()=>effectClient.usage());
+    const a=second.value;
+    if(second.status==='SUCCEEDED' && a?.effect?.kind==='CHOICE'){
+     effectChoice=a.effect.choice as typeof effects[number];checks={forwardEntailment:a.forward?.kind==='BOOLEAN'?a.forward.probability:undefined,reverseEntailment:a.reverse?.kind==='BOOLEAN'?a.reverse.probability:undefined};material=a.novelty?.kind==='SCORE'&&a.novelty.value>=.5;
+     entailmentReviewed=checks.forwardEntailment===undefined||checks.forwardEntailment<.9||checks.reverseEntailment===undefined||checks.reverseEntailment<.9;
+     decision={...decision,epistemicEffects:[effectChoice],provenance:{...decision.provenance,judgmentId:`${saved.id}:${second.id}`}};
+    }
+   }
+   reasons=escalationReasons(decision,checks);if(material)reasons.push('MATERIAL_NEW_INFORMATION');
+   // Without a bilateral-entailment verdict for the chosen Event, identity is not established cheaply.
+   if(!target||entailmentReviewed)reasons.push('ENTAILMENT_REVIEW');
   }
  }
  const strong=options.strong??createStrongSemanticModel(env,options.fetcher),{mentions}=await extractClaimMentions(revision);let construction:SemanticConstruction|undefined;
@@ -65,7 +79,7 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
   if(saved.status==='SUCCEEDED'&&saved.value && saved.value.confidence>=.6){construction={...saved.value.construction,provenance:{...saved.value.construction.provenance,judgmentId:saved.id}};const first=construction.groups[0];decision={structuralRelation:first.structuralRelation,eventId:first.eventId??undefined,storylineId:first.storylineId??undefined,epistemicEffects:[...new Set(construction.groups.flatMap(g=>g.epistemicEffects))],confidence:saved.value.confidence,provenance:construction.provenance}}
   else decision={structuralRelation:'DEFER',epistemicEffects:decision.epistemicEffects,confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:saved.failure}};
  }else if(reasons.length)decision={structuralRelation:'DEFER',epistemicEffects:decision.epistemicEffects,confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'STRONG_MODEL_UNAVAILABLE'}};
- const prepared:PreparedSemanticMatch={revisionId:revision.id,candidateVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),storylineVersions:Object.fromEntries(storylines.map(s=>[s.id,s.currentVersionId])),decision},matchers=preparedMatchers(prepared);
+ const prepared:PreparedSemanticMatch={knownEventIds:candidates.map(c=>c.id),revisionId:revision.id,candidateVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),storylineVersions:Object.fromEntries(storylines.map(s=>[s.id,s.currentVersionId])),decision},matchers=preparedMatchers(prepared);
  if(construction)matchers.construction=current=>matchers.event.match(current).provenance.judgmentId===decision.provenance.judgmentId?structuredClone(construction):undefined;
  return {input,prepared,matchers};
 }
