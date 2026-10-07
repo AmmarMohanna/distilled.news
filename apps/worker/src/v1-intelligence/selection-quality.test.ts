@@ -155,3 +155,9 @@ it('a newer Event state supersedes its deferred old version without surfacing a 
 },30000);
 
 });
+
+it('conditional second-person registration is a CTA without suppressing reported registration',()=>{
+ expect(nonFactRole('If you\u2019re planning to be one of them, register for your ticket before prices increase at the door.')).toBe('CALL_TO_ACTION');
+ expect(nonFactRole('Officials registered 100 new companies this month.')).toBeUndefined();
+ expect(nonFactRole('If demand increases, the company will register a new subsidiary.')).toBeUndefined();
+});
