@@ -46,3 +46,14 @@ it('oversized multilingual construction defers without a model call and preserve
  expect(prepared?.prepared.decision.structuralRelation).toBe('DEFER');expect(prepared?.prepared.decision.provenance.fallbackReason).toBe('CONSTRUCTION_INPUT_LIMIT');expect(calls).toBe(0);
  const receipt=await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),prepared?.matchers);expect(receipt.semanticDeferred).toBe(true);expect((await intake.read<any>('jobs',JSON.stringify(['REASSESS','observation-1',''])))?.value.state).toBe('DONE');expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
 },25000);
+
+it('retains rejected construction output and binding reason without accepting or recalling it',async()=>{
+ const intake=new V1IntakeStore(ctx.db),accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batchFixture());
+ await acceptAcquiredContent(intake,{id:'rejected-construction',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-1',body:'OpenAI is launching a new user interface that will bring interactive visuals to ChatGPT.',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);
+ let calls=0;const usage={calls:1,costUsd:.001,reported:true},response={groups:[{claimMentionIds:['unoffered-mention'],structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:[],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},strong={model:'fake-strong',usage:()=>usage,complete:async()=>{calls++;return {value:response,usage}}};
+ const job=JSON.stringify(['REASSESS','observation-1','']),first=await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});
+ expect(first?.prepared.decision.structuralRelation).toBe('DEFER');
+ const [saved]=await store.list<any>('feed-1','semantic_results');
+ expect(saved).toMatchObject({status:'DEFERRED',failure:'SEMANTIC_CONSTRUCTION_REJECTED',usage,validationDiagnostic:{stage:'CONSTRUCTION_BINDING',response,rejection:{code:'SCOPE_DENIED'}}});expect(saved.value).toBeUndefined();
+ await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(calls).toBe(1);
+},15000);
