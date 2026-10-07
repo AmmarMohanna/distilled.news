@@ -29,5 +29,13 @@ export function scopedConstructionWireSchema(mentions:Pick<ClaimMention,'id'>[],
  group.storylineState.properties.openQuestionMentionIds.items={type:'string',enum:known};
  group.storylineState.properties.expectedNextDate.anyOf[1].properties.claimMentionId={type:'string',enum:known};
  (schema.properties.backgroundMentionIds as {items:unknown}).items={type:'string',enum:known};
+ const groups=schema.properties.groups as {items:unknown};
+ const branch=(relation:string[],eventId:unknown,storylineId:unknown)=>object({...group,structuralRelation:{type:'string',enum:relation},eventId,storylineId});
+ // Identity and relation are one decision, not independent enum choices.
+ groups.items={anyOf:[
+  branch(['NEW_STORYLINE','DEFER'],{type:'null'},{type:'null'}),
+  ...(input.candidates.length?[branch(['SAME_EVENT'],{type:'string',enum:input.candidates.map(c=>c.id)},group.storylineId)]:[]),
+  ...(storylineIds.length?[branch(['NEW_EVENT_EXISTING_STORYLINE'],{type:'null'},{type:'string',enum:storylineIds})]:[])
+ ]};
  return schema;
 }
