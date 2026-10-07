@@ -27,7 +27,7 @@ function providerDouble(mode:'OK'|'DOWN'='OK'){
   }
   calls.verifier++;
   const claims=payload.stories.flatMap((s:any)=>s.claims);
-  return reply({supportedClaimIds:claims.map((c:any)=>c.id),preservedFactIds:payload.stories.flatMap((s:any)=>s.requiredFactIds),novelFactIds:payload.stories.flatMap((s:any)=>s.newUnderstandingFactIds),addressedCorrectionObligationIds:[],semanticChecks:payload.stories.flatMap((s:any)=>s.requiredFactIds.map((id:string)=>{const fact=s.facts.find((f:any)=>f.id===id),claim=s.claims.find((c:any)=>c.text.includes(fact.text))??s.claims[0];return {factId:id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Claim prose expresses the complete fact.',readerSpans:[{claimId:claim.id,text:claim.text.includes(fact.text)?fact.text:claim.text}]}}))});
+  return reply({supportedClaimIds:claims.map((c:any)=>c.id),preservedFactIds:payload.stories.flatMap((s:any)=>s.requiredFactIds),novelFactIds:payload.stories.flatMap((s:any)=>s.newUnderstandingFactIds),addressedCorrectionObligationIds:[],semanticChecks:payload.stories.flatMap((s:any)=>s.requiredFactIds.map((id:string)=>{const fact=s.facts.find((f:any)=>f.id===id),claim=s.claims.find((c:any)=>c.text.includes(fact.text))??s.claims[0];return {readerNovelty:{status:s.newUnderstandingFactIds.includes(id)?'NEW':'NOT_APPLICABLE',reason:'Compared with the offered same-story reader history.',previousFactTexts:[]},factId:id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Claim prose expresses the complete fact.',readerSpans:[{claimId:claim.id,text:claim.text.includes(fact.text)?fact.text:claim.text}]}}))});
  }) as typeof fetch;
  return {fetcher,calls};
 }
@@ -46,6 +46,7 @@ it('a scheduled window is written by the model path from approved facts: one pro
  const {message,edition}=await scheduled(fetcher);
  expect(edition).toBeDefined();expect(edition!.generation.provider).not.toBe('NONE');expect(edition!.generation.usageConfirmed).toBe(true);
  expect(calls).toEqual({writer:1,verifier:1});
+ const verification=await store.read<any>('feed-1','verification_results',edition!.selectionId);expect(verification.semanticChecks.every((c:any)=>c.readerNovelty?.status==='NEW'&&c.readerNovelty.reason.length>0&&c.readerNovelty.previousFactTexts.length===0)).toBe(true);
  const claims=edition!.stories.flatMap(s=>s.claims);
  for(const [i,a] of claims.entries())for(const b of claims.slice(i+1))expect(equivalentFact(a.text,b.text)).toBe(false);
  expect(new Set(claims.flatMap(c=>c.support.map(s=>s.evidenceRevisionId))).size).toBe(2);

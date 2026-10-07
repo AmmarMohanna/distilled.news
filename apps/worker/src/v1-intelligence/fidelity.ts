@@ -1,5 +1,6 @@
 export interface FidelityFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string;timing?:import('./freshness').FactTiming;context?:{text:string}}
-export interface SemanticFactCheck {factId:string;communicated:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;nonRepetitive?:boolean;reason:string;readerSpans?:{claimId:string;text:string}[]}
+export interface ReaderNoveltyVerdict {status:'NEW'|'ALREADY_COMMUNICATED'|'NOT_COMMUNICATED'|'UNRESOLVED'|'NOT_APPLICABLE';reason:string;previousFactTexts:string[]}
+export interface SemanticFactCheck {readerNovelty?:ReaderNoveltyVerdict;factId:string;communicated:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;nonRepetitive?:boolean;reason:string;readerSpans?:{claimId:string;text:string}[]}
 export const faithfulFact=(check:SemanticFactCheck)=>check.communicated&&check.attribution&&check.certainty&&check.temporal&&check.qualifiers&&check.nonRepetitive!==false;
 export function hasReaderWitness(check:SemanticFactCheck,claims:{id:string;text:string}[]):boolean {
  return !!check.readerSpans?.length&&check.readerSpans.every(span=>claims.some(c=>c.id===span.claimId&&c.text.includes(span.text)));

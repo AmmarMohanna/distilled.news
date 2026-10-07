@@ -47,7 +47,7 @@ export function writerWire(input:SynthesisWriterInput){
  return {payload,schema,decode,repair};
 }
 /** One fact inventory and source context per story, not per claim. */
-export function verificationWire(claims:VerificationClaim[]){
+export function verificationWire(claims:VerificationClaim[],options:{requireReaderNovelty?:boolean}={}){
  const factIds=new Map<string,string>(),claimIds=new Map<string,string>(),obligationIds=new Map<string,string>(),historyIds=new Map<string,string>();
  const alias=(map:Map<string,string>,id:string,prefix:string)=>{let key=[...map].find(([,original])=>original===id)?.[0];if(!key){key=`${prefix}_${map.size+1}`;map.set(key,id);}return key;};
  const fact=(id:string)=>{let alias=[...factIds].find(([,value])=>value===id)?.[0];if(!alias){alias=`fact_${factIds.size+1}`;factIds.set(alias,id);}return alias;};
@@ -74,13 +74,15 @@ export function verificationWire(claims:VerificationClaim[]){
   return value;
  };
  const payload={stories:compact(stories) as typeof stories},obligations=stories.flatMap(s=>s.correctionObligations);
- const check=z.object({factId:z.string(),communicated:z.boolean(),attribution:z.boolean(),certainty:z.boolean(),temporal:z.boolean(),qualifiers:z.boolean(),nonRepetitive:z.boolean().optional(),reason:z.string().max(500),readerSpans:z.array(z.object({claimId:z.string(),text:z.string().min(1).optional()}).strict()).max(claims.length)}).strict();
+ const novelty=z.object({status:z.enum(['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED','NOT_APPLICABLE']),reason:z.string().min(1).max(250),previousFactTexts:z.array(z.string()).max(20)}).strict();
+ const check=z.object({readerNovelty:novelty.optional(),factId:z.string(),communicated:z.boolean(),attribution:z.boolean(),certainty:z.boolean(),temporal:z.boolean(),qualifiers:z.boolean(),nonRepetitive:z.boolean().optional(),reason:z.string().max(500),readerSpans:z.array(z.object({claimId:z.string(),text:z.string().min(1).optional()}).strict()).max(claims.length)}).strict();
  const requiredIds=[...new Set(stories.flatMap(s=>s.requiredFactIds))];
  const schema=obj({semanticChecks:{type:'array',minItems:requiredIds.length,maxItems:factIds.size,items:obj({factId:{type:'string',...(factIds.size?{enum:[...factIds.keys()]}:{})},communicated:{type:'boolean'},nonRepetitive:{type:'boolean'},attribution:{type:'boolean'},certainty:{type:'boolean'},temporal:{type:'boolean'},qualifiers:{type:'boolean'},reason:{type:'string',maxLength:500},readerSpans:{type:'array',maxItems:claims.length,items:obj({claimId:{type:'string',enum:[...claimIds.keys()]},text:{type:'string',minLength:1}})}})},supportedClaimIds:strings([...claimIds.keys()],claims.length),preservedFactIds:strings([...factIds.keys()],factIds.size),novelFactIds:strings([...factIds.keys()],factIds.size),addressedCorrectionObligationIds:strings(obligations.map(o=>o.id),obligations.length)});
  // Reader witnesses identify actual prose without duplicating it in the schema
  // or asking the model to retype source quotes. Persist resolved exact text.
  const semanticSchema=schema.properties.semanticChecks as {items:{properties:{readerSpans:Record<string,unknown>}}};
  semanticSchema.items.properties.readerSpans.items=obj({claimId:{type:'string',enum:[...claimIds.keys()]}});
+ if(options.requireReaderNovelty){const item=semanticSchema.items as unknown as {properties:Record<string,unknown>;required:string[]};item.properties.readerNovelty=obj({status:{type:'string',enum:['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED','NOT_APPLICABLE']},reason:{type:'string',minLength:1,maxLength:250},previousFactTexts:strings([...new Set(stories.flatMap(s=>s.previousLedgerFacts))],20)});item.required.push('readerNovelty');delete (schema.properties as Record<string,unknown>).novelFactIds;schema.required=schema.required.filter(k=>k!=='novelFactIds')}
  const checkProperties=semanticSchema.items.properties as Record<string,unknown>,preservedNames={attribution:'attributionPreserved',certainty:'certaintyPreserved',temporal:'temporalFaithful',qualifiers:'qualifiersPreserved'};
  for(const [old,name] of Object.entries(preservedNames)){checkProperties[name]=checkProperties[old];delete checkProperties[old];}
  (semanticSchema.items as unknown as {required:string[]}).required=(semanticSchema.items as unknown as {required:string[]}).required.map(k=>preservedNames[k as keyof typeof preservedNames]??k);
@@ -94,9 +96,15 @@ export function verificationWire(claims:VerificationClaim[]){
    // Invalid semantic evidence is a durably settled negative verdict, not an
    // uncertain provider execution. Preserve its usage and precise repair reason.
    if(invalidWitness||(c.communicated&&!readerSpans.length))return {...c,factId,communicated:false,readerSpans:[],reason:invalidWitness?'INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.':'MISSING_READER_WITNESS: no reader prose establishes coverage.'};
-   return {...c,factId,readerSpans};});
+   const story=stories.find(s=>s.requiredFactIds.includes(c.factId)),offered=Boolean(story?.newUnderstandingFactIds.includes(c.factId));let readerNovelty=c.readerNovelty;
+   if(options.requireReaderNovelty){
+    if(!readerNovelty)readerNovelty={status:'UNRESOLVED',reason:'MISSING_READER_NOVELTY_VERDICT',previousFactTexts:[]};
+    else if(readerNovelty.previousFactTexts.some(text=>!story?.previousLedgerFacts.includes(text))||readerNovelty.status==='ALREADY_COMMUNICATED'&&!readerNovelty.previousFactTexts.length)readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_HISTORY: no offered same-story prior fact establishes repetition.',previousFactTexts:[]};
+    else if((readerNovelty.status==='NEW'&&(!offered||!faithfulFact({...c,readerSpans})))||(offered&&readerNovelty.status==='NOT_APPLICABLE'))readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.',previousFactTexts:[]};
+   }
+   return {...c,factId,readerSpans,...(readerNovelty?{readerNovelty}:{})};});
   if(requiredIds.some(id=>!seen.has(factIds.get(id)!)))throw new Error('INCOMPLETE_SEMANTIC_VERDICT');
-  return {supportedClaimIds:ids(raw,'supportedClaimIds',claimIds),preservedFactIds:ids(raw,'preservedFactIds',factIds).filter(id=>semanticChecks.some(c=>c.factId===id&&faithfulFact(c))),semanticChecks,novelFactIds:ids(raw,'novelFactIds',factIds),addressedCorrectionObligationIds:ids(raw,'addressedCorrectionObligationIds',obligationIds)};
+  return {supportedClaimIds:ids(raw,'supportedClaimIds',claimIds),preservedFactIds:ids(raw,'preservedFactIds',factIds).filter(id=>semanticChecks.some(c=>c.factId===id&&faithfulFact(c))),semanticChecks,novelFactIds:options.requireReaderNovelty?semanticChecks.filter(c=>c.readerNovelty?.status==='NEW'&&faithfulFact(c)).map(c=>c.factId):ids(raw,'novelFactIds',factIds),addressedCorrectionObligationIds:ids(raw,'addressedCorrectionObligationIds',obligationIds)};
  };
  return {payload,schema,decode};
 }
