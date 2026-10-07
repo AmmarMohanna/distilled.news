@@ -4,7 +4,7 @@ import type {AcceptedInput,DownstreamJob} from '../v1-intake/types';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {INTELLIGENCE_POLICY,classifyRole,duplicateSimilarity,features} from './policies';
 import {deterministicMatchers,validateEventMatch,validateStorylineMatch,type IntelligenceMatchers,type EventMatchInput} from './matchers';
-import {persistClaimMentions,type ClaimMention} from './claims';
+import {persistClaimMentions,isNewsMention,type ClaimMention} from './claims';
 import {validateConstruction,persistEventSemanticState,persistStorylineMemory,type SemanticGroup,type EventSemanticState,type Proposition} from './semantic-state';
 import {refreshSourceCorrectionObligations,recordCorrectionObligation,type LedgerEntry} from './ledger';
 import {scheduleRematch} from './rematch';
@@ -152,7 +152,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
    if(construction){
     if(construction.groups.some(group=>group.structuralRelation==='DEFER')){receipt.semanticDeferred=true;await scheduleRematch(tx,jobId,target.revision.id,now)}
     if(construction.originDependencyLabel){const id=JSON.stringify([target.revision.id,construction.provenance.judgmentId??construction.provenance.policyVersion]);await tx.write('source_origins',id,{id,feedId:o.feedId,evidenceRevisionId:target.revision.id,dependencyLabel:construction.originDependencyLabel,provenance:construction.provenance,policyVersion:'information-origin-v1'})}
-    const mentions=(await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id);validateConstruction(construction,mentions);
+    const mentions=(await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id);validateConstruction(construction,mentions.filter(isNewsMention));
     for(const group of construction.groups){
      const d=validateEventMatch({structuralRelation:group.structuralRelation,eventId:group.eventId??undefined,storylineId:group.storylineId??undefined,epistemicEffects:group.epistemicEffects,confidence:decision.confidence,provenance:construction.provenance},matchInput);
      const root=d.structuralRelation==='SAME_EVENT'?events.find(e=>e.id===d.eventId)!:{id:crypto.randomUUID(),feedId:o.feedId,currentVersionId:'',createdAt:now};

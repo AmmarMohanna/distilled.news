@@ -85,7 +85,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  await approvedFeed(env,feedId);const store=new V1FeedStore(env.DB),id=await windowIdentity(feedId,window);
  const required=await feedTransact(store,feedId,async tx=>{
   const prior=await tx.read<BriefingRequest>('briefing_requests',id);
-  if(publicationOptions?.requireModel&&!prior?.requireModel){const value:BriefingRequest={...(prior??{id,feedId,window,state:'PENDING' as const,attempts:0,createdAt:now()}),requireModel:true};await tx.write('briefing_requests',id,value);return true;}
+  if((publicationOptions?.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!prior?.requireModel){const value:BriefingRequest={...(prior??{id,feedId,window,state:'PENDING' as const,attempts:0,createdAt:now()}),requireModel:true};await tx.write('briefing_requests',id,value);return true;}
   return prior?.requireModel??false;
  });
  const existing=await store.read<import('./publication').BriefingEditionRecord>(feedId,'editions',id);
@@ -109,8 +109,8 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   // A configured writer model only ever sees the approved facts of an EditorialPlan, so model-backed synthesis implies the plan path;
   // the deterministic fallback plan is used when no strong planning model is available. The writer never fixes upstream selection.
   const writer=createStoredEvidenceModel(env,fetcher);
-  const shortlist=env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now()):undefined;
-  const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env,fetcher)):undefined;
+  const shortlist=env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),20,env,fetcher):undefined;
+  const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):undefined;
   if(required&&shortlist?.candidates.length&&plan?.route!=='GPT')throw new HandoffError('TEMPORARY_UNAVAILABLE');
   const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env),plan);
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');

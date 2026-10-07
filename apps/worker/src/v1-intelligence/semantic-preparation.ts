@@ -11,7 +11,7 @@ import {SEMANTIC_POLICY,escalationReasons,preparedMatchers,type PreparedSemantic
 import {OpenRouterJudgmentClient} from './salience';
 import {durableSemanticOperation} from './semantic-operations';
 import {createStrongSemanticModel,type StrongSemanticModel} from './semantic-model';
-import {extractClaimMentions} from './claims';
+import {extractClaimMentions,isNewsMention} from './claims';
 import {parseConstruction,constructionWireSchema,constructionSchema} from './semantic-construction';
 import type {SemanticConstruction,Entity,StorylineMemory} from './semantic-state';
 const effects=['CORROBORATES','ADDS_DETAIL','CHANGES_STATE','CHANGES_CERTAINTY','CONTRADICTS','CORRECTS','RETRACTS'] as const;
@@ -67,7 +67,7 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
    if(!target||entailmentReviewed)reasons.push('ENTAILMENT_REVIEW');
   }
  }
- const strong=options.strong??createStrongSemanticModel(env,options.fetcher),{mentions}=await extractClaimMentions(revision);let construction:SemanticConstruction|undefined;
+ const strong=options.strong??createStrongSemanticModel(env,options.fetcher),extracted=await extractClaimMentions(revision),mentions=extracted.mentions.filter(isNewsMention);if(!mentions.length)return undefined;let construction:SemanticConstruction|undefined;
  // Truncated cheap inputs cannot establish whole-development entailment.
  if((revision.body??revision.title??'').length>2600||shortlist[0]?.version.state.length>500)reasons.push('TRUNCATED_ENTAILMENT_INPUT');
  if(reasons.length && strong && mentions.length<=32 && mentions.every(m=>m.sourceText.length<=1800)){

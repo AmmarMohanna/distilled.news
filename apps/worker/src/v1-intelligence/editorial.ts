@@ -8,14 +8,14 @@ import {assessFreshness,type Freshness} from './freshness';
 import {ledgerProjectionId,type LedgerEntry,type LedgerProjection} from './ledger';
 
 export const EDITORIAL_POLICY='supported-delta-ledger-v4';
-export type EditorialReason='MAJOR_STATE_CHANGE'|'MATERIAL_NEW_FACT'|'NEW_SUPPORTED_DEVELOPMENT'|'ALREADY_COMMUNICATED'|'CORROBORATION_ONLY'|'LOW_INFORMATION_GAIN'|'LOW_RELEVANCE'|'OLD_RECAP';
+export type EditorialReason='MAJOR_STATE_CHANGE'|'MATERIAL_NEW_FACT'|'NEW_SUPPORTED_DEVELOPMENT'|'ALREADY_COMMUNICATED'|'CORROBORATION_ONLY'|'LOW_INFORMATION_GAIN'|'LOW_RELEVANCE'|'OLD_RECAP'|'DEFERRED_EDITORIAL_WORK'|'OMITTED_BY_EDITOR';
 /** Reader-state novelty: what this target adds relative to what the reader was already told. */
-export type NoveltyClass='NEW_EVENT'|'NEW_FACT'|'ADDS_DETAIL'|'CHANGES_STATE'|'CHANGES_CERTAINTY'|'CONTRADICTS'|'CORRECTS'|'RETRACTS'|'CORROBORATION_ONLY'|'OLD_RECAP'|'ALREADY_COMMUNICATED';
+export type NoveltyClass='NEW_EVENT'|'NEW_FACT'|'ADDS_DETAIL'|'CHANGES_STATE'|'CHANGES_CERTAINTY'|'CONTRADICTS'|'CORRECTS'|'RETRACTS'|'CORROBORATION_ONLY'|'OLD_RECAP'|'ALREADY_COMMUNICATED'|'LOW_RELEVANCE'|'LOW_INFORMATION_GAIN';
 const effectNovelty:Record<string,NoveltyClass>={RETRACTS:'RETRACTS',CORRECTS:'CORRECTS',CONTRADICTS:'CONTRADICTS',CHANGES_CERTAINTY:'CHANGES_CERTAINTY',CHANGES_STATE:'CHANGES_STATE'};
 /** Epistemic effects from the semantic path outrank the lexical reason: they must survive ordinary suppression. */
 export function noveltyClass(reason:EditorialReason,effects:string[]=[]):NoveltyClass {
  for(const e of ['RETRACTS','CORRECTS','CONTRADICTS','CHANGES_CERTAINTY','CHANGES_STATE'])if(effects.includes(e))return effectNovelty[e];
- return {MAJOR_STATE_CHANGE:'CHANGES_STATE',MATERIAL_NEW_FACT:'ADDS_DETAIL',NEW_SUPPORTED_DEVELOPMENT:'NEW_EVENT',ALREADY_COMMUNICATED:'ALREADY_COMMUNICATED',CORROBORATION_ONLY:'CORROBORATION_ONLY',LOW_INFORMATION_GAIN:'ALREADY_COMMUNICATED',LOW_RELEVANCE:'ALREADY_COMMUNICATED',OLD_RECAP:'OLD_RECAP'}[reason] as NoveltyClass;
+ return {MAJOR_STATE_CHANGE:'CHANGES_STATE',MATERIAL_NEW_FACT:'ADDS_DETAIL',NEW_SUPPORTED_DEVELOPMENT:'NEW_EVENT',ALREADY_COMMUNICATED:'ALREADY_COMMUNICATED',CORROBORATION_ONLY:'CORROBORATION_ONLY',LOW_INFORMATION_GAIN:'LOW_INFORMATION_GAIN',LOW_RELEVANCE:'LOW_RELEVANCE',OLD_RECAP:'OLD_RECAP',DEFERRED_EDITORIAL_WORK:'NEW_FACT',OMITTED_BY_EDITOR:'NEW_FACT'}[reason] as NoveltyClass;
 }
 export interface EditorialFact {text:string;evidenceRevisionIds:string[]}
 export interface CommunicatedState {editionId:string;targetType:TargetType;targetVersionId:string;claimIds:string[];facts:string[];evidenceRevisionIds:string[];factEvidenceRevisionIds?:string[][];withdrawn?:boolean;ledgerEntryIds?:string[]}

@@ -59,9 +59,11 @@ it('the persisted planner attempt cannot use ledger history as approved fact con
  const shortlist=planner.shortlist as unknown as ShortlistRecord;
  expect(()=>validateEditorialPlan(planner.invalidPlan as EditorialPlanBody,shortlist)).toThrow();
  const transport=compactEditorialInput(shortlist),schema=editorialPlanWireSchemaFor(transport.state);
- const branch=schema.properties.stories.items.anyOf[0].properties as unknown as Record<string,{items?:{enum?:string[]}}>;
+ const branch=schema.properties.stories.items.anyOf[0].properties as unknown as Record<string,{items?:{enum?:string[]};enum?:string[]}>;
  const ledger=transport.state.ledger.map(e=>e.id),facts=transport.state.candidates.flatMap(c=>c.facts.map(f=>f.id));
- expect(branch.contextFactIds.items!.enum).toEqual([...new Set(facts)]);
+ const owned=transport.state.candidates.filter(c=>branch.targetVersionId.enum!.includes(c.targetVersionId)).flatMap(c=>c.facts.map(f=>f.id));
+ expect(branch.contextFactIds.items!.enum).toEqual([...new Set(owned)]);
+ expect(facts.filter(id=>!owned.includes(id)).some(id=>branch.contextFactIds.items!.enum!.includes(id))).toBe(false);
  expect(branch.previousLedgerEntryIds.items!.enum).toEqual(['R10']);
  expect(branch.previousLedgerEntryIds.items!.enum).not.toContain('R11'); // unrelated Event history
  expect(schema.properties.stories).toMatchObject({minItems:shortlist.candidates.length,maxItems:shortlist.candidates.length});

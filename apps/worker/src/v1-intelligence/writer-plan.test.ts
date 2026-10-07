@@ -58,3 +58,10 @@ it('publication respects a negative independent semantic novelty verdict despite
  await expect(publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model})).rejects.toMatchObject({code:'INVALID_REQUEST'});
  expect(await store.list('feed-1','editions')).toHaveLength(0);
 },25000);
+
+it('communicating one supported fact does not resolve additional uncommunicated work for the same Event',async()=>{
+ const shortlist=await prepareSemanticShortlist(store,'feed-1',window,window.end),plan=await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,window.end),selection=await scoreAndSelect(store,'feed-1',window,DEFAULT_BRIEFING_BUDGET,window.end,undefined,plan);
+ await feedTransact(store,'feed-1',tx=>tx.write('editorial_deferred_work','partial-work',{id:'partial-work',feedId:'feed-1',targetVersionId:shortlist.candidates[0].targetVersionId,stableTargetId:shortlist.candidates[0].stableTargetId,protectedReasons:[],reason:'DEFERRED_EDITORIAL_WORK',factTexts:[shortlist.candidates[0].facts[0].text,'Parliament amended the tax clause.'],createdAt:window.start}));
+ const edition=await publishSelection(store,'feed-1',selection.id,{now:()=>window.end});await projectEditionLedger(store,'feed-1',edition.id);
+ expect((await store.list<any>('feed-1','editorial_work_resolutions')).some(r=>r.workId==='partial-work')).toBe(false);
+},25000);

@@ -4,11 +4,21 @@ import {canonicalJson} from '../v1-intake/canonical';
 import type {FeedTransaction} from './store';
 import {classifyRole,features} from './policies';
 
-export const CLAIM_EXTRACTOR='exact-sentence-spans-v1',CLAIM_POLICY='deterministic-claim-foundation-v1';
+export const CLAIM_EXTRACTOR='exact-sentence-spans-v2',CLAIM_POLICY='deterministic-claim-foundation-v2';
+/** Obvious non-assertions only. Ambiguous reporting remains available to semantic construction. */
+export function nonFactRole(text:string):'QUESTION'|'CALL_TO_ACTION'|'PROMOTION'|'TEASER'|undefined {
+ if(/\?\s*$/.test(text.trim()))return 'QUESTION';
+ if(/^(?:register|subscribe|sign up|buy tickets|book your|join us|get (?:all of )?your)\b/i.test(text.trim())||/^save (?:up to )?[$\u20ac\u00a3]?\d/i.test(text.trim()))return 'CALL_TO_ACTION';
+ if(/^(?:we explain (?:all|everything)|learn how|find out (?:more|how)|read more|watch (?:now|here))\b/i.test(text.trim()))return 'TEASER';
+ if(/^(?:sponsored (?:by|content)|advertisement)\b/i.test(text.trim()))return 'PROMOTION';
+ return undefined;
+}
+export function isNewsMention(mention:Pick<ClaimMention,'reportingRole'|'sourceText'>):boolean{return !nonFactRole(mention.sourceText)&&!['QUESTION','CALL_TO_ACTION','PROMOTION','TEASER'].includes(mention.reportingRole)}
+
 export const claimMentionSchema=z.object({
  id:z.string().min(1),feedId:z.string().min(1),evidenceRevisionId:z.string().min(1),sourceDocumentId:z.string().min(1),extractionKey:z.string().min(1),
  span:z.object({field:z.enum(['body','title']),start:z.number().int().nonnegative(),end:z.number().int().positive()}).strict(),sourceText:z.string().min(1),
- reportingRole:z.enum(['NEW_REPORTING','BACKGROUND_RECAP','QUOTED_CLAIM','ANALYSIS_OPINION','OTHER_UNCERTAIN']),attribution:z.string().optional(),
+ reportingRole:z.enum(['NEW_REPORTING','BACKGROUND_RECAP','QUOTED_CLAIM','ANALYSIS_OPINION','OTHER_UNCERTAIN','QUESTION','CALL_TO_ACTION','PROMOTION','TEASER']),attribution:z.string().optional(),
  certainty:z.object({kind:z.enum(['UNSPECIFIED','POSSIBLE','EXPECTED','ALLEGED','CONFIRMED','DENIED']),hedges:z.array(z.string())}).strict(),
  quantities:z.array(z.object({text:z.string(),start:z.number().int().nonnegative(),end:z.number().int().positive()}).strict()),qualifiers:z.array(z.string()),
  reportTime:z.string().datetime(),eventTime:z.string().datetime().optional(),
@@ -41,7 +51,7 @@ export async function extractClaimMentions(revision:EvidenceRevision):Promise<{d
   const leading=segment.segment.length-segment.segment.trimStart().length,sourceText=segment.segment.trim();if(!sourceText)continue;
   const span={field,start:segment.index+leading,end:segment.index+leading+sourceText.length};
   const attribution=sourceText.match(/^(.{1,100}?)\s+(?:said|says|alleges?|claimed|reported|reports|warned|announced)\b/i)?.[1];
-  const reportingRole:ClaimMention['reportingRole']=/^(?:background|recap|previously)\b/i.test(sourceText)?'BACKGROUND_RECAP':attribution || /[“”«»]/u.test(sourceText)?'QUOTED_CLAIM':['ANALYSIS','OPINION'].includes(documentRole)?'ANALYSIS_OPINION':features(sourceText).development!=='report'?'NEW_REPORTING':'OTHER_UNCERTAIN';
+  const obviousRole=nonFactRole(sourceText);const reportingRole:ClaimMention['reportingRole']=obviousRole?obviousRole:/^(?:background|recap|previously)\b/i.test(sourceText)?'BACKGROUND_RECAP':attribution || /[“”«»]/u.test(sourceText)?'QUOTED_CLAIM':['ANALYSIS','OPINION'].includes(documentRole)?'ANALYSIS_OPINION':features(sourceText).development!=='report'?'NEW_REPORTING':'OTHER_UNCERTAIN';
   const quantities=[...sourceText.matchAll(/\d+(?:[.,]\d+)*(?:\s*(?:%|percent\b|million\b|billion\b|thousand\b))?/giu)].map(m=>({text:m[0],start:m.index!,end:m.index!+m[0].length}));
   const qualifiers=[...new Set((sourceText.match(/\b(not|no|never|without|at least|at most|more than|less than|up to|approximately|about|before|after|until)\b/gi)??[]).map(s=>s.toLowerCase()))];
   const id=await sha256(canonicalJson({feedId:revision.feedId,evidenceRevisionId:revision.id,span,extractorVersion:CLAIM_EXTRACTOR,policy:CLAIM_POLICY}));

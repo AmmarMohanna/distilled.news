@@ -11,7 +11,7 @@ let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:E
 const now=new Date('2026-10-06T12:00:05Z');
 beforeEach(async()=>{
  ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});sent=[];
- env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',V1_SEMANTIC_POLICY:'DETERMINISTIC',V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test-key',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env;
+ env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',V1_SEMANTIC_POLICY:'DETERMINISTIC',V1_EDITORIAL_MODEL_POLICY:'DETERMINISTIC',V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test-key',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env;
 });
 afterEach(async()=>ctx.dispose());
 /** A protocol-faithful OpenRouter stand-in: it answers the real writer/verifier wire schemas from the request payload alone. */
