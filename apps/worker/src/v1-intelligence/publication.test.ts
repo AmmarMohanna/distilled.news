@@ -103,3 +103,18 @@ it('a provider outcome lost before persistence consumes reservation and is not a
  expect(calls).toBe(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
  expect(await store.list('feed-1','model_executions')).toMatchObject([{status:'OUTCOME_UNKNOWN',reservationRetained:true}]);
 });
+
+it.each([false,true])('cached verification whole-meaning contract present=%s resumes safely without new provider calls',async full=>{
+ const selected=await selection();let writerCalls=0,verifierCalls=0;
+ const model:BriefingModelPort={model:'test-model',provider:'SYNTHETIC',maxCallCostUsd:.01,synthesize:async input=>{
+  writerCalls++;const evidence=input.stories[0].evidence[0],quote=evidence.body!;
+  return {draft:{language:'en',stories:[{candidateId:input.stories[0].candidate.id,claims:[{text:quote,support:[{evidenceRevisionId:evidence.id,quote}]}]}]},usage:{tokensIn:100,tokensOut:30,cost:.001,confirmed:true}};
+ },verify:async claims=>{verifierCalls++;return {supportedClaimIds:claims.map(c=>c.id),claimEntailment:full?claims.map(c=>({claimId:c.id,fullyEntailed:true,unsupportedMeaning:[],reason:'Complete meaning is supported.'})):undefined,usage:{tokensIn:80,tokensOut:10,cost:.001,confirmed:true}}}};
+ await ctx.db.exec("CREATE TRIGGER fail_publication BEFORE INSERT ON v1_feed_documents WHEN NEW.kind='editions' BEGIN SELECT RAISE(ABORT,'simulated persistence outage'); END;");
+ await expect(publishSelection(store,'feed-1',selected.id,{now:testPolicy.now,model})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ await ctx.db.exec('DROP TRIGGER fail_publication;');
+ const resumed=publishSelection(new V1FeedStore(ctx.db),'feed-1',selected.id,{now:testPolicy.now,model:{...model,requiresFullEntailment:true}});
+ if(full)expect((await resumed).stories).toHaveLength(1);
+ else {await expect(resumed).rejects.toMatchObject({code:'INVALID_REQUEST',reason:'VERIFICATION_CONTRACT_MISMATCH'});expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','synthesis_jobs')).toMatchObject([{state:'FAILED',failure:'VERIFICATION_CONTRACT_MISMATCH'}]);}
+ expect(writerCalls).toBe(1);expect(verifierCalls).toBe(1);
+});

@@ -14,7 +14,7 @@ import {deferEditorialWork,resolveEditorialWork,type EditorialWork} from './edit
 import {CLAIM_EXTRACTOR,type SourceDocument,nonFactRole} from './claims';
 import {communicationCost,type CommunicationCost} from './planning-capacity';
 import type {Env} from '../types';
-export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v11';
+export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v12';
 export type {NoveltyClass};
 export interface ShortlistFact {id:string;timing?:FactTiming;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
 export interface ShortlistCandidate {sourceTitles?:string[];ranking?:EditorialRanking;communicationCost?:CommunicationCost;novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}

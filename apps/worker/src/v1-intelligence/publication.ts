@@ -28,7 +28,7 @@ export type WriterFact=Omit<ApprovedWriterFact,'claimMentionIds'|'evidenceRevisi
 export interface SynthesisWriterInput {feed:SynthesisInput['feed'];selectionId:string;window?:SynthesisInput['window'];editorialPlan?:SynthesisInput['editorialPlan'];stories:{candidate:Pick<BriefingCandidate,'id'|'targetType'|'targetVersionId'>;plan?:Omit<SelectedPlanStory,'facts'>;editorial?:EditorialDecision;approvedFacts?:WriterFact[];approvedSpans?:ClaimSupport[];evidence:{id:string;body?:string;language?:string;publisherId?:string}[]}[]}
 export interface VerificationClaim {id:string;candidateId?:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean;publisherId?:string}[];requiredFacts?:PreservationFact[];allowedFacts?:PreservationFact[];previousLedgerFacts?:string[];previousReaderClaims?:ShortlistRecord['ledger'];newUnderstandingFacts?:PreservationFact[];correctionObligations?:ShortlistRecord['obligations']}
 export interface BriefingModelPort {
- model:string;provider:string;maxCallCostUsd:number;promptVersion?:string;
+ model:string;provider:string;maxCallCostUsd:number;promptVersion?:string;requiresFullEntailment?:boolean;
  synthesize(input:SynthesisWriterInput,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
  synthesisPayload?(input:SynthesisWriterInput):unknown;
  repair?(input:SynthesisWriterInput,draft:BriefingDraft,feedback:WriterFeedback,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
@@ -36,6 +36,7 @@ export interface BriefingModelPort {
  verificationPayload?(claims:VerificationClaim[]):unknown;
  verify?(claims:VerificationClaim[],limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{supportedClaimIds:string[];preservedFactIds?:string[];addressedCorrectionObligationIds?:string[];novelFactIds?:string[];semanticChecks?:SemanticFactCheck[];claimEntailment?:{claimId:string;fullyEntailed:boolean;reason:string;unsupportedMeaning:string[]}[];usage:ModelUsage}>;
 }
+class VerificationContractError extends HandoffError {readonly reason='VERIFICATION_CONTRACT_MISMATCH';constructor(){super('INVALID_REQUEST')}}
 export class QuietPublication extends Error {constructor(){super('NO_NEW_VERIFIED_STORIES')}}
 interface PublicationJob {id:string;feedId:string;selectionId:string;state:'PENDING'|'RUNNING'|'DONE'|'FAILED';attempts:number;token:string;leaseUntil:string;callsUsed:number;tokensIn:number;tokensOut:number;cost:number;pendingCall?:string;repairRequested?:boolean;failure?:string}
 interface StoredDraft {id:string;feedId:string;draft:BriefingDraft;model:string;provider:string;promptVersion?:string;createdAt:string}
@@ -368,6 +369,12 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    grounding={id:draftKey,feedId,stories,rejectedClaims:rejected,policyVersion:'approved-spans-semantic-coverage-v4',createdAt:options.now()};
    const value=grounding;await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await tx.write('grounding_results',draftKey,value)});
   }
+  // Cached pre-upgrade core-fact verdicts cannot satisfy the real writer's
+  // whole-meaning contract. Fail closed without reissuing a paid/unknown call.
+  if(storedDraft.provider!=='NONE'&&options.model?.requiresFullEntailment){
+   const verification=await store.read<{claimEntailment?:{claimId:string;fullyEntailed:boolean;unsupportedMeaning:string[]}[]}>(feedId,'verification_results',draftKey);
+   if(grounding.stories.some(story=>story.claims.some(claim=>!verification?.claimEntailment?.some(v=>v.claimId===claim.id&&v.fullyEntailed===true&&Array.isArray(v.unsupportedMeaning)&&v.unsupportedMeaning.length===0))))throw new VerificationContractError();
+  }
   if(selection.selectedCandidateIds.length && !grounding.stories.length)await rejectDraft(draftKey,[{code:'NO_SUPPORTED_STORIES'}]);
   if(input.editorialPlan){
    const verification=await store.read<{addressedCorrectionObligationIds?:string[];novelFactIds?:string[];semanticChecks?:SemanticFactCheck[]}>(feedId,'verification_results',draftKey);
@@ -443,7 +450,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     const safeFallback=fallback?.provider==='NONE'&&fallback.promptVersion==='approved-fact-spans-v3';
     const transient=error instanceof HandoffError && error.code==='TEMPORARY_UNAVAILABLE' && (!job.pendingCall||safeFallback) && job.attempts<5;
     if(job.pendingCall && !await tx.read('model_executions',job.pendingCall)) await tx.write('model_executions',job.pendingCall,{id:job.pendingCall,feedId,editionId,status:'OUTCOME_UNKNOWN',confirmed:false,reservationRetained:true,createdAt:options.now()});
-    await tx.write('synthesis_jobs',editionId,{...job,state:transient?'PENDING':'FAILED',failure:job.pendingCall?'MODEL_OUTCOME_UNKNOWN':error instanceof SynthesisCompatibilityError?error.reason:error instanceof HandoffError?error.code:'SYNTHESIS_FAILED'});
+    await tx.write('synthesis_jobs',editionId,{...job,state:transient?'PENDING':'FAILED',failure:job.pendingCall?'MODEL_OUTCOME_UNKNOWN':error instanceof VerificationContractError?error.reason:error instanceof SynthesisCompatibilityError?error.reason:error instanceof HandoffError?error.code:'SYNTHESIS_FAILED'});
    }
   })} catch { /* A revoked Feed already prevents recovery/publication. */ }
   if(error instanceof QuietPublication)throw error;
