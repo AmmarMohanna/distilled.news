@@ -14,5 +14,5 @@ export async function readScheduleAudit(db:D1Database,feedId:string,now=new Date
  const request=await store.read<any>(feedId,'briefing_requests',requestId);
  if(!request)return {state:now.getTime()-Date.parse(window.end)>5*60000?'MISSING_SCHEDULED_BOUNDARY':'AWAITING_DISPATCH',feedId,window,requestId,reason:'NO_DURABLE_REQUEST',attempts:0};
  const edition=await store.read(feedId,'editions',requestId);
- return {feedId,window,requestId,state:request.state==='DONE'?edition?'PUBLISHED':request.result==='QUIET'?'QUIET':'COMPLETED_UNCLASSIFIED':request.state==='FAILED'?'FAILED':request.reason==='AWAITING_INTAKE_REASSESSMENT'?'DEFERRED':'REQUEST_CREATED',reason:request.failure??request.reason,attempts:request.attempts,createdAt:request.createdAt,completedAt:request.completedAt};
+ return {feedId,window,requestId,state:request.state==='DONE'?edition?'PUBLISHED':request.result==='QUIET'?'QUIET':request.result==='DEFERRED'?'DEFERRED':'COMPLETED_UNCLASSIFIED':request.state==='FAILED'?'FAILED':request.reason==='AWAITING_INTAKE_REASSESSMENT'?'DEFERRED':'REQUEST_CREATED',reason:request.failure??request.reason,attempts:request.attempts,createdAt:request.createdAt,completedAt:request.completedAt};
 }

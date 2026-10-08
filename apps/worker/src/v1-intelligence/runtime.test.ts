@@ -106,3 +106,11 @@ it('records an intake-blocked boundary durably before dispatch gating and detect
 it('independent health reads expose a missing scheduler invocation without creating a fake request',async()=>{
  const audit=await readScheduleAudit(ctx.db,'feed-1',new Date('2026-10-03T13:06:00Z'));expect(audit).toMatchObject({state:'MISSING_SCHEDULED_BOUNDARY',reason:'NO_DURABLE_REQUEST'});expect(await store.list('feed-1','briefing_requests')).toHaveLength(0);
 },15000);
+
+it('health preserves completed editorial deferral without calling it quiet or unclassified',async()=>{
+ const now=new Date('2026-10-03T13:00:00Z');await dispatchV1Intelligence(env,now);
+ const request=(await store.list<any>('feed-1','briefing_requests'))[0];
+ await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',request.id,{...request,state:'DONE',result:'DEFERRED',reason:'EDITORIAL_WORK_DEFERRED',completedAt:now.toISOString()})});
+ expect(await readScheduleAudit(ctx.db,'feed-1',new Date('2026-10-03T13:06:00Z'))).toMatchObject({state:'DEFERRED',reason:'EDITORIAL_WORK_DEFERRED',requestId:request.id});
+ expect(await store.list('feed-1','editions')).toHaveLength(0);
+});
