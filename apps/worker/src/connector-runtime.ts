@@ -35,10 +35,10 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
   await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND collection_owner='legacy'").bind(id).run();
   const enrolled=await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
   // Private Telegram canary is one durable run, capped at one page of three records.
-  const request:SourceFetchRequest={scope:{feedId:enrolled.scope.feedId,feedSourceId:id,sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:await sha256(JSON.stringify([id,enrolled.scope.feedRevision,approved.source.family==='rss'?Math.floor(now.getTime()/300000):'telegram-canary-v1'])),source:approved.source,requestedBounds:{},limit:approved.limit};
+  const request:SourceFetchRequest={scope:{feedId:enrolled.scope.feedId,feedSourceId:id,sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:await sha256(JSON.stringify([id,enrolled.scope.feedRevision,['rss','google_news'].includes(approved.source.family)?Math.floor(now.getTime()/300000):'telegram-canary-v1'])),source:approved.source,requestedBounds:{},limit:approved.limit};
   if(await authorizeConnectorSource(env,request)) {
    if(request.source.family==='rss')await backend.rssScheduler.schedule(request.runId,{scope:request.scope,runId:request.runId,configurationRevision:request.configurationRevision,url:request.source.locator,requestedBounds:request.requestedBounds,maxItems:request.limit},now.toISOString());
-   else await backend.scheduler.schedule(request.runId,request,now.toISOString(),request.source.family==='telegram'?['telegram_telethon']:['x_twitterapi_io']);
+   else await backend.scheduler.schedule(request.runId,request,now.toISOString(),request.source.family==='telegram'?['telegram_telethon']:request.source.family==='google_news'?['google_rss','google_apify']:['x_twitterapi_io']);
   }
  }
  await backend.rssScheduler.runOne();

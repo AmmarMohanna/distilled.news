@@ -4,12 +4,14 @@ import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {createIntakeDatabase,testPolicy} from './v1-intake/test-utils';
 import {enrollV1Source,isV1ProductSource} from './v1-intelligence/product';
 import {authorizeConnectorSource,createConnectorRuntime} from './connector-runtime';
+import {productConnectorSource} from './connector-source';
 import {processV1Acquisition} from './v1-downstream-runtime';
 import {V1IntakeStore} from './v1-intake/store';
 import {V1FeedStore} from './v1-intelligence/store';
 import {processEvidenceIntelligence} from './v1-intelligence/engine';
 import {processV1Briefing} from './v1-intelligence/runtime';
 import type {SourceFetchRequest} from '@distilled/connectors';
+import {buildGoogleNewsRssUrl} from '@distilled/connectors';
 import type {Env} from './types';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env,request:SourceFetchRequest;
@@ -25,7 +27,8 @@ beforeEach(async()=>{
 });
 afterEach(async()=>ctx?.dispose());
 it('migrates empty D1 and connects RSS through receipts, acquisition, intelligence, plan and grounded immutable publication',async()=>{
- const fetcher=vi.fn(async()=>new Response('<rss version="2.0"><channel><title>News</title><item><guid>banking-1</guid><link>https://example.com/news/1</link><title>Lebanon banking reform</title><description>Lebanon Parliament approved banking reform legislation.</description><pubDate>Sat, 03 Oct 2026 10:00:00 GMT</pubDate></item></channel></rss>',{headers:{'content-type':'application/rss+xml'}}));
+ const publishedAt=new Date(Date.now()-60000).toUTCString();
+ const fetcher=vi.fn(async()=>new Response(`<rss version="2.0"><channel><title>News</title><item><guid>banking-1</guid><link>https://example.com/news/1</link><title>Lebanon banking reform</title><description>Lebanon Parliament approved banking reform legislation.</description><pubDate>${publishedAt}</pubDate></item></channel></rss>`,{headers:{'content-type':'application/rss+xml'}}));
  const runtime=createConnectorRuntime(env,fetcher as typeof fetch);
  const rss={scope:request.scope,configurationRevision:request.configurationRevision,runId:request.runId,url:request.source.locator,maxItems:30};
  const first=await runtime.collectRss(rss);expect(first.checkpoint).toBe('ADVANCED');
@@ -37,7 +40,7 @@ it('migrates empty D1 and connects RSS through receipts, acquisition, intelligen
  const feeds=new V1FeedStore(ctx.db),now=new Date(Date.now()+60000).toISOString();
  const reassess=(await intake.listPendingJobs('feed-source-1')).find(j=>j.kind==='REASSESS')!;
  await processEvidenceIntelligence(feeds,reassess.id,new Date().toISOString());expect(await feeds.list('feed-1','events')).toHaveLength(1);expect(await feeds.list('feed-1','storylines')).toHaveLength(1);
- const message={type:'v1_briefing' as const,feedId:'feed-1',window:{start:'2026-10-01T00:00:00Z',end:now,kind:'DAILY' as const}};
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window:{start:new Date(Date.now()-86400000).toISOString(),end:now,kind:'DAILY' as const}};
  const edition=(await processV1Briefing(env,message,()=>now))!;
  expect((await feeds.list('feed-1','editorial_plans')).length).toBeGreaterThan(0);
  const projection=await publishedProductEditions(env,(await new D1Repository(ctx.db).getBriefingById("feed-1"))!);
@@ -69,6 +72,21 @@ it('reserves one bounded TwitterAPI.io operation and replays durable intake with
  expect(await ctx.db.prepare("SELECT count(*) n FROM connector_provider_operations WHERE provider_id='x_twitterapi_io'").first()).toEqual({n:1});
  const job=(await new V1IntakeStore(ctx.db).listPendingJobs('x-source')).find(j=>j.kind==='ACQUIRE')!;
  await processV1Acquisition(env,job.id);expect(await new V1IntakeStore(ctx.db).list('revisions','x-source')).toHaveLength(1);
+},30000);
+it('accepts an approved Google News query through the free RSS path and rejects a changed query URL',async()=>{
+ const now=new Date().toISOString(),url=buildGoogleNewsRssUrl('Lebanon electricity',{geo:'US',language:'en'});
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('google-source','feed-1','Google News','channel','rss','google_news',?,?,1,'connector',?,?,?)").bind(url,'news: Lebanon electricity',now,now,now).run();
+ const enrolled=await enrollV1Source(ctx.db,'google-source','owner-1',now);
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS='feed-source-1,google-source';
+ const r:SourceFetchRequest={scope:{feedId:'feed-1',feedSourceId:'google-source',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'google-run',source:{family:'google_news',locator:'Lebanon electricity',language:'en',region:'US'},requestedBounds:{},limit:30};
+ const fetcher=vi.fn(async(value:unknown)=>{expect(String(value)).toBe(url);return new Response('<rss version="2.0"><channel><title>Google News</title><item><guid>google-1</guid><link>https://publisher.example/news/1</link><source url="https://publisher.example">Publisher</source><title>Lebanon electricity update</title><description>Electricity grid repairs began today.</description><pubDate>Thu, 08 Oct 2026 10:00:00 GMT</pubDate></item></channel></rss>',{headers:{'content-type':'application/rss+xml'}})});
+ const backend=createConnectorRuntime(env,fetcher as typeof fetch);
+ expect(await authorizeConnectorSource(env,r)).toBe(true);
+ expect(await authorizeConnectorSource(env,{...r,source:{...r.source,locator:'unapproved topic'}})).toBe(false);
+ expect(productConnectorSource({provider:'rss',kind:'google_news',input:'news: Lebanon electricity',source_url:buildGoogleNewsRssUrl('unapproved topic')})).toBeUndefined();
+ const first=await backend.collect(r,['google_rss']);if(first.state==='FETCH_FAILED')throw new Error('Google News fixture fetch failed');expect(first.checkpoint).toBe('UNCHANGED');
+ await backend.collect(r,['google_rss']);expect(fetcher).toHaveBeenCalledTimes(1);
+ expect(await new V1IntakeStore(ctx.db).list('intake_receipts','google-source')).toMatchObject([{checkpointResolution:'RESOLVED'}]);
 },30000);
 it('routes bounded approved Telegram through VPC, durable intake, evidence and publication without public fallback',async()=>{
  const now=new Date().toISOString(),input=JSON.stringify({username:'telegram',channelId:'-100123',public:true});

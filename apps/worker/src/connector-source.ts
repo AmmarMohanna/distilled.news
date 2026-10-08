@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import type {SourceDefinition} from '@distilled/connectors';
+import {detectSourceInput,type SourceDefinition} from '@distilled/connectors';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 
 const telegramConfiguration=z.object({channelId:z.string().regex(/^-[1-9]\d*$/),username:z.string().regex(/^[A-Za-z0-9_]{5,32}$/),public:z.literal(true)}).strict();
@@ -9,6 +9,14 @@ export function productConnectorSource(p:{provider:string;kind:string;source_url
  if(p.provider==='rss'&&p.kind==='rss_feed'&&p.source_url){
   const url=new URL(p.source_url).href;new WorkerPublicSourceFetch(url);
   return {source:{family:'rss',locator:url},canonicalUrl:url,identity:{type:'rss',canonicalUrl:url},limit:30};
+ }
+ if(p.provider==='rss'&&p.kind==='google_news'&&p.source_url&&p.input){
+  let detected:ReturnType<typeof detectSourceInput>;
+  try{detected=detectSourceInput(p.input)}catch{return undefined}
+  if(detected.provider!=='rss'||detected.kind!=='google_news'||detected.sourceUrl!==p.source_url)return undefined;
+  const query=new URL(p.source_url).searchParams.get('q');
+  if(!query)return undefined;
+  return {source:{family:'google_news',locator:query,language:'en',region:'US'},canonicalUrl:p.source_url,identity:{type:'google_news',query,language:'en',region:'US'},limit:30};
  }
  if(p.provider==='telegram'&&p.kind==='telegram_channel'&&p.input){
   let raw:unknown;try{raw=JSON.parse(p.input)}catch{return undefined}
