@@ -1,6 +1,6 @@
 import {it,expect} from 'vitest';
 import persisted from './fixtures/overnight-hermes-plan.json';
-import {provenMaterialDelta,provenSlotValueDelta,provenSlotMeaningDelta} from './material-delta';
+import {provenMaterialDelta,provenSlotValueDelta,provenSlotMeaningDelta,alignedSlotDelta} from './material-delta';
 import {equivalentFact} from './editorial';
 import {compactEditorialInput} from './editorial-transport';
 import {validateEditorialPlan} from './editorial-plan';
@@ -37,4 +37,24 @@ it('structured attribution surface changes cannot manufacture material protectio
  expect(provenSlotMeaningDelta({...previous,attribution:undefined},{...previous,attribution:'BBC'})).toBe(false);
  expect(provenSlotMeaningDelta(previous,{...previous,value:'$120M'})).toBe(true);
  expect(provenSlotMeaningDelta(previous,{...previous,attribution:'Official confirmation',certainty:{kind:'CONFIRMED',hedges:[]}})).toBe(true);
+});
+it.each([
+ ['Company A raised $90 million and Company B raised $120 million.','Company A raised $120 million and Company B raised $90 million.',true,'entities exchange values'],
+ ['Company A raised $90M and Company B raised $120 million.','Company A raised $120 million and Company B raised $90M.',true,'exchange despite mixed notation'],
+ ['Company A raised $90 million.','Company A raised $120 million.',true,'same entity amount changes'],
+ ['Company A raised $90M.','Company A raised $90 million.',false,'formatting only'],
+ ['Company A raised $90 million and Company B raised $120 million.','Company A raised $90M and Company B raised $120M.',false,'formatting only, several values'],
+ ['Company A raised $90 million.','Company B raised $120 million.',false,'unrelated entities'],
+ ['Revenue was $90 million and profit was $10 million.','Revenue was $90 million and profit was $12 million.',true,'one of several attributes changes'],
+ ['Revenue was $90 million and profit was $10 million.','Revenue was $10 million and profit was $90 million.',true,'same values swap attributes'],
+ ['Company A raised $90 million and Company B raised $90 million.','Company A raised $90 million and Company B raised $120 million.',true,'duplicate value diverges'],
+ ['Company A raised $90 million and Company B raised $120 million.','Company B raised $120 million and Company A raised $90 million.',false,'reordered clauses are unaligned, left to semantic layer'],
+])('numeric changes keep their entity/attribute association: %s -> %s (%s)',(a,b,expected)=>expect(provenMaterialDelta(a,b)).toBe(expected));
+it('slot deltas require an unambiguous aligned slot and do not protect when an unchanged aligned value remains',()=>{
+ const slot=(value:string)=>({value,certainty:{kind:'UNSPECIFIED' as const,hedges:[]},attribution:undefined});
+ expect(alignedSlotDelta(slot('$90M'),[slot('$120M')])).toBe(true);
+ expect(alignedSlotDelta(slot('$90M'),[slot('$90 million')])).toBe(false);
+ expect(alignedSlotDelta(slot('$90M'),[slot('$90 million'),slot('$120M')])).toBe(false);
+ expect(alignedSlotDelta(slot('$90M'),[slot('$100M'),slot('$120M')])).toBe(false);
+ expect(alignedSlotDelta(slot('$90M'),[])).toBe(false);
 });
