@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { FeedNotice, FeedPublicationNotice } from "./FeedNotice";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -1653,8 +1654,7 @@ function FeedPage(props: { username: string; slug: string }) {
         />
       ) : null}
       {error ? <FeedNotice message={error} language={language} /> : null}
-      {payload?.publicationState === 'correction_pending' ? <FeedNotice message={t('A correction to an earlier briefing is pending. Affected briefings have been withdrawn where necessary.')} language={language}/> : null}
-      {payload?.publicationState === 'failed' ? <FeedNotice message={t('The latest briefing could not be completed. Your published briefings remain available.')} language={language}/> : null}
+      <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {payload?.publicationState === 'checking' ? <p className="muted feed-status-message" role="status">{t('Checking sources for the next briefing…')}</p> : null}
       {summaryMessage ? (
@@ -2031,15 +2031,6 @@ function StatusLine(props: { label: string; value: React.ReactNode; valueDir?: "
         {typeof props.value === "string" ? <bdi dir={valueDir}>{props.value}</bdi> : props.value}
       </span>
     </p>
-  );
-}
-
-function FeedNotice(props: { message: string; language: "en" | "ar" | "fr" }) {
-  return (
-    <section className="section notice">
-      <h2>{feedUnavailableLabel(props.language)}</h2>
-      <p>{props.message}</p>
-    </section>
   );
 }
 
@@ -2467,12 +2458,6 @@ function noBriefingDetailLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "لا توجد تفاصيل لهذا الموجز";
   if (language === "fr") return "aucun détail disponible";
   return "no briefing detail available";
-}
-
-function feedUnavailableLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "الموجز غير متاح";
-  if (language === "fr") return "fil indisponible";
-  return "feed unavailable";
 }
 
 function fullBriefLabel(language: "en" | "ar" | "fr"): string {

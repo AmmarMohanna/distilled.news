@@ -8,7 +8,7 @@ preview_urls = false
 routes = []
 
 [vars]
-STAGING_ASSETS_PREFIX = "staging-assets/7becfd8ebddf117ccc2cdc33f50169719be345b0/"
+STAGING_ASSETS_PREFIX = "staging-assets/cbc01d5ce16bf8ef79dcdc1f77b7932bda29abfd/"
 PUBLIC_API_BASE_URL = "https://distilled-news-staging.distillednews-platform.workers.dev"
 PUBLIC_WEB_BASE_URL = "https://distilled-news-staging.distillednews-platform.workers.dev"
 SOURCE_CONNECTORS_ENABLED = "true"
