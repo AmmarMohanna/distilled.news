@@ -175,6 +175,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   for(const [eventId,binding] of bindings)for(const entry of await tx.list<LedgerEntry>('ledger_entries'))if(entry.eventIds.includes(eventId) || preferredStorylines.has(eventId) && entry.storylineIds.includes(preferredStorylines.get(eventId)!)){
    const trigger=binding.provenance.judgmentId??target?.revision.id??jobId;
    if(binding.group.epistemicEffects.includes('CONTRADICTS'))await recordCorrectionObligation(tx,entry,'CONTRADICTED',trigger,now);
+   if(binding.group.epistemicEffects.includes('CORRECTS'))await recordCorrectionObligation(tx,entry,'CORRECTED',trigger,now);
    if(binding.group.epistemicEffects.includes('RETRACTS'))await recordCorrectionObligation(tx,entry,'RETRACTED',trigger,now);
   }
   await tx.write('intelligence_receipts',receiptId,receipt);tx.completeJob(job);return receipt;
