@@ -252,7 +252,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-async function runScheduledMaintenance(env: Env): Promise<void> {
+export async function runScheduledMaintenance(env: Env): Promise<void> {
   env = await productRuntimeEnv(env);
   try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
   try {await dispatchV1Acquisitions(env)} catch {console.warn('Could not dispatch v1 acquisition jobs')}

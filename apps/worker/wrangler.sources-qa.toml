@@ -1,6 +1,6 @@
 name = "distilled-news-sources-qa"
 account_id = "e32b564514d4f9b9e383b7dd30dbb026"
-main = "src/staging.ts"
+main = "src/sources-qa.ts"
 compatibility_date = "2026-10-05"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 workers_dev = true
@@ -15,6 +15,7 @@ SOURCE_CONNECTORS_ENABLED = "true"
 SOURCE_LEGACY_POLLING_ENABLED = "false"
 PRODUCT_FEEDS_ENABLED = "true"
 SOURCE_RECOMMENDATIONS_ENABLED = "false"
+SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
 SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0,"apify":0,"zyte":0}'
 SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":0,"x_apify":0,"google_apify":0,"linkedin_apify":0,"zyte":0}'
 V1_DOWNSTREAM_ENABLED = "true"
@@ -48,6 +49,10 @@ max_batch_size = 5
 max_batch_timeout = 1
 max_retries = 5
 dead_letter_queue = "distilled-news-sources-qa-dlq"
+
+[[vpc_services]]
+binding = "SOURCE_EXECUTION_SERVICE"
+service_id = "01a1099d-e88a-7c23-a1c5-eeb51471e780"
 
 [triggers]
 crons = ["* * * * *"]

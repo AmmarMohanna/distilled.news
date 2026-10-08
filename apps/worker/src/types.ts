@@ -68,6 +68,7 @@ export interface Env extends Cloudflare.Env {
   SOURCE_PROVIDER_BUDGETS_JSON?: string;
   SOURCE_EXECUTION_URL?: string;
   SOURCE_EXECUTION_TOKEN?: string;
+  SOURCE_QA_MAINTENANCE_TOKEN?: string;
   SOURCE_EXECUTION_SERVICE?: Fetcher;
   TWITTERAPI_IO_API_KEY?: string;
   ZYTE_API_KEY?: string;
