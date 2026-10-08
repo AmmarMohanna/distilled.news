@@ -152,3 +152,12 @@ it('an older unblocked window is dispatched while a newer window still waits for
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));
  expect(briefingSends().map(m=>(m as any).window.end)).toEqual(['2026-10-03T12:00:00Z']);
 });
+it('a released intake wait label is cleared once and unchanged waits never rewrite the request',async()=>{
+ await pendingJobObservedAt('2026-10-03T12:30:00Z');
+ const at=new Date('2026-10-03T13:25:00Z'),epoch=async()=>(await store.getFeed('feed-1'))!.revision;
+ await dispatchV1Intelligence(env,at);const before=await epoch();await dispatchV1Intelligence(env,at);await dispatchV1Intelligence(env,at);
+ expect(await epoch()).toBe(before);
+ await pendingJobObservedAt('2026-10-03T12:30:00Z',{exhausted:true,state:'FAILED'});
+ await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));
+ expect((await store.list<any>('feed-1','briefing_requests'))[0].reason).toBeUndefined();
+});

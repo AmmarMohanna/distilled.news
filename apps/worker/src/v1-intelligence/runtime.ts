@@ -132,6 +132,12 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   });throw error instanceof HandoffError?error:new HandoffError('TEMPORARY_UNAVAILABLE');
  }
 }
+/** Auxiliary per-Feed maintenance (policy upgrades, rematch fan-out) must never prevent briefing dispatch:
+ * a contended or failing maintenance step is reported and retried on the next tick, while the window requests
+ * below keep being sent. Their durable state is untouched, so nothing is skipped or duplicated. */
+async function maintenance(feedId:string,step:string,run:()=>Promise<void>):Promise<void> {
+ try{await run()}catch(error){console.error(JSON.stringify({type:'V1_DISPATCH_MAINTENANCE_FAILED',feedId,step,error:error instanceof Error?error.message:'UNKNOWN'}))}
+}
 /** Intake/reassessment jobs that can still change what a window contains: unfinished, non-exhausted jobs
  * for evidence observed before the window closed (or whose observation time is unknown). Evidence that
  * arrived later belongs to a later window, so continuous arrivals cannot postpone an earlier boundary, and
@@ -156,9 +162,13 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
  for(const id of feeds) {
   const feed=await store.getFeed(id);if(!feed || feed.paused || feed.deletedAt) continue;
   try {await approvedFeed(env,id)} catch(error) {if(error instanceof HandoffError && error.code==='SCOPE_DENIED') continue;throw error}
-  if(feed.briefingSchedule||feed.briefingFrequency!=='WEEKLY'){const upgradeWindow=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);if(await hasUnscheduledExtractionUpgrade(store,id,upgradeWindow))await feedTransact(store,id,tx=>scheduleExtractionUpgrades(tx,upgradeWindow,now.toISOString()))}
-  const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts');
-  for(const request of rematches.filter(r=>nextRematch(r,attempts,now.toISOString())).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
+  await maintenance(id,'EXTRACTION_UPGRADE',async()=>{
+   if(feed.briefingSchedule||feed.briefingFrequency!=='WEEKLY'){const upgradeWindow=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);if(await hasUnscheduledExtractionUpgrade(store,id,upgradeWindow))await feedTransact(store,id,tx=>scheduleExtractionUpgrades(tx,upgradeWindow,now.toISOString()))}
+  });
+  await maintenance(id,'REMATCH_DISPATCH',async()=>{
+    const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts');
+    for(const request of rematches.filter(r=>nextRematch(r,attempts,now.toISOString())).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
+  });
   // Reassessment must finish first; the next bounded relay publishes its result.
   const pending={n:await jobsHoldingWindow(env.DB,id,windowEndOf(feed,now))};
   // Historical weekly windows remain callable/reproducible, but are not a new
@@ -167,7 +177,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   const window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now),editionId=await windowIdentity(id,window);
   // Record the observed boundary even while intake is busy. A gap is an
   // observation made NOW, not a fabricated historical request or quiet result.
-  await feedTransact(store,id,async tx=>{
+  await maintenance(id,'SCHEDULE_OBSERVATION',async()=>{
+   await feedTransact(store,id,async tx=>{
    const observationId=JSON.stringify([id,feed.revision,window.end]);if(await tx.read('schedule_observations',observationId))return;
    const prior=(await tx.list<{id:string;feedRevision:number;window:PublicationWindow;createdAt:string}>('schedule_observations')).filter(o=>o.feedRevision===feed.revision&&Date.parse(o.window.end)<Date.parse(window.end)).sort((a,b)=>b.window.end.localeCompare(a.window.end))[0];
    const missing:PublicationWindow[]=[];let cursor=window;
@@ -178,12 +189,15 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    await tx.write('schedule_observations',observationId,{id:observationId,feedId:id,feedRevision:feed.revision,window,requestId:editionId,createdAt:now.toISOString(),state:'BOUNDARY_OBSERVED',schedulePolicy:feed.briefingSchedule??{briefingFrequency:feed.briefingFrequency},missingExpectedBoundaries:missing,gapScanLimit:48,gapScanTruncated:Boolean(prior&&Date.parse(cursor.start)>Date.parse(prior.window.end))});
    if(missing.length)console.warn(JSON.stringify({type:'BRIEFING_SCHEDULE_GAP',feedId:id,observedAt:now.toISOString(),missingWindowEnds:missing.map(w=>w.end)}));
   });
+  });
   if(!await store.read(id,'editions',editionId)) await feedTransact(store,id,async tx=>{
    if(!await tx.read('briefing_requests',editionId)) await tx.write('briefing_requests',editionId,{id:editionId,feedId:id,window,state:'PENDING',attempts:0,createdAt:now.toISOString()} satisfies BriefingRequest);
   });
   // Reobserving an unchanged wait is read-only: an epoch bump every minute
   // would fence slow reassessment/publication work for other windows too.
-  if(pending?.n){await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state==='PENDING'&&request.reason!=='AWAITING_INTAKE_REASSESSMENT')await tx.write('briefing_requests',editionId,{...request,reason:'AWAITING_INTAKE_REASSESSMENT'})});}
+  // A wait label is written once on entry and cleared once on release; unchanged observations stay read-only.
+  const waiting=Boolean(pending?.n),current=await store.read<BriefingRequest>(id,'briefing_requests',editionId);
+  if(current?.state==='PENDING'&&waiting!==(current.reason==='AWAITING_INTAKE_REASSESSMENT')&&(waiting||current.reason==='AWAITING_INTAKE_REASSESSMENT'))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;if(waiting&&request.reason!=='AWAITING_INTAKE_REASSESSMENT')await tx.write('briefing_requests',editionId,{...request,reason:'AWAITING_INTAKE_REASSESSMENT'});else if(!waiting&&request.reason==='AWAITING_INTAKE_REASSESSMENT'){const {reason:_released,...rest}=request;await tx.write('briefing_requests',editionId,rest)}});
   const requests=await store.list<BriefingRequest>(id,'briefing_requests');
   let briefingSends=0;
   for(const request of requests.filter(r=>r.state==='PENDING' && (!r.nextAttemptAt || Date.parse(r.nextAttemptAt)<=now.getTime()))) {
