@@ -1,7 +1,7 @@
 import {equivalentFact} from './editorial';
 import type {EditorialWork} from './editorial-work';
 import {provenMaterialDelta} from './material-delta';
-import {revisionChangesMeaning} from './correction-materiality';
+import {revisionChangesMeaning,changedCommunicatedSpans} from './correction-materiality';
 import {HandoffError,sha256,type BriefingCandidate,type EventVersion} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import {V1FeedStore,type FeedTransaction,type DocumentKind} from './store';
@@ -42,10 +42,18 @@ async function semanticallyUnchangedRevision(store:V1FeedStore,feedId:string,ent
  }return true;
 }
 async function sourceChangesReaderMeaning(store:V1FeedStore,feedId:string,entry:LedgerEntry,previous:import('@distilled/contracts').EvidenceRevision,current:import('@distilled/contracts').EvidenceRevision,tx?:FeedTransaction):Promise<boolean>{
- const titleUsed=(await Promise.all(entry.claimMentionIds.map(id=>store.read<ClaimMention>(feedId,'claim_mentions',id)))).some(m=>m?.evidenceRevisionId===previous.id&&m.span.field==='title');
- const before=[titleUsed?previous.title:undefined,previous.body].filter(Boolean).join('\n'),after=[titleUsed?current.title:undefined,current.body].filter(Boolean).join('\n');
- if(!revisionChangesMeaning(before,after))return false;
- if(provenMaterialDelta(before,after))return true;
+ const mentions=(await Promise.all(entry.claimMentionIds.map(id=>store.read<ClaimMention>(feedId,'claim_mentions',id)))).filter((m):m is ClaimMention=>m?.evidenceRevisionId===previous.id);
+ if(!mentions.length){
+  // No claim-level evidence of what was communicated: stay conservative and judge the whole source.
+  const before=[previous.title,previous.body].filter(Boolean).join('\n'),after=[current.title,current.body].filter(Boolean).join('\n');
+  if(!revisionChangesMeaning(before,after))return false;
+  return provenMaterialDelta(before,after)||!await semanticallyUnchangedRevision(store,feedId,entry,current.id,tx);
+ }
+ const changed=changedCommunicatedSpans(mentions.map(m=>({field:m.span.field,text:m.sourceText})),previous,current);
+ // Every communicated span is still present: added reporting is new information, not a correction.
+ if(!changed.length)return false;
+ if(changed.some(c=>c.counterparts.some(text=>provenMaterialDelta(c.span.text,text))))return true;
+ // An edited/removed communicated span with unknown equivalence stays conservative unless settled semantics say corroboration only.
  return !await semanticallyUnchangedRevision(store,feedId,entry,current.id,tx);
 }
 /** Deterministic historical projection. It never mutates publication, versions,

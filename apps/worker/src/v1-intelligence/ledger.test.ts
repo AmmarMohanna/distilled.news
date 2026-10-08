@@ -75,3 +75,31 @@ it('a settled same-Event semantic corroboration does not turn a reordered source
  await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-2','']),testPolicy.now(),{...deterministicMatchers,event:{match:()=>({structuralRelation:'SAME_EVENT',eventId:event.id,epistemicEffects:['CORROBORATES'],confidence:.99,provenance:{scorer:'GPT',policyVersion:'settled-same-meaning'}})}});
  expect(await store.list('feed-1','correction_obligations')).toHaveLength(0);expect(await store.list('feed-1','ledger_entries')).toEqual(history);
 },20000);
+async function reviseItem(sequence:number,body:string,title?:string){
+ const intake=new V1IntakeStore(ctx.db),batch=batchFixture(sequence);
+ batch.observations[0].sourceItemKey='item-1';batch.proposals[0].sourceItemKey='item-1';
+ const accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batch);
+ await acceptAcquiredContent(intake,{id:`updated-content-${sequence}`,feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:`observation-${sequence}`,representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',title,body,acquiredAt:testPolicy.now(),acquisitionMethod:'supplied_payload'},testPolicy);
+}
+const sourceRevised=async()=>(await store.list<any>('feed-1','correction_obligations')).filter(o=>o.kind==='SOURCE_REVISED');
+it('a source revision that only adds independent reporting creates no correction obligation, across replays and restarts',async()=>{
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end);
+ await reviseItem(2,'Lebanon Parliament approved banking reform legislation. The central bank appointed a new governor.');
+ for(let i=0;i<2;i++)await feedTransact(store,'feed-1',tx=>refreshSourceCorrectionObligations(tx,testPolicy.now()));
+ expect(await sourceRevised()).toEqual([]);
+ const restarted=new V1FeedStore(ctx.db);await rebuildCommunicationLedger(restarted,'feed-1');await feedTransact(restarted,'feed-1',tx=>refreshSourceCorrectionObligations(tx,testPolicy.now()));
+ expect(await sourceRevised()).toEqual([]);
+},15000);
+it('a changed communicated claim keeps exactly one durable obligation across replays and restarts, even when new reporting is also added',async()=>{
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end);
+ await reviseItem(2,'Lebanon Parliament rejected banking reform legislation. The central bank appointed a new governor.');
+ for(let i=0;i<2;i++)await feedTransact(store,'feed-1',tx=>refreshSourceCorrectionObligations(tx,testPolicy.now()));
+ const restarted=new V1FeedStore(ctx.db);await rebuildCommunicationLedger(restarted,'feed-1');await feedTransact(restarted,'feed-1',tx=>refreshSourceCorrectionObligations(tx,testPolicy.now()));
+ expect(await sourceRevised()).toHaveLength(1);
+},15000);
+it('a revision that is only typographic never opens an obligation',async()=>{
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end);
+ await reviseItem(2,'Lebanon Parliament approved banking reform legislation');
+ await feedTransact(store,'feed-1',tx=>refreshSourceCorrectionObligations(tx,testPolicy.now()));
+ expect(await sourceRevised()).toEqual([]);
+},15000);
