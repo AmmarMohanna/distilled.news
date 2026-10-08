@@ -371,7 +371,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   }
   // Cached pre-upgrade core-fact verdicts cannot satisfy the real writer's
   // whole-meaning contract. Fail closed without reissuing a paid/unknown call.
-  if(storedDraft.provider!=='NONE'&&options.model?.requiresFullEntailment){
+  if(storedDraft.provider!=='NONE'&&(options.model?.requiresFullEntailment||['OPENROUTER','OPENAI_GATEWAY'].includes(storedDraft.provider))){
    const verification=await store.read<{claimEntailment?:{claimId:string;fullyEntailed:boolean;unsupportedMeaning:string[]}[]}>(feedId,'verification_results',draftKey);
    if(grounding.stories.some(story=>story.claims.some(claim=>!verification?.claimEntailment?.some(v=>v.claimId===claim.id&&v.fullyEntailed===true&&Array.isArray(v.unsupportedMeaning)&&v.unsupportedMeaning.length===0))))throw new VerificationContractError();
   }
