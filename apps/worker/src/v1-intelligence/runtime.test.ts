@@ -114,3 +114,33 @@ it('health preserves completed editorial deferral without calling it quiet or un
  expect(await readScheduleAudit(ctx.db,'feed-1',new Date('2026-10-03T13:06:00Z'))).toMatchObject({state:'DEFERRED',reason:'EDITORIAL_WORK_DEFERRED',requestId:request.id});
  expect(await store.list('feed-1','editions')).toHaveLength(0);
 });
+async function pendingJobObservedAt(observedAt:string,extra:Record<string,unknown>={}){
+ // Intake rows are immutable, so model a new arrival as its own observation plus its own reassessment job.
+ const observationId=`late-${observedAt}`,id=JSON.stringify(['REASSESS',observationId,'']);
+ await ctx.db.prepare("INSERT OR REPLACE INTO v1_inputs(id,feed_source_id,item_key,json) VALUES(?,?,?,?)").bind(observationId,'feed-source-1','late-item',JSON.stringify({observation:{id:observationId,observedAt}})).run();
+ await ctx.db.prepare("INSERT OR REPLACE INTO v1_jobs(id,feed_source_id,item_key,json) VALUES(?,?,?,?)").bind(id,'feed-source-1','late-item',JSON.stringify({id,feedId:'feed-1',feedSourceId:'feed-source-1',observationId,kind:'REASSESS',state:'PENDING',attempts:0,...extra})).run();
+}
+const briefingSends=()=>sent.filter(m=>m.type==='v1_briefing');
+it('reassessment of evidence that arrived after the window closed cannot postpone that window, and is not lost',async()=>{
+ await pendingJobObservedAt('2026-10-03T13:20:00Z');
+ await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));
+ expect(briefingSends()).toHaveLength(1);expect(briefingSends()[0]).toMatchObject({window:{end:'2026-10-03T13:00:00.000Z'}});
+ // The still-pending job stays on the ordinary reassessment queue for the next window.
+ expect(sent.filter(m=>m.type==='v1_reassess')).toHaveLength(1);
+ await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));expect(await store.list('feed-1','briefing_requests')).toHaveLength(1);
+});
+it('reassessment of evidence that arrived inside the window still holds that window and records why',async()=>{
+ await pendingJobObservedAt('2026-10-03T12:30:00Z');
+ await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));
+ expect(briefingSends()).toHaveLength(0);expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT'}]);
+ // Once the job is exhausted the window is released instead of blocking forever.
+ await pendingJobObservedAt('2026-10-03T12:30:00Z',{exhausted:true,state:'FAILED'});
+ await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));expect(briefingSends()).toHaveLength(1);
+});
+it('an older unblocked window is dispatched while a newer window still waits for its own reassessment',async()=>{
+ const older={start:'2026-10-03T11:00:00Z',end:'2026-10-03T12:00:00Z',kind:'HOURLY' as const};
+ await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests','older',{id:'older',feedId:'feed-1',window:older,state:'PENDING',attempts:0,createdAt:'2026-10-03T12:00:00Z'}));
+ await pendingJobObservedAt('2026-10-03T12:30:00Z');
+ await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));
+ expect(briefingSends().map(m=>(m as any).window.end)).toEqual(['2026-10-03T12:00:00Z']);
+});

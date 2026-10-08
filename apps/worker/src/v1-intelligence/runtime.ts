@@ -132,6 +132,15 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   });throw error instanceof HandoffError?error:new HandoffError('TEMPORARY_UNAVAILABLE');
  }
 }
+/** Intake/reassessment jobs that can still change what a window contains: unfinished, non-exhausted jobs
+ * for evidence observed before the window closed (or whose observation time is unknown). Evidence that
+ * arrived later belongs to a later window, so continuous arrivals cannot postpone an earlier boundary, and
+ * nothing is lost: that job keeps running on the ordinary queue and its Event lands in the next window. */
+async function jobsHoldingWindow(db:Env['DB'],feedId:string,windowEnd:string):Promise<number> {
+ const row=await db.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0 AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?))").bind(feedId,windowEnd).first<{n:number}>();
+ return row?.n??0;
+}
+const windowEndOf=(feed:{briefingSchedule?:unknown;briefingFrequency:string},now:Date)=>(feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule as never,now):publicationWindow(feed.briefingFrequency as never,now)).end;
 /** Relay uses durable pending jobs and edition/window identities on the existing queue. */
 export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<number> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') return 0;
@@ -151,7 +160,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts');
   for(const request of rematches.filter(r=>nextRematch(r,attempts,now.toISOString())).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
   // Reassessment must finish first; the next bounded relay publishes its result.
-  const pending=await env.DB.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0").bind(id).first<{n:number}>();
+  const pending={n:await jobsHoldingWindow(env.DB,id,windowEndOf(feed,now))};
   // Historical weekly windows remain callable/reproducible, but are not a new
   // live scheduling option. Existing UTC schedules remain unchanged otherwise.
   if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
@@ -172,10 +181,12 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   if(!await store.read(id,'editions',editionId)) await feedTransact(store,id,async tx=>{
    if(!await tx.read('briefing_requests',editionId)) await tx.write('briefing_requests',editionId,{id:editionId,feedId:id,window,state:'PENDING',attempts:0,createdAt:now.toISOString()} satisfies BriefingRequest);
   });
-  if(pending?.n){await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state==='PENDING')await tx.write('briefing_requests',editionId,{...request,reason:'AWAITING_INTAKE_REASSESSMENT'})});continue;}
+  if(pending?.n){await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state==='PENDING')await tx.write('briefing_requests',editionId,{...request,reason:'AWAITING_INTAKE_REASSESSMENT'})});}
   const requests=await store.list<BriefingRequest>(id,'briefing_requests');
   let briefingSends=0;
   for(const request of requests.filter(r=>r.state==='PENDING' && (!r.nextAttemptAt || Date.parse(r.nextAttemptAt)<=now.getTime()))) {
+   // Each window is held only by jobs for evidence that existed when it closed.
+   if(await jobsHoldingWindow(env.DB,id,request.window.end))continue;
    const job=await store.read<{state:string;leaseUntil:string;pendingCall?:string}>(id,'synthesis_jobs',request.id);
    if(job?.state==='FAILED' || job?.pendingCall || job?.state==='RUNNING' && Date.parse(job.leaseUntil)>now.getTime()) continue;
    await env.PROCESSING_QUEUE.send({type:'v1_briefing',feedId:id,window:request.window} satisfies DistilledQueueMessage);sent++;briefingSends++;
