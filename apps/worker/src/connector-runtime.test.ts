@@ -25,7 +25,8 @@ beforeEach(async()=>{
 });
 afterEach(async()=>ctx?.dispose());
 it('migrates empty D1 and connects RSS through receipts, acquisition, intelligence, plan and grounded immutable publication',async()=>{
- const fetcher=vi.fn(async()=>new Response('<rss version="2.0"><channel><title>News</title><item><guid>banking-1</guid><link>https://example.com/news/1</link><title>Lebanon banking reform</title><description>Lebanon Parliament approved banking reform legislation.</description><pubDate>Sat, 03 Oct 2026 10:00:00 GMT</pubDate></item></channel></rss>',{headers:{'content-type':'application/rss+xml'}}));
+ const publishedAt=new Date(Date.now()-3600000).toUTCString();
+ const fetcher=vi.fn(async()=>new Response(`<rss version="2.0"><channel><title>News</title><item><guid>banking-1</guid><link>https://example.com/news/1</link><title>Lebanon banking reform</title><description>Lebanon Parliament approved banking reform legislation.</description><pubDate>${publishedAt}</pubDate></item></channel></rss>`,{headers:{'content-type':'application/rss+xml'}}));
  const runtime=createConnectorRuntime(env,fetcher as typeof fetch);
  const rss={scope:request.scope,configurationRevision:request.configurationRevision,runId:request.runId,url:request.source.locator,maxItems:30};
  const first=await runtime.collectRss(rss);expect(first.checkpoint).toBe('ADVANCED');
@@ -37,7 +38,7 @@ it('migrates empty D1 and connects RSS through receipts, acquisition, intelligen
  const feeds=new V1FeedStore(ctx.db),now=new Date(Date.now()+60000).toISOString();
  const reassess=(await intake.listPendingJobs('feed-source-1')).find(j=>j.kind==='REASSESS')!;
  await processEvidenceIntelligence(feeds,reassess.id,new Date().toISOString());expect(await feeds.list('feed-1','events')).toHaveLength(1);expect(await feeds.list('feed-1','storylines')).toHaveLength(1);
- const message={type:'v1_briefing' as const,feedId:'feed-1',window:{start:'2026-10-01T00:00:00Z',end:now,kind:'DAILY' as const}};
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window:{start:new Date(Date.parse(now)-86400000).toISOString(),end:now,kind:'DAILY' as const}};
  const edition=(await processV1Briefing(env,message,()=>now))!;
  expect((await feeds.list('feed-1','editorial_plans')).length).toBeGreaterThan(0);
  const projection=await publishedProductEditions(env,(await new D1Repository(ctx.db).getBriefingById("feed-1"))!);
