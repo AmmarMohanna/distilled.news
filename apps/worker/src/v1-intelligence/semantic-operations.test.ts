@@ -22,7 +22,7 @@ it('unknown provider outcomes stay deferred and cannot automatically issue anoth
  expect(await durableSemanticOperation(store,input,run,'2026-10-03T13:00:00Z')).toEqual(first);expect(calls).toBe(1);
 },15000);
 
-it('comparative planning reserves a sixty-second lease without increasing the cost reservation',async()=>{
+it('comparative planning reserves a ninety-second lease without increasing the cost reservation',async()=>{
  const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'test',model:'fake',budgetKey:'planner',state:{}};
- await durableSemanticOperation(store,input,async()=>{const [intent]=await store.list<any>('feed-1','semantic_intents');expect(intent.leaseUntil-Date.now()).toBeGreaterThan(55000);expect(intent.reservedCostUsd).toBe(.02);return {value:{},usage:{calls:1,costUsd:.001,reported:true}}},'2026-10-03T12:00:00Z');
+ await durableSemanticOperation(store,input,async()=>{const [intent]=await store.list<any>('feed-1','semantic_intents');expect(intent.leaseUntil-Date.now()).toBeGreaterThan(85000);expect(intent.reservedCostUsd).toBe(.02);return {value:{},usage:{calls:1,costUsd:.001,reported:true}}},'2026-10-03T12:00:00Z');
 },15000);

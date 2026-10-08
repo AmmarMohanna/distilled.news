@@ -10,9 +10,9 @@ export function createStrongSemanticModel(env:Env,fetcher:typeof fetch=fetch,pur
   if(new TextEncoder().encode(JSON.stringify(state)).length>48000)throw Error('SEMANTIC_INPUT_LIMIT');
   usage={calls:1,costUsd:.02,reported:false};
   // Complete multi-target planning needs more time than one construction call.
-  // Keep it below the comparative operation's 60-second lease; token/cost bounds
+  // Keep it below the comparative operation's 90-second lease; token/cost bounds
   // and unknown-outcome fencing are unchanged.
-  const timeoutMs=phase==='COMPARATIVE_EDITORIAL_PLAN'?45000:10000;
+  const timeoutMs=phase==='COMPARATIVE_EDITORIAL_PLAN'?60000:10000;
   let value:Record<string,unknown>;try{value=await boundedCompletion({accountId:'',gatewayId:'',apiKey:env.OPENROUTER_API_KEY!,provider:'OPENROUTER',model,fetcher,timeoutMs,usageRecorder:async record=>{usage={calls:1,tokensIn:record.inputTokens,tokensOut:record.outputTokens,costUsd:record.reportedCostUsd??.02,reported:record.reportedCostUsd!==undefined}}},feedId,'event_review',phase,JSON.stringify(state),schema,{maxOutputTokens:phase==='COMPARATIVE_EDITORIAL_PLAN'?8000:2200,signal:new AbortController().signal});
   }catch(error){throw Error(error instanceof Error&&/^MODEL_|^PROVIDER_HTTP_/.test(error.message)?`SEMANTIC_${error.message}`:"SEMANTIC_PROVIDER_FAILURE")}
   return {value,usage};

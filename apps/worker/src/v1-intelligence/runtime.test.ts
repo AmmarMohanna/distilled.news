@@ -5,6 +5,7 @@ import {V1FeedStore,feedTransact} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
 import {dispatchV1Intelligence,processV1Briefing,publicationWindow} from './runtime';
 import type {Env,DistilledQueueMessage} from '../types';
+import {readScheduleAudit} from './schedule-audit';
 import {livePublicationWindow} from './schedule';
 import {DeterministicSalienceScorer} from './salience';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env,sent:DistilledQueueMessage[];
@@ -89,3 +90,19 @@ it('publication windows are closed UTC intervals and weeks start Monday',()=>{
  expect(publicationWindow('30M',new Date('2026-10-03T13:17:00Z'))).toEqual({start:'2026-10-03T12:30:00.000Z',end:'2026-10-03T13:00:00.000Z',kind:'30M'});
  expect(publicationWindow('WEEKLY',new Date('2026-10-03T13:17:00Z'))).toEqual({start:'2026-09-21T00:00:00.000Z',end:'2026-09-28T00:00:00.000Z',kind:'WEEKLY'});
 });
+
+it('records an intake-blocked boundary durably before dispatch gating and detects later missing invocations',async()=>{
+ const intake=new V1IntakeStore(ctx.db),job=JSON.stringify(['REASSESS','observation-1','']);
+ await ctx.db.prepare("UPDATE v1_jobs SET json=json_set(json,'$.state','PENDING') WHERE id=?").bind(job).run();
+ const first=new Date('2026-10-03T13:00:00Z');await dispatchV1Intelligence(env,first);
+ const requests=await store.list<any>('feed-1','briefing_requests');expect(requests).toHaveLength(1);expect(requests[0]).toMatchObject({state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT',window:{end:first.toISOString()}});
+ await dispatchV1Intelligence(env,new Date('2026-10-03T16:00:00Z'));
+ const observations=await store.list<any>('feed-1','schedule_observations');expect(observations).toHaveLength(2);
+ const gap=observations.find(o=>o.missingExpectedBoundaries.length);expect(gap.missingExpectedBoundaries.map((w:any)=>w.end)).toEqual(['2026-10-03T15:00:00.000Z','2026-10-03T14:00:00.000Z']);
+ // Gap observations never fabricate historical quiet results or requests.
+ expect(await store.list('feed-1','briefing_requests')).toHaveLength(2);
+},20000);
+
+it('independent health reads expose a missing scheduler invocation without creating a fake request',async()=>{
+ const audit=await readScheduleAudit(ctx.db,'feed-1',new Date('2026-10-03T13:06:00Z'));expect(audit).toMatchObject({state:'MISSING_SCHEDULED_BOUNDARY',reason:'NO_DURABLE_REQUEST'});expect(await store.list('feed-1','briefing_requests')).toHaveLength(0);
+},15000);

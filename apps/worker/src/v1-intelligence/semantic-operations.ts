@@ -31,7 +31,7 @@ export async function durableSemanticOperation<T>(store:V1FeedStore,input:Semant
    const saved=await tx.read<SemanticOperationResult>('semantic_results',previous.id);calls++;cost+=saved?.usage.reported?saved.usage.costUsd:Math.max(reservation,saved?.usage.costUsd??0);unknown ||= saved?!saved.usage.reported:previous.leaseUntil<=Date.now();
   }
   if(unknown||calls>=20||cost+reservation>.1+1e-9){const result=deferred(unknown?'SEMANTIC_BUDGET_OUTCOME_UNKNOWN':'SEMANTIC_BUDGET_EXHAUSTED',{calls:0,costUsd:0,reported:true});await tx.write('semantic_results',id,result);return {result}}
-  const value:SemanticIntent={id,feedId:input.feedId,input,token,leaseUntil:Date.now()+(input.kind==='COMPARATIVE_EDITORIAL_PLAN'?60000:30000),reservedCostUsd:reservation,createdAt:now};await tx.write('semantic_intents',id,value);return {intent:value};
+  const value:SemanticIntent={id,feedId:input.feedId,input,token,leaseUntil:Date.now()+(input.kind==='COMPARATIVE_EDITORIAL_PLAN'?90000:30000),reservedCostUsd:reservation,createdAt:now};await tx.write('semantic_intents',id,value);return {intent:value};
  });
  if(acquired.result)return acquired.result;
  const started=Date.now();let value:T|undefined,failure:string|undefined,validationDiagnostic:SemanticValidationDiagnostic|undefined,usage:ExperimentUsage={calls:1,costUsd:reservation,reported:false};

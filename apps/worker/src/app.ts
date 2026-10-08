@@ -1,3 +1,4 @@
+import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
 import {detectSourceInput} from '@distilled/connectors';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
@@ -909,7 +910,7 @@ export function createApp(options: AppOptions = {}) {
     const repo = c.get("repo");
     const briefing = await getOwnedBriefing(repo, c.get("account")!, c.req.query("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
-    return c.json({ health: {...await repo.getHealth(briefing.id),nextBriefingAt:readNextBriefingAt(briefing)} });
+    return c.json({ health: {...await repo.getHealth(briefing.id),nextBriefingAt:readNextBriefingAt(briefing),scheduleAudit:c.env.V1_DOWNSTREAM_ENABLED==='true'?await readScheduleAudit(c.env.DB,briefing.id):undefined} });
   });
 
   app.post("/api/me/processing/retry", async (c) => {
