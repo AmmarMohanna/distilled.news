@@ -3,7 +3,7 @@ import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {targets,type PublicationWindow} from './scoring';
 import {assessSelfContainment,type FactContext,type SelfContainment} from './self-contained';
-import {provenMaterialDelta,provenSlotValueDelta} from './material-delta';
+import {provenMaterialDelta,provenSlotMeaningDelta} from './material-delta';
 import {communicationFingerprint,evaluateEditorialDelta,noveltyClass,type NoveltyClass,mergeEquivalentFacts,supportedSentences,type EditorialDecision,equivalentFact} from './editorial';
 import {refreshSourceCorrectionObligations,type LedgerEntry,type CorrectionObligation} from './ledger';
 import type {EventSemanticState,Proposition} from './semantic-state';
@@ -14,7 +14,7 @@ import {deferEditorialWork,resolveEditorialWork,type EditorialWork} from './edit
 import {CLAIM_EXTRACTOR,type SourceDocument,nonFactRole} from './claims';
 import {communicationCost,type CommunicationCost} from './planning-capacity';
 import type {Env} from '../types';
-export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v12';
+export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v13';
 export type {NoveltyClass};
 export interface ShortlistFact {id:string;timing?:FactTiming;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
 export interface ShortlistCandidate {sourceTitles?:string[];ranking?:EditorialRanking;communicationCost?:CommunicationCost;novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
@@ -71,7 +71,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
    const old=await tx.read<EventSemanticState>('event_semantic_states',versionId);for(const id of old?.stateSlotIds??[]){const slot=await tx.read<import('./semantic-state').StateSlot>('state_slots',id),proposition=slot?await tx.read<Proposition>('propositions',slot.propositionId):undefined;
     if(!slot?.entityId||!proposition||!known.some(text=>equivalentFact(text,proposition.text)))continue;
     const priorEntity=await tx.read<import('./semantic-state').Entity>('entities',slot.entityId),currentEntities=await Promise.all(currentSlots.map(s=>s.entityId?tx.read<import('./semantic-state').Entity>('entities',s.entityId):undefined));
-    structuredDelta ||= currentSlots.some((s,i)=>Boolean(priorEntity&&currentEntities[i]?.entityId===priorEntity.entityId)&&s.attribute===slot.attribute&&s.asOf===slot.asOf&&(provenSlotValueDelta(slot.value,s.value)||s.certainty.kind!==slot.certainty.kind||(s.attribution??'').normalize('NFKC').toLowerCase().trim()!==(slot.attribution??'').normalize('NFKC').toLowerCase().trim()));
+    structuredDelta ||= currentSlots.some((s,i)=>Boolean(priorEntity&&currentEntities[i]?.entityId===priorEntity.entityId)&&s.attribute===slot.attribute&&s.asOf===slot.asOf&&provenSlotMeaningDelta(slot,s));
    }
   }
   if(structuredDelta||editorial.newUnderstanding.some(f=>known.some(previous=>provenMaterialDelta(previous,f.text))))protectedReasons.push('MATERIAL_QUALIFIER_DELTA');

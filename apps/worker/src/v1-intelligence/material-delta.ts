@@ -1,3 +1,4 @@
+import type {StateSlot} from './semantic-state';
 import {equivalentFact} from './editorial';
 import {numbers} from './fidelity';
 /** A cheap positive proof only. Unmatched syntax is uncertainty, not protection.
@@ -21,4 +22,11 @@ export function provenSlotValueDelta(previous:string,current:string):boolean {
  const status=(s:string)=>s.normalize('NFKC').toLowerCase().replace(/[.!?]/g,'').trim();
  const states=new Set(['planned','cancelled','approved','rejected','launched','withdrawn','retracted','confirmed','alleged']);
  return states.has(status(previous))&&states.has(status(current))&&status(previous)!==status(current);
+}
+
+/** The supported entity/attribute/time alignment is checked by the caller.
+ * An attribution string changing is not itself evidence of an epistemic change;
+ * substantive actor/confirmation changes remain the semantic judgment's job. */
+export function provenSlotMeaningDelta(previous:Pick<StateSlot,'value'|'certainty'|'attribution'>,current:Pick<StateSlot,'value'|'certainty'|'attribution'>):boolean {
+ return provenSlotValueDelta(previous.value,current.value)||previous.certainty.kind!==current.certainty.kind;
 }

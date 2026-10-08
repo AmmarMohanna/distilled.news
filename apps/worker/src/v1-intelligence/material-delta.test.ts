@@ -1,6 +1,6 @@
 import {it,expect} from 'vitest';
 import persisted from './fixtures/overnight-hermes-plan.json';
-import {provenMaterialDelta,provenSlotValueDelta} from './material-delta';
+import {provenMaterialDelta,provenSlotValueDelta,provenSlotMeaningDelta} from './material-delta';
 import {equivalentFact} from './editorial';
 import {compactEditorialInput} from './editorial-transport';
 import {validateEditorialPlan} from './editorial-plan';
@@ -30,3 +30,11 @@ it('the exact overnight Meta/guardrail proposal fails with old fake protection a
 });
 
 it.each([['$90M','$90 million',false],['$90M','$120M',true],['12%','18%',true],['Hermes agent','Hermes Agent',false],['planned','cancelled',true],['John Smith','Smith, John',false]])('structured slot protection requires a proven value change: %s -> %s',(a,b,expected)=>expect(provenSlotValueDelta(a,b)).toBe(expected));
+
+it('structured attribution surface changes cannot manufacture material protection',()=>{
+ const previous={value:'$90M',certainty:{kind:'UNSPECIFIED' as const,hedges:[]},attribution:'Hermes agent developer'};
+ expect(provenSlotMeaningDelta(previous,{...previous,attribution:'Hermes Agent developer.'})).toBe(false);
+ expect(provenSlotMeaningDelta({...previous,attribution:undefined},{...previous,attribution:'BBC'})).toBe(false);
+ expect(provenSlotMeaningDelta(previous,{...previous,value:'$120M'})).toBe(true);
+ expect(provenSlotMeaningDelta(previous,{...previous,attribution:'Official confirmation',certainty:{kind:'CONFIRMED',hedges:[]}})).toBe(true);
+});
