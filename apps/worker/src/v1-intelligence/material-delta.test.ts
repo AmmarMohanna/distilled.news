@@ -2,6 +2,7 @@ import {it,expect} from 'vitest';
 import persisted from './fixtures/overnight-hermes-plan.json';
 import {provenMaterialDelta,provenSlotValueDelta,provenSlotMeaningDelta,alignedSlotDelta} from './material-delta';
 import {equivalentFact} from './editorial';
+import {numberSequence} from './fidelity';
 import {compactEditorialInput} from './editorial-transport';
 import {validateEditorialPlan} from './editorial-plan';
 import type {ShortlistRecord} from './shortlist';
@@ -58,3 +59,23 @@ it('slot deltas require an unambiguous aligned slot and do not protect when an u
  expect(alignedSlotDelta(slot('$90M'),[slot('$100M'),slot('$120M')])).toBe(false);
  expect(alignedSlotDelta(slot('$90M'),[])).toBe(false);
 });
+it.each([['$90M','$90 million'],['90M','90 million'],['$3B','$3 billion'],['3B','3 billion'],['$3b','$3 billion'],['$250K','$250 thousand'],['12%','12 percent']])('equivalent supported notations are not a value change: %s = %s',(a,b)=>{
+ expect(provenSlotValueDelta(a,b)).toBe(false);
+ expect(provenMaterialDelta(`Company A raised ${a} in funding.`,`Company A raised ${b} in funding.`)).toBe(false);
+});
+it.each([['$3B','$3M'],['3B','3 million'],['$90M','$900M']])('different magnitudes remain a value change: %s -> %s',(a,b)=>{
+ expect(provenSlotValueDelta(a,b)).toBe(true);expect(provenMaterialDelta(`Company A raised ${a} in funding.`,`Company A raised ${b} in funding.`)).toBe(true);
+});
+it('lowercase unit-like suffixes are not expanded into magnitudes',()=>{
+ expect(numberSequence('The pool is 5m long and 2b wide.')).toEqual(['5','2']);
+ expect(numberSequence('A $5m round and a 70B model.')).toEqual(['5000000','70000000000']);
+});
+it.each([
+ ['Company A may raise $90M and Company B will raise $120M.','Company A will raise $90M and Company B may raise $120M.',true,'certainty swapped between entities, values unchanged'],
+ ['Company A may raise $90M and Company B will raise $120M.','Company A may raise $90 million and Company B will raise $120 million.',false,'unchanged certainty, notation only'],
+ ['Company A may raise $90M and Company B will raise $120M.','Company A may raise $90M and Company B may raise $120M.',true,'only one entity changes certainty'],
+ ['Company A may raise $90M and Company B will raise $120M.','Company A will raise $90M.',false,'different propositions are not a proven change'],
+ ['Company A may raise $90M and Company B will raise $120M.','Company B will raise $120M and Company A may raise $90M.',false,'reordered clauses are ambiguous and left to the semantic layer'],
+ ['Company A was not approved and Company B was approved.','Company A was approved and Company B was not approved.',true,'negation swapped between entities'],
+ ['The merger may close in 2026.','The merger may close in 2027.',true,'value change with unchanged qualifier'],
+])('qualifiers stay associated with their claim: %s -> %s (%s)',(a,b,expected)=>expect(provenMaterialDelta(a,b)).toBe(expected));

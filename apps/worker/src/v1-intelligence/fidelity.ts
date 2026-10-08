@@ -11,13 +11,18 @@ const normalized=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/\s
 const factualText=(text:string)=>normalized(text).replace(/https?:\/\/[^\s]+/gu,'');
 function numericText(text:string):string {
  const words:Record<string,string>={zero:'0',one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',eleven:'11',twelve:'12',thirteen:'13',fourteen:'14',fifteen:'15',sixteen:'16',seventeen:'17',eighteen:'18',nineteen:'19',twenty:'20',thirty:'30',forty:'40',fifty:'50',sixty:'60',seventy:'70',eighty:'80',ninety:'90'};
- return factualText(text).replace(/([£€$]\s*\d+(?:[.,]\d+)*)\s*m\b/g,'$1 million').replace(/\b(?:(?:a|one)\s+)?century(?=[-\s]+old\b)/g,'100').replace(/\b(?:(?:a|one)\s+)?hundred(?=[-\s]+years?[-\s]+old\b)/g,'100').replace(/[٠-٩۰-۹]/g,c=>String(c.charCodeAt(0)-(c.charCodeAt(0)>=0x6f0?0x6f0:0x660))).replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g,w=>words[w]);
+ const magnitude:Record<string,string>={k:'thousand',m:'million',b:'billion'};
+ return factualText(text.normalize('NFKC').replace(/(\d(?:[.,]\d+)*)([KMB])\b/g,(_,n:string,u:string)=>`${n} ${magnitude[u.toLowerCase()]}`)).replace(/([£€$]\s*\d+(?:[.,]\d+)*)\s*([kmb])\b/g,(_,n:string,u:string)=>`${n} ${magnitude[u]}`).replace(/\b(?:(?:a|one)\s+)?century(?=[-\s]+old\b)/g,'100').replace(/\b(?:(?:a|one)\s+)?hundred(?=[-\s]+years?[-\s]+old\b)/g,'100').replace(/[٠-٩۰-۹]/g,c=>String(c.charCodeAt(0)-(c.charCodeAt(0)>=0x6f0?0x6f0:0x660))).replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g,w=>words[w]);
 }
 export function numbers(text:string):Set<string> {return new Set(numberSequence(text))}
 /** Ordered, de-notated quantities. Position is kept so callers can tell which slot each value fills. */
+const QUANTITY=()=>/(\d+(?:[.,]\d+)*)(?:\s*(%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b|bn\b|mn\b|tn\b))?/g;
+/** Normalised text with every quantity replaced by <value>: the same recognizer as numberSequence, so the
+ * proposition skeleton and the numeric comparison can never disagree about what a quantity is. */
+export function maskQuantities(text:string):string {return numericText(text).replace(QUANTITY(),'<value>')}
 export function numberSequence(text:string):string[] {
  const source=numericText(text);
- return [...source.matchAll(/(\d+(?:[.,]\d+)*)(?:\s*(%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b|bn\b|mn\b|tn\b))?/g)].map(m=>{
+ return [...source.matchAll(QUANTITY())].map(m=>{
   const number=Number(/^\d{1,3}(?:,\d{3})+$/.test(m[1])?m[1].replace(/,/g,''):m[1].replace(',','.')),unit=m[2],scale=unit==='hundred'?100:unit==='thousand'?1000:unit==='million'||unit==='mn'?1e6:unit==='billion'||unit==='bn'?1e9:unit==='trillion'||unit==='tn'?1e12:1;return `${number*scale}${unit==='%'||unit==='percent'?'%':''}`;
  });
 }
