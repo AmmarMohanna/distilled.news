@@ -1,10 +1,11 @@
 import {HandoffError} from '@distilled/contracts';
-import {detectSourceInput} from '@distilled/connectors';
+import {detectSourceInput,TESTED_ACTORS} from '@distilled/connectors';
 import type {Env,Repository} from './types';
 import type {BriefingConfig,BriefingEdition} from '@distilled/core';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {enrollV1Source} from './v1-intelligence/product';
 import {publicV1Edition} from './v1-intelligence/public-read';
+import {productConnectorSource} from './connector-source';
 
 export async function productPublicationState(env:Env,feedId:string):Promise<'waiting'|'checking'|'quiet'|'failed'|'published'> {
  const request=await env.DB.prepare("SELECT id,json_extract(json,'$.state') AS state FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1").bind(feedId).first<{id:string;state:string}>();
@@ -26,16 +27,27 @@ export async function productRuntimeEnv(env:Env):Promise<Env> {
  return {...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:ids.join(',')};
 }
 
-export async function approveProductSource(env:Env,repo:Repository,feed:BriefingConfig,input:string) {
+export function prepareProductSourceInput(input:string) {
  const detected=detectSourceInput(input.trim());
- if(detected.provider!=='rss'||detected.kind!=='rss_feed')throw new Error('Add a public RSS feed URL. This deployment cannot configure this source type yet.');
- const url=new URL(detected.sourceUrl).href;
- new WorkerPublicSourceFetch(url);
- const source=await repo.upsertConfiguredSource({briefingId:feed.id,title:new URL(url).hostname,provider:'rss',kind:'rss_feed',sourceUrl:url,input:url,enabled:true});
+ if(detected.kind==='google_news'&&!/^news:/i.test(input.trim()))throw new Error('Prefix a Google News query with news:.');
+ if(detected.kind==='google_news'&&new URL(detected.sourceUrl).searchParams.get('q')!.length>256)throw new Error('Google News query is too long.');
+ if(detected.kind==='web_page'||detected.kind==='telegram_channel'||detected.kind==='apify_actor')throw new Error(detected.kind==='telegram_channel'?'Telegram setup requires a verified channel identity.':'This source type is not available in the feed editor yet.');
+ const actorId=detected.provider==='apify'?(detected.kind==='x_profile'||detected.kind==='x_search'?TESTED_ACTORS.x:TESTED_ACTORS[detected.kind]):undefined;
+ const sourceUrl=detected.sourceUrl?new URL(detected.sourceUrl).href:undefined;
+ if(detected.kind==='rss_feed')new WorkerPublicSourceFetch(sourceUrl!);
+ const normalizedInput=detected.kind==='rss_feed'?sourceUrl!:detected.input;
+ const definition=productConnectorSource({provider:detected.provider,kind:detected.kind,source_url:sourceUrl??null,input:normalizedInput,actor_id:actorId});
+ if(!definition)throw new Error('This source configuration is not supported by the connector runtime.');
+ return {detected,actorId,sourceUrl,input:normalizedInput,canonicalUrl:definition.canonicalUrl};
+}
+
+export async function approveProductSource(env:Env,repo:Repository,feed:BriefingConfig,input:string) {
+ const plan=prepareProductSourceInput(input);
+ const source=await repo.upsertConfiguredSource({briefingId:feed.id,title:plan.detected.title,provider:plan.detected.provider,kind:plan.detected.kind,username:'username' in plan.detected?plan.detected.username:undefined,sourceUrl:plan.sourceUrl,input:plan.input,actorId:plan.actorId,actorInput:'actorInput' in plan.detected?plan.detected.actorInput:undefined,enabled:true});
  const admission=await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND (collection_owner='connector' OR (SELECT COUNT(*) FROM sources WHERE collection_owner='connector')<10)").bind(source.id).run();
  if(!admission.meta.changes)throw new Error('This deployment has reached its ten-source collection limit.');
  if(!feed.paused)await enrollV1Source(env.DB,source.id,feed.ownerAccountId,new Date().toISOString());
- return {sourceId:source.id,url,title:source.title,fetched:0,imported:0,queued:0,skipped:0};
+ return {sourceId:source.id,url:plan.canonicalUrl,title:source.title,fetched:0,imported:0,queued:0,skipped:0};
 }
 
 /** Presentation adapter: copies immutable published prose and exact provenance.

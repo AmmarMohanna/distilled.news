@@ -38,3 +38,29 @@ it('saves explicit owner sources into connector approval, retries without duplic
   expect((await app.request('/api/me/sources/recommend',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify({title:'News',description:'Lebanon'})},env)).status).toBe(503);
  }finally{await ctx.dispose()}
 },60000);
+
+it('approves supported connector inputs without a paid fetch and retains their identity on edit',async()=>{
+ const ctx=await createIntakeDatabase({product:true});
+ try {
+  const repo=new D1Repository(ctx.db),owner=await repo.createAccount({email:'sources@example.com',username:'sources',role:'user',passwordHash:'unused',emailVerifiedAt:new Date().toISOString()});
+  const env={DB:ctx.db,ADMIN_SESSION_SECRET:'test-secret',PRODUCT_FEEDS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true'} as Env;
+  const app=createApp({repository:repo});const cookie=`dn_session=${await createSession(env.ADMIN_SESSION_SECRET!,owner)}`;
+  const sourceInputs=['https://example.com/rss.xml','news: Lebanon electricity','https://x.com/NASA','x: climate technology','linkedin: https://www.linkedin.com/company/nasa/'];
+  const input={id:'mixed-feed',title:'Mixed News',interestProfile:'Space and energy',sourceInputs,publicFeedEnabled:false,updateIntervalMinutes:120,briefingTimezone:'Asia/Beirut',language:'en'};
+  const save=(body:unknown)=>app.request('/api/me/feeds',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify(body)},env);
+  expect((await save(input)).status).toBe(200);
+  const first=await repo.listSources(input.id);
+  expect(first.map(source=>source.kind).sort()).toEqual(['google_news','linkedin_company','rss_feed','x_profile','x_search']);
+  expect(first.find(source=>source.kind==='google_news')?.input).toBe(sourceInputs[1]);
+  expect(first.find(source=>source.kind==='x_search')?.sourceUrl).toBeUndefined();
+  expect(first.find(source=>source.kind==='x_profile')?.actorId).toBeTruthy();
+  expect((await productRuntimeEnv(env)).V1_DOWNSTREAM_FEED_SOURCE_IDS?.split(',')).toHaveLength(5);
+  expect((await save(input)).status).toBe(200);
+  expect((await repo.listSources(input.id)).map(source=>source.id).sort()).toEqual(first.map(source=>source.id).sort());
+  expect((await save({...input,sourceInputs:['https://t.me/examplechannel']})).status).toBe(400);
+  expect((await save({...input,sourceInputs:['https://example.com/story']})).status).toBe(400);
+  expect((await save({...input,sourceInputs:['Lebanon electricity']})).status).toBe(400);
+  expect((await save({...input,sourceInputs:['news: Lebanon electricity','x: climate technology']})).status).toBe(200);
+  expect((await repo.listSources(input.id)).map(source=>source.kind).sort()).toEqual(['google_news','x_search']);
+ }finally{await ctx.dispose()}
+},60000);

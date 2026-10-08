@@ -1,7 +1,5 @@
 import {sourceRecommendations} from './source-recommendations';
-import {detectSourceInput} from '@distilled/connectors';
-import {WorkerPublicSourceFetch} from './public-source-fetch';
-import {approveProductSource,publishedProductEditions,productPublicationState} from './product-feeds';
+import {approveProductSource,prepareProductSourceInput,publishedProductEditions,productPublicationState} from './product-feeds';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
@@ -782,29 +780,26 @@ export function createApp(options: AppOptions = {}) {
 
   app.post('/api/me/feeds', async c => {
     if(c.env.PRODUCT_FEEDS_ENABLED!=='true')return c.json({error:'Feed configuration is not enabled on this deployment.'},503);
-    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(120),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{const source=detectSourceInput(value);if(source.provider!=="rss"||source.kind!=="rss_feed")return false;new WorkerPublicSourceFetch(source.sourceUrl);return true}catch{return false}},"Add a public RSS feed URL supported by this deployment.")).min(1).max(5),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleSchema.shape.durationMinutes,briefingTimeOfDay:liveScheduleSchema.shape.deliveryAnchor,briefingTimezone:liveScheduleSchema.shape.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
+    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(120),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Add an RSS URL, news: query, X profile/topic, or linkedin: company/profile URL supported by this deployment.")).min(1).max(5),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleSchema.shape.durationMinutes,briefingTimeOfDay:liveScheduleSchema.shape.deliveryAnchor,briefingTimezone:liveScheduleSchema.shape.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
     if(input.updateIntervalMinutes===1440&&!input.briefingTimeOfDay)return c.json({error:'Choose a Daily delivery time.'},400);
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
     // Validate every requested source before saving the Feed or changing approval.
-    const sourceUrls=[...new Set(input.sourceInputs.map(value=>{
-      const detected=detectSourceInput(value);
-      if(detected.provider!=='rss'||detected.kind!=='rss_feed')throw new Error('Add a public RSS feed URL. This deployment cannot configure this source type yet.');
-      new WorkerPublicSourceFetch(detected.sourceUrl);return new URL(detected.sourceUrl).href;
-    }))];
+    const plans=[...new Map(input.sourceInputs.map(value=>{const plan=prepareProductSourceInput(value);return [plan.canonicalUrl,plan] as const})).values()];
     const prior=existing?await repo.listSources(existing.id):[];
     const count=await c.env.DB.prepare("SELECT COUNT(*) AS n FROM sources WHERE collection_owner='connector'").first<{n:number}>();
-    if((count?.n??0)+sourceUrls.filter(url=>!prior.some(s=>s.sourceUrl===url)).length>10)return c.json({error:'This deployment has reached its ten-source collection limit.'},409);
+    if((count?.n??0)+plans.filter(plan=>!prior.some(s=>s.provider===plan.detected.provider&&s.kind===plan.detected.kind&&((plan.sourceUrl&&s.sourceUrl===plan.sourceUrl)||(!plan.sourceUrl&&s.input===plan.input)))).length>10)return c.json({error:'This deployment has reached its ten-source collection limit.'},409);
     const feeds=await repo.listBriefings(owner.id);
     const base=normalizeUsername(input.title);let slug=existing?.slug??base,index=2;
     while(!existing&&feeds.some(f=>f.slug===slug))slug=`${base}-${index++}`;
     const savedResponse=await app.fetch(new Request(new URL('/api/me/briefings',c.req.url),{method:'POST',headers:c.req.raw.headers,body:JSON.stringify({...existing,...input,slug})}),c.env);
     if(!savedResponse.ok)return savedResponse;
     const {briefing}=await savedResponse.json() as {briefing:BriefingConfig};
-    for(const url of sourceUrls)await approveProductSource(c.env,repo,briefing,url);
+    const approvedIds=new Set<string>();
+    for(const plan of plans)approvedIds.add((await approveProductSource(c.env,repo,briefing,plan.input)).sourceId);
     // Ordinary editor lists active sources. Preserve independently paused sources
     // that the user did not see or explicitly remove in this edit.
-    for(const source of prior)if(source.enabled&&!sourceUrls.includes(source.sourceUrl??source.url??''))await repo.deleteSource(source.id);
+    for(const source of prior)if(source.enabled&&!approvedIds.has(source.id))await repo.deleteSource(source.id);
     return c.json({briefing});
   });
 
