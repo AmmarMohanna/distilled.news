@@ -3,17 +3,18 @@ import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {targets,type PublicationWindow} from './scoring';
 import {assessSelfContainment,type FactContext,type SelfContainment} from './self-contained';
-import {communicationFingerprint,evaluateEditorialDelta,noveltyClass,type NoveltyClass,mergeEquivalentFacts,supportedSentences,type EditorialDecision} from './editorial';
+import {provenMaterialDelta,provenSlotValueDelta} from './material-delta';
+import {communicationFingerprint,evaluateEditorialDelta,noveltyClass,type NoveltyClass,mergeEquivalentFacts,supportedSentences,type EditorialDecision,equivalentFact} from './editorial';
 import {refreshSourceCorrectionObligations,type LedgerEntry,type CorrectionObligation} from './ledger';
 import type {EventSemanticState,Proposition} from './semantic-state';
 import {factTiming,type FactTiming} from './freshness';
 import {protectedEffects} from './semantic-routing';
 import {cheapEditorialRanking,compareEditorialCandidates,rankEditorialCandidates,type EditorialRanking} from './editorial-ranking';
 import {deferEditorialWork,resolveEditorialWork,type EditorialWork} from './editorial-work';
-import {nonFactRole} from './claims';
+import {CLAIM_EXTRACTOR,type SourceDocument,nonFactRole} from './claims';
 import {communicationCost,type CommunicationCost} from './planning-capacity';
 import type {Env} from '../types';
-export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v10';
+export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v11';
 export type {NoveltyClass};
 export interface ShortlistFact {id:string;timing?:FactTiming;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
 export interface ShortlistCandidate {sourceTitles?:string[];ranking?:EditorialRanking;communicationCost?:CommunicationCost;novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
@@ -34,6 +35,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   const withdrawal=withdrawnStates.find(s=>s.id===o.triggerId&&s.editionId===o.editionId&&s.status==='WITHDRAWN');
   return withdrawal?{...o,publicationWithdrawal:{reason:withdrawal.reason}}:o;
  });
+ const sourceDocuments=await tx.list<SourceDocument>('source_documents');
  const candidates:ShortlistCandidate[]=[];
  const currentTargets=await targets(tx,window,true);
  for(const work of pendingWork){
@@ -59,9 +61,22 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   for(const fact of facts){const a=assessSelfContainment(fact.text,target.evidence.filter(e=>fact.evidenceRevisionIds.includes(e.id)));fact.selfContained=a.status;if(a.context)fact.context=a.context}
   const editorial=await evaluateEditorialDelta(tx,target,window.end,window.start),effects=[...new Set(states.flatMap(s=>s.epistemicEffects))],protectedReasons:string[]=effects.filter(e=>protectedEffects.has(e));
   if(related.length)protectedReasons.push('CORRECTION_OBLIGATION');
-  if(deferred.some(w=>w.protectedReasons.length))protectedReasons.push('DEFERRED_EDITORIAL_WORK');
-  if(editorial.previouslyCommunicated.length && editorial.newUnderstanding.some(f=>/\p{N}|\b(may|might|could|confirmed|alleged|not|never)\b/iu.test(f.text)))protectedReasons.push('MATERIAL_QUALIFIER_DELTA');
-  const flags=[...(editorial.decision==='SUPPRESS'?['POSSIBLE_REPEAT']:[]),...(editorial.reasonCodes.includes('OLD_RECAP')?['OLD_RECAP']:[]),...(states.some(s=>s.provisional)?['PROVISIONAL']:[]),...(facts.some(f=>f.certainty?.hedges.length)?['QUALIFIED']:[]),...(facts.some(f=>f.selfContained==='UNRESOLVED')?['NON_SELF_CONTAINED']:[])];
+  // Recompute protection from supported meaning, never inherit a historic false
+  // numeric-presence flag from deferred work. Unknown paraphrases stay ordinary.
+  const known=editorial.previouslyCommunicated.filter(p=>!p.withdrawn).flatMap(p=>p.facts);
+  const currentSlots=(await Promise.all(states.flatMap(s=>s.stateSlotIds).map(id=>tx.read<import('./semantic-state').StateSlot>('state_slots',id)))).filter((s):s is import('./semantic-state').StateSlot=>Boolean(s));
+  const priorVersionIds=(await tx.list<import('./publication').BriefingEditionRecord>('editions')).filter(e=>earlierEditions.has(e.id)).flatMap(e=>e.eventVersionIds);
+  let structuredDelta=false;
+  for(const versionId of currentSlots.length?priorVersionIds:[]){const version=await tx.read<import('@distilled/contracts').EventVersion>('event_versions',versionId);if(!version||!editorial.previouslyCommunicated.some(p=>p.targetVersionId===versionId))continue;
+   const old=await tx.read<EventSemanticState>('event_semantic_states',versionId);for(const id of old?.stateSlotIds??[]){const slot=await tx.read<import('./semantic-state').StateSlot>('state_slots',id),proposition=slot?await tx.read<Proposition>('propositions',slot.propositionId):undefined;
+    if(!slot?.entityId||!proposition||!known.some(text=>equivalentFact(text,proposition.text)))continue;
+    const priorEntity=await tx.read<import('./semantic-state').Entity>('entities',slot.entityId),currentEntities=await Promise.all(currentSlots.map(s=>s.entityId?tx.read<import('./semantic-state').Entity>('entities',s.entityId):undefined));
+    structuredDelta ||= currentSlots.some((s,i)=>Boolean(priorEntity&&currentEntities[i]?.entityId===priorEntity.entityId)&&s.attribute===slot.attribute&&s.asOf===slot.asOf&&(provenSlotValueDelta(slot.value,s.value)||s.certainty.kind!==slot.certainty.kind||(s.attribution??'').normalize('NFKC').toLowerCase().trim()!==(slot.attribution??'').normalize('NFKC').toLowerCase().trim()));
+   }
+  }
+  if(structuredDelta||editorial.newUnderstanding.some(f=>known.some(previous=>provenMaterialDelta(previous,f.text))))protectedReasons.push('MATERIAL_QUALIFIER_DELTA');
+  const titleExtractionPending=target.evidence.some(e=>e.title&&!nonFactRole(e.title)&&!sourceDocuments.some(d=>d.evidenceRevisionId===e.id&&d.extractorVersion===CLAIM_EXTRACTOR));
+  const flags=[...(titleExtractionPending?['TITLE_EXTRACTION_PENDING']:[]),...(editorial.decision==='SUPPRESS'?['POSSIBLE_REPEAT']:[]),...(editorial.reasonCodes.includes('OLD_RECAP')?['OLD_RECAP']:[]),...(states.some(s=>s.provisional)?['PROVISIONAL']:[]),...(states.some(s=>s.provisional)&&(protectedReasons.length||known.length)?['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE']:[]),...(facts.some(f=>f.certainty?.hedges.length)?['QUALIFIED']:[]),...(facts.some(f=>f.selfContained==='UNRESOLVED')?['NON_SELF_CONTAINED']:[])];
   const candidate:ShortlistCandidate={sourceTitles:[...new Set(target.evidence.map(e=>e.title).filter((s):s is string=>Boolean(s)))].slice(0,3),novelty:noveltyClass(editorial.reasonCodes[0],effects),targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),facts,stateSlotIds:[...new Set(states.flatMap(s=>s.stateSlotIds))],effects,flags,protectedReasons:[...new Set(protectedReasons)],correctionObligationIds:related.map(o=>o.id),priority:protectedReasons.length?1:editorial.reasonCodes.includes('OLD_RECAP')?.3:editorial.newUnderstanding.length?.6:.2,fallbackEditorial:editorial};
   candidate.ranking=options.rankings?.get(target.id)??cheapEditorialRanking(tx.snapshot.feed,candidate);
   candidate.communicationCost=communicationCost(candidate);candidate.priority=candidate.ranking.score;

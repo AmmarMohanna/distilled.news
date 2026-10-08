@@ -20,7 +20,7 @@ async function versionEvent(tx:FeedTransaction,event:EventRecord,revisions:Evide
  if(old){
   const previous=await tx.read<EventSemanticState>('event_semantic_states',old.id),activeIds=new Set(revisions.map(r=>r.id)),surviving:string[]=[];
   for(const id of previous?.propositionIds??[]){const p=await tx.read<Proposition>('propositions',id);if(p&&p.evidenceRevisionIds.every(id=>activeIds.has(id)))surviving.push(...p.claimMentionIds)}
-  if(!binding&&previous&&previous.provenance.scorer!=='DETERMINISTIC_FOUNDATION')binding={group:{claimMentionIds:[...new Set(surviving)],eventId:event.id,storylineId:null,structuralRelation:'SAME_EVENT',epistemicEffects:[],entities:[],slots:[]},provenance:previous.provenance};
+  if(!binding&&previous&&previous.provenance.scorer!=='DETERMINISTIC_FOUNDATION')binding={group:{claimMentionIds:[...new Set(surviving)],eventId:previous.provisional?null:event.id,storylineId:null,structuralRelation:previous.provisional?'DEFER':'SAME_EVENT',epistemicEffects:[],entities:[],slots:[]},provenance:previous.provenance};
   if(binding){
    binding.group.claimMentionIds=[...new Set([...binding.group.claimMentionIds,...surviving])];const allowed=new Set(binding.group.claimMentionIds);
    for(const id of previous?.entityIds??[]){const e=await tx.read<import('./semantic-state').Entity>('entities',id);if(e&&e.claimMentionIds.every(id=>allowed.has(id))&&!binding.group.entities.some(item=>item.canonicalLabel===e.canonicalLabel))binding.group.entities.push({canonicalLabel:e.canonicalLabel,aliases:e.aliases,claimMentionIds:e.claimMentionIds})}

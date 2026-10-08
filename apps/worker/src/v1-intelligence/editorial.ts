@@ -5,9 +5,10 @@ import type {BriefingEditionRecord} from './publication';
 import type {StorylineVersion} from './types';
 import {features} from './policies';
 import {assessFreshness,type Freshness} from './freshness';
+import {nonFactRole} from './claims';
 import {ledgerProjectionId,type LedgerEntry,type LedgerProjection} from './ledger';
 
-export const EDITORIAL_POLICY='supported-delta-ledger-v4';
+export const EDITORIAL_POLICY='supported-delta-ledger-v5';
 export type EditorialReason='MAJOR_STATE_CHANGE'|'MATERIAL_NEW_FACT'|'NEW_SUPPORTED_DEVELOPMENT'|'ALREADY_COMMUNICATED'|'CORROBORATION_ONLY'|'LOW_INFORMATION_GAIN'|'LOW_RELEVANCE'|'OLD_RECAP'|'DEFERRED_EDITORIAL_WORK'|'OMITTED_BY_EDITOR';
 /** Reader-state novelty: what this target adds relative to what the reader was already told. */
 export type NoveltyClass='NEW_EVENT'|'NEW_FACT'|'ADDS_DETAIL'|'CHANGES_STATE'|'CHANGES_CERTAINTY'|'CONTRADICTS'|'CORRECTS'|'RETRACTS'|'CORROBORATION_ONLY'|'OLD_RECAP'|'ALREADY_COMMUNICATED'|'LOW_RELEVANCE'|'LOW_INFORMATION_GAIN';
@@ -89,6 +90,21 @@ export async function communicatedState(tx:FeedTransaction,target:EditorialTarge
   for(const id of version.eventVersionIds) {const event=await tx.read<EventVersion>('event_versions',id);if(event) lineage.add(event.eventId)}
  }
  const result:CommunicatedState[]=[];
+ const approvedHistory=async(edition:BriefingEditionRecord,candidateIds:string[])=>{
+  const selection=await tx.read<import('./scoring').SelectionRecord>('selections',edition.selectionId);
+  const plan=selection?.editorialPlanId?await tx.read<import('./editorial-plan').EditorialPlanRecord>('editorial_plans',selection.editorialPlanId):undefined;
+  const shortlist=plan?await tx.read<import('./shortlist').ShortlistRecord>('shortlists',plan.shortlistId):undefined;
+  const verification=await tx.read<{semanticChecks?:import('./fidelity').SemanticFactCheck[]}>('verification_results',edition.generation.verificationId??edition.selectionId);
+  if(!shortlist||!verification?.semanticChecks)return [];
+  const out:EditorialFact[]=[];
+  for(const story of edition.stories.filter(s=>candidateIds.includes(s.candidateId))){
+   const candidate=await tx.read<BriefingCandidate>('candidates',story.candidateId);
+   for(const fact of shortlist.candidates.find(c=>c.targetVersionId===candidate?.targetVersionId)?.facts??[]){
+    const check=verification.semanticChecks.find(c=>c.factId===fact.id);
+    if(check&&check.communicated&&check.attribution&&check.certainty&&check.temporal&&check.qualifiers&&check.nonRepetitive!==false&&check.readerSpans?.length&&check.readerSpans.every(w=>story.claims.some(c=>c.id===w.claimId&&c.text.includes(w.text))))out.push({text:fact.text,evidenceRevisionIds:fact.evidenceRevisionIds});
+   }
+  }return out;
+ };
  const editions=(await tx.list<BriefingEditionRecord>('editions')).filter(e=>Date.parse(e.windowEnd)<Date.parse(windowEnd)).sort((a,b)=>b.windowEnd.localeCompare(a.windowEnd)||a.id.localeCompare(b.id));
  for(const edition of editions) {
   const status=await tx.read<{status:string}>('publication_status',edition.id);if(!status || !['PUBLISHED','WITHDRAWN'].includes(status.status))continue;
@@ -98,7 +114,7 @@ export async function communicatedState(tx:FeedTransaction,target:EditorialTarge
    if(entries.length===projection.entryIds.length){
     const related=entries.filter(e=>e.eventIds.some(id=>lineage.has(id)) || Boolean(target.storylineId && e.storylineIds.includes(target.storylineId)));
     const groups=new Map<string,LedgerEntry[]>();for(const entry of related){const group=groups.get(entry.candidateId)??[];group.push(entry);groups.set(entry.candidateId,group)}
-    for(const group of groups.values())result.push({editionId:edition.id,targetType:group[0].targetType,targetVersionId:group[0].targetVersionId,claimIds:group.map(e=>e.claimId),facts:group.flatMap(e=>e.claimFacts),factEvidenceRevisionIds:group.flatMap(e=>e.claimFacts.map(()=>e.evidenceRevisionIds)),evidenceRevisionIds:[...new Set(group.flatMap(e=>e.evidenceRevisionIds))],withdrawn:status.status==='WITHDRAWN',ledgerEntryIds:group.map(e=>e.id)});
+    for(const group of groups.values()){const approved=await approvedHistory(edition,[group[0].candidateId]);result.push({editionId:edition.id,targetType:group[0].targetType,targetVersionId:group[0].targetVersionId,claimIds:group.map(e=>e.claimId),facts:[...group.flatMap(e=>e.claimFacts),...approved.map(f=>f.text)],factEvidenceRevisionIds:[...group.flatMap(e=>e.claimFacts.map(()=>e.evidenceRevisionIds)),...approved.map(f=>f.evidenceRevisionIds)],evidenceRevisionIds:[...new Set(group.flatMap(e=>e.evidenceRevisionIds))],withdrawn:status.status==='WITHDRAWN',ledgerEntryIds:group.map(e=>e.id)});}
     continue;
    }
   }
@@ -120,7 +136,7 @@ export async function communicatedState(tx:FeedTransaction,target:EditorialTarge
 }
 export async function evaluateEditorialDelta(tx:FeedTransaction,target:EditorialTarget,windowEnd:string,windowStart?:string):Promise<EditorialDecision> {
  const previous=await communicatedState(tx,target,windowEnd),facts:EditorialFact[]=[];
- for(const evidence of target.evidence) for(const text of supportedSentences(evidence.body??evidence.title??'')) {
+ for(const evidence of target.evidence) for(const text of [evidence.title,evidence.body].flatMap(value=>supportedSentences(value??'')).filter(text=>!nonFactRole(text))) {
   const same=facts.find(f=>equivalentFact(f.text,text));
   if(same) same.evidenceRevisionIds.push(evidence.id);else facts.push({text,evidenceRevisionIds:[evidence.id]});
  }

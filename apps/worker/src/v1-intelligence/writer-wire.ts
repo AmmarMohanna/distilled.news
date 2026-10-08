@@ -47,7 +47,7 @@ export function writerWire(input:SynthesisWriterInput){
  return {payload,schema,decode,repair};
 }
 /** One fact inventory and source context per story, not per claim. */
-export function verificationWire(claims:VerificationClaim[],options:{requireReaderNovelty?:boolean}={}){
+export function verificationWire(claims:VerificationClaim[],options:{requireReaderNovelty?:boolean;requireFullEntailment?:boolean}={}){
  const factIds=new Map<string,string>(),claimIds=new Map<string,string>(),obligationIds=new Map<string,string>(),historyIds=new Map<string,string>();
  const alias=(map:Map<string,string>,id:string,prefix:string)=>{let key=[...map].find(([,original])=>original===id)?.[0];if(!key){key=`${prefix}_${map.size+1}`;map.set(key,id);}return key;};
  const fact=(id:string)=>{let alias=[...factIds].find(([,value])=>value===id)?.[0];if(!alias){alias=`fact_${factIds.size+1}`;factIds.set(alias,id);}return alias;};
@@ -59,7 +59,7 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
   const contexts=new Map<string,VerificationClaim['context']>();
   for(const c of group.flatMap(c=>c.context)){const key=JSON.stringify([c.text,c.title,c.publisherId,c.truncated]);contexts.set(key,[...(contexts.get(key)??[]),c]);}
   const inventory=unique(group.flatMap(c=>[...(c.allowedFacts??[]),...(c.requiredFacts??[]),...(c.newUnderstandingFacts??[])]));
-  return {storyId:`story_${i+1}`,claims:group.map(c=>{const id=`claim_${claimIds.size+1}`;claimIds.set(id,c.id);return {id,text:c.text,support:spans(c.support)};}),facts:inventory.map(f=>({...f,id:fact(f.id)})),requiredFactIds:[...new Set(group.flatMap(c=>(c.requiredFacts??[]).map(f=>fact(f.id))))],newUnderstandingFactIds:[...new Set(group.flatMap(c=>(c.newUnderstandingFacts??[]).map(f=>fact(f.id))))],previousLedgerFacts:[...new Set(group.flatMap(c=>c.previousLedgerFacts??[]))],previousReaderClaims:unique(group.flatMap(c=>c.previousReaderClaims??[])).map(e=>({id:alias(historyIds,e.id,'prior'),claimText:e.claimText})),correctionObligations:unique(group.flatMap(c=>c.correctionObligations??[])).map(o=>({id:alias(obligationIds,o.id,'correction'),kind:o.kind,ledgerEntryId:alias(historyIds,o.ledgerEntryId,'prior'),publicationWithdrawal:o.publicationWithdrawal})),context:[...contexts.values()].map(values=>({evidenceRevisionIds:[...new Set(values.map(c=>c.evidenceRevisionId))],title:values[0].title,publisherId:values[0].publisherId,text:values[0].text,truncated:values[0].truncated}))};
+  return {storyId:`story_${i+1}`,claims:group.map(c=>{const id=`claim_${claimIds.size+1}`;claimIds.set(id,c.id);return {id,text:c.text,support:spans(c.support)};}),facts:inventory.map(f=>({...f,id:fact(f.id)})),requiredFactIds:[...new Set(group.flatMap(c=>(c.requiredFacts??[]).map(f=>fact(f.id))))],newUnderstandingFactIds:[...new Set(group.flatMap(c=>(c.newUnderstandingFacts??[]).map(f=>fact(f.id))))],previousLedgerFacts:[...new Set(group.flatMap(c=>c.previousLedgerFacts??[]))],previousReaderClaims:unique(group.flatMap(c=>c.previousReaderClaims??[])).map(e=>({id:alias(historyIds,e.id,'prior'),claimText:e.claimText})),correctionObligations:unique(group.flatMap(c=>c.correctionObligations??[])).map(o=>({id:alias(obligationIds,o.id,'correction'),kind:o.kind,ledgerEntryId:alias(historyIds,o.ledgerEntryId,'prior'),publicationWithdrawal:o.publicationWithdrawal})),context:[...contexts.values()].map(values=>({evidenceRevisionIds:[...new Set(values.map(c=>c.evidenceRevisionId))],title:values[0].title,publisherId:values[0].publisherId,text:group.some(c=>c.support.some(s=>s.evidenceRevisionId===values[0].evidenceRevisionId&&s.quote===values[0].text))?undefined:values[0].text,truncated:values[0].truncated}))};
  });
  // Evidence identities are request-local provenance handles. Keep every support
  // relationship while avoiding repeated storage UUIDs in bounded model input.
@@ -86,9 +86,13 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
  const checkProperties=semanticSchema.items.properties as Record<string,unknown>,preservedNames={attribution:'attributionPreserved',certainty:'certaintyPreserved',temporal:'temporalFaithful',qualifiers:'qualifiersPreserved'};
  for(const [old,name] of Object.entries(preservedNames)){checkProperties[name]=checkProperties[old];delete checkProperties[old];}
  (semanticSchema.items as unknown as {required:string[]}).required=(semanticSchema.items as unknown as {required:string[]}).required.map(k=>preservedNames[k as keyof typeof preservedNames]??k);
+ if(options.requireFullEntailment){(schema.properties as Record<string,unknown>).claimEntailment={type:'array',minItems:claims.length,maxItems:claims.length,items:obj({claimId:{type:'string',enum:[...claimIds.keys()]},fullyEntailed:{type:'boolean'},reason:{type:'string',minLength:1,maxLength:500},unsupportedMeaning:{type:'array',items:{type:'string'},maxItems:8}})};schema.required.push('claimEntailment');}
  const ids=(raw:unknown,key:string,map:Map<string,string>)=>z.array(z.string()).parse((raw as Record<string,unknown>)[key]??[]).map(id=>{const original=map.get(id);if(!original)throw new Error('UNRECOGNIZED_VERIFIER_ID');return original;});
  const decode=(raw:unknown)=>{
-  const seen=new Set<string>(),supported=ids(raw,'supportedClaimIds',claimIds);
+  const seen=new Set<string>(),declared=ids(raw,'supportedClaimIds',claimIds);
+  const claimEntailment=options.requireFullEntailment?z.array(z.object({claimId:z.string(),fullyEntailed:z.boolean(),reason:z.string().min(1).max(500),unsupportedMeaning:z.array(z.string()).max(8)}).strict()).parse((raw as any).claimEntailment??[]):[];
+  if(new Set(claimEntailment.map(c=>c.claimId)).size!==claimEntailment.length||claimEntailment.some(c=>!claimIds.has(c.claimId)))throw Error('UNRECOGNIZED_VERIFIER_ID');
+  const supported=declared.filter(id=>!options.requireFullEntailment||claimEntailment.some(c=>claimIds.get(c.claimId)===id&&c.fullyEntailed&&!c.unsupportedMeaning.length));
   const offered=z.array(z.record(z.string(),z.unknown())).parse((raw as Record<string,unknown>).semanticChecks??[]).map(c=>{const value={...c};for(const [old,name] of Object.entries(preservedNames))if(name in value){if(old in value)throw new Error('AMBIGUOUS_VERIFIER_FACET');value[old]=value[name];delete value[name];}return value;});
   const semanticChecks=z.array(check).parse(offered).map(c=>{const factId=factIds.get(c.factId);if(!factId||seen.has(factId))throw new Error('UNRECOGNIZED_VERIFIER_ID');seen.add(factId);
    let invalidWitness=false;
@@ -104,7 +108,7 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
    }
    return {...c,factId,readerSpans,...(readerNovelty?{readerNovelty}:{})};});
   if(requiredIds.some(id=>!seen.has(factIds.get(id)!)))throw new Error('INCOMPLETE_SEMANTIC_VERDICT');
-  return {supportedClaimIds:ids(raw,'supportedClaimIds',claimIds),preservedFactIds:ids(raw,'preservedFactIds',factIds).filter(id=>semanticChecks.some(c=>c.factId===id&&faithfulFact(c))),semanticChecks,novelFactIds:options.requireReaderNovelty?semanticChecks.filter(c=>c.readerNovelty?.status==='NEW'&&faithfulFact(c)).map(c=>c.factId):ids(raw,'novelFactIds',factIds),addressedCorrectionObligationIds:ids(raw,'addressedCorrectionObligationIds',obligationIds)};
+  return {claimEntailment:claimEntailment.map(c=>({...c,claimId:claimIds.get(c.claimId)!})),supportedClaimIds:supported,preservedFactIds:ids(raw,'preservedFactIds',factIds).filter(id=>semanticChecks.some(c=>c.factId===id&&faithfulFact(c))),semanticChecks,novelFactIds:options.requireReaderNovelty?semanticChecks.filter(c=>c.readerNovelty?.status==='NEW'&&faithfulFact(c)).map(c=>c.factId):ids(raw,'novelFactIds',factIds),addressedCorrectionObligationIds:ids(raw,'addressedCorrectionObligationIds',obligationIds)};
  };
  return {payload,schema,decode};
 }

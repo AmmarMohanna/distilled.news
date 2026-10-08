@@ -12,6 +12,8 @@ import type {EventRecord,FeedRecord,StorylineRecord,StorylineVersion} from './ty
 import type {EditorialPlanRecord,PlanStory} from './editorial-plan';
 import type {ShortlistRecord,ShortlistFact} from './shortlist';
 import {checkReaderFidelity,verifiedCorrectionDelivery,faithfulFact,hasReaderWitness,type SemanticFactCheck} from './fidelity';
+import {scheduleRematch} from './rematch';
+import type {EventSemanticState} from './semantic-state';
 import {DraftVerificationError,inspectWriterDraft,type WriterFeedback,type WriterIssue} from './writer-feedback';
 
 export interface ClaimSupport {evidenceRevisionId:string;quote:string}
@@ -32,14 +34,16 @@ export interface BriefingModelPort {
  repair?(input:SynthesisWriterInput,draft:BriefingDraft,feedback:WriterFeedback,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
  repairPayload?(input:SynthesisWriterInput,draft:BriefingDraft,feedback:WriterFeedback):unknown;
  verificationPayload?(claims:VerificationClaim[]):unknown;
- verify?(claims:VerificationClaim[],limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{supportedClaimIds:string[];preservedFactIds?:string[];addressedCorrectionObligationIds?:string[];novelFactIds?:string[];semanticChecks?:SemanticFactCheck[];usage:ModelUsage}>;
+ verify?(claims:VerificationClaim[],limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{supportedClaimIds:string[];preservedFactIds?:string[];addressedCorrectionObligationIds?:string[];novelFactIds?:string[];semanticChecks?:SemanticFactCheck[];claimEntailment?:{claimId:string;fullyEntailed:boolean;reason:string;unsupportedMeaning:string[]}[];usage:ModelUsage}>;
 }
+export class QuietPublication extends Error {constructor(){super('NO_NEW_VERIFIED_STORIES')}}
 interface PublicationJob {id:string;feedId:string;selectionId:string;state:'PENDING'|'RUNNING'|'DONE'|'FAILED';attempts:number;token:string;leaseUntil:string;callsUsed:number;tokensIn:number;tokensOut:number;cost:number;pendingCall?:string;repairRequested?:boolean;failure?:string}
 interface StoredDraft {id:string;feedId:string;draft:BriefingDraft;model:string;provider:string;promptVersion?:string;createdAt:string}
 interface GroundedClaim extends DraftClaim {id:string}
 interface GroundingResult {id:string;feedId:string;stories:{candidateId:string;claims:GroundedClaim[]}[];rejectedClaims:number;policyVersion:string;createdAt:string}
 export interface BriefingEditionRecord {
  id:string;feedId:string;feedRevision:number;windowStart:string;windowEnd:string;language:string;selectionId:string;
+ provisionalSemanticStates?:{eventVersionId:string;provenance:EventSemanticState['provenance'];rematchRequestIds:string[]}[];
  selectedCandidateIds:string[];eventVersionIds:string[];storylineVersionIds:string[];evidenceRevisionIds:string[];
  stories:{candidateId:string;claims:GroundedClaim[]}[];
  generation:{model:string;provider:string;promptVersion:string;routerVersion:string;tokensIn:number;tokensOut:number;cost:number;latencyMs:number;usageConfirmed:boolean;repairCount?:number;draftId?:string;verificationId?:string};
@@ -87,7 +91,7 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Prom
   const permitted=new Set(memberships.filter(m=>versionIds.includes(m.eventVersionId)).map(m=>m.evidenceRevisionId)),evidence:SynthesisInput['stories'][number]['evidence']=[];
   for(const revisionId of selection.evidenceByCandidate[id]??[]) {
    if(!permitted.has(revisionId) || !active.has(revisionId)) throw new HandoffError('SCOPE_DENIED');
-   const revision=await tx.revision(revisionId);if(!revision?.body) throw new HandoffError('INVALID_REQUEST');
+   const revision=await tx.revision(revisionId);if(!revision?.body&&!revision?.title) throw new HandoffError('INVALID_REQUEST');
    const origin=await new V1IntakeStore(tx.store.db).read<AcceptedInput>('inputs',revision.sourceObservationId);
    if(origin&&origin.value.observation.feedId!==tx.snapshot.feed.id)throw new HandoffError('SCOPE_DENIED');
    evidence.push({...revision,excerptTruncated:false,publisherId:origin?.value.observation.publisherId});inspected++;
@@ -109,7 +113,7 @@ export function approvedWriterFacts(story:SynthesisInput['stories'][number]):App
  const p=story.plan,ids=new Set([...p.newUnderstandingFactIds,...p.contextFactIds,...p.mustIncludeFactIds,...p.attributionFactIds,...p.certaintyFactIds,...p.disagreementFactIds,...p.openQuestionFactIds]);
  return p.facts.filter(f=>ids.has(f.id)).map(f=>({...f,support:story.evidence.filter(e=>f.evidenceRevisionIds.includes(e.id)).flatMap(e=>{
   // A merged fact keeps the exact sentence of every equivalent supporter, even when worded differently.
-  const body=e.body??'',quote=body.includes(f.text)?f.text:body.trim().split(/(?<=[.!?])\s+|\n+/u).find(s=>normalize(s)===normalize(f.text)||equivalentFact(s,f.text));
+  const body=e.body??'',quote=e.title?.includes(f.text)?f.text:body.includes(f.text)?f.text:body.trim().split(/(?<=[.!?])\s+|\n+/u).find(s=>normalize(s)===normalize(f.text)||equivalentFact(s,f.text));
   return quote?[{evidenceRevisionId:e.id,quote}]:[];
  }).concat(f.context&&story.evidence.some(e=>e.id===f.context!.evidenceRevisionId&&e.title===f.context!.text)?[{evidenceRevisionId:f.context.evidenceRevisionId,quote:f.context.text}]:[])}));
 }
@@ -124,6 +128,7 @@ export function approvedSupportSpans(story:SynthesisInput['stories'][number]):Cl
    out.push({evidenceRevisionId:e.id,quote});
   }
  }
+ for(const fact of facts)for(const support of fact.support)if(story.evidence.some(e=>e.id===support.evidenceRevisionId&&e.title?.includes(support.quote))&&!out.some(p=>p.evidenceRevisionId===support.evidenceRevisionId&&p.quote===support.quote))out.push(support);
  // Supported context (the revision's own title) is an exact, citable span too.
  for(const f of facts)if(f.context&&!out.some(p=>p.evidenceRevisionId===f.context!.evidenceRevisionId&&p.quote===f.context!.text)&&story.evidence.some(e=>e.id===f.context!.evidenceRevisionId&&e.title===f.context!.text))out.push({evidenceRevisionId:f.context.evidenceRevisionId,quote:f.context.text});
  return out;
@@ -259,7 +264,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     const addressed=z.array(z.string().min(1)).max(100).optional().safeParse((result as T & {addressedCorrectionObligationIds?:unknown}).addressedCorrectionObligationIds);if(!addressed.success)throw new HandoffError('INVALID_REQUEST');
     const semantic=z.array(z.object({readerNovelty:z.object({status:z.enum(['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED','NOT_APPLICABLE']),reason:z.string().min(1).max(250),previousFactTexts:z.array(z.string()).max(20)}).strict().optional(),factId:z.string().min(1),communicated:z.boolean(),attribution:z.boolean(),certainty:z.boolean(),temporal:z.boolean(),qualifiers:z.boolean(),nonRepetitive:z.boolean().optional(),reason:z.string().max(500),readerSpans:z.array(z.object({claimId:z.string().min(1),text:z.string().min(1)}).strict()).max(80).optional()}).strict()).max(200).optional().parse((result as T & {semanticChecks?:unknown}).semanticChecks);
     if(semantic&&(new Set(semantic.map(c=>c.factId)).size!==semantic.length||semantic.some(c=>!input.stories.some(s=>s.plan?.facts.some(f=>f.id===c.factId)||preservationFacts(s).some(f=>f.id===c.factId)))))throw new HandoffError('INVALID_REQUEST');
-    await tx.write('verification_results',resultKey,{id:resultKey,feedId,supportedClaimIds:ids.data,preservedFactIds:preserved.data,addressedCorrectionObligationIds:addressed.data,novelFactIds:novel.data,semanticChecks:semantic,createdAt:options.now()});
+    await tx.write('verification_results',resultKey,{id:resultKey,feedId,supportedClaimIds:ids.data,preservedFactIds:preserved.data,addressedCorrectionObligationIds:addressed.data,novelFactIds:novel.data,semanticChecks:semantic,claimEntailment:'claimEntailment' in result?result.claimEntailment:undefined,createdAt:options.now()});
    }
    await tx.write('synthesis_jobs',editionId,{...job,pendingCall:undefined,cost:intent.previous.cost+actual.cost,tokensIn:intent.previous.tokensIn+actual.tokensIn,tokensOut:intent.previous.tokensOut+actual.tokensOut});
   });return result;
@@ -314,7 +319,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    for(const story of storedDraft.draft.stories) {
     const candidate=candidates.get(story.candidateId);if(!candidate || seenStories.has(story.candidateId)) {rejected+=Math.max(1,story.claims.length);continue}seenStories.add(story.candidateId);
     for(const claim of story.claims) {
-     const valid=claim.support.every(s=>candidate.evidence.some(e=>e.id===s.evidenceRevisionId && ((e.body??'').includes(s.quote) || e.title===s.quote)) && (!candidate.plan||approvedSupportSpans(candidate).some(p=>p.evidenceRevisionId===s.evidenceRevisionId&&p.quote.includes(s.quote))));
+     const valid=claim.support.every(s=>candidate.evidence.some(e=>e.id===s.evidenceRevisionId && ((e.body??'').includes(s.quote) || e.title?.includes(s.quote))) && (!candidate.plan||approvedSupportSpans(candidate).some(p=>p.evidenceRevisionId===s.evidenceRevisionId&&p.quote.includes(s.quote))));
      if(!valid) {rejected++;continue}
      // Only the runtime's full-context extractive fallback can bypass entailment.
      // A model-selected exact quote may be embedded in a refutation or warning.
@@ -374,9 +379,22 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     const known=story.plan!.previousLedgerEntries.flatMap(e=>e.claimFacts),novel=story.plan!.newUnderstandingFactIds.some(id=>{const f=story.plan!.facts.find(f=>f.id===id);return f&&!known.some(k=>equivalentFact(k,f.text))&&(storedDraft!.provider==='NONE'||verification?.novelFactIds?.includes(id))}),addressed=story.plan!.correctionObligations.filter(o=>verifiedCorrectionDelivery(actual?.claims.map(c=>c.text)??[],o.id,verification?.addressedCorrectionObligationIds??[],normalizeLanguage(input.feed.outputLanguage)==='en')).map(o=>o.id),correction=story.plan!.correctionObligations.length>0&&addressed.length===story.plan!.correctionObligations.length;
     return {candidateId:story.candidate.id,passed:Boolean(actual)&&fidelity.passed&&(novel||correction)&&(!story.plan!.correctionObligations.length||correction),addressedCorrectionObligationIds:addressed,fidelity,missingStory:!actual,novelty:novel?'NEW_SUPPORTED_FACT':correction?'CORRECTION_CONTEXT':'NO_SUPPORTED_DELTA',sourceSpan:'EXACT_STORED_QUOTE',entailment:storedDraft!.provider==='NONE'?'RUNTIME_FULL_CONTEXT_EXTRACTION':'MODEL_VERIFIED',mustInclude:'REQUIRED_COLLECTIVE_COVERAGE'};
    });
-   await feedTransact(store,feedId,async tx=>{if(!await tx.read('fidelity_results',draftKey))await tx.write('fidelity_results',draftKey,{id:draftKey,feedId,editorialPlanId:input.editorialPlan!.id,checks,passed:checks.every(c=>c.passed),policyVersion:'semantic-publication-fidelity-v4',createdAt:options.now()})});
-   if(checks.some(c=>!c.passed))await rejectDraft(draftKey,checks.filter(c=>!c.passed).flatMap(c=>[{code:c.novelty==='NO_SUPPORTED_DELTA'?'NO_SUPPORTED_DELTA':'PLAN_FIDELITY_FAILED',candidateId:c.candidateId},...c.fidelity.failures.map(f=>({...f,candidateId:c.candidateId}))]));
+   // A settled per-fact repetition verdict may remove an entire independent
+   // ordinary story. Never salvage unsupported facts, unresolved novelty,
+   // correction obligations or part of a must-include story. No replacement,
+   // rewrite, extra call or relaxation of grounding occurs.
+   const removed=checks.filter(c=>!c.passed&&c.novelty==='NO_SUPPORTED_DELTA'&&c.fidelity.passed&&['NEW','DETAIL','REPEAT','CORRECTION'].includes(input.stories.find(s=>s.candidate.id===c.candidateId)!.plan!.deltaType)&&input.stories.find(s=>s.candidate.id===c.candidateId)?.plan?.correctionObligations.length===0&&preservationFacts(input.stories.find(s=>s.candidate.id===c.candidateId)!).every(f=>{
+    const verdict=verification?.semanticChecks?.find(v=>v.factId===f.id);
+    return !!verdict&&faithfulFact(verdict)&&verdict.readerNovelty?.status==='ALREADY_COMMUNICATED'&&verdict.readerNovelty.previousFactTexts.length>0&&verdict.readerNovelty.previousFactTexts.every(text=>input.stories.find(s=>s.candidate.id===c.candidateId)!.plan!.previousLedgerEntries.some(e=>e.claimFacts.includes(text)));
+   })).map(c=>c.candidateId);
+   if(removed.length){
+    grounding={...grounding,stories:grounding.stories.filter(s=>!removed.includes(s.candidateId))};
+    await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await assertCommunicationCurrent(tx,selection);const id=JSON.stringify([draftKey,'verified-repetition-v1']);if(!await tx.read('publication_reconciliations',id))await tx.write('publication_reconciliations',id,{id,feedId,selectionId,draftId:draftKey,removedCandidateIds:removed,retainedCandidateIds:grounding!.stories.map(s=>s.candidateId),reason:'VERIFIED_ALREADY_COMMUNICATED',createdAt:options.now()})});
+   }
+   await feedTransact(store,feedId,async tx=>{if(!await tx.read('fidelity_results',draftKey))await tx.write('fidelity_results',draftKey,{id:draftKey,feedId,editorialPlanId:input.editorialPlan!.id,checks,passed:checks.every(c=>c.passed||removed.includes(c.candidateId)),reconciledCandidateIds:removed,policyVersion:'semantic-publication-fidelity-v4',createdAt:options.now()})});
+   if(checks.some(c=>!c.passed&&!removed.includes(c.candidateId)))await rejectDraft(draftKey,checks.filter(c=>!c.passed&&!removed.includes(c.candidateId)).flatMap(c=>[{code:c.novelty==='NO_SUPPORTED_DELTA'?'NO_SUPPORTED_DELTA':'PLAN_FIDELITY_FAILED',candidateId:c.candidateId},...c.fidelity.failures.map(f=>({...f,candidateId:c.candidateId}))]));
   }
+   if(!grounding.stories.length){await feedTransact(store,feedId,async tx=>{await selectionInput(tx,selection);const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,state:'DONE',failure:undefined});const request=await tx.read<any>('briefing_requests',editionId);if(request)await tx.write('briefing_requests',editionId,{...request,state:'DONE',result:'QUIET',reason:'NO_NEW_VERIFIED_STORIES',completedAt:options.now()})});throw new QuietPublication();}
    return grounding;
   };
   const repairKey=JSON.stringify([selectionId,'repair-1']);
@@ -405,8 +423,14 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    const usedCandidates=finalGrounding.stories.map(s=>s.candidateId),selected=input.stories.filter(s=>usedCandidates.includes(s.candidate.id));
    const eventVersionIds=[...new Set(selected.flatMap(s=>s.eventVersions.map(v=>v.id)))],storylineVersionIds=selected.flatMap(s=>s.storylineVersion?[s.storylineVersion.id]:[]);
    const evidenceRevisionIds=[...new Set((await tx.list<EventMembership>('memberships')).filter(m=>eventVersionIds.includes(m.eventVersionId)).map(m=>m.evidenceRevisionId))];
+   const provisionalSemanticStates:NonNullable<BriefingEditionRecord['provisionalSemanticStates']>=[];
+   for(const eventVersionId of eventVersionIds){const state=await tx.read<EventSemanticState>('event_semantic_states',eventVersionId);if(!state?.provisional)continue;
+    for(const revisionId of (await tx.list<import('@distilled/contracts').EventMembership>('memberships')).filter(m=>m.eventVersionId===eventVersionId).map(m=>m.evidenceRevisionId)){const revision=await tx.revision(revisionId);if(!revision)throw new HandoffError('SCOPE_DENIED');await scheduleRematch(tx,JSON.stringify(['REASSESS',revision.sourceObservationId,'']),revisionId,options.now());}
+    const versionEvidenceIds=(await tx.list<import('@distilled/contracts').EventMembership>('memberships')).filter(m=>m.eventVersionId===eventVersionId).map(m=>m.evidenceRevisionId),requests=await tx.list<import('./rematch').RematchRequest>('rematch_requests');
+    provisionalSemanticStates.push({eventVersionId,provenance:state.provenance,rematchRequestIds:requests.filter(r=>versionEvidenceIds.includes(r.evidenceRevisionId)).map(r=>r.id)});
+   }
    if(job.tokensIn>selection.budget.maxInputTokens || job.tokensOut>selection.budget.maxOutputTokens || job.cost>selection.budget.maxCostUsd || Date.now()-started>selection.budget.maxWallClockMs) throw new HandoffError('INVALID_REQUEST');
-   const edition:BriefingEditionRecord={id:editionId,feedId,feedRevision:selection.feedRevision,windowStart:selection.window.start,windowEnd:selection.window.end,language:input.feed.outputLanguage,selectionId,selectedCandidateIds:usedCandidates,eventVersionIds,storylineVersionIds,evidenceRevisionIds,stories:finalGrounding.stories,generation:{model:finalDraft.model,provider:finalDraft.provider,promptVersion:finalDraft.promptVersion??'selected-evidence-v1',routerVersion:'stored-evidence-only-v1',tokensIn:job.tokensIn,tokensOut:job.tokensOut,cost:job.cost,latencyMs:Date.now()-started,repairCount:draftKey===repairKey?1:0,draftId:draftKey,verificationId:draftKey,usageConfirmed:(await tx.list<{id:string;editionId:string;confirmed:boolean}>('model_executions')).filter(e=>e.editionId===editionId).every(e=>e.confirmed)},selectionPolicyVersion:selection.policyVersion,groundingPolicyVersion:finalGrounding.policyVersion,createdAt:options.now()};
+   const edition:BriefingEditionRecord={provisionalSemanticStates,id:editionId,feedId,feedRevision:selection.feedRevision,windowStart:selection.window.start,windowEnd:selection.window.end,language:input.feed.outputLanguage,selectionId,selectedCandidateIds:usedCandidates,eventVersionIds,storylineVersionIds,evidenceRevisionIds,stories:finalGrounding.stories,generation:{model:finalDraft.model,provider:finalDraft.provider,promptVersion:finalDraft.promptVersion??'selected-evidence-v1',routerVersion:'stored-evidence-only-v1',tokensIn:job.tokensIn,tokensOut:job.tokensOut,cost:job.cost,latencyMs:Date.now()-started,repairCount:draftKey===repairKey?1:0,draftId:draftKey,verificationId:draftKey,usageConfirmed:(await tx.list<{id:string;editionId:string;confirmed:boolean}>('model_executions')).filter(e=>e.editionId===editionId).every(e=>e.confirmed)},selectionPolicyVersion:selection.policyVersion,groundingPolicyVersion:finalGrounding.policyVersion,createdAt:options.now()};
    await tx.write('editions',editionId,edition);await tx.write('publication_status',editionId,{id:editionId,feedId,status:'PUBLISHED',publishedAt:edition.createdAt});
    await tx.write('delivery_jobs',editionId,{id:editionId,feedId,editionId,state:'PENDING',attempts:0,createdAt:edition.createdAt});
    await tx.write('synthesis_jobs',editionId,{...job,state:'DONE'});return edition;
@@ -422,6 +446,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     await tx.write('synthesis_jobs',editionId,{...job,state:transient?'PENDING':'FAILED',failure:job.pendingCall?'MODEL_OUTCOME_UNKNOWN':error instanceof SynthesisCompatibilityError?error.reason:error instanceof HandoffError?error.code:'SYNTHESIS_FAILED'});
    }
   })} catch { /* A revoked Feed already prevents recovery/publication. */ }
+  if(error instanceof QuietPublication)throw error;
   if(error instanceof HandoffError) throw error;throw new HandoffError('TEMPORARY_UNAVAILABLE');
  }
 }

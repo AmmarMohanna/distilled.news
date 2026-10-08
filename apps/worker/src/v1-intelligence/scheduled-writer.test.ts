@@ -27,7 +27,7 @@ function providerDouble(mode:'OK'|'DOWN'='OK'){
   }
   calls.verifier++;
   const claims=payload.stories.flatMap((s:any)=>s.claims);
-  return reply({supportedClaimIds:claims.map((c:any)=>c.id),preservedFactIds:payload.stories.flatMap((s:any)=>s.requiredFactIds),novelFactIds:payload.stories.flatMap((s:any)=>s.newUnderstandingFactIds),addressedCorrectionObligationIds:[],semanticChecks:payload.stories.flatMap((s:any)=>s.requiredFactIds.map((id:string)=>{const fact=s.facts.find((f:any)=>f.id===id),claim=s.claims.find((c:any)=>c.text.includes(fact.text))??s.claims[0];return {readerNovelty:{status:s.newUnderstandingFactIds.includes(id)?'NEW':'NOT_APPLICABLE',reason:'Compared with the offered same-story reader history.',previousFactTexts:[]},factId:id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Claim prose expresses the complete fact.',readerSpans:[{claimId:claim.id,text:claim.text.includes(fact.text)?fact.text:claim.text}]}}))});
+  return reply({claimEntailment:claims.map((c:any)=>({claimId:c.id,fullyEntailed:true,reason:'Every component is supported.',unsupportedMeaning:[]})),supportedClaimIds:claims.map((c:any)=>c.id),preservedFactIds:payload.stories.flatMap((s:any)=>s.requiredFactIds),novelFactIds:payload.stories.flatMap((s:any)=>s.newUnderstandingFactIds),addressedCorrectionObligationIds:[],semanticChecks:payload.stories.flatMap((s:any)=>s.requiredFactIds.map((id:string)=>{const fact=s.facts.find((f:any)=>f.id===id),claim=s.claims.find((c:any)=>c.text.includes(fact.text))??s.claims[0];return {readerNovelty:{status:s.newUnderstandingFactIds.includes(id)?'NEW':'NOT_APPLICABLE',reason:'Compared with the offered same-story reader history.',previousFactTexts:[]},factId:id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Claim prose expresses the complete fact.',readerSpans:[{claimId:claim.id,text:claim.text.includes(fact.text)?fact.text:claim.text}]}}))});
  }) as typeof fetch;
  return {fetcher,calls};
 }
@@ -63,5 +63,5 @@ it('a provider outage falls back to the deterministic approved-fact draft withou
 it('a quiet window makes no writer call and publishes nothing',async()=>{
  const {fetcher,calls}=providerDouble();
  const {edition}=await scheduled(fetcher);
- expect(edition).toBeUndefined();expect(calls).toEqual({writer:0,verifier:0});expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect(edition).toBeUndefined();expect(calls).toEqual({writer:0,verifier:0});expect(await store.list('feed-1','editions')).toHaveLength(0);expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'QUIET',reason:'NO_SELECTED_DEVELOPMENTS'});expect(await store.list('feed-1','schedule_observations')).toHaveLength(1);
 },30000);

@@ -4,7 +4,7 @@ import {canonicalJson} from '../v1-intake/canonical';
 import type {FeedTransaction} from './store';
 import {classifyRole,features} from './policies';
 
-export const CLAIM_EXTRACTOR='exact-sentence-spans-v2',CLAIM_POLICY='deterministic-claim-foundation-v2';
+export const CLAIM_EXTRACTOR='exact-sentence-spans-v3',CLAIM_POLICY='deterministic-claim-foundation-v3';
 /** Obvious non-assertions only. Ambiguous reporting remains available to semantic construction. */
 export function nonFactRole(text:string):'QUESTION'|'CALL_TO_ACTION'|'PROMOTION'|'TEASER'|undefined {
  if(/\?\s*$/.test(text.trim()))return 'QUESTION';
@@ -41,12 +41,14 @@ export function assertClaimSpan(mention:ClaimMention,revision:EvidenceRevision):
 /** Foundation extraction is deliberately conservative metadata, not semantic
  * entailment or proof of new reporting. Exact spans never lose original qualifiers. */
 export async function extractClaimMentions(revision:EvidenceRevision):Promise<{document:SourceDocument;mentions:ClaimMention[]}> {
- const field=revision.body?'body':'title',source=revision[field]??'';
- const extractionKey=await sha256(canonicalJson({contentHash:revision.contentHash,source,field,extractorVersion:CLAIM_EXTRACTOR,policy:CLAIM_POLICY}));
+ const sources=([['title',revision.title],['body',revision.body]] as const).filter((entry):entry is readonly ['title'|'body',string]=>Boolean(entry[1]));
+ const source=sources.map(([,text])=>text).join('\n');
+ const extractionKey=await sha256(canonicalJson({contentHash:revision.contentHash,sources,extractorVersion:CLAIM_EXTRACTOR,policy:CLAIM_POLICY}));
  const documentId=await sha256(canonicalJson({feedId:revision.feedId,revisionId:revision.id,extractionKey}));
  const dependency=source.match(/\b(?:republished from|originally published by|reporting by|distributed by|via)\s+([\p{L}\p{N}][\p{L}\p{N} .'-]{1,80})(?=[\n:;]|$)/iu)?.[1]?.trim();
  const origin:ClaimMention['origin']={kind:dependency?'EXPLICIT_DEPENDENCY':'UNKNOWN',label:dependency,fingerprint:await sha256(source.normalize('NFKC').replace(/\s+/g,' ').trim())};
  const mentions:ClaimMention[]=[],documentRole=classifyRole(source).role;
+ for(const [field,source] of sources){
  for(const segment of new Intl.Segmenter('und',{granularity:'sentence'}).segment(source)) {
   const leading=segment.segment.length-segment.segment.trimStart().length,sourceText=segment.segment.trim();if(!sourceText)continue;
   const span={field,start:segment.index+leading,end:segment.index+leading+sourceText.length};
@@ -57,6 +59,7 @@ export async function extractClaimMentions(revision:EvidenceRevision):Promise<{d
   const id=await sha256(canonicalJson({feedId:revision.feedId,evidenceRevisionId:revision.id,span,extractorVersion:CLAIM_EXTRACTOR,policy:CLAIM_POLICY}));
   const mention=claimMentionSchema.parse({id,feedId:revision.feedId,evidenceRevisionId:revision.id,sourceDocumentId:documentId,extractionKey,span,sourceText,reportingRole,attribution,certainty:certainty(sourceText),quantities,qualifiers,reportTime:revision.publishedAt??revision.acceptedAt,origin,extractorVersion:CLAIM_EXTRACTOR,extractionPolicyVersion:CLAIM_POLICY});
   assertClaimSpan(mention,revision);mentions.push(mention);
+ }
  }
  return {document:{id:documentId,feedId:revision.feedId,evidenceRevisionId:revision.id,contentHash:revision.contentHash,extractionKey,claimMentionIds:mentions.map(m=>m.id),origin,extractorVersion:CLAIM_EXTRACTOR,extractionPolicyVersion:CLAIM_POLICY},mentions};
 }

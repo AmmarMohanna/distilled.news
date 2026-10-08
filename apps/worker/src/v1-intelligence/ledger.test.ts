@@ -5,6 +5,8 @@ import {acceptAcquiredContent} from '../v1-intake/evidence';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,feedTransact} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
+import {processEvidenceIntelligence} from './engine';
+import {deterministicMatchers} from './matchers';
 import {processV1Briefing} from './runtime';
 import {projectEditionLedger,rebuildCommunicationLedger,recordCorrectionObligation,refreshSourceCorrectionObligations,type LedgerEntry} from './ledger';
 import {withdrawV1Edition} from './public-read';
@@ -65,3 +67,11 @@ it('backfill recovers deletion obligations after publication committed before pr
  await projectEditionLedger(store,'feed-1',edition.id);
  expect(await store.list('feed-1','correction_obligations')).toMatchObject([{kind:'SOURCE_DELETED'}]);
 },25000);
+
+it('a settled same-Event semantic corroboration does not turn a reordered source paraphrase into a correction',async()=>{
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end);const history=await store.list('feed-1','ledger_entries'),[event]=await store.list<any>('feed-1','events'),intake=new V1IntakeStore(ctx.db),batch=batchFixture(2);
+ batch.observations[0].sourceItemKey='item-1';batch.proposals[0].sourceItemKey='item-1';const accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batch);
+ await acceptAcquiredContent(intake,{id:'paraphrase',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-2',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',body:'Banking reform legislation was approved by Lebanon Parliament.',acquiredAt:testPolicy.now(),acquisitionMethod:'supplied_payload'},testPolicy);
+ await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-2','']),testPolicy.now(),{...deterministicMatchers,event:{match:()=>({structuralRelation:'SAME_EVENT',eventId:event.id,epistemicEffects:['CORROBORATES'],confidence:.99,provenance:{scorer:'GPT',policyVersion:'settled-same-meaning'}})}});
+ expect(await store.list('feed-1','correction_obligations')).toHaveLength(0);expect(await store.list('feed-1','ledger_entries')).toEqual(history);
+},20000);
