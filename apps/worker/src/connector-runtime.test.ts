@@ -141,6 +141,21 @@ it('accepts an approved Google News query through the free RSS path and rejects 
  await backend.collect(r,['google_rss']);expect(fetcher).toHaveBeenCalledTimes(1);
  expect(await new V1IntakeStore(ctx.db).list('intake_receipts','google-source')).toMatchObject([{checkpointResolution:'RESOLVED'}]);
 },30000);
+it('continues a Google News snapshot across bounded scheduler ticks',async()=>{
+ const now=new Date().toISOString(),url=buildGoogleNewsRssUrl('Lebanon electricity',{geo:'US',language:'en'});
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('google-paged','feed-1','Google News','channel','rss','google_news',?,?,1,'connector',?,?,?)").bind(url,'news: Lebanon electricity',now,now,now).run();
+ const enrolled=await enrollV1Source(ctx.db,'google-paged','owner-1',now);
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS='google-paged';
+ const request:SourceFetchRequest={scope:{feedId:'feed-1',feedSourceId:'google-paged',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'google-paged-run',source:{family:'google_news',locator:'Lebanon electricity',language:'en',region:'US'},requestedBounds:{},limit:30};
+ const items=Array.from({length:35},(_,index)=>`<item><guid>google-${index}</guid><link>https://publisher.example/news/${index}</link><source url="https://publisher.example">Publisher</source><title>Lebanon electricity update ${index}</title><description>Electricity grid repairs continued in Lebanon today.</description><pubDate>Thu, 08 Oct 2026 10:00:00 GMT</pubDate></item>`).join('');
+ const fetcher=vi.fn(async()=>new Response(`<rss version="2.0"><channel><title>Google News</title>${items}</channel></rss>`,{headers:{'content-type':'application/rss+xml'}}));
+ const backend=createConnectorRuntime(env,fetcher as typeof fetch);
+ await backend.scheduler.schedule('google-paged-job',request,now,['google_rss']);
+ expect(await backend.scheduler.runOne()).toBe('RETRY');
+ expect(await backend.scheduler.runOne()).toBe('DONE');
+ expect(fetcher).toHaveBeenCalledTimes(1);
+ expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_intake_receipts WHERE feed_source_id='google-paged'").first()).toEqual({n:35});
+},30000);
 it('routes bounded approved Telegram through VPC, durable intake, evidence and publication without public fallback',async()=>{
  const now=new Date().toISOString(),input=JSON.stringify({username:'telegram',channelId:'-100123',public:true});
  await ctx.db.prepare("INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,public_feed_enabled,created_at,updated_at) VALUES('telegram-feed','owner-1','telegram','Telegram','platform changes',1,?,?)").bind(now,now).run();

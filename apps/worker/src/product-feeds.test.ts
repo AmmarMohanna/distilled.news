@@ -45,13 +45,14 @@ it('approves supported connector inputs without a paid fetch and retains their i
   const repo=new D1Repository(ctx.db),owner=await repo.createAccount({email:'sources@example.com',username:'sources',role:'user',passwordHash:'unused',emailVerifiedAt:new Date().toISOString()});
   const env={DB:ctx.db,ADMIN_SESSION_SECRET:'test-secret',PRODUCT_FEEDS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true'} as Env;
   const app=createApp({repository:repo});const cookie=`dn_session=${await createSession(env.ADMIN_SESSION_SECRET!,owner)}`;
-  const sourceInputs=['https://example.com/rss.xml','news: Lebanon electricity','https://x.com/NASA','x: climate technology','linkedin: https://www.linkedin.com/company/nasa/'];
+  const sourceInputs=['rss: https://www.jpl.nasa.gov/feeds/news/','news: Lebanon electricity','https://x.com/NASA','x: climate technology','linkedin: https://www.linkedin.com/company/nasa/'];
   const input={id:'mixed-feed',title:'Mixed News',interestProfile:'Space and energy',sourceInputs,publicFeedEnabled:false,updateIntervalMinutes:120,briefingTimezone:'Asia/Beirut',language:'en'};
   const save=(body:unknown)=>app.request('/api/me/feeds',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify(body)},env);
   expect((await save(input)).status).toBe(200);
   const first=await repo.listSources(input.id);
   expect(first.map(source=>source.kind).sort()).toEqual(['google_news','linkedin_company','rss_feed','x_profile','x_search']);
   expect(first.find(source=>source.kind==='google_news')?.input).toBe(sourceInputs[1]);
+  expect(first.find(source=>source.kind==='rss_feed')?.input).toBe(sourceInputs[0]);
   expect(first.find(source=>source.kind==='x_search')?.sourceUrl).toBeUndefined();
   expect(first.find(source=>source.kind==='x_profile')?.actorId).toBeTruthy();
   expect((await productRuntimeEnv(env)).V1_DOWNSTREAM_FEED_SOURCE_IDS?.split(',')).toHaveLength(5);

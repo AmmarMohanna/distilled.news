@@ -19,7 +19,7 @@ export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Pro
 export function createConnectorRuntime(env:Env,fetcher?:typeof fetch) {
  const authorize=(r:SourceFetchRequest)=>authorizeConnectorSource(env,r);
  const intake:CandidateIntakePort={acceptBatch:request=>acceptV1Handoff(env,request)};
- return createSourceBackend(env,{authorize,intake,fetcher,providerPageLimit:1,intakeForRequest:r=>({acceptBatch:batch=>acceptV1Handoff(env,batch,r.configurationRevision)})});
+ return createSourceBackend(env,{authorize,intake,fetcher,providerPageLimit:10,intakeForRequest:r=>({acceptBatch:batch=>acceptV1Handoff(env,batch,r.configurationRevision)})});
 }
 /** Aggregate D1 reservations are separate from per-operation ceilings. No setting means no paid dispatch. */
 export async function configureConnectorBudgets(env:Env,backend:ReturnType<typeof createConnectorRuntime>) {

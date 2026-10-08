@@ -35,7 +35,7 @@ export function prepareProductSourceInput(input:string) {
  const actorId=detected.provider==='apify'?(detected.kind==='x_profile'||detected.kind==='x_search'?TESTED_ACTORS.x:TESTED_ACTORS[detected.kind]):undefined;
  const sourceUrl=detected.sourceUrl?new URL(detected.sourceUrl).href:undefined;
  if(detected.kind==='rss_feed')new WorkerPublicSourceFetch(sourceUrl!);
- const normalizedInput=detected.kind==='rss_feed'?sourceUrl!:detected.input;
+ const normalizedInput=detected.kind==='rss_feed'?`rss: ${sourceUrl}`:detected.input;
  const definition=productConnectorSource({provider:detected.provider,kind:detected.kind,source_url:sourceUrl??null,input:normalizedInput,actor_id:actorId});
  if(!definition)throw new Error('This source configuration is not supported by the connector runtime.');
  return {detected,actorId,sourceUrl,input:normalizedInput,canonicalUrl:definition.canonicalUrl};
