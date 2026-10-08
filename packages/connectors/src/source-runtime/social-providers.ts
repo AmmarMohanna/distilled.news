@@ -25,8 +25,9 @@ export class TwitterApiIoProvider implements SourceProvider {
     if(input.continuation)url.searchParams.set('cursor',input.continuation.token);
     const response=await this.http.request(input.scope,run.id,this.id,this.ceilingUsd,url.href,{headers:{'X-API-Key':key}});
     requireProviderSuccess(response);const json=record(response.json);
-    if(!Array.isArray(json.tweets)||(!recheck&&(typeof json.has_next_page!=='boolean'||(json.has_next_page&&!string(json.next_cursor)))))throw new SourceProviderError('MALFORMED');
-    const items=normalizeProviderRecords(json.tweets,input.source.family);
+    const tweets=Array.isArray(json.tweets)?json.tweets:record(json.data).tweets;
+    if(!Array.isArray(tweets)||(!recheck&&(typeof json.has_next_page!=='boolean'||(json.has_next_page&&!string(json.next_cursor)))))throw new SourceProviderError('MALFORMED');
+    const items=normalizeProviderRecords(tweets,input.source.family);
     if(recheck&&items.some(item=>!recheck.includes(item.sourceItemKey)))throw new SourceProviderError('MALFORMED');
     return {items,raw:response.bytes,
       continuationToken:json.has_next_page?json.next_cursor:undefined,requests:1,latencyMs:Date.now()-start,providerCostUsd:null};

@@ -172,6 +172,14 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const result=await p.fetch({...request,requestedBounds:{startTime:time,endTime:'2026-10-05T10:00:00.000Z'}},run);
     const url=new URL(http.request.mock.calls[0][4]);expect(url.searchParams.get('query')).toContain('from:NASA since_time:');expect(result.items[0].sourceItemKey).toBe('x:1');
   });
+  it('accepts TwitterAPI.io posts inside the data envelope without losing pagination',async()=>{
+    const json={status:'success',data:{tweets:[{id:'2',text:'NASA update',createdAt:time,author:{userName:'NASA'}}]},has_next_page:true,next_cursor:'next-page'};
+    const http={request:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(JSON.stringify(json)),json}))};
+    const p=new TwitterApiIoProvider(http,async()=> 'private-key',0.01);
+    const result=await p.fetch(request,run);
+    expect(result.items).toMatchObject([{sourceItemKey:'x:2',publisherId:'NASA',body:'NASA update'}]);
+    expect(result.continuationToken).toBe('next-page');
+  });
   it('Apify starts once and resumes the same running actor via continuation',async()=>{
     const response=(json:unknown)=>({status:200,headers:{},bytes:encoder.encode(JSON.stringify(json)),json});
     const http={request:vi.fn(async(...args:any[])=>response(args[4].includes('/actors/')?{data:{id:'actorRun'}}:{data:{status:'RUNNING'}}))};
