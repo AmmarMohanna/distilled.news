@@ -2,8 +2,26 @@ import {equivalentFact} from './editorial';
 import {nonFactRole} from './claims';
 /** Meaning-bearing numbers, negation, certainty and attribution survive normalization.
  * Only typography, sentence-ending periods and non-printing formatting characters are ignored. */
+const nameToken=(t:string)=>/^\p{Lu}[\p{L}\p{N}'.&-]*$/u.test(t),nameRun=(segment:string)=>{const tokens=segment.trim().split(/\s+/);return tokens.length>0&&tokens.every(nameToken)};
+/** Drops the serial comma before a final "and"/"or" only where the preceding text is provably a series of
+ * names: the item immediately before the comma is entirely capitalised tokens, and the series is introduced by
+ * a clause whose last token is a capitalised name after a lowercase word. Anything else (appositives such as
+ * "A, the maker of B, and C", two-item "A, and B" clause joins, lowercase items) keeps its comma, so the text
+ * still differs and the question stays conservative. */
+function withoutSerialComma(sentence:string):string {
+ let out=sentence;
+ for(const match of [...sentence.matchAll(/, (and|or) (?=\p{Lu})/gu)].reverse()){
+  const before=out.slice(0,match.index),segments=before.split(', '),last=segments.length-1;
+  if(last<1||!nameRun(segments[last]))continue;
+  let head=last-1;while(head>0&&nameRun(segments[head]))head--;
+  const lead=segments[head].trim().split(/\s+/);
+  if(lead.length<2||!nameToken(lead[lead.length-1])||!lead.slice(0,-1).some(t=>/^\p{Ll}/u.test(t)))continue;
+  out=before+' '+match[1]+' '+out.slice(match.index!+match[0].length);
+ }
+ return out;
+}
 export function normalizedReporting(text:string):string {
- return [...new Intl.Segmenter('und',{granularity:'sentence'}).segment(text)].map(s=>s.segment.trim()).filter(s=>!nonFactRole(s)).map(s=>s.normalize('NFKC').replace(/[\u200b\u200c\u200d\ufeff]/g,'').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/\s+/g,' ').replace(/[.]\s*$/,'')).join('\n');
+ return [...new Intl.Segmenter('und',{granularity:'sentence'}).segment(text)].map(s=>s.segment.trim()).filter(s=>!nonFactRole(s)).map(s=>s.normalize('NFKC').replace(/[\u200b\u200c\u200d\ufeff]/g,'').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/\s+/g,' ').replace(/[.]\s*$/,'')).map(withoutSerialComma).join('\n');
 }
 export function revisionChangesMeaning(previous:string,current:string):boolean {
  const a=normalizedReporting(previous),b=normalizedReporting(current);if(a===b)return false;

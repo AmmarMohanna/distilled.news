@@ -26,3 +26,22 @@ it('a communicated claim negated or removed is reported, never silently kept',()
 it('a title-only communicated claim is matched across fields',()=>{
  expect(changedCommunicatedSpans([span('Company A raises $90 million','title')],{title:'Company A raises $90 million',body:'Details.'},{title:'Company A raises $90 million',body:'Details. More.'})).toEqual([]);
 });
+it.each([
+ ['Company A competes with Instinct, Muse and Bee.','Company A competes with Instinct, Muse, and Bee.'],
+ ['Company A competes with Instinct, Muse, and Bee.','Company A competes with Instinct, Muse and Bee.'],
+ ['In 2024, Company A competes with Instinct, Muse, or Bee.','In 2024, Company A competes with Instinct, Muse or Bee.'],
+ ['The panel included Ana Silva, Li Wei, and Omar Haddad.','The panel included Ana Silva, Li Wei and Omar Haddad.'],
+])('enumeration punctuation alone is not a change: %s | %s',(a,b)=>{
+ expect(changedCommunicatedSpans([span(a)],doc(a),doc(b))).toEqual([]);
+});
+it.each([
+ ['appositive closed by the comma','Company A competes with Instinct, the maker of Muse, and Bee.','Company A competes with Instinct, the maker of Muse and Bee.'],
+ ['two items: the comma separates clauses','Company A hired Smith, and Jones resigned.','Company A hired Smith and Jones resigned.'],
+ ['lowercase single-word items can be appositions','Company A met Smith, president, and Jones.','Company A met Smith, president and Jones.'],
+ ['membership changes with the comma','Company A competes with Instinct, Muse, and Bee.','Company A competes with Instinct, Muse and Bee and Cora.'],
+ ['an item is replaced','Company A competes with Instinct, Muse, and Bee.','Company A competes with Instinct, Muse, and Cora.'],
+ ['negation added','Company A competes with Instinct, Muse, and Bee.','Company A does not compete with Instinct, Muse and Bee.'],
+ ['substantive comma change','Company A, which competes with Instinct, grew.','Company A which competes with Instinct, grew.'],
+])('substantive or ambiguous punctuation stays a change: %s',(_,a,b)=>{
+ expect(changedCommunicatedSpans([span(a)],doc(a),doc(b))).toHaveLength(1);
+});
