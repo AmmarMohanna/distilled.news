@@ -121,6 +121,14 @@ async function pendingJobObservedAt(observedAt:string,extra:Record<string,unknow
  await ctx.db.prepare("INSERT OR REPLACE INTO v1_jobs(id,feed_source_id,item_key,json) VALUES(?,?,?,?)").bind(id,'feed-source-1','late-item',JSON.stringify({id,feedId:'feed-1',feedSourceId:'feed-source-1',observationId,kind:'REASSESS',state:'PENDING',attempts:0,...extra})).run();
 }
 const briefingSends=()=>sent.filter(m=>m.type==='v1_briefing');
+it('reobserving the same intake wait does not invalidate concurrent Feed work',async()=>{
+ await pendingJobObservedAt('2026-10-03T12:30:00Z');
+ await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));
+ const before=await store.snapshot('feed-1');
+ await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));
+ expect((await store.snapshot('feed-1')).epoch).toBe(before.epoch);
+ expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT'}]);
+});
 it('reassessment of evidence that arrived after the window closed cannot postpone that window, and is not lost',async()=>{
  await pendingJobObservedAt('2026-10-03T13:20:00Z');
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));

@@ -181,7 +181,9 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   if(!await store.read(id,'editions',editionId)) await feedTransact(store,id,async tx=>{
    if(!await tx.read('briefing_requests',editionId)) await tx.write('briefing_requests',editionId,{id:editionId,feedId:id,window,state:'PENDING',attempts:0,createdAt:now.toISOString()} satisfies BriefingRequest);
   });
-  if(pending?.n){await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state==='PENDING')await tx.write('briefing_requests',editionId,{...request,reason:'AWAITING_INTAKE_REASSESSMENT'})});}
+  // Reobserving an unchanged wait is read-only: an epoch bump every minute
+  // would fence slow reassessment/publication work for other windows too.
+  if(pending?.n){await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state==='PENDING'&&request.reason!=='AWAITING_INTAKE_REASSESSMENT')await tx.write('briefing_requests',editionId,{...request,reason:'AWAITING_INTAKE_REASSESSMENT'})});}
   const requests=await store.list<BriefingRequest>(id,'briefing_requests');
   let briefingSends=0;
   for(const request of requests.filter(r=>r.state==='PENDING' && (!r.nextAttemptAt || Date.parse(r.nextAttemptAt)<=now.getTime()))) {
