@@ -9,8 +9,8 @@ or modify the downstream owner's branch.
 ## Worker integration status (2026-10-08)
 
 This branch's Worker code has an opt-in connector scheduler for approved RSS, Google News,
-Telegram, X profile, and LinkedIn company/profile source records. Source identity,
-stored input and (for LinkedIn) the tested actor ID must match before dispatch. RSS
+Telegram, X profile/topic, and LinkedIn company/profile source records. Source identity,
+stored input and the tested actor ID for Apify-backed sources must match before dispatch. RSS
 and Google News poll in five-minute windows, Telegram in five-minute windows, X in
 hourly windows, and LinkedIn in six-hour windows. Each window has a stable run ID, so
 repeated cron ticks replay rather than create a new provider operation. These are
@@ -23,7 +23,7 @@ The latter accepts only `x_twitterapi_io`, `x_apify`, `google_apify`,
 ceilings and budgets at zero. Changing these settings alone does not approve a source:
 the feed/source approval and runtime allowlist still apply. No live provider test or
 deployment is established by this branch's local fixture tests. Website sources and
-X topic-search product approval still need coordinated product-path integration.
+user-facing approval for non-RSS source types still need coordinated product-path integration.
 
 ## Default provider order
 

@@ -112,6 +112,20 @@ it('admits only the approved LinkedIn actor and matching company identity',async
  expect(await authorizeConnectorSource(env,r)).toBe(true);
  expect(await authorizeConnectorSource(env,{...r,source:{...r.source,locator:'https://www.linkedin.com/company/other/'}})).toBe(false);
 },15000);
+it('maps approved X profile and topic inputs to their exact connector identities',async()=>{
+ const profile={provider:'apify',kind:'x_profile',input:'x: NASA',source_url:'https://x.com/NASA',actor_id:TESTED_ACTORS.x};
+ expect(productConnectorSource(profile)).toMatchObject({source:{family:'x_profile',locator:'NASA'},limit:20});
+ expect(productConnectorSource({...profile,actor_id:'other/actor'})).toBeUndefined();
+ expect(productConnectorSource({...profile,source_url:'https://x.com/Other'})).toBeUndefined();
+ const topic={provider:'apify',kind:'x_search',input:'x: Lebanon electricity',source_url:null,actor_id:TESTED_ACTORS.x};
+ expect(productConnectorSource(topic)).toMatchObject({source:{family:'x_search',locator:'Lebanon electricity'},limit:20});
+ expect(productConnectorSource({...topic,source_url:'https://x.com/NASA'})).toBeUndefined();
+ const now=new Date().toISOString();
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,actor_id,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('x-topic','feed-1','Lebanon electricity','channel','apify','x_search',NULL,?,?,1,'connector',?,?,?)").bind(topic.input,topic.actor_id,now,now,now).run();
+ const enrolled=await enrollV1Source(ctx.db,'x-topic','owner-1',now);
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS='x-topic';
+ expect(await authorizeConnectorSource(env,{scope:{feedId:'feed-1',feedSourceId:'x-topic',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'topic-run',source:{family:'x_search',locator:'Lebanon electricity'},requestedBounds:{},limit:20})).toBe(true);
+},15000);
 it('accepts an approved Google News query through the free RSS path and rejects a changed query URL',async()=>{
  const now=new Date().toISOString(),url=buildGoogleNewsRssUrl('Lebanon electricity',{geo:'US',language:'en'});
  await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('google-source','feed-1','Google News','channel','rss','google_news',?,?,1,'connector',?,?,?)").bind(url,'news: Lebanon electricity',now,now,now).run();

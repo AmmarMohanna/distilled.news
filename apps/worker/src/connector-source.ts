@@ -33,6 +33,25 @@ export function productConnectorSource(p:{provider:string;kind:string;source_url
   // Search has a documented maximum of 20 results per page; profile endpoints can differ.
   return {source:{family:'x_search',locator:`from:${username} lang:en`},canonicalUrl:url,identity:{type:'x_search',query:`from:${username.toLowerCase()} lang:en`},limit:20};
  }
+ if(p.provider==='apify'&&p.kind==='x_search'&&p.input&&p.actor_id===TESTED_ACTORS.x&& !p.source_url){
+  let detected:ReturnType<typeof detectSourceInput>;
+  try{detected=detectSourceInput(p.input)}catch{return undefined}
+  if(detected.provider!=='apify'||detected.kind!=='x_search')return undefined;
+  const terms=detected.actorInput.searchTerms;
+  if(!Array.isArray(terms)||terms.length!==1||typeof terms[0]!=='string')return undefined;
+  const query=terms[0].trim();
+  if(!query||query.length>256)return undefined;
+  const url=`https://x.com/search?q=${encodeURIComponent(query)}`;
+  return {source:{family:'x_search',locator:query},canonicalUrl:url,identity:{type:'x_search',query},limit:20};
+ }
+ if(p.provider==='apify'&&p.kind==='x_profile'&&p.input&&p.source_url&&p.actor_id===TESTED_ACTORS.x){
+  let detected:ReturnType<typeof detectSourceInput>;
+  try{detected=detectSourceInput(p.input)}catch{return undefined}
+  if(detected.provider!=='apify'||detected.kind!=='x_profile'||detected.sourceUrl!==p.source_url||!detected.username)return undefined;
+  const url=`https://x.com/${detected.username}`;
+  if(p.source_url!==url)return undefined;
+  return {source:{family:'x_profile',locator:detected.username},canonicalUrl:url,identity:{type:'x_profile',username:detected.username.toLowerCase()},limit:20};
+ }
  if(p.provider==='apify'&&(p.kind==='linkedin_company'||p.kind==='linkedin_profile')&&p.source_url&&p.input){
   if(p.actor_id!==TESTED_ACTORS[p.kind])return undefined;
   let detected:ReturnType<typeof detectSourceInput>,url:URL;
