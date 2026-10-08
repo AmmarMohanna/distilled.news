@@ -4,7 +4,7 @@ import {createCandidateIntakePort} from '../v1-intake/intake';
 import {acceptAcquiredContent} from '../v1-intake/evidence';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore} from './store';
-import {feedFixture,seedIntelligence} from './test-utils';
+import {feedFixture,seedIntelligence,acceptEvidence} from './test-utils';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {processEvidenceIntelligence} from './engine';
 import {nextRematch} from './rematch';
@@ -56,4 +56,10 @@ it('retains rejected construction output and binding reason without accepting or
  const [saved]=await store.list<any>('feed-1','semantic_results');
  expect(saved).toMatchObject({status:'DEFERRED',failure:'SEMANTIC_CONSTRUCTION_REJECTED',usage,validationDiagnostic:{stage:'CONSTRUCTION_BINDING',response,rejection:{code:'SCOPE_DENIED'}}});expect(saved.value).toBeUndefined();
  await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(calls).toBe(1);
+},15000);
+
+it('headline development is supplied independently to semantic judgment and title mentions retain their field',async()=>{
+ const title='Microsoft and Nvidia unveil a new AI PC.';await acceptEvidence(store,1,'The devices will be shown at an event in August.','publisher-1',testPolicy.now(),'en',testPolicy.now(),title);
+ let supplied:any;const usage={calls:1,costUsd:.001,reported:true},strong={model:'title-aware',usage:()=>usage,complete:async(_feed:string,_phase:string,state:any)=>{supplied=state;return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:[],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
+ const prepared=await prepareSemanticMatch(store,{} as Env,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),{strong});expect(supplied.source.title).toBe(title);expect(supplied.claimMentions.some((m:any)=>m.text===title&&m.sourceField==='title')).toBe(true);expect(prepared?.prepared.decision.structuralRelation).toBe('NEW_STORYLINE');
 },15000);
