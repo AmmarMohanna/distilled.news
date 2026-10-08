@@ -3,7 +3,7 @@ import {D1Repository} from './repository';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {createIntakeDatabase,testPolicy} from './v1-intake/test-utils';
 import {enrollV1Source,isV1ProductSource} from './v1-intelligence/product';
-import {authorizeConnectorSource,createConnectorRuntime} from './connector-runtime';
+import {authorizeConnectorSource,configureConnectorBudgets,createConnectorRuntime,runConnectorMaintenance} from './connector-runtime';
 import {productConnectorSource} from './connector-source';
 import {processV1Acquisition} from './v1-downstream-runtime';
 import {V1IntakeStore} from './v1-intake/store';
@@ -11,7 +11,7 @@ import {V1FeedStore} from './v1-intelligence/store';
 import {processEvidenceIntelligence} from './v1-intelligence/engine';
 import {processV1Briefing} from './v1-intelligence/runtime';
 import type {SourceFetchRequest} from '@distilled/connectors';
-import {buildGoogleNewsRssUrl} from '@distilled/connectors';
+import {buildGoogleNewsRssUrl,TESTED_ACTORS} from '@distilled/connectors';
 import type {Env} from './types';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env,request:SourceFetchRequest;
@@ -62,10 +62,10 @@ it('reserves one bounded TwitterAPI.io operation and replays durable intake with
  const now=new Date().toISOString();
  await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('x-source','feed-1','NASA','channel','twitterapi_io','x_profile','https://x.com/NASA',?,1,'connector',?,?,?)").bind(JSON.stringify({username:'NASA'}),now,now,now).run();
  const enrolled=await enrollV1Source(ctx.db,'x-source','owner-1',now);
- Object.assign(env,{V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1,x-source',TWITTERAPI_IO_API_KEY:'synthetic-key',SOURCE_OPERATION_CEILINGS_JSON:'{"twitterApiIo":0.01,"apify":0,"zyte":0}'});
+ Object.assign(env,{V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1,x-source',TWITTERAPI_IO_API_KEY:'synthetic-key',SOURCE_OPERATION_CEILINGS_JSON:'{"twitterApiIo":0.01,"apify":0,"zyte":0}',SOURCE_PROVIDER_BUDGETS_JSON:'{"x_twitterapi_io":0.01}'});
  const r:SourceFetchRequest={scope:{feedId:'feed-1',feedSourceId:'x-source',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'x-canary',source:{family:'x_search',locator:'from:NASA lang:en'},requestedBounds:{},limit:20};
  const fetcher=vi.fn(async(url:unknown)=>{expect(String(url)).toContain('/twitter/tweet/advanced_search');return Response.json({tweets:[{id:'123456',text:'NASA announced a new lunar science mission.',createdAt:now,lang:'en',author:{userName:'NASA'}}],has_next_page:false,next_cursor:''});});
- const backend=createConnectorRuntime(env,fetcher);await backend.paidHttp.configureLimit('x_twitterapi_io',0.01);
+ const backend=createConnectorRuntime(env,fetcher);await configureConnectorBudgets(env,backend);
  expect(await authorizeConnectorSource(env,{...r,source:{...r.source,locator:'from:someone_else'}})).toBe(false);
  await backend.collect(r,['x_twitterapi_io']);await backend.collect(r,['x_twitterapi_io']);expect(fetcher).toHaveBeenCalledTimes(1);
  expect(await new V1IntakeStore(ctx.db).list('intake_receipts','x-source')).toMatchObject([{checkpointResolution:'RESOLVED'}]);
@@ -73,6 +73,45 @@ it('reserves one bounded TwitterAPI.io operation and replays durable intake with
  const job=(await new V1IntakeStore(ctx.db).listPendingJobs('x-source')).find(j=>j.kind==='ACQUIRE')!;
  await processV1Acquisition(env,job.id);expect(await new V1IntakeStore(ctx.db).list('revisions','x-source')).toHaveLength(1);
 },30000);
+it('schedules a new X poll only in the next hourly window without sending a paid request',async()=>{
+ const now=new Date('2026-10-08T12:05:00Z'),stamp=now.toISOString();
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('x-poll','feed-1','NASA','channel','twitterapi_io','x_profile','https://x.com/NASA',?,1,'connector',?,?,?)").bind(JSON.stringify({username:'NASA'}),stamp,stamp,stamp).run();
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS='x-poll';
+ await runConnectorMaintenance(env,now);
+ expect(await ctx.db.prepare("SELECT COUNT(*) n FROM connector_provider_poll_jobs").first()).toEqual({n:0});
+ env.SOURCE_OPERATION_CEILINGS_JSON='{"twitterApiIo":0.01,"apify":0,"zyte":0}';
+ env.SOURCE_PROVIDER_BUDGETS_JSON='{"x_twitterapi_io":0.01}';
+ await runConnectorMaintenance(env,now);
+ await runConnectorMaintenance(env,new Date('2026-10-08T12:06:00Z'));
+ expect(await ctx.db.prepare("SELECT COUNT(*) n FROM connector_provider_poll_jobs").first()).toEqual({n:1});
+ await runConnectorMaintenance(env,new Date('2026-10-08T13:05:00Z'));
+ expect(await ctx.db.prepare("SELECT COUNT(*) n FROM connector_provider_poll_jobs").first()).toEqual({n:2});
+ expect(await ctx.db.prepare("SELECT COUNT(*) n FROM connector_provider_operations").first()).toEqual({n:0});
+ expect(await ctx.db.prepare("SELECT limit_usd FROM connector_provider_budgets WHERE provider_id='x_twitterapi_io'").first()).toEqual({limit_usd:0.01});
+},30000);
+it('rejects unknown or invalid aggregate provider budgets before dispatch',async()=>{
+ const backend=createConnectorRuntime(env);
+ for(const budgets of ['{"other":1}','{"x_twitterapi_io":-1}','{"x_twitterapi_io":"1"}']){
+  env.SOURCE_PROVIDER_BUDGETS_JSON=budgets;
+  await expect(configureConnectorBudgets(env,backend)).rejects.toThrow('INVALID_SOURCE_BUDGETS');
+ }
+ expect(await ctx.db.prepare("SELECT COUNT(*) n FROM connector_provider_operations").first()).toEqual({n:0});
+},15000);
+it('admits only the approved LinkedIn actor and matching company identity',async()=>{
+ const url='https://www.linkedin.com/company/microsoft/';
+ const approved={provider:'apify',kind:'linkedin_company',input:`linkedin: ${url}`,source_url:url,actor_id:TESTED_ACTORS.linkedin_company};
+ expect(productConnectorSource(approved)).toMatchObject({source:{family:'linkedin_company',locator:url},limit:20});
+ expect(productConnectorSource({...approved,actor_id:'other/actor'})).toBeUndefined();
+ expect(productConnectorSource({...approved,source_url:'https://www.linkedin.com/company/other/'})).toBeUndefined();
+ expect(productConnectorSource({...approved,source_url:'https://example.com/company/microsoft/'})).toBeUndefined();
+ const now=new Date().toISOString();
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,actor_id,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('linkedin-source','feed-1','Microsoft','channel','apify','linkedin_company',?,?,?,1,'connector',?,?,?)").bind(url,approved.input,approved.actor_id,now,now,now).run();
+ const enrolled=await enrollV1Source(ctx.db,'linkedin-source','owner-1',now);
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS='linkedin-source';
+ const r:SourceFetchRequest={scope:{feedId:'feed-1',feedSourceId:'linkedin-source',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'linkedin-canary',source:{family:'linkedin_company',locator:url},requestedBounds:{},limit:20};
+ expect(await authorizeConnectorSource(env,r)).toBe(true);
+ expect(await authorizeConnectorSource(env,{...r,source:{...r.source,locator:'https://www.linkedin.com/company/other/'}})).toBe(false);
+},15000);
 it('accepts an approved Google News query through the free RSS path and rejects a changed query URL',async()=>{
  const now=new Date().toISOString(),url=buildGoogleNewsRssUrl('Lebanon electricity',{geo:'US',language:'en'});
  await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('google-source','feed-1','Google News','channel','rss','google_news',?,?,1,'connector',?,?,?)").bind(url,'news: Lebanon electricity',now,now,now).run();

@@ -1,11 +1,11 @@
 import {z} from 'zod';
-import {detectSourceInput,type SourceDefinition} from '@distilled/connectors';
+import {detectSourceInput,TESTED_ACTORS,type SourceDefinition} from '@distilled/connectors';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 
 const telegramConfiguration=z.object({channelId:z.string().regex(/^-[1-9]\d*$/),username:z.string().regex(/^[A-Za-z0-9_]{5,32}$/),public:z.literal(true)}).strict();
 const xConfiguration=z.object({username:z.string().regex(/^[A-Za-z0-9_]{1,15}$/)}).strict();
 /** Product approval plus the runtime allowlist admits these definitions. No discovery or channel joins. */
-export function productConnectorSource(p:{provider:string;kind:string;source_url:string|null;input:string|null}):{source:SourceDefinition;canonicalUrl:string;identity:unknown;limit:number}|undefined {
+export function productConnectorSource(p:{provider:string;kind:string;source_url:string|null;input:string|null;actor_id?:string|null}):{source:SourceDefinition;canonicalUrl:string;identity:unknown;limit:number}|undefined {
  if(p.provider==='rss'&&p.kind==='rss_feed'&&p.source_url){
   const url=new URL(p.source_url).href;new WorkerPublicSourceFetch(url);
   return {source:{family:'rss',locator:url},canonicalUrl:url,identity:{type:'rss',canonicalUrl:url},limit:30};
@@ -32,6 +32,16 @@ export function productConnectorSource(p:{provider:string;kind:string;source_url
   if(p.source_url!==url)return undefined;
   // Search has a documented maximum of 20 results per page; profile endpoints can differ.
   return {source:{family:'x_search',locator:`from:${username} lang:en`},canonicalUrl:url,identity:{type:'x_search',query:`from:${username.toLowerCase()} lang:en`},limit:20};
+ }
+ if(p.provider==='apify'&&(p.kind==='linkedin_company'||p.kind==='linkedin_profile')&&p.source_url&&p.input){
+  if(p.actor_id!==TESTED_ACTORS[p.kind])return undefined;
+  let detected:ReturnType<typeof detectSourceInput>,url:URL;
+  try{detected=detectSourceInput(p.input);url=new URL(p.source_url)}catch{return undefined}
+  const segment=p.kind==='linkedin_company'?'company':'in';
+  if(detected.provider!=='apify'||detected.kind!==p.kind||detected.sourceUrl!==p.source_url||
+    url.protocol!=='https:'||!['linkedin.com','www.linkedin.com'].includes(url.hostname)||url.port||url.username||url.password||url.search||url.hash||
+    !new RegExp(`^/${segment}/[A-Za-z0-9._-]+/?$`).test(url.pathname))return undefined;
+  return {source:{family:p.kind,locator:url.href},canonicalUrl:url.href,identity:{type:p.kind,canonicalUrl:url.href},limit:20};
  }
  return undefined;
 }

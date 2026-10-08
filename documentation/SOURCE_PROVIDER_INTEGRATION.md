@@ -6,6 +6,25 @@ Appendix C of `ARCHITECTURE_v1.md`. Benchmark reports remain separate from produ
 connector code. This does not switch production polling, deploy services, push changes,
 or modify the downstream owner's branch.
 
+## Worker integration status (2026-10-08)
+
+This branch's Worker code has an opt-in connector scheduler for approved RSS, Google News,
+Telegram, X profile, and LinkedIn company/profile source records. Source identity,
+stored input and (for LinkedIn) the tested actor ID must match before dispatch. RSS
+and Google News poll in five-minute windows, Telegram in five-minute windows, X in
+hourly windows, and LinkedIn in six-hour windows. Each window has a stable run ID, so
+repeated cron ticks replay rather than create a new provider operation. These are
+polling intervals, not claims of complete historical coverage.
+
+Paid dispatch requires both `SOURCE_OPERATION_CEILINGS_JSON` (per-operation ceiling)
+and `SOURCE_PROVIDER_BUDGETS_JSON` (cumulative D1 reservation limit per provider ID).
+The latter accepts only `x_twitterapi_io`, `x_apify`, `google_apify`,
+`linkedin_apify`, and `zyte`; missing values default to zero. Staging keeps all
+ceilings and budgets at zero. Changing these settings alone does not approve a source:
+the feed/source approval and runtime allowlist still apply. No live provider test or
+deployment is established by this branch's local fixture tests. Website sources and
+X topic-search product approval still need coordinated product-path integration.
+
 ## Default provider order
 
 | Source | Preferred | First fallback | Second fallback |

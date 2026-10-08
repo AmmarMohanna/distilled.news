@@ -65,6 +65,7 @@ export interface Env extends Cloudflare.Env {
   STAGING_ASSETS_PREFIX?: string;
   SOURCE_LEGACY_POLLING_ENABLED?: string;
   SOURCE_OPERATION_CEILINGS_JSON?: string;
+  SOURCE_PROVIDER_BUDGETS_JSON?: string;
   SOURCE_EXECUTION_URL?: string;
   SOURCE_EXECUTION_TOKEN?: string;
   SOURCE_EXECUTION_SERVICE?: Fetcher;
