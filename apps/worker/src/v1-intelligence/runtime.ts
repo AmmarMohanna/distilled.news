@@ -29,7 +29,7 @@ import {publicationWindowSchema,livePublicationWindow} from './schedule';
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
-interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED';reason?:string;completedAt?:string}
+interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string}
 const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') throw new HandoffError('SCOPE_DENIED');
@@ -118,7 +118,8 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');
   const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:writer,requireModel:required}):undefined;
   if(edition)await projectEditionLedger(store,feedId,edition.id);
-  await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE',result:edition?'PUBLISHED':'QUIET',reason:edition?undefined:'NO_SELECTED_DEVELOPMENTS',completedAt:now()})});return edition;
+  const deferred=!edition&&(plan?.stories.some(story=>story.decision==='DEFER')||Boolean(shortlist?.overflow.length));
+  await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE',result:edition?'PUBLISHED':deferred?'DEFERRED':'QUIET',reason:edition?undefined:deferred?'EDITORIAL_WORK_DEFERRED':'NO_SELECTED_DEVELOPMENTS',completedAt:now()})});return edition;
  } catch(error) {
   if(error instanceof QuietPublication)return undefined;
   // The publication lease owns contention; concurrent deliveries cannot consume

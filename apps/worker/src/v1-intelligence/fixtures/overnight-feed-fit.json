@@ -1,0 +1,1345 @@
+{
+  "shortlist": {
+    "bootstrap": false,
+    "id": "32ece8d4ea91d2253130b29112949fbf5c4f939bcefa5ee9f6214a1551617272",
+    "feedId": "briefing_57e20692-10f1-4f90-a363-42275d902c4c",
+    "feedRevision": 22,
+    "window": {
+      "start": "2026-10-08T09:00:00.000Z",
+      "end": "2026-10-08T11:00:00.000Z",
+      "kind": "HOURLY",
+      "durationMinutes": 120,
+      "timezone": "Asia/Beirut",
+      "deliveryAnchor": "00:00",
+      "schedulePolicy": "local-calendar-anchors-v1"
+    },
+    "communicationFingerprint": "630a8e424531ecd1c2a5775b6d89296ffd2d703a1d5d630323058cb3d18aa791",
+    "candidates": [
+      {
+        "sourceTitles": [
+          "Nous Research confirms it hit $1.5B valuation, launches AI agents for business users"
+        ],
+        "novelty": "ADDS_DETAIL",
+        "targetType": "EVENT",
+        "targetVersionId": "6f6b3eac-8535-43bd-90b6-582bf90e6681",
+        "stableTargetId": "75c3f472-d5a6-458f-84e0-20ab62af641b",
+        "storylineId": "1571398d-f928-409b-9069-1c8df04bb045",
+        "eventVersionIds": [
+          "6f6b3eac-8535-43bd-90b6-582bf90e6681"
+        ],
+        "evidenceRevisionIds": [
+          "cfc36d06-9e17-406f-a61f-3c8350d12535"
+        ],
+        "facts": [
+          {
+            "id": "7572c49da820986bd5133678c6891c8903522094089519ad48d55a9947b5540c",
+            "propositionId": "7572c49da820986bd5133678c6891c8903522094089519ad48d55a9947b5540c",
+            "text": "The developer of Hermes Agent raised a $90 million Series B.",
+            "evidenceRevisionIds": [
+              "cfc36d06-9e17-406f-a61f-3c8350d12535"
+            ],
+            "claimMentionIds": [
+              "0873b318da471faadcc058f43a771a6cfc4b39378427f150d90e3e45e258c296"
+            ],
+            "certainty": {
+              "kind": "UNSPECIFIED",
+              "hedges": []
+            },
+            "reportTime": "2026-10-07T20:48:45.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-07T20:48:45.000Z",
+              "reportTime": "2026-10-07T20:48:45.000Z",
+              "firstSeenByFeedAt": "2026-10-07T22:13:06.162Z",
+              "observedAt": "2026-10-07T22:13:06.162Z",
+              "framingRequired": false
+            },
+            "selfContained": "YES"
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [],
+        "flags": [
+          "TITLE_EXTRACTION_PENDING",
+          "PROVISIONAL",
+          "IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE"
+        ],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.9441666666666668,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "sourcePublishedAt": "2026-10-07T20:48:45.000Z",
+            "firstSeenByFeedAt": "2026-10-07T22:13:06.162Z",
+            "observedAt": "2026-10-07T22:13:06.162Z",
+            "staleByMs": 43875000
+          },
+          "policyVersion": "supported-delta-ledger-v5",
+          "targetType": "EVENT",
+          "targetVersionId": "6f6b3eac-8535-43bd-90b6-582bf90e6681",
+          "stableTargetId": "75c3f472-d5a6-458f-84e0-20ab62af641b",
+          "storylineId": "1571398d-f928-409b-9069-1c8df04bb045",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "MATERIAL_NEW_FACT"
+          ],
+          "previouslyCommunicated": [
+            {
+              "editionId": "7f7ed24b68c6dda5af26eca21fdcffac87187f752632280a076f00588aaafd45",
+              "targetType": "EVENT",
+              "targetVersionId": "c28df9f8-f4e4-4b94-86fa-8a764a9daedb",
+              "claimIds": [
+                "7210a7e28558e40f30403220a890f96638d4b3cd7529bf0610df781f0afafe9d"
+              ],
+              "facts": [
+                "The developer of the Hermes agent has successfully raised $90 million in a Series B funding round.",
+                "The developer of Hermes agent raised a $90 million Series B."
+              ],
+              "factEvidenceRevisionIds": [
+                [
+                  "e770a90b-c511-4812-8108-a320301cd8e8"
+                ],
+                [
+                  "e770a90b-c511-4812-8108-a320301cd8e8"
+                ]
+              ],
+              "evidenceRevisionIds": [
+                "e770a90b-c511-4812-8108-a320301cd8e8"
+              ],
+              "withdrawn": false,
+              "ledgerEntryIds": [
+                "39011878c81d0c589a7ed7d70b2fd029a21716fbc187d8acf8760bccac0e3d60"
+              ]
+            }
+          ],
+          "newUnderstanding": [
+            {
+              "text": "Nous Research confirms it hit $1.5B valuation, launches AI agents for business users",
+              "evidenceRevisionIds": [
+                "cfc36d06-9e17-406f-a61f-3c8350d12535"
+              ]
+            }
+          ],
+          "repeatedFactCount": 1,
+          "repeatPenalty": 0.5,
+          "contextNeed": "SMALL",
+          "treatment": "BRIEF"
+        },
+        "ranking": {
+          "relevance": 0.995,
+          "relevanceConfidence": 0.98,
+          "source": "JEV",
+          "novelty": 1,
+          "freshness": 1,
+          "materiality": 0.6,
+          "continuity": 1,
+          "support": 0.3333333333333333,
+          "score": 0.9441666666666668,
+          "semanticKey": "the developer of hermes agent raised a $90 million series b.",
+          "operationId": "065f5e6dbdb8f2b45f24443ecd4049463d4e4923891aa7d59266d05d587ec837"
+        },
+        "communicationCost": {
+          "inputUnits": 2592,
+          "evidenceCount": 1,
+          "briefWords": 40,
+          "standardWords": 100,
+          "detailedWords": 180
+        }
+      },
+      {
+        "sourceTitles": [
+          "Meta rolls out new AI tools to detect ads that secretly lead to child sexual abuse material"
+        ],
+        "novelty": "NEW_EVENT",
+        "targetType": "EVENT",
+        "targetVersionId": "7d64b197-5198-4a16-a5b2-a9ba3974c686",
+        "stableTargetId": "6e7d21ac-3282-4902-a85c-da178eb432f4",
+        "storylineId": "0e470fb5-07c7-4c64-9634-11dae16200be",
+        "eventVersionIds": [
+          "7d64b197-5198-4a16-a5b2-a9ba3974c686"
+        ],
+        "evidenceRevisionIds": [
+          "8cde96c4-6190-419f-9950-424f4191dac7"
+        ],
+        "facts": [
+          {
+            "id": "09463bae081377823b27686079cf2a37435bd90a2f30559facbc47e93ed03879",
+            "propositionId": "09463bae081377823b27686079cf2a37435bd90a2f30559facbc47e93ed03879",
+            "text": "Meta launches new AI tools after discovering ads on its platforms that may look normal but direct users to harmful content elsewhere online.",
+            "evidenceRevisionIds": [
+              "8cde96c4-6190-419f-9950-424f4191dac7"
+            ],
+            "claimMentionIds": [
+              "e271bd2b02b20c926dcbddeaefff1c19db4da5e06b8545c10515c95b3d6cb764"
+            ],
+            "certainty": {
+              "kind": "POSSIBLE",
+              "hedges": [
+                "may"
+              ]
+            },
+            "reportTime": "2026-10-07T16:53:46.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-07T16:53:46.000Z",
+              "reportTime": "2026-10-07T16:53:46.000Z",
+              "firstSeenByFeedAt": "2026-10-07T20:13:18.538Z",
+              "observedAt": "2026-10-07T20:13:18.538Z",
+              "framingRequired": false
+            },
+            "selfContained": "YES"
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [
+          "CORROBORATES"
+        ],
+        "flags": [
+          "TITLE_EXTRACTION_PENDING",
+          "QUALIFIED"
+        ],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.8816666666666667,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "sourcePublishedAt": "2026-10-07T16:53:46.000Z",
+            "firstSeenByFeedAt": "2026-10-07T20:13:18.538Z",
+            "observedAt": "2026-10-07T20:13:18.538Z",
+            "staleByMs": 57974000
+          },
+          "policyVersion": "supported-delta-ledger-v5",
+          "targetType": "EVENT",
+          "targetVersionId": "7d64b197-5198-4a16-a5b2-a9ba3974c686",
+          "stableTargetId": "6e7d21ac-3282-4902-a85c-da178eb432f4",
+          "storylineId": "0e470fb5-07c7-4c64-9634-11dae16200be",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "NEW_SUPPORTED_DEVELOPMENT"
+          ],
+          "previouslyCommunicated": [],
+          "newUnderstanding": [
+            {
+              "text": "Meta rolls out new AI tools to detect ads that secretly lead to child sexual abuse material",
+              "evidenceRevisionIds": [
+                "8cde96c4-6190-419f-9950-424f4191dac7"
+              ]
+            },
+            {
+              "text": "Meta launches new AI tools after discovering ads on its platforms that may look normal but direct users to harmful content elsewhere online.",
+              "evidenceRevisionIds": [
+                "8cde96c4-6190-419f-9950-424f4191dac7"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "MODERATE",
+          "treatment": "DETAILED"
+        },
+        "ranking": {
+          "relevance": 0.97,
+          "relevanceConfidence": 0.91,
+          "source": "JEV",
+          "novelty": 1,
+          "freshness": 1,
+          "materiality": 0.4,
+          "continuity": 0,
+          "support": 0.3333333333333333,
+          "score": 0.8816666666666667,
+          "semanticKey": "meta launches new ai tools after discovering ads on its platforms that may look normal but direct users to harmful content elsewhere online.",
+          "operationId": "065f5e6dbdb8f2b45f24443ecd4049463d4e4923891aa7d59266d05d587ec837"
+        },
+        "communicationCost": {
+          "inputUnits": 2756,
+          "evidenceCount": 1,
+          "briefWords": 40,
+          "standardWords": 100,
+          "detailedWords": 180
+        }
+      },
+      {
+        "sourceTitles": [
+          "OpenAI says teen ChatGPT use limited but research finds it an 'unacceptable risk'"
+        ],
+        "novelty": "NEW_EVENT",
+        "targetType": "EVENT",
+        "targetVersionId": "2d51472f-0637-43f8-aabb-ce653c811ec9",
+        "stableTargetId": "731b5416-558a-46ef-a44c-4e8e61e1c408",
+        "storylineId": "08ac5cac-a773-43eb-8257-ab7214e5031a",
+        "eventVersionIds": [
+          "2d51472f-0637-43f8-aabb-ce653c811ec9"
+        ],
+        "evidenceRevisionIds": [
+          "91ae88f0-7f72-484f-aeaa-d0adff928753"
+        ],
+        "facts": [
+          {
+            "id": "19a989a4bf08aba98448fb2c5e433a553dfafedd24905b42c65d2f56e5c788d5",
+            "propositionId": "19a989a4bf08aba98448fb2c5e433a553dfafedd24905b42c65d2f56e5c788d5",
+            "text": "The research found that important guardrails for teens using ChatGPT often failed.",
+            "evidenceRevisionIds": [
+              "91ae88f0-7f72-484f-aeaa-d0adff928753"
+            ],
+            "claimMentionIds": [
+              "12ee86b525066f970b630b02063d3d53a56e9f8fb6b0769621fc0c0ef77ec331"
+            ],
+            "certainty": {
+              "kind": "UNSPECIFIED",
+              "hedges": []
+            },
+            "reportTime": "2026-10-07T20:21:58.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-07T20:21:58.000Z",
+              "reportTime": "2026-10-07T20:21:58.000Z",
+              "firstSeenByFeedAt": "2026-10-07T20:38:57.103Z",
+              "observedAt": "2026-10-07T20:38:57.103Z",
+              "framingRequired": false
+            },
+            "selfContained": "YES"
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [],
+        "flags": [
+          "TITLE_EXTRACTION_PENDING",
+          "PROVISIONAL"
+        ],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.8666666666666667,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "sourcePublishedAt": "2026-10-07T20:21:58.000Z",
+            "firstSeenByFeedAt": "2026-10-07T20:38:57.103Z",
+            "observedAt": "2026-10-07T20:38:57.103Z",
+            "staleByMs": 45482000
+          },
+          "policyVersion": "supported-delta-ledger-v5",
+          "targetType": "EVENT",
+          "targetVersionId": "2d51472f-0637-43f8-aabb-ce653c811ec9",
+          "stableTargetId": "731b5416-558a-46ef-a44c-4e8e61e1c408",
+          "storylineId": "08ac5cac-a773-43eb-8257-ab7214e5031a",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "NEW_SUPPORTED_DEVELOPMENT"
+          ],
+          "previouslyCommunicated": [],
+          "newUnderstanding": [
+            {
+              "text": "OpenAI says teen ChatGPT use limited but research finds it an 'unacceptable risk'",
+              "evidenceRevisionIds": [
+                "91ae88f0-7f72-484f-aeaa-d0adff928753"
+              ]
+            },
+            {
+              "text": "The research found that important guardrails for teens using ChatGPT often failed.",
+              "evidenceRevisionIds": [
+                "91ae88f0-7f72-484f-aeaa-d0adff928753"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "MODERATE",
+          "treatment": "DETAILED"
+        },
+        "ranking": {
+          "relevance": 0.94,
+          "relevanceConfidence": 0.82,
+          "source": "JEV",
+          "novelty": 1,
+          "freshness": 1,
+          "materiality": 0.4,
+          "continuity": 0,
+          "support": 0.3333333333333333,
+          "score": 0.8666666666666667,
+          "semanticKey": "the research found that important guardrails for teens using chatgpt often failed.",
+          "operationId": "065f5e6dbdb8f2b45f24443ecd4049463d4e4923891aa7d59266d05d587ec837"
+        },
+        "communicationCost": {
+          "inputUnits": 2636,
+          "evidenceCount": 1,
+          "briefWords": 40,
+          "standardWords": 100,
+          "detailedWords": 180
+        }
+      },
+      {
+        "sourceTitles": [
+          "ChatGPT for Teens keeps teens talking, even during mental health crises"
+        ],
+        "novelty": "NEW_EVENT",
+        "targetType": "EVENT",
+        "targetVersionId": "bd015bfb-190f-47dc-a1b3-09987ea42248",
+        "stableTargetId": "f7548059-21ce-45e9-b405-05ac096b4d17",
+        "storylineId": "44e788f9-79c2-4354-a444-173392c20bcb",
+        "eventVersionIds": [
+          "bd015bfb-190f-47dc-a1b3-09987ea42248"
+        ],
+        "evidenceRevisionIds": [
+          "9e6448e2-6dd9-4aab-bd11-58515b81c382"
+        ],
+        "facts": [
+          {
+            "id": "d92a7ab887fcbb45b9ff1c1f000f853594c87d0ec1607149384baf316746aced",
+            "propositionId": "d92a7ab887fcbb45b9ff1c1f000f853594c87d0ec1607149384baf316746aced",
+            "text": "ChatGPT’s teen safeguards are meant to protect vulnerable users, but new testing found the chatbot continues encouraging engagement during crises and potentially encourages unhealthy relationships with the AI itself.",
+            "evidenceRevisionIds": [
+              "9e6448e2-6dd9-4aab-bd11-58515b81c382"
+            ],
+            "claimMentionIds": [
+              "585cb53d95acfbdbec0f0e373de09830cf51e85e5b851002085a3177840fbdc2"
+            ],
+            "certainty": {
+              "kind": "UNSPECIFIED",
+              "hedges": []
+            },
+            "reportTime": "2026-10-07T18:15:28.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-07T18:15:28.000Z",
+              "reportTime": "2026-10-07T18:15:28.000Z",
+              "firstSeenByFeedAt": "2026-10-07T20:13:24.187Z",
+              "observedAt": "2026-10-07T20:13:24.187Z",
+              "framingRequired": false
+            },
+            "selfContained": "YES"
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [],
+        "flags": [
+          "TITLE_EXTRACTION_PENDING",
+          "PROVISIONAL"
+        ],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.8541666666666667,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "sourcePublishedAt": "2026-10-07T18:15:28.000Z",
+            "firstSeenByFeedAt": "2026-10-07T20:13:24.187Z",
+            "observedAt": "2026-10-07T20:13:24.187Z",
+            "staleByMs": 53072000
+          },
+          "policyVersion": "supported-delta-ledger-v5",
+          "targetType": "EVENT",
+          "targetVersionId": "bd015bfb-190f-47dc-a1b3-09987ea42248",
+          "stableTargetId": "f7548059-21ce-45e9-b405-05ac096b4d17",
+          "storylineId": "44e788f9-79c2-4354-a444-173392c20bcb",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "NEW_SUPPORTED_DEVELOPMENT"
+          ],
+          "previouslyCommunicated": [],
+          "newUnderstanding": [
+            {
+              "text": "ChatGPT for Teens keeps teens talking, even during mental health crises",
+              "evidenceRevisionIds": [
+                "9e6448e2-6dd9-4aab-bd11-58515b81c382"
+              ]
+            },
+            {
+              "text": "ChatGPT’s teen safeguards are meant to protect vulnerable users, but new testing found the chatbot continues encouraging engagement during crises and potentially encourages unhealthy relationships with the AI itself.",
+              "evidenceRevisionIds": [
+                "9e6448e2-6dd9-4aab-bd11-58515b81c382"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "MODERATE",
+          "treatment": "DETAILED"
+        },
+        "ranking": {
+          "relevance": 0.9149999999999999,
+          "relevanceConfidence": 0.74,
+          "source": "JEV",
+          "novelty": 1,
+          "freshness": 1,
+          "materiality": 0.4,
+          "continuity": 0,
+          "support": 0.3333333333333333,
+          "score": 0.8541666666666667,
+          "semanticKey": "chatgpt’s teen safeguards are meant to protect vulnerable users, but new testing found the chatbot continues encouraging engagement during crises and potentially encourages unhealthy relationships with the ai itself.",
+          "operationId": "065f5e6dbdb8f2b45f24443ecd4049463d4e4923891aa7d59266d05d587ec837"
+        },
+        "communicationCost": {
+          "inputUnits": 2908,
+          "evidenceCount": 1,
+          "briefWords": 40,
+          "standardWords": 100,
+          "detailedWords": 180
+        }
+      },
+      {
+        "sourceTitles": [
+          "Tech Life"
+        ],
+        "novelty": "ADDS_DETAIL",
+        "targetType": "EVENT",
+        "targetVersionId": "78fa8d32-a71e-4729-9b39-b32efc96cd1d",
+        "stableTargetId": "0308f83a-f8e4-4828-96f9-d514441257b2",
+        "storylineId": "187e0561-4cde-420e-aed0-d360066e7a02",
+        "eventVersionIds": [
+          "78fa8d32-a71e-4729-9b39-b32efc96cd1d"
+        ],
+        "evidenceRevisionIds": [
+          "24c65a95-0e91-44af-8e6a-618cadd2d2e1",
+          "8b0f1cb1-288e-4cae-8427-fdf33cb901b3",
+          "fbe10a73-5c44-4188-97b9-4cdca5759aad"
+        ],
+        "facts": [
+          {
+            "id": "4b99d968b36a8123e0abba89672f4154254a905d936465f5b2786fb71012250e",
+            "propositionId": "4b99d968b36a8123e0abba89672f4154254a905d936465f5b2786fb71012250e",
+            "text": "Tech Life",
+            "evidenceRevisionIds": [
+              "fbe10a73-5c44-4188-97b9-4cdca5759aad"
+            ],
+            "claimMentionIds": [
+              "585bd342dc4bafb593ee578aa876a933bbc58af874e3f2f68030318fd504a579"
+            ],
+            "certainty": {
+              "kind": "UNSPECIFIED",
+              "hedges": []
+            },
+            "reportTime": "2026-10-06T19:30:00.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-06T19:30:00.000Z",
+              "reportTime": "2026-10-06T19:30:00.000Z",
+              "firstSeenByFeedAt": "2026-10-07T04:30:40.564Z",
+              "observedAt": "2026-10-07T04:30:40.564Z",
+              "framingRequired": true
+            },
+            "selfContained": "YES"
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [
+          "CORROBORATES"
+        ],
+        "flags": [
+          "TITLE_EXTRACTION_PENDING"
+        ],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.6291666666666669,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "STALE",
+            "sourcePublishedAt": "2026-10-06T19:30:00.000Z",
+            "firstSeenByFeedAt": "2026-10-07T04:30:40.564Z",
+            "observedAt": "2026-10-07T12:28:38.660Z",
+            "staleByMs": 135000000
+          },
+          "policyVersion": "supported-delta-ledger-v5",
+          "targetType": "EVENT",
+          "targetVersionId": "78fa8d32-a71e-4729-9b39-b32efc96cd1d",
+          "stableTargetId": "0308f83a-f8e4-4828-96f9-d514441257b2",
+          "storylineId": "187e0561-4cde-420e-aed0-d360066e7a02",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "MATERIAL_NEW_FACT"
+          ],
+          "previouslyCommunicated": [
+            {
+              "editionId": "3c30e7532ad468200c8eacbec51334e23531c8219d74cbc2d620fb8176afce30",
+              "targetType": "EVENT",
+              "targetVersionId": "0a4a394d-b8d8-4e4e-b9d0-3c6929b7ed1f",
+              "claimIds": [
+                "855602a632d801ea45fc485a35c5686f5e1ae9ccb5c7b63bb6236535ca914a8f"
+              ],
+              "facts": [
+                "What is a supercomputer for?",
+                "How does it work?",
+                "And who gets to use it?",
+                "We explain all."
+              ],
+              "factEvidenceRevisionIds": [
+                [
+                  "250bc9fe-0a28-4968-bee4-b6c97b5d321f"
+                ],
+                [
+                  "250bc9fe-0a28-4968-bee4-b6c97b5d321f"
+                ],
+                [
+                  "250bc9fe-0a28-4968-bee4-b6c97b5d321f"
+                ],
+                [
+                  "250bc9fe-0a28-4968-bee4-b6c97b5d321f"
+                ]
+              ],
+              "evidenceRevisionIds": [
+                "250bc9fe-0a28-4968-bee4-b6c97b5d321f"
+              ],
+              "withdrawn": false,
+              "ledgerEntryIds": [
+                "5d958a116b635905b064adb8a79de32bd45d4205176aa1408a5705b39dec5da0"
+              ]
+            }
+          ],
+          "newUnderstanding": [
+            {
+              "text": "Tech Life",
+              "evidenceRevisionIds": [
+                "24c65a95-0e91-44af-8e6a-618cadd2d2e1",
+                "8b0f1cb1-288e-4cae-8427-fdf33cb901b3",
+                "fbe10a73-5c44-4188-97b9-4cdca5759aad"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "SMALL",
+          "treatment": "BRIEF"
+        },
+        "ranking": {
+          "relevance": 0.405,
+          "relevanceConfidence": 0.71,
+          "source": "JEV",
+          "novelty": 1,
+          "freshness": 1,
+          "materiality": 0.4,
+          "continuity": 1,
+          "support": 0.3333333333333333,
+          "score": 0.6291666666666669,
+          "semanticKey": "tech life",
+          "operationId": "065f5e6dbdb8f2b45f24443ecd4049463d4e4923891aa7d59266d05d587ec837"
+        },
+        "communicationCost": {
+          "inputUnits": 2488,
+          "evidenceCount": 1,
+          "briefWords": 40,
+          "standardWords": 100,
+          "detailedWords": 180
+        }
+      },
+      {
+        "sourceTitles": [
+          "Fuel prices added to Google Maps as petrol and diesel costs soar"
+        ],
+        "novelty": "NEW_EVENT",
+        "targetType": "EVENT",
+        "targetVersionId": "49333cee-ccb9-46fc-aedd-c153b5819587",
+        "stableTargetId": "8e8b33f4-fc2b-4bc8-b6ad-a0cd3d525f64",
+        "storylineId": "0f58ae5a-b723-4867-8a94-2146000a90f9",
+        "eventVersionIds": [
+          "49333cee-ccb9-46fc-aedd-c153b5819587"
+        ],
+        "evidenceRevisionIds": [
+          "0b574964-8739-4696-b184-fdc077ddc1ca"
+        ],
+        "facts": [
+          {
+            "id": "888b21fb7cff13c124e7b6d44575fa9f87bd7899bcb7d979c0e8e1cfd792dc26",
+            "propositionId": "888b21fb7cff13c124e7b6d44575fa9f87bd7899bcb7d979c0e8e1cfd792dc26",
+            "text": "A search for forecourts will now display their pricing, using the government's Fuel Finder scheme.",
+            "evidenceRevisionIds": [
+              "0b574964-8739-4696-b184-fdc077ddc1ca"
+            ],
+            "claimMentionIds": [
+              "5954ff05a358ef47f61b35ad049e3167871a8bbd8fdfd797c704ce9b07b08e17"
+            ],
+            "certainty": {
+              "kind": "UNSPECIFIED",
+              "hedges": []
+            },
+            "reportTime": "2026-10-07T23:50:29.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-07T23:50:29.000Z",
+              "reportTime": "2026-10-07T23:50:29.000Z",
+              "firstSeenByFeedAt": "2026-10-07T23:52:39.410Z",
+              "observedAt": "2026-10-07T23:52:39.410Z",
+              "framingRequired": false
+            },
+            "selfContained": "YES"
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [
+          "CORROBORATES"
+        ],
+        "flags": [
+          "TITLE_EXTRACTION_PENDING"
+        ],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.5966666666666668,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "sourcePublishedAt": "2026-10-07T23:50:29.000Z",
+            "firstSeenByFeedAt": "2026-10-07T23:52:39.410Z",
+            "observedAt": "2026-10-07T23:52:39.410Z",
+            "staleByMs": 32971000
+          },
+          "policyVersion": "supported-delta-ledger-v5",
+          "targetType": "EVENT",
+          "targetVersionId": "49333cee-ccb9-46fc-aedd-c153b5819587",
+          "stableTargetId": "8e8b33f4-fc2b-4bc8-b6ad-a0cd3d525f64",
+          "storylineId": "0f58ae5a-b723-4867-8a94-2146000a90f9",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "NEW_SUPPORTED_DEVELOPMENT"
+          ],
+          "previouslyCommunicated": [],
+          "newUnderstanding": [
+            {
+              "text": "Fuel prices added to Google Maps as petrol and diesel costs soar",
+              "evidenceRevisionIds": [
+                "0b574964-8739-4696-b184-fdc077ddc1ca"
+              ]
+            },
+            {
+              "text": "A search for forecourts will now display their pricing, using the government's Fuel Finder scheme.",
+              "evidenceRevisionIds": [
+                "0b574964-8739-4696-b184-fdc077ddc1ca"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "NONE",
+          "treatment": "STANDARD"
+        },
+        "ranking": {
+          "relevance": 0.4,
+          "relevanceConfidence": 0,
+          "source": "LEXICAL_UNKNOWN",
+          "novelty": 1,
+          "freshness": 1,
+          "materiality": 0.4,
+          "continuity": 0,
+          "support": 0.3333333333333333,
+          "score": 0.5966666666666668,
+          "semanticKey": "a search for forecourts will now display their pricing, using the government's fuel finder scheme."
+        },
+        "communicationCost": {
+          "inputUnits": 2668,
+          "evidenceCount": 1,
+          "briefWords": 40,
+          "standardWords": 100,
+          "detailedWords": 180
+        }
+      },
+      {
+        "sourceTitles": [
+          "Asos hackers took more personal details than first revealed, BBC finds"
+        ],
+        "novelty": "NEW_EVENT",
+        "targetType": "EVENT",
+        "targetVersionId": "d41b8176-84ca-4e1f-a1d6-ce554813982e",
+        "stableTargetId": "16f2271f-0c33-43b5-9c2d-166e013ab66a",
+        "storylineId": "db303246-96f8-418c-85cf-881da3b76072",
+        "eventVersionIds": [
+          "d41b8176-84ca-4e1f-a1d6-ce554813982e"
+        ],
+        "evidenceRevisionIds": [
+          "50476c31-206a-4fb7-b5a7-b470eb97a1e0"
+        ],
+        "facts": [
+          {
+            "id": "fd38e51dfa58f7e07bbb2b1a5d779b3dffa80726f272440ccbcdfc60af0e50be",
+            "propositionId": "fd38e51dfa58f7e07bbb2b1a5d779b3dffa80726f272440ccbcdfc60af0e50be",
+            "text": "Asos hackers took more personal details than first revealed, BBC finds",
+            "evidenceRevisionIds": [
+              "50476c31-206a-4fb7-b5a7-b470eb97a1e0"
+            ],
+            "claimMentionIds": [
+              "7282ba21ca47d281e8ea3717facd11477a3864c75dbf2be741fb8f94dd4cd548"
+            ],
+            "certainty": {
+              "kind": "UNSPECIFIED",
+              "hedges": []
+            },
+            "reportTime": "2026-10-08T10:24:26.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-08T10:24:26.000Z",
+              "reportTime": "2026-10-08T10:24:26.000Z",
+              "firstSeenByFeedAt": "2026-10-08T10:26:10.971Z",
+              "observedAt": "2026-10-08T10:26:10.971Z",
+              "framingRequired": false
+            },
+            "selfContained": "YES"
+          },
+          {
+            "id": "3cdc82ca12133a22a9b82872206289b5932ad507cdba6f02120ef4779620c1cb",
+            "propositionId": "3cdc82ca12133a22a9b82872206289b5932ad507cdba6f02120ef4779620c1cb",
+            "text": "Retailer issues update after BBC contacted by cyber criminals who said this week's breach went beyond \"basic contact details\"",
+            "evidenceRevisionIds": [
+              "50476c31-206a-4fb7-b5a7-b470eb97a1e0"
+            ],
+            "claimMentionIds": [
+              "8981fbb382e8ad447f571d8050538ac46777d9ed068ba65b085cbb108c51eae0"
+            ],
+            "certainty": {
+              "kind": "UNSPECIFIED",
+              "hedges": []
+            },
+            "attribution": "Retailer issues update after BBC contacted by cyber criminals who",
+            "reportTime": "2026-10-08T10:24:26.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-08T10:24:26.000Z",
+              "reportTime": "2026-10-08T10:24:26.000Z",
+              "firstSeenByFeedAt": "2026-10-08T10:26:10.971Z",
+              "observedAt": "2026-10-08T10:26:10.971Z",
+              "framingRequired": false
+            },
+            "selfContained": "YES"
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [],
+        "flags": [
+          "PROVISIONAL"
+        ],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.5966666666666668,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "sourcePublishedAt": "2026-10-08T10:24:26.000Z",
+            "firstSeenByFeedAt": "2026-10-08T10:26:10.971Z",
+            "observedAt": "2026-10-08T10:26:10.971Z"
+          },
+          "policyVersion": "supported-delta-ledger-v5",
+          "targetType": "EVENT",
+          "targetVersionId": "d41b8176-84ca-4e1f-a1d6-ce554813982e",
+          "stableTargetId": "16f2271f-0c33-43b5-9c2d-166e013ab66a",
+          "storylineId": "db303246-96f8-418c-85cf-881da3b76072",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "NEW_SUPPORTED_DEVELOPMENT"
+          ],
+          "previouslyCommunicated": [],
+          "newUnderstanding": [
+            {
+              "text": "Asos hackers took more personal details than first revealed, BBC finds",
+              "evidenceRevisionIds": [
+                "50476c31-206a-4fb7-b5a7-b470eb97a1e0"
+              ]
+            },
+            {
+              "text": "Retailer issues update after BBC contacted by cyber criminals who said this week's breach went beyond \"basic contact details\"",
+              "evidenceRevisionIds": [
+                "50476c31-206a-4fb7-b5a7-b470eb97a1e0"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "NONE",
+          "treatment": "STANDARD"
+        },
+        "ranking": {
+          "relevance": 0.4,
+          "relevanceConfidence": 0,
+          "source": "LEXICAL_UNKNOWN",
+          "novelty": 1,
+          "freshness": 1,
+          "materiality": 0.4,
+          "continuity": 0,
+          "support": 0.3333333333333333,
+          "score": 0.5966666666666668,
+          "semanticKey": "asos hackers took more personal details than first revealed, bbc finds\nretailer issues update after bbc contacted by cyber criminals who said this week's breach went beyond \"basic contact details\""
+        },
+        "communicationCost": {
+          "inputUnits": 4300,
+          "evidenceCount": 1,
+          "briefWords": 40,
+          "standardWords": 100,
+          "detailedWords": 180
+        }
+      }
+    ],
+    "overflow": [],
+    "obligations": [],
+    "ledger": [
+      {
+        "id": "1097300ecb80616613073c88f29802ecbc114b1b0116c95812c3bc25957e6ef7",
+        "claimText": "From Nvidia and Chime to Obvious Ventures and Anthropic, explore the entire roundtable agenda at TechCrunch Disrupt 2026. Register now to save up to $100 on your pass and get a second pass at 50% off.",
+        "claimFacts": [
+          "From Nvidia and Chime to Obvious Ventures and Anthropic, explore the entire roundtable agenda at TechCrunch Disrupt 2026.",
+          "Register now to save up to $100 on your pass and get a second pass at 50% off."
+        ],
+        "eventIds": [
+          "4bf16c5f-63a1-4f13-91b6-7334a45e587d"
+        ],
+        "storylineIds": [
+          "7ff025d9-1d7c-4142-b975-44ffe37faebf"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "cbb7efd5a53efc274bbf4be9799c06417c93930352189f8f4cd46d6cd8c545fd"
+      },
+      {
+        "id": "11734c894d6a241c4b7dcb2e1952e68f3fc54de51c94a6b89bbfa75108a09b27",
+        "claimText": "On Tuesday, Musubi announced a lightweight decision model made for real-time moderation called PolicyLM-1.7B, released with open weights.",
+        "claimFacts": [
+          "On Tuesday, Musubi announced a lightweight decision model made for real-time moderation called PolicyLM-1.7B, released with open weights."
+        ],
+        "eventIds": [
+          "a1381d05-2cca-4b8f-9c55-e174582f57e8"
+        ],
+        "storylineIds": [
+          "a5670b5f-cd99-45e6-922f-2e543207f0fe"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "3c30e7532ad468200c8eacbec51334e23531c8219d74cbc2d620fb8176afce30"
+      },
+      {
+        "id": "223fad9fc21372bf19bc251e2b4bde28c0554bf8c2472c87684298fda5c4a1f9",
+        "claimText": "Samsung has reached a record profit of $80 billion, driven by a boom in AI chip demand. The company is also expected to benefit from its latest folding devices, which were launched in August.",
+        "claimFacts": [
+          "Samsung has reached a record profit of $80 billion, driven by a boom in AI chip demand.",
+          "The company is also expected to benefit from its latest folding devices, which were launched in August."
+        ],
+        "eventIds": [
+          "2d0375ce-5b2a-4f43-9126-9dd0e10adff3"
+        ],
+        "storylineIds": [
+          "d6709e2b-b78c-44d1-bc7b-5e6c90266b9a"
+        ],
+        "certainty": {
+          "kind": "MIXED",
+          "hedges": [
+            "expected"
+          ]
+        },
+        "editionId": "d6879a893a0d74892d06c1f538d03a52d4c207e0da95374f424457ce6b1105cd"
+      },
+      {
+        "id": "39011878c81d0c589a7ed7d70b2fd029a21716fbc187d8acf8760bccac0e3d60",
+        "claimText": "The developer of the Hermes agent has successfully raised $90 million in a Series B funding round.",
+        "claimFacts": [
+          "The developer of the Hermes agent has successfully raised $90 million in a Series B funding round."
+        ],
+        "eventIds": [
+          "fe547bef-4e3e-4858-81b3-c1c7d1e09a2c"
+        ],
+        "storylineIds": [
+          "1571398d-f928-409b-9069-1c8df04bb045"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "7f7ed24b68c6dda5af26eca21fdcffac87187f752632280a076f00588aaafd45"
+      },
+      {
+        "id": "411161d6592cda8f1753ae7a1d289a9d76e56baeb9f71a1c2a75a82298f2b43f",
+        "claimText": "Instead of helping marketers manage and optimize ad spend, the company is focusing on building the tools that generate the creative assets and campaigns.",
+        "claimFacts": [
+          "Instead of helping marketers manage and optimize ad spend, the company is focusing on building the tools that generate the creative assets and campaigns."
+        ],
+        "eventIds": [
+          "a37f9f0f-b818-4a39-adcf-6aa10ad8b381"
+        ],
+        "storylineIds": [
+          "69de7df1-b3fc-4ae1-98ff-a8d7c346a134"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "54d617a73df9bdf17da30bfc367a532a63efb3023bbbfcbf81647ab4fb3cf103"
+      },
+      {
+        "id": "442ec15014a4883c8df0815edd2b8b074bf1c19dbad73f52219a83d08b8ed508",
+        "claimText": "Meta's AI assistant Muse, which debuted on mobile just a month ago, is now available on iPad as the company quickly broadens the assistant's availability and integrations.",
+        "claimFacts": [
+          "Meta's AI assistant Muse, which debuted on mobile just a month ago, is now available on iPad as the company quickly broadens the assistant's availability and integrations."
+        ],
+        "eventIds": [
+          "c901cc12-abbe-4d12-b78c-bb5ca0ee71a4"
+        ],
+        "storylineIds": [
+          "3ffe9790-543b-480a-992e-912258931bf2"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "7f7ed24b68c6dda5af26eca21fdcffac87187f752632280a076f00588aaafd45"
+      },
+      {
+        "id": "57ab2844306ba6c0e485ad34ac2f80b8466b4516a7f7cd28ffc9d910dc914d9e",
+        "claimText": "Cloud seeding is gaining attention as countries look to boost rainfall - will drones help?",
+        "claimFacts": [
+          "Cloud seeding is gaining attention as countries look to boost rainfall - will drones help?"
+        ],
+        "eventIds": [
+          "a33fed08-203a-43f8-af31-027a09a618e5"
+        ],
+        "storylineIds": [
+          "bcb2800c-245c-440c-8b3f-c9f7f5326c1c"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "0114e3b1bf5110e3c59cf3a8e40b7828dcd0b882bf168b4dcbc3b7a5dfa9c1cf"
+      },
+      {
+        "id": "5d958a116b635905b064adb8a79de32bd45d4205176aa1408a5705b39dec5da0",
+        "claimText": "What is a supercomputer for? How does it work? And who gets to use it? We explain all.",
+        "claimFacts": [
+          "What is a supercomputer for?",
+          "How does it work?",
+          "And who gets to use it?",
+          "We explain all."
+        ],
+        "eventIds": [
+          "0308f83a-f8e4-4828-96f9-d514441257b2"
+        ],
+        "storylineIds": [
+          "187e0561-4cde-420e-aed0-d360066e7a02"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "3c30e7532ad468200c8eacbec51334e23531c8219d74cbc2d620fb8176afce30"
+      },
+      {
+        "id": "7089ddcf04f0d6a41041c64e0661f319c379c2c4c0088d22fce4a20c4417ca75",
+        "claimText": "OpenAI’s Alexander Embiricos is coming to the AI Stage at TechCrunch Disrupt 2026, just days after the launch of Dots. Join this conversation by registering for your pass. Get you pass now to save up to $100 and get a second at 50% off.",
+        "claimFacts": [
+          "OpenAI’s Alexander Embiricos is coming to the AI Stage at TechCrunch Disrupt 2026, just days after the launch of Dots.",
+          "Join this conversation by registering for your pass.",
+          "Get you pass now to save up to $100 and get a second at 50% off."
+        ],
+        "eventIds": [
+          "67768d83-488d-408a-b239-77b654e1b946"
+        ],
+        "storylineIds": [
+          "756ca3ba-4ffa-4986-8c35-49f4bf280a4f"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "cbb7efd5a53efc274bbf4be9799c06417c93930352189f8f4cd46d6cd8c545fd"
+      },
+      {
+        "id": "723ebe6e72ea8084b1a994f2f65364ff5c7edd15fe7fd7c13f9c4b2d9e330be5",
+        "claimText": "Microsoft has revealed the specifications and pricing for its Surface Laptop Ultra, a new line of AI-focused PCs powered by Nvidia chips designed specifically to run AI models and agents.",
+        "claimFacts": [
+          "Microsoft has revealed the specifications and pricing for its Surface Laptop Ultra, a new line of AI-focused PCs powered by Nvidia chips designed specifically to run AI models and agents."
+        ],
+        "eventIds": [
+          "57f1b893-c918-4efc-9844-de494bb25556"
+        ],
+        "storylineIds": [
+          "bef60671-099a-45f2-9f27-1fd990a8ac41"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "9acfaa1bdaa45b068b72d2a01482cdba450a66e3b0c9a9f0eb969a4f93d70a13"
+      },
+      {
+        "id": "7c50fe3779f7128299832a8bf8d1728fa5dd7ffa4303d8c2222427f1497a4fa0",
+        "claimText": "Order of the Sinking Star is due out on Thursday and has roughly 1,500 puzzles for players to try",
+        "claimFacts": [
+          "Order of the Sinking Star is due out on Thursday and has roughly 1,500 puzzles for players to try"
+        ],
+        "eventIds": [
+          "3e959cfa-9343-4613-888a-9bcffb390116"
+        ],
+        "storylineIds": [
+          "360c6272-6b9b-4b59-a717-3ddd2ec2e742"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "54d617a73df9bdf17da30bfc367a532a63efb3023bbbfcbf81647ab4fb3cf103"
+      },
+      {
+        "id": "be630446ead1314f7bd321696e735b1e5f00d59999e6d774f7face8c99fb4210",
+        "claimText": "Asos confirmed an \"unauthorised customer notification\" was sent out via its app on Tuesday, after users raised alarm.",
+        "claimFacts": [
+          "Asos confirmed an \"unauthorised customer notification\" was sent out via its app on Tuesday, after users raised alarm."
+        ],
+        "eventIds": [
+          "16ef6b1b-0f55-4d3a-8b44-f1ef8f70652c"
+        ],
+        "storylineIds": [
+          "129d59ba-25f3-497b-bde7-da1c2590aa7b"
+        ],
+        "certainty": {
+          "kind": "CONFIRMED",
+          "hedges": []
+        },
+        "editionId": "3c30e7532ad468200c8eacbec51334e23531c8219d74cbc2d620fb8176afce30"
+      },
+      {
+        "id": "c8cdbe5062c6c3e0176b0a394f330b386e36adc8b62ddc4acca4f1cfb4239f30",
+        "claimText": "In 6 days, 10,000+ people from across the global startup and tech ecosystem will come together at San Francisco’s Moscone West for TechCrunch Disrupt 2026. If you’re planning to be one of them, don’t wait to register your ticket before prices increase at the door. Save up to $100 on your pass, plus 50% on a second of the same type.",
+        "claimFacts": [
+          "In 6 days, 10,000+ people from across the global startup and tech ecosystem will come together at San Francisco’s Moscone West for TechCrunch Disrupt 2026.",
+          "If you’re planning to be one of them, don’t wait to register your ticket before prices increase at the door.",
+          "Save up to $100 on your pass, plus 50% on a second of the same type."
+        ],
+        "eventIds": [
+          "6b6c2ea7-39ef-4fb5-8a5e-a96ec7069bb3"
+        ],
+        "storylineIds": [
+          "7f13f12d-87af-4804-a450-026366b40ee1"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "cbb7efd5a53efc274bbf4be9799c06417c93930352189f8f4cd46d6cd8c545fd"
+      },
+      {
+        "id": "e82419bd50991a86fd53b4acd502d54bf097fca82fe187aa4e1fafceeab8bacc",
+        "claimText": "OpenAI is introducing a new user interface for ChatGPT that will incorporate interactive visuals, enhancing the user experience.",
+        "claimFacts": [
+          "OpenAI is introducing a new user interface for ChatGPT that will incorporate interactive visuals, enhancing the user experience."
+        ],
+        "eventIds": [
+          "bedf8707-75f0-4665-b01e-a3544060cdd5"
+        ],
+        "storylineIds": [
+          "641c84df-3fa0-49e0-8904-59e7e7f7d46b"
+        ],
+        "certainty": {
+          "kind": "UNSPECIFIED",
+          "hedges": []
+        },
+        "editionId": "9acfaa1bdaa45b068b72d2a01482cdba450a66e3b0c9a9f0eb969a4f93d70a13"
+      }
+    ],
+    "evidenceRevisionIds": [
+      "cfc36d06-9e17-406f-a61f-3c8350d12535",
+      "8cde96c4-6190-419f-9950-424f4191dac7",
+      "91ae88f0-7f72-484f-aeaa-d0adff928753",
+      "9e6448e2-6dd9-4aab-bd11-58515b81c382",
+      "24c65a95-0e91-44af-8e6a-618cadd2d2e1",
+      "8b0f1cb1-288e-4cae-8427-fdf33cb901b3",
+      "fbe10a73-5c44-4188-97b9-4cdca5759aad",
+      "0b574964-8739-4696-b184-fdc077ddc1ca",
+      "50476c31-206a-4fb7-b5a7-b470eb97a1e0"
+    ],
+    "policyVersion": "high-recall-semantic-shortlist-v12",
+    "createdAt": "2026-10-08T11:01:07.698Z"
+  },
+  "proposal": {
+    "stories": [
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "d41b8176-84ca-4e1f-a1d6-ce554813982e",
+        "decision": "SELECT",
+        "order": 1,
+        "treatment": "STANDARD",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "fd38e51dfa58f7e07bbb2b1a5d779b3dffa80726f272440ccbcdfc60af0e50be",
+          "3cdc82ca12133a22a9b82872206289b5932ad507cdba6f02120ef4779620c1cb"
+        ],
+        "contextFactIds": [
+          "fd38e51dfa58f7e07bbb2b1a5d779b3dffa80726f272440ccbcdfc60af0e50be",
+          "3cdc82ca12133a22a9b82872206289b5932ad507cdba6f02120ef4779620c1cb"
+        ],
+        "mustIncludeFactIds": [
+          "fd38e51dfa58f7e07bbb2b1a5d779b3dffa80726f272440ccbcdfc60af0e50be",
+          "3cdc82ca12133a22a9b82872206289b5932ad507cdba6f02120ef4779620c1cb"
+        ],
+        "attributionFactIds": [
+          "3cdc82ca12133a22a9b82872206289b5932ad507cdba6f02120ef4779620c1cb"
+        ],
+        "certaintyFactIds": [
+          "fd38e51dfa58f7e07bbb2b1a5d779b3dffa80726f272440ccbcdfc60af0e50be",
+          "3cdc82ca12133a22a9b82872206289b5932ad507cdba6f02120ef4779620c1cb"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [],
+        "rationale": "Latest significant update on Asos data breach with new details from BBC and retailer's response.",
+        "relevanceRationale": "High reader interest due to fresh, impactful cybersecurity news affecting consumers."
+      },
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "7d64b197-5198-4a16-a5b2-a9ba3974c686",
+        "decision": "DEFER",
+        "order": 2,
+        "treatment": "OMIT",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "09463bae081377823b27686079cf2a37435bd90a2f30559facbc47e93ed03879"
+        ],
+        "contextFactIds": [
+          "09463bae081377823b27686079cf2a37435bd90a2f30559facbc47e93ed03879"
+        ],
+        "mustIncludeFactIds": [
+          "09463bae081377823b27686079cf2a37435bd90a2f30559facbc47e93ed03879"
+        ],
+        "attributionFactIds": [],
+        "certaintyFactIds": [
+          "09463bae081377823b27686079cf2a37435bd90a2f30559facbc47e93ed03879"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [],
+        "rationale": "Capacity limits and lower materiality compared to Asos breach; defer for later coverage.",
+        "relevanceRationale": "Important but less urgent than selected story; defer to prioritize more impactful news."
+      },
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "6f6b3eac-8535-43bd-90b6-582bf90e6681",
+        "decision": "DEFER",
+        "order": 3,
+        "treatment": "OMIT",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "7572c49da820986bd5133678c6891c8903522094089519ad48d55a9947b5540c"
+        ],
+        "contextFactIds": [
+          "7572c49da820986bd5133678c6891c8903522094089519ad48d55a9947b5540c"
+        ],
+        "mustIncludeFactIds": [
+          "7572c49da820986bd5133678c6891c8903522094089519ad48d55a9947b5540c"
+        ],
+        "attributionFactIds": [],
+        "certaintyFactIds": [
+          "7572c49da820986bd5133678c6891c8903522094089519ad48d55a9947b5540c"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [
+          "39011878c81d0c589a7ed7d70b2fd029a21716fbc187d8acf8760bccac0e3d60"
+        ],
+        "rationale": "Identity unresolved and high consequence flags require further verification before selection.",
+        "relevanceRationale": "Potentially important but unresolved identity and provisional status warrant deferment."
+      },
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "2d51472f-0637-43f8-aabb-ce653c811ec9",
+        "decision": "DEFER",
+        "order": 4,
+        "treatment": "OMIT",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "19a989a4bf08aba98448fb2c5e433a553dfafedd24905b42c65d2f56e5c788d5"
+        ],
+        "contextFactIds": [
+          "19a989a4bf08aba98448fb2c5e433a553dfafedd24905b42c65d2f56e5c788d5"
+        ],
+        "mustIncludeFactIds": [
+          "19a989a4bf08aba98448fb2c5e433a553dfafedd24905b42c65d2f56e5c788d5"
+        ],
+        "attributionFactIds": [],
+        "certaintyFactIds": [
+          "19a989a4bf08aba98448fb2c5e433a553dfafedd24905b42c65d2f56e5c788d5"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [],
+        "rationale": "Lower priority and provisional status; defer to focus on more critical updates.",
+        "relevanceRationale": "Important research but less immediate impact than selected story."
+      },
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "bd015bfb-190f-47dc-a1b3-09987ea42248",
+        "decision": "DEFER",
+        "order": 5,
+        "treatment": "OMIT",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "d92a7ab887fcbb45b9ff1c1f000f853594c87d0ec1607149384baf316746aced"
+        ],
+        "contextFactIds": [
+          "d92a7ab887fcbb45b9ff1c1f000f853594c87d0ec1607149384baf316746aced"
+        ],
+        "mustIncludeFactIds": [
+          "d92a7ab887fcbb45b9ff1c1f000f853594c87d0ec1607149384baf316746aced"
+        ],
+        "attributionFactIds": [],
+        "certaintyFactIds": [
+          "d92a7ab887fcbb45b9ff1c1f000f853594c87d0ec1607149384baf316746aced"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [],
+        "rationale": "Provisional and less material; defer to prioritize more impactful news.",
+        "relevanceRationale": "Relevant but not urgent compared to selected story."
+      },
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "78fa8d32-a71e-4729-9b39-b32efc96cd1d",
+        "decision": "DEFER",
+        "order": 6,
+        "treatment": "OMIT",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "4b99d968b36a8123e0abba89672f4154254a905d936465f5b2786fb71012250e"
+        ],
+        "contextFactIds": [
+          "4b99d968b36a8123e0abba89672f4154254a905d936465f5b2786fb71012250e"
+        ],
+        "mustIncludeFactIds": [
+          "4b99d968b36a8123e0abba89672f4154254a905d936465f5b2786fb71012250e"
+        ],
+        "attributionFactIds": [],
+        "certaintyFactIds": [
+          "4b99d968b36a8123e0abba89672f4154254a905d936465f5b2786fb71012250e"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [
+          "5d958a116b635905b064adb8a79de32bd45d4205176aa1408a5705b39dec5da0"
+        ],
+        "rationale": "Old recap with limited new value; defer to avoid redundancy.",
+        "relevanceRationale": "Adds little new information for current window."
+      },
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "49333cee-ccb9-46fc-aedd-c153b5819587",
+        "decision": "DEFER",
+        "order": 7,
+        "treatment": "OMIT",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "888b21fb7cff13c124e7b6d44575fa9f87bd7899bcb7d979c0e8e1cfd792dc26"
+        ],
+        "contextFactIds": [
+          "888b21fb7cff13c124e7b6d44575fa9f87bd7899bcb7d979c0e8e1cfd792dc26"
+        ],
+        "mustIncludeFactIds": [
+          "888b21fb7cff13c124e7b6d44575fa9f87bd7899bcb7d979c0e8e1cfd792dc26"
+        ],
+        "attributionFactIds": [],
+        "certaintyFactIds": [
+          "888b21fb7cff13c124e7b6d44575fa9f87bd7899bcb7d979c0e8e1cfd792dc26"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [],
+        "rationale": "Lower relevance and materiality; defer due to capacity constraints.",
+        "relevanceRationale": "Interesting but less critical than selected story."
+      }
+    ],
+    "obligations": []
+  },
+  "selectedTarget": "d41b8176-84ca-4e1f-a1d6-ce554813982e"
+}

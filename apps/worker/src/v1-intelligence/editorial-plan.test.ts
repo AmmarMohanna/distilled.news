@@ -27,7 +27,7 @@ it('cannot address a correction obligation by merely repeating the old claim',()
 it('permits supported restatement only to correct a persisted publication withdrawal',()=>{
  const scope=structuredClone(shortlist);scope.candidates[0].facts[0].text='Officials confirmed 12 people affected.';scope.candidates[0].correctionObligationIds=['ob'];scope.obligations=[{id:'ob',feedId:'f',ledgerEntryId:'known',editionId:'old',kind:'RETRACTED',triggerId:'withdrawal',state:'OPEN',createdAt:'2026-10-03T12:00:00Z',policyVersion:'test',publicationWithdrawal:{reason:'POLICY_REQUIRED'}}];
  const plan=fallbackEditorialPlan(scope);Object.assign(plan.stories[0],{decision:'SELECT',treatment:'STANDARD',deltaType:'CORRECTION',mustIncludeFactIds:['fact'],newUnderstandingFactIds:[],previousLedgerEntryIds:['known']});plan.obligations=[{obligationId:'ob',handling:'ADDRESS',targetVersionId:'v',reason:'Explicitly correct the withdrawn prior communication.'}];
- expect(validateEditorialPlan(plan,scope)).toEqual(plan);
+ plan.stories[0].feedFit='OUT_OF_SCOPE';expect(validateEditorialPlan(plan,scope)).toEqual(plan);
  delete scope.obligations[0].publicationWithdrawal;
  expect(()=>validateEditorialPlan(plan,scope)).toThrow();
 });

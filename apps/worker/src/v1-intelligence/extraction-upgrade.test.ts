@@ -5,6 +5,8 @@ import {V1FeedStore,feedTransact} from './store';
 import {feedFixture,acceptEvidence} from './test-utils';
 import {processEvidenceIntelligence} from './engine';
 import {scheduleExtractionUpgrades,hasUnscheduledExtractionUpgrade} from './extraction-upgrade';
+import {processV1Briefing} from './runtime';
+import type {Env} from '../types';
 import {CLAIM_EXTRACTOR} from './claims';
 import {nextRematch} from './rematch';
 import {prepareSemanticShortlist} from './shortlist';
@@ -24,6 +26,10 @@ it('retained body-only corpus upgrades through at most two ordinary rematches pe
   const upgrade=requests.find(r=>r.policyVersion.includes(CLAIM_EXTRACTOR));expect(nextRematch(upgrade,[{requestId:upgrade.id,state:'EXHAUSTED',attempt:3} as any],window.end)).toBeUndefined();expect(await store.read('feed-1','rematch_requests',upgrade.id)).toEqual(upgrade);
   const scope=await prepareSemanticShortlist(store,'feed-1',window,window.end);expect(scope.candidates.every(c=>c.flags.includes('TITLE_EXTRACTION_PENDING'))).toBe(true);expect(fallbackEditorialPlan(scope).stories.every(s=>s.decision==='DEFER')).toBe(true);
   const wire=editorialPlanWireSchemaFor(compactEditorialInput({candidates:scope.candidates,ledger:scope.ledger,obligations:scope.obligations} as any).state);expect(wire.properties.stories.items.anyOf.every(b=>b.properties.decision.enum.join(',')==='DEFER')).toBe(true);
+  const env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',V1_EDITORIAL_PLAN_ENABLED:'true'} as Env;
+  expect(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end)).toBeUndefined();
+  expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'DONE',result:'DEFERRED',reason:'EDITORIAL_WORK_DEFERRED'}]);
+  expect(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end)).toBeUndefined();expect(await store.list('feed-1','editions')).toHaveLength(0);
   await processEvidenceIntelligence(store,upgrade.jobId,'2026-10-03T13:10:00Z',undefined,'title-policy-upgrade');expect((await store.list<any>('feed-1','claim_mentions')).some(m=>m.evidenceRevisionId===upgrade.evidenceRevisionId&&m.span.field==='title')).toBe(true);
  }finally{await ctx.dispose()}
 },30000);
