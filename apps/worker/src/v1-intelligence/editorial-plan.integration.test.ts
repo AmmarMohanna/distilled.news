@@ -71,3 +71,15 @@ it('publication during the editor call prevents stale reader-state plan consumpt
  }};
  await expect(prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,window.end,strong)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});expect(await store.list('feed-1','editorial_plans')).toHaveLength(0);
 },25000);
+it.each([false,true])('cached oversized planning only acquires a first call when no billed operation exists (%s)',async billed=>{
+ const {sha256}=await import('@distilled/contracts'),{canonicalJson}=await import('../v1-intake/canonical');
+ const shortlist=await prepareSemanticShortlist(store,'feed-1',window,window.end),model='oversized-editor';
+ const baseId=await sha256(canonicalJson({feedId:shortlist.feedId,shortlistId:shortlist.id,budget:DEFAULT_BRIEFING_BUDGET,model,policy:'comparative-editorial-plan-v21'}));
+ const prior={id:baseId,feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,shortlistId:shortlist.id,window:shortlist.window,communicationFingerprint:shortlist.communicationFingerprint,route:'DETERMINISTIC_FALLBACK' as const,plannerSource:'DETERMINISTIC_FALLBACK' as const,fallbackReason:'EMPTY_OR_OVERSIZED_EDITORIAL_INPUT',modelOperationIds:billed?['billed-op']:[],operationId:billed?'billed-op':undefined,evidenceRevisionIds:shortlist.evidenceRevisionIds,policyVersion:'comparative-editorial-plan-v21',createdAt:window.end,...fallbackEditorialPlan(shortlist)};
+ await feedTransact(store,'feed-1',tx=>tx.write('editorial_plans',baseId,prior));
+ let calls=0;const usage={calls:1,costUsd:.001,reported:true},strong={model,usage:()=>usage,complete:async()=>{calls++;return {value:compactEditorialInput(shortlist).encode(fallbackEditorialPlan(shortlist)),usage}}};
+ const plan=await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,window.end,strong);
+ expect(plan.route).toBe(billed?'DETERMINISTIC_FALLBACK':'GPT');expect(calls).toBe(billed?0:1);
+ expect(await prepareEditorialPlan(new V1FeedStore(ctx.db),shortlist,DEFAULT_BRIEFING_BUDGET,window.end,strong)).toEqual(plan);expect(calls).toBe(billed?0:1);
+ expect(await store.read('feed-1','editorial_plans',baseId)).toEqual(JSON.parse(JSON.stringify(prior)));
+},25000);

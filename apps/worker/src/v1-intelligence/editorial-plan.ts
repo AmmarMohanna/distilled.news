@@ -176,11 +176,12 @@ export function planCapacityFailures(body:EditorialPlanBody,shortlist:ShortlistR
 export async function prepareEditorialPlan(store:V1FeedStore,shortlist:ShortlistRecord,budget:BriefingBudget,now:string,strong?:StrongSemanticModel):Promise<EditorialPlanRecord> {
  const baseId=await sha256(canonicalJson({feedId:shortlist.feedId,shortlistId:shortlist.id,budget,model:strong?.model??'NONE',policy:EDITORIAL_PLAN_POLICY}));
  const prior=await store.read<EditorialPlanRecord>(shortlist.feedId,'editorial_plans',baseId);
- const recoverable=prior?.route==='DETERMINISTIC_FALLBACK'&&prior.fallbackReason==='SEMANTIC_EDITORIAL_VALIDATION_FAILED'&&Boolean(strong);
+ const recoveryPolicy=prior?.route==='DETERMINISTIC_FALLBACK'&&strong?(prior.fallbackReason==='SEMANTIC_EDITORIAL_VALIDATION_FAILED'?EDITORIAL_NORMALIZATION_POLICY:prior.fallbackReason==='EMPTY_OR_OVERSIZED_EDITORIAL_INPUT'&&!prior.operationId&&!prior.modelOperationIds?.length&&shortlist.candidates.length?'oversized-ranking-audit-elision-v1':undefined):undefined;
+ const recoverable=Boolean(recoveryPolicy);
  if(prior&&!recoverable)return prior;
- // Failed historical plans/results remain immutable. A recovered interpretation
- // has its own identity, referencing the same billed model operation.
- const id=recoverable?await sha256(canonicalJson({baseId,normalization:EDITORIAL_NORMALIZATION_POLICY})):baseId;
+ // Failed plans/results remain immutable. Recovery has a separate identity;
+ // a billed response is reused and a never-called plan may acquire its first call.
+ const id=recoverable?await sha256(canonicalJson({baseId,normalization:recoveryPolicy})):baseId;
  const recovered= recoverable?await store.read<EditorialPlanRecord>(shortlist.feedId,'editorial_plans',id):undefined;if(recovered)return recovered;
  let body=fallbackEditorialPlan(shortlist),route:EditorialPlanRecord['route']='DETERMINISTIC_FALLBACK',fallbackReason=strong?'EMPTY_OR_OVERSIZED_EDITORIAL_INPUT':'STRONG_MODEL_UNAVAILABLE',operationId:string|undefined;const modelOperationIds:string[]=[];
  let normalization:EditorialNormalization|undefined;
