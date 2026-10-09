@@ -1,7 +1,44 @@
 import {it,expect} from 'vitest';
 import {checkReaderFidelity,verifiedCorrectionDelivery} from './fidelity';
 import temporalFalsePass from './fixtures/staging-temporal-false-pass.json';
+import googleReportDate from './fixtures/staging-google-report-date.json';
+import anthropicReportDate from './fixtures/staging-anthropic-report-date.json';
 const fact=(text:string)=>({id:'fact',text,evidenceRevisionIds:['r']});
+const positiveChecks=(facts:{id:string}[])=>facts.map(f=>({factId:f.id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Permissive verifier approval.'}));
+it('also rejects the later naturally published Anthropic policy-update date false pass',()=>{
+ const facts=anthropicReportDate.facts;
+ expect(checkReaderFidelity([anthropicReportDate.claim],facts,facts,true,{checks:positiveChecks(facts)}).failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 8, 2026'});
+});
+it('rejects the persisted Google report date used as a release date despite verifier approval',()=>{
+ const facts=googleReportDate.facts;
+ expect(checkReaderFidelity([googleReportDate.claim],facts,facts,true,{checks:positiveChecks(facts)}).failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 8, 2026'});
+ for(const text of ['A report published on October 8, 2026 describes Google releasing AI Edge Foresight.','Google released AI Edge Foresight, according to a report dated October 8, 2026.'])expect(checkReaderFidelity([text],[],facts,true).passed).toBe(true);
+ expect(checkReaderFidelity(['Google reportedly released AI Edge Foresight on October 8, 2026.'],[],facts,true,{checks:positiveChecks(facts)}).passed).toBe(false);
+ expect(checkReaderFidelity(['Google published on October 8, 2026 a new AI Edge Foresight app.'],[],facts,true,{checks:positiveChecks(facts)}).passed).toBe(false);
+ expect(checkReaderFidelity(['A report published on October 8, 2026 says Google released it on October 8, 2026.'],[],facts,true).passed).toBe(false);
+});
+it('keeps report, observation and supported event dates distinct',()=>{
+ const f={...fact('Google released a product.'),timing:{sourcePublishedAt:'2026-10-08T13:28:39Z',reportTime:'2026-10-08T13:28:39Z',firstSeenByFeedAt:'2026-10-09T07:00:00Z',observedAt:'2026-10-09T07:00:00Z',framingRequired:false}};
+ expect(checkReaderFidelity(['Google released a product on October 9, 2026.'],[f],[f],true).passed).toBe(false);
+ expect(checkReaderFidelity(['Google released a product.'],[f],[f],true).passed).toBe(true);
+ expect(checkReaderFidelity(['Google released a product on October 7, 2026.'],[f],[{...f,timing:{...f.timing,eventTime:'2026-10-07T12:00:00Z'}}],true).passed).toBe(true);
+ const explicit=fact('Google released a product on October 7, 2026.');
+ expect(checkReaderFidelity(['On October 7, 2026, Google released a product.'],[explicit],[explicit],true).passed).toBe(true);
+ const reporting=fact('A report published on October 8, 2026 says Google released a product.');
+ expect(checkReaderFidelity(['Google released a product on October 8, 2026.'],[],[reporting],true).passed).toBe(false);
+});
+it('does not turn relative event sequence or ingestion time into calendar or deictic event dates',()=>{
+ const f={...fact('The product launched two days after the announcement.'),timing:{sourcePublishedAt:'2026-10-08T12:00:00Z',firstSeenByFeedAt:'2026-10-09T07:00:00Z',observedAt:'2026-10-09T07:00:00Z',framingRequired:false}};
+ expect(checkReaderFidelity([f.text],[f],[f],true).passed).toBe(true);
+ for(const text of ['The product launched two days after the announcement, on October 8, 2026.','The product launched today, two days after the announcement.','The product launched yesterday, two days after the announcement.'])expect(checkReaderFidelity([text],[f],[f],true,{checks:positiveChecks([f])}).passed).toBe(false);
+ const explicit=fact('The product launched yesterday.');
+ expect(checkReaderFidelity([explicit.text],[explicit],[explicit],true).passed).toBe(true);
+});
+it('an explicit old event date does not substitute for old source-report framing',()=>{
+ const f={...fact('Google released the product on September 30, 2026.'),timing:{sourcePublishedAt:'2026-10-02T12:00:00Z',eventTime:'2026-09-30T12:00:00Z',firstSeenByFeedAt:'2026-10-09T07:00:00Z',observedAt:'2026-10-09T07:00:00Z',framingRequired:true}},checks=positiveChecks([f]);
+ expect(checkReaderFidelity(['A report says Google released the product on September 30, 2026.'],[f],[f],true,{checks}).failures).toContainEqual({code:'TEMPORAL_FRAMING_REQUIRED',factId:'fact'});
+ expect(checkReaderFidelity(['An October 2, 2026 report says Google released the product on September 30, 2026.'],[f],[f],true,{checks}).passed).toBe(true);
+});
 it('rejects the exact persisted Mangione false pass despite real verifier approval',()=>{
  const f=temporalFalsePass.fact;
  expect(f.timing.framingRequired).toBe(true);

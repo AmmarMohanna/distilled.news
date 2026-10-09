@@ -31,16 +31,28 @@ function numericalBounds(text:string):Set<string>{
  return new Set([...numericText(text).matchAll(/\b(at least|no fewer than|at most|no more than|more than|over|less than|under)\s+(?:a\s+)?(\d+(?:[.,]\d+)*(?:\s*(?:%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b|bn\b|mn\b|tn\b))?)/g)].flatMap(m=>[...numbers(m[2])].map(n=>operators[m[1]]+n)));
 }
 /** Calendar dates are provenance-qualified dates, not casualty counts or ages.
- * Only exact supported calendar dates may bypass the quantity floor; semantic
- * verification still checks whether prose uses them as report or event dates. */
-function calendarDates(text:string):{text:string;key:string}[] {
+ * Only exact supported calendar dates may bypass the quantity floor; the
+ * reporting-date attachment floor below also constrains their reader role. */
+function calendarDates(text:string):{text:string;key:string;index:number}[] {
  const months=['january','february','march','april','may','june','july','august','september','october','november','december'];
- const month=months.join('|'),out:{text:string;key:string}[]=[];
- for(const m of text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})(?:T[0-9:.]+Z)?\b/g))out.push({text:m[0],key:`${Number(m[2])}-${Number(m[3])}-${m[1]}`});
+ const month=months.join('|'),out:{text:string;key:string;index:number}[]=[];
+ for(const m of text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})(?:T[0-9:.]+Z)?\b/g))out.push({text:m[0],key:`${Number(m[2])}-${Number(m[3])}-${m[1]}`,index:m.index!});
  const pattern=new RegExp(`\\b(?:(\\d{1,2})\\s+(${month})|(${month})\\s+(\\d{1,2}))(?:,?\\s+(\\d{4}))?\\b`,'gi');
- for(const m of text.matchAll(pattern))out.push({text:m[0],key:`${months.indexOf((m[2]??m[3]).toLowerCase())+1}-${Number(m[1]??m[4])}${m[5]?`-${m[5]}`:''}`});
+ for(const m of text.matchAll(pattern))out.push({text:m[0],key:`${months.indexOf((m[2]??m[3]).toLowerCase())+1}-${Number(m[1]??m[4])}${m[5]?`-${m[5]}`:''}`,index:m.index!});
  return out;
 }
+/** A metadata date licenses a date attached to reporting, not an arbitrary
+ * dated action elsewhere in the claim. Inspect EACH occurrence: mentioning a
+ * dated report cannot launder a second occurrence into a dated release.
+ * Unrecognised/ambiguous attachment stays conservative; semantic approval
+ * cannot override this provenance floor. */
+function attachedToReporting(text:string,date:{text:string;index:number}):boolean {
+ const before=text.slice(Math.max(0,date.index-100),date.index),after=text.slice(date.index+date.text.length);
+ return /\b(?:report|reporting|coverage|article|account|source)\s+(?:(?:was\s+)?(?:published|dated|released|issued)\s+)?(?:on\s+|from\s+|of\s+)?$/i.test(before)
+  || /\b(?:reported|reporting)\s+on\s+$/i.test(before)
+  || /^\s+(?:report|reporting|coverage|article|account)\b/i.test(after);
+}
+function addDateKeys(keys:Set<string>,text:string){for(const date of calendarDates(text)){keys.add(date.key);keys.add(date.key.split('-').slice(0,2).join('-'));}}
 function withoutSupportedDates(text:string,keys:Set<string>):string {
  for(const date of calendarDates(text))if(keys.has(date.key))text=text.replace(date.text,' ');
  return text;
@@ -50,8 +62,13 @@ function withoutSupportedDates(text:string,keys:Set<string>):string {
  * translations retain the mandatory structured model verification path. */
 export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],allowed:FidelityFact[],english:boolean,semantic?:{pending?:boolean;checks?:SemanticFactCheck[]}):ReaderFidelity {
  const text=factualText(claimTexts.join('\n')),support=factualText(allowed.flatMap(f=>[f.text,...(f.context?[f.context.text]:[])]).join('\n')),failures:ReaderFidelity['failures']=[];
- const dateKeys=new Set(calendarDates(support).map(d=>d.key));for(const f of allowed)for(const date of [f.timing?.sourcePublishedAt,f.timing?.reportTime,f.timing?.eventTime])if(date)for(const d of calendarDates(date))dateKeys.add(d.key);
- for(const key of [...dateKeys])dateKeys.add(key.split('-').slice(0,2).join('-'));
+ const reportDateKeys=new Set<string>(),eventDateKeys=new Set<string>();
+ for(const f of allowed){
+  for(const span of [f.text,...(f.context?[f.context.text]:[])]){const source=factualText(span);for(const date of calendarDates(source))addDateKeys(attachedToReporting(source,date)?reportDateKeys:eventDateKeys,date.text);}
+  for(const date of [f.timing?.sourcePublishedAt,f.timing?.reportTime])if(date)addDateKeys(reportDateKeys,date);
+  if(f.timing?.eventTime)addDateKeys(eventDateKeys,f.timing.eventTime);
+ }
+ const dateKeys=new Set([...reportDateKeys,...eventDateKeys]);
  const quantityText=withoutSupportedDates(text,dateKeys),quantitySupport=withoutSupportedDates(support,dateKeys);
  const offered=numbers(quantitySupport),visible=numbers(quantityText);if(english||offered.size)for(const value of visible)if(!offered.has(value))failures.push({code:'UNSUPPORTED_QUANTITY',value});
  if(english){const bounds=numericalBounds(quantitySupport);for(const value of numericalBounds(quantityText))if(!bounds.has(value))failures.push({code:'UNSUPPORTED_QUANTITY',value});}
@@ -59,13 +76,17 @@ export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],
  // Approximate magnitudes are information too, not interchangeable with "some".
  // This hard floor cannot be overridden by a permissive semantic attestation.
  if(english)for(const fact of required)for(const match of normalized(fact.text).matchAll(/\b(dozens|hundreds|thousands|millions|billions|trillions)\b/g))if(!new RegExp(`\\b${match[1]}\\b`).test(text))failures.push({code:'LOST_QUANTITY',factId:fact.id,value:match[1]});
- for(const date of calendarDates(text))if(!dateKeys.has(date.key))failures.push({code:'UNSUPPORTED_DATE',value:date.text});
+ for(const date of calendarDates(text))if(!dateKeys.has(date.key)||(english&&!eventDateKeys.has(date.key)&&!attachedToReporting(text,date)))failures.push({code:'UNSUPPORTED_DATE',value:date.text});
+ // Relative event sequence remains source-grounded; a report/observation time
+ // cannot independently license "today"/"yesterday". No current-time anchor
+ // is offered here, so do not resolve or manufacture deictic calendar dates.
+ if(english)for(const m of text.matchAll(/\b(?:today|yesterday|tomorrow|(?:last|next|this)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|month|year))\b/g))if(!support.includes(m[0]))failures.push({code:'UNSUPPORTED_DATE',value:m[0]});
  for(const fact of required)if(fact.timing?.framingRequired&&!semantic?.pending&&!semantic?.checks?.some(c=>c.factId===fact.id&&faithfulFact(c)))failures.push({code:'TEMPORAL_FRAMING_REQUIRED',factId:fact.id});
  // Relative event sequence ("days after the killing") does not communicate
  // reporting age. A permissive model verdict cannot erase this reader floor.
  if(english&&!semantic?.pending)for(const fact of required)if(fact.timing?.framingRequired){
   const olderReport=/\b(?:earlier|older|previous|past|prior|original)\b\s+(?:source\s+|news\s+)?(?:report|reporting|coverage|account)\b|\b(?:report|reporting|reported|coverage|account)\b[^.!?]{0,45}\b(?:earlier|older|previous|previously)\b/i.test(text);
-  const datedReport=calendarDates(text).length>0&&/\b(?:report|reported|reporting|coverage)\b/i.test(text);
+  const datedReport=calendarDates(text).some(date=>reportDateKeys.has(date.key)&&attachedToReporting(text,date));
   if(!olderReport&&!datedReport)failures.push({code:'TEMPORAL_FRAMING_REQUIRED',factId:fact.id});
  }
  if(english)for(const fact of required){
@@ -78,7 +99,7 @@ export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],
   for(const [phrase,equivalent] of [['at least',/\b(at least|no fewer than)\b/],['at most',/\b(at most|no more than)\b/],['more than',/\b(more than|over)\b/],['less than',/\b(less than|under)\b/],['before',/\b(before|earlier than|prior to)\b/],['after',/\b(after|later than|following)\b/]] as const)if(source.includes(phrase)&&!equivalent.test(text))failures.push({code:'LOST_BOUND',factId:fact.id,value:phrase});
   if(fact.attribution&&!text.includes(normalized(fact.attribution)))failures.push({code:'LOST_ATTRIBUTION',factId:fact.id,value:fact.attribution});
  }
- return {passed:!failures.length,failures,policyVersion:'reader-fidelity-floors-v4'};
+ return {passed:!failures.length,failures,policyVersion:'reader-fidelity-floors-v5'};
 }
 
 /** Model attestation must concern actual supported reader prose. English adds

@@ -42,6 +42,21 @@ async function selection(normalized=false){
  await feedTransact(store,'feed-1',tx=>tx.write('editorial_plans',plan.id,plan));
  return scoreAndSelect(store,'feed-1',window,DEFAULT_BRIEFING_BUDGET,window.end,undefined,plan);
 }
+it.each(['event','report'] as const)('publication cannot promote a source date to an event date despite permissive semantic verification (%s)',async role=>{
+ const selected=await selection(true),usage={tokensIn:100,tokensOut:40,cost:.001,confirmed:true};
+ const model:BriefingModelPort={model:'controlled-permissive-verifier',provider:'TEST',requiresFullEntailment:true,maxCallCostUsd:.01,
+  synthesize:async input=>({draft:{language:'en',stories:input.stories.map(s=>({candidateId:s.candidate.id,claims:s.approvedFacts!.map(f=>({text:f.text===A?(role==='event'?'On October 3, 2026, ':'A report published on October 3, 2026 states: ')+f.text:f.text,support:f.support,communicatedFactIds:[f.id]}))}))},usage}),
+  verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>f.id)),novelFactIds:claims.flatMap(c=>(c.newUnderstandingFacts??[]).map(f=>f.id)),claimEntailment:claims.map(c=>({claimId:c.id,fullyEntailed:true,reason:'Permissive approval.',unsupportedMeaning:[]})),semanticChecks:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>({factId:f.id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,readerNovelty:{status:'NEW' as const,reason:'First communication.',previousFactTexts:[]},reason:'Permissive temporal approval.',readerSpans:[{claimId:c.id,text:c.text}]}))),usage})};
+ if(role==='event'){
+  await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+  expect(await store.list('feed-1','editions')).toHaveLength(0);
+  expect(JSON.stringify(await store.list('feed-1','verification_feedback'))).toContain('UNSUPPORTED_DATE');
+ }else{
+  const edition=await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true});
+  expect(edition.stories.flatMap(s=>s.claims).map(c=>c.text).join(' ')).toContain('A report published on October 3, 2026');
+  expect(await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true})).toEqual(edition);
+ }
+},25000);
 it.each([true,false])('normalized new facts must both survive independently verified publication (%s)',async complete=>{
  const selected=await selection(true),usage={tokensIn:100,tokensOut:40,cost:.001,confirmed:true};
  const draft=(input:SynthesisWriterInput)=>({language:'en',stories:input.stories.map(s=>({candidateId:s.candidate.id,claims:s.approvedFacts!.filter(f=>complete||f.text===A).map(f=>({text:f.text,support:f.support,communicatedFactIds:[f.id]}))}))});
