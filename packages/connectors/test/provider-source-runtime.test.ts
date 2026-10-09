@@ -11,7 +11,7 @@ import { TwitterApiIoProvider,ApifySourceProvider } from '../src/source-runtime/
 import { WebsiteSourceProvider } from '../src/source-runtime/website-providers';
 import { D1ProviderPollScheduler,PROVIDER_POLL_SCHEMA } from '../src/source-runtime/provider-scheduler';
 import { normalizeProviderRecords } from '../src/source-runtime/provider-normalize';
-import type { FeedHttpPort } from '../src/source-runtime/ports';
+import type { FeedHttpPort, FeedResponse } from '../src/source-runtime/ports';
 
 const databases:DatabaseSync[]=[];
 afterEach(()=>{for(const db of databases.splice(0))db.close();});
@@ -148,10 +148,59 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const result=await p.fetch({...request,source:{family:'rss',locator:'https://publisher.example/rss'}});
     expect(result.items[0]).toMatchObject({sourceItemKey:'id:abc',body:'Hello. Text',excerpt:'Text',representation:'ARTICLE_EXCERPT'});expect(result.complete).toBeUndefined();
   });
+  it('enriches at most two same-origin RSS articles while retaining their original excerpts',async()=>{
+    const xml=`<rss><channel>${[1,2,3].map(i=>`<item><guid>${i}</guid><link>https://publisher.example/story/${i}</link><title>Story ${i}</title><description>Short feed excerpt ${i}</description></item>`).join('')}</channel></rss>`;
+    const http:FeedHttpPort={get:vi.fn(async url=>({status:200,headers:{},bytes:encoder.encode(url.endsWith('/feed')?xml:'<article>Publisher article</article>'),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
+    const execution={execute:vi.fn(async()=>({body:'Detailed publisher evidence. '.repeat(12)}))};
+    const result=await new FeedSourceProvider('rss_native',http,execution).fetch({...request,limit:30,source:{family:'rss',locator:'https://publisher.example/feed'}});
+    expect(result.items.map(item=>item.representation)).toEqual(['FULL_ARTICLE','FULL_ARTICLE','ARTICLE_EXCERPT']);
+    expect(result.items[0]).toMatchObject({excerpt:'Short feed excerpt 1',contentCompleteness:'UNKNOWN'});
+    expect(result.items[0].body).toContain('Detailed publisher evidence.');
+    expect(result.items[2].body).toBe('Story 3. Short feed excerpt 3');
+    expect(result.requests).toBe(3);expect(execution.execute).toHaveBeenCalledTimes(2);
+  });
+  it('does not fetch cross-origin RSS articles or promote failed extraction to full content',async()=>{
+    const xml='<rss><channel><item><guid>1</guid><link>https://elsewhere.example/story</link><title>External</title><description>Excerpt</description></item><item><guid>2</guid><link>https://publisher.example/story</link><title>Local</title><description>Excerpt</description></item></channel></rss>';
+    const http:FeedHttpPort={get:vi.fn(async url=>({status:url.endsWith('/story')?403:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
+    const execution={execute:vi.fn(async()=>({body:'Detailed publisher evidence. '.repeat(12)}))};
+    const result=await new FeedSourceProvider('rss_native',http,execution).fetch({...request,source:{family:'rss',locator:'https://publisher.example/feed'}});
+    expect(result.items.map(item=>item.representation)).toEqual(['ARTICLE_EXCERPT','ARTICLE_EXCERPT']);
+    expect(vi.mocked(http.get).mock.calls.map(([url])=>url)).toEqual(['https://publisher.example/feed','https://publisher.example/story']);
+    expect(execution.execute).not.toHaveBeenCalled();
+  });
   it('Google News uses a query RSS URL and labels results as listings',async()=>{
     const http=feed('<rss><channel><item><guid>google-id</guid><title>Result</title></item></channel></rss>');
     const result=await new FeedSourceProvider('google_rss',http).fetch({...request,source:{family:'google_news',locator:'AI',language:'en',region:'US'}});
     expect(String(vi.mocked(http.get).mock.calls[0][0])).toContain('news.google.com/rss/search');expect(result.items[0].representation).toBe('LISTING_RESULT');
+  });
+  it('resolves a Google News article redirect without fetching the publisher',async()=>{
+    const google='https://news.google.com/rss/articles/opaque?oc=5';
+    const xml=`<rss><channel><item><guid>google-id</guid><link>${google.replace('&','&amp;')}</link><source url="https://publisher.example">Publisher</source><title>Result</title></item></channel></rss>`;
+    const http:FeedHttpPort={get:vi.fn(async (url):Promise<FeedResponse>=>url.includes('/rss/search')?{
+      status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:4,providerCostUsd:0}
+    }:{status:302,headers:{location:'https://publisher.example/article?utm_source=google&edition=us#top'},bytes:new Uint8Array(),
+      telemetry:{requests:1,latencyMs:6,providerCostUsd:0}})};
+    const result=await new FeedSourceProvider('google_rss',http).fetch({...request,source:{family:'google_news',locator:'AI'}});
+    expect(result.items[0]).toMatchObject({sourceItemKey:'id:google-id',url:'https://publisher.example/article?edition=us',publisherId:'publisher.example',representation:'LISTING_RESULT'});
+    expect(result).toMatchObject({requests:2,latencyMs:10});
+    expect(vi.mocked(http.get).mock.calls.map(([url])=>new URL(url).hostname)).toEqual(['news.google.com','news.google.com']);
+  });
+  it('keeps Google listing links when redirect destinations are unsafe or resolution fails',async()=>{
+    const links=['https://news.google.com/rss/articles/one','https://news.google.com/rss/articles/two'];
+    const xml=`<rss><channel>${links.map((link,index)=>`<item><guid>${index}</guid><link>${link}</link><title>Result ${index}</title></item>`).join('')}</channel></rss>`;
+    const http:FeedHttpPort={get:vi.fn(async (url):Promise<FeedResponse>=>url.includes('/rss/search')?{
+      status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}
+    }:url.endsWith('/one')?{status:302,headers:{location:'https://127.0.0.1/private'},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}:
+      {status:503,headers:{},bytes:new Uint8Array(),telemetry:{requests:3,latencyMs:5,providerCostUsd:0}})};
+    const result=await new FeedSourceProvider('google_rss',http).fetch({...request,source:{family:'google_news',locator:'AI'}});
+    expect(result.items.map(item=>item.url)).toEqual(links);expect(result.requests).toBe(5);
+  });
+  it('bounds Google redirect probes to eight links per snapshot',async()=>{
+    const links=Array.from({length:12},(_,index)=>`https://news.google.com/rss/articles/${index}`);
+    const xml=`<rss><channel>${links.map((link,index)=>`<item><guid>${index}</guid><link>${link}</link><title>Result</title></item>`).join('')}</channel></rss>`;
+    const http:FeedHttpPort={get:vi.fn(async url=>({status:url.includes('/rss/search')?200:404,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
+    await new FeedSourceProvider('google_rss',http).fetch({...request,limit:30,source:{family:'google_news',locator:'AI'}});
+    expect(http.get).toHaveBeenCalledTimes(9);
   });
   it('Telethon preserves numeric peer identity and proves oldest-first progress',async()=>{
     const execute=vi.fn(async()=>({channelId:'-100123',records:[{id:2,text:'Text',publishedAt:time}],orderedFromCheckpoint:true,exhausted:false}));

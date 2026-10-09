@@ -60,6 +60,29 @@ it('does not create another RSS item receipt for an identical completed HTTP 200
  expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_intake_receipts WHERE feed_source_id='feed-source-1'").first()).toEqual({n:1});
  expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM connector_batches WHERE feed_source_id='feed-source-1'").first()).toEqual({n:2});
 },30000);
+it('hands off bounded same-origin RSS article text with the feed excerpt preserved',async()=>{
+ const article='https://example.com/story';
+ const privateFetch=vi.fn(async(_url:unknown,init:RequestInit)=>{
+  expect(JSON.parse(String(init.body))).toMatchObject({kind:'extract',input:{url:article}});
+  return Response.json({body:'Detailed publisher article evidence. '.repeat(12)});
+ });
+ Object.assign(env,{SOURCE_EXECUTION_TOKEN:'local-fixture-token-01234567890123456789',SOURCE_EXECUTION_URL:'http://127.0.0.1:8790/v1/source-execution',SOURCE_EXECUTION_SERVICE:{fetch:privateFetch}});
+ const publicFetch=vi.fn(async(value:unknown)=>String(value)===article?
+   new Response('<article>Detailed publisher article evidence.</article>',{status:200}):
+   new Response(`<rss><channel><item><guid>story-1</guid><link>${article}</link><title>Banking reform passed</title><description>Brief feed excerpt.</description></item></channel></rss>`,{status:200}));
+ const backend=createConnectorRuntime(env,publicFetch as typeof fetch);
+ const result=await backend.collect({...request,runId:'enriched-rss'},['rss_native']);
+ expect(result.state).toBe('HANDED_OFF');
+ if(result.state!=='HANDED_OFF')return;
+ expect(result.request.observations[0]).toMatchObject({sourceItemKey:'id:story-1',representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN'});
+ expect(result.telemetry.requests).toBe(2);
+ expect(privateFetch).toHaveBeenCalledTimes(1);
+ expect((await new V1IntakeStore(ctx.db).list('intake_receipts','feed-source-1'))).toHaveLength(1);
+ const ref=result.request.observations[0].suppliedPayloadRef!;
+ const payload=JSON.parse(new TextDecoder().decode(await backend.payloads.get(request.scope,ref)));
+ expect(payload).toMatchObject({title:'Banking reform passed',excerpt:'Brief feed excerpt.',representation:'FULL_ARTICLE'});
+ expect(payload.body).toContain('Detailed publisher article evidence.');
+},30000);
 it('suppresses unchanged RSS items when the XML snapshot changes, but emits a revised item',async()=>{
  let channelTitle='First snapshot',description='The original source report remains available.';
  const fetcher=vi.fn(async()=>new Response(`<rss version="2.0"><channel><title>${channelTitle}</title><item><guid>rss-revision-1</guid><link>https://example.com/revised</link><title>Revised report</title><description>${description}</description></item></channel></rss>`,{status:200}));
@@ -177,6 +200,24 @@ it('accepts an approved Google News query through the free RSS path and rejects 
  expect(changed.request.observations).toHaveLength(1);
  expect(await new V1IntakeStore(ctx.db).list('intake_receipts','google-source')).toHaveLength(2);
  expect(await new V1IntakeStore(ctx.db).list('candidates','google-source')).toHaveLength(1);
+},30000);
+it('hands a resolved Google News publisher URL to intake while retaining the listing representation',async()=>{
+ const now=new Date().toISOString(),query='Lebanon electricity',url=buildGoogleNewsRssUrl(query,{geo:'US',language:'en'});
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('google-redirect','feed-1','Google News','channel','rss','google_news',?,?,1,'connector',?,?,?)").bind(url,`news: ${query}`,now,now,now).run();
+ const enrolled=await enrollV1Source(ctx.db,'google-redirect','owner-1',now);
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS='feed-source-1,google-redirect';
+ const article='https://news.google.com/rss/articles/opaque';
+ const fetcher=vi.fn(async(value:unknown)=>String(value)===article?
+   new Response(null,{status:302,headers:{Location:'https://publisher.example/article?utm_source=google&edition=us'}}):
+   new Response(`<rss><channel><item><guid>google-item</guid><link>${article}</link><source url="https://publisher.example">Publisher</source><title>Electricity update</title><description>Repairs began.</description></item></channel></rss>`,{status:200}));
+ const backend=createConnectorRuntime(env,fetcher as typeof fetch);
+ const result=await backend.collect({scope:{feedId:'feed-1',feedSourceId:'google-redirect',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,
+   runId:'google-redirect-run',source:{family:'google_news',locator:query,language:'en',region:'US'},requestedBounds:{},limit:30},['google_rss']);
+ expect(result.state).toBe('HANDED_OFF');
+ if(result.state!=='HANDED_OFF')return;
+ expect(result.request.observations[0]).toMatchObject({sourceItemKey:'id:google-item',canonicalUrl:'https://publisher.example/article?edition=us',publisherId:'publisher.example',representation:'LISTING_RESULT'});
+ expect(result.telemetry.requests).toBe(2);
+ expect(fetcher.mock.calls.map(([value])=>new URL(String(value)).hostname)).toEqual(['news.google.com','news.google.com']);
 },30000);
 it('continues a Google News snapshot across bounded scheduler ticks',async()=>{
  const now=new Date().toISOString(),url=buildGoogleNewsRssUrl('Lebanon electricity',{geo:'US',language:'en'});

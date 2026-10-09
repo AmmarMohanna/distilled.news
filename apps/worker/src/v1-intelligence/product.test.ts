@@ -48,6 +48,21 @@ it('source disable and Feed deletion atomically revoke in-flight scopes and pres
  await expect(new V1IntakeStore(ctx.db).snapshot('feed-source-1')).rejects.toMatchObject({code:'SCOPE_DENIED'});
  expect((await ctx.db.prepare('SELECT id FROM v1_source_catalog').all()).results).toHaveLength(1);
 });
+it('removing one source tombstones its intake scope while a newly approved source can reuse the catalog identity',async()=>{
+ const original=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());
+ await ctx.db.prepare("INSERT INTO v1_revisions(id,feed_source_id,item_key,json) VALUES('retained-revision','feed-source-1','item-1',?)").bind(JSON.stringify({id:'retained-revision',body:'Supported fact'})).run();
+ await ctx.db.prepare("DELETE FROM sources WHERE id='feed-source-1'").run();
+ const store=new V1IntakeStore(ctx.db);
+ await expect(store.snapshot('feed-source-1')).rejects.toMatchObject({code:'SCOPE_DENIED'});
+ expect(await store.getScope('feed-source-1')).toMatchObject({enabled:false,deletedAt:expect.any(String)});
+ expect((await ctx.db.prepare('SELECT id FROM v1_source_catalog').all()).results).toEqual([{id:original.source.id}]);
+ expect(await ctx.db.prepare("SELECT json FROM v1_revisions WHERE id='retained-revision'").first()).toEqual({json:JSON.stringify({id:'retained-revision',body:'Supported fact'})});
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,enabled,last_seen_at,created_at,updated_at) VALUES('feed-source-2','feed-1','News RSS','channel','rss','rss_feed','https://feeds.bbci.co.uk/news/world/rss.xml',1,?,?,?)").bind(testPolicy.now(),testPolicy.now(),testPolicy.now()).run();
+ const replacement=await enrollV1Source(ctx.db,'feed-source-2','owner-1',testPolicy.now());
+ expect(replacement.source.id).toBe(original.source.id);
+ expect(replacement.scope.feedSourceId).toBe('feed-source-2');
+ await expect(store.snapshot('feed-source-1')).rejects.toMatchObject({code:'SCOPE_DENIED'});
+});
 it('approved source identity changes cannot silently rebind an existing FeedSource',async()=>{
  await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());
  await ctx.db.prepare("UPDATE sources SET source_url='https://example.com/other.xml' WHERE id='feed-source-1'").run();

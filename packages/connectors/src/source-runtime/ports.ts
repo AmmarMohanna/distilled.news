@@ -64,5 +64,5 @@ export interface FeedResponse {
   telemetry: FetchTelemetry;
 }
 export interface FeedHttpPort {
-  get(url: string, headers: Record<string, string>): Promise<FeedResponse>;
+  get(url: string, headers: Record<string, string>, bounds?: {attempts?:number;timeoutMs?:number}): Promise<FeedResponse>;
 }

@@ -8,10 +8,10 @@ export class BoundedFeedHttp implements FeedHttpPort {
     attempts?: number; timeoutMs?: number; maxBytes?: number; maxBackoffMs?: number;
     sleep?: (ms: number) => Promise<void>; clock?: () => number;
   } = {}) {}
-  async get(url: string, headers: Record<string,string>): Promise<FeedResponse> {
+  async get(url: string, headers: Record<string,string>, bounds?: {attempts?:number;timeoutMs?:number}): Promise<FeedResponse> {
     const parsed = new URL(url);
     if (!['http:','https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('INVALID_SOURCE_URL');
-    const attempts = this.options.attempts ?? 3, timeoutMs = this.options.timeoutMs ?? 15_000;
+    const attempts = bounds?.attempts ?? this.options.attempts ?? 3, timeoutMs = bounds?.timeoutMs ?? this.options.timeoutMs ?? 15_000;
     const maxBytes = this.options.maxBytes ?? 2_000_000, maxBackoff = this.options.maxBackoffMs ?? 5_000;
     if (!Number.isInteger(attempts) || attempts < 1 || attempts > 5 || !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000 || !Number.isInteger(maxBytes) || maxBytes < 1 || maxBytes > 10_000_000 || !Number.isInteger(maxBackoff) || maxBackoff < 0 || maxBackoff > 60_000) throw new Error('INVALID_HTTP_LIMITS');
     const clock = this.options.clock ?? Date.now, start = clock();

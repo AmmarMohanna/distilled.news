@@ -10,19 +10,27 @@ export class HttpSourceExecution implements SourceExecutionPort {
       parsed.username||parsed.password||parsed.search||parsed.hash||token.length<32)throw new Error('INVALID_SOURCE_EXECUTION_CONFIG');
     this.url=parsed.href;
   }
-  async execute(kind:Parameters<SourceExecutionPort['execute']>[0],input:Record<string,unknown>):Promise<unknown> {
+  async execute(kind:Parameters<SourceExecutionPort['execute']>[0],input:Record<string,unknown>,bounds?:{timeoutMs?:number}):Promise<unknown> {
     const body=JSON.stringify({kind,input});
     if(new TextEncoder().encode(body).length>8000000)throw new Error('SOURCE_EXECUTION_INPUT_TOO_LARGE');
-    const signal=AbortSignal.timeout(this.timeoutMs);
-    const response=await this.dispatch(this.url,{method:'POST',redirect:'manual',signal,
-      headers:{authorization:`Bearer ${this.token}`,'content-type':'application/json'},body});
+    const timeout=bounds?.timeoutMs??this.timeoutMs;
+    if(!Number.isInteger(timeout)||timeout<1||timeout>this.timeoutMs)throw new Error('INVALID_SOURCE_EXECUTION_TIMEOUT');
+    const signal=AbortSignal.timeout(timeout);
+    const bounded=async <T>(operation:Promise<T>):Promise<T>=>{
+      signal.throwIfAborted();
+      let abort:()=>void=()=>{};
+      const deadline=new Promise<never>((_resolve,reject)=>{abort=()=>reject(new Error('SOURCE_EXECUTION_TIMEOUT'));signal.addEventListener('abort',abort,{once:true});});
+      try{return await Promise.race([operation,deadline]);}finally{signal.removeEventListener('abort',abort);}
+    };
+    const response=await bounded(this.dispatch(this.url,{method:'POST',redirect:'manual',signal,
+      headers:{authorization:`Bearer ${this.token}`,'content-type':'application/json'},body}));
     if(response.status!==200){await response.body?.cancel();throw new Error('SOURCE_EXECUTION_UNAVAILABLE');}
     const reader=response.body?.getReader();if(!reader)throw new Error('SOURCE_EXECUTION_INVALID_RESPONSE');
     let size=0;const chunks:Uint8Array[]=[];
     try {
-      for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;
+      for(;;){const part=await bounded(reader.read());if(part.done)break;size+=part.value.length;
         if(size>8000000)throw new Error('SOURCE_EXECUTION_OUTPUT_TOO_LARGE');chunks.push(part.value);}
-    }catch(error){void reader.cancel().catch(()=>{});throw error;}finally{reader.releaseLock();}
+    }catch(error){void reader.cancel().catch(()=>{});throw error;}finally{try{reader.releaseLock();}catch{}}
     const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
     try{return JSON.parse(new TextDecoder().decode(bytes));}catch{throw new Error('SOURCE_EXECUTION_INVALID_RESPONSE');}
   }
