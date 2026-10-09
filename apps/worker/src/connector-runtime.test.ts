@@ -49,6 +49,31 @@ it('migrates empty D1 and connects RSS through receipts, acquisition, intelligen
  expect(edition.stories[0].claims[0].support[0].evidenceRevisionId).toBe(edition.evidenceRevisionIds[0]);
  expect(await processV1Briefing(env,message,()=>now)).toEqual(edition);expect(await feeds.list('feed-1','editions')).toHaveLength(1);
 },30000);
+it('does not create another RSS item receipt for an identical completed HTTP 200 snapshot',async()=>{
+ const xml='<rss version="2.0"><channel><item><guid>unchanged-1</guid><link>https://example.com/unchanged</link><title>Unchanged report</title><description>The same source report remains available.</description></item></channel></rss>';
+ const fetcher=vi.fn(async()=>new Response(xml,{status:200}));
+ const backend=createConnectorRuntime(env,fetcher as typeof fetch);
+ const source={scope:request.scope,configurationRevision:request.configurationRevision,url:request.source.locator,maxItems:30};
+ expect((await backend.collectRss({...source,runId:'snapshot-first'})).checkpoint).toBe('ADVANCED');
+ expect((await backend.collectRss({...source,runId:'snapshot-second'})).checkpoint).toBe('ADVANCED');
+ expect(fetcher).toHaveBeenCalledTimes(2);
+ expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_intake_receipts WHERE feed_source_id='feed-source-1'").first()).toEqual({n:1});
+ expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM connector_batches WHERE feed_source_id='feed-source-1'").first()).toEqual({n:2});
+},30000);
+it('suppresses unchanged RSS items when the XML snapshot changes, but emits a revised item',async()=>{
+ let channelTitle='First snapshot',description='The original source report remains available.';
+ const fetcher=vi.fn(async()=>new Response(`<rss version="2.0"><channel><title>${channelTitle}</title><item><guid>rss-revision-1</guid><link>https://example.com/revised</link><title>Revised report</title><description>${description}</description></item></channel></rss>`,{status:200}));
+ const backend=createConnectorRuntime(env,fetcher as typeof fetch);
+ const source={scope:request.scope,configurationRevision:request.configurationRevision,url:request.source.locator,maxItems:30};
+ expect((await backend.collectRss({...source,runId:'rss-first'})).checkpoint).toBe('ADVANCED');
+ channelTitle='Second snapshot';
+ expect((await backend.collectRss({...source,runId:'rss-same-item'})).checkpoint).toBe('ADVANCED');
+ expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_intake_receipts WHERE feed_source_id='feed-source-1'").first()).toEqual({n:1});
+ description='The source report has been corrected with updated details.';
+ expect((await backend.collectRss({...source,runId:'rss-changed-item'})).checkpoint).toBe('ADVANCED');
+ expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_intake_receipts WHERE feed_source_id='feed-source-1'").first()).toEqual({n:2});
+ expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_candidates WHERE feed_source_id='feed-source-1'").first()).toEqual({n:1});
+},30000);
 it('rejects stale and disabled sources before fetch, with persisted exclusive ownership across flag changes',async()=>{
  expect(await authorizeConnectorSource(env,request)).toBe(true);
  expect(await authorizeConnectorSource(env,{...request,configurationRevision:999})).toBe(false);
@@ -132,7 +157,8 @@ it('accepts an approved Google News query through the free RSS path and rejects 
  const enrolled=await enrollV1Source(ctx.db,'google-source','owner-1',now);
  env.V1_DOWNSTREAM_FEED_SOURCE_IDS='feed-source-1,google-source';
  const r:SourceFetchRequest={scope:{feedId:'feed-1',feedSourceId:'google-source',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'google-run',source:{family:'google_news',locator:'Lebanon electricity',language:'en',region:'US'},requestedBounds:{},limit:30};
- const fetcher=vi.fn(async(value:unknown)=>{expect(String(value)).toBe(url);return new Response('<rss version="2.0"><channel><title>Google News</title><item><guid>google-1</guid><link>https://publisher.example/news/1</link><source url="https://publisher.example">Publisher</source><title>Lebanon electricity update</title><description>Electricity grid repairs began today.</description><pubDate>Thu, 08 Oct 2026 10:00:00 GMT</pubDate></item></channel></rss>',{headers:{'content-type':'application/rss+xml'}})});
+ let headline='Lebanon electricity update';
+ const fetcher=vi.fn(async(value:unknown)=>{expect(String(value)).toBe(url);return new Response(`<rss version="2.0"><channel><title>Google News</title><item><guid>google-1</guid><link>https://publisher.example/news/1</link><source url="https://publisher.example">Publisher</source><title>${headline}</title><description>Electricity grid repairs began today.</description><pubDate>Thu, 08 Oct 2026 10:00:00 GMT</pubDate></item></channel></rss>`,{headers:{'content-type':'application/rss+xml'}})});
  const backend=createConnectorRuntime(env,fetcher as typeof fetch);
  expect(await authorizeConnectorSource(env,r)).toBe(true);
  expect(await authorizeConnectorSource(env,{...r,source:{...r.source,locator:'unapproved topic'}})).toBe(false);
@@ -140,6 +166,17 @@ it('accepts an approved Google News query through the free RSS path and rejects 
  const first=await backend.collect(r,['google_rss']);if(first.state==='FETCH_FAILED')throw new Error('Google News fixture fetch failed');expect(first.checkpoint).toBe('UNCHANGED');
  await backend.collect(r,['google_rss']);expect(fetcher).toHaveBeenCalledTimes(1);
  expect(await new V1IntakeStore(ctx.db).list('intake_receipts','google-source')).toMatchObject([{checkpointResolution:'RESOLVED'}]);
+ const same=await backend.collect({...r,runId:'google-unchanged'},['google_rss']);
+ if(same.state==='FETCH_FAILED')throw new Error('Unchanged Google fixture failed');
+ expect(same.request.observations).toHaveLength(0);
+ expect(await new V1IntakeStore(ctx.db).list('intake_receipts','google-source')).toHaveLength(1);
+ expect(fetcher).toHaveBeenCalledTimes(2);
+ headline='Lebanon electricity update revised';
+ const changed=await backend.collect({...r,runId:'google-changed'},['google_rss']);
+ if(changed.state==='FETCH_FAILED')throw new Error('Changed Google fixture failed');
+ expect(changed.request.observations).toHaveLength(1);
+ expect(await new V1IntakeStore(ctx.db).list('intake_receipts','google-source')).toHaveLength(2);
+ expect(await new V1IntakeStore(ctx.db).list('candidates','google-source')).toHaveLength(1);
 },30000);
 it('continues a Google News snapshot across bounded scheduler ticks',async()=>{
  const now=new Date().toISOString(),url=buildGoogleNewsRssUrl('Lebanon electricity',{geo:'US',language:'en'});
@@ -155,6 +192,26 @@ it('continues a Google News snapshot across bounded scheduler ticks',async()=>{
  expect(await backend.scheduler.runOne()).toBe('DONE');
  expect(fetcher).toHaveBeenCalledTimes(1);
  expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_intake_receipts WHERE feed_source_id='google-paged'").first()).toEqual({n:35});
+},30000);
+it('hands off an approved website through direct HTTP and private text extraction',async()=>{
+ const now=new Date().toISOString(),url='https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html';
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('website-source','feed-1','Book page','channel','web','web_page',?,?,1,'connector',?,?,?)").bind(url,url,now,now,now).run();
+ const enrolled=await enrollV1Source(ctx.db,'website-source','owner-1',now);
+ const privateFetch=vi.fn(async(_url:unknown,init:RequestInit)=>{
+  expect(JSON.parse(String(init.body))).toMatchObject({kind:'extract',input:{url}});
+  return Response.json({title:'A Light in the Attic',body:'A long enough extracted page body. '.repeat(10)});
+ });
+ Object.assign(env,{V1_DOWNSTREAM_FEED_SOURCE_IDS:'website-source',SOURCE_EXECUTION_TOKEN:'local-fixture-token-01234567890123456789',SOURCE_EXECUTION_URL:'http://127.0.0.1:8790/v1/source-execution',SOURCE_EXECUTION_SERVICE:{fetch:privateFetch}});
+ const publicFetch=vi.fn(async()=>new Response('<html><title>A Light in the Attic</title><body>Books to Scrape</body></html>',{status:200}));
+ const r:SourceFetchRequest={scope:{feedId:'feed-1',feedSourceId:'website-source',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'website-run',source:{family:'website',locator:url},requestedBounds:{},limit:1};
+ const backend=createConnectorRuntime(env,publicFetch as typeof fetch);
+ expect(await authorizeConnectorSource(env,r)).toBe(true);
+ const result=await backend.collect(r,['website_http']);
+ if(result.state==='FETCH_FAILED')throw new Error('Website fixture fetch failed');
+ expect(result.request.proposals).toHaveLength(1);
+ expect(result.request.observations[0]).toMatchObject({sourceItemKey:`url:${url}`,representation:'FULL_ARTICLE'});
+ expect(await new V1IntakeStore(ctx.db).list('intake_receipts','website-source')).toHaveLength(1);
+ expect(publicFetch).toHaveBeenCalledTimes(1);expect(privateFetch).toHaveBeenCalledTimes(1);
 },30000);
 it('routes bounded approved Telegram through VPC, durable intake, evidence and publication without public fallback',async()=>{
  const now=new Date().toISOString(),input=JSON.stringify({username:'telegram',channelId:'-100123',public:true});

@@ -6,6 +6,12 @@ const telegramConfiguration=z.object({channelId:z.string().regex(/^-[1-9]\d*$/),
 const xConfiguration=z.object({username:z.string().regex(/^[A-Za-z0-9_]{1,15}$/)}).strict();
 /** Product approval plus the runtime allowlist admits these definitions. No discovery or channel joins. */
 export function productConnectorSource(p:{provider:string;kind:string;source_url:string|null;input:string|null;actor_id?:string|null}):{source:SourceDefinition;canonicalUrl:string;identity:unknown;limit:number}|undefined {
+ if(p.provider==='web'&&p.kind==='web_page'&&p.source_url&&p.input){
+  let detected:ReturnType<typeof detectSourceInput>,url:string;
+  try{detected=detectSourceInput(p.input);url=new URL(p.source_url).href;new WorkerPublicSourceFetch(url)}catch{return undefined}
+  if(detected.provider!=='web'||detected.kind!=='web_page'||detected.sourceUrl!==url)return undefined;
+  return {source:{family:'website',locator:url},canonicalUrl:url,identity:{type:'website',canonicalUrl:url},limit:1};
+ }
  if(p.provider==='rss'&&p.kind==='rss_feed'&&p.source_url){
   const url=new URL(p.source_url).href;new WorkerPublicSourceFetch(url);
   return {source:{family:'rss',locator:url},canonicalUrl:url,identity:{type:'rss',canonicalUrl:url},limit:30};

@@ -38,6 +38,6 @@ export class WebsiteSourceProvider implements SourceProvider {
     if(!string(result.body)||result.body.length<200)throw new SourceProviderError('CHALLENGE');
     return {items:[{sourceItemKey:`url:${url}`,upstreamId:url,url,publisherId:new URL(url).hostname,title:string(result.title),body:result.body,
       publishedAt:timestamp(result.publishedAt),language:string(result.language),representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
-      raw:new TextEncoder().encode(html),requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
+      raw:new TextEncoder().encode(html),complete:true,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
   }
 }

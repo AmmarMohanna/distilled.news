@@ -14,7 +14,7 @@ export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Pro
  const p=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.briefing_id=? AND s.enabled=1 AND s.collection_owner='connector' AND b.paused=0 AND a.disabled_at IS NULL`).bind(r.scope.feedSourceId,r.scope.feedId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null}>();
  const scope=await new V1IntakeStore(env.DB).getScope(r.scope.feedSourceId);
  const approved=p?productConnectorSource(p):undefined;
- return !!approved && canonicalJson(approved.source)===canonicalJson(r.source) && !!scope?.enabled && !scope.deletedAt && scope.sourceId===r.scope.sourceId && scope.feedId===r.scope.feedId && scope.feedRevision===r.configurationRevision && r.limit===approved.limit && Object.keys(r.requestedBounds).length===0 && (r.source.family!=='telegram'||!!env.SOURCE_EXECUTION_TOKEN&&!!env.SOURCE_EXECUTION_SERVICE);
+ return !!approved && canonicalJson(approved.source)===canonicalJson(r.source) && !!scope?.enabled && !scope.deletedAt && scope.sourceId===r.scope.sourceId && scope.feedId===r.scope.feedId && scope.feedRevision===r.configurationRevision && r.limit===approved.limit && Object.keys(r.requestedBounds).length===0 && (!['telegram','website'].includes(r.source.family)||!!env.SOURCE_EXECUTION_TOKEN&&!!env.SOURCE_EXECUTION_SERVICE);
 }
 export function createConnectorRuntime(env:Env,fetcher?:typeof fetch) {
  const authorize=(r:SourceFetchRequest)=>authorizeConnectorSource(env,r);
@@ -55,12 +55,20 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
   const enrolled=await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
   // Every polling window has one stable identity. Repeated cron ticks replay that run;
   // a later window may collect new source observations without reusing an old snapshot.
-  const intervalMs=['x_profile','x_search'].includes(approved.source.family)?3600000:
+  const intervalMs=['x_profile','x_search','website'].includes(approved.source.family)?3600000:
     approved.source.family.startsWith('linkedin_')?21600000:300000;
   const request:SourceFetchRequest={scope:{feedId:enrolled.scope.feedId,feedSourceId:id,sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:await sha256(JSON.stringify([id,enrolled.scope.feedRevision,Math.floor(now.getTime()/intervalMs)])),source:approved.source,requestedBounds:{},limit:approved.limit};
   if(await authorizeConnectorSource(env,request)) {
    if(request.source.family==='rss')await backend.rssScheduler.schedule(request.runId,{scope:request.scope,runId:request.runId,configurationRevision:request.configurationRevision,url:request.source.locator,requestedBounds:request.requestedBounds,maxItems:request.limit},now.toISOString());
-   else await backend.scheduler.schedule(request.runId,request,now.toISOString(),request.source.family==='telegram'?['telegram_telethon','telegram_public']:request.source.family==='google_news'?['google_rss','google_apify']:request.source.family.startsWith('linkedin_')?['linkedin_apify']:['x_twitterapi_io','x_apify']);
+   else {
+    const family=request.source.family;
+    const order=family==='telegram'?['telegram_telethon','telegram_public']:
+      family==='google_news'?['google_rss',...(budgets.google_apify>0&&ceilings.apify>0?['google_apify']:[])]:
+      family==='website'?['website_http','website_playwright',...(budgets.zyte>0&&ceilings.zyte>0?['website_zyte']:[])]:
+      family.startsWith('linkedin_')?['linkedin_apify']:
+      ['x_twitterapi_io','x_apify'].filter(provider=>provider==='x_twitterapi_io'?budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0:budgets.x_apify>0&&ceilings.apify>0);
+    await backend.scheduler.schedule(request.runId,request,now.toISOString(),order);
+   }
   }
  }
  await backend.rssScheduler.runOne();

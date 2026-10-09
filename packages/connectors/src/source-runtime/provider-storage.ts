@@ -5,6 +5,10 @@ import { D1SourceRepository, type SqlDatabase } from './storage';
 import type { ProviderAttempt, SourceFetchRequest, ProviderPage } from './provider-types';
 
 export const PROVIDER_SOURCE_SCHEMA=`
+CREATE TABLE IF NOT EXISTS connector_item_fingerprints (
+ feed_id TEXT NOT NULL, feed_source_id TEXT NOT NULL, source_id TEXT NOT NULL, source_item_key TEXT NOT NULL,
+ configuration_revision INTEGER NOT NULL, fingerprint TEXT NOT NULL, fetch_sequence INTEGER NOT NULL,
+ PRIMARY KEY(feed_id,feed_source_id,source_item_key));
 CREATE TABLE IF NOT EXISTS connector_provider_batches (
  feed_id TEXT NOT NULL, feed_source_id TEXT NOT NULL, batch_key TEXT NOT NULL, data TEXT NOT NULL, receipts TEXT,
  PRIMARY KEY(feed_id,feed_source_id,batch_key));

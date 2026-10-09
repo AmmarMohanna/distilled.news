@@ -31,11 +31,11 @@ export function prepareProductSourceInput(input:string) {
  const detected=detectSourceInput(input.trim());
  if(detected.kind==='google_news'&&!/^news:/i.test(input.trim()))throw new Error('Prefix a Google News query with news:.');
  if(detected.kind==='google_news'&&new URL(detected.sourceUrl).searchParams.get('q')!.length>256)throw new Error('Google News query is too long.');
- if(detected.kind==='web_page'||detected.kind==='telegram_channel'||detected.kind==='apify_actor')throw new Error(detected.kind==='telegram_channel'?'Telegram setup requires a verified channel identity.':'This source type is not available in the feed editor yet.');
+ if(detected.kind==='telegram_channel'||detected.kind==='apify_actor')throw new Error(detected.kind==='telegram_channel'?'Telegram setup requires a verified channel identity.':'This source type is not available in the feed editor yet.');
  const actorId=detected.provider==='apify'?(detected.kind==='x_profile'||detected.kind==='x_search'?TESTED_ACTORS.x:TESTED_ACTORS[detected.kind]):undefined;
  const sourceUrl=detected.sourceUrl?new URL(detected.sourceUrl).href:undefined;
- if(detected.kind==='rss_feed')new WorkerPublicSourceFetch(sourceUrl!);
- const normalizedInput=detected.kind==='rss_feed'?`rss: ${sourceUrl}`:detected.input;
+ if(detected.kind==='rss_feed'||detected.kind==='web_page')new WorkerPublicSourceFetch(sourceUrl!);
+ const normalizedInput=detected.kind==='rss_feed'?`rss: ${sourceUrl}`:detected.kind==='web_page'?sourceUrl!:detected.input;
  const definition=productConnectorSource({provider:detected.provider,kind:detected.kind,source_url:sourceUrl??null,input:normalizedInput,actor_id:actorId});
  if(!definition)throw new Error('This source configuration is not supported by the connector runtime.');
  return {detected,actorId,sourceUrl,input:normalizedInput,canonicalUrl:definition.canonicalUrl};
@@ -43,6 +43,7 @@ export function prepareProductSourceInput(input:string) {
 
 export async function approveProductSource(env:Env,repo:Repository,feed:BriefingConfig,input:string) {
  const plan=prepareProductSourceInput(input);
+ if(plan.detected.kind==='web_page'&&(!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_TOKEN))throw new Error('Website extraction requires the source execution service.');
  const source=await repo.upsertConfiguredSource({briefingId:feed.id,title:plan.detected.title,provider:plan.detected.provider,kind:plan.detected.kind,username:'username' in plan.detected?plan.detected.username:undefined,sourceUrl:plan.sourceUrl,input:plan.input,actorId:plan.actorId,actorInput:'actorInput' in plan.detected?plan.detected.actorInput:undefined,enabled:true});
  const admission=await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND (collection_owner='connector' OR (SELECT COUNT(*) FROM sources WHERE collection_owner='connector')<10)").bind(source.id).run();
  if(!admission.meta.changes)throw new Error('This deployment has reached its ten-source collection limit.');

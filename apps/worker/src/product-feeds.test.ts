@@ -63,5 +63,11 @@ it('approves supported connector inputs without a paid fetch and retains their i
   expect((await save({...input,sourceInputs:['Lebanon electricity']})).status).toBe(400);
   expect((await save({...input,sourceInputs:['news: Lebanon electricity','x: climate technology']})).status).toBe(200);
   expect((await repo.listSources(input.id)).map(source=>source.kind).sort()).toEqual(['google_news','x_search']);
+  env.SOURCE_EXECUTION_TOKEN='test-execution-token';
+  env.SOURCE_EXECUTION_SERVICE={} as Env['SOURCE_EXECUTION_SERVICE'];
+  expect((await save({...input,sourceInputs:['https://example.com/story']})).status).toBe(200);
+  expect((await repo.listSources(input.id)).map(source=>source.kind)).toEqual(['web_page']);
+  expect((await save({...input,sourceInputs:['https://example.com/story']})).status).toBe(200);
+  expect((await repo.listSources(input.id))).toHaveLength(1);
  }finally{await ctx.dispose()}
 },60000);

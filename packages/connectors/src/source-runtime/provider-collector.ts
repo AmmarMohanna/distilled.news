@@ -3,6 +3,7 @@ import type { CandidateIntakePort, CandidateProposal, SourceObservation } from '
 import type { ImmutablePayloadStore,FetchRun } from './ports';
 import { D1ProviderSourceRepository, type StoredProviderBatch, type StoredProviderSnapshot } from './provider-storage';
 import { DEFAULT_SOURCE_ORDER, SourceProviderError, type SourceFetchRequest, type SourceProvider, type ProviderAttempt } from './provider-types';
+import {itemFingerprint} from './item-fingerprint';
 
 export class FallbackSourceCollector {
   private providers:Map<string,SourceProvider>;
@@ -118,11 +119,15 @@ export class FallbackSourceCollector {
             publisherId:item.publisherId,titleHint:item.title,publishedAtHint:item.publishedAt,languageHint:item.language,observedAt:run.startedAt};
           if(op==='DELETE' && !o.authoritativeCurrentState)throw new SourceProviderError('MALFORMED');
           if(op==='UPSERT' && (item.body || item.title)) {
+            o.contentHash=await hashContent({representation:item.representation,title:item.title,body:item.body??''});
+            // Only suppress an exact item fingerprint durably accepted in an earlier
+            // run of this feed revision. Coverage still describes the fetched page.
+            if(item.identityValid && await this.repository.knownItemHash(request.scope,key,request.configurationRevision??0)===await itemFingerprint(o))continue;
             const p=await this.payloads.put(request.scope,new TextEncoder().encode(JSON.stringify({
               body:item.body??'',title:item.title,canonicalUrl:item.url,publishedAt:item.publishedAt,language:item.language,
               representation:item.representation,contentCompleteness:item.contentCompleteness,publisherId:item.publisherId
             })),'application/json');
-            o.suppliedPayloadRef=p.ref;o.contentHash=await hashContent({representation:item.representation,title:item.title,body:item.body??''});
+            o.suppliedPayloadRef=p.ref;
             if(item.identityValid)proposals.push({observationId:o.id,...request.scope,sourceItemKey:key,connectorType:id,
               upstreamId:o.upstreamId,url:o.canonicalUrl,titleHint:o.titleHint,publishedAtHint:o.publishedAtHint,languageHint:o.languageHint,
               representation:o.representation,contentCompleteness:o.contentCompleteness,suppliedPayloadRef:p.ref,payloadHash:p.hash,
@@ -145,6 +150,14 @@ export class FallbackSourceCollector {
   private async deliver(batch:StoredProviderBatch,attempts:ProviderAttempt[]) {
     const response=await handoffConnectorBatch(this.intake,batch.request);
     await this.repository.saveProviderReceipts(batch,response);
+    const receiptByObservation=new Map(response.receipts.map(r=>[r.observationId,r]));
+    for(const observation of batch.request.observations){
+      const receipt=receiptByObservation.get(observation.id);
+      if(observation.operation==='UPSERT'&&observation.contentHash&&receipt?.checkpointResolution==='RESOLVED'&&
+        (receipt.decision==='ACCEPTED'||receipt.decision==='REPLAY'))
+        await this.repository.rememberResolvedItem(batch.originalRequest.scope,observation.sourceItemKey,
+          batch.originalRequest.configurationRevision??0,await itemFingerprint(observation),observation.fetchStartSequence);
+    }
     const c=batch.request.coverage;
     const resolved=isIntakePrefixResolved(response,batch.request.observations.map(o=>o.id));
     let checkpoint:'BLOCKED'|'UNCHANGED'|'ADVANCED'|'CAS_CONFLICT'=resolved?'UNCHANGED':'BLOCKED';
