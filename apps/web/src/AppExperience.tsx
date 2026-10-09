@@ -5,8 +5,8 @@ import type { AccountRecord, HealthStatus, PublicBriefing } from "./types";
 import { getExploreFeeds, getFeed, setFeedStar } from "./api";
 import { ThemeToggle } from "./ThemeToggle";
 import { LanguageControl, useLanguage } from "./LanguageControl";
-import { installApp } from "./pwa";
-import { NotificationsDialog, InstallDialog, type InstallStatus } from "./SettingsDialogs";
+import { installApp, notificationsEnabled, setNotificationsEnabled } from "./pwa";
+import { InstallDialog, type InstallStatus } from "./SettingsDialogs";
 import { FeedArt } from "./FeedArt";
 import { formatFeedUpdated } from "./helpers";
 import { EXPLORE_CHANGED_EVENT, ExplorePublishingControl } from "./ExplorePublishingControl";
@@ -38,7 +38,10 @@ export function AppExperience(props: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [starBusy, setStarBusy] = useState<string | null>(null);
-  const [settingsDialog, setSettingsDialog] = useState<"notifications" | "install" | null>(null);
+  const [settingsDialog, setSettingsDialog] = useState<"install" | null>(null);
+  const [notificationEnabled, setNotificationEnabled] = useState<boolean>();
+  const [notificationBusy, setNotificationBusy] = useState(false);
+  const [notificationError, setNotificationError] = useState("");
   const [installStatus, setInstallStatus] = useState<InstallStatus>("pending");
   const [installError, setInstallError] = useState("");
   const { language, t } = useLanguage();
@@ -73,6 +76,22 @@ export function AppExperience(props: {
     setTab(next); setSettingsDialog(null); window.scrollTo({ top: 0 });
   }
   useEffect(() => { if (new URLSearchParams(window.location.search).get("view") === "settings" && props.account) setTab("settings"); }, []);
+  useEffect(() => {
+    if (tab !== "settings" || !props.account) return;
+    let active = true;
+    setNotificationEnabled(undefined);
+    setNotificationError("");
+    void notificationsEnabled().then(value => { if (active) setNotificationEnabled(value); })
+      .catch(cause => { if (active) { setNotificationEnabled(false); setNotificationError(cause instanceof Error ? cause.message : String(cause)); } });
+    return () => { active = false; };
+  }, [tab, props.account?.id]);
+  async function toggleNotifications() {
+    if (notificationEnabled === undefined || notificationBusy) return;
+    setNotificationBusy(true); setNotificationError("");
+    try { await setNotificationsEnabled(!notificationEnabled); setNotificationEnabled(!notificationEnabled); }
+    catch (cause) { setNotificationError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { setNotificationBusy(false); }
+  }
   return <main className={`experience product-refresh ${!props.account ? "guest-browse guest-landing landing-no-menu" : ""}`}>
     {(tab === "home" || !props.account) && <div className="ambient-lights" aria-hidden="true"/>}
     <AppHeader account={props.account} onAccount={props.onAccount}/>
@@ -102,8 +121,7 @@ export function AppExperience(props: {
         </article>)}</div> : null}
       </section>
     </section>}
-    {tab === "settings" && <section className="settings-view"><div className="experience-title"><h1>{t("Settings")}</h1><p>{t("Customize your experience.")}</p></div><p className="settings-group-label">{t("Account")}</p><div className="settings-group">{setting(<User/>, "Profile", props.onAccount)}{setting(<Bell/>, "Notifications", () => setSettingsDialog("notifications"))}</div><p className="settings-group-label">{t("App")}</p><div className="settings-group">{setting(<Smartphone/>, "Install App (PWA)", () => { setSettingsDialog("install"); setInstallStatus("pending"); setInstallError(""); void installApp().then(result => setInstallStatus(current => current === "installed" ? current : result)).catch(cause => { setInstallStatus("error"); setInstallError(String(cause)); }); })}{setting(<HelpCircle/>, "Help & Support", props.onHelp)}</div>{props.account?.role === "admin" && props.children}</section>}
-    {settingsDialog === "notifications" && <NotificationsDialog onClose={() => setSettingsDialog(null)}/>}
+    {tab === "settings" && <section className="settings-view"><div className="experience-title"><h1>{t("Settings")}</h1><p>{t("Customize your experience.")}</p></div><p className="settings-group-label settings-account-label">{t("Account")}</p><div className="settings-group settings-account-group">{setting(<User/>, "Profile", props.onAccount)}<button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Notifications")} aria-checked={notificationEnabled ?? false} disabled={notificationBusy || notificationEnabled === undefined} onClick={() => void toggleNotifications()}><Bell/><span>{t("Notifications")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div>{notificationError && <p className="error" role="alert">{t(notificationError)}</p>}<p className="settings-group-label settings-app-label">{t("App")}</p><div className="settings-group settings-app-group">{setting(<Smartphone/>, "Install App (PWA)", () => { setSettingsDialog("install"); setInstallStatus("pending"); setInstallError(""); void installApp().then(result => setInstallStatus(current => current === "installed" ? current : result)).catch(cause => { setInstallStatus("error"); setInstallError(String(cause)); }); })}{setting(<HelpCircle/>, "Help & Support", props.onHelp)}</div>{props.account?.role === "admin" && props.children}</section>}
     {settingsDialog === "install" && <InstallDialog status={installStatus} error={installError} onInstalled={() => setInstallStatus("installed")} onClose={() => setSettingsDialog(null)}/>}
     {props.account && <nav className="bottom-navigation" aria-label={t("Main navigation")}><div className="sidebar-logo experience-brand" aria-label="Distilled.news"><BrandMark/></div>{([{ id: "home", label: "Home", icon: Home }, { id: "explore", label: "Explore", icon: Search }, { id: "settings", label: "Settings", icon: Settings }] as const).map(({ id, label, icon: Icon }) => <button key={id} aria-current={tab === id ? "page" : undefined} className={`${tab === id ? "active" : ""} ${id === "settings" ? "navigation-settings" : ""}`} onClick={() => changeTab(id)}><Icon size={23}/><span>{t(label)}</span></button>)}</nav>}
   </main>;
