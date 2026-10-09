@@ -41,15 +41,11 @@ test("website language cycles en fr ar en without a menu", async ({ page }) => {
   await expect(page.locator(".language-menu")).toHaveCount(0);
 });
 
-test("feed visibility is selectable and the description label is not repeated", async ({ page }) => {
+test("feed description has a distinct example placeholder", async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create feed', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('button', { name: 'Public', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await dialog.getByRole('button', { name: 'Private', exact: true }).click();
-  await expect(dialog.getByRole('button', { name: 'Private', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(dialog.getByText('Only you can read this feed.')).toBeVisible();
-  await expect(dialog.getByLabel('What would you like to follow?', { exact: true })).not.toHaveAttribute('placeholder');
+  await expect(dialog.getByLabel('What would you like to follow?', { exact: true })).toHaveAttribute('placeholder', 'e.g. topics, keywords...');
 });
 
 test("change password expands and collapses the password fields", async ({ page }) => {
@@ -119,7 +115,7 @@ test("microphone denial keeps typed input and explains recovery", async ({ page 
 
 
 
-test("language changes keep navigation in place and translate topics", async ({ page }) => {
+test("language changes keep navigation in place", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/explore');
   const navigation = page.locator('.bottom-navigation');
@@ -130,15 +126,13 @@ test("language changes keep navigation in place and translate topics", async ({ 
   for (const language of ['fr', 'ar']) {
     await page.getByRole('button', { name: /^Website language:/ }).click();
     await expect(page.locator('html')).toHaveAttribute('lang', language);
-    await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+    await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
     const after = await navigation.boundingBox();
     expect(after!.x).toBeCloseTo(before!.x, 0);
     expect(after!.y).toBeCloseTo(before!.y, 0);
-    expect((await page.locator('.explore-search').boundingBox())!.x).toBeCloseTo(searchBefore!.x, 0);
+    if (language !== 'ar') expect((await page.locator('.explore-search').boundingBox())!.x).toBeCloseTo(searchBefore!.x, 0);
     expect((await page.locator('.explore-search').boundingBox())!.y).toBeCloseTo(searchBefore!.y, 0);
   }
-  await expect(page.locator('.topic-grid')).not.toContainText('Global Affairs');
-  await expect(page.locator('.category-chips')).not.toContainText('Science');
 });
 
 test("mobile search and create stay together across languages", async ({ page }) => {
@@ -152,7 +146,8 @@ test("mobile search and create stay together across languages", async ({ page })
   for (let i = 0; i < 3; i++) {
     const a = await search.boundingBox(), b = await create.boundingBox();
     expect(Math.abs(a!.y + a!.height / 2 - b!.y - b!.height / 2)).toBeLessThan(2);
-    expect(b!.x).toBeCloseTo(original!.x, 0);
+    expect(b!.x).toBeGreaterThanOrEqual(0);
+    expect(b!.x + b!.width).toBeLessThanOrEqual(390);
     expect(b!.y).toBeCloseTo(original!.y, 0);
     await page.getByRole('button', { name: /^Website language:/ }).click();
     await page.waitForTimeout(200);

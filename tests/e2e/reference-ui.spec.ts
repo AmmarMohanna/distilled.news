@@ -21,6 +21,7 @@ async function mock(page: Page) {
       : path === "/api/admin/briefings" || path === "/api/me/briefings" ? { briefings: [feed], briefing: feed }
       : path === "/api/explore/feeds" || path === "/api/explore/popular" ? { feeds: [feed] }
       : path === "/api/me/sources/recommend" ? { sources: ["https://x.com/mtvlebanon", "https://t.me/mtvlebanon", "https://www.mtv.com.lb"] }
+      : path === "/api/me/feeds" ? { briefing: feed }
       : path.startsWith("/api/feed/") ? { briefing: feed, editions: [], viewerHasStarred: false }
       : path === "/api/me/sources" ? { sources: [] }
       : path === "/api/me/health" ? { health: { processing: { queued: 0, completed: 0, failed: 0 } } } : {};
@@ -52,11 +53,9 @@ test("add feed selects, removes, and submits real source inputs", async ({ page 
   await dialog.locator('.screen-page-viewport').evaluate(node => { node.scrollTop = 0; });
   await page.mouse.move(0, 0);
   await page.screenshot({ path: `test-results/reference-add-feed-${test.info().project.name}.png` });
-  const saved = page.waitForRequest(request => request.url().endsWith("/api/me/briefings") && request.method() === "POST");
-  const sourceSaved = page.waitForRequest(request => request.url().endsWith("/api/me/sources") && request.method() === "POST");
+  const saved = page.waitForRequest(request => request.url().endsWith("/api/me/feeds") && request.method() === "POST");
   await dialog.getByRole("button", { name: "Create feed", exact: true }).click();
-  expect((await saved).postDataJSON()).toMatchObject({ title: "Lebanon news", publicFeedEnabled: true });
-  expect((await sourceSaved).postDataJSON()).toMatchObject({ input: "https://x.com/mtvlebanon" });
+  expect((await saved).postDataJSON()).toMatchObject({ title: "Lebanon news", publicFeedEnabled: true, sourceInputs: ["https://x.com/mtvlebanon"] });
 });
 
 test("profile edits username and expands password controls", async ({ page }) => {
