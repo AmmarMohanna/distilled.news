@@ -38,8 +38,15 @@ export class V1FeedStore {
   const scopes=await this.db.prepare('SELECT id,epoch FROM v1_intake_scopes WHERE feed_id=? ORDER BY id').bind(id).all<{id:string;epoch:number}>();
   return {feed,epoch:row.epoch,scopes:scopes.results};
  }
+ /** One read-only atomic probe, sampled after first/final CAS rejection.
+  * Epochs are monotonic; this describes observed guards, not a guessed DB outage. */
+ async casDiagnostic(snapshot:Snapshot) {
+  const row=await this.db.prepare(`SELECT epoch,json_extract(json,'$.paused') AS paused,json_extract(json,'$.deletedAt') AS deletedAt,(SELECT json_group_array(json_object('id',id,'epoch',epoch)) FROM v1_intake_scopes WHERE feed_id=?) AS scopes FROM v1_feeds WHERE id=?`).bind(snapshot.feed.id,snapshot.feed.id).first<{epoch:number;paused:number;deletedAt:string|null;scopes:string}>();
+  const scopes:Snapshot['scopes']=row?JSON.parse(row.scopes):[],old=new Map(snapshot.scopes.map(s=>[s.id,s.epoch])),current=new Map(scopes.map(s=>[s.id,s.epoch]));
+  return {observedAfterRejection:true,feedEpochChanged:!row||row.epoch!==snapshot.epoch,feedUnavailable:!row||Boolean(row.paused||row.deletedAt),scopeSetChanged:old.size!==current.size||[...old.keys()].some(id=>!current.has(id)),scopeChanges:[...new Set([...old.keys(),...current.keys()])].filter(id=>old.get(id)!==current.get(id)).map(id=>({id,before:old.get(id)??null,after:current.get(id)??null}))};
+ }
  async commit(tx:FeedTransaction):Promise<boolean> {
-  await tx.validateGraph();
+  const validationStarted=Date.now();await tx.validateGraph();tx.metrics.validationMs+=Date.now()-validationStarted;
   const {snapshot:s}=tx,nonce=crypto.randomUUID();
   const scopeChecks=s.scopes.map(()=>`EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=?)`).join(' AND ');
   const args:unknown[]=[nonce,s.feed.id,s.epoch,s.feed.id,s.scopes.length,...s.scopes.flatMap(x=>[x.id,x.epoch])];
@@ -57,6 +64,7 @@ export class V1FeedStore {
  }
 }
 export class FeedTransaction {
+ readonly metrics={documentReads:0,listReads:0,revisionReads:0,preloadQueries:0,validationMs:0};
  readonly writes=new Map<string,DocumentWrite>();readonly jobs=new Map<string,DownstreamJob>();
  private readonly reads=new Map<string,Promise<unknown>>();
  private readonly lists=new Map<DocumentKind,Promise<{id:string}[]>>();
@@ -64,12 +72,13 @@ export class FeedTransaction {
  constructor(readonly store:V1FeedStore,readonly snapshot:Snapshot){}
  async read<T>(kind:DocumentKind,id:string):Promise<T|undefined> {
   const key=JSON.stringify([kind,id]),staged=this.writes.get(key);if(staged) return staged.value as T;
-  if(!this.reads.has(key)) this.reads.set(key,this.store.read(this.snapshot.feed.id,kind,id));return this.reads.get(key) as Promise<T|undefined>;
+  if(!this.reads.has(key)){this.metrics.documentReads++;this.reads.set(key,this.store.read(this.snapshot.feed.id,kind,id))}return this.reads.get(key) as Promise<T|undefined>;
  }
  /** Populate immutable lookup cache in bounded batches while checking global ID scope. */
  async preload(kind:DocumentKind,ids:string[]):Promise<void> {
   const missing=[...new Set(ids)].filter(id=>!this.reads.has(JSON.stringify([kind,id]))&&!this.writes.has(JSON.stringify([kind,id])));
   for(let offset=0;offset<missing.length;offset+=90){
+   this.metrics.preloadQueries++;
    const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT id,feed_id,json FROM v1_feed_documents WHERE kind=? AND id IN (${chunk.map(()=>'?').join(',')})`).bind(kind,...chunk).all<{id:string;feed_id:string;json:string}>();
    if(rows.results.some(row=>row.feed_id!==this.snapshot.feed.id))throw new HandoffError('SCOPE_DENIED');
    const values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json)]));
@@ -77,12 +86,12 @@ export class FeedTransaction {
   }
  }
  async list<T extends {id:string}>(kind:DocumentKind):Promise<T[]> {
-  if(!this.lists.has(kind)) this.lists.set(kind,this.store.list(this.snapshot.feed.id,kind));
+  if(!this.lists.has(kind)){this.metrics.listReads++;this.lists.set(kind,this.store.list(this.snapshot.feed.id,kind))}
   const listed=(await this.lists.get(kind)) as T[];for(const row of listed){const key=JSON.stringify([kind,row.id]);if(!this.reads.has(key))this.reads.set(key,Promise.resolve(structuredClone(row)))}
   const rows=new Map(listed.map(r=>[r.id,r]));for(const w of this.writes.values()) if(w.kind===kind) rows.set(w.id,w.value as T);return [...rows.values()];
  }
  revision(id:string):Promise<EvidenceRevision|undefined> {
-  if(!this.revisions.has(id)) this.revisions.set(id,this.store.revision(this.snapshot.feed.id,id));return this.revisions.get(id)!;
+  if(!this.revisions.has(id)){this.metrics.revisionReads++;this.revisions.set(id,this.store.revision(this.snapshot.feed.id,id))}return this.revisions.get(id)!;
  }
  async write(kind:DocumentKind,id:string,value:unknown) {
   if(!value || typeof value!=='object' || !('id' in value) || value.id!==id) throw new HandoffError('SCOPE_DENIED');
@@ -180,7 +189,11 @@ export class FeedTransaction {
 }
 export async function feedTransact<T>(store:V1FeedStore,id:string,run:(tx:FeedTransaction)=>Promise<T>):Promise<T> {
  const started=Date.now();let firstEpoch:number|undefined,lastEpoch:number|undefined,lastWrites=0;
- for(let attempt=0;attempt<12;attempt++) {const tx=new FeedTransaction(store,await store.snapshot(id));firstEpoch??=tx.snapshot.epoch;lastEpoch=tx.snapshot.epoch;const result=await run(tx);lastWrites=tx.writes.size;if(await store.commit(tx)) return result}
+ for(let attempt=0;attempt<12;attempt++) {
+  const tx=new FeedTransaction(store,await store.snapshot(id)),computationStarted=Date.now();firstEpoch??=tx.snapshot.epoch;lastEpoch=tx.snapshot.epoch;
+  const result=await run(tx),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;if(await store.commit(tx))return result;
+  if(attempt===0||attempt===11)try{console.warn(JSON.stringify({type:'V1_FEED_CAS_REJECTED',feedId:id,attempt:attempt+1,epoch:tx.snapshot.epoch,writes:tx.writes.size,jobs:tx.jobs.size,computationMs,queries:tx.metrics,...await store.casDiagnostic(tx.snapshot)}))}catch{console.warn(JSON.stringify({type:'V1_FEED_CAS_DIAGNOSTIC_UNAVAILABLE',feedId:id,attempt:attempt+1}))}
+ }
  console.error(JSON.stringify({type:'V1_FEED_CAS_EXHAUSTED',feedId:id,firstEpoch,lastEpoch,writes:lastWrites,attempts:12,durationMs:Date.now()-started}));
  throw new HandoffError('TEMPORARY_UNAVAILABLE');
 }
