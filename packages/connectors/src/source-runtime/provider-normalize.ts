@@ -11,7 +11,10 @@ export const timestamp=(v:unknown):string|undefined=>{
   return Number.isFinite(n)?new Date(n).toISOString():undefined;
 };
 export function articleUrl(v:unknown):string|undefined{
-  try{const u=new URL(string(v)??'');if(['https:','http:'].includes(u.protocol)&&!u.username&&!u.password)return u.href;}catch{}
+  try{const u=new URL(string(v)??'');if(['https:','http:'].includes(u.protocol)&&!u.username&&!u.password){
+    u.hash='';for(const key of [...u.searchParams.keys()])if(/^utm_/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid'].includes(key.toLowerCase()))u.searchParams.delete(key);
+    return u.href;
+  }}catch{}
 }
 export function normalizeProviderRecords(rows:unknown[],family:SourceFamily):ProviderItem[] {
   const map=new Map<string,ProviderItem>();
@@ -24,7 +27,11 @@ export function normalizeProviderRecords(rows:unknown[],family:SourceFamily):Pro
     if(isX){upstreamId=upstreamId&&/^\d+$/.test(upstreamId)?upstreamId:url?.match(/\/status\/(\d+)/)?.[1];url=upstreamId?`https://x.com/i/status/${upstreamId}`:undefined;}
     if(isLinkedIn){upstreamId=upstreamId??url?.match(/activity[-:](\d+)/)?.[1];}
     const key=isX&&upstreamId?`x:${upstreamId}`:isLinkedIn&&upstreamId?`linkedin:${upstreamId}`:url?`url:${url}`:upstreamId?`id:${upstreamId}`:`invalid-row:${index}`;
-    const publisherId=isX?string(author.userName??author.username??r.username):isLinkedIn?string(author.publicIdentifier??author.universalName??r.authorName??r.companyName):string(r.sourceDomain??r.publisherDomain)??(url?new URL(url).hostname:undefined);
+    const xAccountId=string(author.id_str??author.id??author.userId)??
+      (Number.isSafeInteger(author.id)&&author.id>0?String(author.id):undefined);
+    const publisherId=isX?(xAccountId&&/^\d+$/.test(xAccountId)?`x:${xAccountId}`:string(author.userName??author.username??r.username)):
+      isLinkedIn?string(author.urn??author.id??author.publicIdentifier??author.universalName??r.authorName??r.companyName):
+        string(r.sourceDomain??r.publisherDomain)??(url?new URL(url).hostname:undefined);
     const posted=record(r.postedAt);
     const item:ProviderItem={sourceItemKey:key,upstreamId,url,publisherId,title:string(r.title),body,
       publishedAt:[r.publishedAt,r.createdAt,r.created_at,r.date,posted.date,posted.timestamp,r.postedAt].map(timestamp).find(Boolean),language:string(r.lang??r.language),

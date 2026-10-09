@@ -48,6 +48,10 @@ export type DetectedSourceInput =
 export function detectSourceInput(input: string): DetectedSourceInput {
   const trimmed = input.trim();
   if (!trimmed) throw new Error("Enter a source URL or query.");
+  // A hostname is a website, not a topical Google News query. Normalization
+  // happens before any remote request and still goes through public-URL policy.
+  const normalized = !/^https?:\/\//i.test(trimmed) &&
+    /^(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}(?:\/[\S]*)?$/u.test(trimmed) ? `https://${trimmed}` : trimmed;
 
   if (/^t:/i.test(trimmed)) {
     const channelInput = trimmed.replace(/^t:\s*/i, "").trim();
@@ -55,8 +59,8 @@ export function detectSourceInput(input: string): DetectedSourceInput {
     return telegramInput(channelInput, trimmed);
   }
 
-  if (isTelegramInput(trimmed)) {
-    return telegramInput(trimmed, trimmed);
+  if (isTelegramInput(normalized)) {
+    return telegramInput(normalized, trimmed);
   }
 
   if (/^rss:/i.test(trimmed)) {
@@ -71,13 +75,13 @@ export function detectSourceInput(input: string): DetectedSourceInput {
     };
   }
 
-  if (/^https?:\/\/[^\s]+$/i.test(trimmed) && looksLikeFeedUrl(trimmed)) {
+  if (/^https?:\/\/[^\s]+$/i.test(normalized) && looksLikeFeedUrl(normalized)) {
     return {
       provider: "rss",
       kind: "rss_feed",
       input: trimmed,
-      title: hostTitle(trimmed),
-      sourceUrl: trimmed
+      title: hostTitle(normalized),
+      sourceUrl: normalized
     };
   }
 
@@ -91,9 +95,12 @@ export function detectSourceInput(input: string): DetectedSourceInput {
     return detectXInput(trimmed.replace(/^x:\s*/i, "").trim(), trimmed);
   }
 
-  const xUrl = trimmed.match(/^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})(?:[/?#].*)?$/i);
+  const xUrl = normalized.match(/^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})(?:[/?#].*)?$/i);
   if (xUrl) return xProfileInput(xUrl[1], trimmed);
 
+  if (/^https:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\//i.test(normalized)) {
+    return detectLinkedInInput(normalized, trimmed);
+  }
   if (/^linkedin:/i.test(trimmed)) {
     return detectLinkedInInput(trimmed.replace(/^linkedin:\s*/i, "").trim(), trimmed);
   }
@@ -102,9 +109,9 @@ export function detectSourceInput(input: string): DetectedSourceInput {
     return detectAdvancedApifyInput(trimmed);
   }
 
-  if (!/^https?:\/\//i.test(trimmed)) return googleNewsInput(trimmed, trimmed);
+  if (!/^https?:\/\//i.test(normalized)) return googleNewsInput(trimmed, trimmed);
 
-  const page=new URL(trimmed);
+  const page=new URL(normalized);
   if(page.protocol!=="https:"||page.username||page.password)throw new Error("Public web sources require HTTPS without credentials.");
   return {provider:"web",kind:"web_page",input:trimmed,title:hostTitle(page.href),sourceUrl:page.href};
 }

@@ -1,5 +1,6 @@
 import {sourceRecommendations} from './source-recommendations';
-import {approveProductSource,prepareProductSourceInput,publishedProductEditions,productPublicationState} from './product-feeds';
+import {approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState} from './product-feeds';
+import {connectorSourceHealth} from './connector-health';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
@@ -780,13 +781,15 @@ export function createApp(options: AppOptions = {}) {
 
   app.post('/api/me/feeds', async c => {
     if(c.env.PRODUCT_FEEDS_ENABLED!=='true')return c.json({error:'Feed configuration is not enabled on this deployment.'},503);
-    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(120),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Add an RSS or webpage URL, news: query, X profile/topic, or linkedin: company/profile URL supported by this deployment.")).min(1).max(5),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleSchema.shape.durationMinutes,briefingTimeOfDay:liveScheduleSchema.shape.deliveryAnchor,briefingTimezone:liveScheduleSchema.shape.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
+    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(120),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Enter a public website, feed, Telegram, X or LinkedIn link, or a news topic.")).min(1).max(5),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleSchema.shape.durationMinutes,briefingTimeOfDay:liveScheduleSchema.shape.deliveryAnchor,briefingTimezone:liveScheduleSchema.shape.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
     if(input.updateIntervalMinutes===1440&&!input.briefingTimeOfDay)return c.json({error:'Choose a Daily delivery time.'},400);
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
     // Validate every requested source before saving the Feed or changing approval.
-    const plans=[...new Map(input.sourceInputs.map(value=>{const plan=prepareProductSourceInput(value);return [plan.canonicalUrl,plan] as const})).values()];
+    const resolved=await Promise.all(input.sourceInputs.map(value=>resolveProductSourceInput(value,fetcher)));
+    const plans=[...new Map(resolved.map(plan=>[plan.canonicalUrl,plan] as const)).values()];
     if(plans.some(plan=>plan.detected.kind==='web_page')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Website extraction requires the source execution service.'},400);
+    if(plans.some(plan=>plan.detected.kind==='telegram_channel')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_URL||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Telegram collection requires the private source execution service.'},400);
     const prior=existing?await repo.listSources(existing.id):[];
     const count=await c.env.DB.prepare("SELECT COUNT(*) AS n FROM sources WHERE collection_owner='connector'").first<{n:number}>();
     if((count?.n??0)+plans.filter(plan=>!prior.some(s=>s.provider===plan.detected.provider&&s.kind===plan.detected.kind&&((plan.sourceUrl&&s.sourceUrl===plan.sourceUrl)||(!plan.sourceUrl&&s.input===plan.input)))).length>10)return c.json({error:'This deployment has reached its ten-source collection limit.'},409);
@@ -797,7 +800,7 @@ export function createApp(options: AppOptions = {}) {
     if(!savedResponse.ok)return savedResponse;
     const {briefing}=await savedResponse.json() as {briefing:BriefingConfig};
     const approvedIds=new Set<string>();
-    for(const plan of plans)approvedIds.add((await approveProductSource(c.env,repo,briefing,plan.input)).sourceId);
+    for(const plan of plans)approvedIds.add((await approveProductSource(c.env,repo,briefing,plan.input,plan)).sourceId);
     // Ordinary editor lists active sources. Preserve independently paused sources
     // that the user did not see or explicitly remove in this edit.
     for(const source of prior)if(source.enabled&&!approvedIds.has(source.id))await repo.deleteSource(source.id);
@@ -818,6 +821,14 @@ export function createApp(options: AppOptions = {}) {
     const briefing = await getOwnedBriefing(repo, c.get("account")!, c.req.query("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
     return c.json({ sources: await repo.listSources(briefing.id) });
+  });
+
+  app.get('/api/me/sources/:sourceId/connector-health',async c=>{
+    const briefing=await getOwnedBriefing(c.get('repo'),c.get('account')!,c.req.query('briefingId'));
+    if(!briefing)return c.json({error:'briefing not found'},404);
+    const source=await c.get('repo').getSource(c.req.param('sourceId'));
+    if(!source||source.briefingId!==briefing.id)return c.json({error:'source not found'},404);
+    return c.json({sourceId:source.id,enabled:source.enabled,health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
   });
 
   app.post("/api/me/sources/recommend", async c => {

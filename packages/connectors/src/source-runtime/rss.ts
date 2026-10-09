@@ -1,7 +1,7 @@
 import { CONTRACT_VERSION, handoffConnectorBatch, hashContent, isIntakePrefixResolved, sha256, idSchema, collectionBoundsSchema } from '@distilled/contracts';
 import type { CandidateIntakePort, CandidateProposal, SourceObservation, CollectionCoverage } from '@distilled/contracts';
 import type { FeedHttpPort, FetchTelemetry, ImmutablePayloadStore, RssRequest, SourceRepository, StoredRssBatch } from './ports';
-import { normalizeRssSnapshot } from './rss-normalize';
+import { normalizeRssSnapshot,rssEvidenceText } from './rss-normalize';
 import {itemFingerprint} from './item-fingerprint';
 
 export interface RssCollectionResult {
@@ -87,18 +87,20 @@ export class RssSourceCollector {
     const observations: SourceObservation[] = [], proposals: CandidateProposal[] = [];
     const processedRows=snapshot.items.slice(offset,offset+maxItems);
     for (const row of processedRows) {
+      const evidenceBody=rssEvidenceText(row.title,row.body);
       const id = await sha256(JSON.stringify([input.scope,sequence,row.key,'UPSERT']));
       const observation: SourceObservation = {id,...input.scope,fetchRunId:input.runId,fetchStartSequence:sequence,
         sourceItemKey:row.identityValid ? row.key : `invalid:${input.runId}:${row.key}`,operation:'UPSERT',
         representation:'ARTICLE_EXCERPT',contentCompleteness:'UNKNOWN',authoritativeCurrentState:false,
         upstreamId:row.upstreamId,canonicalUrl:row.url,publisherId:row.publisherId,titleHint:row.title,
         publishedAtHint:row.publishedAt,languageHint:row.language,sourceRevision:row.sourceRevision,observedAt:startedAt};
-      if (!row.conflictingDuplicate && (row.body || row.title)) {
-        observation.contentHash = await hashContent({representation:'ARTICLE_EXCERPT',title:row.title,body:row.body});
+      if (!row.conflictingDuplicate && evidenceBody) {
+        observation.contentHash = await hashContent({representation:'ARTICLE_EXCERPT',title:row.title,body:evidenceBody});
         if(row.identityValid && await this.repository.knownItemHash(input.scope,row.key,input.configurationRevision??0)===await itemFingerprint(observation))continue;
         const payload = await this.payloads.put(input.scope,new TextEncoder().encode(JSON.stringify({
-          representation:'ARTICLE_EXCERPT',contentCompleteness:'UNKNOWN',title:row.title,body:row.body,
-          canonicalUrl:row.url,publishedAt:row.publishedAt,language:row.language
+          representation:'ARTICLE_EXCERPT',contentCompleteness:'UNKNOWN',title:row.title,body:evidenceBody,
+          canonicalUrl:row.url,publishedAt:row.publishedAt,language:row.language,
+          sourceTitle:row.sourceTitle,excerpt:row.excerpt,author:row.author,updatedAt:row.updatedAt,firstSeenAt:startedAt
         })),'application/json');
         observation.suppliedPayloadRef = payload.ref;
         if (row.identityValid) proposals.push({observationId:id,...input.scope,sourceItemKey:row.key,connectorType:'rss',

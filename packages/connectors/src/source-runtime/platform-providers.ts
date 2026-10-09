@@ -1,12 +1,12 @@
 import { buildGoogleNewsRssUrl } from '../rss';
 import { parsePublicTelegramChannelPage } from '../telegram';
-import { normalizeRssSnapshot } from './rss-normalize';
+import { normalizeRssSnapshot,rssEvidenceText } from './rss-normalize';
 import type { FeedHttpPort, FetchRun } from './ports';
 import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type ProviderPage, type SourceFamily, type ProviderItem } from './provider-types';
 import { record, string, timestamp } from './provider-normalize';
 
 /** Authorized backend execution binding. Worker code never spawns Python or stores sessions. */
-export interface SourceExecutionPort {execute(kind:'feedparser'|'telethon'|'extract'|'playwright',input:Record<string,unknown>):Promise<unknown>}
+export interface SourceExecutionPort {execute(kind:'feedparser'|'telethon'|'telegram_resolve'|'extract'|'playwright',input:Record<string,unknown>):Promise<unknown>}
 export async function executeSource(port:SourceExecutionPort,kind:Parameters<SourceExecutionPort['execute']>[0],input:Record<string,unknown>) {
   try {return await port.execute(kind,input);}catch{throw new SourceProviderError('TRANSIENT');}
 }
@@ -32,7 +32,9 @@ export class FeedSourceProvider implements SourceProvider {
     // Native snapshot pagination is done by the collector; providers do not refetch offsets.
     if(offset!==0)throw new Error('USE_SAVED_SNAPSHOT_CONTINUATION');
     const items:ProviderItem[]=entries.map((e,index)=>({sourceItemKey:string(e.key)??`invalid-row:${index}`,upstreamId:string(e.upstreamId),
-      url:string(e.url),publisherId:string(e.publisherId),title:string(e.title),body:string(e.body),publishedAt:timestamp(e.publishedAt),language:string(e.language),
+      url:string(e.url),publisherId:string(e.publisherId),title:string(e.title),body:rssEvidenceText(string(e.title),string(e.body)),
+      sourceTitle:string(e.sourceTitle),excerpt:string(e.excerpt),author:string(e.author),updatedAt:timestamp(e.updatedAt),
+      publishedAt:timestamp(e.publishedAt),language:string(e.language),
       representation:this.id==='google_rss'?'LISTING_RESULT':'ARTICLE_EXCERPT',contentCompleteness:'UNKNOWN',identityValid:e.identityValid===true,
       sourceRevision:e.sourceRevision,authoritativeCurrentState:false}));
     return {items:input.recheckItemKeys?items.filter(i=>input.recheckItemKeys!.includes(i.sourceItemKey)):items,

@@ -3,7 +3,7 @@ import {createIntakeDatabase} from './v1-intake/test-utils';
 import {D1Repository} from './repository';
 import {createApp} from './app';
 import {createSession} from './auth';
-import {productRuntimeEnv,productPublicationState} from './product-feeds';
+import {prepareProductSourceInput,productRuntimeEnv,productPublicationState} from './product-feeds';
 import {V1IntakeStore} from './v1-intake/store';
 import type {Env} from './types';
 
@@ -18,6 +18,9 @@ it('saves explicit owner sources into connector approval, retries without duplic
   const created=await save(input);expect(created.status).toBe(200);expect(await created.json()).toMatchObject({briefing:{slug:'lebanon-news',publicFeedEnabled:false,updateIntervalMinutes:1440,briefingTimeOfDay:'08:00'}});
   expect((await save(input)).status).toBe(200);
   const sources=await repo.listSources(input.id);expect(sources).toHaveLength(1);
+  const health=await app.request(`/api/me/sources/${encodeURIComponent(sources[0].id)}/connector-health?briefingId=${encodeURIComponent(input.id)}`,{headers:{cookie}},env);
+  expect(health.status).toBe(200);
+  expect(await health.json()).toMatchObject({sourceId:sources[0].id,health:{lastCheckedAt:null,providerFailures:0}});
   expect(await ctx.db.prepare('SELECT collection_owner FROM sources WHERE id=?').bind(sources[0].id).first()).toEqual({collection_owner:'connector'});
   const before=await new V1IntakeStore(ctx.db).getScope(sources[0].id);expect(before?.enabled).toBe(true);
   expect((await productRuntimeEnv(env)).V1_DOWNSTREAM_FEED_SOURCE_IDS).toBe(sources[0].id);
@@ -29,7 +32,7 @@ it('saves explicit owner sources into connector approval, retries without duplic
   expect((await save({...input,updateIntervalMinutes:120,language:'fr'})).status).toBe(200);
   const after=await new V1IntakeStore(ctx.db).getScope(sources[0].id);expect(after!.feedRevision).toBeGreaterThan(before!.feedRevision);
   expect((await save({...input,sourceInputs:[]})).status).toBe(400);
-  expect((await save({...input,sourceInputs:['infrastructure']})).status).toBe(400);
+  expect(prepareProductSourceInput('infrastructure').detected.kind).toBe('google_news');
   expect((await save({...input,sourceInputs:['https://127.0.0.1/rss.xml']})).status).toBe(400);
   const paused=await repo.upsertConfiguredSource({briefingId:input.id,title:'Paused source',provider:'rss',kind:'rss_feed',sourceUrl:'https://example.com/paused.xml',input:'https://example.com/paused.xml',enabled:false});
   expect((await save(input)).status).toBe(200);
@@ -60,7 +63,7 @@ it('approves supported connector inputs without a paid fetch and retains their i
   expect((await repo.listSources(input.id)).map(source=>source.id).sort()).toEqual(first.map(source=>source.id).sort());
   expect((await save({...input,sourceInputs:['https://t.me/examplechannel']})).status).toBe(400);
   expect((await save({...input,sourceInputs:['https://example.com/story']})).status).toBe(400);
-  expect((await save({...input,sourceInputs:['Lebanon electricity']})).status).toBe(400);
+  expect(prepareProductSourceInput('Lebanon electricity').detected.kind).toBe('google_news');
   expect((await save({...input,sourceInputs:['news: Lebanon electricity','x: climate technology']})).status).toBe(200);
   expect((await repo.listSources(input.id)).map(source=>source.kind).sort()).toEqual(['google_news','x_search']);
   env.SOURCE_EXECUTION_TOKEN='test-execution-token';
@@ -69,5 +72,31 @@ it('approves supported connector inputs without a paid fetch and retains their i
   expect((await repo.listSources(input.id)).map(source=>source.kind)).toEqual(['web_page']);
   expect((await save({...input,sourceInputs:['https://example.com/story']})).status).toBe(200);
   expect((await repo.listSources(input.id))).toHaveLength(1);
+ }finally{await ctx.dispose()}
+},60000);
+
+it('resolves public Telegram usernames privately and keeps source identity stable',async()=>{
+ const ctx=await createIntakeDatabase({product:true});
+ try{
+  const repo=new D1Repository(ctx.db),owner=await repo.createAccount({email:'telegram@example.com',username:'telegram-owner',role:'user',passwordHash:'unused',emailVerifiedAt:new Date().toISOString()});
+  const requests:string[]=[];
+  const service={fetch:async (_url:RequestInfo|URL,init?:RequestInit)=>{
+   const payload=JSON.parse(String(init?.body));requests.push(payload.kind);
+   expect(payload.input.username).toBe('examplechannel');
+   return new Response(JSON.stringify({channelId:'-1001234567890',username:'examplechannel'}),{status:200});
+  }} as Env['SOURCE_EXECUTION_SERVICE'];
+  const env={DB:ctx.db,ADMIN_SESSION_SECRET:'test-secret',PRODUCT_FEEDS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',
+   SOURCE_EXECUTION_URL:'http://127.0.0.1:8790/v1/source-execution',SOURCE_EXECUTION_TOKEN:'a'.repeat(32),SOURCE_EXECUTION_SERVICE:service} as Env;
+  const app=createApp({repository:repo});const cookie=`dn_session=${await createSession(env.ADMIN_SESSION_SECRET!,owner)}`;
+  const input={id:'telegram-feed',title:'Telegram News',interestProfile:'Technology',sourceInputs:['https://t.me/examplechannel'],publicFeedEnabled:false,
+   updateIntervalMinutes:120,briefingTimezone:'Asia/Beirut',language:'en'};
+  const save=(body:unknown)=>app.request('/api/me/feeds',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify(body)},env);
+  expect((await save(input)).status).toBe(200);
+  const first=(await repo.listSources(input.id))[0];
+  expect(first).toMatchObject({kind:'telegram_channel',provider:'telegram',sourceUrl:'https://t.me/examplechannel'});
+  expect(JSON.parse(first.input!)).toEqual({channelId:'-1001234567890',username:'examplechannel',public:true});
+  expect((await save({...input,sourceInputs:['@examplechannel']})).status).toBe(200);
+  expect((await repo.listSources(input.id)).map(s=>s.id)).toEqual([first.id]);
+  expect(requests).toEqual(['telegram_resolve','telegram_resolve']);
  }finally{await ctx.dispose()}
 },60000);

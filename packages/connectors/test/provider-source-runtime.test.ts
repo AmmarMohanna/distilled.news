@@ -146,7 +146,7 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
   it('RSS emits durable excerpt inputs and stable GUID identity',async()=>{
     const p=new FeedSourceProvider('rss_native',feed('<rss><channel><item><guid>abc</guid><title>Hello</title><description>Text</description></item></channel></rss>'));
     const result=await p.fetch({...request,source:{family:'rss',locator:'https://publisher.example/rss'}});
-    expect(result.items[0]).toMatchObject({sourceItemKey:'id:abc',body:'Text',representation:'ARTICLE_EXCERPT'});expect(result.complete).toBeUndefined();
+    expect(result.items[0]).toMatchObject({sourceItemKey:'id:abc',body:'Hello. Text',excerpt:'Text',representation:'ARTICLE_EXCERPT'});expect(result.complete).toBeUndefined();
   });
   it('Google News uses a query RSS URL and labels results as listings',async()=>{
     const http=feed('<rss><channel><item><guid>google-id</guid><title>Result</title></item></channel></rss>');
@@ -179,6 +179,12 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const result=await p.fetch(request,run);
     expect(result.items).toMatchObject([{sourceItemKey:'x:2',publisherId:'NASA',body:'NASA update'}]);
     expect(result.continuationToken).toBe('next-page');
+  });
+  it('uses a stable X author ID when supplied and strips known tracking from article URLs',()=>{
+    const x=normalizeProviderRecords([{id:'22',text:'Update',author:{id:'1234',userName:'newHandle'}}],'x_profile');
+    expect(x[0]).toMatchObject({sourceItemKey:'x:22',publisherId:'x:1234'});
+    const article=normalizeProviderRecords([{id:'article-1',text:'Body',url:'https://example.com/story?utm_source=feed&edition=us#section'}],'google_news');
+    expect(article[0].url).toBe('https://example.com/story?edition=us');
   });
   it('Apify starts once and resumes the same running actor via continuation',async()=>{
     const response=(json:unknown)=>({status:200,headers:{},bytes:encoder.encode(JSON.stringify(json)),json});

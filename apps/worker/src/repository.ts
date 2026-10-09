@@ -620,6 +620,7 @@ export class D1Repository implements Repository {
 
   async upsertConfiguredSource(input: {
     briefingId: string;
+    identityKey?: string;
     title: string;
     type?: SourceType;
     provider: SourceProvider;
@@ -634,7 +635,7 @@ export class D1Repository implements Repository {
   }, now = new Date()): Promise<SourceRecord> {
     const sourceId = scopedSourceId(
       input.briefingId,
-      stableSourceKey(input.provider, input.kind, input.username ?? input.sourceUrl ?? input.input ?? input.title)
+      stableSourceKey(input.provider, input.kind, input.identityKey ?? input.username ?? input.sourceUrl ?? input.input ?? input.title)
     );
     const timestamp = now.toISOString();
     await this.db
@@ -1942,6 +1943,7 @@ export class InMemoryRepository implements Repository {
 
   async upsertConfiguredSource(input: {
     briefingId: string;
+    identityKey?: string;
     title: string;
     type?: SourceType;
     provider: SourceProvider;
@@ -1956,7 +1958,7 @@ export class InMemoryRepository implements Repository {
   }, now = new Date()): Promise<SourceRecord> {
     const id = scopedSourceId(
       input.briefingId,
-      stableSourceKey(input.provider, input.kind, input.username ?? input.sourceUrl ?? input.input ?? input.title)
+      stableSourceKey(input.provider, input.kind, input.identityKey ?? input.username ?? input.sourceUrl ?? input.input ?? input.title)
     );
     const existing = this.sources.get(id);
     const source: SourceRecord = {

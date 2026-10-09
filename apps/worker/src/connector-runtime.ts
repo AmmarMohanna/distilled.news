@@ -68,6 +68,20 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
       family.startsWith('linkedin_')?['linkedin_apify']:
       ['x_twitterapi_io','x_apify'].filter(provider=>provider==='x_twitterapi_io'?budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0:budgets.x_apify>0&&ceilings.apify>0);
     await backend.scheduler.schedule(request.runId,request,now.toISOString(),order);
+    if(family==='telegram'){
+     // Polling by min_id sees new posts; a separate bounded pass can detect
+     // edits to recently accepted posts without moving that checkpoint.
+     const prefix=`telegram:${approved.source.channelId}:`;
+     const recent=await env.DB.prepare(`SELECT source_item_key AS key FROM connector_item_fingerprints
+       WHERE feed_id=? AND feed_source_id=? AND source_item_key LIKE ?
+       ORDER BY CAST(substr(source_item_key,length(?) + 1) AS INTEGER) DESC LIMIT 3`)
+       .bind(request.scope.feedId,id,`${prefix}%`,prefix).all<{key:string}>();
+     if(recent.results.length){
+      const recheck={...request,runId:await sha256(JSON.stringify([id,enrolled.scope.feedRevision,'telegram-recheck',Math.floor(now.getTime()/86400000)])),
+       recheckItemKeys:recent.results.map(row=>row.key)};
+      await backend.scheduler.schedule(recheck.runId,recheck,now.toISOString(),['telegram_telethon']);
+     }
+    }
    }
   }
  }

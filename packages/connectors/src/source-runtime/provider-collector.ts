@@ -125,7 +125,8 @@ export class FallbackSourceCollector {
             if(item.identityValid && await this.repository.knownItemHash(request.scope,key,request.configurationRevision??0)===await itemFingerprint(o))continue;
             const p=await this.payloads.put(request.scope,new TextEncoder().encode(JSON.stringify({
               body:item.body??'',title:item.title,canonicalUrl:item.url,publishedAt:item.publishedAt,language:item.language,
-              representation:item.representation,contentCompleteness:item.contentCompleteness,publisherId:item.publisherId
+              representation:item.representation,contentCompleteness:item.contentCompleteness,publisherId:item.publisherId,
+              sourceTitle:item.sourceTitle,excerpt:item.excerpt,author:item.author,updatedAt:item.updatedAt,firstSeenAt:run.startedAt
             })),'application/json');
             o.suppliedPayloadRef=p.ref;
             if(item.identityValid)proposals.push({observationId:o.id,...request.scope,sourceItemKey:key,connectorType:id,

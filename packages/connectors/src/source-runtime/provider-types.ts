@@ -29,6 +29,10 @@ export interface ProviderItem {
   upstreamId?:string;
   operation?:'UPSERT'|'DELETE';
   title?:string;
+  sourceTitle?:string;
+  excerpt?:string;
+  author?:string;
+  updatedAt?:string;
   body?:string;
   url?:string;
   publisherId?:string;

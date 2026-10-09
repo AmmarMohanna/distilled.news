@@ -105,6 +105,38 @@ async def telegram(data):
         await client.disconnect()
 
 
+async def resolve_telegram(data):
+    from telethon import TelegramClient, utils
+    from telethon.tl.types import Channel
+    from telethon.errors import FloodWaitError
+
+    username = data.get('username')
+    if not isinstance(username, str) or not re.fullmatch(r'[A-Za-z0-9_]{5,32}', username):
+        raise ValueError('INVALID_CHANNEL_USERNAME')
+    session_value = os.environ.get('TELEGRAM_SESSION_PATH')
+    if not session_value or not Path(session_value).is_file():
+        return {'error': 'AUTH_REQUIRED'}
+    client = TelegramClient(session_value, int(os.environ['TELEGRAM_API_ID']),
+                            os.environ['TELEGRAM_API_HASH'], connection_retries=1,
+                            request_retries=1, flood_sleep_threshold=0, timeout=15,
+                            auto_reconnect=False)
+    try:
+        await client.connect()
+        if not await client.is_user_authorized():
+            return {'error': 'AUTH_REQUIRED'}
+        # Resolve a public username without joining or subscribing to the channel.
+        entity = await client.get_entity(username)
+        if not isinstance(entity, Channel) or not entity.username or entity.username.lower() != username.lower():
+            return {'error': 'UNAVAILABLE'}
+        return {'channelId': str(utils.get_peer_id(entity)), 'username': entity.username}
+    except FloodWaitError as error:
+        return {'error': 'RATE_LIMIT', 'retryNotBefore': iso(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=error.seconds))}
+    except (ValueError, TypeError):
+        return {'error': 'UNAVAILABLE'}
+    finally:
+        await client.disconnect()
+
+
 async def browser(data):
     from playwright.async_api import async_playwright
     if os.environ.get('SOURCE_BROWSER_EGRESS_CONFIRMED') != 'true':
@@ -149,6 +181,8 @@ async def main():
         result = extract(inputs)
     elif kind == 'telethon':
         result = await telegram(inputs)
+    elif kind == 'telegram_resolve':
+        result = await resolve_telegram(inputs)
     elif kind == 'playwright':
         result = await browser(inputs)
     else:

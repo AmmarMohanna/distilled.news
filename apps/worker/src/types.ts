@@ -303,6 +303,7 @@ export interface Repository {
   deleteSource(sourceId: string): Promise<void>;
   upsertConfiguredSource(input: {
     briefingId: string;
+    identityKey?: string;
     title: string;
     type?: SourceType;
     provider: SourceProvider;
