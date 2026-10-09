@@ -107,21 +107,27 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  });
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
+ let failureStage='SHORTLIST';
  try {
   // A configured writer model only ever sees the approved facts of an EditorialPlan, so model-backed synthesis implies the plan path;
   // the deterministic fallback plan is used when no strong planning model is available. The writer never fixes upstream selection.
   const writer=createStoredEvidenceModel(env,fetcher);
   const shortlist=env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),20,env,fetcher):undefined;
+  failureStage='EDITORIAL_PLAN';
   const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):undefined;
   if(required&&shortlist?.candidates.length&&plan?.route!=='GPT')throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  failureStage='SELECTION';
   const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env),plan);
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  failureStage='SYNTHESIS_PUBLICATION';
   const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:writer,requireModel:required}):undefined;
+  failureStage='LEDGER_PROJECTION';
   if(edition)await projectEditionLedger(store,feedId,edition.id);
   const deferred=!edition&&(plan?.stories.some(story=>story.decision==='DEFER')||Boolean(shortlist?.overflow.length));
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE',result:edition?'PUBLISHED':deferred?'DEFERRED':'QUIET',reason:edition?undefined:deferred?'EDITORIAL_WORK_DEFERRED':'NO_SELECTED_DEVELOPMENTS',completedAt:now()})});return edition;
  } catch(error) {
   if(error instanceof QuietPublication)return undefined;
+  console.error(JSON.stringify({type:'V1_BRIEFING_ATTEMPT_FAILED',feedId,requestId:id,stage:failureStage,error:error instanceof Error?error.message.slice(0,300):'UNKNOWN'}));
   // The publication lease owns contention; concurrent deliveries cannot consume
   // retry attempts while that lease is live or reopen a completed edition.
   await feedTransact(store,feedId,async tx=>{
