@@ -16,3 +16,26 @@ export function parseConstruction(raw:unknown,mentions:ClaimMention[],input:Even
  for(const id of value.backgroundMentionIds){const m=mentions.find(m=>m.id===id)!;if(m.quantities.length||m.certainty.hedges.length||m.qualifiers.length||m.attribution)throw new HandoffError('SCOPE_DENIED')}
  return value;
 }
+
+/** Only offered semantic identities are legal model choices; source revision IDs are never Event IDs. */
+export function scopedConstructionWireSchema(mentions:Pick<ClaimMention,'id'>[],input:Pick<EventMatchInput,'candidates'|'storylineIds'>){
+ const schema=structuredClone(constructionWireSchema),group=(schema.properties.groups as {items:{properties:Record<string,any>}}).items.properties,known=mentions.map(m=>m.id),storylineIds=input.storylineIds??[];
+ group.eventId={type:['string','null'],enum:[null,...input.candidates.map(c=>c.id)]};
+ group.storylineId={type:['string','null'],enum:[null,...storylineIds]};
+ group.structuralRelation={type:'string',enum:['NEW_STORYLINE','DEFER',...(input.candidates.length?['SAME_EVENT']:[]),...(storylineIds.length?['NEW_EVENT_EXISTING_STORYLINE']:[])]};
+ group.claimMentionIds.items={type:'string',enum:known};
+ group.entities.items.properties.claimMentionIds.items={type:'string',enum:known};
+ group.slots.items.properties.claimMentionId={type:'string',enum:known};
+ group.storylineState.properties.openQuestionMentionIds.items={type:'string',enum:known};
+ group.storylineState.properties.expectedNextDate.anyOf[1].properties.claimMentionId={type:'string',enum:known};
+ (schema.properties.backgroundMentionIds as {items:unknown}).items={type:'string',enum:known};
+ const groups=schema.properties.groups as {items:unknown};
+ const branch=(relation:string[],eventId:unknown,storylineId:unknown)=>object({...group,structuralRelation:{type:'string',enum:relation},eventId,storylineId});
+ // Identity and relation are one decision, not independent enum choices.
+ groups.items={anyOf:[
+  branch(['NEW_STORYLINE','DEFER'],{type:'null'},{type:'null'}),
+  ...(input.candidates.length?[branch(['SAME_EVENT'],{type:'string',enum:input.candidates.map(c=>c.id)},group.storylineId)]:[]),
+  ...(storylineIds.length?[branch(['NEW_EVENT_EXISTING_STORYLINE'],{type:'null'},{type:'string',enum:storylineIds})]:[])
+ ]};
+ return schema;
+}

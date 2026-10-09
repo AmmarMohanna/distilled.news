@@ -1,0 +1,257 @@
+{
+  "operationId": "03c43d36d6d6811437b5b6969d9650744876b957ad887db6c9ad69fc9fcf847d",
+  "shortlist": {
+    "id": "a0f432b40fd3e7157a1aed90861bd70b5d19dd07957fe19982d87754497ae38f",
+    "feedId": "quality-proof-20261006-isolated",
+    "feedRevision": 4,
+    "window": {
+      "start": "2026-10-06T14:47:59.027Z",
+      "end": "2026-10-06T15:17:59.027Z",
+      "kind": "30M"
+    },
+    "communicationFingerprint": "6856560b202c0d3d42516c7cf4f816639527a3331bf7b3ab18397170f4dad76e",
+    "candidates": [
+      {
+        "novelty": "NEW_EVENT",
+        "targetType": "EVENT",
+        "targetVersionId": "5386a41f-913b-4338-bd97-4ba3fbbded31",
+        "stableTargetId": "9a4850df-604c-4688-b624-61e8d5d0d5e9",
+        "storylineId": "f6b59706-8f75-4bf0-bf0c-ad4026bdb825",
+        "eventVersionIds": [
+          "5386a41f-913b-4338-bd97-4ba3fbbded31"
+        ],
+        "evidenceRevisionIds": [
+          "60716305-67e4-421c-a055-7af7e6ca61e9",
+          "60ea392d-c212-4b6c-a622-ce11cff81db9"
+        ],
+        "facts": [
+          {
+            "id": "8cd73736f3633cbd8420cb16c700a735779065f8642d1770a0b641c53714b2e6",
+            "propositionId": "8cd73736f3633cbd8420cb16c700a735779065f8642d1770a0b641c53714b2e6",
+            "text": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising.",
+            "evidenceRevisionIds": [
+              "60ea392d-c212-4b6c-a622-ce11cff81db9",
+              "60716305-67e4-421c-a055-7af7e6ca61e9"
+            ],
+            "claimMentionIds": [
+              "8882953fd7b5fe8d2c826271da8c9dd6680916a1f3af636b22b573612355ecee",
+              "f9b2b57c54832b7681d1b260396a915c702b07b2b25ff2fd79690b99c0e06727"
+            ],
+            "certainty": {
+              "kind": "POSSIBLE",
+              "hedges": [
+                "could"
+              ]
+            },
+            "reportTime": "2026-10-06T01:58:29.000Z",
+            "mergedPropositionIds": [
+              "11e8c16f7362c1fb5d8b6e5fa9f47affa4e2e1c76453882de842796952aa0b5e"
+            ],
+            "selfContained": "RESOLVED_BY_CONTEXT",
+            "context": {
+              "evidenceRevisionId": "60716305-67e4-421c-a055-7af7e6ca61e9",
+              "field": "title",
+              "text": "Trump says he will stop using taxpayer funds for ads after bipartisan pushback"
+            }
+          }
+        ],
+        "stateSlotIds": [
+          "e95b9f22a5b46e3d9bd3ec4dbd1867560cc925207ed2708f50e9c6ad9bfd03b6",
+          "dcdeeac8f245e4623b746d7c6e4c10981ae570a590eb3f39e7325c1a1cf17763"
+        ],
+        "effects": [
+          "CORROBORATES"
+        ],
+        "flags": [
+          "QUALIFIED"
+        ],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.6,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "developmentAt": "2026-10-06T01:58:29.000Z",
+            "firstSeenByFeedAt": "2026-10-06T13:44:05.343Z",
+            "observedAt": "2026-10-06T13:44:26.789Z",
+            "staleByMs": 46170027
+          },
+          "policyVersion": "supported-delta-ledger-v3",
+          "targetType": "EVENT",
+          "targetVersionId": "5386a41f-913b-4338-bd97-4ba3fbbded31",
+          "stableTargetId": "9a4850df-604c-4688-b624-61e8d5d0d5e9",
+          "storylineId": "f6b59706-8f75-4bf0-bf0c-ad4026bdb825",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "NEW_SUPPORTED_DEVELOPMENT"
+          ],
+          "previouslyCommunicated": [],
+          "newUnderstanding": [
+            {
+              "text": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising.",
+              "evidenceRevisionIds": [
+                "60716305-67e4-421c-a055-7af7e6ca61e9",
+                "60ea392d-c212-4b6c-a622-ce11cff81db9"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "NONE",
+          "treatment": "BRIEF"
+        }
+      },
+      {
+        "novelty": "NEW_EVENT",
+        "targetType": "EVENT",
+        "targetVersionId": "99904d66-6041-44db-8f93-c27713c40c13",
+        "stableTargetId": "8dc1fd59-b20a-4977-b10f-8e2bc7de825c",
+        "storylineId": "14401910-986e-4e19-9c69-5cc355fb61c2",
+        "eventVersionIds": [
+          "99904d66-6041-44db-8f93-c27713c40c13"
+        ],
+        "evidenceRevisionIds": [
+          "3cd602a4-0a95-418a-afd8-c56be39957a2"
+        ],
+        "facts": [
+          {
+            "id": "901aa5f1b55604e8df0941c4cfb0ef07427cef5d5d21c3f01155794a2fdf5457",
+            "propositionId": "901aa5f1b55604e8df0941c4cfb0ef07427cef5d5d21c3f01155794a2fdf5457",
+            "text": "The bodycam footage also shows a police officer finding a gun in Mangione's backpack, days after the killing of UnitedHealthcare CEO Brian Thompson.",
+            "evidenceRevisionIds": [
+              "3cd602a4-0a95-418a-afd8-c56be39957a2"
+            ],
+            "claimMentionIds": [
+              "81a66daf2351b242696d759e7deb49ddc7e9f3df05735d142682fa210152f843"
+            ],
+            "certainty": {
+              "kind": "UNSPECIFIED",
+              "hedges": []
+            },
+            "reportTime": "2026-10-02T20:37:34.000Z",
+            "selfContained": "YES"
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [
+          "CORROBORATES"
+        ],
+        "flags": [],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.6,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "STALE",
+            "developmentAt": "2026-10-02T20:37:34.000Z",
+            "firstSeenByFeedAt": "2026-10-06T13:44:47.412Z",
+            "observedAt": "2026-10-06T13:44:47.412Z",
+            "staleByMs": 324625027
+          },
+          "policyVersion": "supported-delta-ledger-v3",
+          "targetType": "EVENT",
+          "targetVersionId": "99904d66-6041-44db-8f93-c27713c40c13",
+          "stableTargetId": "8dc1fd59-b20a-4977-b10f-8e2bc7de825c",
+          "storylineId": "14401910-986e-4e19-9c69-5cc355fb61c2",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "NEW_SUPPORTED_DEVELOPMENT"
+          ],
+          "previouslyCommunicated": [],
+          "newUnderstanding": [
+            {
+              "text": "The bodycam footage also shows a police officer finding a gun in Mangione's backpack, days after the killing of UnitedHealthcare CEO Brian Thompson.",
+              "evidenceRevisionIds": [
+                "3cd602a4-0a95-418a-afd8-c56be39957a2"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "NONE",
+          "treatment": "BRIEF"
+        }
+      }
+    ],
+    "overflow": [],
+    "obligations": [],
+    "ledger": [],
+    "evidenceRevisionIds": [
+      "60716305-67e4-421c-a055-7af7e6ca61e9",
+      "60ea392d-c212-4b6c-a622-ce11cff81db9",
+      "3cd602a4-0a95-418a-afd8-c56be39957a2"
+    ],
+    "policyVersion": "high-recall-semantic-shortlist-v1",
+    "createdAt": "2026-10-06T15:17:59.338Z"
+  },
+  "value": {
+    "stories": [
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "R0",
+        "decision": "SELECT",
+        "order": 1,
+        "treatment": "STANDARD",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "R4"
+        ],
+        "contextFactIds": [],
+        "mustIncludeFactIds": [
+          "R4"
+        ],
+        "attributionFactIds": [
+          "R4"
+        ],
+        "certaintyFactIds": [
+          "R4"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [],
+        "rationale": "This event is a new development within the window, concerning potential legal issues with government-funded political ads related to Trump, which aligns with the interest in US public policy and government advertising. The fact is marked as possible but relevant and timely, providing important context for readers.",
+        "relevanceRationale": "It directly addresses US government advertising and political funding, a key interest area, and is a fresh report within the window."
+      },
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "R1",
+        "decision": "DEFER",
+        "order": 2,
+        "treatment": "BRIEF",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "R7"
+        ],
+        "contextFactIds": [],
+        "mustIncludeFactIds": [
+          "R7"
+        ],
+        "attributionFactIds": [
+          "R7"
+        ],
+        "certaintyFactIds": [
+          "R7"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [],
+        "rationale": "Although this event is new, it is less relevant to the stated interests focused on US public policy/government advertising and Brazilian elections. It concerns a police investigation detail unrelated to the main interests and is dated before the window start, so deferring is appropriate to prioritize more relevant content.",
+        "relevanceRationale": "The fact is outside the main thematic interests and predates the window, so it is deferred to manage budget and focus on priority topics."
+      }
+    ],
+    "obligations": []
+  },
+  "failure": {
+    "message": "SCOPE_DENIED"
+  },
+  "usage": {
+    "calls": 1,
+    "tokensIn": 1122,
+    "tokensOut": 381,
+    "costUsd": 0.0010584,
+    "reported": true
+  },
+  "generationId": "gen-1791300053-btfz6EHEMzzX1QMPngtM"
+}

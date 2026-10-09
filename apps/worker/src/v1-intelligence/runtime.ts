@@ -9,7 +9,7 @@ import {canonicalJson} from '../v1-intake/canonical';
 import {V1FeedStore,feedTransact} from './store';
 import {processEvidenceIntelligence} from './engine';
 import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET,type PublicationWindow} from './scoring';
-import {publishSelection} from './publication';
+import {publishSelection,QuietPublication} from './publication';
 import {createStoredEvidenceModel} from './model';
 import {createSemanticSalienceScorer} from './salience-runtime';
 import type {EventSalienceScorer} from './salience';
@@ -17,6 +17,7 @@ import {SalienceContentionError} from './salience-persistence';
 import {SynthesisCompatibilityError} from './language';
 import {projectEditionLedger} from './ledger';
 import {prepareSemanticMatch} from './semantic-preparation';
+import {scheduleExtractionUpgrades,hasUnscheduledExtractionUpgrade} from './extraction-upgrade';
 import {nextRematch,type RematchRequest,type RematchAttempt} from './rematch';
 import {SemanticContentionError} from './semantic-operations';
 import {prepareSemanticShortlist} from './shortlist';
@@ -28,7 +29,7 @@ import {publicationWindowSchema,livePublicationWindow} from './schedule';
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
-interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string}
+interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string}
 const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') throw new HandoffError('SCOPE_DENIED');
@@ -75,16 +76,23 @@ export async function processV1Rematch(env:Env,feedId:string,requestId:string,no
  const eligible=active&&prepared&&prepared.prepared.decision.structuralRelation!=='DEFER';
  const consumed=eligible?await processEvidenceIntelligence(store,request.jobId,now,prepared.matchers,JSON.stringify([request.id,attempt])):undefined;
  const succeeded=Boolean(consumed&&consumed.decision==='PROCESSED'&&!consumed.semanticDeferred);
- const id=JSON.stringify([request.id,attempt]);
- await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,state:succeeded?'SUCCEEDED':!active||attempt>=3?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:new Date(Date.parse(now)+300000*2**(attempt-1)).toISOString(),createdAt:now,reason:active?prepared?.prepared.decision.provenance.fallbackReason:'STALE_EVIDENCE'} satisfies RematchAttempt)});
+ const reason=!active?'STALE_EVIDENCE':succeeded?undefined:prepared?.prepared.decision.provenance.fallbackReason??(prepared?.prepared.decision.structuralRelation==='DEFER'?'SEMANTIC_IDENTITY_UNRESOLVED':consumed?.semanticDeferred?'SEMANTIC_CONSTRUCTION_UNRESOLVED':'SEMANTIC_PREPARATION_UNAVAILABLE'),budgetWait=active&&reason==='SEMANTIC_BUDGET_EXHAUSTED';
+ const id=JSON.stringify([request.id,attempt,now.slice(0,10),'budget-aware-rematch-v1']);
+ await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,state:succeeded?'SUCCEEDED':budgetWait?'WAITING_BUDGET':!active||attempt>=3?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:budgetWait?new Date(Date.parse(now.slice(0,10)+'T00:00:00Z')+86400000).toISOString():new Date(Date.parse(now)+300000*2**(attempt-1)).toISOString(),createdAt:now,reason} satisfies RematchAttempt)});
 }
-export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer) {
+export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch,publicationOptions?:{requireModel?:boolean}) {
  const parsed=messageSchema.safeParse(raw);if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  const {feedId,window}=parsed.data;
  if(Date.parse(window.end)>Date.parse(now()) || Date.parse(window.start)>=Date.parse(window.end) || Date.parse(window.end)-Date.parse(window.start)>7*86400000) throw new HandoffError('INVALID_REQUEST');
  await approvedFeed(env,feedId);const store=new V1FeedStore(env.DB),id=await windowIdentity(feedId,window);
+ const required=await feedTransact(store,feedId,async tx=>{
+  const prior=await tx.read<BriefingRequest>('briefing_requests',id);
+  if((publicationOptions?.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!prior?.requireModel){const value:BriefingRequest={...(prior??{id,feedId,window,state:'PENDING' as const,attempts:0,createdAt:now()}),requireModel:true};await tx.write('briefing_requests',id,value);return true;}
+  return prior?.requireModel??false;
+ });
  const existing=await store.read<import('./publication').BriefingEditionRecord>(feedId,'editions',id);
  if(existing) {
+  if(required&&existing.generation.provider==='NONE')throw new HandoffError('INVALID_REQUEST');
   await projectEditionLedger(store,feedId,existing.id);
   // Publication is atomic, but the request acknowledgement is a later commit.
   // Recover a crash in that gap without reopening synthesis or paid calls.
@@ -99,15 +107,27 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  });
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
+ let failureStage='SHORTLIST';
  try {
-  const shortlist=env.V1_EDITORIAL_PLAN_ENABLED==='true' || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now()):undefined;
-  const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env)):undefined;
+  // A configured writer model only ever sees the approved facts of an EditorialPlan, so model-backed synthesis implies the plan path;
+  // the deterministic fallback plan is used when no strong planning model is available. The writer never fixes upstream selection.
+  const writer=createStoredEvidenceModel(env,fetcher);
+  const shortlist=env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),20,env,fetcher):undefined;
+  failureStage='EDITORIAL_PLAN';
+  const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):undefined;
+  if(required&&shortlist?.candidates.length&&plan?.route!=='GPT')throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  failureStage='SELECTION';
   const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env),plan);
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');
-  const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:createStoredEvidenceModel(env)}):undefined;
+  failureStage='SYNTHESIS_PUBLICATION';
+  const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:writer,requireModel:required}):undefined;
+  failureStage='LEDGER_PROJECTION';
   if(edition)await projectEditionLedger(store,feedId,edition.id);
-  await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE'})});return edition;
+  const deferred=!edition&&(plan?.stories.some(story=>story.decision==='DEFER')||Boolean(shortlist?.overflow.length));
+  await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE',result:edition?'PUBLISHED':deferred?'DEFERRED':'QUIET',reason:edition?undefined:deferred?'EDITORIAL_WORK_DEFERRED':'NO_SELECTED_DEVELOPMENTS',completedAt:now()})});return edition;
  } catch(error) {
+  if(error instanceof QuietPublication)return undefined;
+  console.error(JSON.stringify({type:'V1_BRIEFING_ATTEMPT_FAILED',feedId,requestId:id,stage:failureStage,error:error instanceof Error?error.message.slice(0,300):'UNKNOWN'}));
   // The publication lease owns contention; concurrent deliveries cannot consume
   // retry attempts while that lease is live or reopen a completed edition.
   await feedTransact(store,feedId,async tx=>{
@@ -118,6 +138,21 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   });throw error instanceof HandoffError?error:new HandoffError('TEMPORARY_UNAVAILABLE');
  }
 }
+/** Auxiliary per-Feed maintenance (policy upgrades, rematch fan-out) must never prevent briefing dispatch:
+ * a contended or failing maintenance step is reported and retried on the next tick, while the window requests
+ * below keep being sent. Their durable state is untouched, so nothing is skipped or duplicated. */
+async function maintenance(feedId:string,step:string,run:()=>Promise<void>):Promise<void> {
+ try{await run()}catch(error){console.error(JSON.stringify({type:'V1_DISPATCH_MAINTENANCE_FAILED',feedId,step,error:error instanceof Error?error.message:'UNKNOWN'}))}
+}
+/** Intake/reassessment jobs that can still change what a window contains: unfinished, non-exhausted jobs
+ * for evidence observed before the window closed (or whose observation time is unknown). Evidence that
+ * arrived later belongs to a later window, so continuous arrivals cannot postpone an earlier boundary, and
+ * nothing is lost: that job keeps running on the ordinary queue and its Event lands in the next window. */
+async function jobsHoldingWindow(db:Env['DB'],feedId:string,windowEnd:string):Promise<number> {
+ const row=await db.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0 AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?))").bind(feedId,windowEnd).first<{n:number}>();
+ return row?.n??0;
+}
+const windowEndOf=(feed:{briefingSchedule?:unknown;briefingFrequency:string},now:Date)=>(feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule as never,now):publicationWindow(feed.briefingFrequency as never,now)).end;
 /** Relay uses durable pending jobs and edition/window identities on the existing queue. */
 export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<number> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') return 0;
@@ -133,21 +168,47 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
  for(const id of feeds) {
   const feed=await store.getFeed(id);if(!feed || feed.paused || feed.deletedAt) continue;
   try {await approvedFeed(env,id)} catch(error) {if(error instanceof HandoffError && error.code==='SCOPE_DENIED') continue;throw error}
-  const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts');
-  for(const request of rematches.filter(r=>nextRematch(r,attempts,now.toISOString())).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
+  await maintenance(id,'EXTRACTION_UPGRADE',async()=>{
+   if(feed.briefingSchedule||feed.briefingFrequency!=='WEEKLY'){const upgradeWindow=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);if(await hasUnscheduledExtractionUpgrade(store,id,upgradeWindow))await feedTransact(store,id,tx=>scheduleExtractionUpgrades(tx,upgradeWindow,now.toISOString()))}
+  });
+  await maintenance(id,'REMATCH_DISPATCH',async()=>{
+    const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts');
+    for(const request of rematches.filter(r=>nextRematch(r,attempts,now.toISOString())).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
+  });
   // Reassessment must finish first; the next bounded relay publishes its result.
-  const pending=await env.DB.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0").bind(id).first<{n:number}>();
-  if(pending?.n) continue;
+  const pending={n:await jobsHoldingWindow(env.DB,id,windowEndOf(feed,now))};
   // Historical weekly windows remain callable/reproducible, but are not a new
   // live scheduling option. Existing UTC schedules remain unchanged otherwise.
   if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
   const window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now),editionId=await windowIdentity(id,window);
+  // Record the observed boundary even while intake is busy. A gap is an
+  // observation made NOW, not a fabricated historical request or quiet result.
+  await maintenance(id,'SCHEDULE_OBSERVATION',async()=>{
+   await feedTransact(store,id,async tx=>{
+   const observationId=JSON.stringify([id,feed.revision,window.end]);if(await tx.read('schedule_observations',observationId))return;
+   const prior=(await tx.list<{id:string;feedRevision:number;window:PublicationWindow;createdAt:string}>('schedule_observations')).filter(o=>o.feedRevision===feed.revision&&Date.parse(o.window.end)<Date.parse(window.end)).sort((a,b)=>b.window.end.localeCompare(a.window.end))[0];
+   const missing:PublicationWindow[]=[];let cursor=window;
+   for(let i=0;prior&&Date.parse(cursor.start)>Date.parse(prior.window.end)&&i<48;i++){
+    cursor=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,new Date(Date.parse(cursor.start))):publicationWindow(feed.briefingFrequency,new Date(Date.parse(cursor.start)));
+    if(!await tx.read('briefing_requests',await windowIdentity(id,cursor)))missing.push(cursor);
+   }
+   await tx.write('schedule_observations',observationId,{id:observationId,feedId:id,feedRevision:feed.revision,window,requestId:editionId,createdAt:now.toISOString(),state:'BOUNDARY_OBSERVED',schedulePolicy:feed.briefingSchedule??{briefingFrequency:feed.briefingFrequency},missingExpectedBoundaries:missing,gapScanLimit:48,gapScanTruncated:Boolean(prior&&Date.parse(cursor.start)>Date.parse(prior.window.end))});
+   if(missing.length)console.warn(JSON.stringify({type:'BRIEFING_SCHEDULE_GAP',feedId:id,observedAt:now.toISOString(),missingWindowEnds:missing.map(w=>w.end)}));
+  });
+  });
   if(!await store.read(id,'editions',editionId)) await feedTransact(store,id,async tx=>{
    if(!await tx.read('briefing_requests',editionId)) await tx.write('briefing_requests',editionId,{id:editionId,feedId:id,window,state:'PENDING',attempts:0,createdAt:now.toISOString()} satisfies BriefingRequest);
   });
+  // Reobserving an unchanged wait is read-only: an epoch bump every minute
+  // would fence slow reassessment/publication work for other windows too.
+  // A wait label is written once on entry and cleared once on release; unchanged observations stay read-only.
+  const waiting=Boolean(pending?.n),current=await store.read<BriefingRequest>(id,'briefing_requests',editionId);
+  if(current?.state==='PENDING'&&waiting!==(current.reason==='AWAITING_INTAKE_REASSESSMENT')&&(waiting||current.reason==='AWAITING_INTAKE_REASSESSMENT'))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;if(waiting&&request.reason!=='AWAITING_INTAKE_REASSESSMENT')await tx.write('briefing_requests',editionId,{...request,reason:'AWAITING_INTAKE_REASSESSMENT'});else if(!waiting&&request.reason==='AWAITING_INTAKE_REASSESSMENT'){const {reason:_released,...rest}=request;await tx.write('briefing_requests',editionId,rest)}});
   const requests=await store.list<BriefingRequest>(id,'briefing_requests');
   let briefingSends=0;
   for(const request of requests.filter(r=>r.state==='PENDING' && (!r.nextAttemptAt || Date.parse(r.nextAttemptAt)<=now.getTime()))) {
+   // Each window is held only by jobs for evidence that existed when it closed.
+   if(await jobsHoldingWindow(env.DB,id,request.window.end))continue;
    const job=await store.read<{state:string;leaseUntil:string;pendingCall?:string}>(id,'synthesis_jobs',request.id);
    if(job?.state==='FAILED' || job?.pendingCall || job?.state==='RUNNING' && Date.parse(job.leaseUntil)>now.getTime()) continue;
    await env.PROCESSING_QUEUE.send({type:'v1_briefing',feedId:id,window:request.window} satisfies DistilledQueueMessage);sent++;briefingSends++;

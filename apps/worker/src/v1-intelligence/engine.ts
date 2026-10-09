@@ -4,7 +4,7 @@ import type {AcceptedInput,DownstreamJob} from '../v1-intake/types';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {INTELLIGENCE_POLICY,classifyRole,duplicateSimilarity,features} from './policies';
 import {deterministicMatchers,validateEventMatch,validateStorylineMatch,type IntelligenceMatchers,type EventMatchInput} from './matchers';
-import {persistClaimMentions,type ClaimMention} from './claims';
+import {persistClaimMentions,isNewsMention,type ClaimMention} from './claims';
 import {validateConstruction,persistEventSemanticState,persistStorylineMemory,type SemanticGroup,type EventSemanticState,type Proposition} from './semantic-state';
 import {refreshSourceCorrectionObligations,recordCorrectionObligation,type LedgerEntry} from './ledger';
 import {scheduleRematch} from './rematch';
@@ -20,7 +20,7 @@ async function versionEvent(tx:FeedTransaction,event:EventRecord,revisions:Evide
  if(old){
   const previous=await tx.read<EventSemanticState>('event_semantic_states',old.id),activeIds=new Set(revisions.map(r=>r.id)),surviving:string[]=[];
   for(const id of previous?.propositionIds??[]){const p=await tx.read<Proposition>('propositions',id);if(p&&p.evidenceRevisionIds.every(id=>activeIds.has(id)))surviving.push(...p.claimMentionIds)}
-  if(!binding&&previous&&previous.provenance.scorer!=='DETERMINISTIC_FOUNDATION')binding={group:{claimMentionIds:[...new Set(surviving)],eventId:event.id,storylineId:null,structuralRelation:'SAME_EVENT',epistemicEffects:[],entities:[],slots:[]},provenance:previous.provenance};
+  if(!binding&&previous&&previous.provenance.scorer!=='DETERMINISTIC_FOUNDATION')binding={group:{claimMentionIds:[...new Set(surviving)],eventId:previous.provisional?null:event.id,storylineId:null,structuralRelation:previous.provisional?'DEFER':'SAME_EVENT',epistemicEffects:[],entities:[],slots:[]},provenance:previous.provenance};
   if(binding){
    binding.group.claimMentionIds=[...new Set([...binding.group.claimMentionIds,...surviving])];const allowed=new Set(binding.group.claimMentionIds);
    for(const id of previous?.entityIds??[]){const e=await tx.read<import('./semantic-state').Entity>('entities',id);if(e&&e.claimMentionIds.every(id=>allowed.has(id))&&!binding.group.entities.some(item=>item.canonicalLabel===e.canonicalLabel))binding.group.entities.push({canonicalLabel:e.canonicalLabel,aliases:e.aliases,claimMentionIds:e.claimMentionIds})}
@@ -109,10 +109,13 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   if(target) {
    await persistClaimMentions(tx,target.revision);
    const text=revisionText(target.revision),classification=classifyRole(text);
-   const role:RoleDecision={id:JSON.stringify([target.revision.id,INTELLIGENCE_POLICY]),feedId:o.feedId,evidenceId:target.item.id,evidenceRevisionId:target.revision.id,...classification,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
-   await tx.write('roles',role.id,role);
-   const duplicate:DuplicateDecision={id:role.id,feedId:o.feedId,evidenceRevisionId:target.revision.id,kind:'UNIQUE',similarity:0,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
-   for(const other of active) {
+   const roleId=JSON.stringify([target.revision.id,INTELLIGENCE_POLICY]);
+   const savedRole=await tx.read<RoleDecision>('roles',roleId);
+   const role:RoleDecision=savedRole??{id:roleId,feedId:o.feedId,evidenceId:target.item.id,evidenceRevisionId:target.revision.id,...classification,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
+   if(!savedRole)await tx.write('roles',role.id,role);
+   const savedDuplicate=await tx.read<DuplicateDecision>('duplicates',role.id);
+   const duplicate:DuplicateDecision=savedDuplicate??{id:role.id,feedId:o.feedId,evidenceRevisionId:target.revision.id,kind:'UNIQUE',similarity:0,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
+   if(!savedDuplicate)for(const other of active) {
     if(other.revision.id===target.revision.id) continue;
     if(other.item.id===target.item.id) continue;
     // A representative must already have an immutable decision. Feed serialization
@@ -122,7 +125,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
     const sameDevelopment=features(text).development===features(revisionText(other.revision)).development;
     if(target.revision.contentHash===other.revision.contentHash || similarity>=.9 && sameDevelopment) {duplicate.kind=target.revision.contentHash===other.revision.contentHash?'EXACT':'NEAR';duplicate.similarity=similarity;duplicate.duplicateOfRevisionId=other.revision.id;break}
    }
-   await tx.write('duplicates',duplicate.id,duplicate);
+   if(!savedDuplicate)await tx.write('duplicates',duplicate.id,duplicate);
    const candidates:EventMatchInput['candidates']=[];
     for(const event of events) {
      const version=await tx.read<EventVersion>('event_versions',event.currentVersionId);if(!version || version.type==='WITHDRAWN') continue;
@@ -149,7 +152,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
    if(construction){
     if(construction.groups.some(group=>group.structuralRelation==='DEFER')){receipt.semanticDeferred=true;await scheduleRematch(tx,jobId,target.revision.id,now)}
     if(construction.originDependencyLabel){const id=JSON.stringify([target.revision.id,construction.provenance.judgmentId??construction.provenance.policyVersion]);await tx.write('source_origins',id,{id,feedId:o.feedId,evidenceRevisionId:target.revision.id,dependencyLabel:construction.originDependencyLabel,provenance:construction.provenance,policyVersion:'information-origin-v1'})}
-    const mentions=(await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id);validateConstruction(construction,mentions);
+    const mentions=(await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id);validateConstruction(construction,mentions.filter(isNewsMention));
     for(const group of construction.groups){
      const d=validateEventMatch({structuralRelation:group.structuralRelation,eventId:group.eventId??undefined,storylineId:group.storylineId??undefined,epistemicEffects:group.epistemicEffects,confidence:decision.confidence,provenance:construction.provenance},matchInput);
      const root=d.structuralRelation==='SAME_EVENT'?events.find(e=>e.id===d.eventId)!:{id:crypto.randomUUID(),feedId:o.feedId,currentVersionId:'',createdAt:now};
@@ -172,6 +175,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   for(const [eventId,binding] of bindings)for(const entry of await tx.list<LedgerEntry>('ledger_entries'))if(entry.eventIds.includes(eventId) || preferredStorylines.has(eventId) && entry.storylineIds.includes(preferredStorylines.get(eventId)!)){
    const trigger=binding.provenance.judgmentId??target?.revision.id??jobId;
    if(binding.group.epistemicEffects.includes('CONTRADICTS'))await recordCorrectionObligation(tx,entry,'CONTRADICTED',trigger,now);
+   if(binding.group.epistemicEffects.includes('CORRECTS'))await recordCorrectionObligation(tx,entry,'CORRECTED',trigger,now);
    if(binding.group.epistemicEffects.includes('RETRACTS'))await recordCorrectionObligation(tx,entry,'RETRACTED',trigger,now);
   }
   await tx.write('intelligence_receipts',receiptId,receipt);tx.completeJob(job);return receipt;

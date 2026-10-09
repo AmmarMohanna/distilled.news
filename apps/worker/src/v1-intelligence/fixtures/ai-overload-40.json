@@ -1,0 +1,322 @@
+[
+  {
+    "originalRevisionId": "52c95351-3ff1-4e33-8d10-385a38920904",
+    "title": "The next hurdle for AI agents: getting websites to let them in",
+    "body": "Personal AI agents promise to shop, book flights, and make reservations for you. But deliberate blocks and anti-bot defenses are getting in the way, leaving consumers caught in the middle. A new standard aims to help.",
+    "publishedAt": "2026-10-06T19:56:50.000Z",
+    "acceptedAt": "2026-10-06T22:04:41.109Z",
+    "url": "https://techcrunch.com/2026/10/06/the-next-hurdle-for-ai-agents-getting-websites-to-let-them-in/"
+  },
+  {
+    "originalRevisionId": "2d643a12-650c-4425-ae11-a6537b533a6d",
+    "title": "Reflection debuts Beam, an open-weight AI model to rival Chinese models at lower compute cost",
+    "body": "Reflection is aiming Beam and future models at enterprises and sovereign nations. The pitch is to build \u201cAI factories,\u201d a product that would let institutions build their own customized, local AI system by training Reflection\u2019s AI models on their own proprietary data.",
+    "publishedAt": "2026-10-05T19:33:53.000Z",
+    "acceptedAt": "2026-10-06T22:04:46.398Z",
+    "url": "https://techcrunch.com/2026/10/05/reflection-debuts-beam-a-open-weight-ai-model-to-rival-chinese-models-at-lower-compute-cost/"
+  },
+  {
+    "originalRevisionId": "f7c87f7d-7df4-4ac2-a9b2-0316e5371f63",
+    "title": "Hark releases an AI personal assistant with a focus on privacy",
+    "body": "The AI lab's personal assistant is an operating system from the future designed to compete with Muse, Dots, and Instinct.",
+    "publishedAt": "2026-10-06T18:22:45.000Z",
+    "acceptedAt": "2026-10-06T22:04:51.505Z",
+    "url": "https://techcrunch.com/2026/10/06/hark-releases-an-ai-personal-assistant-with-a-focus-on-privacy/"
+  },
+  {
+    "originalRevisionId": "53c19b74-cc44-451d-aa16-cae231bb69af",
+    "title": "Mistral\u2019s new 1T model aims to leapfrog closed and open rivals",
+    "body": "French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals.",
+    "publishedAt": "2026-10-06T14:33:16.000Z",
+    "acceptedAt": "2026-10-06T22:04:56.516Z",
+    "url": "https://techcrunch.com/2026/10/06/mistrals-new-1t-model-aims-to-leapfrog-closed-and-open-rivals/"
+  },
+  {
+    "originalRevisionId": "1f00c580-3887-4f60-954a-273e4d627286",
+    "title": "HackerRank\u2019s AI interviewer offers a glimpse into what job interviews could become",
+    "body": "HackerRank\u2019s AI interviewer has already conducted more than 500,000 interviews, with Snowflake, Snorkel, and Capgemini among its early testers.",
+    "publishedAt": "2026-10-05T16:43:35.000Z",
+    "acceptedAt": "2026-10-06T22:05:01.876Z",
+    "url": "https://techcrunch.com/2026/10/05/hackerranks-ai-interviewer-offers-a-glimpse-into-what-job-interviews-could-become/"
+  },
+  {
+    "originalRevisionId": "3854f6f5-2454-4f8f-8675-0baf2aeadbd6",
+    "title": "OpenAI fires workers for 'mishandling sensitive information'",
+    "body": "The former employees were investigated for sharing data with an outside AI evaluation group.",
+    "publishedAt": "2026-10-02T08:20:32.000Z",
+    "acceptedAt": "2026-10-06T22:05:38.143Z",
+    "url": "https://www.bbc.co.uk/news/articles/c6y9z9r4ejzwo?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "afbe6cd9-6914-4bc1-96de-b25725b569c3",
+    "title": "Lego fraudster among last year's most high-profile insurance scammers",
+    "body": "The person was sentenced to 28 months in prison after an investigation found the claims were made up, the insurance trade body, the ABI said.",
+    "publishedAt": "2026-10-06T07:03:35.000Z",
+    "acceptedAt": "2026-10-06T22:05:43.097Z",
+    "url": "https://www.bbc.co.uk/news/articles/cm86z9npj5deo?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "ad4f511f-dd4c-463d-8173-14b0b377ba3b",
+    "title": "Tech Life",
+    "body": "How a Chinese AI model was persuaded to ignore its rules and give dangerous advice.",
+    "publishedAt": "2026-09-29T19:30:00.000Z",
+    "acceptedAt": "2026-10-06T22:05:48.063Z",
+    "url": "https://www.bbc.co.uk/sounds/play/w3ct8jyh?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "250bc9fe-0a28-4968-bee4-b6c97b5d321f",
+    "title": "Tech Life",
+    "body": "What is a supercomputer for? How does it work? And who gets to use it? We explain all.",
+    "publishedAt": "2026-10-06T19:30:00.000Z",
+    "acceptedAt": "2026-10-06T22:05:53.237Z",
+    "url": "https://www.bbc.co.uk/sounds/play/w3ct8jyj?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "c2b5af26-e41a-4aad-a122-f4740269c31d",
+    "title": "Asos confirms hackers sent 'unauthorised' notification to app users",
+    "body": "Asos confirmed an \"unauthorised customer notification\" was sent out via its app on Tuesday, after users raised alarm.",
+    "publishedAt": "2026-10-06T17:50:19.000Z",
+    "acceptedAt": "2026-10-06T22:05:58.421Z",
+    "url": "https://www.bbc.co.uk/news/articles/cj62ylzpr6d3o?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "a807ccbe-f808-43f0-86c1-96449ae296a5",
+    "title": "How AI decision models could change content moderation",
+    "body": "On Tuesday, Musubi announced a lightweight decision model made for real-time moderation called PolicyLM-1.7B, released with open weights.",
+    "publishedAt": "2026-10-06T20:35:20.000Z",
+    "acceptedAt": "2026-10-06T22:06:03.960Z",
+    "url": "https://techcrunch.com/2026/10/06/how-ai-decision-models-could-change-content-moderation/"
+  },
+  {
+    "originalRevisionId": "49e565d0-5160-4414-a7f7-342a4ad84269",
+    "title": "AI computing startup Lambda to raise $4B ahead of planned IPO",
+    "body": "Nvidia-backed Lambda is raising up to $4 billion at a $14.5 billion pre-money valuation ahead of a planned 2027 IPO, led by Coatue and Blackstone.",
+    "publishedAt": "2026-10-06T20:00:30.000Z",
+    "acceptedAt": "2026-10-06T22:06:08.963Z",
+    "url": "https://techcrunch.com/2026/10/06/ai-computing-startup-lambda-to-raise-4b-ahead-of-planned-ipo/"
+  },
+  {
+    "originalRevisionId": "ab35e3b7-a70f-4853-8062-bc02318f57e9",
+    "title": "Instinct brings its AI agent to group chats, even for friends without an account",
+    "body": "Instinct is launching group chats that let friends use its AI agent together for tasks like planning trips, organizing carpools, and coordinating events. The company says personal accounts remain separate, with permission required before personal agents share information or take action.",
+    "publishedAt": "2026-10-05T18:54:30.000Z",
+    "acceptedAt": "2026-10-06T22:06:14.012Z",
+    "url": "https://techcrunch.com/2026/10/05/instinct-brings-its-ai-agent-to-group-chats-even-for-friends-without-an-account/"
+  },
+  {
+    "originalRevisionId": "670504f5-4b04-404c-ab63-1994cf63f66f",
+    "title": "Open or closed AI? How founders are choosing what to build on at TechCrunch Disrupt 2026",
+    "body": "Learn how founders are choosing between building on open or closed AI at TechCrunch Disrupt 2026. Register now to save up to $100 and get a second pass at 50% off.",
+    "publishedAt": "2026-10-05T15:00:00.000Z",
+    "acceptedAt": "2026-10-06T22:06:19.054Z",
+    "url": "https://techcrunch.com/2026/10/05/open-or-closed-ai-how-founders-are-choosing-what-to-build-on-at-techcrunch-disrupt-2026/"
+  },
+  {
+    "originalRevisionId": "e33372c0-0204-44c0-846e-7f32c68336fa",
+    "title": "Get all your questions answered at TechCrunch Disrupt 2026: The full breakout session agenda revealed",
+    "body": "Get all of your scaling and tech questions answered at TechCrunch Disrupt 2026. Here's the full breakout session agenda, happening October 13-15 in San Francisco. Register now to join and save up to $100, and get a second pass at 50% off.",
+    "publishedAt": "2026-10-06T14:00:00.000Z",
+    "acceptedAt": "2026-10-06T22:06:24.022Z",
+    "url": "https://techcrunch.com/2026/10/06/get-all-your-questions-answered-at-techcrunch-disrupt-2026-the-full-breakout-session-agenda-revealed/"
+  },
+  {
+    "originalRevisionId": "12d6820a-cebe-49e2-97dd-1d1da70c3ab1",
+    "title": "The AI telling farmers when to harvest",
+    "body": "Will farmers want AI tools to help judge when to pick fruit, or is their own intuition enough?",
+    "publishedAt": "2026-09-30T23:02:21.000Z",
+    "acceptedAt": "2026-10-06T22:06:29.586Z",
+    "url": "https://www.bbc.co.uk/news/articles/cgk53dkmyxko?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "3a24cefa-1e3e-4e61-828a-43045d3eff37",
+    "title": "Tiny image sparks big backlash in Nikon photo contest",
+    "body": "Dr Ning Xu denies he broke the rules of Nikon's annual Small World In Motion contest.",
+    "publishedAt": "2026-09-30T23:10:19.000Z",
+    "acceptedAt": "2026-10-06T22:06:34.603Z",
+    "url": "https://www.bbc.co.uk/news/articles/ck4gjn1yzprno?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "26f01066-13a7-47ec-8745-0e43cd9e479c",
+    "title": "Trump's AI rebrand causes 'unprecedented' demand for Slovenian website names",
+    "body": "The president wants AI to be called super intelligence - or SI - the same initials used by Slovenian domains.",
+    "publishedAt": "2026-10-01T11:37:46.000Z",
+    "acceptedAt": "2026-10-06T22:06:39.582Z",
+    "url": "https://www.bbc.co.uk/news/articles/cqx2z23xj555o?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "36927e3c-2bfd-4085-9f7e-f5ed86ac344d",
+    "title": "Pentagon stops using Anthropic AI tools after blacklisting company, BBC told",
+    "body": "It labelled Anthropic a \"supply chain risk\" in February after the firm refused to remove safety guardrails from its tools.",
+    "publishedAt": "2026-10-05T16:13:21.000Z",
+    "acceptedAt": "2026-10-06T22:06:44.666Z",
+    "url": "https://www.bbc.co.uk/news/articles/c5j9x9pr0240o?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "62545baa-c530-41a0-b8cf-91333eaebb52",
+    "title": "Hot Girl Hotline is like \u2018Dear Abby\u2019 for the AI era",
+    "body": "Founded by two sisters, Hot Girl Hotline uses AI to give young women personalized dating and relationship advice, with an emphasis on safety and avoiding emotional dependency.",
+    "publishedAt": "2026-10-05T17:29:22.000Z",
+    "acceptedAt": "2026-10-06T22:06:44.666Z",
+    "url": "https://techcrunch.com/2026/10/05/hot-girl-hotline-is-like-dear-abby-for-the-ai-era/"
+  },
+  {
+    "originalRevisionId": "8d285b83-7f40-4996-a10d-fd0fc7b1be92",
+    "title": "Ofcom investigates Meta over Instagram Instants feature",
+    "body": "The regulator said Instagram had not fully assessed risks posed by its Instants feature prior to launching it.",
+    "publishedAt": "2026-10-06T09:04:02.000Z",
+    "acceptedAt": "2026-10-06T22:06:49.657Z",
+    "url": "https://www.bbc.co.uk/news/articles/cq8jzyey8e2ro?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "dc0b8ab4-5933-4226-b046-794e785b4e31",
+    "title": "Pinterest\u2019s AI now turns beauty Pins into action plans",
+    "body": "Pinterest\u2019s new AI-powered Beauty Guides translate hair and nail Pins into salon terminology, with estimated costs, appointment times, and maintenance needs.",
+    "publishedAt": "2026-10-06T14:00:49.000Z",
+    "acceptedAt": "2026-10-06T22:06:49.699Z",
+    "url": "https://techcrunch.com/2026/10/06/pinterests-ai-now-turns-beauty-pins-into-action-plans/"
+  },
+  {
+    "originalRevisionId": "cff34505-863b-4a7c-9a3a-f5e43dc985e3",
+    "title": "Anthropic is giving startups a free year of Claude Team and $1,000 in credits",
+    "body": "\"We created this program because we believe the benefits of AI will reach most people through the companies that build on top of models, rather than through the models alone.\"",
+    "publishedAt": "2026-10-06T16:00:00.000Z",
+    "acceptedAt": "2026-10-06T22:06:54.696Z",
+    "url": "https://techcrunch.com/2026/10/06/anthropic-gives-startups-a-free-year-of-enterprise-service-and-1000-in-token-credits/"
+  },
+  {
+    "originalRevisionId": "0fe891c4-553e-4174-bbba-0fcd0811fc04",
+    "title": "OpenAI launches visual ads that appear alongside image generation results",
+    "body": "The new ads will begin to appear later this month in the U.S. only for now, and will feature products and services from an initial test group of advertisers.",
+    "publishedAt": "2026-10-05T15:14:24.000Z",
+    "acceptedAt": "2026-10-06T22:06:59.852Z",
+    "url": "https://techcrunch.com/2026/10/05/openai-launches-visual-ads-that-appear-alongside-image-generation-results/"
+  },
+  {
+    "originalRevisionId": "8bb9018f-341d-4c88-8050-42e2de57ed54",
+    "title": "Trump chooses top spy boss to run new AI taskforce",
+    "body": "The US president said his national intelligence chief will lead the group as worries over AI grow.",
+    "publishedAt": "2026-10-05T10:03:38.000Z",
+    "acceptedAt": "2026-10-06T22:07:25.595Z",
+    "url": "https://www.bbc.co.uk/news/articles/cqj6jenp26zyo?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "302beca1-2969-4e8d-85be-bd0de6bf4aec",
+    "title": "OpenAI will start watermarking ChatGPT\u2019s text in the EU",
+    "body": "OpenAI will watermark ChatGPT and Codex text in the EU to comply with the AI Act. Editing can make the invisible marks harder to detect, it says.",
+    "publishedAt": "2026-10-05T20:36:48.000Z",
+    "acceptedAt": "2026-10-06T22:07:27.120Z",
+    "url": "https://techcrunch.com/2026/10/05/openai-will-start-watermarking-chatgpts-text-in-the-eu/"
+  },
+  {
+    "originalRevisionId": "078214bd-ce18-40f5-b92c-398841aabd25",
+    "title": "Tech Now",
+    "body": "Adrienne Murray follows NASA scientists in Iceland researching a rare total solar eclipse.",
+    "publishedAt": "2026-09-19T01:00:00.000Z",
+    "acceptedAt": "2026-10-06T22:07:30.659Z",
+    "url": "https://www.bbc.co.uk/iplayer/episode/m0032301?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "b6e5cc3d-5e15-439d-99fc-fb26e9d24548",
+    "title": "LibreOffice says \u2018no AI\u2019 is now a software feature",
+    "body": "The maker of the open source document editor says it has no plans to add AI to its software's default configuration, citing user privacy.",
+    "publishedAt": "2026-10-06T15:25:00.000Z",
+    "acceptedAt": "2026-10-06T22:07:32.135Z",
+    "url": "https://techcrunch.com/2026/10/06/libreoffice-says-no-ai-is-now-a-software-feature/"
+  },
+  {
+    "originalRevisionId": "8b757296-5ab9-4c1a-8ece-5f676185182b",
+    "title": "Finland orders halt to work on two Google data centres",
+    "body": "The order affecting two planned data centres follows concerns over forest clearance.",
+    "publishedAt": "2026-10-06T17:15:46.000Z",
+    "acceptedAt": "2026-10-06T22:07:35.730Z",
+    "url": "https://www.bbc.co.uk/news/articles/cvj6jkx6g1r0o?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "ea8345bf-1d23-4f60-ad5e-b99a347a9abd",
+    "title": "TikTok rolls out an AI shopping assistant and one-click checkout",
+    "body": "TikTok describes its new Shopping Assistant as a conversational AI agent designed to help users discover and purchase products.",
+    "publishedAt": "2026-10-05T18:29:00.000Z",
+    "acceptedAt": "2026-10-06T22:07:37.296Z",
+    "url": "https://techcrunch.com/2026/10/05/tiktok-rolls-out-an-ai-shopping-assistant-and-one-click-checkout/"
+  },
+  {
+    "originalRevisionId": "cc53fb03-3396-4195-9a3e-d766be651579",
+    "title": "Italian PM files to trademark her voice against AI threats",
+    "body": "Giorgia Meloni submitted a four-second audio to a EU agency in a bid to protect her voice from deepfakes.",
+    "publishedAt": "2026-10-06T11:24:10.000Z",
+    "acceptedAt": "2026-10-06T22:07:40.865Z",
+    "url": "https://www.bbc.co.uk/news/articles/ckly0g1ljq2yo?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "ea5ec3ec-eada-41cc-ab6d-f8e7ac1e379b",
+    "title": "Mirror Particle is building a \u2018world model\u2019 of human behavior",
+    "body": "Mirror Particle will launch at TechCrunch Disrupt's Startup Battlefield 200 with a world model built from scratch to predict human behavior, arguing that LLM role-play falls short for market research and brand strategy.",
+    "publishedAt": "2026-10-06T16:35:00.000Z",
+    "acceptedAt": "2026-10-06T22:07:42.511Z",
+    "url": "https://techcrunch.com/2026/10/06/mirror-particle-is-building-a-world-model-of-human-behavior/"
+  },
+  {
+    "originalRevisionId": "ded4d62d-b7d4-457c-a528-9143dd8966f9",
+    "title": "Tech Now",
+    "body": "Alasdair Keane heads to the Pok\u00e9mon World Championships in San Francisco.",
+    "publishedAt": "2026-10-03T01:00:00.000Z",
+    "acceptedAt": "2026-10-06T22:07:45.864Z",
+    "url": "https://www.bbc.co.uk/iplayer/episode/m0032n6v?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "9a6115f6-4fd3-41c0-befb-06f876e112b5",
+    "title": "Tech Now",
+    "body": "Shiona McCallum meets mums and hospital staff trialling a new assisted birth innovation.",
+    "publishedAt": "2026-09-12T01:00:19.000Z",
+    "acceptedAt": "2026-10-06T22:09:17.540Z",
+    "url": "https://www.bbc.co.uk/iplayer/episode/m0031qjy?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "a5dd2e71-b7b5-4dbb-8f78-41791a7d5c2c",
+    "title": "Tech Life",
+    "body": "What should children learn in a world transformed by artificial intelligence?",
+    "publishedAt": "2026-09-15T19:30:00.000Z",
+    "acceptedAt": "2026-10-06T22:09:22.639Z",
+    "url": "https://www.bbc.co.uk/sounds/play/w3ct8jyf?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "358a9608-4fa4-4649-b3f5-c6f5c2e77916",
+    "title": "Tech Now",
+    "body": "Ammie Sekhon explores tech used to identify and remove counterfeit products online.",
+    "publishedAt": "2026-09-26T01:00:13.000Z",
+    "acceptedAt": "2026-10-06T22:09:27.724Z",
+    "url": "https://www.bbc.co.uk/iplayer/episode/m0032d9k?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "7c0d6a27-22ae-4ed1-966b-3d2e8b086b6b",
+    "title": "AI boom could trigger market shocks, Bank of England boss warns",
+    "body": "Andrew Bailey says the central bank is watching the waves of cash being invested in artificial intelligence \"very carefully\".",
+    "publishedAt": "2026-10-01T10:05:25.000Z",
+    "acceptedAt": "2026-10-06T22:09:33.044Z",
+    "url": "https://www.bbc.co.uk/news/articles/cv8e30enrkxyo?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "2e34ccd2-6f29-4ab3-b774-74343759ebf0",
+    "title": "Crypto thieves attack man in home and threaten to kill pregnant wife's baby in 'horrific' robbery",
+    "body": "The man was beaten with hammers until he transferred hundreds of thousands of pounds of cryptocurrency.",
+    "publishedAt": "2026-10-01T23:45:06.000Z",
+    "acceptedAt": "2026-10-06T22:09:43.733Z",
+    "url": "https://www.bbc.co.uk/news/articles/c6eq84eygz0qo?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "24e3c328-f0e8-41b4-b384-540aaff2e695",
+    "title": "Tech Life",
+    "body": "China is competing with the United States and other nations to develop AI.",
+    "publishedAt": "2026-09-22T20:00:00.000Z",
+    "acceptedAt": "2026-10-06T22:10:26.211Z",
+    "url": "https://www.bbc.co.uk/sounds/play/w3ct8jyg?at_medium=RSS&at_campaign=rss"
+  },
+  {
+    "originalRevisionId": "757d4cfe-5bd2-40c8-9bd4-972bd3dc102a",
+    "title": "Ex-Ramp engineers raise $20M for platform Melius after scrapping their first product",
+    "body": "The startup crossed over $1 million in anualized revenue within two months of its post-pivot launch.",
+    "publishedAt": "2026-10-06T22:34:03.000Z",
+    "acceptedAt": "2026-10-06T22:38:42.635Z",
+    "url": "https://techcrunch.com/2026/10/06/ex-ramp-engineers-raise-20m-for-platform-melius-after-scrapping-their-first-product/"
+  }
+]

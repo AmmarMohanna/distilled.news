@@ -29,6 +29,10 @@ it('saves explicit owner sources into connector approval, retries without duplic
   expect(await productPublicationState(env,input.id)).toBe('quiet');
   await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','failed-test',?,?)").bind(input.id,JSON.stringify({id:'failed-test',state:'FAILED',createdAt:new Date(Date.now()+1000).toISOString()})).run();
   expect(await productPublicationState(env,input.id)).toBe('failed');
+  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('correction_obligations','pending-correction',?,?)").bind(input.id,JSON.stringify({id:'pending-correction',state:'OPEN'})).run();
+  expect(await productPublicationState(env,input.id)).toBe('correction_pending');
+  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('correction_resolutions','resolved-correction',?,?)").bind(input.id,JSON.stringify({id:'resolved-correction',obligationId:'pending-correction'})).run();
+  expect(await productPublicationState(env,input.id)).toBe('failed');
   expect((await save({...input,updateIntervalMinutes:120,language:'fr'})).status).toBe(200);
   const after=await new V1IntakeStore(ctx.db).getScope(sources[0].id);expect(after!.feedRevision).toBeGreaterThan(before!.feedRevision);
   expect((await save({...input,sourceInputs:[]})).status).toBe(400);
@@ -37,6 +41,17 @@ it('saves explicit owner sources into connector approval, retries without duplic
   const paused=await repo.upsertConfiguredSource({briefingId:input.id,title:'Paused source',provider:'rss',kind:'rss_feed',sourceUrl:'https://example.com/paused.xml',input:'https://example.com/paused.xml',enabled:false});
   expect((await save(input)).status).toBe(200);
   expect((await repo.getSource(paused.id))?.enabled).toBe(false);
+  // Read-path fixture, not a synthesis proof: already-published correction
+  // prose must not pass through the old RSS section-selection heuristics.
+  const publishedText='A prior Distilled briefing was withdrawn. An earlier source report shows bodycam footage in which a police officer finds a gun in Mangione\'s backpack several days after the killing of UnitedHealthcare CEO Brian Thompson.';
+  const published={id:'verified-correction',feedId:input.id,feedRevision:before!.feedRevision,language:'en',windowStart:'2026-10-06T00:00:00Z',windowEnd:'2026-10-06T01:00:00Z',createdAt:'2026-10-06T01:01:00Z',evidenceRevisionIds:[],stories:[{candidateId:'story',claims:[{id:'claim',text:publishedText,support:[]}]}]};
+  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('editions',?,?,?)").bind(published.id,input.id,JSON.stringify(published)).run();
+  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('publication_status',?,?,?)").bind(published.id,input.id,JSON.stringify({id:published.id,status:'PUBLISHED',publishedAt:published.createdAt})).run();
+  for(const path of ['/api/feed/product/lebanon-news','/api/feed/product/lebanon-news/editions/verified-correction','/api/feed/product/lebanon-news/search?q=Mangione']){
+   const response=await app.request(path,{headers:{cookie}},env);expect(response.status).toBe(200);
+   const body=await response.json() as {edition?:{sections:{summary:string}[]};editions?:{sections:{summary:string}[]}[]};
+   expect((body.edition??body.editions?.[0])?.sections[0].summary).toBe(publishedText);
+  }
   expect((await app.request('/api/feed/product/lebanon-news',{},env)).status).toBe(404);
   expect((await app.request('/api/me/sources/recommend',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify({title:'News',description:'Lebanon'})},env)).status).toBe(503);
  }finally{await ctx.dispose()}

@@ -4,9 +4,12 @@ import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,feedTransact} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
 import {prepareSemanticShortlist} from './shortlist';
-import {prepareEditorialPlan} from './editorial-plan';
+import {prepareEditorialPlan,fallbackEditorialPlan} from './editorial-plan';
+import {compactEditorialInput} from './editorial-transport';
+import {projectEditionLedger} from './ledger';
+import {withdrawV1Edition} from './public-read';
 import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET} from './scoring';
-import {publishSelection,extractiveDraft,approvedSupportSpans,type BriefingModelPort,type SynthesisInput} from './publication';
+import {publishSelection,extractiveDraft,approvedSupportSpans,type BriefingModelPort,type SynthesisInput,type SynthesisWriterInput} from './publication';
 const A='Officials said Lebanon banking reform will start after 2026-10-06.';
 const B='Lebanon banking reform may affect 100 depositors.';
 const C='Lebanon banking reform also creates 900 new offices.';
@@ -14,8 +17,24 @@ const body=[A,B,C].join(' '),window={start:'2026-10-03T12:00:00Z',end:'2026-10-0
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await seedIntelligence(store,1,body);});
 afterEach(async()=>ctx.dispose());
-async function selection(){
- const shortlist=await prepareSemanticShortlist(store,'feed-1',window,window.end),plan=await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,window.end);
+it.each([true,false])('unchanged-fact publication correction requires independent delivery attestation (%s)',async verified=>{
+ const originalScope=await prepareSemanticShortlist(store,'feed-1',window,window.end),originalPlan=await prepareEditorialPlan(store,originalScope,DEFAULT_BRIEFING_BUDGET,window.end),originalSelection=await scoreAndSelect(store,'feed-1',window,DEFAULT_BRIEFING_BUDGET,window.end,undefined,originalPlan);
+ const original=await publishSelection(store,'feed-1',originalSelection.id,{now:()=>window.end});await projectEditionLedger(store,'feed-1',original.id);
+ await withdrawV1Edition(ctx.db,original.id,feedFixture.ownerId,'POLICY_REQUIRED','2026-10-03T13:30:00Z');
+ const next={...window,start:window.end,end:'2026-10-03T14:00:00Z'},scope=await prepareSemanticShortlist(store,'feed-1',next,next.end),body=fallbackEditorialPlan(scope);
+ for(const story of body.stories){const c=scope.candidates.find(c=>c.targetVersionId===story.targetVersionId)!;Object.assign(story,{decision:'SELECT',treatment:'STANDARD',deltaType:'CORRECTION',newUnderstandingFactIds:[],mustIncludeFactIds:c.facts.map(f=>f.id),previousLedgerEntryIds:scope.ledger.map(e=>e.id)});}
+ body.obligations=scope.obligations.map(o=>({obligationId:o.id,handling:'ADDRESS',targetVersionId:scope.candidates.find(c=>c.correctionObligationIds.includes(o.id))!.targetVersionId,reason:'Correct withdrawn prior reader communication.'}));
+ const plan=await prepareEditorialPlan(store,scope,DEFAULT_BRIEFING_BUDGET,next.end,{model:'controlled-planner',usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async()=>({value:compactEditorialInput(scope).encode(body),usage:{calls:1,costUsd:.001,reported:true}})}),selected=await scoreAndSelect(store,'feed-1',next,DEFAULT_BRIEFING_BUDGET,next.end,undefined,plan),usage={tokensIn:100,tokensOut:40,cost:.001,confirmed:true};
+ const model:BriefingModelPort={model:'controlled',provider:'TEST',maxCallCostUsd:.01,synthesize:async input=>({draft:{language:'en',stories:input.stories.map(s=>({candidateId:s.candidate.id,claims:[{text:'An earlier Distilled briefing was withdrawn. '+s.approvedFacts!.map(f=>f.text).join(' '),support:s.approvedSpans!,communicatedFactIds:s.approvedFacts!.map(f=>f.id)}]}))},usage}),verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>f.id)),novelFactIds:[],addressedCorrectionObligationIds:claims.flatMap(c=>(c.correctionObligations??[]).map(o=>o.id)),semanticChecks:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>({factId:f.id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,nonRepetitive:true,reason:'Supported explicit correction of prior withdrawn reader communication.',readerSpans:[{claimId:c.id,text:c.text}]}))),usage})};
+ if(!verified){model.verify=async claims=>({supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>f.id)),novelFactIds:[],addressedCorrectionObligationIds:[],semanticChecks:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>({factId:f.id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Facts are supported but no corrective delivery was attested.',readerSpans:[{claimId:c.id,text:c.text}]}))),usage});await expect(publishSelection(store,'feed-1',selected.id,{now:()=>next.end,model,requireModel:true})).rejects.toMatchObject({code:'INVALID_REQUEST'});expect(await store.list('feed-1','correction_resolutions')).toHaveLength(0);expect(await store.list('feed-1','editions')).toHaveLength(1);return;}
+ const corrected=await publishSelection(store,'feed-1',selected.id,{now:()=>next.end,model,requireModel:true});await projectEditionLedger(store,'feed-1',corrected.id);
+ expect(scope.obligations.length).toBeGreaterThan(0);expect(await store.list('feed-1','correction_resolutions')).toHaveLength(scope.obligations.length);
+ expect(await publishSelection(store,'feed-1',selected.id,{now:()=>next.end,model})).toEqual(corrected);
+},25000);
+async function selection(normalized=false){
+ const shortlist=await prepareSemanticShortlist(store,'feed-1',window,window.end),proposed=fallbackEditorialPlan(shortlist);
+ if(normalized)for(const s of proposed.stories){const facts=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!.facts,allowed=new Set(facts.filter(f=>f.text===A||f.text===B).map(f=>f.id));for(const key of ['mustIncludeFactIds','newUnderstandingFactIds','contextFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'] as const)s[key]=s[key].filter(id=>allowed.has(id));s.newUnderstandingFactIds=[...allowed];s.mustIncludeFactIds=[...allowed].slice(0,1)}
+ const plan=await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,window.end,normalized?{model:'normalization-editor',usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async()=>({value:compactEditorialInput(shortlist).encode(proposed),usage:{calls:1,costUsd:.001,reported:true}})}:undefined);
  for(const s of plan.stories){const facts=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!.facts;const allowed=new Set(facts.filter(f=>f.text===A||f.text===B).map(f=>f.id));
   for(const key of ['mustIncludeFactIds','newUnderstandingFactIds','contextFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'] as const)s[key]=s[key].filter(id=>allowed.has(id));
  }
@@ -23,6 +42,28 @@ async function selection(){
  await feedTransact(store,'feed-1',tx=>tx.write('editorial_plans',plan.id,plan));
  return scoreAndSelect(store,'feed-1',window,DEFAULT_BRIEFING_BUDGET,window.end,undefined,plan);
 }
+it.each(['event','report'] as const)('publication cannot promote a source date to an event date despite permissive semantic verification (%s)',async role=>{
+ const selected=await selection(true),usage={tokensIn:100,tokensOut:40,cost:.001,confirmed:true};
+ const model:BriefingModelPort={model:'controlled-permissive-verifier',provider:'TEST',requiresFullEntailment:true,maxCallCostUsd:.01,
+  synthesize:async input=>({draft:{language:'en',stories:input.stories.map(s=>({candidateId:s.candidate.id,claims:s.approvedFacts!.map(f=>({text:f.text===A?(role==='event'?'On October 3, 2026, ':'A report published on October 3, 2026 states: ')+f.text:f.text,support:f.support,communicatedFactIds:[f.id]}))}))},usage}),
+  verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>f.id)),novelFactIds:claims.flatMap(c=>(c.newUnderstandingFacts??[]).map(f=>f.id)),claimEntailment:claims.map(c=>({claimId:c.id,fullyEntailed:true,reason:'Permissive approval.',unsupportedMeaning:[]})),semanticChecks:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>({factId:f.id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,readerNovelty:{status:'NEW' as const,reason:'First communication.',previousFactTexts:[]},reason:'Permissive temporal approval.',readerSpans:[{claimId:c.id,text:c.text}]}))),usage})};
+ if(role==='event'){
+  await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+  expect(await store.list('feed-1','editions')).toHaveLength(0);
+  expect(JSON.stringify(await store.list('feed-1','verification_feedback'))).toContain('UNSUPPORTED_DATE');
+ }else{
+  const edition=await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true});
+  expect(edition.stories.flatMap(s=>s.claims).map(c=>c.text).join(' ')).toContain('A report published on October 3, 2026');
+  expect(await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true})).toEqual(edition);
+ }
+},25000);
+it.each([true,false])('normalized new facts must both survive independently verified publication (%s)',async complete=>{
+ const selected=await selection(true),usage={tokensIn:100,tokensOut:40,cost:.001,confirmed:true};
+ const draft=(input:SynthesisWriterInput)=>({language:'en',stories:input.stories.map(s=>({candidateId:s.candidate.id,claims:s.approvedFacts!.filter(f=>complete||f.text===A).map(f=>({text:f.text,support:f.support,communicatedFactIds:[f.id]}))}))});
+ const model:BriefingModelPort={model:'coverage-writer',provider:'TEST',maxCallCostUsd:.01,synthesize:async input=>{expect(input.stories.flatMap(s=>s.plan!.mustIncludeFactIds)).toHaveLength(2);return {draft:draft(input),usage}},repair:async input=>({draft:draft(input),usage}),verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).filter(f=>claims.some(p=>p.text===f.text)).map(f=>f.id)),novelFactIds:claims.flatMap(c=>(c.newUnderstandingFacts??[]).filter(f=>claims.some(p=>p.text===f.text)).map(f=>f.id)),usage})};
+ if(!complete){await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true})).rejects.toMatchObject({code:'INVALID_REQUEST'});expect(await store.list('feed-1','editions')).toHaveLength(0);return;}
+ const edition=await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true});expect(edition.stories.flatMap(s=>s.claims).map(c=>c.text)).toEqual([A,B]);
+},25000);
 it('renders only approved A/B with exact spans, required coverage and idempotent immutable publication',async()=>{
  const selected=await selection(),edition=await publishSelection(store,'feed-1',selected.id,{now:()=>window.end});
  expect(edition.stories.flatMap(s=>s.claims).map(c=>c.text).join(' ')).toBe(A+' '+B);
@@ -108,4 +149,30 @@ it('accepts a grounded plain paraphrase with all required facts and exact proven
  const edition=await publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model});
  expect(edition.stories[0].claims.map(c=>c.text)).toEqual([A,B.replace('may affect','could affect')]);
  expect(edition.stories[0].claims[1].support).toEqual([{evidenceRevisionId:edition.evidenceRevisionIds[0],quote:B}]);
+},25000);
+
+it('required real-model publication fails closed without extractive recovery or a repeated unknown call',async()=>{
+ const shortlist=await prepareSemanticShortlist(store,'feed-1',window,window.end),plan=await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,window.end,{model:'controlled-planner',usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async()=>({value:compactEditorialInput(shortlist).encode(fallbackEditorialPlan(shortlist)),usage:{calls:1,costUsd:.001,reported:true}})});
+ expect(plan.route).toBe('GPT');
+ const selected=await scoreAndSelect(store,'feed-1',window,DEFAULT_BRIEFING_BUDGET,window.end,undefined,plan);
+ let calls=0;
+ const model:BriefingModelPort={model:'controlled',provider:'TEST',maxCallCostUsd:.01,synthesize:async()=>{calls++;throw Error('simulated provider failure')},verify:async()=>{throw Error('must not verify a fallback')}};
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model,requireModel:true})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ // An ordinary retry must inherit the stored requirement even without the flag.
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,model})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(calls).toBe(1);expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','drafts')).toHaveLength(0);
+ expect(await store.list('feed-1','model_intents')).toHaveLength(1);
+ expect((await store.list<{requireModel?:boolean}>('feed-1','briefing_requests'))[0].requireModel).toBe(true);
+},25000);
+
+it('persists the real-model requirement before a pre-call failure and rejects an ordinary offline retry',async()=>{
+ const selected=await selection();
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end,requireModel:true})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(await store.list('feed-1','model_intents')).toHaveLength(0);
+ // Without a durable requirement this second call would publish an extractive
+ // draft from the approved facts; the retry intentionally has no strict flag.
+ await expect(publishSelection(store,'feed-1',selected.id,{now:()=>window.end})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect(await store.list('feed-1','drafts')).toHaveLength(0);
+ expect((await store.list<{requireModel?:boolean}>('feed-1','briefing_requests'))[0].requireModel).toBe(true);
 },25000);

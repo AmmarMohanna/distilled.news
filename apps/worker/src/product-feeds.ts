@@ -8,7 +8,9 @@ import {publicV1Edition} from './v1-intelligence/public-read';
 import {productConnectorSource} from './connector-source';
 import {discoverPublicRssFeed} from './product-feed-discovery';
 
-export async function productPublicationState(env:Env,feedId:string):Promise<'waiting'|'checking'|'quiet'|'failed'|'published'> {
+export async function productPublicationState(env:Env,feedId:string):Promise<'waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'> {
+ const pending=await env.DB.prepare("SELECT o.id FROM v1_feed_documents o WHERE o.feed_id=? AND o.kind='correction_obligations' AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.feed_id=o.feed_id AND r.kind='correction_resolutions' AND json_extract(r.json,'$.obligationId')=o.id) LIMIT 1").bind(feedId).first();
+ if(pending)return 'correction_pending';
  const request=await env.DB.prepare("SELECT id,json_extract(json,'$.state') AS state FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1").bind(feedId).first<{id:string;state:string}>();
  if(!request)return 'waiting';
  if(request.state==='FAILED')return 'failed';

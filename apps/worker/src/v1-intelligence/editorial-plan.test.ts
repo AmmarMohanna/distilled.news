@@ -23,3 +23,30 @@ it('cannot address a correction obligation by merely repeating the old claim',()
  const plan=fallbackEditorialPlan(scope);plan.stories[0].deltaType='CORRECTION';plan.stories[0].previousLedgerEntryIds=['known'];plan.obligations=[{obligationId:'ob',handling:'ADDRESS',targetVersionId:'v',reason:'Correction'}];
  expect(()=>validateEditorialPlan(plan,scope)).toThrow();
 });
+
+it('permits supported restatement only to correct a persisted publication withdrawal',()=>{
+ const scope=structuredClone(shortlist);scope.candidates[0].facts[0].text='Officials confirmed 12 people affected.';scope.candidates[0].correctionObligationIds=['ob'];scope.obligations=[{id:'ob',feedId:'f',ledgerEntryId:'known',editionId:'old',kind:'RETRACTED',triggerId:'withdrawal',state:'OPEN',createdAt:'2026-10-03T12:00:00Z',policyVersion:'test',publicationWithdrawal:{reason:'POLICY_REQUIRED'}}];
+ const plan=fallbackEditorialPlan(scope);Object.assign(plan.stories[0],{decision:'SELECT',treatment:'STANDARD',deltaType:'CORRECTION',mustIncludeFactIds:['fact'],newUnderstandingFactIds:[],previousLedgerEntryIds:['known']});plan.obligations=[{obligationId:'ob',handling:'ADDRESS',targetVersionId:'v',reason:'Explicitly correct the withdrawn prior communication.'}];
+ plan.stories[0].feedFit='OUT_OF_SCOPE';expect(validateEditorialPlan(plan,scope)).toEqual(plan);
+ delete scope.obligations[0].publicationWithdrawal;
+ expect(()=>validateEditorialPlan(plan,scope)).toThrow();
+});
+
+it('overloaded publication corrections retain explicit pending obligations while filling correction capacity',()=>{
+ const scope=structuredClone(shortlist);scope.candidates[0].facts[0].selfContained='YES';scope.candidates[0].correctionObligationIds=['ob'];scope.obligations=[{id:'ob',feedId:'f',ledgerEntryId:'known',editionId:'old',kind:'RETRACTED',triggerId:'withdrawal',state:'OPEN',createdAt:'2026-10-03T12:00:00Z',policyVersion:'test',publicationWithdrawal:{reason:'POLICY_REQUIRED'}}];
+ const second=structuredClone(scope.candidates[0]);second.targetVersionId='v2';second.stableTargetId='e2';second.correctionObligationIds=['ob2'];scope.candidates.push(second);scope.obligations.push({...scope.obligations[0],id:'ob2'});
+ const plan=fallbackEditorialPlan(scope);plan.stories=plan.stories.map((story,i)=>({...story,decision:i?'DEFER':'SELECT',treatment:i?'OMIT':'STANDARD',deltaType:'CORRECTION',mustIncludeFactIds:i?[]:['fact'],previousLedgerEntryIds:['known']}));plan.obligations=[{obligationId:'ob',handling:'ADDRESS',targetVersionId:'v',reason:'Correct withdrawn prose.'},{obligationId:'ob2',handling:'DEFER',targetVersionId:null,reason:'Pending until next capacity.'}];
+ expect(validateEditorialPlan(plan,scope,{requirePublicationCorrection:true,correctionCapacity:1})).toEqual(plan);
+ expect(()=>validateEditorialPlan({...plan,stories:plan.stories.map(s=>({...s,decision:'DEFER',treatment:'OMIT'}))},scope,{requirePublicationCorrection:true,correctionCapacity:1})).toThrow();
+});
+
+it('source refresh cannot relabel communicated corroboration as a new correction',()=>{
+ const scope=structuredClone(shortlist);scope.candidates[0].protectedReasons=[];scope.candidates[0].facts[0].text='Officials confirmed 12 people affected';scope.ledger[0].eventIds=['e'];scope.ledger[0].storylineIds=[];
+ const plan=fallbackEditorialPlan(scope);plan.stories[0].deltaType='CORRECTION';plan.stories[0].previousLedgerEntryIds=['known'];
+ expect(()=>validateEditorialPlan(plan,scope)).toThrow();
+ const deferred={...plan,stories:plan.stories.map(s=>({...s,decision:'DEFER' as const,treatment:'OMIT' as const}))};expect(validateEditorialPlan(deferred,scope)).toEqual(deferred);
+});
+
+it('uncommunicated ordinary work cannot be labeled REPEAT by a model',()=>{
+ const scope=structuredClone(shortlist);scope.candidates[0].protectedReasons=[];const plan=fallbackEditorialPlan(scope);Object.assign(plan.stories[0],{decision:'SUPPRESS',treatment:'OMIT',deltaType:'REPEAT'});expect(()=>validateEditorialPlan(plan,scope)).toThrow();
+});

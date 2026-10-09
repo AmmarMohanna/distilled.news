@@ -1,0 +1,97 @@
+{
+  "operationId": "dc1eee246cac16b5af16795f2c8f1f9ae788248b5ac7b752e891fc8dbb95bdf6",
+  "source": {
+    "id": "56740d99-8344-4793-8541-06ff330d3382",
+    "text": "OpenAI is launching a new user interface that will bring interactive visuals to ChatGPT."
+  },
+  "claimMentions": [
+    {
+      "id": "00f0cf04e4f1bc60e765380ad5c7908ef264f6d0387110575d2211b68d19d07d",
+      "text": "OpenAI is launching a new user interface that will bring interactive visuals to ChatGPT.",
+      "reportingRoleHint": "OTHER_UNCERTAIN",
+      "certainty": {
+        "kind": "UNSPECIFIED",
+        "hedges": []
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "9d6853a8-d344-4e35-b1ea-a25e640264bb",
+      "versionId": "d39fbdaa-9924-499f-9b23-7156e939b2c3",
+      "state": "OpenAI will watermark ChatGPT and Codex text in the EU to comply with the AI Act. Editing can make the invisible marks harder to detect, it says."
+    },
+    {
+      "id": "d035248a-c9fa-4d27-9279-e2b7ae54e8b8",
+      "versionId": "79d0e992-6615-4499-bd94-a37df9a5d205",
+      "state": "\"We created this program because we believe the benefits of AI will reach most people through the companies that build on top of models, rather than through the models alone.\""
+    },
+    {
+      "id": "09dd6540-d5ee-4cc9-bdc8-81945e8eca02",
+      "versionId": "e7231993-8ec1-4e38-a5ed-9cc6c321f564",
+      "state": "Mirror Particle will launch at TechCrunch Disrupt's Startup Battlefield 200 with a world model built from scratch to predict human behavior, arguing that LLM role-play falls short for market research and brand strategy."
+    },
+    {
+      "id": "a33fed08-203a-43f8-af31-027a09a618e5",
+      "versionId": "e01b0b7e-acf7-4448-8c81-8c0c1068e6fd",
+      "state": "Cloud seeding is gaining attention as countries look to boost rainfall - will drones help?"
+    }
+  ],
+  "storylines": [
+    {
+      "id": "f1af1dbc-337d-419f-89e6-362191bb7844",
+      "state": "The person was sentenced to 28 months in prison after an investigation found the claims were made up, the insurance trade body, the ABI said."
+    },
+    {
+      "id": "f24b9ceb-3031-449e-b174-dc5a1d1f9a1d",
+      "state": "The financing includes an $8M seed round co-led by Sequoia Capital and First Round Capital, and a $30 million Series A led by Hummingbird Ventures."
+    },
+    {
+      "id": "f815172c-2c42-43c4-9a89-9b4c5ad3de3b",
+      "state": "Personal AI agents promise to shop, book flights, and make reservations for you. But deliberate blocks and anti-bot defenses are getting in the way, leaving consumers caught in the middle. A new standard aims to help."
+    },
+    {
+      "id": "fc222b15-8a6b-4e24-accf-e64374dd1a29",
+      "state": "The president wants AI to be called super intelligence - or SI - the same initials used by Slovenian domains."
+    }
+  ],
+  "response": {
+    "confidence": 0.53,
+    "originDependencyLabel": null,
+    "groups": [
+      {
+        "claimMentionIds": [
+          "00f0cf04e4f1bc60e765380ad5c7908ef264f6d0387110575d2211b68d19d07d"
+        ],
+        "eventId": "56740d99-8344-4793-8541-06ff330d3382",
+        "storylineId": null,
+        "structuralRelation": "NEW_EVENT_EXISTING_STORYLINE",
+        "epistemicEffects": [
+          "ADDS_DETAIL"
+        ],
+        "entities": [
+          {
+            "canonicalLabel": "OpenAI",
+            "aliases": [
+              "OpenAI"
+            ],
+            "claimMentionIds": [
+              "00f0cf04e4f1bc60e765380ad5c7908ef264f6d0387110575d2211b68d19d07d"
+            ]
+          }
+        ],
+        "storylineState": {
+          "lifecycle": "ACTIVE",
+          "openQuestionMentionIds": [],
+          "expectedNextDate": null
+        },
+        "slots": []
+      }
+    ],
+    "backgroundMentionIds": []
+  },
+  "rejection": {
+    "name": "Error",
+    "code": "SCOPE_DENIED"
+  }
+}

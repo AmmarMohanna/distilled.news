@@ -28,7 +28,7 @@ it('uses the existing bounded transport, sends only selected evidence and applie
 it('grounding submits only offered claims and treats missing provider cost as unconfirmed',async()=>{
  let body:any;
  const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic'} as Env,async(_,init)=>{
-  body=JSON.parse(String(init?.body));return new Response(JSON.stringify({choices:[{message:{content:'{"supportedClaimIds":["claim_1"]}'}}],usage:{prompt_tokens:50,completion_tokens:8}}));
+  body=JSON.parse(String(init?.body));return new Response(JSON.stringify({choices:[{message:{content:'{"supportedClaimIds":["claim_1"],"claimEntailment":[{"claimId":"claim_1","fullyEntailed":true,"reason":"Supported complete meaning.","unsupportedMeaning":[]}]}'}}],usage:{prompt_tokens:50,completion_tokens:8}}));
  })!;
  const result=await model.verify!([{id:'c',text:'Supported fact',support:[{evidenceRevisionId:'r',quote:'Supported fact'}],context:[{evidenceRevisionId:'r',text:'Supported fact',truncated:false}]}],{maxOutputTokens:99,signal:new AbortController().signal});
  expect(body.max_tokens).toBe(99);expect(result.supportedClaimIds).toEqual(['c']);expect(result.usage.confirmed).toBe(false);

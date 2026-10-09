@@ -20,14 +20,14 @@ async function told(body:string) {
 }
 it('suppressed corroboration retains omission provenance without opening a paid salience intent',async()=>{
  await told('Lebanon Parliament approved banking reform legislation.');
- await seedIntelligence(store,2,'Lebanon Parliament passed banking reform law.','publisher-2','2026-10-03T12:30:00Z');
+ await seedIntelligence(store,2,'The Lebanon Parliament approved banking reform legislation.','publisher-2','2026-10-03T12:30:00Z');
  let calls=0;const scorer={score:(input:import('./salience').SalienceInput)=>{calls++;return new DeterministicSalienceScorer().score(input)}};
  const selected=await scoreAndSelect(store,'feed-1',next,DEFAULT_BRIEFING_BUDGET,next.end,scorer);
  expect(selected.omissions.map(o=>o.reason)).toContain('CORROBORATION_ONLY');expect(calls).toBe(0);expect(await store.list('feed-1','salience_intents')).toHaveLength(0);
 },15000);
 it('independent corroboration increases evidence support but suppresses a previously communicated development',async()=>{
  const edition=await told('Lebanon Parliament approved banking reform legislation.');
- await seedIntelligence(store,2,'Lebanon Parliament passed banking reform law.','publisher-2','2026-10-03T12:30:00Z');
+ await seedIntelligence(store,2,'The Lebanon Parliament approved banking reform legislation.','publisher-2','2026-10-03T12:30:00Z');
  const selection=await scoreAndSelect(store,'feed-1',next,DEFAULT_BRIEFING_BUDGET,next.end);
  expect(selection.selectedCandidateIds).toHaveLength(0);
  expect(selection.omissions.map(o=>o.reason)).toContain('CORROBORATION_ONLY');
@@ -153,3 +153,27 @@ it('state transition across Events in one Storyline adds understanding without l
  expect(decision.reasonCodes).toContain('MAJOR_STATE_CHANGE');expect(decision.previouslyCommunicated[0].editionId).toBe(edition.id);
  expect(await store.read('feed-1','editions',edition.id)).toEqual(edition);
 },15000);
+it('equivalent paraphrases with the same hedge merge but changed values, certainty and attribution do not',async()=>{
+ const {equivalentFact,mergeEquivalentFacts}=await import('./editorial');
+ expect(equivalentFact('The ads could have violated federal law.','The advertisements may have violated federal law.')).toBe(true);
+ expect(equivalentFact('12 people died.','40 people died.')).toBe(false);
+ expect(equivalentFact('The minister may resign.','The minister resigned.')).toBe(false);
+ expect(equivalentFact('Police suspect a gas leak caused the explosion.','A gas leak caused the explosion.')).toBe(false);
+ expect(equivalentFact('The ads could have violated federal law.','The ads did not violate federal law.')).toBe(false);
+ const merged=mergeEquivalentFacts([{text:'The ads could have violated federal law.',evidenceRevisionIds:['a']},{text:'The advertisements may have violated federal law.',evidenceRevisionIds:['b']},{text:'12 people died.',evidenceRevisionIds:['c']},{text:'40 people died.',evidenceRevisionIds:['d']}]);
+ expect(merged).toHaveLength(3);expect(merged[0].evidenceRevisionIds).toEqual(['a','b']);
+});
+it('extractive drafts and grounded claims show a duplicated sentence once and keep both supports',async()=>{
+ const {mergeEquivalentClaims}=await import('./publication');
+ const claims=mergeEquivalentClaims([{text:'The ads could have violated federal law.',support:[{evidenceRevisionId:'a',quote:'The ads could have violated federal law.'}]},{text:'The advertisements may have violated federal law.',support:[{evidenceRevisionId:'b',quote:'The advertisements may have violated federal law.'}]}]);
+ expect(claims).toHaveLength(1);expect(claims[0].support.map(s=>s.evidenceRevisionId)).toEqual(['a','b']);
+});
+it('alias map does not merge unrelated senses',async()=>{
+ const {equivalentFact}=await import('./editorial');
+ // Synonymy is a semantic judgment (JEV/entailment), never a lexical table.
+ expect(equivalentFact('The bill passed.','The bill approved.')).toBe(false);
+ expect(equivalentFact('The senator passed away.','The senator approved.')).toBe(false);
+ expect(equivalentFact('Parliament approved banking legislation.','Parliament approved banking law.')).toBe(false);
+ expect(equivalentFact('The minister signs the bill.','The minister signed the bill.')).toBe(false);
+ expect(equivalentFact('The ads broke the law.','The advertisements broke the laws.')).toBe(true);
+});

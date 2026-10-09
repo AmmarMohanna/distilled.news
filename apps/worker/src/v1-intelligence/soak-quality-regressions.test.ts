@@ -1,0 +1,128 @@
+import {expect,it} from 'vitest';
+import planner from './fixtures/staging-planner-reference-categories.json';
+import construction from './fixtures/staging-construction-slot.json';
+import quantity from './fixtures/staging-approximate-quantity.json';
+import deferredCorrection from './fixtures/staging-deferred-correction.json';
+import withdrawals from './fixtures/staging-publication-withdrawals.json';
+import verifierBudget from './fixtures/staging-correction-verifier-budget.json';
+import {compactEditorialInput} from './editorial-transport';
+import {editorialPlanWireSchemaFor,validateEditorialPlan,fallbackEditorialPlan,type EditorialPlanBody} from './editorial-plan';
+import type {ShortlistRecord} from './shortlist';
+import {parseConstruction} from './semantic-construction';
+import type {ClaimMention} from './claims';
+import {checkReaderFidelity} from './fidelity';
+import {inspectWriterDraft} from './writer-feedback';
+import type {SynthesisInput,VerificationClaim} from './publication';
+import {createStoredEvidenceModel} from './model';
+import {DEFAULT_BRIEFING_BUDGET} from './scoring';
+import type {Env} from '../types';
+import {assessSelfContainment} from './self-contained';
+
+it('the exact failed live correction draft and all its support fit the unchanged verifier allowance',()=>{
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'unused-test-key'} as Env)!;
+ const bytes=new TextEncoder().encode(JSON.stringify(model.verificationPayload!(verifierBudget.claims as VerificationClaim[]))).length;
+ expect(bytes+verifierBudget.writerInputTokens).toBeLessThanOrEqual(DEFAULT_BRIEFING_BUDGET.maxInputTokens);
+});
+
+it('the observed two-story correction verifier fits the existing allowance after the real writer charge',()=>{
+ const scope=withdrawals.shortlist as unknown as ShortlistRecord;
+ const claims:VerificationClaim[]=scope.candidates.slice(0,2).map((c,i)=>{
+  const obligations=scope.obligations.filter(o=>c.correctionObligationIds.includes(o.id)),history=scope.ledger.filter(e=>obligations.some(o=>o.ledgerEntryId===e.id));
+  const facts=c.facts.map(f=>({id:f.id,text:f.text,evidenceRevisionIds:f.evidenceRevisionIds,attribution:f.attribution,timing:f.timing,context:f.context}));
+  return {id:`claim_${i}`,candidateId:c.targetVersionId,text:c.facts[0].text,support:[{evidenceRevisionId:c.facts[0].evidenceRevisionIds[0],quote:c.facts[0].text}],context:c.facts.map(f=>({evidenceRevisionId:f.evidenceRevisionIds[0],text:f.text,truncated:false})),requiredFacts:facts,allowedFacts:facts,previousLedgerFacts:history.flatMap(e=>e.claimFacts),previousReaderClaims:history,correctionObligations:obligations};
+ });
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'unused-test-key'} as Env)!;
+ const bytes=new TextEncoder().encode(JSON.stringify(model.verificationPayload!(claims))).length;
+ expect(bytes+2138).toBeLessThanOrEqual(DEFAULT_BRIEFING_BUDGET.maxInputTokens);
+});
+
+it('all seven persisted publication withdrawals can be planned without inventing a new news fact',()=>{
+ const scope=withdrawals.shortlist as unknown as ShortlistRecord;
+ expect(scope.obligations).toHaveLength(7);
+ expect(scope.obligations.every(o=>o.publicationWithdrawal)).toBe(true);
+ const plan=fallbackEditorialPlan(scope);
+ for(const story of plan.stories){const c=scope.candidates.find(c=>c.targetVersionId===story.targetVersionId)!;if(!c.correctionObligationIds.length)continue;Object.assign(story,{decision:'SELECT',treatment:'STANDARD',deltaType:'CORRECTION',mustIncludeFactIds:c.facts.map(f=>f.id),newUnderstandingFactIds:[],previousLedgerEntryIds:scope.obligations.filter(o=>c.correctionObligationIds.includes(o.id)).map(o=>o.ledgerEntryId)});}
+ plan.obligations=scope.obligations.map(o=>({obligationId:o.id,handling:'ADDRESS',targetVersionId:scope.candidates.find(c=>c.correctionObligationIds.includes(o.id))!.targetVersionId,reason:'Correct the prior withdrawn reader communication with supported facts.'}));
+ expect(validateEditorialPlan(plan,scope)).toEqual(plan);
+ expect(validateEditorialPlan(plan,scope,{requirePublicationCorrection:true})).toEqual(plan);
+ expect(()=>validateEditorialPlan(fallbackEditorialPlan(scope),scope,{requirePublicationCorrection:true})).toThrow();
+ const wire=editorialPlanWireSchemaFor(compactEditorialInput(scope).state);
+ expect(wire.properties.stories.items.anyOf.every(b=>b.properties.decision.enum[0]==='SELECT')).toBe(true);
+ const obligationWire=wire.properties.obligations.items as unknown as {anyOf:{properties:{handling:{enum:string[]};targetVersionId:{enum:string[]}}}[]};
+ expect(obligationWire.anyOf).toHaveLength(7);
+ expect(obligationWire.anyOf.every(b=>b.properties.handling.enum.join()==='ADDRESS'&&b.properties.targetVersionId.enum.length===1)).toBe(true);
+ const unsupported=structuredClone(scope);for(const o of unsupported.obligations)delete o.publicationWithdrawal;
+ expect(()=>validateEditorialPlan(plan,unsupported)).toThrow();
+});
+
+it('the persisted planner attempt cannot use ledger history as approved fact context',()=>{
+ const shortlist=planner.shortlist as unknown as ShortlistRecord;
+ expect(()=>validateEditorialPlan(planner.invalidPlan as EditorialPlanBody,shortlist)).toThrow();
+ const transport=compactEditorialInput(shortlist),schema=editorialPlanWireSchemaFor(transport.state);
+ const branch=schema.properties.stories.items.anyOf[0].properties as unknown as Record<string,{items?:{enum?:string[]};enum?:string[]}>;
+ const ledger=transport.state.ledger.map(e=>e.id),facts=transport.state.candidates.flatMap(c=>c.facts.map(f=>f.id));
+ const owned=transport.state.candidates.filter(c=>branch.targetVersionId.enum!.includes(c.targetVersionId)).flatMap(c=>c.facts.map(f=>f.id));
+ expect(branch.contextFactIds.items!.enum).toEqual([...new Set(owned)]);
+ expect(facts.filter(id=>!owned.includes(id)).some(id=>branch.contextFactIds.items!.enum!.includes(id))).toBe(false);
+ expect(branch.previousLedgerEntryIds.items!.enum).toEqual(['R10']);
+ expect(branch.previousLedgerEntryIds.items!.enum).not.toContain('R11'); // unrelated Event history
+ expect(schema.properties.stories).toMatchObject({minItems:shortlist.candidates.length,maxItems:shortlist.candidates.length});
+ expect(schema.properties.obligations).toMatchObject({minItems:shortlist.obligations.length,maxItems:shortlist.obligations.length});
+ expect(branch.contextFactIds.items!.enum!.some(id=>ledger.includes(id))).toBe(false);
+});
+it('cannot select the observed withdrawn target while deferring its correction obligation',()=>{
+ const shortlist=deferredCorrection.shortlist as unknown as ShortlistRecord;
+ expect(()=>validateEditorialPlan(deferredCorrection.plan as EditorialPlanBody,shortlist)).toThrow();
+ const fallback=fallbackEditorialPlan(shortlist);
+ expect(fallback.stories.filter(s=>shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!.correctionObligationIds.length).every(s=>s.decision==='DEFER')).toBe(true);
+ expect(validateEditorialPlan(fallback,shortlist)).toEqual(fallback);
+});
+it('the exact construction cannot invent slot values; TEXT preserves the whole fact',()=>{
+ const mention=construction.mention as ClaimMention,input={candidates:[],storylines:[]} as any;
+ expect(()=>parseConstruction(construction.invalidConstruction,[mention],input,{scorer:'GPT',policyVersion:'test'})).toThrow();
+ const corrected=structuredClone(construction.invalidConstruction);corrected.groups[0].slots=[];corrected.backgroundMentionIds=[];
+ const accepted=parseConstruction(corrected,[mention],input,{scorer:'GPT',policyVersion:'test'});
+ expect(accepted.groups[0].claimMentionIds).toEqual([mention.id]);expect(accepted.groups[0].entities).toEqual(corrected.groups[0].entities);
+});
+it('a positive semantic attestation cannot erase a supplied approximate magnitude',()=>{
+ const fact={id:'f',text:quantity.sourceText,evidenceRevisionIds:['r']};
+ const checks=[{factId:'f',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Model approved'}];
+ expect(checkReaderFidelity([quantity.badClaim],[fact],[fact],true,{checks}).failures).toContainEqual({code:'LOST_QUANTITY',factId:'f',value:'dozens'});
+ expect(checkReaderFidelity(['Dozens of people reportedly received unusual ASOS app notifications.'],[fact],[fact],true,{checks}).passed).toBe(true);
+});
+it('en-gb evidence receives the same writer precheck as English',()=>{
+ const fact={id:'f',text:quantity.sourceText,evidenceRevisionIds:['r']},input={feed:{outputLanguage:'en'},stories:[{candidate:{id:'c'},evidence:[{id:'r',language:quantity.language}],plan:{facts:[fact],mustIncludeFactIds:['f'],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[]}}]} as unknown as SynthesisInput;
+ const spans=[{evidenceRevisionId:'r',quote:quantity.sourceText}];
+ expect(inspectWriterDraft(input,{language:'en',stories:[{candidateId:'c',claims:[{text:quantity.badClaim,support:spans}]}]},()=>spans,true)).toContainEqual({code:'LOST_QUANTITY',candidateId:'c',factId:'f',value:'dozens'});
+});
+it('embedded descriptive possessives need context from their own evidence, not guessed names',()=>{
+ expect(assessSelfContainment(quantity.sourceText,[{id:'r',language:quantity.language,title:quantity.title}])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:quantity.title}});
+ expect(assessSelfContainment(quantity.sourceText,[{id:'r',language:quantity.language,title:'Daily retail roundup'}]).status).toBe('UNRESOLVED');
+ expect(assessSelfContainment('Dozens of people received an ASOS app notification.',[{id:'r',language:'en',title:quantity.title}]).status).toBe('YES');
+});
+it('the observed award and merger facts offer the missing object and participants from exact titles',()=>{
+ const award={id:'r',language:'en-gb',title:"'Ghost particles' from space telescope wins physics Nobel"};
+ expect(assessSelfContainment('Belgian physicist Prof Francis Halzen has won for his pioneering work on an observatory that detects particles from space.',[award])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:award.title}});
+ expect(assessSelfContainment('Professor Halzen has won a physics prize for his work.',[award]).status).toBe('YES');
+ const merger={id:'m',language:'en-gb',title:'Paramount takes over Warner Bros in $110bn Hollywood merger'};
+ expect(assessSelfContainment("The merger of two of Hollywood's biggest movie studios comes after months of legal disputes and concern over competition.",[merger])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:merger.title}});
+ expect(assessSelfContainment('Professor Halzen has won for his work.',[{...award,title:'Science roundup'}]).status).toBe('UNRESOLVED');
+});
+it('accepts the exact approved headline amount in natural expanded units, never an unsupported amount',()=>{
+ const fact={id:'f',text:'The merger of two studios comes after months of legal disputes.',evidenceRevisionIds:['r'],context:{text:'Paramount takes over Warner Bros in $110bn Hollywood merger'}};
+ expect(checkReaderFidelity(['Paramount has taken over Warner Bros in a $110 billion merger combining two studios after months of legal disputes.'],[fact],[fact],true).passed).toBe(true);
+ expect(checkReaderFidelity(['Paramount has taken over Warner Bros in a $120 billion merger.'],[fact],[fact],true).failures).toContainEqual({code:'UNSUPPORTED_QUANTITY',value:'120000000000'});
+ expect(checkReaderFidelity(['The merger was worth $110 billion.'],[{...fact,context:undefined}],[{...fact,context:undefined}],true).passed).toBe(false);
+});
+it('the observed $300m financing expands to millions without treating a distance m as money',()=>{
+ const fact={id:'f',text:'LIV Golf secures a possible $300m in financing from BC Partners Credit in order to emerge from restructuring before the 2027 season.',evidenceRevisionIds:['r']};
+ expect(checkReaderFidelity(['LIV Golf has secured possible financing of $300 million from BC Partners Credit to emerge from restructuring before the 2027 season.'],[fact],[fact],true).passed).toBe(true);
+ expect(checkReaderFidelity(['The route is 300 million metres long.'],[{id:'d',text:'The route is 300m long.',evidenceRevisionIds:['r']}],[{id:'d',text:'The route is 300m long.',evidenceRevisionIds:['r']}],true).passed).toBe(false);
+});
+it('the observed generic regulator and sentenced person need their own supported source context',()=>{
+ const regulator={id:'r',language:'en-gb',title:'Ofcom investigates Meta over Instagram Instants feature'};
+ expect(assessSelfContainment('The regulator said Instagram had not fully assessed risks posed by its Instants feature prior to launching it.',[regulator])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:regulator.title}});
+ const fraud={id:'f',language:'en-gb',title:"Lego fraudster among last year's most high-profile insurance scammers"};
+ expect(assessSelfContainment('The person was sentenced to 28 months in prison after an investigation found the claims were made up, the insurance trade body, the ABI said.',[fraud])).toMatchObject({status:'RESOLVED_BY_CONTEXT',context:{text:fraud.title}});
+ expect(assessSelfContainment('The person was sentenced to 28 months in prison.',[{...fraud,title:''}]).status).toBe('UNRESOLVED');
+});

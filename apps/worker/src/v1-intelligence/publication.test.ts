@@ -1,7 +1,9 @@
 import {afterEach,beforeEach,expect,it} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope,testPolicy} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
-import {V1FeedStore} from './store';
+import {V1FeedStore,feedTransact} from './store';
+import {sha256} from '@distilled/contracts';
+import {canonicalJson} from '../v1-intake/canonical';
 import {feedFixture,seedIntelligence} from './test-utils';
 import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET} from './scoring';
 import {publishSelection,type BriefingModelPort} from './publication';
@@ -102,4 +104,23 @@ it('a provider outcome lost before persistence consumes reservation and is not a
  await expect(publishSelection(new V1FeedStore(ctx.db),'feed-1',selected.id,{now:testPolicy.now,model})).rejects.toMatchObject({code:'INVALID_REQUEST'});
  expect(calls).toBe(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
  expect(await store.list('feed-1','model_executions')).toMatchObject([{status:'OUTCOME_UNKNOWN',reservationRetained:true}]);
+});
+
+it.each([[false,true],[true,true],[false,false],[true,false]])('cached verification whole-meaning present=%s model available=%s resumes safely without new provider calls',async(full,modelAvailable)=>{
+ const selected=await selection(),candidateId=selected.selectedCandidateIds[0],evidence=(await store.currentEvidence('feed-1'))[0].revision;
+ const claim={text:evidence.body!,support:[{evidenceRevisionId:evidence.id,quote:evidence.body!}]},claimId=await sha256(canonicalJson({candidate:candidateId,claim})),editionId=await sha256(canonicalJson({feedId:'feed-1',start:selected.window.start,end:selected.window.end}));
+ // Insert a settled legacy cache fixture. Immutable drafts/verdicts are never
+ // updated or deleted, and there is no pending or unknown provider outcome.
+ await feedTransact(store,'feed-1',async tx=>{
+  await tx.write('drafts',selected.id,{id:selected.id,feedId:'feed-1',provider:modelAvailable?'SYNTHETIC':'OPENROUTER',model:'legacy-real-writer',draft:{language:'en',stories:[{candidateId,claims:[claim]}]},createdAt:testPolicy.now()});
+  await tx.write('grounding_results',selected.id,{id:selected.id,feedId:'feed-1',stories:[{candidateId,claims:[{id:claimId,...claim}]}],rejectedClaims:0,policyVersion:'approved-spans-semantic-coverage-v4',createdAt:testPolicy.now()});
+  await tx.write('verification_results',selected.id,{id:selected.id,feedId:'feed-1',supportedClaimIds:[claimId],claimEntailment:full?[{claimId,fullyEntailed:true,unsupportedMeaning:[],reason:'Complete meaning is supported.'}]:undefined,createdAt:testPolicy.now()});
+  await tx.write('synthesis_jobs',editionId,{id:editionId,feedId:'feed-1',selectionId:selected.id,state:'PENDING',attempts:1,token:'settled-legacy',leaseUntil:testPolicy.now(),callsUsed:2,tokensIn:180,tokensOut:40,cost:.002});
+ });
+ let calls=0;
+ const model:BriefingModelPort={model:'test',provider:'SYNTHETIC',maxCallCostUsd:.01,requiresFullEntailment:true,synthesize:async()=>{calls++;throw Error('cached writer must not repeat')},verify:async()=>{calls++;throw Error('cached verifier must not repeat')}};
+ const resumed=publishSelection(new V1FeedStore(ctx.db),'feed-1',selected.id,{now:testPolicy.now,model:modelAvailable?model:undefined});
+ if(full)expect((await resumed).stories).toHaveLength(1);
+ else {await expect(resumed).rejects.toMatchObject({code:'INVALID_REQUEST',reason:'VERIFICATION_CONTRACT_MISMATCH'});expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','synthesis_jobs')).toMatchObject([{state:'FAILED',failure:'VERIFICATION_CONTRACT_MISMATCH'}]);}
+ expect(calls).toBe(0);expect(await store.list('feed-1','model_intents')).toHaveLength(0);
 });

@@ -1,7 +1,7 @@
 import {HandoffError,sha256,type EventVersion,type EventMembership} from '@distilled/contracts';
 import {z} from 'zod';
 import {canonicalJson} from '../v1-intake/canonical';
-import {type ClaimMention,assertClaimSpan} from './claims';
+import {type ClaimMention,assertClaimSpan,isNewsMention} from './claims';
 import type {FeedTransaction} from './store';
 import type {EventMatchDecision} from './matchers';
 import type {StorylineVersion} from './types';
@@ -31,8 +31,8 @@ export function validateConstruction(value:SemanticConstruction,mentions:ClaimMe
 export async function persistEventSemanticState(tx:FeedTransaction,event:EventVersion,now:string,binding?:{group:SemanticGroup;provenance:EventMatchDecision['provenance']}):Promise<EventSemanticState> {
  const members=(await tx.list<EventMembership>('memberships')).filter(m=>m.eventVersionId===event.id),support=new Set(members.map(m=>m.evidenceRevisionId));
  const all=(await tx.list<ClaimMention>('claim_mentions')).filter(m=>support.has(m.evidenceRevisionId));
- const mentions=binding?all.filter(m=>binding.group.claimMentionIds.includes(m.id)):all;
- if(binding && binding.group.claimMentionIds.some(id=>!mentions.some(m=>m.id===id)))throw new HandoffError('SCOPE_DENIED');
+ const mentions=(binding?all.filter(m=>binding.group.claimMentionIds.includes(m.id)):all).filter(isNewsMention);
+ if(binding && binding.group.claimMentionIds.some(id=>!all.some(m=>m.id===id)))throw new HandoffError('SCOPE_DENIED');
  const propositionIds:string[]=[],stateSlotIds:string[]=[],entityIds:string[]=[],propositions=new Map<string,Proposition>();
  const mentionIds=new Map(await Promise.all(mentions.map(async mention=>[mention.id,await sha256(canonicalJson({feedId:tx.snapshot.feed.id,mentionId:mention.id,policy:STATE_POLICY}))] as const)));
  await tx.preload('propositions',[...mentionIds.values()]);

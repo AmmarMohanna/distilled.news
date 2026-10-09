@@ -1,0 +1,119 @@
+{
+  "priorOperationId": "3233a92f58b20cef4e597186d535bfcd1d63bcc0d9fc026ccbb7b6656cb894ca",
+  "state": {
+    "source": {
+      "id": "60716305-67e4-421c-a055-7af7e6ca61e9",
+      "text": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising."
+    },
+    "event": {
+      "id": "ee8fd401-a68c-47cd-9afd-d6f56570740a",
+      "versionId": "ad59c647-ac51-4d43-8de7-feda274e2637",
+      "state": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising."
+    },
+    "instruction": "Judge only supplied approved evidence. Separate bounded developments from ongoing Storylines. Preserve attributed conflicting claims and hedges. Structural identity is independent of epistemic effects. No external facts.",
+    "attempt": 0,
+    "structureJudgment": "ca2a943bc57938ff294ecb45886a336d99baf7c8e115bf4d6cd0d711991ff9e9"
+  },
+  "envelope": {
+    "model": "typesafe/jev-1.13-20260917",
+    "answers": {
+      "effect": {
+        "type": "choice",
+        "choice": "CORROBORATES",
+        "probabilities": {
+          "CORRECTS": 0,
+          "RETRACTS": 0,
+          "CONTRADICTS": 0,
+          "ADDS_DETAIL": 0.01,
+          "CORROBORATES": 0.97,
+          "CHANGES_CERTAINTY": 0,
+          "CHANGES_STATE": 0.02
+        },
+        "confidence": 0.96
+      },
+      "forward": {
+        "type": "noul",
+        "noul": 0.95
+      },
+      "reverse": {
+        "type": "noul",
+        "noul": 0.97
+      },
+      "novelty": {
+        "type": "score",
+        "score": 0.03,
+        "legend": {
+          "0": "none",
+          "1": "small detail",
+          "2": "material change",
+          "3": "major consequence"
+        },
+        "probabilities": {
+          "0": 0.99,
+          "1": 0.01,
+          "2": 0,
+          "3": 0
+        },
+        "confidence": 0.97
+      }
+    },
+    "usage": {
+      "input_tokens": 799,
+      "output_tokens": 140,
+      "cost": 0.000033558
+    },
+    "id": "gen-dec-1791299517-fwLGVPXPx3JadBHU5zJ2",
+    "provider": "TypeSafe"
+  },
+  "result": {
+    "answers": {
+      "effect": {
+        "kind": "CHOICE",
+        "choice": "CORROBORATES",
+        "confidence": 0.96,
+        "probabilities": {
+          "CORROBORATES": 0.97,
+          "ADDS_DETAIL": 0.01,
+          "CHANGES_STATE": 0.02,
+          "CHANGES_CERTAINTY": 0,
+          "CONTRADICTS": 0,
+          "CORRECTS": 0,
+          "RETRACTS": 0
+        }
+      },
+      "forward": {
+        "kind": "BOOLEAN",
+        "probability": 0.95
+      },
+      "reverse": {
+        "kind": "BOOLEAN",
+        "probability": 0.97
+      },
+      "novelty": {
+        "kind": "SCORE",
+        "value": 0.0033333333333333335,
+        "confidence": 0.97,
+        "probabilities": {
+          "0": 0.99,
+          "1": 0.01,
+          "2": 0,
+          "3": 0
+        }
+      }
+    },
+    "usage": {
+      "calls": 1,
+      "costUsd": 0.000033558,
+      "reported": true,
+      "tokensIn": 799,
+      "tokensOut": 140
+    }
+  },
+  "usage": {
+    "calls": 1,
+    "tokensIn": 799,
+    "tokensOut": 140,
+    "costUsd": 0.000033558,
+    "reported": true
+  }
+}

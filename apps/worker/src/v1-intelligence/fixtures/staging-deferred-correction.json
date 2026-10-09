@@ -1,0 +1,640 @@
+{
+  "plan": {
+    "stories": [
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "00c1bffd-41de-4fa5-ba72-6a010127a28c",
+        "decision": "SELECT",
+        "order": 1,
+        "treatment": "STANDARD",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "13b8948b90335ccc6eb3f282c143b9f349f56cd6ae3f8883d99cc43eb7a73eac"
+        ],
+        "contextFactIds": [
+          "13b8948b90335ccc6eb3f282c143b9f349f56cd6ae3f8883d99cc43eb7a73eac"
+        ],
+        "mustIncludeFactIds": [
+          "13b8948b90335ccc6eb3f282c143b9f349f56cd6ae3f8883d99cc43eb7a73eac"
+        ],
+        "attributionFactIds": [
+          "13b8948b90335ccc6eb3f282c143b9f349f56cd6ae3f8883d99cc43eb7a73eac"
+        ],
+        "certaintyFactIds": [
+          "13b8948b90335ccc6eb3f282c143b9f349f56cd6ae3f8883d99cc43eb7a73eac"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [
+          "80db8e8faf99cd92e0e555751f94c8f409c241778ac2e179efbeacbc91ae87b2",
+          "837b5dcfc82d0dfbd45d4176d7657b9f440ad1d9872b172f1cd9481adb8e4a55"
+        ],
+        "rationale": "The accusation against August Hanning for obtaining classified information for a foreign power is a new, significant development within the window and adds fresh content to the feed. It is factually clear and requires no correction or hedging, making it suitable for selection.",
+        "relevanceRationale": "This event represents a major international security concern, fitting the feed's interest in major international developments and public policy, and is timely within the current window."
+      },
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "6ad2b592-0f8d-4aee-b2b5-1f69b174a284",
+        "decision": "SELECT",
+        "order": 2,
+        "treatment": "STANDARD",
+        "deltaType": "NEW",
+        "newUnderstandingFactIds": [
+          "03722f469743f6f18bf944ef6b93b35ca62aee70ed75f0e4a435189d43ef8631"
+        ],
+        "contextFactIds": [
+          "03722f469743f6f18bf944ef6b93b35ca62aee70ed75f0e4a435189d43ef8631"
+        ],
+        "mustIncludeFactIds": [
+          "03722f469743f6f18bf944ef6b93b35ca62aee70ed75f0e4a435189d43ef8631"
+        ],
+        "attributionFactIds": [
+          "03722f469743f6f18bf944ef6b93b35ca62aee70ed75f0e4a435189d43ef8631"
+        ],
+        "certaintyFactIds": [
+          "03722f469743f6f18bf944ef6b93b35ca62aee70ed75f0e4a435189d43ef8631"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [],
+        "previousLedgerEntryIds": [
+          "80db8e8faf99cd92e0e555751f94c8f409c241778ac2e179efbeacbc91ae87b2",
+          "837b5dcfc82d0dfbd45d4176d7657b9f440ad1d9872b172f1cd9481adb8e4a55"
+        ],
+        "rationale": "The report of a ship sinking and crew missing after a Black Sea drone attack is a new event within the window, relevant to ongoing conflict developments. The uncertainty about the attackers is noted but does not diminish the newsworthiness.",
+        "relevanceRationale": "This story aligns with the feed's focus on significant international events and current affairs, especially related to the Russia-Ukraine conflict, and is timely and new."
+      },
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "0b93839e-c95b-4159-9ade-232196de3117",
+        "decision": "SELECT",
+        "order": 3,
+        "treatment": "STANDARD",
+        "deltaType": "DETAIL",
+        "newUnderstandingFactIds": [
+          "3c3dce476da5d865d6c35824cd96ef4e4a005444deea475e77945a159950be3d"
+        ],
+        "contextFactIds": [
+          "3c3dce476da5d865d6c35824cd96ef4e4a005444deea475e77945a159950be3d"
+        ],
+        "mustIncludeFactIds": [
+          "3c3dce476da5d865d6c35824cd96ef4e4a005444deea475e77945a159950be3d"
+        ],
+        "attributionFactIds": [
+          "3c3dce476da5d865d6c35824cd96ef4e4a005444deea475e77945a159950be3d"
+        ],
+        "certaintyFactIds": [
+          "3c3dce476da5d865d6c35824cd96ef4e4a005444deea475e77945a159950be3d"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [
+          "48dacca543cbe6c65300b4bd61ebde90245492e0d7656d431136e1fc5e160387"
+        ],
+        "previousLedgerEntryIds": [
+          "837b5dcfc82d0dfbd45d4176d7657b9f440ad1d9872b172f1cd9481adb8e4a55"
+        ],
+        "rationale": "The detail about Trump ads potentially violating US laws and his announcement to stop using taxpayer funds is a qualified update with a correction obligation. It adds important detail to the ongoing story and is relevant to public policy and political developments.",
+        "relevanceRationale": "This update is timely and relevant to the feed's interest in major political developments and public policy, providing necessary context and correction to prior reporting."
+      },
+      {
+        "targetType": "EVENT",
+        "targetVersionId": "1d168e2e-d380-40fe-a64c-e7600287eb2c",
+        "decision": "DEFER",
+        "order": 4,
+        "treatment": "OMIT",
+        "deltaType": "CERTAINTY_CHANGE",
+        "newUnderstandingFactIds": [
+          "a0b49b603dd370c0dc44753d9f7f85911f8ed7b64b69959c0d0687023adf70e5"
+        ],
+        "contextFactIds": [
+          "a0b49b603dd370c0dc44753d9f7f85911f8ed7b64b69959c0d0687023adf70e5"
+        ],
+        "mustIncludeFactIds": [
+          "a0b49b603dd370c0dc44753d9f7f85911f8ed7b64b69959c0d0687023adf70e5"
+        ],
+        "attributionFactIds": [
+          "a0b49b603dd370c0dc44753d9f7f85911f8ed7b64b69959c0d0687023adf70e5"
+        ],
+        "certaintyFactIds": [
+          "a0b49b603dd370c0dc44753d9f7f85911f8ed7b64b69959c0d0687023adf70e5"
+        ],
+        "disagreementFactIds": [],
+        "openQuestionFactIds": [],
+        "correctionObligationIds": [
+          "f1afb1a150a985b90d092098273b554d762ef10c28c8296cfe9c669605ec4af1"
+        ],
+        "previousLedgerEntryIds": [
+          "80db8e8faf99cd92e0e555751f94c8f409c241778ac2e179efbeacbc91ae87b2"
+        ],
+        "rationale": "The fact about Flávio Bolsonaro's success as part of a right-wing resurgence is flagged with correction obligations and deferred editorial work. Given the obligation and qualification, and that it is an older report predating the window, it is deferred to avoid premature or incomplete coverage.",
+        "relevanceRationale": "While relevant to major international political trends, this fact is older and has unresolved correction obligations, so deferral maintains feed quality and accuracy."
+      }
+    ],
+    "obligations": [
+      {
+        "obligationId": "48dacca543cbe6c65300b4bd61ebde90245492e0d7656d431136e1fc5e160387",
+        "handling": "DEFER",
+        "targetVersionId": "0b93839e-c95b-4159-9ade-232196de3117",
+        "reason": "Correction obligation is open and requires further editorial work before selecting the Trump ads story update."
+      },
+      {
+        "obligationId": "f1afb1a150a985b90d092098273b554d762ef10c28c8296cfe9c669605ec4af1",
+        "handling": "DEFER",
+        "targetVersionId": "1d168e2e-d380-40fe-a64c-e7600287eb2c",
+        "reason": "Correction obligation is open and editorial work is deferred for the Flávio Bolsonaro story due to qualification and older reporting."
+      }
+    ]
+  },
+  "shortlist": {
+    "id": "b797f5721bba799def7746281f73742ae076b10695eede1c552b8f7fb48b785f",
+    "feedId": "quality-soak-20261006-world",
+    "feedRevision": 4,
+    "window": {
+      "start": "2026-10-06T17:03:18.067Z",
+      "end": "2026-10-06T17:23:36.626Z",
+      "kind": "30M"
+    },
+    "communicationFingerprint": "588b592e433707a5a4f97dd40583fd55281a0ef0fcdd09808074b7eb1f996d6f",
+    "candidates": [
+      {
+        "novelty": "ADDS_DETAIL",
+        "targetType": "EVENT",
+        "targetVersionId": "0b93839e-c95b-4159-9ade-232196de3117",
+        "stableTargetId": "05e64c1d-2059-4c92-b63f-cc5c504bf6a0",
+        "storylineId": "08a6dd45-78b0-4cf8-9337-2ac884cc5f66",
+        "eventVersionIds": [
+          "0b93839e-c95b-4159-9ade-232196de3117"
+        ],
+        "evidenceRevisionIds": [
+          "09b1e340-e3e7-4819-b680-0dd7805fac10",
+          "b603e198-b6ff-40e1-871d-7f07f19f73eb"
+        ],
+        "facts": [
+          {
+            "id": "3c3dce476da5d865d6c35824cd96ef4e4a005444deea475e77945a159950be3d",
+            "propositionId": "3c3dce476da5d865d6c35824cd96ef4e4a005444deea475e77945a159950be3d",
+            "text": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising.",
+            "evidenceRevisionIds": [
+              "09b1e340-e3e7-4819-b680-0dd7805fac10",
+              "b603e198-b6ff-40e1-871d-7f07f19f73eb"
+            ],
+            "claimMentionIds": [
+              "226deddf9c6c85eb29221a2693d1705b30b97d8cf3a0c54ec043ab49bd35283e",
+              "347a9108045d825b4b667b0f7637c0c6efdd49d1bbdeab3456c4880a70d39ef7"
+            ],
+            "certainty": {
+              "kind": "POSSIBLE",
+              "hedges": [
+                "could"
+              ]
+            },
+            "reportTime": "2026-10-06T01:58:29.000Z",
+            "mergedPropositionIds": [
+              "cae6304e726df21dd36406a35dfbaf25507297ee37c32b6a9e22714bdcc9bd93"
+            ],
+            "timing": {
+              "sourcePublishedAt": "2026-10-06T01:58:29.000Z",
+              "reportTime": "2026-10-06T01:58:29.000Z",
+              "firstSeenByFeedAt": "2026-10-06T16:51:42.789Z",
+              "observedAt": "2026-10-06T16:52:19.227Z",
+              "framingRequired": false
+            },
+            "selfContained": "RESOLVED_BY_CONTEXT",
+            "context": {
+              "evidenceRevisionId": "09b1e340-e3e7-4819-b680-0dd7805fac10",
+              "field": "title",
+              "text": "Trump says he will stop using taxpayer funds for ads after bipartisan pushback"
+            }
+          }
+        ],
+        "stateSlotIds": [
+          "797a2aeca352ebf3fb9aca377745ceee089b183e6966995168fbf01aa41f592d"
+        ],
+        "effects": [
+          "CORROBORATES"
+        ],
+        "flags": [
+          "QUALIFIED"
+        ],
+        "protectedReasons": [
+          "CORRECTION_OBLIGATION",
+          "MATERIAL_QUALIFIER_DELTA"
+        ],
+        "correctionObligationIds": [
+          "48dacca543cbe6c65300b4bd61ebde90245492e0d7656d431136e1fc5e160387"
+        ],
+        "priority": 1,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "sourcePublishedAt": "2026-10-06T01:58:29.000Z",
+            "firstSeenByFeedAt": "2026-10-06T16:51:42.789Z",
+            "observedAt": "2026-10-06T16:52:19.227Z",
+            "staleByMs": 54289067
+          },
+          "policyVersion": "supported-delta-ledger-v4",
+          "targetType": "EVENT",
+          "targetVersionId": "0b93839e-c95b-4159-9ade-232196de3117",
+          "stableTargetId": "05e64c1d-2059-4c92-b63f-cc5c504bf6a0",
+          "storylineId": "08a6dd45-78b0-4cf8-9337-2ac884cc5f66",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "MATERIAL_NEW_FACT"
+          ],
+          "previouslyCommunicated": [
+            {
+              "editionId": "27725892323b5ee60779c722a1bf723b05404977ed7052c0d63d82f974df6330",
+              "targetType": "EVENT",
+              "targetVersionId": "61168528-02e1-4c66-aa60-ab71ccb49445",
+              "claimIds": [
+                "8734ab731aa97833d3a7d3f6fccbf6b3b6b1400b13e3cf430df4d88d062a3d86"
+              ],
+              "facts": [
+                "Advertisements promoting Donald Trump and his policies may have breached U.S. laws that prohibit the use of public government funds for political advertising, prompting Trump to announce he will cease using taxpayer money for such ads following bipartisan criticism."
+              ],
+              "factEvidenceRevisionIds": [
+                [
+                  "09b1e340-e3e7-4819-b680-0dd7805fac10"
+                ]
+              ],
+              "evidenceRevisionIds": [
+                "09b1e340-e3e7-4819-b680-0dd7805fac10"
+              ],
+              "withdrawn": true,
+              "ledgerEntryIds": [
+                "837b5dcfc82d0dfbd45d4176d7657b9f440ad1d9872b172f1cd9481adb8e4a55"
+              ]
+            }
+          ],
+          "newUnderstanding": [
+            {
+              "text": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising.",
+              "evidenceRevisionIds": [
+                "09b1e340-e3e7-4819-b680-0dd7805fac10",
+                "b603e198-b6ff-40e1-871d-7f07f19f73eb"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "SMALL",
+          "treatment": "BRIEF"
+        }
+      },
+      {
+        "novelty": "CHANGES_CERTAINTY",
+        "targetType": "EVENT",
+        "targetVersionId": "1d168e2e-d380-40fe-a64c-e7600287eb2c",
+        "stableTargetId": "b37a500c-7d4e-442a-ae5d-5e612ddf8c54",
+        "storylineId": "25b5714b-930e-48eb-bdab-933329c8459e",
+        "eventVersionIds": [
+          "1d168e2e-d380-40fe-a64c-e7600287eb2c"
+        ],
+        "evidenceRevisionIds": [
+          "53944cc0-52e8-4c78-b89e-9cd77cffb4b6"
+        ],
+        "facts": [
+          {
+            "id": "a0b49b603dd370c0dc44753d9f7f85911f8ed7b64b69959c0d0687023adf70e5",
+            "propositionId": "a0b49b603dd370c0dc44753d9f7f85911f8ed7b64b69959c0d0687023adf70e5",
+            "text": "Flávio Bolsonaro's success could be the latest example of a resurgence of right-wing support in Latin America.",
+            "evidenceRevisionIds": [
+              "53944cc0-52e8-4c78-b89e-9cd77cffb4b6"
+            ],
+            "claimMentionIds": [
+              "fe69c03157a11f1378c599bec367ea98ef6c9c616e9eb728d830e66b7310026b"
+            ],
+            "certainty": {
+              "kind": "POSSIBLE",
+              "hedges": [
+                "could"
+              ]
+            },
+            "reportTime": "2026-10-05T20:42:19.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-05T20:42:19.000Z",
+              "reportTime": "2026-10-05T20:42:19.000Z",
+              "firstSeenByFeedAt": "2026-10-06T16:51:22.429Z",
+              "observedAt": "2026-10-06T16:51:22.429Z",
+              "framingRequired": false
+            },
+            "selfContained": "RESOLVED_BY_CONTEXT",
+            "context": {
+              "evidenceRevisionId": "53944cc0-52e8-4c78-b89e-9cd77cffb4b6",
+              "field": "title",
+              "text": "Flávio Bolsonaro rides right-wing wave to win first round of Brazil election"
+            }
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [
+          "CHANGES_CERTAINTY",
+          "ADDS_DETAIL"
+        ],
+        "flags": [
+          "QUALIFIED"
+        ],
+        "protectedReasons": [
+          "CHANGES_CERTAINTY",
+          "CORRECTION_OBLIGATION",
+          "DEFERRED_EDITORIAL_WORK",
+          "MATERIAL_QUALIFIER_DELTA"
+        ],
+        "correctionObligationIds": [
+          "f1afb1a150a985b90d092098273b554d762ef10c28c8296cfe9c669605ec4af1"
+        ],
+        "priority": 1,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "sourcePublishedAt": "2026-10-05T20:42:19.000Z",
+            "firstSeenByFeedAt": "2026-10-06T16:51:22.429Z",
+            "observedAt": "2026-10-06T16:51:22.429Z",
+            "staleByMs": 73259067
+          },
+          "policyVersion": "supported-delta-ledger-v4",
+          "targetType": "EVENT",
+          "targetVersionId": "1d168e2e-d380-40fe-a64c-e7600287eb2c",
+          "stableTargetId": "b37a500c-7d4e-442a-ae5d-5e612ddf8c54",
+          "storylineId": "25b5714b-930e-48eb-bdab-933329c8459e",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "MATERIAL_NEW_FACT"
+          ],
+          "previouslyCommunicated": [
+            {
+              "editionId": "27725892323b5ee60779c722a1bf723b05404977ed7052c0d63d82f974df6330",
+              "targetType": "EVENT",
+              "targetVersionId": "1d168e2e-d380-40fe-a64c-e7600287eb2c",
+              "claimIds": [
+                "5b5cd5f9168d81438562d338afb7c09a7c93d32cff190d3ad0284ba1b9a721ab"
+              ],
+              "facts": [
+                "Flávio Bolsonaro's recent success might represent a renewed wave of right-wing political support across Latin America."
+              ],
+              "factEvidenceRevisionIds": [
+                [
+                  "53944cc0-52e8-4c78-b89e-9cd77cffb4b6"
+                ]
+              ],
+              "evidenceRevisionIds": [
+                "53944cc0-52e8-4c78-b89e-9cd77cffb4b6"
+              ],
+              "withdrawn": true,
+              "ledgerEntryIds": [
+                "80db8e8faf99cd92e0e555751f94c8f409c241778ac2e179efbeacbc91ae87b2"
+              ]
+            }
+          ],
+          "newUnderstanding": [
+            {
+              "text": "Flávio Bolsonaro's success could be the latest example of a resurgence of right-wing support in Latin America.",
+              "evidenceRevisionIds": [
+                "53944cc0-52e8-4c78-b89e-9cd77cffb4b6"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "SMALL",
+          "treatment": "BRIEF"
+        }
+      },
+      {
+        "novelty": "NEW_EVENT",
+        "targetType": "EVENT",
+        "targetVersionId": "00c1bffd-41de-4fa5-ba72-6a010127a28c",
+        "stableTargetId": "a0cd5afd-c08c-4c05-8910-7e747c0c9f7b",
+        "storylineId": "19cbf210-f95b-492e-aa8b-a727fbdacefb",
+        "eventVersionIds": [
+          "00c1bffd-41de-4fa5-ba72-6a010127a28c"
+        ],
+        "evidenceRevisionIds": [
+          "c879f07d-9219-4e27-b45e-dba51c1551c9"
+        ],
+        "facts": [
+          {
+            "id": "13b8948b90335ccc6eb3f282c143b9f349f56cd6ae3f8883d99cc43eb7a73eac",
+            "propositionId": "13b8948b90335ccc6eb3f282c143b9f349f56cd6ae3f8883d99cc43eb7a73eac",
+            "text": "August Hanning is accused of obtaining classified information for a foreign power.",
+            "evidenceRevisionIds": [
+              "c879f07d-9219-4e27-b45e-dba51c1551c9"
+            ],
+            "claimMentionIds": [
+              "20b2b9b0290274a53a8bce0fb3de42db040205cd209388210df06153dbc7ba42"
+            ],
+            "certainty": {
+              "kind": "UNSPECIFIED",
+              "hedges": []
+            },
+            "reportTime": "2026-10-06T10:05:42.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-06T10:05:42.000Z",
+              "reportTime": "2026-10-06T10:05:42.000Z",
+              "firstSeenByFeedAt": "2026-10-06T17:23:00.857Z",
+              "observedAt": "2026-10-06T17:23:00.857Z",
+              "framingRequired": false
+            },
+            "selfContained": "YES"
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [],
+        "flags": [],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.6,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "sourcePublishedAt": "2026-10-06T10:05:42.000Z",
+            "firstSeenByFeedAt": "2026-10-06T17:23:00.857Z",
+            "observedAt": "2026-10-06T17:23:00.857Z",
+            "staleByMs": 25056067
+          },
+          "policyVersion": "supported-delta-ledger-v4",
+          "targetType": "EVENT",
+          "targetVersionId": "00c1bffd-41de-4fa5-ba72-6a010127a28c",
+          "stableTargetId": "a0cd5afd-c08c-4c05-8910-7e747c0c9f7b",
+          "storylineId": "19cbf210-f95b-492e-aa8b-a727fbdacefb",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "NEW_SUPPORTED_DEVELOPMENT"
+          ],
+          "previouslyCommunicated": [],
+          "newUnderstanding": [
+            {
+              "text": "August Hanning is accused of obtaining classified information for a foreign power.",
+              "evidenceRevisionIds": [
+                "c879f07d-9219-4e27-b45e-dba51c1551c9"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "NONE",
+          "treatment": "BRIEF"
+        }
+      },
+      {
+        "novelty": "NEW_EVENT",
+        "targetType": "EVENT",
+        "targetVersionId": "6ad2b592-0f8d-4aee-b2b5-1f69b174a284",
+        "stableTargetId": "4be36a8d-9130-40ed-a690-aa92ed56749d",
+        "storylineId": "b194a265-d527-4ae7-8855-dc2f0a603397",
+        "eventVersionIds": [
+          "6ad2b592-0f8d-4aee-b2b5-1f69b174a284"
+        ],
+        "evidenceRevisionIds": [
+          "b85f518c-488d-4b78-87d7-23fba2d4abe6"
+        ],
+        "facts": [
+          {
+            "id": "03722f469743f6f18bf944ef6b93b35ca62aee70ed75f0e4a435189d43ef8631",
+            "propositionId": "03722f469743f6f18bf944ef6b93b35ca62aee70ed75f0e4a435189d43ef8631",
+            "text": "It is not clear who is behind the attacks which come as Russia intensifies strikes in the Black Sea as part of its war against Ukraine.",
+            "evidenceRevisionIds": [
+              "b85f518c-488d-4b78-87d7-23fba2d4abe6"
+            ],
+            "claimMentionIds": [
+              "c35e07d7f73068756384d83065591a0af4d1b75c33da0bec18c22c003d8659b0"
+            ],
+            "certainty": {
+              "kind": "UNSPECIFIED",
+              "hedges": []
+            },
+            "reportTime": "2026-10-06T11:53:21.000Z",
+            "timing": {
+              "sourcePublishedAt": "2026-10-06T11:53:21.000Z",
+              "reportTime": "2026-10-06T11:53:21.000Z",
+              "firstSeenByFeedAt": "2026-10-06T17:23:19.291Z",
+              "observedAt": "2026-10-06T17:23:19.291Z",
+              "framingRequired": false
+            },
+            "selfContained": "RESOLVED_BY_CONTEXT",
+            "context": {
+              "evidenceRevisionId": "b85f518c-488d-4b78-87d7-23fba2d4abe6",
+              "field": "title",
+              "text": "Ship sinks and crew missing after Black Sea drone attack"
+            }
+          }
+        ],
+        "stateSlotIds": [],
+        "effects": [],
+        "flags": [],
+        "protectedReasons": [],
+        "correctionObligationIds": [],
+        "priority": 0.6,
+        "fallbackEditorial": {
+          "freshness": {
+            "state": "CURRENT",
+            "sourcePublishedAt": "2026-10-06T11:53:21.000Z",
+            "firstSeenByFeedAt": "2026-10-06T17:23:19.291Z",
+            "observedAt": "2026-10-06T17:23:19.291Z",
+            "staleByMs": 18597067
+          },
+          "policyVersion": "supported-delta-ledger-v4",
+          "targetType": "EVENT",
+          "targetVersionId": "6ad2b592-0f8d-4aee-b2b5-1f69b174a284",
+          "stableTargetId": "4be36a8d-9130-40ed-a690-aa92ed56749d",
+          "storylineId": "b194a265-d527-4ae7-8855-dc2f0a603397",
+          "decision": "INCLUDE",
+          "reasonCodes": [
+            "NEW_SUPPORTED_DEVELOPMENT"
+          ],
+          "previouslyCommunicated": [],
+          "newUnderstanding": [
+            {
+              "text": "It is not clear who is behind the attacks which come as Russia intensifies strikes in the Black Sea as part of its war against Ukraine.",
+              "evidenceRevisionIds": [
+                "b85f518c-488d-4b78-87d7-23fba2d4abe6"
+              ]
+            }
+          ],
+          "repeatedFactCount": 0,
+          "repeatPenalty": 0,
+          "contextNeed": "NONE",
+          "treatment": "BRIEF"
+        }
+      }
+    ],
+    "overflow": [],
+    "obligations": [
+      {
+        "id": "48dacca543cbe6c65300b4bd61ebde90245492e0d7656d431136e1fc5e160387",
+        "feedId": "quality-soak-20261006-world",
+        "ledgerEntryId": "837b5dcfc82d0dfbd45d4176d7657b9f440ad1d9872b172f1cd9481adb8e4a55",
+        "editionId": "27725892323b5ee60779c722a1bf723b05404977ed7052c0d63d82f974df6330",
+        "kind": "RETRACTED",
+        "triggerId": "c92b281962c8d5e605945a40529b3e15f0fd8ec55b45f313f27581f34be10a5e",
+        "state": "OPEN",
+        "createdAt": "2026-10-06T17:03:11.894Z",
+        "policyVersion": "grounded-communication-ledger-v1"
+      },
+      {
+        "id": "f1afb1a150a985b90d092098273b554d762ef10c28c8296cfe9c669605ec4af1",
+        "feedId": "quality-soak-20261006-world",
+        "ledgerEntryId": "80db8e8faf99cd92e0e555751f94c8f409c241778ac2e179efbeacbc91ae87b2",
+        "editionId": "27725892323b5ee60779c722a1bf723b05404977ed7052c0d63d82f974df6330",
+        "kind": "RETRACTED",
+        "triggerId": "c92b281962c8d5e605945a40529b3e15f0fd8ec55b45f313f27581f34be10a5e",
+        "state": "OPEN",
+        "createdAt": "2026-10-06T17:03:11.894Z",
+        "policyVersion": "grounded-communication-ledger-v1"
+      }
+    ],
+    "ledger": [
+      {
+        "id": "80db8e8faf99cd92e0e555751f94c8f409c241778ac2e179efbeacbc91ae87b2",
+        "claimText": "Flávio Bolsonaro's recent success might represent a renewed wave of right-wing political support across Latin America.",
+        "claimFacts": [
+          "Flávio Bolsonaro's recent success might represent a renewed wave of right-wing political support across Latin America."
+        ],
+        "eventIds": [
+          "b37a500c-7d4e-442a-ae5d-5e612ddf8c54"
+        ],
+        "storylineIds": [
+          "25b5714b-930e-48eb-bdab-933329c8459e"
+        ],
+        "certainty": {
+          "kind": "POSSIBLE",
+          "hedges": [
+            "might"
+          ]
+        },
+        "editionId": "27725892323b5ee60779c722a1bf723b05404977ed7052c0d63d82f974df6330"
+      },
+      {
+        "id": "837b5dcfc82d0dfbd45d4176d7657b9f440ad1d9872b172f1cd9481adb8e4a55",
+        "claimText": "Advertisements promoting Donald Trump and his policies may have breached U.S. laws that prohibit the use of public government funds for political advertising, prompting Trump to announce he will cease using taxpayer money for such ads following bipartisan criticism.",
+        "claimFacts": [
+          "Advertisements promoting Donald Trump and his policies may have breached U.S. laws that prohibit the use of public government funds for political advertising, prompting Trump to announce he will cease using taxpayer money for such ads following bipartisan criticism."
+        ],
+        "eventIds": [
+          "05e64c1d-2059-4c92-b63f-cc5c504bf6a0"
+        ],
+        "storylineIds": [
+          "08a6dd45-78b0-4cf8-9337-2ac884cc5f66"
+        ],
+        "certainty": {
+          "kind": "POSSIBLE",
+          "hedges": [
+            "may"
+          ]
+        },
+        "editionId": "27725892323b5ee60779c722a1bf723b05404977ed7052c0d63d82f974df6330"
+      }
+    ],
+    "evidenceRevisionIds": [
+      "09b1e340-e3e7-4819-b680-0dd7805fac10",
+      "b603e198-b6ff-40e1-871d-7f07f19f73eb",
+      "53944cc0-52e8-4c78-b89e-9cd77cffb4b6",
+      "c879f07d-9219-4e27-b45e-dba51c1551c9",
+      "b85f518c-488d-4b78-87d7-23fba2d4abe6"
+    ],
+    "policyVersion": "high-recall-semantic-shortlist-v5",
+    "createdAt": "2026-10-06T17:23:36.843Z"
+  }
+}
