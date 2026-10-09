@@ -168,23 +168,22 @@ test("notifications switch saves subscription and turns it off", async ({ page }
   });
   await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Notifications", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Notifications" });
-  await expect(dialog.getByRole("status")).toHaveText("Notifications disabled");
-  const switchBounds = await dialog.getByRole("switch").boundingBox();
-  const offThumb = await dialog.locator(".notification-switch > span").boundingBox();
-  expect(Math.round(offThumb!.x - switchBounds!.x)).toBe(3);
-  await dialog.getByRole("switch").click();
-  await expect(dialog.getByRole("switch")).toBeChecked();
-  await expect(dialog.getByRole("status")).toHaveText("Notifications enabled");
-  await expect.poll(() => dialog.getByRole("switch").evaluate(node => {
+  const notificationSwitch = page.getByRole("switch", { name: "Notifications" });
+  await expect(notificationSwitch).not.toBeChecked();
+  const track = notificationSwitch.locator(".notification-switch");
+  const trackBounds = await track.boundingBox();
+  const offThumb = await track.locator("span").boundingBox();
+  expect(Math.round(offThumb!.x - trackBounds!.x)).toBe(3);
+  await notificationSwitch.click();
+  await expect(notificationSwitch).toBeChecked();
+  await expect(page.getByRole("dialog", { name: "Notifications" })).toHaveCount(0);
+  await expect.poll(() => track.evaluate(node => {
     const track = node.getBoundingClientRect();
     const thumb = node.querySelector("span")!.getBoundingClientRect();
     return Math.round(track.right - thumb.right);
   })).toBe(3);
-  await dialog.getByRole("switch").click();
-  await expect(dialog.getByRole("switch")).not.toBeChecked();
-  await expect(dialog.getByRole("status")).toHaveText("Notifications disabled");
+  await notificationSwitch.click();
+  await expect(notificationSwitch).not.toBeChecked();
   expect(writes).toEqual(["GET", "POST", "DELETE"]);
 });
 

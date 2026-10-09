@@ -329,7 +329,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .auth-columns { grid-template-columns: minmax(0, 1fr); }
 }
 
-:root.apple-ui.apple-ui .avatar-button.avatar-button { font-family: inherit; font-size: 0.875rem; font-weight: 650; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); box-shadow: none; }
+:root.apple-ui.apple-ui .avatar-button.avatar-button { display: grid; place-items: center; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; box-sizing: border-box; border-radius: 50%; font-family: inherit; font-size: 0.875rem; font-weight: 650; line-height: 1; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); box-shadow: none; }
+:root.apple-ui.apple-ui .avatar-button > span { display: block; line-height: 1; transform: translateY(-1px); }
 :root.apple-ui.apple-ui[data-theme="dark"] .avatar-button { color: color-mix(in srgb, var(--accent) 55%, white); }
 :root.apple-ui.apple-ui .feed-updated-at { display: block; padding: 0 1rem 0.375rem; color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
 :root.apple-ui.apple-ui .ranked-feed .feed-updated-at { padding: 0; }
@@ -351,6 +352,79 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 .apple-ui .explore-feed-owner { display: block; padding: 0 1rem 0.375rem; color: var(--muted); font-size: 0.875rem; }
 :root.apple-ui.apple-ui .category-chips { display: flex; flex-wrap: wrap; }
 :root.apple-ui.apple-ui .curated-feed-grid .topic-name { min-height: 0; padding-bottom: 0.25rem; }
+:root.apple-ui.apple-ui .experience.product-refresh.guest-landing.landing-no-menu { padding-bottom: 0; }
+.apple-ui .screen-page-content:has(> .guest-landing) { padding-bottom: 0; }
+.apple-ui .screen-page-content:has(.home-view, .explore-view) { padding-bottom: 0; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; width: 100%; max-width: 280px; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-card > a { display: grid; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-art { grid-column: 1 / -1; height: 140px; max-height: 140px; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-name { padding: 0.25rem 0.75rem; font-size: 0.875rem; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid :is(.explore-feed-owner,.feed-updated-at) { padding: 0 0.75rem; font-size: 0.75rem; line-height: 1.5; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .feed-card-actions { padding: 0 0.5rem 0.25rem; }
+@media (max-height: 700px) {
+  :root.apple-ui.apple-ui .guest-landing .landing-controls { margin-bottom: 12px; }
+  :root.apple-ui.apple-ui .guest-landing .category-chips { margin-block: 8px 10px; }
+  :root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-art { height: clamp(72px, calc(100dvh - 470px), 120px); max-height: 120px; }
+  :root.apple-ui.apple-ui .experience.product-refresh:has(.home-view, .explore-view):not(.guest-landing) { padding-bottom: 0; }
+  :root.apple-ui.apple-ui .home-view .welcome-hero { margin-block: 8px 12px; padding-top: 0; }
+  :root.apple-ui.apple-ui .home-view .your-feeds { margin-top: 12px; }
+  :root.apple-ui.apple-ui .home-view .experience-section-heading { margin-block: 8px; }
+  :root.apple-ui.apple-ui .explore-view .experience-title { min-height: 0; margin-block: 8px 12px; }
+  :root.apple-ui.apple-ui .explore-view .category-chips { margin-block: 8px 10px; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .topic-art { height: clamp(88px, calc(100dvh - 450px), 120px); aspect-ratio: auto; }
+}
+@media (max-width: 899px) and (max-height: 700px) {
+  :root.apple-ui.apple-ui .experience.product-refresh:has(.home-view, .explore-view):not(.guest-landing) { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 600px) and (max-height: 600px) {
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view .personal-feed-grid, .explore-view .curated-feed-grid) { grid-template-columns: minmax(0, 1fr); }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .topic-card { position: relative; min-height: 126px; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .topic-card > a { display: grid; grid-template-columns: 104px minmax(0, 1fr); grid-template-rows: auto auto 1fr; height: 126px; min-height: 0; padding: 0; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .topic-art { grid-column: 1; grid-row: 1 / 4; width: 104px; height: 116px; max-height: none; border-radius: 19px 0 0 19px; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .topic-name { grid-column: 2; min-height: 0; padding: 8px 10px 0; align-self: start; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .explore-feed-owner { grid-column: 2; align-self: start; padding: 0 10px; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .feed-updated-at { position: absolute; inset: auto 6px 48px 114px; padding: 0; font-size: 0.75rem; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .feed-card-actions { position: absolute; inset: auto 4px 4px 108px; padding: 0; }
+}
+@media (min-width: 601px) and (max-width: 899px) and (max-height: 450px) and (orientation: landscape) {
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .topic-card { position: relative; min-height: 126px; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .topic-card > a { display: grid; grid-template-columns: 92px minmax(0, 1fr); grid-template-rows: auto auto 1fr; height: 126px; min-height: 0; padding: 0; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .topic-art { grid-column: 1; grid-row: 1 / 4; width: 92px; height: 92px; max-height: none; border-radius: 19px 0 0 19px; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .topic-name { grid-column: 2; min-height: 0; padding: 4px 8px 0; align-self: start; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .explore-feed-owner { grid-column: 2; align-self: start; padding: 0 8px; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .feed-updated-at { position: absolute; inset: auto 6px 48px 100px; padding: 0; font-size: 0.75rem; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .feed-card-actions { position: absolute; inset: auto 4px 0 96px; padding: 0; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view .personal-feed-grid, .explore-view .curated-feed-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root.apple-ui.apple-ui .experience.product-refresh:has(.home-view, .explore-view):not(.guest-landing) { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) > .experience-header:has(+ .home-view, + .explore-view) { height: 50px; min-height: 50px; max-height: 50px; }
+  :root.apple-ui.apple-ui .home-view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; }
+  :root.apple-ui.apple-ui .home-view .welcome-hero { grid-column: 1; margin: 4px 0; }
+  :root.apple-ui.apple-ui .home-view .welcome-copy h1 { font-size: 24px; }
+  :root.apple-ui.apple-ui .home-view .welcome-copy p { margin: 2px 0; }
+  :root.apple-ui.apple-ui .home-view .home-controls { grid-column: 2; margin: 4px 0; }
+  :root.apple-ui.apple-ui .home-view .your-feeds { grid-column: 1 / -1; margin-top: 4px; }
+  :root.apple-ui.apple-ui .home-view .experience-section-heading { margin-block: 4px; }
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) .explore-view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; }
+  :root.apple-ui.apple-ui .explore-view .experience-title { grid-column: 1; margin: 4px 0; }
+  :root.apple-ui.apple-ui .explore-view .experience-title h1 { font-size: 24px; }
+  :root.apple-ui.apple-ui .explore-view .experience-title p { margin: 2px 0; }
+  :root.apple-ui.apple-ui .explore-view .explore-controls { grid-column: 2; margin: 4px 0; }
+  :root.apple-ui.apple-ui .explore-view .category-chips { grid-column: 1 / -1; margin: 4px 0; }
+  :root.apple-ui.apple-ui .explore-view .category-chips button { min-height: 32px; padding-block: 4px; }
+  :root.apple-ui.apple-ui .explore-view .featured-feeds { grid-column: 1 / -1; }
+}
+@media (max-width: 899px) and (max-height: 450px) and (orientation: landscape) {
+  :root.apple-ui.apple-ui .guest-landing .experience-header { height: 50px; min-height: 50px; max-height: 50px; }
+  :root.apple-ui.apple-ui .guest-landing .landing-introduction { padding: 0; }
+  :root.apple-ui.apple-ui .guest-landing .landing-introduction h1 { font-size: 24px; line-height: 1.05; }
+  :root.apple-ui.apple-ui .guest-landing .landing-introduction p { margin: 2px 0 4px; font-size: 12px !important; }
+  :root.apple-ui.apple-ui .guest-landing .landing-controls { margin-bottom: 4px; }
+  :root.apple-ui.apple-ui .guest-landing .landing-controls :is(.explore-search,.landing-create) { height: 40px; min-height: 40px; padding-block: 0; }
+  :root.apple-ui.apple-ui .guest-landing .category-chips { margin-block: 4px; padding-block: 0; }
+  :root.apple-ui.apple-ui .guest-landing .category-chips button { min-height: 32px; padding-block: 4px; }
+  :root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-art { height: 88px; max-height: 88px; }
+}
 :root.apple-ui.apple-ui .explore-publishing-hint { margin-top: 1.25rem; color: var(--muted); font-size: 0.875rem; }
 
 /* Feed creation and account management reference layouts. */
@@ -521,11 +595,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .settings-view .accounts-summary > svg:last-of-type { width: 17px; height: 17px; color: var(--muted); }
 :root.apple-ui.apple-ui .settings-status-dialog { width: min(430px, calc(100vw - 32px)); }
 :root.apple-ui.apple-ui .settings-status-dialog .dialog-inner { padding: 36px; }
-:root.apple-ui.apple-ui .notification-switch-row { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; }
 :root.apple-ui.apple-ui .notification-switch { width: 54px; min-height: 30px; height: 30px; padding: 3px; border: 0; border-radius: 20px; background: #a9a9b2; }
 :root.apple-ui.apple-ui .notification-switch > span { display: block; width: 24px; height: 24px; background: white; border-radius: 50%; }
-:root.apple-ui.apple-ui .notification-switch[aria-checked="true"] { background: var(--accent); }
-:root.apple-ui.apple-ui .notification-switch[aria-checked="true"] > span { transform: translateX(24px); }
 :root.apple-ui.apple-ui .install-status-dialog { text-align: center; }
 :root.apple-ui.apple-ui .install-status-icon { display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%; background: var(--accent-tint, #efedff); color: var(--accent); margin: 12px 0; }
 @media (min-width: 900px) { :root.apple-ui.apple-ui .sidebar-logo { transform: translateX(-8px); } }
@@ -536,11 +607,16 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .profile-username-field:focus-within { outline: 2px solid var(--text); outline-offset: -2px; }
 :root.apple-ui.apple-ui .source-recommend-button { border: 0; box-shadow: none; background: transparent; }
 :root.apple-ui.apple-ui .settings-view .accounts-section { background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .settings-view .accounts-section:not([open]) { overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); }
+:root.apple-ui.apple-ui .settings-view .accounts-section:not([open]) > .accounts-summary { border: 0; border-radius: inherit; }
 :root.apple-ui.apple-ui .users-table :is(button, .user-name-button, .user-manage-button) { border: 0; box-shadow: none; background: transparent; }
 :root.apple-ui.apple-ui .account-role-options input { padding: 0; background: transparent; box-shadow: none; }
 :root.apple-ui.apple-ui .notification-switch { display: block; position: relative; padding: 3px; }
 :root.apple-ui.apple-ui .notification-switch > span { position: absolute; top: 3px; left: 3px; transform: none; }
-:root.apple-ui.apple-ui .notification-switch[aria-checked="true"] > span { left: calc(100% - 27px); transform: none; }
+:root.apple-ui.apple-ui .notification-setting-row { cursor: pointer; }
+:root.apple-ui.apple-ui .notification-setting-row > .notification-switch { flex: none; text-align: start; }
+:root.apple-ui.apple-ui .notification-setting-row[aria-checked="true"] .notification-switch { background: var(--accent); }
+:root.apple-ui.apple-ui .notification-setting-row[aria-checked="true"] .notification-switch > span { left: calc(100% - 27px); }
 :root.apple-ui.apple-ui .support-dialog .dialog-inner { padding: 36px; background: transparent; }
 :root.apple-ui.apple-ui .support-dialog .screen-page-viewport { scrollbar-gutter: auto; }
 :root.apple-ui.apple-ui .admin-feed-row { background: transparent; box-shadow: none; }
@@ -552,5 +628,90 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .auth-dialog .screen-page-viewport { scrollbar-gutter: auto; }
 :root.apple-ui.apple-ui .auth-dialog .auth-modal-content,
 :root.apple-ui.apple-ui .auth-dialog .login { background: transparent; border-radius: 0; }
+:root.apple-ui.apple-ui .guest-landing .experience-header-actions .language-cycle { width: 68px; min-width: 68px; flex: 0 0 68px; justify-content: center; }
+:root.apple-ui.apple-ui .guest-landing .experience-header-actions .button-link { width: 120px; min-width: 120px; justify-content: center; white-space: nowrap; }
+:root.apple-ui.apple-ui .auth-dialog .login { gap: 8px; padding: 40px 20px 16px; }
+:root.apple-ui.apple-ui .auth-dialog .auth-copy { gap: 2px; margin: 0; }
+:root.apple-ui.apple-ui .auth-dialog .auth-copy h2 { font-size: 24px; line-height: 1.15; }
+:root.apple-ui.apple-ui .auth-dialog .auth-copy p { font-size: 13px !important; line-height: 1.3; }
+:root.apple-ui.apple-ui .auth-dialog .auth-tabs { padding: 2px; }
+:root.apple-ui.apple-ui .auth-dialog .auth-tabs { margin-inline-end: 52px; }
+:root.apple-ui.apple-ui .auth-dialog .auth-tabs button { min-height: 36px; }
+:root.apple-ui.apple-ui .auth-dialog .auth-input { min-height: 44px; }
+:root.apple-ui.apple-ui .auth-dialog .auth-input input { padding-block: 8px; }
+:root.apple-ui.apple-ui .auth-dialog .field-help { margin-top: 2px; }
+:root.apple-ui.apple-ui .auth-dialog .auth-submit { min-height: 44px; }
+:root.apple-ui.apple-ui .auth-dialog .login { gap: 18px; padding: 48px 28px 28px; }
+:root.apple-ui.apple-ui .auth-dialog .auth-input { min-height: 50px; }
+@media (max-height: 700px) {
+  :root.apple-ui.apple-ui .auth-dialog .login { gap: 14px; padding: 36px 28px 20px; }
+  :root.apple-ui.apple-ui .auth-dialog .auth-input { min-height: 44px; }
+  :root.apple-ui.apple-ui .profile-dialog-content { padding: 44px 32px 20px; }
+  :root.apple-ui.apple-ui .profile-identity { gap: 8px; padding-bottom: 20px; }
+  :root.apple-ui.apple-ui .profile-avatar { width: 88px; height: 88px; margin-bottom: 0; }
+  :root.apple-ui.apple-ui .profile-dialog .account-form { padding-block: 18px; gap: 12px; }
+  :root.apple-ui.apple-ui .profile-password-section { padding-block: 18px; }
+  :root.apple-ui.apple-ui .profile-dialog .account-actions { padding-top: 18px; }
+}
+@media (max-width: 600px) and (max-height: 700px) {
+  :root.apple-ui.apple-ui .auth-dialog .login { gap: 12px; padding: 32px 20px 16px; }
+  :root.apple-ui.apple-ui[lang="fr"] .auth-dialog .login { gap: 10px; padding-bottom: 10px; }
+  :root.apple-ui.apple-ui .profile-dialog-content { padding: 40px 20px 16px; }
+}
+@media (max-width: 600px) {
+  :root.apple-ui.apple-ui .guest-landing .experience-header-actions .button-link { width: 96px; min-width: 96px; font-size: 12px; }
+  :root.apple-ui.apple-ui .guest-landing .experience-header .distilled-logo-wordmark { font-size: 16px; }
+}
+@media (max-width: 360px) {
+  :root.apple-ui.apple-ui .guest-landing .experience-header .distilled-logo-wordmark { display: none; }
+  :root.apple-ui.apple-ui .auth-dialog .login { gap: 6px; padding: 32px 16px 12px; }
+}
+@media (max-width: 360px) and (max-height: 700px) {
+  :root.apple-ui.apple-ui .auth-dialog .login { gap: 10px; padding: 24px 16px 12px; }
+}
+@media (min-width: 601px) and (max-width: 899px) and (max-height: 450px) and (orientation: landscape) {
+  :root.apple-ui.apple-ui .profile-dialog-content { display: grid; grid-template-columns: 190px minmax(0, 1fr); grid-template-areas: "identity form" "identity password" "identity actions"; column-gap: 16px; padding: 30px 20px 16px; }
+  :root.apple-ui.apple-ui .profile-identity { grid-area: identity; align-self: start; }
+  :root.apple-ui.apple-ui .profile-dialog-content > .account-form { grid-area: form; }
+  :root.apple-ui.apple-ui .profile-password-section { grid-area: password; }
+  :root.apple-ui.apple-ui .profile-dialog .account-actions { grid-area: actions; }
+}
+@media (max-width: 899px) {
+  .apple-ui .screen-page-content:has(.settings-view) { padding-bottom: 0; }
+  :root.apple-ui.apple-ui .experience.product-refresh:has(> .settings-view) { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+}
+@media (min-width: 900px) and (max-height: 700px) {
+  .apple-ui .screen-page-content:has(.settings-view) { padding-bottom: 0; }
+  :root.apple-ui.apple-ui .experience.product-refresh:has(> .settings-view) { padding-bottom: 0; }
+  :root.apple-ui.apple-ui .settings-view .experience-title { min-height: 0; margin-block: 0 32px; }
+  :root.apple-ui.apple-ui .settings-view .settings-group-label { margin: 32px 16px 4px; }
+  :root.apple-ui.apple-ui .settings-view .settings-account-label { margin-top: 0; }
+  :root.apple-ui.apple-ui .settings-view .setting-row { min-height: 44px; padding-block: 8px; }
+  :root.apple-ui.apple-ui .settings-view .accounts-section:not([open]) { margin-top: 32px; }
+  :root.apple-ui.apple-ui .settings-view .accounts-section:not([open]) > .accounts-summary { min-height: 44px; padding-block: 8px; }
+}
+@media (max-width: 899px) and (max-height: 700px) {
+  :root.apple-ui.apple-ui .settings-view .experience-title { margin-block: 4px 8px; }
+  :root.apple-ui.apple-ui .settings-view .settings-group-label { margin: 4px 12px; }
+}
+@media (max-width: 600px) and (max-height: 700px) {
+  :root.apple-ui.apple-ui .settings-view .setting-row { min-height: 44px; padding: 8px 12px; }
+  :root.apple-ui.apple-ui .settings-view .accounts-section { margin-top: 8px; }
+  :root.apple-ui.apple-ui .settings-view .accounts-summary { min-height: 44px; padding-block: 8px; }
+}
+@media (max-width: 899px) and (max-height: 450px) and (orientation: landscape) {
+  :root.apple-ui.apple-ui .settings-view { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "title title" "account-label app-label" "account-group app-group"; column-gap: 12px; }
+  :root.apple-ui.apple-ui .settings-view > .experience-title { grid-area: title; display: flex; align-items: baseline; gap: 12px; min-height: 0; margin: 0 0 4px; }
+  :root.apple-ui.apple-ui .settings-view > .experience-title p { margin: 0; }
+  :root.apple-ui.apple-ui .settings-account-label { grid-area: account-label; }
+  :root.apple-ui.apple-ui .settings-account-group { grid-area: account-group; }
+  :root.apple-ui.apple-ui .settings-app-label { grid-area: app-label; }
+  :root.apple-ui.apple-ui .settings-app-group { grid-area: app-group; }
+  :root.apple-ui.apple-ui .settings-view .settings-group-label { margin: 0 8px 4px; }
+  :root.apple-ui.apple-ui .settings-view .setting-row { min-height: 44px; padding: 0.5rem; gap: 0.5rem; }
+  :root.apple-ui.apple-ui .settings-view > .error { grid-column: 1 / -1; }
+  :root.apple-ui.apple-ui .settings-view .accounts-section { grid-column: 1 / -1; margin-top: 0; }
+  :root.apple-ui.apple-ui .settings-view .accounts-summary { min-height: 44px; padding-block: 6px; }
+}
 :root.apple-ui.apple-ui .install-status-dialog .dialog-inner { display: flex; flex-direction: column; align-items: center; }
 :root.apple-ui.apple-ui .install-status-dialog h2 { padding-inline: 0; }

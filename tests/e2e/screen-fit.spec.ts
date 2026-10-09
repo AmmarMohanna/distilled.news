@@ -196,9 +196,12 @@ test("notifications store a browser subscription and can be disabled", async ({ 
   });
   await page.goto('/');
   await page.getByRole('navigation').getByRole('button', {name:'Settings'}).click();
-  await page.getByRole('button', {name:'Notifications',exact:true}).click();
-  await expect(page.getByRole('status')).toHaveText('Notifications enabled for new briefings in your feeds.');
-  await page.getByRole('button', {name:'Notifications',exact:true}).click();
-  await expect(page.getByRole('status')).toHaveText('Notifications disabled on this device.');
+  const notifications = page.getByRole('switch', {name:'Notifications'});
+  await expect(notifications).not.toBeChecked();
+  await notifications.click();
+  await expect(notifications).toBeChecked();
+  await expect(page.getByRole('dialog', {name:'Notifications'})).toHaveCount(0);
+  await notifications.click();
+  await expect(notifications).not.toBeChecked();
   expect(requests).toEqual(['GET','POST','DELETE']);
 });
