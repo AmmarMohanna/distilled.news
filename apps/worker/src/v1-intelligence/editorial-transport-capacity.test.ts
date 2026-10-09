@@ -2,7 +2,7 @@
 import fixture from './fixtures/staging-0200-oversized-editorial.json';
 import midnight from './fixtures/staging-midnight-missing-required.json';
 import evening from './fixtures/staging-1800-oversized-shortlist.json';
-import {compactEditorialInput,keyedEditorialState} from './editorial-transport';
+import {compactEditorialInput,keyedEditorialState,expandEditorialInput} from './editorial-transport';
 import {DEFAULT_BRIEFING_BUDGET} from './scoring';
 import {conservativeStoryCapacity,planningCapacity} from './planning-capacity';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -21,7 +21,7 @@ it('never elides non-identical history or history backing correction obligations
  const state=compactEditorialInput({...midnight.shortlist as unknown as ShortlistRecord,instruction:''}).state;
  state.instruction='x'.repeat(49000);state.ledger=[{...state.ledger[0],id:'ordinary',claimText:'A changed report.',claimFacts:['A different report.']},{...state.ledger[0],id:'protected',claimText:'An earlier claim.',claimFacts:['An earlier claim.']}];
  state.obligations=[{id:'ob',ledgerEntryId:'protected'}] as any;
- const next=keyedEditorialState(state);expect(next.ledger).toEqual(state.ledger);
+ const next=expandEditorialInput(keyedEditorialState(state));expect(next.ledger).toEqual(state.ledger);
 });
 it('fits the exact 02:00 corpus by removing only duplicate ranking audit fields',()=>{
  const shortlist=structuredClone(fixture.shortlist) as unknown as ShortlistRecord,original=structuredClone(shortlist),maxStories=conservativeStoryCapacity(shortlist.candidates,DEFAULT_BRIEFING_BUDGET);

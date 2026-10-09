@@ -1,4 +1,4 @@
-import {compactEditorialInput} from './editorial-transport';
+import {compactEditorialInput,expandEditorialInput} from './editorial-transport';
 import {beforeEach,afterEach,it,expect} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
@@ -101,4 +101,32 @@ it.each([false,true])('cached oversized planning only acquires a first call when
  expect(plan.route).toBe(billed?'DETERMINISTIC_FALLBACK':'GPT');expect(calls).toBe(billed?0:1);
  expect(await prepareEditorialPlan(new V1FeedStore(ctx.db),shortlist,DEFAULT_BRIEFING_BUDGET,window.end,strong)).toEqual(plan);expect(calls).toBe(billed?0:1);
  expect(await store.read('feed-1','editorial_plans',baseId)).toEqual(JSON.parse(JSON.stringify(prior)));
+},25000);
+
+it('offers a bounded real decision scope and durably carries unreviewed ordinary work without losing protected corrections',async()=>{
+ const corpus=(await import('./fixtures/staging-2000-oversized-input.json')).default;
+ const shortlist=structuredClone(corpus.shortlist) as unknown as import('./shortlist').ShortlistRecord;
+ shortlist.feedId='feed-1';shortlist.feedRevision=1;shortlist.id='retained-growth-window';shortlist.window=window;
+ // Input growth only: retained candidate facts are unchanged; no provider fetch.
+ const original=structuredClone(shortlist.candidates);
+ for(let i=0;i<19;i++){const c=structuredClone(original[1+i%(original.length-1)]);c.targetVersionId+=':growth:'+i;c.stableTargetId+=':growth:'+i;for(const f of c.facts)f.id+=':growth:'+i;shortlist.candidates.push(c)}
+ shortlist.obligations=shortlist.obligations.map(o=>({...o,feedId:'feed-1'}));
+ const current=await store.currentEvidence('feed-1');shortlist.evidenceRevisionIds=current.map(e=>e.revision.id);
+ const {communicationFingerprint}=await import('./editorial');
+ shortlist.communicationFingerprint=await feedTransact(store,'feed-1',tx=>communicationFingerprint(tx,window.end));
+ let calls=0,offered:string[]=[];const usage={calls:1,costUsd:.001,reported:true};
+ const strong={model:'bounded-contract-editor',usage:()=>usage,complete:async(_feed:string,_kind:string,input:any)=>{
+  calls++;const expanded=expandEditorialInput(input);offered=expanded.candidates.map((c:any)=>c.targetVersionId);
+  const stories=Object.fromEntries(expanded.candidates.map((c:any,i:number)=>[c.targetVersionId,{targetType:c.targetType,decision:'DEFER',order:i,treatment:'OMIT',deltaType:'UNRESOLVED',newUnderstandingFactIds:[],contextFactIds:[],mustIncludeFactIds:[],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[],correctionObligationIds:[],previousLedgerEntryIds:[],rationale:'Conservative deferred work.',relevanceRationale:'Awaiting supported identity.',feedFit:'UNCERTAIN'}]));
+  const obligations=Object.fromEntries(expanded.obligations.map((o:any)=>[o.id,{handling:'DEFER',targetVersionId:null,reason:'Awaiting supported identity.'}]));
+  return {value:{stories,obligations},usage};
+ }};
+ const plan=await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,window.end,strong);
+ expect(plan.route).toBe('GPT');expect(calls).toBe(1);expect(plan.stories).toHaveLength(40);
+ expect(plan.inputCoverage!.notComparativelyReviewedTargetVersionIds.length).toBeGreaterThan(0);
+ for(const id of plan.inputCoverage!.notComparativelyReviewedTargetVersionIds){const story=plan.stories.find(s=>s.targetVersionId===id)!;expect(story.decision).toBe('DEFER');expect(story.rationale).toContain('PLANNER_INPUT_OVERFLOW');expect((await store.list<any>('feed-1','editorial_deferred_work')).some(w=>w.targetVersionId===id)).toBe(true)}
+ expect(offered).toHaveLength(plan.inputCoverage!.offeredTargetVersionIds.length);
+ expect(plan.inputCoverage!.offeredTargetVersionIds).toContain(shortlist.candidates[0].targetVersionId);
+ expect(plan.obligations[0].obligationId).toBe(shortlist.obligations[0].id);
+ expect(await prepareEditorialPlan(new V1FeedStore(ctx.db),shortlist,DEFAULT_BRIEFING_BUDGET,window.end,strong)).toEqual(plan);expect(calls).toBe(1);
 },25000);

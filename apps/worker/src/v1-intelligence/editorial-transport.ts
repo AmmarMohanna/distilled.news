@@ -33,7 +33,7 @@ export function compactEditorialInput<T extends Pick<ShortlistRecord,'candidates
 }
 /** Exact duplicated history prose may be elided only from new oversized wire
  * inputs, never from retained ledger records or an existing call identity. */
-export function keyedEditorialState(state:ReturnType<typeof compactEditorialInput>['state']) {
+export function keyedEditorialState(state:ReturnType<typeof compactEditorialInput>['state'],options:{compact?:boolean}={}) {
  const value={...structuredClone(state),outputContract:EDITORIAL_OUTPUT_CONTRACT,outputInstruction:'Return stories as an object with exactly the offered targetVersionId keys, and obligations as an object with exactly the offered obligationId keys. Values omit those identity fields. Each key owns one decision; do not duplicate or omit keys. All fact references remain candidate-owned.'};
  const originalBytes=new TextEncoder().encode(canonicalJson(value)).length,elidedLedgerIds:string[]=[];
  if(originalBytes>48000){
@@ -42,6 +42,43 @@ export function keyedEditorialState(state:ReturnType<typeof compactEditorialInpu
    if(!protectedHistory.has(entry.id)&&entry.claimFacts.join(' ')===entry.claimText){delete (entry as Partial<typeof entry>).claimText;elidedLedgerIds.push(entry.id)}
   }
  }
- return {...value,...(elidedLedgerIds.length?{historyCompaction:{policyVersion:'exact-duplicated-ledger-prose-v1',originalBytes,elidedLedgerIds}}:{})};
+ const expanded={...value,...(elidedLedgerIds.length?{historyCompaction:{policyVersion:'exact-duplicated-ledger-prose-v1',originalBytes,elidedLedgerIds}}:{})};
+ return options.compact===false?expanded:aliasEditorialInput(expanded);
 }
 
+
+const inputBytes=(value:unknown)=>new TextEncoder().encode(canonicalJson(value)).length;
+/** Input-only field aliases preserve EVERY value, including correction prose.
+ * A reversible legend costs less than repeating long field names on every fact.
+ * Small inputs remain byte-identical; output references/schema are untouched. */
+function aliasEditorialInput<T extends {candidates:unknown[];ledger:unknown[];obligations:unknown[]}>(state:T):T {
+ if(inputBytes(state)<=48000)return state;
+ const counts=new Map<string,number>(),originalKeys=new Set<string>();
+ const visit=(value:unknown)=>{if(Array.isArray(value))value.forEach(visit);else if(value&&typeof value==='object')for(const [key,item] of Object.entries(value)){counts.set(key,(counts.get(key)??0)+1);originalKeys.add(key);visit(item)}};
+ for(const key of ['candidates','ledger','obligations'] as const)visit(state[key]);
+ const fields:Record<string,string>={},forward=new Map<string,string>();let next=0;
+ for(const key of [...counts.keys()].sort())if(key.length>6&&counts.get(key)!>=3){let alias:string;do{alias=`k${next++}`}while(originalKeys.has(alias));fields[alias]=key;forward.set(key,alias)}
+ const pack=(value:unknown):unknown=>Array.isArray(value)?value.map(pack):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([key,item])=>[forward.get(key)??key,pack(item)])):value;
+ return {...state,candidates:pack(state.candidates),ledger:pack(state.ledger),obligations:pack(state.obligations),inputEncoding:{policyVersion:'lossless-field-aliases-v1',fields,instruction:'Input-only aliases: expand field names using fields. All values and ownership are unchanged. Output uses the original JSON Schema field names.'}} as T;
+}
+/** Decoder is for audit/regressions; the provider reads the accompanying legend. */
+export function expandEditorialInput<T>(state:T):T {
+ const encoding=(state as {inputEncoding?:{fields:Record<string,string>}}).inputEncoding;if(!encoding)return structuredClone(state);
+ const unpack=(value:unknown):unknown=>Array.isArray(value)?value.map(unpack):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([key,item])=>[encoding.fields[key]??key,unpack(item)])):value;
+ const {inputEncoding:_,...rest}=state as any;
+ return {...rest,candidates:unpack(rest.candidates),ledger:unpack(rest.ledger),obligations:unpack(rest.obligations)};
+}
+export const EDITORIAL_INPUT_POLICY='lossless-bounded-editorial-input-v1';
+/** Only ordinary candidates can overflow. No facts/history are shortened, and
+ * overflow is system capacity deferral, never a model's editorial decision. */
+export function boundedEditorialInput<T extends Pick<ShortlistRecord,'candidates'|'ledger'|'obligations'>>(state:T) {
+ const offeredCandidates=[...state.candidates],overflowIds:string[]=[];
+ let transport=compactEditorialInput(state),inputState=keyedEditorialState(transport.state);
+ while(inputBytes(inputState)>48000){
+  let index=-1;for(let i=offeredCandidates.length-1;i>=0;i--)if(!offeredCandidates[i].protectedReasons.length&&!offeredCandidates[i].correctionObligationIds.length){index=i;break}
+  if(index<0)return {transport,inputState,offeredCandidates,overflowIds,failure:'PROTECTED_EDITORIAL_INPUT_TOO_LARGE' as const};
+  overflowIds.unshift(offeredCandidates.splice(index,1)[0].targetVersionId);
+  transport=compactEditorialInput({...state,candidates:offeredCandidates});inputState=keyedEditorialState(transport.state);
+ }
+ return {transport,inputState,offeredCandidates,overflowIds,failure:undefined};
+}
