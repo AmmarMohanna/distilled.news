@@ -166,6 +166,13 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute:async()=>({channelId:'-100123',records:[],exhausted:true,orderedFromCheckpoint:true})});
     const result=await p.fetch({...request,source:{family:'telegram',locator:'private',channelId:'-100123'},recheckItemKeys:['telegram:-100123:3']});expect(result.items).toEqual([]);expect(result.provenSafeCursor).toBeUndefined();
   });
+  it('Telethon recheck keeps edit provenance and cannot advance the new-message cursor',async()=>{
+    const edited='2026-10-05T08:00:00.000Z';
+    const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute:async()=>({channelId:'-100123',records:[{id:3,text:'Corrected post',publishedAt:time,editedAt:edited}],orderedFromCheckpoint:false,exhausted:false})});
+    const result=await p.fetch({...request,source:{family:'telegram',locator:'channel',channelId:'-100123'},recheckItemKeys:['telegram:-100123:3']});
+    expect(result.items[0]).toMatchObject({sourceItemKey:'telegram:-100123:3',sourceRevision:{value:edited,comparability:'COMPARABLE'}});
+    expect(result.provenSafeCursor).toBeUndefined();
+  });
   it('TwitterAPI.io sends profile+topic+time restrictions to search and keeps returned dates for intake validation',async()=>{
     const http={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{tweets:[{id:'1',text:'AI',createdAt:time}],has_next_page:false}}))};
     const p=new TwitterApiIoProvider(http,async()=> 'private-key',0.01);
