@@ -236,15 +236,15 @@ function buildManifestPayload(input: {
     scope: "/",
     start_url: input.startUrl,
     background_color: "#faf8f1",
-    theme_color: "#faf8f1",
+    theme_color: "#5e5ce6",
     icons: [
       {
-        src: "/icon-192.png",
+        src: "/icon-192.png?v=brand-4",
         sizes: "192x192",
         type: "image/png"
       },
       {
-        src: "/icon-512.png",
+        src: "/icon-512.png?v=brand-4",
         sizes: "512x512",
         type: "image/png"
       }
