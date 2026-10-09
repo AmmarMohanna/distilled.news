@@ -1,4 +1,4 @@
-import {afterEach,beforeEach,expect,it} from 'vitest';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope,scopeFixture,testPolicy} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,FeedTransaction,feedTransact} from './store';
@@ -34,4 +34,30 @@ it('feed definition changes require a revision; immutable support cannot be over
  await store.registerFeed({...feed,revision:3,deletedAt:now});
  await expect(feedTransact(store,feed.id,async()=>undefined)).rejects.toMatchObject({code:'SCOPE_DENIED'});
  expect(await store.read(feed.id,'intelligence_receipts','receipt-1')).toMatchObject({value:'original'});
+});
+
+it('a scoped list supplies transaction reads without a second document query; staged writes still win',async()=>{
+ await feedTransact(store,feed.id,tx=>tx.write('briefing_requests','request-cache',{id:'request-cache',feedId:feed.id,state:'PENDING'}));
+ const tx=new FeedTransaction(store,await store.snapshot(feed.id)),read=vi.spyOn(store,'read');
+ const listed=await tx.list<any>('briefing_requests');expect(listed).toHaveLength(1);
+ expect(await tx.read('briefing_requests','request-cache')).toEqual(listed[0]);expect(read).not.toHaveBeenCalled();
+ await tx.write('briefing_requests','request-cache',{...listed[0],state:'DONE'});
+ expect(await tx.read<any>('briefing_requests','request-cache')).toMatchObject({state:'DONE'});
+ expect(await store.commit(tx)).toBe(true);
+ const fresh=new FeedTransaction(store,await store.snapshot(feed.id));expect(await fresh.read<any>('briefing_requests','request-cache')).toMatchObject({state:'DONE'});
+ read.mockRestore();
+});
+it('scoped list cache cannot hide a foreign global document ID or a concurrent revision change',async()=>{
+ await store.registerFeed({...feed,id:'other-feed'});
+ await ctx.db.prepare('INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?)').bind('briefing_requests','foreign','other-feed',JSON.stringify({id:'foreign',feedId:'other-feed'})).run();
+ const tx=new FeedTransaction(store,await store.snapshot(feed.id));await tx.list('briefing_requests');
+ await expect(tx.read('briefing_requests','foreign')).rejects.toMatchObject({code:'SCOPE_DENIED'});
+ await store.registerFeed({...feed,title:'Changed',revision:2});expect(await store.commit(tx)).toBe(false);
+});
+
+it('mutating a listed immutable document cannot mutate its cached prior value or hide a conflict',async()=>{
+ await feedTransact(store,feed.id,tx=>tx.write('intelligence_receipts','original',{id:'original',feedId:feed.id,value:'original'}));
+ const tx=new FeedTransaction(store,await store.snapshot(feed.id)),row=(await tx.list<any>('intelligence_receipts'))[0];row.value='changed';
+ await expect(tx.write('intelligence_receipts',row.id,row)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+ expect(await tx.read<any>('intelligence_receipts',row.id)).toMatchObject({value:'original'});
 });

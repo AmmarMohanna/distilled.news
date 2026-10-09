@@ -78,7 +78,8 @@ export class FeedTransaction {
  }
  async list<T extends {id:string}>(kind:DocumentKind):Promise<T[]> {
   if(!this.lists.has(kind)) this.lists.set(kind,this.store.list(this.snapshot.feed.id,kind));
-  const rows=new Map(((await this.lists.get(kind)) as T[]).map(r=>[r.id,r]));for(const w of this.writes.values()) if(w.kind===kind) rows.set(w.id,w.value as T);return [...rows.values()];
+  const listed=(await this.lists.get(kind)) as T[];for(const row of listed){const key=JSON.stringify([kind,row.id]);if(!this.reads.has(key))this.reads.set(key,Promise.resolve(structuredClone(row)))}
+  const rows=new Map(listed.map(r=>[r.id,r]));for(const w of this.writes.values()) if(w.kind===kind) rows.set(w.id,w.value as T);return [...rows.values()];
  }
  revision(id:string):Promise<EvidenceRevision|undefined> {
   if(!this.revisions.has(id)) this.revisions.set(id,this.store.revision(this.snapshot.feed.id,id));return this.revisions.get(id)!;

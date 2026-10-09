@@ -25,7 +25,14 @@ export interface Target {type:TargetType;id:string;stableId:string;storylineId?:
 const windowSchema=publicationWindowSchema;
 const budgetSchema=z.object({maxStories:z.number().int().min(1).max(20),maxReadingWords:z.number().int().min(20).max(3000),maxEvidenceInspections:z.number().int().min(1).max(100),maxInputTokens:z.number().int().min(100).max(64000),maxOutputTokens:z.number().int().min(100).max(8000),maxModelCalls:z.number().int().min(0).max(4),maxCostUsd:z.number().min(0).max(2),maxPerPublisher:z.number().int().min(1).max(20),maxWallClockMs:z.number().int().min(1000).max(120000)}).strict();
 function score(n:number):number {return Math.round(Math.max(0,Math.min(1,n))*1e6)/1e6}
+const publisherReads=new WeakMap<FeedTransaction,Map<string,Promise<string>>>();
 export async function publisherIdentity(tx:FeedTransaction,revision:EvidenceRevision):Promise<string> {
+ let cache=publisherReads.get(tx);if(!cache){cache=new Map();publisherReads.set(tx,cache)}
+ const key=JSON.stringify([revision.id,revision.sourceObservationId,revision.canonicalUrl]);
+ const existing=cache.get(key);if(existing)return existing;
+ const result=readPublisherIdentity(tx,revision);cache.set(key,result);return result;
+}
+async function readPublisherIdentity(tx:FeedTransaction,revision:EvidenceRevision):Promise<string> {
  const row=await new V1IntakeStore(tx.store.db).read<AcceptedInput>('inputs',revision.sourceObservationId);
  if(!row || row.value.observation.feedId!==tx.snapshot.feed.id) throw new HandoffError('SCOPE_DENIED');
  if(row.value.observation.publisherId) return row.value.observation.publisherId;
@@ -61,6 +68,7 @@ export async function targets(tx:FeedTransaction,window:PublicationWindow,includ
  const active=new Map((await tx.store.currentEvidence(tx.snapshot.feed.id)).map(r=>[r.revision.id,r.revision]));
  const roots=await tx.list<EventRecord>('events'),events=new Map<string,Target>();
  const memberships=await tx.list<EventMembership>('memberships');
+ await tx.preload('event_versions',roots.map(root=>root.currentVersionId));
  for(const root of roots) {
   const version=await tx.read<EventVersion>('event_versions',root.currentVersionId);if(!version || version.type==='WITHDRAWN') continue;
   const ids=memberships.filter(m=>m.eventVersionId===version.id).map(m=>m.evidenceRevisionId);
@@ -69,7 +77,9 @@ export async function targets(tx:FeedTransaction,window:PublicationWindow,includ
   events.set(version.id,{type:'EVENT',id:version.id,stableId:root.id,text:`${version.title??''}\n${version.state}`,updatedAt:version.createdAt,version:version.version,evidence,eventVersionIds:[version.id],persistence:0,turningPoint:version.version>1?1:0});
  }
  const result:Target[]=[],groupedEvents=new Set<string>(),longWindow=window.kind==='WEEKLY' || (window.durationMinutes??0)>=720;
- for(const root of await tx.list<StorylineRecord>('storylines')) {
+ const storylineRoots=await tx.list<StorylineRecord>('storylines');
+ await tx.preload('storyline_versions',storylineRoots.map(root=>root.currentVersionId));
+ for(const root of storylineRoots) {
   const version=await tx.read<StorylineVersion>('storyline_versions',root.currentVersionId);if(!version?.eventVersionIds.length || version.eventVersionIds.some(id=>!events.has(id))) continue;
   for(const id of version.eventVersionIds) events.get(id)!.storylineId=root.id;
   if(longWindow) {
