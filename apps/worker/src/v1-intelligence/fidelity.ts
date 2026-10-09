@@ -1,3 +1,4 @@
+import {provenActionStrengthViolations} from './action-strength';
 export interface FidelityFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string;timing?:import('./freshness').FactTiming;context?:{text:string}}
 export interface ReaderNoveltyVerdict {status:'NEW'|'ALREADY_COMMUNICATED'|'NOT_COMMUNICATED'|'UNRESOLVED'|'NOT_APPLICABLE';reason:string;previousFactTexts:string[]}
 export interface SemanticFactCheck {readerNovelty?:ReaderNoveltyVerdict;factId:string;communicated:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;nonRepetitive?:boolean;reason:string;readerSpans?:{claimId:string;text:string}[]}
@@ -5,7 +6,7 @@ export const faithfulFact=(check:SemanticFactCheck)=>check.communicated&&check.a
 export function hasReaderWitness(check:SemanticFactCheck,claims:{id:string;text:string}[]):boolean {
  return !!check.readerSpans?.length&&check.readerSpans.every(span=>claims.some(c=>c.id===span.claimId&&c.text.includes(span.text)));
 }
-export interface ReaderFidelity {passed:boolean;failures:{code:'UNSUPPORTED_QUANTITY'|'LOST_QUANTITY'|'UNSUPPORTED_DATE'|'LOST_MODALITY'|'LOST_NEGATION'|'LOST_BOUND'|'LOST_ATTRIBUTION'|'TEMPORAL_FRAMING_REQUIRED';factId?:string;value?:string}[];policyVersion:string}
+export interface ReaderFidelity {passed:boolean;failures:{code:'UNSUPPORTED_ACTION_STRENGTH'|'UNSUPPORTED_QUANTITY'|'LOST_QUANTITY'|'UNSUPPORTED_DATE'|'LOST_MODALITY'|'LOST_NEGATION'|'LOST_BOUND'|'LOST_ATTRIBUTION'|'TEMPORAL_FRAMING_REQUIRED';factId?:string;value?:string}[];policyVersion:string}
 const normalized=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
 // URL path/query digits are provenance identifiers, not reader-facing quantities.
 const factualText=(text:string)=>normalized(text).replace(/https?:\/\/[^\s]+/gu,'');
@@ -50,6 +51,9 @@ function attachedToReporting(text:string,date:{text:string;index:number}):boolea
  const before=text.slice(Math.max(0,date.index-100),date.index),after=text.slice(date.index+date.text.length);
  return /\b(?:report|reporting|coverage|article|account|source)\s+(?:(?:was\s+)?(?:published|dated|released|issued)\s+)?(?:on\s+|from\s+|of\s+)?$/i.test(before)
   || /\b(?:reported|reporting)\s+on\s+$/i.test(before)
+  // The first post-v5 live draft used "a report from <publisher> dated".
+  // This dates reporting too; it does not license a separate dated action.
+  || /\b(?:report|reporting|coverage|article|account|source)\s+from\s+[\p{L}\p{N}&'-]+(?:\s+[\p{L}\p{N}&'-]+){0,3}\s+(?:dated|published(?:\s+on)?)\s+$/iu.test(before)
   || /^\s+(?:report|reporting|coverage|article|account)\b/i.test(after);
 }
 function addDateKeys(keys:Set<string>,text:string){for(const date of calendarDates(text)){keys.add(date.key);keys.add(date.key.split('-').slice(0,2).join('-'));}}
@@ -62,6 +66,10 @@ function withoutSupportedDates(text:string,keys:Set<string>):string {
  * translations retain the mandatory structured model verification path. */
 export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],allowed:FidelityFact[],english:boolean,semantic?:{pending?:boolean;checks?:SemanticFactCheck[]}):ReaderFidelity {
  const text=factualText(claimTexts.join('\n')),support=factualText(allowed.flatMap(f=>[f.text,...(f.context?[f.context.text]:[])]).join('\n')),failures:ReaderFidelity['failures']=[];
+ // Independent, source-bound negative proofs apply even while semantic
+ // verification is pending or a cached model attests complete entailment.
+ // Context headlines are not additional approved action authority.
+ if(english)failures.push(...provenActionStrengthViolations(claimTexts,allowed).map(f=>({code:'UNSUPPORTED_ACTION_STRENGTH' as const,...f})));
  const reportDateKeys=new Set<string>(),eventDateKeys=new Set<string>();
  for(const f of allowed){
   for(const span of [f.text,...(f.context?[f.context.text]:[])]){const source=factualText(span);for(const date of calendarDates(source))addDateKeys(attachedToReporting(source,date)?reportDateKeys:eventDateKeys,date.text);}
@@ -99,7 +107,7 @@ export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],
   for(const [phrase,equivalent] of [['at least',/\b(at least|no fewer than)\b/],['at most',/\b(at most|no more than)\b/],['more than',/\b(more than|over)\b/],['less than',/\b(less than|under)\b/],['before',/\b(before|earlier than|prior to)\b/],['after',/\b(after|later than|following)\b/]] as const)if(source.includes(phrase)&&!equivalent.test(text))failures.push({code:'LOST_BOUND',factId:fact.id,value:phrase});
   if(fact.attribution&&!text.includes(normalized(fact.attribution)))failures.push({code:'LOST_ATTRIBUTION',factId:fact.id,value:fact.attribution});
  }
- return {passed:!failures.length,failures,policyVersion:'reader-fidelity-floors-v5'};
+ return {passed:!failures.length,failures,policyVersion:'reader-fidelity-floors-v6'};
 }
 
 /** Model attestation must concern actual supported reader prose. English adds

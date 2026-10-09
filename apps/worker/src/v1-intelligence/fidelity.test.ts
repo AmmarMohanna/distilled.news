@@ -3,8 +3,16 @@ import {checkReaderFidelity,verifiedCorrectionDelivery} from './fidelity';
 import temporalFalsePass from './fixtures/staging-temporal-false-pass.json';
 import googleReportDate from './fixtures/staging-google-report-date.json';
 import anthropicReportDate from './fixtures/staging-anthropic-report-date.json';
+import revenueReportDate from './fixtures/staging-openai-revenue-report-date.json';
 const fact=(text:string)=>({id:'fact',text,evidenceRevisionIds:['r']});
 const positiveChecks=(facts:{id:string}[])=>facts.map(f=>({factId:f.id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Permissive verifier approval.'}));
+it('permits the exact first post-fix live reporting date without licensing an event date',()=>{
+ const facts=revenueReportDate.facts,checks=positiveChecks(facts);
+ expect(checkReaderFidelity([revenueReportDate.originalDraft],facts,facts,true,{checks}).passed).toBe(true);
+ expect(checkReaderFidelity([revenueReportDate.publishedClaim],facts,facts,true,{checks}).passed).toBe(true);
+ expect(checkReaderFidelity(['A report from TechCrunch dated October 8, 2026 says revenue fell on October 8, 2026.'],[],facts,true,{checks}).failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 8, 2026'});
+ expect(checkReaderFidelity(['TechCrunch reports revenue fell on October 8, 2026.'],[],facts,true,{checks}).passed).toBe(false);
+});
 it('also rejects the later naturally published Anthropic policy-update date false pass',()=>{
  const facts=anthropicReportDate.facts;
  expect(checkReaderFidelity([anthropicReportDate.claim],facts,facts,true,{checks:positiveChecks(facts)}).failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 8, 2026'});
