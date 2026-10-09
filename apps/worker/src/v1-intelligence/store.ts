@@ -53,7 +53,7 @@ export class V1FeedStore {
   // invalidate concurrent writers merely by checking an existing request.
   if(tx.writes.size || tx.jobs.size) statements.push(this.db.prepare('UPDATE v1_feeds SET epoch=epoch+1 WHERE id=?').bind(s.feed.id));
   statements.push(this.db.prepare('DELETE FROM v1_feed_guards WHERE id=?').bind(nonce));
-  try {await this.db.batch(statements);return true} catch(error) {if(String(error).includes('CHECK constraint failed: v1_feed_cas')) return false;throw new HandoffError('TEMPORARY_UNAVAILABLE')}
+  try {await this.db.batch(statements);return true} catch(error) {if(String(error).includes('CHECK constraint failed: v1_feed_cas')) return false;const text=String(error),cause=/too many subrequests|query limit/i.test(text)?'QUERY_LIMIT':/overloaded/i.test(text)?'OVERLOADED':/timeout|timed out/i.test(text)?'DATABASE_TIMEOUT':/constraint/i.test(text)?'DATABASE_CONSTRAINT':'DATABASE_BATCH_FAILED';console.error(JSON.stringify({type:'V1_FEED_BATCH_FAILED',feedId:s.feed.id,epoch:s.epoch,statements:statements.length,writes:tx.writes.size,jobs:tx.jobs.size,cause}));throw new HandoffError('TEMPORARY_UNAVAILABLE')}
  }
 }
 export class FeedTransaction {
@@ -178,6 +178,8 @@ export class FeedTransaction {
  }
 }
 export async function feedTransact<T>(store:V1FeedStore,id:string,run:(tx:FeedTransaction)=>Promise<T>):Promise<T> {
- for(let attempt=0;attempt<12;attempt++) {const tx=new FeedTransaction(store,await store.snapshot(id)),result=await run(tx);if(await store.commit(tx)) return result}
+ const started=Date.now();let firstEpoch:number|undefined,lastEpoch:number|undefined,lastWrites=0;
+ for(let attempt=0;attempt<12;attempt++) {const tx=new FeedTransaction(store,await store.snapshot(id));firstEpoch??=tx.snapshot.epoch;lastEpoch=tx.snapshot.epoch;const result=await run(tx);lastWrites=tx.writes.size;if(await store.commit(tx)) return result}
+ console.error(JSON.stringify({type:'V1_FEED_CAS_EXHAUSTED',feedId:id,firstEpoch,lastEpoch,writes:lastWrites,attempts:12,durationMs:Date.now()-started}));
  throw new HandoffError('TEMPORARY_UNAVAILABLE');
 }
