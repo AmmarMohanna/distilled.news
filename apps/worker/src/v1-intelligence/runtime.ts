@@ -18,7 +18,8 @@ import {SynthesisCompatibilityError} from './language';
 import {projectEditionLedger} from './ledger';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {scheduleExtractionUpgrades,hasUnscheduledExtractionUpgrade} from './extraction-upgrade';
-import {nextRematch,type RematchRequest,type RematchAttempt} from './rematch';
+import {recordBlockedWindow} from './blocked-window';
+import {nextRematch,rematchExhausted,STALE_REASON,protectedRematchRevisionIds,prioritizeRematches,type RematchRequest,type RematchAttempt} from './rematch';
 import {SemanticContentionError} from './semantic-operations';
 import {prepareSemanticShortlist} from './shortlist';
 import {prepareEditorialPlan} from './editorial-plan';
@@ -29,7 +30,7 @@ import {publicationWindowSchema,livePublicationWindow} from './schedule';
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
-interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string}
+interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
 const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') throw new HandoffError('SCOPE_DENIED');
@@ -70,7 +71,7 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
 }
 export async function processV1Rematch(env:Env,feedId:string,requestId:string,now=new Date().toISOString()):Promise<void> {
  await approvedFeed(env,feedId);const store=new V1FeedStore(env.DB),request=await store.read<RematchRequest>(feedId,'rematch_requests',requestId);if(!request)return;
- const attempt=nextRematch(request,await store.list<RematchAttempt>(feedId,'rematch_attempts'),now);if(!attempt)return;
+ const allAttempts=await store.list<RematchAttempt>(feedId,'rematch_attempts'),attempt=nextRematch(request,allAttempts,now),history=allAttempts.filter(a=>a.requestId===requestId);if(!attempt)return;
  const prepared=await prepareSemanticMatch(store,env,request.jobId,now,{attempt});
  const active=(await store.currentEvidence(feedId)).some(e=>e.revision.id===request.evidenceRevisionId);
  const eligible=active&&prepared&&prepared.prepared.decision.structuralRelation!=='DEFER';
@@ -78,7 +79,7 @@ export async function processV1Rematch(env:Env,feedId:string,requestId:string,no
  const succeeded=Boolean(consumed&&consumed.decision==='PROCESSED'&&!consumed.semanticDeferred);
  const reason=!active?'STALE_EVIDENCE':succeeded?undefined:prepared?.prepared.decision.provenance.fallbackReason??(prepared?.prepared.decision.structuralRelation==='DEFER'?'SEMANTIC_IDENTITY_UNRESOLVED':consumed?.semanticDeferred?'SEMANTIC_CONSTRUCTION_UNRESOLVED':'SEMANTIC_PREPARATION_UNAVAILABLE'),budgetWait=active&&reason==='SEMANTIC_BUDGET_EXHAUSTED';
  const id=JSON.stringify([request.id,attempt,now.slice(0,10),'budget-aware-rematch-v1']);
- await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,state:succeeded?'SUCCEEDED':budgetWait?'WAITING_BUDGET':!active||attempt>=3?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:budgetWait?new Date(Date.parse(now.slice(0,10)+'T00:00:00Z')+86400000).toISOString():new Date(Date.parse(now)+300000*2**(attempt-1)).toISOString(),createdAt:now,reason} satisfies RematchAttempt)});
+ await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,state:succeeded?'SUCCEEDED':budgetWait?'WAITING_BUDGET':!active||rematchExhausted([...history,{reason,attempt}])?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:budgetWait?new Date(Date.parse(now.slice(0,10)+'T00:00:00Z')+86400000).toISOString():new Date(Date.parse(now)+(reason===STALE_REASON?60000*2**history.filter(a=>a.reason===STALE_REASON).length:300000*2**(attempt-1))).toISOString(),createdAt:now,reason} satisfies RematchAttempt)});
 }
 export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch,publicationOptions?:{requireModel?:boolean}) {
  const parsed=messageSchema.safeParse(raw);if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
@@ -118,7 +119,9 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   if(required&&shortlist?.candidates.length&&plan?.route!=='GPT')throw new HandoffError('TEMPORARY_UNAVAILABLE');
   failureStage='SELECTION';
   const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env),plan);
-  if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  // Protected work that cannot be delivered yet is a durable, truthful BLOCKED state tied to reassessment progress, not a failure retried
+  // identically until the attempt budget is spent. The obligation stays OPEN and nothing is reported as delivered.
+  if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length && shortlist){await recordBlockedWindow(store,feedId,id,shortlist,selection,now());return undefined}
   failureStage='SYNTHESIS_PUBLICATION';
   const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:writer,requireModel:required}):undefined;
   failureStage='LEDGER_PROJECTION';
@@ -173,7 +176,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   });
   await maintenance(id,'REMATCH_DISPATCH',async()=>{
     const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts');
-    for(const request of rematches.filter(r=>nextRematch(r,attempts,now.toISOString())).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
+    for(const request of prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString())),await protectedRematchRevisionIds(store,id)).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
   });
   // Reassessment must finish first; the next bounded relay publishes its result.
   const pending={n:await jobsHoldingWindow(env.DB,id,windowEndOf(feed,now))};
