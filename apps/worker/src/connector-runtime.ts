@@ -41,12 +41,13 @@ export async function scheduleRecentTelegramRecheck(db:D1Database,
  const runId=await sha256(JSON.stringify([request.scope.feedSourceId,request.configurationRevision,'telegram-recheck',Math.floor(now.getTime()/86400000)]));
  const expected={...request,runId};
  const alreadyScheduled=async()=>{
-  const row=await db.prepare('SELECT request,provider_order FROM connector_provider_poll_jobs WHERE job_id=?').bind(runId).first<{request:string;provider_order:string}>();
+  const row=await db.prepare('SELECT request,initial_hash,provider_order FROM connector_provider_poll_jobs WHERE job_id=?').bind(runId).first<{request:string;initial_hash:string;provider_order:string}>();
   if(!row)return false;
   const saved=JSON.parse(row.request) as SourceFetchRequest;
-  const {recheckItemKeys,...base}=saved;
-  if(canonicalJson(base)!==canonicalJson(expected)||row.provider_order!==JSON.stringify(['telegram_telethon'])||
+  const {recheckItemKeys}=saved;
+  if(row.provider_order!==JSON.stringify(['telegram_telethon'])||
     !recheckItemKeys?.length||recheckItemKeys.length>3||recheckItemKeys.some(key=>!key.startsWith(`telegram:${request.source.channelId}:`)))throw new HandoffError('IDEMPOTENCY_CONFLICT');
+  if(row.initial_hash!==await sha256(JSON.stringify([JSON.stringify({...expected,recheckItemKeys}),row.provider_order])))throw new HandoffError('IDEMPOTENCY_CONFLICT');
   return true;
  };
  // Freeze the first accepted ID range for the day. A later poll may discover
@@ -69,11 +70,12 @@ export async function scheduleRecentTelegramRecheck(db:D1Database,
 export async function scheduleProviderWindow(db:D1Database,scheduler:Pick<ReturnType<typeof createConnectorRuntime>['scheduler'],'schedule'>,
  request:SourceFetchRequest,now:Date,order:readonly string[]):Promise<void>{
  const frozenOrder=async()=>{
-  const row=await db.prepare('SELECT request,provider_order FROM connector_provider_poll_jobs WHERE job_id=?').bind(request.runId).first<{request:string;provider_order:string}>();
+  const row=await db.prepare('SELECT initial_hash,provider_order FROM connector_provider_poll_jobs WHERE job_id=?').bind(request.runId).first<{initial_hash:string;provider_order:string}>();
   if(!row)return undefined;
   const stored=JSON.parse(row.provider_order) as string[];
-  if(canonicalJson(JSON.parse(row.request))!==canonicalJson(request)||!Array.isArray(stored)||stored.length<1||stored.length>3||
+  if(!Array.isArray(stored)||stored.length<1||stored.length>3||
     new Set(stored).size!==stored.length||stored.some(id=>!DEFAULT_SOURCE_ORDER[request.source.family].includes(id)))throw new HandoffError('IDEMPOTENCY_CONFLICT');
+  if(row.initial_hash!==await sha256(JSON.stringify([JSON.stringify(request),row.provider_order])))throw new HandoffError('IDEMPOTENCY_CONFLICT');
   return stored;
  };
  order=await frozenOrder()??order;

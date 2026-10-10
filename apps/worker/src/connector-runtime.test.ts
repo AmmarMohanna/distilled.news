@@ -1,5 +1,5 @@
 import {publishedProductEditions} from './product-feeds';
-import {HandoffError} from '@distilled/contracts';
+import {HandoffError,sha256} from '@distilled/contracts';
 import {D1Repository} from './repository';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {createIntakeDatabase,testPolicy} from './v1-intake/test-utils';
@@ -30,7 +30,8 @@ afterEach(async()=>ctx?.dispose());
 it('reuses the winning durable provider order when funding changes race with initial scheduling',async()=>{
  const r:SourceFetchRequest={...request,source:{family:'website',locator:'https://example.com/article'},limit:1};
  let reads=0;
- const db={prepare:()=>({bind:()=>({first:async()=>reads++===0?null:{request:JSON.stringify(r),provider_order:JSON.stringify(['website_http','website_playwright'])}})})} as unknown as D1Database;
+ const provider_order=JSON.stringify(['website_http','website_playwright']),initial_hash=await sha256(JSON.stringify([JSON.stringify(r),provider_order]));
+ const db={prepare:()=>({bind:()=>({first:async()=>reads++===0?null:{initial_hash,provider_order}})})} as unknown as D1Database;
  const schedule=vi.fn().mockRejectedValueOnce(new HandoffError('IDEMPOTENCY_CONFLICT')).mockResolvedValueOnce(undefined);
  await scheduleProviderWindow(db,{schedule},r,new Date('2026-10-10T08:00:00Z'),['website_http','website_playwright','website_zyte']);
  expect(schedule.mock.calls.map(call=>call[3])).toEqual([['website_http','website_playwright','website_zyte'],['website_http','website_playwright']]);
@@ -39,9 +40,12 @@ it('keeps a durable provider window immutable across funding changes and rejects
  const r:SourceFetchRequest={...request,source:{family:'website',locator:'https://example.com/article'},limit:1};
  const scheduler=new D1ProviderPollScheduler(sourceSqlFromD1(ctx.db),{collect:async()=>{throw new Error('must not fetch')}},async()=>true);
  await scheduleProviderWindow(ctx.db,scheduler,r,new Date('2026-10-10T08:00:00Z'),['website_http','website_playwright']);
+ const resumed={...r,runId:r.runId+':retry:1',continuation:{providerId:'website_playwright',token:'saved-page'}};
+ await ctx.db.prepare('UPDATE connector_provider_poll_jobs SET request=? WHERE job_id=?').bind(JSON.stringify(resumed),r.runId).run();
  await scheduleProviderWindow(ctx.db,scheduler,r,new Date('2026-10-10T08:05:00Z'),['website_http','website_playwright','website_zyte']);
  const jobs=await ctx.db.prepare('SELECT provider_order FROM connector_provider_poll_jobs').all<{provider_order:string}>();
  expect(jobs.results).toEqual([{provider_order:JSON.stringify(['website_http','website_playwright'])}]);
+ expect(JSON.parse((await ctx.db.prepare('SELECT request FROM connector_provider_poll_jobs WHERE job_id=?').bind(r.runId).first<{request:string}>())!.request)).toEqual(resumed);
  await expect(scheduleProviderWindow(ctx.db,scheduler,{...r,source:{family:'website',locator:'https://different.example/article'}},new Date(),['website_http'])).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
 });
 it('rejects malformed RSS configuration and preserves website ownership when its private runtime is missing',async()=>{
@@ -59,6 +63,8 @@ it('freezes one daily Telegram edit range when new accepted messages arrive and 
  await record(1);
  expect(await scheduleRecentTelegramRecheck(ctx.db,scheduler,r,new Date('2026-10-10T08:00:00Z'))).toBe(true);
  await record(2);
+ const scheduled=(await ctx.db.prepare('SELECT job_id,request FROM connector_provider_poll_jobs').first<{job_id:string;request:string}>())!;
+ await ctx.db.prepare('UPDATE connector_provider_poll_jobs SET request=? WHERE job_id=?').bind(JSON.stringify({...JSON.parse(scheduled.request),runId:scheduled.job_id+':retry:1'}),scheduled.job_id).run();
  expect(await scheduleRecentTelegramRecheck(ctx.db,scheduler,{...r,runId:'later-poll'},new Date('2026-10-10T08:05:00Z'))).toBe(false);
  const jobs=await ctx.db.prepare('SELECT request FROM connector_provider_poll_jobs ORDER BY due_at').all<{request:string}>();
  expect(jobs.results).toHaveLength(1);expect(JSON.parse(jobs.results[0].request).recheckItemKeys).toEqual(['telegram:-100123:1']);
