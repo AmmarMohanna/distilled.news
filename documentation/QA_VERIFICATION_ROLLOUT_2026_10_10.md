@@ -3,8 +3,11 @@
 The merged frontend/Worker and private VPS helpers have been rolled out to
 <https://distilled-news-sources-qa.distillednews-platform.workers.dev> in the user's
 new Cloudflare account. Production, shared staging, the friend's checkout and remote
-Git branches were not changed. Email setup was explicitly deferred; the Outlook Graph
-implementation is present but its sender is not configured. Fresh signup remains blocked.
+Git branches were not changed. Email was initially deferred. In the later mailbox
+setup follow-up, Outlook authorization and QA deployment completed: a real signup
+returned HTTP 200 after Graph accepted its verification message. Inbox delivery,
+verification-link completion and password reset still require recipient checks.
+See `OUTLOOK_QA_EMAIL_SETUP.md` for the current status.
 
 ## Changes and deployment
 
@@ -36,6 +39,11 @@ behind disabled authorization; they were not rewritten into new paid identities.
 All three remote helper hashes matched local files and all three services were active
 at the final check. The final paused frontend/browser and asset checks passed again.
 
+The subsequent Outlook setup replaced that deployment with
+`4a756988-c66c-47c2-bec9-896918628c2d`; source authorization and budget checks still
+showed zero enabled sources and zero paid limits. Authorization reliability changes
+are local setup-script changes (`4423684`), not a change to connector Worker logic.
+
 ## Local verification
 
 - Complete serial Worker suite on corrected code `0fa2d98`: **883 passed, 10 skipped,
@@ -44,6 +52,7 @@ at the final check. The final paused frontend/browser and asset checks passed ag
   The source code was held unchanged throughout this final run.
 - Connector package: **184 passed**.
 - Private Python runtime: **7 passed**; Node helper tests: **6 passed**.
+- Follow-up Outlook setup retry tests: **3 passed**; setup-script syntax check passed.
 - Workspace typecheck passed; Worker typecheck passed again after the immutable-hash
   correction. Frontend build and isolated QA Worker dry-run built successfully.
 - Focused immutable-window regressions: **4 passed**, including funding races,
@@ -59,7 +68,7 @@ at the final check. The final paused frontend/browser and asset checks passed ag
 | Google News | Worker transient RSS failures recovered through the private VPS. One real snapshot handed off 30 observations/30 proposals; two Google links became durable publisher URLs, retaining `LISTING_RESULT` / `UNKNOWN` | All-link resolution, publisher article acquisition and exhaustive recall. The RPC protocol is best effort and undocumented. |
 | Blocked website | JPL news returned `CHALLENGE` through HTTP and Playwright; the normal scheduled HTTP → Playwright → Zyte chain reached `DONE`/`HANDED_OFF` through Zyte | General reliability across all blocked sites. This is one genuine blocked-page case. |
 | Paid-response recovery | A completed Books/Zyte client response was discarded before consuming its body. Replaying the same request returned the saved handoff and added zero paid operations/reservations | Loss of an external provider response before durable outcome storage. That uncertain submission case remains local/reconciliation coverage, not a live proof. |
-| Public frontend | Root and existing BBC public feed loaded in a real browser, both HTTP 200, zero JavaScript errors; public feed API returned 200. Existing editions had seven support spans and zero unsupported spans | Fresh signup → feed approval → collection → new published edition. Email setup remains required; no verification bypass was introduced. |
+| Public frontend | Root and existing BBC public feed loaded in a real browser, both HTTP 200, zero JavaScript errors; public feed API returned 200. Existing editions had seven support spans and zero unsupported spans | Fresh signup → feed approval → collection → new published edition. Outlook submission now succeeds, but inbox/link confirmation remains required; no verification bypass was introduced. |
 
 The JPL automatic-fallback job was
 `d1a2585bdb5e96ace3dd9dc939809454605dac5480cfec8130af6f0d1cdfe05b`.
@@ -113,8 +122,9 @@ monthly spend, storage requirements or uptime guarantees.
 
 ## Remaining rollout gates
 
-1. Configure the chosen email sender, verify delivery/reset mail, then run a fresh
-   frontend signup-to-new-edition test with the friend.
+1. Confirm receipt of the submitted Outlook verification message, complete its link
+   and test password reset, then run a fresh frontend signup-to-new-edition test with
+   the friend. Outlook sender authorization and QA deployment are now complete.
 2. Provide a controlled Telegram channel for edit tests; implement and verify an
    authoritative deletion-event transport before claiming live deletion coverage.
 3. Run a controlled LinkedIn new-post incremental test and provider pre-storage

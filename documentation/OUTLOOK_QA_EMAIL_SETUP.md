@@ -1,5 +1,16 @@
 # QA verification email through Outlook
 
+## Current QA status — October 10, 2026
+
+Mailbox authorization completed and the three QA secrets were installed. QA was
+deployed as version `4a756988-c66c-47c2-bec9-896918628c2d`. A real registration for
+`distilled.news+qa-mail-20261010@outlook.com` returned HTTP 200 after Outlook Graph
+accepted the verification message. D1 contains the encrypted renewed token (version 1),
+with no plaintext refresh token in the database row. Recipient delivery, clicking
+the email verification link and password-reset delivery remain awaiting user checks.
+The test account remains unverified until its emailed link is used; no verification
+bypass was applied. All source fixtures remain disabled and paid budgets remain zero.
+
 The isolated `distilled-news-sources-qa` Worker can send account verification and password-reset mail from `distilled.news@outlook.com` using Microsoft Graph. Production retains its Cloudflare Email binding. The QA Worker checks the authorized mailbox before submitting a message, and stores each renewed Microsoft refresh token encrypted in D1. A Graph `202 Accepted` means submission succeeded; delivery should also be checked in the recipient inbox and Outlook Sent Items.
 
 ## One-time Microsoft setup
