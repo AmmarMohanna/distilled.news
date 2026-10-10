@@ -1,5 +1,9 @@
 # Branch fixes and rollout steps — October 9, 2026
 
+Follow-up deployment and live verification are recorded in
+[`QA_VERIFICATION_ROLLOUT_2026_10_10.md`](QA_VERIFICATION_ROLLOUT_2026_10_10.md).
+The results below describe the earlier local revision.
+
 The working branch is `codex/source-execution-backend`. It was fast-forwarded to
 the newer local `backend-sources-fixes` implementation at `4eb8846` before these
 fixes. This brings in the existing multi-source runtime, real intake integration,

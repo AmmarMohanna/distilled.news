@@ -1,12 +1,17 @@
 # Source providers and fallbacks
 
-This opt-in connector slice extends the RSS implementation on
-`codex/rss-source-integration`. It uses the shared contracts and intake port from
-Appendix C of `ARCHITECTURE_v1.md`. Benchmark reports remain separate from production
-connector code. This does not switch production polling, deploy services, push changes,
-or modify the downstream owner's branch.
+This opt-in connector implementation extends the original RSS slice. It uses the
+shared contracts and intake port from Appendix C of `ARCHITECTURE_v1.md`. Benchmark
+reports remain separate from production connector code. The dated rollout report
+records isolated QA deployment; production polling remains gated.
 
-## Worker integration status (2026-10-08)
+## Worker integration status (2026-10-10)
+
+The merged backend and frontend are now deployed to the **isolated sources QA Worker**.
+See `QA_VERIFICATION_ROLLOUT_2026_10_10.md` for measured results and remaining blockers.
+Production and shared staging were not deployed by this follow-up. Website and non-RSS
+product-path integration are available behind QA opt-in flags; historical fixture
+results below must not be read as proof of production rollout or complete recall.
 
 This branch's Worker code has an opt-in connector scheduler for approved RSS, Google News,
 Telegram, X profile/topic, and LinkedIn company/profile source records. Source identity,
@@ -22,8 +27,8 @@ The latter accepts only `x_twitterapi_io`, `x_apify`, `google_apify`,
 `linkedin_apify`, and `zyte`; missing values default to zero. Staging keeps all
 ceilings and budgets at zero. Changing these settings alone does not approve a source:
 the feed/source approval and runtime allowlist still apply. No live provider test or
-deployment is established by this branch's local fixture tests. Website sources and
-user-facing approval for non-RSS source types still need coordinated product-path integration.
+deployment is established by local fixture tests alone. Live isolated QA evidence is
+recorded separately in the dated rollout report. Production integration remains gated.
 
 ## Default provider order
 
@@ -104,6 +109,12 @@ must be aggregated once per handoff/run rather than once per retry invocation.
 - Known failed attempts are remembered; replay does not reissue them under the same run.
 
 `D1ProviderPollScheduler` persists jobs, leases, snapshot offsets and provider continuations.
+An existing poll window keeps its original provider order when funding changes. Its
+immutable initial hash is validated independently of the mutable retry/continuation
+request. Newly funded fallbacks become available in a new window; changing funding
+does not create a second paid identity for an existing window. Telegram freezes one
+bounded daily edit-recheck range, so newly accepted messages cannot change that day's
+durable request. Missing messages are not deletion evidence.
 It rechecks source authorization and migration state before executing. It bounds failures
 to eight attempts per page and collection continuation to 100 pages by default. Long
 Retry-After / Telethon flood waits are persisted and honored. Apify running actors are
@@ -112,13 +123,25 @@ operator reconciliation; automatic resubmission could double-charge.
 
 ## Backend bindings
 
+Isolated QA enables `SOURCE_GOOGLE_RESOLUTION_ENABLED`. Its private runtime accepts
+`google_resolve` for fixed Google article URLs and `google_feed` for the exact approved
+Google News RSS query. A transient initial RSS failure (network or HTTP 5xx) may use
+the VPS feed fetch; rate limits and access/policy refusals remain authoritative.
+Publisher resolution is bounded to two links per snapshot and never upgrades a
+listing into full article evidence. The signature/time + RPC protocol is best effort
+and undocumented by Google; its public implementation reference is
+[Huksley's resolver](https://gist.github.com/huksley/bc3cb046157a99cd9d1517b32f91a99e).
+The flag defaults off outside this QA configuration. Roll out the Node server, VPC
+proxy and Python script together because their runtime-kind allowlists must match.
+
 `apps/worker/src/source-backend.ts` now provides `createSourceBackend(env, options)`
 to compose the provider factory with actual Worker D1/R2 bindings, scoped public HTTP,
 provider secrets and the private runtime HTTP client. Pass the downstream-owned durable
 `intake` and an `authorize(request)` callback checking persisted approval/configuration
 and disabled legacy polling. The returned `collect`, `scheduler`, `payloads` and `paidHttp`
-support all registered source families. This module is not yet mounted in the production
-Worker entry point. Keep `global_fetch_strictly_public` in the deployment configuration.
+support all registered source families. The Worker entry point composes it behind
+opt-in source flags; this follow-up enables the isolated QA path only. Keep
+`global_fetch_strictly_public` in the deployment configuration.
 
 Environment bindings: `TWITTERAPI_IO_API_KEY`, `APIFY_API_TOKEN`, `ZYTE_API_KEY`,
 `SOURCE_EXECUTION_URL`, `SOURCE_EXECUTION_TOKEN`, and `SOURCE_OPERATION_CEILINGS_JSON`.
