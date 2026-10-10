@@ -22,18 +22,22 @@ export function auditCandidate(c:ShortlistCandidate,shortlist:Pick<ShortlistReco
  return {targetVersionId:c.targetVersionId,title:c.sourceTitles?.[0]??'',causes:blocking.length||causes.length?causes:['ELIGIBLE_SUPPORTED_NEW'],eligible:selectableForPlanning(c)&&!blocking.length,costUnits:c.communicationCost?.inputUnits,relevance:c.ranking?.relevance};
 }
 
-export type ReasoningDefect='IDENTITY_CLAIM_WITHOUT_FLAG'|'EXTRACTION_CLAIM_WITHOUT_FLAG'|'REPEAT_CLAIM_WITHOUT_LEDGER_MATCH'|'PROVISIONAL_USED_AS_BLOCKER'|'WITHDRAWN_PROSE_TREATED_AS_KNOWN';
+export type ReasoningDefect='OLD_SOURCE_TREATED_AS_READER_KNOWN'|'FEED_FIT_CONTRADICTED_BY_RATIONALE'|'GENERIC_RATIONALE_REUSED'|'IDENTITY_CLAIM_WITHOUT_FLAG'|'EXTRACTION_CLAIM_WITHOUT_FLAG'|'REPEAT_CLAIM_WITHOUT_LEDGER_MATCH'|'PROVISIONAL_USED_AS_BLOCKER'|'WITHDRAWN_PROSE_TREATED_AS_KNOWN';
 export interface ReasoningFinding {targetVersionId:string;defect:ReasoningDefect;rationale:string}
 const claimsIdentity=/\b(identity (is )?(unresolved|uncertain|unclear)|unresolved identity|cannot (confirm|establish) (the )?(identity|same event)|high[- ]consequence identity)\b/i,claimsExtraction=/\b(title extraction|extraction (is )?pending|pending extraction)\b/i,claimsRepeat=/\b(already (been )?(communicated|published|reported|covered|told|known)|previously (communicated|published|reported|covered)|reader (already|has already) (knows?|saw|seen)|repeat of)\b/i,claimsProvisional=/\bprovisional\b/i;
 /** Checks a plan's stated reasons against the data it was given. It finds reasoning that asserts a cause the shortlist does not show;
  * it never decides what should be published and never overrides a decision. */
-export function auditPlanReasoning(plan:{stories:{targetVersionId:string;decision:'SELECT'|'SUPPRESS'|'DEFER';rationale:string;relevanceRationale?:string}[]},shortlist:Pick<ShortlistRecord,'candidates'|'ledger'|'obligations'>):ReasoningFinding[]{
+export function auditPlanReasoning(plan:{stories:{targetVersionId:string;decision:'SELECT'|'SUPPRESS'|'DEFER';rationale:string;relevanceRationale?:string;feedFit?:string}[]},shortlist:Pick<ShortlistRecord,'candidates'|'ledger'|'obligations'>):ReasoningFinding[]{
  const findings:ReasoningFinding[]=[];
+ const reused=new Map<string,number>();for(const story of plan.stories)if(story.decision!=='SELECT')reused.set(story.rationale,(reused.get(story.rationale)??0)+1);
  for(const story of plan.stories){
   const c=shortlist.candidates.find(c=>c.targetVersionId===story.targetVersionId);if(!c||story.decision==='SELECT')continue;
   const text=story.rationale,flag=(f:string)=>c.flags.includes(f),withdrawn=c.correctionObligationIds.some(id=>shortlist.obligations.some(o=>o.id===id&&o.publicationWithdrawal));
   const known=shortlist.ledger.filter(e=>e.eventIds?.includes(c.stableTargetId)||Boolean(c.storylineId&&e.storylineIds?.includes(c.storylineId))).flatMap(e=>e.claimFacts);
   const add=(defect:ReasoningDefect)=>findings.push({targetVersionId:c.targetVersionId,defect,rationale:text});
+  if((reused.get(text)??0)>=3)add('GENERIC_RATIONALE_REUSED');
+  if(/\b(old (?:recap|report|reporting|source)|stale|limited novelty)\b/i.test(text)&&known.length===0&&c.readerState!=='SEEN')add('OLD_SOURCE_TREATED_AS_READER_KNOWN');
+  if(story.feedFit==='DIRECT'&&/\b(limited direct feed fit|not (?:directly )?relevant|outside (?:the )?feed|irrelevant)\b/i.test(text))add('FEED_FIT_CONTRADICTED_BY_RATIONALE');
   if(claimsIdentity.test(text)&&!flag('IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE'))add('IDENTITY_CLAIM_WITHOUT_FLAG');
   if(claimsExtraction.test(text)&&!flag('TITLE_EXTRACTION_PENDING'))add('EXTRACTION_CLAIM_WITHOUT_FLAG');
   if(claimsRepeat.test(text)&&!c.facts.every(f=>known.some(k=>equivalentFact(k,f.text))))add(withdrawn&&known.length?'WITHDRAWN_PROSE_TREATED_AS_KNOWN':'REPEAT_CLAIM_WITHOUT_LEDGER_MATCH');

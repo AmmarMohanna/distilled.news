@@ -1,6 +1,7 @@
 import {afterEach,beforeEach,describe,expect,it} from 'vitest';
 import fixture from './fixtures/staging-2000-oversized-input.json';
 import {auditShortlist,auditPlanReasoning} from './shortlist-audit';
+import {OLD_RECAP_ORIGINAL,OLD_RECAP_RESTATED} from './editorial-plan';
 import {fallbackEditorialPlan,validateEditorialPlan,editorialPlannerState,planCapacityFailures} from './editorial-plan';
 import {allocateFeasibleSelection} from './planning-capacity';
 import {DEFAULT_BRIEFING_BUDGET} from './scoring';
@@ -60,7 +61,7 @@ describe('retained 20:00-Beirut (15:00-17:00Z) window: 21 candidates, one OPEN A
  });
  it('planner guidance (new calls only) removes the observed reasoning traps; legacy input stays byte-identical',()=>{
   const modern=editorialPlannerState(retained,budget,undefined,true),legacy=editorialPlannerState(retained,budget,undefined,false);
-  expect(modern.instruction.startsWith(legacy.instruction)).toBe(true);
+  expect(modern.instruction.startsWith(legacy.instruction.replace(OLD_RECAP_ORIGINAL,OLD_RECAP_RESTATED))).toBe(true);
   for(const phrase of ['PROVISIONAL alone is never a reason','prose Distilled withdrew','must name its real cause','never to reach the ceiling'.replace('never','Never')])expect(modern.instruction).toContain(phrase.replace('Never to','Never select a weak story to'));
   expect(legacy.instruction).not.toContain('PROVISIONAL alone');
  });

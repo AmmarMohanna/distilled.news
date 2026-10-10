@@ -3,6 +3,7 @@ import {canonicalJson} from '../v1-intake/canonical';
 import {V1FeedStore} from './store';
 import {publicationWindow} from './runtime';
 import {livePublicationWindow} from './schedule';
+import {readEditionDelivery} from './delivery-status';
 /** Independent read detects absence even when cron itself never ran. It never
  * invents a request or historical quiet result. Suitable for external health polling. */
 export async function readScheduleAudit(db:D1Database,feedId:string,now=new Date()){
@@ -13,6 +14,6 @@ export async function readScheduleAudit(db:D1Database,feedId:string,now=new Date
  if(Date.parse(window.end)<Date.parse(feed.createdAt))return {state:'NOT_DUE',window};
  const request=await store.read<any>(feedId,'briefing_requests',requestId);
  if(!request)return {state:now.getTime()-Date.parse(window.end)>5*60000?'MISSING_SCHEDULED_BOUNDARY':'AWAITING_DISPATCH',feedId,window,requestId,reason:'NO_DURABLE_REQUEST',attempts:0};
- const edition=await store.read(feedId,'editions',requestId);
- return {feedId,window,requestId,state:request.state==='DONE'?edition?'PUBLISHED':request.result==='QUIET'?'QUIET':request.result==='DEFERRED'?'DEFERRED':'COMPLETED_UNCLASSIFIED':request.state==='FAILED'?'FAILED':request.reason==='AWAITING_INTAKE_REASSESSMENT'?'DEFERRED':request.reason==='BLOCKED_PROTECTED_WORK'?'BLOCKED':'REQUEST_CREATED',reason:request.failure??request.reason,attempts:request.attempts,...(request.blocked?{blocked:request.blocked}:{}),createdAt:request.createdAt,completedAt:request.completedAt};
+ const edition=await store.read(feedId,'editions',requestId),delivery=edition?await readEditionDelivery(store,feedId,requestId):undefined;
+ return {feedId,window,requestId,state:request.state==='DONE'?edition?'PUBLISHED':request.result==='QUIET'?'QUIET':request.result==='DEFERRED'?'DEFERRED':'COMPLETED_UNCLASSIFIED':request.state==='FAILED'?'FAILED':request.reason==='AWAITING_INTAKE_REASSESSMENT'?'DEFERRED':request.reason==='BLOCKED_PROTECTED_WORK'?'BLOCKED':'REQUEST_CREATED',reason:request.failure??request.reason,attempts:request.attempts,...(request.blocked?{blocked:request.blocked}:{}),...(delivery?{delivery}:{}),createdAt:request.createdAt,completedAt:request.completedAt};
 }

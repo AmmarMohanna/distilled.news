@@ -17,7 +17,12 @@ async function assertInputs(tx:FeedTransaction,input:SemanticOperationInput):Pro
 }
 /** Calls occur only after durable intent commit. Lost outcomes never reissue;
  * unknown charges retain reservations. Exact active inputs fence consumption. */
-export async function durableSemanticOperation<T>(store:V1FeedStore,input:SemanticOperationInput,run:()=>Promise<{value:T;usage:ExperimentUsage}>,now:string,reportedUsage?:()=>ExperimentUsage):Promise<SemanticOperationResult<T>> {
+/** Who is asking for the shared per-day semantic call allowance. Not part of an operation's identity. Ordinary first-time work may use all but a
+ * reserve, retries of earlier work stop sooner, and work gating an OPEN correction may use the whole allowance; the total never exceeds the cap. */
+export type BudgetLane='PRIMARY'|'RETRY'|'PROTECTED';
+export const SEMANTIC_DAILY_CALL_CAP=20,PROTECTED_CALL_RESERVE=4,RETRY_CALL_SHARE=12;
+export const laneCallCap=(lane?:BudgetLane)=>lane==='PRIMARY'?SEMANTIC_DAILY_CALL_CAP-PROTECTED_CALL_RESERVE:lane==='RETRY'?RETRY_CALL_SHARE:SEMANTIC_DAILY_CALL_CAP;
+export async function durableSemanticOperation<T>(store:V1FeedStore,input:SemanticOperationInput,run:()=>Promise<{value:T;usage:ExperimentUsage}>,now:string,reportedUsage?:()=>ExperimentUsage,options:{lane?:BudgetLane}={}):Promise<SemanticOperationResult<T>> {
  if(new TextEncoder().encode(canonicalJson(input.state)).length>48000 || !input.policyVersion || !input.model || !input.kind || !input.budgetKey || !Number.isFinite(Date.parse(now)))throw new HandoffError('INVALID_REQUEST');
  const id=await sha256(canonicalJson(input)),token=crypto.randomUUID();
  const acquired=await feedTransact(store,input.feedId,async tx=>{
@@ -30,7 +35,7 @@ export async function durableSemanticOperation<T>(store:V1FeedStore,input:Semant
   for(const previous of (await tx.list<SemanticIntent>('semantic_intents')).filter(i=>i.input.budgetKey===input.budgetKey)){
    const saved=await tx.read<SemanticOperationResult>('semantic_results',previous.id);calls++;cost+=saved?.usage.reported?saved.usage.costUsd:Math.max(reservation,saved?.usage.costUsd??0);unknown ||= saved?!saved.usage.reported:previous.leaseUntil<=Date.now();
   }
-  if(unknown||calls>=20||cost+reservation>.1+1e-9){const result=deferred(unknown?'SEMANTIC_BUDGET_OUTCOME_UNKNOWN':'SEMANTIC_BUDGET_EXHAUSTED',{calls:0,costUsd:0,reported:true});await tx.write('semantic_results',id,result);return {result}}
+  if(unknown||calls>=laneCallCap(options.lane)||cost+reservation>.1+1e-9){const result=deferred(unknown?'SEMANTIC_BUDGET_OUTCOME_UNKNOWN':'SEMANTIC_BUDGET_EXHAUSTED',{calls:0,costUsd:0,reported:true});await tx.write('semantic_results',id,result);return {result}}
   const value:SemanticIntent={id,feedId:input.feedId,input,token,leaseUntil:Date.now()+(input.kind==='COMPARATIVE_EDITORIAL_PLAN'?90000:30000),reservedCostUsd:reservation,createdAt:now};await tx.write('semantic_intents',id,value);return {intent:value};
  });
  if(acquired.result)return acquired.result;

@@ -1,6 +1,7 @@
 import {afterEach,beforeEach,describe,expect,it} from 'vitest';
 import {allocateFeasibleSelection,guaranteedStoryCount,storyCapacityBound,planningCapacity,type SelectionItem} from './planning-capacity';
 import {DEFAULT_BRIEFING_BUDGET,scoreAndSelect,type BriefingBudget} from './scoring';
+import {OLD_RECAP_ORIGINAL,OLD_RECAP_RESTATED} from './editorial-plan';
 import {fallbackEditorialPlan,planCapacityFailures,prepareEditorialPlan,editorialPlannerState,EDITORIAL_PLAN_POLICY,type EditorialPlanBody} from './editorial-plan';
 import {boundedEditorialInput} from './editorial-transport';
 import {sha256} from '@distilled/contracts';
@@ -121,10 +122,10 @@ describe('end to end: planner, selection, writer-input admission and publication
   expect(new Set(facts).size).toBe(3);expect(facts.every(f=>texts.filter(t=>f.includes(t.replace(/\.$/,''))).length===1)).toBe(true);
   const edition=await publishSelection(store,'feed-1',selection.id,{now:()=>first.end});await projectEditionLedger(store,'feed-1',edition.id);
  },30000);
- it('a planner result already billed under the former input is reused: no second call, identical plan',async()=>{
+ it.each(['LEGACY','V1'] as const)('a planner result already billed under the %s input is reused: no second call, identical plan',async variant=>{
   for(let i=0;i<3;i++)await seedIntelligence(store,i+1,texts[i],`publisher-${i}`);
-  const sl=await prepareSemanticShortlist(store,'feed-1',first,first.end),feedRecord=await store.getFeed('feed-1'),legacy=editorialPlannerState(sl,budget,feedRecord,false),modern=editorialPlannerState(sl,budget,feedRecord,true);
-  expect(legacy.communicationCapacity.maxStories).toBe(3);expect(legacy.instruction).not.toBe(modern.instruction);expect(modern.instruction.startsWith(legacy.instruction)).toBe(true);expect(legacy.candidates.some(c=>'publisherIds' in c)).toBe(false);
+  const sl=await prepareSemanticShortlist(store,'feed-1',first,first.end),feedRecord=await store.getFeed('feed-1'),legacy=editorialPlannerState(sl,budget,feedRecord,variant),modern=editorialPlannerState(sl,budget,feedRecord,'CURRENT');
+  expect(legacy.communicationCapacity.maxStories).toBe(3);expect(legacy.instruction).not.toBe(modern.instruction);expect(legacy.instruction).not.toBe(modern.instruction);expect(legacy.candidates.some(c=>'readerState' in c)).toBe(false);expect(variant==='V1'?legacy.candidates.some(c=>'publisherIds' in c):!legacy.candidates.some(c=>'publisherIds' in c)).toBe(true);
   const input={feedId:'feed-1',feedRevision:sl.feedRevision,evidenceRevisionIds:sl.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:'synthetic',budgetKey:`editorial:${sl.window.start}:${sl.window.end}`,state:boundedEditorialInput(legacy).inputState},id=await sha256(canonicalJson(input));
   const value=fallbackEditorialPlan(sl);// billed results retain the decoded plan
   await feedTransact(store,'feed-1',tx=>tx.write('semantic_results',id,{id,feedId:'feed-1',input,status:'SUCCEEDED',value,usage:{calls:1,costUsd:.001,reported:true},latencyMs:1,createdAt:first.end}));
