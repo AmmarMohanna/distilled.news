@@ -6,7 +6,7 @@ import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type
 import { articleUrl, record, string, timestamp } from './provider-normalize';
 
 /** Authorized backend execution binding. Worker code never spawns Python or stores sessions. */
-export interface SourceExecutionPort {execute(kind:'feedparser'|'telethon'|'telegram_resolve'|'google_resolve'|'extract'|'playwright',input:Record<string,unknown>,bounds?:{timeoutMs?:number}):Promise<unknown>}
+export interface SourceExecutionPort {execute(kind:'feedparser'|'telethon'|'telegram_resolve'|'google_resolve'|'google_feed'|'extract'|'playwright',input:Record<string,unknown>,bounds?:{timeoutMs?:number}):Promise<unknown>}
 export async function executeSource(port:SourceExecutionPort,kind:Parameters<SourceExecutionPort['execute']>[0],input:Record<string,unknown>,bounds?:{timeoutMs?:number}) {
   try {return await port.execute(kind,input,bounds);}catch{throw new SourceProviderError('TRANSIENT');}
 }
@@ -36,7 +36,16 @@ export class FeedSourceProvider implements SourceProvider {
   async fetch(input:SourceFetchRequest):Promise<ProviderPage>{
     const started=Date.now();
     const url=this.id==='google_rss'?buildGoogleNewsRssUrl(input.source.locator,{geo:input.source.region,language:input.source.language}):input.source.locator;
-    const r=await this.http.get(url,{accept:'application/rss+xml,application/atom+xml,application/xml'});requireFeed(r.status);
+    let r=await this.http.get(url,{accept:'application/rss+xml,application/atom+xml,application/xml'});
+    // Only transient transport/server failures may try the authorized private
+    // route. Preserve rate limits, authorization and policy refusals unchanged.
+    if(this.id==='google_rss'&&this.execution&&(r.status===0||r.status>=500)){
+      const feed=record(await executeSource(this.execution,'google_feed',{url},{timeoutMs:25_000}));
+      if(feed.status===200&&typeof feed.xml==='string'&&new TextEncoder().encode(feed.xml).length<=2_000_000){
+        r={status:200,headers:{},bytes:new TextEncoder().encode(feed.xml),telemetry:{requests:r.telemetry.requests+1,latencyMs:r.telemetry.latencyMs+Math.max(0,Number(feed.latencyMs)||0),providerCostUsd:0}};
+      }else requireFeed(Number(feed.status)||0);
+    }
+    requireFeed(r.status);
     let xml:string;try{xml=new TextDecoder('utf-8',{fatal:true}).decode(r.bytes);}catch{throw new SourceProviderError('MALFORMED');}
     if(/<!DOCTYPE|<!ENTITY/i.test(xml))throw new SourceProviderError('POLICY_REFUSAL');
     let entries:any[];

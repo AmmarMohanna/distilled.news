@@ -65,6 +65,27 @@ def extract(data):
             'publishedAt': result.get('date'), 'language': result.get('language')}
 
 
+def fetch_google_feed(data):
+    """Bounded public Google feed fallback; no publisher or arbitrary URL fetch."""
+    started = time.monotonic()
+    parsed = urlsplit(data.get('url', ''))
+    if parsed.scheme != 'https' or parsed.netloc != 'news.google.com' or parsed.path != '/rss/search' or len(parsed.query) > 2048 or parsed.fragment:
+        raise ValueError('INVALID_GOOGLE_FEED')
+    if os.environ.get('SOURCE_BROWSER_EGRESS_CONFIRMED') != 'true':
+        return {'error': 'UNAVAILABLE'}
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args): return None
+    public_url(data['url'])
+    try:
+        with urllib.request.build_opener(NoRedirect()).open(urllib.request.Request(data['url'], headers={'Accept': 'application/rss+xml,application/xml'}), timeout=10) as response:
+            body = response.read(2000001)
+            if len(body) > 2000000:
+                raise ValueError('GOOGLE_FEED_TOO_LARGE')
+            return {'status': response.status, 'xml': body.decode('utf-8'), 'requests': 1, 'latencyMs': int((time.monotonic() - started) * 1000)}
+    except urllib.error.HTTPError as error:
+        return {'status': error.code, 'requests': 1, 'latencyMs': int((time.monotonic() - started) * 1000)}
+
+
 def resolve_google_article(data):
     """Best-effort public Google redirect protocol; never fetch a publisher."""
     started, requests = time.monotonic(), 0
@@ -248,6 +269,8 @@ async def main():
         result = await resolve_telegram(inputs)
     elif kind == 'google_resolve':
         result = await asyncio.to_thread(resolve_google_article, inputs)
+    elif kind == 'google_feed':
+        result = await asyncio.to_thread(fetch_google_feed, inputs)
     elif kind == 'playwright':
         result = await browser(inputs)
     else:

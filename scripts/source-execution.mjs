@@ -12,7 +12,7 @@ export function createSourceExecution({python, environment={}, timeoutMs=60000, 
   for(const name of ['TELEGRAM_API_ID','TELEGRAM_API_HASH','TELEGRAM_SESSION_PATH','SOURCE_BROWSER_EGRESS_CONFIRMED'])if(environment[name])env[name]=environment[name];
   env.PYTHONIOENCODING='utf-8';
   return {execute(kind,input){
-    if(!['feedparser','telethon','telegram_resolve','google_resolve','extract','playwright'].includes(kind))return Promise.reject(new Error('INVALID_EXECUTION_KIND'));
+    if(!['feedparser','telethon','telegram_resolve','google_resolve','google_feed','extract','playwright'].includes(kind))return Promise.reject(new Error('INVALID_EXECUTION_KIND'));
     const payload=JSON.stringify({kind,input});
     if(Buffer.byteLength(payload)>8000000)return Promise.reject(new Error('EXECUTION_INPUT_TOO_LARGE'));
     return new Promise((resolve,reject)=>{

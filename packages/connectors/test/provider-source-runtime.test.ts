@@ -215,6 +215,17 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     expect(result.items.every(i=>i.representation==='LISTING_RESULT'&&i.contentCompleteness==='UNKNOWN')).toBe(true);
     expect(result.requests).toBe(7);
   });
+  it('uses the authorized private Google feed route after transient transport failure and preserves the exact query',async()=>{
+    const http:FeedHttpPort={get:vi.fn(async()=>({status:0,headers:{},bytes:new Uint8Array(),telemetry:{requests:3,latencyMs:10,providerCostUsd:0}}))};
+    const execution={execute:vi.fn(async()=>({status:200,xml:'<rss><channel><item><guid>google-id</guid><title>Result</title></item></channel></rss>',requests:1,latencyMs:5}))};
+    const result=await new FeedSourceProvider('google_rss',http,execution).fetch({...request,source:{family:'google_news',locator:'Lebanon electricity',language:'en',region:'US'}});
+    expect(execution.execute).toHaveBeenCalledWith('google_feed',{url:vi.mocked(http.get).mock.calls[0][0]},{timeoutMs:25000});
+    expect(result.items).toMatchObject([{sourceItemKey:'id:google-id',representation:'LISTING_RESULT'}]);expect(result.requests).toBe(4);
+  });
+  it.each([429,451,403])('does not route around Google rate, policy or authorization refusal (%s)',async status=>{
+    const http:FeedHttpPort={get:async()=>({status,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}})};
+    const execute=vi.fn();await expect(new FeedSourceProvider('google_rss',http,{execute}).fetch({...request,source:{family:'google_news',locator:'AI'}})).rejects.toThrow();expect(execute).not.toHaveBeenCalled();
+  });
   it('Telethon preserves numeric peer identity and proves oldest-first progress',async()=>{
     const execute=vi.fn(async()=>({channelId:'-100123',records:[{id:2,text:'Text',publishedAt:time}],orderedFromCheckpoint:true,exhausted:false}));
     const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute});

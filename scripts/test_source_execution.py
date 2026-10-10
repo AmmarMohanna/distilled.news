@@ -15,6 +15,12 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_google_feed_cannot_be_used_as_an_arbitrary_url_proxy(self):
+        for url in ['https://127.0.0.1/rss/search', 'https://news.google.com/other', 'https://user@news.google.com/rss/search', 'http://news.google.com/rss/search']:
+            with self.assertRaises(ValueError): runtime.fetch_google_feed({'url': url})
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'false'}):
+            self.assertEqual(runtime.fetch_google_feed({'url': 'https://news.google.com/rss/search?q=energy'})['error'], 'UNAVAILABLE')
+
     def test_google_resolution_stays_on_google_and_parses_only_the_expected_rpc(self):
         class Response:
             def __init__(self, body): self.body = body
