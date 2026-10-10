@@ -122,6 +122,23 @@ monthly spend, storage requirements or uptime guarantees.
 
 ## Remaining rollout gates
 
+### Subsequent X verification
+
+The October 10 X follow-up verified live NASA profile and `from:NASA lang:en`
+query collection through both TwitterAPI.io and Apify. The primary provider produced
+40 observations for each scope. Apify produced 20 profile observations and returned
+20 raw query records, all matching already accepted primary query posts; unchanged
+duplicates correctly produced no new query observations. Audited query replays added
+no paid operations or reservations. Added reserved ceilings were $0.800008, below
+the authorized $10 per source. These later reservations supersede the earlier study's
+statement that X reservations were unchanged; the earlier study itself remains accurate.
+See `X_QA_VERIFICATION_2026_10_10.md` for scope, test counts and limitations.
+Final deployment `42f17a4b-d7cb-4e38-968a-fa67974b667b` contains the X probe changes
+and preserves Outlook configuration. Remote audits after maintenance confirmed zero
+enabled sources/scopes and all five paid-provider limits at zero; cron remains disabled.
+
+### Outstanding gates
+
 1. Confirm receipt of the submitted Outlook verification message, complete its link
    and test password reset, then run a fresh frontend signup-to-new-edition test with
    the friend. Outlook sender authorization and QA deployment are now complete.

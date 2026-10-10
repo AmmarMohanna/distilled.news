@@ -166,6 +166,13 @@ bounded live results are documented in `SOURCES_QA_LIVE_2026_10_09.md`; QA sourc
 disabled and paid limits are zero. The production Wrangler config still references
 legacy resources and must not be deployed into the new account unchanged.
 
+The October 10 follow-up in `X_QA_VERIFICATION_2026_10_10.md` additionally verifies
+bounded live X profile and topic-query collection through TwitterAPI.io and Apify,
+accepted intake records, duplicate suppression and replay without added paid query
+operations. It does not establish exhaustive recall, automatic X fallback selection,
+fresh X publication or sustained polling capacity. QA test sources are paused after
+verification and the checked-in configuration keeps paid limits and cron disabled.
+
 The current Worker invokes `runConnectorMaintenance` from scheduled execution and
 uses the real durable intake adapter. Connector enrollment remains gated by enabled
 source IDs, downstream feed mappings, collection ownership, configured resources and
