@@ -1,7 +1,10 @@
 import {afterEach,beforeEach,describe,expect,it} from 'vitest';
 import {allocateFeasibleSelection,guaranteedStoryCount,storyCapacityBound,planningCapacity,type SelectionItem} from './planning-capacity';
 import {DEFAULT_BRIEFING_BUDGET,scoreAndSelect,type BriefingBudget} from './scoring';
-import {fallbackEditorialPlan,planCapacityFailures,prepareEditorialPlan,type EditorialPlanBody} from './editorial-plan';
+import {fallbackEditorialPlan,planCapacityFailures,prepareEditorialPlan,editorialPlannerState,EDITORIAL_PLAN_POLICY,type EditorialPlanBody} from './editorial-plan';
+import {boundedEditorialInput} from './editorial-transport';
+import {sha256} from '@distilled/contracts';
+import {canonicalJson} from '../v1-intake/canonical';
 import {compactEditorialInput} from './editorial-transport';
 import {prepareSemanticShortlist,type ShortlistCandidate,type ShortlistRecord} from './shortlist';
 import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
@@ -107,6 +110,17 @@ describe('end to end: planner, selection, writer-input admission and publication
   expect(new Set(facts).size).toBe(3);expect(facts.every(f=>texts.filter(t=>f.includes(t.replace(/\.$/,''))).length===1)).toBe(true);
   const edition=await publishSelection(store,'feed-1',selection.id,{now:()=>first.end});await projectEditionLedger(store,'feed-1',edition.id);
  },30000);
+ it('a planner result already billed under the former input is reused: no second call, identical plan',async()=>{
+  for(let i=0;i<3;i++)await seedIntelligence(store,i+1,texts[i],`publisher-${i}`);
+  const sl=await prepareSemanticShortlist(store,'feed-1',first,first.end),feedRecord=await store.getFeed('feed-1'),legacy=editorialPlannerState(sl,budget,feedRecord,false),modern=editorialPlannerState(sl,budget,feedRecord,true);
+  expect(legacy.communicationCapacity.maxStories).toBe(3);expect(legacy.instruction).not.toBe(modern.instruction);expect(modern.instruction.startsWith(legacy.instruction)).toBe(true);expect(legacy.candidates.some(c=>'publisherIds' in c)).toBe(false);
+  const input={feedId:'feed-1',feedRevision:sl.feedRevision,evidenceRevisionIds:sl.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:'synthetic',budgetKey:`editorial:${sl.window.start}:${sl.window.end}`,state:boundedEditorialInput(legacy).inputState},id=await sha256(canonicalJson(input));
+  const value=fallbackEditorialPlan(sl);// billed results retain the decoded plan
+  await feedTransact(store,'feed-1',tx=>tx.write('semantic_results',id,{id,feedId:'feed-1',input,status:'SUCCEEDED',value,usage:{calls:1,costUsd:.001,reported:true},latencyMs:1,createdAt:first.end}));
+  let calls=0;const strong={model:'synthetic',usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async()=>{calls++;throw Error('must not be called')}};
+  const plan=await prepareEditorialPlan(store,sl,budget,first.end,strong as any);
+  expect(calls).toBe(0);expect(plan.operationId).toBe(id);expect(plan.plannerSource).toBe('REAL_COMPARATIVE_MODEL');expect(plan.stories.filter(s=>s.decision==='SELECT')).toHaveLength(3);
+ },30000);
  it('selection refuses a plan that would exceed maxPerPublisher, even if the plan itself did not enforce it',async()=>{
   for(let i=0;i<3;i++)await seedIntelligence(store,i+1,texts[i],'publisher-same');
   const sl=await prepareSemanticShortlist(store,'feed-1',first,first.end),plan=await prepareEditorialPlan(store,sl,{...budget,maxPerPublisher:20},first.end);
@@ -139,7 +153,7 @@ describe('end to end: planner, selection, writer-input admission and publication
 });
 
 describe('retained staging windows: what actually limited coverage',()=>{
- const find=(o:any):any[]=>o&&typeof o==='object'?(Array.isArray(o.candidates)&&o.candidates[0]?.communicationCost?o.candidates:Object.values(o).flatMap(find)):[];
+ const find=(o:any):any[]=>{if(!o||typeof o!=='object')return [];if(Array.isArray(o.candidates)&&o.candidates[0]?.communicationCost)return o.candidates;for(const v of Object.values(o)){const found=find(v);if(found.length)return found}return []};
  const former=(list:any[])=>{let used=0,n=0;for(const c of list.map(c=>c.communicationCost.inputUnits).sort((a,b)=>b-a)){if(n>=budget.maxStories||used+c>cap)break;used+=c;n++}return n};
  it('overnight Hermes window: six selectable candidates; the former estimate allowed two but three genuinely fit',()=>{
   const list=find(hermes);expect(list).toHaveLength(6);
