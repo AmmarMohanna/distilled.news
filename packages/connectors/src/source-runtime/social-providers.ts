@@ -87,7 +87,7 @@ export class ApifySourceProvider implements SourceProvider {
     if(input.source.family==='google_news')return {queries:[input.source.locator],geo:input.source.region??'US',language:input.source.language??'en',maxItemsPerQuery:input.limit,maxQueries:1,dedupe:true,enableAnalysis:false,monitoringMode:false,
       publishedFrom:input.requestedBounds.startTime,publishedThrough:input.requestedBounds.endTime};
     if(input.source.family==='x_profile')return {from:validateAccount(input.source.locator),maxItems:input.limit,queryType:'Latest'};
-    if(input.source.family==='x_search')return {searchTerms:[input.source.locator],maxItems:input.limit,queryType:'Latest'};
+    if(input.source.family==='x_search')return {twitterContent:input.source.locator,maxItems:input.limit,queryType:'Latest'};
     if(input.source.family.startsWith('linkedin'))return {targetUrls:[input.source.locator],maxPosts:input.limit,scrapeComments:false,scrapeReactions:false};
     return {...input.source.actorInput,maxItems:input.limit};
   }

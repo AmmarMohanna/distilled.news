@@ -274,6 +274,14 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     await p.fetch({...request,continuation:{providerId:'x_apify',token:first.continuationToken!}},{...run,id:'next-run',sequence:2});
     expect(http.request.mock.calls.filter(c=>String(c[4]).includes('/actors/'))).toHaveLength(1);
   });
+  it('sends the exact approved X search in the tested actor query field with a bounded result count',async()=>{
+    const http={request:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{data:{id:'actorRun'}}}))};
+    const p=new ApifySourceProvider('x_apify',['x_search'],http,async()=> 'private-token',0.1);
+    await p.fetch({...request,source:{family:'x_search',locator:'from:NASA lang:en'},limit:20},run);
+    const call=http.request.mock.calls[0] as unknown as any[];
+    expect(JSON.parse(call[5].body)).toEqual({twitterContent:'from:NASA lang:en',maxItems:20,queryType:'Latest'});
+    expect(new URL(call[4]).searchParams.get('maxTotalChargeUsd')).toBe('0.1');
+  });
   it.each(['linkedin_company','linkedin_profile'] as const)('normalizes %s without inventing publication timestamps',family=>{
     const result=normalizeProviderRecords([{urn:'urn:li:activity:1',text:'Text',url:'https://www.linkedin.com/posts/example'}],family);
     expect(result[0].sourceItemKey).toBe('linkedin:urn:li:activity:1');expect(result[0].publishedAt).toBeUndefined();expect(result[0].contentCompleteness).toBe('UNKNOWN');
