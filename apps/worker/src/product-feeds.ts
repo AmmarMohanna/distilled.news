@@ -1,4 +1,3 @@
-import {HandoffError} from '@distilled/contracts';
 import {detectSourceInput,TESTED_ACTORS,HttpSourceExecution} from '@distilled/connectors';
 import type {Env,Repository} from './types';
 import type {BriefingConfig,BriefingEdition} from '@distilled/core';
@@ -20,13 +19,12 @@ export async function productPublicationState(env:Env,feedId:string):Promise<'wa
 }
 
 // This deployment opt-in admits only sources explicitly approved by an owner.
-// The existing ten-source runtime ceiling and paid-provider ceilings still apply.
+// Owner approval controls source admission; paid-provider ceilings still apply.
 export async function productRuntimeEnv(env:Env):Promise<Env> {
  if(env.PRODUCT_FEEDS_ENABLED!=='true')return env;
  const staticIds=(env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean);
- const rows=await env.DB.prepare("SELECT s.id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.collection_owner='connector' AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL ORDER BY s.id LIMIT 11").all<{id:string}>();
+ const rows=await env.DB.prepare("SELECT s.id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.collection_owner='connector' AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL ORDER BY s.id").all<{id:string}>();
  const ids=[...new Set([...staticIds,...rows.results.map(r=>r.id)])];
- if(ids.length>10)throw new HandoffError('SCOPE_DENIED');
  return {...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:ids.join(',')};
 }
 
@@ -75,15 +73,13 @@ export async function approveProductSource(env:Env,repo:Repository,feed:Briefing
   const verifiedInput=JSON.stringify({channelId:result.channelId,username:result.username,public:true});
   const source=await repo.upsertConfiguredSource({briefingId:feed.id,title:`@${result.username}`,provider:'telegram',kind:'telegram_channel',
    identityKey:result.channelId,username:result.username,sourceUrl:`https://t.me/${result.username}`,input:verifiedInput,enabled:true});
-  const admission=await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND (collection_owner='connector' OR (SELECT COUNT(*) FROM sources WHERE collection_owner='connector')<10)").bind(source.id).run();
-  if(!admission.meta.changes)throw new Error('This deployment has reached its ten-source collection limit.');
+  await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=?").bind(source.id).run();
   if(!feed.paused)await enrollV1Source(env.DB,source.id,feed.ownerAccountId,new Date().toISOString());
   return {sourceId:source.id,url:`https://t.me/${result.username}`,title:source.title,fetched:0,imported:0,queued:0,skipped:0};
  }
  if(plan.detected.kind==='web_page'&&(!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_TOKEN))throw new Error('Website extraction requires the source execution service.');
  const source=await repo.upsertConfiguredSource({briefingId:feed.id,title:plan.detected.title,provider:plan.detected.provider,kind:plan.detected.kind,username:'username' in plan.detected?plan.detected.username:undefined,sourceUrl:plan.sourceUrl,input:plan.input,actorId:plan.actorId,actorInput:'actorInput' in plan.detected?plan.detected.actorInput:undefined,enabled:true});
- const admission=await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND (collection_owner='connector' OR (SELECT COUNT(*) FROM sources WHERE collection_owner='connector')<10)").bind(source.id).run();
- if(!admission.meta.changes)throw new Error('This deployment has reached its ten-source collection limit.');
+ await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=?").bind(source.id).run();
  if(!feed.paused)await enrollV1Source(env.DB,source.id,feed.ownerAccountId,new Date().toISOString());
  return {sourceId:source.id,url:plan.canonicalUrl,title:source.title,fetched:0,imported:0,queued:0,skipped:0};
 }

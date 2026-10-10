@@ -156,7 +156,7 @@ const windowEndOf=(feed:{briefingSchedule?:unknown;briefingFrequency:string},now
 /** Relay uses durable pending jobs and edition/window identities on the existing queue. */
 export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<number> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') return 0;
- const sourceIds=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];if(sourceIds.length>10) return 0;
+ const sourceIds=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
  const feeds=new Set<string>();let sent=0;
  for(const id of sourceIds) {
   try {await synchronizeV1ProductSource(env.DB,id,now.toISOString())} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}

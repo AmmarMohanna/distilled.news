@@ -28,6 +28,12 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('continues maintenance with more than ten configured sources while fencing unapproved jobs',async()=>{
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS=Array.from({length:12},(_,i)=>`missing-${i}`).join(',');
+ await createConnectorRuntime(env).scheduler.schedule('denied-large-list',{...request,runId:'denied-large-list',scope:{...request.scope,feedSourceId:'unapproved'},source:{family:'website',locator:'https://example.com/article'}},new Date(0).toISOString(),['website_http']);
+ const result=await runConnectorMaintenance(env);
+ expect(result?.outcomes).toContainEqual(expect.objectContaining({scheduler:'provider',state:'CANCELLED'}));
+});
 it('drains a bounded slice of pending provider jobs without starting unauthorized calls',async()=>{
  env.V1_DOWNSTREAM_FEED_SOURCE_IDS='';env.SOURCE_POLL_MAX_JOBS_PER_TICK='4';
  const scheduler=createConnectorRuntime(env).scheduler;

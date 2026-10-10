@@ -782,7 +782,7 @@ export function createApp(options: AppOptions = {}) {
 
   app.post('/api/me/feeds', async c => {
     if(c.env.PRODUCT_FEEDS_ENABLED!=='true')return c.json({error:'Feed configuration is not enabled on this deployment.'},503);
-    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(120),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Enter a public website, feed, Telegram, X or LinkedIn link, or a news topic.")).min(1).max(5),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleSchema.shape.durationMinutes,briefingTimeOfDay:liveScheduleSchema.shape.deliveryAnchor,briefingTimezone:liveScheduleSchema.shape.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
+    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(120),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Enter a public website, feed, Telegram, X or LinkedIn link, or a news topic.")).min(1),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleSchema.shape.durationMinutes,briefingTimeOfDay:liveScheduleSchema.shape.deliveryAnchor,briefingTimezone:liveScheduleSchema.shape.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
     if(input.updateIntervalMinutes===1440&&!input.briefingTimeOfDay)return c.json({error:'Choose a Daily delivery time.'},400);
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
@@ -792,8 +792,6 @@ export function createApp(options: AppOptions = {}) {
     if(plans.some(plan=>plan.detected.kind==='web_page')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Website extraction requires the source execution service.'},400);
     if(plans.some(plan=>plan.detected.kind==='telegram_channel')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_URL||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Telegram collection requires the private source execution service.'},400);
     const prior=existing?await repo.listSources(existing.id):[];
-    const count=await c.env.DB.prepare("SELECT COUNT(*) AS n FROM sources WHERE collection_owner='connector'").first<{n:number}>();
-    if((count?.n??0)+plans.filter(plan=>!prior.some(s=>s.provider===plan.detected.provider&&s.kind===plan.detected.kind&&((plan.sourceUrl&&s.sourceUrl===plan.sourceUrl)||(!plan.sourceUrl&&s.input===plan.input)))).length>10)return c.json({error:'This deployment has reached its ten-source collection limit.'},409);
     const feeds=await repo.listBriefings(owner.id);
     const base=normalizeUsername(input.title);let slug=existing?.slug??base,index=2;
     while(!existing&&feeds.some(f=>f.slug===slug))slug=`${base}-${index++}`;

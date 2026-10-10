@@ -7,6 +7,25 @@ import {prepareProductSourceInput,productRuntimeEnv,productPublicationState} fro
 import {V1IntakeStore} from './v1-intake/store';
 import type {Env} from './types';
 
+it('admits more than five sources per feed and more than ten across the deployment',async()=>{
+ const ctx=await createIntakeDatabase({product:true});
+ try {
+  const repo=new D1Repository(ctx.db),owner=await repo.createAccount({email:'uncapped@example.com',username:'uncapped',role:'user',passwordHash:'unused',emailVerifiedAt:new Date().toISOString()});
+  const env={DB:ctx.db,ADMIN_SESSION_SECRET:'test-secret',PRODUCT_FEEDS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true'} as Env;
+  const app=createApp({repository:repo}),cookie=`dn_session=${await createSession(env.ADMIN_SESSION_SECRET!,owner)}`;
+  const input={id:'uncapped-feed',title:'Source coverage',interestProfile:'Technology',sourceInputs:Array.from({length:12},(_,i)=>`https://example.com/feed-${i}.xml`),publicFeedEnabled:true,updateIntervalMinutes:120,briefingTimezone:'Asia/Beirut',language:'en'};
+  const save=(body:unknown)=>app.request('/api/me/feeds',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify(body)},env);
+  expect((await save(input)).status).toBe(200);
+  expect((await save(input)).status).toBe(200);
+  expect(await repo.listSources(input.id)).toHaveLength(12);
+  expect((await save({...input,id:'second-uncapped-feed',sourceInputs:['https://example.com/extra.xml']})).status).toBe(200);
+  expect((await productRuntimeEnv(env)).V1_DOWNSTREAM_FEED_SOURCE_IDS?.split(',')).toHaveLength(13);
+  const saved=(await repo.getBriefingById(input.id))!;
+  await repo.upsertBriefing({...saved,paused:true});
+  expect((await productRuntimeEnv(env)).V1_DOWNSTREAM_FEED_SOURCE_IDS?.split(',')).toHaveLength(1);
+ }finally{await ctx.dispose()}
+},60000);
+
 it('saves explicit owner sources into connector approval, retries without duplicates and fences edits',async()=>{
  const ctx=await createIntakeDatabase({product:true});
  try {

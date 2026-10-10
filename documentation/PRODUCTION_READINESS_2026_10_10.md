@@ -5,6 +5,14 @@ declare the complete live user journey verified before that test.
 
 ## Implemented in this change
 
+- Follow-up: removed the five-source feed-editor quota and deployment-wide
+  ten-source admission/collection/dispatch quota. Owner approval, paused/disabled
+  source filtering, provider spending budgets, input validation and bounded job
+  execution still apply. This removes source-count restrictions, not provider or
+  Cloudflare service limits. Follow-up validation: 53 affected tests passed across
+  five files, Worker typecheck and QA dry-run passed. Deployed to isolated QA as
+  version `2c55caee-ce7f-4d3c-bc49-80f516c0d871`; regular cron remains disabled.
+
 - Provider jobs use a five-minute renewable lease. Renewal and final completion
   are fenced by job version and an unexpired lease. A worker that loses its lease
   cannot acknowledge the job. Existing durable paid-operation replay remains in

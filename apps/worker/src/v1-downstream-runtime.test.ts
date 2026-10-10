@@ -29,10 +29,11 @@ it('lost send is recovered by bounded existing queue relay and real HTTP extract
  expect(calls).toBe(1);expect(await dispatchV1Acquisitions(env)).toBe(0);
  expect(await new V1IntakeStore(ctx.db).list('revisions','feed-source-1')).toHaveLength(1);
 });
-it('oversized canary configuration fails closed for intake and dispatch consistently',async()=>{
- const oversized={...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:['feed-source-1',...Array.from({length:10},(_,i)=>`source-${i}`)].join(',')};
- await expect(acceptV1Handoff(oversized,batchFixture())).rejects.toMatchObject({code:'SCOPE_DENIED'});
- expect(await dispatchV1Acquisitions(oversized)).toBe(0);expect(sent).toHaveLength(0);
+it('larger source lists admit approved intake and dispatch while retaining approval checks',async()=>{
+ const expanded={...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:['feed-source-1',...Array.from({length:10},(_,i)=>`source-${i}`)].join(',')};
+ await acceptV1Handoff(expanded,batchFixture());
+ expect(await dispatchV1Acquisitions(expanded)).toBe(1);expect(sent).toHaveLength(1);
+ await expect(acceptV1Handoff({...expanded,V1_DOWNSTREAM_FEED_SOURCE_IDS:'unapproved'},batchFixture())).rejects.toMatchObject({code:'SCOPE_DENIED'});
 });
 it('registered comparable revision schemes order correctly; unknown schemes remain unresolved',async()=>{
  const policy=createV1RuntimePolicy(),ordering=await policy.orderingFor(batchFixture().observations[0]);
