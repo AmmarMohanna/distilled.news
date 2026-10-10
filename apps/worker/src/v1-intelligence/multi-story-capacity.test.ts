@@ -62,6 +62,17 @@ describe('candidate-specific feasibility replaces the worst-case cardinality est
   const r=allocateFeasibleSelection([item('A',1500,.9,{publisherIds:['p']}),item('B',1500,.8,{publisherIds:['p']}),item('C',1500,.7,{publisherIds:['p']}),item('D',1500,.2,{publisherIds:['q']})],budget);
   expect([...r.accepted].sort()).toEqual(['A','B','D']);expect(r.rejected.get('C')).toBe('PUBLISHER_CAPACITY');
  });
+ it('protected publisher exceptions agree across validation and allocation without bypassing hard limits',()=>{
+  const items=[item('A',1000,.9,{publisherIds:['p'],protectedItem:true,order:0}),item('B',1000,.8,{publisherIds:['p'],protectedItem:true,order:1}),item('C',1000,.7,{publisherIds:['p'],protectedItem:true,order:2}),item('D',1000,.6,{publisherIds:['p'],order:3})];
+  const r=allocateFeasibleSelection(items,budget);expect([...r.accepted]).toEqual(['A','B','C']);expect(r.rejected.get('D')).toBe('PUBLISHER_CAPACITY');
+  const sl={candidates:items.map(i=>({targetVersionId:i.id,protectedReasons:i.protectedItem?['CORRECTION_OBLIGATION']:[],publisherIds:i.publisherIds,communicationCost:i.cost}))} as unknown as ShortlistRecord;
+  const body={stories:items.map(i=>({targetVersionId:i.id,decision:'SELECT',treatment:i.treatment,order:i.order})),obligations:[]} as unknown as EditorialPlanBody;
+  expect(planCapacityFailures(body,sl,budget)).toEqual([{targetVersionId:'D',reason:'PUBLISHER_CAPACITY'}]);
+  expect(allocateFeasibleSelection(items,{...budget,maxStories:2}).rejected.get('C')).toBe('STORY_CAPACITY');
+  expect(allocateFeasibleSelection(items,{...budget,maxInputTokens:5500}).rejected.get('B')).toBe('INPUT_CAPACITY');
+  expect(allocateFeasibleSelection(items,{...budget,maxReadingWords:60}).rejected.get('B')).toBe('WORD_CAPACITY');
+  expect(allocateFeasibleSelection(items,{...budget,maxEvidenceInspections:1}).rejected.get('B')).toBe('EVIDENCE_CAPACITY');
+ });
  it('5b. a multi-publisher story is not refused merely because a publisher is not saturated',()=>{
   const r=allocateFeasibleSelection([item('A',1500,.9,{publisherIds:['p','q']}),item('B',1500,.8,{publisherIds:['q','r']})],budget);expect(r.accepted.size).toBe(2);
  });

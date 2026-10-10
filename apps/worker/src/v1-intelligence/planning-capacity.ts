@@ -40,10 +40,10 @@ export const itemWords=(i:Pick<SelectionItem,'cost'|'treatment'>)=>i.treatment==
 interface Usage {stories:number;input:number;evidence:number;words:number;publishers:Map<string,number>}
 const emptyUsage=():Usage=>({stories:0,input:0,evidence:0,words:0,publishers:new Map()}),cloneUsage=(u:Usage):Usage=>({...u,publishers:new Map(u.publishers)});
 /** The single admission rule shared by plan validation, deterministic allocation and tests. Publisher rule mirrors ordinary selection:
- * a story is refused when any of its publishers already supplies maxPerPublisher selected stories. */
+ * ordinary stories are refused at maxPerPublisher; protected work is exempt from this diversity limit only and still counts. */
 export function capacityReason(u:Usage,i:SelectionItem,budget:BriefingBudget):CapacityReason|undefined {
  const capacity=planningCapacity(budget);
- return u.stories>=capacity.maxStories?'STORY_CAPACITY':u.input+i.cost.inputUnits>capacity.maxInputUnits?'INPUT_CAPACITY':u.evidence+i.cost.evidenceCount>capacity.maxEvidenceInspections?'EVIDENCE_CAPACITY':u.words+itemWords(i)>capacity.maxReadingWords?'WORD_CAPACITY':i.publisherIds.some(p=>(u.publishers.get(p)??0)>=budget.maxPerPublisher)?'PUBLISHER_CAPACITY':undefined;
+ return u.stories>=capacity.maxStories?'STORY_CAPACITY':u.input+i.cost.inputUnits>capacity.maxInputUnits?'INPUT_CAPACITY':u.evidence+i.cost.evidenceCount>capacity.maxEvidenceInspections?'EVIDENCE_CAPACITY':u.words+itemWords(i)>capacity.maxReadingWords?'WORD_CAPACITY':!i.protectedItem&&i.publisherIds.some(p=>(u.publishers.get(p)??0)>=budget.maxPerPublisher)?'PUBLISHER_CAPACITY':undefined;
 }
 function admit(u:Usage,i:SelectionItem){u.stories++;u.input+=i.cost.inputUnits;u.evidence+=i.cost.evidenceCount;u.words+=itemWords(i);for(const p of new Set(i.publisherIds))u.publishers.set(p,(u.publishers.get(p)??0)+1)}
 export const EXHAUSTIVE_SELECTION_LIMIT=16;
