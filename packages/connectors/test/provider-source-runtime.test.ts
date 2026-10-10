@@ -322,6 +322,7 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const http:FeedHttpPort={get:vi.fn(async()=>({status:0,headers:{},bytes:new Uint8Array(),telemetry:{requests:3,latencyMs:10,providerCostUsd:0}}))};
     const execution={execute:vi.fn(async()=>({status:200,xml:'<rss><channel><item><guid>google-id</guid><title>Result</title></item></channel></rss>',requests:1,latencyMs:5}))};
     const result=await new FeedSourceProvider('google_rss',http,execution).fetch({...request,source:{family:'google_news',locator:'Lebanon electricity',language:'en',region:'US'}});
+    expect(http.get).toHaveBeenCalledWith(expect.stringContaining('news.google.com/rss/search'),expect.anything(),{attempts:1,timeoutMs:5000});
     expect(execution.execute).toHaveBeenCalledWith('google_feed',{url:vi.mocked(http.get).mock.calls[0][0]},{timeoutMs:25000});
     expect(result.items).toMatchObject([{sourceItemKey:'id:google-id',representation:'LISTING_RESULT'}]);expect(result.requests).toBe(4);
   });

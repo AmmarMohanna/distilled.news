@@ -36,7 +36,11 @@ export class FeedSourceProvider implements SourceProvider {
   async fetch(input:SourceFetchRequest):Promise<ProviderPage>{
     const started=Date.now();
     const url=this.id==='google_rss'?buildGoogleNewsRssUrl(input.source.locator,{geo:input.source.region,language:input.source.language}):input.source.locator;
-    let r=await this.http.get(url,{accept:'application/rss+xml,application/atom+xml,application/xml'});
+    // With an authorized private Google route, one short public attempt is
+    // enough. Three long public timeouts consumed most of the QA request before
+    // the working private feed/redirect path could finish.
+    let r=await this.http.get(url,{accept:'application/rss+xml,application/atom+xml,application/xml'},
+      this.id==='google_rss'&&this.execution?{attempts:1,timeoutMs:5_000}:undefined);
     // Only transient transport/server failures may try the authorized private
     // route. Preserve rate limits, authorization and policy refusals unchanged.
     if(this.id==='google_rss'&&this.execution&&(r.status===0||r.status>=500)){

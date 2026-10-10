@@ -65,10 +65,12 @@ class RuntimeTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 runtime.parse_feed({'xml': '<!DOCTYPE rss><rss/>', 'url': 'https://example.com'})
 
-    def run_telegram(self, recheck=False, deleted=False, authorized=True, interrupted=False, edited=False, after_id=1):
+    def run_telegram(self, recheck=False, deleted=False, authorized=True, interrupted=False, edited=False, after_id=1, album=False):
         calls = []
         stamp = datetime.datetime(2026, 10, 4, tzinfo=datetime.timezone.utc)
         messages = [types.SimpleNamespace(id=i, message='Text', date=stamp, edit_date=None) for i in (2, 3, 4)]
+        if album:
+            messages = [types.SimpleNamespace(id=i,message='Album caption' if i==2 else '',date=stamp,edit_date=None) for i in (2,3,4)]
         class Client:
             def __init__(self, *args, **kwargs):
                 pass
@@ -119,10 +121,17 @@ class RuntimeTests(unittest.TestCase):
 
     def test_telegram_cold_start_selects_recent_slice_without_backfill_continuation(self):
         result, calls = self.run_telegram(after_id=0)
-        self.assertEqual(calls[0], {'limit': 2})
+        self.assertEqual(calls[0], {'limit': 12})
         self.assertTrue(result['bootstrapRecent'])
         self.assertTrue(result['exhausted'])
         self.assertEqual([r['id'] for r in result['records']], [3, 4])
+
+    def test_telegram_bootstrap_includes_caption_before_trailing_album_media(self):
+        result, calls = self.run_telegram(after_id=0, album=True)
+        self.assertEqual(calls[0], {'limit': 12})
+        self.assertEqual([r['id'] for r in result['records']], [2])
+        self.assertEqual(result['records'][0]['text'], 'Album caption')
+        self.assertTrue(result['bootstrapRecent'])
 
     def test_google_batch_correlates_results_and_retains_individual_failures(self):
         urls = ['https://news.google.com/rss/articles/one', 'https://news.google.com/rss/articles/two']

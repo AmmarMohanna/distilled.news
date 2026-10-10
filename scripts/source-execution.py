@@ -356,8 +356,12 @@ async def telegram(data):
         elif data['afterId'] == 0 and data.get('startTime') is None:
             # Cold starts deliberately select recent posts, not the channel's
             # first-ever messages. This is a partial historical window.
-            messages = await client.get_messages(peer, limit=limit)
-            messages = sorted((m for m in messages if m is not None), key=lambda m: m.id)
+            # An album may end in up to ten captionless media messages. Read a
+            # bounded lookback and select recent textual posts/captions instead
+            # of letting the trailing media consume the entire bootstrap slice.
+            recent = [m for m in await client.get_messages(peer, limit=min(500, limit + 10)) if m is not None]
+            textual = [m for m in recent if (m.message or '').strip()]
+            messages = sorted((textual or recent)[:limit], key=lambda m: m.id)
             ordered, exhausted = True, True
         else:
             # Read oldest unseen first; a latest-N slice would skip a busy channel's backlog.

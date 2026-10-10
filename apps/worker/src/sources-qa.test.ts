@@ -1,6 +1,10 @@
 import {beforeEach,it,expect,vi} from 'vitest';
-const mocks=vi.hoisted(()=>({collect:vi.fn(),budgets:vi.fn(),scope:vi.fn(),source:vi.fn(),maintenance:vi.fn()}));
+const mocks=vi.hoisted(()=>({collect:vi.fn(),budgets:vi.fn(),scope:vi.fn(),source:vi.fn(),maintenance:vi.fn(),sync:vi.fn(),recover:vi.fn(),acquisitions:vi.fn(),intelligence:vi.fn()}));
 vi.mock('./staging',()=>({default:{fetch:()=>new Response('site'),scheduled:vi.fn(),queue:vi.fn()}}));
+vi.mock('./v1-intelligence/product',()=>({synchronizeV1ProductSource:mocks.sync}));
+vi.mock('./qa-provider-recovery',()=>({recoverQaProviderBatch:mocks.recover}));
+vi.mock('./v1-downstream-runtime',()=>({dispatchV1Acquisitions:mocks.acquisitions}));
+vi.mock('./v1-intelligence/runtime',()=>({dispatchV1Intelligence:mocks.intelligence}));
 vi.mock('./index',()=>({runScheduledMaintenance:mocks.maintenance}));
 vi.mock('./product-feeds',()=>({productRuntimeEnv:async(env:unknown)=>env}));
 vi.mock('./connector-runtime',()=>({createConnectorRuntime:()=>({collect:mocks.collect}),configureConnectorBudgets:mocks.budgets}));
@@ -11,7 +15,7 @@ import type {Env} from './types';
 const token='test-maintenance-token-01234567890123456789';
 let env:Env,first:ReturnType<typeof vi.fn>;
 beforeEach(()=>{
- vi.clearAllMocks();first=vi.fn(async()=>({briefing_id:'feed'}));
+ vi.clearAllMocks();mocks.sync.mockReset().mockResolvedValue(undefined);first=vi.fn(async()=>({briefing_id:'feed'}));
  env={SOURCE_QA_MAINTENANCE_TOKEN:token,DB:{prepare:()=>({bind:()=>({first})})}} as unknown as Env;
  mocks.scope.mockResolvedValue({feedId:'feed',sourceId:'canonical-source',feedRevision:3,enabled:true});
  mocks.source.mockReturnValue({source:{family:'linkedin_company',locator:'https://www.linkedin.com/company/nasa/'},limit:20});
@@ -52,4 +56,47 @@ it('replays a saved snapshot slice under the same run without a new provider pag
  expect(mocks.collect.mock.calls[1]).toEqual([expect.objectContaining({runId:run}),['linkedin_apify'],20]);
  for(const snapshotOffset of [-1,1,10001,'20'])expect((await probe('linkedin_apify',undefined,{snapshotOffset})).status).toBe(400);
  expect(mocks.collect).toHaveBeenCalledTimes(2);
+});
+
+import {HandoffError} from '@distilled/contracts';
+it('reports typed intake failures without exposing arbitrary exception text',async()=>{
+ mocks.collect.mockRejectedValue(new HandoffError('INVALID_REQUEST'));
+ expect(await (await probe('linkedin_apify')).json()).toEqual({error:'INVALID_REQUEST'});
+ mocks.collect.mockRejectedValue(new Error('provider response contains a private token'));
+ expect(await (await probe('linkedin_apify')).json()).toEqual({error:'PROBE_FAILED'});
+});
+
+it('bounds Telegram repairs to the approved channel and rejects other provider repairs',async()=>{
+ expect((await probe('linkedin_apify',undefined,{recheckItemKeys:['telegram:-100123:5']})).status).toBe(400);
+ mocks.source.mockReturnValue({source:{family:'telegram',channelId:'-100123',locator:'SpaceXFeed'},limit:3});
+ expect((await probe('telegram_telethon',undefined,{recheckItemKeys:['telegram:-100123:5']})).status).toBe(200);
+ expect(mocks.collect).toHaveBeenCalledWith(expect.objectContaining({recheckItemKeys:['telegram:-100123:5']}),['telegram_telethon'],0);
+ for(const keys of [['telegram:-100999:5'],['telegram:-100123:5','telegram:-100123:5'],['telegram:-100123:0'],[]])
+   expect((await probe('telegram_telethon',undefined,{recheckItemKeys:keys})).status).toBe(400);
+});
+
+it('synchronizes source revision before freezing a paid probe request',async()=>{
+ mocks.sync.mockImplementation(async()=>mocks.scope.mockResolvedValue({feedId:'feed',sourceId:'canonical-source',feedRevision:10,enabled:true}));
+ expect((await probe('linkedin_apify')).status).toBe(200);
+ expect(mocks.collect).toHaveBeenCalledWith(expect.objectContaining({configurationRevision:10}),['linkedin_apify'],0);
+});
+it('cached recovery invokes current-policy intake without the live collector',async()=>{
+ mocks.recover.mockResolvedValue({receipts:[{decision:'ACCEPTED'}]});
+ const response=await probe('linkedin_apify',undefined,{replayBatchKey:'a'.repeat(64)});
+ expect(response.status).toBe(200);expect(await response.json()).toMatchObject({recovered:true,receipts:1});
+ expect(mocks.collect).not.toHaveBeenCalled();
+ expect(mocks.recover).toHaveBeenCalledWith(env,expect.objectContaining({configurationRevision:3}),'linkedin_apify','a'.repeat(64));
+});
+
+it('downstream-only relay stays within approved feed sources and does not collect',async()=>{
+ const relayEnv={...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:'allowed-source',DB:{prepare:()=>({bind:()=>({all:async()=>({results:[{id:'allowed-source'},{id:'unapproved-source'}]})})})}} as unknown as Env;
+ mocks.acquisitions.mockResolvedValue(5);mocks.intelligence.mockResolvedValue(2);
+ const request=()=>new Request('https://qa.invalid/_qa/drain-feed',{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify({feedId:'feed'})});
+ const response=await qa.fetch(request(),relayEnv,{} as ExecutionContext);
+ expect(await response.json()).toEqual({acquisitions:5,intelligence:2});
+ expect(mocks.acquisitions).toHaveBeenCalledWith(expect.objectContaining({V1_DOWNSTREAM_FEED_SOURCE_IDS:'allowed-source'}));
+ expect(mocks.intelligence).toHaveBeenCalledWith(expect.objectContaining({V1_DOWNSTREAM_FEED_SOURCE_IDS:'allowed-source'}));
+ expect(mocks.collect).not.toHaveBeenCalled();expect(mocks.maintenance).not.toHaveBeenCalled();
+ const denied=await qa.fetch(request(),{...relayEnv,V1_DOWNSTREAM_FEED_SOURCE_IDS:'other'} as Env,{} as ExecutionContext);
+ expect(denied.status).toBe(404);expect(mocks.acquisitions).toHaveBeenCalledTimes(1);
 });
