@@ -202,6 +202,19 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     await new FeedSourceProvider('google_rss',http).fetch({...request,limit:30,source:{family:'google_news',locator:'AI'}});
     expect(http.get).toHaveBeenCalledTimes(9);
   });
+  it('resolves modern Google redirects through the private helper without fetching publisher destinations',async()=>{
+    const links=Array.from({length:5},(_,i)=>`https://news.google.com/rss/articles/opaque${i}`);
+    const xml=`<rss><channel>${links.map((link,i)=>`<item><guid>${i}</guid><link>${link}</link><title>Result</title></item>`).join('')}</channel></rss>`;
+    const http:FeedHttpPort={get:vi.fn(async url=>({status:url.includes('/rss/search')?200:302,headers:{location:links[0]},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
+    const execution={execute:vi.fn(async(_kind:string,input:Record<string,unknown>)=>({url:input.url===links[1]?'https://127.0.0.1/private':'https://publisher.example/article',requests:2,latencyMs:2}))};
+    const result=await new FeedSourceProvider('google_rss',http,execution).fetch({...request,limit:30,source:{family:'google_news',locator:'AI'}});
+    expect(result.items.map(i=>i.url)).toEqual(['https://publisher.example/article',links[1],links[2],links[3],links[4]]);
+    expect(execution.execute).toHaveBeenCalledTimes(2);
+    expect(execution.execute).toHaveBeenCalledWith('google_resolve',{url:links[0]},{timeoutMs:35000});
+    expect(vi.mocked(http.get).mock.calls.every(([url])=>new URL(url).hostname==='news.google.com')).toBe(true);
+    expect(result.items.every(i=>i.representation==='LISTING_RESULT'&&i.contentCompleteness==='UNKNOWN')).toBe(true);
+    expect(result.requests).toBe(7);
+  });
   it('Telethon preserves numeric peer identity and proves oldest-first progress',async()=>{
     const execute=vi.fn(async()=>({channelId:'-100123',records:[{id:2,text:'Text',publishedAt:time}],orderedFromCheckpoint:true,exhausted:false}));
     const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute});

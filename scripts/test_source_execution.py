@@ -1,6 +1,7 @@
 """Synthetic execution tests; no provider credentials, imports or network required."""
 import asyncio
 import datetime
+import json
 import importlib.util
 import tempfile
 import types
@@ -14,6 +15,35 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_google_resolution_stays_on_google_and_parses_only_the_expected_rpc(self):
+        class Response:
+            def __init__(self, body): self.body = body
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self, limit): return self.body[:limit]
+        calls = []
+        def open_request(request, timeout):
+            calls.append(request)
+            self.assertEqual(timeout, 10)
+            if request.get_method() == 'POST':
+                return Response((")]}'\n\n" + json.dumps([['wrb.fr', 'Fbv4je', json.dumps(['garturlres', 'https://publisher.example/article'])]])).encode())
+            return Response(b'<div data-n-a-sg="signed_public_value" data-n-a-ts="1234"></div>')
+        opener = types.SimpleNamespace(open=open_request)
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=opener):
+            result = runtime.resolve_google_article({'url': 'https://news.google.com/rss/articles/CBMiabc'})
+        self.assertEqual(result['url'], 'https://publisher.example/article')
+        self.assertEqual(result['requests'], 2)
+        self.assertEqual([runtime.urlsplit(r.full_url).hostname for r in calls], ['news.google.com'] * 2)
+
+    def test_google_resolution_rejects_private_or_changed_protocol_without_fetching_a_publisher(self):
+        with self.assertRaises(ValueError):
+            runtime.resolve_google_article({'url': 'https://127.0.0.1/articles/CBMiabc'})
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'true'}), patch.object(runtime, 'public_url', side_effect=ValueError('NONPUBLIC_ADDRESS')), patch.object(runtime.urllib.request, 'build_opener') as opener:
+            result = runtime.resolve_google_article({'url': 'https://news.google.com/rss/articles/CBMiabc'})
+            self.assertEqual(result['error'], 'UNAVAILABLE')
+            self.assertEqual(result['requests'], 0)
+            opener.return_value.open.assert_not_called()
+
     def test_feedparser_identity_without_guid_matches_native_url_key(self):
         entry = {'link': 'https://publisher.example/post', 'summary': '<p>Hello &amp; world</p>'}
         fake = types.SimpleNamespace(parse=lambda xml: types.SimpleNamespace(bozo=False, entries=[entry]))

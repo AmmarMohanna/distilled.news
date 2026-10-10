@@ -8,8 +8,11 @@ import os
 import re
 import socket
 import sys
+import time
+import urllib.request
+import urllib.error
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 
 
 def iso(value):
@@ -60,6 +63,66 @@ def extract(data):
         result = result.as_dict()
     return {'body': result.get('text', ''), 'title': result.get('title'),
             'publishedAt': result.get('date'), 'language': result.get('language')}
+
+
+def resolve_google_article(data):
+    """Best-effort public Google redirect protocol; never fetch a publisher."""
+    started, requests = time.monotonic(), 0
+    parsed = urlsplit(data.get('url', ''))
+    match = re.fullmatch(r'/(?:rss/)?articles/([A-Za-z0-9_-]{1,2000})', parsed.path)
+    if parsed.scheme != 'https' or parsed.netloc != 'news.google.com' or not match:
+        raise ValueError('INVALID_GOOGLE_ARTICLE')
+    if os.environ.get('SOURCE_BROWSER_EGRESS_CONFIRMED') != 'true':
+        return {'error': 'UNAVAILABLE', 'requests': 0, 'latencyMs': 0}
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args):
+            return None
+    opener = urllib.request.build_opener(NoRedirect())
+    def read(request):
+        nonlocal requests
+        public_url(request.full_url)
+        requests += 1
+        with opener.open(request, timeout=10) as response:
+            body = response.read(1000001)
+            if len(body) > 1000000:
+                raise ValueError('GOOGLE_RESPONSE_TOO_LARGE')
+            return body.decode('utf-8')
+    try:
+        url = 'https://news.google.com/rss/articles/' + match[1] + '?hl=en-US&gl=US&ceid=US:en'
+        try:
+            page = read(urllib.request.Request(url))
+        except urllib.error.HTTPError as error:
+            location = error.headers.get('Location', '')
+            target = urlsplit(location)
+            if error.code not in (301, 302, 303, 307, 308) or target.netloc != 'news.google.com' or target.scheme != 'https' or not re.fullmatch(r'/(?:rss/)?articles/' + re.escape(match[1]), target.path):
+                raise ValueError('GOOGLE_REDIRECT_DENIED')
+            page = read(urllib.request.Request(location))
+        signature = re.search(r'data-n-a-sg="([A-Za-z0-9_-]{1,300})"', page)
+        timestamp = re.search(r'data-n-a-ts="(\d{1,16})"', page)
+        if not signature or not timestamp:
+            raise ValueError('GOOGLE_PROTOCOL_CHANGED')
+        # This is a public redirect protocol. Unknown responses stay unresolved.
+        context = [['X', 'X', ['X', 'X'], None, None, 1, 1, 'US:en', None, 1, None, None, None, None, None, 0, 1], 'X', 'X', 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0]
+        argument = json.dumps(['garturlreq', context, match[1], int(timestamp[1]), signature[1]], separators=(',', ':'))
+        payload = json.dumps([[['Fbv4je', argument, None, 'generic']]], separators=(',', ':'))
+        response = read(urllib.request.Request('https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je',
+            data=urlencode({'f.req': payload}).encode(), headers={'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8'}, method='POST'))
+        for line in response.splitlines():
+            try:
+                rows = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(rows, list):
+                continue
+            for row in rows:
+                if not isinstance(row, list) or len(row) < 3 or row[:2] != ['wrb.fr', 'Fbv4je'] or not isinstance(row[2], str):
+                    continue
+                decoded = json.loads(row[2])
+                if isinstance(decoded, list) and len(decoded) > 1 and decoded[0] == 'garturlres' and isinstance(decoded[1], str):
+                    return {'url': decoded[1], 'requests': requests, 'latencyMs': int((time.monotonic() - started) * 1000)}
+        raise ValueError('GOOGLE_PROTOCOL_CHANGED')
+    except Exception:
+        return {'error': 'UNAVAILABLE', 'requests': requests, 'latencyMs': int((time.monotonic() - started) * 1000)}
 
 
 async def telegram(data):
@@ -183,6 +246,8 @@ async def main():
         result = await telegram(inputs)
     elif kind == 'telegram_resolve':
         result = await resolve_telegram(inputs)
+    elif kind == 'google_resolve':
+        result = await asyncio.to_thread(resolve_google_article, inputs)
     elif kind == 'playwright':
         result = await browser(inputs)
     else:

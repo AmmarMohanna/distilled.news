@@ -76,6 +76,10 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
   const row=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL`).bind(id).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;owner_account_id:string}>();
   if(!row)continue;
   const approved=productConnectorSource(row);if(!approved)continue;
+  // Do not transfer a source away from its working owner until the private
+  // execution binding required by this connector is configured.
+  if(['telegram','website'].includes(approved.source.family)&&
+    !(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE))continue;
   // With no funded provider, skip new paid poll windows instead of accumulating
   // permanently blocked jobs. Existing saved jobs remain available for replay.
   const paidFamily=approved.source.family;

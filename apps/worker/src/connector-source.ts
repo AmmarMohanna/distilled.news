@@ -13,7 +13,8 @@ export function productConnectorSource(p:{provider:string;kind:string;source_url
   return {source:{family:'website',locator:url},canonicalUrl:url,identity:{type:'website',canonicalUrl:url},limit:1};
  }
  if(p.provider==='rss'&&p.kind==='rss_feed'&&p.source_url){
-  const url=new URL(p.source_url).href;new WorkerPublicSourceFetch(url);
+  let url:string;
+  try{url=new URL(p.source_url).href;new WorkerPublicSourceFetch(url)}catch{return undefined}
   return {source:{family:'rss',locator:url},canonicalUrl:url,identity:{type:'rss',canonicalUrl:url},limit:30};
  }
  if(p.provider==='rss'&&p.kind==='google_news'&&p.source_url&&p.input){

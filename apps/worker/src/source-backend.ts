@@ -13,6 +13,7 @@ export interface SourceBackendEnv {
   SOURCE_EXECUTION_URL?:string;
   SOURCE_EXECUTION_TOKEN?:string;
   SOURCE_EXECUTION_SERVICE?:Fetcher;
+  SOURCE_GOOGLE_RESOLUTION_ENABLED?:string;
   SOURCE_OPERATION_CEILINGS_JSON?:string;
 }
 
@@ -65,7 +66,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
       return dispatch(url.href,{...init,redirect:'manual'});
     });
     return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch),execution,secrets,ceilings,
-      enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN)}),
+      enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
       rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake)};
   };
   const collector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>{

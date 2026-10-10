@@ -26,6 +26,14 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('rejects malformed RSS configuration and preserves website ownership when its private runtime is missing',async()=>{
+ expect(productConnectorSource({provider:'rss',kind:'rss_feed',source_url:'not a URL',input:null})).toBeUndefined();
+ expect(productConnectorSource({provider:'rss',kind:'rss_feed',source_url:'https://127.0.0.1/feed',input:null})).toBeUndefined();
+ await ctx.db.prepare("UPDATE sources SET provider='web',kind='web_page',source_url='https://example.com/article',input='https://example.com/article',collection_owner='legacy' WHERE id='feed-source-1'").run();
+ await runConnectorMaintenance(env);
+ expect(await ctx.db.prepare("SELECT collection_owner FROM sources WHERE id='feed-source-1'").first()).toEqual({collection_owner:'legacy'});
+ expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_provider_poll_jobs').first()).toEqual({n:0});
+});
 it('freezes one daily Telegram edit range when new accepted messages arrive and refreshes it the next day',async()=>{
  const r:SourceFetchRequest={...request,source:{family:'telegram',locator:'telegram',channelId:'-100123',public:true},limit:3};
  const scheduler=new D1ProviderPollScheduler(sourceSqlFromD1(ctx.db),{collect:async()=>{throw new Error('must not fetch')}},async()=>true);

@@ -6,7 +6,7 @@ import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type
 import { articleUrl, record, string, timestamp } from './provider-normalize';
 
 /** Authorized backend execution binding. Worker code never spawns Python or stores sessions. */
-export interface SourceExecutionPort {execute(kind:'feedparser'|'telethon'|'telegram_resolve'|'extract'|'playwright',input:Record<string,unknown>,bounds?:{timeoutMs?:number}):Promise<unknown>}
+export interface SourceExecutionPort {execute(kind:'feedparser'|'telethon'|'telegram_resolve'|'google_resolve'|'extract'|'playwright',input:Record<string,unknown>,bounds?:{timeoutMs?:number}):Promise<unknown>}
 export async function executeSource(port:SourceExecutionPort,kind:Parameters<SourceExecutionPort['execute']>[0],input:Record<string,unknown>,bounds?:{timeoutMs?:number}) {
   try {return await port.execute(kind,input,bounds);}catch{throw new SourceProviderError('TRANSIENT');}
 }
@@ -54,7 +54,7 @@ export class FeedSourceProvider implements SourceProvider {
     if(this.id==='google_rss') {
       // Resolution is best effort and bounded. A failed probe cannot invalidate
       // the already collected feed or silently claim full publisher content.
-      const links=[...new Set(entries.map(e=>string(e.url)).filter((v):v is string=>!!v&&googleArticleLink(v)))].slice(0,Math.min(input.limit,8));
+      const links=[...new Set(entries.map(e=>string(e.url)).filter((v):v is string=>!!v&&googleArticleLink(v)))].slice(0,Math.min(input.limit,this.execution?2:8));
       for(const link of links) {
         try {
           const probe=await this.http.get(link,{accept:'text/html'},{attempts:1,timeoutMs:3_000});
@@ -62,6 +62,13 @@ export class FeedSourceProvider implements SourceProvider {
           if([301,302,303,307,308].includes(probe.status)) {
             const location=Object.entries(probe.headers).find(([key])=>key.toLowerCase()==='location')?.[1];
             const publisher=publicPublisherLocation(location);
+            if(publisher)resolved.set(link,publisher);
+          }
+          if(!resolved.has(link)&&this.execution){
+            const decoded=record(await executeSource(this.execution,'google_resolve',{url:link},{timeoutMs:35_000}));
+            if(Number.isSafeInteger(decoded.requests)&&Number(decoded.requests)>=0&&Number(decoded.requests)<=3)requests+=Number(decoded.requests);
+            if(Number.isFinite(decoded.latencyMs)&&Number(decoded.latencyMs)>=0)latencyMs+=Number(decoded.latencyMs);
+            const publisher=publicPublisherLocation(string(decoded.url));
             if(publisher)resolved.set(link,publisher);
           }
         } catch { /* The feed's original listing remains valid. */ }

@@ -8,7 +8,7 @@ preview_urls = false
 routes = []
 
 [vars]
-STAGING_ASSETS_PREFIX = "staging-assets/c70ab778e7f71d41c7dc6961b510f2882be39e0a/"
+STAGING_ASSETS_PREFIX = "staging-assets/069e475ed9c0f3cc911c8b4f128cc3aa8866bc3a/"
 PUBLIC_API_BASE_URL = "https://distilled-news-sources-qa.distillednews-platform.workers.dev"
 PUBLIC_WEB_BASE_URL = "https://distilled-news-sources-qa.distillednews-platform.workers.dev"
 EMAIL_FROM = "Distilled.news <distilled.news@outlook.com>"
@@ -18,6 +18,7 @@ SOURCE_LEGACY_POLLING_ENABLED = "false"
 PRODUCT_FEEDS_ENABLED = "true"
 SOURCE_RECOMMENDATIONS_ENABLED = "false"
 SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
+SOURCE_GOOGLE_RESOLUTION_ENABLED = "true"
 SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0,"apify":0,"zyte":0}'
 SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":0,"x_apify":0,"google_apify":0,"linkedin_apify":0,"zyte":0}'
 V1_DOWNSTREAM_ENABLED = "true"
@@ -57,7 +58,8 @@ binding = "SOURCE_EXECUTION_SERVICE"
 service_id = "01a1099d-e88a-7c23-a1c5-eeb51471e780"
 
 [triggers]
-crons = ["* * * * *"]
+# Use bounded authenticated maintenance probes until sustained operation is measured.
+crons = []
 
 [observability]
 enabled = true
