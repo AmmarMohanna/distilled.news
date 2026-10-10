@@ -42,5 +42,14 @@ it('rejects an unbounded or mismatched continuation before paid dispatch',async(
 it.each([['linkedin_apify','linkedin_company'],['google_rss','google_news'],['website_playwright','website'],['x_twitterapi_io','x_profile'],['x_twitterapi_io','x_search'],['x_apify','x_profile'],['x_apify','x_search']])('admits an approved %s probe with its exact provider and feed revision',async(provider,family)=>{
  mocks.source.mockReturnValue({source:{family,locator:'approved-input'},limit:20});
  expect((await probe(provider)).status).toBe(200);expect(mocks.budgets).toHaveBeenCalledOnce();
- expect(mocks.collect).toHaveBeenCalledWith(expect.objectContaining({scope:{feedId:'feed',feedSourceId:'source',sourceId:'canonical-source'},configurationRevision:3,limit:20}),[provider]);
+ expect(mocks.collect).toHaveBeenCalledWith(expect.objectContaining({scope:{feedId:'feed',feedSourceId:'source',sourceId:'canonical-source'},configurationRevision:3,limit:20}),[provider],0);
+});
+it('replays a saved snapshot slice under the same run without a new provider page',async()=>{
+ mocks.collect.mockResolvedValue({state:'HANDED_OFF',providerId:'linkedin_apify',request:{observations:[],proposals:[]},checkpoint:'UNCHANGED',nextOffset:40});
+ const initial=await probe('linkedin_apify');const run=mocks.collect.mock.calls[0][0].runId;
+ expect(await initial.json()).toMatchObject({nextOffset:40});
+ expect((await probe('linkedin_apify',undefined,{snapshotOffset:20})).status).toBe(200);
+ expect(mocks.collect.mock.calls[1]).toEqual([expect.objectContaining({runId:run}),['linkedin_apify'],20]);
+ for(const snapshotOffset of [-1,1,10001,'20'])expect((await probe('linkedin_apify',undefined,{snapshotOffset})).status).toBe(400);
+ expect(mocks.collect).toHaveBeenCalledTimes(2);
 });

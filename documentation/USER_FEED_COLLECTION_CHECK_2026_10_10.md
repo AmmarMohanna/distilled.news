@@ -1,5 +1,10 @@
 # Bitcoin feed live collection check — 2026-10-10
 
+Follow-up: the Telegram bootstrap, Google publisher-link resolution and
+multi-source scheduling fixes are deployed to QA. See
+[the freshness fix report](TELEGRAM_GOOGLE_FRESHNESS_FIX_2026_10_10.md)
+for the later verification; the initial findings below are preserved as history.
+
 Checked the owner's newly created QA feed, “Bitcoin ETF flows and US crypto
 regulation.” Two bounded manual maintenance ticks collected its free sources;
 a separate bounded provider probe collected CoinDesk X. These are live backend

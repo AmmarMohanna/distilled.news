@@ -27,11 +27,12 @@ export default {
     }
     const body=await request.json().catch(()=>null) as Record<string,unknown>|null;
     const sourceId=body?.sourceId,providerId=body?.providerId,probeId=body?.probeId;
-    const pageIndex=body?.pageIndex??0,continuation=body?.continuation as {providerId?:unknown;token?:unknown}|undefined;
+    const pageIndex=body?.pageIndex??0,snapshotOffset=body?.snapshotOffset??0,continuation=body?.continuation as {providerId?:unknown;token?:unknown}|undefined;
     if(typeof sourceId!=='string'||!/^[a-zA-Z0-9_:-]{1,100}$/.test(sourceId)||
       typeof probeId!=='string'||!/^[a-zA-Z0-9_-]{1,100}$/.test(probeId)||
       !['website_http','website_playwright','website_zyte','telegram_telethon','telegram_public','google_rss','linkedin_apify','x_twitterapi_io','x_apify'].includes(String(providerId))||
       !Number.isSafeInteger(pageIndex)||Number(pageIndex)<0||Number(pageIndex)>10||
+      !Number.isSafeInteger(snapshotOffset)||Number(snapshotOffset)<0||Number(snapshotOffset)>10000||
       (continuation&&(continuation.providerId!==providerId||typeof continuation.token!=='string'||!continuation.token||continuation.token.length>4096))||
       (Number(pageIndex)>0&&!continuation))return Response.json({error:'INVALID_PROBE'}, {status:400});
     const runtimeEnv=await productRuntimeEnv(env);
@@ -44,6 +45,7 @@ export default {
     const matchesFamily=approved&&(family==='linkedin'?['linkedin_company','linkedin_profile'].includes(approved.source.family):family==='x'?['x_profile','x_search'].includes(approved.source.family):approved.source.family===family);
     if(!row||!approved||!scope?.enabled||scope.deletedAt||scope.feedId!==row.briefing_id||
       !matchesFamily)return Response.json({error:'SOURCE_NOT_APPROVED'}, {status:404});
+    if(Number(snapshotOffset)%approved.limit!==0)return Response.json({error:'INVALID_PROBE'}, {status:400});
     const backend=createConnectorRuntime(runtimeEnv);
     await configureConnectorBudgets(runtimeEnv,backend);
     const probe:SourceFetchRequest={scope:{feedId:scope.feedId,feedSourceId:sourceId,sourceId:scope.sourceId},
@@ -51,10 +53,10 @@ export default {
       source:approved.source,requestedBounds:{},limit:approved.limit,
       ...(continuation?{continuation:continuation as {providerId:string;token:string}}:{})};
     try{
-      const result=await backend.collect(probe,[providerId as string]);
+      const result=await backend.collect(probe,[providerId as string],Number(snapshotOffset));
       return Response.json(result.state==='FETCH_FAILED'?{state:result.state,attempts:result.attempts.map(a=>({providerId:a.providerId,failure:a.failure}))}:
         {state:result.state,providerId:result.providerId,observations:result.request.observations.length,
-          proposals:result.request.proposals.length,checkpoint:result.checkpoint,telemetry:result.telemetry,continuation:result.continuation});
+          proposals:result.request.proposals.length,checkpoint:result.checkpoint,telemetry:result.telemetry,nextOffset:result.nextOffset,continuation:result.continuation});
     }catch(error){return Response.json({error:error instanceof Error?error.name:'PROBE_FAILED'}, {status:502});}
   },
   scheduled:worker.scheduled,

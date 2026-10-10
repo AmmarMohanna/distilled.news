@@ -305,18 +305,18 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     await new FeedSourceProvider('google_rss',http).fetch({...request,limit:30,source:{family:'google_news',locator:'AI'}});
     expect(http.get).toHaveBeenCalledTimes(9);
   });
-  it('resolves modern Google redirects through the private helper without fetching publisher destinations',async()=>{
+  it('resolves modern Google redirects across snapshot pages without fetching publisher destinations',async()=>{
     const links=Array.from({length:5},(_,i)=>`https://news.google.com/rss/articles/opaque${i}`);
     const xml=`<rss><channel>${links.map((link,i)=>`<item><guid>${i}</guid><link>${link}</link><title>Result</title></item>`).join('')}</channel></rss>`;
     const http:FeedHttpPort={get:vi.fn(async url=>({status:url.includes('/rss/search')?200:302,headers:{location:links[0]},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
-    const execution={execute:vi.fn(async(_kind:string,input:Record<string,unknown>)=>({url:input.url===links[1]?'https://127.0.0.1/private':'https://publisher.example/article',requests:2,latencyMs:2}))};
-    const result=await new FeedSourceProvider('google_rss',http,execution).fetch({...request,limit:30,source:{family:'google_news',locator:'AI'}});
-    expect(result.items.map(i=>i.url)).toEqual(['https://publisher.example/article',links[1],'https://publisher.example/article','https://publisher.example/article',links[4]]);
-    expect(execution.execute).toHaveBeenCalledTimes(4);
-    expect(execution.execute).toHaveBeenCalledWith('google_resolve',{url:links[0],timeoutSeconds:16},{timeoutMs:17000});
+    const execution={execute:vi.fn(async(_kind:string,input:Record<string,unknown>)=>({results:(input.urls as string[]).map(url=>({inputUrl:url,url:url===links[1]?'https://127.0.0.1/private':'https://publisher.example/article',requests:2})),latencyMs:2}))};
+    const result=await new FeedSourceProvider('google_rss',http,execution).fetch({...request,limit:2,source:{family:'google_news',locator:'AI'}});
+    expect(result.items.map(i=>i.url)).toEqual(['https://publisher.example/article',links[1],'https://publisher.example/article','https://publisher.example/article','https://publisher.example/article']);
+    expect(execution.execute).toHaveBeenCalledTimes(1);
+    expect(execution.execute).toHaveBeenCalledWith('google_resolve',{urls:links},{timeoutMs:65000});
     expect(vi.mocked(http.get).mock.calls.every(([url])=>new URL(url).hostname==='news.google.com')).toBe(true);
     expect(result.items.every(i=>i.representation==='LISTING_RESULT'&&i.contentCompleteness==='UNKNOWN')).toBe(true);
-    expect(result.requests).toBe(14);
+    expect(result.requests).toBe(12);
   });
   it('uses the authorized private Google feed route after transient transport failure and preserves the exact query',async()=>{
     const http:FeedHttpPort={get:vi.fn(async()=>({status:0,headers:{},bytes:new Uint8Array(),telemetry:{requests:3,latencyMs:10,providerCostUsd:0}}))};
@@ -334,6 +334,11 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute});
     const result=await p.fetch({...request,source:{family:'telegram',locator:'NASAchannel',channelId:'-100123',public:true},requestedBounds:{startCursor:'1'}});
     expect(result.items[0]).toMatchObject({sourceItemKey:'telegram:-100123:2',authoritativeCurrentState:true});expect(result.provenSafeCursor).toBe('2');expect(result.continuationToken).toBe('2');
+  });
+  it('recent Telegram bootstrap advances accepted progress without claiming complete historical recall',async()=>{
+    const execute=vi.fn(async()=>({channelId:'-100123',records:[{id:900,text:'Recent',publishedAt:time},{id:901,text:'Latest',publishedAt:time}],bootstrapRecent:true,orderedFromCheckpoint:true,exhausted:true,deletionState:'CURRENT'}));
+    const result=await new TelegramSourceProvider('telegram_telethon',feed(''),{execute}).fetch({...request,source:{family:'telegram',locator:'channel',channelId:'-100123'}});
+    expect(result.provenSafeCursor).toBe('901');expect(result.continuationToken).toBeUndefined();expect(result.complete).toBe(false);
   });
   it('private Telegram never falls through to public-page access',async()=>{
     const http=feed('');await expect(new TelegramSourceProvider('telegram_public',http).fetch({...request,source:{family:'telegram',locator:'private',channelId:'-100123',public:false}})).rejects.toThrow('UNAVAILABLE');expect(http.get).not.toHaveBeenCalled();

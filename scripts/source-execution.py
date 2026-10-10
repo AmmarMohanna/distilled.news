@@ -11,6 +11,7 @@ import socket
 import sqlite3
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -176,6 +177,84 @@ def resolve_google_article(data):
         return {'error': 'UNAVAILABLE', 'requests': requests, 'latencyMs': int((time.monotonic() - started) * 1000)}
 
 
+def resolve_google_articles(data):
+    """One bounded private call resolves a snapshot; failures retain listing URLs."""
+    urls = data.get('urls')
+    if not isinstance(urls, list) or not 1 <= len(urls) <= 500 or any(not isinstance(url, str) for url in urls) or len(set(urls)) != len(urls):
+        raise ValueError('INVALID_GOOGLE_BATCH')
+    for url in urls:
+        parsed = urlsplit(url)
+        if parsed.scheme != 'https' or parsed.netloc != 'news.google.com' or not re.fullmatch(r'/(?:rss/)?articles/[A-Za-z0-9_-]{1,2000}', parsed.path):
+            raise ValueError('INVALID_GOOGLE_ARTICLE')
+    started = time.monotonic()
+    deadline = started + 35
+    results = {}
+    cache = None
+    try:
+        cache_path = Path(os.environ.get('SOURCE_GOOGLE_CACHE_PATH', str(Path(__file__).with_name('.google-resolve-cache.sqlite3'))))
+        cache = sqlite3.connect(cache_path, timeout=2)
+        os.chmod(cache_path, 0o600)
+        cache.execute('CREATE TABLE IF NOT EXISTS redirects(listing TEXT PRIMARY KEY,publisher TEXT NOT NULL,expires REAL NOT NULL)')
+        cache.execute('DELETE FROM redirects WHERE expires<?', (time.time(),))
+        for url in urls:
+            saved = cache.execute('SELECT publisher FROM redirects WHERE listing=?', (url,)).fetchone()
+            if saved and publisher_url(saved[0]):
+                results[url] = {'url': saved[0], 'requests': 0, 'cached': True}
+        cache.commit()
+    except (OSError, sqlite3.Error):
+        if cache:
+            cache.close()
+        cache = None
+    pool = ThreadPoolExecutor(max_workers=6)
+    pending = {}
+    unresolved = [url for url in urls if url not in results]
+    # Reading cached URLs spans later snapshot pages. Network work still starts
+    # at most thirty fresh decodes under the same concurrency and time budget.
+    remaining = iter(unresolved[:30])
+    try:
+        for _ in range(min(6, len(unresolved))):
+            url = next(remaining)
+            pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': 16})] = url
+        while pending:
+            done, _ = wait(pending, timeout=max(0, deadline-time.monotonic()), return_when=FIRST_COMPLETED)
+            if not done:
+                break
+            for future in done:
+                url = pending.pop(future)
+                try:
+                    results[url] = future.result()
+                except Exception:
+                    results[url] = {'error': 'UNAVAILABLE', 'requests': 0}
+                if time.monotonic() < deadline:
+                    url = next(remaining, None)
+                    if url:
+                        pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': 16})] = url
+        # Only six requests can remain in flight. Finish those bounded requests;
+        # do not enqueue more work after the stage deadline. The parent process
+        # has a separate hard timeout and kills its entire process group.
+        for future, url in pending.items():
+            try:
+                results[url] = future.result()
+            except Exception:
+                results[url] = {'error': 'UNAVAILABLE', 'requests': 0}
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+    if cache:
+        try:
+            for listing, result in results.items():
+                if result.get('url') and not result.get('cached'):
+                    cache.execute('INSERT OR REPLACE INTO redirects VALUES(?,?,?)', (listing, result['url'], time.time()+86400))
+            cache.execute('DELETE FROM redirects WHERE listing IN (SELECT listing FROM redirects ORDER BY expires DESC LIMIT -1 OFFSET 5000)')
+            cache.commit()
+        except (OSError, sqlite3.Error):
+            # A cache write failure must not discard successfully resolved links.
+            pass
+        finally:
+            cache.close()
+    return {'results': [{'inputUrl': url, **results.get(url, {'error': 'UNAVAILABLE', 'requests': 0})} for url in urls],
+            'latencyMs': int((time.monotonic()-started)*1000)}
+
+
 def publisher_url(value):
     if not isinstance(value, str) or len(value) > 4096:
         return False
@@ -274,6 +353,12 @@ async def telegram(data):
                 raise ValueError('INVALID_RECHECK')
             messages = await client.get_messages(peer, ids=ids)
             ordered, exhausted = False, False
+        elif data['afterId'] == 0 and data.get('startTime') is None:
+            # Cold starts deliberately select recent posts, not the channel's
+            # first-ever messages. This is a partial historical window.
+            messages = await client.get_messages(peer, limit=limit)
+            messages = sorted((m for m in messages if m is not None), key=lambda m: m.id)
+            ordered, exhausted = True, True
         else:
             # Read oldest unseen first; a latest-N slice would skip a busy channel's backlog.
             messages = await client.get_messages(peer, min_id=data['afterId'], reverse=True, limit=limit + 1)
@@ -312,6 +397,7 @@ async def telegram(data):
                     journal.execute('UPDATE channel_edits SET exported=? WHERE channel=? AND message_id=?', (exported, data['channelId'], message_id))
                 journal.commit()
         return {'channelId': data['channelId'], 'records': records, 'orderedFromCheckpoint': ordered,
+                'bootstrapRecent': ids is None and data['afterId'] == 0 and data.get('startTime') is None,
                 'exhausted': exhausted, 'deletionState': deletion_state}
     except FloodWaitError as error:
         return {'error': 'RATE_LIMIT', 'retryNotBefore': iso(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=error.seconds))}
@@ -406,7 +492,7 @@ async def main():
     elif kind == 'telegram_resolve':
         result = await resolve_telegram(inputs)
     elif kind == 'google_resolve':
-        result = await asyncio.to_thread(resolve_google_article, inputs)
+        result = await asyncio.to_thread(resolve_google_articles if 'urls' in inputs else resolve_google_article, inputs)
     elif kind == 'google_feed':
         result = await asyncio.to_thread(fetch_google_feed, inputs)
     elif kind == 'playwright':

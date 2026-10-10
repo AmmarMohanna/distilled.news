@@ -65,7 +65,7 @@ class RuntimeTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 runtime.parse_feed({'xml': '<!DOCTYPE rss><rss/>', 'url': 'https://example.com'})
 
-    def run_telegram(self, recheck=False, deleted=False, authorized=True, interrupted=False, edited=False):
+    def run_telegram(self, recheck=False, deleted=False, authorized=True, interrupted=False, edited=False, after_id=1):
         calls = []
         stamp = datetime.datetime(2026, 10, 4, tzinfo=datetime.timezone.utc)
         messages = [types.SimpleNamespace(id=i, message='Text', date=stamp, edit_date=None) for i in (2, 3, 4)]
@@ -84,6 +84,8 @@ class RuntimeTests(unittest.TestCase):
                 calls.append(kwargs)
                 if 'ids' in kwargs:
                     return [types.SimpleNamespace(id=i,message='Corrected old post',date=stamp,edit_date=stamp) if edited else None for i in kwargs['ids']]
+                if 'min_id' not in kwargs:
+                    return list(reversed(messages))[:kwargs['limit']]
                 return messages
         class FloodWaitError(Exception):
             seconds = 1
@@ -103,7 +105,7 @@ class RuntimeTests(unittest.TestCase):
             with patch.dict('sys.modules', {'telethon': telethon, 'telethon.errors': types.SimpleNamespace(FloodWaitError=FloodWaitError, AuthKeyError=type('AuthKeyError',(Exception,),{}), UnauthorizedError=type('UnauthorizedError',(Exception,),{}))}), \
                  patch.object(runtime, 'telegram_deletions', AsyncMock(return_value=(journal, 'CURRENT'))), \
                  patch.dict('os.environ', {'TELEGRAM_SESSION_PATH': str(session), 'TELEGRAM_API_ID': '1', 'TELEGRAM_API_HASH': 'synthetic'}):
-                result = asyncio.run(runtime.telegram({'channelId': '-100123', 'afterId': 1, 'limit': 2,
+                result = asyncio.run(runtime.telegram({'channelId': '-100123', 'afterId': after_id, 'limit': 2,
                                                        **({'recheckIds': [10]} if recheck else {})}))
             journal.close()
         return result, calls
@@ -114,6 +116,39 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual([r['id'] for r in result['records']], [2, 3])
         self.assertFalse(result['exhausted'])
         self.assertTrue(result['orderedFromCheckpoint'])
+
+    def test_telegram_cold_start_selects_recent_slice_without_backfill_continuation(self):
+        result, calls = self.run_telegram(after_id=0)
+        self.assertEqual(calls[0], {'limit': 2})
+        self.assertTrue(result['bootstrapRecent'])
+        self.assertTrue(result['exhausted'])
+        self.assertEqual([r['id'] for r in result['records']], [3, 4])
+
+    def test_google_batch_correlates_results_and_retains_individual_failures(self):
+        urls = ['https://news.google.com/rss/articles/one', 'https://news.google.com/rss/articles/two']
+        def resolve(data):
+            return {'url': 'https://publisher.example/post', 'requests': 2} if data['url'] == urls[0] else {'error':'UNAVAILABLE', 'requests':1}
+        with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'public_url'), patch.object(runtime, 'resolve_google_article', side_effect=resolve) as resolver:
+            result = runtime.resolve_google_articles({'urls': urls})
+            replay = runtime.resolve_google_articles({'urls': urls})
+            self.assertEqual(resolver.call_count, 3)
+            self.assertTrue(replay['results'][0]['cached'])
+        self.assertEqual(result['results'][0]['inputUrl'], urls[0])
+        self.assertEqual(result['results'][0]['url'], 'https://publisher.example/post')
+        self.assertEqual(result['results'][1]['error'], 'UNAVAILABLE')
+        with self.assertRaises(ValueError):
+            runtime.resolve_google_articles({'urls': ['https://127.0.0.1/private']})
+
+    def test_google_cache_makes_progress_beyond_first_thirty_links_without_unbounded_network_work(self):
+        urls = [f'https://news.google.com/rss/articles/id{i}' for i in range(40)]
+        with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'public_url'), patch.object(runtime, 'resolve_google_article', return_value={'url':'https://publisher.example/post','requests':2}) as resolver:
+            first = runtime.resolve_google_articles({'urls':urls})
+            self.assertEqual(resolver.call_count,30)
+            self.assertEqual(sum('url' in row for row in first['results']),30)
+            second = runtime.resolve_google_articles({'urls':urls})
+            self.assertEqual(resolver.call_count,40)
+            self.assertEqual(sum('url' in row for row in second['results']),40)
+            self.assertEqual(sum(row.get('cached',False) for row in second['results']),30)
 
     def test_missing_telegram_recheck_does_not_invent_deletion(self):
         result, calls = self.run_telegram(True)

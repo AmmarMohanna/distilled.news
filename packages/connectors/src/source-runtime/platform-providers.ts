@@ -61,31 +61,36 @@ export class FeedSourceProvider implements SourceProvider {
     let requests=r.telemetry.requests,latencyMs=r.telemetry.latencyMs;
     const resolved=new Map<string,string>();
     if(this.id==='google_rss') {
-      // Resolution is best effort and bounded. A failed probe cannot invalidate
-      // the already collected feed or silently claim full publisher content.
-      const links=[...new Set(entries.map(e=>string(e.url)).filter((v):v is string=>!!v&&googleArticleLink(v)))].slice(0,Math.min(input.limit,8));
-      // At most two in flight: eight short redirect probes and at most four
-      // private protocol decodes keep this stage bounded to about 46 seconds.
-      const resolve=async(link:string)=>{
-        try {
+      // One private batch gives modern redirect decodes time to finish without
+      // four separate short RPC deadlines. Only collected listing URLs are sent.
+      // Include later snapshot pages: cached successes leave the bounded decode
+      // budget available for unresolved listings beyond the first intake slice.
+      const links=[...new Set(entries.map(e=>string(e.url)).filter((v):v is string=>!!v&&googleArticleLink(v)))].slice(0,500);
+      if(this.execution&&links.length){
+        try{
+          const result=record(await executeSource(this.execution,'google_resolve',{urls:links},{timeoutMs:65_000}));
+          if(Number.isFinite(result.latencyMs)&&Number(result.latencyMs)>=0)latencyMs+=Number(result.latencyMs);
+          if(Array.isArray(result.results))for(const value of result.results){
+            const row=record(value),link=string(row.inputUrl),publisher=publicPublisherLocation(string(row.url));
+            if(!link||!links.includes(link))continue;
+            if(Number.isSafeInteger(row.requests)&&Number(row.requests)>=0&&Number(row.requests)<=3)requests+=Number(row.requests);
+            if(publisher)resolved.set(link,publisher);
+          }
+        }catch { /* Preserve unresolved listings when the bounded helper fails. */ }
+      }
+      const unresolved=links.filter(link=>!resolved.has(link)).slice(0,8);
+      for(let index=0;index<unresolved.length;index+=2)await Promise.all(unresolved.slice(index,index+2).map(async link=>{
+        try{
           const probe=await this.http.get(link,{accept:'text/html'},{attempts:1,timeoutMs:3_000});
           requests+=probe.telemetry.requests;latencyMs+=probe.telemetry.latencyMs;
-          if([301,302,303,307,308].includes(probe.status)) {
+          if([301,302,303,307,308].includes(probe.status)){
             const location=Object.entries(probe.headers).find(([key])=>key.toLowerCase()==='location')?.[1];
-            const publisher=publicPublisherLocation(location);
-            if(publisher)resolved.set(link,publisher);
+            const publisher=publicPublisherLocation(location);if(publisher)resolved.set(link,publisher);
           }
-          if(!resolved.has(link)&&this.execution&&links.indexOf(link)<4){
-            const decoded=record(await executeSource(this.execution,'google_resolve',{url:link,timeoutSeconds:16},{timeoutMs:17_000}));
-            if(Number.isSafeInteger(decoded.requests)&&Number(decoded.requests)>=0&&Number(decoded.requests)<=3)requests+=Number(decoded.requests);
-            if(Number.isFinite(decoded.latencyMs)&&Number(decoded.latencyMs)>=0)latencyMs+=Number(decoded.latencyMs);
-            const publisher=publicPublisherLocation(string(decoded.url));
-            if(publisher)resolved.set(link,publisher);
-          }
-        } catch { /* The feed's original listing remains valid. */ }
-      };
-      for(let index=0;index<links.length;index+=2)await Promise.all(links.slice(index,index+2).map(resolve));
+        }catch { /* Resolution failure never invalidates the original listing. */ }
+      }));
     }
+
     const extracted=new Map<string,string>();
     if(this.id==='rss_native'&&this.execution) {
       const origin=new URL(url).origin;
@@ -162,6 +167,6 @@ export class TelegramSourceProvider implements SourceProvider {
     const cursor=!ids&&ordered&&result.orderedFromCheckpoint===true&&currentRecords.length?String(currentRecords.at(-1).id):undefined;
     return {items,raw:raw(result),provenSafeCursor:cursor,
       continuationToken:!ids&&cursor&&result.exhausted!==true?cursor:undefined,
-      complete:!ids&&result.exhausted===true&&result.orderedFromCheckpoint===true&&!['GAP','PENDING'].includes(result.deletionState),requests:1,latencyMs:Date.now()-start,providerCostUsd:0};
+      complete:!ids&&result.exhausted===true&&result.bootstrapRecent!==true&&result.orderedFromCheckpoint===true&&!['GAP','PENDING'].includes(result.deletionState),requests:1,latencyMs:Date.now()-start,providerCostUsd:0};
   }
 }

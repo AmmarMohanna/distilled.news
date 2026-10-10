@@ -28,6 +28,19 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('synchronizes all source configurations before freezing same-feed polling revisions',async()=>{
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('feed-source-2','feed-1','Second RSS','channel','rss','rss_feed','https://example.com/second.xml',1,'connector',?,?,?)").bind(testPolicy.now(),testPolicy.now(),testPolicy.now()).run();
+ await ctx.db.prepare("UPDATE briefings SET interest_profile='changed interests' WHERE id='feed-1'").run();
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS='feed-source-1,feed-source-2';
+ const fetchMock=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>new Response('<rss><channel><item><guid>one</guid><title>News</title><link>https://example.com/news</link></item></channel></rss>'));
+ try{
+  await runConnectorMaintenance(env);
+  const jobs=await ctx.db.prepare('SELECT request,state,last_error FROM connector_rss_poll_jobs').all<{request:string;state:string;last_error:string|null}>();
+  expect(jobs.results).toHaveLength(2);
+  expect(jobs.results.map(row=>({state:row.state,error:row.last_error}))).toEqual([{state:'DONE',error:null},{state:'DONE',error:null}]);
+  expect(new Set(jobs.results.map(row=>JSON.parse(row.request).configurationRevision)).size).toBe(1);
+ }finally{fetchMock.mockRestore()}
+});
 it('continues maintenance with more than ten configured sources while fencing unapproved jobs',async()=>{
  env.V1_DOWNSTREAM_FEED_SOURCE_IDS=Array.from({length:12},(_,i)=>`missing-${i}`).join(',');
  await createConnectorRuntime(env).scheduler.schedule('denied-large-list',{...request,runId:'denied-large-list',scope:{...request.scope,feedSourceId:'unapproved'},source:{family:'website',locator:'https://example.com/article'}},new Date(0).toISOString(),['website_http']);
