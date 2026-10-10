@@ -38,15 +38,30 @@ export async function scheduleRecentTelegramRecheck(db:D1Database,
  scheduler:Pick<ReturnType<typeof createConnectorRuntime>['scheduler'],'schedule'>,
  request:SourceFetchRequest,now:Date):Promise<boolean>{
  if(request.source.family!=='telegram'||!request.source.channelId)return false;
+ const runId=await sha256(JSON.stringify([request.scope.feedSourceId,request.configurationRevision,'telegram-recheck',Math.floor(now.getTime()/86400000)]));
+ const expected={...request,runId};
+ const alreadyScheduled=async()=>{
+  const row=await db.prepare('SELECT request,provider_order FROM connector_provider_poll_jobs WHERE job_id=?').bind(runId).first<{request:string;provider_order:string}>();
+  if(!row)return false;
+  const saved=JSON.parse(row.request) as SourceFetchRequest;
+  const {recheckItemKeys,...base}=saved;
+  if(canonicalJson(base)!==canonicalJson(expected)||row.provider_order!==JSON.stringify(['telegram_telethon'])||
+    !recheckItemKeys?.length||recheckItemKeys.length>3||recheckItemKeys.some(key=>!key.startsWith(`telegram:${request.source.channelId}:`)))throw new HandoffError('IDEMPOTENCY_CONFLICT');
+  return true;
+ };
+ // Freeze the first accepted ID range for the day. A later poll may discover
+ // newer IDs, but must not mutate this durable job or start another daily pass.
+ if(await alreadyScheduled())return false;
  const prefix=`telegram:${request.source.channelId}:`;
  const recent=await db.prepare(`SELECT source_item_key AS key FROM connector_item_fingerprints
    WHERE feed_id=? AND feed_source_id=? AND source_item_key LIKE ?
    ORDER BY CAST(substr(source_item_key,length(?) + 1) AS INTEGER) DESC LIMIT 3`)
    .bind(request.scope.feedId,request.scope.feedSourceId,`${prefix}%`,prefix).all<{key:string}>();
  if(!recent.results.length)return false;
- const recheck={...request,runId:await sha256(JSON.stringify([request.scope.feedSourceId,request.configurationRevision,'telegram-recheck',Math.floor(now.getTime()/86400000)])),
+ const recheck={...expected,
   recheckItemKeys:recent.results.map(row=>row.key)};
- await scheduler.schedule(recheck.runId,recheck,now.toISOString(),['telegram_telethon']);
+ try{await scheduler.schedule(recheck.runId,recheck,now.toISOString(),['telegram_telethon']);}
+ catch(error){if(error instanceof HandoffError&&error.code==='IDEMPOTENCY_CONFLICT'&&await alreadyScheduled())return false;throw error;}
  return true;
 }
 /** Durable scheduler owns continuation and retries; one bounded slice per cron tick. */

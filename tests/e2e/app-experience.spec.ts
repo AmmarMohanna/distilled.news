@@ -4,13 +4,16 @@ async function mock(page: any, authenticated = true, username = 'joud') {
  let currentFeed = { ...feed, ownerUsername: username };
  await page.route("**/api/**", async (route: any) => {
  const path = new URL(route.request().url()).pathname;
- if (path === '/api/me/briefings' && route.request().method() === 'POST') currentFeed = { ...currentFeed, ...route.request().postDataJSON() };
+ if ((path === '/api/me/briefings' || path === '/api/me/feeds') && route.request().method() === 'POST') {
+   const input = route.request().postDataJSON();
+   currentFeed = { ...currentFeed, ...input, slug: input.title === 'Science today' ? 'science-today' : currentFeed.slug };
+ }
  const body = path.endsWith('/star') ? {stars:4,viewerHasStarred:true}
  : path === '/api/auth/session' ? { authenticated, setupRequired:false, account:authenticated ? {id:'joud',username,email:'joud@example.test',role:'user'} : null }
- : path === '/api/me/briefings' ? (route.request().method()==='POST' ? {briefing:currentFeed} : {briefings:[currentFeed]})
+ : path === '/api/me/briefings' || path === '/api/me/feeds' ? (route.request().method()==='POST' ? {briefing:currentFeed} : {briefings:[currentFeed]})
  : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[feed]}
  : path === '/api/feed/' + username + '/' + currentFeed.slug ? {briefing:currentFeed,editions:[],viewerHasStarred:false}
- : path === '/api/me/sources' ? {sources:[]}
+ : path === '/api/me/sources' ? {sources:[{id:'rss-1',enabled:true,input:'https://example.test/feed.xml',title:'Science',provider:'rss',kind:'rss_feed'}]}
  : path === '/api/me/health' ? {health:{processing:{queued:0,completed:0,failed:0}}} : {};
  await route.fulfill({json:body});
  });
@@ -137,7 +140,7 @@ test('guest search filters illustrated public feeds inline',async({page})=>{
 test('feed language and advanced settings persist independently of website language',async({page})=>{
  await mock(page); await page.goto('/joud/lebanon/');
  const edits: any[]=[];
- page.on('request',request=>{if(request.url().endsWith('/api/me/briefings')&&request.method()==='POST')edits.push(request.postDataJSON());});
+ page.on('request',request=>{if(request.url().endsWith('/api/me/feeds')&&request.method()==='POST')edits.push(request.postDataJSON());});
  await page.getByRole('button',{name:/^Website language:/}).click();
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
@@ -146,11 +149,10 @@ test('feed language and advanced settings persist independently of website langu
  await expect(dialog.getByRole('button',{name:'Feed language: en'})).toBeVisible();
  expect(edits).toHaveLength(0);
  await dialog.getByRole('button',{name:'Feed language: en'}).click(); await dialog.getByRole('button',{name:'Feed language: fr'}).click();
- await dialog.getByLabel('Style de rédaction').fill('Short, calm sentences.');
  await expect(dialog.getByLabel('Fuseau horaire')).toHaveCount(0);
- const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/briefings')&&request.method()==='POST');
+ const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/feeds')&&request.method()==='POST');
  await dialog.getByRole('button',{name:'Enregistrer',exact:true}).click();
- expect((await saved).postDataJSON()).toMatchObject({language:'ar',styleInstruction:'Short, calm sentences.',briefingTimezone:'Asia/Beirut'});
+ expect((await saved).postDataJSON()).toMatchObject({language:'ar',briefingTimezone:'Asia/Beirut',sourceInputs:['https://example.test/feed.xml']});
  await expect(page.getByRole('dialog')).toHaveCount(0);
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
@@ -182,10 +184,12 @@ test('new feed keeps the language selected in advanced settings',async({page})=>
  const dialog=page.getByRole('dialog');
  await dialog.getByLabel('Feed name').fill('Science today');
  await dialog.getByLabel('What would you like to follow?',{exact:true}).fill('Important science discoveries');
+ await dialog.getByLabel('Sources',{exact:true}).fill('https://example.test/feed.xml');
+ await dialog.getByRole('button',{name:'Add source',exact:true}).click();
  await dialog.locator('.feed-preferences-disclosure').click();
  await dialog.getByRole('button',{name:'Feed language: en'}).click(); await dialog.getByRole('button',{name:'Feed language: fr'}).click();
  const deviceZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
- const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/briefings')&&request.method()==='POST');
+ const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/feeds')&&request.method()==='POST');
  await dialog.getByRole('button',{name:'Create feed',exact:true}).click();
  expect((await saved).postDataJSON()).toMatchObject({language:'ar',title:'Science today',briefingTimezone:deviceZone,publicFeedEnabled:true});
  await expect(page).toHaveURL(/\/joud\/science-today\/$/);

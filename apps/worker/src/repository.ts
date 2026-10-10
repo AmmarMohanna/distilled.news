@@ -213,6 +213,20 @@ interface ProcessingJobRow {
 }
 
 export class D1Repository implements Repository {
+  async queueArchiveDeletion(key: string, now = new Date()): Promise<void> {
+    await this.db.prepare('INSERT INTO settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO NOTHING')
+      .bind(`retention:archive:${key}`, key, now.toISOString()).run();
+  }
+  async listPendingArchiveDeletions(now = new Date()): Promise<string[]> {
+    const rows = await all<{value:string}>(this.db.prepare(`SELECT value FROM settings
+      WHERE key LIKE 'retention:archive:%' AND NOT EXISTS
+      (SELECT 1 FROM raw_messages WHERE raw_payload_key=settings.value AND expires_at>?)
+      ORDER BY updated_at,key LIMIT 100`).bind(now.toISOString()));
+    return rows.map(row=>row.value);
+  }
+  async completeArchiveDeletion(key: string): Promise<void> {
+    await this.db.prepare('DELETE FROM settings WHERE key=?').bind(`retention:archive:${key}`).run();
+  }
   constructor(private readonly db: D1Database) {}
 
   async createAccount(input: {
@@ -1658,6 +1672,16 @@ export class D1Repository implements Repository {
 }
 
 export class InMemoryRepository implements Repository {
+  async queueArchiveDeletion(key: string): Promise<void> {
+    this.settings.set(`retention:archive:${key}`,key);
+  }
+  async listPendingArchiveDeletions(now = new Date()): Promise<string[]> {
+    const active=new Set([...this.rawMessages.values()].filter(message=>Date.parse(message.expiresAt)>now.getTime()).map(message=>message.rawPayloadKey));
+    return [...this.settings].filter(([key,value])=>key.startsWith('retention:archive:')&&!active.has(value)).slice(0,100).map(([,value])=>value);
+  }
+  async completeArchiveDeletion(key: string): Promise<void> {
+    this.settings.delete(`retention:archive:${key}`);
+  }
   accounts = new Map<string, AccountRecord & { passwordHash: string }>();
   aliases = new Map<string, UsernameAliasRecord>();
   tokens = new Map<string, AuthTokenRecord>();

@@ -409,5 +409,8 @@ export interface Repository {
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string, now?: Date): Promise<void>;
   listExpiredRawPayloadKeys(now?: Date): Promise<string[]>;
+  queueArchiveDeletion(key: string, now?: Date): Promise<void>;
+  listPendingArchiveDeletions(now?: Date): Promise<string[]>;
+  completeArchiveDeletion(key: string): Promise<void>;
   deleteExpired(now?: Date): Promise<number>;
 }

@@ -21,10 +21,10 @@ test("guest landing browses and searches public feeds without a menu", async ({ 
   await mockGuest(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "A calmer perspective on a complex world." })).toBeVisible();
-  await expect(page.getByText("Distilling to you what is important.")).toBeVisible();
+  await expect(page.getByText("You choose what matters.")).toBeVisible();
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Featured feeds" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "All feeds", exact: true })).toBeVisible();
   await expect(page.locator(".curated-feed-grid .topic-card")).toHaveCount(1);
   await page.getByRole("searchbox", { name: "Search feeds" }).fill("nonexistent");
   await expect(page.locator(".curated-feed-grid .topic-card")).toHaveCount(0);
@@ -74,22 +74,17 @@ test("create feed continues to the editor after login", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "Login or sign up" })).toHaveCount(0);
   await page.mouse.click(4, 4);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Welcome back, joud" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back!" })).toBeVisible();
 });
 
-test("language menu closes outside and changes website preferences", async ({ page }) => {
+test("website language cycles to Arabic without opening a menu", async ({ page }) => {
   await mockGuest(page);
   await page.goto("/");
-  const menu = page.locator(".language-control");
-  await menu.locator("summary").click();
-  await expect(menu).toHaveAttribute("open", "");
-  await page.getByRole("heading", { level: 1 }).click();
-  await expect(menu).not.toHaveAttribute("open", "");
-  await menu.locator("summary").click();
-  await page.keyboard.press("Escape");
-  await expect(menu).not.toHaveAttribute("open", "");
-  await menu.locator("summary").click();
-  await menu.getByRole("button", { name: "العربية" }).click();
+  await page.getByRole("button", { name: /^Website language: EN/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "fr");
+  await page.getByRole("button", { name: /^Website language: FR/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "ar");
+  await expect(page.locator(".language-menu")).toHaveCount(0);
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("رؤية أكثر هدوءًا لعالم معقّد.");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

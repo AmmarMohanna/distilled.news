@@ -29,30 +29,18 @@ async function mock(page: Page, role: "admin" | "user" | "guest" = "admin", init
   return requests;
 }
 
-test("admin publishes and removes feeds; Explore keeps editorial order", async ({ page }) => {
-  await mock(page);
+test("admin Explore preserves the configured editorial order without unavailable publishing controls", async ({ page }) => {
+  const requests = await mock(page, "admin", ["quiet", "starred"]);
   await page.goto("/");
-  for (const title of ["World news", "Quiet science"]) {
-    const card = page.locator(".personal-feed-grid .topic-card").filter({ hasText: title });
-    await card.locator("summary").click();
-    await card.getByRole("button", { name: "Publish to Explore", exact: true }).click();
-    await expect(card.getByRole("button", { name: "Remove from Explore", exact: true })).toBeVisible();
-    await card.locator("summary").press("Escape");
-  }
+  const card = page.locator(".personal-feed-grid .topic-card").filter({ hasText: "World news" });
+  await card.locator("summary").click();
+  await expect(card.getByRole("button", { name: "Publish to Explore", exact: true })).toHaveCount(0);
+  await card.locator("summary").press("Escape");
   await page.getByRole("navigation").getByRole("button", { name: "Explore", exact: true }).click();
   const cards = page.locator(".curated-feed-grid .topic-card");
-  await expect(cards).toHaveCount(2);
   await expect(cards.locator(".topic-name")).toHaveText(["Quiet science", "World news"]);
   await expect(page.getByRole("button", { name: "Star Quiet science", exact: true })).toHaveText("0");
-  await expect(page.getByText("Ranked by stars from readers.")).toHaveCount(0);
-  const quiet = cards.filter({ hasText: "Quiet science" });
-  await quiet.locator("summary").click();
-  await quiet.getByRole("button", { name: "Remove from Explore", exact: true }).click();
-  await expect(cards.locator(".topic-name")).toHaveText(["World news"]);
-  await page.getByRole("navigation").getByRole("button", { name: "Home", exact: true }).click();
-  const homeQuiet = page.locator(".personal-feed-grid .topic-card").filter({ hasText: "Quiet science" });
-  await homeQuiet.locator("summary").click();
-  await expect(homeQuiet.getByRole("button", { name: "Publish to Explore", exact: true })).toBeVisible();
+  expect(requests.filter(path => /\/api\/admin\/briefings\/[^/]+\/explore$/.test(path))).toEqual([]);
 });
 
 test("an empty guest Explore has no placeholder feeds or trending claims", async ({ page }) => {

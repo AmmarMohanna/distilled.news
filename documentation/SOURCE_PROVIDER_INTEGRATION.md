@@ -137,13 +137,18 @@ and use that HTTPS URL and the same dedicated token on the Worker. The service l
 concurrent executions, request/output sizes, and subprocess duration; errors omit
 third-party exception strings. Host egress controls remain required for browser use.
 
-New-account setup is pending Wrangler authentication and selection of resources in
-that account. The checked-in production Wrangler config still names existing lownoise
-resources and must not be deployed into the new account unchanged. No remote resource,
-migration, scheduled source, credential, or paid call was created by these code changes.
+As of October 9, Wrangler authentication to the new project account and the active
+VPS runtime, tunnel and egress services have been verified. Isolated QA resources and
+bounded live results are documented in `SOURCES_QA_LIVE_2026_10_09.md`; QA sources are
+disabled and paid limits are zero. The production Wrangler config still references
+legacy resources and must not be deployed into the new account unchanged.
 
-No Worker entry point, queue consumer, HTTP intake endpoint, deployment binding or
-production migration was added. Integration uses existing shared ports:
+The current Worker invokes `runConnectorMaintenance` from scheduled execution and
+uses the real durable intake adapter. Connector enrollment remains gated by enabled
+source IDs, downstream feed mappings, collection ownership, configured resources and
+paid ceilings. The owner-only `/api/me/sources/:sourceId/connector-health` endpoint
+reports retained connector health. Production rollout remains separate from isolated
+QA. The underlying integration uses these shared ports:
 
 ```ts
 import {
@@ -190,9 +195,10 @@ pricing. No local guard can guarantee billing below an incorrectly configured ce
 
 `scripts/source-execution.mjs` supplies a local `SourceExecutionPort` implementation;
 `scripts/source-execution.py` performs bounded Python operations. This is an executable
-backend binding, not a new public API server. A Worker-to-private-runtime transport and
-its authentication/deployment must be connected through the existing trusted service
-boundary with the deployment owner before a production switch.
+backend binding. `source-execution-server.mjs` exposes the authenticated private runtime,
+and `createSourceBackend` connects the Worker to it through the configured trusted
+service boundary. Update the server and both helpers together before switching a
+production source; an older runtime cannot serve newer operations such as telegram_resolve.
 
 Install the separate production runtime requirements into a private VPS virtualenv:
 
@@ -234,7 +240,11 @@ when execution fails or times out. Windows child-process cleanup is not a certif
 deployment route. Extraction uses Trafilatura; the Readability benchmark comparison remains
 separate and is not added as an automatic voting stage.
 
-## Validation and remaining integration
+## Historical validation and remaining rollout
+
+The counts and implementation-slice statements below describe the original October 4
+work. They are not the current branch status. See the October 9 live QA and connector
+follow-up documents for current integration evidence and outstanding live validation.
 
 Recovery fixes verified on 2026-10-04: Apify actor creation now returns a bounded empty
 page containing its actor-run continuation. The collector persists and hands off that

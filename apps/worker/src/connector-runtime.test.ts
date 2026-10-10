@@ -11,7 +11,7 @@ import {V1FeedStore} from './v1-intelligence/store';
 import {processEvidenceIntelligence} from './v1-intelligence/engine';
 import {processV1Briefing} from './v1-intelligence/runtime';
 import type {SourceFetchRequest} from '@distilled/connectors';
-import {buildGoogleNewsRssUrl,TESTED_ACTORS} from '@distilled/connectors';
+import {buildGoogleNewsRssUrl,TESTED_ACTORS,D1ProviderPollScheduler,sourceSqlFromD1} from '@distilled/connectors';
 import type {Env} from './types';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env,request:SourceFetchRequest;
@@ -26,6 +26,20 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('freezes one daily Telegram edit range when new accepted messages arrive and refreshes it the next day',async()=>{
+ const r:SourceFetchRequest={...request,source:{family:'telegram',locator:'telegram',channelId:'-100123',public:true},limit:3};
+ const scheduler=new D1ProviderPollScheduler(sourceSqlFromD1(ctx.db),{collect:async()=>{throw new Error('must not fetch')}},async()=>true);
+ const record=async(id:number)=>ctx.db.prepare('INSERT INTO connector_item_fingerprints VALUES(?,?,?,?,?,?,?)').bind(r.scope.feedId,r.scope.feedSourceId,r.scope.sourceId,`telegram:-100123:${id}`,r.configurationRevision,`fingerprint-${id}`,id).run();
+ await record(1);
+ expect(await scheduleRecentTelegramRecheck(ctx.db,scheduler,r,new Date('2026-10-10T08:00:00Z'))).toBe(true);
+ await record(2);
+ expect(await scheduleRecentTelegramRecheck(ctx.db,scheduler,{...r,runId:'later-poll'},new Date('2026-10-10T08:05:00Z'))).toBe(false);
+ const jobs=await ctx.db.prepare('SELECT request FROM connector_provider_poll_jobs ORDER BY due_at').all<{request:string}>();
+ expect(jobs.results).toHaveLength(1);expect(JSON.parse(jobs.results[0].request).recheckItemKeys).toEqual(['telegram:-100123:1']);
+ expect(await scheduleRecentTelegramRecheck(ctx.db,scheduler,r,new Date('2026-10-11T08:00:00Z'))).toBe(true);
+ const latest=await ctx.db.prepare('SELECT request FROM connector_provider_poll_jobs ORDER BY due_at DESC LIMIT 1').first<{request:string}>();
+ expect(JSON.parse(latest!.request).recheckItemKeys).toEqual(['telegram:-100123:2','telegram:-100123:1']);
+});
 it('migrates empty D1 and connects RSS through receipts, acquisition, intelligence, plan and grounded immutable publication',async()=>{
  const publishedAt=new Date(Date.now()-3600000).toUTCString();
  const fetcher=vi.fn(async()=>new Response(`<rss version="2.0"><channel><title>News</title><item><guid>banking-1</guid><link>https://example.com/news/1</link><title>Lebanon banking reform</title><description>Lebanon Parliament approved banking reform legislation.</description><pubDate>${publishedAt}</pubDate></item></channel></rss>`,{headers:{'content-type':'application/rss+xml'}}));

@@ -121,7 +121,10 @@ export function approvedWriterFacts(story:SynthesisInput['stories'][number]):App
 /** Join only adjacent approved spans, preserving abbreviations/dates split into propositions. */
 export function approvedSupportSpans(story:SynthesisInput['stories'][number]):ClaimSupport[] {
  const facts=approvedWriterFacts(story),out:ClaimSupport[]=[];
- for(const e of story.evidence){const body=e.body??'',parts=facts.flatMap(f=>f.support.filter(s=>s.evidenceRevisionId===e.id&&body.includes(s.quote)).map(s=>({start:body.indexOf(s.quote),end:body.indexOf(s.quote)+s.quote.length}))).sort((a,b)=>a.start-b.start||a.end-b.end),merged:{start:number;end:number}[]=[];
+ // Exact titles are independently citable below. An RSS normalizer may repeat
+ // that title at the start of the body with added punctuation; it remains a
+ // title span, rather than an incomplete body sentence to reject or expand.
+ for(const e of story.evidence){const body=e.body??'',parts=facts.flatMap(f=>f.support.filter(s=>s.evidenceRevisionId===e.id&&s.quote!==e.title&&body.includes(s.quote)).map(s=>({start:body.indexOf(s.quote),end:body.indexOf(s.quote)+s.quote.length}))).sort((a,b)=>a.start-b.start||a.end-b.end),merged:{start:number;end:number}[]=[];
   for(const part of parts){const last=merged.at(-1);if(last&&part.start<=last.end || last&&/^\s*$/.test(body.slice(last.end,part.start)))last.end=Math.max(last.end,part.end);else merged.push({...part});}
   for(const p of merged){const quote=body.slice(p.start,p.end),abbreviation=/\b(?:Oct|Nov|Dec|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Mr|Mrs|Dr|etc|a\.m|p\.m)\.$/i;
    const prefix=body.slice(0,p.start),suffix=body.slice(p.end);

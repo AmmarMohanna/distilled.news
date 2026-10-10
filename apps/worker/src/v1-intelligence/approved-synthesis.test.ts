@@ -97,6 +97,15 @@ it('joins adjacent approved date fragments without including an unapproved tail'
  story.plan!.mustIncludeFactIds=['a'];story.plan!.newUnderstandingFactIds=['a'];
  expect(()=>approvedSupportSpans(story)).toThrowError(expect.objectContaining({reason:'EXTRACTIVE_CAPACITY_UNSUPPORTED'}));
 });
+it('keeps a repeated RSS title as an exact title span without relaxing body sentence boundaries',()=>{
+ const title='Lebanon banking reform',sentence='Lebanon Parliament approved banking reform legislation.';
+ const story={plan:{facts:[{id:'t',text:title,evidenceRevisionIds:['r']},{id:'b',text:sentence,evidenceRevisionIds:['r']}],
+  mustIncludeFactIds:['t','b'],newUnderstandingFactIds:['t','b'],contextFactIds:[],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[]},
+  evidence:[{id:'r',title,body:`${title}. ${sentence} Unapproved extra information.`}]} as unknown as SynthesisInput['stories'][number];
+ expect(approvedSupportSpans(story)).toEqual([{evidenceRevisionId:'r',quote:sentence},{evidenceRevisionId:'r',quote:title}]);
+ story.plan!.facts[1].text='Parliament approved banking reform';
+ expect(()=>approvedSupportSpans(story)).toThrowError(expect.objectContaining({reason:'EXTRACTIVE_CAPACITY_UNSUPPORTED'}));
+});
 it('uses a safe deterministic draft after model failure, retains unknown-call reservation and never repeats the call',async()=>{
  const selected=await selection();let calls=0;
  const model:BriefingModelPort={model:'unavailable',provider:'TEST',maxCallCostUsd:.01,synthesize:async()=>{calls++;throw Error('response unavailable');}};

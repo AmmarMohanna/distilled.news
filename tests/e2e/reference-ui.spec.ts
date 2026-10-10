@@ -18,7 +18,7 @@ async function mock(page: Page) {
     const body = path === "/api/auth/session" ? { authenticated: true, setupRequired: false, account }
       : path === "/api/me/account" ? { account, briefings: [feed] }
       : path === "/api/admin/accounts" || path === "/api/admin/accounts/reader" ? { accounts: [account, managedReader] }
-      : path === "/api/admin/briefings" || path === "/api/me/briefings" ? { briefings: [feed], briefing: feed }
+      : path === "/api/admin/briefings" || path === "/api/me/briefings" || path === "/api/me/feeds" ? { briefings: [feed], briefing: feed }
       : path === "/api/explore/feeds" || path === "/api/explore/popular" ? { feeds: [feed] }
       : path === "/api/me/sources/recommend" ? { sources: ["https://x.com/mtvlebanon", "https://t.me/mtvlebanon", "https://www.mtv.com.lb"] }
       : path.startsWith("/api/feed/") ? { briefing: feed, editions: [], viewerHasStarred: false }
@@ -52,11 +52,9 @@ test("add feed selects, removes, and submits real source inputs", async ({ page 
   await dialog.locator('.screen-page-viewport').evaluate(node => { node.scrollTop = 0; });
   await page.mouse.move(0, 0);
   await page.screenshot({ path: `test-results/reference-add-feed-${test.info().project.name}.png` });
-  const saved = page.waitForRequest(request => request.url().endsWith("/api/me/briefings") && request.method() === "POST");
-  const sourceSaved = page.waitForRequest(request => request.url().endsWith("/api/me/sources") && request.method() === "POST");
+  const saved = page.waitForRequest(request => request.url().endsWith("/api/me/feeds") && request.method() === "POST");
   await dialog.getByRole("button", { name: "Create feed", exact: true }).click();
-  expect((await saved).postDataJSON()).toMatchObject({ title: "Lebanon news", publicFeedEnabled: true });
-  expect((await sourceSaved).postDataJSON()).toMatchObject({ input: "https://x.com/mtvlebanon" });
+  expect((await saved).postDataJSON()).toMatchObject({ title: "Lebanon news", publicFeedEnabled: true, sourceInputs: ["https://x.com/mtvlebanon"] });
 });
 
 test("profile edits username and expands password controls", async ({ page }) => {
@@ -145,7 +143,7 @@ test("settings use contact links and honest installation popups", async ({ page 
   await expect(installation.getByRole("status")).toHaveText("Already installed");
 });
 
-test("notifications switch saves subscription and turns it off", async ({ page }) => {
+test("unavailable notifications report deployment status without creating subscriptions", async ({ page }) => {
   await page.addInitScript(() => {
     let subscription: object | null = null;
     const worker = { pushManager: {
@@ -170,22 +168,9 @@ test("notifications switch saves subscription and turns it off", async ({ page }
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Notifications", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Notifications" });
-  await expect(dialog.getByRole("status")).toHaveText("Notifications disabled");
-  const switchBounds = await dialog.getByRole("switch").boundingBox();
-  const offThumb = await dialog.locator(".notification-switch > span").boundingBox();
-  expect(Math.round(offThumb!.x - switchBounds!.x)).toBe(3);
-  await dialog.getByRole("switch").click();
-  await expect(dialog.getByRole("switch")).toBeChecked();
-  await expect(dialog.getByRole("status")).toHaveText("Notifications enabled");
-  await expect.poll(() => dialog.getByRole("switch").evaluate(node => {
-    const track = node.getBoundingClientRect();
-    const thumb = node.querySelector("span")!.getBoundingClientRect();
-    return Math.round(track.right - thumb.right);
-  })).toBe(3);
-  await dialog.getByRole("switch").click();
-  await expect(dialog.getByRole("switch")).not.toBeChecked();
-  await expect(dialog.getByRole("status")).toHaveText("Notifications disabled");
-  expect(writes).toEqual(["GET", "POST", "DELETE"]);
+  await expect(dialog.getByRole("status")).toHaveText("Notifications are not enabled on this deployment.");
+  await expect(dialog.getByRole("switch")).toHaveCount(0);
+  expect(writes).toEqual([]);
 });
 
 test("installed app detection works from a browser tab", async ({ page }) => {
