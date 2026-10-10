@@ -63,8 +63,10 @@ export class FeedSourceProvider implements SourceProvider {
     if(this.id==='google_rss') {
       // Resolution is best effort and bounded. A failed probe cannot invalidate
       // the already collected feed or silently claim full publisher content.
-      const links=[...new Set(entries.map(e=>string(e.url)).filter((v):v is string=>!!v&&googleArticleLink(v)))].slice(0,Math.min(input.limit,this.execution?2:8));
-      for(const link of links) {
+      const links=[...new Set(entries.map(e=>string(e.url)).filter((v):v is string=>!!v&&googleArticleLink(v)))].slice(0,Math.min(input.limit,8));
+      // At most two in flight: eight short redirect probes and at most four
+      // private protocol decodes keep this stage bounded to about 46 seconds.
+      const resolve=async(link:string)=>{
         try {
           const probe=await this.http.get(link,{accept:'text/html'},{attempts:1,timeoutMs:3_000});
           requests+=probe.telemetry.requests;latencyMs+=probe.telemetry.latencyMs;
@@ -73,15 +75,16 @@ export class FeedSourceProvider implements SourceProvider {
             const publisher=publicPublisherLocation(location);
             if(publisher)resolved.set(link,publisher);
           }
-          if(!resolved.has(link)&&this.execution){
-            const decoded=record(await executeSource(this.execution,'google_resolve',{url:link},{timeoutMs:35_000}));
+          if(!resolved.has(link)&&this.execution&&links.indexOf(link)<4){
+            const decoded=record(await executeSource(this.execution,'google_resolve',{url:link,timeoutSeconds:16},{timeoutMs:17_000}));
             if(Number.isSafeInteger(decoded.requests)&&Number(decoded.requests)>=0&&Number(decoded.requests)<=3)requests+=Number(decoded.requests);
             if(Number.isFinite(decoded.latencyMs)&&Number(decoded.latencyMs)>=0)latencyMs+=Number(decoded.latencyMs);
             const publisher=publicPublisherLocation(string(decoded.url));
             if(publisher)resolved.set(link,publisher);
           }
         } catch { /* The feed's original listing remains valid. */ }
-      }
+      };
+      for(let index=0;index<links.length;index+=2)await Promise.all(links.slice(index,index+2).map(resolve));
     }
     const extracted=new Map<string,string>();
     if(this.id==='rss_native'&&this.execution) {
@@ -142,7 +145,7 @@ export class TelegramSourceProvider implements SourceProvider {
     const result=record(await executeSource(this.execution,'telethon',{channelId:channel,username,afterId:after,limit:input.limit,
       recheckIds:ids,startTime:input.requestedBounds.startTime,endTime:input.requestedBounds.endTime}));
     if(result.error)throw new SourceProviderError(result.error==='AUTH_REQUIRED'?'AUTH_REQUIRED':result.error==='RATE_LIMIT'?'RATE_LIMIT':'TRANSIENT',timestamp(result.retryNotBefore));
-    if(result.channelId!==channel||!Array.isArray(result.records)||result.records.length>input.limit)throw new SourceProviderError('MALFORMED');
+    if(result.channelId!==channel||!Array.isArray(result.records)||result.records.length>input.limit*(ids?1:2))throw new SourceProviderError('MALFORMED');
     const items:ProviderItem[]=result.records.map((v:unknown)=>{
       const r=record(v);if(!Number.isSafeInteger(r.id)||r.id<1)throw new SourceProviderError('MALFORMED');
       if(ids&&!ids.includes(r.id))throw new SourceProviderError('MALFORMED');
@@ -154,10 +157,11 @@ export class TelegramSourceProvider implements SourceProvider {
         authoritativeCurrentState:r.deleted?r.explicitDeletion===true:true,
         sourceRevision:edited?{scheme:'telegram_edit_timestamp',value:edited,comparability:'COMPARABLE',authority:'ORIGIN'}:undefined};
     });
-    const ordered=result.records.every((r:any,i:number)=>r.id>after&&(i===0||r.id>result.records[i-1].id));
-    const cursor=!ids&&ordered&&result.orderedFromCheckpoint===true&&items.length?String(result.records.at(-1).id):undefined;
+    const currentRecords=result.records.filter((r:any)=>!r.deleted&&!r.rechecked);
+    const ordered=currentRecords.every((r:any,i:number)=>r.id>after&&(i===0||r.id>currentRecords[i-1].id));
+    const cursor=!ids&&ordered&&result.orderedFromCheckpoint===true&&currentRecords.length?String(currentRecords.at(-1).id):undefined;
     return {items,raw:raw(result),provenSafeCursor:cursor,
       continuationToken:!ids&&cursor&&result.exhausted!==true?cursor:undefined,
-      complete:!ids&&result.exhausted===true&&result.orderedFromCheckpoint===true,requests:1,latencyMs:Date.now()-start,providerCostUsd:0};
+      complete:!ids&&result.exhausted===true&&result.orderedFromCheckpoint===true&&!['GAP','PENDING'].includes(result.deletionState),requests:1,latencyMs:Date.now()-start,providerCostUsd:0};
   }
 }

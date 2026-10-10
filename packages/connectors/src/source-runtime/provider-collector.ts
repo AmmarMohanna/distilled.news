@@ -118,6 +118,7 @@ export class FallbackSourceCollector {
             authoritativeCurrentState:item.authoritativeCurrentState??false,upstreamId:item.upstreamId,canonicalUrl:item.url,
             publisherId:item.publisherId,titleHint:item.title,publishedAtHint:item.publishedAt,languageHint:item.language,observedAt:run.startedAt};
           if(op==='DELETE' && !o.authoritativeCurrentState)throw new SourceProviderError('MALFORMED');
+          if(op==='DELETE' && item.identityValid && await this.repository.knownItemHash(request.scope,key,request.configurationRevision??0)===await itemFingerprint(o))continue;
           if(op==='UPSERT' && (item.body || item.title)) {
             o.contentHash=await hashContent({representation:item.representation,title:item.title,body:item.body??''});
             // Only suppress an exact item fingerprint durably accepted in an earlier
@@ -154,8 +155,8 @@ export class FallbackSourceCollector {
     const receiptByObservation=new Map(response.receipts.map(r=>[r.observationId,r]));
     for(const observation of batch.request.observations){
       const receipt=receiptByObservation.get(observation.id);
-      if(observation.operation==='UPSERT'&&observation.contentHash&&receipt?.checkpointResolution==='RESOLVED'&&
-        (receipt.decision==='ACCEPTED'||receipt.decision==='REPLAY'))
+      if((observation.operation==='DELETE'||observation.contentHash)&&receipt?.checkpointResolution==='RESOLVED'&&
+        (receipt.decision==='ACCEPTED'||receipt.decision==='REPLAY'||receipt.decision==='DELETION_ACCEPTED'))
         await this.repository.rememberResolvedItem(batch.originalRequest.scope,observation.sourceItemKey,
           batch.originalRequest.configurationRevision??0,await itemFingerprint(observation),observation.fetchStartSequence);
     }

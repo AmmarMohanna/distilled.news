@@ -41,6 +41,74 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it('hands off a newly resolved publisher link even when the listing content is unchanged',async()=>{
+    let resolved=false;
+    const p:SourceProvider={id:'google_rss',families:['google_news'],fetch:async()=>({...page(),items:[{...page().items[0],sourceItemKey:'id:google-guid',url:resolved?'https://publisher.example/article':'https://news.google.com/rss/articles/opaque',publisherId:resolved?'publisher.example':'news.google.com',representation:'LISTING_RESULT'}]})};
+    const s=setup([p]);const input={...request,source:{family:'google_news' as const,locator:'energy'}};
+    await s.collector.collect(input);resolved=true;
+    const second=await s.collector.collect({...input,runId:'resolved-window'});
+    expect(second.state==='HANDED_OFF'&&second.request.proposals[0].url).toBe('https://publisher.example/article');
+    const third=await s.collector.collect({...input,runId:'unchanged-window'});
+    expect(third.state==='HANDED_OFF'&&third.request.observations).toEqual([]);
+  });
+  it.each(['x_profile','x_search'] as const)('automatically falls back from a failed %s primary to one durable Apify run',async family=>{
+    const s=setup([]);let starts=0;
+    const dispatch=vi.fn(async(url:string)=>{
+      if(url.includes('api.twitterapi.io'))return Response.json({error:'unavailable'},{status:503});
+      if(url.includes('/actors/')){starts++;return Response.json({data:{id:'actorRun'}});}
+      if(url.includes('/actor-runs/'))return Response.json({data:{status:'SUCCEEDED',defaultDatasetId:'dataset'}});
+      return Response.json([{id:'99',text:'Real-shaped fallback post',author:{id:'123'}}]);
+    });
+    const http=new DurableProviderHttp(s.db,s.payloads,dispatch);
+    await http.configureLimit('x_twitterapi_io',1);await http.configureLimit('x_apify',1);
+    const collector=new FallbackSourceCollector(s.repository,s.payloads,s.intake,[new TwitterApiIoProvider(http,async()=> 'private-key',0.05),new ApifySourceProvider('x_apify',[family],http,async()=> 'private-token',0.1)],()=>time);
+    const input={...request,source:{family,locator:family==='x_profile'?'NASA':'from:NASA'}};
+    const first=await collector.collect(input);
+    expect(first.state).toBe('HANDED_OFF');
+    if(first.state!=='HANDED_OFF')throw Error('NO_HANDOFF');
+    expect(first.providerId).toBe('x_apify');expect(first.attempts[0].failure).toBe('TRANSIENT');
+    const next={...input,runId:'resumed',continuation:first.continuation};
+    const result=await collector.collect(next);
+    expect(result.state==='HANDED_OFF'&&result.request.observations[0].sourceItemKey).toBe('x:99');
+    const calls=dispatch.mock.calls.length;
+    await collector.collect(next);
+    expect(starts).toBe(1);expect(dispatch).toHaveBeenCalledTimes(calls);
+  });
+
+  it.each(['linkedin_company','linkedin_profile'] as const)('collects new %s posts across overlapping windows without duplicating old posts',async family=>{
+    const s=setup([]);let actor=0;
+    const post=(id:string)=>({urn:`urn:li:activity:${id}`,text:'Post '+id,url:`https://www.linkedin.com/feed/update/urn:li:activity:${id}/`,postedAt:{date:time}});
+    const dispatch=vi.fn(async(url:string)=>{
+      if(url.includes('/actors/'))return Response.json({data:{id:'actor'+(++actor)}});
+      if(url.includes('/actor-runs/'))return Response.json({data:{status:'SUCCEEDED',defaultDatasetId:'dataset'+actor}});
+      return Response.json(actor===1?[post('1')]:[post('2'),post('1')]);
+    });
+    const http=new DurableProviderHttp(s.db,s.payloads,dispatch);await http.configureLimit('linkedin_apify',1);
+    const collector=new FallbackSourceCollector(s.repository,s.payloads,s.intake,[new ApifySourceProvider('linkedin_apify',[family],http,async()=> 'private-token',0.1)],()=>time);
+    const collected:string[][]=[];
+    for(let window=1;window<=3;window++){
+      const input={...request,runId:'window'+window,source:{family,locator:'https://www.linkedin.com/company/example'},limit:3};
+      const start=await collector.collect(input);
+      if(start.state!=='HANDED_OFF')throw Error('NO_START');
+      const result=await collector.collect({...input,runId:input.runId+':page',continuation:start.continuation});
+      if(result.state!=='HANDED_OFF')throw Error('NO_RESULT');
+      collected.push(result.request.observations.map(o=>o.sourceItemKey));
+    }
+    expect(collected).toEqual([['linkedin:urn:li:activity:1'],['linkedin:urn:li:activity:2'],[]]);
+    expect(actor).toBe(3);
+  });
+
+  it('durably suppresses a replayed authoritative Telegram delete across collection windows',async()=>{
+    const deletion={...page().items[0],sourceItemKey:'telegram:-100123:1',operation:'DELETE' as const,body:undefined,authoritativeCurrentState:true,representation:'TELEGRAM_MESSAGE' as const};
+    const p:SourceProvider={id:'telegram_telethon',families:['telegram'],fetch:async()=>({...page(),items:[deletion]})};
+    const s=setup([p]);
+    s.intake.acceptBatch=vi.fn(async (b:Parameters<CandidateIntakePort['acceptBatch']>[0])=>({contractVersion:b.contractVersion,handoffId:b.handoffId,durable:true as const,receipts:b.observations.map(o=>({...receiptFixture(o),candidateItemId:undefined,tombstoneId:'tombstone-'+o.id,decision:'DELETION_ACCEPTED' as const,reasonCode:'ACCEPTED_DELETION' as const}))}));
+    const input={...request,source:{family:'telegram' as const,locator:'channel',channelId:'-100123'}};
+    const first=await s.collector.collect(input);
+    expect(first.state==='HANDED_OFF'&&first.request.observations[0].operation).toBe('DELETE');
+    const second=await s.collector.collect({...input,runId:'later-window'});
+    expect(second.state==='HANDED_OFF'&&second.request.observations).toEqual([]);
+  });
   it('defines preferred alternatives for each source without invented LinkedIn fallback',()=>{
     expect(DEFAULT_SOURCE_ORDER.website).toEqual(['website_http','website_playwright','website_zyte']);
     expect(DEFAULT_SOURCE_ORDER.telegram).toEqual(['telegram_telethon','telegram_public']);
@@ -208,12 +276,12 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const http:FeedHttpPort={get:vi.fn(async url=>({status:url.includes('/rss/search')?200:302,headers:{location:links[0]},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
     const execution={execute:vi.fn(async(_kind:string,input:Record<string,unknown>)=>({url:input.url===links[1]?'https://127.0.0.1/private':'https://publisher.example/article',requests:2,latencyMs:2}))};
     const result=await new FeedSourceProvider('google_rss',http,execution).fetch({...request,limit:30,source:{family:'google_news',locator:'AI'}});
-    expect(result.items.map(i=>i.url)).toEqual(['https://publisher.example/article',links[1],links[2],links[3],links[4]]);
-    expect(execution.execute).toHaveBeenCalledTimes(2);
-    expect(execution.execute).toHaveBeenCalledWith('google_resolve',{url:links[0]},{timeoutMs:35000});
+    expect(result.items.map(i=>i.url)).toEqual(['https://publisher.example/article',links[1],'https://publisher.example/article','https://publisher.example/article',links[4]]);
+    expect(execution.execute).toHaveBeenCalledTimes(4);
+    expect(execution.execute).toHaveBeenCalledWith('google_resolve',{url:links[0],timeoutSeconds:16},{timeoutMs:17000});
     expect(vi.mocked(http.get).mock.calls.every(([url])=>new URL(url).hostname==='news.google.com')).toBe(true);
     expect(result.items.every(i=>i.representation==='LISTING_RESULT'&&i.contentCompleteness==='UNKNOWN')).toBe(true);
-    expect(result.requests).toBe(7);
+    expect(result.requests).toBe(14);
   });
   it('uses the authorized private Google feed route after transient transport failure and preserves the exact query',async()=>{
     const http:FeedHttpPort={get:vi.fn(async()=>({status:0,headers:{},bytes:new Uint8Array(),telemetry:{requests:3,latencyMs:10,providerCostUsd:0}}))};
@@ -245,6 +313,18 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const result=await p.fetch({...request,source:{family:'telegram',locator:'channel',channelId:'-100123'},recheckItemKeys:['telegram:-100123:3']});
     expect(result.items[0]).toMatchObject({sourceItemKey:'telegram:-100123:3',sourceRevision:{value:edited,comparability:'COMPARABLE'}});
     expect(result.provenSafeCursor).toBeUndefined();
+  });
+  it('keeps Telegram deletions separate from the new-message cursor and exposes difference gaps as partial',async()=>{
+    const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute:async()=>({channelId:'-100123',records:[{id:20,text:'New',publishedAt:time},{id:3,deleted:true,explicitDeletion:true},{id:4,text:'Old edited post',publishedAt:time,editedAt:time,rechecked:true}],orderedFromCheckpoint:true,exhausted:true,deletionState:'GAP'})});
+    const result=await p.fetch({...request,source:{family:'telegram',locator:'channel',channelId:'-100123'}});
+    expect(result.provenSafeCursor).toBe('20');expect(result.complete).toBe(false);
+    expect(result.items[1]).toMatchObject({sourceItemKey:'telegram:-100123:3',operation:'DELETE',authoritativeCurrentState:true});
+  });
+  it.each(['linkedin_company','linkedin_profile'] as const)('passes a supported lower date bound to %s actor collection',async family=>{
+    const http={request:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{data:{id:'run'}}}))};
+    const p=new ApifySourceProvider('linkedin_apify',[family],http,async()=> 'private-token',0.1);
+    await p.fetch({...request,source:{family,locator:'https://www.linkedin.com/company/example'},requestedBounds:{startTime:time}},run);
+    expect(JSON.parse((http.request.mock.calls[0] as any[])[5].body)).toMatchObject({postedLimitDate:time,maxPosts:2,scrapeComments:false,scrapeReactions:false});
   });
   it('TwitterAPI.io sends profile+topic+time restrictions to search and keeps returned dates for intake validation',async()=>{
     const http={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{tweets:[{id:'1',text:'AI',createdAt:time}],has_next_page:false}}))};

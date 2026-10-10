@@ -1,5 +1,6 @@
 """Private bounded stdin/stdout source runtime. Existing authorized Telegram session only."""
 import asyncio
+import base64
 import datetime
 import ipaddress
 import json
@@ -7,6 +8,7 @@ import html
 import os
 import re
 import socket
+import sqlite3
 import sys
 import time
 import urllib.request
@@ -89,10 +91,30 @@ def fetch_google_feed(data):
 def resolve_google_article(data):
     """Best-effort public Google redirect protocol; never fetch a publisher."""
     started, requests = time.monotonic(), 0
+    budget = min(30, max(1, float(data.get('timeoutSeconds', 30))))
     parsed = urlsplit(data.get('url', ''))
     match = re.fullmatch(r'/(?:rss/)?articles/([A-Za-z0-9_-]{1,2000})', parsed.path)
     if parsed.scheme != 'https' or parsed.netloc != 'news.google.com' or not match:
         raise ValueError('INVALID_GOOGLE_ARTICLE')
+    # Older Google IDs embed a publisher URL in a length-delimited protobuf field.
+    # Decode only that field; do not scan arbitrary bytes for a URL substring.
+    try:
+        encoded = match[1]
+        decoded = base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4))
+        if decoded.startswith(b'\x08\x13\x22'):
+            size, shift, position = 0, 0, 3
+            while position < len(decoded) and shift <= 21:
+                value = decoded[position]
+                position += 1
+                size |= (value & 127) << shift
+                if value < 128:
+                    target = decoded[position:position + size].decode('utf-8')
+                    if size <= 4096 and position + size <= len(decoded) and publisher_url(target):
+                        return {'url': target, 'requests': 0, 'latencyMs': 0}
+                    break
+                shift += 7
+    except (ValueError, UnicodeError):
+        pass
     if os.environ.get('SOURCE_BROWSER_EGRESS_CONFIRMED') != 'true':
         return {'error': 'UNAVAILABLE', 'requests': 0, 'latencyMs': 0}
     class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -101,9 +123,15 @@ def resolve_google_article(data):
     opener = urllib.request.build_opener(NoRedirect())
     def read(request):
         nonlocal requests
+        remaining = budget - (time.monotonic() - started)
+        if remaining <= 0:
+            raise TimeoutError('GOOGLE_RESOLUTION_DEADLINE')
         public_url(request.full_url)
+        remaining = budget - (time.monotonic() - started)
+        if remaining <= 0:
+            raise TimeoutError('GOOGLE_RESOLUTION_DEADLINE')
         requests += 1
-        with opener.open(request, timeout=10) as response:
+        with opener.open(request, timeout=min(10, remaining)) as response:
             body = response.read(1000001)
             if len(body) > 1000000:
                 raise ValueError('GOOGLE_RESPONSE_TOO_LARGE')
@@ -115,6 +143,8 @@ def resolve_google_article(data):
         except urllib.error.HTTPError as error:
             location = error.headers.get('Location', '')
             target = urlsplit(location)
+            if error.code in (301, 302, 303, 307, 308) and publisher_url(location):
+                return {'url': location, 'requests': requests, 'latencyMs': int((time.monotonic() - started) * 1000)}
             if error.code not in (301, 302, 303, 307, 308) or target.netloc != 'news.google.com' or target.scheme != 'https' or not re.fullmatch(r'/(?:rss/)?articles/' + re.escape(match[1]), target.path):
                 raise ValueError('GOOGLE_REDIRECT_DENIED')
             page = read(urllib.request.Request(location))
@@ -139,22 +169,92 @@ def resolve_google_article(data):
                 if not isinstance(row, list) or len(row) < 3 or row[:2] != ['wrb.fr', 'Fbv4je'] or not isinstance(row[2], str):
                     continue
                 decoded = json.loads(row[2])
-                if isinstance(decoded, list) and len(decoded) > 1 and decoded[0] == 'garturlres' and isinstance(decoded[1], str):
+                if isinstance(decoded, list) and len(decoded) > 1 and decoded[0] == 'garturlres' and publisher_url(decoded[1]):
                     return {'url': decoded[1], 'requests': requests, 'latencyMs': int((time.monotonic() - started) * 1000)}
         raise ValueError('GOOGLE_PROTOCOL_CHANGED')
     except Exception:
         return {'error': 'UNAVAILABLE', 'requests': requests, 'latencyMs': int((time.monotonic() - started) * 1000)}
 
 
+def publisher_url(value):
+    if not isinstance(value, str) or len(value) > 4096:
+        return False
+    try:
+        target = urlsplit(value)
+        host = target.hostname or ''
+        if target.scheme != 'https' or target.username or target.password or target.port or '.' not in host or host == 'news.google.com' or host.endswith(('.local', '.internal', '.localhost')):
+            return False
+        public_url(value)  # Validate DNS without fetching the publisher.
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+async def telegram_deletions(client, peer, channel, session):
+    """Durable channel PTS + explicit delete journal, independent of response delivery.
+
+    Never infer deletes from an empty history response or a difference-too-long gap.
+    A lost stdout response is safe: the delete journal is retained for later rechecks.
+    """
+    from telethon.tl.functions.channels import GetFullChannelRequest
+    from telethon.tl.functions.updates import GetChannelDifferenceRequest
+    from telethon.tl.types import ChannelMessagesFilterEmpty, UpdateDeleteChannelMessages, UpdateEditChannelMessage
+    from telethon.tl.types.updates import ChannelDifference, ChannelDifferenceEmpty, ChannelDifferenceTooLong
+    db_path = str(session) + '.updates.sqlite3'
+    db = sqlite3.connect(db_path, timeout=2)
+    try:
+        os.chmod(db_path, 0o600)
+        db.execute('CREATE TABLE IF NOT EXISTS channel_state(channel TEXT PRIMARY KEY, pts INTEGER NOT NULL, gap INTEGER NOT NULL DEFAULT 0)')
+        db.execute('CREATE TABLE IF NOT EXISTS channel_deletes(channel TEXT, message_id INTEGER, pts INTEGER NOT NULL, exported INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(channel,message_id))')
+        db.execute('CREATE TABLE IF NOT EXISTS channel_edits(channel TEXT, message_id INTEGER, pts INTEGER NOT NULL, exported INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(channel,message_id))')
+        db.execute('BEGIN IMMEDIATE')
+        saved = db.execute('SELECT pts,gap FROM channel_state WHERE channel=?', (channel,)).fetchone()
+        if not saved:
+            full = await client(GetFullChannelRequest(peer))
+            db.execute('INSERT INTO channel_state(channel,pts) VALUES(?,?)', (channel, full.full_chat.pts))
+            db.commit()
+            return db, 'INITIALIZED'
+        pts, gap = saved
+        state = 'GAP' if gap else 'CURRENT'
+        for _ in range(2):
+            difference = await client(GetChannelDifferenceRequest(channel=peer, filter=ChannelMessagesFilterEmpty(), pts=pts, limit=100, force=True))
+            if isinstance(difference, ChannelDifferenceTooLong):
+                pts = difference.dialog.pts
+                gap, state = 1, 'GAP'
+            elif isinstance(difference, (ChannelDifference, ChannelDifferenceEmpty)):
+                if difference.pts < pts:
+                    raise ValueError('INVALID_CHANNEL_PTS')
+                for update in getattr(difference, 'other_updates', []):
+                    if isinstance(update, UpdateDeleteChannelMessages) and update.channel_id == peer.channel_id:
+                        for message_id in update.messages:
+                            db.execute('INSERT INTO channel_deletes(channel,message_id,pts) VALUES(?,?,?) ON CONFLICT(channel,message_id) DO UPDATE SET pts=MAX(pts,excluded.pts)', (channel, message_id, update.pts))
+                    elif isinstance(update, UpdateEditChannelMessage) and getattr(update.message.peer_id, 'channel_id', None) == peer.channel_id:
+                        db.execute('INSERT INTO channel_edits(channel,message_id,pts) VALUES(?,?,?) ON CONFLICT(channel,message_id) DO UPDATE SET pts=MAX(pts,excluded.pts),exported=0', (channel, update.message.id, update.pts))
+                pts = difference.pts
+            else:
+                raise ValueError('INVALID_CHANNEL_DIFFERENCE')
+            db.execute('UPDATE channel_state SET pts=?,gap=? WHERE channel=?', (pts, gap, channel))
+            if getattr(difference, 'final', False):
+                break
+            state = 'GAP' if gap else 'PENDING'
+        db.commit()
+        return db, state
+    except BaseException:
+        db.rollback()
+        db.close()
+        raise
+
+
 async def telegram(data):
     from telethon import TelegramClient, utils
-    from telethon.errors import FloodWaitError
+    from telethon.errors import FloodWaitError, AuthKeyError, UnauthorizedError
     session = Path(os.environ.get('TELEGRAM_SESSION_PATH', ''))
     if not os.environ.get('TELEGRAM_SESSION_PATH') or not session.is_file():
         return {'error': 'AUTH_REQUIRED'}
     client = TelegramClient(str(session), int(os.environ['TELEGRAM_API_ID']), os.environ['TELEGRAM_API_HASH'],
                             connection_retries=1, request_retries=1, flood_sleep_threshold=0,
-                            timeout=15, auto_reconnect=False)
+                            timeout=15, auto_reconnect=False, receive_updates=False)
+    journal = None
     try:
         await client.connect()
         if not await client.is_user_authorized():
@@ -164,6 +264,7 @@ async def telegram(data):
         peer = await client.get_input_entity(peer_id)
         if str(utils.get_peer_id(peer)) != data['channelId']:
             raise ValueError('PEER_MISMATCH')
+        journal, deletion_state = await telegram_deletions(client, peer, data['channelId'], session)
         limit = data['limit']
         if not isinstance(limit, int) or not 1 <= limit <= 500:
             raise ValueError('INVALID_LIMIT')
@@ -180,12 +281,49 @@ async def telegram(data):
             messages, ordered = messages[:limit], True
         records = [{'id': m.id, 'text': m.message or '', 'publishedAt': iso(m.date),
                     'editedAt': iso(m.edit_date)} for m in messages if m is not None]
-        # Missing get_messages(ids=...) entries are deliberately not deletion observations.
+        if ids:
+            present = {record['id'] for record in records}
+            for message_id in ids:
+                if message_id not in present and journal.execute('SELECT 1 FROM channel_deletes WHERE channel=? AND message_id=?', (data['channelId'], message_id)).fetchone():
+                    records.append({'id': message_id, 'deleted': True, 'explicitDeletion': True})
+        else:
+            # Replay retained explicit deletes in bounded rotating batches. They
+            # have no relation to the new-message cursor and are never discarded
+            # on export: response loss or another feed cannot consume the event.
+            changed_ids = [row[0] for row in journal.execute('SELECT message_id,MIN(exported) AS last_export FROM (SELECT message_id,exported FROM channel_deletes WHERE channel=? UNION ALL SELECT message_id,exported FROM channel_edits WHERE channel=?) GROUP BY message_id ORDER BY last_export,message_id LIMIT ?', (data['channelId'], data['channelId'], limit))]
+            if changed_ids:
+                new_ids = {record['id'] for record in records}
+                current = await client.get_messages(peer, ids=changed_ids)
+                for message_id, message in zip(changed_ids, current):
+                    if message is None:
+                        if journal.execute('SELECT 1 FROM channel_deletes WHERE channel=? AND message_id=?', (data['channelId'],message_id)).fetchone():
+                            records = [record for record in records if record['id'] != message_id]
+                            records.append({'id': message_id, 'deleted': True, 'explicitDeletion': True})
+                    else:
+                        latest = {'id':message.id,'text':message.message or '', 'publishedAt':iso(message.date),'editedAt':iso(message.edit_date),'rechecked':message_id not in new_ids}
+                        existing_index = next((index for index, record in enumerate(records) if record['id']==message_id), None)
+                        if existing_index is None:
+                            records.append(latest)
+                        else:
+                            records[existing_index] = latest
+                        # A current returned message is stronger than an older cached delete.
+                    exported = time.time_ns()
+                    journal.execute('UPDATE channel_deletes SET exported=? WHERE channel=? AND message_id=?', (exported, data['channelId'], message_id))
+                    journal.execute('UPDATE channel_edits SET exported=? WHERE channel=? AND message_id=?', (exported, data['channelId'], message_id))
+                journal.commit()
         return {'channelId': data['channelId'], 'records': records, 'orderedFromCheckpoint': ordered,
-                'exhausted': exhausted}
+                'exhausted': exhausted, 'deletionState': deletion_state}
     except FloodWaitError as error:
         return {'error': 'RATE_LIMIT', 'retryNotBefore': iso(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=error.seconds))}
+    except (AuthKeyError, UnauthorizedError):
+        return {'error': 'AUTH_REQUIRED'}
+    except (ConnectionError, OSError, asyncio.TimeoutError):
+        # Each subsequent bounded execution reconnects the same authorized session.
+        # Never delete the session or start an interactive login from collection.
+        return {'error': 'TRANSIENT'}
     finally:
+        if journal is not None:
+            journal.close()
         await client.disconnect()
 
 

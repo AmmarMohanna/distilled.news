@@ -88,7 +88,11 @@ export class ApifySourceProvider implements SourceProvider {
       publishedFrom:input.requestedBounds.startTime,publishedThrough:input.requestedBounds.endTime};
     if(input.source.family==='x_profile')return {from:validateAccount(input.source.locator),maxItems:input.limit,queryType:'Latest'};
     if(input.source.family==='x_search')return {twitterContent:input.source.locator,maxItems:input.limit,queryType:'Latest'};
-    if(input.source.family.startsWith('linkedin'))return {targetUrls:[input.source.locator],maxPosts:input.limit,scrapeComments:false,scrapeReactions:false};
+    // These actors expose a lower date bound, not an exact historical time window.
+    // Keep overlap and let durable item fingerprints suppress unchanged posts.
+    if(input.source.family.startsWith('linkedin'))return {targetUrls:[input.source.locator],maxPosts:input.limit,
+      ...(input.requestedBounds.startTime?{postedLimitDate:input.requestedBounds.startTime}:{postedLimit:'any'}),
+      scrapeComments:false,scrapeReactions:false};
     return {...input.source.actorInput,maxItems:input.limit};
   }
 }
