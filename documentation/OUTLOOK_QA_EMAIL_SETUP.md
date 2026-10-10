@@ -22,7 +22,7 @@ The isolated `distilled-news-sources-qa` Worker can send account verification an
    node scripts/setup-outlook-qa-mail.mjs YOUR_APPLICATION_CLIENT_ID
    ```
 
-   Open the Microsoft device-login URL and enter the one-time code shown by the script. Sign in as `distilled.news@outlook.com` and consent. The script checks the mailbox identity, installs `OUTLOOK_CLIENT_ID`, `OUTLOOK_TOKEN_ENCRYPTION_KEY`, and `OUTLOOK_REFRESH_TOKEN` directly as secrets on the isolated QA Worker, and clears any older encrypted token row after a reconnect. Do not paste tokens or login codes into chat, issues, or Git.
+   Open the **exact URL returned by Microsoft in the script output** and enter its one-time code. In the current personal-account flow Microsoft returned `https://www.microsoft.com/link`; sending that code to a different device-login page caused rejection. Sign in as `distilled.news@outlook.com` and consent. Temporary Microsoft connection failures are retried while polling, preserving the active authorization session. The script checks the mailbox identity, installs `OUTLOOK_CLIENT_ID`, `OUTLOOK_TOKEN_ENCRYPTION_KEY`, and `OUTLOOK_REFRESH_TOKEN` directly as secrets on the isolated QA Worker, and clears any older encrypted token row after a reconnect. Do not paste tokens or login codes into chat, issues, or Git.
 
 7. Deploy the isolated QA Worker:
 

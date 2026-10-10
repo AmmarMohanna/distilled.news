@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { requestMicrosoft } from './outlook-qa-request.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workerDir = resolve(root, 'apps/worker');
@@ -16,14 +17,14 @@ if (!clientId || !/^[0-9a-f-]{36}$/i.test(clientId)) {
 
 const authority = 'https://login.microsoftonline.com/consumers/oauth2/v2.0';
 const scopes = 'offline_access Mail.Send User.Read';
-const deviceResponse = await fetch(`${authority}/devicecode`, {
+const deviceResponse = await requestMicrosoft(`${authority}/devicecode`, {
   method: 'POST',
   headers: { 'content-type': 'application/x-www-form-urlencoded' },
   body: new URLSearchParams({ client_id: clientId, scope: scopes })
 });
 const device = await deviceResponse.json();
 if (!deviceResponse.ok || !device.device_code || !device.user_code) {
-  throw new Error(`Microsoft device authorization failed (${deviceResponse.status})`);
+  throw new Error(`Microsoft device authorization failed (${deviceResponse.status}, ${device.error || 'unknown'}, codes: ${JSON.stringify(device.error_codes || [])})`);
 }
 console.log(device.message || `Open ${device.verification_uri} and enter code ${device.user_code}`);
 console.log('Authorize only the distilled.news@outlook.com account. Waiting for Microsoft...');
@@ -33,7 +34,9 @@ let interval = Math.max(5, Number(device.interval || 5));
 let tokens;
 while (Date.now() < end) {
   await new Promise(done => setTimeout(done, interval * 1000));
-  const response = await fetch(`${authority}/token`, {
+  let response;
+  try {
+    response = await requestMicrosoft(`${authority}/token`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -41,7 +44,12 @@ while (Date.now() < end) {
       grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
       device_code: device.device_code
     })
-  });
+    });
+  } catch {
+    console.log('Temporary Microsoft connection failure; keeping this authorization session active.');
+    continue;
+  }
+  if (response.status === 408 || response.status === 429 || response.status >= 500) continue;
   const result = await response.json();
   if (response.ok) { tokens = result; break; }
   if (result.error === 'authorization_pending') continue;
@@ -50,7 +58,7 @@ while (Date.now() < end) {
 }
 if (!tokens?.access_token || !tokens?.refresh_token) throw new Error('Microsoft authorization expired or returned no refresh token');
 
-const profileResponse = await fetch('https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName', {
+const profileResponse = await requestMicrosoft('https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName', {
   headers: { authorization: `Bearer ${tokens.access_token}` }
 });
 if (!profileResponse.ok) throw new Error(`Outlook mailbox verification failed (${profileResponse.status})`);
