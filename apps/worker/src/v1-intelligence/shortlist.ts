@@ -17,17 +17,20 @@ import type {Env} from '../types';
 export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v13';
 export type {NoveltyClass};
 export interface ShortlistFact {id:string;timing?:FactTiming;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
-export interface ShortlistCandidate {/** Deferred only by overflow: the planner has never compared it. */unreviewed?:boolean;publisherIds?:string[];sourceTitles?:string[];ranking?:EditorialRanking;communicationCost?:CommunicationCost;novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
+export interface ShortlistCandidate {/** Deferred only by overflow: the planner has never compared it. */unreviewed?:boolean;/** When its earliest overflow deferral was recorded. */unreviewedSince?:string;publisherIds?:string[];sourceTitles?:string[];ranking?:EditorialRanking;communicationCost?:CommunicationCost;novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
 export interface ShortlistRecord {bootstrap?:boolean;id:string;feedId:string;feedRevision:number;window:PublicationWindow;communicationFingerprint:string;candidates:ShortlistCandidate[];overflow:ShortlistCandidate[];obligations:CorrectionObligation[];ledger:{id:string;claimText:string;claimFacts:string[];eventIds:string[];storylineIds:string[];certainty:LedgerEntry['certainty'];editionId:string}[];evidenceRevisionIds:string[];policyVersion:string;createdAt:string}
-/** Review slots reserved per window for never-reviewed overflow news, so older important work cannot be starved by newer, higher-ranked arrivals. */
-export const UNREVIEWED_REVIEW_SLOTS=3;
-export function boundShortlist<T extends {targetVersionId:string;priority:number;protectedReasons:string[];ranking?:EditorialRanking;unreviewed?:boolean}>(candidates:T[],ordinaryLimit:number):{selected:T[];overflow:T[]} {
+/** Review slots reserved per window for never-reviewed overflow news. One goes to the best-ranked such candidate; the others go to the
+ * longest-waiting ones, so a steady arrival of higher-ranked news cannot keep an older candidate unreviewed until its retention bound. */
+export const UNREVIEWED_REVIEW_SLOTS=3,UNREVIEWED_RANK_SLOTS=1;
+export function boundShortlist<T extends {targetVersionId:string;priority:number;protectedReasons:string[];ranking?:EditorialRanking;unreviewed?:boolean;unreviewedSince?:string}>(candidates:T[],ordinaryLimit:number):{selected:T[];overflow:T[]} {
  const sorted=[...candidates].sort(compareEditorialCandidates);let ordinary=0;const selected:T[]=[],overflow:T[]=[];
  for(const c of sorted)if(c.protectedReasons.length||ordinary++<ordinaryLimit)selected.push(c);else overflow.push(c);
- // The best-ranked never-reviewed candidates (bounded) are admitted beyond the ordinary limit; the total input stays bounded.
- const reserved=overflow.filter(c=>c.unreviewed).slice(0,ordinaryLimit>0?UNREVIEWED_REVIEW_SLOTS:0);
- if(reserved.length){const ids=new Set(reserved.map(c=>c.targetVersionId));return {selected:[...selected,...reserved].sort(compareEditorialCandidates),overflow:overflow.filter(c=>!ids.has(c.targetVersionId))}}
- return {selected,overflow};
+ // Admitted beyond the ordinary limit, so total planner input stays bounded (limit + UNREVIEWED_REVIEW_SLOTS).
+ const waiting=overflow.filter(c=>c.unreviewed);if(!waiting.length||ordinaryLimit<=0)return {selected,overflow};
+ const reserved=waiting.slice(0,UNREVIEWED_RANK_SLOTS);
+ for(const c of [...waiting].sort((a,b)=>(a.unreviewedSince??'').localeCompare(b.unreviewedSince??'')||compareEditorialCandidates(a,b))){if(reserved.length>=UNREVIEWED_REVIEW_SLOTS)break;if(!reserved.includes(c))reserved.push(c)}
+ const ids=new Set(reserved.map(c=>c.targetVersionId));
+ return {selected:[...selected,...reserved].sort(compareEditorialCandidates),overflow:overflow.filter(c=>!ids.has(c.targetVersionId))};
 }
 export async function shortlistInTransaction(tx:FeedTransaction,window:PublicationWindow,now:string,ordinaryLimit=20,options:{collectOnly?:boolean;rankings?:Map<string,EditorialRanking>}={}):Promise<ShortlistRecord> {
  await refreshSourceCorrectionObligations(tx,now);
@@ -93,7 +96,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   const identityAffectsHistory=states.some(s=>s.provisional)&&facts.some(f=>ledger.some(e=>e.claimFacts.some(old=>equivalentFact(old,f.text)||provenMaterialDelta(old,f.text))));
   const flags=[...(repeatedProtectedEffect?['SETTLED_REPEATED_EFFECT']:[]),...(titleExtractionPending?['TITLE_EXTRACTION_PENDING']:[]),...(editorial.decision==='SUPPRESS'?['POSSIBLE_REPEAT']:[]),...(editorial.reasonCodes.includes('OLD_RECAP')?['OLD_RECAP']:[]),...(states.some(s=>s.provisional)?['PROVISIONAL']:[]),...(states.some(s=>s.provisional)&&(protectedReasons.length||known.length||identityAffectsHistory)?['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE']:[]),...(facts.some(f=>f.certainty?.hedges.length)?['QUALIFIED']:[]),...(facts.some(f=>f.selfContained==='UNRESOLVED')?['NON_SELF_CONTAINED']:[])];
   const candidate:ShortlistCandidate={publisherIds:[...new Set(await Promise.all(target.evidence.map(e=>publisherIdentity(tx,e))))].sort(),sourceTitles:[...new Set(target.evidence.map(e=>e.title).filter((s):s is string=>Boolean(s)))].slice(0,3),novelty:noveltyClass(editorial.reasonCodes[0],effects),targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),facts,stateSlotIds:[...new Set(states.flatMap(s=>s.stateSlotIds))],effects,flags,protectedReasons:[...new Set(protectedReasons)],correctionObligationIds:related.map(o=>o.id),priority:protectedReasons.length?1:editorial.reasonCodes.includes('OLD_RECAP')?.3:editorial.newUnderstanding.length?.6:.2,fallbackEditorial:editorial};
-  if(deferred.length&&unreviewedOverflow(deferred))candidate.unreviewed=true;
+  if(deferred.length&&unreviewedOverflow(deferred)){candidate.unreviewed=true;candidate.unreviewedSince=deferred.map(w=>w.createdAt).sort()[0]}
   candidate.ranking=options.rankings?.get(target.id)??cheapEditorialRanking(tx.snapshot.feed,candidate);
   candidate.communicationCost=communicationCost(candidate);candidate.priority=candidate.ranking.score;
   const knownRepeat=editorial.previouslyCommunicated.length>0&&editorial.newUnderstanding.length===0&&editorial.reasonCodes.some(reason=>['ALREADY_COMMUNICATED','CORROBORATION_ONLY'].includes(reason));

@@ -13,9 +13,11 @@ export async function scheduleRematch(tx:FeedTransaction,jobId:string,evidenceRe
 /** A stale prepared judgment is a concurrency race, not a committed semantic outcome: it does not consume one of the three semantic attempts,
  * but each race still re-prepares (and may bill) a call, so the total number of attempts stays strictly bounded. */
 export const STALE_REASON='STALE_PREPARED_MEMORY',MAX_SEMANTIC_ATTEMPTS=3,MAX_STALE_RETRIES=2;
-export function rematchExhausted(history:Pick<RematchAttempt,'reason'|'attempt'>[]):boolean{
- const stale=history.filter(a=>a.reason===STALE_REASON).length,numbered=Math.max(0,...history.map(a=>a.attempt));
- return Math.max(history.length-stale,numbered-stale)>=MAX_SEMANTIC_ATTEMPTS||stale>MAX_STALE_RETRIES;
+/** A pre-call budget denial consumed no provider attempt (legacy EXHAUSTED records with this exact reason are the same). Unknown outcomes ARE real attempts. */
+export const isBudgetDenial=(a:Pick<RematchAttempt,'state'|'reason'>)=>a.state==='WAITING_BUDGET'||a.reason==='SEMANTIC_BUDGET_EXHAUSTED';
+export function rematchExhausted(history:Pick<RematchAttempt,'reason'|'attempt'|'state'>[]):boolean{
+ const real=history.filter(a=>!isBudgetDenial(a)),stale=real.filter(a=>a.reason===STALE_REASON).length,numbered=Math.max(0,...real.map(a=>a.attempt));
+ return Math.max(real.length-stale,numbered-stale)>=MAX_SEMANTIC_ATTEMPTS||stale>MAX_STALE_RETRIES;
 }
 export function nextRematch(request:RematchRequest,attempts:RematchAttempt[],now:string):number|undefined {
  const prior=attempts.filter(a=>a.requestId===request.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.attempt-a.attempt)[0];
@@ -27,8 +29,8 @@ export function nextRematch(request:RematchRequest,attempts:RematchAttempt[],now
   // Unknown outcomes are intentionally NOT eligible for this exception.
   const reset=Date.parse(prior!.createdAt.slice(0,10)+'T00:00:00Z')+86400000;
   if(Date.parse(now)<Math.max(reset,Date.parse(prior!.nextAttemptAt??prior!.createdAt)))return undefined;
-  const completed=Math.max(0,...attempts.filter(a=>a.requestId===request.id&&a.state!=='WAITING_BUDGET'&&a.reason!=='SEMANTIC_BUDGET_EXHAUSTED').map(a=>a.attempt));
-  return completed<3?completed+1:undefined;
+  const real=attempts.filter(a=>a.requestId===request.id&&!isBudgetDenial(a));
+  return rematchExhausted(real)?undefined:Math.max(0,...real.map(a=>a.attempt))+1;
  }
  if(prior?.state==='EXHAUSTED'||prior&&rematchExhausted(attempts.filter(a=>a.requestId===request.id))||prior?.nextAttemptAt&&prior.nextAttemptAt>now)return undefined;return (prior?.attempt??0)+1;
 }

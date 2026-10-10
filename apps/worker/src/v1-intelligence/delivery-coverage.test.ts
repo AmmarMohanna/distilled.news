@@ -8,7 +8,7 @@ import {boundShortlist,prepareSemanticShortlist,type ShortlistRecord} from './sh
 import {partitionProvisionalMentions} from './composite-partition';
 import {nextRematch,prioritizeRematches,protectedRematchRevisionIds,scheduleRematch,rematchExhausted,type RematchAttempt,type RematchRequest} from './rematch';
 import {recordBlockedWindow,BLOCKED_REASON,PROTECTED_REASSESSMENT_POLICY} from './blocked-window';
-import {deferEditorialWork} from './editorial-work';
+import {deferEditorialWork,readUnreviewedOverflow} from './editorial-work';
 import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,feedTransact} from './store';
@@ -143,17 +143,19 @@ describe('blocked windows, overflow retention and composite grouping',()=>{
   await feedTransact(store,'feed-1',async tx=>{await deferEditorialWork(tx,c,'SHORTLIST_OVERFLOW',first.end,'old');});
   const work=(await store.list<any>('feed-1','editorial_deferred_work'))[0];expect(Date.parse(work.expiresAt)-Date.parse(first.end)).toBe(30*86400000);
   const legacy={...work,id:'legacy',expiresAt:new Date(Date.parse(first.end)+7*86400000).toISOString(),stableTargetId:'legacy-target'};void legacy;
+  expect(await readUnreviewedOverflow(store,'feed-1','2026-10-20T00:00:00Z')).toMatchObject({atRisk:1,retiredUnreviewed:0,waiting:[{stableTargetId:c.stableTargetId,status:'AT_RISK'}]});
   const day8={start:'2026-10-11T12:00:00Z',end:'2026-10-11T13:00:00Z',kind:'HOURLY' as const};
   expect((await prepareSemanticShortlist(store,'feed-1',day8,day8.end)).candidates.map(x=>x.stableTargetId)).toContain(c.stableTargetId);
   const day31={start:'2026-11-03T12:00:00Z',end:'2026-11-03T13:00:00Z',kind:'HOURLY' as const};
   expect((await prepareSemanticShortlist(store,'feed-1',day31,day31.end)).candidates.map(x=>x.stableTargetId)).not.toContain(c.stableTargetId);
   expect(await store.list('feed-1','editorial_work_resolutions')).toEqual(expect.arrayContaining([expect.objectContaining({reason:'STALE_UNREVIEWED_AFTER_RETENTION'})]));
+  expect(await readUnreviewedOverflow(store,'feed-1','2026-11-03T13:00:00Z')).toMatchObject({waiting:[],retiredUnreviewed:1});
  },60000);
  it('review slots: the best never-reviewed overflow candidates are admitted beyond the ordinary limit, bounded',()=>{
   const mk=(id:string,score:number,unreviewed=false)=>({targetVersionId:id,priority:score,protectedReasons:[] as string[],unreviewed,ranking:{score,relevance:score,freshness:1,semanticKey:id} as any});
   const list=[...Array.from({length:5},(_,i)=>mk(`n${i}`,.9-i*.01)),...Array.from({length:6},(_,i)=>mk(`u${i}`,.3-i*.01,true))];
   const r=boundShortlist(list,3);
-  expect(r.selected.filter(c=>c.unreviewed).map(c=>c.targetVersionId)).toEqual(['u0','u1','u2']);expect(r.selected).toHaveLength(6);expect(r.overflow.map(c=>c.targetVersionId)).toEqual(['n3','n4','u3','u4','u5']);
+  expect(r.selected.filter(c=>c.unreviewed)).toHaveLength(3);expect(r.selected).toHaveLength(6);expect(r.overflow.map(c=>c.targetVersionId)).toEqual(['n3','n4','u3','u4','u5']);
   expect(boundShortlist(list.filter(c=>!c.unreviewed),3).selected).toHaveLength(3);
  });
  describe('composite source: unrelated announcements bundled by one publisher',()=>{

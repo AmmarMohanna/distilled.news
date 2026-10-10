@@ -20,3 +20,13 @@ export async function deferEditorialWork(tx:FeedTransaction,c:ShortlistCandidate
 export async function resolveEditorialWork(tx:FeedTransaction,work:EditorialWork,reason:string,now:string,origin:string):Promise<void>{
  const id=JSON.stringify([work.id,origin,reason]);if(!await tx.read('editorial_work_resolutions',id))await tx.write('editorial_work_resolutions',id,{id,feedId:tx.snapshot.feed.id,workId:work.id,reason,createdAt:now});
 }
+
+/** Operator view of news the planner has never compared: how long it has waited and how close it is to retirement. */
+export async function readUnreviewedOverflow(store:import('./store').V1FeedStore,feedId:string,now:string){
+ const resolved=new Set((await store.list<{workId:string}>(feedId,'editorial_work_resolutions')).map(r=>r.workId));
+ const open=(await store.list<EditorialWork>(feedId,'editorial_deferred_work')).filter(w=>!resolved.has(w.id)),byTarget=new Map<string,EditorialWork[]>();
+ for(const w of open)byTarget.set(w.stableTargetId,[...(byTarget.get(w.stableTargetId)??[]),w]);
+ const waiting=[...byTarget.entries()].filter(([,w])=>unreviewedOverflow(w)).map(([stableTargetId,w])=>{const since=w.map(x=>x.createdAt).sort()[0],ageDays=(Date.parse(now)-Date.parse(since))/86400000;return {stableTargetId,since,ageDays:Math.floor(ageDays),retireAt:new Date(Date.parse(since)+UNREVIEWED_RETENTION_DAYS*86400000).toISOString(),status:ageDays>=UNREVIEWED_RETENTION_DAYS/2?'AT_RISK' as const:'WAITING' as const}}).sort((a,b)=>a.since.localeCompare(b.since));
+ const retired=(await store.list<{reason?:string}>(feedId,'editorial_work_resolutions')).filter(r=>r.reason==='STALE_UNREVIEWED_AFTER_RETENTION').length;
+ return {waiting,atRisk:waiting.filter(w=>w.status==='AT_RISK').length,retiredUnreviewed:retired};
+}
