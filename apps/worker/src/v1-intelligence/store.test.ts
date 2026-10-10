@@ -61,3 +61,16 @@ it('mutating a listed immutable document cannot mutate its cached prior value or
  await expect(tx.write('intelligence_receipts',row.id,row)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
  expect(await tx.read<any>('intelligence_receipts',row.id)).toMatchObject({value:'original'});
 });
+
+it('identifies an intake-scope CAS failure separately from an unchanged Feed epoch',async()=>{
+ const log=vi.spyOn(console,'warn').mockImplementation(()=>undefined),beforeEpoch=(await store.snapshot(feed.id)).scopes.find(s=>s.id===scopeFixture.feedSourceId)!.epoch;let runs=0;
+ try{
+  await feedTransact(store,feed.id,async tx=>{
+   if(++runs===1)await new V1IntakeStore(ctx.db).registerScope(scopeFixture);
+   await tx.write('intelligence_receipts','scope-diagnostic',{id:'scope-diagnostic',feedId:feed.id});
+  });
+  const event=log.mock.calls.map(c=>{try{return JSON.parse(String(c[0]))}catch{return {}}}).find(v=>v.type==='V1_FEED_CAS_REJECTED');
+  expect(event).toMatchObject({feedEpochChanged:false,scopeSetChanged:false,scopeChanges:[{id:scopeFixture.feedSourceId,before:beforeEpoch,after:beforeEpoch+1}],observedAfterRejection:true});
+  expect(event.queries.documentReads).toBeGreaterThan(0);expect(runs).toBe(2);
+ }finally{log.mockRestore()}
+});
