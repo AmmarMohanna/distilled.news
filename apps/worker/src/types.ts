@@ -59,6 +59,10 @@ export interface ProcessingJobRecord {
 }
 
 export interface Env extends Cloudflare.Env {
+  MAIL_TRANSPORT?: "CLOUDFLARE" | "OUTLOOK_GRAPH";
+  OUTLOOK_CLIENT_ID?: string;
+  OUTLOOK_REFRESH_TOKEN?: string;
+  OUTLOOK_TOKEN_ENCRYPTION_KEY?: string;
   PRODUCT_FEEDS_ENABLED?: string;
   SOURCE_RECOMMENDATIONS_ENABLED?: string;
   SOURCE_CONNECTORS_ENABLED?: string;

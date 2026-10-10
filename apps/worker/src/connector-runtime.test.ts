@@ -42,7 +42,7 @@ it('freezes one daily Telegram edit range when new accepted messages arrive and 
 });
 it('migrates empty D1 and connects RSS through receipts, acquisition, intelligence, plan and grounded immutable publication',async()=>{
  const publishedAt=new Date(Date.now()-3600000).toUTCString();
- const fetcher=vi.fn(async()=>new Response(`<rss version="2.0"><channel><title>News</title><item><guid>banking-1</guid><link>https://example.com/news/1</link><title>Lebanon banking reform</title><description>Lebanon Parliament approved banking reform legislation.</description><pubDate>${publishedAt}</pubDate></item></channel></rss>`,{headers:{'content-type':'application/rss+xml'}}));
+ const fetcher=vi.fn(async()=>new Response(`<rss version="2.0"><channel><title>News</title><item><guid>banking-1</guid><link>https://example.com/news/1</link><title>Lebanon Parliament approved banking reform legislation</title><description>Lebanon Parliament approved banking reform legislation</description><pubDate>${publishedAt}</pubDate></item></channel></rss>`,{headers:{'content-type':'application/rss+xml'}}));
  const runtime=createConnectorRuntime(env,fetcher as typeof fetch);
  const rss={scope:request.scope,configurationRevision:request.configurationRevision,runId:request.runId,url:request.source.locator,maxItems:30};
  const first=await runtime.collectRss(rss);expect(first.checkpoint).toBe('ADVANCED');

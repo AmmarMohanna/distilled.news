@@ -14,7 +14,8 @@ import type {DuplicateDecision,EventRecord,StorylineRecord,StorylineVersion} fro
 import type {EditorialPlanRecord,PlanStory} from './editorial-plan';
 import type {ShortlistRecord} from './shortlist';
 
-import {deferEditorialWork} from './editorial-work';
+import {deferEditorialWork,BLOCKED_DEFERRAL_REASON} from './editorial-work';
+import {selectableForPlanning} from './planning-capacity';
 const SCORING_POLICY='deterministic-scoring-editorial-v4',SELECTION_POLICY='bounded-selection-editorial-v6';
 const salienceScorer=new DeterministicSalienceScorer();
 export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
@@ -171,7 +172,11 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
   const result:SelectionRecord={id:identity,feedId,feedRevision:tx.snapshot.feed.revision,window,candidateIds:assessments.map(a=>a.candidate.id),selectedCandidateIds:[],evidenceByCandidate:{},budget,policyVersion:SELECTION_POLICY,computedAt:now,omissions:[],editorialByCandidate:{},communicationFingerprint:communication};
   const f=tx.snapshot.feed;
   const selectedStorylines=new Set<string>(),publishers=new Map<string,number>();let words=0,inspections=0,inputTokens=new TextEncoder().encode(JSON.stringify({feed:{id:f.id,revision:f.revision,title:f.title,interests:f.interests,outputLanguage:f.outputLanguage},selectionId:identity,window,stories:[]})).length;
-  for(const {target,candidate,publisherIds,editorial} of assessments) {
+  // Under a comparative plan, protected work (corrections, retractions, changed state/certainty) is admitted first so ordinary news can never displace it
+  // through a shared capacity or publisher count; the published order is restored to the plan's order below.
+  const planShortlist=plan?await tx.read<ShortlistRecord>('shortlists',plan.shortlistId):undefined,protectedVersions=new Set(planShortlist?.candidates.filter(c=>c.protectedReasons.length||c.correctionObligationIds.length).map(c=>c.targetVersionId));
+  const admissionOrder=plan?[...assessments].sort((a,b)=>Number(protectedVersions.has(b.target.id))-Number(protectedVersions.has(a.target.id))):assessments;
+  for(const {target,candidate,publisherIds,editorial} of admissionOrder) {
    const planned=plan?.stories.find(s=>s.targetVersionId===target.id),scope=plan?(await tx.read<ShortlistRecord>('shortlists',plan.shortlistId))?.candidates.find(c=>c.targetVersionId===target.id):undefined;
    const requiredIds=new Set(planned?[...planned.mustIncludeFactIds,...planned.newUnderstandingFactIds,...planned.attributionFactIds,...planned.certaintyFactIds,...planned.disagreementFactIds,...planned.openQuestionFactIds]:[]);
    const inspectionFacts=scope?scope.facts.filter(f=>requiredIds.has(f.id)):editorial.newUnderstanding;
@@ -199,19 +204,21 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    else if(inspections+inspectionEvidence.length>budget.maxEvidenceInspections)reason='EVIDENCE_CAPACITY';
    else if(inputTokens+cost>budget.maxInputTokens)reason='INPUT_CAPACITY';
    else if(!plan && target.storylineId && selectedStorylines.has(target.storylineId)) reason='STORYLINE_DIVERSITY';
-   else if(!plan && publisherIds.some(id=>(publishers.get(id)??0)>=budget.maxPerPublisher)) reason='SOURCE_DIVERSITY';
+   // The publisher limit binds a model-generated plan exactly as it binds ordinary selection; only protected work is exempt from refusal (it still counts).
+   else if(!protectedVersions.has(target.id) && publisherIds.some(id=>(publishers.get(id)??0)>=budget.maxPerPublisher)) reason='SOURCE_DIVERSITY';
    if(reason) {candidate.selectionState='OMITTED';candidate.reasons.push(reason);result.omissions.push({candidateId:candidate.id,reason})}
    else {candidate.selectionState='SELECTED';result.selectedCandidateIds.push(candidate.id);result.evidenceByCandidate[candidate.id]=inspectionEvidence.map(r=>r.id);words+=storyWords;inspections+=inspectionEvidence.length;inputTokens+=cost;if(target.storylineId) selectedStorylines.add(target.storylineId);for(const id of publisherIds) publishers.set(id,(publishers.get(id)??0)+1)}
    await tx.write('candidates',candidate.id,briefingCandidateSchema.parse(candidate));
   }
   if(plan){
-   const shortlist=await tx.read<ShortlistRecord>('shortlists',plan.shortlistId);if(!shortlist)throw new HandoffError('SCOPE_DENIED');
+   const planOrder=new Map(assessments.map((a,i)=>[a.candidate.id,i]));result.selectedCandidateIds.sort((a,b)=>planOrder.get(a)!-planOrder.get(b)!);
+   const shortlist=planShortlist;if(!shortlist)throw new HandoffError('SCOPE_DENIED');
    const selectedVersions=new Set(assessments.filter(a=>a.candidate.selectionState==='SELECTED').map(a=>a.target.id)),effectiveId=JSON.stringify([plan.id,identity]);
    const effective:EditorialPlanRecord={...plan,id:effectiveId,stories:plan.stories.map(s=>s.decision==='SELECT'&&!selectedVersions.has(s.targetVersionId)?{...s,decision:'DEFER',treatment:'OMIT',rationale:`Final guard: ${result.omissions.find(o=>JSON.parse(o.candidateId)[2]===s.targetVersionId)?.reason??'SYNTHESIS_CAPACITY'}.`}:s),obligations:plan.obligations.map(o=>o.handling==='ADDRESS'&&!selectedVersions.has(o.targetVersionId??'')?{...o,handling:'DEFER',reason:'Supported target deferred by synthesis capacity.'}:o)};
    await tx.write('editorial_plans',effectiveId,effective);result.editorialPlanId=effectiveId;
    result.deferredProtectedTargetIds=effective.stories.filter(s=>s.decision==='DEFER'&&shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)?.protectedReasons.length).map(s=>s.targetVersionId);
    if(effective.obligations.some(o=>o.handling==='DEFER'))result.deferredProtectedTargetIds.push(...effective.obligations.filter(o=>o.handling==='DEFER').map(o=>`obligation:${o.obligationId}`));
-   for(const s of effective.stories.filter(s=>s.decision==='DEFER'||s.decision==='SELECT')){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;await deferEditorialWork(tx,c,s.decision==='SELECT'?'AWAITING_SUPPORTED_PUBLICATION':result.omissions.find(o=>JSON.parse(o.candidateId)[2]===s.targetVersionId)?.reason??'DEFERRED_EDITORIAL_WORK',now,effectiveId,window.end)}
+   for(const s of effective.stories.filter(s=>s.decision==='DEFER'||s.decision==='SELECT')){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;await deferEditorialWork(tx,c,s.decision==='SELECT'?'AWAITING_SUPPORTED_PUBLICATION':(()=>{const reason=result.omissions.find(o=>JSON.parse(o.candidateId)[2]===s.targetVersionId)?.reason;return !reason||reason==='DEFERRED_EDITORIAL_WORK'?plan.capacityAdjustments?.find(a=>a.targetVersionId===s.targetVersionId)?.reason??(!selectableForPlanning(c)?BLOCKED_DEFERRAL_REASON:'DEFERRED_EDITORIAL_WORK'):reason})(),now,effectiveId,window.end)}
   }
   await tx.write('selections',identity,result);return result;
  });
