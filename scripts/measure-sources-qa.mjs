@@ -19,15 +19,25 @@ const sql=`
  SELECT 'provider' AS scheduler,state,COUNT(*) AS jobs FROM connector_provider_poll_jobs GROUP BY state UNION ALL SELECT 'rss',state,COUNT(*) FROM connector_rss_poll_jobs GROUP BY state;
  SELECT feed_id,COUNT(*) AS saved_batches,AVG(json_extract(data,'$.telemetry.latencyMs')) AS mean_reported_latency_ms,SUM(json_extract(data,'$.telemetry.requests')) AS reported_requests,SUM(json_extract(data,'$.telemetry.providerCostUsd')) AS reported_cost_usd FROM connector_provider_batches GROUP BY feed_id;
  SELECT COUNT(*) AS candidates FROM v1_candidates;
- SELECT COUNT(*) AS editions FROM v1_feed_documents WHERE kind='editions';`;
+ SELECT COUNT(*) AS editions FROM v1_feed_documents WHERE kind='editions';
+ SELECT 'provider' AS scheduler,COUNT(*) AS pending_jobs,MIN(due_at) AS oldest_due_at,SUM(CASE WHEN julianday(due_at)<=julianday('now') THEN 1 ELSE 0 END) AS due_jobs FROM connector_provider_poll_jobs WHERE state='PENDING'
+ UNION ALL SELECT 'rss',COUNT(*),MIN(due_at),SUM(CASE WHEN julianday(due_at)<=julianday('now') THEN 1 ELSE 0 END) FROM connector_rss_poll_jobs WHERE state='PENDING';
+ SELECT feed_id,MAX(started_at) AS last_fetch_started_at,COUNT(*) AS fetch_runs FROM connector_fetch_runs GROUP BY feed_id;
+ SELECT feed_id,MAX(json_extract(data,'$.request.coverage.createdAt')) AS last_accepted_provider_batch_at FROM connector_provider_batches WHERE receipts IS NOT NULL GROUP BY feed_id;
+ SELECT feed_id,MAX(json_extract(data,'$.request.coverage.createdAt')) AS last_accepted_rss_batch_at FROM connector_batches WHERE receipts IS NOT NULL GROUP BY feed_id;`;
 async function snapshot(){const started=Date.now();const output=await new Promise((resolve,reject)=>{
  let out='',err='';const p=spawn(process.execPath,[path.join(worker,'node_modules/wrangler/bin/wrangler.js'),'d1','execute','DB','--remote','--config','wrangler.sources-qa.toml','--command',sql,'--json'],{cwd:worker,windowsHide:true});
- p.stdout.on('data',v=>out+=v);p.stderr.on('data',v=>err+=v);p.once('error',reject);p.once('exit',c=>c===0?resolve(out):reject(new Error('QA_METRICS_QUERY_FAILED: '+err.slice(0,500))));
+ const deadline=setTimeout(()=>{p.kill();reject(new Error('QA_METRICS_QUERY_TIMEOUT'));},120000);
+ p.stdout.on('data',v=>out+=v);p.stderr.on('data',v=>err+=v);
+ p.once('error',error=>{clearTimeout(deadline);reject(error);});
+ p.once('exit',c=>{clearTimeout(deadline);c===0?resolve(out):reject(new Error('QA_METRICS_QUERY_FAILED: '+err.slice(0,500)));});
 });const rows=JSON.parse(output);if(rows.some(r=>!r.success))throw new Error('QA_METRICS_QUERY_FAILED');return {at:new Date().toISOString(),queryWallMs:Date.now()-started,results:rows.map(r=>r.results),databaseBytes:rows.at(-1)?.meta?.size_after};}
 const report={environment:'distilled-news-sources-qa',spendBasis:'Reserved ceilings and provider-reported costs; no invoice verification',snapshots:[]};
 await mkdir(path.join(root,'.review-tmp'),{recursive:true});
 for(let i=0;i<samples;i++){
  const value=await snapshot();report.snapshots.push(value);
+ report.databaseGrowthBytes=value.databaseBytes-report.snapshots[0].databaseBytes;
+ report.elapsedMs=Date.parse(value.at)-Date.parse(report.snapshots[0].at);
  await writeFile(path.join(root,'.review-tmp/qa-operation-metrics.json'),JSON.stringify(report,null,2));
  console.log(JSON.stringify({at:value.at,sample:i+1,...value.results[0][0],databaseBytes:value.databaseBytes,queryWallMs:value.queryWallMs}));
  if(i+1<samples)await new Promise(resolve=>setTimeout(resolve,interval));

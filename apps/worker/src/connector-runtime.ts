@@ -89,6 +89,8 @@ export async function scheduleProviderWindow(db:D1Database,scheduler:Pick<Return
 /** Durable scheduler owns continuation and retries; one bounded slice per cron tick. */
 export async function runConnectorMaintenance(env:Env,now=new Date()) {
  if(env.SOURCE_CONNECTORS_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return;
+ const maxJobs=Number(env.SOURCE_POLL_MAX_JOBS_PER_TICK??4),budgetMs=Number(env.SOURCE_POLL_TICK_BUDGET_MS??90000);
+ if(!Number.isSafeInteger(maxJobs)||maxJobs<1||maxJobs>20||!Number.isSafeInteger(budgetMs)||budgetMs<1000||budgetMs>600000)throw new Error('INVALID_POLL_RUNNER_BOUNDS');
  const backend=createConnectorRuntime(env);
  const budgets=await configureConnectorBudgets(env,backend);
  const ceilings=JSON.parse(env.SOURCE_OPERATION_CEILINGS_JSON??'{}') as Record<string,number>;
@@ -130,6 +132,12 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
    }
   }
  }
- await backend.rssScheduler.runOne();
- await backend.scheduler.runOne();
+ const started=Date.now();let rssIdle=false,providerIdle=false;
+ const outcomes:{scheduler:string;state:string}[]=[];
+ for(let index=0;index<maxJobs&&(index===0||Date.now()-started<budgetMs);index++){
+  if(!rssIdle){const state=await backend.rssScheduler.runOne();rssIdle=state==='IDLE';outcomes.push({scheduler:'rss',state});}
+  if(!providerIdle&&(index===0||Date.now()-started<budgetMs)){const state=await backend.scheduler.runOne();providerIdle=state==='IDLE';outcomes.push({scheduler:'provider',state});}
+  if(rssIdle&&providerIdle)break;
+ }
+ return {outcomes,durationMs:Date.now()-started};
 }

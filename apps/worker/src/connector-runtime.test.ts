@@ -1,3 +1,4 @@
+import {connectorSourceHealth} from './connector-health';
 import {publishedProductEditions} from './product-feeds';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {D1Repository} from './repository';
@@ -27,6 +28,21 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('drains a bounded slice of pending provider jobs without starting unauthorized calls',async()=>{
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS='';env.SOURCE_POLL_MAX_JOBS_PER_TICK='4';
+ const scheduler=createConnectorRuntime(env).scheduler;
+ for(let i=0;i<6;i++)await scheduler.schedule(`denied-${i}`,{...request,runId:`denied-${i}`,scope:{...request.scope,feedSourceId:'unapproved'},source:{family:'website',locator:'https://example.com/article'}},new Date(0).toISOString(),['website_http']);
+ const result=await runConnectorMaintenance(env);
+ expect(result?.outcomes.filter(v=>v.scheduler==='provider').map(v=>v.state)).toEqual(['CANCELLED','CANCELLED','CANCELLED','CANCELLED']);
+ expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM connector_provider_poll_jobs WHERE state='PENDING'").first()).toEqual({n:2});
+ await runConnectorMaintenance(env);
+ expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM connector_provider_poll_jobs WHERE state='PENDING'").first()).toEqual({n:0});
+});
+it('rejects invalid maintenance bounds before changing budgets or scheduling work',async()=>{
+ env.SOURCE_POLL_MAX_JOBS_PER_TICK='21';
+ await expect(runConnectorMaintenance(env)).rejects.toThrow('INVALID_POLL_RUNNER_BOUNDS');
+ expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_provider_poll_jobs').first()).toEqual({n:0});
+});
 it('reuses the winning durable provider order when funding changes race with initial scheduling',async()=>{
  const r:SourceFetchRequest={...request,source:{family:'website',locator:'https://example.com/article'},limit:1};
  let reads=0;
@@ -79,6 +95,7 @@ it('migrates empty D1 and connects RSS through receipts, acquisition, intelligen
  const rss={scope:request.scope,configurationRevision:request.configurationRevision,runId:request.runId,url:request.source.locator,maxItems:30};
  const first=await runtime.collectRss(rss);expect(first.checkpoint).toBe('ADVANCED');
  const replay=await runtime.collectRss(rss);expect(replay.checkpoint).toBe('UNCHANGED');expect(fetcher).toHaveBeenCalledTimes(1);expect(objects.size).toBeGreaterThan(1);
+ expect(await connectorSourceHealth(ctx.db,'feed-1','feed-source-1')).toMatchObject({alerts:[],lastBatch:{accepted:true}});
  const intake=new V1IntakeStore(ctx.db);expect(await intake.list('intake_receipts','feed-source-1')).toMatchObject([{checkpointResolution:'RESOLVED'}]);expect(await intake.list('candidates','feed-source-1')).toHaveLength(1);
  const job=(await intake.listPendingJobs('feed-source-1')).find(j=>j.kind==='ACQUIRE')!;
  await processV1Acquisition(env,job.id);expect(await intake.list('revisions','feed-source-1')).toHaveLength(1);

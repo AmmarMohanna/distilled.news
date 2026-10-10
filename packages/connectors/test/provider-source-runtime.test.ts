@@ -41,6 +41,41 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it('renews a long collection lease so another runner cannot claim the same paid window',async()=>{
+    vi.useFakeTimers();vi.setSystemTime(new Date(time));
+    let release!:(value:any)=>void,entered!:(value?:unknown)=>void;
+    const started=new Promise(resolve=>{entered=resolve;});
+    const s=setup([]),collect=vi.fn(async()=>{entered();return await new Promise(resolve=>{release=resolve;});});
+    const scheduler=new D1ProviderPollScheduler(s.db,{collect} as any,async()=>true);
+    try{
+      await scheduler.schedule('slow',request,time);
+      const running=scheduler.runOne(3000);await started;
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(await scheduler.runOne(3000)).toBe('IDLE');
+      release({state:'HANDED_OFF',checkpoint:'UNCHANGED'});
+      expect(await running).toBe('DONE');expect(collect).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+    }finally{vi.useRealTimers();}
+  });
+  it('refuses to commit a completed collection after its lease ownership was replaced',async()=>{
+    const s=setup([]);
+    const collect=vi.fn(async()=>{
+      s.db.db.prepare("UPDATE connector_provider_poll_jobs SET lease_version=lease_version+1 WHERE job_id='lost'").run();
+      return {state:'HANDED_OFF',checkpoint:'UNCHANGED'};
+    });
+    const scheduler=new D1ProviderPollScheduler(s.db,{collect} as any,async()=>true,()=>Date.parse(time));
+    await scheduler.schedule('lost',request,time);
+    expect(await scheduler.runOne()).toBe('LEASE_LOST');
+    expect(s.db.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='lost'").get()).toMatchObject({state:'PENDING'});
+  });
+  it('drains independently scheduled jobs without repeating completed work',async()=>{
+    const s=setup([provider('primary')]),now=()=>Date.parse(time);
+    const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,now);
+    for(let i=0;i<6;i++)await scheduler.schedule('job'+i,{...request,runId:'run'+i},time,['primary']);
+    for(let i=0;i<6;i++)expect(await scheduler.runOne()).toBe('DONE');
+    expect(await scheduler.runOne()).toBe('IDLE');
+    expect(s.db.db.prepare("SELECT COUNT(*) AS n FROM connector_provider_poll_jobs WHERE state='PENDING'").get()).toMatchObject({n:0});
+  });
   it('hands off a newly resolved publisher link even when the listing content is unchanged',async()=>{
     let resolved=false;
     const p:SourceProvider={id:'google_rss',families:['google_news'],fetch:async()=>({...page(),items:[{...page().items[0],sourceItemKey:'id:google-guid',url:resolved?'https://publisher.example/article':'https://news.google.com/rss/articles/opaque',publisherId:resolved?'publisher.example':'news.google.com',representation:'LISTING_RESULT'}]})};
