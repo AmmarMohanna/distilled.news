@@ -1,9 +1,10 @@
 import {publishedProductEditions} from './product-feeds';
+import {HandoffError} from '@distilled/contracts';
 import {D1Repository} from './repository';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {createIntakeDatabase,testPolicy} from './v1-intake/test-utils';
 import {enrollV1Source,isV1ProductSource} from './v1-intelligence/product';
-import {authorizeConnectorSource,configureConnectorBudgets,createConnectorRuntime,runConnectorMaintenance,scheduleRecentTelegramRecheck} from './connector-runtime';
+import {authorizeConnectorSource,configureConnectorBudgets,createConnectorRuntime,runConnectorMaintenance,scheduleRecentTelegramRecheck,scheduleProviderWindow} from './connector-runtime';
 import {productConnectorSource} from './connector-source';
 import {processV1Acquisition} from './v1-downstream-runtime';
 import {V1IntakeStore} from './v1-intake/store';
@@ -26,6 +27,23 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('reuses the winning durable provider order when funding changes race with initial scheduling',async()=>{
+ const r:SourceFetchRequest={...request,source:{family:'website',locator:'https://example.com/article'},limit:1};
+ let reads=0;
+ const db={prepare:()=>({bind:()=>({first:async()=>reads++===0?null:{request:JSON.stringify(r),provider_order:JSON.stringify(['website_http','website_playwright'])}})})} as unknown as D1Database;
+ const schedule=vi.fn().mockRejectedValueOnce(new HandoffError('IDEMPOTENCY_CONFLICT')).mockResolvedValueOnce(undefined);
+ await scheduleProviderWindow(db,{schedule},r,new Date('2026-10-10T08:00:00Z'),['website_http','website_playwright','website_zyte']);
+ expect(schedule.mock.calls.map(call=>call[3])).toEqual([['website_http','website_playwright','website_zyte'],['website_http','website_playwright']]);
+});
+it('keeps a durable provider window immutable across funding changes and rejects a changed source identity',async()=>{
+ const r:SourceFetchRequest={...request,source:{family:'website',locator:'https://example.com/article'},limit:1};
+ const scheduler=new D1ProviderPollScheduler(sourceSqlFromD1(ctx.db),{collect:async()=>{throw new Error('must not fetch')}},async()=>true);
+ await scheduleProviderWindow(ctx.db,scheduler,r,new Date('2026-10-10T08:00:00Z'),['website_http','website_playwright']);
+ await scheduleProviderWindow(ctx.db,scheduler,r,new Date('2026-10-10T08:05:00Z'),['website_http','website_playwright','website_zyte']);
+ const jobs=await ctx.db.prepare('SELECT provider_order FROM connector_provider_poll_jobs').all<{provider_order:string}>();
+ expect(jobs.results).toEqual([{provider_order:JSON.stringify(['website_http','website_playwright'])}]);
+ await expect(scheduleProviderWindow(ctx.db,scheduler,{...r,source:{family:'website',locator:'https://different.example/article'}},new Date(),['website_http'])).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+});
 it('rejects malformed RSS configuration and preserves website ownership when its private runtime is missing',async()=>{
  expect(productConnectorSource({provider:'rss',kind:'rss_feed',source_url:'not a URL',input:null})).toBeUndefined();
  expect(productConnectorSource({provider:'rss',kind:'rss_feed',source_url:'https://127.0.0.1/feed',input:null})).toBeUndefined();

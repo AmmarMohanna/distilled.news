@@ -1,5 +1,5 @@
 import {HandoffError,sha256,type CandidateIntakePort} from '@distilled/contracts';
-import type {SourceFetchRequest} from '@distilled/connectors';
+import {DEFAULT_SOURCE_ORDER,type SourceFetchRequest} from '@distilled/connectors';
 import {createSourceBackend} from './source-backend';
 import {acceptV1Handoff,v1SourceEnabled} from './v1-downstream-runtime';
 import {enrollV1Source} from './v1-intelligence/product';
@@ -64,6 +64,26 @@ export async function scheduleRecentTelegramRecheck(db:D1Database,
  catch(error){if(error instanceof HandoffError&&error.code==='IDEMPOTENCY_CONFLICT'&&await alreadyScheduled())return false;throw error;}
  return true;
 }
+/** Funding changes affect the next window; never rewrite an existing durable
+ * poll or manufacture a second paid run inside the current window. */
+export async function scheduleProviderWindow(db:D1Database,scheduler:Pick<ReturnType<typeof createConnectorRuntime>['scheduler'],'schedule'>,
+ request:SourceFetchRequest,now:Date,order:readonly string[]):Promise<void>{
+ const frozenOrder=async()=>{
+  const row=await db.prepare('SELECT request,provider_order FROM connector_provider_poll_jobs WHERE job_id=?').bind(request.runId).first<{request:string;provider_order:string}>();
+  if(!row)return undefined;
+  const stored=JSON.parse(row.provider_order) as string[];
+  if(canonicalJson(JSON.parse(row.request))!==canonicalJson(request)||!Array.isArray(stored)||stored.length<1||stored.length>3||
+    new Set(stored).size!==stored.length||stored.some(id=>!DEFAULT_SOURCE_ORDER[request.source.family].includes(id)))throw new HandoffError('IDEMPOTENCY_CONFLICT');
+  return stored;
+ };
+ order=await frozenOrder()??order;
+ try{await scheduler.schedule(request.runId,request,now.toISOString(),order);}
+ catch(error){
+  if(!(error instanceof HandoffError)||error.code!=='IDEMPOTENCY_CONFLICT')throw error;
+  const stored=await frozenOrder();if(!stored)throw error;
+  await scheduler.schedule(request.runId,request,now.toISOString(),stored);
+ }
+}
 /** Durable scheduler owns continuation and retries; one bounded slice per cron tick. */
 export async function runConnectorMaintenance(env:Env,now=new Date()) {
  if(env.SOURCE_CONNECTORS_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return;
@@ -103,7 +123,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
       family==='website'?['website_http','website_playwright',...(budgets.zyte>0&&ceilings.zyte>0?['website_zyte']:[])]:
       family.startsWith('linkedin_')?['linkedin_apify']:
       ['x_twitterapi_io','x_apify'].filter(provider=>provider==='x_twitterapi_io'?budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0:budgets.x_apify>0&&ceilings.apify>0);
-    await backend.scheduler.schedule(request.runId,request,now.toISOString(),order);
+    await scheduleProviderWindow(env.DB,backend.scheduler,request,now,order);
     if(family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now);
    }
   }
