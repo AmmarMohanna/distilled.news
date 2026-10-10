@@ -110,5 +110,11 @@ fallback is verified with controlled synthetic failures, not a newly forced live
 - Isolated QA deploy uses the checked-in zero paid limits and empty cron configuration.
   Production, the friend's branch and remote Git branches are unchanged.
 
+Backend implementation commit: `6f895ff`. Final isolated QA Worker deployment:
+`eb8994d8-b6b6-43f6-816b-a22f7042ad02`. The post-deployment manual maintenance
+check returned HTTP 200. Remote audit confirmed zero enabled sources, zero enabled
+intake scopes and all five paid-provider budget limits at zero. Reserved spend did
+not increase. No D1 migration or shared contract change was introduced.
+
 The remaining controlled live cases are verification gates, not evidence of a local
 test pass. No additional paid provider calls were made during this implementation.

@@ -261,6 +261,13 @@ stable peer identity. Rechecks retrieve specified message IDs; empty responses d
 assert deletion. Other Apify rechecks are explicitly unavailable until an authoritative
 source-specific adapter is implemented.
 
+The October 10 follow-up journals explicit channel edit/delete events and channel PTS
+in a separate owner-only SQLite file beside the VPS session. Normal polls replay bounded
+current-state rechecks of those retained event IDs, including older posts, while keeping
+the new-message cursor separate. Update-history gaps remain partial coverage rather
+than invented deletions. See `SOURCE_GAPS_IMPLEMENTATION_2026_10_10.md` for recovery,
+local tests, live session checks and remaining controlled-source verification.
+
 Playwright requires the existing verified host egress firewall (including browser child
 processes) before setting the confirmation flag. The runtime also checks public DNS for
 requests, blocks service workers and unnecessary media, and does not disable Chromium's

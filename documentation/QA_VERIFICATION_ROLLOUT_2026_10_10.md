@@ -139,11 +139,21 @@ enabled sources/scopes and all five paid-provider limits at zero; cron remains d
 
 ### Outstanding gates
 
+The source recovery follow-up (`SOURCE_GAPS_IMPLEMENTATION_2026_10_10.md`) implements
+Telegram edit/delete journaling and session failure classification, strengthens Google
+link resolution and LinkedIn actor date inputs, and tests automatic X fallback through
+the real adapters and durable storage. Telegram live session/journal reads succeeded;
+controlled live edit/delete and LinkedIn new-post tests still remain. Fresh Google
+resolution encountered upstream timeouts, so that live gap is not marked complete.
+The follow-up is deployed as `eb8994d8-b6b6-43f6-816b-a22f7042ad02`, with backend
+implementation `6f895ff`. Post-deployment maintenance returned HTTP 200 and remote
+audits confirmed zero enabled sources/scopes and all five paid limits at zero.
+
 1. Confirm receipt of the submitted Outlook verification message, complete its link
    and test password reset, then run a fresh frontend signup-to-new-edition test with
    the friend. Outlook sender authorization and QA deployment are now complete.
-2. Provide a controlled Telegram channel for edit tests; implement and verify an
-   authoritative deletion-event transport before claiming live deletion coverage.
+2. Provide a controlled Telegram channel to verify the implemented edit/deletion-event
+   transport end to end before claiming live edit/deletion coverage.
 3. Run a controlled LinkedIn new-post incremental test and provider pre-storage
    uncertain-response reconciliation test without automatic duplicate resubmission.
 4. Resolve provider lease/capacity sizing and repeat a sustained multi-feed study,
