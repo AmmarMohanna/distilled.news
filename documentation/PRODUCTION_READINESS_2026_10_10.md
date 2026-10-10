@@ -31,32 +31,70 @@ declare the complete live user journey verified before that test.
   retention. This includes signup/verification/password reset through API routes,
   source approval/authorization, grounded publication and retention recovery.
 - Final source-health query integration: 23 runtime/health tests passed.
+- Full serial Worker suite: **894 passed, 10 skipped, zero failures** across
+  141 files (139 passed, two skipped). The final health tests are included.
 - Worker and connector typechecks passed; isolated QA dry-run built.
 - QA D1 export restored: 62,727,365 SQL bytes, 104 tables, integrity `ok`, zero
   foreign-key violations. The local encrypted backup and key are in ignored
   `.review-tmp/readiness-backup/`; move the key to separate protected storage for a
-  retained operational backup. This drill does not prove remote D1 or R2 recovery.
+  retained operational backup. This drill does not prove remote D1 recovery.
+- Remote D1 restoration was attempted against a newly created, unbound scratch
+  database. The SQL upload stalled; a bounded upload retry failed before SQL
+  ingestion was acknowledged. Remote restore therefore remains unverified. The
+  scratch database `distilled-qa-recovery-20261010` was deleted afterwards; the
+  running QA database was not replaced or restored.
 - One public RSS R2 snapshot (19,646 bytes) was downloaded, restored under a new
   temporary QA object key and downloaded again. Bytes and SHA-256 matched; the
   temporary object was deleted. This is a bounded object recovery drill, not a
   complete archive restoration.
+- Worker rollback: deployed previous QA version
+  `eb8994d8-b6b6-43f6-816b-a22f7042ad02`, verified frontend and session API HTTP
+  200, then restored final version `09fb81f7-42cb-474b-9b2d-a681a69d7508` and
+  repeated both checks successfully. Cron remains disabled.
+- VPS helper rollback: restored the saved prior Python helper, checked an offline
+  RSS fixture through the authenticated service, restored current helper hash
+  `4e58367968611eb0689c978235c766408d4b33db53e727f0171fd595ed022821`, and repeated
+  the fixture successfully. The service remained active.
+
+## Bounded live collection study
+
+Eight maintenance ticks ran over 22.35 minutes with BBC RSS, JPL RSS and Google
+News on separate QA feeds. Mean maintenance time was 113.76 seconds; maximum was
+186.70 seconds. The 90-second slice is a soft boundary between complete jobs,
+not an upper bound for the whole maintenance request.
+
+BBC completed polls successfully. Google collected listings, with 129 additional
+intake receipts across the study; a long-running Google job renewed its lease.
+All 74 observations in the publisher-link audit still used Google listing URLs,
+so this study does **not** verify publisher-link resolution. JPL RSS returned a
+forbidden response (`AUTH_REQUIRED` coverage), and its new jobs were blocked.
+
+D1 grew by 3,387,392 bytes from the baseline. This includes changed observations
+and retained batches; do not extrapolate it as a steady rate without a longer
+study and a retention plan that preserves published provenance. Paid reservations
+did not increase, and all five paid-provider budgets remained zero.
+
+The 11 old pending provider jobs were cancelled because their sources were not
+enabled. Three new Google jobs completed; two Google continuations were still
+pending when the study stopped. After pausing sources, a final maintenance tick
+cancelled those continuations. The final audit has zero enabled sources, zero
+enabled scopes and zero pending scheduler jobs. Historical blocked jobs remain
+available for investigation; they were not silently reset or resubmitted.
 
 ## Release gates
 
 1. Owner verifies signup and password-reset links on the live QA frontend, then
    creates a feed, approves sources and views a grounded published edition.
-2. Complete a clean full Worker suite on the final code. Record any reproducible
-   failure; a selected-file pass cannot substitute for a full-suite claim.
-3. Observe several enabled feeds across a sustained unattended period. Establish
+2. Observe several enabled feeds across a sustained unattended period. Establish
    acceptable freshness, backlog age, latency, receipt growth and actual provider
    spend. A short manual collection check is only a smoke test.
-4. Finish controlled Telegram edit/delete verification and remaining real provider
-   cases. The previously documented Google News resolution failures remain relevant.
-5. Drill remote D1/R2 restoration and Worker/VPS rollback with compatible schemas.
+3. Finish controlled Telegram edit/delete verification and remaining real provider
+   cases, including Google News publisher resolution and the blocked JPL RSS feed.
+4. Complete remote D1 and full R2 archive restoration with compatible schemas.
    Keep the last known-good Worker version, immutable assets prefix, helper backup
    and database recovery point together. Do not reverse an applied migration merely
    because a Worker is rolled back.
-6. Confirm production domain ownership, account and resource bindings. Current QA
+5. Confirm production domain ownership, account and resource bindings. Current QA
    account lists only QA and staging D1 databases; the checked-in default Worker
    still names legacy `lownoise-news` resources. Do not deploy that configuration
    as a shortcut to promote QA to `distilled.news`.
