@@ -30,7 +30,7 @@ export default {
     const pageIndex=body?.pageIndex??0,continuation=body?.continuation as {providerId?:unknown;token?:unknown}|undefined;
     if(typeof sourceId!=='string'||!/^[a-zA-Z0-9_:-]{1,100}$/.test(sourceId)||
       typeof probeId!=='string'||!/^[a-zA-Z0-9_-]{1,100}$/.test(probeId)||
-      !['website_http','website_playwright','website_zyte','telegram_telethon','telegram_public','google_rss','linkedin_apify'].includes(String(providerId))||
+      !['website_http','website_playwright','website_zyte','telegram_telethon','telegram_public','google_rss','linkedin_apify','x_twitterapi_io','x_apify'].includes(String(providerId))||
       !Number.isSafeInteger(pageIndex)||Number(pageIndex)<0||Number(pageIndex)>10||
       (continuation&&(continuation.providerId!==providerId||typeof continuation.token!=='string'||!continuation.token||continuation.token.length>4096))||
       (Number(pageIndex)>0&&!continuation))return Response.json({error:'INVALID_PROBE'}, {status:400});
@@ -40,9 +40,10 @@ export default {
       WHERE s.id=? AND s.enabled=1 AND s.collection_owner='connector' AND b.paused=0 AND a.disabled_at IS NULL`)
       .bind(sourceId).first<{briefing_id:string;source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null}>();
     const approved=row&&productConnectorSource(row),scope=await new V1IntakeStore(env.DB).getScope(sourceId);
-    const family=String(providerId).startsWith('website_')?'website':String(providerId).startsWith('telegram_')?'telegram':providerId==='google_rss'?'google_news':'linkedin';
+    const family=String(providerId).startsWith('website_')?'website':String(providerId).startsWith('telegram_')?'telegram':String(providerId).startsWith('x_')?'x':providerId==='google_rss'?'google_news':'linkedin';
+    const matchesFamily=approved&&(family==='linkedin'?['linkedin_company','linkedin_profile'].includes(approved.source.family):family==='x'?['x_profile','x_search'].includes(approved.source.family):approved.source.family===family);
     if(!row||!approved||!scope?.enabled||scope.deletedAt||scope.feedId!==row.briefing_id||
-      (family==='linkedin'?!['linkedin_company','linkedin_profile'].includes(approved.source.family):approved.source.family!==family))return Response.json({error:'SOURCE_NOT_APPROVED'}, {status:404});
+      !matchesFamily)return Response.json({error:'SOURCE_NOT_APPROVED'}, {status:404});
     const backend=createConnectorRuntime(runtimeEnv);
     await configureConnectorBudgets(runtimeEnv,backend);
     const probe:SourceFetchRequest={scope:{feedId:scope.feedId,feedSourceId:sourceId,sourceId:scope.sourceId},

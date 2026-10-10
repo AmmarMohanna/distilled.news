@@ -30,13 +30,16 @@ it('denies disabled sources and scopes before configuring paid dispatch',async()
 it('cannot invoke a website provider against an approved LinkedIn source',async()=>{
  expect((await probe('website_zyte')).status).toBe(404);expect(mocks.collect).not.toHaveBeenCalled();
 });
+it.each(['x_twitterapi_io','x_apify'])('cannot invoke %s against an approved LinkedIn source',async provider=>{
+ expect((await probe(provider)).status).toBe(404);expect(mocks.budgets).not.toHaveBeenCalled();expect(mocks.collect).not.toHaveBeenCalled();
+});
 it('rejects an unbounded or mismatched continuation before paid dispatch',async()=>{
  expect((await probe('linkedin_apify',undefined,{pageIndex:11})).status).toBe(400);
  expect((await probe('linkedin_apify',undefined,{pageIndex:1})).status).toBe(400);
  expect((await probe('linkedin_apify',undefined,{pageIndex:1,continuation:{providerId:'website_zyte',token:'other'}})).status).toBe(400);
  expect(mocks.collect).not.toHaveBeenCalled();
 });
-it.each([['linkedin_apify','linkedin_company'],['google_rss','google_news'],['website_playwright','website']])('admits an approved %s probe with its exact provider and feed revision',async(provider,family)=>{
+it.each([['linkedin_apify','linkedin_company'],['google_rss','google_news'],['website_playwright','website'],['x_twitterapi_io','x_profile'],['x_twitterapi_io','x_search'],['x_apify','x_profile'],['x_apify','x_search']])('admits an approved %s probe with its exact provider and feed revision',async(provider,family)=>{
  mocks.source.mockReturnValue({source:{family,locator:'approved-input'},limit:20});
  expect((await probe(provider)).status).toBe(200);expect(mocks.budgets).toHaveBeenCalledOnce();
  expect(mocks.collect).toHaveBeenCalledWith(expect.objectContaining({scope:{feedId:'feed',feedSourceId:'source',sourceId:'canonical-source'},configurationRevision:3,limit:20}),[provider]);
