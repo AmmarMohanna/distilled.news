@@ -91,7 +91,17 @@ export class FeedTransaction {
  async list<T extends {id:string}>(kind:DocumentKind):Promise<T[]> {
   if(!this.lists.has(kind)){this.metrics.listReads++;this.lists.set(kind,this.store.list(this.snapshot.feed.id,kind))}
   const listed=(await this.lists.get(kind)) as T[];for(const row of listed){const key=JSON.stringify([kind,row.id]);if(!this.reads.has(key))this.reads.set(key,Promise.resolve(structuredClone(row)))}
-  const rows=new Map(listed.map(r=>[r.id,r]));for(const w of this.writes.values()) if(w.kind===kind) rows.set(w.id,w.value as T);return [...rows.values()];
+  const rows=new Map(listed.map(r=>[r.id,r]));for(const w of this.writes.values()) if(w.kind===kind) rows.set(w.id,w.value as T);const values=[...rows.values()];
+  // Warm only immutable records already referenced by the retained graph. Scope
+  // and epoch validation still occurs at atomic commit; no meaning is inferred.
+  if(kind==='events')await this.preload('event_versions',values.map(row=>(row as T&{currentVersionId:string}).currentVersionId));
+  if(kind==='storylines'){await this.preload('storyline_versions',values.map(row=>(row as T&{currentVersionId:string}).currentVersionId));const versions=await Promise.all(values.map(row=>this.read<StorylineVersion>('storyline_versions',(row as T&{currentVersionId:string}).currentVersionId)));await this.preload('event_versions',versions.flatMap(version=>version?.eventVersionIds??[]))}
+  if(kind==='memberships')await this.preloadRevisions(values.map(row=>(row as T&{evidenceRevisionId:string}).evidenceRevisionId));
+  return values;
+ }
+ private async preloadRevisions(ids:string[]):Promise<void>{
+  const missing=[...new Set(ids)].filter(id=>!this.revisions.has(id));
+  for(let offset=0;offset<missing.length;offset+=90){this.metrics.preloadQueries++;const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(this.snapshot.feed.id,...chunk).all<{id:string;json:string}>(),values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json) as EvidenceRevision]));for(const id of chunk)this.revisions.set(id,Promise.resolve(values.get(id)))}
  }
  revision(id:string):Promise<EvidenceRevision|undefined> {
   if(!this.revisions.has(id)){this.metrics.revisionReads++;this.revisions.set(id,this.store.revision(this.snapshot.feed.id,id))}return this.revisions.get(id)!;
