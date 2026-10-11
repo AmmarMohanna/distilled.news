@@ -35,6 +35,7 @@ test.beforeEach(async ({ page }, info) => {
 test("admin can add a public feed to Explore from its menu", async ({ page }) => {
   await mock(page);
   const writes: unknown[] = [];
+  await page.route("**/api/explore/feeds", route => route.fulfill({ json: { feeds: [] } }));
   await page.route("**/api/admin/briefings/lebanon/explore", async route => {
     writes.push(route.request().postDataJSON());
     await route.fulfill({ json: { featured: true } });
@@ -250,6 +251,7 @@ test("installed app detection works from a browser tab", async ({ page }) => {
 
 test("Edge users can confirm an existing installation when detection is unavailable", async ({ page }) => {
   await page.addInitScript(() => {
+    Object.defineProperty(navigator, "userAgent", { value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0" });
     Object.defineProperty(navigator, "getInstalledRelatedApps", { value: async () => [] });
   });
   await mock(page); await page.goto("/");

@@ -1,4 +1,5 @@
-﻿import { buildPushPayload } from "@block65/webcrypto-web-push";
+import { buildPushPayload } from "@block65/webcrypto-web-push";
+import { recordPushAcceptance, settlePushOutbox, ELIGIBLE_PUSH_SQL } from "./push-outbox";
 import { z } from "zod";
 import type { Env } from "./types";
 
@@ -21,18 +22,25 @@ export const pushConfigured = (env: Env) => Boolean(env.VAPID_PUBLIC_KEY && env.
 export async function sendBriefingNotifications(env: Env) {
   if (!pushConfigured(env)) return;
   const now = new Date().toISOString();
-  const rows = await env.DB.prepare(`SELECT s.*, MAX(json_extract(e.json, '$.createdAt')) AS newest
+  // Forward migration of existing subscriptions, without changing their keys or cutoff.
+  const legacy = await env.DB.prepare("SELECT endpoint FROM push_subscriptions WHERE notification_version IS NULL LIMIT 40").bind().all<{endpoint:string}>();
+  for (const s of legacy.results) await env.DB.prepare("UPDATE push_subscriptions SET notification_version=? WHERE endpoint=? AND notification_version IS NULL").bind(crypto.randomUUID(),s.endpoint).run();
+  const rows = await env.DB.prepare(`SELECT s.*, MAX(json_extract(p.json, '$.publishedAt')) AS newest
     FROM push_subscriptions s JOIN briefings b ON b.owner_account_id = s.account_id
     JOIN accounts a ON a.id = s.account_id
-    JOIN v1_feed_documents e ON e.feed_id = b.id AND e.kind = 'editions'
-    WHERE json_extract(e.json, '$.createdAt') > s.last_notified_at AND json_extract(e.json, '$.createdAt') <= ?
-      AND a.disabled_at IS NULL AND (s.lease_until IS NULL OR s.lease_until < ?)
+    ${ELIGIBLE_PUSH_SQL}
+    WHERE json_extract(p.json, '$.publishedAt') > s.last_notified_at
+      AND json_extract(p.json, '$.publishedAt') <= ?
+      AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING')
+      AND s.notification_version IS NOT NULL
+      AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='browser_push_receipts' AND r.feed_id=e.feed_id AND json_extract(r.json,'$.editionId')=e.id AND json_extract(r.json,'$.subscriptionVersion')=s.notification_version)
+      AND (s.lease_until IS NULL OR s.lease_until < ?)
     GROUP BY s.endpoint ORDER BY s.last_notified_at LIMIT 40`).bind(now, now).all<{
-      endpoint: string; subscription_json: string; language: string; newest: string;
+      endpoint: string; account_id: string; subscription_json: string; language: string; newest: string; last_notified_at: string; notification_version: string;
     }>();
   for (const row of rows.results) {
-    const lease = new Date(Date.now() + 120_000).toISOString();
-    const claim = await env.DB.prepare("UPDATE push_subscriptions SET lease_until = ? WHERE endpoint = ? AND (lease_until IS NULL OR lease_until < ?)").bind(lease, row.endpoint, now).run();
+    const lease = new Date(Date.now() + 120_000).toISOString(), token = crypto.randomUUID();
+    const claim = await env.DB.prepare("UPDATE push_subscriptions SET lease_until = ?, lease_token = ? WHERE endpoint = ? AND account_id = ? AND subscription_json = ? AND last_notified_at = ? AND notification_version = ? AND (lease_until IS NULL OR lease_until < ?)").bind(lease, token, row.endpoint, row.account_id, row.subscription_json, row.last_notified_at, row.notification_version, now).run();
     if (!claim.meta.changes) continue;
     try {
       const subscription = subscriptionSchema.parse(JSON.parse(row.subscription_json));
@@ -41,11 +49,12 @@ export async function sendBriefingNotifications(env: Env) {
         { publicKey: env.VAPID_PUBLIC_KEY!, privateKey: env.VAPID_PRIVATE_KEY!, subject: env.VAPID_SUBJECT! });
       const response = await fetch(subscription.endpoint, { ...payload, redirect: "error", signal: AbortSignal.timeout(10_000) });
       if (response.status === 404 || response.status === 410) {
-        await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND lease_until = ?").bind(row.endpoint, lease).run();
+        await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND lease_token = ?").bind(row.endpoint, token).run();
       } else if (response.ok) {
-        await env.DB.prepare("UPDATE push_subscriptions SET last_notified_at = ?, lease_until = NULL WHERE endpoint = ? AND lease_until = ?").bind(row.newest, row.endpoint, lease).run();
+        await recordPushAcceptance(env.DB, row, token, new Date().toISOString());
       } else console.warn("Push delivery rejected", { status: response.status });
       await response.body?.cancel();
     } catch { console.warn("Push delivery failed; will retry after lease expires"); }
   }
+  await settlePushOutbox(env.DB, new Date().toISOString());
 }

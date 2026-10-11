@@ -716,11 +716,11 @@ export function createApp(options: AppOptions = {}) {
     await assertRateLimit(c.get("repo"), `push:${account.id}`, "push_subscription", 20, 60 * 60 * 1000);
     const input = z.object({ subscription: subscriptionSchema, language: z.enum(["en", "fr", "ar"]).default("en") }).parse(await c.req.json());
     const now = new Date().toISOString();
-    await c.env.DB.prepare(`INSERT INTO push_subscriptions(endpoint, account_id, subscription_json, language, last_notified_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET account_id = excluded.account_id,
+    await c.env.DB.prepare(`INSERT INTO push_subscriptions(endpoint, account_id, subscription_json, language, last_notified_at, created_at, notification_version)
+      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET account_id = excluded.account_id,
       subscription_json = excluded.subscription_json, language = excluded.language,
-      last_notified_at = excluded.last_notified_at, lease_until = NULL`)
-      .bind(input.subscription.endpoint, account.id, JSON.stringify(input.subscription), input.language, now, now).run();
+      last_notified_at = excluded.last_notified_at, lease_until = NULL, lease_token = NULL, notification_version = excluded.notification_version`)
+      .bind(input.subscription.endpoint, account.id, JSON.stringify(input.subscription), input.language, now, now, crypto.randomUUID()).run();
     return c.json({ ok: true });
   });
 

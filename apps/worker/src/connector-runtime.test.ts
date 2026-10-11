@@ -1,3 +1,5 @@
+import {createApp} from './app';
+import {readEditionDelivery} from './v1-intelligence/delivery-status';
 import {connectorSourceHealth} from './connector-health';
 import {publishedProductEditions} from './product-feeds';
 import {HandoffError,sha256} from '@distilled/contracts';
@@ -130,6 +132,11 @@ it('migrates empty D1 and connects RSS through receipts, acquisition, intelligen
  expect(edition.stories).toHaveLength(1);expect(edition.evidenceRevisionIds).toHaveLength(1);
  expect(edition.stories[0].claims[0].support[0].evidenceRevisionId).toBe(edition.evidenceRevisionIds[0]);
  expect(await processV1Briefing(env,message,()=>now)).toEqual(edition);expect(await feeds.list('feed-1','editions')).toHaveLength(1);
+ await ctx.db.prepare("INSERT INTO username_aliases(username,account_id,is_current,created_at) VALUES('owner','owner-1',1,?)").bind(testPolicy.now()).run();
+ const response=await createApp().request('/api/feed/owner/news',{}, {...env,PRODUCT_FEEDS_ENABLED:'true'});
+ expect(response.status).toBe(200);const publicFeed=await response.json() as {editions:{id:string;sections:{summary:string}[]}[]};
+ expect(publicFeed.editions[0].id).toBe(edition.id);expect(publicFeed.editions[0].sections[0].summary).toBe(projection[0].sections[0].summary);
+ expect(await readEditionDelivery(feeds,'feed-1',edition.id)).toMatchObject({verified:true,publiclyReadable:true,push:{state:'NOT_STARTED',jobState:'PENDING'}});
 },30000);
 it('does not create another RSS item receipt for an identical completed HTTP 200 snapshot',async()=>{
  const xml='<rss version="2.0"><channel><item><guid>unchanged-1</guid><link>https://example.com/unchanged</link><title>Unchanged report</title><description>The same source report remains available.</description></item></channel></rss>';

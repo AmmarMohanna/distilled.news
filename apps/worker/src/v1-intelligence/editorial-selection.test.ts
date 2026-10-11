@@ -80,18 +80,18 @@ describe('publication versus actual reader delivery is reported step by step',()
  let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env;
  beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1'} as unknown as Env});
  afterEach(async()=>ctx.dispose());
- it('a published edition is persisted, verified, projected and readable, while push delivery is explicitly unimplemented and never "delivered"',async()=>{
+ it('a published edition is persisted, verified, projected and readable, while a pending notification is never reported as delivered',async()=>{
   const {seedIntelligence}=await import('./test-utils');await seedIntelligence(store);
   const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const},edition=(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end))!;
   const status=await readEditionDelivery(store,'feed-1',edition.id);
-  expect(status).toMatchObject({generated:true,persisted:true,ledgerProjected:true,publiclyReadable:true,withdrawn:false,push:{state:'NOT_IMPLEMENTED_OUTBOX_UNCONSUMED',jobState:'PENDING',attempts:0}});
+  expect(status).toMatchObject({generated:true,persisted:true,ledgerProjected:true,publiclyReadable:true,withdrawn:false,push:{state:'NOT_STARTED',jobState:'PENDING',attempts:0}});
   expect(status.push.state).not.toBe('DELIVERED');
-  expect(await readScheduleAudit(ctx.db,'feed-1',new Date('2026-10-03T13:06:00Z'))).toMatchObject({state:'PUBLISHED',delivery:{push:{state:'NOT_IMPLEMENTED_OUTBOX_UNCONSUMED'}}});
+  expect(await readScheduleAudit(ctx.db,'feed-1',new Date('2026-10-03T13:06:00Z'))).toMatchObject({state:'PUBLISHED',delivery:{push:{state:'NOT_STARTED'}}});
  },40000);
- it('the claim "nothing consumes the delivery outbox" is checked against the source: a consumer must update this status model',()=>{
-  expect(PUSH_DELIVERY_CONSUMER_IMPLEMENTED).toBe(false);
+ it('the scheduled browser sender consumes the outbox without replacing publication',()=>{
+  expect(PUSH_DELIVERY_CONSUMER_IMPLEMENTED).toBe(true);
   const root=join(__dirname,'..'),files:string[]=[];const walk=(d:string)=>{for(const e of readdirSync(d,{withFileTypes:true})){const p=join(d,e.name);if(e.isDirectory()){if(e.name!=='node_modules')walk(p)}else if(/\.ts$/.test(e.name)&&!/\.test\.ts$/.test(e.name))files.push(p)}};walk(root);
-  const users=files.filter(f=>readFileSync(f,'utf8').includes('delivery_jobs')).map(f=>f.slice(root.length+1)).sort();
-  expect(users).toEqual(['v1-intelligence/delivery-status.ts','v1-intelligence/publication.ts','v1-intelligence/store.ts']);
+  const users=files.filter(f=>readFileSync(f,'utf8').includes('delivery_jobs')).map(f=>f.slice(root.length+1).replaceAll('\\','/')).sort();
+  expect(users).toEqual(['push-outbox.ts','v1-intelligence/delivery-status.ts','v1-intelligence/publication.ts','v1-intelligence/store.ts']);
  });
 });

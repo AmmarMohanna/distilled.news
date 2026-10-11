@@ -23,8 +23,8 @@ for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }, {
     await dialog.getByLabel("What would you like to follow?", { exact: true }).fill("Botanical discoveries");
     await expect(dialog.getByLabel("Time zone", { exact: true })).toHaveCount(0);
     await dialog.getByRole("button", { name: "Preferences", exact: true }).click();
-    await dialog.getByRole("button", { name: "Feed language: en", exact: true }).click();
-    await expect(dialog.getByRole("button", { name: "Feed language: fr", exact: true })).toBeVisible();
+    await dialog.getByRole("radio", { name: "FR", exact: true }).check();
+    await expect(dialog.getByRole("radio", { name: "FR", exact: true })).toBeChecked();
     const bounds = await dialog.boundingBox();
     expect(bounds!.y).toBeGreaterThanOrEqual(0);
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height + 1);
@@ -151,6 +151,7 @@ test("mobile search and create stay together across languages", async ({ page })
   const create = page.locator('.home-add-feed');
   await expect(create).toBeVisible();
   await page.waitForTimeout(200); // Allow viewport fitting after the session response.
+  const original = await create.boundingBox();
   for (let i = 0; i < 3; i++) {
     const a = await search.boundingBox(), b = await create.boundingBox();
     expect(Math.abs(a!.y + a!.height / 2 - b!.y - b!.height / 2)).toBeLessThan(2);

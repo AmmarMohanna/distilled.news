@@ -364,7 +364,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (max-height: 700px) {
   :root.apple-ui.apple-ui .guest-landing .landing-controls { margin-bottom: 12px; }
   :root.apple-ui.apple-ui .guest-landing .category-chips { margin-block: 8px 10px; }
-  :root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-art { height: clamp(72px, calc(100dvh - 470px), 120px); max-height: 120px; }
+  :root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-art { height: clamp(72px, calc(100dvh - 480px), 120px); max-height: 120px; }
   :root.apple-ui.apple-ui .experience.product-refresh:has(.home-view, .explore-view):not(.guest-landing) { padding-bottom: 0; }
   :root.apple-ui.apple-ui .home-view .welcome-hero { margin-block: 8px 12px; padding-top: 0; }
   :root.apple-ui.apple-ui .home-view .your-feeds { margin-top: 12px; }
@@ -422,7 +422,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .guest-landing .landing-controls :is(.explore-search,.landing-create) { height: 40px; min-height: 40px; padding-block: 0; }
   :root.apple-ui.apple-ui .guest-landing .category-chips { margin-block: 4px; padding-block: 0; }
   :root.apple-ui.apple-ui .guest-landing .category-chips button { min-height: 32px; padding-block: 4px; }
-  :root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-art { height: 88px; max-height: 88px; }
+  :root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-art { height: 72px; max-height: 72px; }
 }
 :root.apple-ui.apple-ui .explore-publishing-hint { margin-top: 1.25rem; color: var(--muted); font-size: 0.875rem; }
 
@@ -820,4 +820,15 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .feed-shell .feed-side-actions > button,
   :root.apple-ui.apple-ui .feed-shell .search { width: 100%; min-width: 0; }
   :root.apple-ui.apple-ui .feed-shell .feed-empty-state { min-height: 140px; }
+}
+
+/* Keep the existing card design within short portrait viewports, including
+ * the owner, status and real update-time rows added by the UI contributor. */
+@media (max-width: 600px) and (min-height: 621px) and (max-height: 700px) {
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-view, .explore-view) .topic-art { height: 76px; }
+}
+
+/* Account management can exceed one screen; its last action must clear mobile navigation. */
+@media (max-width: 899px) {
+  :root.apple-ui.apple-ui .experience.product-refresh:has(.accounts-section[open]) { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
 }

@@ -11,6 +11,7 @@ export async function installApp() {
   const browser = navigator as Navigator & { standalone?: boolean; getInstalledRelatedApps?: () => Promise<Array<{ platform: string; url?: string; id?: string }>> };
   if (browser.standalone || matchMedia("(display-mode: standalone)").matches) return "already-installed" as const;
   if (!installPrompt) {
+    if (installed || localStorage.getItem(installedKey) === "1") return "already-installed" as const;
     try {
       const related = await browser.getInstalledRelatedApps?.();
       const manifest = new URL("/manifest.webmanifest", location.origin).href;

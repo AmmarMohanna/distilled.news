@@ -336,6 +336,7 @@ function writeWranglerConfig(path, resources, env) {
     PUBLIC_API_BASE_URL: publicApiBaseUrl,
     PUBLIC_WEB_BASE_URL: publicWebBaseUrl,
     CLOUDFLARE_ACCOUNT_ID: envValue(env, "CLOUDFLARE_ACCOUNT_ID"),
+    CLOUDFLARE_IMAGE_ACCOUNT_ID: env.get("CLOUDFLARE_IMAGE_ACCOUNT_ID") || "",
     CLOUDFLARE_AI_GATEWAY_ID: env.get("CLOUDFLARE_AI_GATEWAY_ID") || "default",
     OPENAI_MODEL: env.get("OPENAI_MODEL") || "gpt-4.1-mini",
     EMAIL_FROM: env.get("EMAIL_FROM") || "Distilled.news <noreply@example.com>",

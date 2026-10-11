@@ -146,9 +146,9 @@ test('feed language and advanced settings persist independently of website langu
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  const dialog=page.getByRole('dialog');
  await dialog.locator('.feed-preferences-disclosure').click();
- await expect(dialog.getByRole('button',{name:'Feed language: en'})).toBeVisible();
+ await expect(dialog.getByRole('radio',{name:'EN',exact:true})).toBeChecked();
  expect(edits).toHaveLength(0);
- await dialog.getByRole('button',{name:'Feed language: en'}).click(); await dialog.getByRole('button',{name:'Feed language: fr'}).click();
+ await dialog.getByRole('radio',{name:'AR',exact:true}).check();
  await expect(dialog.getByLabel('Fuseau horaire')).toHaveCount(0);
  const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/feeds')&&request.method()==='POST');
  await dialog.getByRole('button',{name:'Enregistrer',exact:true}).click();
@@ -157,7 +157,7 @@ test('feed language and advanced settings persist independently of website langu
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  await page.locator('.feed-preferences-disclosure').click();
- await expect(page.getByRole('button',{name:'Feed language: ar'})).toBeVisible();
+ await expect(page.getByRole('radio',{name:'AR',exact:true})).toBeChecked();
  await page.mouse.click(4,4);
  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
@@ -187,7 +187,7 @@ test('new feed keeps the language selected in advanced settings',async({page})=>
  await dialog.getByLabel('Sources',{exact:true}).fill('https://example.test/feed.xml');
  await dialog.getByRole('button',{name:'Add source',exact:true}).click();
  await dialog.locator('.feed-preferences-disclosure').click();
- await dialog.getByRole('button',{name:'Feed language: en'}).click(); await dialog.getByRole('button',{name:'Feed language: fr'}).click();
+ await dialog.getByRole('radio',{name:'AR',exact:true}).check();
  const deviceZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
  const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/feeds')&&request.method()==='POST');
  await dialog.getByRole('button',{name:'Create feed',exact:true}).click();
@@ -195,7 +195,7 @@ test('new feed keeps the language selected in advanced settings',async({page})=>
  await expect(page).toHaveURL(/\/joud\/science-today\/$/);
  await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
  await page.locator('.feed-preferences-disclosure').click();
- await expect(page.getByRole('button',{name:'Feed language: ar'})).toBeVisible();
+ await expect(page.getByRole('radio',{name:'AR',exact:true})).toBeChecked();
  await expect(page.locator('.feed-preferences-disclosure')).toContainText('Public');
  await expect(page.locator('html')).toHaveAttribute('lang','en');
 });

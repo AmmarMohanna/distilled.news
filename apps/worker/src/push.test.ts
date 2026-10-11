@@ -21,14 +21,14 @@ for (const status of [201, 410, 503]) it(`handles push delivery status ${status}
   } };
   const executed: string[] = [];
   const prepare = (sql: string) => ({ bind: (..._values: unknown[]) => ({
-    all: async () => ({ results: [{ endpoint: subscription.endpoint, subscription_json: JSON.stringify(subscription), language: "en", newest: "2026-09-27T00:00:00.000Z" }] }),
+    all: async () => ({ results: sql.includes("MAX(json_extract") ? [{ endpoint: subscription.endpoint, account_id: "owner", subscription_json: JSON.stringify(subscription), notification_version: "v1", last_notified_at: "2026-09-01T00:00:00.000Z", language: "en", newest: "2026-09-27T00:00:00.000Z" }] : [] }),
     run: async () => { executed.push(sql); return { meta: { changes: 1 } }; }
   }) });
   const fetcher = vi.fn().mockResolvedValue(new Response(null, { status }));
   vi.stubGlobal("fetch", fetcher);
-  await sendBriefingNotifications({ DB: { prepare }, VAPID_PUBLIC_KEY: publicKey, VAPID_PRIVATE_KEY: privateKey, VAPID_SUBJECT: "https://distilled.news" } as unknown as Env);
+  await sendBriefingNotifications({ DB: { prepare, batch: async () => { executed.push("release accepted lease"); return []; } }, VAPID_PUBLIC_KEY: publicKey, VAPID_PRIVATE_KEY: privateKey, VAPID_SUBJECT: "https://distilled.news" } as unknown as Env);
   expect(fetcher).toHaveBeenCalledOnce();
   expect(fetcher.mock.calls[0][1]).toMatchObject({ method: "post", redirect: "error" });
   expect(executed.some(sql => sql.startsWith("DELETE"))).toBe(status === 410);
-  expect(executed.some(sql => sql.includes("SET last_notified_at"))).toBe(status === 201);
+  expect(executed.includes("release accepted lease")).toBe(status === 201);
 });
