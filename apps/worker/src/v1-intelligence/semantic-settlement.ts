@@ -1,6 +1,6 @@
 import {HandoffError} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
-import type {SemanticIntent,SemanticOperationInput,SemanticOperationResult} from './semantic-operations';
+import {SemanticContentionError,type SemanticIntent,type SemanticOperationInput,type SemanticOperationResult} from './semantic-operations';
 import type {FeedTransaction,V1FeedStore} from './store';
 /** Only operational day and retry number are absent from the reusable question.
  * Evidence, Feed revision, model, policy and complete semantic state remain bound. */
@@ -20,9 +20,10 @@ export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOper
   // Legacy records without compatibility metadata retain a conservative fence.
   if(!result?.usage.reported){
    const sameQuestion=canonicalJson(semanticQuestion(intent.input))===canonicalJson(semanticQuestion(input));
-   if(!result&&intent.leaseUntil>Date.now()){if(sameQuestion||compatibilityHash&&intent.compatibilityHash===compatibilityHash)throw new HandoffError('TEMPORARY_UNAVAILABLE');continue}
+   if(!result&&intent.leaseUntil>Date.now()){if(sameQuestion||compatibilityHash&&intent.compatibilityHash===compatibilityHash)throw new SemanticContentionError();continue}
    if(!intent.compatibilityHash||sameQuestion||intent.compatibilityHash===compatibilityHash){
-    return {...(result??{id:intent.id,feedId:input.feedId,input:intent.input,status:'DEFERRED' as const,usage:{calls:1,costUsd:intent.reservedCostUsd,reported:false},latencyMs:0,createdAt:intent.createdAt}),status:'DEFERRED',failure:'SEMANTIC_OUTCOME_UNKNOWN'};
+    const fenced:SemanticOperationResult<T>={...(result??{id:intent.id,feedId:input.feedId,input:intent.input,status:'DEFERRED' as const,usage:{calls:1,costUsd:intent.reservedCostUsd,reported:false},latencyMs:0,createdAt:intent.createdAt}),status:'DEFERRED',failure:'SEMANTIC_OUTCOME_UNKNOWN'};
+    if(!result)await tx.write('semantic_results',intent.id,fenced);return fenced;
    }
   }
   if(result?.status==='SUCCEEDED'&&compatibilityHash&&intent.compatibilityHash===compatibilityHash)return result;

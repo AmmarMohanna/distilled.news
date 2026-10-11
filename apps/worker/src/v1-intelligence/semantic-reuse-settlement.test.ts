@@ -28,7 +28,7 @@ it('legacy unknown outcomes cannot be rebilled with a new day, attempt or worker
 it('missing legacy metadata and an expired intent never authorize a fresh paid question',async()=>{
  const old=input(),id=await sha256(canonicalJson(old));await feedTransact(store,'feed-1',tx=>tx.write('semantic_intents',id,{id,feedId:'feed-1',input:old,token:'expired',leaseUntil:0,reservedCostUsd:.02,createdAt:'2026-10-10T10:00:00Z'}));
  let calls=0;const b=await durableSemanticOperation(store,input('2026-10-11',1),async()=>{calls++;return {value:{},usage}},'2026-10-11T10:00:00Z',undefined,{reuseContext:witness} as any);
- expect(calls).toBe(0);expect(b.failure).toBe('SEMANTIC_OUTCOME_UNKNOWN');
+ expect(calls).toBe(0);expect(b.failure).toBe('SEMANTIC_OUTCOME_UNKNOWN');expect(await store.read('feed-1','semantic_results',id)).toMatchObject({failure:'SEMANTIC_OUTCOME_UNKNOWN'});
 },15000);
 it('changed Event/Storyline witness cannot reuse a prior successful judgment',async()=>{
  let calls=0;const run=async()=>{calls++;return {value:{},usage}};await durableSemanticOperation(store,input(),run,'2026-10-10T10:00:00Z',undefined,{reuseContext:witness} as any);
