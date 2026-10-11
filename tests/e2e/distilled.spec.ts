@@ -250,21 +250,18 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
 
   await expect(page.getByRole("link", { name: "Back", exact: true })).toHaveAttribute("href", "/");
   await expect(page.getByRole("heading", { name: "Personal Briefing" })).toBeVisible();
-  await expect(page.locator(".feed-status-message")).toBeVisible();
-  await expect(page.locator(".feed-status-message")).toHaveText("waiting for the next accepted update.");
+  await expect(page.getByText("waiting for the next accepted update.")).toBeVisible();
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
   expect(summaryRequests).toBe(0);
   feedPaused = true;
   await page.reload();
-  await expect(page.locator(".feed-status-message")).toBeVisible();
-  await expect(page.locator(".feed-status-message")).toHaveText("feed paused; no new briefings will publish until it resumes.");
+  await expect(page.getByText("feed paused; no new briefings will publish until it resumes.")).toBeVisible();
   await expect(page.getByText(/is due/i)).toHaveCount(0);
   await expect(page.getByText("by ammar-mohanna")).toBeVisible();
-  await page.locator(".feed-utility-menu summary").click();
   await expect(page.getByRole("button", { name: /explore/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: /explore/i })).toHaveText("Explore feeds");
+  await expect(page.getByRole("button", { name: /explore/i })).toHaveAttribute("title", "explore feeds");
   expect(sessionRequests).toBeGreaterThan(0);
-  await expect(page.getByPlaceholder("Search briefings")).toBeVisible();
+  await expect(page.getByPlaceholder("search published briefing")).toBeVisible();
   await expect(page.locator(".news-item").filter({ hasText: "Electricite du Liban confirmed two extra hours" }).first()).toBeVisible();
   await expect(page.getByText("A third operational note stays in the full brief")).toHaveCount(0);
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
@@ -280,7 +277,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(reportDialog.getByRole("link", { name: /original/i })).toHaveAttribute("href", item.evidence[0].sourceUrl);
   await page.getByRole("button", { name: "close report" }).click();
 
-  await page.getByPlaceholder("Search briefings").fill("power supply");
+  await page.getByPlaceholder("search published briefing").fill("power supply");
   await page.keyboard.press("Enter");
   await expect(page.locator(".news-item").filter({ hasText: "Electricite du Liban confirmed two extra hours" }).first()).toBeVisible();
 
@@ -313,22 +310,19 @@ test("arabic feed keeps public chrome localized and summary stable on expand", a
   await page.goto("/ammar-mohanna/personal/");
 
   await expect(page.getByRole("button", { name: /موجز الآن/ })).toHaveCount(0);
-  await page.locator(".feed-utility-menu summary").click();
   await expect(page.getByRole("button", { name: /استكشاف/ })).toBeVisible();
-  await expect(page.getByPlaceholder("\u0627\u0644\u0628\u062d\u062b \u0641\u064a \u0627\u0644\u0645\u0648\u062c\u0632\u0627\u062a")).toBeVisible();
+  await expect(page.getByPlaceholder("ابحث في الموجز المنشور")).toBeVisible();
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
   await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
 
   await page.getByRole("button", { name: /عرض تحديثات موثوقة/i }).click();
   await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
-  await expect(page.locator(".news-headline").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
-  await expect(page.locator(".news-headline-references").getByRole("button", { name: /1/ })).toBeVisible();
+  await expect(page.locator(".news-summary").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
   await expect(page.getByText("المراجع")).toBeVisible();
   await expect(page.getByText("refresh")).toHaveCount(0);
   await expect(page.getByText("Explore")).toHaveCount(0);
   await expect(page.getByText("search published briefing")).toHaveCount(0);
 });
-
 
 test("feed shows twenty unread items and backfills when one is read", async ({ page }) => {
   await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
