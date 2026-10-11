@@ -1826,8 +1826,8 @@ function FeedEditionRow(props: {
   const referenceCount = Math.max(detailEdition.sections.length, highestReferenceNumber(props.edition.summary));
   const sentences = summarySentences(surfaceSummary);
   const editionTitle = props.edition.title?.trim() ?? "";
-  const hasEditorialTitle = editionTitle.length > 14 && !/^(?:updates?|briefings?|news|daily|hourly)(?:\\s|$)/iu.test(editionTitle);
-  const headline = (hasEditorialTitle ? editionTitle : sentences[0] || editionTitle || surfaceSummary).replace(/\\[\\d{1,3}\\]/gu, "").trim();
+  const hasEditorialTitle = editionTitle.length > 14 && !/^(?:updates?|briefings?|news|daily|hourly)(?:\s|$)/iu.test(editionTitle);
+  const headline = (hasEditorialTitle ? editionTitle : sentences[0] || editionTitle || surfaceSummary).replace(/\[\d{1,3}\]/gu, "").trim();
   const deck = hasEditorialTitle ? surfaceSummary : sentences.slice(1).join(" ");
   return (
     <article className={`news-item${props.isRead ? " is-read" : ""}${props.isFeatured ? " is-featured" : ""}`}>
