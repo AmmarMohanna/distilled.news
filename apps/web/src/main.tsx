@@ -69,7 +69,6 @@ import {
   logout,
   refreshPublicTelegramSources,
   register,
-  requestFeedSummary,
   resetPassword,
   retryProcessing,
   saveBriefing,
@@ -1387,6 +1386,15 @@ function InlineAccountPanel(props: { title: string; closeLabel: string; icon: Re
   return <aside className="managed-user-panel" aria-label={props.title}><button type="button" className="managed-user-close" aria-label={props.closeLabel} onClick={props.onClose}><X size={22}/></button>{props.children}</aside>;
 }
 
+function readerText(language: "en" | "ar" | "fr", key: "share" | "more" | "copy" | "explore" | "search" | "briefings" | "unread" | "about" | "feedInfo" | "editions" | "stars" | "newest" | "read" | "hide"): string {
+  const labels = {
+    en: { share: "Share", more: "More actions", copy: "Copy link", explore: "Explore feeds", search: "Search briefings", briefings: "Latest briefings", unread: "unread", about: "About this feed", feedInfo: "FEED AT A GLANCE", editions: "Published editions", stars: "Stars", newest: "LATEST BRIEFING", read: "Read briefing", hide: "Close briefing" },
+    ar: { share: "مشاركة", more: "المزيد من الإجراءات", copy: "نسخ الرابط", explore: "استكشاف الموجزات", search: "البحث في الموجزات", briefings: "أحدث الموجزات", unread: "غير مقروء", about: "عن هذا الموجز", feedInfo: "لمحة عن الموجز", editions: "الموجزات المنشورة", stars: "النجوم", newest: "أحدث موجز", read: "قراءة الموجز", hide: "إغلاق الموجز" },
+    fr: { share: "Partager", more: "Autres actions", copy: "Copier le lien", explore: "Explorer les fils", search: "Rechercher dans les briefs", briefings: "Derniers briefs", unread: "non lus", about: "À propos de ce fil", feedInfo: "APERÇU DU FIL", editions: "Éditions publiées", stars: "Étoiles", newest: "DERNIER BRIEF", read: "Lire le brief", hide: "Fermer le brief" }
+  } as const;
+  return labels[language][key];
+}
+
 function FeedPage(props: { username: string; slug: string }) {
   const { language: uiLanguage, t } = useLanguage();
   const [account, setAccount] = useState<AccountRecord | null>(null);
@@ -1409,7 +1417,6 @@ function FeedPage(props: { username: string; slug: string }) {
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [starBusy, setStarBusy] = useState(false);
-  const [summaryBusy, setSummaryBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [exploreOpen, setExploreOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -1433,23 +1440,6 @@ function FeedPage(props: { username: string; slug: string }) {
     setEditionDetails(new Map());
     setVisibleUnreadCount(FEED_BATCH_SIZE);
     setSelectedReport(null);
-  }
-
-  async function requestSummaryNow() {
-    if (!payload) return;
-    setError("");
-    setSummaryMessage("");
-    setSummaryBusy(true);
-    try {
-      const result = await requestFeedSummary(props.username, props.slug);
-      setQuery("");
-      await refresh();
-      setSummaryMessage(result.requestId ? result.message : result.edition ? summaryPublishedLabel(language) : summaryEmptyLabel(language));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setSummaryBusy(false);
-    }
   }
 
   useEffect(() => {
@@ -1598,15 +1588,18 @@ function FeedPage(props: { username: string; slug: string }) {
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
       <div className="feed-tools" dir={pageDir}>
         <div className="feed-actions">
-          {payload?.briefing.publicFeedEnabled && <><button type="button" onClick={() => void navigator.clipboard.writeText(window.location.origin + window.location.pathname).then(() => setSummaryMessage(t("URL copied"))).catch(() => setError(t("Could not copy URL")))}><Copy size={15}/>{t("Copy URL")}</button><button type="button" onClick={() => { const url = window.location.origin + window.location.pathname; void (navigator.share ? navigator.share({ title: payload.briefing.title, url }) : navigator.clipboard.writeText(url)).catch(() => {}); }}><Share size={15}/>{t("Share")}</button></>}
-          <button
-            type="button"
-            title={summaryRequestTitleLabel(language)}
-            disabled={!payload || summaryBusy || (!ownedFeed&&payload.publicationState!==undefined) || payload.publicationState==='checking'}
-            onClick={() => void requestSummaryNow()}
-          >
-            <Newspaper size={15} aria-hidden /> {summaryBusy ? summaryBusyLabel(language) : summaryRequestLabel(language)}
-          </button>
+          {payload?.briefing.publicFeedEnabled ? (
+            <button type="button" onClick={() => {
+              const url = window.location.origin + window.location.pathname;
+              void (navigator.share
+                ? navigator.share({ title: payload.briefing.title, url })
+                : navigator.clipboard.writeText(url).then(() => setSummaryMessage(t("URL copied"))))
+                .catch(() => setError(t("Could not share URL")));
+            }}>
+              <Share size={17} aria-hidden />{readerText(language, "share")}
+            </button>
+          ) : null}
+
           <button
             type="button"
             className={`star-vote${payload?.viewerHasStarred ? " is-starred" : ""}`}
@@ -1631,9 +1624,21 @@ function FeedPage(props: { username: string; slug: string }) {
             <Star size={15} aria-hidden />
             {starControlLabel(payload?.viewerHasStarred ?? false, language)} {payload?.briefing.stars ?? 0}
           </button>
+          <details className="feed-utility-menu">
+            <summary aria-label={readerText(language, "more")} title={readerText(language, "more")}><MoreHorizontal size={19} aria-hidden /></summary>
+            <div className="feed-utility-menu-popover">
+              {payload?.briefing.publicFeedEnabled ? (
+                <button type="button" onClick={() => void navigator.clipboard.writeText(window.location.origin + window.location.pathname).then(() => setSummaryMessage(t("URL copied"))).catch(() => setError(t("Could not copy URL")))}>
+                  <Copy size={16} aria-hidden />{readerText(language, "copy")}
+                </button>
+              ) : null}
+              <button type="button" onClick={() => setExploreOpen(true)}>
+                <Compass size={16} aria-hidden />{readerText(language, "explore")}
+              </button>
+            </div>
+          </details>
         </div>
         <div className="feed-side-actions">
-          <button type="button" title={exploreFeedsLabel(language)} onClick={() => setExploreOpen(true)}><Compass size={15} aria-hidden /> {exploreControlLabel(language)}</button>
           <form
             className="search"
             onSubmit={async (event) => {
@@ -1648,7 +1653,7 @@ function FeedPage(props: { username: string; slug: string }) {
               dir={pageDir}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={searchPublishedLabel(language)}
+              placeholder={readerText(language, "search")}
             />
           </form>
         </div>
@@ -1677,10 +1682,20 @@ function FeedPage(props: { username: string; slug: string }) {
           <bdi dir={pageDir}>{feedStatusMessage}</bdi>
         </p>
       ) : null}
+      <div className="feed-content-grid">
+        <section className="feed-content-main" aria-label={readerText(language, "briefings")}>
+          <header className="feed-reading-heading">
+            <div>
+              <span className="feed-kicker">DISTILLED.NEWS</span>
+              <h2>{readerText(language, "briefings")}</h2>
+            </div>
+            {unreadEditions.length > 0 ? <span className="feed-reading-count">{unreadEditions.length} {readerText(language, "unread")}</span> : null}
+          </header>
       <div className="news-line">
-        {visibleUnreadEditions.map((edition) => (
+        {visibleUnreadEditions.map((edition, index) => (
           <FeedEditionRow
             key={edition.id}
+            isFeatured={index === 0 && !query.trim()}
             edition={edition}
             detailEdition={editionDetails.get(edition.id) ?? (edition.sections.length > 0 ? edition : undefined)}
             language={language}
@@ -1731,6 +1746,18 @@ function FeedPage(props: { username: string; slug: string }) {
           </div>
         </details>
       ) : null}
+        </section>
+        <aside className="feed-context-sidebar" aria-label={readerText(language, "about")}>
+          <div className="feed-context-card">
+            <span className="feed-context-kicker">{readerText(language, "feedInfo")}</span>
+            <h2>{readerText(language, "about")}</h2>
+            <div className="feed-context-stat"><span>{readerText(language, "editions")}</span><strong>{editions.length}</strong></div>
+            <div className="feed-context-stat"><span>{readerText(language, "unread")}</span><strong>{unreadEditions.length}</strong></div>
+            <div className="feed-context-stat"><span>{readerText(language, "stars")}</span><strong>{payload?.briefing.stars ?? 0}</strong></div>
+            {feedStatusMessage ? <p className="feed-context-next"><Clock3 size={15} aria-hidden /> {feedStatusMessage}</p> : null}
+          </div>
+        </aside>
+      </div>
     </Shell>
   );
 }
@@ -1782,6 +1809,7 @@ function FeedSignalPanel(props: {
 
 function FeedEditionRow(props: {
   edition: BriefingEdition;
+  isFeatured?: boolean;
   detailEdition?: BriefingEdition;
   language: "en" | "ar" | "fr";
   isExpanded: boolean;
@@ -1795,57 +1823,44 @@ function FeedEditionRow(props: {
   const detailEdition = props.detailEdition ?? props.edition;
   const surfaceSummary = surfaceBriefSummary(props.edition.summary);
   const referenceCount = Math.max(detailEdition.sections.length, highestReferenceNumber(props.edition.summary));
-  const closedIcon = textDir === "rtl" ? <ChevronLeft size={15} aria-hidden /> : <ChevronRight size={15} aria-hidden />;
+  const sentences = summarySentences(surfaceSummary);
+  const editionTitle = props.edition.title?.trim() ?? "";
+  const hasEditorialTitle = editionTitle.length > 14 && !/^(?:updates?|briefings?|news|daily|hourly)(?:\\s|$)/iu.test(editionTitle);
+  const headline = (hasEditorialTitle ? editionTitle : sentences[0] || editionTitle || surfaceSummary).replace(/\\[\\d{1,3}\\]/gu, "").trim();
+  const deck = hasEditorialTitle ? surfaceSummary : sentences.slice(1).join(" ");
   return (
-    <article className={`news-item${props.isRead ? " is-read" : ""}`}>
-      <div className="news-rail" aria-hidden>
-        <span className="news-node" />
-      </div>
+    <article className={`news-item${props.isRead ? " is-read" : ""}${props.isFeatured ? " is-featured" : ""}`}>
       <div className="news-copy" lang={props.language} dir={textDir}>
         <div className="news-topline">
           <div className="news-meta" dir={textDir}>
+            {props.isFeatured ? <span className="news-latest">{readerText(props.language, "newest")}</span> : null}
             <Timestamp value={props.edition.publishedAt} language={props.language} />
             <span className="muted">{cadenceMetaLabel(props.edition.cadence, props.language)}</span>
           </div>
-          <div className="news-row-actions" dir="ltr">
-            <button
-              type="button"
-              className="read-button icon-button quiet-icon"
+          <div className="news-row-actions">
+            <button type="button" className="read-button icon-button quiet-icon"
               title={readToggleTitle(props.isRead, props.language)}
               aria-label={readToggleAria(props.edition.title, props.isRead, props.language)}
               onClick={props.onToggleRead}
             >
-              {props.isRead ? <Circle size={16} aria-hidden /> : <CircleCheck size={16} aria-hidden />}
-              <span className="sr-only">{readToggleText(props.isRead, props.language)}</span>
-            </button>
-            <button
-              type="button"
-              className="expand icon-button quiet-icon"
-              title={briefingToggleTitle(props.isExpanded, props.language)}
-              aria-expanded={props.isExpanded}
-              aria-label={briefingToggleAria(props.edition.title, props.isExpanded, props.language)}
-              onClick={props.onToggleExpanded}
-            >
-              {props.isExpanded ? <ChevronDown size={15} aria-hidden /> : closedIcon}
+              {props.isRead ? <Circle size={18} aria-hidden /> : <CircleCheck size={18} aria-hidden />}
             </button>
           </div>
         </div>
-        <ReferenceParagraph
-          className="news-summary"
-          text={surfaceSummary}
-          language={props.language}
-          referenceCount={referenceCount}
-          onOpenReference={props.onOpenReport}
-        />
-        {props.isExpanded ? (
-          <EditionSections
-            edition={detailEdition}
-            surfaceSummary={surfaceSummary}
-            language={props.language}
-            loading={props.isLoading}
-            onOpenReport={props.onOpenReport}
-          />
-        ) : null}
+        <h3 className="news-headline">{headline}</h3>
+        {deck ? <ReferenceParagraph className="news-summary" text={deck}
+          language={props.language} referenceCount={referenceCount}
+          onOpenReference={props.onOpenReport} /> : null}
+        <div className="news-footer">
+          <button type="button" className="news-read-briefing"
+            aria-expanded={props.isExpanded} aria-label={briefingToggleAria(props.edition.title, props.isExpanded, props.language)}
+            onClick={props.onToggleExpanded}>
+            {props.isExpanded ? readerText(props.language, "hide") : readerText(props.language, "read")}
+            {props.isExpanded ? <ChevronDown size={16} aria-hidden /> : textDir === "rtl" ? <ChevronLeft size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
+          </button>
+        </div>
+        {props.isExpanded ? <EditionSections edition={detailEdition} surfaceSummary={surfaceSummary}
+          language={props.language} loading={props.isLoading} onOpenReport={props.onOpenReport} /> : null}
       </div>
     </article>
   );
