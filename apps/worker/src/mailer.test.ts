@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sendVerificationEmail } from "./mailer";
+import { sendVerificationEmail, sendPasswordResetEmail } from "./mailer";
 import type { AccountRecord, Env } from "./types";
 
 const account = { email: "reader@example.com" } as AccountRecord;
@@ -63,6 +63,20 @@ describe("Outlook QA mail", () => {
     await sendVerificationEmail(env, account, "another-secret");
     const secondExchange = requests[3].init?.body as URLSearchParams;
     expect(secondExchange.get("refresh_token")).toBe("rotated-refresh-token");
+  });
+
+  it("uses the verified staging frontend for password reset and preserves expiry messaging", async () => {
+    const {env}=outlookEnv();env.PUBLIC_WEB_BASE_URL="https://distilled-news-staging.distillednews-platform.workers.dev";
+    let submitted: any;
+    vi.stubGlobal("fetch",vi.fn(async(url:string,init?:RequestInit)=>{
+      if(url.includes("/token"))return Response.json({access_token:"test-access",refresh_token:"test-rotated"});
+      if(url.includes("/me?"))return Response.json({mail:"distilled.news@outlook.com"});
+      submitted=JSON.parse(String(init?.body));return new Response(null,{status:202});
+    }));
+    await sendPasswordResetEmail(env,account,"test-reset-token");
+    expect(submitted.message.subject).toBe("Reset your Distilled.news password");
+    expect(submitted.message.body.content).toContain("https://distilled-news-staging.distillednews-platform.workers.dev/reset-password?token=test-reset-token");
+    expect(submitted.message.body.content).toContain("expires in 30 minutes");
   });
 
   it("refuses to send if the authorized mailbox differs from EMAIL_FROM", async () => {

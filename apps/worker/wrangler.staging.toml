@@ -8,9 +8,11 @@ preview_urls = false
 routes = []
 
 [vars]
-STAGING_ASSETS_PREFIX = "staging-assets/cbc01d5ce16bf8ef79dcdc1f77b7932bda29abfd/"
+STAGING_ASSETS_PREFIX = "staging-assets/758837e409f03d248288de04909e981d680abf6a/"
 PUBLIC_API_BASE_URL = "https://distilled-news-staging.distillednews-platform.workers.dev"
 PUBLIC_WEB_BASE_URL = "https://distilled-news-staging.distillednews-platform.workers.dev"
+MAIL_TRANSPORT = "OUTLOOK_GRAPH"
+EMAIL_FROM = "Distilled.news <distilled.news@outlook.com>"
 SOURCE_CONNECTORS_ENABLED = "true"
 SOURCE_LEGACY_POLLING_ENABLED = "false"
 PRODUCT_FEEDS_ENABLED = "true"

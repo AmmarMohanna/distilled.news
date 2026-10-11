@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
-import { hashPassword } from "./auth";
+import { hashPassword, hashToken } from "./auth";
 import { publishDueBriefingEditions, publishManualBriefingEdition } from "./editions";
 import { processQueueMessage } from "./processor";
 import { ingestPublicTelegramChannel } from "./publicTelegram";
@@ -287,6 +287,24 @@ describe("worker app accounts", () => {
       env(email)
     );
     expect(loginResponse.status).toBe(200);
+  });
+
+  it("keeps expired verification/reset tokens unusable and password resets single-use",async()=>{
+    const repo=new InMemoryRepository(),app=createApp({repository:repo}),mail=new FakeEmail(),config=env(mail);
+    await app.request("/api/auth/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"expiry@test.com",username:"expiry",password:"original-pass123"})},config);
+    const account=(await repo.getAccountByEmail("expiry@test.com"))!;
+    for(const purpose of ["email_verification","password_reset"] as const){
+      const token="expired-"+purpose;await repo.createAuthToken({accountId:account.id,purpose,tokenHash:await hashToken(token),expiresAt:new Date(Date.now()-1000).toISOString()});
+      const endpoint=purpose==="email_verification"?"/api/auth/verify-email":"/api/auth/password/reset";
+      expect((await app.request(endpoint,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token,password:"changed-pass123"})},config)).status).toBe(400);
+    }
+    const verify=tokenFromMessage(mail.messages[0].text);await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);
+    const replay=await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);expect(replay.status).toBe(200);expect(replay.headers.get("set-cookie")).toBeNull();
+    await app.request("/api/auth/password/forgot",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email})},config);
+    const reset=tokenFromMessage(mail.messages[1].text),body=JSON.stringify({token:reset,password:"changed-pass123"});
+    expect((await app.request("/api/auth/password/reset",{method:"POST",headers:{"content-type":"application/json"},body},config)).status).toBe(200);
+    expect((await app.request("/api/auth/password/reset",{method:"POST",headers:{"content-type":"application/json"},body},config)).status).toBe(400);
+    for(const [password,status] of [["original-pass123",401],["changed-pass123",200]] as const)expect((await app.request("/api/auth/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email,password})},config)).status).toBe(status);
   });
 
   it("allows deleting the last feed without recreating it on read", async () => {
