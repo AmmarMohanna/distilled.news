@@ -1,0 +1,1 @@
+ALTER TABLE briefings ADD COLUMN explore_featured INTEGER NOT NULL DEFAULT 0;

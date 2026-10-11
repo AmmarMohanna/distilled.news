@@ -80,6 +80,7 @@ interface BriefingRow {
   interest_profile: string;
   style_instruction: string | null;
   public_feed_enabled: number;
+  explore_featured?: number;
   v1_briefing_interval_minutes?: BriefingConfig["updateIntervalMinutes"];
   paused?: number;
   language?: "en" | "ar" | "fr" | null;
@@ -461,13 +462,18 @@ export class D1Repository implements Repository {
           `SELECT briefings.*, accounts.username as owner_username
           FROM briefings
           JOIN accounts ON accounts.id = briefings.owner_account_id
-          WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.stars > 0
-          ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
+          WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND (briefings.stars > 0 OR briefings.explore_featured = 1)
+          ORDER BY briefings.explore_featured DESC, briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ?`
         )
         .bind(limit)
     );
     return rows.map(rowToBriefing);
+  }
+
+  async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {
+    await this.db.prepare("UPDATE briefings SET explore_featured = ? WHERE id = ?")
+      .bind(featured ? 1 : 0, briefingId).run();
   }
 
   async getBriefingById(id: string): Promise<BriefingConfig | null> {
@@ -1868,10 +1874,15 @@ export class InMemoryRepository implements Repository {
   async listExploreBriefings(limit: number): Promise<BriefingConfig[]> {
     if (limit <= 0) return [];
     return Array.from(this.briefings.values())
-      .filter((briefing) => briefing.publicFeedEnabled && briefing.stars > 0 && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
+      .filter((briefing) => briefing.publicFeedEnabled && (briefing.stars > 0 || briefing.exploreFeatured) && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
-      .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
+      .sort((a, b) => Number(Boolean(b.exploreFeatured)) - Number(Boolean(a.exploreFeatured)) || compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
       .slice(0, limit);
+  }
+
+  async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {
+    const briefing = this.briefings.get(briefingId);
+    if (briefing) this.briefings.set(briefingId, { ...briefing, exploreFeatured: featured });
   }
 
   async getBriefingById(id: string): Promise<BriefingConfig | null> {
@@ -2498,6 +2509,7 @@ function rowToBriefing(row: BriefingRow): BriefingConfig {
     interestProfile: row.interest_profile,
     styleInstruction: row.style_instruction ?? undefined,
     publicFeedEnabled: row.public_feed_enabled === 1,
+    exploreFeatured: row.explore_featured === 1,
     updateIntervalMinutes: row.v1_briefing_interval_minutes,
     paused: row.paused === 1,
     language: row.language === "ar" || row.language === "fr" ? row.language : "en",

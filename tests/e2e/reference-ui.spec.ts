@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const admin = { id: "admin", username: "admin", email: "admin@example.test", role: "admin", createdAt: "2026-01-12T12:00:00Z", emailVerifiedAt: "2026-10-01T12:00:00Z", briefingCount: 1 };
+const admin = { id: "admin", username: "admin", email: "platform-admin@distilled-example.test", role: "admin", createdAt: "2026-01-12T12:00:00Z", emailVerifiedAt: "2026-10-01T12:00:00Z", briefingCount: 1 };
 const reader = { id: "reader", username: "reader", email: "reader@example.test", role: "user", createdAt: "2026-05-12T12:00:00Z", briefingCount: 0, disabledAt: undefined as string | undefined };
 const feed = { id: "lebanon", ownerAccountId: "admin", ownerUsername: "admin", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 
@@ -30,6 +30,21 @@ async function mock(page: Page) {
 
 test.beforeEach(async ({ page }, info) => {
   if (info.project.name === "chromium") await page.setViewportSize({ width: 1600, height: 1100 });
+});
+
+test("admin can add a public feed to Explore from its menu", async ({ page }) => {
+  await mock(page);
+  const writes: unknown[] = [];
+  await page.route("**/api/explore/feeds", route => route.fulfill({ json: { feeds: [] } }));
+  await page.route("**/api/admin/briefings/lebanon/explore", async route => {
+    writes.push(route.request().postDataJSON());
+    await route.fulfill({ json: { featured: true } });
+  });
+  await page.goto("/");
+  await page.locator(".home-view .topic-card .feed-options summary").click();
+  await page.getByRole("button", { name: "Publish to Explore", exact: true }).click();
+  expect(writes).toEqual([{ featured: true }]);
+  await expect(page.getByRole("button", { name: "Remove from Explore", exact: true })).toBeVisible();
 });
 
 test("add feed selects, removes, and submits real source inputs", async ({ page }) => {
@@ -116,6 +131,43 @@ test("user management filters users and manages the selected account", async ({ 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+test("selected user fits a desktop viewport without panel or table scrolling", async ({ page }) => {
+  await page.setViewportSize({ width: 1479, height: 794 });
+  await mock(page); await page.goto("/");
+  await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
+  await page.locator(".accounts-summary").click();
+  await page.getByRole("button", { name: "View admin", exact: true }).click();
+  for (const viewport of [{ width: 1555, height: 768 }, { width: 1280, height: 720 }, { width: 1244, height: 614 }]) {
+    await page.setViewportSize(viewport);
+    const measurements = await page.evaluate(() => {
+      const panel = document.querySelector(".managed-user-panel")!;
+      const table = document.querySelector(".users-table-scroll")!;
+      const page = document.querySelector(".screen-page-viewport")!;
+      const email = document.querySelector(".users-table tbody td:nth-child(2)")!;
+      const role = document.querySelector(".users-table tbody .user-role-badge")!;
+      const status = document.querySelector(".users-table tbody .user-status")!;
+      return {
+        panelBottom: panel.getBoundingClientRect().bottom,
+        viewportBottom: window.innerHeight,
+        tableWidth: table.clientWidth,
+        tableContentWidth: table.scrollWidth,
+        pageHeight: page.scrollHeight,
+        pageViewportHeight: page.clientHeight,
+        emailWhiteSpace: getComputedStyle(email).whiteSpace,
+        roleWhiteSpace: getComputedStyle(role).whiteSpace,
+        statusWhiteSpace: getComputedStyle(status).whiteSpace
+      };
+    });
+    expect(measurements.panelBottom).toBeLessThanOrEqual(measurements.viewportBottom);
+    expect(measurements.tableContentWidth).toBeLessThanOrEqual(measurements.tableWidth);
+    expect(measurements.pageHeight).toBeLessThanOrEqual(measurements.pageViewportHeight);
+    expect(measurements.emailWhiteSpace).toBe("nowrap");
+    expect(measurements.roleWhiteSpace).toBe("nowrap");
+    expect(measurements.statusWhiteSpace).toBe("nowrap");
+  }
+  await page.screenshot({ path: "test-results/reference-users-compact.png" });
+});
+
 test("settings use contact links and honest installation popups", async ({ page }) => {
   await mock(page); await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
@@ -143,7 +195,7 @@ test("settings use contact links and honest installation popups", async ({ page 
   await expect(installation.getByRole("status")).toHaveText("Already installed");
 });
 
-test("unavailable notifications report deployment status without creating subscriptions", async ({ page }) => {
+test("configured notifications subscribe and unsubscribe directly in Settings", async ({ page }) => {
   await page.addInitScript(() => {
     let subscription: object | null = null;
     const worker = { pushManager: {
@@ -166,11 +218,23 @@ test("unavailable notifications report deployment status without creating subscr
   });
   await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Notifications", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Notifications" });
-  await expect(dialog.getByRole("status")).toHaveText("Notifications are not enabled on this deployment.");
-  await expect(dialog.getByRole("switch")).toHaveCount(0);
-  expect(writes).toEqual([]);
+  const notificationSwitch = page.getByRole("switch", { name: "Notifications" });
+  await expect(notificationSwitch).not.toBeChecked();
+  const track = notificationSwitch.locator(".notification-switch");
+  const trackBounds = await track.boundingBox();
+  const offThumb = await track.locator("span").boundingBox();
+  expect(Math.round(offThumb!.x - trackBounds!.x)).toBe(3);
+  await notificationSwitch.click();
+  await expect(notificationSwitch).toBeChecked();
+  await expect(page.getByRole("dialog", { name: "Notifications" })).toHaveCount(0);
+  await expect.poll(() => track.evaluate(node => {
+    const track = node.getBoundingClientRect();
+    const thumb = node.querySelector("span")!.getBoundingClientRect();
+    return Math.round(track.right - thumb.right);
+  })).toBe(3);
+  await notificationSwitch.click();
+  await expect(notificationSwitch).not.toBeChecked();
+  expect(writes).toEqual(["GET", "POST", "DELETE"]);
 });
 
 test("installed app detection works from a browser tab", async ({ page }) => {
@@ -187,6 +251,7 @@ test("installed app detection works from a browser tab", async ({ page }) => {
 
 test("Edge users can confirm an existing installation when detection is unavailable", async ({ page }) => {
   await page.addInitScript(() => {
+    Object.defineProperty(navigator, "userAgent", { value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0" });
     Object.defineProperty(navigator, "getInstalledRelatedApps", { value: async () => [] });
   });
   await mock(page); await page.goto("/");
@@ -253,11 +318,11 @@ test("dark authentication has one surface and capitalized action labels", async 
   await expect(dialog.locator(".screen-page-viewport")).toHaveCSS("scrollbar-gutter", "auto");
   await expect(dialog.locator(".auth-modal-content")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await expect(dialog.locator(".login")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  await expect(dialog.locator(".auth-submit")).toHaveText("Login");
-  await dialog.getByRole("button", { name: "Sign up", exact: true }).click();
+  await expect(dialog.locator(".auth-submit")).toHaveText("Continue");
+  await dialog.getByRole("button", { name: "Create an account", exact: true }).click();
   await expect(dialog.getByRole("heading", { name: "Create your Account", exact: true })).toBeVisible();
   await expect(dialog.locator(".auth-submit")).toHaveText("Create Account");
-  await dialog.locator(".auth-tabs").getByRole("button", { name: "Login", exact: true }).click();
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
   await dialog.getByRole("button", { name: "Forgot password?", exact: true }).click();
   await expect(dialog.getByRole("heading", { name: "Reset Password", exact: true })).toBeVisible();
   await expect(dialog.locator(".auth-submit")).toHaveText("Send Reset Link");

@@ -28,6 +28,7 @@ import {
   LogIn,
   LogOut,
   Moon,
+  MoreHorizontal,
   Newspaper,
   Pause,
   Pencil,
@@ -554,6 +555,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "register" : "login");
+  const [authStep, setAuthStep] = useState<"email" | "details">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "details" : "email");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -562,8 +564,8 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const copy = getAuthPanelCopy(props.setupRequired, mode);
-  const submitLabel = getAuthSubmitLabel(props.setupRequired, mode);
+  const copy = authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
+  const submitLabel = authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
   const requiresTurnstile = Boolean(props.turnstileSiteKey && !props.setupRequired);
   const usernamePreview = username.trim() ? slugify(username) : "";
 
@@ -575,11 +577,15 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
 
   return (
     <form
-      className="login"
+      className={`login auth-${authStep}-step`}
       onSubmit={async (event) => {
         event.preventDefault();
         setError("");
         setMessage("");
+        if (authStep === "email") {
+          setAuthStep("details");
+          return;
+        }
         setSubmitting(true);
         try {
           if (requiresTurnstile && !turnstileToken) {
@@ -614,7 +620,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         }
       }}
     >
-      {!props.setupRequired && <div className="auth-tabs" aria-label="Account access"><button type="button" aria-pressed={mode === "login"} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Login")}</button><button type="button" title="new account" aria-pressed={mode === "register"} onClick={() => { setMode("register"); setError(""); setMessage(""); }}>{t("Sign up")}</button></div>}
+      {authStep === "email" ? <div className="auth-brand-mark" aria-hidden="true"><img src="/icon-192.png?v=brand-4" alt="" /></div> : null}
       <div className="auth-copy">
         <h2>{t(copy.title)}</h2>
         <p>{t(copy.description)}</p>
@@ -630,14 +636,14 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         <span className="sr-only">email</span><Mail size={21} aria-hidden/>
         <input type="email" required placeholder={t("Email address")} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
-      {(mode === "register" || props.setupRequired) ? (
+      {authStep === "details" && (mode === "register" || props.setupRequired) ? (
         <label>
           <span className="auth-input"><span className="sr-only">username</span><User size={21} aria-hidden/>
-          <input required aria-label="username" aria-describedby="auth-username-help" placeholder={t("Username")} autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></span>
-          <span className="field-help" id="auth-username-help">{usernamePreview ? <>{t("Your feed URLs start with")} <bdi>/{usernamePreview}/</bdi></> : t("letters and numbers become your feed URL name")}</span>
+          <input required aria-label="username" aria-describedby={usernamePreview ? "auth-username-help" : undefined} placeholder={t("Username")} autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></span>
+          {usernamePreview ? <span className="field-help" id="auth-username-help">{t("Your feed URLs start with")} <bdi>/{usernamePreview}/</bdi></span> : null}
         </label>
       ) : null}
-      {mode !== "forgot" ? (
+      {authStep === "details" && mode !== "forgot" ? (
         <div className="auth-password-field"><div className="auth-input">
           <LockKeyhole size={21} aria-hidden/>
           <input
@@ -651,13 +657,15 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
             onChange={(event) => setPassword(event.target.value)}
           />
           <button type="button" className="quiet-icon" aria-label={t(showPassword ? "Hide password" : "Show password")} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}</button>
-        </div>{(mode === "register" || props.setupRequired) && <span className="field-help">{t("at least 8 characters")}</span>}</div>
+        </div>{(mode === "register" || props.setupRequired) && <span className="field-help">{t("At least 8 characters")}</span>}</div>
       ) : null}
-      {requiresTurnstile && props.turnstileSiteKey ? (
+      {authStep === "details" && requiresTurnstile && props.turnstileSiteKey ? (
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
-      {!props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
+      {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
+      {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
+      {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
       {message ? <p className="muted">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
     </form>
@@ -1266,7 +1274,7 @@ function AdminAccountsSection(props: {
         {loadingFeeds ? <p className="muted">loading feeds</p> : null}
         {error ? <p className="error">{error}</p> : null}
         <div className="users-table-scroll"><table className="users-table"><thead><tr><th><button type="button" onClick={() => setSortAscending(value => !value)}>{t("Name")} <ChevronDown size={14} style={{ transform: sortAscending ? "none" : "rotate(180deg)" }}/></button></th><th>{t("Email")}</th><th>{t("Role")}</th><th>{t("Feeds")}</th><th>{t("Status")}</th><th><span className="sr-only">{t("Actions")}</span></th></tr></thead><tbody>{visibleAccounts.map(account => <tr key={account.id} className={account.id === managedAccountId ? "selected" : ""}>
-          <td><button className="user-name-button" type="button" aria-label={`View ${account.username}`} onClick={() => setManagedAccountId(account.id)}><span className={`user-row-avatar ${account.role === "admin" ? "admin" : ""}`}>{accountInitials(account.username)}</span><span>{account.username}</span></button></td><td>{account.email}</td><td><span className={`user-role-badge ${account.role}`}>{t(account.role === "admin" ? "Admin" : "User")}</span></td><td>{feedCountFor(account)}</td><td><span className={`user-status ${account.disabledAt ? "suspended" : ""}`}>{t(account.disabledAt ? "Suspended" : account.emailVerifiedAt ? "Verified" : "Pending")}</span></td><td>{!managedAccount && <button type="button" className="user-manage-button" aria-label={`manage ${account.username}`} onClick={() => setManagedAccountId(account.id)}>•••</button>}</td>
+          <td><button className="user-name-button" type="button" style={{ background: "transparent" }} aria-label={`View ${account.username}`} onClick={() => setManagedAccountId(account.id)}><span className={`user-row-avatar ${account.role === "admin" ? "admin" : ""}`}>{accountInitials(account.username)}</span><span>{account.username}</span></button></td><td title={account.email}>{account.email}</td><td><span className={`user-role-badge ${account.role}`}>{t(account.role === "admin" ? "Admin" : "User")}</span></td><td>{feedCountFor(account)}</td><td><span className={`user-status ${account.disabledAt ? "suspended" : ""}`}>{t(account.disabledAt ? "Suspended" : account.emailVerifiedAt ? "Verified" : "Pending")}</span></td><td>{!managedAccount && <button type="button" className="user-manage-button" aria-label={`manage ${account.username}`} onClick={() => setManagedAccountId(account.id)}><MoreHorizontal size={20} aria-hidden /></button>}</td>
         </tr>)}</tbody></table>{visibleAccounts.length === 0 && <p className="users-empty">{t("No users found.")}</p>}</div>
         </div>
       {managedAccount ? (
@@ -1361,7 +1369,7 @@ function AdminAccountDialog(props: {
         <fieldset className="account-role-options"><legend>{t("Role")}</legend>{(["user", "admin"] as const).map(role => <label key={role}><input type="radio" name={`role-${props.account.id}`} checked={props.account.role === role} disabled={busy !== null} onChange={async () => { setBusy("role"); try { await updateAccountAndRefresh({ role }, `role changed to ${role}`); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(null); } }}/>{t(role === "admin" ? "Admin" : "User")}</label>)}</fieldset>
       </details>
       <details className="managed-user-feeds"><summary><Newspaper size={22}/>View Feeds<ChevronRight size={18}/></summary>
-        <div className="admin-feed-list">{props.briefings.map(feed => <div key={feed.id} className="admin-feed-row"><strong><bdi>{feed.title}</bdi></strong><div className="row-actions"><a className="icon-button" href={`/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${feed.title} in new tab`}><ExternalLink size={18}/></a><details className="feed-options"><summary aria-label={`Options for ${feed.title}`}>...</summary><div className="feed-options-popover admin-feed-actions"><button type="button" aria-label={t(feed.paused ? "Resume feed" : "Pause feed")} title={t(feed.paused ? "Resume feed" : "Pause feed")} disabled={busy !== null} onClick={() => void toggleAdminBriefing(feed)}>{feed.paused ? <Play size={16}/> : <Pause size={16}/>}</button><button type="button" className="danger-button" aria-label={t("Delete feed")} title={t("Delete feed")} disabled={busy !== null} onClick={() => void removeAdminBriefing(feed)}><Trash2 size={18}/></button></div></details></div></div>)}</div>
+        <div className="admin-feed-list">{props.briefings.map(feed => <div key={feed.id} className="admin-feed-row"><strong><bdi>{feed.title}</bdi></strong><div className="row-actions"><a className="icon-button" href={`/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${feed.title} in new tab`}><ExternalLink size={18}/></a><details className="feed-options"><summary aria-label={`Options for ${feed.title}`}><MoreHorizontal size={20} aria-hidden /></summary><div className="feed-options-popover admin-feed-actions"><button type="button" aria-label={t(feed.paused ? "Resume feed" : "Pause feed")} title={t(feed.paused ? "Resume feed" : "Pause feed")} disabled={busy !== null} onClick={() => void toggleAdminBriefing(feed)}>{feed.paused ? <Play size={16}/> : <Pause size={16}/>}</button><button type="button" className="danger-button" aria-label={t("Delete feed")} title={t("Delete feed")} disabled={busy !== null} onClick={() => void removeAdminBriefing(feed)}><Trash2 size={18}/></button></div></details></div></div>)}</div>
       </details>
       <button type="button" className="managed-user-suspend" disabled={busy !== null || isSignedInAdmin} onClick={async () => {
         setBusy("disabled");
@@ -1692,7 +1700,8 @@ function FeedPage(props: { username: string; slug: string }) {
           </div>
         ) : null}
         {unreadEditions.length === 0 && !error ? (
-          <div className="empty-state">
+          <div className="empty-state feed-empty-state">
+            {archivedReadEditions.length === 0 && <Newspaper className="feed-empty-icon" size={42} strokeWidth={1.5} aria-hidden/>}
             <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>
             <p className="muted">
               {emptyFeedMessage(archivedReadEditions.length, language)}
@@ -2041,6 +2050,7 @@ function Shell(props: {
   titleText?: string;
   children: React.ReactNode;
   meta?: React.ReactNode;
+  description?: React.ReactNode;
   feed?: Pick<BriefingConfig, "ownerUsername" | "slug" | "title">;
   onAccount?: () => void;
   onLogout?: () => Promise<void>;
@@ -2097,6 +2107,7 @@ function Shell(props: {
         }}><ChevronLeft size={18}/>{selectedLanguage === "ar" ? "رجوع" : selectedLanguage === "fr" ? "Retour" : "Back"}</a>}
         <div className="page-title-row"><h1>{props.title}</h1>{props.headingAction}</div>
         <p>{props.meta ?? getPageMeta(titleText)}</p>
+        {props.description && <div className="feed-page-description">{props.description}</div>}
       </div>
       {props.children}
     </main>

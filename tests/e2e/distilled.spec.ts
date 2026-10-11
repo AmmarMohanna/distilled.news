@@ -162,13 +162,15 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "switch to light mode" }).click();
   await page.getByRole("button", { name: "Create feed", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Continue with Email" })).toBeVisible();
   await expect(page.getByLabel("admin setup token")).toHaveCount(0);
+  await page.getByLabel("email").fill("ammar@example.com");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByLabel("password", { exact: true }).fill("preview-password");
   await page.getByRole("button", { name: "Show password" }).click();
   await expect(page.getByLabel("password", { exact: true })).toHaveAttribute("type", "text");
   await page.getByRole("button", { name: "Hide password" }).click();
-  await page.locator(".auth-tabs").getByRole("button", { name: "Sign up" }).click();
+  await page.getByRole("button", { name: "Create an account" }).click();
   await expect(page.getByRole("button", { name: /^create account$/i })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /^register$/ })).toHaveCount(0);
   await page.getByLabel("email").fill("ammar@example.com");

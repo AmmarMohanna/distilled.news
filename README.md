@@ -50,6 +50,12 @@ npx pnpm@10.12.1 --filter @distilled/worker db:migrate
 npx pnpm@10.12.1 dev
 ```
 
+On Windows, the local Worker runs with Containers disabled in `wrangler.toml`.
+The app and its local D1 database still run; authenticated browser container features require WSL and Docker.
+In a second terminal, run `npx pnpm@10.12.1 --filter @distilled/web dev` and open `http://127.0.0.1:5173`.
+Run `npx pnpm@10.12.1 run setup` once to preserve or generate browser notification keys.
+Notifications need browser permission; local scheduled delivery can be triggered at `http://127.0.0.1:8787/cdn-cgi/handler/scheduled`.
+
 For deployment:
 
 ```sh
@@ -78,6 +84,19 @@ See `.env.example` for descriptions.
 Sending. For public user registration, Cloudflare must also allow sending to
 arbitrary recipients; Email Routing-only bindings can send only to verified
 destination addresses in the Cloudflare account.
+
+## Feed Illustrations
+
+Feed illustrations use Cloudflare Workers AI model `@cf/black-forest-labs/flux-2-klein-4b`.
+To run image generation from a separate Cloudflare account, set
+`CLOUDFLARE_IMAGE_ACCOUNT_ID` to that account's ID and save a Workers AI API
+token as `CLOUDFLARE_IMAGE_API_TOKEN`. Locally, put both values in
+`apps/worker/.dev.vars`; setup can also copy them from `.env`. The token must
+have Workers AI Read and Edit permissions for the image account. For a deployed
+Worker, upload it as a Worker secret in the application account. Generated JPEGs
+are stored in the application's existing `RAW_ARCHIVE` R2 bucket. Missing images
+retain the built-in outline illustration, and each account is limited to five
+generation attempts per 24 hours.
 
 ## First Self-Hosted Setup
 

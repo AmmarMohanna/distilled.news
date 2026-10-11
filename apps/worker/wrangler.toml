@@ -8,6 +8,7 @@ workers_dev = true
 [dev]
 host = "localhost"
 local_protocol = "http"
+enable_containers = false
 [browser]
 binding = "BROWSER"
 
@@ -40,6 +41,8 @@ DISTILLED_JEV_CONFIDENCE_THRESHOLD = "0.75"
 PUBLIC_API_BASE_URL = "https://distilled.news"
 PUBLIC_WEB_BASE_URL = "https://distilled.news"
 CLOUDFLARE_ACCOUNT_ID = "37a6bb83b085bd6739426e7c2d4aeda8"
+# Configure the image account explicitly for this environment.
+CLOUDFLARE_IMAGE_ACCOUNT_ID = ""
 CLOUDFLARE_AI_GATEWAY_ID = "default"
 OPENAI_MODEL = "gpt-4.1-mini"
 DISTILLED_WEB_OPERATOR_ENABLED = "true"

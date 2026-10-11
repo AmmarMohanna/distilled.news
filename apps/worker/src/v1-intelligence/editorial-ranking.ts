@@ -12,7 +12,7 @@ export interface EditorialRanking {relevance:number;relevanceConfidence:number;s
 export function cheapEditorialRanking(feed:Pick<FeedRecord,'title'|'interests'|'geography'>,c:Pick<ShortlistCandidate,'facts'|'flags'|'effects'|'protectedReasons'|'fallbackEditorial'|'sourceTitles'>):EditorialRanking {
  const words=new Set(tokens([...c.facts.map(f=>f.text),...(c.sourceTitles??[])].join(' '))),wanted=[...new Set(tokens([feed.title,...feed.interests,...feed.geography].join(' ')))];
  const overlap=wanted.length?wanted.filter(w=>words.has(w)).length/wanted.length:0;
- const novelty=c.fallbackEditorial.newUnderstanding.length?1:0,freshness=c.flags.includes('OLD_RECAP')?.2:1;
+ const novelty=c.fallbackEditorial.newUnderstanding.length?1:0,freshness=c.flags.includes('OLD_RECAP')&&!novelty?.2:1;// source age alone never lowers a development the reader has not seen
  const materiality=c.effects.some(e=>['CHANGES_STATE','CHANGES_CERTAINTY','CONTRADICTS','CORRECTS','RETRACTS'].includes(e))?1:c.facts.some(f=>/\p{N}/u.test(f.text))?.6:.4;
  const support=Math.min(1,new Set(c.facts.flatMap(f=>f.evidenceRevisionIds)).size/3),continuity=c.fallbackEditorial.previouslyCommunicated.length&&novelty?1:0;
  const relevance=.4+.6*overlap;

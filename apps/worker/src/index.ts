@@ -1,4 +1,5 @@
 import {productRuntimeEnv} from './product-feeds';
+import { sendBriefingNotifications } from './push';
 import { createApp } from "./app";
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
@@ -257,6 +258,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
   try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
   try {await dispatchV1Acquisitions(env)} catch {console.warn('Could not dispatch v1 acquisition jobs')}
   try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
+  try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
   const repo = new D1Repository(env.DB);
   const now = new Date();
   if(env.SOURCE_LEGACY_POLLING_ENABLED!=='false')try{await enqueueScheduledSourceAcquisitions(env,now)}catch{console.warn("Could not enqueue scheduled source acquisition")}

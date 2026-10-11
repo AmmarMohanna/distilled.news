@@ -8,6 +8,7 @@ import {persistClaimMentions,isNewsMention,type ClaimMention} from './claims';
 import {validateConstruction,persistEventSemanticState,persistStorylineMemory,type SemanticGroup,type EventSemanticState,type Proposition} from './semantic-state';
 import {refreshSourceCorrectionObligations,recordCorrectionObligation,type LedgerEntry} from './ledger';
 import {scheduleRematch} from './rematch';
+import {partitionProvisionalMentions} from './composite-partition';
 import type {DuplicateDecision,EventRecord,IntelligenceReceipt,RoleDecision,StorylineRecord,StorylineVersion,SupportedFact} from './types';
 
 function revisionText(revision:EvidenceRevision):string {return [revision.title,revision.body].filter(Boolean).join('\n')}
@@ -148,7 +149,12 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
     await scheduleRematch(tx,jobId,target.revision.id,now);
    }
    if(selected && decision.storylineId)preferredStorylines.set(selected.id,decision.storylineId);
-   const construction=matchers.construction?.(matchInput);
+   let construction=matchers.construction?.(matchInput);
+   // Provisional (semantic construction unavailable): do not let one publisher's bundle of unrelated announcements become one Event.
+   if(!construction&&decision.structuralRelation==='DEFER'&&decision.provenance.scorer!=='DETERMINISTIC'){
+    const split=partitionProvisionalMentions((await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id&&isNewsMention(m)));
+    if(split)construction={groups:split.groups.map(claimMentionIds=>({claimMentionIds,eventId:null,storylineId:null,structuralRelation:'DEFER' as const,epistemicEffects:[],entities:[],slots:[]})),backgroundMentionIds:split.backgroundMentionIds,provenance:{...decision.provenance,fallbackReason:'COMPOSITE_PARTITION_PROVISIONAL'}};
+   }
    if(construction){
     if(construction.groups.some(group=>group.structuralRelation==='DEFER')){receipt.semanticDeferred=true;await scheduleRematch(tx,jobId,target.revision.id,now)}
     if(construction.originDependencyLabel){const id=JSON.stringify([target.revision.id,construction.provenance.judgmentId??construction.provenance.policyVersion]);await tx.write('source_origins',id,{id,feedId:o.feedId,evidenceRevisionId:target.revision.id,dependencyLabel:construction.originDependencyLabel,provenance:construction.provenance,policyVersion:'information-origin-v1'})}

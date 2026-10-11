@@ -1,3 +1,4 @@
+import {SemanticLeaseError,type SemanticWorkLease} from './semantic-work-lease';
 import {HandoffError,eventMembershipSchema,eventVersionSchema,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,type BriefingCandidate,type EventVersion,type EvidenceRevision,type NormalizedEvidenceItem} from '@distilled/contracts';
 import {z} from 'zod';
 import {liveScheduleSchema} from './schedule';
@@ -7,13 +8,13 @@ import type {FeedRecord,EventRecord,StorylineRecord,StorylineVersion,DuplicateDe
 import type {SelectionRecord} from './scoring';
 import type {BriefingEditionRecord} from './publication';
 import {claimMentionSchema,assertClaimSpan,type SourceDocument} from './claims';
-export type DocumentKind='roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts'|'entities'|'propositions'|'state_slots'|'event_semantic_states'|'storyline_memories'|'source_origins'|'shortlists'|'editorial_proposals'|'editorial_plans'|'editorial_deferred_work'|'editorial_work_resolutions'|'ledger_fact_bindings'|'fidelity_results'|'verification_feedback'|'publication_reconciliations'|'schedule_observations';
+export type DocumentKind='browser_push_receipts'|'roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts'|'entities'|'propositions'|'state_slots'|'event_semantic_states'|'storyline_memories'|'source_origins'|'shortlists'|'editorial_proposals'|'editorial_plans'|'editorial_deferred_work'|'editorial_work_resolutions'|'ledger_fact_bindings'|'fidelity_results'|'verification_feedback'|'publication_reconciliations'|'schedule_observations'|'semantic_resource_waits'|'semantic_settlements'|'semantic_work_leases'|'semantic_work_releases';
 interface DocumentWrite {kind:DocumentKind;id:string;value:unknown}
 interface Snapshot {feed:FeedRecord;epoch:number;scopes:{id:string;epoch:number}[]}
 const mutable=new Set<DocumentKind>(['events','storylines','publication_status','delivery_jobs','synthesis_jobs','briefing_requests']);
 const feedSchema=z.object({id:z.string().min(1),ownerId:z.string().min(1),title:z.string(),interests:z.array(z.string()),geography:z.array(z.string()),outputLanguage:z.string().min(1),briefingFrequency:z.enum(['30M','HOURLY','DAILY','WEEKLY']),briefingSchedule:liveScheduleSchema.optional(),paused:z.boolean(),revision:z.number().int().positive(),createdAt:z.string().datetime(),updatedAt:z.string().datetime(),deletedAt:z.string().datetime().optional()}).strict();
 export class V1FeedStore {
- constructor(readonly db:D1Database){}
+ constructor(readonly db:D1Database,readonly semanticLease?:SemanticWorkLease){}
  async registerFeed(raw:FeedRecord) {
   const feed=feedSchema.parse(raw);
   await this.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json,epoch=v1_feeds.epoch+1').bind(feed.id,JSON.stringify(feed)).run();
@@ -32,6 +33,7 @@ export class V1FeedStore {
   const row=await this.db.prepare('SELECT r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE r.id=? AND s.feed_id=?').bind(id,feedId).first<{json:string}>();return row?JSON.parse(row.json):undefined;
  }
  async snapshot(id:string):Promise<Snapshot> {
+  if(this.semanticLease){const lease=this.semanticLease;if(lease.feedId!==id||!await this.db.prepare("SELECT id FROM v1_feed_documents l WHERE l.kind='semantic_work_leases' AND l.id=? AND l.feed_id=? AND json_extract(l.json,'$.token')=? AND json_extract(l.json,'$.leaseUntil')>? AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='semantic_work_releases' AND r.id=l.id AND json_extract(r.json,'$.token')=json_extract(l.json,'$.token'))").bind(lease.id,id,lease.token,Date.now()).first())throw new SemanticLeaseError()}
   const row=await this.db.prepare('SELECT json,epoch FROM v1_feeds WHERE id=?').bind(id).first<{json:string;epoch:number}>();
   if(!row) throw new HandoffError('SCOPE_DENIED');const feed=JSON.parse(row.json) as FeedRecord;
   if(feed.deletedAt || feed.paused) throw new HandoffError('SCOPE_DENIED');
@@ -49,8 +51,9 @@ export class V1FeedStore {
   const validationStarted=Date.now();await tx.validateGraph();tx.metrics.validationMs+=Date.now()-validationStarted;
   const {snapshot:s}=tx,nonce=crypto.randomUUID();
   const scopeChecks=s.scopes.map(()=>`EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=?)`).join(' AND ');
-  const args:unknown[]=[nonce,s.feed.id,s.epoch,s.feed.id,s.scopes.length,...s.scopes.flatMap(x=>[x.id,x.epoch])];
-  const statements=[this.db.prepare(`INSERT INTO v1_feed_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_feeds WHERE id=? AND epoch=? AND json_extract(json,'$.deletedAt') IS NULL AND json_extract(json,'$.paused')=0) AND (SELECT COUNT(*) FROM v1_intake_scopes WHERE feed_id=?)=? ${scopeChecks?'AND '+scopeChecks:''} THEN 1 ELSE 0 END`).bind(...args)];
+  const leaseCheck=this.semanticLease?" AND EXISTS(SELECT 1 FROM v1_feed_documents l WHERE l.kind='semantic_work_leases' AND l.id=? AND l.feed_id=? AND json_extract(l.json,'$.token')=? AND json_extract(l.json,'$.leaseUntil')>((julianday('now')-2440587.5)*86400000) AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='semantic_work_releases' AND r.id=l.id AND json_extract(r.json,'$.token')=json_extract(l.json,'$.token')))":'';
+  const args:unknown[]=[nonce,s.feed.id,s.epoch,s.feed.id,s.scopes.length,...s.scopes.flatMap(x=>[x.id,x.epoch]),...(this.semanticLease?[this.semanticLease.id,s.feed.id,this.semanticLease.token]:[])];
+  const statements=[this.db.prepare(`INSERT INTO v1_feed_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_feeds WHERE id=? AND epoch=? AND json_extract(json,'$.deletedAt') IS NULL AND json_extract(json,'$.paused')=0) AND (SELECT COUNT(*) FROM v1_intake_scopes WHERE feed_id=?)=? ${scopeChecks?'AND '+scopeChecks:''}${leaseCheck} THEN 1 ELSE 0 END`).bind(...args)];
   for(const w of tx.writes.values()) statements.push(this.db.prepare(`INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?) ${mutable.has(w.kind)?'ON CONFLICT(kind,id) DO UPDATE SET json=excluded.json':'ON CONFLICT(kind,id) DO NOTHING'}`).bind(w.kind,w.id,s.feed.id,JSON.stringify(w.value)));
   for(const job of tx.jobs.values()) {
    statements.push(this.db.prepare('UPDATE v1_jobs SET json=? WHERE id=? AND feed_source_id=?').bind(JSON.stringify(job),job.id,job.feedSourceId));
@@ -85,10 +88,29 @@ export class FeedTransaction {
    for(const id of chunk)this.reads.set(JSON.stringify([kind,id]),Promise.resolve(values.get(id)));
   }
  }
+ /** Cache only immutable semantic references owned by the offered Event versions. */
+ async preloadSemanticReferences(versionIds:string[]):Promise<void>{
+  const ids=[...new Set(versionIds)];await this.preload('event_semantic_states',ids);
+  const states=(await Promise.all(ids.map(id=>this.read<import('./semantic-state').EventSemanticState>('event_semantic_states',id)))).filter((s):s is import('./semantic-state').EventSemanticState=>Boolean(s));
+  await this.preload('propositions',states.flatMap(s=>s.propositionIds));
+  const slotIds=[...new Set(states.flatMap(s=>s.stateSlotIds))];await this.preload('state_slots',slotIds);
+  const slots=await Promise.all(slotIds.map(id=>this.read<import('./semantic-state').StateSlot>('state_slots',id)));
+  await this.preload('entities',slots.flatMap(slot=>slot?.entityId?[slot.entityId]:[]));
+ }
  async list<T extends {id:string}>(kind:DocumentKind):Promise<T[]> {
   if(!this.lists.has(kind)){this.metrics.listReads++;this.lists.set(kind,this.store.list(this.snapshot.feed.id,kind))}
   const listed=(await this.lists.get(kind)) as T[];for(const row of listed){const key=JSON.stringify([kind,row.id]);if(!this.reads.has(key))this.reads.set(key,Promise.resolve(structuredClone(row)))}
-  const rows=new Map(listed.map(r=>[r.id,r]));for(const w of this.writes.values()) if(w.kind===kind) rows.set(w.id,w.value as T);return [...rows.values()];
+  const rows=new Map(listed.map(r=>[r.id,r]));for(const w of this.writes.values()) if(w.kind===kind) rows.set(w.id,w.value as T);const values=[...rows.values()];
+  // Warm only immutable records already referenced by the retained graph. Scope
+  // and epoch validation still occurs at atomic commit; no meaning is inferred.
+  if(kind==='events')await this.preload('event_versions',values.map(row=>(row as T&{currentVersionId:string}).currentVersionId));
+  if(kind==='storylines'){await this.preload('storyline_versions',values.map(row=>(row as T&{currentVersionId:string}).currentVersionId));const versions=await Promise.all(values.map(row=>this.read<StorylineVersion>('storyline_versions',(row as T&{currentVersionId:string}).currentVersionId)));await this.preload('event_versions',versions.flatMap(version=>version?.eventVersionIds??[]))}
+  if(kind==='memberships')await this.preloadRevisions(values.map(row=>(row as T&{evidenceRevisionId:string}).evidenceRevisionId));
+  return values;
+ }
+ private async preloadRevisions(ids:string[]):Promise<void>{
+  const missing=[...new Set(ids)].filter(id=>!this.revisions.has(id));
+  for(let offset=0;offset<missing.length;offset+=90){this.metrics.preloadQueries++;const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(this.snapshot.feed.id,...chunk).all<{id:string;json:string}>(),values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json) as EvidenceRevision]));for(const id of chunk)this.revisions.set(id,Promise.resolve(values.get(id)))}
  }
  revision(id:string):Promise<EvidenceRevision|undefined> {
   if(!this.revisions.has(id)){this.metrics.revisionReads++;this.revisions.set(id,this.store.revision(this.snapshot.feed.id,id))}return this.revisions.get(id)!;

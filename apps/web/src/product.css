@@ -7,7 +7,6 @@
 .auth-experience .login { gap: 16px; padding: 28px; }
 .auth-introduction h1 { font-size: clamp(34px, 3.8vw, 60px); }
 .auth-experience .auth-copy { margin: 6px 0; }
-.auth-tabs button { min-height: 38px; }
 .auth-experience .auth-input { min-height: 48px; }
 .auth-submit { min-height: 48px; }
 .auth-experience .auth-switch { gap: 12px; }

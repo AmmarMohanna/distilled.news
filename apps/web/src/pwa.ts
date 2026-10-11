@@ -1,7 +1,7 @@
 type InstallEvent = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> };
 const installedKey = "dn_pwa_installed_on_device";
 let installPrompt: InstallEvent | undefined;
-let installed = matchMedia("(display-mode: standalone)").matches || localStorage.getItem(installedKey) === "1";
+let installed = matchMedia("(display-mode: standalone)").matches;
 window.addEventListener("beforeinstallprompt", event => { event.preventDefault(); installPrompt = event as InstallEvent; installed = false; localStorage.removeItem(installedKey); });
 window.addEventListener("appinstalled", () => { installPrompt = undefined; installed = true; localStorage.setItem(installedKey, "1"); });
 const registration = "serviceWorker" in navigator
@@ -9,8 +9,9 @@ const registration = "serviceWorker" in navigator
 
 export async function installApp() {
   const browser = navigator as Navigator & { standalone?: boolean; getInstalledRelatedApps?: () => Promise<Array<{ platform: string; url?: string; id?: string }>> };
-  if (installed || browser.standalone || matchMedia("(display-mode: standalone)").matches) return "already-installed" as const;
+  if (browser.standalone || matchMedia("(display-mode: standalone)").matches) return "already-installed" as const;
   if (!installPrompt) {
+    if (installed || localStorage.getItem(installedKey) === "1") return "already-installed" as const;
     try {
       const related = await browser.getInstalledRelatedApps?.();
       const manifest = new URL("/manifest.webmanifest", location.origin).href;
@@ -23,7 +24,7 @@ export async function installApp() {
         return "already-installed" as const;
       }
     } catch { /* Browsers may not expose installed applications. */ }
-    return "unavailable" as const;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ? "ios-instructions" as const : /Android/.test(navigator.userAgent) ? "android-instructions" as const : "unavailable" as const;
   }
   const prompt = installPrompt; installPrompt = undefined;
   await prompt.prompt();
@@ -56,13 +57,13 @@ export async function setNotificationsEnabled(enabled: boolean): Promise<void> {
     if (!await existing.unsubscribe()) throw new Error("Could not disable notifications. Please try again.");
     return;
   }
-  if (!enabled || existing) return;
+  if (!enabled) return;
   const config = await fetch("/api/me/push");
   if (!config.ok) throw new Error("Could not load notification configuration");
   const { publicKey } = await config.json();
   if (!publicKey) throw new Error("Notifications need server setup before they can be enabled.");
   const key = Uint8Array.from(atob(publicKey.replace(/-/g, "+").replace(/_/g, "/")), char => char.charCodeAt(0));
-  const subscription = await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  const subscription = existing ?? await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
   const response = await fetch("/api/me/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: subscription.toJSON(), language: localStorage.getItem("dn_language") || "en" }) });
-  if (!response.ok) { await subscription.unsubscribe(); throw new Error("Could not save subscription"); }
+  if (!response.ok) { if (!existing) await subscription.unsubscribe(); throw new Error("Could not save subscription"); }
 }

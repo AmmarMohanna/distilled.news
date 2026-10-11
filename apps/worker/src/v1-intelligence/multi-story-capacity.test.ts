@@ -1,6 +1,7 @@
 import {afterEach,beforeEach,describe,expect,it} from 'vitest';
 import {allocateFeasibleSelection,guaranteedStoryCount,storyCapacityBound,planningCapacity,type SelectionItem} from './planning-capacity';
 import {DEFAULT_BRIEFING_BUDGET,scoreAndSelect,type BriefingBudget} from './scoring';
+import {OLD_RECAP_ORIGINAL,OLD_RECAP_RESTATED} from './editorial-plan';
 import {fallbackEditorialPlan,planCapacityFailures,prepareEditorialPlan,editorialPlannerState,EDITORIAL_PLAN_POLICY,type EditorialPlanBody} from './editorial-plan';
 import {boundedEditorialInput} from './editorial-transport';
 import {sha256} from '@distilled/contracts';
@@ -62,6 +63,17 @@ describe('candidate-specific feasibility replaces the worst-case cardinality est
   const r=allocateFeasibleSelection([item('A',1500,.9,{publisherIds:['p']}),item('B',1500,.8,{publisherIds:['p']}),item('C',1500,.7,{publisherIds:['p']}),item('D',1500,.2,{publisherIds:['q']})],budget);
   expect([...r.accepted].sort()).toEqual(['A','B','D']);expect(r.rejected.get('C')).toBe('PUBLISHER_CAPACITY');
  });
+ it('protected publisher exceptions agree across validation and allocation without bypassing hard limits',()=>{
+  const items=[item('A',1000,.9,{publisherIds:['p'],protectedItem:true,order:0}),item('B',1000,.8,{publisherIds:['p'],protectedItem:true,order:1}),item('C',1000,.7,{publisherIds:['p'],protectedItem:true,order:2}),item('D',1000,.6,{publisherIds:['p'],order:3})];
+  const r=allocateFeasibleSelection(items,budget);expect([...r.accepted]).toEqual(['A','B','C']);expect(r.rejected.get('D')).toBe('PUBLISHER_CAPACITY');
+  const sl={candidates:items.map(i=>({targetVersionId:i.id,protectedReasons:i.protectedItem?['CORRECTION_OBLIGATION']:[],publisherIds:i.publisherIds,communicationCost:i.cost}))} as unknown as ShortlistRecord;
+  const body={stories:items.map(i=>({targetVersionId:i.id,decision:'SELECT',treatment:i.treatment,order:i.order})),obligations:[]} as unknown as EditorialPlanBody;
+  expect(planCapacityFailures(body,sl,budget)).toEqual([{targetVersionId:'D',reason:'PUBLISHER_CAPACITY'}]);
+  expect(allocateFeasibleSelection(items,{...budget,maxStories:2}).rejected.get('C')).toBe('STORY_CAPACITY');
+  expect(allocateFeasibleSelection(items,{...budget,maxInputTokens:5500}).rejected.get('B')).toBe('INPUT_CAPACITY');
+  expect(allocateFeasibleSelection(items,{...budget,maxReadingWords:60}).rejected.get('B')).toBe('WORD_CAPACITY');
+  expect(allocateFeasibleSelection(items,{...budget,maxEvidenceInspections:1}).rejected.get('B')).toBe('EVIDENCE_CAPACITY');
+ });
  it('5b. a multi-publisher story is not refused merely because a publisher is not saturated',()=>{
   const r=allocateFeasibleSelection([item('A',1500,.9,{publisherIds:['p','q']}),item('B',1500,.8,{publisherIds:['q','r']})],budget);expect(r.accepted.size).toBe(2);
  });
@@ -110,10 +122,10 @@ describe('end to end: planner, selection, writer-input admission and publication
   expect(new Set(facts).size).toBe(3);expect(facts.every(f=>texts.filter(t=>f.includes(t.replace(/\.$/,''))).length===1)).toBe(true);
   const edition=await publishSelection(store,'feed-1',selection.id,{now:()=>first.end});await projectEditionLedger(store,'feed-1',edition.id);
  },30000);
- it('a planner result already billed under the former input is reused: no second call, identical plan',async()=>{
+ it.each(['LEGACY','V1'] as const)('a planner result already billed under the %s input is reused: no second call, identical plan',async variant=>{
   for(let i=0;i<3;i++)await seedIntelligence(store,i+1,texts[i],`publisher-${i}`);
-  const sl=await prepareSemanticShortlist(store,'feed-1',first,first.end),feedRecord=await store.getFeed('feed-1'),legacy=editorialPlannerState(sl,budget,feedRecord,false),modern=editorialPlannerState(sl,budget,feedRecord,true);
-  expect(legacy.communicationCapacity.maxStories).toBe(3);expect(legacy.instruction).not.toBe(modern.instruction);expect(modern.instruction.startsWith(legacy.instruction)).toBe(true);expect(legacy.candidates.some(c=>'publisherIds' in c)).toBe(false);
+  const sl=await prepareSemanticShortlist(store,'feed-1',first,first.end),feedRecord=await store.getFeed('feed-1'),legacy=editorialPlannerState(sl,budget,feedRecord,variant),modern=editorialPlannerState(sl,budget,feedRecord,'CURRENT');
+  expect(legacy.communicationCapacity.maxStories).toBe(3);expect(legacy.instruction).not.toBe(modern.instruction);expect(legacy.instruction).not.toBe(modern.instruction);expect(legacy.candidates.some(c=>'readerState' in c)).toBe(false);expect(variant==='V1'?legacy.candidates.some(c=>'publisherIds' in c):!legacy.candidates.some(c=>'publisherIds' in c)).toBe(true);
   const input={feedId:'feed-1',feedRevision:sl.feedRevision,evidenceRevisionIds:sl.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:'synthetic',budgetKey:`editorial:${sl.window.start}:${sl.window.end}`,state:boundedEditorialInput(legacy).inputState},id=await sha256(canonicalJson(input));
   const value=fallbackEditorialPlan(sl);// billed results retain the decoded plan
   await feedTransact(store,'feed-1',tx=>tx.write('semantic_results',id,{id,feedId:'feed-1',input,status:'SUCCEEDED',value,usage:{calls:1,costUsd:.001,reported:true},latencyMs:1,createdAt:first.end}));

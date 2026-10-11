@@ -26,6 +26,7 @@ export interface BriefingConfig {
   interestProfile: string;
   styleInstruction?: string;
   publicFeedEnabled: boolean;
+  exploreFeatured?: boolean;
   paused: boolean;
   language: BriefingLanguage;
   intensity: BriefingIntensity;
