@@ -131,8 +131,13 @@ export function editorialPlanWireSchemaFor(state:ReturnType<typeof compactEditor
  // retain their individual schema branches.
  const historyFor=(c:ShortlistCandidate)=>state.ledger.filter(e=>e.eventIds.includes(c.stableTargetId)||Boolean(c.storylineId&&e.storylineIds.includes(c.storylineId))||state.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id);
  const withoutHistory=state.candidates.filter(c=>ordinaryTargets.includes(c.targetVersionId)&&!historyFor(c).length),withHistory=state.candidates.filter(c=>ordinaryTargets.includes(c.targetVersionId)&&historyFor(c).length);
- const ordinaryBranches:typeof sharedBranches=withoutHistory.length?sharedBranches.map(b=>({...b,properties:{...b.properties,targetVersionId:{type:'string',enum:withoutHistory.map(c=>c.targetVersionId)},previousLedgerEntryIds:refs([])}})):[];
- for(const c of withHistory)for(const b of sharedBranches){const branch=structuredClone(b),p=branch.properties as Record<string,unknown>;p.targetVersionId={type:'string',enum:[c.targetVersionId]};p.previousLedgerEntryIds=refs(historyFor(c));for(const field of ['newUnderstandingFactIds','contextFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'])p[field]=refs(c.facts.map(f=>f.id),field==='mustIncludeFactIds'&&b.properties.decision.enum[0]==='SELECT'?1:0);ordinaryBranches.push(branch)}
+ // REPEAT means communicated to this reader, never merely old reporting. Use
+ // the validator's exact history predicate; retain all other editorial choices.
+ const repeatAllowed=(c:ShortlistCandidate)=>c.facts.every(f=>knownFacts(c,state as unknown as ShortlistRecord).some(text=>equivalentFact(text,f.text)));
+ const restrictRepeat=(branch:typeof sharedBranches[number],allowed:boolean)=>{if(!allowed)branch.properties.deltaType.enum=branch.properties.deltaType.enum.filter(value=>value!=='REPEAT');return branch};
+ const ordinaryBranches:typeof sharedBranches=[];
+ for(const allowed of [false,true]){const group=withoutHistory.filter(c=>repeatAllowed(c)===allowed);if(group.length)ordinaryBranches.push(...sharedBranches.map(b=>{const branch=structuredClone(b),p=branch.properties as Record<string,unknown>;p.targetVersionId={type:'string',enum:group.map(c=>c.targetVersionId)};p.previousLedgerEntryIds=refs([]);return restrictRepeat(branch,allowed)}))}
+ for(const c of withHistory)for(const b of sharedBranches){const branch=structuredClone(b),p=branch.properties as Record<string,unknown>;p.targetVersionId={type:'string',enum:[c.targetVersionId]};p.previousLedgerEntryIds=refs(historyFor(c));for(const field of ['newUnderstandingFactIds','contextFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'])p[field]=refs(c.facts.map(f=>f.id),field==='mustIncludeFactIds'&&b.properties.decision.enum[0]==='SELECT'?1:0);ordinaryBranches.push(restrictRepeat(branch,repeatAllowed(c)))}
  const allowCorrectionDeferral=readyCandidates.length>((state as unknown as {communicationCapacity?:{maxStories:number}}).communicationCapacity?.maxStories??Infinity);
  const correctionBranches=readyCandidates.flatMap(c=>{
   const branch=structuredClone(sharedBranches[0]),p=branch.properties as Record<string,unknown>;
@@ -141,13 +146,13 @@ export function editorialPlanWireSchemaFor(state:ReturnType<typeof compactEditor
   p.previousLedgerEntryIds=refs(state.ledger.filter(e=>e.eventIds.includes(c.stableTargetId)||Boolean(c.storylineId&&e.storylineIds.includes(c.storylineId))||state.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id));
   p.correctionObligationIds=refs(c.correctionObligationIds,c.correctionObligationIds.length);
   if(!allowCorrectionDeferral)return [branch];
-  const deferred=structuredClone(sharedBranches[1]),dp=deferred.properties as Record<string,unknown>;dp.targetVersionId={type:'string',enum:[c.targetVersionId]};dp.decision={type:'string',enum:['DEFER']};return [branch,deferred];
+  const deferred=structuredClone(sharedBranches[1]),dp=deferred.properties as Record<string,unknown>;dp.targetVersionId={type:'string',enum:[c.targetVersionId]};dp.decision={type:'string',enum:['DEFER']};return [branch,restrictRepeat(deferred,repeatAllowed(c))];
  });
  const blockedBranches=blockedCandidates.map(c=>{
   const branch=structuredClone(sharedBranches[1]),p=branch.properties as Record<string,unknown>;
   p.targetVersionId={type:'string',enum:[c.targetVersionId]};p.decision={type:'string',enum:['DEFER']};p.previousLedgerEntryIds=refs(historyFor(c));
   for(const field of ['newUnderstandingFactIds','contextFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'])p[field]=refs(c.facts.map(f=>f.id));
-  p.correctionObligationIds=refs(c.correctionObligationIds);return branch;
+  p.correctionObligationIds=refs(c.correctionObligationIds);return restrictRepeat(branch,repeatAllowed(c));
  });
  schema.properties.stories.items.anyOf=[...ordinaryBranches,...correctionBranches,...blockedBranches];
  if(obligationIds.length){
