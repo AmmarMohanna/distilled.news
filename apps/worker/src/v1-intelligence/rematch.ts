@@ -5,7 +5,7 @@ import type {CorrectionObligation,LedgerEntry} from './ledger';
 import type {EventRecord} from './types';
 import type {EventMembership} from '@distilled/contracts';
 export interface RematchRequest {id:string;feedId:string;jobId:string;evidenceRevisionId:string;createdAt:string;policyVersion:string}
-export interface RematchAttempt {id:string;feedId:string;requestId:string;attempt:number;state:'SUCCEEDED'|'DEFERRED'|'EXHAUSTED'|'WAITING_BUDGET';nextAttemptAt?:string;createdAt:string;reason?:string}
+export interface RematchAttempt {id:string;feedId:string;requestId:string;attempt:number;state:'SUCCEEDED'|'DEFERRED'|'EXHAUSTED'|'WAITING_BUDGET';nextAttemptAt?:string;createdAt:string;reason?:string;resourcePolicy?:'semantic-cost-admission-v1'}
 export async function scheduleRematch(tx:FeedTransaction,jobId:string,evidenceRevisionId:string,now:string,policyVersion='semantic-rematch-v1'):Promise<void> {
  const id=await sha256(canonicalJson({feedId:tx.snapshot.feed.id,jobId,evidenceRevisionId,policy:policyVersion}));
  if(!await tx.read('rematch_requests',id))await tx.write('rematch_requests',id,{id,feedId:tx.snapshot.feed.id,jobId,evidenceRevisionId,createdAt:now,policyVersion} satisfies RematchRequest);
@@ -28,7 +28,7 @@ export function nextRematch(request:RematchRequest,attempts:RematchAttempt[],now
   // records with this exact reason stay immutable and become a budget wait.
   // Unknown outcomes are intentionally NOT eligible for this exception.
   const reset=Date.parse(prior!.createdAt.slice(0,10)+'T00:00:00Z')+86400000;
-  if(Date.parse(now)<Math.max(reset,Date.parse(prior!.nextAttemptAt??prior!.createdAt)))return undefined;
+  if(Date.parse(now)<Math.max(prior?.resourcePolicy==='semantic-cost-admission-v1'?0:reset,Date.parse(prior!.nextAttemptAt??prior!.createdAt)))return undefined;
   const real=attempts.filter(a=>a.requestId===request.id&&!isBudgetDenial(a));
   return rematchExhausted(real)?undefined:Math.max(0,...real.map(a=>a.attempt))+1;
  }
@@ -45,7 +45,20 @@ export async function protectedRematchRevisionIds(store:V1FeedStore,feedId:strin
  for(const root of await store.list<EventRecord>(feedId,'events'))if(eventIds.has(root.id))for(const m of memberships)if(m.eventVersionId===root.currentVersionId)ids.add(m.evidenceRevisionId);
  return ids;
 }
-/** Dispatch order: reassessment that gates an open correction first, then the rest in their stable order. */
-export function prioritizeRematches<T extends Pick<RematchRequest,'evidenceRevisionId'>>(requests:T[],protectedRevisionIds:Set<string>):T[] {
- return [...requests.filter(r=>protectedRevisionIds.has(r.evidenceRevisionId)),...requests.filter(r=>!protectedRevisionIds.has(r.evidenceRevisionId))];
+/** Resource scheduling only: correction headroom, least recently attempted work,
+ * and publisher round-robin. This never asserts editorial value or identity. */
+export function prioritizeRematches<T extends Pick<RematchRequest,'evidenceRevisionId'>&Partial<Pick<RematchRequest,'id'|'createdAt'>>>(requests:T[],protectedRevisionIds:Set<string>,attempts:RematchAttempt[]=[],publishers:Map<string,string>=new Map()):T[] {
+ const last=new Map<string,string>();for(const a of attempts)if(a.createdAt>(last.get(a.requestId)??''))last.set(a.requestId,a.createdAt);
+ const age=(r:T)=>last.get(r.id??'')??r.createdAt??'';
+ const ordered=[...requests].sort((a,b)=>age(a).localeCompare(age(b)));
+ const protectedWork=ordered.filter(r=>protectedRevisionIds.has(r.evidenceRevisionId)),ordinary=ordered.filter(r=>!protectedRevisionIds.has(r.evidenceRevisionId)),fair:T[]=[];
+ const buckets=new Map<string,T[]>();for(const r of ordinary){const key=publishers.get(r.evidenceRevisionId)??r.evidenceRevisionId;const bucket=buckets.get(key)??[];bucket.push(r);buckets.set(key,bucket)}
+ while(buckets.size)for(const [key,bucket] of buckets){fair.push(bucket.shift()!);if(!bucket.length)buckets.delete(key)}
+ return protectedWork.length?[protectedWork[0],...fair.slice(0,1),...protectedWork.slice(1),...fair.slice(1)]:fair;
+}
+/** Bounded exponential resource polling with stable jitter avoids synchronized
+ * UTC-reset retries. Denials remain durable and consume no semantic attempt. */
+export function semanticResourceRetryAt(requestId:string,now:string,waits:number):string {
+ const jitter=[...requestId].reduce((n,c)=>(n*31+c.charCodeAt(0))%120000,0);
+ return new Date(Date.parse(now)+Math.min(3600000,300000*2**Math.min(waits,4))+jitter).toISOString();
 }

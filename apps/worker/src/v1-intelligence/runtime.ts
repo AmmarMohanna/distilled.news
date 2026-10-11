@@ -19,7 +19,9 @@ import {projectEditionLedger} from './ledger';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {scheduleExtractionUpgrades,hasUnscheduledExtractionUpgrade} from './extraction-upgrade';
 import {recordBlockedWindow} from './blocked-window';
-import {nextRematch,rematchExhausted,STALE_REASON,protectedRematchRevisionIds,prioritizeRematches,type RematchRequest,type RematchAttempt} from './rematch';
+import {nextRematch,rematchExhausted,STALE_REASON,semanticResourceRetryAt,protectedRematchRevisionIds,prioritizeRematches,type RematchRequest,type RematchAttempt} from './rematch';
+import {semanticBacklogMetrics} from './semantic-observability';
+import {withSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import {SemanticContentionError} from './semantic-operations';
 import {prepareSemanticShortlist} from './shortlist';
 import {prepareEditorialPlan} from './editorial-plan';
@@ -56,9 +58,9 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
  if(!row || row.value.kind!=='REASSESS' || row.value.state==='DONE' || row.value.exhausted || !v1SourceEnabled(env,row.feedSourceId)) return 'SKIPPED';
  await synchronizeV1ProductSource(env.DB,row.feedSourceId,now);
  const scope=await intake.snapshot(row.feedSourceId);await approvedFeed(env,scope.scope.feedId);
- try {const store=new V1FeedStore(env.DB),prepared=await prepareSemanticMatch(store,env,id,now);await processEvidenceIntelligence(store,id,now,prepared?.matchers);return 'DONE'}
+ try {return await withSemanticWorkLease(env.DB,scope.scope.feedId,async store=>{const prepared=await prepareSemanticMatch(store,env,id,now);await processEvidenceIntelligence(store,id,now,prepared?.matchers);return 'DONE'})}
  catch(error) {
-  if(error instanceof SemanticContentionError)throw error;
+  if(error instanceof SemanticContentionError||error instanceof SemanticLeaseError)throw error;
   // Provider preparation is outside CAS; only canonical consumption retries.
   // Failure state and retry scheduling are durable, bounded and source-scoped.
   await transact(intake,row.feedSourceId,async tx=>{
@@ -70,7 +72,7 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
  }
 }
 export async function processV1Rematch(env:Env,feedId:string,requestId:string,now=new Date().toISOString()):Promise<void> {
- await approvedFeed(env,feedId);const store=new V1FeedStore(env.DB),request=await store.read<RematchRequest>(feedId,'rematch_requests',requestId);if(!request)return;
+ await approvedFeed(env,feedId);return withSemanticWorkLease(env.DB,feedId,async store=>{const request=await store.read<RematchRequest>(feedId,'rematch_requests',requestId);if(!request)return;
  const allAttempts=await store.list<RematchAttempt>(feedId,'rematch_attempts'),attempt=nextRematch(request,allAttempts,now),history=allAttempts.filter(a=>a.requestId===requestId);if(!attempt)return;
  const prepared=await prepareSemanticMatch(store,env,request.jobId,now,{attempt});
  const active=(await store.currentEvidence(feedId)).some(e=>e.revision.id===request.evidenceRevisionId);
@@ -80,8 +82,9 @@ export async function processV1Rematch(env:Env,feedId:string,requestId:string,no
  const consumed=eligible?await processEvidenceIntelligence(store,request.jobId,now,observed!,JSON.stringify([request.id,attempt])):undefined;
  const succeeded=Boolean(consumed&&consumed.decision==='PROCESSED'&&!consumed.semanticDeferred);
  const reason=!active?'STALE_EVIDENCE':succeeded?undefined:stale?STALE_REASON:prepared?.prepared.decision.provenance.fallbackReason??(prepared?.prepared.decision.structuralRelation==='DEFER'?'SEMANTIC_IDENTITY_UNRESOLVED':consumed?.semanticDeferred?'SEMANTIC_CONSTRUCTION_UNRESOLVED':'SEMANTIC_PREPARATION_UNAVAILABLE'),budgetWait=active&&reason==='SEMANTIC_BUDGET_EXHAUSTED';
- const id=JSON.stringify([request.id,attempt,now.slice(0,10),'budget-aware-rematch-v1']);
- await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,state:succeeded?'SUCCEEDED':budgetWait?'WAITING_BUDGET':!active||rematchExhausted([...history,{reason,attempt,state:'DEFERRED'}])?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:budgetWait?new Date(Date.parse(now.slice(0,10)+'T00:00:00Z')+86400000).toISOString():new Date(Date.parse(now)+(reason===STALE_REASON?60000*2**history.filter(a=>a.reason===STALE_REASON).length:300000*2**(attempt-1))).toISOString(),createdAt:now,reason} satisfies RematchAttempt)});
+ const id=JSON.stringify([request.id,attempt,now,'semantic-cost-admission-v1']);
+ await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,...(budgetWait?{resourcePolicy:'semantic-cost-admission-v1' as const}:{}),state:succeeded?'SUCCEEDED':budgetWait?'WAITING_BUDGET':!active||rematchExhausted([...history,{reason,attempt,state:'DEFERRED'}])?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:budgetWait?semanticResourceRetryAt(request.id,now,history.filter(a=>a.state==='WAITING_BUDGET').length):new Date(Date.parse(now)+(reason===STALE_REASON?60000*2**history.filter(a=>a.reason===STALE_REASON).length:300000*2**(attempt-1))).toISOString(),createdAt:now,reason} satisfies RematchAttempt)});
+ });
 }
 export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch,publicationOptions?:{requireModel?:boolean}) {
  const parsed=messageSchema.safeParse(raw);if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
@@ -177,8 +180,10 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    if(feed.briefingSchedule||feed.briefingFrequency!=='WEEKLY'){const upgradeWindow=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);if(await hasUnscheduledExtractionUpgrade(store,id,upgradeWindow))await feedTransact(store,id,tx=>scheduleExtractionUpgrades(tx,upgradeWindow,now.toISOString()))}
   });
   await maintenance(id,'REMATCH_DISPATCH',async()=>{
-    const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts');
-    for(const request of prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString())),await protectedRematchRevisionIds(store,id)).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
+    const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts'),publishers=new Map((await store.currentEvidence(id)).map(e=>[e.revision.id,e.item.feedSourceId]));
+    const protectedIds=await protectedRematchRevisionIds(store,id);
+    if(now.getUTCMinutes()%15===0)console.info(JSON.stringify({type:'V1_SEMANTIC_BACKPRESSURE',feedId:id,...semanticBacklogMetrics(rematches,attempts,protectedIds,now.toISOString(),feed.briefingSchedule?.durationMinutes??(feed.briefingFrequency==='30M'?30:feed.briefingFrequency==='HOURLY'?60:1440))}));
+    for(const request of prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString())),protectedIds,attempts,publishers).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
   });
   // Reassessment must finish first; the next bounded relay publishes its result.
   const pending={n:await jobsHoldingWindow(env.DB,id,windowEndOf(feed,now))};
