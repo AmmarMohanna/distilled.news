@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createECDH, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,17 +24,22 @@ const runtimeSecretKeys = [
   ...secretKeys,
   "OPENAI_API_KEY",
   "CLOUDFLARE_AI_GATEWAY_TOKEN",
+  "CLOUDFLARE_IMAGE_API_TOKEN",
   "APIFY_API_TOKEN",
   "TWITTERAPI_IO_API_KEY",
   "ZYTE_API_KEY",
   "SOURCE_EXECUTION_TOKEN",
-  "TURNSTILE_SECRET_KEY"
+  "TURNSTILE_SECRET_KEY",
+  "VAPID_PUBLIC_KEY",
+  "VAPID_PRIVATE_KEY",
+  "VAPID_SUBJECT"
 ];
 
 const runtimeVarKeys = [
   "PUBLIC_API_BASE_URL",
   "PUBLIC_WEB_BASE_URL",
   "CLOUDFLARE_ACCOUNT_ID",
+  "CLOUDFLARE_IMAGE_ACCOUNT_ID",
   "CLOUDFLARE_AI_GATEWAY_ID",
   "OPENAI_MODEL",
   "OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS",
@@ -82,6 +87,28 @@ function main() {
     }
   }
 
+  const existingDevVars = readEnvFile(workerDevVarsPath);
+  for (const key of ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"]) {
+    if (!env.get(key) && existingDevVars.get(key)) {
+      env.set(key, existingDevVars.get(key));
+      changed = true;
+    }
+  }
+
+  if (!env.get("VAPID_PUBLIC_KEY") && !env.get("VAPID_PRIVATE_KEY")) {
+    const pair = createECDH("prime256v1");
+    pair.generateKeys();
+    env.set("VAPID_PUBLIC_KEY", pair.getPublicKey(undefined, "uncompressed").toString("base64url"));
+    env.set("VAPID_PRIVATE_KEY", pair.getPrivateKey().toString("base64url"));
+    changed = true;
+  } else if (!env.get("VAPID_PUBLIC_KEY") || !env.get("VAPID_PRIVATE_KEY")) {
+    throw new Error("Both VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are required together.");
+  }
+  if (!env.get("VAPID_SUBJECT")) {
+    env.set("VAPID_SUBJECT", env.get("PUBLIC_WEB_BASE_URL") || "https://distilled.news");
+    changed = true;
+  }
+
   if (shouldPrepareCloudflareConfig()) {
     changed = ensureResourceDefaults(env) || changed;
   }
@@ -92,7 +119,7 @@ function main() {
   console.log("Distilled.news setup");
   console.log(`- prepared ${relative(envPath)}`);
   console.log(`- prepared ${relative(workerDevVarsPath)}`);
-  console.log("- generated missing admin/session/maintenance secrets");
+  console.log("- generated missing admin/session/maintenance secrets and browser push keys");
 
   checkCommand("node", ["--version"]);
   checkCommand("npx", ["pnpm@10.12.1", "--version"]);
