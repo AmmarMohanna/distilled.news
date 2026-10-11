@@ -1,0 +1,27 @@
+import {afterEach,beforeEach,expect,it} from 'vitest';
+import {createIntakeDatabase,seedIntakeScope} from './v1-intake/test-utils';
+import {V1IntakeStore} from './v1-intake/store';
+import {V1FeedStore} from './v1-intelligence/store';
+import {feedFixture} from './v1-intelligence/test-utils';
+import {productPublicationProgress} from './product-feeds';
+import type {Env} from './types';
+let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env;
+beforeEach(async()=>{ctx=await createIntakeDatabase({product:true});await seedIntakeScope(new V1IntakeStore(ctx.db));await new V1FeedStore(ctx.db).registerFeed(feedFixture);env={DB:ctx.db} as Env;});
+afterEach(async()=>ctx.dispose());
+async function manual(phase='PROCESSING',state='PENDING'){
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('manual_briefing_requests','manual','feed-1',?) ON CONFLICT(kind,id) DO UPDATE SET json=excluded.json").bind(JSON.stringify({id:'manual',createdAt:'2026-10-11T16:00:00Z',state,phase,window:{end:'2026-10-11T17:00:00Z'}})).run();
+}
+async function job(id:string,kind:string,state:string,observedAt='2026-10-11T16:30:00Z',scope='feed-source-1',exhausted=false){
+ await ctx.db.prepare('INSERT INTO v1_inputs(id,feed_source_id,json) VALUES(?,?,?)').bind(id,scope,JSON.stringify({observation:{observedAt}})).run();
+ await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind(id,scope,JSON.stringify({observationId:id,kind,state,exhausted})).run();
+}
+it('reports collection without claiming a review total before the window closes',async()=>{await manual('COLLECTION');expect(await productPublicationProgress(env,'feed-1')).toMatchObject({stage:'COLLECTING',review:{completed:0,total:0},pending:0});});
+it('counts the closed window and excludes later arrivals, disabled sources and other feeds',async()=>{
+ await manual();await job('acquired','ACQUIRE','DONE');await job('reviewed','REASSESS','DONE');await job('pending','REASSESS','PENDING');await job('running','REASSESS','RUNNING');await job('late','REASSESS','PENDING','2026-10-11T17:00:00Z');
+ await ctx.db.prepare('INSERT INTO v1_intake_scopes(id,feed_id,source_id,json) VALUES(?,?,?,?)').bind('disabled','feed-1','s-disabled',JSON.stringify({enabled:false})).run();await job('disabled-job','REASSESS','PENDING',undefined,'disabled');
+ await new V1FeedStore(ctx.db).registerFeed({...feedFixture,id:'other-feed'});await ctx.db.prepare('INSERT INTO v1_intake_scopes(id,feed_id,source_id,json) VALUES(?,?,?,?)').bind('other-source','other-feed','s-other',JSON.stringify({enabled:true})).run();await job('other-job','REASSESS','PENDING',undefined,'other-source');
+ expect(await productPublicationProgress(env,'feed-1')).toEqual({stage:'PROCESSING',acquisition:{completed:1,total:1,failed:0},review:{completed:1,total:3,failed:0},pending:2});
+});
+it('reports exhausted failures separately and never calls them completed reviews',async()=>{await manual();await job('failed','REASSESS','FAILED');await job('exhausted','REASSESS','PENDING',undefined,undefined,true);expect(await productPublicationProgress(env,'feed-1')).toMatchObject({stage:'PUBLISHING',review:{completed:0,total:2,failed:2},pending:0});});
+it('completed manual work has no stale in-progress notice',async()=>{await manual('PROCESSING','DONE');expect(await productPublicationProgress(env,'feed-1')).toBeUndefined();});
+it('scheduled publication uses its own closed boundary when no manual request exists',async()=>{await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','scheduled','feed-1',?)").bind(JSON.stringify({state:'PENDING',window:{end:'2026-10-11T17:00:00Z'}})).run();await job('scheduled-pending','ACQUIRE','PENDING');expect(await productPublicationProgress(env,'feed-1')).toMatchObject({stage:'PROCESSING',acquisition:{total:1},pending:1});});

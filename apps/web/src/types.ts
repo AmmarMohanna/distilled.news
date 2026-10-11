@@ -56,7 +56,15 @@ export interface SessionStatus {
 
 export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInstruction">;
 
+export interface PublicationProgress {
+  stage:'COLLECTING'|'PROCESSING'|'PUBLISHING';
+  acquisition:{completed:number;total:number;failed:number};
+  review:{completed:number;total:number;failed:number};
+  pending:number;
+}
+
 export interface FeedPayload {
+  publicationProgress?: PublicationProgress;
   publicationState?: 'waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'|'setup_required';
   briefing: PublicBriefing;
   editions: BriefingEdition[];

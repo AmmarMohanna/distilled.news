@@ -69,7 +69,7 @@ it('collects RSS, gates unfinished acquisition and publishes one grounded editio
  const pending=await store.read<ManualBriefingRequest>(feed.id,'manual_briefing_requests',manual.id);expect(pending?.phase).toBe('PROCESSING');
  expect(Date.parse(pending!.window!.end)).toBeGreaterThan(Date.parse(manual.createdAt));
  sent.length=0;await dispatchV1Intelligence(env,at);expect(sent.some(m=>m.type==='v1_briefing'&&'window' in m&&m.window.end===pending!.window!.end)).toBe(false);
- for(const id of ids){for(const job of await intake.listPendingJobs(id))if(job.kind==='ACQUIRE')await processV1Acquisition(env,job.id);for(const job of await intake.listPendingJobs(id))if(job.kind==='REASSESS')await processV1Reassessment(env,job.id);}
+ for(const id of ids){for(const job of await intake.listPendingJobs(id))if(job.kind==='ACQUIRE')await processV1Acquisition(env,job.id);for(const job of await intake.listPendingJobs(id))if(job.kind==='REASSESS')await processV1Reassessment(env,job.id,new Date(at.getTime()+60000).toISOString());}
  const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:feed.id,window:pending!.window!},()=>at.toISOString());expect(edition?.stories.length).toBeGreaterThan(0);
  await relayManualBriefings(env,at);expect((await store.read<ManualBriefingRequest>(feed.id,'manual_briefing_requests',manual.id))?.state).toBe('DONE');
  expect(await publishedProductEditions(env,feed)).toHaveLength(1);

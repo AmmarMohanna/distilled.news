@@ -16,7 +16,7 @@ import type {ShortlistRecord} from './shortlist';
 
 import {deferEditorialWork,BLOCKED_DEFERRAL_REASON} from './editorial-work';
 import {selectableForPlanning} from './planning-capacity';
-const SCORING_POLICY='deterministic-scoring-editorial-v4',SELECTION_POLICY='bounded-selection-editorial-v6';
+const SCORING_POLICY='deterministic-scoring-editorial-v4',SELECTION_POLICY='bounded-selection-editorial-v7';
 const salienceScorer=new DeterministicSalienceScorer();
 export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
 export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:4,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
@@ -89,7 +89,17 @@ export async function targets(tx:FeedTransaction,window:PublicationWindow,includ
   }
  }
  if(window.kind!=='WEEKLY') result.push(...[...events.values()].filter(t=>!groupedEvents.has(t.id)));
- return result.filter(t=>Date.parse(t.updatedAt)<Date.parse(window.end) && (includeOutsideWindow||Date.parse(t.updatedAt)>=Date.parse(window.start)));
+ // Canonical construction may finish long after collection. Window eligibility
+ // follows durable intake admission, not queue completion time. Source reporting
+ // age remains a separate freshness/framing decision. Scope and graph fences
+ // still validate this read together with every other selection input at commit.
+ const admissionRows=await tx.store.db.prepare("SELECT json_extract(r.json,'$.observationId') AS observation_id,MIN(json_extract(r.json,'$.decidedAt')) AS admitted_at FROM v1_intake_receipts r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND json_extract(r.json,'$.decision')='ACCEPTED' GROUP BY 1").bind(tx.snapshot.feed.id).all<{observation_id:string;admitted_at:string}>();
+ const admissions=new Map(admissionRows.results.map(row=>[row.observation_id,Date.parse(row.admitted_at)]));
+ return result.filter(target=>{
+  const times=target.evidence.map(revision=>admissions.get(revision.sourceObservationId)??Date.parse(revision.acceptedAt));
+  const admittedAt=times.length?Math.max(...times):Date.parse(target.updatedAt);
+  return admittedAt<Date.parse(window.end)&&(includeOutsideWindow||admittedAt>=Date.parse(window.start));
+ });
 }
 function deterministicPrefilter(editorial:EditorialDecision,interests:string[],geography:string[]):void {
  if(editorial.decision!=='INCLUDE')return;

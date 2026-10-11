@@ -1,3 +1,4 @@
+import type {PublicationProgress} from './types';
 import React from 'react';
 type Language='en'|'ar'|'fr';
 const text={
@@ -19,4 +20,21 @@ export function FeedPublicationNotice(props:{publicationState?:string;hasPublish
  // editions actually returned by the publication read API.
  const message=(correction?labels.pending:labels.failed)+(props.hasPublishedEditions?' '+labels.available:'');
  return <FeedNotice heading={correction?labels.correction:labels.delayed} message={message} language={props.language} severity="warning"/>;
+}
+
+const progressText={
+ en:{collecting:'Collecting sources…',processing:'Reviewing collected items…',publishing:'Preparing the briefing…',acquired:'Items collected',reviewed:'Items reviewed',failed:'Items that could not be processed',pending:'Items still processing'},
+ ar:{collecting:'جارٍ جمع المصادر…',processing:'جارٍ مراجعة العناصر المجمعة…',publishing:'جارٍ إعداد الموجز…',acquired:'العناصر المجمعة',reviewed:'العناصر التي تمت مراجعتها',failed:'العناصر التي تعذرت معالجتها',pending:'العناصر قيد المعالجة'},
+ fr:{collecting:'Collecte des sources…',processing:'Analyse des éléments collectés…',publishing:'Préparation du brief…',acquired:'Éléments collectés',reviewed:'Éléments analysés',failed:'Éléments non traités',pending:'Éléments en cours de traitement'}
+};
+export function FeedProcessingProgress({progress,language}:{progress?:PublicationProgress;language:Language}){
+ const labels=progressText[language],stage=progress?.stage??'COLLECTING';
+ const failed=(progress?.acquisition.failed??0)+(progress?.review.failed??0);
+ return <div className="muted feed-status-message" role="status" aria-live="polite">
+  <p>{stage==='COLLECTING'?labels.collecting:stage==='PROCESSING'?labels.processing:labels.publishing}</p>
+  {progress&&stage==='PROCESSING'?<>
+   <p>{labels.acquired}: {progress.acquisition.completed} / {progress.acquisition.total}. {labels.reviewed}: {progress.review.completed} / {progress.review.total}.</p>
+   <p>{labels.pending}: {progress.pending}.{failed>0?` ${labels.failed}: ${failed}.`:''}</p>
+  </>:null}
+ </div>;
 }

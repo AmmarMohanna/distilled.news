@@ -1,7 +1,7 @@
 import {requestManualBriefing} from './manual-briefing';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
-import {approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState} from './product-feeds';
+import {approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
 import {connectorSourceHealth} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
@@ -1077,6 +1077,7 @@ export function createApp(options: AppOptions = {}) {
     return c.json({
       briefing: publicBriefing(briefing),
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
+      publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
     });

@@ -96,3 +96,14 @@ Commit `daaf6a9` batches immutable duplicate decisions (including absent decisio
 Verification: 17 focused real-D1 tests passed, including a 180-item acquired-backlog regression, concurrent/replayed intelligence, deletion/support changes and expired-lease rejection. Worker typecheck and exact QA dry-run passed. Live frontend/API smoke checks passed 21/21.
 
 Deployed QA Worker version: `660f0e97-5307-4f1f-9216-5d76d3efa5c0`. After rollout, the ECB feed's completed reassessments advanced from 45 to 48; acquisition reached 409 DONE with no pending/running acquisition at that check. There were still 360 pending reassessments, and the publication request remained pending. This proves review progress resumed; it does not prove a completed real-model edition or acceptable sustained publication latency. Existing automatic processing continues the same durable request.
+
+
+## Visible progress and delayed-review window eligibility
+
+The public feed API now adds `publicationProgress` for active product requests. It shows collection, processing or preparation, with acquisition/reassessment counts for the same closed source-observation boundary used by dispatch. It exposes no job IDs, provider credentials or unapproved content. Counts exclude disabled sources, other feeds and observations at/after the boundary; exhausted failures are separate from successful reviews. EN/AR/FR frontend status replaces the static source-checking message and uses the existing refresh path.
+
+End-to-end testing exposed another blocker: target eligibility used Event/Storyline construction timestamps, so a source admitted before collection closed could disappear from the selection when downstream processing finished later. Eligibility now uses the immutable ACCEPTED intake receipt time, falling back to revision acceptance for historical evidence without a receipt. Canonical timestamps, source publication age, freshness/framing, source ordering and graph fences are preserved. Evidence admitted at/after the boundary is still excluded. Selection and shortlist policy versions advance to v7 and v14 respectively; published editions remain immutable.
+
+Verification: 19 affected Worker tests across five suites passed (overlapping runs counted once), including deliberately late canonical processing followed by a grounded fixture edition, cutoff exclusion, scoped progress, temporal-framing checks and protected correction shortlist behavior. Frontend notice tests passed 11/11; both typechecks, frontend build and exact QA Worker dry-run passed. The full Worker suite was not rerun, and fixture publication does not establish live OpenRouter publication.
+
+New immutable frontend assets were fully uploaded before updating QA's prefix to `staging-assets/758837e409f03d248288de04909e981d680abf6a/`. The previous prefix remains available for rollback. No database migration, budget reset or new source collection request is required.

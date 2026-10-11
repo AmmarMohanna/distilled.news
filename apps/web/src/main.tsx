@@ -1,6 +1,6 @@
 import { referenceDigestSummary, surfaceBriefSummary, summarySentences, normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import React, { useEffect, useRef, useState } from "react";
-import { FeedNotice, FeedPublicationNotice } from "./FeedNotice";
+import { FeedNotice, FeedPublicationNotice, FeedProcessingProgress } from "./FeedNotice";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -1666,7 +1666,7 @@ function FeedPage(props: { username: string; slug: string }) {
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
-      {payload?.publicationState === 'checking' ? <p className="muted feed-status-message" role="status">{t('Checking sources for the next briefing…')}</p> : null}
+      {payload?.publicationState === 'checking' ? <FeedProcessingProgress progress={payload.publicationProgress} language={language}/> : null}
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
           <bdi dir={pageDir}>{summaryMessage}</bdi>

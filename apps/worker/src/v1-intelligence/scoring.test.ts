@@ -3,7 +3,10 @@ import {createIntakeDatabase,seedIntakeScope,testPolicy} from '../v1-intake/test
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
-import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET} from './scoring';
+import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET,targets} from './scoring';
+import {acceptEvidence} from './test-utils';
+import {processEvidenceIntelligence} from './engine';
+import {FeedTransaction} from './store';
 import type {BriefingCandidate,WindowScore,EventSalienceAssessment} from '@distilled/contracts';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 const window={start:'2026-10-03T00:00:00Z',end:'2026-10-04T00:00:00Z',kind:'DAILY' as const};
@@ -26,3 +29,16 @@ it('publication windows are distinct assessments and weekly selects storyline ve
  const candidate=await store.read<BriefingCandidate>('feed-1','candidates',weekly.selectedCandidateIds[0]);expect(candidate?.targetType).toBe('STORYLINE');
  expect(await store.list('feed-1','window_scores')).toHaveLength(2);
 });
+
+it('late canonical review does not move admitted evidence out of its closed window',async()=>{
+ const admitted='2026-10-03T23:59:59Z',processed='2026-10-04T00:01:00Z';
+ await acceptEvidence(store,1,'Lebanon Parliament approved banking reform legislation.','publisher-1',admitted);
+ await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-1','']),processed);
+ const result=await targets(new FeedTransaction(store,await store.snapshot('feed-1')),window);
+ expect(result).toHaveLength(1);expect(result[0].updatedAt).toBe(processed);
+},30000);
+it('evidence admitted at the cutoff cannot leak in through an earlier canonical timestamp',async()=>{
+ await acceptEvidence(store,1,'Lebanon Parliament approved banking reform legislation.','publisher-1',window.end);
+ await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-1','']),'2026-10-03T23:59:59Z');
+ expect(await targets(new FeedTransaction(store,await store.snapshot('feed-1')),window,true)).toHaveLength(0);
+},30000);
