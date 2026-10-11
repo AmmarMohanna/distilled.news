@@ -19,7 +19,7 @@ export function rematchExhausted(history:Pick<RematchAttempt,'reason'|'attempt'|
  const real=history.filter(a=>!isBudgetDenial(a)),stale=real.filter(a=>a.reason===STALE_REASON).length,numbered=Math.max(0,...real.map(a=>a.attempt));
  return Math.max(real.length-stale,numbered-stale)>=MAX_SEMANTIC_ATTEMPTS||stale>MAX_STALE_RETRIES;
 }
-export function nextRematch(request:RematchRequest,attempts:RematchAttempt[],now:string):number|undefined {
+export function nextRematch(request:RematchRequest,attempts:RematchAttempt[],now:string,options:{costAdmission?:boolean}={}):number|undefined {
  const prior=attempts.filter(a=>a.requestId===request.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.attempt-a.attempt)[0];
  if(attempts.some(a=>a.requestId===request.id&&a.state==='SUCCEEDED'))return undefined;
  const budgetWait=prior?.state==='WAITING_BUDGET'||prior?.reason==='SEMANTIC_BUDGET_EXHAUSTED';
@@ -28,7 +28,8 @@ export function nextRematch(request:RematchRequest,attempts:RematchAttempt[],now
   // records with this exact reason stay immutable and become a budget wait.
   // Unknown outcomes are intentionally NOT eligible for this exception.
   const reset=Date.parse(prior!.createdAt.slice(0,10)+'T00:00:00Z')+86400000;
-  if(Date.parse(now)<Math.max(prior?.resourcePolicy==='semantic-cost-admission-v1'?0:reset,Date.parse(prior!.nextAttemptAt??prior!.createdAt)))return undefined;
+  const eligibleAt=prior?.resourcePolicy==='semantic-cost-admission-v1'?Date.parse(prior.nextAttemptAt??prior.createdAt):options.costAdmission?Date.parse(semanticResourceRetryAt(request.id,prior!.createdAt,0)):Math.max(reset,Date.parse(prior!.nextAttemptAt??prior!.createdAt));
+  if(Date.parse(now)<eligibleAt)return undefined;
   const real=attempts.filter(a=>a.requestId===request.id&&!isBudgetDenial(a));
   return rematchExhausted(real)?undefined:Math.max(0,...real.map(a=>a.attempt))+1;
  }

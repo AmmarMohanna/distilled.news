@@ -73,7 +73,7 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
 }
 export async function processV1Rematch(env:Env,feedId:string,requestId:string,now=new Date().toISOString()):Promise<void> {
  await approvedFeed(env,feedId);return withSemanticWorkLease(env.DB,feedId,async store=>{const request=await store.read<RematchRequest>(feedId,'rematch_requests',requestId);if(!request)return;
- const allAttempts=await store.list<RematchAttempt>(feedId,'rematch_attempts'),attempt=nextRematch(request,allAttempts,now),history=allAttempts.filter(a=>a.requestId===requestId);if(!attempt)return;
+ const allAttempts=await store.list<RematchAttempt>(feedId,'rematch_attempts'),attempt=nextRematch(request,allAttempts,now,{costAdmission:true}),history=allAttempts.filter(a=>a.requestId===requestId);if(!attempt)return;
  const prepared=await prepareSemanticMatch(store,env,request.jobId,now,{attempt});
  const active=(await store.currentEvidence(feedId)).some(e=>e.revision.id===request.evidenceRevisionId);
  const eligible=active&&prepared&&prepared.prepared.decision.structuralRelation!=='DEFER';
@@ -183,7 +183,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
     const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts'),publishers=new Map((await store.currentEvidence(id)).map(e=>[e.revision.id,e.item.feedSourceId]));
     const protectedIds=await protectedRematchRevisionIds(store,id);
     if(now.getUTCMinutes()%15===0)console.info(JSON.stringify({type:'V1_SEMANTIC_BACKPRESSURE',feedId:id,...semanticBacklogMetrics(rematches,attempts,protectedIds,now.toISOString(),feed.briefingSchedule?.durationMinutes??(feed.briefingFrequency==='30M'?30:feed.briefingFrequency==='HOURLY'?60:1440))}));
-    for(const request of prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString())),protectedIds,attempts,publishers).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
+    for(const request of prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString(),{costAdmission:true})),protectedIds,attempts,publishers).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
   });
   // Reassessment must finish first; the next bounded relay publishes its result.
   const pending={n:await jobsHoldingWindow(env.DB,id,windowEndOf(feed,now))};
