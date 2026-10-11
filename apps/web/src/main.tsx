@@ -1829,6 +1829,8 @@ function FeedEditionRow(props: {
   const hasEditorialTitle = editionTitle.length > 14 && !/^(?:updates?|briefings?|news|daily|hourly)(?:\s|$)/iu.test(editionTitle) && !/\b(?:updates?|briefings?)$/iu.test(editionTitle) && !/^(?:\w+\s+\d{1,2}|\d{1,2}[\/.\-]\d{1,2})[,\s]/u.test(editionTitle);
   const headline = (hasEditorialTitle ? editionTitle : sentences[0] || editionTitle || surfaceSummary).replace(/\[\d{1,3}\]/gu, "").trim();
   const deck = hasEditorialTitle ? surfaceSummary : sentences.slice(1).join(" ");
+  const headlineReferences = Array.from(new Set((hasEditorialTitle ? "" : sentences[0] ?? "").match(/\[(\d{1,3})\]/gu)?.map(value => Number(value.slice(1, -1))) ?? []))
+    .filter(value => value >= 1 && value <= referenceCount);
   return (
     <article className={`news-item${props.isRead ? " is-read" : ""}${props.isFeatured ? " is-featured" : ""}`}>
       <div className="news-copy" lang={props.language} dir={textDir}>
@@ -1853,6 +1855,11 @@ function FeedEditionRow(props: {
           language={props.language} referenceCount={referenceCount}
           onOpenReference={props.onOpenReport} /> : null}
         <div className="news-footer">
+          {headlineReferences.length > 0 ? <div className="news-headline-references" aria-label={referencesLabel(props.language)}>
+            {headlineReferences.map(reference => <button key={reference} type="button"
+              className="inline-reference" aria-label={referenceButtonLabel(reference, props.language)}
+              onClick={() => props.onOpenReport(reference - 1)}>[{reference}]</button>)}
+          </div> : null}
           <button type="button" className="news-read-briefing"
             aria-expanded={props.isExpanded} aria-label={briefingToggleAria(props.edition.title, props.isExpanded, props.language)}
             onClick={props.onToggleExpanded}>
