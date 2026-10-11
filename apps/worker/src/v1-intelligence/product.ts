@@ -6,9 +6,9 @@ import {V1FeedStore} from './store';
 import type {FeedRecord} from './types';
 import {liveScheduleSchema,type LiveSchedule} from './schedule';
 
-const PRODUCT_SQL=`SELECT json_object('sourceId',s.id,'feedId',b.id,'ownerId',b.owner_account_id,'sourceTitle',s.title,'sourceKind',s.kind,'provider',s.provider,'sourceUrl',s.source_url,'input',s.input,'enabled',s.enabled,'feedTitle',b.title,'interests',b.interest_profile,'language',b.language,'paused',b.paused,'cadence',b.briefing_cadence,'liveInterval',b.v1_briefing_interval_minutes,'timezone',b.briefing_timezone,'deliveryAnchor',b.briefing_time_of_day,'createdAt',b.created_at,'accountDisabled',a.disabled_at) AS json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=?`;
-interface ProductRow {sourceId:string;feedId:string;ownerId:string;sourceTitle:string;sourceKind:string;provider:string;sourceUrl:string|null;input:string|null;enabled:number;feedTitle:string;interests:string;language:string;paused:number;cadence:string;liveInterval:number|null;timezone:string;deliveryAnchor:string|null;createdAt:string;accountDisabled:string|null}
-export interface CanonicalSource {id:string;type:'rss'|'telegram'|'x_search';displayName:string;canonicalUrl:string;connectorType:'rss'|'telegram'|'x_search';verificationStatus:'VERIFIED';createdAt:string}
+const PRODUCT_SQL=`SELECT json_object('sourceId',s.id,'feedId',b.id,'ownerId',b.owner_account_id,'sourceTitle',s.title,'sourceKind',s.kind,'provider',s.provider,'sourceUrl',s.source_url,'input',s.input,'actorId',s.actor_id,'enabled',s.enabled,'feedTitle',b.title,'interests',b.interest_profile,'language',b.language,'paused',b.paused,'cadence',b.briefing_cadence,'liveInterval',b.v1_briefing_interval_minutes,'timezone',b.briefing_timezone,'deliveryAnchor',b.briefing_time_of_day,'createdAt',b.created_at,'accountDisabled',a.disabled_at) AS json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=?`;
+interface ProductRow {sourceId:string;feedId:string;ownerId:string;sourceTitle:string;sourceKind:string;provider:string;sourceUrl:string|null;input:string|null;actorId:string|null;enabled:number;feedTitle:string;interests:string;language:string;paused:number;cadence:string;liveInterval:number|null;timezone:string;deliveryAnchor:string|null;createdAt:string;accountDisabled:string|null}
+export interface CanonicalSource {id:string;type:'rss'|'google_news'|'telegram'|'x_profile'|'x_search'|'linkedin_company'|'linkedin_profile';displayName:string;canonicalUrl:string;connectorType:'rss'|'google_news'|'telegram'|'x_profile'|'x_search'|'linkedin_company'|'linkedin_profile';verificationStatus:'VERIFIED';createdAt:string}
 /** Trusted bridge from an already user-approved product source. No source discovery or approval bypass. */
 export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:string,requestedSchedule?:LiveSchedule):Promise<{feed:FeedRecord;scope:IntakeScope;source:CanonicalSource}> {
  if(!Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
@@ -17,7 +17,7 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
   const row=await db.prepare(PRODUCT_SQL).bind(id).first<{json:string}>();if(!row) throw new HandoffError('SCOPE_DENIED');
   const p=JSON.parse(row.json) as ProductRow;
   if(p.ownerId!==ownerId || !p.enabled || p.paused || p.accountDisabled) throw new HandoffError('SCOPE_DENIED');
-  const definitionSource=productConnectorSource({provider:p.provider,kind:p.sourceKind,source_url:p.sourceUrl,input:p.input});
+  const definitionSource=productConnectorSource({provider:p.provider,kind:p.sourceKind,source_url:p.sourceUrl,input:p.input,actor_id:p.actorId});
   if(!definitionSource || !['hourly','daily','weekly'].includes(p.cadence)) throw new HandoffError('INVALID_REQUEST');
   const url=definitionSource.canonicalUrl;
   const sourceId=await sha256(canonicalJson(definitionSource.identity));
@@ -71,7 +71,7 @@ export async function synchronizeV1ProductSource(db:D1Database,id:string,now:str
 export async function isV1ProductSource(env:{DB?:D1Database;V1_DOWNSTREAM_ENABLED?:string;V1_DOWNSTREAM_FEED_SOURCE_IDS?:string},id:string):Promise<boolean> {
  if(env.DB && await env.DB.prepare("SELECT 1 FROM sources WHERE id=? AND collection_owner='connector'").bind(id).first()) return true;
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
- if(env.V1_DOWNSTREAM_ENABLED!=='true' || ids.length>10 || !ids.includes(id)) return false;
+ if(env.V1_DOWNSTREAM_ENABLED!=='true' || !ids.includes(id)) return false;
  if(!env.DB) throw new HandoffError('SCOPE_DENIED');
  return Boolean(await env.DB.prepare('SELECT 1 FROM v1_product_bindings WHERE feed_source_id=?').bind(id).first());
 }

@@ -16,4 +16,14 @@ describe('private source execution transport',()=>{
     await expect(client.execute('extract',{})).rejects.toThrow('SOURCE_EXECUTION_UNAVAILABLE');
     expect(dispatch).toHaveBeenCalledTimes(2);
   });
+  it('honors a shorter extraction deadline even if a dispatcher ignores abort',async()=>{
+    const client=new HttpSourceExecution('https://runtime.example/v1/source-execution',token,()=>new Promise(()=>{}),false,1000);
+    await expect(client.execute('extract',{html:'<article>text</article>'},{timeoutMs:10})).rejects.toThrow('SOURCE_EXECUTION_TIMEOUT');
+    await expect(client.execute('extract',{}, {timeoutMs:1001})).rejects.toThrow('INVALID_SOURCE_EXECUTION_TIMEOUT');
+  });
+  it('does not hang when the private runtime stops sending its response body',async()=>{
+    const dispatch=vi.fn<typeof fetch>().mockResolvedValue(new Response(new ReadableStream({pull:()=>new Promise(()=>{})})));
+    const client=new HttpSourceExecution('https://runtime.example/v1/source-execution',token,dispatch,false,1000);
+    await expect(client.execute('extract',{}, {timeoutMs:10})).rejects.toThrow('SOURCE_EXECUTION_TIMEOUT');
+  });
 });

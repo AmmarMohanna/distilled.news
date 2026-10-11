@@ -11,7 +11,7 @@ import { TwitterApiIoProvider,ApifySourceProvider } from '../src/source-runtime/
 import { WebsiteSourceProvider } from '../src/source-runtime/website-providers';
 import { D1ProviderPollScheduler,PROVIDER_POLL_SCHEMA } from '../src/source-runtime/provider-scheduler';
 import { normalizeProviderRecords } from '../src/source-runtime/provider-normalize';
-import type { FeedHttpPort } from '../src/source-runtime/ports';
+import type { FeedHttpPort, FeedResponse } from '../src/source-runtime/ports';
 
 const databases:DatabaseSync[]=[];
 afterEach(()=>{for(const db of databases.splice(0))db.close();});
@@ -41,6 +41,109 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it('renews a long collection lease so another runner cannot claim the same paid window',async()=>{
+    vi.useFakeTimers();vi.setSystemTime(new Date(time));
+    let release!:(value:any)=>void,entered!:(value?:unknown)=>void;
+    const started=new Promise(resolve=>{entered=resolve;});
+    const s=setup([]),collect=vi.fn(async()=>{entered();return await new Promise(resolve=>{release=resolve;});});
+    const scheduler=new D1ProviderPollScheduler(s.db,{collect} as any,async()=>true);
+    try{
+      await scheduler.schedule('slow',request,time);
+      const running=scheduler.runOne(3000);await started;
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(await scheduler.runOne(3000)).toBe('IDLE');
+      release({state:'HANDED_OFF',checkpoint:'UNCHANGED'});
+      expect(await running).toBe('DONE');expect(collect).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+    }finally{vi.useRealTimers();}
+  });
+  it('refuses to commit a completed collection after its lease ownership was replaced',async()=>{
+    const s=setup([]);
+    const collect=vi.fn(async()=>{
+      s.db.db.prepare("UPDATE connector_provider_poll_jobs SET lease_version=lease_version+1 WHERE job_id='lost'").run();
+      return {state:'HANDED_OFF',checkpoint:'UNCHANGED'};
+    });
+    const scheduler=new D1ProviderPollScheduler(s.db,{collect} as any,async()=>true,()=>Date.parse(time));
+    await scheduler.schedule('lost',request,time);
+    expect(await scheduler.runOne()).toBe('LEASE_LOST');
+    expect(s.db.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='lost'").get()).toMatchObject({state:'PENDING'});
+  });
+  it('drains independently scheduled jobs without repeating completed work',async()=>{
+    const s=setup([provider('primary')]),now=()=>Date.parse(time);
+    const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,now);
+    for(let i=0;i<6;i++)await scheduler.schedule('job'+i,{...request,runId:'run'+i},time,['primary']);
+    for(let i=0;i<6;i++)expect(await scheduler.runOne()).toBe('DONE');
+    expect(await scheduler.runOne()).toBe('IDLE');
+    expect(s.db.db.prepare("SELECT COUNT(*) AS n FROM connector_provider_poll_jobs WHERE state='PENDING'").get()).toMatchObject({n:0});
+  });
+  it('hands off a newly resolved publisher link even when the listing content is unchanged',async()=>{
+    let resolved=false;
+    const p:SourceProvider={id:'google_rss',families:['google_news'],fetch:async()=>({...page(),items:[{...page().items[0],sourceItemKey:'id:google-guid',url:resolved?'https://publisher.example/article':'https://news.google.com/rss/articles/opaque',publisherId:resolved?'publisher.example':'news.google.com',representation:'LISTING_RESULT'}]})};
+    const s=setup([p]);const input={...request,source:{family:'google_news' as const,locator:'energy'}};
+    await s.collector.collect(input);resolved=true;
+    const second=await s.collector.collect({...input,runId:'resolved-window'});
+    expect(second.state==='HANDED_OFF'&&second.request.proposals[0].url).toBe('https://publisher.example/article');
+    const third=await s.collector.collect({...input,runId:'unchanged-window'});
+    expect(third.state==='HANDED_OFF'&&third.request.observations).toEqual([]);
+  });
+  it.each(['x_profile','x_search'] as const)('automatically falls back from a failed %s primary to one durable Apify run',async family=>{
+    const s=setup([]);let starts=0;
+    const dispatch=vi.fn(async(url:string)=>{
+      if(url.includes('api.twitterapi.io'))return Response.json({error:'unavailable'},{status:503});
+      if(url.includes('/actors/')){starts++;return Response.json({data:{id:'actorRun'}});}
+      if(url.includes('/actor-runs/'))return Response.json({data:{status:'SUCCEEDED',defaultDatasetId:'dataset'}});
+      return Response.json([{id:'99',text:'Real-shaped fallback post',author:{id:'123'}}]);
+    });
+    const http=new DurableProviderHttp(s.db,s.payloads,dispatch);
+    await http.configureLimit('x_twitterapi_io',1);await http.configureLimit('x_apify',1);
+    const collector=new FallbackSourceCollector(s.repository,s.payloads,s.intake,[new TwitterApiIoProvider(http,async()=> 'private-key',0.05),new ApifySourceProvider('x_apify',[family],http,async()=> 'private-token',0.1)],()=>time);
+    const input={...request,source:{family,locator:family==='x_profile'?'NASA':'from:NASA'}};
+    const first=await collector.collect(input);
+    expect(first.state).toBe('HANDED_OFF');
+    if(first.state!=='HANDED_OFF')throw Error('NO_HANDOFF');
+    expect(first.providerId).toBe('x_apify');expect(first.attempts[0].failure).toBe('TRANSIENT');
+    const next={...input,runId:'resumed',continuation:first.continuation};
+    const result=await collector.collect(next);
+    expect(result.state==='HANDED_OFF'&&result.request.observations[0].sourceItemKey).toBe('x:99');
+    const calls=dispatch.mock.calls.length;
+    await collector.collect(next);
+    expect(starts).toBe(1);expect(dispatch).toHaveBeenCalledTimes(calls);
+  });
+
+  it.each(['linkedin_company','linkedin_profile'] as const)('collects new %s posts across overlapping windows without duplicating old posts',async family=>{
+    const s=setup([]);let actor=0;
+    const post=(id:string)=>({urn:`urn:li:activity:${id}`,text:'Post '+id,url:`https://www.linkedin.com/feed/update/urn:li:activity:${id}/`,postedAt:{date:time}});
+    const dispatch=vi.fn(async(url:string)=>{
+      if(url.includes('/actors/'))return Response.json({data:{id:'actor'+(++actor)}});
+      if(url.includes('/actor-runs/'))return Response.json({data:{status:'SUCCEEDED',defaultDatasetId:'dataset'+actor}});
+      return Response.json(actor===1?[post('1')]:[post('2'),post('1')]);
+    });
+    const http=new DurableProviderHttp(s.db,s.payloads,dispatch);await http.configureLimit('linkedin_apify',1);
+    const collector=new FallbackSourceCollector(s.repository,s.payloads,s.intake,[new ApifySourceProvider('linkedin_apify',[family],http,async()=> 'private-token',0.1)],()=>time);
+    const collected:string[][]=[];
+    for(let window=1;window<=3;window++){
+      const input={...request,runId:'window'+window,source:{family,locator:'https://www.linkedin.com/company/example'},limit:3};
+      const start=await collector.collect(input);
+      if(start.state!=='HANDED_OFF')throw Error('NO_START');
+      const result=await collector.collect({...input,runId:input.runId+':page',continuation:start.continuation});
+      if(result.state!=='HANDED_OFF')throw Error('NO_RESULT');
+      collected.push(result.request.observations.map(o=>o.sourceItemKey));
+    }
+    expect(collected).toEqual([['linkedin:urn:li:activity:1'],['linkedin:urn:li:activity:2'],[]]);
+    expect(actor).toBe(3);
+  });
+
+  it('durably suppresses a replayed authoritative Telegram delete across collection windows',async()=>{
+    const deletion={...page().items[0],sourceItemKey:'telegram:-100123:1',operation:'DELETE' as const,body:undefined,authoritativeCurrentState:true,representation:'TELEGRAM_MESSAGE' as const};
+    const p:SourceProvider={id:'telegram_telethon',families:['telegram'],fetch:async()=>({...page(),items:[deletion]})};
+    const s=setup([p]);
+    s.intake.acceptBatch=vi.fn(async (b:Parameters<CandidateIntakePort['acceptBatch']>[0])=>({contractVersion:b.contractVersion,handoffId:b.handoffId,durable:true as const,receipts:b.observations.map(o=>({...receiptFixture(o),candidateItemId:undefined,tombstoneId:'tombstone-'+o.id,decision:'DELETION_ACCEPTED' as const,reasonCode:'ACCEPTED_DELETION' as const}))}));
+    const input={...request,source:{family:'telegram' as const,locator:'channel',channelId:'-100123'}};
+    const first=await s.collector.collect(input);
+    expect(first.state==='HANDED_OFF'&&first.request.observations[0].operation).toBe('DELETE');
+    const second=await s.collector.collect({...input,runId:'later-window'});
+    expect(second.state==='HANDED_OFF'&&second.request.observations).toEqual([]);
+  });
   it('defines preferred alternatives for each source without invented LinkedIn fallback',()=>{
     expect(DEFAULT_SOURCE_ORDER.website).toEqual(['website_http','website_playwright','website_zyte']);
     expect(DEFAULT_SOURCE_ORDER.telegram).toEqual(['telegram_telethon','telegram_public']);
@@ -146,18 +249,97 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
   it('RSS emits durable excerpt inputs and stable GUID identity',async()=>{
     const p=new FeedSourceProvider('rss_native',feed('<rss><channel><item><guid>abc</guid><title>Hello</title><description>Text</description></item></channel></rss>'));
     const result=await p.fetch({...request,source:{family:'rss',locator:'https://publisher.example/rss'}});
-    expect(result.items[0]).toMatchObject({sourceItemKey:'id:abc',body:'Text',representation:'ARTICLE_EXCERPT'});expect(result.complete).toBeUndefined();
+    expect(result.items[0]).toMatchObject({sourceItemKey:'id:abc',body:'Hello. Text',excerpt:'Text',representation:'ARTICLE_EXCERPT'});expect(result.complete).toBeUndefined();
+  });
+  it('enriches at most two same-origin RSS articles while retaining their original excerpts',async()=>{
+    const xml=`<rss><channel>${[1,2,3].map(i=>`<item><guid>${i}</guid><link>https://publisher.example/story/${i}</link><title>Story ${i}</title><description>Short feed excerpt ${i}</description></item>`).join('')}</channel></rss>`;
+    const http:FeedHttpPort={get:vi.fn(async url=>({status:200,headers:{},bytes:encoder.encode(url.endsWith('/feed')?xml:'<article>Publisher article</article>'),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
+    const execution={execute:vi.fn(async()=>({body:'Detailed publisher evidence. '.repeat(12)}))};
+    const result=await new FeedSourceProvider('rss_native',http,execution).fetch({...request,limit:30,source:{family:'rss',locator:'https://publisher.example/feed'}});
+    expect(result.items.map(item=>item.representation)).toEqual(['FULL_ARTICLE','FULL_ARTICLE','ARTICLE_EXCERPT']);
+    expect(result.items[0]).toMatchObject({excerpt:'Short feed excerpt 1',contentCompleteness:'UNKNOWN'});
+    expect(result.items[0].body).toContain('Detailed publisher evidence.');
+    expect(result.items[2].body).toBe('Story 3. Short feed excerpt 3');
+    expect(result.requests).toBe(3);expect(execution.execute).toHaveBeenCalledTimes(2);
+  });
+  it('does not fetch cross-origin RSS articles or promote failed extraction to full content',async()=>{
+    const xml='<rss><channel><item><guid>1</guid><link>https://elsewhere.example/story</link><title>External</title><description>Excerpt</description></item><item><guid>2</guid><link>https://publisher.example/story</link><title>Local</title><description>Excerpt</description></item></channel></rss>';
+    const http:FeedHttpPort={get:vi.fn(async url=>({status:url.endsWith('/story')?403:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
+    const execution={execute:vi.fn(async()=>({body:'Detailed publisher evidence. '.repeat(12)}))};
+    const result=await new FeedSourceProvider('rss_native',http,execution).fetch({...request,source:{family:'rss',locator:'https://publisher.example/feed'}});
+    expect(result.items.map(item=>item.representation)).toEqual(['ARTICLE_EXCERPT','ARTICLE_EXCERPT']);
+    expect(vi.mocked(http.get).mock.calls.map(([url])=>url)).toEqual(['https://publisher.example/feed','https://publisher.example/story']);
+    expect(execution.execute).not.toHaveBeenCalled();
   });
   it('Google News uses a query RSS URL and labels results as listings',async()=>{
     const http=feed('<rss><channel><item><guid>google-id</guid><title>Result</title></item></channel></rss>');
     const result=await new FeedSourceProvider('google_rss',http).fetch({...request,source:{family:'google_news',locator:'AI',language:'en',region:'US'}});
     expect(String(vi.mocked(http.get).mock.calls[0][0])).toContain('news.google.com/rss/search');expect(result.items[0].representation).toBe('LISTING_RESULT');
   });
+  it('resolves a Google News article redirect without fetching the publisher',async()=>{
+    const google='https://news.google.com/rss/articles/opaque?oc=5';
+    const xml=`<rss><channel><item><guid>google-id</guid><link>${google.replace('&','&amp;')}</link><source url="https://publisher.example">Publisher</source><title>Result</title></item></channel></rss>`;
+    const http:FeedHttpPort={get:vi.fn(async (url):Promise<FeedResponse>=>url.includes('/rss/search')?{
+      status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:4,providerCostUsd:0}
+    }:{status:302,headers:{location:'https://publisher.example/article?utm_source=google&edition=us#top'},bytes:new Uint8Array(),
+      telemetry:{requests:1,latencyMs:6,providerCostUsd:0}})};
+    const result=await new FeedSourceProvider('google_rss',http).fetch({...request,source:{family:'google_news',locator:'AI'}});
+    expect(result.items[0]).toMatchObject({sourceItemKey:'id:google-id',url:'https://publisher.example/article?edition=us',publisherId:'publisher.example',representation:'LISTING_RESULT'});
+    expect(result).toMatchObject({requests:2,latencyMs:10});
+    expect(vi.mocked(http.get).mock.calls.map(([url])=>new URL(url).hostname)).toEqual(['news.google.com','news.google.com']);
+  });
+  it('keeps Google listing links when redirect destinations are unsafe or resolution fails',async()=>{
+    const links=['https://news.google.com/rss/articles/one','https://news.google.com/rss/articles/two'];
+    const xml=`<rss><channel>${links.map((link,index)=>`<item><guid>${index}</guid><link>${link}</link><title>Result ${index}</title></item>`).join('')}</channel></rss>`;
+    const http:FeedHttpPort={get:vi.fn(async (url):Promise<FeedResponse>=>url.includes('/rss/search')?{
+      status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}
+    }:url.endsWith('/one')?{status:302,headers:{location:'https://127.0.0.1/private'},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}:
+      {status:503,headers:{},bytes:new Uint8Array(),telemetry:{requests:3,latencyMs:5,providerCostUsd:0}})};
+    const result=await new FeedSourceProvider('google_rss',http).fetch({...request,source:{family:'google_news',locator:'AI'}});
+    expect(result.items.map(item=>item.url)).toEqual(links);expect(result.requests).toBe(5);
+  });
+  it('bounds Google redirect probes to eight links per snapshot',async()=>{
+    const links=Array.from({length:12},(_,index)=>`https://news.google.com/rss/articles/${index}`);
+    const xml=`<rss><channel>${links.map((link,index)=>`<item><guid>${index}</guid><link>${link}</link><title>Result</title></item>`).join('')}</channel></rss>`;
+    const http:FeedHttpPort={get:vi.fn(async url=>({status:url.includes('/rss/search')?200:404,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
+    await new FeedSourceProvider('google_rss',http).fetch({...request,limit:30,source:{family:'google_news',locator:'AI'}});
+    expect(http.get).toHaveBeenCalledTimes(9);
+  });
+  it('resolves modern Google redirects across snapshot pages without fetching publisher destinations',async()=>{
+    const links=Array.from({length:5},(_,i)=>`https://news.google.com/rss/articles/opaque${i}`);
+    const xml=`<rss><channel>${links.map((link,i)=>`<item><guid>${i}</guid><link>${link}</link><title>Result</title></item>`).join('')}</channel></rss>`;
+    const http:FeedHttpPort={get:vi.fn(async url=>({status:url.includes('/rss/search')?200:302,headers:{location:links[0]},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
+    const execution={execute:vi.fn(async(_kind:string,input:Record<string,unknown>)=>({results:(input.urls as string[]).map(url=>({inputUrl:url,url:url===links[1]?'https://127.0.0.1/private':'https://publisher.example/article',requests:2})),latencyMs:2}))};
+    const result=await new FeedSourceProvider('google_rss',http,execution).fetch({...request,limit:2,source:{family:'google_news',locator:'AI'}});
+    expect(result.items.map(i=>i.url)).toEqual(['https://publisher.example/article',links[1],'https://publisher.example/article','https://publisher.example/article','https://publisher.example/article']);
+    expect(execution.execute).toHaveBeenCalledTimes(1);
+    expect(execution.execute).toHaveBeenCalledWith('google_resolve',{urls:links},{timeoutMs:65000});
+    expect(vi.mocked(http.get).mock.calls.every(([url])=>new URL(url).hostname==='news.google.com')).toBe(true);
+    expect(result.items.every(i=>i.representation==='LISTING_RESULT'&&i.contentCompleteness==='UNKNOWN')).toBe(true);
+    expect(result.requests).toBe(12);
+  });
+  it('uses the authorized private Google feed route after transient transport failure and preserves the exact query',async()=>{
+    const http:FeedHttpPort={get:vi.fn(async()=>({status:0,headers:{},bytes:new Uint8Array(),telemetry:{requests:3,latencyMs:10,providerCostUsd:0}}))};
+    const execution={execute:vi.fn(async()=>({status:200,xml:'<rss><channel><item><guid>google-id</guid><title>Result</title></item></channel></rss>',requests:1,latencyMs:5}))};
+    const result=await new FeedSourceProvider('google_rss',http,execution).fetch({...request,source:{family:'google_news',locator:'Lebanon electricity',language:'en',region:'US'}});
+    expect(http.get).toHaveBeenCalledWith(expect.stringContaining('news.google.com/rss/search'),expect.anything(),{attempts:1,timeoutMs:5000});
+    expect(execution.execute).toHaveBeenCalledWith('google_feed',{url:vi.mocked(http.get).mock.calls[0][0]},{timeoutMs:25000});
+    expect(result.items).toMatchObject([{sourceItemKey:'id:google-id',representation:'LISTING_RESULT'}]);expect(result.requests).toBe(4);
+  });
+  it.each([429,451,403])('does not route around Google rate, policy or authorization refusal (%s)',async status=>{
+    const http:FeedHttpPort={get:async()=>({status,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}})};
+    const execute=vi.fn();await expect(new FeedSourceProvider('google_rss',http,{execute}).fetch({...request,source:{family:'google_news',locator:'AI'}})).rejects.toThrow();expect(execute).not.toHaveBeenCalled();
+  });
   it('Telethon preserves numeric peer identity and proves oldest-first progress',async()=>{
     const execute=vi.fn(async()=>({channelId:'-100123',records:[{id:2,text:'Text',publishedAt:time}],orderedFromCheckpoint:true,exhausted:false}));
     const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute});
     const result=await p.fetch({...request,source:{family:'telegram',locator:'NASAchannel',channelId:'-100123',public:true},requestedBounds:{startCursor:'1'}});
     expect(result.items[0]).toMatchObject({sourceItemKey:'telegram:-100123:2',authoritativeCurrentState:true});expect(result.provenSafeCursor).toBe('2');expect(result.continuationToken).toBe('2');
+  });
+  it('recent Telegram bootstrap advances accepted progress without claiming complete historical recall',async()=>{
+    const execute=vi.fn(async()=>({channelId:'-100123',records:[{id:900,text:'Recent',publishedAt:time},{id:901,text:'Latest',publishedAt:time}],bootstrapRecent:true,orderedFromCheckpoint:true,exhausted:true,deletionState:'CURRENT'}));
+    const result=await new TelegramSourceProvider('telegram_telethon',feed(''),{execute}).fetch({...request,source:{family:'telegram',locator:'channel',channelId:'-100123'}});
+    expect(result.provenSafeCursor).toBe('901');expect(result.continuationToken).toBeUndefined();expect(result.complete).toBe(false);
   });
   it('private Telegram never falls through to public-page access',async()=>{
     const http=feed('');await expect(new TelegramSourceProvider('telegram_public',http).fetch({...request,source:{family:'telegram',locator:'private',channelId:'-100123',public:false}})).rejects.toThrow('UNAVAILABLE');expect(http.get).not.toHaveBeenCalled();
@@ -166,11 +348,44 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute:async()=>({channelId:'-100123',records:[],exhausted:true,orderedFromCheckpoint:true})});
     const result=await p.fetch({...request,source:{family:'telegram',locator:'private',channelId:'-100123'},recheckItemKeys:['telegram:-100123:3']});expect(result.items).toEqual([]);expect(result.provenSafeCursor).toBeUndefined();
   });
+  it('Telethon recheck keeps edit provenance and cannot advance the new-message cursor',async()=>{
+    const edited='2026-10-05T08:00:00.000Z';
+    const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute:async()=>({channelId:'-100123',records:[{id:3,text:'Corrected post',publishedAt:time,editedAt:edited}],orderedFromCheckpoint:false,exhausted:false})});
+    const result=await p.fetch({...request,source:{family:'telegram',locator:'channel',channelId:'-100123'},recheckItemKeys:['telegram:-100123:3']});
+    expect(result.items[0]).toMatchObject({sourceItemKey:'telegram:-100123:3',sourceRevision:{value:edited,comparability:'COMPARABLE'}});
+    expect(result.provenSafeCursor).toBeUndefined();
+  });
+  it('keeps Telegram deletions separate from the new-message cursor and exposes difference gaps as partial',async()=>{
+    const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute:async()=>({channelId:'-100123',records:[{id:20,text:'New',publishedAt:time},{id:3,deleted:true,explicitDeletion:true},{id:4,text:'Old edited post',publishedAt:time,editedAt:time,rechecked:true}],orderedFromCheckpoint:true,exhausted:true,deletionState:'GAP'})});
+    const result=await p.fetch({...request,source:{family:'telegram',locator:'channel',channelId:'-100123'}});
+    expect(result.provenSafeCursor).toBe('20');expect(result.complete).toBe(false);
+    expect(result.items[1]).toMatchObject({sourceItemKey:'telegram:-100123:3',operation:'DELETE',authoritativeCurrentState:true});
+  });
+  it.each(['linkedin_company','linkedin_profile'] as const)('passes a supported lower date bound to %s actor collection',async family=>{
+    const http={request:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{data:{id:'run'}}}))};
+    const p=new ApifySourceProvider('linkedin_apify',[family],http,async()=> 'private-token',0.1);
+    await p.fetch({...request,source:{family,locator:'https://www.linkedin.com/company/example'},requestedBounds:{startTime:time}},run);
+    expect(JSON.parse((http.request.mock.calls[0] as any[])[5].body)).toMatchObject({postedLimitDate:time,maxPosts:2,scrapeComments:false,scrapeReactions:false});
+  });
   it('TwitterAPI.io sends profile+topic+time restrictions to search and keeps returned dates for intake validation',async()=>{
     const http={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{tweets:[{id:'1',text:'AI',createdAt:time}],has_next_page:false}}))};
     const p=new TwitterApiIoProvider(http,async()=> 'private-key',0.01);
     const result=await p.fetch({...request,requestedBounds:{startTime:time,endTime:'2026-10-05T10:00:00.000Z'}},run);
     const url=new URL(http.request.mock.calls[0][4]);expect(url.searchParams.get('query')).toContain('from:NASA since_time:');expect(result.items[0].sourceItemKey).toBe('x:1');
+  });
+  it('accepts TwitterAPI.io posts inside the data envelope without losing pagination',async()=>{
+    const json={status:'success',data:{tweets:[{id:'2',text:'NASA update',createdAt:time,author:{userName:'NASA'}}]},has_next_page:true,next_cursor:'next-page'};
+    const http={request:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(JSON.stringify(json)),json}))};
+    const p=new TwitterApiIoProvider(http,async()=> 'private-key',0.01);
+    const result=await p.fetch(request,run);
+    expect(result.items).toMatchObject([{sourceItemKey:'x:2',publisherId:'NASA',body:'NASA update'}]);
+    expect(result.continuationToken).toBe('next-page');
+  });
+  it('uses a stable X author ID when supplied and strips known tracking from article URLs',()=>{
+    const x=normalizeProviderRecords([{id:'22',text:'Update',author:{id:'1234',userName:'newHandle'}}],'x_profile');
+    expect(x[0]).toMatchObject({sourceItemKey:'x:22',publisherId:'x:1234'});
+    const article=normalizeProviderRecords([{id:'article-1',text:'Body',url:'https://example.com/story?utm_source=feed&edition=us#section'}],'google_news');
+    expect(article[0].url).toBe('https://example.com/story?edition=us');
   });
   it('Apify starts once and resumes the same running actor via continuation',async()=>{
     const response=(json:unknown)=>({status:200,headers:{},bytes:encoder.encode(JSON.stringify(json)),json});
@@ -179,6 +394,14 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const first=await p.fetch(request,run);expect(first.continuationToken).toBeDefined();
     await p.fetch({...request,continuation:{providerId:'x_apify',token:first.continuationToken!}},{...run,id:'next-run',sequence:2});
     expect(http.request.mock.calls.filter(c=>String(c[4]).includes('/actors/'))).toHaveLength(1);
+  });
+  it('sends the exact approved X search in the tested actor query field with a bounded result count',async()=>{
+    const http={request:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{data:{id:'actorRun'}}}))};
+    const p=new ApifySourceProvider('x_apify',['x_search'],http,async()=> 'private-token',0.1);
+    await p.fetch({...request,source:{family:'x_search',locator:'from:NASA lang:en'},limit:20},run);
+    const call=http.request.mock.calls[0] as unknown as any[];
+    expect(JSON.parse(call[5].body)).toEqual({twitterContent:'from:NASA lang:en',maxItems:20,queryType:'Latest'});
+    expect(new URL(call[4]).searchParams.get('maxTotalChargeUsd')).toBe('0.1');
   });
   it.each(['linkedin_company','linkedin_profile'] as const)('normalizes %s without inventing publication timestamps',family=>{
     const result=normalizeProviderRecords([{urn:'urn:li:activity:1',text:'Text',url:'https://www.linkedin.com/posts/example'}],family);

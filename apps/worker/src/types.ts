@@ -59,14 +59,23 @@ export interface ProcessingJobRecord {
 }
 
 export interface Env extends Cloudflare.Env {
+  MAIL_TRANSPORT?: "CLOUDFLARE" | "OUTLOOK_GRAPH";
+  OUTLOOK_CLIENT_ID?: string;
+  OUTLOOK_REFRESH_TOKEN?: string;
+  OUTLOOK_TOKEN_ENCRYPTION_KEY?: string;
   PRODUCT_FEEDS_ENABLED?: string;
   SOURCE_RECOMMENDATIONS_ENABLED?: string;
   SOURCE_CONNECTORS_ENABLED?: string;
+  SOURCE_POLL_MAX_JOBS_PER_TICK?: string;
+  SOURCE_POLL_TICK_BUDGET_MS?: string;
   STAGING_ASSETS_PREFIX?: string;
   SOURCE_LEGACY_POLLING_ENABLED?: string;
   SOURCE_OPERATION_CEILINGS_JSON?: string;
+  SOURCE_PROVIDER_BUDGETS_JSON?: string;
   SOURCE_EXECUTION_URL?: string;
   SOURCE_EXECUTION_TOKEN?: string;
+  SOURCE_GOOGLE_RESOLUTION_ENABLED?: string;
+  SOURCE_QA_MAINTENANCE_TOKEN?: string;
   SOURCE_EXECUTION_SERVICE?: Fetcher;
   TWITTERAPI_IO_API_KEY?: string;
   ZYTE_API_KEY?: string;
@@ -304,6 +313,7 @@ export interface Repository {
   deleteSource(sourceId: string): Promise<void>;
   upsertConfiguredSource(input: {
     briefingId: string;
+    identityKey?: string;
     title: string;
     type?: SourceType;
     provider: SourceProvider;
@@ -406,5 +416,8 @@ export interface Repository {
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string, now?: Date): Promise<void>;
   listExpiredRawPayloadKeys(now?: Date): Promise<string[]>;
+  queueArchiveDeletion(key: string, now?: Date): Promise<void>;
+  listPendingArchiveDeletions(now?: Date): Promise<string[]>;
+  completeArchiveDeletion(key: string): Promise<void>;
   deleteExpired(now?: Date): Promise<number>;
 }

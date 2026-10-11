@@ -20,3 +20,9 @@ test('executes authorized structured requests and sanitizes failures',async t=>{
   assert.deepEqual(await (await call({})).json(),{body:'article'});
   const failure=await call({fail:true});assert.equal(failure.status,502);assert.equal(await failure.text(),'{"error":"EXECUTION_FAILED"}');
 });
+test('passes only an authenticated Telegram username to private resolution',async t=>{
+  const url=await server(t,async(kind,input)=>{assert.equal(kind,'telegram_resolve');assert.deepEqual(input,{username:'examplechannel'});return {channelId:'-1001234567890',username:'examplechannel'};});
+  const response=await fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'telegram_resolve',input:{username:'examplechannel'}})});
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{channelId:'-1001234567890',username:'examplechannel'});
+});

@@ -1,10 +1,34 @@
 # Source providers and fallbacks
 
-This opt-in connector slice extends the RSS implementation on
-`codex/rss-source-integration`. It uses the shared contracts and intake port from
-Appendix C of `ARCHITECTURE_v1.md`. Benchmark reports remain separate from production
-connector code. This does not switch production polling, deploy services, push changes,
-or modify the downstream owner's branch.
+This opt-in connector implementation extends the original RSS slice. It uses the
+shared contracts and intake port from Appendix C of `ARCHITECTURE_v1.md`. Benchmark
+reports remain separate from production connector code. The dated rollout report
+records isolated QA deployment; production polling remains gated.
+
+## Worker integration status (2026-10-10)
+
+The merged backend and frontend are now deployed to the **isolated sources QA Worker**.
+See `QA_VERIFICATION_ROLLOUT_2026_10_10.md` for measured results and remaining blockers.
+Production and shared staging were not deployed by this follow-up. Website and non-RSS
+product-path integration are available behind QA opt-in flags; historical fixture
+results below must not be read as proof of production rollout or complete recall.
+
+This branch's Worker code has an opt-in connector scheduler for approved RSS, Google News,
+Telegram, X profile/topic, and LinkedIn company/profile source records. Source identity,
+stored input and the tested actor ID for Apify-backed sources must match before dispatch. RSS
+and Google News poll in five-minute windows, Telegram in five-minute windows, X in
+hourly windows, and LinkedIn in six-hour windows. Each window has a stable run ID, so
+repeated cron ticks replay rather than create a new provider operation. These are
+polling intervals, not claims of complete historical coverage.
+
+Paid dispatch requires both `SOURCE_OPERATION_CEILINGS_JSON` (per-operation ceiling)
+and `SOURCE_PROVIDER_BUDGETS_JSON` (cumulative D1 reservation limit per provider ID).
+The latter accepts only `x_twitterapi_io`, `x_apify`, `google_apify`,
+`linkedin_apify`, and `zyte`; missing values default to zero. Staging keeps all
+ceilings and budgets at zero. Changing these settings alone does not approve a source:
+the feed/source approval and runtime allowlist still apply. No live provider test or
+deployment is established by local fixture tests alone. Live isolated QA evidence is
+recorded separately in the dated rollout report. Production integration remains gated.
 
 ## Default provider order
 
@@ -85,6 +109,12 @@ must be aggregated once per handoff/run rather than once per retry invocation.
 - Known failed attempts are remembered; replay does not reissue them under the same run.
 
 `D1ProviderPollScheduler` persists jobs, leases, snapshot offsets and provider continuations.
+An existing poll window keeps its original provider order when funding changes. Its
+immutable initial hash is validated independently of the mutable retry/continuation
+request. Newly funded fallbacks become available in a new window; changing funding
+does not create a second paid identity for an existing window. Telegram freezes one
+bounded daily edit-recheck range, so newly accepted messages cannot change that day's
+durable request. Missing messages are not deletion evidence.
 It rechecks source authorization and migration state before executing. It bounds failures
 to eight attempts per page and collection continuation to 100 pages by default. Long
 Retry-After / Telethon flood waits are persisted and honored. Apify running actors are
@@ -93,13 +123,25 @@ operator reconciliation; automatic resubmission could double-charge.
 
 ## Backend bindings
 
+Isolated QA enables `SOURCE_GOOGLE_RESOLUTION_ENABLED`. Its private runtime accepts
+`google_resolve` for fixed Google article URLs and `google_feed` for the exact approved
+Google News RSS query. A transient initial RSS failure (network or HTTP 5xx) may use
+the VPS feed fetch; rate limits and access/policy refusals remain authoritative.
+Publisher resolution is bounded to two links per snapshot and never upgrades a
+listing into full article evidence. The signature/time + RPC protocol is best effort
+and undocumented by Google; its public implementation reference is
+[Huksley's resolver](https://gist.github.com/huksley/bc3cb046157a99cd9d1517b32f91a99e).
+The flag defaults off outside this QA configuration. Roll out the Node server, VPC
+proxy and Python script together because their runtime-kind allowlists must match.
+
 `apps/worker/src/source-backend.ts` now provides `createSourceBackend(env, options)`
 to compose the provider factory with actual Worker D1/R2 bindings, scoped public HTTP,
 provider secrets and the private runtime HTTP client. Pass the downstream-owned durable
 `intake` and an `authorize(request)` callback checking persisted approval/configuration
 and disabled legacy polling. The returned `collect`, `scheduler`, `payloads` and `paidHttp`
-support all registered source families. This module is not yet mounted in the production
-Worker entry point. Keep `global_fetch_strictly_public` in the deployment configuration.
+support all registered source families. The Worker entry point composes it behind
+opt-in source flags; this follow-up enables the isolated QA path only. Keep
+`global_fetch_strictly_public` in the deployment configuration.
 
 Environment bindings: `TWITTERAPI_IO_API_KEY`, `APIFY_API_TOKEN`, `ZYTE_API_KEY`,
 `SOURCE_EXECUTION_URL`, `SOURCE_EXECUTION_TOKEN`, and `SOURCE_OPERATION_CEILINGS_JSON`.
@@ -118,13 +160,25 @@ and use that HTTPS URL and the same dedicated token on the Worker. The service l
 concurrent executions, request/output sizes, and subprocess duration; errors omit
 third-party exception strings. Host egress controls remain required for browser use.
 
-New-account setup is pending Wrangler authentication and selection of resources in
-that account. The checked-in production Wrangler config still names existing lownoise
-resources and must not be deployed into the new account unchanged. No remote resource,
-migration, scheduled source, credential, or paid call was created by these code changes.
+As of October 9, Wrangler authentication to the new project account and the active
+VPS runtime, tunnel and egress services have been verified. Isolated QA resources and
+bounded live results are documented in `SOURCES_QA_LIVE_2026_10_09.md`; QA sources are
+disabled and paid limits are zero. The production Wrangler config still references
+legacy resources and must not be deployed into the new account unchanged.
 
-No Worker entry point, queue consumer, HTTP intake endpoint, deployment binding or
-production migration was added. Integration uses existing shared ports:
+The October 10 follow-up in `X_QA_VERIFICATION_2026_10_10.md` additionally verifies
+bounded live X profile and topic-query collection through TwitterAPI.io and Apify,
+accepted intake records, duplicate suppression and replay without added paid query
+operations. It does not establish exhaustive recall, automatic X fallback selection,
+fresh X publication or sustained polling capacity. QA test sources are paused after
+verification and the checked-in configuration keeps paid limits and cron disabled.
+
+The current Worker invokes `runConnectorMaintenance` from scheduled execution and
+uses the real durable intake adapter. Connector enrollment remains gated by enabled
+source IDs, downstream feed mappings, collection ownership, configured resources and
+paid ceilings. The owner-only `/api/me/sources/:sourceId/connector-health` endpoint
+reports retained connector health. Production rollout remains separate from isolated
+QA. The underlying integration uses these shared ports:
 
 ```ts
 import {
@@ -171,9 +225,10 @@ pricing. No local guard can guarantee billing below an incorrectly configured ce
 
 `scripts/source-execution.mjs` supplies a local `SourceExecutionPort` implementation;
 `scripts/source-execution.py` performs bounded Python operations. This is an executable
-backend binding, not a new public API server. A Worker-to-private-runtime transport and
-its authentication/deployment must be connected through the existing trusted service
-boundary with the deployment owner before a production switch.
+backend binding. `source-execution-server.mjs` exposes the authenticated private runtime,
+and `createSourceBackend` connects the Worker to it through the configured trusted
+service boundary. Update the server and both helpers together before switching a
+production source; an older runtime cannot serve newer operations such as telegram_resolve.
 
 Install the separate production runtime requirements into a private VPS virtualenv:
 
@@ -206,6 +261,13 @@ stable peer identity. Rechecks retrieve specified message IDs; empty responses d
 assert deletion. Other Apify rechecks are explicitly unavailable until an authoritative
 source-specific adapter is implemented.
 
+The October 10 follow-up journals explicit channel edit/delete events and channel PTS
+in a separate owner-only SQLite file beside the VPS session. Normal polls replay bounded
+current-state rechecks of those retained event IDs, including older posts, while keeping
+the new-message cursor separate. Update-history gaps remain partial coverage rather
+than invented deletions. See `SOURCE_GAPS_IMPLEMENTATION_2026_10_10.md` for recovery,
+local tests, live session checks and remaining controlled-source verification.
+
 Playwright requires the existing verified host egress firewall (including browser child
 processes) before setting the confirmation flag. The runtime also checks public DNS for
 requests, blocks service workers and unnecessary media, and does not disable Chromium's
@@ -215,7 +277,11 @@ when execution fails or times out. Windows child-process cleanup is not a certif
 deployment route. Extraction uses Trafilatura; the Readability benchmark comparison remains
 separate and is not added as an automatic voting stage.
 
-## Validation and remaining integration
+## Historical validation and remaining rollout
+
+The counts and implementation-slice statements below describe the original October 4
+work. They are not the current branch status. See the October 9 live QA and connector
+follow-up documents for current integration evidence and outstanding live validation.
 
 Recovery fixes verified on 2026-10-04: Apify actor creation now returns a bounded empty
 page containing its actor-run continuation. The collector persists and hands off that

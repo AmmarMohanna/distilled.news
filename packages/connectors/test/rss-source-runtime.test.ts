@@ -65,7 +65,7 @@ describe('durable RSS source handoff (SQLite SQL and filesystem payload surrogat
     s.intake.acceptBatch=async batch=>{
       expect(await s.repository.loadBatch(scope,batch.handoffId)).toBeDefined();
       const payload=JSON.parse(new TextDecoder().decode(await s.payloads.get(scope,batch.proposals[0].suppliedPayloadRef!)));
-      expect(payload.body).toBe('Body');
+      expect(payload).toMatchObject({body:'Title one. Body',sourceTitle:'Feed',excerpt:'Body',firstSeenAt:timestamp});
       expect(batch.observations[0]).toMatchObject({upstreamId:'one',publisherId:'publisher.example',representation:'ARTICLE_EXCERPT',authoritativeCurrentState:false});
       expect(batch.proposals[0].payloadHash).not.toBe(batch.observations[0].contentHash);
       return {contractVersion:batch.contractVersion,handoffId:batch.handoffId,durable:true as const,receipts:batch.observations.map(receiptFixture)};
@@ -230,6 +230,11 @@ describe('RSS normalization and bounded HTTP',()=>{
   it('normalizes CDATA HTML and encoded markup without losing text',()=>{
     const result=normalizeRssSnapshot(xml('<item><guid>one</guid><title>A &amp; B</title><description><![CDATA[<p>Useful &amp; correct</p>]]></description></item><item><guid>two</guid><description>&lt;p&gt;Encoded body&lt;/p&gt;</description></item>'),input.url);
     expect(result[0].title).toBe('A & B'); expect(result[0].body).toBe('Useful & correct'); expect(result[1].body).toBe('Encoded body');
+  });
+  it('keeps headline, publisher, author and excerpt separate while normalizing tracking URLs',()=>{
+    const result=normalizeRssSnapshot(xml('<item><guid>item</guid><title>Agency announces launch</title><description>The next mission begins today.</description><author>Science Desk</author><link>https://publisher.example/story?utm_source=rss&amp;edition=global#comments</link><pubDate>Sun, 04 Oct 2026 07:00:00 GMT</pubDate></item>'),input.url);
+    expect(result[0]).toMatchObject({title:'Agency announces launch',sourceTitle:'Feed',excerpt:'The next mission begins today.',
+      author:'Science Desk',url:'https://publisher.example/story?edition=global'});
   });
   it('bounded retry respects Retry-After without exceeding wait budget',async()=>{
     const dispatch=vi.fn(async()=>new Response('',{status:429,headers:{'retry-after':'120'}})),sleep=vi.fn();

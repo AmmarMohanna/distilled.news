@@ -1,5 +1,6 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import type { SourceRevision } from '@distilled/contracts';
+import {articleUrl} from './provider-normalize';
 
 export interface RssItem {
   key: string;
@@ -7,6 +8,10 @@ export interface RssItem {
   url?: string;
   publisherId?: string;
   title?: string;
+  sourceTitle?: string;
+  excerpt?: string;
+  author?: string;
+  updatedAt?: string;
   body: string;
   publishedAt?: string;
   language?: string;
@@ -20,6 +25,14 @@ const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@'
 const array = (v: unknown): any[] => v === undefined ? [] : Array.isArray(v) ? v : [v];
 const entityParser=new XMLParser({parseTagValue:false,trimValues:false,processEntities:true,htmlEntities:true});
 const decodeEntities=(value:string):string=>text(entityParser.parse(`<value>${value.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</value>`).value);
+/** A feed headline may contain the only concrete development. Keep it in the
+ * evidence text while retaining the original excerpt separately. */
+export function rssEvidenceText(title?:string,excerpt?:string):string {
+  const headline=title?.trim()??'',body=excerpt?.trim()??'';
+  if(!headline)return body;
+  if(!body)return headline;
+  return body.toLocaleLowerCase().startsWith(headline.toLocaleLowerCase())?body:`${headline}. ${body}`;
+}
 const text = (v: any): string => typeof v === 'string' ? v : typeof v === 'number' ? String(v) :
   Array.isArray(v) ? v.map(text).join(' ') : v && typeof v === 'object' ? Object.entries(v).filter(([k])=>!k.startsWith('@')).map(([,value])=>text(value)).join(' ') : '';
 function plain(v: any): string {
@@ -28,7 +41,7 @@ function plain(v: any): string {
 }
 function httpUrl(value: string, base: string): string | undefined {
   if (!value.trim()) return undefined;
-  try { const u = new URL(value.trim(), base); return ['http:', 'https:'].includes(u.protocol) && !u.username && !u.password ? u.href : undefined; }
+  try { const u = new URL(value.trim(), base); return articleUrl(u.href); }
   catch { return undefined; }
 }
 function date(value: any): string | undefined {
@@ -45,6 +58,7 @@ export function normalizeRssSnapshot(xml: string, sourceUrl: string): RssItem[] 
   const root = doc.feed ?? doc.rss?.channel ?? doc['rdf:RDF'];
   if (!root) throw new Error('INVALID_FEED');
   const language = plain(root.language || root['@xml:lang']) || undefined;
+  const sourceTitle = plain(root.title) || undefined;
   const base = httpUrl(text(root['@xml:base']), sourceUrl) ?? sourceUrl;
   const rows = array(atom ? root.entry : root.item);
   const seen = new Map<string,RssItem>();
@@ -56,15 +70,17 @@ export function normalizeRssSnapshot(xml: string, sourceUrl: string): RssItem[] 
     const upstreamId = text(atom ? r.id : r.guid).trim() || undefined;
     // Missing identity receives a snapshot-local key solely so intake can reject/quarantine it.
     const key = upstreamId ? `id:${upstreamId}` : url ? `url:${url}` : `invalid-row:${index}`;
-    const updated = atom ? date(r.updated) : undefined;
+    const updated = date(atom ? r.updated : r['dc:modified']);
     const publisherUrl=httpUrl(text(r.source?.['@url']),base);
+    const excerpt=plain(r['content:encoded'] ?? r.content ?? r.description ?? r.summary);
     const normalized:RssItem = { key, upstreamId, url, publisherId: publisherUrl ? new URL(publisherUrl).hostname : url ? new URL(url).hostname : undefined,
-      title: plain(r.title) || undefined,
-      body: plain(r['content:encoded'] ?? r.content ?? r.description ?? r.summary),
+      title: plain(r.title) || undefined,sourceTitle:plain(r.source) || sourceTitle,
+      excerpt,author:plain(r.author?.name ?? r.author ?? r['dc:creator']) || undefined,
+      updatedAt:date(r.updated ?? r['dc:modified']),body:excerpt,
       publishedAt: date(atom ? r.published : r.pubDate ?? r['dc:date']),
       language: plain(r['@xml:lang']) || language,
       // Atom updated is retained as opaque metadata; it is not assumed a reliable comparator.
-      sourceRevision: updated ? { scheme: 'atom_updated', value: updated, comparability: 'OPAQUE' as const, authority: 'ORIGIN' as const } : undefined,
+      sourceRevision: updated ? { scheme: atom?'atom_updated':'rss_modified', value: updated, comparability: 'OPAQUE' as const, authority: 'ORIGIN' as const } : undefined,
       identityValid: !!(upstreamId || url) };
     const previous=seen.get(key);
     if (previous) {

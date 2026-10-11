@@ -23,6 +23,7 @@ it('salience contention cannot exhaust request retries while one judgment is in 
  }finally{finish(undefined);await pending}
 },15000);
 it('cron dispatches only approved bounded feed windows; duplicate briefing delivery returns one persisted edition',async()=>{
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS=['feed-source-1',...Array.from({length:11},(_,i)=>`unapproved-${i}`)].join(',');
  const now=new Date('2026-10-03T13:00:00Z');expect(await dispatchV1Intelligence(env,now)).toBe(1);
  const message=sent[0];expect(message.type).toBe('v1_briefing');
  if(message.type!=='v1_briefing') throw Error('wrong queue type');

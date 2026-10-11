@@ -12,6 +12,8 @@ export interface RssCheckpoint {
   sequence: number;
   etag?: string;
   lastModified?: string;
+  /** Exact previous completed HTTP 200 snapshot; only identical bytes can be skipped. */
+  snapshotHash?: string;
   configurationKey: string;
 }
 export interface StoredRssBatch {
@@ -30,6 +32,8 @@ export interface SourceRepository {
   loadRun(scope: SourceScope, runId: string): Promise<FetchRun | undefined>;
   claimFetch(scope: SourceScope, runId: string): Promise<boolean>;
   checkpoint(scope: SourceScope): Promise<RssCheckpoint | undefined>;
+  knownItemHash(scope: SourceScope, key: string, revision: number): Promise<string | undefined>;
+  rememberResolvedItem(scope: SourceScope, key: string, revision: number, fingerprint: string, sequence: number): Promise<void>;
   saveBatch(batch: StoredRssBatch): Promise<void>;
   loadBatch(scope: SourceScope, handoffId: string): Promise<StoredRssBatch | undefined>;
   recordReceipts(batch: StoredRssBatch, response: ConnectorHandoffResponse): Promise<void>;
@@ -60,5 +64,5 @@ export interface FeedResponse {
   telemetry: FetchTelemetry;
 }
 export interface FeedHttpPort {
-  get(url: string, headers: Record<string, string>): Promise<FeedResponse>;
+  get(url: string, headers: Record<string, string>, bounds?: {attempts?:number;timeoutMs?:number}): Promise<FeedResponse>;
 }

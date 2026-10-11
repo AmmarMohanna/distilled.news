@@ -2,7 +2,8 @@ import {hashContent,HandoffError,type SourceObservation} from '@distilled/contra
 import {R2SourcePayloadStore} from '@distilled/connectors';
 import {z} from 'zod';
 
-const payloadSchema=z.object({body:z.string().max(512000),title:z.string().optional(),canonicalUrl:z.string().optional(),publishedAt:z.string().optional(),language:z.string().optional(),representation:z.string(),contentCompleteness:z.string(),publisherId:z.string().optional()}).strict();
+const payloadSchema=z.object({body:z.string().max(512000),title:z.string().optional(),canonicalUrl:z.string().optional(),publishedAt:z.string().optional(),language:z.string().optional(),representation:z.string(),contentCompleteness:z.string(),publisherId:z.string().optional(),
+ sourceTitle:z.string().optional(),excerpt:z.string().optional(),author:z.string().optional(),updatedAt:z.string().optional(),firstSeenAt:z.string().optional()}).strict();
 /** Connector content-addressed references are scoped capabilities, verified at every read. */
 export async function readConnectorPayload(bucket:R2Bucket,o:SourceObservation) {
  if(!o.suppliedPayloadRef?.startsWith('source-payloads/'))return undefined;

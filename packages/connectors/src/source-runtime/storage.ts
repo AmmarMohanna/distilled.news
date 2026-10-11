@@ -29,6 +29,10 @@ export interface ObjectBucket {
 
 /** Schema proposal, not an installed/numbered worker migration. Coordinate migration ownership. */
 export const SOURCE_STORAGE_SCHEMA = `
+CREATE TABLE IF NOT EXISTS connector_item_fingerprints (
+ feed_id TEXT NOT NULL, feed_source_id TEXT NOT NULL, source_id TEXT NOT NULL, source_item_key TEXT NOT NULL,
+ configuration_revision INTEGER NOT NULL, fingerprint TEXT NOT NULL, fetch_sequence INTEGER NOT NULL,
+ PRIMARY KEY(feed_id,feed_source_id,source_item_key));
 CREATE TABLE IF NOT EXISTS connector_source_sequences (
  feed_id TEXT NOT NULL, feed_source_id TEXT NOT NULL, sequence INTEGER NOT NULL DEFAULT 0,
  PRIMARY KEY(feed_id, feed_source_id));
@@ -53,6 +57,19 @@ function canonical(value: unknown): string {
 
 export class D1SourceRepository implements SourceRepository {
   constructor(private readonly db: SqlDatabase) {}
+  async knownItemHash(scope:SourceScope,key:string,revision:number):Promise<string|undefined> {
+    const row=await this.db.prepare('SELECT source_id,configuration_revision,fingerprint FROM connector_item_fingerprints WHERE feed_id=? AND feed_source_id=? AND source_item_key=?')
+      .bind(scope.feedId,scope.feedSourceId,key).first<{source_id:string;configuration_revision:number;fingerprint:string}>();
+    return row?.source_id===scope.sourceId&&row.configuration_revision===revision?row.fingerprint:undefined;
+  }
+  async rememberResolvedItem(scope:SourceScope,key:string,revision:number,fingerprint:string,sequence:number):Promise<void> {
+    await this.db.prepare(`INSERT INTO connector_item_fingerprints(feed_id,feed_source_id,source_id,source_item_key,configuration_revision,fingerprint,fetch_sequence)
+      VALUES(?,?,?,?,?,?,?) ON CONFLICT(feed_id,feed_source_id,source_item_key) DO UPDATE SET
+      source_id=excluded.source_id,configuration_revision=excluded.configuration_revision,
+      fingerprint=excluded.fingerprint,fetch_sequence=excluded.fetch_sequence
+      WHERE excluded.fetch_sequence>=connector_item_fingerprints.fetch_sequence`)
+      .bind(scope.feedId,scope.feedSourceId,scope.sourceId,key,revision,fingerprint,sequence).run();
+  }
   async loadRun(scope: SourceScope, id: string): Promise<FetchRun | undefined> {
     const row = await this.db.prepare('SELECT source_id, sequence, started_at, configuration_key FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=? AND run_id=?')
       .bind(scope.feedId, scope.feedSourceId, id).first<{source_id:string;sequence:number;started_at:string;configuration_key:string}>();

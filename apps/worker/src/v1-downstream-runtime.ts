@@ -14,7 +14,7 @@ import {readConnectorPayload} from './connector-payload';
 
 function enabledSources(env:Env):string[] {
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
- return env.V1_DOWNSTREAM_ENABLED==='true' && ids.length<=10?ids:[];
+ return env.V1_DOWNSTREAM_ENABLED==='true'?ids:[];
 }
 
 export function v1SourceEnabled(env:Env,id:string):boolean {

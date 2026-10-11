@@ -41,15 +41,15 @@ test("website language cycles en fr ar en without a menu", async ({ page }) => {
   await expect(page.locator(".language-menu")).toHaveCount(0);
 });
 
-test("feed visibility is selectable and the description label is not repeated", async ({ page }) => {
+test("feeds are public and expose no private visibility control", async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create feed', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('button', { name: 'Public', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await dialog.getByRole('button', { name: 'Private', exact: true }).click();
-  await expect(dialog.getByRole('button', { name: 'Private', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(dialog.getByText('Only you can read this feed.')).toBeVisible();
-  await expect(dialog.getByLabel('What would you like to follow?', { exact: true })).not.toHaveAttribute('placeholder');
+  await dialog.getByRole('button', { name: 'Preferences', exact: true }).click();
+  await expect(dialog.locator('.feed-preferences-disclosure')).toContainText('Public');
+  await expect(dialog.getByLabel('Visibility', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('option', { name: 'Private', exact: true })).toHaveCount(0);
+  await expect(dialog.getByLabel('What would you like to follow?', { exact: true })).toHaveCount(1);
 });
 
 test("change password expands and collapses the password fields", async ({ page }) => {
@@ -119,7 +119,7 @@ test("microphone denial keeps typed input and explains recovery", async ({ page 
 
 
 
-test("language changes keep navigation in place and translate topics", async ({ page }) => {
+test("language changes keep navigation in place and localize empty Explore", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/explore');
   const navigation = page.locator('.bottom-navigation');
@@ -130,15 +130,16 @@ test("language changes keep navigation in place and translate topics", async ({ 
   for (const language of ['fr', 'ar']) {
     await page.getByRole('button', { name: /^Website language:/ }).click();
     await expect(page.locator('html')).toHaveAttribute('lang', language);
-    await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+    await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
     const after = await navigation.boundingBox();
     expect(after!.x).toBeCloseTo(before!.x, 0);
     expect(after!.y).toBeCloseTo(before!.y, 0);
-    expect((await page.locator('.explore-search').boundingBox())!.x).toBeCloseTo(searchBefore!.x, 0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect((await page.locator('.explore-search').boundingBox())!.y).toBeCloseTo(searchBefore!.y, 0);
   }
-  await expect(page.locator('.topic-grid')).not.toContainText('Global Affairs');
-  await expect(page.locator('.category-chips')).not.toContainText('Science');
+  await expect(page.getByRole('heading', { name: 'استكشف', exact: true })).toBeVisible();
+  await expect(page.locator('.topic-card')).toHaveCount(0);
+  await expect(page.locator('.category-chips')).toHaveCount(0);
 });
 
 test("mobile search and create stay together across languages", async ({ page }) => {
@@ -148,17 +149,16 @@ test("mobile search and create stay together across languages", async ({ page })
   const create = page.locator('.home-add-feed');
   await expect(create).toBeVisible();
   await page.waitForTimeout(200); // Allow viewport fitting after the session response.
-  const original = await create.boundingBox();
   for (let i = 0; i < 3; i++) {
     const a = await search.boundingBox(), b = await create.boundingBox();
     expect(Math.abs(a!.y + a!.height / 2 - b!.y - b!.height / 2)).toBeLessThan(2);
-    expect(b!.x).toBeCloseTo(original!.x, 0);
-    expect(b!.y).toBeCloseTo(original!.y, 0);
+    expect(b!.x).toBeGreaterThanOrEqual(0);
+    expect(b!.x + b!.width).toBeLessThanOrEqual(390);
     await page.getByRole('button', { name: /^Website language:/ }).click();
     await page.waitForTimeout(200);
   }
   const homeFont = await page.locator('h1').evaluate(el => getComputedStyle(el).fontFamily);
-  await page.getByRole('navigation').getByRole('button', {name:'Explore'}).click();
+  await page.getByRole('navigation').getByRole('button', {name:'Explore', exact:true}).click();
   expect(await page.locator('h1').evaluate(el => getComputedStyle(el).fontFamily)).toBe(homeFont);
   await page.screenshot({ path: 'test-results/mobile-explore-updated.png' });
 });
@@ -177,7 +177,7 @@ test("install action invokes the browser installation prompt", async ({ page }) 
   await expect(page.getByRole('dialog', {name:'Install App (PWA)'}).getByRole('status')).toHaveText('Installation completed. Check your apps.');
 });
 
-test("notifications store a browser subscription and can be disabled", async ({ page }) => {
+test("disabled notifications do not request a browser subscription", async ({ page }) => {
   await page.addInitScript(() => {
     let subscription: any = null;
     const manager = {
@@ -197,8 +197,7 @@ test("notifications store a browser subscription and can be disabled", async ({ 
   await page.goto('/');
   await page.getByRole('navigation').getByRole('button', {name:'Settings'}).click();
   await page.getByRole('button', {name:'Notifications',exact:true}).click();
-  await expect(page.getByRole('status')).toHaveText('Notifications enabled for new briefings in your feeds.');
-  await page.getByRole('button', {name:'Notifications',exact:true}).click();
-  await expect(page.getByRole('status')).toHaveText('Notifications disabled on this device.');
-  expect(requests).toEqual(['GET','POST','DELETE']);
+  await expect(page.getByRole('status')).toHaveText('Notifications are not enabled on this deployment.');
+  await expect(page.getByRole('switch')).toHaveCount(0);
+  expect(requests).toEqual([]);
 });
