@@ -68,7 +68,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
   } catch(error) {
    if(error instanceof AcquisitionFailure) throw error;
    if(error instanceof PublicSourcePolicyError) throw new AcquisitionFailure('POLICY_DENIED',false);
-   if(error instanceof PublicSourceFetchFailure) throw new AcquisitionFailure(error.category==='BODY_BUDGET_EXCEEDED'?'BUDGET_EXHAUSTED':'NETWORK',error.category!=='BODY_BUDGET_EXCEEDED');
+   if(error instanceof PublicSourceFetchFailure) throw new AcquisitionFailure(error.category==='BODY_BUDGET_EXCEEDED'?'BODY_BUDGET_EXCEEDED':'NETWORK',error.category!=='BODY_BUDGET_EXCEEDED');
    throw new HandoffError('TEMPORARY_UNAVAILABLE');
   }
  };

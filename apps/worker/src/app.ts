@@ -1,4 +1,4 @@
-import {requestManualBriefing} from './manual-briefing';
+import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
 import {approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
@@ -38,7 +38,6 @@ import {
 import { Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
-import { createSummaryAdapterFromEnv } from "./ai";
 import { generateSketch, SketchError, sketchFingerprint, sketchKey } from "./sketches";
 import {
   accountAuth,
@@ -57,7 +56,6 @@ import {
   verifyPassword,
   verifySession
 } from "./auth";
-import { publishManualBriefingEdition } from "./editions";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./mailer";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
@@ -348,7 +346,7 @@ export function createApp(options: AppOptions = {}) {
     }
     if(input.action==="ACKNOWLEDGE")return c.json({ok:input.catchUpId?await store.acknowledge(owner.id,input.catchUpId,now):false});
     const feeds=await repo.listBriefings(owner.id);
-    if(input.action==="PUBLISH")for(const briefing of feeds.filter(feed=>!feed.paused))await publishManualBriefingEdition({repo,briefing,now,summaryAdapter:createSummaryAdapterFromEnv(c.env,repo)});
+    if(input.action==="PUBLISH")return c.json({error:"Manual publication is retired. Use the feed schedule."},410);
     return c.json({catchUp:publicCatchUp(await generateCatchUp(repo,store,owner.id,now)),feeds:await Promise.all(feeds.map(async feed=>{
       const items=(await repo.getExistingItems(feed.id,now)).filter(item=>item.development);
       const usage=await c.env.DB.prepare("SELECT phase,provider,model,outcome,count(*) AS calls,sum(input_tokens) AS inputTokens,sum(output_tokens) AS outputTokens,sum(reported_cost_usd) AS reportedCostUsd,sum(latency_ms) AS latencyMs FROM llm_usage_events WHERE briefing_id=? GROUP BY phase,provider,model,outcome").bind(feed.id).all();
@@ -963,7 +961,7 @@ export function createApp(options: AppOptions = {}) {
     const repo = c.get("repo");
     const briefing = await getOwnedBriefing(repo, c.get("account")!, c.req.query("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
-    return c.json({ health: {...await repo.getHealth(briefing.id),nextBriefingAt:readNextBriefingAt(briefing),scheduleAudit:c.env.V1_DOWNSTREAM_ENABLED==='true'?await readScheduleAudit(c.env.DB,briefing.id):undefined} });
+    return c.json({ health: {...await repo.getHealth(briefing.id),nextBriefingAt:readNextBriefingAt(briefing),scheduleAudit:c.env.V1_DOWNSTREAM_ENABLED==='true'?await readScheduleAudit(c.env.DB,briefing.id):undefined,queueAudit:c.env.V1_DOWNSTREAM_ENABLED==='true'?await readV1QueueAudit(c.env.DB,briefing.id):undefined} });
   });
 
   app.post("/api/me/processing/retry", async (c) => {
@@ -1121,48 +1119,9 @@ export function createApp(options: AppOptions = {}) {
     });
   });
 
-  app.post("/api/feed/:username/:briefingSlug/request-summary", async (c) => {
-    const resolved = await resolvePublicFeed(c);
-    if (resolved instanceof Response) return resolved;
-    const { repo, briefing } = resolved;
-    if (briefing.paused) return c.json({ error: "feed is paused" }, 409);
-    if(c.env.PRODUCT_FEEDS_ENABLED==='true'){
-      const claims=c.env.ADMIN_SESSION_SECRET?await verifySession(getCookie(c,SESSION_COOKIE),c.env.ADMIN_SESSION_SECRET):null;
-      const owner=claims?await repo.getAccountById(claims.sub):null;
-      if(!owner||owner.disabledAt||!owner.emailVerifiedAt)return c.json({error:'Sign in to request a briefing.'},401);
-      if(owner.id!==briefing.ownerAccountId)return c.json({error:'Only the feed owner can request a briefing.'},403);
-      const origin=c.req.header('origin');
-      if(origin&&origin!==new URL(c.req.url).origin&&origin!==c.env.PUBLIC_WEB_BASE_URL)return c.json({error:'Invalid request origin.'},403);
-      try{await assertRateLimit(repo,`manual:${briefing.id}:owner:${owner.id}`,'manual_summary',6,60*60*1000)}
-      catch(error){if(error instanceof Error&&error.message==='too many attempts')return c.json({error:'too many summary requests'},429);throw error;}
-      const request=await requestManualBriefing(c.env,briefing,nowFor());
-      return c.json({edition:null,requestId:request.id,state:request.state,message:request.state==='PENDING'?'Checking sources and preparing your briefing…':request.state==='FAILED'?'Source collection needs attention.':'This briefing request has already completed.'},202);
-    }
-
-    try {
-      await assertRateLimit(
-        repo,
-        await manualSummaryRateLimitKey(c, briefing.id),
-        "manual_summary",
-        6,
-        60 * 60 * 1000
-      );
-    } catch (error) {
-      if (!(error instanceof Error) || error.message !== "too many attempts") throw error;
-      return c.json({ error: "too many summary requests" }, 429);
-    }
-
-    const edition = await publishManualBriefingEdition({
-      repo,
-      briefing,
-      now: nowFor(),
-      summaryAdapter: createSummaryAdapterFromEnv(c.env, repo)
-    });
-    return c.json({
-      edition: edition ? publicEdition(edition, briefing, false) : null,
-      message: edition ? "new brief published" : "no new accepted updates"
-    });
-  });
+  // Retired in modern and legacy deployments; no collection/publication side effects.
+  app.post("/api/feed/:username/:briefingSlug/request-summary", (c) =>
+    c.json({error:"Manual briefing generation is retired. Briefings publish automatically on the feed schedule."},410));
 
   app.post("/api/feed/:username/:briefingSlug/star", async (c) => {
     const resolved = await resolvePublicFeed(c);
@@ -1390,16 +1349,6 @@ async function assertRateLimit(
     throw new Error("too many attempts");
   }
   await repo.recordAuthAttempt({ key, action });
-}
-
-async function manualSummaryRateLimitKey(
-  c: Context<{ Bindings: Env; Variables: Variables }>,
-  briefingId: string
-): Promise<string> {
-  const voterId = await getOrCreateVoterId(c);
-  if (voterId) return `summary:${briefingId}:voter:${voterId}`;
-  const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  return `summary:${briefingId}:ip:${ip}`;
 }
 
 async function verifyTurnstileIfConfigured(

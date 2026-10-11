@@ -68,7 +68,7 @@ describe('fallback policy and durable handoff',()=>{
     expect(await scheduler.runOne()).toBe('LEASE_LOST');
     expect(s.db.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='lost'").get()).toMatchObject({state:'PENDING'});
   });
-  it('prioritizes due manual pagination without bypassing due times or repeating completed jobs',async()=>{
+  it('prioritizes an explicitly preferred due job without bypassing due times or repeating completed jobs',async()=>{
     const s=setup([]),calls:string[]=[];let pages=0;
     const collect=vi.fn(async(r:SourceFetchRequest)=>{calls.push(r.runId);return {state:'HANDED_OFF',checkpoint:'UNCHANGED',...(r.runId==='manual'&&pages++===0?{nextOffset:20}:{})}});
     const scheduler=new D1ProviderPollScheduler(s.db,{collect} as any,async()=>true,()=>Date.parse(time));
@@ -468,4 +468,39 @@ describe('durable paid HTTP',()=>{
     const s=setup([]),http=new DurableProviderHttp(s.db,s.payloads,()=>new Promise(()=>{}),1000,5);await http.configureLimit('paid',1);
     await expect(http.request(scope,'op','paid',0.02,'https://api.twitterapi.io/twitter/tweets',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
   });
+});
+
+it('captured provider backfill slices do not exhaust the native pagination guard',async()=>{
+ const s=setup([provider('x_twitterapi_io',vi.fn(async()=>page(Array.from({length:200},(_,i)=>String(i)))))]);
+ const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(time),2);
+ await scheduler.schedule('captured', {...request,limit:10},time,['x_twitterapi_io']);
+ for(let i=0;i<19;i++)expect(await scheduler.runOne()).toBe('RETRY');
+ expect(await scheduler.runOne()).toBe('DONE');
+ expect(new Set(vi.mocked(s.intake.acceptBatch).mock.calls.flatMap(([b])=>b.observations.map(o=>o.sourceItemKey))).size).toBe(200);
+});
+
+it('initial provider lookback prioritizes recent captured work and retains older history and checkpoint proof',async()=>{
+ const captured=page(['old','current']);captured.items[0].publishedAt='2026-10-01T00:00:00Z';captured.items[1].publishedAt=time;captured.provenSafeCursor='safe';
+ const fetch=vi.fn(async()=>captured),s=setup([provider('x_twitterapi_io',fetch)]);
+ const collector=new FallbackSourceCollector(s.repository,s.payloads,s.intake,[provider('x_twitterapi_io',fetch)],()=>time,{x_profile:24});
+ const input={...request,limit:1};
+ const first=await collector.collect(input,['x_twitterapi_io']);
+ if(first.state!=='HANDED_OFF')throw new Error('expected initial handoff');
+ expect(first.request!.observations[0].sourceItemKey).toBe('x:current');expect(first.checkpoint).toBe('UNCHANGED');
+ const last=await collector.collect(input,['x_twitterapi_io'],1);
+ if(last.state!=='HANDED_OFF')throw new Error('expected retained history handoff');
+ expect(last.request!.observations[0].sourceItemKey).toBe('x:old');expect(last.checkpoint).toBe('ADVANCED');expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it('fresh source polls progress during backfill and periodic oldest-first turns recover history',async()=>{
+ let now=Date.parse('2026-10-04T10:01:00Z');const s=setup([]),seen:string[]=[];
+ const collect=vi.fn(async(r:SourceFetchRequest)=>{seen.push(r.runId);return {state:'HANDED_OFF',checkpoint:'UNCHANGED',...(r.runId==='backfill'?{nextOffset:2}:{})}});
+ const scheduler=new D1ProviderPollScheduler(s.db,{collect} as any,async()=>true,()=>now);
+ await scheduler.schedule('backfill',{...request,runId:'backfill'},new Date(now-60000).toISOString());
+ expect(await scheduler.runOne()).toBe('RETRY');
+ await scheduler.schedule('fresh',{...request,runId:'fresh'},new Date(now).toISOString());
+ expect(await scheduler.runOne()).toBe('DONE');expect(seen).toEqual(['backfill','fresh']);
+ now=Date.parse('2026-10-04T10:04:00Z');
+ await scheduler.schedule('fresh-next',{...request,runId:'fresh-next'},new Date(now).toISOString());
+ expect(await scheduler.runOne()).toBe('RETRY');expect(seen.at(-1)).toBe('backfill');
 });

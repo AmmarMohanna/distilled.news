@@ -1,4 +1,5 @@
-import {driveManualBriefing,relayManualBriefings} from './manual-briefing';
+import {retireManualBriefing,retireManualBriefingRequests} from './manual-briefing';
+import {recordV1QueueOutcome} from './v1-queue-dispatch';
 import {productRuntimeEnv} from './product-feeds';
 import { sendBriefingNotifications } from './push';
 import { createApp } from "./app";
@@ -52,7 +53,7 @@ export default {
       let completedProcessing=false;
       try {
         if(isRecord(message.body)&&message.body.type==='v1_manual_briefing'&&typeof message.body.feedId==='string'&&typeof message.body.requestId==='string'){
-          if(await driveManualBriefing(env,message.body.feedId,message.body.requestId))await env.PROCESSING_QUEUE.send({type:'v1_manual_briefing',feedId:message.body.feedId,requestId:message.body.requestId},{delaySeconds:30});
+          await retireManualBriefing(env,message.body.feedId,message.body.requestId);
         }
         else if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(env,message.body.jobId);
         else if(isRecord(message.body) && message.body.type==='v1_rematch' && typeof message.body.feedId==='string' && typeof message.body.requestId==='string') await processV1Rematch(env,message.body.feedId,message.body.requestId);
@@ -84,10 +85,11 @@ export default {
         message.ack();
       } catch (error) {
         if(isRecord(message.body) && typeof message.body.type==='string' && message.body.type.startsWith('v1_')) {
+          await recordV1QueueOutcome(env,message.id,message.body,message.attempts,error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE');
           if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') message.ack();
           else if(message.attempts<MAX_QUEUE_ATTEMPTS) message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
           else message.ack();
-          console.warn('V1 queue work deferred or terminal',{bodyType,code:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'});continue;
+          console.warn('V1 queue work deferred or terminal',{bodyType,bodyId,messageId:message.id,attempts:message.attempts,durationMs:Date.now()-startedAt,code:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'});continue;
         }
         // Contention is not a failed attempt. The completed job drains the next
         // durable job; the existing stale-job relay recovers a crashed leader.
@@ -259,10 +261,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export async function runScheduledMaintenance(env: Env): Promise<void> {
   env = await productRuntimeEnv(env);
-  try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
-  try {await relayManualBriefings(env)} catch {console.warn('Could not relay manual briefings')}
+  try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}
   try {await dispatchV1Acquisitions(env)} catch {console.warn('Could not dispatch v1 acquisition jobs')}
   try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
+  try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
   try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
   const repo = new D1Repository(env.DB);
   const now = new Date();

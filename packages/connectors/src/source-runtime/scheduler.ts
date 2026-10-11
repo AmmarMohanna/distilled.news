@@ -33,8 +33,8 @@ export class D1RssPollScheduler {
     if (!Number.isSafeInteger(leaseMs) || leaseMs < 1000 || leaseMs > 600_000) throw new Error('INVALID_LEASE');
     const now=new Date(this.now()).toISOString(), until=new Date(this.now()+leaseMs).toISOString();
     const job=await this.db.prepare(`UPDATE connector_rss_poll_jobs SET lease_until=?,lease_version=lease_version+1,attempts=attempts+1
-      WHERE job_id=(SELECT job_id FROM connector_rss_poll_jobs WHERE state='PENDING' AND due_at<=? AND (lease_until IS NULL OR lease_until<=?) ORDER BY CASE WHEN job_id IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END,due_at,job_id LIMIT 1)
-      RETURNING job_id,request,lease_version,offset,attempts`).bind(until,now,now,JSON.stringify(preferredJobIds)).first<PollJob>();
+      WHERE job_id=(SELECT job_id FROM connector_rss_poll_jobs WHERE state='PENDING' AND due_at<=? AND (lease_until IS NULL OR lease_until<=?) ORDER BY CASE WHEN job_id IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END,CASE WHEN CAST(strftime('%M',?) AS INTEGER)%4=0 OR offset=0 THEN 0 ELSE 1 END,due_at,job_id LIMIT 1)
+      RETURNING job_id,request,lease_version,offset,attempts`).bind(until,now,now,JSON.stringify(preferredJobIds),now).first<PollJob>();
     if (!job) return 'IDLE';
     if (job.attempts > 8) return await this.finish(job,'BLOCKED',null,'RETRY_LIMIT') ? 'BLOCKED' : 'LEASE_LOST';
     const request:RssRequest=JSON.parse(job.request);
@@ -66,7 +66,7 @@ export class D1RssPollScheduler {
   private async retry(job:PollJob,request:RssRequest,offset:number,result:RssCollectionResult|null,delay?:number) {
     const due=new Date(Math.max(this.now()+(delay ?? Math.min(300_000,1000*2**Math.min(job.attempts,8))),
       result?.retryNotBefore ? Date.parse(result.retryNotBefore) : 0)).toISOString();
-    return await this.db.prepare('UPDATE connector_rss_poll_jobs SET request=?,offset=?,due_at=?,result=?,lease_until=NULL WHERE job_id=? AND lease_version=? RETURNING job_id')
-      .bind(JSON.stringify(request),offset,due,JSON.stringify(result),job.job_id,job.lease_version).first() !== null;
+    return await this.db.prepare('UPDATE connector_rss_poll_jobs SET request=?,offset=?,due_at=?,result=?,attempts=?,lease_until=NULL WHERE job_id=? AND lease_version=? RETURNING job_id')
+      .bind(JSON.stringify(request),offset,due,JSON.stringify(result),delay===0?0:job.attempts,job.job_id,job.lease_version).first() !== null;
   }
 }

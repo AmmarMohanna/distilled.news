@@ -15,7 +15,7 @@ export function productConnectorSource(p:{provider:string;kind:string;source_url
  if(p.provider==='rss'&&p.kind==='rss_feed'&&p.source_url){
   let url:string;
   try{url=new URL(p.source_url).href;new WorkerPublicSourceFetch(url)}catch{return undefined}
-  return {source:{family:'rss',locator:url},canonicalUrl:url,identity:{type:'rss',canonicalUrl:url},limit:30};
+  return {source:{family:'rss',locator:url},canonicalUrl:url,identity:{type:'rss',canonicalUrl:url},limit:10};
  }
  if(p.provider==='rss'&&p.kind==='google_news'&&p.source_url&&p.input){
   let detected:ReturnType<typeof detectSourceInput>;
@@ -23,7 +23,7 @@ export function productConnectorSource(p:{provider:string;kind:string;source_url
   if(detected.provider!=='rss'||detected.kind!=='google_news'||detected.sourceUrl!==p.source_url)return undefined;
   const query=new URL(p.source_url).searchParams.get('q');
   if(!query)return undefined;
-  return {source:{family:'google_news',locator:query,language:'en',region:'US'},canonicalUrl:p.source_url,identity:{type:'google_news',query,language:'en',region:'US'},limit:30};
+  return {source:{family:'google_news',locator:query,language:'en',region:'US'},canonicalUrl:p.source_url,identity:{type:'google_news',query,language:'en',region:'US'},limit:10};
  }
  if(p.provider==='telegram'&&p.kind==='telegram_channel'&&p.input){
   let raw:unknown;try{raw=JSON.parse(p.input)}catch{return undefined}

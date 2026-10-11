@@ -33,6 +33,8 @@ export interface SourceRepository {
   claimFetch(scope: SourceScope, runId: string): Promise<boolean>;
   checkpoint(scope: SourceScope): Promise<RssCheckpoint | undefined>;
   knownItemHash(scope: SourceScope, key: string, revision: number): Promise<string | undefined>;
+  knownItemHashes?(scope:SourceScope,keys:string[],revision:number):Promise<Record<string,string>>;
+  rememberResolvedItems?(scope:SourceScope,revision:number,items:{key:string;fingerprint:string;sequence:number}[]):Promise<void>;
   rememberResolvedItem(scope: SourceScope, key: string, revision: number, fingerprint: string, sequence: number): Promise<void>;
   saveBatch(batch: StoredRssBatch): Promise<void>;
   loadBatch(scope: SourceScope, handoffId: string): Promise<StoredRssBatch | undefined>;
@@ -50,6 +52,8 @@ export interface RssRequest {
   url: string;
   requestedBounds?: CollectionBounds;
   maxItems?: number;
+  /** Prioritize the recent initial snapshot; retain every older entry for continuation. */
+  initialLookbackHours?: number;
 }
 export interface FetchTelemetry {
   requests: number;

@@ -12,11 +12,8 @@ export async function productPublicationState(env:Env,feedId:string):Promise<'wa
  if(pending)return 'correction_pending';
  const setup=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.state')='PENDING' AND json_extract(json,'$.reason')='MODEL_SETUP_REQUIRED' LIMIT 1").bind(feedId).first();
  if(setup)return 'setup_required';
- const manual=await env.DB.prepare("SELECT json_extract(json,'$.state') AS state FROM v1_feed_documents WHERE feed_id=? AND kind='manual_briefing_requests' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1").bind(feedId).first<{state:string}>();
- if(manual?.state==='PENDING')return 'checking';
-
  const request=await env.DB.prepare("SELECT id,json_extract(json,'$.state') AS state FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1").bind(feedId).first<{id:string;state:string}>();
- if(!request)return manual?.state==='FAILED'?'failed':'waiting';
+ if(!request)return 'waiting';
  if(request.state==='FAILED')return 'failed';
  if(request.state!=='DONE')return 'checking';
  const edition=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='editions' AND id=?").bind(feedId,request.id).first();
@@ -27,11 +24,8 @@ export interface PublicationProgress {stage:'COLLECTING'|'PROCESSING'|'PUBLISHIN
 /** Read-only progress for the same closed boundary used by publication admission.
  * Later polling arrivals cannot continually enlarge this request's displayed backlog. */
 export async function productPublicationProgress(env:Env,feedId:string):Promise<PublicationProgress|undefined> {
- const manual=await env.DB.prepare("SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind='manual_briefing_requests' AND json_extract(json,'$.state')='PENDING' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1").bind(feedId).first<{json:string}>();
- const active=manual?JSON.parse(manual.json) as {phase:string;window?:{end:string}}:undefined;
- if(active?.phase==='COLLECTION')return {stage:'COLLECTING',acquisition:{completed:0,total:0,failed:0},review:{completed:0,total:0,failed:0},pending:0};
- let end=active?.window?.end;
- if(!end){const request=await env.DB.prepare("SELECT json_extract(json,'$.window.end') AS window_end FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.state')='PENDING' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1").bind(feedId).first<{window_end:string|null}>();end=request?.window_end??undefined;}
+ const request=await env.DB.prepare("SELECT json_extract(json,'$.window.end') AS window_end FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.state')='PENDING' ORDER BY json_extract(json,'$.window.end'),id LIMIT 1").bind(feedId).first<{window_end:string|null}>();
+ const end=request?.window_end??undefined;
  if(!end)return undefined;
  const rows=await env.DB.prepare("SELECT json_extract(j.json,'$.kind') AS kind,json_extract(j.json,'$.state') AS state,COALESCE(json_extract(j.json,'$.exhausted'),0) AS exhausted,COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?)) GROUP BY 1,2,3").bind(feedId,end).all<{kind:string;state:string;exhausted:number;n:number}>();
  const acquisition={completed:0,total:0,failed:0},review={completed:0,total:0,failed:0};let pending=0;

@@ -24,7 +24,7 @@ test("briefing detail follows the new hierarchy without changing its theme", asy
   const toolbar = page.locator(".feed-tools");
   await expect(toolbar.getByRole("button", { name: "Copy URL" })).toBeVisible();
   await expect(toolbar.getByRole("button", { name: "Share" })).toBeVisible();
-  await expect(toolbar.getByRole("button", { name: /Brief now/i })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: /Brief now/i })).toHaveCount(0);
   await expect(toolbar.getByRole("button", { name: /Explore/i })).toBeVisible();
   await expect(toolbar.getByPlaceholder("search published briefing")).toBeVisible();
   const empty = page.locator(".feed-empty-state");

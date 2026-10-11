@@ -256,3 +256,28 @@ describe('RSS normalization and bounded HTTP',()=>{
     expect(response.status).toBe(0); expect(response.telemetry.requests).toBe(1);
   });
 });
+
+it('valid initial snapshot of hundreds of items is incremental progress, not retry exhaustion',async()=>{
+ const s=setup(xml(Array.from({length:200},(_,i)=>item(String(i))).join('')));s.db.db.exec(RSS_POLL_SCHEMA);
+ const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(timestamp));
+ await scheduler.schedule('large', {...input,maxItems:10},timestamp);
+ for(let i=0;i<19;i++)expect(await scheduler.runOne()).toBe('RETRY');
+ expect(await scheduler.runOne()).toBe('DONE');expect(s.accepted.flatMap(b=>b.observations).length).toBeGreaterThanOrEqual(200);
+ expect(new Set(s.accepted.flatMap(b=>b.observations).map(o=>o.sourceItemKey)).size).toBe(200);expect(s.http.get).toHaveBeenCalledTimes(1);
+});
+
+it('a ten-item slice uses bounded fingerprint read and write batches',async()=>{
+ const s=setup(xml(Array.from({length:10},(_,i)=>item(String(i))).join(''))),queries:string[]=[];
+ const prepare=s.db.prepare.bind(s.db);s.db.prepare=sql=>{queries.push(sql);return prepare(sql)};const batch=vi.spyOn(s.db,'batch');
+ await s.collector.collect({...input,maxItems:10});
+ expect(queries.filter(sql=>sql.includes('SELECT')&&sql.includes('connector_item_fingerprints'))).toHaveLength(1);
+ expect(batch.mock.calls.some(([statements])=>statements.length===10)).toBe(true);
+});
+
+it('initial lookback prioritizes recent entries but retains older unseen history',async()=>{
+ const old=item('old').replace('Sun, 04 Oct 2026 07:00:00 GMT','Thu, 01 Oct 2026 07:00:00 GMT');
+ const s=setup(xml(old+item('current'))),request={...input,maxItems:1,initialLookbackHours:48};
+ const first=await s.collector.collect(request);expect(s.accepted[0].observations[0].sourceItemKey).toContain('current');
+ expect(first.nextOffset).toBe(1);await s.collector.collect(request,1);
+ expect(s.accepted.at(-1)!.observations[0].sourceItemKey).toContain('old');expect(s.http.get).toHaveBeenCalledTimes(1);
+});

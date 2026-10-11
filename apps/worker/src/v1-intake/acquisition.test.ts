@@ -95,3 +95,17 @@ it('changed approval restrictions terminally retire a durable fetched result rat
  expect(await store.list('revisions','feed-source-1')).toHaveLength(0);
  expect(await store.list('acquisition_results','feed-source-1')).toHaveLength(1);
 });
+
+it('duplicate deliveries observing an active lease are read-only and cannot fence the owner',async()=>{
+ const claimed=(await claimAcquisition(store,jobId,now))!;const before=await store.snapshot('feed-source-1');
+ for(let i=0;i<3;i++)expect(await claimAcquisition(store,jobId,now)).toBeUndefined();
+ expect((await store.snapshot('feed-source-1')).epoch).toBe(before.epoch);
+ await persistAcquisitionResult(store,claimed,content(claimed.candidate.id),now);
+});
+
+it('known monetary admission denial remains durable resource waiting without exhausting acquisition attempts',async()=>{
+ await runAcquisitionJob(store,jobId,testPolicy,async()=>{throw new AcquisitionFailure('BUDGET_EXHAUSTED',false)});
+ const job=(await store.read<DownstreamJob>('jobs',jobId))!.value;
+ expect(job).toMatchObject({state:'PENDING',exhausted:false,failureCode:'BUDGET_EXHAUSTED',attempts:0});
+ expect(job.nextAttemptAt).toBeDefined();expect(await claimAcquisition(store,jobId,now)).toBeUndefined();
+});

@@ -46,3 +46,32 @@ it('registered comparable revision schemes order correctly; unknown schemes rema
  expect(ordering.compareRevisions({...telegram,value:'2026-10-05T10:01:00Z'},telegram)).toBe(1);
  expect(ordering.compareRevisions({...telegram,value:'invalid'},telegram)).toBeNull();
 });
+
+it('overlapping and repeated relay ticks do not enqueue the same unowned job twice',async()=>{
+ await acceptV1Handoff(env,batchFixture());
+ const now=new Date('2026-10-03T12:00:00Z');
+ const outcomes=await Promise.all([dispatchV1Acquisitions(env,now),dispatchV1Acquisitions(env,now)]);
+ expect(outcomes.reduce((a,b)=>a+b,0)).toBe(1);expect(sent).toHaveLength(1);
+ expect(await dispatchV1Acquisitions(env,now)).toBe(0);
+});
+
+it('a failed send backs off and expired undelivered reservations recover without changing canonical epochs',async()=>{
+ await acceptV1Handoff(env,batchFixture());const now=new Date('2026-10-03T12:00:00Z'),scope=await store.snapshot('feed-source-1');
+ env.PROCESSING_QUEUE.send=async()=>{throw Error('queue unavailable')};
+ await expect(dispatchV1Acquisitions(env,now)).rejects.toThrow('queue unavailable');
+ env.PROCESSING_QUEUE.send=async body=>{sent.push(body as DistilledQueueMessage);return {} as QueueSendResponse};
+ expect(await dispatchV1Acquisitions(env,now)).toBe(0);
+ expect(await dispatchV1Acquisitions(env,new Date(now.getTime()+30_000))).toBe(1);
+ expect(await dispatchV1Acquisitions(env,new Date(now.getTime()+149_999))).toBe(0);
+ expect(await dispatchV1Acquisitions(env,new Date(now.getTime()+150_000))).toBe(1);
+ expect((await store.snapshot('feed-source-1')).epoch).toBe(scope.epoch);
+});
+
+it('dispatch reservations do not let the first five waiting jobs hide the rest of a backlog',async()=>{
+ for(let i=0;i<12;i++){const batch=batchFixture(i+1);await acceptV1Handoff(env,batch);}
+ const now=new Date('2026-10-03T12:00:00Z');
+ expect(await dispatchV1Acquisitions(env,now)).toBe(5);
+ expect(await dispatchV1Acquisitions(env,now)).toBe(5);
+ expect(await dispatchV1Acquisitions(env,now)).toBe(2);
+ expect(new Set(sent.map(m=>(m as {jobId:string}).jobId)).size).toBe(12);
+});

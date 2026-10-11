@@ -162,3 +162,15 @@ it('a released intake wait label is cleared once and unchanged waits never rewri
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));
  expect((await store.list<any>('feed-1','briefing_requests'))[0].reason).toBeUndefined();
 });
+
+it('a lost scheduled delivery recovers after transport expiry and publishes once with its ledger',async()=>{
+ const boundary=new Date('2026-10-03T13:00:00Z');expect(await dispatchV1Intelligence(env,boundary)).toBe(1);
+ expect(await dispatchV1Intelligence(env,new Date('2026-10-03T13:01:00Z'))).toBe(0);
+ const recovered=new Date('2026-10-03T13:02:00Z');expect(await dispatchV1Intelligence(env,recovered)).toBe(1);
+ const message=sent[1] as Extract<DistilledQueueMessage,{type:'v1_briefing'}>;
+ expect(message).toEqual(sent[0]);
+ const edition=(await processV1Briefing(env,message,()=>recovered.toISOString()))!;expect(edition.stories).toHaveLength(1);
+ expect((await store.list<any>('feed-1','ledger_entries')).every(entry=>entry.editionId===edition.id)).toBe(true);
+ expect((await processV1Briefing(env,message,()=>recovered.toISOString()))?.id).toBe(edition.id);
+ expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await dispatchV1Intelligence(env,recovered)).toBe(0);
+},30000);

@@ -59,16 +59,16 @@ it('drains a bounded slice of pending provider jobs without starting unauthorize
  await runConnectorMaintenance(env);
  expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM connector_provider_poll_jobs WHERE state='PENDING'").first()).toEqual({n:0});
 });
-it('prioritizes an active manual source job ahead of older regular work',async()=>{
+it('historical manual records cannot prioritize new collection over scheduled work',async()=>{
  env.SOURCE_POLL_MAX_JOBS_PER_TICK='1';
  const backend=createConnectorRuntime(env),due=new Date(0).toISOString();
  await backend.rssScheduler.schedule('old',{scope:request.scope,runId:'old',configurationRevision:request.configurationRevision,url:request.source.locator,requestedBounds:{},maxItems:30},due);
- await backend.rssScheduler.schedule('manual',{scope:request.scope,runId:'manual',configurationRevision:request.configurationRevision,url:request.source.locator,requestedBounds:{},maxItems:30},due);
+ await backend.rssScheduler.schedule('manual',{scope:request.scope,runId:'manual',configurationRevision:request.configurationRevision,url:request.source.locator,requestedBounds:{},maxItems:30},new Date(1000).toISOString());
  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('manual_briefing_requests','manual-request','feed-1',?)").bind(JSON.stringify({id:'manual-request',state:'PENDING',phase:'COLLECTION',createdAt:due,scheduled:[{id:'manual',scheduler:'rss',sourceId:'feed-source-1'}]})).run();
  const fetchMock=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>new Response('<rss><channel><item><guid>one</guid><title>News</title><link>https://example.com/news</link></item></channel></rss>'));
  try {
   await runConnectorMaintenance(env,new Date(),{skipSchedule:true});
-  expect(await ctx.db.prepare('SELECT job_id,state FROM connector_rss_poll_jobs ORDER BY job_id').all()).toMatchObject({results:[{job_id:'manual',state:'DONE'},{job_id:'old',state:'PENDING'}]});
+  expect(await ctx.db.prepare('SELECT job_id,state FROM connector_rss_poll_jobs ORDER BY job_id').all()).toMatchObject({results:[{job_id:'manual',state:'PENDING'},{job_id:'old',state:'DONE'}]});
  }finally{fetchMock.mockRestore()}
 });
 it('rejects invalid maintenance bounds before changing budgets or scheduling work',async()=>{
@@ -397,3 +397,12 @@ it('provides aggregate headroom for approved sources and never resets existing r
  expect(await ctx.db.prepare("SELECT limit_usd,reserved_usd FROM connector_provider_budgets WHERE provider_id='x_twitterapi_io'").first()).toEqual({limit_usd:17,reserved_usd:2});
  expect(await ctx.db.prepare("SELECT limit_usd FROM connector_provider_budgets WHERE provider_id='zyte'").first()).toEqual({limit_usd:0});
 });
+
+it('a rollout preserves an existing thirty-item RSS poll identity and resumes its frozen request',async()=>{
+ const now=new Date(testPolicy.now()),id=await sha256(JSON.stringify(['feed-source-1',request.configurationRevision,Math.floor(now.getTime()/300000)]));
+ const frozen={scope:request.scope,runId:id,configurationRevision:request.configurationRevision,url:request.source.locator,requestedBounds:{},maxItems:30};
+ await createConnectorRuntime(env).rssScheduler.schedule(id,frozen,now.toISOString());
+ await expect(runConnectorMaintenance(env,now,{scheduleOnly:true})).resolves.toBeDefined();
+ const rows=await ctx.db.prepare('SELECT request FROM connector_rss_poll_jobs WHERE job_id=?').bind(id).all<{request:string}>();
+ expect(rows.results).toHaveLength(1);expect(JSON.parse(rows.results[0].request)).toEqual(frozen);
+},30000);
