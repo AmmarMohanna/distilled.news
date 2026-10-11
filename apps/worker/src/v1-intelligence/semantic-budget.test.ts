@@ -6,8 +6,9 @@ import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore} from './store';
 import {feedFixture,seedIntelligence,acceptEvidence} from './test-utils';
 import {prepareSemanticMatch} from './semantic-preparation';
-import {durableSemanticOperation,laneCallCap,SEMANTIC_DAILY_CALL_CAP,PROTECTED_CALL_RESERVE,type BudgetLane} from './semantic-operations';
+import {durableSemanticOperation,type BudgetLane} from './semantic-operations';
 import type {Env} from '../types';
+import {semanticCostLimit} from './semantic-admission';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
@@ -61,22 +62,20 @@ describe('teasers, promotions and calls to action consume no semantic allowance'
  },40000);
 });
 
-describe('the shared daily allowance is allocated, never enlarged',()=>{
+describe('the shared monetary allowance has no daily call-count cutoff',()=>{
  const ops=async(count:number,lane:BudgetLane|undefined,tag:string)=>{
   const rev=(await store.currentEvidence('feed-1'))[0].revision.id;let ran=0,denied=0;
   for(let i=0;i<count;i++){const r=await durableSemanticOperation(store,{feedId:'feed-1',feedRevision:1,evidenceRevisionIds:[rev],kind:'RELATION',policyVersion:'t',model:'m',budgetKey:'semantic:2026-10-10',state:{tag,i}},async()=>({value:{ok:true},usage}),'2026-10-10T10:00:00Z',undefined,{lane});if(r.failure==='SEMANTIC_BUDGET_EXHAUSTED')denied++;else ran++}
   return {ran,denied};
  };
  beforeEach(async()=>{await seedIntelligence(store,1,'Parliament approved the banking reform.')});
- it('caps: retries 12, new work 16, protected work 20 of the unchanged 20-call cap; unlaned callers keep 20',()=>{
-  expect([laneCallCap('RETRY'),laneCallCap('PRIMARY'),laneCallCap('PROTECTED'),laneCallCap(undefined)]).toEqual([12,SEMANTIC_DAILY_CALL_CAP-PROTECTED_CALL_RESERVE,20,20]);
- });
- it('the midnight pattern: a backlog of retries can no longer take the whole day from new arrivals and open corrections',async()=>{
+ it('retry and new work share the monetary pool, reserving correction headroom',()=>{expect([semanticCostLimit('RETRY'),semanticCostLimit('PRIMARY'),semanticCostLimit('PROTECTED'),semanticCostLimit()]).toEqual([.08,.08,.1,.08])});
+ it('the midnight pattern: cheap backlog, new work and correction processing can all continue after twenty calls',async()=>{
   const backlog=await ops(20,'RETRY','backlog'),fresh=await ops(8,'PRIMARY','fresh'),correction=await ops(8,'PROTECTED','correction');
-  expect(backlog).toEqual({ran:12,denied:8});expect(fresh).toEqual({ran:4,denied:4});expect(correction).toEqual({ran:4,denied:4});
-  expect(backlog.ran+fresh.ran+correction.ran).toBe(20);// same total; before this change the backlog alone took all 20
+  expect(backlog).toEqual({ran:20,denied:0});expect(fresh).toEqual({ran:8,denied:0});expect(correction).toEqual({ran:8,denied:0});
+  expect(backlog.ran+fresh.ran+correction.ran).toBe(36);// actual settled cost is .0036, safely inside the unchanged ceiling
  },60000);
- it('with no lane (previous behaviour) the first caller can still consume the whole allowance',async()=>{
-  expect(await ops(25,undefined,'legacy')).toEqual({ran:20,denied:5});
+ it('unlaned semantic work also has no hidden twenty-call cutoff',async()=>{
+  expect(await ops(25,undefined,'legacy')).toEqual({ran:25,denied:0});
  },60000);
 });
