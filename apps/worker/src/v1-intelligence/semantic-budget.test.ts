@@ -38,8 +38,8 @@ describe('retries read back what already succeeded instead of re-spending the al
   const strong={model:'fake-strong',usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{calls++;return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:['CHANGES_STATE'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
   await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(calls).toBe(1);
   await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong,attempt:1});await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong,attempt:2});expect(calls).toBe(1);
-  // A different input (a day later: new allowance key) is a different operation, never a stale reuse.
-  await prepareSemanticMatch(store,{} as Env,job,'2026-10-05T10:00:00Z',{strong,attempt:3});expect(calls).toBe(2);
+  // A new day changes accounting, not the exact witnessed semantic question.
+  await prepareSemanticMatch(store,{} as Env,job,'2026-10-05T10:00:00Z',{strong,attempt:3});expect(calls).toBe(1);
  },40000);
  it('failed outcomes are never read back: a rejected construction gets a fresh attempt',async()=>{
   const intake=new V1IntakeStore(ctx.db),accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batchFixture());

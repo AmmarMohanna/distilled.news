@@ -15,7 +15,7 @@ import {sha256} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import type {ExperimentUsage} from './salience';
 import {createStrongSemanticModel,type StrongSemanticModel} from './semantic-model';
-import {extractClaimMentions,isNewsMention} from './claims';
+import {extractClaimMentions,isNewsMention,CLAIM_EXTRACTOR,CLAIM_POLICY} from './claims';
 import {parseConstruction,scopedConstructionWireSchema,constructionSchema} from './semantic-construction';
 import type {SemanticConstruction,Entity,StorylineMemory} from './semantic-state';
 const effects=['CORROBORATES','ADDS_DETAIL','CHANGES_STATE','CHANGES_CERTAINTY','CONTRADICTS','CORRECTS','RETRACTS'] as const;
@@ -50,12 +50,13 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
  const memory=await Promise.all(storylines.map(async s=>({id:s.id,version:await store.read<any>(job.feedId,'storyline_versions',s.currentVersionId),structured:await store.read<StorylineMemory>(job.feedId,'storyline_memories',s.currentVersionId)})));
  const state={source:{id:revision.id,title:revision.title?.slice(0,600),text:(revision.body??'').slice(0,2600)},events:shortlist.map(c=>({id:c.id,versionId:c.version.id,state:c.version.state.slice(0,500)})),storylines:memory.map(s=>({id:s.id,state:String(s.version?.currentState??'').slice(0,350)})),instruction:'Judge only supplied approved evidence. Separate bounded developments from ongoing Storylines. Preserve attributed conflicting claims and hedges. Structural identity is independent of epistemic effects. No external facts.'};
  const evidenceRevisionIds=[...new Set([revision.id,...shortlist.flatMap(c=>c.evidenceRevisionIds),...memory.flatMap(m=>members.filter(x=>m.version?.eventVersionIds.includes(x.eventVersionId)).map(x=>x.evidenceRevisionId))])],operation={feedId:job.feedId,feedRevision:feed.revision,evidenceRevisionIds,policyVersion:SEMANTIC_POLICY,budgetKey:`semantic:${now.slice(0,10)}`,state:{...state,attempt:options.attempt??0}};
+ const reuseContext={eventVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),storylineVersions:Object.fromEntries(storylines.map(s=>[s.id,s.currentVersionId])),extractorVersion:CLAIM_EXTRACTOR,extractionPolicy:CLAIM_POLICY};
  // Retries re-run only what has not already been answered: a stage whose identical input already SUCCEEDED under an earlier attempt is read back (no call,
- // no allowance spent). A failed or unknown stage still gets a fresh attempt identity, and any change to the input yields a new identity, so nothing stale is reused.
+ // no allowance spent). Known failed stages retain bounded retries; unknown outcomes are fenced across attempts and days. Changed semantic context cannot reuse success.
  const attemptNo=options.attempt??0,protectedRevisions=await protectedRematchRevisionIds(store,job.feedId),lane:BudgetLane=protectedRevisions.has(revision.id)?'PROTECTED':attemptNo>0?'RETRY':'PRIMARY';
  const staged=async<T>(build:(attempt:number)=>SemanticOperationInput,run:()=>Promise<{value:T;usage:ExperimentUsage}>,usage:()=>ExperimentUsage):Promise<SemanticOperationResult<T>>=>{
-  for(let k=attemptNo-1;k>=0;k--){const input=build(k),prior=await store.read<SemanticOperationResult<T>>(job.feedId,'semantic_results',await sha256(canonicalJson(input)));if(prior?.status==='SUCCEEDED')return durableSemanticOperation(store,input,run,now,usage,{lane})}
-  return durableSemanticOperation(store,build(attemptNo),run,now,usage,{lane});
+  for(let k=attemptNo-1;k>=0;k--){const input=build(k),prior=await store.read<SemanticOperationResult<T>>(job.feedId,'semantic_results',await sha256(canonicalJson(input)));if(prior?.status==='SUCCEEDED')return durableSemanticOperation(store,input,run,now,usage,{lane,reuseContext})}
+  return durableSemanticOperation(store,build(attemptNo),run,now,usage,{lane,reuseContext});
  };
  let decision:EventMatchDecision={structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'NO_ACCEPTED_JUDGMENT'}},reasons=['CONSTRUCTION'];
  if(shortlist.length && env.OPENROUTER_API_KEY){

@@ -1,0 +1,16 @@
+import {afterEach,beforeEach,expect,it} from 'vitest';
+import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
+import {V1IntakeStore} from '../v1-intake/store';
+import {V1FeedStore,FeedTransaction,feedTransact} from './store';
+import {acquireSemanticWorkLease,releaseSemanticWorkLease} from './semantic-work-lease';
+import {durableSemanticOperation} from './semantic-operations';
+import {feedFixture,seedIntelligence} from './test-utils';
+let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
+beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
+afterEach(async()=>ctx.dispose());
+async function leased(until=Date.now()+90000){const lease={id:'lease',feedId:'feed-1',token:'owner',leaseUntil:until,createdAt:new Date().toISOString()};await feedTransact(store,'feed-1',tx=>tx.write('semantic_work_leases' as any,lease.id,lease));return new (V1FeedStore as any)(ctx.db,lease) as V1FeedStore}
+it('an expired processing owner cannot commit canonical writes',async()=>{const held=await leased(Date.now()-1);await expect(feedTransact(held,'feed-1',tx=>tx.write('intelligence_receipts','expired',{id:'expired',feedId:'feed-1'}))).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});expect(await store.read('feed-1','intelligence_receipts','expired')).toBeUndefined()},15000);
+it('lease loss between snapshot and commit is fenced atomically',async()=>{const held=await leased(),tx=new FeedTransaction(held,await held.snapshot('feed-1'));await tx.write('intelligence_receipts','stale',{id:'stale',feedId:'feed-1'});await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('semantic_work_releases','lease','feed-1',?)").bind(JSON.stringify({id:'lease',feedId:'feed-1',token:'owner'})).run();expect(await held.commit(tx)).toBe(false);expect(await store.read('feed-1','intelligence_receipts','stale')).toBeUndefined()},15000);
+
+it('concurrent processing owners cannot both acquire the Feed; release permits the next owner',async()=>{const first=await acquireSemanticWorkLease(store,'feed-1');await expect(acquireSemanticWorkLease(new V1FeedStore(ctx.db),'feed-1')).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});await releaseSemanticWorkLease(store,first);const next=await acquireSemanticWorkLease(store,'feed-1');expect(next.id).not.toBe(first.id)},15000);
+it('a provider response after lease loss settles actual cost without committing semantic consumption',async()=>{await seedIntelligence(store);const evidence=(await store.currentEvidence('feed-1'))[0].revision,lease=await acquireSemanticWorkLease(store,'feed-1'),held=new V1FeedStore(ctx.db,lease),usage={calls:1,costUsd:.001,reported:true};await expect(durableSemanticOperation(held,{feedId:'feed-1',feedRevision:1,evidenceRevisionIds:[evidence.id],kind:'RELATION',model:'m',policyVersion:'p',budgetKey:'semantic:2026-10-10',state:{}},async()=>{await releaseSemanticWorkLease(store,lease);return {value:{ok:true},usage}},'2026-10-10T00:00:00Z')).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});expect(await store.list('feed-1','semantic_results')).toHaveLength(0);expect(await store.list('feed-1','semantic_settlements')).toEqual([expect.objectContaining({usage})])},15000);
