@@ -97,6 +97,7 @@ import { ScreenPages } from "./ScreenPages";
 import "./experience.css";
 import "./product.css";
 import "./apple.css";
+import "./feed-reader.css";
 
 document.documentElement.classList.add("apple-ui");
 
