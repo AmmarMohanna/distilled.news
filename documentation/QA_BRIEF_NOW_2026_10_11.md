@@ -64,4 +64,24 @@ Regression checks cover manual snapshot continuation ahead of old work, complete
 
 Manual admission now drives its work on the existing processing Queue. Each delivery performs one bounded collection/dispatch pass, then sends a 30-second delayed continuation only while that same request remains pending. It does not schedule additional regular poll windows. Completed or paused/disabled requests stop; missing-model setup stops the continuation without consuming model retries. Durable scheduler/provider identities and leases fence duplicate delivery. Cron remains a separate recovery and regular polling path.
 
-Cloudflare's schedule API confirms the one-minute trigger exists, but the dedicated scheduled-invocation dataset returned no events during the observed rollout period. Autonomous Cron operation remains unverified. The manual flow no longer depends on Cron firing to finish its queued work.
+Cloudflare's schedule API confirms the one-minute trigger exists. Its dedicated scheduled-invocation dataset subsequently reported successful autonomous runs at 16:42:30, 16:43:30, 16:44:30 and 16:47:30 UTC on October 11. The initial empty result was not proof of a permanently broken trigger. Manual work nevertheless no longer depends on Cron propagation to finish its queued work.
+
+
+Live follow-up: the Telegram job and both Google News jobs finished; X progressed through six pages and remained pending. The ECB X allowance still has a USD 15 ceiling, with approximately USD 0.90 reserved across its paid operations (reservations are not invoice charges). Acquisition and reassessment continued on the ordinary queue; a real model-backed edition remains unverified at this checkpoint.
+
+
+## Latest deployed continuation verification
+
+Priority commit: `3ca3bd4`. Queue continuation commit: `55b7648`. Both are pushed to `backend-full-stack-october-11`.
+
+Latest QA Worker version: `fb7d6ac6-86c3-4b8d-bbc6-7238647ba4aa`.
+
+- Focused priority checks: 93 connector tests and 33 Worker tests passed; connector and Worker typechecks passed; exact QA dry-run passed.
+- Queue continuation checks: 9 Worker tests passed, including the new continuation/replay/paused/completed integration case; Worker typecheck and exact QA dry-run passed. Some Worker checks overlap the preceding run; these counts must not be added as a unique full-suite total.
+- Post-rollout HTTP asset/API checks passed 21/21.
+- The existing ECB owner request was resumed with HTTP 202 and the same request ID. No second manual source window was created.
+- The existing request reached PROCESSING and created its closed-window publication request automatically. Telegram and both Google News jobs finished DONE. X handed off ten pages, then terminated BLOCKED/BOUNDED_LIMIT, so this is bounded partial X collection, not exhaustive recall.
+- At this checkpoint, 290 acquisitions and 45 reassessments were DONE; 117 acquisitions, one running acquisition and 244 reassessments remained. The remaining review backlog is significant. Real model-backed publication and its live latency remain unverified; key presence alone does not prove a successful OpenRouter response.
+- Successful autonomous Cron invocations were confirmed in Cloudflare's dedicated execution history. The secret was retained across both deployments. The old branch remains restored; no production site or friend's branch was changed.
+
+The backend continues the pending request through the ordinary Queue and Cron paths. No operator should report a completed live AI edition until the durable publication request and public feed API show it.
