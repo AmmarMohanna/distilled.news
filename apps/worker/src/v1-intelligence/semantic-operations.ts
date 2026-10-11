@@ -53,7 +53,7 @@ export async function durableSemanticOperation<T>(store:V1FeedStore,input:Semant
   }
   const value:SemanticIntent={id,feedId:input.feedId,input,token,leaseUntil:Date.now()+(input.kind==='COMPARATIVE_EDITORIAL_PLAN'?90000:30000),reservedCostUsd:reservation,createdAt:now,...(compatibilityHash?{compatibilityHash}:{})};await tx.write('semantic_intents',id,value);return {intent:value};
  });
- if(acquired.result)return acquired.result;
+ if(acquired.result){if(acquired.result.id!==id)console.info(JSON.stringify({type:acquired.result.status==='SUCCEEDED'?'V1_SEMANTIC_RESULT_REUSED':'V1_SEMANTIC_UNKNOWN_FENCE',feedId:input.feedId,stage:input.kind,operationId:id,retainedOperationId:acquired.result.id}));return acquired.result;}
  const started=Date.now();let value:T|undefined,failure:string|undefined,validationDiagnostic:SemanticValidationDiagnostic|undefined,usage:ExperimentUsage={calls:1,costUsd:reservation,reported:false};
  try {const outcome=await run();usage=outcome.usage;if(usage.calls!==1||!Number.isFinite(usage.costUsd)||usage.costUsd<0)throw Error('SEMANTIC_INVALID_USAGE');if(usage.costUsd>reservation)throw Error('SEMANTIC_COST_OVERRUN');value=outcome.value}
  catch(error){if(error instanceof SemanticValidationError && new TextEncoder().encode(JSON.stringify(error.diagnostic)).length<=16384)validationDiagnostic=error.diagnostic;const reported=reportedUsage?.();if(reported?.reported && Number.isFinite(reported.costUsd) && reported.costUsd>=0)usage=reported;failure=error instanceof Error && /^(SEMANTIC_|EXPERIMENT_|INVALID_EXPERIMENT_)/.test(error.message)?error.message:'SEMANTIC_PROVIDER_FAILURE'}
