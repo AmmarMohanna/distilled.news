@@ -46,6 +46,8 @@ async function supportingRevisions(tx:FeedTransaction,event:EventRecord):Promise
 }
 async function updateStorylines(tx:FeedTransaction,changed:EventVersion[],now:string,matchers:IntelligenceMatchers,preferred:Map<string,string>):Promise<string[]> {
  const roots=await tx.list<StorylineRecord>('storylines'),changedIds:string[]=[];
+ const retainedVersions=await Promise.all(roots.map(root=>tx.read<StorylineVersion>('storyline_versions',root.currentVersionId)));
+ await tx.preloadSemanticReferences([...retainedVersions.flatMap(version=>version?.eventVersionIds??[]),...changed.map(version=>version.id)]);
  const groups=new Map<string,{root:StorylineRecord;old?:StorylineVersion;original:EventVersion[];events:Map<string,EventVersion>;changed:Set<string>}>();
  for(const root of roots) {
   const old=await tx.read<StorylineVersion>('storyline_versions',root.currentVersionId);
@@ -104,6 +106,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   // Identical-content replay may advance the observation watermark without emitting a new reassessment job.
   if(!current || (target?target.revision.sourceObservationId!==o.id:current.value.currentObservationId!==o.id)) {await tx.write('intelligence_receipts',receiptId,receipt);tx.completeJob(job);return receipt}
   const events=await tx.list<EventRecord>('events'),changed:EventVersion[]=[];
+  await tx.preloadSemanticReferences(events.map(event=>event.currentVersionId));
   const preferredStorylines=new Map<string,string>();
   let selected:EventRecord|undefined;
   const selectedEvents:EventRecord[]=[],bindings=new Map<string,{group:SemanticGroup;provenance:import('./matchers').MatchProvenance}>();
@@ -116,6 +119,10 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
    if(!savedRole)await tx.write('roles',role.id,role);
    const savedDuplicate=await tx.read<DuplicateDecision>('duplicates',role.id);
    const duplicate:DuplicateDecision=savedDuplicate??{id:role.id,feedId:o.feedId,evidenceRevisionId:target.revision.id,kind:'UNIQUE',similarity:0,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
+   // Missing decisions are cached too: a large acquired backlog must not make
+   // hundreds of serial D1 probes while the Feed processing lease expires.
+   // Keep the existing ordered first-processed representative decision.
+   if(!savedDuplicate)await tx.preload('duplicates',active.filter(other=>other.item.id!==target.item.id).map(other=>JSON.stringify([other.revision.id,INTELLIGENCE_POLICY])));
    if(!savedDuplicate)for(const other of active) {
     if(other.revision.id===target.revision.id) continue;
     if(other.item.id===target.item.id) continue;

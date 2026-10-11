@@ -1,4 +1,4 @@
-import {afterEach,beforeEach,expect,it} from 'vitest';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import type {EventVersion,EventMembership} from '@distilled/contracts';
 import {createIntakeDatabase,seedIntakeScope,batchFixture,testPolicy} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
@@ -96,3 +96,26 @@ it('a prepared new Event can explicitly continue a known Storyline despite weak 
  expect(await store.list('feed-1','events')).toHaveLength(2);expect(await store.list('feed-1','storylines')).toHaveLength(1);
  const versions=await store.list<StorylineVersion>('feed-1','storyline_versions');expect(versions.find(v=>v.version===2)?.eventVersionIds).toHaveLength(2);
 });
+
+it('large acquired backlogs batch absent duplicate decisions while preserving the first processed representative',async()=>{
+ const body='Lebanon Parliament approved banking reform legislation.';
+ await processEvidenceIntelligence(store,await acquire(1,body,'processed'),now);
+ const representative=(await store.currentEvidence('feed-1'))[0];
+ const statements:D1PreparedStatement[]=[];
+ for(let i=0;i<180;i++){
+  const id='backlog-evidence-'+i,revisionId='000-backlog-revision-'+i;
+  statements.push(ctx.db.prepare('INSERT INTO v1_evidence(id,feed_source_id,item_key,json) VALUES(?,?,?,?)').bind(id,'feed-source-1','backlog-'+i,JSON.stringify({...representative.item,id,sourceItemKey:'backlog-'+i,currentRevisionId:revisionId})));
+  statements.push(ctx.db.prepare('INSERT INTO v1_revisions(id,feed_source_id,json) VALUES(?,?,?)').bind(revisionId,'feed-source-1',JSON.stringify({...representative.revision,id:revisionId,evidenceId:id})));
+ }
+ await ctx.db.batch(statements);
+ const job=await acquire(2,body,'new-copy');
+ const original=store.commit.bind(store),reads:number[]=[];
+ const spy=vi.spyOn(store,'commit').mockImplementation(async tx=>{const result=await original(tx);reads.push(tx.metrics.documentReads+tx.metrics.listReads+tx.metrics.revisionReads+tx.metrics.preloadQueries);return result});
+ try{
+  expect((await processEvidenceIntelligence(store,job,now)).decision).toBe('PROCESSED');
+  const duplicate=(await store.list<DuplicateDecision>('feed-1','duplicates')).find(d=>d.evidenceRevisionId!==representative.revision.id)!;
+  expect(duplicate).toMatchObject({kind:'EXACT',duplicateOfRevisionId:representative.revision.id});
+  expect((await intake.read<any>('jobs',job))?.value.state).toBe('DONE');
+  expect(Math.max(...reads)).toBeLessThan(60);
+ }finally{spy.mockRestore()}
+},30000);
