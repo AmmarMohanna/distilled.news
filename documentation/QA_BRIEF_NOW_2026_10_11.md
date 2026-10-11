@@ -85,3 +85,14 @@ Latest QA Worker version: `fb7d6ac6-86c3-4b8d-bbc6-7238647ba4aa`.
 - Successful autonomous Cron invocations were confirmed in Cloudflare's dedicated execution history. The secret was retained across both deployments. The old branch remains restored; no production site or friend's branch was changed.
 
 The backend continues the pending request through the ordinary Queue and Cron paths. No operator should report a completed live AI edition until the durable publication request and public feed API show it.
+
+
+## Large-feed reassessment recovery
+
+The ECB frontend remained `checking` because its manual request was in PROCESSING while reassessment stayed at 45 DONE. Live diagnostics showed canonical transactions making hundreds of serial immutable-document reads, source-epoch CAS rejections and processing leases repeatedly expiring. Source acquisition continued independently.
+
+Commit `daaf6a9` batches immutable duplicate decisions (including absent decisions) and retained semantic references within each canonical transaction. It preserves the ordered first-processed duplicate representative, source ownership checks, immutable graph validation and atomic source/feed/lease fences. No migration, source budget reset or paid-provider change is involved.
+
+Verification: 17 focused real-D1 tests passed, including a 180-item acquired-backlog regression, concurrent/replayed intelligence, deletion/support changes and expired-lease rejection. Worker typecheck and exact QA dry-run passed. Live frontend/API smoke checks passed 21/21.
+
+Deployed QA Worker version: `660f0e97-5307-4f1f-9216-5d76d3efa5c0`. After rollout, the ECB feed's completed reassessments advanced from 45 to 48; acquisition reached 409 DONE with no pending/running acquisition at that check. There were still 360 pending reassessments, and the publication request remained pending. This proves review progress resumed; it does not prove a completed real-model edition or acceptable sustained publication latency. Existing automatic processing continues the same durable request.
