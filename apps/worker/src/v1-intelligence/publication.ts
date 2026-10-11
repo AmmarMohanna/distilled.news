@@ -6,9 +6,9 @@ import type {AcceptedInput} from '../v1-intake/types';
 import {extractiveLanguageCompatibility,SynthesisCompatibilityError,normalizeLanguage} from './language';
 import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
-import type {SelectionRecord} from './scoring';
+import {targets,type SelectionRecord} from './scoring';
 import {communicationFingerprint,boundedEditorialContext,supportedSentences,equivalentFact,type EditorialDecision} from './editorial';
-import type {EventRecord,FeedRecord,StorylineRecord,StorylineVersion} from './types';
+import type {FeedRecord,StorylineVersion} from './types';
 import type {EditorialPlanRecord,PlanStory} from './editorial-plan';
 import type {ShortlistRecord,ShortlistFact} from './shortlist';
 import {checkReaderFidelity,verifiedCorrectionDelivery,faithfulFact,hasReaderWitness,type SemanticFactCheck} from './fidelity';
@@ -74,18 +74,25 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Prom
  const active=new Set((await tx.store.currentEvidence(tx.snapshot.feed.id)).map(e=>e.revision.id)),stories:SynthesisInput['stories']=[];
  const plan=selection.editorialPlanId?await tx.read<EditorialPlanRecord>('editorial_plans',selection.editorialPlanId):undefined,shortlist=plan?await tx.read<ShortlistRecord>('shortlists',plan.shortlistId):undefined;
  if(selection.editorialPlanId && (!plan||!shortlist||plan.communicationFingerprint!==selection.communicationFingerprint||plan.feedRevision!==selection.feedRevision))throw new HandoffError('SCOPE_DENIED');
- const roots=await tx.list<EventRecord>('events'),storylines=await tx.list<StorylineRecord>('storylines'),memberships=await tx.list<EventMembership>('memberships');
+ // Revalidate the exact immutable cutoff state against current active source
+ // support and live roots. Later admitted reports may advance a root without
+ // changing the supported state eligible for this closed publication window.
+ const eligible=new Map((await targets(tx,selection.window,true)).map(t=>[t.id,t]));
+ const memberships=await tx.list<EventMembership>('memberships');
  let inspected=0;
  for(const id of selection.selectedCandidateIds) {
   const candidate=await tx.read<BriefingCandidate>('candidates',id);
   if(!candidate || candidate.feedId!==tx.snapshot.feed.id || candidate.feedRevision!==selection.feedRevision || candidate.selectionState!=='SELECTED') throw new HandoffError('SCOPE_DENIED');
   let storyline:StorylineVersion|undefined,versionIds:string[];
-  if(candidate.targetType==='EVENT') {if(!roots.some(r=>r.currentVersionId===candidate.targetVersionId)) throw new HandoffError('SCOPE_DENIED');versionIds=[candidate.targetVersionId]}
-  else {if(!storylines.some(r=>r.currentVersionId===candidate.targetVersionId)) throw new HandoffError('SCOPE_DENIED');storyline=await tx.read<StorylineVersion>('storyline_versions',candidate.targetVersionId);if(!storyline) throw new HandoffError('SCOPE_DENIED');versionIds=storyline.eventVersionIds}
+  const target=eligible.get(candidate.targetVersionId);
+  if(!target || target.type!==candidate.targetType)throw new HandoffError('SCOPE_DENIED');
+  versionIds=target.eventVersionIds;
+  if(candidate.targetType==='STORYLINE') {storyline=await tx.read<StorylineVersion>('storyline_versions',candidate.targetVersionId);if(!storyline) throw new HandoffError('SCOPE_DENIED')}
+
   const eventVersions:EventVersion[]=[];
   for(const versionId of versionIds) {
    const version=await tx.read<EventVersion>('event_versions',versionId);
-   if(!version || version.type==='WITHDRAWN' || !roots.some(r=>r.currentVersionId===versionId)) throw new HandoffError('SCOPE_DENIED');
+   if(!version || version.type==='WITHDRAWN' || !target.eventVersionIds.includes(versionId)) throw new HandoffError('SCOPE_DENIED');
    const support=memberships.filter(m=>m.eventVersionId===versionId);
    if(!support.length || support.some(m=>!active.has(m.evidenceRevisionId))) throw new HandoffError('SCOPE_DENIED');eventVersions.push({...version,state:version.state.slice(0,1800)});
   }
