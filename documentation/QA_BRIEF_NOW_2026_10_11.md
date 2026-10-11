@@ -58,3 +58,10 @@ The user confirmed their friend installed the key and redeployed. Live version `
 Live QA revealed that snapshot chunks and provider continuations returned behind historical scheduled jobs. Active manual requests now supply their pending job IDs as a scheduler ordering preference. SQL still enforces due times, leases and PENDING state; the runner still checks full current source authorization, durable provider identities and budgets. No job or checkpoint history is reset. Jobs outside manual requests retain the existing oldest-due ordering.
 
 Regression checks cover manual snapshot continuation ahead of old work, completed-job replay, future-due exclusion and a real D1 Worker priority case. No shared acceptance contract or schema change is required.
+
+
+### Manual queue continuation
+
+Manual admission now drives its work on the existing processing Queue. Each delivery performs one bounded collection/dispatch pass, then sends a 30-second delayed continuation only while that same request remains pending. It does not schedule additional regular poll windows. Completed or paused/disabled requests stop; missing-model setup stops the continuation without consuming model retries. Durable scheduler/provider identities and leases fence duplicate delivery. Cron remains a separate recovery and regular polling path.
+
+Cloudflare's schedule API confirms the one-minute trigger exists, but the dedicated scheduled-invocation dataset returned no events during the observed rollout period. Autonomous Cron operation remains unverified. The manual flow no longer depends on Cron firing to finish its queued work.

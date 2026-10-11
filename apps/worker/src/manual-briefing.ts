@@ -5,7 +5,8 @@ import {productRuntimeEnv} from './product-feeds';
 import {runConnectorMaintenance} from './connector-runtime';
 import {enrollV1Source} from './v1-intelligence/product';
 import {V1FeedStore,feedTransact} from './v1-intelligence/store';
-import {windowIdentity} from './v1-intelligence/runtime';
+import {windowIdentity,dispatchV1Intelligence} from './v1-intelligence/runtime';
+import {dispatchV1Acquisitions} from './v1-downstream-runtime';
 import type {PublicationWindow} from './v1-intelligence/scoring';
 
 export interface ManualBriefingRequest {
@@ -80,4 +81,35 @@ export async function relayManualBriefings(env:Env,now=new Date()):Promise<numbe
   }
  }
  return sent;
+}
+
+/** A manual click drives its bounded work through Queue continuations, without
+ * depending on a new Cron trigger propagating. Polling identities and provider
+ * leases retain paid-call replay protection across duplicate deliveries. */
+export async function driveManualBriefing(env:Env,feedId:string,id:string):Promise<boolean> {
+ env=await productRuntimeEnv(env);
+ const product=await env.DB.prepare('SELECT b.paused,a.disabled_at FROM briefings b JOIN accounts a ON a.id=b.owner_account_id WHERE b.id=?').bind(feedId).first<{paused:number;disabled_at:string|null}>();
+ if(!product||product.paused||product.disabled_at)return false;
+ const store=new V1FeedStore(env.DB);
+ let request=await store.read<ManualBriefingRequest>(feedId,'manual_briefing_requests',id);
+ if(!request||request.state!=='PENDING')return false;
+ await prepareManualBriefing(env,feedId,id);
+ await relayManualBriefings(env);
+ request=await store.read<ManualBriefingRequest>(feedId,'manual_briefing_requests',id);
+ if(request?.state!=='PENDING')return false;
+ // Keep the complete authorization set while draining collection: a partial
+ // allowlist would cancel another feed's previously admitted source jobs.
+ if(request.phase==='COLLECTION')await runConnectorMaintenance(env,new Date(),{skipSchedule:true});
+ await relayManualBriefings(env);
+ const scoped={...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:(env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').filter(sourceId=>sourceId.startsWith(feedId+'::')).join(',')};
+ await dispatchV1Acquisitions(scoped);
+ await dispatchV1Intelligence(scoped);
+ await relayManualBriefings(env);
+ const current=await store.read<ManualBriefingRequest>(feedId,'manual_briefing_requests',id);
+ if(current?.state!=='PENDING')return false;
+ if(current.briefingRequestId){
+  const publication=await store.read<{reason?:string}>(feedId,'briefing_requests',current.briefingRequestId);
+  if(publication?.reason==='MODEL_SETUP_REQUIRED')return false;
+ }
+ return true;
 }

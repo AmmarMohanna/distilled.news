@@ -3,7 +3,7 @@ import {createIntakeDatabase} from './v1-intake/test-utils';
 import {D1Repository} from './repository';
 import {createApp} from './app';
 import {createSession} from './auth';
-import {requestManualBriefing,prepareManualBriefing,relayManualBriefings,type ManualBriefingRequest} from './manual-briefing';
+import {driveManualBriefing,requestManualBriefing,prepareManualBriefing,relayManualBriefings,type ManualBriefingRequest} from './manual-briefing';
 import {productRuntimeEnv,productPublicationState,publishedProductEditions} from './product-feeds';
 import {runConnectorMaintenance} from './connector-runtime';
 import {V1FeedStore} from './v1-intelligence/store';
@@ -75,4 +75,22 @@ it('collects RSS, gates unfinished acquisition and publishes one grounded editio
  expect(await publishedProductEditions(env,feed)).toHaveLength(1);
  const response=await createApp({repository:repo}).request('/api/feed/manual-owner/banking-reform',{},env);expect(response.status).toBe(200);expect((await response.json() as {editions:unknown[]}).editions).toHaveLength(1);
  await processV1Briefing(env,{type:'v1_briefing',feedId:feed.id,window:pending!.window!},()=>at.toISOString());expect(await store.list(feed.id,'editions')).toHaveLength(1);
+},60000);
+
+it('advances owner collection from the queue without scheduling another poll window and stops when settled or paused',async()=>{
+ const manual=await requestManualBriefing(env,feed);
+ const network=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response('<rss><channel><item><guid>queue-one</guid><title>Banking reform</title><description>Banking reform changes reserve policy.</description><link>https://example.com/queue-one</link></item></channel></rss>'));
+ expect(await driveManualBriefing(env,feed.id,manual.id)).toBe(true);
+ const store=new V1FeedStore(ctx.db),pending=await store.read<ManualBriefingRequest>(feed.id,'manual_briefing_requests',manual.id);
+ expect(pending?.phase).toBe('PROCESSING');
+ expect((await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_rss_poll_jobs').first())?.n).toBe(1);
+ expect(sent.some(m=>m.type==='v1_acquisition')).toBe(true);
+ expect(await driveManualBriefing(env,feed.id,manual.id)).toBe(true);
+ expect(network).toHaveBeenCalledTimes(1);
+ await ctx.db.prepare('UPDATE briefings SET paused=1 WHERE id=?').bind(feed.id).run();
+ expect(await driveManualBriefing(env,feed.id,manual.id)).toBe(false);
+ await ctx.db.prepare('UPDATE briefings SET paused=0 WHERE id=?').bind(feed.id).run();
+ await ctx.db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.state','DONE') WHERE kind='manual_briefing_requests' AND id=?").bind(manual.id).run();
+ expect(await driveManualBriefing(env,feed.id,manual.id)).toBe(false);
+ expect(network).toHaveBeenCalledTimes(1);
 },60000);

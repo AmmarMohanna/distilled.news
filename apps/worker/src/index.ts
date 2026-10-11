@@ -1,4 +1,4 @@
-import {prepareManualBriefing,relayManualBriefings} from './manual-briefing';
+import {driveManualBriefing,relayManualBriefings} from './manual-briefing';
 import {productRuntimeEnv} from './product-feeds';
 import { sendBriefingNotifications } from './push';
 import { createApp } from "./app";
@@ -51,7 +51,9 @@ export default {
       const bodyId = queueBodyId(message.body);
       let completedProcessing=false;
       try {
-        if(isRecord(message.body)&&message.body.type==='v1_manual_briefing'&&typeof message.body.feedId==='string'&&typeof message.body.requestId==='string')await prepareManualBriefing(env,message.body.feedId,message.body.requestId);
+        if(isRecord(message.body)&&message.body.type==='v1_manual_briefing'&&typeof message.body.feedId==='string'&&typeof message.body.requestId==='string'){
+          if(await driveManualBriefing(env,message.body.feedId,message.body.requestId))await env.PROCESSING_QUEUE.send({type:'v1_manual_briefing',feedId:message.body.feedId,requestId:message.body.requestId},{delaySeconds:30});
+        }
         else if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(env,message.body.jobId);
         else if(isRecord(message.body) && message.body.type==='v1_rematch' && typeof message.body.feedId==='string' && typeof message.body.requestId==='string') await processV1Rematch(env,message.body.feedId,message.body.requestId);
         else if(isRecord(message.body) && message.body.type==='v1_reassess' && typeof message.body.jobId==='string') await processV1Reassessment(env,message.body.jobId);
