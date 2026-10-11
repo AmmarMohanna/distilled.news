@@ -64,19 +64,19 @@ test("phone install control explains the browser install path", async ({ browser
   await context.close();
 });
 
-test('Brief now displays queued collection progress and the owner cannot submit a duplicate while checking',async({page})=>{
- let checking=false,calls=0;
+for(const width of [1280,390])test(`scheduled processing remains visible without manual generation at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:800});let calls=0;
  const activeFeed={...feed,paused:false};
  await page.route('**/api/**',route=>{
   const path=new URL(route.request().url()).pathname;
-  if(path.endsWith('/request-summary')){checking=true;calls++;return route.fulfill({status:202,json:{edition:null,requestId:'manual-test',state:'PENDING',message:'Checking sources and preparing your briefing…'}})}
+  if(path.endsWith('/request-summary')){calls++;return route.fulfill({status:410,json:{error:'retired'}})}
   const data=path==='/api/auth/session'?{authenticated:true,account:{id:'owner',username:'admin',role:'user'}}:
    path==='/api/me/briefings'?{briefings:[activeFeed]}:
-   path==='/api/feed/admin/personal'?{briefing:activeFeed,editions:[],viewerHasStarred:false,publicationState:checking?'checking':'waiting'}:{};
+   path==='/api/feed/admin/personal'?{briefing:activeFeed,editions:[],viewerHasStarred:false,publicationState:'checking',publicationProgress:{stage:'PROCESSING',acquisition:{completed:2,total:3,failed:0},review:{completed:1,total:2,failed:0},pending:2}}:{};
   return route.fulfill({json:data});
  });
  await page.goto('/admin/personal/');
- const button=page.getByRole('button',{name:'brief now',exact:true});await expect(button).toBeEnabled();await button.click();
- await expect(page.getByText('Checking sources and preparing your briefing…',{exact:true})).toBeVisible();
- await expect(page.getByText('Checking sources for the next briefing…',{exact:true})).toBeVisible();await expect(button).toBeDisabled();expect(calls).toBe(1);
+ await expect(page.getByRole('button',{name:/brief now/i})).toHaveCount(0);
+ await expect(page.getByText(/Reviewing collected items/)).toBeVisible();
+ await page.getByRole('button',{name:'refresh',exact:true}).click();expect(calls).toBe(0);
 });

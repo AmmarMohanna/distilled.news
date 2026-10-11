@@ -8,8 +8,9 @@ import {itemFingerprint} from './item-fingerprint';
 export class FallbackSourceCollector {
   private providers:Map<string,SourceProvider>;
   constructor(private readonly repository:D1ProviderSourceRepository,private readonly payloads:ImmutablePayloadStore,
-    private readonly intake:CandidateIntakePort,providers:SourceProvider[],private readonly now=()=>new Date().toISOString()) {
+    private readonly intake:CandidateIntakePort,providers:SourceProvider[],private readonly now=()=>new Date().toISOString(),private readonly initialLookbackHours?:Partial<Record<import('./provider-types').SourceFamily,number>>) {
     if(new Set(providers.map(p=>p.id)).size!==providers.length)throw new Error('DUPLICATE_PROVIDER');
+    if(Object.values(initialLookbackHours??{}).some(hours=>!Number.isInteger(hours)||hours!<1||hours!>168))throw new Error('INVALID_INITIAL_LOOKBACK');
     this.providers=new Map(providers.map(p=>[p.id,p]));
   }
   async collect(request:SourceFetchRequest,order:readonly string[]=DEFAULT_SOURCE_ORDER[request.source.family],offset=0) {
@@ -73,6 +74,18 @@ export class FallbackSourceCollector {
         }
         const raw=await this.payloads.put(request.scope,page.raw,'application/octet-stream');
         const {raw:ignored,...savedPage}=page;
+        const lookback=this.initialLookbackHours?.[request.source.family];
+        // Initial priority partition, not a source permission or retention filter.
+        // The full immutable page and raw artifact survive; its native cursor
+        // advances only after every captured slice is resolved.
+        if(lookback!==undefined&&!cursor&&!request.continuation&&!request.recheckItemKeys&&page.items.every(item=>item.operation!=='DELETE')){
+         const cutoff=Date.parse(run.startedAt)-lookback*3600000;
+         savedPage.items=[...page.items].sort((a,b)=>{
+          const at=Date.parse(a.publishedAt??''),bt=Date.parse(b.publishedAt??'');
+          const ap=!Number.isFinite(at)||at>=cutoff?0:1,bp=!Number.isFinite(bt)||bt>=cutoff?0:1;
+          return ap-bp;
+         });
+        }
         const savedPayload=await this.payloads.put(request.scope,new TextEncoder().encode(JSON.stringify(savedPage)),'application/json');
         const saved:StoredProviderSnapshot={originalRequest:request,configurationKey,providerId:id,run,checkpointVersion:cursor?.version??0,
           actualBounds:actual.requestedBounds,rawRef:raw.ref,pageRef:savedPayload.ref};
@@ -109,7 +122,9 @@ export class FallbackSourceCollector {
         const seen=new Set<string>();
         for(const item of page.items){if(seen.has(item.sourceItemKey))throw new SourceProviderError('MALFORMED');seen.add(item.sourceItemKey);}
         seen.clear();
-        for(const item of page.items.slice(offset,offset+request.limit)) {
+        const slice=page.items.slice(offset,offset+request.limit);
+        const hashes=await this.repository.knownItemHashes(request.scope,slice.map(item=>item.sourceItemKey),request.configurationRevision??0);
+        for(const item of slice) {
           const op=item.operation??'UPSERT', key=item.identityValid?item.sourceItemKey:`invalid:${run.id}:${item.sourceItemKey}`;
           if(seen.has(key))throw new SourceProviderError('MALFORMED');seen.add(key);
           const o:SourceObservation={id:await sha256(JSON.stringify([request.scope,run.sequence,key,op])),...request.scope,
@@ -118,12 +133,12 @@ export class FallbackSourceCollector {
             authoritativeCurrentState:item.authoritativeCurrentState??false,upstreamId:item.upstreamId,canonicalUrl:item.url,
             publisherId:item.publisherId,titleHint:item.title,publishedAtHint:item.publishedAt,languageHint:item.language,observedAt:run.startedAt};
           if(op==='DELETE' && !o.authoritativeCurrentState)throw new SourceProviderError('MALFORMED');
-          if(op==='DELETE' && item.identityValid && await this.repository.knownItemHash(request.scope,key,request.configurationRevision??0)===await itemFingerprint(o))continue;
+          if(op==='DELETE' && item.identityValid && hashes[key]===await itemFingerprint(o))continue;
           if(op==='UPSERT' && (item.body || item.title)) {
             o.contentHash=await hashContent({representation:item.representation,title:item.title,body:item.body??''});
             // Only suppress an exact item fingerprint durably accepted in an earlier
             // run of this feed revision. Coverage still describes the fetched page.
-            if(item.identityValid && await this.repository.knownItemHash(request.scope,key,request.configurationRevision??0)===await itemFingerprint(o))continue;
+            if(item.identityValid && hashes[key]===await itemFingerprint(o))continue;
             const p=await this.payloads.put(request.scope,new TextEncoder().encode(JSON.stringify({
               body:item.body??'',title:item.title,canonicalUrl:item.url,publishedAt:item.publishedAt,language:item.language,
               representation:item.representation,contentCompleteness:item.contentCompleteness,publisherId:item.publisherId,
@@ -153,13 +168,14 @@ export class FallbackSourceCollector {
     const response=await handoffConnectorBatch(this.intake,batch.request);
     await this.repository.saveProviderReceipts(batch,response);
     const receiptByObservation=new Map(response.receipts.map(r=>[r.observationId,r]));
+    const resolvedItems:{key:string;fingerprint:string;sequence:number}[]=[];
     for(const observation of batch.request.observations){
       const receipt=receiptByObservation.get(observation.id);
       if((observation.operation==='DELETE'||observation.contentHash)&&receipt?.checkpointResolution==='RESOLVED'&&
         (receipt.decision==='ACCEPTED'||receipt.decision==='REPLAY'||receipt.decision==='DELETION_ACCEPTED'))
-        await this.repository.rememberResolvedItem(batch.originalRequest.scope,observation.sourceItemKey,
-          batch.originalRequest.configurationRevision??0,await itemFingerprint(observation),observation.fetchStartSequence);
+        resolvedItems.push({key:observation.sourceItemKey,fingerprint:await itemFingerprint(observation),sequence:observation.fetchStartSequence});
     }
+    await this.repository.rememberResolvedItems(batch.originalRequest.scope,batch.originalRequest.configurationRevision??0,resolvedItems);
     const c=batch.request.coverage;
     const resolved=isIntakePrefixResolved(response,batch.request.observations.map(o=>o.id));
     let checkpoint:'BLOCKED'|'UNCHANGED'|'ADVANCED'|'CAS_CONFLICT'=resolved?'UNCHANGED':'BLOCKED';

@@ -20,7 +20,7 @@ it('persists intervals and daily time, enforcing visibility across reads, search
   expect(((await (await app.request('/api/explore/feeds',{},env)).json()) as {feeds:{id:string}[]}).feeds.map((f:{id:string})=>f.id)).toContain(input.id);
   expect((await save({...input,publicFeedEnabled:false,briefingTimeOfDay:'20:00'})).status).toBe(200);
   expect((await repo.getBriefingById(input.id))?.briefingTimeOfDay).toBe('20:00');
-  for (const [path,method] of [['','GET'],['/search?q=infrastructure','GET'],['/editions/guess','GET'],['/items/guess/evidence','GET'],['/developments','GET'],['/star','POST'],['/request-summary','POST']]) {
+  for (const [path,method] of [['','GET'],['/search?q=infrastructure','GET'],['/editions/guess','GET'],['/items/guess/evidence','GET'],['/developments','GET'],['/star','POST']]) {
     expect((await app.request(`/api/feed/owner/lebanon${path}`,{method},env)).status).toBe(404);
   }
   expect((await app.request('/api/feed/owner/lebanon',{headers:{cookie}},env)).status).toBe(200);

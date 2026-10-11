@@ -1601,6 +1601,9 @@ function FeedPage(props: { username: string; slug: string }) {
             </button>
           ) : null}
 
+          <button type="button" onClick={() => void refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))}>
+            <RefreshCw size={15} aria-hidden /> {refreshControlLabel(language)}
+          </button>
           <button
             type="button"
             className={`star-vote${payload?.viewerHasStarred ? " is-starred" : ""}`}
@@ -2346,34 +2349,10 @@ function refreshControlLabel(language: "en" | "ar" | "fr"): string {
   return "refresh";
 }
 
-function summaryRequestLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "موجز الآن";
-  if (language === "fr") return "brief maintenant";
-  return "brief now";
-}
-
-function summaryRequestTitleLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "إنشاء موجز منذ آخر خبر";
-  if (language === "fr") return "créer un brief depuis le dernier";
-  return "create a brief since the last one";
-}
-
-function summaryBusyLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "جار الإنشاء";
-  if (language === "fr") return "création";
-  return "building";
-}
-
 function summaryPublishedLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "تم نشر موجز جديد.";
   if (language === "fr") return "nouveau brief publié.";
   return "new brief published.";
-}
-
-function summaryEmptyLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "لا توجد تحديثات موثوقة منذ آخر موجز.";
-  if (language === "fr") return "aucune mise à jour vérifiée depuis le dernier brief.";
-  return "no verified updates since the last brief.";
 }
 
 function starControlLabel(starred: boolean, language: "en" | "ar" | "fr"): string {

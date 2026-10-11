@@ -62,6 +62,19 @@ export class D1SourceRepository implements SourceRepository {
       .bind(scope.feedId,scope.feedSourceId,key).first<{source_id:string;configuration_revision:number;fingerprint:string}>();
     return row?.source_id===scope.sourceId&&row.configuration_revision===revision?row.fingerprint:undefined;
   }
+  async knownItemHashes(scope:SourceScope,keys:string[],revision:number):Promise<Record<string,string>> {
+    const row=await this.db.prepare(`SELECT json_group_object(source_item_key,fingerprint) AS hashes FROM connector_item_fingerprints
+      WHERE feed_id=? AND feed_source_id=? AND source_id=? AND configuration_revision=? AND source_item_key IN (SELECT value FROM json_each(?))`)
+      .bind(scope.feedId,scope.feedSourceId,scope.sourceId,revision,JSON.stringify(keys)).first<{hashes:string}>();
+    return JSON.parse(row?.hashes??'{}');
+  }
+  async rememberResolvedItems(scope:SourceScope,revision:number,items:{key:string;fingerprint:string;sequence:number}[]):Promise<void> {
+    for(let offset=0;offset<items.length;offset+=90){const statements=items.slice(offset,offset+90).map(item=>this.db.prepare(`INSERT INTO connector_item_fingerprints(feed_id,feed_source_id,source_id,source_item_key,configuration_revision,fingerprint,fetch_sequence)
+      VALUES(?,?,?,?,?,?,?) ON CONFLICT(feed_id,feed_source_id,source_item_key) DO UPDATE SET
+      source_id=excluded.source_id,configuration_revision=excluded.configuration_revision,fingerprint=excluded.fingerprint,fetch_sequence=excluded.fetch_sequence
+      WHERE excluded.fetch_sequence>=connector_item_fingerprints.fetch_sequence`)
+      .bind(scope.feedId,scope.feedSourceId,scope.sourceId,item.key,revision,item.fingerprint,item.sequence));if(statements.length)await this.db.batch(statements)}
+  }
   async rememberResolvedItem(scope:SourceScope,key:string,revision:number,fingerprint:string,sequence:number):Promise<void> {
     await this.db.prepare(`INSERT INTO connector_item_fingerprints(feed_id,feed_source_id,source_id,source_item_key,configuration_revision,fingerprint,fetch_sequence)
       VALUES(?,?,?,?,?,?,?) ON CONFLICT(feed_id,feed_source_id,source_item_key) DO UPDATE SET

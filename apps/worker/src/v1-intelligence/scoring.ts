@@ -67,21 +67,43 @@ export async function independentSupportCount(tx:FeedTransaction,revisions:Evide
 }
 export async function targets(tx:FeedTransaction,window:PublicationWindow,includeOutsideWindow=false):Promise<Target[]> {
  const active=new Map((await tx.store.currentEvidence(tx.snapshot.feed.id)).map(r=>[r.revision.id,r.revision]));
+ const admissionRows=await tx.store.db.prepare("SELECT json_extract(r.json,'$.observationId') AS observation_id,MIN(json_extract(r.json,'$.decidedAt')) AS admitted_at FROM v1_intake_receipts r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND json_extract(r.json,'$.decision')='ACCEPTED' GROUP BY 1").bind(tx.snapshot.feed.id).all<{observation_id:string;admitted_at:string}>();
+ const admissions=new Map(admissionRows.results.map(row=>[row.observation_id,Date.parse(row.admitted_at)]));
+ const beforeCutoff=(ids:string[])=>ids.length>0&&ids.every(id=>active.has(id)&&(admissions.get(active.get(id)!.sourceObservationId)??Date.parse(active.get(id)!.acceptedAt))<Date.parse(window.end));
+ let historicalEvents:EventVersion[]|undefined;
  const roots=await tx.list<EventRecord>('events'),events=new Map<string,Target>();
- const memberships=await tx.list<EventMembership>('memberships');
+ const memberships=await tx.list<EventMembership>('memberships'),memberIds=new Map<string,string[]>();
+ for(const m of memberships){const ids=memberIds.get(m.eventVersionId)??[];ids.push(m.evidenceRevisionId);memberIds.set(m.eventVersionId,ids)}
+ const idsFor=(versionId:string)=>memberIds.get(versionId)??[];
  await tx.preload('event_versions',roots.map(root=>root.currentVersionId));
  for(const root of roots) {
-  const version=await tx.read<EventVersion>('event_versions',root.currentVersionId);if(!version || version.type==='WITHDRAWN') continue;
-  const ids=memberships.filter(m=>m.eventVersionId===version.id).map(m=>m.evidenceRevisionId);
+  let version=await tx.read<EventVersion>('event_versions',root.currentVersionId);if(!version || version.type==='WITHDRAWN') continue;
+  let ids=idsFor(version!.id);
+  if(ids.some(id=>active.has(id)&&!beforeCutoff([id]))){
+   // Read the immutable supported state at this cutoff, never trim a current
+   // state's evidence while retaining its later factual meaning. Withdrawn or
+   // no-longer-active support is never resurrected.
+   historicalEvents??=await tx.list<EventVersion>('event_versions');
+   version=historicalEvents.filter(v=>v.eventId===root.id&&v.version<version!.version&&v.type!=='WITHDRAWN')
+    .sort((a,b)=>b.version-a.version).find(v=>beforeCutoff(idsFor(v.id)));
+   if(!version)continue;
+   ids=idsFor(version!.id);
+  }
   if(!ids.length || ids.some(id=>!active.has(id))) continue;
   const evidence=ids.map(id=>active.get(id)!);
   events.set(version.id,{type:'EVENT',id:version.id,stableId:root.id,text:`${version.title??''}\n${version.state}`,updatedAt:version.createdAt,version:version.version,evidence,eventVersionIds:[version.id],persistence:0,turningPoint:version.version>1?1:0});
  }
  const result:Target[]=[],groupedEvents=new Set<string>(),longWindow=window.kind==='WEEKLY' || (window.durationMinutes??0)>=720;
- const storylineRoots=await tx.list<StorylineRecord>('storylines');
+ const storylineRoots=await tx.list<StorylineRecord>('storylines');let historicalStorylines:StorylineVersion[]|undefined;
  await tx.preload('storyline_versions',storylineRoots.map(root=>root.currentVersionId));
  for(const root of storylineRoots) {
-  const version=await tx.read<StorylineVersion>('storyline_versions',root.currentVersionId);if(!version?.eventVersionIds.length || version.eventVersionIds.some(id=>!events.has(id))) continue;
+  let version=await tx.read<StorylineVersion>('storyline_versions',root.currentVersionId);
+  if(version?.eventVersionIds.some(id=>!events.has(id))){
+   historicalStorylines??=await tx.list<StorylineVersion>('storyline_versions');
+   version=historicalStorylines.filter(v=>v.storylineId===root.id&&v.version<version!.version)
+    .sort((a,b)=>b.version-a.version).find(v=>v.eventVersionIds.length>0&&v.eventVersionIds.every(id=>events.has(id)));
+  }
+  if(!version?.eventVersionIds.length || version.eventVersionIds.some(id=>!events.has(id))) continue;
   for(const id of version.eventVersionIds) events.get(id)!.storylineId=root.id;
   if(longWindow) {
    result.push({type:'STORYLINE',id:version.id,stableId:root.id,storylineId:root.id,text:version.currentState,updatedAt:version.createdAt,version:version.version,evidence:[...new Map(version.eventVersionIds.flatMap(id=>events.get(id)!.evidence).map(r=>[r.id,r])).values()],eventVersionIds:version.eventVersionIds,storylineVersionId:version.id,persistence:score(version.eventVersionIds.length/4),turningPoint:score(version.turningPoints.length/3)});
@@ -93,8 +115,6 @@ export async function targets(tx:FeedTransaction,window:PublicationWindow,includ
  // follows durable intake admission, not queue completion time. Source reporting
  // age remains a separate freshness/framing decision. Scope and graph fences
  // still validate this read together with every other selection input at commit.
- const admissionRows=await tx.store.db.prepare("SELECT json_extract(r.json,'$.observationId') AS observation_id,MIN(json_extract(r.json,'$.decidedAt')) AS admitted_at FROM v1_intake_receipts r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND json_extract(r.json,'$.decision')='ACCEPTED' GROUP BY 1").bind(tx.snapshot.feed.id).all<{observation_id:string;admitted_at:string}>();
- const admissions=new Map(admissionRows.results.map(row=>[row.observation_id,Date.parse(row.admitted_at)]));
  return result.filter(target=>{
   const times=target.evidence.map(revision=>admissions.get(revision.sourceObservationId)??Date.parse(revision.acceptedAt));
   const admittedAt=times.length?Math.max(...times):Date.parse(target.updatedAt);

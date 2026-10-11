@@ -64,41 +64,6 @@ export async function publishDueBriefingEditions(input: {
   return published;
 }
 
-export async function publishManualBriefingEdition(input: {
-  repo: Repository;
-  briefing: BriefingConfig;
-  now?: Date;
-  summaryAdapter?: SummaryAdapter | null;
-}): Promise<BriefingEdition | null> {
-  const now = input.now ?? new Date();
-  const windowEnd = now.toISOString();
-  const windowStart = await manualWindowStart(input.repo, input.briefing, now);
-  if (new Date(windowStart).getTime() >= now.getTime()) return null;
-
-  const messages = await input.repo.listRawMessagesForWindow(
-    input.briefing.id,
-    windowStart,
-    windowEnd,
-    MAX_WINDOW_MESSAGES
-  );
-  const edition = await localizeEdition(
-    buildBriefingEdition({
-      briefing: input.briefing,
-      messages,
-      windowStart,
-      windowEnd,
-      now,
-      processedItems:await developmentWindow(input.repo,input.briefing.id,windowStart,windowEnd,now)
-    }),
-    input.briefing,
-    input.summaryAdapter
-  );
-  if (edition.status !== "published") return null;
-
-  await input.repo.saveBriefingEdition(edition, now);
-  return edition;
-}
-
 function latestSettledDueWindow(briefing: BriefingConfig, now: Date) {
   const settledNow = new Date(now.getTime() - BRIEFING_PUBLICATION_DELAY_MS);
   let latest = getDueBriefingWindow(briefing, settledNow);
@@ -129,15 +94,6 @@ async function unsummarizedScheduledWindow(
   if (latestEnd <= windowStart) return window;
   if (latestEnd >= windowEnd) return null;
   return { windowStart: latestEdition.windowEnd, windowEnd: window.windowEnd };
-}
-
-async function manualWindowStart(repo: Repository, briefing: BriefingConfig, now: Date): Promise<string> {
-  const [latestEdition] = await repo.listBriefingEditions(briefing.id, false, now, 1);
-  const latestEnd = latestEdition ? new Date(latestEdition.windowEnd).getTime() : Number.NaN;
-  if (Number.isFinite(latestEnd) && latestEnd < now.getTime()) return latestEdition!.windowEnd;
-
-  const fallback = getDueBriefingWindow({ ...briefing, nextBriefingAt: now.toISOString() }, now);
-  return fallback?.windowStart ?? new Date(now.getTime() - 60 * 60 * 1000).toISOString();
 }
 
 async function localizeEdition(

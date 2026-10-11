@@ -29,12 +29,7 @@ export interface FeedStarResult {
   viewerHasStarred: boolean;
 }
 
-export interface FeedSummaryRequestResult {
-  requestId?:string;
-  state?:'PENDING'|'DONE'|'FAILED';
-  edition: BriefingEdition | null;
-  message: string;
-}
+
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -301,13 +296,6 @@ export async function searchFeed(username: string, slug: string, query: string):
     `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/search?q=${encodeURIComponent(query)}`
   );
   return payload.editions;
-}
-
-export async function requestFeedSummary(username: string, slug: string): Promise<FeedSummaryRequestResult> {
-  return requestJson<FeedSummaryRequestResult>(
-    `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/request-summary`,
-    { method: "POST" }
-  );
 }
 
 export async function setFeedStar(username: string, slug: string, starred: boolean): Promise<FeedStarResult> {

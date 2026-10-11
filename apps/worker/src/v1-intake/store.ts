@@ -40,6 +40,7 @@ export class V1IntakeStore {
   /** Scope-wide epoch serializes decisions across item state and configuration changes.
    * The guard CHECK aborts the entire batch before any effects on a stale snapshot. */
   async commit(snapshot:ScopeSnapshot,writes:Write[]):Promise<boolean> {
+    if(!writes.length)return true;
     const nonce=crypto.randomUUID();
     const statements=[this.db.prepare('INSERT INTO v1_transaction_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=? AND json_extract(json,\'$.enabled\')=1 AND json_extract(json,\'$.deletedAt\') IS NULL) THEN 1 ELSE 0 END').bind(nonce,snapshot.scope.feedSourceId,snapshot.epoch)];
     for(const w of writes) statements.push(this.db.prepare(`INSERT INTO ${tableName(w.table)}(id,feed_source_id,item_key,json) VALUES(?,?,?,?) ${w.immutable?'ON CONFLICT(id) DO NOTHING':'ON CONFLICT(id) DO UPDATE SET json=excluded.json'}`).bind(w.id,snapshot.scope.feedSourceId,w.itemKey??null,JSON.stringify(w.value)));

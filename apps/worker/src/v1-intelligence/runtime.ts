@@ -1,3 +1,4 @@
+import {enqueueV1,pendingV1Jobs} from '../v1-queue-dispatch';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {z} from 'zod';
 import type {Env,DistilledQueueMessage} from '../types';
@@ -56,6 +57,7 @@ export function publicationWindow(kind:FeedRecord['briefingFrequency'],now:Date)
 export async function processV1Reassessment(env:Env,id:string,now=new Date().toISOString()) {
  const intake=new V1IntakeStore(env.DB),row=await intake.read<DownstreamJob>('jobs',id);
  if(!row || row.value.kind!=='REASSESS' || row.value.state==='DONE' || row.value.exhausted || !v1SourceEnabled(env,row.feedSourceId)) return 'SKIPPED';
+ if(row.value.nextAttemptAt&&Date.parse(row.value.nextAttemptAt)>Date.parse(now))return 'WAITING_RETRY';
  await synchronizeV1ProductSource(env.DB,row.feedSourceId,now);
  const scope=await intake.snapshot(row.feedSourceId);await approvedFeed(env,scope.scope.feedId);
  try {return await withSemanticWorkLease(env.DB,scope.scope.feedId,async store=>{const prepared=await prepareSemanticMatch(store,env,id,now);await processEvidenceIntelligence(store,id,now,prepared?.matchers);return 'DONE'})}
@@ -173,8 +175,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
  for(const id of sourceIds) {
   try {await synchronizeV1ProductSource(env.DB,id,now.toISOString())} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
   const scope=await new V1IntakeStore(env.DB).getScope(id);if(!scope?.enabled || scope.deletedAt) continue;feeds.add(scope.feedId);
-  const rows=await env.DB.prepare("SELECT id FROM v1_jobs WHERE feed_source_id=? AND json_extract(json,'$.kind')='REASSESS' AND json_extract(json,'$.state')='PENDING' AND COALESCE(json_extract(json,'$.exhausted'),0)=0 AND (json_extract(json,'$.nextAttemptAt') IS NULL OR json_extract(json,'$.nextAttemptAt')<=?) ORDER BY id LIMIT 5").bind(id,now.toISOString()).all<{id:string}>();
-  for(const job of rows.results) {await env.PROCESSING_QUEUE.send({type:'v1_reassess',jobId:job.id});sent++}
+  const rows=await pendingV1Jobs(env,id,'REASSESS',now);
+  for(const job of rows) if(await enqueueV1(env,'v1_reassess',job.id,{type:'v1_reassess',jobId:job.id},now))sent++
  }
  const store=new V1FeedStore(env.DB);
  for(const id of feeds) {
@@ -187,7 +189,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
     const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts'),publishers=new Map((await store.currentEvidence(id)).map(e=>[e.revision.id,e.item.feedSourceId]));
     const protectedIds=await protectedRematchRevisionIds(store,id);
     if(now.getUTCMinutes()%15===0)console.info(JSON.stringify({type:'V1_SEMANTIC_BACKPRESSURE',feedId:id,...semanticBacklogMetrics(rematches,attempts,protectedIds,now.toISOString(),feed.briefingSchedule?.durationMinutes??(feed.briefingFrequency==='30M'?30:feed.briefingFrequency==='HOURLY'?60:1440))}));
-    for(const request of prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString(),{costAdmission:true})),protectedIds,attempts,publishers).slice(0,2)){await env.PROCESSING_QUEUE.send({type:'v1_rematch',feedId:id,requestId:request.id});sent++}
+    for(const request of prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString(),{costAdmission:true})),protectedIds,attempts,publishers).slice(0,2)){if(await enqueueV1(env,'v1_rematch',request.id,{type:'v1_rematch',feedId:id,requestId:request.id},now))sent++}
   });
   // Reassessment must finish first; the next bounded relay publishes its result.
   const pending={n:await jobsHoldingWindow(env.DB,id,windowEndOf(feed,now))};
@@ -230,7 +232,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    if(request.reason==='MODEL_SETUP_REQUIRED')await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING'&&current.reason==='MODEL_SETUP_REQUIRED'){const {reason:_setup,...rest}=current;await tx.write('briefing_requests',request.id,rest)}});
    const job=await store.read<{state:string;leaseUntil:string;pendingCall?:string}>(id,'synthesis_jobs',request.id);
    if(job?.state==='FAILED' || job?.pendingCall || job?.state==='RUNNING' && Date.parse(job.leaseUntil)>now.getTime()) continue;
-   await env.PROCESSING_QUEUE.send({type:'v1_briefing',feedId:id,window:request.window} satisfies DistilledQueueMessage);sent++;briefingSends++;
+   if(!await enqueueV1(env,'v1_briefing',request.id,{type:'v1_briefing',feedId:id,window:request.window} satisfies DistilledQueueMessage,now))continue;sent++;briefingSends++;
    if(briefingSends===2) break;
   }
  }

@@ -18,6 +18,7 @@ export interface DownstreamJob {
   nextAttemptAt?: string; exhausted?: boolean; conflictId?: string;
   leaseToken?: string; leaseUntil?: string; failureCode?: string;
   resumeAttempts?: number;
+  resourceWaits?: number;
 }
 export interface AcceptedAcquiredContent {
   id: string; feedId: string; candidateId: string; sourceObservationId: string;

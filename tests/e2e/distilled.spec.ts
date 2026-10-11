@@ -251,10 +251,8 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Personal Briefing" })).toBeVisible();
   await expect(page.getByText("waiting for the next accepted update.")).toBeVisible();
-  await expect(page.getByRole("button", { name: /brief now/i })).toHaveAttribute("title", "create a brief since the last one");
-  await page.getByRole("button", { name: /brief now/i }).click();
-  await expect(page.getByText("new brief published.")).toBeVisible();
-  expect(summaryRequests).toBe(1);
+  await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
+  expect(summaryRequests).toBe(0);
   feedPaused = true;
   await page.reload();
   await expect(page.getByText("feed paused; no new briefings will publish until it resumes.")).toBeVisible();
@@ -311,7 +309,7 @@ test("arabic feed keeps public chrome localized and summary stable on expand", a
 
   await page.goto("/ammar-mohanna/personal/");
 
-  await expect(page.getByRole("button", { name: /موجز الآن/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /موجز الآن/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /استكشاف/ })).toBeVisible();
   await expect(page.getByPlaceholder("ابحث في الموجز المنشور")).toBeVisible();
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();

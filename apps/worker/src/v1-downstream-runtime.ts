@@ -1,3 +1,4 @@
+import {enqueueV1,pendingV1Jobs} from './v1-queue-dispatch';
 import { connectorHandoffRequestSchema, HandoffError } from '@distilled/contracts';
 import { z } from 'zod';
 import type { Env } from './types';
@@ -74,8 +75,8 @@ export async function dispatchV1Acquisitions(env:Env,now=new Date()):Promise<num
  let sent=0;
  for(const id of ids) {
   try {await synchronizeV1ProductSource(env.DB,id,now.toISOString())} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
-  const rows=await env.DB.prepare(`SELECT j.id FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE j.feed_source_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL AND json_extract(j.json,'$.kind')='ACQUIRE' AND (json_extract(j.json,'$.state')='PENDING' OR (json_extract(j.json,'$.state')='RUNNING' AND json_extract(j.json,'$.leaseUntil')<=?)) AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0 AND (json_extract(j.json,'$.nextAttemptAt') IS NULL OR json_extract(j.json,'$.nextAttemptAt')<=?) ORDER BY j.id LIMIT 5`).bind(id,now.toISOString(),now.toISOString()).all<{id:string}>();
-  for(const row of rows.results) {await env.PROCESSING_QUEUE.send({type:'v1_acquisition',jobId:row.id});sent++}
+  const rows=await pendingV1Jobs(env,id,'ACQUIRE',now);
+  for(const row of rows) if(await enqueueV1(env,'v1_acquisition',row.id,{type:'v1_acquisition',jobId:row.id},now))sent++
  }
  return sent;
 }

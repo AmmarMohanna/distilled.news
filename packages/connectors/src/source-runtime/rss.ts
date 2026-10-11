@@ -27,7 +27,8 @@ export class RssSourceCollector {
     if (!['http:','https:'].includes(sourceUrl.protocol) || sourceUrl.username || sourceUrl.password) throw new Error('INVALID_SOURCE_URL');
     const maxItems = input.maxItems ?? 100;
     if (!Number.isInteger(maxItems) || maxItems < 1 || maxItems > 500 || !Number.isInteger(offset) || offset < 0) throw new Error('INVALID_BATCH_LIMIT');
-    const configurationKey = await sha256(JSON.stringify([input.scope, input.url, input.requestedBounds ?? {}, maxItems]));
+    if(input.initialLookbackHours!==undefined&&(!Number.isInteger(input.initialLookbackHours)||input.initialLookbackHours<1||input.initialLookbackHours>168))throw new Error('INVALID_INITIAL_LOOKBACK');
+    const configurationKey = await sha256(JSON.stringify([input.scope, input.url, input.requestedBounds ?? {}, maxItems,...(input.initialLookbackHours===undefined?[]:[input.initialLookbackHours])]));
     const handoffId = await sha256(JSON.stringify([input.scope, input.runId, offset]));
     const saved = await this.repository.loadBatch(input.scope,handoffId);
     if (saved) {
@@ -70,6 +71,12 @@ export class RssSourceCollector {
     } else if (response.status !== 304) {
       failure = response.status === 429 ? 'RATE_LIMIT' : [401,403].includes(response.status) ? 'AUTH_REQUIRED' : 'TRANSIENT_PROVIDER_FAILURE';
     }
+    if(!checkpoint&&input.initialLookbackHours!==undefined){
+      const cutoff=Date.parse(run.startedAt)-input.initialLookbackHours*3600000;
+      // Unknown times are retained in the current partition; never invent age.
+      items.sort((a,b)=>Number(!b.publishedAt||Date.parse(b.publishedAt)>=cutoff)-Number(!a.publishedAt||Date.parse(a.publishedAt)>=cutoff)||
+        (b.publishedAt??run.startedAt).localeCompare(a.publishedAt??run.startedAt));
+    }
     const raw = await this.payloads.put(input.scope,response.bytes,'application/xml');
     // Snapshot contains normalized entries AND raw reference; stored once before first handoff.
     const retryAfter=response.headers['retry-after'];
@@ -86,6 +93,7 @@ export class RssSourceCollector {
     snapshot:{items:ReturnType<typeof normalizeRssSnapshot>;status:number;failure:CollectionCoverage['failureReason'];etag?:string;lastModified?:string;snapshotHash?:string;telemetry:FetchTelemetry;retryNotBefore?:string},offset:number,maxItems:number):Promise<StoredRssBatch> {
     const observations: SourceObservation[] = [], proposals: CandidateProposal[] = [];
     const processedRows=snapshot.items.slice(offset,offset+maxItems);
+    const known=this.repository.knownItemHashes?await this.repository.knownItemHashes(input.scope,processedRows.filter(row=>row.identityValid).map(row=>row.key),input.configurationRevision??0):undefined;
     for (const row of processedRows) {
       const evidenceBody=rssEvidenceText(row.title,row.body);
       const id = await sha256(JSON.stringify([input.scope,sequence,row.key,'UPSERT']));
@@ -96,7 +104,7 @@ export class RssSourceCollector {
         publishedAtHint:row.publishedAt,languageHint:row.language,sourceRevision:row.sourceRevision,observedAt:startedAt};
       if (!row.conflictingDuplicate && evidenceBody) {
         observation.contentHash = await hashContent({representation:'ARTICLE_EXCERPT',title:row.title,body:evidenceBody});
-        if(row.identityValid && await this.repository.knownItemHash(input.scope,row.key,input.configurationRevision??0)===await itemFingerprint(observation))continue;
+        if(row.identityValid && (known?known[row.key]:await this.repository.knownItemHash(input.scope,row.key,input.configurationRevision??0))===await itemFingerprint(observation))continue;
         const payload = await this.payloads.put(input.scope,new TextEncoder().encode(JSON.stringify({
           representation:'ARTICLE_EXCERPT',contentCompleteness:'UNKNOWN',title:row.title,body:evidenceBody,
           canonicalUrl:row.url,publishedAt:row.publishedAt,language:row.language,
@@ -121,7 +129,7 @@ export class RssSourceCollector {
     // RSS exposes a finite snapshot, not a proven historical cursor. Validators are safe
     // only after every batch of this saved snapshot has resolved receipts.
     const checkpoint = !pending && snapshot.failure === 'NONE' && snapshot.status === 200 ? {
-      sequence,configurationKey:await sha256(JSON.stringify([input.scope,input.url,input.requestedBounds ?? {},maxItems])),
+      sequence,configurationKey:await sha256(JSON.stringify([input.scope,input.url,input.requestedBounds ?? {},maxItems,...(input.initialLookbackHours===undefined?[]:[input.initialLookbackHours])])),
       etag:snapshot.etag,lastModified:snapshot.lastModified,snapshotHash:snapshot.snapshotHash
     } : undefined;
     return {request:{contractVersion:CONTRACT_VERSION,handoffId:await sha256(JSON.stringify([input.scope,input.runId,offset])),coverage,observations,proposals},
@@ -132,13 +140,15 @@ export class RssSourceCollector {
     const response = await handoffConnectorBatch(this.intake,batch.request);
     await this.repository.recordReceipts(batch,response);
     const receiptByObservation=new Map(response.receipts.map(r=>[r.observationId,r]));
+    const resolved:{key:string;fingerprint:string;sequence:number}[]=[];
     for(const observation of batch.request.observations){
       const receipt=receiptByObservation.get(observation.id);
       if(observation.operation==='UPSERT'&&observation.contentHash&&receipt?.checkpointResolution==='RESOLVED'&&
         (receipt.decision==='ACCEPTED'||receipt.decision==='REPLAY'))
-        await this.repository.rememberResolvedItem(input.scope,observation.sourceItemKey,
-          input.configurationRevision??0,await itemFingerprint(observation),observation.fetchStartSequence);
+        resolved.push({key:observation.sourceItemKey,fingerprint:await itemFingerprint(observation),sequence:observation.fetchStartSequence});
     }
+    if(this.repository.rememberResolvedItems)await this.repository.rememberResolvedItems(input.scope,input.configurationRevision??0,resolved);
+    else for(const item of resolved)await this.repository.rememberResolvedItem(input.scope,item.key,input.configurationRevision??0,item.fingerprint,item.sequence);
     const base = {handoffId:batch.request.handoffId,coverage:batch.request.coverage,telemetry,retryNotBefore:batch.retryNotBefore};
     if (!isIntakePrefixResolved(response,batch.request.observations.map(o => o.id))) return {...base,checkpoint:'BLOCKED'};
     if (batch.nextOffset < batch.totalItems) return {...base,checkpoint:'UNCHANGED',nextOffset:batch.nextOffset};
