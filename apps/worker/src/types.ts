@@ -111,7 +111,12 @@ export interface Env extends Cloudflare.Env {
   INTERNAL_MAINTENANCE_SECRET?: string;
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_SITE_KEY?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
   CLOUDFLARE_AI_GATEWAY_TOKEN?: string;
+  CLOUDFLARE_IMAGE_ACCOUNT_ID?: string;
+  CLOUDFLARE_IMAGE_API_TOKEN?: string;
   OPENAI_API_KEY?: string;
   OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS?: string;
   OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS?: string;
@@ -301,6 +306,7 @@ export interface Repository {
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;
   listBriefings(accountId?: string): Promise<BriefingConfig[]>;
   listExploreBriefings(limit: number): Promise<BriefingConfig[]>;
+  setExploreFeatured(briefingId: string, featured: boolean): Promise<void>;
   getBriefingById(id: string): Promise<BriefingConfig | null>;
   getBriefingBySlug(ownerAccountId: string, slug: string): Promise<BriefingConfig | null>;
   hasBriefingStar(briefingId: string, voterId: string): Promise<boolean>;

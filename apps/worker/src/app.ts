@@ -2,6 +2,7 @@ import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
 import {approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState} from './product-feeds';
 import {connectorSourceHealth} from './connector-health';
+import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
@@ -37,6 +38,7 @@ import { Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
 import { createSummaryAdapterFromEnv } from "./ai";
+import { generateSketch, SketchError, sketchFingerprint, sketchKey } from "./sketches";
 import {
   accountAuth,
   adminAuth,
@@ -236,15 +238,15 @@ function buildManifestPayload(input: {
     scope: "/",
     start_url: input.startUrl,
     background_color: "#faf8f1",
-    theme_color: "#faf8f1",
+    theme_color: "#5e5ce6",
     icons: [
       {
-        src: "/icon-192.png",
+        src: "/icon-192.png?v=brand-4",
         sizes: "192x192",
         type: "image/png"
       },
       {
-        src: "/icon-512.png",
+        src: "/icon-512.png?v=brand-4",
         sizes: "512x512",
         type: "image/png"
       }
@@ -706,6 +708,29 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ account: publicAccount(c.get("account")!) });
   });
 
+  app.get("/api/me/push", (c) => c.json({ publicKey: pushConfigured(c.env) ? c.env.VAPID_PUBLIC_KEY : null }));
+
+  app.post("/api/me/push", async (c) => {
+    if (!pushConfigured(c.env)) return c.json({ error: "Notifications need server setup" }, 503);
+    const account = c.get("account")!;
+    await assertRateLimit(c.get("repo"), `push:${account.id}`, "push_subscription", 20, 60 * 60 * 1000);
+    const input = z.object({ subscription: subscriptionSchema, language: z.enum(["en", "fr", "ar"]).default("en") }).parse(await c.req.json());
+    const now = new Date().toISOString();
+    await c.env.DB.prepare(`INSERT INTO push_subscriptions(endpoint, account_id, subscription_json, language, last_notified_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET account_id = excluded.account_id,
+      subscription_json = excluded.subscription_json, language = excluded.language,
+      last_notified_at = excluded.last_notified_at, lease_until = NULL`)
+      .bind(input.subscription.endpoint, account.id, JSON.stringify(input.subscription), input.language, now, now).run();
+    return c.json({ ok: true });
+  });
+
+  app.delete("/api/me/push", async (c) => {
+    const input = z.object({ endpoint: z.string().max(2048).refine(validPushEndpoint) }).parse(await c.req.json());
+    await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND account_id = ?")
+      .bind(input.endpoint, c.get("account")!.id).run();
+    return c.json({ ok: true });
+  });
+
   app.patch("/api/me/account", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
@@ -778,6 +803,28 @@ export function createApp(options: AppOptions = {}) {
       retentionDays: FIXED_RETENTION_DAYS
     });
     return c.json({ briefing });
+  });
+
+  app.post("/api/me/briefings/:briefingId/sketch", async (c) => {
+    const repo = c.get("repo");
+    const account = c.get("account")!;
+    const briefing = await getOwnedBriefing(repo, account, c.req.param("briefingId"));
+    if (!briefing) return c.json({ error: "briefing not found" }, 404);
+    if (!c.env.CLOUDFLARE_IMAGE_ACCOUNT_ID || !c.env.CLOUDFLARE_IMAGE_API_TOKEN) return c.json({ code: "AI_NOT_CONFIGURED", error: "Image generation is not configured." }, 503);
+    if (!c.env.RAW_ARCHIVE) return c.json({ code: "SKETCH_STORAGE_UNAVAILABLE", error: "Sketch storage is not configured." }, 503);
+    let saved;
+    try { saved = await c.env.RAW_ARCHIVE.head(sketchKey(briefing)); }
+    catch { return c.json({ code: "SKETCH_STORAGE_READ", error: "Could not check the saved sketch." }, 502); }
+    if (saved?.customMetadata?.fingerprint === await sketchFingerprint(briefing)) return c.json({ generated: false });
+    const since = new Date(Date.now() - 86_400_000).toISOString();
+    if (await repo.countRecentAuthAttempts({ key: account.id, action: "feed_sketch", since }) >= 5) return c.json({ error: "Sketch limit reached. Try again tomorrow." }, 429);
+    await repo.recordAuthAttempt({ key: account.id, action: "feed_sketch" });
+    try { await generateSketch(c.env, briefing); return c.json({ generated: true }); }
+    catch (error) {
+      const failure = error instanceof SketchError ? error : new SketchError("SKETCH_FAILED", "Sketch generation failed.");
+      console.error(JSON.stringify({ event: "feed_sketch_failed", code: failure.code }));
+      return c.json({ code: failure.code, error: failure.message }, 502);
+    }
   });
 
   app.post('/api/me/feeds', async c => {
@@ -972,6 +1019,16 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ briefings: await c.get("repo").listBriefings() });
   });
 
+  app.post("/api/admin/briefings/:briefingId/explore", async (c) => {
+    const repo = c.get("repo");
+    const briefing = await repo.getBriefingById(c.req.param("briefingId"));
+    if (!briefing) return c.json({ error: "briefing not found" }, 404);
+    const input = z.object({ featured: z.boolean() }).parse(await c.req.json().catch(() => ({})));
+    if (input.featured && !briefing.publicFeedEnabled) return c.json({ error: "only public feeds can be featured" }, 400);
+    await repo.setExploreFeatured(briefing.id, input.featured);
+    return c.json({ featured: input.featured });
+  });
+
   app.patch("/api/admin/briefings/:briefingId", async (c) => {
     const repo = c.get("repo");
     const briefing = await repo.getBriefingById(c.req.param("briefingId"));
@@ -999,6 +1056,14 @@ export function createApp(options: AppOptions = {}) {
     const repo = repoFor(c);
     const feeds = await repo.listExploreBriefings(10);
     return c.json({ feeds: feeds.map(publicBriefing) });
+  });
+
+  app.get("/api/feed/:username/:briefingSlug/sketch", async (c) => {
+    const resolved = await resolvePublicFeed(c);
+    if (resolved instanceof Response) return resolved;
+    const object = await c.env.RAW_ARCHIVE?.get(sketchKey(resolved.briefing));
+    if (!object || object.customMetadata?.fingerprint !== await sketchFingerprint(resolved.briefing)) return c.body(null, 404, { "Cache-Control": "no-store" });
+    return new Response(object.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
   });
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
