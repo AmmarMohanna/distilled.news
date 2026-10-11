@@ -2001,6 +2001,47 @@ describe("worker app accounts", () => {
     expect(payload.feeds.some((feed) => feed.title === "Disabled Feed")).toBe(false);
   });
 
+  it("lets admins feature public feeds in Explore without changing stars", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const admin = await createVerifiedUser(app, repo, "curator@test.com", "Curator", "admin");
+    const owner = await createVerifiedUser(app, repo, "publisher@test.com", "Publisher");
+    const feed = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    const url = `/api/admin/briefings/${feed.id}/explore`;
+    const request = (cookie: string, featured: boolean) => app.request(url, {
+      method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ featured })
+    }, env());
+
+    expect((await request(owner.cookie, true)).status).toBe(401);
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: false });
+    expect((await request(admin.cookie, true)).status).toBe(400);
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: true });
+    expect((await request(admin.cookie, true)).status).toBe(200);
+    expect((await repo.listExploreBriefings(10)).map(item => item.id)).toContain(feed.id);
+    expect((await repo.getBriefingById(feed.id))?.stars).toBe(0);
+    expect((await request(admin.cookie, false)).status).toBe(200);
+    expect((await repo.listExploreBriefings(10)).map(item => item.id)).not.toContain(feed.id);
+  });
+
+  it("stores and removes an authenticated browser push subscription", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "alerts@test.com", "Alerts Owner");
+    const writes: string[] = [];
+    const pushEnv = { ...env(), VAPID_PUBLIC_KEY: "public-key", VAPID_PRIVATE_KEY: "private-key", VAPID_SUBJECT: "mailto:alerts@example.com",
+      DB: { prepare: (sql: string) => ({ bind: () => ({ run: async () => { writes.push(sql); return { meta: { changes: 1 } }; } }) }) } } as unknown as Env;
+    const headers = { "content-type": "application/json", cookie: owner.cookie };
+    const config = await app.request("/api/me/push", { headers: { cookie: owner.cookie } }, pushEnv);
+    expect(await config.json()).toEqual({ publicKey: "public-key" });
+    const subscription = { endpoint: "https://fcm.googleapis.com/fcm/send/test", expirationTime: null,
+      keys: { p256dh: "a".repeat(87), auth: "b".repeat(22) } };
+    const saved = await app.request("/api/me/push", { method: "POST", headers, body: JSON.stringify({ subscription, language: "en" }) }, pushEnv);
+    expect(saved.status).toBe(200);
+    const removed = await app.request("/api/me/push", { method: "DELETE", headers, body: JSON.stringify({ endpoint: subscription.endpoint }) }, pushEnv);
+    expect(removed.status).toBe(200);
+    expect(writes).toHaveLength(2);
+  });
+
   it("redirects reserved old usernames after username changes", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
