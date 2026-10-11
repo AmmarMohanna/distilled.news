@@ -32,7 +32,10 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
     await page.setViewportSize(size);
     await page.goto("/");
     await page.getByRole("button", { name: "Create feed", exact: true }).click();
-    await page.getByRole("button", { name: "Sign up", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Continue with Email" })).toBeVisible();
+    await expect(page.locator(".auth-dialog .auth-input")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    expect(await page.locator(".auth-dialog .screen-page-viewport").evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+    await page.locator(".auth-choice button").click();
     await expect(page.getByRole("heading", { name: "Create your Account" })).toBeVisible();
     const dialog = page.locator(".auth-dialog");
     const bounds = await dialog.boundingBox();
@@ -40,9 +43,8 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height + 1);
     expect(await dialog.locator(".screen-page-viewport").evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
     expect(await dialog.locator(".login").evaluate(node => parseFloat(getComputedStyle(node).gap))).toBeGreaterThanOrEqual(10);
-    expect(await dialog.evaluate(node => { const tabs = node.querySelector(".auth-tabs")!.getBoundingClientRect(); const close = node.querySelector(".dialog-close")!.getBoundingClientRect(); return Math.max(close.left - tabs.right, tabs.left - close.right); })).toBeGreaterThanOrEqual(12);
-    expect(await dialog.locator(".auth-tabs button").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth + 1))).toBe(true);
-    await dialog.locator(".auth-tabs button").first().click();
+    await expect(dialog.locator(".auth-tabs")).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
     expect(await dialog.locator(".screen-page-viewport").evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
   });
 }
@@ -54,10 +56,9 @@ for (const language of ["fr", "ar"]) {
     await page.goto("/");
     await page.getByRole("button", { name: /^Website language:/ }).waitFor();
     await page.locator(".landing-create").click();
-    await page.locator(".auth-tabs button").last().click();
+    await page.locator(".auth-choice button").click();
     const viewport = page.locator(".auth-dialog .screen-page-viewport");
-    expect(await page.locator(".auth-dialog").evaluate(node => { const tabs = node.querySelector(".auth-tabs")!.getBoundingClientRect(); const close = node.querySelector(".dialog-close")!.getBoundingClientRect(); return Math.max(close.left - tabs.right, tabs.left - close.right); })).toBeGreaterThanOrEqual(12);
-    expect(await page.locator(".auth-dialog .auth-tabs button").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth + 1))).toBe(true);
+    await expect(page.locator(".auth-dialog .auth-tabs")).toHaveCount(0);
     expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
   });
 }

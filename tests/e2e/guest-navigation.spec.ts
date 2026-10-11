@@ -42,10 +42,11 @@ test("create feed opens login and signup with outside, inside, and Escape behavi
   const create = page.getByRole("button", { name: "Create feed", exact: true });
   await create.click();
   const dialog = page.getByRole("dialog", { name: "Login or sign up" });
-  await expect(dialog.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Continue with Email" })).toBeVisible();
+  await page.screenshot({ path: `test-results/auth-email-${test.info().project.name}.png` });
   await dialog.getByLabel("email", { exact: true }).fill("joud@example.test");
   await expect(dialog).toBeVisible();
-  await dialog.locator(".auth-tabs").getByRole("button", { name: "Sign up" }).click();
+  await dialog.getByRole("button", { name: "Create an account" }).click();
   await expect(dialog.getByRole("heading", { name: "Create your account" })).toBeVisible();
   await dialog.getByLabel("username", { exact: true }).fill("joud");
   await dialog.getByLabel("password", { exact: true }).fill("example-password");
@@ -68,13 +69,14 @@ test("create feed continues to the editor after login", async ({ page }) => {
   await page.getByRole("button", { name: "Create feed", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Login or sign up" });
   await dialog.getByLabel("email", { exact: true }).fill("joud@example.test");
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await dialog.getByLabel("password", { exact: true }).fill("example-password");
   await dialog.getByRole("button", { name: "Login", exact: true }).last().click();
   await expect(page.getByRole("dialog", { name: "Add feed" })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Login or sign up" })).toHaveCount(0);
   await page.mouse.click(4, 4);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Welcome back, joud" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back!" })).toBeVisible();
 });
 
 test("language menu closes outside and changes website preferences", async ({ page }) => {

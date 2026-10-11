@@ -76,7 +76,7 @@ export function FeedEditor(props: {
       <label>{t("Visibility")}<select value={visibility ? "public" : "private"} onChange={event => setVisibility(event.target.value === "public")}><option value="public">{t("Public")}</option><option value="private">{t("Private")}</option></select></label>
       <label>{t("Update rhythm")}<select value={rhythm} onChange={event => setRhythm(Number(event.target.value) as FeedInput["updateIntervalMinutes"])}>{Object.entries(rhythmLabels).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label>
       {rhythm === 1440 && <label>{t("Deliver at")}<input type="time" required value={deliveryTime} onChange={event => setDeliveryTime(event.target.value)}/></label>}
-      <div className="feed-language-row"><span>{t("Briefing language")}</span><button type="button" aria-label={`Feed language: ${feedLanguage}`} onClick={() => setFeedLanguage(({ en: "fr", fr: "ar", ar: "en" } as const)[feedLanguage])}>{feedLanguage}</button></div>
+      <fieldset className="feed-language-row"><legend>{t("Briefing language")}</legend><span className="feed-language-options">{(["en", "fr", "ar"] as const).map(option => <label key={option}><input type="radio" name="feed-language" value={option} checked={feedLanguage === option} onChange={() => setFeedLanguage(option)}/>{option.toUpperCase()}</label>)}</span></fieldset>
       </div>
       {message && <p role="status">{message}</p>}
       <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>
