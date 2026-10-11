@@ -22,13 +22,13 @@ export class D1ProviderPollScheduler {
     const row=await this.db.prepare('SELECT initial_hash FROM connector_provider_poll_jobs WHERE job_id=?').bind(id).first<{initial_hash:string}>();
     if(row?.initial_hash!==hash)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
-  async runOne(leaseMs=300000):Promise<'IDLE'|'DONE'|'RETRY'|'BLOCKED'|'CANCELLED'|'LEASE_LOST'> {
+  async runOne(leaseMs=300000,preferredJobIds:readonly string[]=[]):Promise<'IDLE'|'DONE'|'RETRY'|'BLOCKED'|'CANCELLED'|'LEASE_LOST'> {
     if(!Number.isSafeInteger(leaseMs)||leaseMs<1000||leaseMs>600000)throw new Error('INVALID_LEASE');
     const now=new Date(this.now()).toISOString();
     const job=await this.db.prepare(`UPDATE connector_provider_poll_jobs SET lease_until=?,lease_version=lease_version+1,attempts=attempts+1
-      WHERE job_id=(SELECT job_id FROM connector_provider_poll_jobs WHERE state='PENDING' AND due_at<=? AND (lease_until IS NULL OR lease_until<=?) ORDER BY due_at,job_id LIMIT 1)
+      WHERE job_id=(SELECT job_id FROM connector_provider_poll_jobs WHERE state='PENDING' AND due_at<=? AND (lease_until IS NULL OR lease_until<=?) ORDER BY CASE WHEN job_id IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END,due_at,job_id LIMIT 1)
       RETURNING job_id,request,provider_order,lease_version,offset,attempts,pages`)
-      .bind(new Date(this.now()+leaseMs).toISOString(),now,now).first<Job>();
+      .bind(new Date(this.now()+leaseMs).toISOString(),now,now,JSON.stringify(preferredJobIds)).first<Job>();
     if(!job)return 'IDLE';
     const request:SourceFetchRequest=JSON.parse(job.request);
     let leaseLost=false,renewing:Promise<void>|undefined;

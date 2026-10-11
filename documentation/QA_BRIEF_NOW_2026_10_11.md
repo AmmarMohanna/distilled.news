@@ -46,3 +46,15 @@ Site: https://distilled-news-sources-qa.distillednews-platform.workers.dev/.
 - The one-minute Cron trigger is deployed. An explicitly invoked maintenance pass returned HTTP 200 after approximately 172 seconds and advanced an older queued provider job. The new manual request was still waiting behind historical jobs at that check. This proves the maintenance path executed, but does not establish sustained autonomous collection or completed manual publication. Cloudflare documents Cron propagation taking up to 15 minutes: https://developers.cloudflare.com/workers/configuration/cron-triggers/.
 - At the initial live check, `OPENROUTER_API_KEY` remained absent. Real AI publication is still blocked on securely installing that secret; no model-backed live edition is claimed.
 - The old `backend-sources-fixes` branch still resolves to `b38e2effaee82743624ac27122ee5a58d3622abc`.
+
+
+### Follow-up: OpenRouter secret installed
+
+The user confirmed their friend installed the key and redeployed. Live version `93e2aef4-5f37-47de-a0a3-a9d404bd377b` contains `OPENROUTER_API_KEY`; its script ETag matches version `068506d3-594d-45cb-82af-f585e504a0e8` and its plain-text settings are unchanged. Secret presence is confirmed without reading its value. Real model-backed publication still requires the live collection/processing request to finish; this entry does not claim a valid model response yet.
+
+
+### Manual collection queue priority
+
+Live QA revealed that snapshot chunks and provider continuations returned behind historical scheduled jobs. Active manual requests now supply their pending job IDs as a scheduler ordering preference. SQL still enforces due times, leases and PENDING state; the runner still checks full current source authorization, durable provider identities and budgets. No job or checkpoint history is reset. Jobs outside manual requests retain the existing oldest-due ordering.
+
+Regression checks cover manual snapshot continuation ahead of old work, completed-job replay, future-due exclusion and a real D1 Worker priority case. No shared acceptance contract or schema change is required.

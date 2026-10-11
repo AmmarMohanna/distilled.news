@@ -155,11 +155,18 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{ma
   }
  }
  if(options.scheduleOnly)return {scheduled,outcomes:[],durationMs:0};
+ // Interactive requests retain priority across snapshot chunks and provider
+ // continuations. Selection never bypasses due times, leases or authorization.
+ const preferred=await env.DB.prepare(`SELECT DISTINCT json_extract(j.value,'$.id') AS id FROM v1_feed_documents d,json_each(d.json,'$.scheduled') j
+  WHERE d.kind='manual_briefing_requests' AND json_extract(d.json,'$.state')='PENDING' AND json_extract(d.json,'$.phase')='COLLECTION'
+  AND (EXISTS(SELECT 1 FROM connector_provider_poll_jobs p WHERE p.job_id=json_extract(j.value,'$.id') AND p.state='PENDING') OR EXISTS(SELECT 1 FROM connector_rss_poll_jobs r WHERE r.job_id=json_extract(j.value,'$.id') AND r.state='PENDING'))
+  ORDER BY json_extract(d.json,'$.createdAt'),j.key LIMIT 100`).all<{id:string}>();
+ const preferredIds=preferred.results.map(j=>j.id);
  const started=Date.now();let rssIdle=false,providerIdle=false;
  const outcomes:{scheduler:string;state:string}[]=[];
  for(let index=0;index<maxJobs&&(index===0||Date.now()-started<budgetMs);index++){
-  if(!rssIdle){const state=await backend.rssScheduler.runOne();rssIdle=state==='IDLE';outcomes.push({scheduler:'rss',state});}
-  if(!providerIdle&&(index===0||Date.now()-started<budgetMs)){const state=await backend.scheduler.runOne();providerIdle=state==='IDLE';outcomes.push({scheduler:'provider',state});}
+  if(!rssIdle){const state=await backend.rssScheduler.runOne(undefined,preferredIds);rssIdle=state==='IDLE';outcomes.push({scheduler:'rss',state});}
+  if(!providerIdle&&(index===0||Date.now()-started<budgetMs)){const state=await backend.scheduler.runOne(undefined,preferredIds);providerIdle=state==='IDLE';outcomes.push({scheduler:'provider',state});}
   if(rssIdle&&providerIdle)break;
  }
  return {scheduled,outcomes,durationMs:Date.now()-started};

@@ -68,6 +68,19 @@ describe('fallback policy and durable handoff',()=>{
     expect(await scheduler.runOne()).toBe('LEASE_LOST');
     expect(s.db.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='lost'").get()).toMatchObject({state:'PENDING'});
   });
+  it('prioritizes due manual pagination without bypassing due times or repeating completed jobs',async()=>{
+    const s=setup([]),calls:string[]=[];let pages=0;
+    const collect=vi.fn(async(r:SourceFetchRequest)=>{calls.push(r.runId);return {state:'HANDED_OFF',checkpoint:'UNCHANGED',...(r.runId==='manual'&&pages++===0?{nextOffset:20}:{})}});
+    const scheduler=new D1ProviderPollScheduler(s.db,{collect} as any,async()=>true,()=>Date.parse(time));
+    await scheduler.schedule('old',{...request,runId:'old'},new Date(Date.parse(time)-60000).toISOString());
+    await scheduler.schedule('manual',{...request,runId:'manual'},time);
+    await scheduler.schedule('future',{...request,runId:'future'},new Date(Date.parse(time)+60000).toISOString());
+    expect(await scheduler.runOne(undefined,['manual','future'])).toBe('RETRY');
+    expect(await scheduler.runOne(undefined,['manual','future'])).toBe('DONE');
+    expect(await scheduler.runOne(undefined,['manual','future'])).toBe('DONE');
+    expect(await scheduler.runOne(undefined,['manual','future'])).toBe('IDLE');
+    expect(calls).toEqual(['manual','manual','old']);
+  });
   it('drains independently scheduled jobs without repeating completed work',async()=>{
     const s=setup([provider('primary')]),now=()=>Date.parse(time);
     const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,now);
