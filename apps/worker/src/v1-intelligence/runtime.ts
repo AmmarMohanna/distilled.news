@@ -33,7 +33,7 @@ import {publicationWindowSchema,livePublicationWindow} from './schedule';
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
 interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
-const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
+export const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') throw new HandoffError('SCOPE_DENIED');
  const rows=await env.DB.prepare("SELECT id FROM v1_intake_scopes WHERE feed_id=? AND json_extract(json,'$.enabled')=1 AND json_extract(json,'$.deletedAt') IS NULL").bind(feedId).all<{id:string}>();
@@ -113,6 +113,10 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  });
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
+ if(required&&!createStoredEvidenceModel(env,fetcher)){
+  await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!=='MODEL_SETUP_REQUIRED')await tx.write('briefing_requests',id,{...current,reason:'MODEL_SETUP_REQUIRED'});});
+  return undefined;
+ }
  let failureStage='SHORTLIST';
  try {
   // A configured writer model only ever sees the approved facts of an EditorialPlan, so model-backed synthesis implies the plan path;
@@ -156,7 +160,7 @@ async function maintenance(feedId:string,step:string,run:()=>Promise<void>):Prom
  * for evidence observed before the window closed (or whose observation time is unknown). Evidence that
  * arrived later belongs to a later window, so continuous arrivals cannot postpone an earlier boundary, and
  * nothing is lost: that job keeps running on the ordinary queue and its Event lands in the next window. */
-async function jobsHoldingWindow(db:Env['DB'],feedId:string,windowEnd:string):Promise<number> {
+export async function jobsHoldingWindow(db:Env['DB'],feedId:string,windowEnd:string):Promise<number> {
  const row=await db.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0 AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?))").bind(feedId,windowEnd).first<{n:number}>();
  return row?.n??0;
 }
@@ -219,6 +223,11 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   for(const request of requests.filter(r=>r.state==='PENDING' && (!r.nextAttemptAt || Date.parse(r.nextAttemptAt)<=now.getTime()))) {
    // Each window is held only by jobs for evidence that existed when it closed.
    if(await jobsHoldingWindow(env.DB,id,request.window.end))continue;
+   if((request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!createStoredEvidenceModel(env)){
+    if(request.reason!=='MODEL_SETUP_REQUIRED')await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING')await tx.write('briefing_requests',request.id,{...current,reason:'MODEL_SETUP_REQUIRED'});});
+    continue;
+   }
+   if(request.reason==='MODEL_SETUP_REQUIRED')await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING'&&current.reason==='MODEL_SETUP_REQUIRED'){const {reason:_setup,...rest}=current;await tx.write('briefing_requests',request.id,rest)}});
    const job=await store.read<{state:string;leaseUntil:string;pendingCall?:string}>(id,'synthesis_jobs',request.id);
    if(job?.state==='FAILED' || job?.pendingCall || job?.state==='RUNNING' && Date.parse(job.leaseUntil)>now.getTime()) continue;
    await env.PROCESSING_QUEUE.send({type:'v1_briefing',feedId:id,window:request.window} satisfies DistilledQueueMessage);sent++;briefingSends++;

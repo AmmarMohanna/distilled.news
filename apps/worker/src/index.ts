@@ -1,3 +1,4 @@
+import {prepareManualBriefing,relayManualBriefings} from './manual-briefing';
 import {productRuntimeEnv} from './product-feeds';
 import { sendBriefingNotifications } from './push';
 import { createApp } from "./app";
@@ -50,7 +51,8 @@ export default {
       const bodyId = queueBodyId(message.body);
       let completedProcessing=false;
       try {
-        if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(env,message.body.jobId);
+        if(isRecord(message.body)&&message.body.type==='v1_manual_briefing'&&typeof message.body.feedId==='string'&&typeof message.body.requestId==='string')await prepareManualBriefing(env,message.body.feedId,message.body.requestId);
+        else if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(env,message.body.jobId);
         else if(isRecord(message.body) && message.body.type==='v1_rematch' && typeof message.body.feedId==='string' && typeof message.body.requestId==='string') await processV1Rematch(env,message.body.feedId,message.body.requestId);
         else if(isRecord(message.body) && message.body.type==='v1_reassess' && typeof message.body.jobId==='string') await processV1Reassessment(env,message.body.jobId);
         else if(isRecord(message.body) && message.body.type==='v1_briefing') await processV1Briefing(env,message.body as import('./v1-intelligence/runtime').V1BriefingMessage);
@@ -256,6 +258,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export async function runScheduledMaintenance(env: Env): Promise<void> {
   env = await productRuntimeEnv(env);
   try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
+  try {await relayManualBriefings(env)} catch {console.warn('Could not relay manual briefings')}
   try {await dispatchV1Acquisitions(env)} catch {console.warn('Could not dispatch v1 acquisition jobs')}
   try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
   try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
@@ -283,7 +286,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
   }
 
   try {
-    await publishDueBriefingEditions({
+    if(env.PRODUCT_FEEDS_ENABLED!=='true')await publishDueBriefingEditions({
       repo,
       briefings: await repo.listBriefings(),
       now,

@@ -30,6 +30,8 @@ export interface FeedStarResult {
 }
 
 export interface FeedSummaryRequestResult {
+  requestId?:string;
+  state?:'PENDING'|'DONE'|'FAILED';
   edition: BriefingEdition | null;
   message: string;
 }

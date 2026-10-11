@@ -55,7 +55,7 @@ Before/after counts matched: 4 accounts, 13 feeds, 17 sources, 448 connector fin
 
 ## Initial deployment limits and unverified features
 
-For the later USD 15 per-source update, see [QA_SOURCE_BUDGETS_2026_10_11.md](QA_SOURCE_BUDGETS_2026_10_11.md). The settings below describe the initial merged rollout.
+For the later Brief now and scheduled collection update, see [QA_BRIEF_NOW_2026_10_11.md](QA_BRIEF_NOW_2026_10_11.md). For the USD 15 per-source update, see [QA_SOURCE_BUDGETS_2026_10_11.md](QA_SOURCE_BUDGETS_2026_10_11.md). The settings below describe the initial merged rollout.
 
 Existing QA settings were preserved. Paid source-provider budgets and operation ceilings remain zero; automatic Cron polling remains disabled. The downstream runtime is enabled, but semantics and salience retain the existing deterministic policy and real-model synthesis remains disabled. This is the merged application running with the existing bounded QA configuration, not proof of production editorial quality or unattended collection.
 

@@ -99,7 +99,7 @@ export async function scheduleProviderWindow(db:D1Database,scheduler:Pick<Return
  }
 }
 /** Durable scheduler owns continuation and retries; one bounded slice per cron tick. */
-export async function runConnectorMaintenance(env:Env,now=new Date()) {
+export async function runConnectorMaintenance(env:Env,now=new Date(),options:{manualRunId?:string;scheduleOnly?:boolean;skipSchedule?:boolean}={}) {
  if(env.SOURCE_CONNECTORS_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return;
  const maxJobs=Number(env.SOURCE_POLL_MAX_JOBS_PER_TICK??4),budgetMs=Number(env.SOURCE_POLL_TICK_BUDGET_MS??90000);
  if(!Number.isSafeInteger(maxJobs)||maxJobs<1||maxJobs>20||!Number.isSafeInteger(budgetMs)||budgetMs<1000||budgetMs>600000)throw new Error('INVALID_POLL_RUNNER_BOUNDS');
@@ -110,13 +110,14 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
  // Synchronize the entire approved set before freezing any poll revision.
  // Enrolling a later source can advance its Feed revision; scheduling during
  // that first pass left earlier sources with stale requests at handoff.
- for(const id of ids){
+ if(!options.skipSchedule)for(const id of ids){
   const row=await env.DB.prepare(`SELECT s.provider,s.kind,s.source_url,s.input,s.actor_id,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL`).bind(id).first<{provider:string;kind:string;source_url:string;input:string|null;actor_id:string|null;owner_account_id:string}>();
   const approved=row&&productConnectorSource(row);if(!row||!approved)continue;
   if(['telegram','website'].includes(approved.source.family)&&!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE))continue;
   await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
  }
- for(const id of ids) {
+ const scheduled:{id:string;scheduler:string;sourceId:string}[]=[];
+ if(!options.skipSchedule)for(const id of ids) {
   const row=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL`).bind(id).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;owner_account_id:string}>();
   if(!row)continue;
   const approved=productConnectorSource(row);if(!approved)continue;
@@ -137,8 +138,9 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
   // a later window may collect new source observations without reusing an old snapshot.
   const intervalMs=['x_profile','x_search','website'].includes(approved.source.family)?3600000:
     approved.source.family.startsWith('linkedin_')?21600000:300000;
-  const request:SourceFetchRequest={scope:{feedId:enrolled.scope.feedId,feedSourceId:id,sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:await sha256(JSON.stringify([id,enrolled.scope.feedRevision,Math.floor(now.getTime()/intervalMs)])),source:approved.source,requestedBounds:{},limit:approved.limit};
+  const request:SourceFetchRequest={scope:{feedId:enrolled.scope.feedId,feedSourceId:id,sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:await sha256(JSON.stringify([id,enrolled.scope.feedRevision,options.manualRunId?['manual',options.manualRunId]:Math.floor(now.getTime()/intervalMs)])),source:approved.source,requestedBounds:{},limit:approved.limit};
   if(await authorizeConnectorSource(env,request)) {
+   scheduled.push({id:request.runId,scheduler:request.source.family==='rss'?'rss':'provider',sourceId:id});
    if(request.source.family==='rss')await backend.rssScheduler.schedule(request.runId,{scope:request.scope,runId:request.runId,configurationRevision:request.configurationRevision,url:request.source.locator,requestedBounds:request.requestedBounds,maxItems:request.limit},now.toISOString());
    else {
     const family=request.source.family;
@@ -148,10 +150,11 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
       family.startsWith('linkedin_')?['linkedin_apify']:
       ['x_twitterapi_io','x_apify'].filter(provider=>provider==='x_twitterapi_io'?budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0:budgets.x_apify>0&&ceilings.apify>0);
     await scheduleProviderWindow(env.DB,backend.scheduler,request,now,order);
-    if(family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now);
+    if(family==='telegram'&&!options.manualRunId)await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now);
    }
   }
  }
+ if(options.scheduleOnly)return {scheduled,outcomes:[],durationMs:0};
  const started=Date.now();let rssIdle=false,providerIdle=false;
  const outcomes:{scheduler:string;state:string}[]=[];
  for(let index=0;index<maxJobs&&(index===0||Date.now()-started<budgetMs);index++){
@@ -159,5 +162,5 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
   if(!providerIdle&&(index===0||Date.now()-started<budgetMs)){const state=await backend.scheduler.runOne();providerIdle=state==='IDLE';outcomes.push({scheduler:'provider',state});}
   if(rssIdle&&providerIdle)break;
  }
- return {outcomes,durationMs:Date.now()-started};
+ return {scheduled,outcomes,durationMs:Date.now()-started};
 }

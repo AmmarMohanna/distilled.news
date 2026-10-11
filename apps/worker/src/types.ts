@@ -217,7 +217,7 @@ export interface SourceRefreshJobMessage {
   force?: boolean;
 }
 
-export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | {type:'v1_acquisition'|'v1_reassess';jobId:string} | {type:'v1_rematch';feedId:string;requestId:string} | import('./v1-intelligence/runtime').V1BriefingMessage;
+export type DistilledQueueMessage = {type:'v1_manual_briefing';feedId:string;requestId:string} | ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | {type:'v1_acquisition'|'v1_reassess';jobId:string} | {type:'v1_rematch';feedId:string;requestId:string} | import('./v1-intelligence/runtime').V1BriefingMessage;
 
 export interface SourceRecord {
   id: string;

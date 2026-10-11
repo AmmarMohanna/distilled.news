@@ -1,4 +1,4 @@
-# QA paid-source allowance — October 11
+# QA paid-source allowance â€” October 11
 
 The user authorized **USD 15 per approved source**, replacing the earlier USD 10 allowance and the deployed zero-provider configuration. The target is the existing sources QA Worker on `backend-full-stack-october-11`.
 
@@ -12,6 +12,8 @@ The user authorized **USD 15 per approved source**, replacing the earlier USD 10
 - Free collection remains free when successful. Paid fallbacks run when the provider order requires them; paid usage is not forced merely to consume the allowance.
 
 No schema migration or credential rotation is required. The source ledger uses namespaced rows in the existing `connector_provider_budgets` table, and source identity metadata in existing operation headers.
+
+For the later manual briefing and scheduled collection rollout, see [QA_BRIEF_NOW_2026_10_11.md](QA_BRIEF_NOW_2026_10_11.md). The settings in this paragraph describe the budget-only deployment.
 
 This change concerns collection spend. Automatic Cron polling and real-model synthesis retain their existing settings; it does not resolve the frontend's new-pipeline Brief now action or prove a published edition.
 

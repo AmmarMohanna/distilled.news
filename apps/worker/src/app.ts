@@ -1,3 +1,4 @@
+import {requestManualBriefing} from './manual-briefing';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
 import {approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState} from './product-feeds';
@@ -1124,7 +1125,18 @@ export function createApp(options: AppOptions = {}) {
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     if (briefing.paused) return c.json({ error: "feed is paused" }, 409);
-    if (c.env.PRODUCT_FEEDS_ENABLED === "true") return c.json({ edition: null, message: "Your next briefing will appear after the scheduled source checks complete." });
+    if(c.env.PRODUCT_FEEDS_ENABLED==='true'){
+      const claims=c.env.ADMIN_SESSION_SECRET?await verifySession(getCookie(c,SESSION_COOKIE),c.env.ADMIN_SESSION_SECRET):null;
+      const owner=claims?await repo.getAccountById(claims.sub):null;
+      if(!owner||owner.disabledAt||!owner.emailVerifiedAt)return c.json({error:'Sign in to request a briefing.'},401);
+      if(owner.id!==briefing.ownerAccountId)return c.json({error:'Only the feed owner can request a briefing.'},403);
+      const origin=c.req.header('origin');
+      if(origin&&origin!==new URL(c.req.url).origin&&origin!==c.env.PUBLIC_WEB_BASE_URL)return c.json({error:'Invalid request origin.'},403);
+      try{await assertRateLimit(repo,`manual:${briefing.id}:owner:${owner.id}`,'manual_summary',6,60*60*1000)}
+      catch(error){if(error instanceof Error&&error.message==='too many attempts')return c.json({error:'too many summary requests'},429);throw error;}
+      const request=await requestManualBriefing(c.env,briefing,nowFor());
+      return c.json({edition:null,requestId:request.id,state:request.state,message:request.state==='PENDING'?'Checking sources and preparing your briefing…':request.state==='FAILED'?'Source collection needs attention.':'This briefing request has already completed.'},202);
+    }
 
     try {
       await assertRateLimit(
@@ -1782,7 +1794,7 @@ function localizedPublicSectionTitle(title: string, language: BriefingConfig["la
     const normalized = title.trim().toLowerCase();
     if (normalized.includes("economy")) return "اقتصاد";
     if (normalized.includes("infrastructure")) return "بنية تحتية";
-    if (normalized.includes("security")) return "أمن";
+    if (normalized.includes("security")) return "أ�…ن";
     if (normalized.includes("no update")) return "لا تحديثات";
     return "تحديث";
   }

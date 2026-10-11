@@ -63,3 +63,20 @@ test("phone install control explains the browser install path", async ({ browser
   await expect(page.getByRole("dialog", { name: "Install App (PWA)" })).toContainText("Add to Home Screen");
   await context.close();
 });
+
+test('Brief now displays queued collection progress and the owner cannot submit a duplicate while checking',async({page})=>{
+ let checking=false,calls=0;
+ const activeFeed={...feed,paused:false};
+ await page.route('**/api/**',route=>{
+  const path=new URL(route.request().url()).pathname;
+  if(path.endsWith('/request-summary')){checking=true;calls++;return route.fulfill({status:202,json:{edition:null,requestId:'manual-test',state:'PENDING',message:'Checking sources and preparing your briefing…'}})}
+  const data=path==='/api/auth/session'?{authenticated:true,account:{id:'owner',username:'admin',role:'user'}}:
+   path==='/api/me/briefings'?{briefings:[activeFeed]}:
+   path==='/api/feed/admin/personal'?{briefing:activeFeed,editions:[],viewerHasStarred:false,publicationState:checking?'checking':'waiting'}:{};
+  return route.fulfill({json:data});
+ });
+ await page.goto('/admin/personal/');
+ const button=page.getByRole('button',{name:'brief now',exact:true});await expect(button).toBeEnabled();await button.click();
+ await expect(page.getByText('Checking sources and preparing your briefing…',{exact:true})).toBeVisible();
+ await expect(page.getByText('Checking sources for the next briefing…',{exact:true})).toBeVisible();await expect(button).toBeDisabled();expect(calls).toBe(1);
+});

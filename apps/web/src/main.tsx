@@ -1444,7 +1444,7 @@ function FeedPage(props: { username: string; slug: string }) {
       const result = await requestFeedSummary(props.username, props.slug);
       setQuery("");
       await refresh();
-      setSummaryMessage(result.edition ? summaryPublishedLabel(language) : summaryEmptyLabel(language));
+      setSummaryMessage(result.requestId ? result.message : result.edition ? summaryPublishedLabel(language) : summaryEmptyLabel(language));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -1602,7 +1602,7 @@ function FeedPage(props: { username: string; slug: string }) {
           <button
             type="button"
             title={summaryRequestTitleLabel(language)}
-            disabled={!payload || summaryBusy}
+            disabled={!payload || summaryBusy || (!ownedFeed&&payload.publicationState!==undefined) || payload.publicationState==='checking'}
             onClick={() => void requestSummaryNow()}
           >
             <Newspaper size={15} aria-hidden /> {summaryBusy ? summaryBusyLabel(language) : summaryRequestLabel(language)}
@@ -1665,6 +1665,7 @@ function FeedPage(props: { username: string; slug: string }) {
       {error ? <FeedNotice message={error} language={language} /> : null}
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
+      {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
       {payload?.publicationState === 'checking' ? <p className="muted feed-status-message" role="status">{t('Checking sources for the next briefing…')}</p> : null}
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
