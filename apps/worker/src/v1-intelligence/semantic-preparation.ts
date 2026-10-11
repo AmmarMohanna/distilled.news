@@ -30,10 +30,14 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
  const feed=await store.getFeed(job.feedId),active=await store.currentEvidence(job.feedId),revision=active.find(e=>e.revision.sourceObservationId===job.observationId)?.revision;if(!feed||!revision)return undefined;
  // Teasers, promotions and calls to action contain nothing to relate or construct: spend no semantic call on them.
  const extracted=await extractClaimMentions(revision);if(!extracted.mentions.some(isNewsMention))return undefined;
- const members=await store.list<EventMembership>(job.feedId,'memberships'),candidates:EventMatchInput['candidates']=[],activeIds=new Set(active.map(e=>e.revision.id));
+ const members=await store.list<EventMembership>(job.feedId,'memberships'),candidates:EventMatchInput['candidates']=[],activeIds=new Set(active.map(e=>e.revision.id)),knownEventVersions:Record<string,string>={};
  for(const root of await store.list<EventRecord>(job.feedId,'events')){
   const version=await store.read<EventVersion>(job.feedId,'event_versions',root.currentVersionId),support=members.filter(m=>m.eventVersionId===root.currentVersionId).map(m=>m.evidenceRevisionId);
-  if(!version||version.type==='WITHDRAWN'||!support.length||support.some(id=>!activeIds.has(id)))continue;
+  if(!version||version.type==='WITHDRAWN')continue;
+  // Catalog the same non-withdrawn universe consumed by the engine, including
+  // unavailable roots. Only active supports can be offered to the model.
+  knownEventVersions[root.id]=version.id;
+  if(!support.length||support.some(id=>!activeIds.has(id)))continue;
   candidates.push({id:root.id,version,evidenceRevisionIds:support,newestAt:version.createdAt});
  }
  const sourceText=[revision.title,revision.body].filter(Boolean).join('\n'),entityMemory=await store.list<Entity>(job.feedId,'entities'),entityAnchors=entityMemory.filter(e=>e.aliases.some(a=>sourceText.includes(a)));
@@ -95,7 +99,7 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
   if(saved.status==='SUCCEEDED'&&saved.value && saved.value.confidence>=.6){construction={...saved.value.construction,provenance:{...saved.value.construction.provenance,judgmentId:saved.id}};const first=construction.groups[0];decision={structuralRelation:first.structuralRelation,eventId:first.eventId??undefined,storylineId:first.storylineId??undefined,epistemicEffects:[...new Set(construction.groups.flatMap(g=>g.epistemicEffects))],confidence:saved.value.confidence,provenance:construction.provenance}}
   else decision={structuralRelation:'DEFER',epistemicEffects:decision.epistemicEffects,confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:saved.failure}};
  }else if(reasons.length)decision={structuralRelation:'DEFER',epistemicEffects:decision.epistemicEffects,confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'STRONG_MODEL_UNAVAILABLE'}};
- const prepared:PreparedSemanticMatch={knownEventIds:candidates.map(c=>c.id),revisionId:revision.id,candidateVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),storylineVersions:Object.fromEntries(storylines.map(s=>[s.id,s.currentVersionId])),decision},matchers=preparedMatchers(prepared);
+ const prepared:PreparedSemanticMatch={knownEventIds:Object.keys(knownEventVersions),knownEventVersions,revisionId:revision.id,candidateVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),storylineVersions:Object.fromEntries(storylines.map(s=>[s.id,s.currentVersionId])),decision},matchers=preparedMatchers(prepared);
  if(construction)matchers.construction=current=>matchers.event.match(current).provenance.judgmentId===decision.provenance.judgmentId?structuredClone(construction):undefined;
  return {input,prepared,matchers};
 }
