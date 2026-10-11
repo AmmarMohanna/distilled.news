@@ -136,6 +136,8 @@ const translations: Record<string, [string, string]> = {
   "Hide password": ["Masquer le mot de passe", "إخفاء كلمة المرور"], "Show password": ["Afficher le mot de passe", "إظهار كلمة المرور"],
   "Illustration unavailable": ["Illustration indisponible", "الرسم غير متاح"],
   "Live": ["En direct", "\u0645\u0628\u0627\u0634\u0631"],
+  "Your personalized briefing, tailored to the topics you care about.": ["Votre briefing personnalisé, adapté aux sujets qui vous intéressent.", "موجزك الشخصي، مخصص للموضوعات التي تهمك."],
+  "Manage settings, explore past briefings, or generate one now.": ["Gérez les paramètres, parcourez les anciens briefings ou créez-en un maintenant.", "أدر الإعدادات، واستكشف الموجزات السابقة، أو أنشئ موجزًا الآن."],
   "Paused": ["En pause", "متوقفة"],
   "View briefing": ["Voir le résumé", "عرض الملخص"],
   "Create your first feed to start following what matters to you.": ["Créez votre premier fil pour suivre ce qui compte pour vous.", "أنشئ خلاصتك الأولى لمتابعة ما يهمك."],

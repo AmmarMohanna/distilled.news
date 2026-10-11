@@ -1578,6 +1578,7 @@ function FeedPage(props: { username: string; slug: string }) {
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : loadingFeedLabel(language)}
+      description={payload ? <>{t("Your personalized briefing, tailored to the topics you care about.")}<br/>{t("Manage settings, explore past briefings, or generate one now.")}</> : undefined}
       feed={payload?.briefing}
       pageLanguage={language}
       headingAction={ownedFeed ? <button className="primary-button" onClick={() => setEditorOpen(true)}><Settings size={17}/>{t("Edit feed settings")}</button> : undefined}
@@ -1698,7 +1699,8 @@ function FeedPage(props: { username: string; slug: string }) {
           </div>
         ) : null}
         {unreadEditions.length === 0 && !error ? (
-          <div className="empty-state">
+          <div className="empty-state feed-empty-state">
+            {archivedReadEditions.length === 0 && <Newspaper className="feed-empty-icon" size={42} strokeWidth={1.5} aria-hidden/>}
             <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>
             <p className="muted">
               {emptyFeedMessage(archivedReadEditions.length, language)}
@@ -2056,6 +2058,7 @@ function Shell(props: {
   titleText?: string;
   children: React.ReactNode;
   meta?: React.ReactNode;
+  description?: React.ReactNode;
   feed?: Pick<BriefingConfig, "ownerUsername" | "slug" | "title">;
   onAccount?: () => void;
   onLogout?: () => Promise<void>;
@@ -2112,6 +2115,7 @@ function Shell(props: {
         }}><ChevronLeft size={18}/>{selectedLanguage === "ar" ? "رجوع" : selectedLanguage === "fr" ? "Retour" : "Back"}</a>}
         <div className="page-title-row"><h1>{props.title}</h1>{props.headingAction}</div>
         <p>{props.meta ?? getPageMeta(titleText)}</p>
+        {props.description && <div className="feed-page-description">{props.description}</div>}
       </div>
       {props.children}
     </main>
