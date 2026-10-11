@@ -12,7 +12,7 @@ import {withdrawV1Edition} from './public-read';
 import {fallbackEditorialPlan} from './editorial-plan';
 import {compactEditorialInput} from './editorial-transport';
 import {readScheduleAudit} from './schedule-audit';
-import {readBlockedWindows,BLOCKED_REASON,ESCALATED_REASON,CARRIED_FORWARD_REASON} from './blocked-window';
+import {readBlockedWindows,BLOCKED_REASON,ESCALATED_REASON} from './blocked-window';
 import type {ShortlistRecord} from './shortlist';
 import type {RematchRequest,RematchAttempt} from './rematch';
 import type {BriefingEditionRecord} from './publication';
@@ -104,19 +104,24 @@ describe('blocked protected correction, through processV1Briefing',()=>{
   await processV1Rematch(env,'feed-1',rematch.requestId,'2026-10-06T13:20:00Z');
   expect((await store.list<RematchAttempt>('feed-1','rematch_attempts')).at(-1)).toMatchObject({state:'SUCCEEDED'});
   expect(await open()).toHaveLength(1);// reassessment alone never resolves the obligation
-  // 5. Reassessment committed a new Event version after w2 closed, so w2 settles visibly as not delivered; the obligation stays OPEN for the next window.
-  expect(await run('2026-10-06T13:30:00Z')).toBeUndefined();
-  expect(await request2()).toMatchObject({state:'DONE',result:'DEFERRED',reason:CARRIED_FORWARD_REASON,attempts:0});
-  expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await open()).toHaveLength(1);
-  expect(await readBlockedWindows(store,'feed-1')).toMatchObject([{state:'CARRIED_FORWARD',requestId:request.id}]);
-  // 6. The next window sees a reassessed, eligible, supported target; the planner selects corrective treatment; verified publication resolves the obligation.
-  const w3={start:'2026-10-06T13:00:00Z',end:'2026-10-06T14:00:00Z',kind:'HOURLY' as const};
-  const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:w3},()=>'2026-10-06T14:00:10Z',undefined,fetcher) as BriefingEditionRecord;
+  // 5. The evidence was admitted before w2 closed. Later semantic review does
+  // not move its supported corrective facts into a different publication window.
+  // Reassessment itself kept the obligation OPEN; only verified publication
+  // and ledger projection below are allowed to resolve it.
+  const edition=await run('2026-10-06T13:30:00Z') as BriefingEditionRecord;
   expect(edition).toBeDefined();expect(edition.id).not.toBe(first.id);expect(edition.generation.provider).not.toBe('NONE');
   expect(calls.writer).toBe(writerBefore+1);expect(calls.verifier).toBe(verifierBefore+1);
   expect(edition.stories[0].claims[0].text).toContain('withdrawn');expect(edition.stories[0].claims[0].text).toContain('Anthropic');
   expect(await store.list('feed-1','correction_resolutions')).toHaveLength(1);expect(await open()).toHaveLength(0);
-  expect((await store.list<any>('feed-1','briefing_requests')).find(r=>r.window.end===w3.end)).toMatchObject({state:'DONE',result:'PUBLISHED'});
+  expect((await store.list<any>('feed-1','briefing_requests')).find(r=>r.window.end===w2.end)).toMatchObject({state:'DONE',result:'PUBLISHED'});
+  expect(edition.windowEnd).toBe(new Date(w2.end).toISOString());
+  const ledger=await store.list<any>('feed-1','ledger_entries');
+  expect(ledger.some(entry=>entry.editionId===edition.id&&entry.claimText.includes('withdrawn'))).toBe(true);
+  const callsAfter={...calls};
+  expect(await run('2026-10-06T13:40:00Z')).toEqual(edition);
+  expect(calls).toEqual(callsAfter);
+  expect(await store.list('feed-1','correction_resolutions')).toHaveLength(1);
+  expect(await store.list('feed-1','editions')).toHaveLength(2);
  },90000);
 
  it('with reassessment exhausted the condition stays visible, rechecks slowly, and settles as an escalated deferral without ever failing or resolving the obligation',async()=>{
