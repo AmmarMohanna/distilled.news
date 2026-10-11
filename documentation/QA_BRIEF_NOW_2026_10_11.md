@@ -29,4 +29,20 @@ For rollback, restore the preceding Worker version and frontend prefix. Keep the
 - Worker and frontend typechecks passed; frontend build and exact QA Worker dry-run passed. The complete Worker suite was not rerun for this change.
 - A real local D1 flow covers HTTP admission, RSS collection, acquisition, reassessment, grounded publication and the public frontend API. It uses fixture source data and deterministic publication, and is not a live OpenRouter synthesis proof.
 
-The OpenRouter key is user-supplied setup. It must be installed as the `OPENROUTER_API_KEY` Worker secret, never put in Git, documentation or chat. The private interactive helper is `.review-tmp/install-qa-openrouter.ps1`; it targets only sources QA. Deployment metadata and live checks are added below after rollout. Real model-backed QA publication remains unverified until a valid funded key is installed and a live request completes.
+The OpenRouter key is user-supplied setup. It must be installed as the `OPENROUTER_API_KEY` Worker secret, never put in Git, documentation or chat. The private interactive helper is `.review-tmp/install-qa-openrouter.ps1`; it targets only sources QA. Real model-backed QA publication remains unverified until a valid funded key is installed and a live request completes.
+
+
+## Deployed QA verification
+
+Code commit: `9049d6c`, pushed to `backend-full-stack-october-11`.
+
+Worker version: `068506d3-594d-45cb-82af-f585e504a0e8` (deployment succeeded).
+Frontend prefix: `staging-assets/c31ceafc7b5932edb5e4097d52159795608d569b/`.
+Site: https://distilled-news-sources-qa.distillednews-platform.workers.dev/.
+
+- All 21 live asset/API smoke checks passed; deployed frontend asset hashes match the uploaded manifest.
+- The existing verified ECB feed owner submitted Brief now successfully (HTTP 202). A duplicate submission reused the same durable request ID. The public feed API returned `publicationState: checking`.
+- Queue execution scheduled all four approved ECB source jobs: X, Telegram and both Google News queries. No additional sources were substituted.
+- The one-minute Cron trigger is deployed. An explicitly invoked maintenance pass returned HTTP 200 after approximately 172 seconds and advanced an older queued provider job. The new manual request was still waiting behind historical jobs at that check. This proves the maintenance path executed, but does not establish sustained autonomous collection or completed manual publication. Cloudflare documents Cron propagation taking up to 15 minutes: https://developers.cloudflare.com/workers/configuration/cron-triggers/.
+- At the initial live check, `OPENROUTER_API_KEY` remained absent. Real AI publication is still blocked on securely installing that secret; no model-backed live edition is claimed.
+- The old `backend-sources-fixes` branch still resolves to `b38e2effaee82743624ac27122ee5a58d3622abc`.
