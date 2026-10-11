@@ -1485,6 +1485,12 @@ function FeedPage(props: { username: string; slug: string }) {
     return () => window.clearInterval(interval);
   }, []);
 
+  // A status refresh must not undo pages explicitly loaded by the reader.
+  // Reset pagination only when the search or feed navigation changes.
+  useEffect(() => {
+    setVisibleUnreadCount(FEED_BATCH_SIZE);
+  }, [props.username, props.slug, query]);
+
   useEffect(() => {
     if (!payload) return;
     let active = true;
@@ -1494,7 +1500,6 @@ function FeedPage(props: { username: string; slug: string }) {
         const nextEditions = query.trim() ? await searchFeed(props.username, props.slug, query) : payload.editions;
         if (active) {
           setEditions(nextEditions);
-          setVisibleUnreadCount(FEED_BATCH_SIZE);
         }
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : String(cause));

@@ -357,7 +357,21 @@ test("feed shows twenty unread items and backfills when one is read", async ({ p
   await expect(visibleUnread).toHaveCount(20);
   await expect(page.getByText("Published briefing item 21.")).toBeVisible();
 
+  // A background status refresh can leave the debounced payload reconciliation
+  // pending while the reader loads another page. Advancing that callback must
+  // not undo the reader's explicit pagination choice.
+  const now = new Date();
+  await page.clock.install({ time: now });
+  await page.clock.pauseAt(new Date(now.getTime() + 1000));
+  await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/feed/ammar-mohanna/personal"),
+    page.evaluate(() => window.dispatchEvent(new Event("focus")))
+  ]);
+  await page.clock.runFor(50);
   await page.getByRole("button", { name: "load more" }).click();
+  await page.clock.runFor(50);
+  await expect(page.getByText("Published briefing item 25.")).toBeVisible();
+  await page.clock.runFor(300);
   await expect(page.getByText("Published briefing item 25.")).toBeVisible();
 });
 
