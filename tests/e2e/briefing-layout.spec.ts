@@ -30,6 +30,9 @@ test("briefing detail follows the new hierarchy without changing its theme", asy
   const empty = page.locator(".feed-empty-state");
   await expect(empty).toContainText("no published briefings");
   await expect(empty.locator(".feed-empty-icon")).toBeVisible();
+  const emptyBounds = await empty.boundingBox();
+  expect(emptyBounds).not.toBeNull();
+  expect(emptyBounds!.y + emptyBounds!.height).toBeLessThanOrEqual(page.viewportSize()!.height + 1);
   for (const control of await toolbar.locator("button, input").all()) {
     const bounds = await control.boundingBox();
     expect(bounds).not.toBeNull();
