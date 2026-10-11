@@ -19,7 +19,7 @@ test("briefing detail follows the new hierarchy without changing its theme", asy
   await openBriefing(page);
   await expect(page.locator(".page-heading")).toContainText("by admin");
   await expect(page.getByRole("link", { name: "Back" })).toBeVisible();
-  await expect(page.locator(".feed-page-description")).toContainText("Your personalized briefing");
+  await expect(page.locator(".feed-page-description")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit feed settings" })).toBeVisible();
   const toolbar = page.locator(".feed-tools");
   await expect(toolbar.getByRole("button", { name: "Copy URL" })).toBeVisible();

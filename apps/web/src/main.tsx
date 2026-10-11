@@ -1578,7 +1578,6 @@ function FeedPage(props: { username: string; slug: string }) {
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : loadingFeedLabel(language)}
-      description={payload ? <>{t("Your personalized briefing, tailored to the topics you care about.")}<br/>{t("Manage settings, explore past briefings, or generate one now.")}</> : undefined}
       feed={payload?.briefing}
       pageLanguage={language}
       headingAction={ownedFeed ? <button className="primary-button" onClick={() => setEditorOpen(true)}><Settings size={17}/>{t("Edit feed settings")}</button> : undefined}

@@ -25,8 +25,8 @@ test("requested feed layout and language controls", async ({ page }) => {
   await expect(dialog.getByRole("radio", { name: "FR" })).toBeChecked();
 });
 
-test("create feed fits a desktop viewport without internal scrolling", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 });
+for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }]) test(`create feed fits ${size.width}x${size.height} without internal scrolling`, async ({ page }) => {
+  await page.setViewportSize(size);
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
     const data = path === "/api/auth/session" ? { authenticated: true, account: { id: "owner", username: "admin", role: "user" } }
@@ -38,6 +38,12 @@ test("create feed fits a desktop viewport without internal scrolling", async ({ 
   await page.getByRole("button", { name: "Create feed", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Add feed" });
   const viewport = dialog.locator(".screen-page-viewport");
+  expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+  const bounds = await dialog.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height + 1);
+  await dialog.getByRole("button", { name: "Preferences" }).click();
   expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
 });
 
