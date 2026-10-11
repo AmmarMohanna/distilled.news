@@ -15,6 +15,7 @@ export interface SourceBackendEnv {
   SOURCE_EXECUTION_SERVICE?:Fetcher;
   SOURCE_GOOGLE_RESOLUTION_ENABLED?:string;
   SOURCE_OPERATION_CEILINGS_JSON?:string;
+  SOURCE_PER_SOURCE_BUDGET_USD?:string;
 }
 
 /** Composition shared by the connector staging backend and downstream integration.
@@ -37,7 +38,9 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
       const value=parsed[key]??0;if(typeof value!=='number'||!Number.isFinite(value)||value<0)throw new Error('INVALID_SOURCE_CEILINGS');ceilings[key]=value;
     }
   }
-  const paidHttp=new DurableProviderHttp(sql,payloads,dispatch);
+  const sourceBudget=env.SOURCE_PER_SOURCE_BUDGET_USD===undefined?undefined:Number(env.SOURCE_PER_SOURCE_BUDGET_USD);
+  if(env.SOURCE_PER_SOURCE_BUDGET_USD!==undefined&&(!env.SOURCE_PER_SOURCE_BUDGET_USD.trim()||!Number.isFinite(sourceBudget)||(sourceBudget!==undefined&&sourceBudget<0)))throw new Error('INVALID_SOURCE_BUDGET');
+  const paidHttp=new DurableProviderHttp(sql,payloads,dispatch,4_000_000,20_000,sourceBudget);
   const makeCollector=(request:SourceFetchRequest)=>{
     const guardedDispatch:typeof fetch=async(value,init)=>{
       if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
@@ -65,7 +68,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
       // Deployment must retain global_fetch_strictly_public to enforce public DNS at dispatch.
       return dispatch(url.href,{...init,redirect:'manual'});
     });
-    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch),execution,secrets,ceilings,
+    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch,4_000_000,20_000,sourceBudget),execution,secrets,ceilings,
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
       rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake)};
   };

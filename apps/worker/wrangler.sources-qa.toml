@@ -21,8 +21,10 @@ PRODUCT_FEEDS_ENABLED = "true"
 SOURCE_RECOMMENDATIONS_ENABLED = "false"
 SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
 SOURCE_GOOGLE_RESOLUTION_ENABLED = "true"
-SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0,"apify":0,"zyte":0}'
-SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":0,"x_apify":0,"google_apify":0,"linkedin_apify":0,"zyte":0}'
+SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.1,"apify":0.25,"zyte":0.03}'
+# Provider entries enable the approved paid paths; the source cap is shared across fallbacks.
+SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":15,"x_apify":15,"google_apify":15,"linkedin_apify":15,"zyte":15}'
+SOURCE_PER_SOURCE_BUDGET_USD = "15"
 V1_DOWNSTREAM_ENABLED = "true"
 V1_DOWNSTREAM_FEED_SOURCE_IDS = ""
 V1_EDITORIAL_PLAN_ENABLED = "true"

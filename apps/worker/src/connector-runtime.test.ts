@@ -373,3 +373,15 @@ it('routes bounded approved Telegram through VPC, durable intake, evidence and p
  expect(edition?.stories).toHaveLength(1);expect(edition?.evidenceRevisionIds).toHaveLength(1);
 },30000);
 
+
+it('provides aggregate headroom for approved sources and never resets existing reservations',async()=>{
+ env.SOURCE_PER_SOURCE_BUDGET_USD='15';env.SOURCE_PROVIDER_BUDGETS_JSON=JSON.stringify({x_twitterapi_io:15,x_apify:15});
+ const runtime=createConnectorRuntime(env);
+ await runtime.paidHttp.configureLimit('x_twitterapi_io',0);
+ await ctx.db.prepare("UPDATE connector_provider_budgets SET reserved_usd=2 WHERE provider_id='x_twitterapi_io'").run();
+ await configureConnectorBudgets(env,runtime);
+ expect(await ctx.db.prepare("SELECT limit_usd,reserved_usd FROM connector_provider_budgets WHERE provider_id='x_twitterapi_io'").first()).toEqual({limit_usd:17,reserved_usd:2});
+ await configureConnectorBudgets(env,runtime);
+ expect(await ctx.db.prepare("SELECT limit_usd,reserved_usd FROM connector_provider_budgets WHERE provider_id='x_twitterapi_io'").first()).toEqual({limit_usd:17,reserved_usd:2});
+ expect(await ctx.db.prepare("SELECT limit_usd FROM connector_provider_budgets WHERE provider_id='zyte'").first()).toEqual({limit_usd:0});
+});

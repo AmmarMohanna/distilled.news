@@ -21,3 +21,8 @@ it('rejects invalid paid ceilings during composition',()=>{
   for(const value of ['{"apify":-1}','{"apify":"1"}','{"unknown":1}'])expect(()=>createSourceBackend({...env,SOURCE_OPERATION_CEILINGS_JSON:value},
     {intake:{acceptBatch:vi.fn()},authorize:async()=>true})).toThrow('INVALID_SOURCE_CEILINGS');
 });
+
+it('rejects invalid per-source budgets before any collection',()=>{
+ for(const value of ['', ' ', '-1', 'NaN', 'Infinity'])expect(()=>createSourceBackend({...env,SOURCE_PER_SOURCE_BUDGET_USD:value},
+  {intake:{acceptBatch:vi.fn()},authorize:async()=>true})).toThrow('INVALID_SOURCE_BUDGET');
+});

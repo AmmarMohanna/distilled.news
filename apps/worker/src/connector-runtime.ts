@@ -29,7 +29,19 @@ export async function configureConnectorBudgets(env:Env,backend:ReturnType<typeo
  if(!limits||typeof limits!=='object'||Array.isArray(limits)||Object.keys(limits).some(key=>!allowed.includes(key as typeof allowed[number])))throw new Error('INVALID_SOURCE_BUDGETS');
  const values=allowed.map(id=>({id,value:(limits as Record<string,unknown>)[id]??0}));
  if(values.some(({value})=>typeof value!=='number'||!Number.isFinite(value)||value<0))throw new Error('INVALID_SOURCE_BUDGETS');
- for(const {id,value} of values)await backend.paidHttp.configureLimit(id,value as number);
+ // In source-budget mode these rows remain aggregate accounting/admission
+ // guards. Each approved source has its own stricter shared fallback allowance.
+ // Preserve prior provider reservations and supply enough aggregate headroom
+ // for the currently approved set; source rows never refill during this step.
+ const sourceBudget=env.SOURCE_PER_SOURCE_BUDGET_USD===undefined?undefined:Number(env.SOURCE_PER_SOURCE_BUDGET_USD);
+ if(sourceBudget!==undefined&&(!env.SOURCE_PER_SOURCE_BUDGET_USD!.trim()||!Number.isFinite(sourceBudget)||sourceBudget<0))throw new Error('INVALID_SOURCE_BUDGET');
+ const approved=sourceBudget===undefined?0:(await env.DB.prepare(`SELECT COUNT(*) AS n FROM sources s JOIN briefings b ON b.id=s.briefing_id
+   JOIN accounts a ON a.id=b.owner_account_id WHERE s.enabled=1 AND s.collection_owner='connector' AND b.paused=0 AND a.disabled_at IS NULL`).first<{n:number}>())?.n??0;
+ for(const {id,value} of values){
+  const prior=sourceBudget===undefined?undefined:await env.DB.prepare('SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id=?').bind(id).first<{reserved_usd:number}>();
+  const aggregate=sourceBudget!==undefined&&Number(value)>0?(prior?.reserved_usd??0)+sourceBudget*approved:Number(value);
+  await backend.paidHttp.configureLimit(id,aggregate);
+ }
  return Object.fromEntries(values.map(({id,value})=>[id,value as number])) as Record<typeof allowed[number],number>;
 }
 /** A bounded edit pass reads only accepted recent IDs. It never advances the
