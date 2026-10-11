@@ -88,6 +88,15 @@ export class FeedTransaction {
    for(const id of chunk)this.reads.set(JSON.stringify([kind,id]),Promise.resolve(values.get(id)));
   }
  }
+ /** Cache only immutable semantic references owned by the offered Event versions. */
+ async preloadSemanticReferences(versionIds:string[]):Promise<void>{
+  const ids=[...new Set(versionIds)];await this.preload('event_semantic_states',ids);
+  const states=(await Promise.all(ids.map(id=>this.read<import('./semantic-state').EventSemanticState>('event_semantic_states',id)))).filter((s):s is import('./semantic-state').EventSemanticState=>Boolean(s));
+  await this.preload('propositions',states.flatMap(s=>s.propositionIds));
+  const slotIds=[...new Set(states.flatMap(s=>s.stateSlotIds))];await this.preload('state_slots',slotIds);
+  const slots=await Promise.all(slotIds.map(id=>this.read<import('./semantic-state').StateSlot>('state_slots',id)));
+  await this.preload('entities',slots.flatMap(slot=>slot?.entityId?[slot.entityId]:[]));
+ }
  async list<T extends {id:string}>(kind:DocumentKind):Promise<T[]> {
   if(!this.lists.has(kind)){this.metrics.listReads++;this.lists.set(kind,this.store.list(this.snapshot.feed.id,kind))}
   const listed=(await this.lists.get(kind)) as T[];for(const row of listed){const key=JSON.stringify([kind,row.id]);if(!this.reads.has(key))this.reads.set(key,Promise.resolve(structuredClone(row)))}

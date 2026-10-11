@@ -33,6 +33,10 @@ export function boundShortlist<T extends {targetVersionId:string;priority:number
  return {selected:[...selected,...reserved].sort(compareEditorialCandidates),overflow:overflow.filter(c=>!ids.has(c.targetVersionId))};
 }
 export async function shortlistInTransaction(tx:FeedTransaction,window:PublicationWindow,now:string,ordinaryLimit=20,options:{collectOnly?:boolean;rankings?:Map<string,EditorialRanking>}={}):Promise<ShortlistRecord> {
+ // Preserve the same retained semantic facts while shortening the CAS window.
+ const currentRoots=await tx.list<import('./types').EventRecord>('events');
+ const publishedVersions=(await tx.list<import('./publication').BriefingEditionRecord>('editions')).filter(e=>Date.parse(e.windowEnd)<Date.parse(window.end)).flatMap(e=>e.eventVersionIds);
+ await tx.preloadSemanticReferences([...currentRoots.map(root=>root.currentVersionId),...publishedVersions]);
  await refreshSourceCorrectionObligations(tx,now);
  const earlierEditions=new Set((await tx.list<import('./publication').BriefingEditionRecord>('editions')).filter(e=>Date.parse(e.windowEnd)<Date.parse(window.end)).map(e=>e.id));
  const ledger=(await tx.list<LedgerEntry>('ledger_entries')).filter(e=>earlierEditions.has(e.editionId)),resolved=new Set((await tx.list<{id:string;obligationId:string}>('correction_resolutions')).map(r=>r.obligationId));
