@@ -17,4 +17,12 @@ This change concerns collection spend. Automatic Cron polling and real-model syn
 
 ## Validation
 
-Real D1 tests cover shared fallback limits, independent sources, replay, concurrent admission, uncertain outcomes, legacy usage import, and non-resetting budget configuration. Connector regressions and Worker/connector typechecks are also run. Deployment and the bounded live X check are recorded below when completed.
+- Targeted Worker tests: 54/54 passed across the source budget, connector runtime, source backend and sources QA suites.
+- Complete connector suite: 198/198 passed. Worker and connector typechecks passed. Exact QA deployment dry-run passed. The full Worker suite was not rerun for this change.
+- Deployed code commit: `ba07a1a5ad9458bf4b233d73ae619607534d83d0` on `backend-full-stack-october-11`.
+- Live Worker version: `e884d906-d1ee-4c9b-ba85-cfcc3724db07`, replacing `5b1489dd-212f-4ad1-8b44-a57039131315`. The live version metadata confirms the USD 15 source cap, positive operation ceilings and all three existing provider secret bindings.
+- The user's approved `https://x.com/ecb` source on `ECB rates and inflation` completed one TwitterAPI.io request: HTTP 200, `HANDED_OFF`, 20 observations and 20 proposals. This proves paid collection and intake, not publication or topical accuracy.
+- The exact same probe replay returned the same 20 observations. Remote D1 comparison confirmed unchanged paid-operation counts and unchanged reservations across all providers and the source counter. TwitterAPI.io remained at 13 historical operations and USD 1.10 reserved; the ECB source row remained at limit USD 15 and reserved USD 0.10. These are ceilings, not invoiced charges.
+- QA root still returned HTTP 200. Existing frontend assets and credentials were retained; no migrations were applied. `backend-sources-fixes` remains at its pre-merge commit `b38e2effaee82743624ac27122ee5a58d3622abc`.
+
+Private probe JSON, replay comparisons and live version metadata are retained in ignored `.review-tmp/`. No tokens or source payloads are committed.
