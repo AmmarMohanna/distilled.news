@@ -20,7 +20,7 @@ import {projectEditionLedger} from './ledger';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {scheduleExtractionUpgrades,hasUnscheduledExtractionUpgrade} from './extraction-upgrade';
 import {recordBlockedWindow} from './blocked-window';
-import {nextRematch,rematchExhausted,STALE_REASON,semanticResourceRetryAt,isBudgetDenial,protectedRematchRevisionIds,prioritizeRematches,type RematchRequest,type RematchAttempt} from './rematch';
+import {nextRematch,rematchExhausted,REMATCH_CONTINUATION_POLICY,STALE_REASON,semanticResourceRetryAt,isBudgetDenial,protectedRematchRevisionIds,prioritizeRematches,type RematchRequest,type RematchAttempt} from './rematch';
 import {semanticBacklogMetrics} from './semantic-observability';
 import {withSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import {SemanticContentionError} from './semantic-operations';
@@ -85,7 +85,7 @@ export async function processV1Rematch(env:Env,feedId:string,requestId:string,no
  const succeeded=Boolean(consumed&&consumed.decision==='PROCESSED'&&!consumed.semanticDeferred);
  const reason=!active?'STALE_EVIDENCE':succeeded?undefined:stale?STALE_REASON:prepared?.prepared.decision.provenance.fallbackReason??(prepared?.prepared.decision.structuralRelation==='DEFER'?'SEMANTIC_IDENTITY_UNRESOLVED':consumed?.semanticDeferred?'SEMANTIC_CONSTRUCTION_UNRESOLVED':'SEMANTIC_PREPARATION_UNAVAILABLE'),budgetWait=active&&isBudgetDenial({state:'DEFERRED',reason});
  const id=JSON.stringify([request.id,attempt,now,'semantic-cost-admission-v1']);
- await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,...(budgetWait?{resourcePolicy:'semantic-cost-admission-v1' as const}:{}),state:succeeded?'SUCCEEDED':budgetWait?'WAITING_BUDGET':!active||rematchExhausted([...history,{reason,attempt,state:'DEFERRED'}])?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:budgetWait?semanticResourceRetryAt(request.id,now,history.filter(a=>a.state==='WAITING_BUDGET').length):new Date(Date.parse(now)+(reason===STALE_REASON?60000*2**history.filter(a=>a.reason===STALE_REASON).length:300000*2**(attempt-1))).toISOString(),createdAt:now,reason} satisfies RematchAttempt)});
+ await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,...(budgetWait?{resourcePolicy:'semantic-cost-admission-v1' as const}:{}),state:succeeded?'SUCCEEDED':budgetWait?'WAITING_BUDGET':!active||request.policyVersion!==REMATCH_CONTINUATION_POLICY&&rematchExhausted([...history,{reason,attempt,state:'DEFERRED'}])?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:budgetWait?semanticResourceRetryAt(request.id,now,history.filter(a=>a.state==='WAITING_BUDGET').length):new Date(Date.parse(now)+(reason===STALE_REASON?60000*2**history.filter(a=>a.reason===STALE_REASON).length:Math.min(3600000,300000*2**Math.min(attempt-1,4)))).toISOString(),createdAt:now,reason} satisfies RematchAttempt)});
  });
 }
 export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch,publicationOptions?:{requireModel?:boolean}) {

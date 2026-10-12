@@ -42,7 +42,7 @@ export async function settleModelSpending(db:D1Database,id:string,token:string,u
 /** Resolve only one explicitly authorized account; ambiguity is not permission.
  * Callers may bind an account explicitly when several provider accounts coexist. */
 export async function modelSpendingAccount(db:D1Database,model:string,at:string,accountId?:string):Promise<string>{
- const rows=await db.prepare('SELECT json FROM v1_model_spending_authorizations WHERE valid_from<=? AND valid_until>?').bind(instant(at),instant(at)).all<{json:string}>();
+ let rows:D1Result<{json:string}>;try{rows=await db.prepare('SELECT json FROM v1_model_spending_authorizations WHERE valid_from<=? AND valid_until>?').bind(instant(at),instant(at)).all<{json:string}>()}catch(error){if(String(error).includes('no such table'))throw new ModelSpendingWait('ACCOUNT_LEDGER_MIGRATION_REQUIRED');throw error}
  const matching=rows.results.map(r=>JSON.parse(r.json) as ModelSpendingAuthorization).filter(g=>(!accountId||g.accountId===accountId)&&(g.modelIds.includes(model)||g.modelIds.includes('*')));
  if(matching.length!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return matching[0].accountId;
 }

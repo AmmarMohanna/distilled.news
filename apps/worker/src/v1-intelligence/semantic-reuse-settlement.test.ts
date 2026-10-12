@@ -63,3 +63,11 @@ it('a historical zero-call denial can recover without rewriting that immutable r
  const result=await durableSemanticOperation(store,i,async()=>{calls++;return {value:{},usage}},'2026-10-10T10:00:00Z');
  expect(result.status).toBe('SUCCEEDED');expect(calls).toBe(1);expect(result.id).not.toBe(id);expect(await store.read('feed-1','semantic_results',id)).toEqual(denial);
 },15000);
+
+it('preview and wire changes cannot rebill UNKNOWN construction with the same mention and semantic-version scope',async()=>{
+ const revision=(await store.currentEvidence('feed-1'))[0].revision.id;
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:[revision],kind:'SEMANTIC_CONSTRUCTION',policyVersion:'construction-test',model:'m',budgetKey:'semantic:2026-10-03',state:{source:{text:'old preview'},events:[{id:'event',versionId:'v1'}],memory:[],claimMentions:[{id:'mention',text:'Retained supported fact'}]}};let calls=0;
+ const first=await durableSemanticOperation(store,input,async()=>{calls++;throw Error('SEMANTIC_PROVIDER_FAILURE')},testPolicy.now(),undefined,{reuseContext:{version:'v1'}});
+ const later=await durableSemanticOperation(store,{...input,budgetKey:'semantic:2026-10-04',state:{...input.state,source:{text:'complete retained text'},attempt:2}},async()=>{calls++;throw Error('UNSAFE_REBILL')},'2026-10-04T12:00:00Z',undefined,{reuseContext:{version:'v1',encoding:'new-preview'}});
+ expect(later.id).toBe(first.id);expect(later.failure).toBe('SEMANTIC_OUTCOME_UNKNOWN');expect(calls).toBe(1);
+});

@@ -79,3 +79,11 @@ describe('persisted accounting through processV1Rematch after repeated budget wa
   const ok=await outcome('success');expect(ok.real[0]).toMatchObject({state:'SUCCEEDED'});expect(ok.next).toBeUndefined();
  },40000);
 });
+
+it('new continuation work remains eligible after old numeric attempt ceilings without reopening historical requests',async()=>{
+ const {nextRematch,REMATCH_CONTINUATION_POLICY}=await import('./rematch');
+ const request={id:'new-work',feedId:'feed',jobId:'job',evidenceRevisionId:'revision',createdAt:'2026-10-03T12:00:00Z',policyVersion:REMATCH_CONTINUATION_POLICY};
+ const history=Array.from({length:8},(_,i)=>({id:'a'+i,feedId:'feed',requestId:request.id,attempt:i+1,state:'DEFERRED' as const,reason:'SEMANTIC_CONSTRUCTION_REJECTED',createdAt:'2026-10-03T12:00:00Z'}));
+ expect(nextRematch(request,history,'2026-10-04T12:00:00Z')).toBe(9);
+ expect(nextRematch({...request,policyVersion:'semantic-rematch-v1'},history,'2026-10-04T12:00:00Z')).toBeUndefined();
+});

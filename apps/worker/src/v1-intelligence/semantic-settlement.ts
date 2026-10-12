@@ -1,4 +1,4 @@
-import {modelSettlementStatement} from './model-spending';
+import {settleModelSpending} from './model-spending';
 import {HandoffError} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import {SemanticContentionError,type SemanticIntent,type SemanticOperationInput,type SemanticOperationResult} from './semantic-operations';
@@ -21,8 +21,13 @@ export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOper
   // Legacy records without compatibility metadata retain a conservative fence.
   if(!result?.usage.reported){
    const sameQuestion=canonicalJson(semanticQuestion(intent.input))===canonicalJson(semanticQuestion(input));
-   if(!result&&intent.leaseUntil>Date.now()){if(sameQuestion||compatibilityHash&&intent.compatibilityHash===compatibilityHash)throw new SemanticContentionError();continue}
-   if(!intent.compatibilityHash||sameQuestion||intent.compatibilityHash===compatibilityHash){
+   // Construction wire/preview changes must not rebill an UNKNOWN question
+   // against the same immutable source and semantic version context.
+   const versions=(state:any)=>({events:(state?.events??[]).map((e:any)=>[e.id,e.versionId]).sort(),memory:(state?.memory??[]).map((m:any)=>[m.id,m.versionId]).sort()});
+   const mentionScope=(state:any)=>Array.isArray(state?.claimMentions)?state.claimMentions.map((m:any)=>[m.id,m.text]).sort():null;
+   const sameConstruction=mentionScope(intent.input.state)!==null&&canonicalJson(mentionScope(intent.input.state))===canonicalJson(mentionScope(input.state))&&input.kind==='SEMANTIC_CONSTRUCTION'&&intent.input.model===input.model&&intent.input.feedRevision===input.feedRevision&&intent.input.policyVersion===input.policyVersion&&canonicalJson(versions(intent.input.state))===canonicalJson(versions(input.state));
+   if(!result&&intent.leaseUntil>Date.now()){if(sameQuestion||sameConstruction||compatibilityHash&&intent.compatibilityHash===compatibilityHash)throw new SemanticContentionError();continue}
+   if(!intent.compatibilityHash||sameQuestion||sameConstruction||intent.compatibilityHash===compatibilityHash){
     const fenced:SemanticOperationResult<T>={...(result??{id:intent.id,feedId:input.feedId,input:intent.input,status:'DEFERRED' as const,usage:{calls:1,costUsd:intent.reservedCostUsd,reported:false},latencyMs:0,createdAt:intent.createdAt}),status:'DEFERRED',failure:'SEMANTIC_OUTCOME_UNKNOWN'};
     if(!result)await tx.write('semantic_results',intent.id,fenced);return fenced;
    }
@@ -39,8 +44,9 @@ export async function settleSemanticOperation<T>(store:V1FeedStore,intent:Semant
  const authorization="EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='semantic_intents' AND id=? AND feed_id=? AND json_extract(json,'$.token')=?)";
  const args=[intent.id,intent.feedId,intent.token];
  const accountReceipt=await store.db.prepare('SELECT id FROM v1_model_spending_reservations WHERE id=?').bind('semantic_intents:'+intent.id).first();
+ // Financial settlement must survive a semantic receipt exceeding D1 storage.
+ if(accountReceipt)await settleModelSpending(store.db,'semantic_intents:'+intent.id,intent.token,result.usage);
  await store.db.batch([
-  ...(accountReceipt?[modelSettlementStatement(store.db,'semantic_intents:'+intent.id,intent.token,result.usage)]:[]),
   store.db.prepare(`UPDATE v1_feeds SET epoch=epoch+1 WHERE id=? AND ${authorization} AND NOT EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='semantic_settlements' AND id=?)`).bind(intent.feedId,...args,intent.id),
   store.db.prepare(`INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT 'semantic_settlements',?,?,? WHERE ${authorization} ON CONFLICT(kind,id) DO NOTHING`).bind(intent.id,intent.feedId,JSON.stringify({...result,token:intent.token}),...args)
  ]);

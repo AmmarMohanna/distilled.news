@@ -22,12 +22,14 @@ function roundedDistribution(probabilities:Record<string,number>,score?:number):
  return Object.fromEntries(Object.entries(probabilities).map(([k,n])=>[k,n/sum]));
 }
 export function wireQuestions(questions:Record<string,SemanticQuestion>):Record<string,unknown> {
- const entries=Object.entries(questions);if(!entries.length || entries.length>8)throw Error('INVALID_EXPERIMENT_INPUT');
+ const entries=Object.entries(questions);if(!entries.length)throw Error('INVALID_EXPERIMENT_INPUT');
  return Object.fromEntries(entries.map(([key,q])=>{
-  if(!/^[a-z][a-z_]{0,40}$/.test(key)||!q.instructions.trim()||q.instructions.length>2000)throw Error('INVALID_EXPERIMENT_INPUT');
+  if(!/^[a-z][a-z_0-9]*$/.test(key)||!q.instructions.trim())throw Error('INVALID_EXPERIMENT_INPUT');
   if(q.kind==='BOOLEAN')return [key,{type:'noul',instructions:q.instructions,criteria:{true:'Supported by the supplied evidence',false:'Not supported by the supplied evidence'}}];
-  if(q.kind==='SCORE'){if(q.levels.length<2||q.levels.length>10||q.levels.some(s=>!s.trim()||s.length>1000))throw Error('INVALID_EXPERIMENT_INPUT');return [key,{type:'score',instructions:q.instructions,criteria:q.levels}]}
-  const keys=Object.keys(q.criteria);if(keys.length<2||keys.length>10||Object.values(q.criteria).some(s=>!s.trim()||s.length>1000))throw Error('INVALID_EXPERIMENT_INPUT');return [key,{type:'choice',instructions:q.instructions,criteria:q.criteria}];
+  if(q.kind==='SCORE'){if(q.levels.length<2||q.levels.length>10||q.levels.some(s=>!s.trim()))throw Error('INVALID_EXPERIMENT_INPUT');return [key,{type:'score',instructions:q.instructions,criteria:q.levels}]}
+  // Native Choice supports 255 options; Score's ten levels are a separate provider constraint.
+  // https://docs.typesafe.ai/api
+  const keys=Object.keys(q.criteria);if(keys.length<2||keys.length>255||Object.values(q.criteria).some(s=>!s.trim()))throw Error('INVALID_EXPERIMENT_INPUT');return [key,{type:'choice',instructions:q.instructions,criteria:q.criteria}];
  }));
 }
 export function parseSemanticAnswers(raw:unknown,questions:Record<string,SemanticQuestion>):Record<string,SemanticAnswer> {

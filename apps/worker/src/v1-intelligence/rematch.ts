@@ -6,7 +6,8 @@ import type {EventRecord} from './types';
 import type {EventMembership} from '@distilled/contracts';
 export interface RematchRequest {id:string;feedId:string;jobId:string;evidenceRevisionId:string;createdAt:string;policyVersion:string}
 export interface RematchAttempt {id:string;feedId:string;requestId:string;attempt:number;state:'SUCCEEDED'|'DEFERRED'|'EXHAUSTED'|'WAITING_BUDGET';nextAttemptAt?:string;createdAt:string;reason?:string;resourcePolicy?:'semantic-cost-admission-v1'}
-export async function scheduleRematch(tx:FeedTransaction,jobId:string,evidenceRevisionId:string,now:string,policyVersion='semantic-rematch-v1'):Promise<void> {
+export const REMATCH_CONTINUATION_POLICY='semantic-rematch-continuation-v2';
+export async function scheduleRematch(tx:FeedTransaction,jobId:string,evidenceRevisionId:string,now:string,policyVersion=REMATCH_CONTINUATION_POLICY):Promise<void> {
  const id=await sha256(canonicalJson({feedId:tx.snapshot.feed.id,jobId,evidenceRevisionId,policy:policyVersion}));
  if(!await tx.read('rematch_requests',id))await tx.write('rematch_requests',id,{id,feedId:tx.snapshot.feed.id,jobId,evidenceRevisionId,createdAt:now,policyVersion} satisfies RematchRequest);
 }
@@ -14,7 +15,7 @@ export async function scheduleRematch(tx:FeedTransaction,jobId:string,evidenceRe
  * but each race still re-prepares (and may bill) a call, so the total number of attempts stays strictly bounded. */
 export const STALE_REASON='STALE_PREPARED_MEMORY',MAX_SEMANTIC_ATTEMPTS=3,MAX_STALE_RETRIES=2;
 /** A pre-call budget denial consumed no provider attempt (legacy EXHAUSTED records with this exact reason are the same). Unknown outcomes ARE real attempts. */
-export const isBudgetDenial=(a:Pick<RematchAttempt,'state'|'reason'>)=>a.state==='WAITING_BUDGET'||a.reason==='SEMANTIC_BUDGET_EXHAUSTED'||['ACCOUNT_RESOURCE_WAIT','ACCOUNT_AUTHORIZATION_REQUIRED','LEGACY_LIABILITIES_UNRECONCILED','SEMANTIC_COST_ESTIMATE_REQUIRED','SEMANTIC_MODEL_CAPABILITY_UNAVAILABLE','SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED'].includes(a.reason??'');
+export const isBudgetDenial=(a:Pick<RematchAttempt,'state'|'reason'>)=>a.state==='WAITING_BUDGET'||a.reason==='SEMANTIC_BUDGET_EXHAUSTED'||['ACCOUNT_RESOURCE_WAIT','ACCOUNT_LEDGER_MIGRATION_REQUIRED','ACCOUNT_AUTHORIZATION_REQUIRED','LEGACY_LIABILITIES_UNRECONCILED','SEMANTIC_COST_ESTIMATE_REQUIRED','SEMANTIC_MODEL_CAPABILITY_UNAVAILABLE','SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED'].includes(a.reason??'');
 export function rematchExhausted(history:Pick<RematchAttempt,'reason'|'attempt'|'state'>[]):boolean{
  const real=history.filter(a=>!isBudgetDenial(a)),stale=real.filter(a=>a.reason===STALE_REASON).length,numbered=Math.max(0,...real.map(a=>a.attempt));
  return Math.max(real.length-stale,numbered-stale)>=MAX_SEMANTIC_ATTEMPTS||stale>MAX_STALE_RETRIES;
@@ -22,6 +23,10 @@ export function rematchExhausted(history:Pick<RematchAttempt,'reason'|'attempt'|
 export function nextRematch(request:RematchRequest,attempts:RematchAttempt[],now:string,options:{costAdmission?:boolean}={}):number|undefined {
  const prior=attempts.filter(a=>a.requestId===request.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.attempt-a.attempt)[0];
  if(attempts.some(a=>a.requestId===request.id&&a.state==='SUCCEEDED'))return undefined;
+ if(request.policyVersion===REMATCH_CONTINUATION_POLICY){
+  if(prior?.reason==='STALE_EVIDENCE'||prior?.nextAttemptAt&&Date.parse(prior.nextAttemptAt)>Date.parse(now))return undefined;
+  return Math.max(0,...attempts.filter(a=>a.requestId===request.id&&!isBudgetDenial(a)).map(a=>a.attempt))+1;
+ }
  const budgetWait=Boolean(prior&&isBudgetDenial(prior));
  if(budgetWait){
   // A settled pre-call denial consumed no provider attempt. Legacy EXHAUSTED

@@ -38,3 +38,13 @@ it('the exact scheduled Muse relation cannot combine an Event with unbound Story
  expect(continuing.eventId.type).toBe('null');expect(continuing.storylineId.enum).not.toContain(null);
  expect(relationFixture.response.confidence).toBe(0.39);
 });
+
+it('retains forty independent developments or one genuine forty-fact Event without legacy group/mention ceilings',async()=>{
+ const {extractClaimMentions}=await import('./claims');const revision={id:'large-r',feedId:'large-feed',contentHash:'hash',body:Array.from({length:40},(_,i)=>`Officials announced development ${i}.`).join(' '),acceptedAt:'2026-10-03T12:00:00Z'} as any;
+ const {mentions}=await extractClaimMentions(revision),input={revision,role:'REPORTED_DEVELOPMENT' as const,candidates:[]};
+ const group=(ids:string[])=>({claimMentionIds:ids,eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[]});
+ for(const groups of [mentions.map(m=>group([m.id])),[group(mentions.map(m=>m.id))]]){
+ const parsed=parseConstruction({groups,backgroundMentionIds:[],confidence:.9},mentions,input,{scorer:'GPT',policyVersion:'test'});expect(parsed.groups.flatMap(g=>g.claimMentionIds)).toEqual(mentions.map(m=>m.id));
+ }
+ expect(()=>parseConstruction({groups:[group(mentions.slice(1).map(m=>m.id))],backgroundMentionIds:[],confidence:.9},mentions,input,{scorer:'GPT',policyVersion:'test'})).toThrow();
+});

@@ -43,12 +43,12 @@ describe('retries read back what already succeeded instead of re-spending the al
   // A new day changes accounting, not the exact witnessed semantic question.
   await prepareSemanticMatch(store,{} as Env,job,'2026-10-05T10:00:00Z',{strong,attempt:3});expect(calls).toBe(1);
  },40000);
- it('failed outcomes are never read back: a rejected construction gets a fresh attempt',async()=>{
+ it('known rejected construction is retained and its scoped continuation does not rebill across attempts',async()=>{
   const intake=new V1IntakeStore(ctx.db),accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batchFixture());
   await acceptAcquiredContent(intake,{id:'content',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-1',body:'Officials confirmed the banking reform passed.',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);
   const job=JSON.stringify(['REASSESS','observation-1','']);let calls=0;
   const strong={model:'fake-strong',admission:syntheticModelAdmission,usage:()=>usage,complete:async()=>{calls++;return {value:{nonsense:true},usage}}};
-  const a=await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(a?.prepared.decision.structuralRelation).toBe('DEFER');expect(calls).toBe(1);
+  const a=await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(a?.prepared.decision.structuralRelation).toBe('DEFER');expect(calls).toBe(2);
   await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong,attempt:1});expect(calls).toBe(2);
  },40000);
 });

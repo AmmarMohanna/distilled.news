@@ -64,7 +64,7 @@ export class OpenRouterJudgmentClient implements JudgmentClient {
    if(!response.ok) {await response.body?.cancel();throw Error(`EXPERIMENT_HTTP_${response.status}`)}
    const reader=response.body?.getReader();if(!reader) throw Error('INVALID_EXPERIMENT_RESULT');
    const chunks:Uint8Array[]=[];let length=0;
-   try {for(;;){const part=await reader.read();if(part.done) break;length+=part.value.byteLength;if(length>8192) throw Error('INVALID_EXPERIMENT_RESULT');chunks.push(part.value)}}finally {await reader.cancel().catch(()=>undefined)}
+   try {for(;;){const part=await reader.read();if(part.done) break;length+=part.value.byteLength;if(length>2000000) throw Error('INVALID_EXPERIMENT_RESULT');chunks.push(part.value)}}finally {await reader.cancel().catch(()=>undefined)}
    const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
    let envelope:any,answer:any;
    try {envelope=JSON.parse(new TextDecoder().decode(bytes))}catch {throw Error('INVALID_EXPERIMENT_RESULT')}

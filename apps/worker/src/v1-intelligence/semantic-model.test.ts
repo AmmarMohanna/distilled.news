@@ -33,3 +33,9 @@ it('uses provider output capacity without the retired wallet or output request c
  const envelope=model.admission!({facts:[]},{});
  expect(envelope.fits).toBe(true);expect(envelope.maxOutputTokens).toBe(32768);expect(envelope.reservationCostUsd).toBeGreaterThan(.02);
 });
+
+it('preserves a supported larger response and reported costs above the historical telemetry ceiling',async()=>{
+ const response={retained:'Supported text. '.repeat(10000)};
+ const model=createStrongSemanticModel({OPENROUTER_API_KEY:'stand-in-only',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env,async()=>Response.json({choices:[{message:{content:JSON.stringify(response)}}],usage:{prompt_tokens:100,completion_tokens:20000,cost:12}}))!;
+ expect((await model.complete('feed','SEMANTIC_CONSTRUCTION',{},{})).value).toEqual(response);expect(model.usage()).toMatchObject({costUsd:12,reported:true});
+});

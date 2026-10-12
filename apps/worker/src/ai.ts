@@ -262,13 +262,14 @@ export async function boundedCompletion(options:ModelOptions,briefingId:string,p
     received=true;
     if(!response.ok){outcome=`PROVIDER_HTTP_${response.status}`;throw Error(outcome)}
     const reader=response.body?.getReader();if(!reader)throw Error("MODEL_EMPTY_RESPONSE");
+    // A raw response must fit a D1 value; larger work needs output packets, not a total news quota.
     const parts:Uint8Array[]=[];let size=0;
-    try{while(true){const chunk=await reader.read();if(chunk.done)break;size+=chunk.value.length;if(size>131072)throw Error("MODEL_RESPONSE_TOO_LARGE");parts.push(chunk.value)}}finally{await reader.cancel().catch(()=>{})}
+    try{while(true){const chunk=await reader.read();if(chunk.done)break;size+=chunk.value.length;if(size>2000000)throw Error("MODEL_RESPONSE_STORAGE_CONTINUATION_REQUIRED");parts.push(chunk.value)}}finally{await reader.cancel().catch(()=>{})}
     const bytes=new Uint8Array(size);let offset=0;for(const part of parts){bytes.set(part,offset);offset+=part.length}
     const payload=JSON.parse(new TextDecoder().decode(bytes));usage=payload.usage;
     const result=JSON.parse(payload.choices?.[0]?.message?.content??"null");
     if(!result||typeof result!=="object"||Array.isArray(result))throw Error("MODEL_SCHEMA_INVALID");
     return result;
-  }catch(error){if(outcome==="SUCCESS")outcome=error instanceof Error&&error.name==="AbortError"?"MODEL_TIMEOUT":received?"MODEL_RESPONSE_INVALID":"MODEL_TRANSPORT_FAILED";throw Error(outcome)}
-  finally{clearTimeout(timer);limits?.signal.removeEventListener('abort',abort);await options.usageRecorder?.({briefingId,model:options.model,purpose,phase,provider:options.provider??"OPENAI_GATEWAY",outcome,latencyMs:Date.now()-started,inputTokens:usage?.prompt_tokens??0,outputTokens:usage?.completion_tokens??0,reportedCostUsd:typeof usage?.cost==="number"&&usage.cost>=0&&usage.cost<10?usage.cost:undefined,estimatedCostUsd:options.provider==="OPENROUTER"?0:estimateOpenAiCostUsd({inputTokens:usage?.prompt_tokens??0,outputTokens:usage?.completion_tokens??0,env:options.env})}).catch(()=>{})}
+  }catch(error){if(outcome==="SUCCESS")outcome=error instanceof Error&&error.name==="AbortError"?"MODEL_TIMEOUT":error instanceof Error&&error.message==="MODEL_RESPONSE_STORAGE_CONTINUATION_REQUIRED"?error.message:received?"MODEL_RESPONSE_INVALID":"MODEL_TRANSPORT_FAILED";throw Error(outcome)}
+  finally{clearTimeout(timer);limits?.signal.removeEventListener('abort',abort);await options.usageRecorder?.({briefingId,model:options.model,purpose,phase,provider:options.provider??"OPENAI_GATEWAY",outcome,latencyMs:Date.now()-started,inputTokens:usage?.prompt_tokens??0,outputTokens:usage?.completion_tokens??0,reportedCostUsd:typeof usage?.cost==="number"&&Number.isFinite(usage.cost)&&usage.cost>=0?usage.cost:undefined,estimatedCostUsd:options.provider==="OPENROUTER"?0:estimateOpenAiCostUsd({inputTokens:usage?.prompt_tokens??0,outputTokens:usage?.completion_tokens??0,env:options.env})}).catch(()=>{})}
 }
