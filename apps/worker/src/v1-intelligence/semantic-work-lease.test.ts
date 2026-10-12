@@ -1,8 +1,8 @@
-import {afterEach,beforeEach,expect,it} from 'vitest';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,FeedTransaction,feedTransact} from './store';
-import {acquireSemanticWorkLease,releaseSemanticWorkLease} from './semantic-work-lease';
+import {acquireSemanticWorkLease,releaseSemanticWorkLease,renewSemanticWorkLease} from './semantic-work-lease';
 import {testDurableSemanticOperation as durableSemanticOperation} from './test-utils';
 import {feedFixture,seedIntelligence} from './test-utils';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
@@ -14,3 +14,32 @@ it('lease loss between snapshot and commit is fenced atomically',async()=>{const
 
 it('concurrent processing owners cannot both acquire the Feed; release permits the next owner',async()=>{const first=await acquireSemanticWorkLease(store,'feed-1');await expect(acquireSemanticWorkLease(new V1FeedStore(ctx.db),'feed-1')).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});await releaseSemanticWorkLease(store,first);const next=await acquireSemanticWorkLease(store,'feed-1');expect(next.id).not.toBe(first.id)},15000);
 it('a provider response after lease loss settles actual cost without committing semantic consumption',async()=>{await seedIntelligence(store);const evidence=(await store.currentEvidence('feed-1'))[0].revision,lease=await acquireSemanticWorkLease(store,'feed-1'),held=new V1FeedStore(ctx.db,lease),usage={calls:1,costUsd:.001,reported:true};await expect(durableSemanticOperation(held,{feedId:'feed-1',feedRevision:1,evidenceRevisionIds:[evidence.id],kind:'RELATION',model:'m',policyVersion:'p',budgetKey:'semantic:2026-10-10',state:{}},async()=>{await releaseSemanticWorkLease(store,lease);return {value:{ok:true},usage}},'2026-10-10T00:00:00Z')).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});expect(await store.list('feed-1','semantic_results')).toHaveLength(0);expect(await store.list('feed-1','semantic_settlements')).toEqual([expect.objectContaining({usage})])},15000);
+
+it('renewal keeps a live owner exclusive but cannot resurrect expired or released owners',async()=>{
+ const lease=await acquireSemanticWorkLease(store,'feed-1');const original=lease.leaseUntil;
+ await renewSemanticWorkLease(store,lease);expect(lease.leaseUntil).toBeGreaterThanOrEqual(original);
+ await expect(acquireSemanticWorkLease(store,'feed-1')).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ await releaseSemanticWorkLease(store,lease);await expect(renewSemanticWorkLease(store,lease)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ const expired={id:'expired-renewal-owner',feedId:'feed-1',token:'expired',leaseUntil:Date.now()-1,createdAt:new Date().toISOString()};await feedTransact(store,'feed-1',tx=>tx.write('semantic_work_leases',expired.id,expired));
+ await expect(renewSemanticWorkLease(store,expired)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+},15000);
+
+it('execution continuation yields before new payment without exhausting semantic attempts',async()=>{
+ await seedIntelligence(store);const evidence=(await store.currentEvidence('feed-1'))[0].revision,lease=await acquireSemanticWorkLease(store,'feed-1');let calls=0;
+ const held=new V1FeedStore(ctx.db,{...lease,executionDeadlineMs:Date.now()-1});
+ const op={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:[evidence.id],kind:'RELATION',model:'m',policyVersion:'continuation-p',budgetKey:'semantic:2026-10-10',state:{}};
+ const result=await durableSemanticOperation(held,op,async()=>{calls++;return {value:{ok:true},usage:{calls:1,costUsd:.001,reported:true}}},'2026-10-10T00:00:00Z');
+ expect(result.failure).toBe('SEMANTIC_EXECUTION_YIELD');expect(result.usage.calls).toBe(0);expect(calls).toBe(0);expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+ await releaseSemanticWorkLease(store,lease);const next=await acquireSemanticWorkLease(store,'feed-1');
+ const completed=await durableSemanticOperation(new V1FeedStore(ctx.db,next),op,async()=>{calls++;return {value:{ok:true},usage:{calls:1,costUsd:.001,reported:true}}},'2026-10-10T00:00:00Z');expect(completed.status).toBe('SUCCEEDED');expect(calls).toBe(1);
+},20000);
+
+it('renewed ownership remains visible to the unchanged lease query after the parent expiry',async()=>{
+ const held=await leased(Date.now()+15000),lease=held.semanticLease!;await renewSemanticWorkLease(store,lease);
+ vi.useFakeTimers({toFake:['Date']});try{
+  vi.setSystemTime(Date.now()+20000);
+  const legacy=await ctx.db.prepare("SELECT id FROM v1_feed_documents l WHERE l.kind='semantic_work_leases' AND l.feed_id=? AND json_extract(l.json,'$.leaseUntil')>? AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='semantic_work_releases' AND r.id=l.id AND json_extract(r.json,'$.token')=json_extract(l.json,'$.token')) LIMIT 1").bind('feed-1',Date.now()).first<{id:string}>();
+  expect(legacy?.id).toBe(lease.id);await expect(acquireSemanticWorkLease(store,'feed-1')).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ }finally{vi.useRealTimers()}
+ await releaseSemanticWorkLease(store,lease);const next=await acquireSemanticWorkLease(store,'feed-1');expect(next.token).not.toBe(lease.token);
+},15000);

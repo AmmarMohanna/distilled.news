@@ -90,3 +90,15 @@ it('an unknown construction outcome cannot start repair or packet calls',async()
  const job=JSON.stringify(['REASSESS','observation-1','']);const first=await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(first?.prepared.decision.structuralRelation).toBe('DEFER');
  await prepareSemanticMatch(store,{} as Env,job,'2026-07-02T00:00:00.000Z',{strong,attempt:1});expect(calls).toBe(1);expect(await store.list('feed-1','semantic_construction_work')).toHaveLength(0);
 },25000);
+
+it('ordinary construction receives the complete article with scoped wire references and returns original mention identities',async()=>{
+ await acceptEvidence(store,1,'Officials confirmed the banking reform passed.');
+ const usage={calls:1,costUsd:.001,reported:true};let calls=0;
+ const strong={model:'complete-article-alias-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{
+  calls++;expect(state.referenceEncoding).toContain('Text and meaning are unchanged');expect(state.source.text).toContain('banking reform');expect(state.claimMentions[0].id).toBe('C0');
+  return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:[],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.99},usage};
+ }};
+ const id=JSON.stringify(['REASSESS','observation-1','']);const first=await prepareSemanticMatch(store,{} as Env,id,testPolicy.now(),{strong});expect(first?.prepared.decision.structuralRelation).toBe('NEW_STORYLINE');
+ const saved=(await store.list<any>('feed-1','semantic_results')).find(r=>r.input.kind==='SEMANTIC_CONSTRUCTION');expect(saved.input.state.claimMentions[0].id).not.toBe('C0');expect(saved.value.construction.groups[0].claimMentionIds).toEqual(saved.input.state.claimMentions.map((m:any)=>m.id));
+ await prepareSemanticMatch(new V1FeedStore(ctx.db),{} as Env,id,testPolicy.now(),{strong});expect(calls).toBe(1);
+},20000);

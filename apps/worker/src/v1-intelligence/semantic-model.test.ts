@@ -39,3 +39,10 @@ it('preserves a supported larger response and reported costs above the historica
  const model=createStrongSemanticModel({OPENROUTER_API_KEY:'stand-in-only',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env,async()=>Response.json({choices:[{message:{content:JSON.stringify(response)}}],usage:{prompt_tokens:100,completion_tokens:20000,cost:12}}))!;
  expect((await model.complete('feed','SEMANTIC_CONSTRUCTION',{},{})).value).toEqual(response);expect(model.usage()).toMatchObject({costUsd:12,reported:true});
 });
+
+it.each(['SEMANTIC_CONSTRUCTION','SEMANTIC_CONSTRUCTION_REPAIR','SEMANTIC_RECONCILIATION'])('allows a valid %s response after the historical ten-second deadline',async phase=>{
+ vi.useFakeTimers();try{
+ const model=createStrongSemanticModel({OPENROUTER_API_KEY:'stand-in-only'} as Env,async(_url,init)=>{await new Promise<void>((resolve,reject)=>{setTimeout(resolve,35000);init!.signal!.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')))});return Response.json({choices:[{message:{content:'{"groups":[]}'}}],usage:{prompt_tokens:100,completion_tokens:20,cost:.001}})})!;
+ const response=model.complete('feed',phase,{completeArticle:'Source evidence'},{});await vi.advanceTimersByTimeAsync(35000);expect((await response).value).toEqual({groups:[]});expect(model.usage().reported).toBe(true);
+ }finally{vi.useRealTimers()}
+});

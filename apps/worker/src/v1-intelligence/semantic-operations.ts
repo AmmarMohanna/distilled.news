@@ -1,3 +1,4 @@
+import {renewSemanticWorkLease} from './semantic-work-lease';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
@@ -23,6 +24,7 @@ async function assertInputs(tx:FeedTransaction,input:SemanticOperationInput):Pro
  * Retries and new work share account authority; correction ordering remains scheduling metadata. */
 export type BudgetLane=SemanticWorkClass;
 export async function durableSemanticOperation<T>(store:V1FeedStore,input:SemanticOperationInput,run:()=>Promise<{value:T;usage:ExperimentUsage}>,now:string,reportedUsage?:()=>ExperimentUsage,options:{preserveStartedEditorialScope?:boolean;lane?:BudgetLane;reuseContext?:unknown;reservationCostUsd?:number;operationAdmission?:{fits:boolean;reason?:string;reservationCostUsd:number}}={}):Promise<SemanticOperationResult<T>> {
+ if(store.semanticLease)await renewSemanticWorkLease(store,store.semanticLease);
  const reservation=options.operationAdmission?.reservationCostUsd??options.reservationCostUsd;
  if(reservation!==undefined&&(!Number.isFinite(reservation)||reservation<0))throw new HandoffError('INVALID_REQUEST');
  // The durable intent must commit before a call; real D1 row limits fail here
@@ -44,6 +46,11 @@ export async function durableSemanticOperation<T>(store:V1FeedStore,input:Semant
   const intent=await tx.read<SemanticIntent>('semantic_intents',id);
   const deferred=(failure:string,usage:ExperimentUsage):SemanticOperationResult<T>=>({id,feedId:input.feedId,input,status:'DEFERRED',failure,usage,latencyMs:0,createdAt:now});
   if(intent){if(intent.leaseUntil>Date.now())throw new SemanticContentionError();const result=deferred('SEMANTIC_OUTCOME_UNKNOWN',{calls:1,costUsd:intent.reservedCostUsd,reported:false});await tx.write('semantic_results',id,result);return {result}}
+  if(store.semanticLease?.executionDeadlineMs!==undefined&&Date.now()+60000>store.semanticLease.executionDeadlineMs){
+   const result=deferred('SEMANTIC_EXECUTION_YIELD',{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);
+   if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...result,id:waitId,operationId:id,category:'EXECUTION_CONTINUATION'});
+   return {result};
+  }
   if(options.operationAdmission&&!options.operationAdmission.fits){
    const result=deferred(`SEMANTIC_${options.operationAdmission.reason??'MODEL_CAPABILITY_UNAVAILABLE'}`,{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);
    if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...result,id:waitId,operationId:id,category:'MODEL_CAPACITY',admission:options.operationAdmission});
@@ -55,7 +62,7 @@ export async function durableSemanticOperation<T>(store:V1FeedStore,input:Semant
   }
   if(reservation===undefined){const result=deferred('SEMANTIC_COST_ESTIMATE_REQUIRED',{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...result,id:waitId,operationId:id,category:'ACCOUNT_AUTHORIZATION'});return {result}}
   const accountId=await modelSpendingAccount(store.db,input.model,now,store.spendingAccountId);
-  const value:SemanticIntent={id,feedId:input.feedId,input,token,leaseUntil:Date.now()+(input.kind==='COMPARATIVE_EDITORIAL_PLAN'||input.kind.startsWith('PUBLICATION_')?90000:30000),reservedCostUsd:reservation,createdAt:now,...(compatibilityHash?{compatibilityHash}:{})};tx.modelReservations.push({id:'semantic_intents:'+id,accountId,model:input.model,feedId:input.feedId,token,reservedCostUsd:reservation,leaseUntil:value.leaseUntil,createdAt:now});await tx.write('semantic_intents',id,value);return {intent:value};
+  const value:SemanticIntent={id,feedId:input.feedId,input,token,leaseUntil:Date.now()+(input.kind==='COMPARATIVE_EDITORIAL_PLAN'||input.kind.startsWith('PUBLICATION_')||input.kind==='SEMANTIC_CONSTRUCTION'?90000:30000),reservedCostUsd:reservation,createdAt:now,...(compatibilityHash?{compatibilityHash}:{})};tx.modelReservations.push({id:'semantic_intents:'+id,accountId,model:input.model,feedId:input.feedId,token,reservedCostUsd:reservation,leaseUntil:value.leaseUntil,createdAt:now});await tx.write('semantic_intents',id,value);return {intent:value};
  }).catch(async error=>{
   if(!(error instanceof ModelSpendingWait))throw error;
   const result:SemanticOperationResult<T>={id,feedId:input.feedId,input,status:'DEFERRED',failure:error.reason,usage:{calls:0,costUsd:0,reported:true},latencyMs:0,createdAt:now};

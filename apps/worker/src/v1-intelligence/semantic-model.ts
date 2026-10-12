@@ -12,10 +12,10 @@ export function createStrongSemanticModel(env:Env,fetcher:typeof fetch=fetch,pur
   const envelope=admission(state,schema,phase);
   if(!envelope.fits)throw Error(`SEMANTIC_${envelope.reason}`);
   usage={calls:1,costUsd:envelope.reservationCostUsd,reported:false};
-  // Complete multi-target planning needs more time than one construction call.
-  // Keep it below the comparative operation's 90-second lease; token/cost bounds
-  // and unknown-outcome fencing are unchanged.
-  const timeoutMs=phase==='COMPARATIVE_EDITORIAL_PLAN'?60000:10000;
+  // Complete construction, targeted repair and reconciliation need the same
+  // operational headroom as comparative planning. Durable ownership is renewed
+  // before each operation; all remain below the 90-second financial lease.
+  const timeoutMs=phase==='COMPARATIVE_EDITORIAL_PLAN'||phase.startsWith('SEMANTIC_')?60000:10000;
   let value:Record<string,unknown>;try{value=await boundedCompletion({accountId:'',gatewayId:'',apiKey:env.OPENROUTER_API_KEY!,provider:'OPENROUTER',model,fetcher,timeoutMs,usageRecorder:async record=>{usage={calls:1,tokensIn:record.inputTokens,tokensOut:record.outputTokens,costUsd:record.reportedCostUsd??envelope.reservationCostUsd,reported:record.reportedCostUsd!==undefined}}},feedId,'event_review',phase,JSON.stringify(state),schema,{maxOutputTokens:envelope.maxOutputTokens,signal:new AbortController().signal});
   }catch(error){throw Error(error instanceof Error&&/^MODEL_|^PROVIDER_HTTP_/.test(error.message)?`SEMANTIC_${error.message}`:"SEMANTIC_PROVIDER_FAILURE")}
   return {value,usage};
