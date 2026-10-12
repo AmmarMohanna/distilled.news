@@ -1403,9 +1403,24 @@ function FeedPage(props: { username: string; slug: string }) {
     }).catch(() => {});
     return () => { active = false; };
   }, [props.username, props.slug]);
-  const [payload, setPayload] = useState<FeedPayload | null>(null);
+  const feedKey = `${props.username}/${props.slug}`;
+  const feedIdentity = useRef(feedKey);
+  const feedRequest = useRef(0);
+  const searchRequest = useRef(0);
+  const latestQuery = useRef("");
+  const searchFailed = useRef(false);
+  const loadedFeed = useRef<string | null>(null);
+  const visibleEditionIds = useRef(new Set<string>());
+  if (feedIdentity.current !== feedKey) {
+    feedIdentity.current = feedKey; feedRequest.current++; searchRequest.current++;
+  }
+  const [feedResult, setFeedResult] = useState<{ key: string; value: FeedPayload } | null>(null);
+  const payload = feedResult?.key === feedKey ? feedResult.value : null;
+  const [readState, setReadState] = useState<{ key: string; state: "loading" | "loaded" | "failed" }>({ key: feedKey, state: "loading" });
+  const initialLoading = !payload && (readState.key !== feedKey || readState.state === "loading");
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
   const [query, setQuery] = useState("");
+  const [settledSearch, setSettledSearch] = useState<{ key: string; text: string } | null>(null);
   const [error, setError] = useState("");
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
@@ -1418,47 +1433,54 @@ function FeedPage(props: { username: string; slug: string }) {
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
   const [editionDetails, setEditionDetails] = useState<Map<string, BriefingEdition>>(() => new Map());
 
-  async function refresh() {
-    setError("");
-    setSummaryMessage("");
-    const next = await getFeed(props.username, props.slug);
-    setPayload(next);
-    const sourceNotice = sessionStorage.getItem(`feed-notice:${next.briefing.id}`);
-    if (sourceNotice) { setError(sourceNotice); sessionStorage.removeItem(`feed-notice:${next.briefing.id}`); }
-    setEditions(next.editions);
-    setExpanded(new Set());
-    setEditionBusyIds(new Set());
-    setEditionDetails(new Map());
-    setVisibleUnreadCount(FEED_BATCH_SIZE);
-    setSelectedReport(null);
+  async function refresh(silent = false) {
+    const key = feedKey, request = ++feedRequest.current;
+    if (!silent || loadedFeed.current !== key) { searchFailed.current = false; setError(""); setSummaryMessage(""); }
+    if (loadedFeed.current !== key) setReadState({ key, state: "loading" });
+    try {
+      const next = await getFeed(props.username, props.slug);
+      if (feedIdentity.current !== key || request !== feedRequest.current) return;
+      loadedFeed.current = key;
+      visibleEditionIds.current = new Set(next.editions.map(edition => edition.id));
+      setFeedResult({ key, value: next }); setReadState({ key, state: "loaded" });
+      const sourceNotice = sessionStorage.getItem(`feed-notice:${next.briefing.id}`);
+      searchFailed.current = false; setError(sourceNotice ?? "");
+      if (sourceNotice) sessionStorage.removeItem(`feed-notice:${next.briefing.id}`);
+      // Invalidate pending searches before they can restore newly withdrawn prose.
+      searchRequest.current++;
+      const ids = visibleEditionIds.current;
+      // Refresh visibility without discarding pagination, search or expanded detail.
+      setEditions(current => latestQuery.current.trim() ? current.filter(edition => ids.has(edition.id)) : next.editions);
+      setExpanded(current => new Set([...current].filter(id => ids.has(id))));
+      setEditionDetails(current => new Map([...current].filter(([id]) => ids.has(id))));
+      setSelectedReport(current => current && ids.has(current.editionId) ? current : null);
+    } catch (cause) {
+      if (feedIdentity.current !== key || request !== feedRequest.current) return;
+      if (!silent || loadedFeed.current !== key) {
+        searchFailed.current = false; setReadState({ key, state: "failed" }); setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    }
   }
 
   useEffect(() => {
-    refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
+    setError(""); setSummaryMessage(""); latestQuery.current = "";
+    setQuery(""); setEditions([]); setExpanded(new Set()); setEditionBusyIds(new Set());
+    setEditionDetails(new Map()); setSelectedReport(null); setVisibleUnreadCount(FEED_BATCH_SIZE);
+    visibleEditionIds.current = new Set(); setReadState({ key: feedKey, state: "loading" });
+    void refresh();
+    return () => { feedRequest.current++; searchRequest.current++; };
   }, [props.username, props.slug]);
 
   useEffect(() => {
-    let active = true;
     let pending = false;
     const update = async () => {
       if (document.visibilityState !== "visible" || pending) return;
       pending = true;
-      try {
-        const next = await getFeed(props.username, props.slug);
-        if (active) setPayload(next);
-      } catch {
-        // Keep the last successful feed visible during temporary network failures.
-      } finally { pending = false; }
+      try { await refresh(true); } finally { pending = false; }
     };
     const interval = window.setInterval(() => void update(), 60_000);
-    document.addEventListener("visibilitychange", update);
-    window.addEventListener("focus", update);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", update);
-      window.removeEventListener("focus", update);
-    };
+    document.addEventListener("visibilitychange", update); window.addEventListener("focus", update);
+    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", update); window.removeEventListener("focus", update); };
   }, [props.username, props.slug]);
 
   useEffect(() => {
@@ -1481,30 +1503,36 @@ function FeedPage(props: { username: string; slug: string }) {
     setVisibleUnreadCount(FEED_BATCH_SIZE);
   }, [props.username, props.slug, query]);
 
-  useEffect(() => {
+  async function applySearch(text: string, request: number) {
     if (!payload) return;
-    let active = true;
-    const timeout = window.setTimeout(async () => {
-      try {
-        setError("");
-        const nextEditions = query.trim() ? await searchFeed(props.username, props.slug, query) : payload.editions;
-        if (active) {
-          setEditions(nextEditions);
-        }
-      } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : String(cause));
+    const key = feedKey;
+    try {
+      const next = text.trim() ? await searchFeed(props.username, props.slug, text) : payload?.editions ?? [];
+      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) {
+        visibleEditionIds.current = new Set([...visibleEditionIds.current, ...next.map(edition => edition.id)]);
+        searchFailed.current = false; setError(""); setEditions(next); setSettledSearch({ key, text });
       }
+    } catch (cause) {
+      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { searchFailed.current = true; setError(cause instanceof Error ? cause.message : String(cause)); }
+    }
+  }
+
+  useEffect(() => {
+    const request = ++searchRequest.current;
+    if (!payload) return;
+    if (!query.trim()) { if (searchFailed.current) { searchFailed.current = false; setError(""); } setEditions(payload.editions); return; }
+    const timeout = window.setTimeout(() => {
+      if (request === searchRequest.current && feedIdentity.current === feedKey && query === latestQuery.current) void applySearch(query, request);
     }, 250);
-    return () => {
-      active = false;
-      window.clearTimeout(timeout);
-    };
+    return () => window.clearTimeout(timeout);
   }, [payload, props.username, props.slug, query]);
 
-  const unreadEditions = editions.filter((edition) => !readIds.has(edition.id));
+  const currentEditions = payload ? editions : [];
+  const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
+  const unreadEditions = currentEditions.filter((edition) => !readIds.has(edition.id));
   const visibleUnreadEditions = unreadEditions.slice(0, visibleUnreadCount);
   const hiddenUnreadCount = Math.max(0, unreadEditions.length - visibleUnreadEditions.length);
-  const archivedReadEditions = editions.filter((edition) => readIds.has(edition.id));
+  const archivedReadEditions = currentEditions.filter((edition) => readIds.has(edition.id));
   const language = uiLanguage;
   const pageDir = textDirection(language);
   const canStar = Boolean(payload);
@@ -1520,6 +1548,8 @@ function FeedPage(props: { username: string; slug: string }) {
   ) : "briefing";
 
   async function loadEditionDetail(edition: BriefingEdition): Promise<BriefingEdition | null> {
+    const key = feedKey;
+    if (!visibleEditionIds.current.has(edition.id)) return null;
     const cached = editionDetails.get(edition.id);
     if (cached) return cached;
     if (edition.sections.length > 0) {
@@ -1530,13 +1560,14 @@ function FeedPage(props: { username: string; slug: string }) {
     setEditionBusyIds((current) => new Set(current).add(edition.id));
     try {
       const detailed = await getFeedEdition(props.username, props.slug, edition.id);
+      if (feedIdentity.current !== key || !visibleEditionIds.current.has(edition.id)) return null;
       setEditionDetails((current) => new Map(current).set(edition.id, detailed));
       return detailed;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (feedIdentity.current === key) setError(cause instanceof Error ? cause.message : String(cause));
       return null;
     } finally {
-      setEditionBusyIds((current) => {
+      if (feedIdentity.current === key) setEditionBusyIds((current) => {
         const next = new Set(current);
         next.delete(edition.id);
         return next;
@@ -1565,7 +1596,7 @@ function FeedPage(props: { username: string; slug: string }) {
       header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
-      meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : loadingFeedLabel(language)}
+      meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : initialLoading ? <span className="feed-loading-message" role="status">{loadingFeedLabel(language)}</span> : undefined}
       feed={payload?.briefing}
       pageLanguage={language}
       headingAction={ownedFeed ? <button className="primary-button" onClick={() => setEditorOpen(true)}><Settings size={17}/>{t("Edit feed settings")}</button> : undefined}
@@ -1599,11 +1630,9 @@ function FeedPage(props: { username: string; slug: string }) {
               setStarBusy(true);
               try {
                 const result = await setFeedStar(props.username, props.slug, !payload.viewerHasStarred);
-                setPayload({
-                  ...payload,
-                  briefing: { ...payload.briefing, stars: result.stars },
-                  viewerHasStarred: result.viewerHasStarred
-                });
+                setFeedResult(current => current?.key === feedKey && feedIdentity.current === feedKey ? {
+                  key: feedKey, value: { ...current.value, briefing: { ...current.value.briefing, stars: result.stars }, viewerHasStarred: result.viewerHasStarred }
+                } : current);
               } finally {
                 setStarBusy(false);
               }
@@ -1617,10 +1646,8 @@ function FeedPage(props: { username: string; slug: string }) {
           <button type="button" title={exploreFeedsLabel(language)} onClick={() => setExploreOpen(true)}><Compass size={15} aria-hidden /> {exploreControlLabel(language)}</button>
           <form
             className="search"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              setEditions(query.trim() ? await searchFeed(props.username, props.slug, query) : payload?.editions ?? []);
-              setVisibleUnreadCount(FEED_BATCH_SIZE);
+            onSubmit={(event) => {
+              event.preventDefault(); void applySearch(latestQuery.current, ++searchRequest.current);
             }}
           >
             <Search size={15} aria-hidden />
@@ -1628,7 +1655,7 @@ function FeedPage(props: { username: string; slug: string }) {
               aria-label={searchPublishedLabel(language)}
               dir={pageDir}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => { latestQuery.current = event.target.value; searchRequest.current++; setQuery(event.target.value); }}
               placeholder={searchPublishedLabel(language)}
             />
           </form>
@@ -1658,6 +1685,7 @@ function FeedPage(props: { username: string; slug: string }) {
           <bdi dir={pageDir}>{feedStatusMessage}</bdi>
         </p>
       ) : null}
+      {searchLoading && !error && currentEditions.length === 0 ? <p className="muted feed-loading-message" role="status">{loadingFeedLabel(language)}</p> : null}
       <div className="news-line">
         {visibleUnreadEditions.map((edition) => (
           <FeedEditionRow
@@ -1681,7 +1709,7 @@ function FeedPage(props: { username: string; slug: string }) {
             <span className="muted">{moreCountLabel(hiddenUnreadCount, language)}</span>
           </div>
         ) : null}
-        {unreadEditions.length === 0 && !error ? (
+        {payload && !initialLoading && !searchLoading && unreadEditions.length === 0 && !error ? (
           <div className="empty-state feed-empty-state">
             {archivedReadEditions.length === 0 && <Newspaper className="feed-empty-icon" size={42} strokeWidth={1.5} aria-hidden/>}
             <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>

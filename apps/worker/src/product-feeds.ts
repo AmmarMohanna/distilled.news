@@ -3,7 +3,7 @@ import type {Env,Repository} from './types';
 import type {BriefingConfig,BriefingEdition} from '@distilled/core';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {enrollV1Source} from './v1-intelligence/product';
-import {publicV1Edition} from './v1-intelligence/public-read';
+import {publicV1Editions} from './v1-intelligence/public-read';
 import {productConnectorSource} from './connector-source';
 import {discoverPublicRssFeed} from './product-feed-discovery';
 
@@ -102,11 +102,9 @@ export async function approveProductSource(env:Env,repo:Repository,feed:Briefing
 /** Presentation adapter: copies immutable published prose and exact provenance.
  * It never runs editorial selection or reads current Event/Storyline state. */
 export async function publishedProductEditions(env:Env,feed:BriefingConfig,editionId?:string):Promise<BriefingEdition[]> {
- const rows=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='editions' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 100").bind(feed.id).all<{id:string}>();
+ const publishedEditions=await publicV1Editions(env.DB,feed.id,editionId);
  const editions:BriefingEdition[]=[];
- for(const row of rows.results) {
-  if(editionId&&row.id!==editionId)continue;
-  const published=await publicV1Edition(env.DB,row.id);if(!published)continue;
+ for(const published of publishedEditions) {
   const sections=published.stories.map(story=>({title:'',summary:story.claims.map(c=>c.text).join(' '),evidence:published.citations.filter(c=>story.claims.some(claim=>claim.support.some(ref=>ref.evidenceRevisionId===c.evidenceRevisionId))).map(c=>({messageId:c.evidenceRevisionId,sourceId:c.publisherId,sourceTitle:c.title||'Source',sourceType:'channel' as const,sourceUrl:c.url,postedAt:c.publishedAt??published.createdAt,text:story.claims.flatMap(claim=>claim.support.filter(ref=>ref.evidenceRevisionId===c.evidenceRevisionId).map(ref=>ref.quote)).join('\n'),links:c.url?[c.url]:[],media:[]}))}));
   editions.push({id:published.id,briefingId:feed.id,cadence:feed.briefingCadence,windowStart:published.windowStart,windowEnd:published.windowEnd,title:published.title,summary:sections.map((s,i)=>`${s.summary} [${i+1}]`).join('\n\n'),sections,status:'published',publishedAt:published.publishedAt,createdAt:published.createdAt,updatedAt:published.createdAt});
  }
