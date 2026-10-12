@@ -20,7 +20,10 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
    const stack:unknown[]=[JSON.parse(text(node))];
    while(stack.length){const entry=stack.pop();if(Array.isArray(entry)){stack.push(...entry);continue}if(!entry||typeof entry!=='object')continue;
     const item=entry as Record<string,any>,types=[item['@type']].flat();
-    if(types.some(t=>['NewsArticle','Article','BlogPosting'].includes(t)))isArticle=true;
+    if(types.some(t=>['NewsArticle','Article','BlogPosting'].includes(t))){
+     const identity=item.url??item.mainEntityOfPage?.['@id']??item.mainEntityOfPage??item['@id'];
+     try{if(typeof identity==='string'&&articleUrl(new URL(identity,approvedUrl).href)===articleUrl(approvedUrl))isArticle=true}catch{/* An unrelated embedded article is not the fetched page. */}
+    }
     if(types.includes('ItemList')){structuredListing=true;for(const raw of item.itemListElement??[]){const article=raw.item??raw;if(typeof article==='string')add(article);else if(typeof article?.url==='string')add(article.url,article.headline??article.name)}}
     stack.push(...Object.values(item));
    }

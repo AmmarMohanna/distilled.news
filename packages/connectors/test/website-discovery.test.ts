@@ -27,3 +27,8 @@ describe('source-scoped article discovery',()=>{
   expect(discoverWebsiteArticles('<nav><a href="/one">One</a><a href="/two">Two</a></nav>',url)).toBeUndefined();
  });
 });
+
+it('typed NewsArticle entries inside an ItemList remain discovery, not a current-page article',()=>{
+ const html='<script type="application/ld+json">'+JSON.stringify({'@type':'ItemList',itemListElement:[{'@type':'ListItem',item:{'@type':'NewsArticle',url:'/one',headline:'One'}},{'@type':'ListItem',item:{'@type':'NewsArticle',url:'/two',headline:'Two'}}]})+'</script>';
+ expect(discoverWebsiteArticles(html,url)?.articles).toEqual([{url:'https://publisher.example/one',title:'One'},{url:'https://publisher.example/two',title:'Two'}]);
+});
