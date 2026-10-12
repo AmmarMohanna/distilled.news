@@ -25,6 +25,7 @@ export function FeedEditor(props: {
   const [prompt, setPrompt] = useState(props.feed?.interestProfile ?? "");
   const [rhythm, setRhythm] = useState<FeedInput["updateIntervalMinutes"]>(props.feed?.updateIntervalMinutes ?? (props.feed?.briefingCadence === "hourly" ? 60 : 1440));
   const [feedLanguage, setFeedLanguage] = useState<BriefingConfig["language"]>(props.feed?.language ?? preferredLanguage());
+  const [publicFeedEnabled, setPublicFeedEnabled] = useState(props.feed?.publicFeedEnabled ?? true);
   const [deliveryTime, setDeliveryTime] = useState(props.feed?.briefingTimeOfDay ?? "08:00");
   const [timezone] = useState(() => props.feed?.briefingTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [sources, setSources] = useState<string[]>([]);
@@ -53,7 +54,7 @@ export function FeedEditor(props: {
       try { new Intl.DateTimeFormat("en", { timeZone: timezone.trim() }).format(); }
       catch { setMessage(t("Enter a valid time zone, such as Asia/Beirut or UTC.")); return; }
       if (!sourcesReady || sources.length === 0) { setMessage(t("Add at least one source.")); return; }
-      void run(() => props.onSave({ id, title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled: true, briefingTimezone: timezone.trim(), sourceInputs: sources }));
+      void run(() => props.onSave({ id, title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled, briefingTimezone: timezone.trim(), sourceInputs: sources }));
     }}>
       <button type="button" className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={props.onClose}><X size={20}/></button>
       <div className="feed-editor-heading"><span className="feed-heading-icon"><SquarePlus size={23}/></span><h2>{t(props.feed ? "Edit feed settings" : "Add feed")}</h2></div>
@@ -71,11 +72,12 @@ export function FeedEditor(props: {
         {sources.length > 0 && <div className="selected-sources"><span className="selected-sources-label">{t("Selected sources")}</span>{sources.map(source => <div className="selected-source-row" key={source}><SourceIdentity source={source}/><button type="button" aria-label={`${t("Remove source")}: ${source}`} onClick={() => setSources(current => current.filter(value => value !== source))}><X size={20}/></button></div>)}
         </div>}
       </div>
-      <button type="button" className="feed-preferences-disclosure" aria-label={t("Preferences")} aria-expanded={advanced} aria-controls="feed-preferences" onClick={() => setAdvanced(value => !value)}><Settings size={26}/><span><strong>{t("Preferences")}</strong><small>{t("Public")} ? {t(rhythmLabels[rhythm])}{rhythm === 1440 ? ` at ${deliveryTime}` : ""} ? {t(({ en: "English", fr: "French", ar: "Arabic" } as const)[feedLanguage])}</small></span><ChevronDown size={20}/></button>
+      <button type="button" className="feed-preferences-disclosure" aria-label={t("Preferences")} aria-expanded={advanced} aria-controls="feed-preferences" onClick={() => setAdvanced(value => !value)}><Settings size={26}/><span><strong>{t("Preferences")}</strong><small>{t(publicFeedEnabled ? "Public" : "Private")} ? {t(rhythmLabels[rhythm])}{rhythm === 1440 ? ` at ${deliveryTime}` : ""} ? {t(({ en: "English", fr: "French", ar: "Arabic" } as const)[feedLanguage])}</small></span><ChevronDown size={20}/></button>
       <div id="feed-preferences" className="feed-preferences-fields" hidden={!advanced}>
       <label>{t("Update rhythm")}<select value={rhythm} onChange={event => setRhythm(Number(event.target.value) as FeedInput["updateIntervalMinutes"])}>{Object.entries(rhythmLabels).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label>
       {rhythm === 1440 && <label>{t("Deliver at")}<input type="time" required value={deliveryTime} onChange={event => setDeliveryTime(event.target.value)}/></label>}
-      <fieldset className="feed-language-row"><legend>{t("Briefing language")}</legend><span className="feed-language-options">{(["en", "fr", "ar"] as const).map(option => <label key={option}><input type="radio" name="feed-language" value={option} checked={feedLanguage === option} onChange={() => setFeedLanguage(option)}/>{option.toUpperCase()}</label>)}</span></fieldset>
+      <fieldset className="feed-language-row"><legend>{t("Feed visibility")}</legend><span className="feed-language-options">{([true, false] as const).map(option => <label key={String(option)}><input type="radio" name="feed-visibility" checked={publicFeedEnabled === option} onChange={() => setPublicFeedEnabled(option)}/><span>{t(option ? "Public" : "Private")}</span></label>)}</span></fieldset>
+      <fieldset className="feed-language-row"><legend>{t("Briefing language")}</legend><span className="feed-language-options">{(["en", "fr", "ar"] as const).map(option => <label key={option}><input type="radio" name="feed-language" value={option} checked={feedLanguage === option} onChange={() => setFeedLanguage(option)}/><span>{option.toUpperCase()}</span></label>)}</span></fieldset>
       </div>
       {message && <p role="status">{message}</p>}
       <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>
