@@ -3,7 +3,7 @@ import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,FeedTransaction,feedTransact} from './store';
 import {acquireSemanticWorkLease,releaseSemanticWorkLease} from './semantic-work-lease';
-import {durableSemanticOperation} from './semantic-operations';
+import {testDurableSemanticOperation as durableSemanticOperation} from './test-utils';
 import {feedFixture,seedIntelligence} from './test-utils';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});

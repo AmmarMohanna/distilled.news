@@ -1,16 +1,17 @@
 import {structuredCompletionBody} from '../ai';
-export interface ModelCapability {contextTokens:number;maxOutputTokens:number;inputUsdPerToken:number;outputUsdPerToken:number;source:string}
+export interface ModelCapability {contextTokens:number;maxOutputTokens:number;inputUsdPerToken:number;outputUsdPerToken:number;source:string;transport?:'STRUCTURED_COMPLETION'|'DECISIONS'}
 export interface ModelAdmission {fits:boolean;reason?:'MODEL_CAPABILITY_UNAVAILABLE'|'MODEL_CONTEXT_CONTINUATION_REQUIRED';requestBytes:number;inputTokenUpperBound:number;maxOutputTokens:number;reservationCostUsd:number;capability?:ModelCapability}
 /** Capability evidence, not spend permission. https://openrouter.ai/api/v1/models,
  * checked 2026-10-12. Unknown routes require an operator-verified descriptor.
  * The override can reflect a narrower selected provider context. */
 const verified:Record<string,ModelCapability>={
+ 'typesafe/jev-1.13':{contextTokens:64000,maxOutputTokens:0,transport:'DECISIONS',inputUsdPerToken:.000000042,outputUsdPerToken:0,source:'openrouter-model-page-2026-10-12-decisions'},
  'openai/gpt-4.1-mini':{contextTokens:1047576,maxOutputTokens:32768,inputUsdPerToken:.0000004,outputUsdPerToken:.0000016,source:'openrouter-catalog-2026-10-12'},
  'openai/gpt-4.1':{contextTokens:1047576,maxOutputTokens:32768,inputUsdPerToken:.000002,outputUsdPerToken:.000008,source:'openrouter-catalog-2026-10-12'}
 };
 export function modelCapability(model:string,configured?:string):ModelCapability|undefined {
  const c=configured?JSON.parse(configured)?.[model]:verified[model];if(!c)return undefined;
- if(!Number.isSafeInteger(c.contextTokens)||!Number.isSafeInteger(c.maxOutputTokens)||c.maxOutputTokens<1||c.contextTokens<=c.maxOutputTokens||![c.inputUsdPerToken,c.outputUsdPerToken].every(n=>Number.isFinite(n)&&n>=0)||typeof c.source!=='string'||!c.source)throw Error('SEMANTIC_MODEL_CAPABILITY_INVALID');
+ if(!Number.isSafeInteger(c.contextTokens)||!Number.isSafeInteger(c.maxOutputTokens)||c.maxOutputTokens<(c.transport==='DECISIONS'?0:1)||c.contextTokens<=c.maxOutputTokens||![c.inputUsdPerToken,c.outputUsdPerToken].every(n=>Number.isFinite(n)&&n>=0)||typeof c.source!=='string'||!c.source)throw Error('SEMANTIC_MODEL_CAPABILITY_INVALID');
  return {...c};
 }
 /** Byte-tokenized text has at most one token per UTF-8 byte. Counting the whole

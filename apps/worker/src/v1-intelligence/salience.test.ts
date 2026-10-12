@@ -37,3 +37,10 @@ it('retains an unknown reservation after timeout and ignores a late provider res
   expect(client.usage()).toMatchObject({calls:1,costUsd:.04,reported:false});expect((await scorer.score(input)).fallback).toBe('EXPERIMENT_OUTCOME_UNKNOWN');expect(calls).toBe(1);
  }finally {vi.useRealTimers()}
 });
+
+it('durably accounted JEV operations use complete request pricing and retain valid answers despite an estimate overrun',async()=>{
+ const client=new OpenRouterJudgmentClient({kind:'JEV',model:'typesafe/jev-1.13',apiKey:'stand-in-only',durable:true,capability:{contextTokens:64000,maxOutputTokens:0,transport:'DECISIONS',inputUsdPerToken:.000000042,outputUsdPerToken:0,source:'verified fixture'},fetcher:async()=>Response.json({answers:{judgment:{type:'choice',choice:'YES',confidence:1,probabilities:{YES:1,NO:0}}},usage:{input_tokens:10,output_tokens:10,cost:.3}})});
+ const state={text:'Retained supported evidence'},criteria={YES:'Supported',NO:'Unsupported'};
+ for(let i=0;i<25;i++)expect((await client.choose(state,'Choose',criteria)).choice).toBe('YES');
+ expect(client.usage()).toMatchObject({calls:25,reported:true});expect(client.usage().costUsd).toBeCloseTo(7.5);
+});

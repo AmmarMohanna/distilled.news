@@ -17,3 +17,12 @@ export async function seedIntelligence(store:V1FeedStore,sequence=1,body='Lebano
  await acceptEvidence(store,sequence,body,publisherId,acceptedAt,language,publishedAt);
  return processEvidenceIntelligence(store,JSON.stringify(['REASSESS',`observation-${sequence}`,'']),acceptedAt);
 }
+
+export const syntheticModelAdmission=()=>({fits:true,requestBytes:0,inputTokenUpperBound:0,maxOutputTokens:32768,reservationCostUsd:.02});
+export async function testDurableSemanticOperation<T>(...args:Parameters<typeof import('./semantic-operations').durableSemanticOperation<T>>){
+ const {durableSemanticOperation}=await import('./semantic-operations');
+ const {reconcileLegacyModelSpending}=await import('./model-spending');
+ const store=args[0],rows=await store.db.prepare("SELECT kind,id FROM v1_feed_documents WHERE kind IN ('semantic_intents','salience_intents','model_intents') AND NOT EXISTS(SELECT 1 FROM v1_model_spending_reservations r WHERE r.id=v1_feed_documents.kind||':'||v1_feed_documents.id)").all<{kind:'semantic_intents'|'salience_intents'|'model_intents';id:string}>();
+ for(const row of rows.results)await reconcileLegacyModelSpending(store.db,row.kind,row.id,'test-only-account');
+ args[5]={reservationCostUsd:.02,...args[5]};return durableSemanticOperation<T>(...args);
+}

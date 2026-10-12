@@ -1,3 +1,4 @@
+import {modelSettlementStatement} from './model-spending';
 import {HandoffError} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import {SemanticContentionError,type SemanticIntent,type SemanticOperationInput,type SemanticOperationResult} from './semantic-operations';
@@ -37,7 +38,9 @@ export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOper
 export async function settleSemanticOperation<T>(store:V1FeedStore,intent:SemanticIntent,result:SemanticOperationResult<T>):Promise<void>{
  const authorization="EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='semantic_intents' AND id=? AND feed_id=? AND json_extract(json,'$.token')=?)";
  const args=[intent.id,intent.feedId,intent.token];
+ const accountReceipt=await store.db.prepare('SELECT id FROM v1_model_spending_reservations WHERE id=?').bind('semantic_intents:'+intent.id).first();
  await store.db.batch([
+  ...(accountReceipt?[modelSettlementStatement(store.db,'semantic_intents:'+intent.id,intent.token,result.usage)]:[]),
   store.db.prepare(`UPDATE v1_feeds SET epoch=epoch+1 WHERE id=? AND ${authorization} AND NOT EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='semantic_settlements' AND id=?)`).bind(intent.feedId,...args,intent.id),
   store.db.prepare(`INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT 'semantic_settlements',?,?,? WHERE ${authorization} ON CONFLICT(kind,id) DO NOTHING`).bind(intent.id,intent.feedId,JSON.stringify({...result,token:intent.token}),...args)
  ]);

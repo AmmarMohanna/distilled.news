@@ -7,11 +7,7 @@ export interface StrongSemanticModel {model:string;admission?(state:unknown,sche
 export function createStrongSemanticModel(env:Env,fetcher:typeof fetch=fetch,purpose:'EVENT'|'EDITORIAL'='EVENT'):StrongSemanticModel|undefined {
  if(!env.OPENROUTER_API_KEY || (purpose==='EVENT'?env.V1_SEMANTIC_POLICY==='DETERMINISTIC':env.V1_EDITORIAL_MODEL_POLICY==='DETERMINISTIC'))return undefined;
  const model=env.V1_SEMANTIC_STRONG_MODEL??'openai/gpt-4.1',capability=modelCapability(model,env.V1_MODEL_CAPABILITIES_JSON);let usage:ExperimentUsage={calls:0,costUsd:0,reported:true};
- // Existing response execution requests are explicit rollout compatibility,
- // not model capabilities. Incremental output continuation replaces them
- // together with account authorization; do not disable the existing default
- // route between checkpoints by reserving the entire provider output window.
- const admission=(state:unknown,schema:object,phase=purpose==='EDITORIAL'?'COMPARATIVE_EDITORIAL_PLAN':'SEMANTIC_CONSTRUCTION')=>admitModelOperation(model,state,schema,capability,phase==='COMPARATIVE_EDITORIAL_PLAN'?8000:2200);
+ const admission=(state:unknown,schema:object,_phase?:string)=>admitModelOperation(model,state,schema,capability?.transport==='DECISIONS'?undefined:capability);
  return {model,admission,usage:()=>({...usage}),complete:async(feedId,phase,state,schema)=>{
   const envelope=admission(state,schema,phase);
   if(!envelope.fits)throw Error(`SEMANTIC_${envelope.reason}`);

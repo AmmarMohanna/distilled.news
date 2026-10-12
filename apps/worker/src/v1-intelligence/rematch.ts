@@ -14,7 +14,7 @@ export async function scheduleRematch(tx:FeedTransaction,jobId:string,evidenceRe
  * but each race still re-prepares (and may bill) a call, so the total number of attempts stays strictly bounded. */
 export const STALE_REASON='STALE_PREPARED_MEMORY',MAX_SEMANTIC_ATTEMPTS=3,MAX_STALE_RETRIES=2;
 /** A pre-call budget denial consumed no provider attempt (legacy EXHAUSTED records with this exact reason are the same). Unknown outcomes ARE real attempts. */
-export const isBudgetDenial=(a:Pick<RematchAttempt,'state'|'reason'>)=>a.state==='WAITING_BUDGET'||a.reason==='SEMANTIC_BUDGET_EXHAUSTED';
+export const isBudgetDenial=(a:Pick<RematchAttempt,'state'|'reason'>)=>a.state==='WAITING_BUDGET'||a.reason==='SEMANTIC_BUDGET_EXHAUSTED'||['ACCOUNT_RESOURCE_WAIT','ACCOUNT_AUTHORIZATION_REQUIRED','LEGACY_LIABILITIES_UNRECONCILED','SEMANTIC_COST_ESTIMATE_REQUIRED','SEMANTIC_MODEL_CAPABILITY_UNAVAILABLE','SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED'].includes(a.reason??'');
 export function rematchExhausted(history:Pick<RematchAttempt,'reason'|'attempt'|'state'>[]):boolean{
  const real=history.filter(a=>!isBudgetDenial(a)),stale=real.filter(a=>a.reason===STALE_REASON).length,numbered=Math.max(0,...real.map(a=>a.attempt));
  return Math.max(real.length-stale,numbered-stale)>=MAX_SEMANTIC_ATTEMPTS||stale>MAX_STALE_RETRIES;
@@ -22,7 +22,7 @@ export function rematchExhausted(history:Pick<RematchAttempt,'reason'|'attempt'|
 export function nextRematch(request:RematchRequest,attempts:RematchAttempt[],now:string,options:{costAdmission?:boolean}={}):number|undefined {
  const prior=attempts.filter(a=>a.requestId===request.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.attempt-a.attempt)[0];
  if(attempts.some(a=>a.requestId===request.id&&a.state==='SUCCEEDED'))return undefined;
- const budgetWait=prior?.state==='WAITING_BUDGET'||prior?.reason==='SEMANTIC_BUDGET_EXHAUSTED';
+ const budgetWait=Boolean(prior&&isBudgetDenial(prior));
  if(budgetWait){
   // A settled pre-call denial consumed no provider attempt. Legacy EXHAUSTED
   // records with this exact reason stay immutable and become a budget wait.

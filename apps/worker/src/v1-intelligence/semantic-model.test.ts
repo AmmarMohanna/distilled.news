@@ -25,11 +25,11 @@ it('admits an oversized feasibility input using actual model context, not the hi
  expect(new TextEncoder().encode(JSON.stringify(state)).length).toBeGreaterThan(48000);
  expect((await model.complete('feed','COMPARATIVE_EDITORIAL_PLAN',state,{})).value).toEqual({stories:[]});
  expect(calls).toBe(1);expect(JSON.parse(sent.messages[1].content)).toEqual(state);
- expect(sent.max_tokens).toBe(8000);expect(model.usage().costUsd).toBe(.03);
+ expect(sent.max_tokens).toBe(32768);expect(model.usage().costUsd).toBe(.03);
 });
 
-it('keeps the default strong route operational during the incremental legacy-wallet migration',()=>{
+it('uses provider output capacity without the retired wallet or output request cutoff',()=>{
  const model=createStrongSemanticModel({OPENROUTER_API_KEY:'test-only'} as Env,async()=>{throw Error('NO_PROVIDER')},'EDITORIAL')!;
  const envelope=model.admission!({facts:[]},{});
- expect(envelope.fits).toBe(true);expect(envelope.reservationCostUsd).toBeLessThan(.08);
+ expect(envelope.fits).toBe(true);expect(envelope.maxOutputTokens).toBe(32768);expect(envelope.reservationCostUsd).toBeGreaterThan(.02);
 });

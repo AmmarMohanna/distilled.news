@@ -1,3 +1,4 @@
+import {modelCapability} from './model-capacity';
 import {tokens} from './policies';
 import type {ShortlistCandidate} from './shortlist';
 import type {FeedRecord} from './types';
@@ -30,8 +31,8 @@ export async function rankEditorialCandidates(store:V1FeedStore,env:Env,feed:Fee
  for(let offset=0;offset<Math.min(ordered.length,64);offset+=8){
   const batch=ordered.slice(offset,offset+8),state={feed:{title:feed.title,interests:feed.interests,geography:feed.geography},candidates:batch.map((c,i)=>({key:`candidate_${String.fromCharCode(97+i)}`,sourceTitles:c.sourceTitles?.join(' ').slice(0,250),facts:c.facts.map(f=>f.text).join(' ').slice(0,650)}))};
   const questions:Record<string,SemanticQuestion>=Object.fromEntries(batch.map((c,i)=>[`candidate_${String.fromCharCode(97+i)}`,{kind:'SCORE',instructions:`How relevant is this supported development to the Feed: ${[feed.title,...feed.interests].join('; ').slice(0,500)}? Development: ${c.facts.map(f=>f.text).join(' ').slice(0,650)}. Source headline context: ${(c.sourceTitles??[]).join('; ').slice(0,250)}. Judge this development, not other candidates. Topic adjacency alone is weak. Unknown relevance is not irrelevance. Do not assess source popularity.`,levels:['Clearly unrelated','Uncertain or tangential','Directly relevant']} satisfies SemanticQuestion]));
-  const client=new OpenRouterJudgmentClient({kind:'JEV',model,apiKey:env.OPENROUTER_API_KEY,maxCalls:1,maxCostUsd:.02,maxCallCostUsd:.02,timeoutMs:10000,fetcher});
-  const result=await durableSemanticOperation(store,{feedId:feed.id,feedRevision:feed.revision,evidenceRevisionIds:[...new Set(batch.flatMap(c=>c.evidenceRevisionIds))],kind:'EDITORIAL_RELEVANCE',policyVersion:'high-recall-relevance-v3',model,budgetKey:`ranking:${window.start}:${window.end}`,state},async()=>{const r=await client.decide(state,questions);return {value:r.answers,usage:r.usage}},now,()=>client.usage());
+  const client=new OpenRouterJudgmentClient({kind:'JEV',model,apiKey:env.OPENROUTER_API_KEY,durable:true,capability:modelCapability(model,env.V1_MODEL_CAPABILITIES_JSON),timeoutMs:10000,fetcher});
+  const result=await durableSemanticOperation(store,{feedId:feed.id,feedRevision:feed.revision,evidenceRevisionIds:[...new Set(batch.flatMap(c=>c.evidenceRevisionIds))],kind:'EDITORIAL_RELEVANCE',policyVersion:'high-recall-relevance-v3',model,budgetKey:`ranking:${window.start}:${window.end}`,state},async()=>{const r=await client.decide(state,questions);return {value:r.answers,usage:r.usage}},now,()=>client.usage(),{operationAdmission:client.admission(state,questions)});
   batch.forEach((c,i)=>{const answer=result.value?.[`candidate_${String.fromCharCode(97+i)}`];if(result.status==='SUCCEEDED'&&answer?.kind==='SCORE'&&answer.confidence>=.6){const old=c.ranking!;c.ranking={...old,relevance:answer.value,relevanceConfidence:answer.confidence,source:'JEV',score:old.score+.5*(answer.value-old.relevance),operationId:result.id}}});
  }
  return ranked;
