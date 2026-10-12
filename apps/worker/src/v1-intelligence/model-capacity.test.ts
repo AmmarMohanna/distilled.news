@@ -23,3 +23,10 @@ it('unknown capabilities and true context overflow never invoke the paid transpo
  await expect(limited.complete('feed','COMPARATIVE_EDITORIAL_PLAN',{text:'x'.repeat(1500)},{})).rejects.toThrow('SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED');
  expect(calls).toBe(0);expect(limited.usage()).toMatchObject({calls:0,costUsd:0,reported:true});
 });
+
+it('allocates the actual model output capability and classifies completed output exhaustion distinctly',async()=>{
+ let body:any;const fetcher=(async(_u:any,init:any)=>{body=JSON.parse(init.body);return Response.json({choices:[{finish_reason:'length',message:{content:'{"groups":['}}],usage:{prompt_tokens:120,completion_tokens:32768,cost:.12}})}) as typeof fetch;
+ const model=createStrongSemanticModel({OPENROUTER_API_KEY:'fixture'} as Env,fetcher)!;
+ await expect(model.complete('feed','SEMANTIC_CONSTRUCTION',{claimMentions:[{id:'m1',text:'supported'}]},{})).rejects.toThrow('SEMANTIC_MODEL_OUTPUT_CONTINUATION_REQUIRED');
+ expect(body.max_tokens).toBe(32768);expect(model.usage()).toMatchObject({calls:1,costUsd:.12,reported:true});
+});

@@ -33,6 +33,9 @@ export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOper
    }
   }
   if(result?.status==='SUCCEEDED'&&compatibilityHash&&intent.compatibilityHash===compatibilityHash)return result;
+  // A reported construction failure is reusable evidence for targeted repair or
+  // capacity continuation, never a reason to rebill the same root question.
+  if(input.kind==='SEMANTIC_CONSTRUCTION'&&result?.usage.reported&&result.usage.calls===1&&['SEMANTIC_CONSTRUCTION_REJECTED','SEMANTIC_MODEL_OUTPUT_CONTINUATION_REQUIRED'].includes(result.failure??'')&&compatibilityHash&&intent.compatibilityHash===compatibilityHash)return result;
  }
  return undefined;
 }
