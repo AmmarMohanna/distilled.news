@@ -1,3 +1,4 @@
+import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-trace';
 import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
@@ -972,6 +973,14 @@ export function createApp(options: AppOptions = {}) {
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
     const retried = await retryProcessingJobs(repo, queueFor(c), briefing.id);
     return c.json({ retried, health: await repo.getHealth(briefing.id) });
+  });
+
+  app.get('/api/admin/briefings/:feedId/pipeline-trace',async c=>{
+    c.header('Cache-Control','private, no-store');
+    const query=traceOptionsSchema.safeParse(c.req.query());
+    if(!query.success)return c.json({error:'invalid trace filters'},400);
+    try{return c.json(await readPipelineTrace(c.env.DB,c.req.param('feedId'),query.data,{admittedSourceIds:c.env.V1_DOWNSTREAM_FEED_SOURCE_IDS?.split(',').map(s=>s.trim()).filter(Boolean)}))}
+    catch(error){if(error instanceof HandoffError)return c.json({error:error.code},error.code==='SCOPE_DENIED'?404:400);throw error}
   });
 
   app.get("/api/admin/accounts", async (c) => {
