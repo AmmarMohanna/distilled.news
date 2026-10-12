@@ -7,6 +7,12 @@ workers_dev = true
 preview_urls = false
 routes = []
 
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
 [vars]
 STAGING_ASSETS_PREFIX = "staging-assets/758837e409f03d248288de04909e981d680abf6a/"
 PUBLIC_API_BASE_URL = "https://distilled-news-staging.distillednews-platform.workers.dev"

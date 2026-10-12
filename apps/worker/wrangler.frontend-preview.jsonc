@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "distilled-news-joud-frontend",
+  "account_id": "e32b564514d4f9b9e383b7dd30dbb026",
+  "main": "src/frontend-preview.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*"]
+  },
+  "vars": {
+    "STAGING_API_ORIGIN": "https://distilled-news-staging.distillednews-platform.workers.dev"
+  },
+  "services": [{ "binding": "STAGING_API", "service": "distilled-news-staging" }],
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true }
+  }
+}
