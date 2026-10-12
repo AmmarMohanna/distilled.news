@@ -1,3 +1,20 @@
+/* Standalone email confirmation matches the focused email sign-in layout. */
+.email-verification-page { min-height: 100svh; display: grid; place-items: center; padding: 48px 24px; background: var(--page); color: var(--text); }
+.email-verification-panel { width: 100%; max-width: 560px; display: grid; justify-items: center; text-align: center; }
+.email-verification-brand { width: 80px; height: 80px; margin-bottom: 32px; }
+.email-verification-brand img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.email-verification-panel h1 { margin: 0; font-size: clamp(36px, 6vw, 50px); line-height: 1.15; font-weight: 700; letter-spacing: -0.035em; }
+.email-verification-description { margin: 12px 0 40px; color: var(--muted); font-size: 20px; line-height: 1.5; }
+.email-verification-status { margin: 0 0 24px; color: var(--text); overflow-wrap: anywhere; }
+.email-verification-actions { display: grid; justify-items: center; gap: 30px; width: 100%; }
+.email-verification-submit { width: 100%; min-height: 58px; padding: 16px 24px; border: 0; border-radius: 999px; background: #5e5ce6; color: #fff; font: inherit; font-size: 18px; font-weight: 600; cursor: pointer; }
+.email-verification-submit:hover:not(:disabled) { background: #504ed3; }
+.email-verification-submit:disabled { opacity: .55; cursor: default; }
+.email-verification-create { color: var(--accent); font-size: 18px; font-weight: 600; text-decoration: none; }
+.email-verification-create:hover { text-decoration: underline; }
+.email-verification-actions :is(button,a):focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+@media (max-width: 600px) { .email-verification-page { padding: 40px 24px; } .email-verification-description { font-size: 18px; } }
+
 /* Apple-inspired foundations. Content stays solid; only navigation uses material.
    Keep this after the legacy styles so every route shares one visual system. */
 :root.apple-ui {
@@ -832,3 +849,41 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .experience.product-refresh:has(.accounts-section[open]) { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
 }
+
+/* Keep translated landing content in the same vertical slots. */
+:root.apple-ui.apple-ui .guest-landing .landing-introduction h1 { width: 100%; max-width: 780px; min-height: 2.16em; display: grid; align-content: center; text-align: center; }
+:root.apple-ui.apple-ui .guest-landing .landing-introduction p { min-height: 1.5em; text-align: center; }
+:root.apple-ui.apple-ui .guest-landing .landing-introduction { text-align: center; }
+:root.apple-ui.apple-ui .auth-feedback { width: 100%; margin: 0; text-align: start; }
+:root.apple-ui.apple-ui .auth-feedback:empty { display: none; }
+:root.apple-ui.apple-ui .auth-feedback p { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui :is(.auth-error,.error) { color: #c62828 !important; }
+:root.apple-ui.apple-ui .auth-message { color: var(--muted) !important; }
+:root.apple-ui.apple-ui[data-theme="dark"] :is(.auth-error,.error) { color: #ff8585 !important; }
+
+/* Feed preferences: legend above horizontal radio choices. */
+:root.apple-ui.apple-ui .feed-preferences-fields .feed-language-row { display: block; grid-column: 1 / -1; padding: 0; border: 0; }
+:root.apple-ui.apple-ui .feed-language-row legend { float: none; display: block; width: 100%; margin-bottom: 10px; }
+:root.apple-ui.apple-ui .feed-language-options { display: flex; flex-wrap: wrap; gap: 20px; }
+:root.apple-ui.apple-ui .feed-editor .feed-language-options label { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; width: auto; }
+:root.apple-ui.apple-ui .feed-editor .feed-language-options input { width: 17px; height: 17px; min-height: 0; margin: 0; padding: 0; flex: 0 0 17px; }
+:root.apple-ui.apple-ui .feed-editor .source-picker > small { color: var(--muted); }
+:root.apple-ui.apple-ui .feed-editor .voice-field:has(textarea) { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: start; gap: 6px; }
+:root.apple-ui.apple-ui .feed-editor .voice-field textarea { resize: vertical; min-height: 64px; max-height: 320px; padding-inline-end: 12px; overflow: auto; }
+:root.apple-ui.apple-ui .feed-editor .voice-field:has(textarea) .voice-input { position: static; padding-top: 4px; }
+:root.apple-ui.apple-ui .feed-editor .voice-field:has(textarea) .voice-input small { position: absolute; top: 100%; inset-inline: 0; background: var(--surface); color: #c62828; }
+
+:root.apple-ui.apple-ui .feed-editor .voice-field textarea::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
+/* Keep the microphone inside a reserved end column of the description box. */
+:root.apple-ui.apple-ui .feed-editor .voice-field:has(textarea) { position: relative; display: block; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); padding-inline-end: 58px; }
+:root.apple-ui.apple-ui .feed-editor .voice-field textarea { display: block; width: 100%; border: 0; background: transparent; padding-inline: 12px; resize: vertical; }
+:root.apple-ui.apple-ui .feed-editor .voice-field:has(textarea) .voice-input { position: absolute; top: 4px; inset-inline-end: 5px; padding-top: 0; }
+
+/* Let the native resize grip reach the outer corner beneath the microphone. */
+:root.apple-ui.apple-ui .feed-editor .voice-field:has(textarea) { padding-inline-end: 0; }
+:root.apple-ui.apple-ui .feed-editor .voice-field textarea { padding-inline-end: 64px; }
+
+/* Leave the scrollbar lane clear beside the microphone. */
+:root.apple-ui.apple-ui .feed-editor .voice-field:has(textarea) .voice-input { inset-inline-end: 22px; }
+:root.apple-ui.apple-ui .feed-editor .voice-field textarea { padding-inline-end: 82px; }

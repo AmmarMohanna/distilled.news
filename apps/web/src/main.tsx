@@ -588,7 +588,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         setSubmitting(true);
         try {
           if (requiresTurnstile && !turnstileToken) {
-            setError("complete the verification check");
+            setError("Complete the verification check.");
             return;
           }
           if (props.setupRequired) {
@@ -599,13 +599,13 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           if (mode === "register") {
             await register({ email, username, password, turnstileToken });
             setPassword("");
-            setMessage("verification email sent. Check your inbox and spam folder. The link expires in 24 hours.");
+            setMessage("Verification email sent. Check your inbox and spam folder. The link expires in 24 hours.");
             resetTurnstile();
             return;
           }
           if (mode === "forgot") {
             await forgotPassword(email, turnstileToken);
-            setMessage("if the account exists, a reset email was sent");
+            setMessage("If the account exists, a reset email was sent.");
             resetTurnstile();
             return;
           }
@@ -663,10 +663,12 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       ) : null}
       {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
+      <div className="auth-feedback" aria-live="polite">
+        {error ? <p className="auth-error" role="alert">{error.charAt(0).toUpperCase() + error.slice(1)}</p> : message ? <p className="auth-message">{message}</p> : null}
+      </div>
       {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
       {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
-      {message ? <p className="muted">{message}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
+
     </form>
   );
 }
@@ -823,34 +825,40 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
 function VerifyEmailPage(props: { token: string }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   return (
-    <Shell title="verify email">
-      <section className="section notice">
-        <p>{message || "confirm this email address"}</p>
-        <div className="actions">
+    <main className="email-verification-page">
+      <section className="email-verification-panel" aria-labelledby="email-verification-title">
+        <div className="email-verification-brand" aria-hidden="true"><img src="/icon-192.png?v=brand-4" alt="" /></div>
+        <h1 id="email-verification-title">Verify Email</h1>
+        <p className="email-verification-description">Confirm this email address</p>
+        <div className="email-verification-actions">
           <button
             type="button"
-            title="verify email"
+            className="email-verification-submit"
+            title="Verify Email"
             disabled={busy || !props.token}
             onClick={async () => {
               setBusy(true);
               setMessage("");
+              setError("");
               try {
                 await verifyEmail(props.token);
-                setMessage("email verified");
+                setMessage("Email verified");
               } catch (cause) {
-                setMessage(cause instanceof Error ? cause.message : String(cause));
+                setError(cause instanceof Error ? cause.message : String(cause));
               } finally {
                 setBusy(false);
               }
             }}
           >
-            verify email
+            {busy ? "Verifying…" : "Verify Email"}
           </button>
-          <a className="button-link" href="/" title="create">create</a>
+          <div className="auth-feedback" aria-live="polite">{error ? <p className="auth-error" role="alert">{error.charAt(0).toUpperCase() + error.slice(1)}</p> : message ? <p className="auth-message">{message}</p> : null}</div>
+          <a className="email-verification-create" href="/" title="Create">Create</a>
         </div>
       </section>
-    </Shell>
+    </main>
   );
 }
 
