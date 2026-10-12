@@ -7,7 +7,7 @@ export async function sendVerificationEmail(env: Env, account: AccountRecord, to
     to: account.email,
     subject: "Verify your email for Distilled.news",
     path: `/verify-email?token=${encodeURIComponent(token)}`,
-    action: "Verify email",
+    action: "Verify Email",
     text: "Verify your email to finish setting up your Distilled.news account.",
     expires: "This verification link expires in 24 hours."
   });
@@ -54,10 +54,10 @@ async function sendAuthEmail(
       footer
     ].join("\n"),
     html: [
-      "<div style=\"font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.5; color: #111;\">",
+      "<div style=\"font-family: Arial, Helvetica, sans-serif; line-height: 1.5; color: #1d1d1f; max-width: 560px; margin: auto; padding: 32px 24px;\">",
       "<h1 style=\"font-size: 18px; margin: 0 0 16px;\">Distilled.news</h1>",
       `<p>${escapeHtml(input.text)}</p>`,
-      `<p><a href="${escapeHtml(url)}" style="display: inline-block; padding: 10px 14px; border: 1px solid #111; border-radius: 6px; color: #111; text-decoration: none;">${escapeHtml(input.action)}</a></p>`,
+      `<p><a href="${escapeHtml(url)}" style="display: inline-block; padding: 14px 28px; border-radius: 999px; background-color: #5e5ce6; color: #ffffff; font-weight: 600; text-decoration: none;">${escapeHtml(input.action)}</a></p>`,
       `<p style="word-break: break-all;"><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`,
       `<p>${escapeHtml(input.expires)}</p>`,
       `<p>${escapeHtml(footer)}</p>`,
@@ -129,6 +129,7 @@ async function sendOutlookEmail(
     body: JSON.stringify({
       message: {
         subject: message.subject,
+        from: { emailAddress: { address: from, name: "Distilled.news" } },
         body: { contentType: "HTML", content: message.html },
         toRecipients: [{ emailAddress: { address: message.to } }]
       },
