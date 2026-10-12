@@ -887,3 +887,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Leave the scrollbar lane clear beside the microphone. */
 :root.apple-ui.apple-ui .feed-editor .voice-field:has(textarea) .voice-input { inset-inline-end: 22px; }
 :root.apple-ui.apple-ui .feed-editor .voice-field textarea { padding-inline-end: 82px; }
+
+/* Landing cards start flush at the image edge and clear the search controls. */
+:root.apple-ui.apple-ui .guest-landing .landing-controls { margin-bottom: 28px; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-card { align-content: start; align-items: start; overflow: hidden; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-card > a { align-self: start; margin: 0; padding: 0; row-gap: 0; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-art { display: block; margin: 0; border-radius: 0; }
+
+/* Clip artwork at the link edge while allowing card menus to open outside. */
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-card { overflow: visible; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-card > a { overflow: hidden; border-start-start-radius: inherit; border-start-end-radius: inherit; }
+:root.apple-ui.apple-ui .guest-landing .curated-feed-grid .topic-card:has(.feed-options[open]) { position: relative; z-index: 2; }
