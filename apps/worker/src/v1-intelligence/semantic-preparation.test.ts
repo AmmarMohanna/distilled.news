@@ -1,3 +1,4 @@
+import {admitModelOperation} from './model-capacity';
 import {afterEach,beforeEach,expect,it} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope,batchFixture,testPolicy} from '../v1-intake/test-utils';
 import {createCandidateIntakePort} from '../v1-intake/intake';
@@ -38,12 +39,12 @@ it('high-confidence multi-sentence corroboration avoids a strong construction ca
  expect(prepared?.prepared.decision.structuralRelation).toBe('SAME_EVENT');expect(calls).toBe(0);
 },25000);
 
-it('oversized multilingual construction defers without a model call and preserves normal intake progress',async()=>{
+it('multilingual construction beyond a verified model context waits without a call and preserves intake progress',async()=>{
  const intake=new V1IntakeStore(ctx.db),accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batchFixture()),body=Array.from({length:30},()=>String.fromCharCode(0x062e,0x0628,0x0631).repeat(220)+'.').join(' ');
  await acceptAcquiredContent(intake,{id:'large',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-1',body,representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);
- let calls=0;const strong={model:'fake',usage:()=>({calls:0,costUsd:0,reported:true}),complete:async()=>{calls++;throw Error('Input must remain bounded')}};
+ let calls=0;const strong={model:'fake',admission:(state:unknown,schema:object)=>admitModelOperation('fake',state,schema,{contextTokens:10000,maxOutputTokens:1000,inputUsdPerToken:0,outputUsdPerToken:0,source:'verified fixture model'}),usage:()=>({calls:0,costUsd:0,reported:true}),complete:async()=>{calls++;throw Error('Input exceeds verified context')}};
  const prepared=await prepareSemanticMatch(store,{} as Env,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),{strong});
- expect(prepared?.prepared.decision.structuralRelation).toBe('DEFER');expect(prepared?.prepared.decision.provenance.fallbackReason).toBe('CONSTRUCTION_INPUT_LIMIT');expect(calls).toBe(0);
+ expect(prepared?.prepared.decision.structuralRelation).toBe('DEFER');expect(prepared?.prepared.decision.provenance.fallbackReason).toBe('SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED');expect(calls).toBe(0);expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);expect(await store.list('feed-1','semantic_resource_waits')).toHaveLength(1);
  const receipt=await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),prepared?.matchers);expect(receipt.semanticDeferred).toBe(true);expect((await intake.read<any>('jobs',JSON.stringify(['REASSESS','observation-1',''])))?.value.state).toBe('DONE');expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
 },25000);
 

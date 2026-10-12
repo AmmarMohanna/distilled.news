@@ -1,6 +1,8 @@
+import type {ShortlistRecord} from './shortlist';
+import {admitModelOperation,modelCapability} from './model-capacity';
 import {expect,it} from 'vitest';
 import fixture from './fixtures/staging-2000-oversized-input.json';
-import {compactEditorialInput,keyedEditorialState,expandEditorialInput,boundedEditorialInput} from './editorial-transport';
+import {compactEditorialInput,keyedEditorialState,expandEditorialInput,boundedEditorialInput,compactEditorialRepair} from './editorial-transport';
 import {canonicalJson} from '../v1-intake/canonical';
 const state=fixture.state as any,bytes=(v:unknown)=>new TextEncoder().encode(canonicalJson(v)).length;
 it('fits the exact 20:00 protected-correction shortlist without losing a field or value',()=>{
@@ -29,4 +31,25 @@ it.each([20,30,40])('bounds %i candidates and increasing history while retaining
 it('never substitutes ordinary news when protected input alone cannot fit',()=>{
  const growth=structuredClone(state);growth.candidates[0].facts[0].text='supported correction '.repeat(4000);
  const result=boundedEditorialInput(growth);expect(result.failure).toBe('PROTECTED_EDITORIAL_INPUT_TOO_LARGE');expect(result.offeredCandidates).toContainEqual(growth.candidates[0]);
+});
+
+it('losslessly compacts repair metadata alongside all facts, history and protected obligations',()=>{
+ const wire=compactEditorialInput(state as ShortlistRecord),initial=keyedEditorialState(wire.state);
+ const repair={...initial,previousProposal:{stories:Object.fromEntries(wire.state.candidates.map(c=>[c.targetVersionId,{decision:'SELECT',newUnderstandingFactIds:c.facts.map(f=>f.id),mustIncludeFactIds:c.facts.map(f=>f.id),rationale:'A retained supported reader-new development.'.repeat(10)}])),obligations:wire.state.obligations},feasibilityFeedback:{violations:wire.state.candidates.map(c=>({targetVersionId:c.targetVersionId,reason:'INPUT_CAPACITY'})),instruction:'Reconcile existing supported decisions without changing ownership.'}};
+ const before=structuredClone(repair),after=compactEditorialRepair(repair);
+ expect(bytes(before)).toBeGreaterThan(48000);expect(bytes(after)).toBeLessThan(bytes(before));
+ expect(expandEditorialInput(after)).toEqual(expandEditorialInput(before));expect(repair).toEqual(before);
+ expect(compactEditorialRepair(before)).toEqual(after);
+ const small={candidates:[],ledger:[],obligations:[],previousProposal:{stories:{}},feasibilityFeedback:{violations:[]}};
+ expect(compactEditorialRepair(small)).toBe(small);
+});
+
+it('uses actual model admission to retain a complete large comparison rather than the historical byte cutoff',()=>{
+ const growth=structuredClone(state);growth.candidates=[];
+ for(let i=0;i<40;i++){const c=structuredClone(state.candidates[i%state.candidates.length]);c.targetVersionId+=':growth:'+i;c.stableTargetId+=':growth:'+i;for(const f of c.facts)f.id+=':growth:'+i;c.correctionObligationIds=[];c.protectedReasons=[];growth.candidates.push(c)}
+ const capability=modelCapability('openai/gpt-4.1-mini');
+ const result=boundedEditorialInput(growth,{fits:input=>admitModelOperation('openai/gpt-4.1-mini',input,{},capability).fits});
+ expect(result.failure).toBeUndefined();expect(result.overflowIds).toEqual([]);expect(result.offeredCandidates).toHaveLength(40);
+ expect(result.offeredCandidates.flatMap(c=>c.facts)).toEqual(growth.candidates.flatMap((c:any)=>c.facts));
+ expect(bytes(result.inputState)).toBeGreaterThan(48000);
 });

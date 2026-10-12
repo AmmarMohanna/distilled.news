@@ -1,3 +1,4 @@
+import {findStartedEditorialBoundary,type StartedEditorialBoundary} from './editorial-replay';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {z} from 'zod';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -7,7 +8,7 @@ import {durableSemanticOperation} from './semantic-operations';
 import type {StrongSemanticModel} from './semantic-model';
 import type {ShortlistRecord,ShortlistCandidate} from './shortlist';
 import type {BriefingBudget} from './scoring';
-import {compactEditorialInput,keyedEditorialState,boundedEditorialInput,EDITORIAL_INPUT_POLICY,EDITORIAL_OUTPUT_CONTRACT} from './editorial-transport';
+import {compactEditorialInput,keyedEditorialState,boundedEditorialInput,compactEditorialRepair,EDITORIAL_INPUT_POLICY,EDITORIAL_OUTPUT_CONTRACT} from './editorial-transport';
 import {compareEditorialCandidates} from './editorial-ranking';
 import {planningCapacity,communicationCost,legacyConservativeStoryCapacity,storyCapacityBound,guaranteedStoryCount,allocateFeasibleSelection,capacityReason,selectableForPlanning,type SelectionItem} from './planning-capacity';
 import {auditPlanReasoning} from './shortlist-audit';
@@ -236,23 +237,35 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
  const operationIdFor=(inputState:unknown)=>sha256(canonicalJson({feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:strong?.model,budgetKey:`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:inputState}));
  // A call already reserved or answered for an older input keeps that exact input (billed results are reused, unknown outcomes stay fenced).
  let state=editorialPlannerState(shortlist,budget,feed,'CURRENT');
- if(strong)search:for(const variant of ['LEGACY','V1'] as const){const older=editorialPlannerState(shortlist,budget,feed,variant),olderTransport=compactEditorialInput(older);for(const candidate of [olderTransport.state,keyedEditorialState(olderTransport.state,{compact:false}),boundedEditorialInput(older).inputState]){const opId=await operationIdFor(candidate);if(await store.read(shortlist.feedId,'semantic_intents',opId)||await store.read(shortlist.feedId,'semantic_results',opId)){state=older;break search}}}
- let transport=compactEditorialInput(state);
+ let retainedBoundary:StartedEditorialBoundary|undefined;
+ // Remember the exact historical wire state AND its reference map/coverage,
+ // rather than just its parent variant. Rebuilding a bounded paid input under
+ // a larger context would otherwise create another paid identity after a crash.
+ if(strong)search:for(const variant of ['LEGACY','V1','CURRENT'] as const){
+  const older=editorialPlannerState(shortlist,budget,feed,variant),t=compactEditorialInput(older),b=boundedEditorialInput(older);
+  const boundaries=[{inputState:t.state,transport:t,keyed:false},{inputState:keyedEditorialState(t.state,{compact:false}),transport:t,keyed:true},{inputState:b.inputState,transport:b.transport,keyed:true,bounded:b}];
+  for(const boundary of boundaries){const opId=await operationIdFor(boundary.inputState);if(await store.read(shortlist.feedId,'semantic_intents',opId)||await store.read(shortlist.feedId,'semantic_results',opId)){state=older;retainedBoundary=boundary;break search}}
+ }
+ if(strong&&!retainedBoundary){
+  const found=await findStartedEditorialBoundary(store,{feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:strong.model,budgetKey:`editorial:${shortlist.window.start}:${shortlist.window.end}`},['LEGACY','V1','CURRENT'].map(v=>editorialPlannerState(shortlist,budget,feed,v as 'LEGACY'|'V1'|'CURRENT')));
+  if(found){state=found.state;retainedBoundary=found.boundary}
+ }
+ let transport=retainedBoundary?.transport??compactEditorialInput(state);
  // Never replace an existing call identity (including a lost/unknown result)
  // merely to adopt a new output shape. Old plans and retained normalization
  // continue using their original transport; only never-started calls use v2.
  const legacyOperationId=await sha256(canonicalJson({feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:strong?.model,budgetKey:`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:transport.state}));
  const legacyStarted=Boolean(prior&&prior.fallbackReason!=='EMPTY_OR_OVERSIZED_EDITORIAL_INPUT'||await store.read(shortlist.feedId,'semantic_intents',legacyOperationId)||await store.read(shortlist.feedId,'semantic_results',legacyOperationId));
  const priorOperation=prior?.operationId?await store.read<{input:{state:{outputContract?:string}}}>(shortlist.feedId,'semantic_intents',prior.operationId):undefined;
- const keyed=priorOperation?.input.state.outputContract===EDITORIAL_OUTPUT_CONTRACT||!legacyStarted;
+ const keyed=retainedBoundary?.keyed??(priorOperation?.input.state.outputContract===EDITORIAL_OUTPUT_CONTRACT||!legacyStarted);
  // Old keyed intents/results are just as durable as pre-keyed calls. A transport
  // reduction must never acquire a different identity after a call was reserved.
  const oldKeyedState=keyedEditorialState(transport.state,{compact:false});
  const oldKeyedOperationId=keyed?await sha256(canonicalJson({feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:strong?.model,budgetKey:`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:oldKeyedState})):undefined;
  const oldKeyedStarted=oldKeyedOperationId?Boolean(await store.read(shortlist.feedId,'semantic_intents',oldKeyedOperationId)||await store.read(shortlist.feedId,'semantic_results',oldKeyedOperationId)):false;
- const bounded=keyed&&!oldKeyedStarted?boundedEditorialInput(state):undefined;
+ const bounded=retainedBoundary?.bounded??(!retainedBoundary&&keyed&&!oldKeyedStarted?boundedEditorialInput(state,strong?.admission?{fits:(wire,t)=>{const admission=strong.admission!(wire,keyedEditorialPlanWireSchemaFor(t.state),'COMPARATIVE_EDITORIAL_PLAN');return admission.reason==='MODEL_CAPABILITY_UNAVAILABLE'||admission.fits}}:{}):undefined);
  if(bounded)transport=bounded.transport;
- const inputState=keyed?bounded?.inputState??oldKeyedState:transport.state;
+ const inputState=retainedBoundary?.inputState??(keyed?bounded?.inputState??oldKeyedState:transport.state);
  const overflowIds=bounded?.overflowIds??[],offeredShortlist=overflowIds.length?{...shortlist,candidates:shortlist.candidates.filter(c=>!overflowIds.includes(c.targetVersionId))}:shortlist;
  const inputCoverage=bounded?{policyVersion:EDITORIAL_INPUT_POLICY,inputBytes:new TextEncoder().encode(canonicalJson(inputState)).length,offeredTargetVersionIds:bounded.offeredCandidates.map(c=>c.targetVersionId),notComparativelyReviewedTargetVersionIds:overflowIds}:undefined;
  if(bounded?.failure)fallbackReason=bounded.failure;
@@ -270,8 +283,15 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
   const proposalId=JSON.stringify([baseId,attempt]);await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision)throw new HandoffError('SCOPE_DENIED');if(!await tx.read('editorial_proposals',proposalId))await tx.write('editorial_proposals',proposalId,{id:proposalId,feedId:shortlist.feedId,shortlistId:shortlist.id,window:shortlist.window,attempt,model:strong!.model,rawProposal:result.value,decodedProposal:value,normalization:outputNormalization,rejection,capacityFailures:value?planCapacityFailures(value,shortlist,budget):undefined,usage:result.usage,createdAt:now})});
   if(!value)throw Error('SEMANTIC_EDITORIAL_VALIDATION_FAILED');return {value,usage:result.usage};
  };
- if(strong&&shortlist.evidenceRevisionIds.length&&new TextEncoder().encode(canonicalJson(inputState)).length<=48000){
-  const saved=await durableSemanticOperation(store,{feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:strong.model,budgetKey:`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:inputState},()=>completeProposal(inputState,'INITIAL'),now,()=>strong.usage());
+ const initialInput=retainedBoundary?.operationInput??{feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:strong?.model??'',budgetKey:`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:inputState};
+ const initialAdmission=strong?.admission?.(inputState,outputSchema,'COMPARATIVE_EDITORIAL_PLAN');
+ const retainedInitial=Boolean(retainedBoundary?.operationInput)||(!initialAdmission?.fits&&strong?Boolean(await store.read(shortlist.feedId,'semantic_intents',await operationIdFor(inputState))||await store.read(shortlist.feedId,'semantic_results',await operationIdFor(inputState))):false);
+ if(initialAdmission&&!initialAdmission.fits){
+  fallbackReason=initialAdmission.reason!;
+  if(!retainedInitial){const waitId=JSON.stringify([id,'INITIAL_MODEL_CAPACITY']);await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision)throw new HandoffError('SCOPE_DENIED');if(!await tx.read('editorial_processing_waits',waitId))await tx.write('editorial_processing_waits',waitId,{id:waitId,feedId:shortlist.feedId,shortlistId:shortlist.id,reason:initialAdmission.reason,model:strong!.model,admission:initialAdmission,createdAt:now})})}
+ }
+ if(strong&&shortlist.evidenceRevisionIds.length&&(!initialAdmission||initialAdmission.fits||retainedInitial)){
+  const saved=await durableSemanticOperation(store,initialInput,()=>completeProposal(inputState,'INITIAL'),now,()=>strong.usage(),{preserveStartedEditorialScope:true,reservationCostUsd:initialAdmission?.reservationCostUsd,operationAdmission:initialAdmission});
   operationId=saved.id;modelOperationIds.push(saved.id);
   let accepted=saved;
   // A known, billed, schema-valid response may be structurally repaired without
@@ -291,8 +311,20 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
   if(saved.status==='SUCCEEDED'&&saved.value){
    const violations=planCapacityFailures(saved.value,shortlist,budget);
    if(violations.length){
-    const repairState={...inputState,previousProposal:keyed?transport.encodeKeyed({...saved.value,stories:saved.value.stories.filter(s=>!overflowIds.includes(s.targetVersionId))}):transport.encode(saved.value),feasibilityFeedback:{violations,instruction:'The previous proposal is NOT publishable because the selected sum exceeds hard capacity. Recompare ALL candidates and choose the most useful feasible subset. Sum each selected communicationCost.inputUnits against communicationCapacity.maxInputUnits. DEFER the remaining useful work. Do not merely change prose or treatment to evade input cost. Preserve protected priorities.'}};
-    accepted=await durableSemanticOperation(store,{feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY+':feasibility-v1',model:strong.model,budgetKey:`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:repairState},async()=>{const result=await completeProposal(repairState,'FEASIBILITY_REPAIR');if(planCapacityFailures(result.value,shortlist,budget).length)throw Error('SEMANTIC_INFEASIBLE_PLAN');return result},now,()=>strong.usage());
+    const rawRepairState={...inputState,previousProposal:keyed?transport.encodeKeyed({...saved.value,stories:saved.value.stories.filter(s=>!overflowIds.includes(s.targetVersionId))}):transport.encode(saved.value),feasibilityFeedback:{violations,instruction:'The previous proposal is NOT publishable because the selected sum exceeds hard capacity. Recompare ALL candidates and choose the most useful feasible subset. Sum each selected communicationCost.inputUnits against communicationCapacity.maxInputUnits. DEFER the remaining useful work. Do not merely change prose or treatment to evade input cost. Preserve protected priorities.'}};
+    // Transport changes may only affect a never-started call. Retain an old
+    // result or unknown intent under its exact original billed identity.
+    const legacyRepairId=await sha256(canonicalJson({...initialInput,policyVersion:EDITORIAL_PLAN_POLICY+':feasibility-v1',state:rawRepairState}));
+    const legacyRepairStarted=Boolean(await store.read(shortlist.feedId,'semantic_intents',legacyRepairId)||await store.read(shortlist.feedId,'semantic_results',legacyRepairId));
+    const repairState=legacyRepairStarted?rawRepairState:compactEditorialRepair(rawRepairState);
+    const repairAdmission=strong.admission?.(repairState,outputSchema,'COMPARATIVE_EDITORIAL_PLAN');
+    if(repairAdmission&&!repairAdmission.fits&&!legacyRepairStarted){
+     const waitId=JSON.stringify([id,'FEASIBILITY_CONTEXT_CONTINUATION']);
+     await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision)throw new HandoffError('SCOPE_DENIED');if(!await tx.read('editorial_processing_waits',waitId))await tx.write('editorial_processing_waits',waitId,{id:waitId,feedId:shortlist.feedId,shortlistId:shortlist.id,sourceOperationId:saved.id,reason:repairAdmission.reason,model:strong.model,admission:repairAdmission,createdAt:now})});
+     accepted={...saved,status:'DEFERRED',value:undefined,failure:repairAdmission.reason};
+    }else{
+    accepted=await durableSemanticOperation(store,{...initialInput,policyVersion:EDITORIAL_PLAN_POLICY+':feasibility-v1',state:repairState},async()=>{const result=await completeProposal(repairState,'FEASIBILITY_REPAIR');if(planCapacityFailures(result.value,shortlist,budget).length)throw Error('SEMANTIC_INFEASIBLE_PLAN');return result},now,()=>strong.usage(),{reservationCostUsd:repairAdmission?.reservationCostUsd,operationAdmission:repairAdmission});
+    }
     operationId=accepted.id;modelOperationIds.push(accepted.id);
    }
   }

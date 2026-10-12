@@ -1,3 +1,5 @@
+import {boundedEditorialInput} from './editorial-transport';
+import {editorialPlannerState,EDITORIAL_PLAN_POLICY} from './editorial-plan';
 import {compactEditorialInput,expandEditorialInput} from './editorial-transport';
 import {beforeEach,afterEach,it,expect} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
@@ -24,7 +26,7 @@ it.each(['SUCCEEDED','KNOWN_INVALID','UNKNOWN'])('retained legacy %s operation i
  // A missing plan commit after a legacy call is precisely where a contract
  // switch could otherwise create a second paid operation. No rows are edited.
  const scope={...shortlist,id:shortlist.id+':legacy-uncommitted'};let newCalls=0;
- const model={model:'legacy-editor',usage:()=>usage,complete:async()=>{newCalls++;throw Error('UNSAFE_DUPLICATE_CALL')}};
+ const model={model:'legacy-editor',admission:()=>({fits:false as const,reason:'MODEL_CAPABILITY_UNAVAILABLE' as const,requestBytes:0,inputTokenUpperBound:0,maxOutputTokens:0,reservationCostUsd:0}),usage:()=>usage,complete:async()=>{newCalls++;throw Error('UNSAFE_DUPLICATE_CALL')}};
  const plan=await prepareEditorialPlan(new V1FeedStore(ctx.db),scope,DEFAULT_BRIEFING_BUDGET,window.end,model);
  expect(plan.operationId).toBe(saved.id);expect(plan.route).toBe(mode==='SUCCEEDED'?'GPT':'DETERMINISTIC_FALLBACK');expect(newCalls).toBe(0);expect(legacyCalls).toBe(1);
  const replay=await prepareEditorialPlan(new V1FeedStore(ctx.db),scope,DEFAULT_BRIEFING_BUDGET,window.end,model);
@@ -129,4 +131,42 @@ it('offers a bounded real decision scope and durably carries unreviewed ordinary
  expect(plan.inputCoverage!.offeredTargetVersionIds).toContain(shortlist.candidates[0].targetVersionId);
  expect(plan.obligations[0].obligationId).toBe(shortlist.obligations[0].id);
  expect(await prepareEditorialPlan(new V1FeedStore(ctx.db),shortlist,DEFAULT_BRIEFING_BUDGET,window.end,strong)).toEqual(plan);expect(calls).toBe(1);
+},25000);
+
+it('unavailable model capabilities retain the whole unreviewed comparison instead of falsely labeling input overflow',async()=>{
+ const sl=await prepareSemanticShortlist(store,'feed-1',window,window.end);let calls=0;
+ const strong={model:'unconfigured-route',usage:()=>({calls:0,costUsd:0,reported:true}),admission:()=>({fits:false,reason:'MODEL_CAPABILITY_UNAVAILABLE' as const,requestBytes:0,inputTokenUpperBound:0,maxOutputTokens:0,reservationCostUsd:0}),complete:async()=>{calls++;throw Error('NO_PAID_CALL')}};
+ const plan=await prepareEditorialPlan(store,sl,DEFAULT_BRIEFING_BUDGET,window.end,strong);
+ expect(plan.inputCoverage?.offeredTargetVersionIds).toEqual(sl.candidates.map(c=>c.targetVersionId));
+ expect(plan.inputCoverage?.notComparativelyReviewedTargetVersionIds).toEqual([]);expect(plan.fallbackReason).toBe('MODEL_CAPABILITY_UNAVAILABLE');expect(calls).toBe(0);
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+},15000);
+
+it.each(['SUCCEEDED','UNKNOWN'] as const)('preserves the exact historical bounded %s operation after a crash before plan commit',async mode=>{
+ const sl=await prepareSemanticShortlist(store,'feed-1',window,window.end),feed=(await store.getFeed('feed-1'))!;
+ for(const c of sl.candidates)c.sourceTitles=['Retained source headline. '.repeat(1250)];
+ const bound=boundedEditorialInput(editorialPlannerState(sl,DEFAULT_BRIEFING_BUDGET,feed,'CURRENT'));
+ expect(bound.overflowIds).toHaveLength(1);
+ const body=fallbackEditorialPlan(sl);body.stories=body.stories.map(s=>({...s,decision:'DEFER',treatment:'OMIT',newUnderstandingFactIds:[],mustIncludeFactIds:[]}));
+ const input={feedId:sl.feedId,feedRevision:sl.feedRevision,evidenceRevisionIds:sl.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:'same-model',budgetKey:`editorial:${window.start}:${window.end}`,state:bound.inputState};
+ const usage={calls:1,costUsd:.001,reported:true};
+ const retained=await durableSemanticOperation(store,input,async()=>{if(mode==='UNKNOWN')throw Error('SEMANTIC_OUTCOME_UNKNOWN');return {value:body,usage}},window.end,()=>mode==='UNKNOWN'?{calls:1,costUsd:.02,reported:false}:usage);
+ let unsafeCalls=0;const strong={model:'same-model',usage:()=>usage,admission:()=>({fits:true,requestBytes:0,inputTokenUpperBound:0,maxOutputTokens:32768,reservationCostUsd:.02}),complete:async()=>{unsafeCalls++;throw Error('UNSAFE_REBILL')}};
+ const plan=await prepareEditorialPlan(new V1FeedStore(ctx.db),sl,DEFAULT_BRIEFING_BUDGET,window.end,strong);
+ expect(unsafeCalls).toBe(0);expect(plan.operationId).toBe(retained.id);expect(await store.list('feed-1','semantic_intents')).toHaveLength(1);
+ expect(plan.inputCoverage?.notComparativelyReviewedTargetVersionIds).toEqual(bound.overflowIds);
+},25000);
+
+it.each(['SUCCEEDED','UNKNOWN'] as const)('preserves a modern model-aware %s scope when provider context narrows after a crash',async mode=>{
+ const sl=await prepareSemanticShortlist(store,'feed-1',window,window.end),feed=(await store.getFeed('feed-1'))!;
+ for(const c of sl.candidates)c.sourceTitles=['Retained source headline. '.repeat(1250)];
+ const scope=boundedEditorialInput(editorialPlannerState(sl,DEFAULT_BRIEFING_BUDGET,feed,'CURRENT'),{fits:()=>true});
+ expect(scope.offeredCandidates).toHaveLength(2);expect(scope.overflowIds).toEqual([]);
+ const body=fallbackEditorialPlan(sl);body.stories=body.stories.map(s=>({...s,decision:'DEFER',treatment:'OMIT',newUnderstandingFactIds:[],mustIncludeFactIds:[]}));
+ const input={feedId:sl.feedId,feedRevision:sl.feedRevision,evidenceRevisionIds:sl.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:EDITORIAL_PLAN_POLICY,model:'same-model',budgetKey:`editorial:${window.start}:${window.end}`,state:scope.inputState},usage={calls:1,costUsd:.001,reported:true};
+ const retained=await durableSemanticOperation(store,input,async()=>{if(mode==='UNKNOWN')throw Error('SEMANTIC_OUTCOME_UNKNOWN');return {value:body,usage}},window.end,()=>mode==='UNKNOWN'?{calls:1,costUsd:.02,reported:false}:usage);
+ let unsafeCalls=0;const strong={model:'same-model',usage:()=>usage,admission:(wire:any)=>({fits:wire.candidates.length<=1,reason:'MODEL_CONTEXT_CONTINUATION_REQUIRED' as const,requestBytes:0,inputTokenUpperBound:0,maxOutputTokens:32768,reservationCostUsd:.02}),complete:async()=>{unsafeCalls++;throw Error('UNSAFE_REBILL')}};
+ const plan=await prepareEditorialPlan(new V1FeedStore(ctx.db),sl,DEFAULT_BRIEFING_BUDGET,window.end,strong);
+ expect(unsafeCalls).toBe(0);expect(plan.operationId).toBe(retained.id);expect(await store.list('feed-1','semantic_intents')).toHaveLength(1);
+ expect(plan.inputCoverage?.offeredTargetVersionIds).toEqual(sl.candidates.map(c=>c.targetVersionId));
 },25000);

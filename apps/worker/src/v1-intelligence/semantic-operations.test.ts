@@ -26,3 +26,20 @@ it('comparative planning reserves a ninety-second lease without increasing the c
  const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'test',model:'fake',budgetKey:'planner',state:{}};
  await durableSemanticOperation(store,input,async()=>{const [intent]=await store.list<any>('feed-1','semantic_intents');expect(intent.leaseUntil-Date.now()).toBeGreaterThan(85000);expect(intent.reservedCostUsd).toBe(.02);return {value:{},usage:{calls:1,costUsd:.001,reported:true}}},'2026-10-03T12:00:00Z');
 },15000);
+
+it('retained large supported inputs and reported costs above the old per-call ceiling do not become semantic failures',async()=>{
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'test',model:'fake',budgetKey:'large-supported',state:{text:'Retained supported fact. '.repeat(2300)}};
+ let calls=0;
+ const result=await durableSemanticOperation(store,input,async()=>{calls++;return {value:{requiredFacts:['one','two']},usage:{calls:1,costUsd:.03,reported:true}}},'2026-10-03T12:00:00Z',undefined,{reservationCostUsd:.04});
+ expect(result.status).toBe('SUCCEEDED');expect(result.value).toEqual({requiredFacts:['one','two']});expect(result.usage.costUsd).toBe(.03);
+ expect(await durableSemanticOperation(new V1FeedStore(ctx.db),input,async()=>{throw Error('UNSAFE_REBILL')},'2026-10-04T12:00:00Z',undefined,{reservationCostUsd:.04})).toEqual(result);expect(calls).toBe(1);
+},15000);
+
+it('concurrent differently sized initial scopes cannot reserve two paid questions for one editorial window',async()=>{
+ const base={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'test',model:'same-model',budgetKey:'editorial:same-window'};
+ let entered!:()=>void,release!:()=>void;const started=new Promise<void>(r=>entered=r),finish=new Promise<void>(r=>release=r);let extraCalls=0,error:unknown;
+ const first=durableSemanticOperation(store,{...base,state:{offered:['one','two']}},async()=>{entered();await finish;return {value:{ok:true},usage:{calls:1,costUsd:.001,reported:true}}},'2026-10-03T12:00:00Z',undefined,{preserveStartedEditorialScope:true});
+ await started;
+ try{await durableSemanticOperation(new V1FeedStore(ctx.db),{...base,state:{offered:['one']}},async()=>{extraCalls++;return {value:{ok:true},usage:{calls:1,costUsd:.001,reported:true}}},'2026-10-03T12:00:00Z',undefined,{preserveStartedEditorialScope:true})}catch(e){error=e}finally{release();await first}
+ expect(extraCalls).toBe(0);expect(error).toMatchObject({code:'TEMPORARY_UNAVAILABLE'});expect(await store.list('feed-1','semantic_intents')).toHaveLength(1);
+},15000);

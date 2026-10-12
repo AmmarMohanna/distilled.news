@@ -4,7 +4,7 @@ import type {Env} from '../types';
 it('retains unknown-charge reservation and the exact timeout reason instead of masking planner timeout as provider failure',async()=>{
  const model=createStrongSemanticModel({OPENROUTER_API_KEY:'test-only',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env,async()=>{throw new DOMException('Aborted','AbortError')})!;
  await expect(model.complete('feed','COMPARATIVE_EDITORIAL_PLAN',{facts:[]},{})).rejects.toThrow('SEMANTIC_MODEL_TIMEOUT');
- expect(model.usage()).toEqual({calls:1,tokensIn:0,tokensOut:0,costUsd:.02,reported:false});
+ expect(model.usage()).toEqual({calls:1,tokensIn:0,tokensOut:0,costUsd:model.admission!({facts:[]},{},'COMPARATIVE_EDITORIAL_PLAN').reservationCostUsd,reported:false});
 });
 
 it('a comparative response can complete after forty-five seconds while remaining bounded at sixty',async()=>{
@@ -15,4 +15,21 @@ it('a comparative response can complete after forty-five seconds while remaining
  const slow=createStrongSemanticModel({OPENROUTER_API_KEY:'test-only'} as Env,async(_url,init)=>new Promise((_resolve,reject)=>{(init?.signal as AbortSignal).addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')))}),'EDITORIAL')!;
  const timeout=slow.complete('feed','COMPARATIVE_EDITORIAL_PLAN',{facts:[]},{});const checked=expect(timeout).rejects.toThrow('SEMANTIC_MODEL_TIMEOUT');await vi.advanceTimersByTimeAsync(60000);await checked;expect(slow.usage().reported).toBe(false);
  }finally{vi.useRealTimers()}
+});
+
+it('admits an oversized feasibility input using actual model context, not the historical 48KB guard',async()=>{
+ let sent:any,calls=0;
+ const fetcher=(async(_url:any,init:any)=>{calls++;sent=JSON.parse(init.body);return Response.json({choices:[{message:{content:JSON.stringify({stories:[]})}}],usage:{prompt_tokens:15000,completion_tokens:100,cost:.03}})}) as typeof fetch;
+ const model=createStrongSemanticModel({OPENROUTER_API_KEY:'test-only',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env,fetcher,'EDITORIAL')!;
+ const state={supportedFacts:'Supported retained development. '.repeat(1800),previousProposal:{stories:{}},feasibilityFeedback:{violations:['INPUT_CAPACITY']}};
+ expect(new TextEncoder().encode(JSON.stringify(state)).length).toBeGreaterThan(48000);
+ expect((await model.complete('feed','COMPARATIVE_EDITORIAL_PLAN',state,{})).value).toEqual({stories:[]});
+ expect(calls).toBe(1);expect(JSON.parse(sent.messages[1].content)).toEqual(state);
+ expect(sent.max_tokens).toBe(8000);expect(model.usage().costUsd).toBe(.03);
+});
+
+it('keeps the default strong route operational during the incremental legacy-wallet migration',()=>{
+ const model=createStrongSemanticModel({OPENROUTER_API_KEY:'test-only'} as Env,async()=>{throw Error('NO_PROVIDER')},'EDITORIAL')!;
+ const envelope=model.admission!({facts:[]},{});
+ expect(envelope.fits).toBe(true);expect(envelope.reservationCostUsd).toBeLessThan(.08);
 });
