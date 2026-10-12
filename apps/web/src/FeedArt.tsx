@@ -44,6 +44,7 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
     let timer: ReturnType<typeof setTimeout>;
     let objectUrl = "";
     let requested = false;
+    let retries = 0;
     const check = async () => {
       try {
         const response = await fetch(`/api/feed/${encodeURIComponent(feed.ownerUsername!)}/${encodeURIComponent(feed.slug!)}/sketch`, { signal: controller.signal, cache: "no-store" });
@@ -56,13 +57,17 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
           requested = true;
           await requestMissingSketch(feed.id, JSON.stringify([feed.title, feed.interestProfile]));
           if (!controller.signal.aborted) timer = setTimeout(check, 0);
+        } else if (response.status === 404 && retries++ < 20 && !controller.signal.aborted) {
+          timer = setTimeout(check, 3000);
         }
       } catch (error) {
         if (!controller.signal.aborted) setFailure(error instanceof Error ? error.message : "Illustration unavailable.");
       }
     };
+    const refresh = () => { if (!objectUrl && !controller.signal.aborted) { clearTimeout(timer); void check(); } };
+    window.addEventListener("feed-sketch-updated", refresh);
     void check();
-    return () => { controller.abort(); clearTimeout(timer); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+    return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("feed-sketch-updated", refresh); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [feed?.ownerUsername, feed?.slug, feed?.title, feed?.interestProfile, feed?.id, canGenerate]);
   // Resolve title first so incidental words in a longer profile don't replace
   // the feed's main topic. Public cards need only the public title.
