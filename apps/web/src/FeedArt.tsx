@@ -41,27 +41,42 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
     setImage(""); setLoaded(false); setFailure("");
     if (!feed?.ownerUsername || !feed?.slug) return;
     const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let objectUrl = "";
     let requested = false;
     let retries = 0;
+    let inFlight = false;
+    let refreshPending = false;
+    const schedule = (delay: number) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { timer = undefined; void check(); }, delay);
+    };
     const check = async () => {
+      if (controller.signal.aborted || objectUrl) return;
+      if (inFlight) { refreshPending = true; return; }
+      clearTimeout(timer);
+      inFlight = true;
       try {
         const response = await fetch(`/api/feed/${encodeURIComponent(feed.ownerUsername!)}/${encodeURIComponent(feed.slug!)}/sketch`, { signal: controller.signal, cache: "no-store" });
         if (response.ok && response.headers.get("content-type")?.startsWith("image/")) {
           const blob = await transparentSketch(await response.blob());
           if (controller.signal.aborted) return;
+          clearTimeout(timer);
           objectUrl = URL.createObjectURL(blob); setImage(objectUrl); return;
         }
         if (response.status === 404 && canGenerate && feed.id && !requested && !controller.signal.aborted) {
           requested = true;
           await requestMissingSketch(feed.id, JSON.stringify([feed.title, feed.interestProfile]));
-          if (!controller.signal.aborted) timer = setTimeout(check, 0);
+          if (!controller.signal.aborted) schedule(0);
         } else if (response.status === 404 && retries++ < 20 && !controller.signal.aborted) {
-          timer = setTimeout(check, 3000);
+          schedule(3000);
         }
       } catch (error) {
         if (!controller.signal.aborted) setFailure(error instanceof Error ? error.message : "Illustration unavailable.");
+      } finally {
+        inFlight = false;
+        if (refreshPending && !objectUrl && !controller.signal.aborted) schedule(0);
+        refreshPending = false;
       }
     };
     const refresh = () => { if (!objectUrl && !controller.signal.aborted) { clearTimeout(timer); void check(); } };
