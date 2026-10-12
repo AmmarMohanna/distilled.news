@@ -30,7 +30,7 @@ it('semantically reviews candidates after position 64 without trimming source me
  await rankEditorialCandidates(store,{OPENROUTER_API_KEY:'stand-in-only',V1_EDITORIAL_RANKING_POLICY:'SEMANTIC'} as Env,feed,candidates,{...window,start:'2026-10-04T00:00:00Z',end:'2026-10-05T00:00:00Z'},testPolicy.now(),fetcher);expect(calls).toBe(9);
 },30000);
 it('reader-unseen older developments remain candidates without an existing defer record',async()=>{
- await feedTransact(store,'feed-1',tx=>tx.write('editions','previous-unrelated',{id:'previous-unrelated',windowEnd:'2026-10-04T00:00:00Z',eventVersionIds:[]}));
+ await feedTransact(store,'feed-1',async tx=>{await tx.write('selections','previous-selection',{id:'previous-selection',feedId:'feed-1',feedRevision:1,window,candidateIds:[],selectedCandidateIds:[]});await tx.write('editions','previous-unrelated',{id:'previous-unrelated',feedId:'feed-1',feedRevision:1,selectionId:'previous-selection',windowStart:window.start,windowEnd:window.end,selectedCandidateIds:[],eventVersionIds:[],storylineVersionIds:[],evidenceRevisionIds:[],stories:[]})});
  const later=await prepareSemanticShortlist(store,'feed-1',{...window,start:'2026-11-03T00:00:00Z',end:'2026-11-04T00:00:00Z'},'2026-11-04T00:00:00Z');expect(later.candidates.length).toBeGreaterThan(0);expect(later.candidates[0].readerState).toBe('UNSEEN');
 });
 
@@ -51,4 +51,20 @@ it('an execution yield retains every candidate and resumes without a false edito
  const waiting=await prepareAdaptiveEditorialPlan(store,original,testPolicy.now(),strong,{deadlineMs:Date.now()-1});expect(calls).toBe(0);expect(waiting.stories.every(s=>s.decision==='DEFER')).toBe(true);expect(waiting.fallbackReason).toBe('EDITORIAL_EXECUTION_YIELD');expect(waiting.inputCoverage?.notComparativelyReviewedTargetVersionIds).toHaveLength(original.candidates.length);
  const pending=await store.list<any>('feed-1','editorial_deferred_work');expect(pending.every(w=>w.continuationPolicy==='ADAPTIVE'&&!w.expiresAt)).toBe(true);
  const complete=await prepareAdaptiveEditorialPlan(store,original,testPolicy.now(),strong);expect(calls).toBe(1);expect(complete.route).toBe('GPT');
+},30000);
+
+import {prepareGlobalEditorialContext} from './editorial-global-context';
+import {syntheticModelAdmission} from './test-utils';
+it('an unknown leaf remains fenced while independent global context can complete',async()=>{
+ const original=await prepareSemanticShortlist(store,'feed-1',window,testPolicy.now()),base=original.candidates[0];
+ const leaves=base.facts.slice(0,3).map((f,i)=>({...original,id:'leaf-'+i,candidates:[{...base,targetVersionId:'leaf-target-'+i,facts:[f]}]}));
+ let calls=0,lastUsage={calls:1,costUsd:0,reported:true};
+ const strong={model:'unknown-leaf-fixture',admission:syntheticModelAdmission,usage:()=>lastUsage,complete:async(_f:string,_p:string,state:any)=>{
+  calls++;if(state.children[0].id==='leaf-target-0'){lastUsage={calls:1,costUsd:.01,reported:false};throw Error('provider outcome unknown')}
+  lastUsage={calls:1,costUsd:.001,reported:true};return {value:{themes:[{childIds:state.children.map((c:any)=>c.id),understanding:'Supported independent facts.',significance:'Compare meaningful facts.',relevance:'Within Feed research interests.',novelty:'Reader unseen.',uncertainty:'Unresolved work remains pending.'}],guidance:'No local winner quota.'},usage:lastUsage};
+ }};
+ const first=await prepareGlobalEditorialContext(store,original,strong,leaves,testPolicy.now(),Date.now()+600000);
+ expect(first.root?.targetVersionIds.sort()).toEqual(['leaf-target-1','leaf-target-2']);expect(first.pending?.[0].targetVersionIds).toEqual(['leaf-target-0']);
+ const count=calls;const second=await prepareGlobalEditorialContext(new V1FeedStore(ctx.db),original,strong,leaves,testPolicy.now(),Date.now()+600000);
+ expect(second.root?.id).toBe(first.root?.id);expect(calls).toBe(count);
 },30000);

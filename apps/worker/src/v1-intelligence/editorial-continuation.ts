@@ -33,9 +33,9 @@ export async function prepareAdaptiveEditorialPlan(store:V1FeedStore,shortlist:S
  });
  const global=await prepareGlobalEditorialContext(store,shortlist,strong,work.cohorts,now,deadlineMs);
  const plans:EditorialPlanRecord[]=[],offered=new Set<string>(),accepted=new Set<string>(),operationIds:string[]=global.nodes.map(n=>n.operationId);
- const context=global.root?{rootId:global.root.id,globalSynopsis:global.root.synopsis,coverageCount:global.root.targetVersionIds.length,unresolvedTargetIds:work.unrepresentable,instruction:'Compare original facts against shared Feed-wide significance and reader-value context. Relevance, urgency and novelty are different dimensions. No quota per cohort. Synopsis judgments are not writer facts.'}:undefined;
+ const context=global.root?{rootId:global.root.id,globalSynopsis:global.root.synopsis,coverageCount:global.root.targetVersionIds.length,unresolvedTargetIds:[...work.unrepresentable,...(global.pending??[]).flatMap(p=>p.targetVersionIds)],instruction:'Compare original facts against shared Feed-wide significance and reader-value context. Relevance, urgency and novelty are different dimensions. No quota per cohort. Synopsis judgments are not writer facts.'}:undefined;
  const finalScopes:ShortlistRecord[]=[];
- if(context){let pending:ShortlistCandidate[]=[];for(const candidate of work.cohorts.flatMap(s=>s.candidates)){
+ if(context){let pending:ShortlistCandidate[]=[];for(const candidate of work.cohorts.flatMap(s=>s.candidates).filter(c=>global.root!.targetVersionIds.includes(c.targetVersionId))){
   if(!frame(scopeFor([candidate]),context).admission.fits)continue;
   if(pending.length&&!frame(scopeFor([...pending,candidate]),context).admission.fits){const scope=scopeFor(pending);scope.id=JSON.stringify([id,'GLOBAL_FINAL',global.root!.id,finalScopes.length]);finalScopes.push(scope);pending=[]}pending.push(candidate);
  }if(pending.length){const scope=scopeFor(pending);scope.id=JSON.stringify([id,'GLOBAL_FINAL',global.root!.id,finalScopes.length]);finalScopes.push(scope)}

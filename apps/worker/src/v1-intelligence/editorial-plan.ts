@@ -29,7 +29,7 @@ function knownFacts(c:ShortlistCandidate,shortlist:ShortlistRecord):string[]{ret
 export function publicationCorrectionReady(c:Pick<ShortlistCandidate,'facts'|'correctionObligationIds'> & {flags?:string[]},obligations:ShortlistRecord['obligations']):boolean {
  return !c.flags?.some(f=>['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE','TITLE_EXTRACTION_PENDING'].includes(f))&&c.facts.length>0&&c.facts.every(f=>f.selfContained==='YES'||f.selfContained==='RESOLVED_BY_CONTEXT')&&c.correctionObligationIds.length>0&&c.correctionObligationIds.every(id=>obligations.some(o=>o.id===id&&o.publicationWithdrawal));
 }
-export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistRecord,options:{requirePublicationCorrection?:boolean;correctionCapacity?:number;requireFeedFit?:boolean}={}):EditorialPlanBody {
+export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistRecord,options:{requirePublicationCorrection?:boolean;correctionCapacity?:number;requireFeedFit?:boolean;requireImportance?:boolean}={}):EditorialPlanBody {
  const readyTargets=shortlist.candidates.filter(c=>publicationCorrectionReady(c,shortlist.obligations)),correctionCapacity=options.correctionCapacity??Infinity;
  const plan=planBodySchema.parse(raw),targets=new Set(plan.stories.map(s=>s.targetVersionId));
  if(targets.size!==plan.stories.length||targets.size!==shortlist.candidates.length||shortlist.candidates.some(c=>!targets.has(c.targetVersionId)))throw new HandoffError('SCOPE_DENIED');
@@ -38,6 +38,7 @@ export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistR
   const allowedHistory=new Set(shortlist.ledger.filter(e=>e.eventIds?.includes(c.stableTargetId)||Boolean(c.storylineId&&e.storylineIds?.includes(c.storylineId))||shortlist.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id));
   if(s.previousLedgerEntryIds.some(id=>!allowedHistory.has(id)))throw new HandoffError('SCOPE_DENIED');
   if(options.requirePublicationCorrection&&readyTargets.length<=correctionCapacity&&publicationCorrectionReady(c,shortlist.obligations)&&(s.decision!=='SELECT'||!['CORRECTION','RETRACTION'].includes(s.deltaType)))throw new HandoffError('SCOPE_DENIED');
+  if(options.requireImportance&&s.editorialImportance===undefined)throw Error('EDITORIAL_IMPORTANCE_MISSING');
   if(options.requireFeedFit&&!s.feedFit)throw Error('EDITORIAL_FEED_FIT_MISSING');
   if(s.decision==='SELECT'&&s.feedFit==='OUT_OF_SCOPE'&&!c.correctionObligationIds.length)throw Error('EDITORIAL_OUT_OF_SCOPE_SELECTION');
   if(s.decision==='SELECT'&&(c.flags.includes('IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE')||c.flags.includes('TITLE_EXTRACTION_PENDING')))throw new HandoffError('SCOPE_DENIED');
@@ -289,7 +290,7 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
  const decodeProposal=(raw:unknown)=>keyed?planBodySchema.parse(transport.decodeKeyed(raw)):transport.decode(planBodySchema.parse(raw));
  const completeProposal=async(inputState:typeof transport.state|Record<string,unknown>,attempt:string)=>{
   const result=await strong!.complete(shortlist.feedId,'COMPARATIVE_EDITORIAL_PLAN',inputState,outputSchema);let value:EditorialPlanBody|undefined,rejection:string|undefined,outputNormalization:EditorialNormalization|undefined;
-  try{const output=normalizeEditorialPlan(decodeProposal(result.value),offeredShortlist,{requirePublicationCorrection:true,correctionCapacity,requireFeedFit:true});value=addOverflow(output.value);outputNormalization=output.normalization;normalization=outputNormalization}catch(error){rejection=error instanceof HandoffError?error.code:error instanceof Error?error.message.slice(0,300):'INVALID_EDITORIAL_PROPOSAL'}
+  try{const output=normalizeEditorialPlan(decodeProposal(result.value),offeredShortlist,{requirePublicationCorrection:true,correctionCapacity,requireFeedFit:true,requireImportance:budget.mode==='ADAPTIVE'});value=addOverflow(output.value);outputNormalization=output.normalization;normalization=outputNormalization}catch(error){rejection=error instanceof HandoffError?error.code:error instanceof Error?error.message.slice(0,300):'INVALID_EDITORIAL_PROPOSAL'}
   const proposalId=JSON.stringify([baseId,attempt]);await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision)throw new HandoffError('SCOPE_DENIED');if(!await tx.read('editorial_proposals',proposalId))await tx.write('editorial_proposals',proposalId,{id:proposalId,feedId:shortlist.feedId,shortlistId:shortlist.id,window:shortlist.window,attempt,model:strong!.model,rawProposal:result.value,decodedProposal:value,normalization:outputNormalization,rejection,capacityFailures:value?planCapacityFailures(value,shortlist,budget):undefined,usage:result.usage,createdAt:now})});
   if(!value)throw Error('SEMANTIC_EDITORIAL_VALIDATION_FAILED');return {value,usage:result.usage};
  };
@@ -310,7 +311,7 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
    const proposal=await store.read<{model:string;shortlistId:string;rawProposal:unknown}> (shortlist.feedId,'editorial_proposals',JSON.stringify([baseId,'INITIAL']));
    if(proposal?.model===strong.model&&proposal.shortlistId===shortlist.id){
     try{
-     const output=normalizeEditorialPlan(decodeProposal(proposal.rawProposal),offeredShortlist,{requirePublicationCorrection:true,correctionCapacity,requireFeedFit:true});
+     const output=normalizeEditorialPlan(decodeProposal(proposal.rawProposal),offeredShortlist,{requirePublicationCorrection:true,correctionCapacity,requireFeedFit:true,requireImportance:budget.mode==='ADAPTIVE'});
      if(!output.normalization.added.length||planCapacityFailures(output.value,shortlist,budget).length)throw Error('SEMANTIC_NORMALIZATION_NOT_RECOVERABLE');
      const recoveryId=JSON.stringify([id,'RETAINED_NORMALIZATION']);
      await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision||await communicationFingerprint(tx,shortlist.window.end)!==shortlist.communicationFingerprint)throw new HandoffError('TEMPORARY_UNAVAILABLE');if(!await tx.read('editorial_proposals',recoveryId))await tx.write('editorial_proposals',recoveryId,{id:recoveryId,feedId:shortlist.feedId,shortlistId:shortlist.id,window:shortlist.window,attempt:'RETAINED_NORMALIZATION',sourceProposalId:JSON.stringify([baseId,'INITIAL']),sourceOperationId:saved.id,decodedProposal:output.value,normalization:output.normalization,usage:{calls:0,costUsd:0,reported:true},createdAt:now})});
