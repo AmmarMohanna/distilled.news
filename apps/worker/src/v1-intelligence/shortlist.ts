@@ -22,7 +22,8 @@ export interface ShortlistRecord {bootstrap?:boolean;id:string;feedId:string;fee
 /** Review slots reserved per window for never-reviewed overflow news. One goes to the best-ranked such candidate; the others go to the
  * longest-waiting ones, so a steady arrival of higher-ranked news cannot keep an older candidate unreviewed until its retention bound. */
 export const UNREVIEWED_REVIEW_SLOTS=3,UNREVIEWED_RANK_SLOTS=1;
-export function boundShortlist<T extends {targetVersionId:string;priority:number;protectedReasons:string[];ranking?:EditorialRanking;unreviewed?:boolean;unreviewedSince?:string}>(candidates:T[],ordinaryLimit:number):{selected:T[];overflow:T[]} {
+export function boundShortlist<T extends {targetVersionId:string;priority:number;protectedReasons:string[];ranking?:EditorialRanking;unreviewed?:boolean;unreviewedSince?:string}>(candidates:T[],ordinaryLimit?:number):{selected:T[];overflow:T[]} {
+ if(ordinaryLimit===undefined)return {selected:[...candidates].sort(compareEditorialCandidates),overflow:[]};
  const sorted=[...candidates].sort(compareEditorialCandidates);let ordinary=0;const selected:T[]=[],overflow:T[]=[];
  for(const c of sorted)if(c.protectedReasons.length||ordinary++<ordinaryLimit)selected.push(c);else overflow.push(c);
  // Admitted beyond the ordinary limit, so total planner input stays bounded (limit + UNREVIEWED_REVIEW_SLOTS).
@@ -32,7 +33,8 @@ export function boundShortlist<T extends {targetVersionId:string;priority:number
  const ids=new Set(reserved.map(c=>c.targetVersionId));
  return {selected:[...selected,...reserved].sort(compareEditorialCandidates),overflow:overflow.filter(c=>!ids.has(c.targetVersionId))};
 }
-export async function shortlistInTransaction(tx:FeedTransaction,window:PublicationWindow,now:string,ordinaryLimit=20,options:{collectOnly?:boolean;rankings?:Map<string,EditorialRanking>}={}):Promise<ShortlistRecord> {
+export async function shortlistInTransaction(tx:FeedTransaction,window:PublicationWindow,now:string,ordinaryLimit:number|undefined=undefined,options:{collectOnly?:boolean;rankings?:Map<string,EditorialRanking>}={}):Promise<ShortlistRecord> {
+ const adaptive=ordinaryLimit===undefined;
  // Preserve the same retained semantic facts while shortening the CAS window.
  const currentRoots=await tx.list<import('./types').EventRecord>('events');
  const publishedVersions=(await tx.list<import('./publication').BriefingEditionRecord>('editions')).filter(e=>Date.parse(e.windowEnd)<Date.parse(window.end)).flatMap(e=>e.eventVersionIds);
@@ -42,7 +44,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
  const ledger=(await tx.list<LedgerEntry>('ledger_entries')).filter(e=>earlierEditions.has(e.editionId)),resolved=new Set((await tx.list<{id:string;obligationId:string}>('correction_resolutions')).map(r=>r.obligationId));
  const workResolutions=await tx.list<{id:string;workId:string;reason?:string}>('editorial_work_resolutions'),allWork=await tx.list<EditorialWork>('editorial_deferred_work');
  const completedWork=new Set(workResolutions.map(r=>r.workId)),pendingWork=allWork.filter(w=>!completedWork.has(w.id));
- const retiredVersions=new Set(allWork.filter(w=>w.windowEnd&&Date.parse(w.windowEnd)<Date.parse(window.end)&&workResolutions.some(r=>r.workId===w.id&&['OMITTED_BY_EDITOR','STALE_AFTER_SEVEN_DAYS','STALE_UNREVIEWED_AFTER_RETENTION'].includes(r.reason??''))).map(w=>w.targetVersionId));
+ const retiredVersions=new Set(allWork.filter(w=>w.windowEnd&&Date.parse(w.windowEnd)<Date.parse(window.end)&&workResolutions.some(r=>r.workId===w.id&&(adaptive?['OMITTED_BY_EDITOR']:['OMITTED_BY_EDITOR','STALE_AFTER_SEVEN_DAYS','STALE_UNREVIEWED_AFTER_RETENTION']).includes(r.reason??''))).map(w=>w.targetVersionId));
  const withdrawnStates=await tx.list<{id:string;editionId:string;status:string;reason:string}>('ledger_states');
  const obligations=(await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>!resolved.has(o.id)).map(o=>{
   const withdrawal=withdrawnStates.find(s=>s.id===o.triggerId&&s.editionId===o.editionId&&s.status==='WITHDRAWN');
@@ -58,7 +60,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
  for(const work of pendingWork){
   const target=currentTargets.find(t=>t.stableId===work.stableTargetId);
   if(!target){await resolveEditorialWork(tx,work,'SUPERSEDED_OR_INACTIVE',now,window.end);completedWork.add(work.id)}
-  else if(work.expiresAt&&Date.parse(work.expiresAt)<Date.parse(now)&&!work.protectedReasons.length&&!pendingWork.some(w=>w.stableTargetId===work.stableTargetId&&!w.expiresAt&&!completedWork.has(w.id))&&!stillUnreviewed(work)){await resolveEditorialWork(tx,work,unreviewedOverflow(openWork(work))?'STALE_UNREVIEWED_AFTER_RETENTION':'STALE_AFTER_SEVEN_DAYS',now,window.end);completedWork.add(work.id);retiredVersions.add(work.targetVersionId)}
+  else if(!adaptive&&work.expiresAt&&Date.parse(work.expiresAt)<Date.parse(now)&&!work.protectedReasons.length&&!pendingWork.some(w=>w.stableTargetId===work.stableTargetId&&!w.expiresAt&&!completedWork.has(w.id))&&!stillUnreviewed(work)){await resolveEditorialWork(tx,work,unreviewedOverflow(openWork(work))?'STALE_UNREVIEWED_AFTER_RETENTION':'STALE_AFTER_SEVEN_DAYS',now,window.end);completedWork.add(work.id);retiredVersions.add(work.targetVersionId)}
   else if(work.targetVersionId!==target.id){await resolveEditorialWork(tx,work,'REPLACED_BY_CURRENT_VERSION',now,window.end);}
  }
  const bootstrap=earlierEditions.size===0;
@@ -69,7 +71,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   const related=obligations.filter(o=>{const entry=ledger.find(e=>e.id===o.ledgerEntryId);return entry?.eventIds.includes(target.stableId)||target.storylineId && entry?.storylineIds.includes(target.storylineId)});
   if(retiredVersions.has(target.id)&&!related.length)continue;
   const deferred=pendingWork.filter(w=>!completedWork.has(w.id)&&(w.stableTargetId===target.stableId||target.storylineId && w.storylineId===target.storylineId));
-  if(Date.parse(target.updatedAt)<Date.parse(window.start) && !bootstrap && !related.length && !deferred.length)continue;
+  if(!adaptive&&Date.parse(target.updatedAt)<Date.parse(window.start) && !bootstrap && !related.length && !deferred.length)continue;
   const states=(await Promise.all(target.eventVersionIds.map(id=>tx.read<EventSemanticState>('event_semantic_states',id)))).filter((s):s is EventSemanticState=>Boolean(s)),rawFacts:ShortlistFact[]=[];
   for(const id of [...new Set(states.flatMap(s=>s.propositionIds))]){const p=await tx.read<Proposition>('propositions',id);if(p&&!nonFactRole(p.text))rawFacts.push({id:p.id,propositionId:p.id,text:p.text,evidenceRevisionIds:p.evidenceRevisionIds,claimMentionIds:p.claimMentionIds,certainty:p.certainty,attribution:p.attribution,reportTime:p.reportTime,eventTime:p.eventTime})}
   if(!rawFacts.length)for(const evidence of target.evidence)for(const text of supportedSentences(evidence.body??evidence.title??'').filter(text=>!nonFactRole(text)))rawFacts.push({id:await sha256(canonicalJson({feedId:tx.snapshot.feed.id,evidenceId:evidence.id,text,policy:SHORTLIST_POLICY})),text,evidenceRevisionIds:[evidence.id],claimMentionIds:[]});
@@ -102,7 +104,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   const titleExtractionPending=target.evidence.some(e=>e.title&&!nonFactRole(e.title)&&!sourceDocuments.some(d=>d.evidenceRevisionId===e.id&&d.extractorVersion===CLAIM_EXTRACTOR));
   const identityAffectsHistory=states.some(s=>s.provisional)&&facts.some(f=>ledger.some(e=>e.claimFacts.some(old=>equivalentFact(old,f.text)||provenMaterialDelta(old,f.text))));
   const flags=[...(repeatedProtectedEffect?['SETTLED_REPEATED_EFFECT']:[]),...(titleExtractionPending?['TITLE_EXTRACTION_PENDING']:[]),...(editorial.decision==='SUPPRESS'?['POSSIBLE_REPEAT']:[]),...(editorial.reasonCodes.includes('OLD_RECAP')?['OLD_RECAP']:[]),...(states.some(s=>s.provisional)?['PROVISIONAL']:[]),...(states.some(s=>s.provisional)&&awaitingBudget(target.evidence.map(e=>e.id))?['SEMANTIC_PENDING_BUDGET']:[]),...(states.some(s=>s.provisional)&&(protectedReasons.length||known.length||identityAffectsHistory)?['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE']:[]),...(facts.some(f=>f.certainty?.hedges.length)?['QUALIFIED']:[]),...(facts.some(f=>f.selfContained==='UNRESOLVED')?['NON_SELF_CONTAINED']:[])];
-  const seenFacts=facts.filter(f=>known.some(k=>equivalentFact(k,f.text))).length,candidate:ShortlistCandidate={readerState:seenFacts===0?'UNSEEN':seenFacts===facts.length?'SEEN':'PARTIALLY_SEEN',publisherIds:[...new Set(await Promise.all(target.evidence.map(e=>publisherIdentity(tx,e))))].sort(),sourceTitles:[...new Set(target.evidence.map(e=>e.title).filter((s):s is string=>Boolean(s)))].slice(0,3),novelty:noveltyClass(editorial.reasonCodes[0],effects),targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),facts,stateSlotIds:[...new Set(states.flatMap(s=>s.stateSlotIds))],effects,flags,protectedReasons:[...new Set(protectedReasons)],correctionObligationIds:related.map(o=>o.id),priority:protectedReasons.length?1:editorial.reasonCodes.includes('OLD_RECAP')?.3:editorial.newUnderstanding.length?.6:.2,fallbackEditorial:editorial};
+  const seenFacts=facts.filter(f=>known.some(k=>equivalentFact(k,f.text))).length,candidate:ShortlistCandidate={readerState:seenFacts===0?'UNSEEN':seenFacts===facts.length?'SEEN':'PARTIALLY_SEEN',publisherIds:[...new Set(await Promise.all(target.evidence.map(e=>publisherIdentity(tx,e))))].sort(),sourceTitles:[...new Set(target.evidence.map(e=>e.title).filter((s):s is string=>Boolean(s)))],novelty:noveltyClass(editorial.reasonCodes[0],effects),targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),facts,stateSlotIds:[...new Set(states.flatMap(s=>s.stateSlotIds))],effects,flags,protectedReasons:[...new Set(protectedReasons)],correctionObligationIds:related.map(o=>o.id),priority:protectedReasons.length?1:editorial.reasonCodes.includes('OLD_RECAP')?.3:editorial.newUnderstanding.length?.6:.2,fallbackEditorial:editorial};
   if(deferred.length&&unreviewedOverflow(deferred)){candidate.unreviewed=true;candidate.unreviewedSince=deferred.map(w=>w.createdAt).sort()[0]}
   candidate.ranking=options.rankings?.get(target.id)??cheapEditorialRanking(tx.snapshot.feed,candidate);
   candidate.communicationCost=communicationCost(candidate);candidate.priority=candidate.ranking.score;
@@ -111,13 +113,13 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   if(knownRepeat&&!candidate.protectedReasons.length&&!related.length)continue;
   candidates.push(candidate);
  }
- const communication=await communicationFingerprint(tx,window.end),bounded=boundShortlist(candidates,ordinaryLimit),id=await sha256(canonicalJson({feedId:tx.snapshot.feed.id,revision:tx.snapshot.feed.revision,window,communication,candidates:candidates.map(c=>[c.targetVersionId,c.protectedReasons,c.correctionObligationIds]).sort(),ordinaryLimit,ranking:candidates.map(c=>[c.targetVersionId,c.ranking]),bootstrap,policy:SHORTLIST_POLICY}));
+ const communication=await communicationFingerprint(tx,window.end),bounded=boundShortlist(candidates,ordinaryLimit),id=await sha256(canonicalJson({feedId:tx.snapshot.feed.id,revision:tx.snapshot.feed.revision,window,communication,candidates:candidates.map(c=>[c.targetVersionId,c.protectedReasons,c.correctionObligationIds]).sort(),ordinaryLimit:ordinaryLimit??null,ranking:candidates.map(c=>[c.targetVersionId,c.ranking]),bootstrap,policy:SHORTLIST_POLICY}));
  const prior=await tx.read<ShortlistRecord>('shortlists',id);if(prior)return prior;
  const value:ShortlistRecord={bootstrap,id,feedId:tx.snapshot.feed.id,feedRevision:tx.snapshot.feed.revision,window,communicationFingerprint:communication,candidates:bounded.selected,overflow:bounded.overflow,obligations,ledger:ledger.map(e=>({id:e.id,claimText:e.claimText,claimFacts:e.claimFacts,eventIds:e.eventIds,storylineIds:e.storylineIds,certainty:e.certainty,editionId:e.editionId})),evidenceRevisionIds:[...new Set(bounded.selected.flatMap(c=>c.evidenceRevisionIds))],policyVersion:SHORTLIST_POLICY,createdAt:now};if(!options.collectOnly){await tx.write('shortlists',id,value);for(const c of bounded.overflow)await deferEditorialWork(tx,c,'SHORTLIST_OVERFLOW',now,id,window.end)}return value;
 }
-export async function prepareSemanticShortlist(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,ordinaryLimit=20,env?:Env,fetcher:typeof fetch=fetch):Promise<ShortlistRecord>{
+export async function prepareSemanticShortlist(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,ordinaryLimit:number|undefined=undefined,env?:Env,fetcher:typeof fetch=fetch):Promise<ShortlistRecord>{
  if(!env)return feedTransact(store,feedId,tx=>shortlistInTransaction(tx,window,now,ordinaryLimit));
- const draft=await feedTransact(store,feedId,tx=>shortlistInTransaction(tx,window,now,10000,{collectOnly:true}));
+ const draft=await feedTransact(store,feedId,tx=>shortlistInTransaction(tx,window,now,undefined,{collectOnly:true}));
  const feed=await store.getFeed(feedId);if(!feed)throw new Error('Missing Feed');
  const ranked=await rankEditorialCandidates(store,env,feed,draft.candidates,window,now,fetcher);
  return feedTransact(store,feedId,tx=>shortlistInTransaction(tx,window,now,ordinaryLimit,{rankings:new Map(ranked.map(c=>[c.targetVersionId,c.ranking!]))}));

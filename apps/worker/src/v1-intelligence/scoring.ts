@@ -18,13 +18,17 @@ import {deferEditorialWork,BLOCKED_DEFERRAL_REASON} from './editorial-work';
 import {selectableForPlanning} from './planning-capacity';
 const SCORING_POLICY='deterministic-scoring-editorial-v4',SELECTION_POLICY='bounded-selection-editorial-v7';
 const salienceScorer=new DeterministicSalienceScorer();
-export interface BriefingBudget {maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
+export interface BriefingBudget {mode?:'ADAPTIVE';maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
+/** Zero legacy dimensions are explicit, ignored sentinels, never tiny fallback quotas.
+ * Context/output admission belongs to each model operation; spending belongs to the account ledger. */
+export const ADAPTIVE_BRIEFING_PROCESSING:BriefingBudget={mode:'ADAPTIVE',maxStories:0,maxReadingWords:0,maxEvidenceInspections:0,maxInputTokens:0,maxOutputTokens:0,maxModelCalls:0,maxCostUsd:0,maxPerPublisher:0,maxWallClockMs:90000};
 export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:4,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
 export interface PublicationWindow {start:string;end:string;kind:'30M'|'HOURLY'|'DAILY'|'WEEKLY';durationMinutes?:LiveInterval;timezone?:string;deliveryAnchor?:string;schedulePolicy?:'local-calendar-anchors-v1'}
 export interface SelectionRecord {id:string;feedId:string;feedRevision:number;window:PublicationWindow;candidateIds:string[];selectedCandidateIds:string[];evidenceByCandidate:Record<string,string[]>;budget:BriefingBudget;policyVersion:string;computedAt:string;omissions:{candidateId:string;reason:string}[];editorialByCandidate?:Record<string,EditorialDecision>;communicationFingerprint?:string;editorialPlanId?:string;deferredProtectedTargetIds?:string[]}
 export interface Target {type:TargetType;id:string;stableId:string;storylineId?:string;text:string;updatedAt:string;version:number;evidence:EvidenceRevision[];eventVersionIds:string[];storylineVersionId?:string;persistence:number;turningPoint:number}
 const windowSchema=publicationWindowSchema;
-const budgetSchema=z.object({maxStories:z.number().int().min(1).max(20),maxReadingWords:z.number().int().min(20).max(3000),maxEvidenceInspections:z.number().int().min(1).max(100),maxInputTokens:z.number().int().min(100).max(64000),maxOutputTokens:z.number().int().min(100).max(8000),maxModelCalls:z.number().int().min(0).max(4),maxCostUsd:z.number().min(0).max(2),maxPerPublisher:z.number().int().min(1).max(20),maxWallClockMs:z.number().int().min(1000).max(120000)}).strict();
+const legacyBudgetSchema=z.object({maxStories:z.number().int().min(1).max(20),maxReadingWords:z.number().int().min(20).max(3000),maxEvidenceInspections:z.number().int().min(1).max(100),maxInputTokens:z.number().int().min(100).max(64000),maxOutputTokens:z.number().int().min(100).max(8000),maxModelCalls:z.number().int().min(0).max(4),maxCostUsd:z.number().min(0).max(2),maxPerPublisher:z.number().int().min(1).max(20),maxWallClockMs:z.number().int().min(1000).max(120000)}).strict();
+const budgetSchema=z.union([legacyBudgetSchema,z.object({mode:z.literal('ADAPTIVE'),maxStories:z.literal(0),maxReadingWords:z.literal(0),maxEvidenceInspections:z.literal(0),maxInputTokens:z.literal(0),maxOutputTokens:z.literal(0),maxModelCalls:z.literal(0),maxCostUsd:z.literal(0),maxPerPublisher:z.literal(0),maxWallClockMs:z.number().int().positive()}).strict()]);
 function score(n:number):number {return Math.round(Math.max(0,Math.min(1,n))*1e6)/1e6}
 const publisherReads=new WeakMap<FeedTransaction,Map<string,Promise<string>>>();
 export async function publisherIdentity(tx:FeedTransaction,revision:EvidenceRevision):Promise<string> {
@@ -137,7 +141,7 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
  const semanticScorer=plan?undefined:requestedScorer;
  const parsedWindow=windowSchema.safeParse(rawWindow),parsedBudget=budgetSchema.safeParse(rawBudget);
  if(!parsedWindow.success || !parsedBudget.success || !Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
- const window={...parsedWindow.data,start:new Date(parsedWindow.data.start).toISOString(),end:new Date(parsedWindow.data.end).toISOString()},budget=parsedBudget.data;
+ const window={...parsedWindow.data,start:new Date(parsedWindow.data.start).toISOString(),end:new Date(parsedWindow.data.end).toISOString()},budget:BriefingBudget=parsedBudget.data;
  const resolved=new Map<string,Awaited<ReturnType<typeof durableSalience>>>();
  const targetList=async(tx:FeedTransaction)=>{
   const values=await targets(tx,window,Boolean(plan));if(!plan)return values;
@@ -155,7 +159,7 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    for(const target of await targetList(tx)){
     const editorial=await planEditorial(tx,target);
     if(editorial.decision==='SUPPRESS')continue;
-    inputs.push({feedId,feedRevision:tx.snapshot.feed.revision,targetType:target.type,targetVersionId:target.id,text:target.text.slice(0,6000),version:target.version,independentSupport:await independentSupportCount(tx,target.evidence),persistence:target.persistence,recency:1});
+    inputs.push({feedId,feedRevision:tx.snapshot.feed.revision,targetType:target.type,targetVersionId:target.id,text:target.text,version:target.version,independentSupport:await independentSupportCount(tx,target.evidence),persistence:target.persistence,recency:1});
    }
    return inputs;
   });
@@ -174,7 +178,7 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    const recency=score(1-(Date.parse(window.end)-Math.max(...target.evidence.map(r=>Date.parse(r.publishedAt??r.acceptedAt))))/(Date.parse(window.end)-Date.parse(window.start)));
    const savedJudgment=resolved.get(target.id);
    if(semanticScorer && editorial.decision!=='SUPPRESS' && (!savedJudgment || savedJudgment.input.feedRevision!==base.feedRevision))throw new HandoffError('TEMPORARY_UNAVAILABLE');
-   const baseline=savedJudgment?.result??salienceScorer.score({feedId,feedRevision:base.feedRevision,targetType:target.type,targetVersionId:target.id,text:target.text.slice(0,6000),version:target.version,independentSupport:independent,persistence:target.persistence,recency});
+   const baseline=savedJudgment?.result??salienceScorer.score({feedId,feedRevision:base.feedRevision,targetType:target.type,targetVersionId:target.id,text:target.text,version:target.version,independentSupport:independent,persistence:target.persistence,recency});
    if(savedJudgment && !await tx.read('salience_provenance',`salience:${assessmentId}`))await tx.write('salience_provenance',`salience:${assessmentId}`,{id:`salience:${assessmentId}`,feedId,assessmentId:`salience:${assessmentId}`,judgmentId:savedJudgment.id,input:savedJudgment.input,result:savedJudgment.result,createdAt:savedJudgment.createdAt});
    if(semanticScorer && !savedJudgment && !await tx.read('salience_provenance',`salience:${assessmentId}`))await tx.write('salience_provenance',`salience:${assessmentId}`,{id:`salience:${assessmentId}`,feedId,assessmentId:`salience:${assessmentId}`,result:{...baseline,route:'DETERMINISTIC_PREFILTER',reasonCodes:editorial.reasonCodes},createdAt:now});
    const impact=baseline.components.impact;
@@ -219,8 +223,9 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    }
    // A merged proposition keeps every independent supporter: add up to two further supporting revisions so the published claim cites
    // corroborating sources (bounded by the inspection budget; never at the cost of a required fact's own cover).
-   const extraSupport=[...new Set(inspectionFacts.flatMap(f=>f.evidenceRevisionIds))].filter(id=>!inspectionEvidence.some(e=>e.id===id)).slice(0,2).map(id=>target.evidence.find(e=>e.id===id)).filter((e):e is EvidenceRevision=>Boolean(e));
-   if(inspections+inspectionEvidence.length+extraSupport.length<=budget.maxEvidenceInspections)inspectionEvidence.push(...extraSupport);
+   const extraIds=[...new Set(inspectionFacts.flatMap(f=>f.evidenceRevisionIds))].filter(id=>!inspectionEvidence.some(e=>e.id===id));
+   const extraSupport=(budget.mode==='ADAPTIVE'?extraIds:extraIds.slice(0,2)).map(id=>target.evidence.find(e=>e.id===id)).filter((e):e is EvidenceRevision=>Boolean(e));
+   if(budget.mode==='ADAPTIVE'||inspections+inspectionEvidence.length+extraSupport.length<=budget.maxEvidenceInspections)inspectionEvidence.push(...extraSupport);
    for(const revision of priorContextEvidence(editorial,target.evidence)) if(!inspectionEvidence.some(e=>e.id===revision.id)) inspectionEvidence.push(revision);
    const eventVersions=(await Promise.all(target.eventVersionIds.map(id=>tx.read<EventVersion>('event_versions',id)))).map(v=>({...v!,state:v!.state.slice(0,1800)}));
    const storyline=target.storylineVersionId?await tx.read<StorylineVersion>('storyline_versions',target.storylineVersionId):undefined;
@@ -229,13 +234,13 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    result.editorialByCandidate![candidate.id]=editorial;
    if(editorial.decision==='SUPPRESS') reason=editorial.reasonCodes[0];
    else if(plan&&uncovered.size)reason='MISSING_REQUIRED_PLAN_SUPPORT';
-   else if(result.selectedCandidateIds.length>=budget.maxStories) reason='STORY_BUDGET';
-   else if(words+storyWords>budget.maxReadingWords)reason='WORD_CAPACITY';
-   else if(inspections+inspectionEvidence.length>budget.maxEvidenceInspections)reason='EVIDENCE_CAPACITY';
-   else if(inputTokens+cost>budget.maxInputTokens)reason='INPUT_CAPACITY';
-   else if(!plan && target.storylineId && selectedStorylines.has(target.storylineId)) reason='STORYLINE_DIVERSITY';
+   else if(budget.mode!=='ADAPTIVE'&&result.selectedCandidateIds.length>=budget.maxStories) reason='STORY_BUDGET';
+   else if(budget.mode!=='ADAPTIVE'&&words+storyWords>budget.maxReadingWords)reason='WORD_CAPACITY';
+   else if(budget.mode!=='ADAPTIVE'&&inspections+inspectionEvidence.length>budget.maxEvidenceInspections)reason='EVIDENCE_CAPACITY';
+   else if(budget.mode!=='ADAPTIVE'&&inputTokens+cost>budget.maxInputTokens)reason='INPUT_CAPACITY';
+   else if(budget.mode!=='ADAPTIVE'&&!plan && target.storylineId && selectedStorylines.has(target.storylineId)) reason='STORYLINE_DIVERSITY';
    // The publisher limit binds a model-generated plan exactly as it binds ordinary selection; only protected work is exempt from refusal (it still counts).
-   else if(!protectedVersions.has(target.id) && publisherIds.some(id=>(publishers.get(id)??0)>=budget.maxPerPublisher)) reason='SOURCE_DIVERSITY';
+   else if(budget.mode!=='ADAPTIVE'&&!protectedVersions.has(target.id) && publisherIds.some(id=>(publishers.get(id)??0)>=budget.maxPerPublisher)) reason='SOURCE_DIVERSITY';
    if(reason) {candidate.selectionState='OMITTED';candidate.reasons.push(reason);result.omissions.push({candidateId:candidate.id,reason})}
    else {candidate.selectionState='SELECTED';result.selectedCandidateIds.push(candidate.id);result.evidenceByCandidate[candidate.id]=inspectionEvidence.map(r=>r.id);words+=storyWords;inspections+=inspectionEvidence.length;inputTokens+=cost;if(target.storylineId) selectedStorylines.add(target.storylineId);for(const id of publisherIds) publishers.set(id,(publishers.get(id)??0)+1)}
    await tx.write('candidates',candidate.id,briefingCandidateSchema.parse(candidate));
@@ -248,7 +253,7 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
    await tx.write('editorial_plans',effectiveId,effective);result.editorialPlanId=effectiveId;
    result.deferredProtectedTargetIds=effective.stories.filter(s=>s.decision==='DEFER'&&shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)?.protectedReasons.length).map(s=>s.targetVersionId);
    if(effective.obligations.some(o=>o.handling==='DEFER'))result.deferredProtectedTargetIds.push(...effective.obligations.filter(o=>o.handling==='DEFER').map(o=>`obligation:${o.obligationId}`));
-   for(const s of effective.stories.filter(s=>s.decision==='DEFER'||s.decision==='SELECT')){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;await deferEditorialWork(tx,c,s.decision==='SELECT'?'AWAITING_SUPPORTED_PUBLICATION':(()=>{const reason=result.omissions.find(o=>JSON.parse(o.candidateId)[2]===s.targetVersionId)?.reason;return !reason||reason==='DEFERRED_EDITORIAL_WORK'?plan.capacityAdjustments?.find(a=>a.targetVersionId===s.targetVersionId)?.reason??(s.rationale.startsWith('PLANNER_INPUT_OVERFLOW')?'PLANNER_INPUT_OVERFLOW':!selectableForPlanning(c)?BLOCKED_DEFERRAL_REASON:'DEFERRED_EDITORIAL_WORK'):reason})(),now,effectiveId,window.end)}
+   for(const s of effective.stories.filter(s=>s.decision==='DEFER'||s.decision==='SELECT')){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;await deferEditorialWork(tx,c,s.decision==='SELECT'?'AWAITING_SUPPORTED_PUBLICATION':(()=>{const reason=result.omissions.find(o=>JSON.parse(o.candidateId)[2]===s.targetVersionId)?.reason;return !reason||reason==='DEFERRED_EDITORIAL_WORK'?plan.capacityAdjustments?.find(a=>a.targetVersionId===s.targetVersionId)?.reason??(s.rationale.startsWith('PLANNER_INPUT_OVERFLOW')?'PLANNER_INPUT_OVERFLOW':!selectableForPlanning(c)?BLOCKED_DEFERRAL_REASON:'DEFERRED_EDITORIAL_WORK'):reason})(),now,effectiveId,window.end,{adaptive:budget.mode==='ADAPTIVE'})}
   }
   await tx.write('selections',identity,result);return result;
  });

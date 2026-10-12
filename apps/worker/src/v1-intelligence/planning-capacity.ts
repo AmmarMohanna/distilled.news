@@ -7,7 +7,7 @@ export function communicationCost(c:Pick<ShortlistCandidate,'facts'|'evidenceRev
  const bytes=new TextEncoder().encode(JSON.stringify(c.facts)).length;
  return {inputUnits:1200+bytes*2,evidenceCount:new Set(c.facts.flatMap(f=>f.evidenceRevisionIds)).size||c.evidenceRevisionIds.length,briefWords:Math.max(40,c.facts.length*20),standardWords:Math.max(100,c.facts.length*25),detailedWords:Math.max(180,c.facts.length*30)};
 }
-export function planningCapacity(budget:BriefingBudget){return {maxStories:budget.maxStories,maxReadingWords:budget.maxReadingWords,maxEvidenceInspections:budget.maxEvidenceInspections,maxInputUnits:Math.max(0,budget.maxInputTokens-4000),inputUnit:'conservative UTF-8 byte upper bound',fixedInputReserve:4000,maxOutputTokens:budget.maxOutputTokens};}
+export function planningCapacity(budget:BriefingBudget){if(budget.mode==='ADAPTIVE')throw Error('LEGACY_CAPACITY_REQUESTED_FOR_ADAPTIVE_WORK');return {maxStories:budget.maxStories,maxReadingWords:budget.maxReadingWords,maxEvidenceInspections:budget.maxEvidenceInspections,maxInputUnits:Math.max(0,budget.maxInputTokens-4000),inputUnit:'conservative UTF-8 byte upper bound',fixedInputReserve:4000,maxOutputTokens:budget.maxOutputTokens};}
 
 /** Candidates that validation forbids selecting until durable reassessment completes. */
 export const planningBlockedFlags=['TITLE_EXTRACTION_PENDING','IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE'];
@@ -20,12 +20,14 @@ export const selectableForPlanning=(c:Pick<ShortlistCandidate,'flags'>)=>!c.flag
  * larger than this fits; unlike the former most-expensive-first prefix it never rules out
  * several cheap stories because some other candidate is expensive. It is a ceiling, not a target. */
 export function storyCapacityBound(candidates:Costed[],budget:BriefingBudget):number {
+ if(budget.mode==='ADAPTIVE')return candidates.filter(selectableForPlanning).length;
  const capacity=planningCapacity(budget),costs=candidates.filter(selectableForPlanning).map(c=>costOf(c).inputUnits).filter(n=>n<=capacity.maxInputUnits).sort((a,b)=>a-b);let used=0,count=0;
  for(const cost of costs){if(count>=budget.maxStories||used+cost>capacity.maxInputUnits)break;used+=cost;count++}return count;
 }
 /** Number of the given candidates that provably fit together (cheapest first, BRIEF treatment, all hard
  * dimensions). A lower bound: a feasible set of this size exists. Used for correction obligations. */
 export function guaranteedStoryCount(candidates:Costed[],budget:BriefingBudget):number {
+ if(budget.mode==='ADAPTIVE')return candidates.filter(selectableForPlanning).length;
  const capacity=planningCapacity(budget);let input=0,evidence=0,words=0,count=0;
  for(const c of candidates.filter(selectableForPlanning).map(costOf).sort((a,b)=>a.inputUnits-b.inputUnits)){
   if(count>=capacity.maxStories||input+c.inputUnits>capacity.maxInputUnits||evidence+c.evidenceCount>capacity.maxEvidenceInspections||words+c.briefWords>capacity.maxReadingWords)continue;
@@ -42,6 +44,7 @@ const emptyUsage=():Usage=>({stories:0,input:0,evidence:0,words:0,publishers:new
 /** The single admission rule shared by plan validation, deterministic allocation and tests. Publisher rule mirrors ordinary selection:
  * ordinary stories are refused at maxPerPublisher; protected work is exempt from this diversity limit only and still counts. */
 export function capacityReason(u:Usage,i:SelectionItem,budget:BriefingBudget):CapacityReason|undefined {
+ if(budget.mode==='ADAPTIVE')return undefined;
  const capacity=planningCapacity(budget);
  return u.stories>=capacity.maxStories?'STORY_CAPACITY':u.input+i.cost.inputUnits>capacity.maxInputUnits?'INPUT_CAPACITY':u.evidence+i.cost.evidenceCount>capacity.maxEvidenceInspections?'EVIDENCE_CAPACITY':u.words+itemWords(i)>capacity.maxReadingWords?'WORD_CAPACITY':!i.protectedItem&&i.publisherIds.some(p=>(u.publishers.get(p)??0)>=budget.maxPerPublisher)?'PUBLISHER_CAPACITY':undefined;
 }
@@ -52,6 +55,7 @@ export const EXHAUSTIVE_SELECTION_LIMIT=16;
  * (ties: more stories, then earlier planner order), so one expensive story is not preferred over several cheaper, jointly
  * more valuable ones. It never adds a story the planner did not select. Beyond the exhaustive limit it degrades to planner order. */
 export function allocateFeasibleSelection(items:SelectionItem[],budget:BriefingBudget):{accepted:Set<string>;rejected:Map<string,CapacityReason>} {
+ if(budget.mode==='ADAPTIVE')return {accepted:new Set(items.map(i=>i.id)),rejected:new Map<string,CapacityReason>()};
  const accepted=new Set<string>(),rejected=new Map<string,CapacityReason>(),usage=emptyUsage();
  for(const i of items.filter(i=>i.protectedItem).sort((a,b)=>a.order-b.order)){const reason=capacityReason(usage,i,budget);if(reason)rejected.set(i.id,reason);else{admit(usage,i);accepted.add(i.id)}}
  const ordinary=items.filter(i=>!i.protectedItem).sort((a,b)=>a.order-b.order);
