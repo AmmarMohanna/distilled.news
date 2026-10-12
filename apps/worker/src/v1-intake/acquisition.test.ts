@@ -109,3 +109,31 @@ it('known monetary admission denial remains durable resource waiting without exh
  expect(job).toMatchObject({state:'PENDING',exhausted:false,failureCode:'BUDGET_EXHAUSTED',attempts:0});
  expect(job.nextAttemptAt).toBeDefined();expect(await claimAcquisition(store,jobId,now)).toBeUndefined();
 });
+
+it('admits a URL-only discovery recheck without replacing complete canonical article evidence',async()=>{
+ await runAcquisitionJob(store,jobId,testPolicy,async claim=>({...content(claim.candidate.id),representation:'FULL_ARTICLE',body:'Retained complete article.'}));
+ const prior=(await store.list<any>('revisions','feed-source-1'))[0];
+ const request=batchFixture(2),o=request.observations[0],p=request.proposals[0];
+ o.representation='LISTING_RESULT';o.contentCompleteness='UNKNOWN';delete o.suppliedPayloadRef;delete o.contentHash;
+ p.representation=o.representation;p.contentCompleteness=o.contentCompleteness;delete p.suppliedPayloadRef;delete p.payloadHash;
+ const receipt=await createCandidateIntakePort(store,testPolicy).acceptBatch(request);
+ expect(receipt.receipts[0].decision).toBe('ACCEPTED');
+ expect(await store.list('revisions','feed-source-1')).toEqual([prior]);
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(`<link rel="canonical" href="${o.canonicalUrl}"><meta property="article:published_time" content="2026-10-03T10:00:00Z"><article><h1>Updated development</h1><p>Parliament approved the banking reform.</p></article>`)});
+ expect(await runAcquisitionJob(store,JSON.stringify(['ACQUIRE',o.id,'']),testPolicy,router)).toBe('DONE');
+ const acquired=(await store.list<AcceptedAcquiredContent>('acquired','feed-source-1')).find(c=>c.sourceObservationId===o.id)!;
+ expect(acquired).toMatchObject({representation:'FULL_ARTICLE',acquisitionMethod:'direct_http',body:expect.stringContaining('Parliament approved')});
+ expect(await store.list('revisions','feed-source-1')).toHaveLength(2);
+});
+
+it('URL-only discovery never authorizes a weaker acquired representation to replace a full article',async()=>{
+ await runAcquisitionJob(store,jobId,testPolicy,async claim=>({...content(claim.candidate.id),representation:'FULL_ARTICLE',body:'Retained complete article.'}));
+ const before=await store.list('revisions','feed-source-1'),r=batchFixture(2),o=r.observations[0],p=r.proposals[0];
+ o.representation='LISTING_RESULT';o.contentCompleteness='UNKNOWN';delete o.suppliedPayloadRef;delete o.contentHash;
+ p.representation=o.representation;p.contentCompleteness=o.contentCompleteness;delete p.suppliedPayloadRef;delete p.payloadHash;
+ expect((await createCandidateIntakePort(store,testPolicy).acceptBatch(r)).receipts[0].decision).toBe('ACCEPTED');
+ await runAcquisitionJob(store,JSON.stringify(['ACQUIRE',o.id,'']),testPolicy,async claim=>({...content(claim.candidate.id),id:'content-2',sourceObservationId:o.id,representation:'LISTING_RESULT',contentCompleteness:'UNKNOWN',body:'Only a listing hint.'}));
+ expect(await store.list('revisions','feed-source-1')).toEqual(before);
+ const receipts=await store.list<any>('evidence_receipts','feed-source-1');
+ expect(receipts.find(r=>r.sourceObservationId===o.id)?.decision).toBe('QUARANTINED_REVISION_CONFLICT');
+});

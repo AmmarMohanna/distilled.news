@@ -134,7 +134,15 @@ export class FallbackSourceCollector {
             publisherId:item.publisherId,titleHint:item.title,publishedAtHint:item.publishedAt,languageHint:item.language,observedAt:run.startedAt};
           if(op==='DELETE' && !o.authoritativeCurrentState)throw new SourceProviderError('MALFORMED');
           if(op==='DELETE' && item.identityValid && hashes[key]===await itemFingerprint(o))continue;
-          if(op==='UPSERT' && (item.body || item.title)) {
+          if(op==='UPSERT' && item.representation==='LISTING_RESULT' && !item.body && item.url) {
+            // A discovery fingerprint is not an acquired-content hash. There is
+            // no supplied body: the exact URL must pass normal acquisition.
+            o.contentHash=await hashContent({representation:item.representation,title:item.title,body:''});
+            if(!request.recheckItemKeys?.includes(key)&&item.identityValid&&hashes[key]===await itemFingerprint(o))continue;
+            if(item.identityValid)proposals.push({observationId:o.id,...request.scope,sourceItemKey:key,connectorType:id,
+              upstreamId:o.upstreamId,url:o.canonicalUrl,titleHint:o.titleHint,representation:o.representation,contentCompleteness:o.contentCompleteness,
+              discoveredAt:run.startedAt,discoveryRunId:run.id});
+          } else if(op==='UPSERT' && (item.body || item.title)) {
             o.contentHash=await hashContent({representation:item.representation,title:item.title,body:item.body??''});
             // Only suppress an exact item fingerprint durably accepted in an earlier
             // run of this feed revision. Coverage still describes the fetched page.

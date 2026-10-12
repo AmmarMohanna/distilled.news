@@ -504,3 +504,20 @@ it('fresh source polls progress during backfill and periodic oldest-first turns 
  await scheduler.schedule('fresh-next',{...request,runId:'fresh-next'},new Date(now).toISOString());
  expect(await scheduler.runOne()).toBe('RETRY');expect(seen.at(-1)).toBe('backfill');
 });
+
+it('hands discovered article URLs to durable acquisition instead of one mixed homepage payload',async()=>{
+ const html=['A flight policy change','An electricity minister statement','A security investigation'].map((t,i)=>`<div class="story"><a class="title" href="/articles/${i}">${t}</a></div>`).join('');
+ const execution={execute:vi.fn(async()=>({body:'Mixed homepage text '.repeat(30),title:'Latest news'}))};
+ const http=feed(html),p=new WebsiteSourceProvider('website_http',http,execution),s=setup([p]);
+ const r={...request,source:{family:'website' as const,locator:'https://publisher.example/news'},limit:2};
+ const first=await s.collector.collect(r,['website_http']);
+ expect(first.state).toBe('HANDED_OFF');if(first.state!=='HANDED_OFF')throw Error('HANDOFF');
+ expect(first.nextOffset).toBe(2);expect(first.request.observations.map(o=>o.canonicalUrl)).toEqual(['https://publisher.example/articles/0','https://publisher.example/articles/1']);
+ expect(first.request.observations.every(o=>o.representation==='LISTING_RESULT'&&!o.suppliedPayloadRef)).toBe(true);
+ expect(first.request.proposals).toHaveLength(2);
+ const rest=await s.collector.collect(r,['website_http'],2);expect(rest.state==='HANDED_OFF'&&rest.request.observations[0].canonicalUrl).toBe('https://publisher.example/articles/2');
+ expect(http.get).toHaveBeenCalledTimes(1);expect(execution.execute).not.toHaveBeenCalled();
+ const repeat=await s.collector.collect({...r,runId:'next-poll'},['website_http']);expect(repeat.state==='HANDED_OFF'&&repeat.request.observations).toEqual([]);
+ const recheck=await s.collector.collect({...r,runId:'article-recheck',recheckItemKeys:['url:https://publisher.example/articles/0']},['website_http']);
+ expect(recheck.state==='HANDED_OFF'&&recheck.request.observations.map(o=>o.sourceItemKey)).toEqual(['url:https://publisher.example/articles/0']);
+});

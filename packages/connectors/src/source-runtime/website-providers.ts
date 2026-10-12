@@ -4,6 +4,7 @@ import { executeSource } from './platform-providers';
 import type { SecretResolver } from './social-providers';
 import { requireProviderSuccess, type ProviderHttpPort } from './provider-http';
 import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type SourceFamily, type ProviderPage } from './provider-types';
+import {discoverWebsiteArticles} from './website-discovery';
 import { record, articleUrl, string, timestamp } from './provider-normalize';
 
 export class WebsiteSourceProvider implements SourceProvider {
@@ -11,7 +12,7 @@ export class WebsiteSourceProvider implements SourceProvider {
   constructor(readonly id:'website_http'|'website_playwright'|'website_zyte',private http:FeedHttpPort,
     private execution:SourceExecutionPort,private paid?:ProviderHttpPort,private secrets?:SecretResolver,private ceilingUsd=0.01){}
   async fetch(input:SourceFetchRequest,run:FetchRun):Promise<ProviderPage>{
-    const url=articleUrl(input.source.locator);if(!url)throw new Error('INVALID_ARTICLE_URL');
+    const approved=articleUrl(input.source.locator),url=articleUrl(input.continuation?.token??input.source.locator);if(!approved||!url||new URL(url).origin!==new URL(approved).origin)throw new Error('INVALID_ARTICLE_URL');
     const start=Date.now();let html:string,requests=1;
     if(this.id==='website_http'){
       const response=await this.http.get(url,{});
@@ -34,6 +35,14 @@ export class WebsiteSourceProvider implements SourceProvider {
       try{const bytes=Uint8Array.from(atob(data.httpResponseBody),(c)=>c.charCodeAt(0));html=new TextDecoder().decode(bytes);}catch{throw new SourceProviderError('MALFORMED');}
     }
     if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))throw new SourceProviderError('CHALLENGE');
+    const discovery=discoverWebsiteArticles(html,url);
+    if(discovery){
+      const selected=input.recheckItemKeys?discovery.articles.filter(a=>input.recheckItemKeys!.includes(`url:${a.url}`)):discovery.articles;
+      return {items:selected.map(a=>({sourceItemKey:`url:${a.url}`,upstreamId:a.url,url:a.url,publisherId:new URL(a.url).hostname,title:a.title,
+        representation:'LISTING_RESULT' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true,authoritativeCurrentState:false})),
+        raw:new TextEncoder().encode(html),complete:!discovery.nextPage,continuationToken:discovery.nextPage,
+        requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
+    }
     const result=record(await executeSource(this.execution,'extract',{url,html}));
     if(!string(result.body)||result.body.length<200)throw new SourceProviderError('CHALLENGE');
     return {items:[{sourceItemKey:`url:${url}`,upstreamId:url,url,publisherId:new URL(url).hostname,title:string(result.title),body:result.body,

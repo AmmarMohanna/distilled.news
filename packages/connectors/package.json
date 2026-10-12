@@ -13,7 +13,8 @@
   "dependencies": {
     "@distilled/contracts": "workspace:*",
     "@distilled/core": "workspace:*",
-    "fast-xml-parser": "5.3.0"
+    "fast-xml-parser": "5.3.0",
+    "parse5": "7.3.0"
   },
   "devDependencies": {
     "miniflare": "4.20260611.0",
