@@ -11,7 +11,7 @@ export function semanticQuestion(input:SemanticOperationInput):unknown {
  return {...identity,state};
 }
 export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOperationInput,compatibilityHash?:string):Promise<SemanticOperationResult<T>|undefined>{
- const rows=await tx.store.db.prepare("SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind='semantic_intents' AND json_extract(json,'$.input.evidenceRevisionIds[0]')=? AND json_extract(json,'$.input.kind')=?").bind(input.feedId,input.evidenceRevisionIds[0],input.kind).all<{json:string}>();
+ const rows=await tx.store.db.prepare("SELECT d.json FROM v1_feed_documents d WHERE d.feed_id=? AND d.kind='semantic_intents' AND EXISTS(SELECT 1 FROM json_each(d.json,'$.input.evidenceRevisionIds') e WHERE e.value=?) AND json_extract(d.json,'$.input.kind')=?").bind(input.feedId,input.evidenceRevisionIds[0],input.kind).all<{json:string}>();
  const intents=rows.results.map(row=>JSON.parse(row.json) as SemanticIntent);
  await tx.preload('semantic_results',intents.map(intent=>intent.id));await tx.preload('semantic_settlements',intents.map(intent=>intent.id));
  for(const intent of intents){
@@ -26,8 +26,9 @@ export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOper
    const versions=(state:any)=>({events:(state?.events??[]).map((e:any)=>[e.id,e.versionId]).sort(),memory:(state?.memory??[]).map((m:any)=>[m.id,m.versionId]).sort()});
    const mentionScope=(state:any)=>Array.isArray(state?.claimMentions)?state.claimMentions.map((m:any)=>[m.id,m.text]).sort():null;
    const sameConstruction=mentionScope(intent.input.state)!==null&&canonicalJson(mentionScope(intent.input.state))===canonicalJson(mentionScope(input.state))&&input.kind==='SEMANTIC_CONSTRUCTION'&&intent.input.model===input.model&&intent.input.feedRevision===input.feedRevision&&intent.input.policyVersion===input.policyVersion&&canonicalJson(versions(intent.input.state))===canonicalJson(versions(input.state));
-   if(!result&&intent.leaseUntil>Date.now()){if(sameQuestion||sameConstruction||compatibilityHash&&intent.compatibilityHash===compatibilityHash)throw new SemanticContentionError();continue}
-   if(!intent.compatibilityHash||sameQuestion||sameConstruction||intent.compatibilityHash===compatibilityHash){
+   const samePublication=input.kind.startsWith('PUBLICATION_')&&(input.state as any)?.publicationScope&&canonicalJson((input.state as any).publicationScope)===canonicalJson((intent.input.state as any)?.publicationScope)&&intent.input.model===input.model&&intent.input.feedRevision===input.feedRevision;
+   if(!result&&intent.leaseUntil>Date.now()){if(sameQuestion||sameConstruction||samePublication||compatibilityHash&&intent.compatibilityHash===compatibilityHash)throw new SemanticContentionError();continue}
+   if(!intent.compatibilityHash||sameQuestion||sameConstruction||samePublication||intent.compatibilityHash===compatibilityHash){
     const fenced:SemanticOperationResult<T>={...(result??{id:intent.id,feedId:input.feedId,input:intent.input,status:'DEFERRED' as const,usage:{calls:1,costUsd:intent.reservedCostUsd,reported:false},latencyMs:0,createdAt:intent.createdAt}),status:'DEFERRED',failure:'SEMANTIC_OUTCOME_UNKNOWN'};
     if(!result)await tx.write('semantic_results',intent.id,fenced);return fenced;
    }

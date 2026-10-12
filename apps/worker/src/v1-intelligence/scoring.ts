@@ -171,16 +171,19 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
   const prior=await tx.read<SelectionRecord>('selections',identity);if(prior) return prior;
   const assessments:{target:Target;candidate:BriefingCandidate;publisherIds:string[];editorial:EditorialDecision}[]=[];
   for(const target of candidates) {
-   const base={feedId,feedRevision:tx.snapshot.feed.revision,targetType:target.type,targetVersionId:target.id,policyVersion:semanticScorer?(semanticScorer.policyKey??SEMANTIC_SALIENCE_POLICY):SCORING_POLICY,computedAt:now};
+   const base={feedId,feedRevision:tx.snapshot.feed.revision,targetType:target.type,targetVersionId:target.id,policyVersion:plan?.route==='GPT'&&plan.stories.find(s=>s.targetVersionId===target.id)?.editorialImportance!==undefined?'comparative-importance:'+plan.id:semanticScorer?(semanticScorer.policyKey??SEMANTIC_SALIENCE_POLICY):SCORING_POLICY,computedAt:now};
    const assessmentId=await sha256(canonicalJson({feedId,target:target.id,revision:base.feedRevision,policy:base.policyVersion}));
    const editorial=await planEditorial(tx,target);
    const independent=await independentSupportCount(tx,target.evidence);
    const recency=score(1-(Date.parse(window.end)-Math.max(...target.evidence.map(r=>Date.parse(r.publishedAt??r.acceptedAt))))/(Date.parse(window.end)-Date.parse(window.start)));
    const savedJudgment=resolved.get(target.id);
    if(semanticScorer && editorial.decision!=='SUPPRESS' && (!savedJudgment || savedJudgment.input.feedRevision!==base.feedRevision))throw new HandoffError('TEMPORARY_UNAVAILABLE');
-   const baseline=savedJudgment?.result??salienceScorer.score({feedId,feedRevision:base.feedRevision,targetType:target.type,targetVersionId:target.id,text:target.text,version:target.version,independentSupport:independent,persistence:target.persistence,recency});
+   let baseline=savedJudgment?.result??salienceScorer.score({feedId,feedRevision:base.feedRevision,targetType:target.type,targetVersionId:target.id,text:target.text,version:target.version,independentSupport:independent,persistence:target.persistence,recency});
+   const plannedImportance=plan?.route==='GPT'?plan.stories.find(s=>s.targetVersionId===target.id)?.editorialImportance:undefined;
+   if(plannedImportance!==undefined)baseline={...baseline,components:{...baseline.components,overallScore:plannedImportance}};
+   if(plannedImportance!==undefined&&!await tx.read('salience_provenance',`salience:${assessmentId}`))await tx.write('salience_provenance',`salience:${assessmentId}`,{id:`salience:${assessmentId}`,feedId,assessmentId:`salience:${assessmentId}`,editorialPlanId:plan!.id,modelOperationIds:plan!.modelOperationIds,result:{...baseline,route:'COMPARATIVE_EDITORIAL_PLAN'},createdAt:now});
    if(savedJudgment && !await tx.read('salience_provenance',`salience:${assessmentId}`))await tx.write('salience_provenance',`salience:${assessmentId}`,{id:`salience:${assessmentId}`,feedId,assessmentId:`salience:${assessmentId}`,judgmentId:savedJudgment.id,input:savedJudgment.input,result:savedJudgment.result,createdAt:savedJudgment.createdAt});
-   if(semanticScorer && !savedJudgment && !await tx.read('salience_provenance',`salience:${assessmentId}`))await tx.write('salience_provenance',`salience:${assessmentId}`,{id:`salience:${assessmentId}`,feedId,assessmentId:`salience:${assessmentId}`,result:{...baseline,route:'DETERMINISTIC_PREFILTER',reasonCodes:editorial.reasonCodes},createdAt:now});
+   if(semanticScorer && !savedJudgment && !await tx.read('salience_provenance',`salience:${assessmentId}`))await tx.write('salience_provenance',`salience:${assessmentId}`,{id:`salience:${assessmentId}`,feedId,assessmentId:`salience:${assessmentId}`,result:{...baseline,route:plannedImportance===undefined?'DETERMINISTIC_PREFILTER':'COMPARATIVE_EDITORIAL_PLAN',reasonCodes:editorial.reasonCodes,editorialPlanId:plan?.id},createdAt:now});
    const impact=baseline.components.impact;
    const salience:EventSalienceAssessment=eventSalienceAssessmentSchema.parse({id:`salience:${assessmentId}`,...base,...baseline.components});
    const interests=tokens(tx.snapshot.feed.interests.join(' ')),words=tokens(target.text),topicMatch=interests.length?score(interests.filter(w=>words.includes(w)).length/interests.length):.5;

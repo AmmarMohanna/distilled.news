@@ -9,6 +9,7 @@ export interface RoutedSalienceResult extends SalienceResult {
  * diversity and publication remain outside this port. JEV is optional. */
 export class SemanticSalienceRouter implements EventSalienceScorer {
  readonly policyKey:string;
+ get durablyAccounted(){return Object.values(this.options).filter(Boolean).every(s=>s?.durablyAccounted===true)}
  constructor(private readonly options:{jev?:EventSalienceScorer;gpt?:EventSalienceScorer}){this.policyKey=`${SEMANTIC_SALIENCE_POLICY}:jev=${options.jev?.model??'UNCONFIGURED'}:gpt=${options.gpt?.model??'UNCONFIGURED'}`}
  async score(raw:SalienceInput):Promise<RoutedSalienceResult>{
   const input=salienceInputSchema.parse(raw),start=performance.now(),attempts:SalienceAttempt[]=[];
@@ -24,7 +25,7 @@ export class SemanticSalienceRouter implements EventSalienceScorer {
    const begun=performance.now();
    // Adapters must contain transport failures and retain their charged/reserved usage.
    let result:SalienceResult;
-   try{result=salienceResultSchema.parse(await scorer.score(input))}catch{
+   try{result=salienceResultSchema.parse(await scorer.score(input))}catch(error){if(scorer.durablyAccounted)throw error;
     result={...new DeterministicSalienceScorer().score(input),fallback:'ADAPTER_OUTCOME_UNKNOWN',usage:{calls:1,costUsd:.02,reported:false}};
    }
    attempts.push({scorer:kind,model:scorer.model??result.provenance.model,reason:result.fallback,confidence:result.confidence,judgment:result.judgment,latencyMs:performance.now()-begun,usage:result.usage});

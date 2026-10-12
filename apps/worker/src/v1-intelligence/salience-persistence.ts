@@ -9,7 +9,9 @@ export class SalienceContentionError extends HandoffError {constructor(){super('
 /** One immutable intent per exact target/input/policy. Calls occur only after
  * durable intent commit, outside retryable CAS. Lost outcomes never auto-reissue. */
 export async function durableSalience(store:V1FeedStore,input:SalienceInput,scorer:EventSalienceScorer,now:string,windowId?:string):Promise<Saved>{
- const id=await sha256(canonicalJson({input,policy:scorer.policyKey??SEMANTIC_SALIENCE_POLICY})),token=crypto.randomUUID();
+ const originalId=await sha256(canonicalJson({input,policy:scorer.policyKey??SEMANTIC_SALIENCE_POLICY})),token=crypto.randomUUID();
+ const retained=await store.read<Saved>(input.feedId,'salience_results',originalId),unpaidDenial=scorer.durablyAccounted&&retained?.result.usage.calls===0&&retained.result.usage.reported&&['SALIENCE_WINDOW_BUDGET_EXHAUSTED','EXPERIMENT_BUDGET_EXHAUSTED'].includes(retained.result.fallback??'');
+ const id=unpaidDenial?await sha256(canonicalJson({originalId,recovery:'account-salience-admission-v1'})):originalId;
  const acquired=await feedTransact(store,input.feedId,async tx=>{
   if(tx.snapshot.feed.revision!==input.feedRevision)throw new HandoffError('SCOPE_DENIED');
   const saved=await tx.read<Saved>('salience_results',id);if(saved)return {saved};
@@ -18,6 +20,13 @@ export async function durableSalience(store:V1FeedStore,input:SalienceInput,scor
    if(prior.leaseUntil>Date.now())throw new SalienceContentionError();
    const result={...new DeterministicSalienceScorer().score(input),fallback:'SALIENCE_OUTCOME_UNKNOWN',usage:{calls:input.targetType==='EVENT'?2:1,costUsd:prior.reservedCostUsd,reported:false},route:'DETERMINISTIC_FALLBACK',attempts:[],componentOrigin:{overallScore:'DETERMINISTIC',otherComponents:'DETERMINISTIC'},latencyMs:0};
    const saved={id,feedId:input.feedId,input,result,createdAt:now};await tx.write('salience_results',id,saved);return {saved};
+  }
+  if(scorer.durablyAccounted){
+   // Legacy unknown judgments without compatibility metadata are never rebilled
+   // just because preview length, window or adapter accounting changed.
+   const older=(await tx.list<Intent>('salience_intents')).filter(i=>i.input.feedRevision===input.feedRevision&&i.input.targetType===input.targetType&&i.input.targetVersionId===input.targetVersionId);
+   for(const old of older){const answer=await tx.read<Saved>('salience_results',old.id);if(answer?.result.usage.reported)continue;if(!answer&&old.leaseUntil>Date.now())throw new SalienceContentionError();return {saved:{id:old.id,feedId:input.feedId,input:old.input,result:{...new DeterministicSalienceScorer().score(input),fallback:'SALIENCE_OUTCOME_UNKNOWN',usage:{calls:old.reservedCalls,costUsd:old.reservedCostUsd,reported:false}},createdAt:now}}}
+   return {managed:true};
   }
   const reservedCostUsd=input.targetType==='EVENT'?.04:.02,reservedCalls=input.targetType==='EVENT'?2:1;
   if(windowId){
@@ -38,10 +47,11 @@ export async function durableSalience(store:V1FeedStore,input:SalienceInput,scor
  });
  if(acquired.saved)return acquired.saved;
  const result=await scorer.score(input);
+ if(acquired.managed&&result.fallback)return {id,feedId:input.feedId,input,result,createdAt:now};
  return feedTransact(store,input.feedId,async tx=>{
   const saved=await tx.read<Saved>('salience_results',id);if(saved)return saved;
   const intent=await tx.read<Intent>('salience_intents',id);
-  if(!intent || intent.token!==token || tx.snapshot.feed.revision!==input.feedRevision)throw new HandoffError('SCOPE_DENIED');
+  if(!acquired.managed&&(!intent || intent.token!==token) || tx.snapshot.feed.revision!==input.feedRevision)throw new HandoffError('SCOPE_DENIED');
   const value:Saved={id,feedId:input.feedId,input,result,createdAt:now};await tx.write('salience_results',id,value);return value;
  });
 }

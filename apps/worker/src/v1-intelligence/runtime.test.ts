@@ -174,3 +174,17 @@ it('a lost scheduled delivery recovers after transport expiry and publishes once
  expect((await processV1Briefing(env,message,()=>recovered.toISOString()))?.id).toBe(edition.id);
  expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await dispatchV1Intelligence(env,recovered)).toBe(0);
 },30000);
+
+it('relay recovers settled paid results while unknown outcomes remain fenced',async()=>{
+ const now=new Date('2026-10-03T13:00:00Z');
+ await feedTransact(store,'feed-1',async tx=>{
+  for(const id of ['settled','unknown']){
+   await tx.write('briefing_requests',id,{id,feedId:'feed-1',window:{start:'2026-10-03T11:00:00Z',end:'2026-10-03T12:00:00Z',kind:'HOURLY'},state:'PENDING',attempts:1,createdAt:now.toISOString()});
+   await tx.write('synthesis_jobs',id,{id,feedId:'feed-1',state:'PENDING',pendingCall:id+'-operation',leaseUntil:'2026-10-03T12:00:00Z'});
+   await tx.write('semantic_results',id+'-operation',{id:id+'-operation',feedId:'feed-1',status:id==='settled'?'SUCCEEDED':'UNKNOWN',usage:{reported:id==='settled'}});
+  }
+ });
+ await dispatchV1Intelligence(env,now);
+ const dispatches=await ctx.db.prepare("SELECT id FROM v1_queue_dispatches WHERE kind='v1_briefing'").all<{id:string}>();
+ expect(JSON.stringify(dispatches.results)).toContain('settled');expect(JSON.stringify(dispatches.results)).not.toContain('unknown');
+},15000);

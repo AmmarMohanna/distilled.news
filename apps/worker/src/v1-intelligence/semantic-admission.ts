@@ -1,6 +1,6 @@
 /** Historical accounting summary only. Admission belongs to the account ledger. */
 export type SemanticWorkClass='PRIMARY'|'RETRY'|'PROTECTED';
-export const isSemanticProcessing=(input:{kind:string;budgetKey:string})=>['EDITORIAL_RELEVANCE','COMPARATIVE_EDITORIAL_PLAN'].includes(input.kind)||/^semantic:\d{4}-\d{2}-\d{2}$/.test(input.budgetKey)&&['RELATION','RELATION_EFFECT','SEMANTIC_CONSTRUCTION'].includes(input.kind);
+export const isSemanticProcessing=(input:{kind:string;budgetKey:string})=>input.kind.startsWith('PUBLICATION_')||['EDITORIAL_RELEVANCE','COMPARATIVE_EDITORIAL_PLAN'].includes(input.kind)||/^semantic:\d{4}-\d{2}-\d{2}$/.test(input.budgetKey)&&['RELATION','RELATION_EFFECT','SEMANTIC_CONSTRUCTION'].includes(input.kind);
 export interface SemanticWallet {reportedCostUsd:number;heldCostUsd:number;calls:number;unknown:number;inFlight:number}
 export function summarizeSemanticWallet(intents:{id:string;reservedCostUsd:number;leaseUntil:number}[],results:Map<string,{usage:{reported:boolean;costUsd:number}}>,now=Date.now()):SemanticWallet{
  const wallet:SemanticWallet={reportedCostUsd:0,heldCostUsd:0,calls:intents.length,unknown:0,inFlight:0};

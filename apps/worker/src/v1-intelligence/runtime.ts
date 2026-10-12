@@ -1,3 +1,5 @@
+import {ModelSpendingWait} from './model-spending';
+import {prepareAdaptiveEditorialPlan} from './editorial-continuation';
 import {enqueueV1,pendingV1Jobs} from '../v1-queue-dispatch';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {z} from 'zod';
@@ -9,7 +11,7 @@ import type {DownstreamJob} from '../v1-intake/types';
 import {canonicalJson} from '../v1-intake/canonical';
 import {V1FeedStore,feedTransact} from './store';
 import {processEvidenceIntelligence} from './engine';
-import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET,type PublicationWindow} from './scoring';
+import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET,ADAPTIVE_BRIEFING_PROCESSING,type PublicationWindow} from './scoring';
 import {publishSelection,QuietPublication} from './publication';
 import {createStoredEvidenceModel} from './model';
 import {createSemanticSalienceScorer} from './salience-runtime';
@@ -124,12 +126,20 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   // A configured writer model only ever sees the approved facts of an EditorialPlan, so model-backed synthesis implies the plan path;
   // the deterministic fallback plan is used when no strong planning model is available. The writer never fixes upstream selection.
   const writer=createStoredEvidenceModel(env,fetcher);
-  const shortlist=env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),20,env,fetcher):undefined;
+  // Resume existing paid legacy scopes under their frozen contracts; new windows
+  // use adaptive execution. Never migrate a terminal request or a paid identity.
+  const activeFeedRevision=(await store.getFeed(feedId))?.revision;
+  const historicalPlans=(await store.list<import('./editorial-plan').EditorialPlanRecord>(feedId,'editorial_plans')).filter(p=>p.window.start===window.start&&p.window.end===window.end&&p.feedRevision===activeFeedRevision);
+  const legacyPlan=historicalPlans.find(p=>p.policyVersion=== 'comparative-editorial-plan-v21');
+  const budget=legacyPlan?DEFAULT_BRIEFING_BUDGET:ADAPTIVE_BRIEFING_PROCESSING;
+  const frozen=legacyPlan?await store.read<import('./shortlist').ShortlistRecord>(feedId,'shortlists',legacyPlan.shortlistId):undefined;
+  const shortlist=frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher):undefined);
   failureStage='EDITORIAL_PLAN';
-  const plan=shortlist?await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):undefined;
+  const plan=shortlist?(legacyPlan?await prepareEditorialPlan(store,shortlist,budget,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):await prepareAdaptiveEditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'))):undefined;
+  if(plan?.route!=='GPT'&&plan?.fallbackReason&&/ACCOUNT_|MODEL_CAPABILITY|MODEL_CONTEXT|RESOURCE|AUTHORIZATION|LEGACY_LIABILITIES|CONCURRENCY|COST_ESTIMATE|EXECUTION_YIELD|GLOBAL_RECONCILIATION_CAPACITY/.test(plan.fallbackReason))throw new ModelSpendingWait(plan.fallbackReason);
   if(required&&shortlist?.candidates.length&&plan?.route!=='GPT')throw new HandoffError('TEMPORARY_UNAVAILABLE');
   failureStage='SELECTION';
-  const selection=await scoreAndSelect(store,feedId,window,DEFAULT_BRIEFING_BUDGET,now(),salienceScorer??createSemanticSalienceScorer(env),plan);
+  const selection=await scoreAndSelect(store,feedId,window,budget,now(),salienceScorer??(plan?.route==='GPT'?undefined:createSemanticSalienceScorer(env)),plan);
   // Protected work that cannot be delivered yet is a durable, truthful BLOCKED state tied to reassessment progress, not a failure retried
   // identically until the attempt budget is spent. The obligation stays OPEN and nothing is reported as delivered.
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length && shortlist){await recordBlockedWindow(store,feedId,id,shortlist,selection,now());return undefined}
@@ -141,6 +151,8 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE',result:edition?'PUBLISHED':deferred?'DEFERRED':'QUIET',reason:edition?undefined:deferred?'EDITORIAL_WORK_DEFERRED':'NO_SELECTED_DEVELOPMENTS',completedAt:now()})});return edition;
  } catch(error) {
   if(error instanceof QuietPublication)return undefined;
+  const waitingJob=await store.read<{state:string;failure?:string}>(feedId,'synthesis_jobs',id);
+  if(error instanceof ModelSpendingWait||waitingJob?.state==='PENDING'&&waitingJob.failure&&/ACCOUNT_|AUTHORIZATION|EXECUTION_YIELD|MODEL_CONTEXT|PAID_RESULT_AWAITING/.test(waitingJob.failure)){const reason=error instanceof ModelSpendingWait?error.reason:waitingJob!.failure!;await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!==reason)await tx.write('briefing_requests',id,{...current,reason,nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()})});return undefined;}
   console.error(JSON.stringify({type:'V1_BRIEFING_ATTEMPT_FAILED',feedId,requestId:id,stage:failureStage,error:error instanceof Error?error.message.slice(0,300):'UNKNOWN'}));
   // The publication lease owns contention; concurrent deliveries cannot consume
   // retry attempts while that lease is live or reopen a completed edition.
@@ -231,7 +243,9 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    }
    if(request.reason==='MODEL_SETUP_REQUIRED')await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING'&&current.reason==='MODEL_SETUP_REQUIRED'){const {reason:_setup,...rest}=current;await tx.write('briefing_requests',request.id,rest)}});
    const job=await store.read<{state:string;leaseUntil:string;pendingCall?:string}>(id,'synthesis_jobs',request.id);
-   if(job?.state==='FAILED' || job?.pendingCall || job?.state==='RUNNING' && Date.parse(job.leaseUntil)>now.getTime()) continue;
+   const retained=job?.pendingCall?await store.read<{status:string;usage?:{reported:boolean}}>(id,'semantic_results',job.pendingCall)??await store.read<{status:string;usage?:{reported:boolean}}>(id,'semantic_settlements',job.pendingCall):undefined;
+   const settledSuccess=retained?.status==='SUCCEEDED'&&retained.usage?.reported===true;
+   if(job?.state==='FAILED' || job?.pendingCall&&!settledSuccess || job?.state==='RUNNING' && Date.parse(job.leaseUntil)>now.getTime()) continue;
    if(!await enqueueV1(env,'v1_briefing',request.id,{type:'v1_briefing',feedId:id,window:request.window} satisfies DistilledQueueMessage,now))continue;sent++;briefingSends++;
    if(briefingSends===2) break;
   }

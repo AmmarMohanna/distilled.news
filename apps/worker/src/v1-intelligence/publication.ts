@@ -1,3 +1,9 @@
+import {deferEditorialWork} from './editorial-work';
+import {partitionVerification,mergeVerification,type VerificationOutcome} from './verification-packets';
+import {partitionWriterInput} from './publication-packets';
+import {durableSemanticOperation} from './semantic-operations';
+import type {ModelAdmission} from './model-capacity';
+import {ModelSpendingWait} from './model-spending';
 import {HandoffError,sha256,type BriefingCandidate,type EventVersion,type EventMembership,type EvidenceRevision} from '@distilled/contracts';
 import {z} from 'zod';
 import type {FactTiming} from './freshness';
@@ -28,7 +34,7 @@ export type WriterFact=Omit<ApprovedWriterFact,'claimMentionIds'|'evidenceRevisi
 export interface SynthesisWriterInput {feed:SynthesisInput['feed'];selectionId:string;window?:SynthesisInput['window'];editorialPlan?:SynthesisInput['editorialPlan'];stories:{candidate:Pick<BriefingCandidate,'id'|'targetType'|'targetVersionId'>;plan?:Omit<SelectedPlanStory,'facts'>;editorial?:EditorialDecision;approvedFacts?:WriterFact[];approvedSpans?:ClaimSupport[];evidence:{id:string;body?:string;language?:string;publisherId?:string}[]}[]}
 export interface VerificationClaim {id:string;candidateId?:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean;publisherId?:string}[];requiredFacts?:PreservationFact[];allowedFacts?:PreservationFact[];previousLedgerFacts?:string[];previousReaderClaims?:ShortlistRecord['ledger'];newUnderstandingFacts?:PreservationFact[];correctionObligations?:ShortlistRecord['obligations']}
 export interface BriefingModelPort {
- model:string;provider:string;maxCallCostUsd:number;promptVersion?:string;requiresFullEntailment?:boolean;
+ model:string;provider:string;maxCallCostUsd:number;usage?():ModelUsage;admission?(payload:unknown):ModelAdmission;promptVersion?:string;requiresFullEntailment?:boolean;
  synthesize(input:SynthesisWriterInput,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
  synthesisPayload?(input:SynthesisWriterInput):unknown;
  repair?(input:SynthesisWriterInput,draft:BriefingDraft,feedback:WriterFeedback,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
@@ -36,6 +42,7 @@ export interface BriefingModelPort {
  verificationPayload?(claims:VerificationClaim[]):unknown;
  verify?(claims:VerificationClaim[],limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{supportedClaimIds:string[];preservedFactIds?:string[];addressedCorrectionObligationIds?:string[];novelFactIds?:string[];semanticChecks?:SemanticFactCheck[];claimEntailment?:{claimId:string;fullyEntailed:boolean;reason:string;unsupportedMeaning:string[]}[];usage:ModelUsage}>;
 }
+class PublicationOperationFailure extends HandoffError {constructor(readonly reason:string){super('INVALID_REQUEST');this.message=reason}}
 class VerificationContractError extends HandoffError {readonly reason='VERIFICATION_CONTRACT_MISMATCH';constructor(){super('INVALID_REQUEST')}}
 export class QuietPublication extends Error {constructor(){super('NO_NEW_VERIFIED_STORIES')}}
 interface PublicationJob {id:string;feedId:string;selectionId:string;state:'PENDING'|'RUNNING'|'DONE'|'FAILED';attempts:number;token:string;leaseUntil:string;callsUsed:number;tokensIn:number;tokensOut:number;cost:number;pendingCall?:string;repairRequested?:boolean;failure?:string}
@@ -50,7 +57,7 @@ export interface BriefingEditionRecord {
  generation:{model:string;provider:string;promptVersion:string;routerVersion:string;tokensIn:number;tokensOut:number;cost:number;latencyMs:number;usageConfirmed:boolean;repairCount?:number;draftId?:string;verificationId?:string};
  selectionPolicyVersion:string;groundingPolicyVersion:string;createdAt:string;
 }
-const draftSchema=z.object({language:z.string().min(1),stories:z.array(z.object({candidateId:z.string().min(1),claims:z.array(z.object({text:z.string().min(1).max(1000),communicatedFactIds:z.array(z.string().min(1)).max(100).optional(),support:z.array(z.object({evidenceRevisionId:z.string().min(1),quote:z.string().min(1).max(1800)}).strict()).min(1).max(3)}).strict()).max(4)}).strict()).max(20)}).strict();
+const draftSchema=z.object({language:z.string().min(1),stories:z.array(z.object({candidateId:z.string().min(1),claims:z.array(z.object({text:z.string().min(1),communicatedFactIds:z.array(z.string().min(1)).optional(),support:z.array(z.object({evidenceRevisionId:z.string().min(1),quote:z.string().min(1)}).strict()).min(1)}).strict())}).strict())}).strict();
 const usageSchema=z.object({tokensIn:z.number().int().nonnegative(),tokensOut:z.number().int().nonnegative(),cost:z.number().finite().nonnegative(),confirmed:z.boolean()}).strict();
 const normalize=(s:string)=>s.normalize('NFKC').replace(/\s+/g,' ').trim();
 function preservationFacts(story:SynthesisInput['stories'][number]):PreservationFact[] {
@@ -68,7 +75,7 @@ function preservationFacts(story:SynthesisInput['stories'][number]):Preservation
 async function assertCommunicationCurrent(tx:FeedTransaction,selection:SelectionRecord):Promise<void> {
  if(selection.communicationFingerprint && selection.communicationFingerprint!==await communicationFingerprint(tx,selection.window.end)) throw new HandoffError('TEMPORARY_UNAVAILABLE');
 }
-async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Promise<SynthesisInput> {
+async function selectionInput(tx:FeedTransaction,selection:SelectionRecord,adaptiveExecution=selection.budget.mode==='ADAPTIVE'):Promise<SynthesisInput> {
  if(selection.feedRevision!==tx.snapshot.feed.revision) throw new HandoffError('SCOPE_DENIED');
  await assertCommunicationCurrent(tx,selection);
  const active=new Set((await tx.store.currentEvidence(tx.snapshot.feed.id)).map(e=>e.revision.id)),stories:SynthesisInput['stories']=[];
@@ -113,7 +120,7 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord):Prom
   if(writerPlan && preservationFacts({candidate,eventVersions,evidence,plan:writerPlan}).some(f=>!f.evidenceRevisionIds.some(id=>evidence.some(e=>e.id===id))))throw new HandoffError('SCOPE_DENIED');
   stories.push({candidate,eventVersions,editorial:editorial?boundedEditorialContext(editorial):undefined,plan:writerPlan,storylineVersion:storyline?{...storyline,currentState:storyline.currentState.slice(0,1800),previousState:storyline.previousState?.slice(0,1000),supportedFacts:storyline.supportedFacts.slice(0,10),turningPoints:storyline.turningPoints.slice(0,10)}:undefined,evidence});
  }
- if(inspected>selection.budget.maxEvidenceInspections || stories.length>selection.budget.maxStories) throw new HandoffError('INVALID_REQUEST');
+ if(!adaptiveExecution&&(inspected>selection.budget.maxEvidenceInspections || stories.length>selection.budget.maxStories)) throw new HandoffError('INVALID_REQUEST');
  const f=tx.snapshot.feed;return {feed:{id:f.id,revision:f.revision,title:f.title,interests:f.interests,outputLanguage:f.outputLanguage},selectionId:selection.id,window:selection.window,editorialPlan:plan?{id:plan.id,route:plan.route}:undefined,stories};
 }
 export function approvedWriterFacts(story:SynthesisInput['stories'][number]):ApprovedWriterFact[] {
@@ -159,16 +166,15 @@ export function synthesisWriterInput(input:SynthesisInput):SynthesisWriterInput 
  })};
 }
 /** One reader-facing claim per supported meaning. Equivalent claims collapse
- * into the first one. The published claim contract (draftSchema) allows at most
- * three supports per claim, so that bound is a contract limit, not a choice;
- * supports beyond it remain on the shortlist/ledger fact (mergeEquivalentFacts
+ * into the first one. Every distinct support remains attached for provenance;
+ * citation count is not an editorial quota (mergeEquivalentFacts
  * keeps every evidence ID) and are only omitted from the reader-visible claim. */
 export function mergeEquivalentClaims<T extends DraftClaim>(claims:T[]):T[] {
  const out:T[]=[];
  for(const claim of claims){
   const same=out.find(c=>equivalentFact(c.text,claim.text));
   if(!same){out.push({...claim,support:[...claim.support]});continue}
-  for(const s of claim.support)if(same.support.length<3&&!same.support.some(x=>x.evidenceRevisionId===s.evidenceRevisionId&&x.quote===s.quote))same.support.push(s);
+  for(const s of claim.support)if(!same.support.some(x=>x.evidenceRevisionId===s.evidenceRevisionId&&x.quote===s.quote))same.support.push(s);
   if(claim.communicatedFactIds?.length)same.communicatedFactIds=[...new Set([...(same.communicatedFactIds??[]),...claim.communicatedFactIds])];
  }
  return out;
@@ -213,6 +219,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
  if(options.requireModel&&!options.model?.verify)throw new HandoffError('INVALID_REQUEST');
  const published=await store.read<BriefingEditionRecord>(feedId,'editions',editionId);if(published){if(options.requireModel&&published.generation.provider==='NONE')throw new HandoffError('INVALID_REQUEST');return published;}
  if(!selection.selectedCandidateIds.length) throw new HandoffError('INVALID_REQUEST');
+ const adaptiveExecution=selection.budget.mode==='ADAPTIVE'||Boolean(options.model?.admission);
  const token=crypto.randomUUID();
  const claimed=await feedTransact(store,feedId,async tx=>{
   const edition=await tx.read<BriefingEditionRecord>('editions',editionId);if(edition) return {edition};
@@ -227,8 +234,10 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   if(prior?.state==='RUNNING' && Date.parse(prior.leaseUntil)>Date.parse(now)) throw new HandoffError('TEMPORARY_UNAVAILABLE');
   const cachedFallback=prior?.pendingCall?await tx.read<StoredDraft>('drafts',selectionId):undefined;
   const safeFallback=cachedFallback?.provider==='NONE' && cachedFallback.promptVersion==='approved-fact-spans-v3';
-  if(prior?.pendingCall && !safeFallback || (prior?.attempts??0)>=5 || prior?.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
-  const input=await selectionInput(tx,selection);
+  const retainedAdaptive=prior?.pendingCall&&adaptiveExecution?await tx.read<{status:string;usage:{reported:boolean}}> ('semantic_results',prior.pendingCall)??await tx.read<{status:string;usage:{reported:boolean}}>('semantic_settlements',prior.pendingCall):undefined;
+  const safeAdaptive=retainedAdaptive?.status==='SUCCEEDED';
+  if(prior?.pendingCall && !safeFallback&&!safeAdaptive || !adaptiveExecution&&(prior?.attempts??0)>=5 || prior?.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
+  const input=await selectionInput(tx,selection,adaptiveExecution);
   if(options.requireModel&&input.editorialPlan?.route!=='GPT')throw new HandoffError('INVALID_REQUEST');
   const job:PublicationJob={id:editionId,feedId,selectionId,state:'RUNNING',attempts:(prior?.attempts??0)+1,token,leaseUntil:new Date(Date.parse(now)+selection.budget.maxWallClockMs).toISOString(),callsUsed:prior?.callsUsed??0,tokensIn:prior?.tokensIn??0,tokensOut:prior?.tokensOut??0,cost:prior?.cost??0,pendingCall:prior?.pendingCall,repairRequested:prior?.repairRequested};
   await tx.write('synthesis_jobs',editionId,job);return {input,authorizationScopes:tx.snapshot.scopes};
@@ -237,46 +246,90 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
  // Source/current-plan validation and CAS contention precede the owned lease.
  // The execution clock measures synthesis under that lease, not preparation.
  const started=Date.now();
- const input=claimed.input!;
+ let input=claimed.input!;
  const authorizationScopes=canonicalJson(claimed.authorizationScopes!);
- const callModel=async<T extends {usage:ModelUsage}>(phase:string,payload:unknown,execute:(limits:{maxOutputTokens:number;signal:AbortSignal})=>Promise<T>,resultKey=selectionId):Promise<T>=>{
+ const recordPendingDelivery=async(ids:string[],reason:string)=>feedTransact(store,feedId,async tx=>{
+  await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);
+  const plan=selection.editorialPlanId?await tx.read<EditorialPlanRecord>('editorial_plans',selection.editorialPlanId):undefined,shortlist=plan?await tx.read<ShortlistRecord>('shortlists',plan.shortlistId):undefined;
+  for(const candidateId of ids){const selected=input.stories.find(s=>s.candidate.id===candidateId),candidate=shortlist?.candidates.find(c=>c.targetVersionId===selected?.candidate.targetVersionId);if(!selected||!candidate)throw new HandoffError('SCOPE_DENIED');await deferEditorialWork(tx,candidate,reason,options.now(),selection.id,selection.window.end,{adaptive:true});const id=JSON.stringify([selection.id,'PENDING_DELIVERY',candidateId,reason]);if(!await tx.read('publication_reconciliations',id))await tx.write('publication_reconciliations',id,{id,feedId,selectionId:selection.id,candidateId,targetVersionId:candidate.targetVersionId,requiredFactIds:selected.plan?.mustIncludeFactIds,evidenceRevisionIds:candidate.evidenceRevisionIds,state:'SELECTED_UNCOMMUNICATED',reason,createdAt:options.now()})}
+ });
+
+ const persistModelResult=async(tx:FeedTransaction,phase:string,resultKey:string,result:any)=>{
   const model=options.model!;
+   if(phase==='SYNTHESIS'||phase==='REPAIR') {
+    const parsed=draftSchema.safeParse((result as any & {draft?:unknown}).draft);
+    if(!parsed.success || parsed.data.language!==input.feed.outputLanguage) throw new HandoffError('INVALID_REQUEST');
+    await tx.write('drafts',resultKey,{id:resultKey,feedId,draft:parsed.data,model:model.model,provider:model.provider,promptVersion:model.promptVersion??'selected-evidence-editorial-v2',createdAt:options.now()});
+   } else if(phase==='GROUNDING') {
+    const ids=z.array(z.string().min(1)).safeParse((result as any & {supportedClaimIds?:unknown}).supportedClaimIds);
+    if(!ids.success) throw new HandoffError('INVALID_REQUEST');
+    const preserved=z.array(z.string().min(1)).optional().safeParse((result as any & {preservedFactIds?:unknown}).preservedFactIds);
+    if(!preserved.success) throw new HandoffError('INVALID_REQUEST');
+    const novel=z.array(z.string().min(1)).optional().safeParse((result as any & {novelFactIds?:unknown}).novelFactIds);if(!novel.success)throw new HandoffError('INVALID_REQUEST');
+    const addressed=z.array(z.string().min(1)).optional().safeParse((result as any & {addressedCorrectionObligationIds?:unknown}).addressedCorrectionObligationIds);if(!addressed.success)throw new HandoffError('INVALID_REQUEST');
+    const semantic=z.array(z.object({readerNovelty:z.object({status:z.enum(['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED','NOT_APPLICABLE']),reason:z.string().min(1),previousFactTexts:z.array(z.string())}).strict().optional(),factId:z.string().min(1),communicated:z.boolean(),attribution:z.boolean(),certainty:z.boolean(),temporal:z.boolean(),qualifiers:z.boolean(),nonRepetitive:z.boolean().optional(),reason:z.string(),readerSpans:z.array(z.object({claimId:z.string().min(1),text:z.string().min(1)}).strict()).optional()}).strict()).optional().parse((result as any & {semanticChecks?:unknown}).semanticChecks);
+    if(semantic&&(new Set(semantic.map(c=>c.factId)).size!==semantic.length||semantic.some(c=>!input.stories.some(s=>s.plan?.facts.some(f=>f.id===c.factId)||preservationFacts(s).some(f=>f.id===c.factId)))))throw new HandoffError('INVALID_REQUEST');
+    await tx.write('verification_results',resultKey,{id:resultKey,feedId,supportedClaimIds:ids.data,preservedFactIds:preserved.data,addressedCorrectionObligationIds:addressed.data,novelFactIds:novel.data,semanticChecks:semantic,claimEntailment:'claimEntailment' in result?result.claimEntailment:undefined,createdAt:options.now()});
+   }
+ };
+ const writerReuseScope=(writer:SynthesisWriterInput)=>({language:writer.feed.outputLanguage,stories:writer.stories.map(s=>({target:s.candidate.targetVersionId,facts:s.approvedFacts?.map(f=>({id:f.id,text:f.text,support:f.support,certainty:f.certainty,attribution:f.attribution,context:f.context,eventTime:f.eventTime,reportTime:f.reportTime})),plan:s.plan?{required:s.plan.mustIncludeFactIds,newFacts:s.plan.newUnderstandingFactIds,context:s.plan.contextFactIds,previousReader:s.plan.previousLedgerEntries,obligations:s.plan.correctionObligations}:undefined})).sort((a,b)=>a.target.localeCompare(b.target))});
+ const verificationReuseScope=(claims:VerificationClaim[])=>claims.map(c=>({target:input.stories.find(s=>s.candidate.id===c.candidateId)?.candidate.targetVersionId,text:c.text,support:c.support,context:c.context,required:c.requiredFacts?.map(({timing:_,...f})=>f),allowed:c.allowedFacts?.map(({timing:_,...f})=>f),previous:c.previousLedgerFacts,previousReader:c.previousReaderClaims,corrections:c.correctionObligations}));
+ const callAdaptiveModel=async<T extends {usage:ModelUsage}>(phase:string,payload:unknown,execute:(limits:{maxOutputTokens:number;signal:AbortSignal})=>Promise<T>,resultKey:string,reuseScope?:unknown):Promise<T>=>{
+  const model=options.model!,envelope=model.admission?.(payload);
+  if(!envelope)throw new ModelSpendingWait('MODEL_CAPABILITY_UNAVAILABLE');
+  const operation={feedId,feedRevision:selection.feedRevision,evidenceRevisionIds:[...new Set(input.stories.flatMap(s=>s.evidence.map(e=>e.id)))],kind:'PUBLICATION_'+phase,policyVersion:'adaptive-publication-operations-v1:'+model.promptVersion,model:model.model,budgetKey:'publication:'+editionId,state:{selectionId,resultKey,payload,publicationScope:reuseScope}};
+  const operationId=await sha256(canonicalJson(operation));
+  const retained=await store.read(feedId,'semantic_results',operationId)??await store.read(feedId,'semantic_settlements',operationId);
+  if(!retained&&Date.now()+60000>started+Math.max(90000,selection.budget.maxWallClockMs))throw new ModelSpendingWait('PUBLICATION_EXECUTION_YIELD');
+  await feedTransact(store,feedId,async tx=>{await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,pendingCall:operationId,leaseUntil:new Date(Date.parse(options.now())+90000).toISOString()})});
+  const saved=await durableSemanticOperation<T>(store,operation,async()=>{
+   await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution)});
+   const result=await execute({maxOutputTokens:envelope.maxOutputTokens,signal:AbortSignal.timeout(60000)}),usage=usageSchema.parse(result.usage);
+   return {value:result,usage:{calls:1,tokensIn:usage.tokensIn,tokensOut:usage.tokensOut,costUsd:usage.cost,reported:usage.confirmed}};
+  },options.now(),()=>{const usage=model.usage?.();return usage?{calls:1,costUsd:usage.cost,reported:usage.confirmed,tokensIn:usage.tokensIn,tokensOut:usage.tokensOut}:{calls:1,costUsd:envelope.reservationCostUsd,reported:false}},{operationAdmission:envelope,reuseContext:reuseScope});
+  if(saved.status!=='SUCCEEDED'||!saved.value){
+   // No paid call: retain a resource wait without turning it into UNKNOWN.
+   if(saved.usage.calls===0||saved.usage.reported)await feedTransact(store,feedId,async tx=>{const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,pendingCall:undefined})});
+   if(saved.usage.calls>0&&saved.usage.reported)throw new PublicationOperationFailure('KNOWN_'+phase+'_FAILURE:'+saved.failure);
+   throw new ModelSpendingWait(saved.failure??'PUBLICATION_OPERATION_PENDING');
+  }
+  const result=saved.value,usage=usageSchema.parse(result.usage);
+  await feedTransact(store,feedId,async tx=>{
+   const job=await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);
+   const prior=await tx.read('model_executions',saved.id);
+   await persistModelResult(tx,phase,resultKey,result);
+   if(!prior)await tx.write('model_executions',saved.id,{id:saved.id,feedId,editionId,phase,model:model.model,provider:model.provider,status:'SUCCEEDED',...usage,latencyMs:saved.latencyMs,createdAt:options.now()});
+   await tx.write('synthesis_jobs',editionId,{...job,pendingCall:undefined,callsUsed:job.callsUsed+(prior?0:1),cost:job.cost+(prior?0:usage.cost),tokensIn:job.tokensIn+(prior?0:usage.tokensIn),tokensOut:job.tokensOut+(prior?0:usage.tokensOut)});
+  });return result;
+ };
+ const callModel=async<T extends {usage:ModelUsage}>(phase:string,payload:unknown,execute:(limits:{maxOutputTokens:number;signal:AbortSignal})=>Promise<T>,resultKey=selectionId,reuseScope?:unknown):Promise<T>=>{
+  const model=options.model!,adaptive=adaptiveExecution;
+  if(adaptive)return callAdaptiveModel(phase,payload,execute,resultKey,reuseScope);
+  const reservedCost=model.maxCallCostUsd;
   const intent=await feedTransact(store,feedId,async tx=>{
-   if(canonicalJson(tx.snapshot.scopes)!==authorizationScopes) await selectionInput(tx,selection);
+   if(canonicalJson(tx.snapshot.scopes)!==authorizationScopes) await selectionInput(tx,selection,adaptiveExecution);
    await assertCommunicationCurrent(tx,selection);
    const job=await requireJob(tx,editionId,token,options.now()),bytes=new TextEncoder().encode(JSON.stringify(payload)).length;
-   if(!Number.isFinite(model.maxCallCostUsd) || model.maxCallCostUsd<0 || job.callsUsed>=selection.budget.maxModelCalls || job.cost+model.maxCallCostUsd>selection.budget.maxCostUsd || job.tokensIn+bytes>selection.budget.maxInputTokens || job.tokensOut>=selection.budget.maxOutputTokens) throw new HandoffError('INVALID_REQUEST');
+   if(!adaptive&&(!Number.isFinite(model.maxCallCostUsd) || model.maxCallCostUsd<0 || job.callsUsed>=selection.budget.maxModelCalls || job.cost+model.maxCallCostUsd>selection.budget.maxCostUsd || job.tokensIn+bytes>selection.budget.maxInputTokens || job.tokensOut>=selection.budget.maxOutputTokens)) throw new HandoffError('INVALID_REQUEST');
    const id=crypto.randomUUID(),remaining=selection.budget.maxOutputTokens-job.tokensOut;
-   await tx.write('model_intents',id,{id,feedId,editionId,selectionId,phase,model:model.model,provider:model.provider,reservedCost:model.maxCallCostUsd,reservedInputTokens:bytes,reservedOutputTokens:remaining,createdAt:options.now()});
-   await tx.write('synthesis_jobs',editionId,{...job,callsUsed:job.callsUsed+1,cost:job.cost+model.maxCallCostUsd,tokensIn:job.tokensIn+bytes,tokensOut:job.tokensOut+remaining,pendingCall:id});
+
+   await tx.write('model_intents',id,{id,feedId,editionId,selectionId,phase,token,model:model.model,provider:model.provider,reservedCost,reservedInputTokens:bytes,reservedOutputTokens:remaining,createdAt:options.now()});
+   await tx.write('synthesis_jobs',editionId,{...job,callsUsed:job.callsUsed+1,cost:job.cost+reservedCost,tokensIn:job.tokensIn+bytes,tokensOut:job.tokensOut+remaining,pendingCall:id});
    return {id,bytes,remaining,previous:job};
   });
   const callStarted=Date.now(),signal=AbortSignal.timeout(Math.max(1,selection.budget.maxWallClockMs-(Date.now()-started)));
   let result:T;
   try {result=await Promise.race([execute({maxOutputTokens:intent.remaining,signal}),new Promise<never>((_,reject)=>signal.addEventListener('abort',()=>reject(new HandoffError('TEMPORARY_UNAVAILABLE')),{once:true}))])}
   catch {throw new HandoffError('TEMPORARY_UNAVAILABLE')}
-  const usage=usageSchema.safeParse(result.usage);if(!usage.success || usage.data.tokensOut>intent.remaining || usage.data.tokensIn>selection.budget.maxInputTokens || usage.data.cost>model.maxCallCostUsd) throw new HandoffError('INVALID_REQUEST');
+  const usage=usageSchema.safeParse(result.usage);
+  if(!usage.success || usage.data.tokensOut>intent.remaining || !adaptive&&(usage.data.tokensIn>selection.budget.maxInputTokens || usage.data.cost>model.maxCallCostUsd)) throw new HandoffError('INVALID_REQUEST');
   await feedTransact(store,feedId,async tx=>{
    const job=await requireJob(tx,editionId,token,options.now());if(job.pendingCall!==intent.id) throw new HandoffError('TEMPORARY_UNAVAILABLE');
-   const actual=usage.data.confirmed?usage.data:{tokensIn:intent.bytes,tokensOut:intent.remaining,cost:model.maxCallCostUsd,confirmed:false};
+   const actual=usage.data.confirmed?usage.data:{tokensIn:intent.bytes,tokensOut:intent.remaining,cost:reservedCost,confirmed:false};
    await tx.write('model_executions',intent.id,{id:intent.id,feedId,editionId,phase,model:model.model,provider:model.provider,status:'SUCCEEDED',...actual,latencyMs:Date.now()-callStarted,createdAt:options.now()});
    // Persist the usable provider result in the same commit as settlement. A crash
    // after settlement must never require another paid synthesis/verification call.
-   if(phase==='SYNTHESIS'||phase==='REPAIR') {
-    const parsed=draftSchema.safeParse((result as T & {draft?:unknown}).draft);
-    if(!parsed.success || parsed.data.language!==input.feed.outputLanguage) throw new HandoffError('INVALID_REQUEST');
-    await tx.write('drafts',resultKey,{id:resultKey,feedId,draft:parsed.data,model:model.model,provider:model.provider,promptVersion:model.promptVersion??'selected-evidence-editorial-v2',createdAt:options.now()});
-   } else if(phase==='GROUNDING') {
-    const ids=z.array(z.string().min(1)).max(80).safeParse((result as T & {supportedClaimIds?:unknown}).supportedClaimIds);
-    if(!ids.success) throw new HandoffError('INVALID_REQUEST');
-    const preserved=z.array(z.string().min(1)).max(200).optional().safeParse((result as T & {preservedFactIds?:unknown}).preservedFactIds);
-    if(!preserved.success) throw new HandoffError('INVALID_REQUEST');
-    const novel=z.array(z.string().min(1)).max(200).optional().safeParse((result as T & {novelFactIds?:unknown}).novelFactIds);if(!novel.success)throw new HandoffError('INVALID_REQUEST');
-    const addressed=z.array(z.string().min(1)).max(100).optional().safeParse((result as T & {addressedCorrectionObligationIds?:unknown}).addressedCorrectionObligationIds);if(!addressed.success)throw new HandoffError('INVALID_REQUEST');
-    const semantic=z.array(z.object({readerNovelty:z.object({status:z.enum(['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED','NOT_APPLICABLE']),reason:z.string().min(1).max(250),previousFactTexts:z.array(z.string()).max(20)}).strict().optional(),factId:z.string().min(1),communicated:z.boolean(),attribution:z.boolean(),certainty:z.boolean(),temporal:z.boolean(),qualifiers:z.boolean(),nonRepetitive:z.boolean().optional(),reason:z.string().max(500),readerSpans:z.array(z.object({claimId:z.string().min(1),text:z.string().min(1)}).strict()).max(80).optional()}).strict()).max(200).optional().parse((result as T & {semanticChecks?:unknown}).semanticChecks);
-    if(semantic&&(new Set(semantic.map(c=>c.factId)).size!==semantic.length||semantic.some(c=>!input.stories.some(s=>s.plan?.facts.some(f=>f.id===c.factId)||preservationFacts(s).some(f=>f.id===c.factId)))))throw new HandoffError('INVALID_REQUEST');
-    await tx.write('verification_results',resultKey,{id:resultKey,feedId,supportedClaimIds:ids.data,preservedFactIds:preserved.data,addressedCorrectionObligationIds:addressed.data,novelFactIds:novel.data,semanticChecks:semantic,claimEntailment:'claimEntailment' in result?result.claimEntailment:undefined,createdAt:options.now()});
-   }
+   await persistModelResult(tx,phase,resultKey,result);
    await tx.write('synthesis_jobs',editionId,{...job,pendingCall:undefined,cost:intent.previous.cost+actual.cost,tokensIn:intent.previous.tokensIn+actual.tokensIn,tokensOut:intent.previous.tokensOut+actual.tokensOut});
   });return result;
  };
@@ -285,7 +338,30 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   if(!storedDraft) {
    if(options.model) {
     const writer=synthesisWriterInput(input);
-    try {await callModel('SYNTHESIS',options.model.synthesisPayload?.(writer)??writer,limits=>options.model!.synthesize(writer,limits));}
+    try {
+     if(!adaptiveExecution)await callModel('SYNTHESIS',options.model.synthesisPayload?.(writer)??writer,limits=>options.model!.synthesize(writer,limits));
+     else {
+      const workId=JSON.stringify([selectionId,'writer-packets-v1']);
+      const work=await feedTransact(store,feedId,async tx=>{
+       await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);
+       const prior=await tx.read<{id:string;packets:SynthesisWriterInput[];pendingCandidateIds?:string[]}>('publication_work',workId);if(prior)return prior;
+       const pendingCandidateIds:string[]=[],packets=partitionWriterInput(writer,packet=>options.model!.admission?.(options.model!.synthesisPayload?.(packet)??packet).fits===true,{onPending:id=>pendingCandidateIds.push(id)});
+       const value={id:workId,feedId,selectionId,editionId,packets,pendingCandidateIds,createdAt:options.now()};await tx.write('publication_work',workId,value);return value;
+      });
+      if(work.pendingCandidateIds?.length){await recordPendingDelivery(work.pendingCandidateIds,'WRITER_MODEL_CONTEXT_WAIT');input={...input,stories:input.stories.filter(s=>!work.pendingCandidateIds!.includes(s.candidate.id))};}
+      if(!work.packets.length)throw new ModelSpendingWait('WRITER_MODEL_CONTEXT_WAIT');
+      const combined:BriefingDraft={language:writer.feed.outputLanguage,stories:[]};
+      for(let index=0;index<work.packets.length;index++){
+       const packet=work.packets[index],key=JSON.stringify([selectionId,'writer-packet',index]);
+       const cached=await store.read<StoredDraft>(feedId,'drafts',key);
+       const draft=cached?.draft??(await callModel('SYNTHESIS',options.model!.synthesisPayload?.(packet)??packet,limits=>options.model!.synthesize(packet,limits),key,writerReuseScope(packet))).draft;
+       // Ownership is exact for every packet; never silently drop an extra/missing story.
+       if(draft.language!==combined.language||new Set(draft.stories.map(s=>s.candidateId)).size!==draft.stories.length||draft.stories.length!==packet.stories.length||draft.stories.some(s=>!packet.stories.some(p=>p.candidate.id===s.candidateId)))throw new HandoffError('SCOPE_DENIED');
+       for(const story of draft.stories){const prior=combined.stories.find(s=>s.candidateId===story.candidateId);if(prior)prior.claims.push(...story.claims);else combined.stories.push({...story,claims:[...story.claims]})}
+      }
+      await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);await persistModelResult(tx,'SYNTHESIS',selectionId,{draft:combined})});
+     }
+    }
     catch(error) {
      if(options.requireModel||!input.editorialPlan)throw error;
      // Unknown provider outcome retains its reservation and audit record. Only a
@@ -306,6 +382,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   }
   if(!storedDraft) throw new HandoffError('TEMPORARY_UNAVAILABLE');
   if(options.requireModel&&storedDraft.provider==='NONE')throw new HandoffError('INVALID_REQUEST');
+  if(adaptiveExecution){const work=await store.read<{pendingCandidateIds?:string[]}> (feedId,'publication_work',JSON.stringify([selectionId,'writer-packets-v1']));if(work?.pendingCandidateIds?.length)input={...input,stories:input.stories.filter(s=>!work.pendingCandidateIds!.includes(s.candidate.id))};}
   const rejectDraft=async(draftId:string,issues:WriterIssue[]):Promise<never>=>{
    const id=JSON.stringify([draftId,'writer-feedback-v1']),prior=await store.read<WriterFeedback>(feedId,'verification_feedback',id);
    const feedback:WriterFeedback=prior??{id,feedId,selectionId,draftId,editorialPlanId:input.editorialPlan?.id,issues,missingFactIds:[...new Set(issues.flatMap(i=>i.factId&&['MISSING_REQUIRED_FACT','MISSING_DECLARED_FACT'].includes(i.code)?[i.factId]:[]))],createdAt:options.now()};
@@ -348,13 +425,20 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
      const scope=candidates.get(p.candidateId)!;
      const facts=scope.plan?.facts.map(({id,text,evidenceRevisionIds,attribution,context,timing})=>({id,text,evidenceRevisionIds,attribution,context,timing}));
      return {...p.claim,candidateId:p.candidateId,requiredFacts:first?preservationFacts(scope):undefined,allowedFacts:facts,previousLedgerFacts:scope.plan?.previousLedgerEntries.flatMap(e=>e.claimFacts),previousReaderClaims:scope.plan?.previousLedgerEntries,newUnderstandingFacts:first?facts?.filter(f=>scope.plan!.newUnderstandingFactIds.includes(f.id)):undefined,correctionObligations:first?scope.plan?.correctionObligations:undefined,context:scope.evidence.filter(e=>p.claim.support.some(s=>s.evidenceRevisionId===e.id)).map(e=>({evidenceRevisionId:e.id,title:e.title,publisherId:e.publisherId,text:e.body??'',truncated:e.excerptTruncated}))};
-    });await callModel('GROUNDING',options.model!.verificationPayload?.(claims)??claims,limits=>options.model!.verify!(claims,limits),draftKey);result=await store.read(feedId,'verification_results',draftKey)}
+    });
+     if(!adaptiveExecution)await callModel('GROUNDING',options.model!.verificationPayload?.(claims)??claims,limits=>options.model!.verify!(claims,limits),draftKey,verificationReuseScope(claims));
+     else {
+      const packets=partitionVerification(claims,packet=>options.model!.admission?.(options.model!.verificationPayload?.(packet)??packet).fits===true),results:{claims:VerificationClaim[];result:VerificationOutcome}[]=[];
+      for(let index=0;index<packets.length;index++){const packet=packets[index],key=JSON.stringify([draftKey,'verification-packet-v1',index]);const saved=await callModel('GROUNDING',options.model!.verificationPayload?.(packet)??packet,limits=>options.model!.verify!(packet,limits),key,verificationReuseScope(packet));results.push({claims:packet,result:saved})}
+      const merged=mergeVerification(results,Boolean(options.model?.requiresFullEntailment||['OPENROUTER','OPENAI_GATEWAY'].includes(storedDraft!.provider)));await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);await persistModelResult(tx,'GROUNDING',draftKey,merged)});
+     }
+     result=await store.read(feedId,'verification_results',draftKey)}
     for(const id of result?.supportedClaimIds??[]) if(nonextractive.some(p=>p.claim.id===id)) supported.add(id);
     semanticChecks=result?.semanticChecks;
     for(const id of result?.preservedFactIds??[])if(!semanticChecks||semanticChecks.some(c=>c.factId===id&&faithfulFact(c)))preservedFacts.add(id);
    }
    const stories:GroundingResult['stories']=[];let words=0;
-   for(const id of selection.selectedCandidateIds) {
+   for(const id of input.stories.map(s=>s.candidate.id)) {
     const claims:GroundedClaim[]=[];let storyWords=0;
     for(const p of proposals.filter(p=>p.candidateId===id)) {
      const count=(p.claim.text.match(/\S+/g)??[]).length;
@@ -362,7 +446,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     }
     // A collective semantic preservation verdict applies to the verified claim
     // set. Never clip a side afterward to fit the reading ceiling.
-    if(words+storyWords>selection.budget.maxReadingWords) {rejected+=claims.length;continue}
+    if(!adaptiveExecution&&words+storyWords>selection.budget.maxReadingWords) {rejected+=claims.length;continue}
     const fullVerifiedSet=proposals.filter(p=>p.candidateId===id).every(p=>supported.has(p.claim.id));
     const required=preservationFacts(candidates.get(id)!);
     const missing=required.filter(f=>!claims.some(c=>{
@@ -411,7 +495,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    await feedTransact(store,feedId,async tx=>{if(!await tx.read('fidelity_results',draftKey))await tx.write('fidelity_results',draftKey,{id:draftKey,feedId,editorialPlanId:input.editorialPlan!.id,checks,passed:checks.every(c=>c.passed||removed.includes(c.candidateId)),reconciledCandidateIds:removed,policyVersion:'semantic-publication-fidelity-v4',createdAt:options.now()})});
    if(checks.some(c=>!c.passed&&!removed.includes(c.candidateId)))await rejectDraft(draftKey,checks.filter(c=>!c.passed&&!removed.includes(c.candidateId)).flatMap(c=>[{code:c.novelty==='NO_SUPPORTED_DELTA'?'NO_SUPPORTED_DELTA':'PLAN_FIDELITY_FAILED',candidateId:c.candidateId},...c.fidelity.failures.map(f=>({...f,candidateId:c.candidateId}))]));
   }
-   if(!grounding.stories.length){await feedTransact(store,feedId,async tx=>{await selectionInput(tx,selection);const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,state:'DONE',failure:undefined});const request=await tx.read<any>('briefing_requests',editionId);if(request)await tx.write('briefing_requests',editionId,{...request,state:'DONE',result:'QUIET',reason:'NO_NEW_VERIFIED_STORIES',completedAt:options.now()})});throw new QuietPublication();}
+   if(!grounding.stories.length){await feedTransact(store,feedId,async tx=>{await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,state:'DONE',failure:undefined});const request=await tx.read<any>('briefing_requests',editionId);if(request)await tx.write('briefing_requests',editionId,{...request,state:'DONE',result:'QUIET',reason:'NO_NEW_VERIFIED_STORIES',completedAt:options.now()})});throw new QuietPublication();}
    return grounding;
   };
   const repairKey=JSON.stringify([selectionId,'repair-1']);
@@ -423,8 +507,8 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    catch(error){
     if(!(error instanceof DraftVerificationError)||draftKey===repairKey||storedDraft.provider==='NONE'||!options.model?.repair||!input.editorialPlan)throw error;
     const writer=synthesisWriterInput(input),failed=storedDraft.draft;
-    await feedTransact(store,feedId,async tx=>{const job=await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection);await tx.write('synthesis_jobs',editionId,{...job,repairRequested:true})});
-    await callModel('REPAIR',options.model!.repairPayload?.(writer,failed,error.feedback)??{input:writer,draft:failed,feedback:error.feedback},limits=>options.model!.repair!(writer,failed,error.feedback,limits),repairKey);
+    await feedTransact(store,feedId,async tx=>{const job=await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);await tx.write('synthesis_jobs',editionId,{...job,repairRequested:true})});
+    await callModel('REPAIR',options.model!.repairPayload?.(writer,failed,error.feedback)??{input:writer,draft:failed,feedback:error.feedback},limits=>options.model!.repair!(writer,failed,error.feedback,limits),repairKey,{scope:writerReuseScope(writer),failed,feedback:error.feedback.issues});
     const result=await store.read<StoredDraft>(feedId,'drafts',repairKey);if(!result)throw new HandoffError('TEMPORARY_UNAVAILABLE');
     storedDraft=result;draftKey=repairKey;
    }
@@ -433,7 +517,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   const finalDraft=storedDraft,finalGrounding=grounding;
   return await feedTransact(store,feedId,async tx=>{
    const existing=await tx.read<BriefingEditionRecord>('editions',editionId);if(existing) return existing;
-   const job=await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection);
+   const job=await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);
    const requirement=await tx.read<{requireModel?:boolean}>('briefing_requests',editionId);
    // Fence a concurrent policy upgrade as well as later ordinary retries.
    if(requirement?.requireModel&&(finalDraft.provider==='NONE'||input.editorialPlan?.route!=='GPT'||!await tx.read('verification_results',draftKey)))throw new HandoffError('INVALID_REQUEST');
@@ -446,7 +530,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     const versionEvidenceIds=(await tx.list<import('@distilled/contracts').EventMembership>('memberships')).filter(m=>m.eventVersionId===eventVersionId).map(m=>m.evidenceRevisionId),requests=await tx.list<import('./rematch').RematchRequest>('rematch_requests');
     provisionalSemanticStates.push({eventVersionId,provenance:state.provenance,rematchRequestIds:requests.filter(r=>versionEvidenceIds.includes(r.evidenceRevisionId)).map(r=>r.id)});
    }
-   if(job.tokensIn>selection.budget.maxInputTokens || job.tokensOut>selection.budget.maxOutputTokens || job.cost>selection.budget.maxCostUsd || Date.now()-started>selection.budget.maxWallClockMs) throw new HandoffError('INVALID_REQUEST');
+   if(!adaptiveExecution&&(job.tokensIn>selection.budget.maxInputTokens || job.tokensOut>selection.budget.maxOutputTokens || job.cost>selection.budget.maxCostUsd || Date.now()-started>selection.budget.maxWallClockMs)) throw new HandoffError('INVALID_REQUEST');
    const edition:BriefingEditionRecord={provisionalSemanticStates,id:editionId,feedId,feedRevision:selection.feedRevision,windowStart:selection.window.start,windowEnd:selection.window.end,language:input.feed.outputLanguage,selectionId,selectedCandidateIds:usedCandidates,eventVersionIds,storylineVersionIds,evidenceRevisionIds,stories:finalGrounding.stories,generation:{model:finalDraft.model,provider:finalDraft.provider,promptVersion:finalDraft.promptVersion??'selected-evidence-v1',routerVersion:'stored-evidence-only-v1',tokensIn:job.tokensIn,tokensOut:job.tokensOut,cost:job.cost,latencyMs:Date.now()-started,repairCount:draftKey===repairKey?1:0,draftId:draftKey,verificationId:draftKey,usageConfirmed:(await tx.list<{id:string;editionId:string;confirmed:boolean}>('model_executions')).filter(e=>e.editionId===editionId).every(e=>e.confirmed)},selectionPolicyVersion:selection.policyVersion,groundingPolicyVersion:finalGrounding.policyVersion,createdAt:options.now()};
    await tx.write('editions',editionId,edition);await tx.write('publication_status',editionId,{id:editionId,feedId,status:'PUBLISHED',publishedAt:edition.createdAt});
    await tx.write('delivery_jobs',editionId,{id:editionId,feedId,editionId,state:'PENDING',attempts:0,createdAt:edition.createdAt});
@@ -458,9 +542,12 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    if(job?.state==='RUNNING' && job.token===token) {
     const fallback=job.pendingCall?await tx.read<StoredDraft>('drafts',selectionId):undefined;
     const safeFallback=fallback?.provider==='NONE'&&fallback.promptVersion==='approved-fact-spans-v3';
-    const transient=error instanceof HandoffError && error.code==='TEMPORARY_UNAVAILABLE' && (!job.pendingCall||safeFallback) && job.attempts<5;
-    if(job.pendingCall && !await tx.read('model_executions',job.pendingCall)) await tx.write('model_executions',job.pendingCall,{id:job.pendingCall,feedId,editionId,status:'OUTCOME_UNKNOWN',confirmed:false,reservationRetained:true,createdAt:options.now()});
-    await tx.write('synthesis_jobs',editionId,{...job,state:transient?'PENDING':'FAILED',failure:job.pendingCall?'MODEL_OUTCOME_UNKNOWN':error instanceof VerificationContractError?error.reason:error instanceof SynthesisCompatibilityError?error.reason:error instanceof HandoffError?error.code:'SYNTHESIS_FAILED'});
+    const retained=job.pendingCall&&adaptiveExecution?await tx.read<{status:string}>('semantic_results',job.pendingCall)??await tx.read<{status:string}>('semantic_settlements',job.pendingCall):undefined;
+    const knownPaidResult=retained?.status==='SUCCEEDED';
+    const resourceWait=error instanceof ModelSpendingWait&&!job.pendingCall;
+    const transient=knownPaidResult||resourceWait||error instanceof HandoffError && error.code==='TEMPORARY_UNAVAILABLE' && (!job.pendingCall||safeFallback) && (adaptiveExecution||job.attempts<5);
+    if(job.pendingCall && !knownPaidResult && !await tx.read('model_executions',job.pendingCall)) await tx.write('model_executions',job.pendingCall,{id:job.pendingCall,feedId,editionId,status:'OUTCOME_UNKNOWN',confirmed:false,reservationRetained:true,createdAt:options.now()});
+    await tx.write('synthesis_jobs',editionId,{...job,state:transient?'PENDING':'FAILED',failure:knownPaidResult?'PAID_RESULT_AWAITING_CANONICAL_COMMIT':job.pendingCall?'MODEL_OUTCOME_UNKNOWN':error instanceof ModelSpendingWait?error.reason:error instanceof PublicationOperationFailure?error.reason:error instanceof VerificationContractError?error.reason:error instanceof SynthesisCompatibilityError?error.reason:error instanceof HandoffError?error.code:'SYNTHESIS_FAILED'});
    }
   })} catch { /* A revoked Feed already prevents recovery/publication. */ }
   if(error instanceof QuietPublication)throw error;
