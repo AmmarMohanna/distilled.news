@@ -120,11 +120,13 @@ export async function targets(tx:FeedTransaction,window:PublicationWindow,includ
  // follows durable intake admission, not queue completion time. Source reporting
  // age remains a separate freshness/framing decision. Scope and graph fences
  // still validate this read together with every other selection input at commit.
- return result.filter(target=>{
+ const eligible=result.filter(target=>{
   const times=target.evidence.map(revision=>admissions.get(revision.sourceObservationId)??Date.parse(revision.acceptedAt));
   const admittedAt=times.length?Math.max(...times):Date.parse(target.updatedAt);
   return admittedAt<Date.parse(window.end)&&(includeOutsideWindow||admittedAt>=Date.parse(window.start));
  });
+ await tx.preloadSemanticReferences(eligible.flatMap(target=>target.eventVersionIds));
+ return eligible;
 }
 function deterministicPrefilter(editorial:EditorialDecision,interests:string[],geography:string[]):void {
  if(editorial.decision!=='INCLUDE')return;
