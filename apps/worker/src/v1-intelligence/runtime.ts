@@ -1,4 +1,5 @@
 import {ModelSpendingWait} from './model-spending';
+import {recoverPendingProviderGenerations} from './provider-recovery';
 import {prepareAdaptiveEditorialPlan} from './editorial-continuation';
 import {enqueueV1,pendingV1Jobs} from '../v1-queue-dispatch';
 import {HandoffError,sha256} from '@distilled/contracts';
@@ -136,6 +137,10 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   const shortlist=frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher):undefined);
   failureStage='EDITORIAL_PLAN';
   const plan=shortlist?(legacyPlan?await prepareEditorialPlan(store,shortlist,budget,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):await prepareAdaptiveEditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'))):undefined;
+  if(plan&&plan.route!=='GPT'&&plan.modelOperationIds?.length){
+   const operations=await store.readMany<import('./semantic-operations').SemanticOperationResult>(feedId,'semantic_results',plan.modelOperationIds);
+   if([...operations.values()].some(operation=>operation.usage.calls>0&&!operation.usage.reported))throw new ModelSpendingWait('SEMANTIC_OUTCOME_UNKNOWN');
+  }
   if(plan?.route!=='GPT'&&plan?.fallbackReason&&/ACCOUNT_|MODEL_CAPABILITY|MODEL_CONTEXT|RESOURCE|AUTHORIZATION|LEGACY_LIABILITIES|CONCURRENCY|COST_ESTIMATE|EXECUTION_YIELD|GLOBAL_RECONCILIATION_CAPACITY|^SEMANTIC_OUTCOME_UNKNOWN$/.test(plan.fallbackReason))throw new ModelSpendingWait(plan.fallbackReason);
   if(required&&shortlist?.candidates.length&&plan?.route!=='GPT')throw new HandoffError('TEMPORARY_UNAVAILABLE');
   failureStage='SELECTION';
@@ -182,6 +187,7 @@ const windowEndOf=(feed:{briefingSchedule?:unknown;briefingFrequency:string},now
 /** Relay uses durable pending jobs and edition/window identities on the existing queue. */
 export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<number> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') return 0;
+ if(env.OPENROUTER_API_KEY)try{await recoverPendingProviderGenerations(env.DB,env.OPENROUTER_API_KEY,now)}catch{console.warn(JSON.stringify({type:'V1_PROVIDER_ACCOUNTING_RECOVERY_FAILED',reason:'RECOVERY_MAINTENANCE_FAILED'}))}
  const sourceIds=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
  const feeds=new Set<string>();let sent=0;
  for(const id of sourceIds) {

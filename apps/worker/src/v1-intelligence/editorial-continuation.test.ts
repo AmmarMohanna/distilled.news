@@ -65,6 +65,8 @@ it('an unknown leaf remains fenced while independent global context can complete
  }};
  const first=await prepareGlobalEditorialContext(store,original,strong,leaves,testPolicy.now(),Date.now()+600000);
  expect(first.root?.targetVersionIds.sort()).toEqual(['leaf-target-1','leaf-target-2']);expect(first.pending?.[0].targetVersionIds).toEqual(['leaf-target-0']);
+ const lost=(await store.list<any>('feed-1','semantic_results')).find(r=>r.usage.calls>0&&!r.usage.reported);
+ expect((first as any).operationIds).toContain(lost.id);
  const count=calls;const second=await prepareGlobalEditorialContext(new V1FeedStore(ctx.db),original,strong,leaves,testPolicy.now(),Date.now()+600000);
  expect(second.root?.id).toBe(first.root?.id);expect(calls).toBe(count);
 },30000);

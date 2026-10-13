@@ -25,6 +25,18 @@ it('an UNKNOWN comparative outcome stays visibly pending without consuming retri
   expect(await store.list('feed-1','selections')).toHaveLength(0);expect(await store.list('feed-1','editions')).toHaveLength(0);expect(fetcher).not.toHaveBeenCalled();
  }finally{shortlist.mockRestore();planner.mockRestore()}
 },20000);
+it.each(['SEMANTIC_MODEL_TIMEOUT','SEMANTIC_MODEL_STREAM_INCOMPLETE'])('an unreported %s operation remains pending without exhausting the request',async failure=>{
+ env={...env,V1_REAL_MODEL_REQUIRED:'true',V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'fixture-only'};
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
+ await ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind('semantic_results','interrupted-planner','feed-1',JSON.stringify({id:'interrupted-planner',status:'DEFERRED',failure,usage:{calls:1,reported:false,costUsd:.02}})).run();
+ const shortlist=vi.spyOn(shortlistModule,'prepareSemanticShortlist').mockResolvedValue({candidates:[{targetVersionId:'retained'}],overflow:[]} as any);
+ const planner=vi.spyOn(editorialContinuation,'prepareAdaptiveEditorialPlan').mockResolvedValue({route:'DETERMINISTIC_FALLBACK',fallbackReason:failure,modelOperationIds:['interrupted-planner']} as any);
+ const fetcher=vi.fn(async()=>{throw Error('No duplicate inference')});
+ try{
+  await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher as typeof fetch)).resolves.toBeUndefined();
+  expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'PENDING',attempts:0,reason:'SEMANTIC_OUTCOME_UNKNOWN'}]);expect(fetcher).not.toHaveBeenCalled();
+ }finally{shortlist.mockRestore();planner.mockRestore()}
+},20000);
 it('salience contention cannot exhaust request retries while one judgment is in flight',async()=>{
  const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
  let finish!:(value:any)=>void;
