@@ -5,7 +5,7 @@ import {createCandidateIntakePort} from '../v1-intake/intake';
 import {acceptAcquiredContent} from '../v1-intake/evidence';
 import {V1FeedStore,feedTransact} from './store';
 import {independentSupportCount} from './scoring';
-import {feedFixture,seedIntelligence} from './test-utils';
+import {feedFixture,seedIntelligence,acceptEvidence} from './test-utils';
 import {extractClaimMentions} from './claims';
 import {deterministicMatchers} from './matchers';
 import {processEvidenceIntelligence} from './engine';
@@ -67,3 +67,19 @@ it('support removal preserves decomposed Event claim subset and structured prove
  const current=(await store.list<any>('feed-1','events')).find(e=>e.id===eventId),version=await store.read<any>('feed-1','event_versions',current.currentVersionId),state=await store.read<any>('feed-1','event_semantic_states',current.currentVersionId);
  expect(version.state).toBe(mentions[0].sourceText);expect(state.provenance.scorer).toBe('GPT');expect(state.propositionIds).toHaveLength(1);expect(state.stateSlotIds).toHaveLength(1);
 },45000);
+
+it('later source evidence retains immutable entity provenance while the new Event version records its own judgment',async()=>{
+ await acceptEvidence(store,1,'LaboratoryA announced a research platform.');
+ const first=(await store.currentEvidence('feed-1'))[0].revision,{mentions}=await extractClaimMentions(first);
+ const provenance={scorer:'GPT' as const,policyVersion:'fixture',judgmentId:'first-paid-judgment'};
+ const group:SemanticGroup={claimMentionIds:mentions.map(m=>m.id),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[{canonicalLabel:'LaboratoryA',aliases:['LaboratoryA'],claimMentionIds:mentions.map(m=>m.id)}],slots:[]};
+ await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),{...deterministicMatchers,event:{match:()=>({structuralRelation:'NEW_STORYLINE',epistemicEffects:[],confidence:.99,provenance})},construction:()=>({groups:[group],backgroundMentionIds:[],provenance})});
+ const entity=(await store.list<any>('feed-1','entities'))[0],event=(await store.list<any>('feed-1','events'))[0];
+ await acceptEvidence(store,2,'LaboratoryB joined the research platform.');
+ const second=(await store.currentEvidence('feed-1')).find(r=>r.revision.id!==first.id)!.revision,next=await extractClaimMentions(second),later={...provenance,judgmentId:'second-paid-judgment'};
+ const nextGroup:SemanticGroup={...group,claimMentionIds:next.mentions.map(m=>m.id),eventId:event.id,structuralRelation:'SAME_EVENT',entities:[{canonicalLabel:'LaboratoryB',aliases:['LaboratoryB'],claimMentionIds:next.mentions.map(m=>m.id)}]};
+ const receipt=await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-2','']),testPolicy.now(),{...deterministicMatchers,event:{match:()=>({structuralRelation:'SAME_EVENT',eventId:event.id,epistemicEffects:['ADDS_DETAIL'],confidence:.99,provenance:later})},construction:()=>({groups:[nextGroup],backgroundMentionIds:[],provenance:later})});
+ expect(receipt.decision).toBe('PROCESSED');expect(await store.read('feed-1','entities',entity.id)).toEqual(entity);
+ const current=(await store.list<any>('feed-1','events'))[0],state=await store.read<any>('feed-1','event_semantic_states',current.currentVersionId);
+ expect(state.provenance.judgmentId).toBe('second-paid-judgment');expect(state.entityIds).toContain(entity.id);expect(state.propositionIds).toHaveLength(2);expect(await store.list('feed-1','events')).toHaveLength(1);
+},30000);
