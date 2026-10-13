@@ -130,11 +130,17 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   // Resume existing paid legacy scopes under their frozen contracts; new windows
   // use adaptive execution. Never migrate a terminal request or a paid identity.
   const activeFeedRevision=(await store.getFeed(feedId))?.revision;
-  const historicalPlans=(await store.list<import('./editorial-plan').EditorialPlanRecord>(feedId,'editorial_plans')).filter(p=>p.window.start===window.start&&p.window.end===window.end&&p.feedRevision===activeFeedRevision);
+  const retainedJob=await store.read<{state:string;selectionId:string}>(feedId,'synthesis_jobs',id);
+  const retainedSelection=retainedJob&&['PENDING','RUNNING'].includes(retainedJob.state)?await store.read<import('./scoring').SelectionRecord>(feedId,'selections',retainedJob.selectionId):undefined;
+  // A publication continuation owns its committed selection. Rebuilding its
+  // completed editor stages can retire/reorder work and contend with intake.
+  // publishSelection still revalidates the live roots, source scope and ledger.
+  const frozenSelection=retainedSelection?.budget.mode==='ADAPTIVE'&&retainedSelection.feedRevision===activeFeedRevision&&retainedSelection.selectedCandidateIds.length&&Date.parse(retainedSelection.window.start)===Date.parse(window.start)&&Date.parse(retainedSelection.window.end)===Date.parse(window.end)?retainedSelection:undefined;
+  const historicalPlans=frozenSelection?[]:(await store.list<import('./editorial-plan').EditorialPlanRecord>(feedId,'editorial_plans')).filter(p=>p.window.start===window.start&&p.window.end===window.end&&p.feedRevision===activeFeedRevision);
   const legacyPlan=historicalPlans.find(p=>p.policyVersion=== 'comparative-editorial-plan-v21');
   const budget=legacyPlan?DEFAULT_BRIEFING_BUDGET:ADAPTIVE_BRIEFING_PROCESSING;
   const frozen=legacyPlan?await store.read<import('./shortlist').ShortlistRecord>(feedId,'shortlists',legacyPlan.shortlistId):undefined;
-  const shortlist=frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher):undefined);
+  const shortlist=frozenSelection?undefined:frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher):undefined);
   failureStage='EDITORIAL_PLAN';
   const plan=shortlist?(legacyPlan?await prepareEditorialPlan(store,shortlist,budget,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):await prepareAdaptiveEditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'))):undefined;
   if(plan&&plan.route!=='GPT'&&plan.modelOperationIds?.length){
@@ -144,7 +150,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   if(plan?.route!=='GPT'&&plan?.fallbackReason&&/ACCOUNT_|MODEL_CAPABILITY|MODEL_CONTEXT|RESOURCE|AUTHORIZATION|LEGACY_LIABILITIES|CONCURRENCY|COST_ESTIMATE|EXECUTION_YIELD|GLOBAL_RECONCILIATION_CAPACITY|^SEMANTIC_OUTCOME_UNKNOWN$/.test(plan.fallbackReason))throw new ModelSpendingWait(plan.fallbackReason);
   if(required&&shortlist?.candidates.length&&plan?.route!=='GPT')throw new HandoffError('TEMPORARY_UNAVAILABLE');
   failureStage='SELECTION';
-  const selection=await scoreAndSelect(store,feedId,window,budget,now(),salienceScorer??(plan?.route==='GPT'?undefined:createSemanticSalienceScorer(env)),plan);
+  const selection=frozenSelection??await scoreAndSelect(store,feedId,window,budget,now(),salienceScorer??(plan?.route==='GPT'?undefined:createSemanticSalienceScorer(env)),plan);
   // Protected work that cannot be delivered yet is a durable, truthful BLOCKED state tied to reassessment progress, not a failure retried
   // identically until the attempt budget is spent. The obligation stays OPEN and nothing is reported as delivered.
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length && shortlist){await recordBlockedWindow(store,feedId,id,shortlist,selection,now());return undefined}

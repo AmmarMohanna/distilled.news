@@ -1,11 +1,14 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import * as editorialContinuation from './editorial-continuation';
 import * as shortlistModule from './shortlist';
+import * as publicationModule from './publication';
+import {scoreAndSelect,ADAPTIVE_BRIEFING_PROCESSING} from './scoring';
+import {ModelSpendingWait} from './model-spending';
 import {createIntakeDatabase,seedIntakeScope,testPolicy} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,feedTransact} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
-import {dispatchV1Intelligence,processV1Briefing,publicationWindow} from './runtime';
+import {dispatchV1Intelligence,processV1Briefing,publicationWindow,windowIdentity} from './runtime';
 import type {Env,DistilledQueueMessage} from '../types';
 import {readScheduleAudit} from './schedule-audit';
 import {livePublicationWindow} from './schedule';
@@ -214,3 +217,21 @@ it('relay recovers settled paid results while unknown outcomes remain fenced',as
  const dispatches=await ctx.db.prepare("SELECT id FROM v1_queue_dispatches WHERE kind='v1_briefing'").all<{id:string}>();
  expect(JSON.stringify(dispatches.results)).toContain('settled');expect(JSON.stringify(dispatches.results)).not.toContain('unknown');
 },15000);
+
+it('a pending publication resumes its committed selection without rebuilding editorial work',async()=>{
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const},selection=await scoreAndSelect(store,'feed-1',window,ADAPTIVE_BRIEFING_PROCESSING,window.end);
+ const id=await windowIdentity('feed-1',window);
+ await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,reason:'PUBLICATION_EXECUTION_YIELD',createdAt:window.end});await tx.write('synthesis_jobs',id,{id,feedId:'feed-1',selectionId:selection.id,state:'PENDING',attempts:1,failure:'PUBLICATION_EXECUTION_YIELD'})});
+ env.V1_EDITORIAL_PLAN_ENABLED='true';
+ const shortlist=vi.spyOn(shortlistModule,'prepareSemanticShortlist').mockRejectedValue(Error('Completed editorial work must not be rebuilt'));
+ const planner=vi.spyOn(editorialContinuation,'prepareAdaptiveEditorialPlan').mockRejectedValue(Error('No repeated comparative call'));
+ const publisher=vi.spyOn(publicationModule,'publishSelection').mockRejectedValue(new ModelSpendingWait('PUBLICATION_EXECUTION_YIELD'));
+ try{let failure:string|undefined;try{await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end)}catch(error){failure=(error as Error).message}expect(failure).toBeUndefined();expect(shortlist.mock.calls.length).toBe(0);expect(planner.mock.calls.length).toBe(0);expect(publisher.mock.calls.length).toBe(1);expect(publisher.mock.calls[0].slice(1,3)).toEqual(['feed-1',selection.id]);expect(publisher.mock.calls[0][3].requireModel).toBe(false);expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',attempts:0});expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','ledger_entries')).toHaveLength(0)}finally{shortlist.mockRestore();planner.mockRestore();publisher.mockRestore()}
+},30000);
+
+it('resuming a committed selection still rejects revoked source support before publication',async()=>{
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const},selection=await scoreAndSelect(store,'feed-1',window,ADAPTIVE_BRIEFING_PROCESSING,window.end),id=await windowIdentity('feed-1',window);
+ await feedTransact(store,'feed-1',tx=>tx.write('synthesis_jobs',id,{id,feedId:'feed-1',selectionId:selection.id,state:'PENDING',attempts:1,failure:'PUBLICATION_EXECUTION_YIELD'}));
+ const intake=new V1IntakeStore(ctx.db),scope=(await intake.getScope('feed-source-1'))!;await intake.registerScope({...scope,enabled:false});
+ await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end)).rejects.toMatchObject({code:'SCOPE_DENIED'});expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','ledger_entries')).toHaveLength(0);
+},30000);
