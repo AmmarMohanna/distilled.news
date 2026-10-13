@@ -16,15 +16,31 @@ export interface Proposition {id:string;feedId:string;kind:'TEXT';text:string;cl
 export interface StateSlot {id:string;feedId:string;entityId?:string;attribute:typeof slotKinds[number];value:string;asOf?:string;propositionId:string;claimMentionId:string;certainty:ClaimMention['certainty'];attribution?:string;policyVersion:string}
 export interface EventSemanticState {id:string;feedId:string;eventVersionId:string;propositionIds:string[];stateSlotIds:string[];entityIds:string[];storylineState?:z.infer<typeof storylineDirectiveSchema>;structuralRelation?:EventMatchDecision['structuralRelation'];epistemicEffects:EventMatchDecision['epistemicEffects'];provisional:boolean;provenance:EventMatchDecision['provenance'];policyVersion:string}
 export interface StorylineMemory {id:string;feedId:string;storylineVersionId:string;storylineId:string;eventVersionIds:string[];propositionIds:string[];stateSlotIds:string[];entityIds:string[];lifecycle:'ACTIVE'|'WATCHING'|'DORMANT'|'CLOSED';lastMeaningfulChangeAt:string;openQuestions:{text:string;propositionId:string}[];expectedNextDate?:{text:string;propositionId:string};policyVersion:string}
+export interface ConstructionBinding {invariant:string;path:(string|number)[]}
+export function rejectConstruction(invariant:string,path:(string|number)[]):never {throw Object.assign(new HandoffError('SCOPE_DENIED'),{binding:{invariant,path}})}
 export function validateConstruction(value:SemanticConstruction,mentions:ClaimMention[]):SemanticConstruction {
  const known=new Map(mentions.map(m=>[m.id,m])),covered=new Set(value.backgroundMentionIds);
- if(!value.groups.length||value.backgroundMentionIds.some(id=>!known.has(id)))throw new HandoffError('SCOPE_DENIED');
- for(const raw of value.groups){const {storylineState,...base}=raw,group=semanticGroupSchema.parse(base);for(const id of group.claimMentionIds){if(!known.has(id))throw new HandoffError('SCOPE_DENIED');covered.add(id)}
-  if(storylineState){const d=storylineDirectiveSchema.parse(storylineState);if(d.openQuestionMentionIds.some(id=>!group.claimMentionIds.includes(id)) || d.expectedNextDate && (!group.claimMentionIds.includes(d.expectedNextDate.claimMentionId)||!known.get(d.expectedNextDate.claimMentionId)?.sourceText.includes(d.expectedNextDate.text)))throw new HandoffError('SCOPE_DENIED')}
-  for(const entity of group.entities){if(entity.claimMentionIds.some(id=>!group.claimMentionIds.includes(id)))throw new HandoffError('SCOPE_DENIED');const texts=entity.claimMentionIds.map(id=>known.get(id)!.sourceText);if(entity.aliases.some(alias=>!texts.some(t=>t.includes(alias))))throw new HandoffError('SCOPE_DENIED')}
-  for(const slot of group.slots){const mention=known.get(slot.claimMentionId);if(!mention||!group.claimMentionIds.includes(mention.id)||!mention.sourceText.includes(slot.value)||slot.asOf && !mention.sourceText.includes(slot.asOf)||slot.entityLabel && !group.entities.some(e=>e.canonicalLabel===slot.entityLabel))throw new HandoffError('SCOPE_DENIED')}
+ if(!value.groups.length)rejectConstruction('NO_DEVELOPMENT',['groups']);
+ if(value.backgroundMentionIds.some(id=>!known.has(id)))rejectConstruction('UNKNOWN_CLAIM_REFERENCE',['backgroundMentionIds']);
+ for(const [i,raw] of value.groups.entries()){const {storylineState,...base}=raw,group=semanticGroupSchema.parse(base),path=['groups',i];
+  for(const id of group.claimMentionIds){if(!known.has(id))rejectConstruction('UNKNOWN_CLAIM_REFERENCE',[...path,'claimMentionIds']);covered.add(id)}
+  if(storylineState){const d=storylineDirectiveSchema.parse(storylineState);
+   if(d.openQuestionMentionIds.some(id=>!group.claimMentionIds.includes(id)))rejectConstruction('STORYLINE_CLAIM_OWNERSHIP',[...path,'storylineState','openQuestionMentionIds']);
+   if(d.expectedNextDate&&(!group.claimMentionIds.includes(d.expectedNextDate.claimMentionId)||!known.get(d.expectedNextDate.claimMentionId)?.sourceText.includes(d.expectedNextDate.text)))rejectConstruction('STORYLINE_DATE_NOT_SOURCE',[...path,'storylineState','expectedNextDate']);
+  }
+  for(const [j,entity] of group.entities.entries()){
+   if(entity.claimMentionIds.some(id=>!group.claimMentionIds.includes(id)))rejectConstruction('ENTITY_CLAIM_OWNERSHIP',[...path,'entities',j,'claimMentionIds']);
+   const texts=entity.claimMentionIds.map(id=>known.get(id)!.sourceText);
+   if(entity.aliases.some(alias=>!texts.some(t=>t.includes(alias))))rejectConstruction('ENTITY_ALIAS_NOT_SOURCE',[...path,'entities',j,'aliases']);
+  }
+  for(const [j,slot] of group.slots.entries()){const mention=known.get(slot.claimMentionId),slotPath=[...path,'slots',j];
+   if(!mention||!group.claimMentionIds.includes(mention.id))rejectConstruction('SLOT_CLAIM_OWNERSHIP',[...slotPath,'claimMentionId']);
+   if(!mention.sourceText.includes(slot.value))rejectConstruction('SLOT_VALUE_NOT_SOURCE',[...slotPath,'value']);
+   if(slot.asOf&&!mention.sourceText.includes(slot.asOf))rejectConstruction('SLOT_TIME_NOT_SOURCE',[...slotPath,'asOf']);
+   if(slot.entityLabel&&!group.entities.some(e=>e.canonicalLabel===slot.entityLabel))rejectConstruction('SLOT_ENTITY_OWNERSHIP',[...slotPath,'entityLabel']);
+  }
  }
- if(mentions.some(m=>!covered.has(m.id)))throw new HandoffError('SCOPE_DENIED');return value;
+ if(mentions.some(m=>!covered.has(m.id)))rejectConstruction('INCOMPLETE_MENTION_COVERAGE',['groups']);return value;
 }
 /** Exact TEXT propositions are the lossless default; structured slots are only
  * accepted when the value and time scope occur in the supporting source span. */

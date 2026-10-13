@@ -18,11 +18,12 @@ export function createStoredEvidenceModel(env:Env,fetcher:typeof fetch=fetch):Br
  const admission=(wire:unknown)=>{const value=wire as {payload:unknown;schema:object};if(!value||!value.schema)return admitModelOperation(options.model,wire,{},undefined);return admitModelOperation(options.model,value.payload,value.schema,capability)};
  const complete=async(feedId:string,phase:string,payload:unknown,schema:object,limits:{maxOutputTokens:number;signal:AbortSignal})=>{
   const envelope=admitModelOperation(options.model,payload,schema,capability,limits.maxOutputTokens);
+  if(!envelope.fits)throw Error(envelope.reason);
   let usage:ModelUsage=latestUsage={tokensIn:0,tokensOut:0,cost:envelope.reservationCostUsd,confirmed:false};
   const result=await boundedCompletion({...options,usageRecorder:async record=>{
    // Estimates never masquerade as provider-reported charges. Unknown usage
    // retains the durable reservation and prevents further calls that exceed it.
-   latestUsage=usage={tokensIn:record.inputTokens,tokensOut:record.outputTokens,cost:record.reportedCostUsd??record.estimatedCostUsd,confirmed:record.reportedCostUsd!==undefined && record.inputTokens>0 && record.outputTokens>0};
+   latestUsage=usage={tokensIn:record.inputTokens,tokensOut:record.outputTokens,cost:record.reportedCostUsd??record.estimatedCostUsd,confirmed:record.reportedCostUsd!==undefined};
   }},feedId,phase==='SYNTHESIS'?'summary':'event_review',phase,JSON.stringify(payload),schema,limits);
   return {result,usage};
  };

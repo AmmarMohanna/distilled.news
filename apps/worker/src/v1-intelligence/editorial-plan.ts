@@ -1,3 +1,4 @@
+import {shareSchemaEnums} from '../provider-schema';
 import {findStartedEditorialBoundary,type StartedEditorialBoundary} from './editorial-replay';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {z} from 'zod';
@@ -185,7 +186,7 @@ export function keyedEditorialPlanWireSchemaFor(state:ReturnType<typeof compactE
  const stories=Object.fromEntries(state.candidates.map(c=>[c.targetVersionId,{anyOf:legacy.properties.stories.items.anyOf.filter(b=>(b.properties.targetVersionId as unknown as {enum:string[]}).enum.includes(c.targetVersionId)).map(b=>reference(b,'targetVersionId'))}]));
  const obligationItems=legacy.properties.obligations.items as unknown as {anyOf?:{properties:{obligationId:{enum:string[]}}}[]};
  const obligations=Object.fromEntries(state.obligations.map(o=>[o.id,{anyOf:(obligationItems.anyOf??[]).filter(b=>b.properties.obligationId.enum.includes(o.id)).map(b=>reference(b,'obligationId'))}]));
- return {...object({stories:object(stories),obligations:object(obligations)}),$defs:definitions};
+ return shareSchemaEnums({...object({stories:object(stories),obligations:object(obligations)}),$defs:definitions});
 }
 /** The editor must submit a feasible plan; a known, valid but oversized proposal
  * gets at most one comparative repair, never a silent downstream truncation. */
