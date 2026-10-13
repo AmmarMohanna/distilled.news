@@ -1,4 +1,4 @@
-import {detectSourceInput,TESTED_ACTORS,HttpSourceExecution} from '@distilled/connectors';
+import {detectSourceInput,TESTED_ACTORS,HttpSourceExecution,SourceProviderError} from '@distilled/connectors';
 import type {Env,Repository} from './types';
 import type {BriefingConfig,BriefingEdition} from '@distilled/core';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
@@ -46,8 +46,23 @@ export function prepareProductSourceInput(input:string) {
 }
 
 /** Resolve a website to an advertised RSS feed before persisting its approval. */
-export async function resolveProductSourceInput(input:string,fetcher:typeof fetch=fetch) {
+export class ProductSourceApprovalError extends Error {
+ constructor(message:string,readonly status:400|503=503){super(message);}
+}
+async function verifyTelegramApproval(env:Env,username:string){
+ if(!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_URL||!env.SOURCE_EXECUTION_TOKEN)throw new ProductSourceApprovalError('Telegram collection requires the private source execution service.',400);
+ let raw:unknown;
+ try{const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(value,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init),true);raw=await execution.execute('telegram_resolve',{username});}
+ catch(error){throw new ProductSourceApprovalError(error instanceof SourceProviderError&&error.code==='BACKPRESSURE'?'Telegram is busy. Try again shortly.':'Telegram is temporarily unavailable. Try again shortly.');}
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new ProductSourceApprovalError('Could not verify this Telegram channel.');
+ const result=raw as Record<string,unknown>;
+ if(result.error)throw new ProductSourceApprovalError(result.error==='AUTH_REQUIRED'?'Telegram account authorization is unavailable.':result.error==='RATE_LIMIT'?'Telegram is rate limiting channel verification. Try again shortly.':'Could not verify this Telegram channel.');
+ if(typeof result.channelId!=='string'||!/^-[1-9]\d*$/.test(result.channelId)||typeof result.username!=='string'||result.username.toLowerCase()!==username.toLowerCase())throw new ProductSourceApprovalError('Could not verify this Telegram channel.',400);
+ return {channelId:result.channelId,username:result.username,public:true as const};
+}
+export async function resolveProductSourceInput(input:string,fetcher:typeof fetch=fetch,env?:Env):Promise<ReturnType<typeof prepareProductSourceInput>&{verifiedTelegram?:Awaited<ReturnType<typeof verifyTelegramApproval>>}> {
  const plan=prepareProductSourceInput(input);
+ if(plan.detected.kind==='telegram_channel'&&env)return {...plan,verifiedTelegram:await verifyTelegramApproval(env,plan.detected.username)};
  if(plan.detected.kind!=='web_page')return plan;
  const feedUrl=await discoverPublicRssFeed(plan.sourceUrl!,fetcher);
  if(!feedUrl)return plan;
@@ -60,18 +75,8 @@ export async function approveProductSource(env:Env,repo:Repository,feed:Briefing
  preResolved?:Awaited<ReturnType<typeof resolveProductSourceInput>>) {
  const plan=preResolved??await resolveProductSourceInput(input);
  if(plan.detected.kind==='telegram_channel'){
-  if(!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_URL||!env.SOURCE_EXECUTION_TOKEN)throw new Error('Telegram collection requires the private source execution service.');
-  const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,
-   (value,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init),true);
-  const raw=await execution.execute('telegram_resolve',{username:plan.detected.username});
-  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('Could not verify this Telegram channel.');
-  const result=raw as Record<string,unknown>;
-  if(result.error)throw new Error(result.error==='AUTH_REQUIRED'?'Telegram account authorization is unavailable.':
-   result.error==='RATE_LIMIT'?'Telegram is rate limiting channel verification.':'Could not verify this Telegram channel.');
-  if(typeof result.channelId!=='string'||!/^-[1-9]\d*$/.test(result.channelId)||
-   typeof result.username!=='string'||result.username.toLowerCase()!==plan.detected.username.toLowerCase())
-   throw new Error('Could not verify this Telegram channel.');
-  const verifiedInput=JSON.stringify({channelId:result.channelId,username:result.username,public:true});
+  const result=plan.verifiedTelegram??await verifyTelegramApproval(env,plan.detected.username);
+  const verifiedInput=JSON.stringify(result);
   const source=await repo.upsertConfiguredSource({briefingId:feed.id,title:`@${result.username}`,provider:'telegram',kind:'telegram_channel',
    identityKey:result.channelId,username:result.username,sourceUrl:`https://t.me/${result.username}`,input:verifiedInput,enabled:true});
   await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=?").bind(source.id).run();

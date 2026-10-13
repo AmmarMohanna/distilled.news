@@ -44,6 +44,10 @@ runtime ownership remains with the other contributor.
 - The feed API/UI reports unavailable or blocked sources explicitly. AVAILABLE
   means configured admission, not evidence of a successful fetch or exhaustive
   collection. Provider keys and raw responses are never exposed.
+- Telegram verification is preflighted before saving a feed or changing its
+  sources. Helper backpressure returns a retryable 503 rather than leaving a
+  partially configured feed after a generic 500. The verified result is reused
+  for approval; it is an internal capability, never accepted from client JSON.
 
 ## Integration interface and ownership
 
@@ -150,3 +154,25 @@ requires a channel the tester owns; public-channel rechecks cannot manufacture i
 
 Full suite and live results must be reported separately from the targeted checks.
 No 1,000-feed production-capacity claim follows solely from these tests.
+
+## October 13 rollout record
+
+Commit `1d93a12` was deployed to QA as version
+`5673cd0e-476d-46d0-894d-7259d40b4f1f`. Both additive migrations and dedicated
+collection/DLQ queues were installed. The private D1 export completed before
+migrations; the VPS helper passed article-inventory and Telegram restart checks.
+All 16 frontend assets were verified (15 immutable hashes and the dynamic
+manifest), and unauthenticated maintenance access returned 404.
+
+The saved QA test account signed in through the normal login API and read its
+feed/source health. Its legacy signing secret was outdated; it was not installed
+or rotated. Two intentionally nonpublic historical test feeds correctly denied
+unauthenticated reads. The mixed-source fixture exposed a Telegram approval
+failure after two RSS sources had saved; the preflight fix and regression test
+were added as a follow-up. Until that follow-up is deployed and the fixture
+completes, these observations do not establish all-source live success.
+
+Cloudflare CLI authentication expired after the first deployment, so final D1
+metrics and the follow-up deploy require fresh authorization. Update this record
+with the resulting version and actual collection/drain observations; don't
+attribute historical accepted batches or editions to the new rollout.

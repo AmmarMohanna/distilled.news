@@ -1,6 +1,6 @@
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
-import {approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState} from './product-feeds';
+import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState} from './product-feeds';
 import {connectorSourceHealth} from './connector-health';
 import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
@@ -788,7 +788,9 @@ export function createApp(options: AppOptions = {}) {
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
     // Validate every requested source before saving the Feed or changing approval.
-    const resolved=await Promise.all(input.sourceInputs.map(value=>resolveProductSourceInput(value,fetcher)));
+    let resolved:Awaited<ReturnType<typeof resolveProductSourceInput>>[];
+    try{resolved=await Promise.all(input.sourceInputs.map(value=>resolveProductSourceInput(value,fetcher,c.env)));}
+    catch(error){if(error instanceof ProductSourceApprovalError)return c.json({error:error.message},error.status,error.status===503?{'Retry-After':'5'}:{});throw error;}
     const plans=[...new Map(resolved.map(plan=>[plan.canonicalUrl,plan] as const)).values()];
     if(plans.some(plan=>plan.detected.kind==='web_page')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Website extraction requires the source execution service.'},400);
     if(plans.some(plan=>plan.detected.kind==='telegram_channel')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_URL||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Telegram collection requires the private source execution service.'},400);
