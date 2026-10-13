@@ -67,7 +67,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
         !host.includes('.')||/\.(?:localhost|local|internal|test|invalid)$/.test(host)||/^\d+(?:\.\d+){0,3}$/.test(host)||host.startsWith('['))throw new Error('SOURCE_URL_DENIED');
       // Deployment must retain global_fetch_strictly_public to enforce public DNS at dispatch.
       return dispatch(url.href,{...init,redirect:'manual'});
-    });
+    },{followSameOriginRedirects:request.source.family==='rss'});
     return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch,4_000_000,20_000,sourceBudget),execution,secrets,ceilings,
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
       rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake)};
