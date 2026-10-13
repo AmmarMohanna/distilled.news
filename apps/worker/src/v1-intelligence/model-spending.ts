@@ -1,3 +1,4 @@
+import {effectiveModelConcurrency} from './model-spending-amendments';
 import type {ProviderDiagnostic} from '../provider-outcome';
 import {canonicalJson} from '../v1-intake/canonical';
 export interface ModelSpendingAuthorization {id:string;accountId:string;modelIds:string[];validFrom:string;validUntil:string;maxExposureUsd:number;maxConcurrentOperations:number}
@@ -15,9 +16,9 @@ export async function authorizeModelSpending(db:D1Database,grant:ModelSpendingAu
  const guard=crypto.randomUUID();
  await db.batch([db.prepare(`INSERT INTO v1_model_spending_guards(id,valid) SELECT ?,CASE WHEN (${legacyMissing})=0 AND NOT EXISTS(SELECT 1 FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<? AND valid_until>?) THEN 1 ELSE 0 END`).bind(guard,grant.accountId,instant(grant.validUntil),instant(grant.validFrom)),db.prepare('INSERT INTO v1_model_spending_authorizations VALUES(?,?,?,?,?)').bind(grant.id,grant.accountId,instant(grant.validFrom),instant(grant.validUntil),JSON.stringify(grant)),db.prepare('DELETE FROM v1_model_spending_guards WHERE id=?').bind(guard)]);
 }
-export async function spendingAuthorization(db:D1Database,r:ModelSpendingReservation):Promise<ModelSpendingAuthorization>{
+export async function spendingAuthorization(db:D1Database,r:ModelSpendingReservation):Promise<ModelSpendingAuthorization&{concurrencyRevision:number;concurrencySchemaAvailable:boolean}>{
  const rows=await db.prepare('SELECT json FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<=? AND valid_until>?').bind(r.accountId,instant(r.createdAt),instant(r.createdAt)).all<{json:string}>();
- const grants=rows.results.map(x=>JSON.parse(x.json) as ModelSpendingAuthorization).filter(g=>g.modelIds.includes(r.model)||g.modelIds.includes('*'));if(grants.length!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return grants[0];
+ const grants=rows.results.map(x=>JSON.parse(x.json) as ModelSpendingAuthorization).filter(g=>g.modelIds.includes(r.model)||g.modelIds.includes('*'));if(grants.length!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return {...grants[0],...await effectiveModelConcurrency(db,grants[0].id,grants[0].maxConcurrentOperations)};
 }
 /** Shared exposure: period charges plus ALL unsettled liabilities, even from
  * expired owners/older grants. A new day or Feed never erases UNKNOWN money. */
@@ -31,7 +32,8 @@ export async function modelSpendingStatements(db:D1Database,r:ModelSpendingReser
  const g=await spendingAuthorization(db,r),guard=crypto.randomUUID();
  const exposure=`SELECT COALESCE(SUM(CASE WHEN s.reported=1 AND p.created_at>=? AND p.created_at<? THEN s.cost_usd WHEN COALESCE(s.reported,0)=0 THEN MAX(p.reserved_cost_usd,COALESCE(s.cost_usd,0)) ELSE 0 END),0) FROM v1_model_spending_reservations p LEFT JOIN v1_model_spending_settlements s ON s.id=p.id WHERE p.account_id=?`;
  const concurrency=`SELECT COUNT(*) FROM v1_model_spending_reservations p LEFT JOIN v1_model_spending_settlements s ON s.id=p.id WHERE p.account_id=? AND COALESCE(s.reported,0)=0`;
- return [db.prepare(`INSERT INTO v1_model_spending_guards(id,valid) SELECT ?,CASE WHEN (${legacyMissing})=0 AND (${exposure})+?<=? AND (${concurrency})<? THEN 1 ELSE 0 END`).bind(guard,instant(g.validFrom),instant(g.validUntil),r.accountId,r.reservedCostUsd,g.maxExposureUsd,r.accountId,g.maxConcurrentOperations),db.prepare('INSERT INTO v1_model_spending_reservations VALUES(?,?,?,?,?,?,?,?,?,?)').bind(r.id,r.accountId,g.id,r.token,r.model,r.feedId,r.reservedCostUsd,r.leaseUntil,instant(r.createdAt),JSON.stringify(r)),db.prepare('DELETE FROM v1_model_spending_guards WHERE id=?').bind(guard)];
+ const amendmentGuard=g.concurrencySchemaAvailable?' AND COALESCE((SELECT MAX(sequence) FROM v1_model_spending_concurrency_amendments WHERE authorization_id=?),0)=?':'';
+ return [db.prepare(`INSERT INTO v1_model_spending_guards(id,valid) SELECT ?,CASE WHEN (${legacyMissing})=0 AND (${exposure})+?<=? AND (${concurrency})<? ${amendmentGuard} THEN 1 ELSE 0 END`).bind(guard,instant(g.validFrom),instant(g.validUntil),r.accountId,r.reservedCostUsd,g.maxExposureUsd,r.accountId,g.maxConcurrentOperations,...(g.concurrencySchemaAvailable?[g.id,g.concurrencyRevision]:[])),db.prepare('INSERT INTO v1_model_spending_reservations VALUES(?,?,?,?,?,?,?,?,?,?)').bind(r.id,r.accountId,g.id,r.token,r.model,r.feedId,r.reservedCostUsd,r.leaseUntil,instant(r.createdAt),JSON.stringify(r)),db.prepare('DELETE FROM v1_model_spending_guards WHERE id=?').bind(guard)];
 }
 export async function reserveModelSpending(db:D1Database,r:ModelSpendingReservation):Promise<void>{try{const statements=await modelSpendingStatements(db,r);if(statements.length)await db.batch(statements)}catch(e){if(String(e).includes('v1_model_spending_admission'))throw new ModelSpendingWait('ACCOUNT_RESOURCE_WAIT');throw e}}
 export function modelSettlementStatement(db:D1Database,id:string,token:string,usage:{costUsd:number;reported:boolean}):D1PreparedStatement{
