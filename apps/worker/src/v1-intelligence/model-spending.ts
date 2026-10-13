@@ -80,7 +80,7 @@ export function executionCapacityDiagnostic(input:{accountMapped:boolean;reporte
   countedAgainstConcurrency:input.accountMapped?!input.reported&&!input.quarantine:unpaid?false:null,
   quarantine:input.quarantine?{...input.quarantine,riskAcceptance:'REMOTE_TERMINATION_UNPROVEN'}:null,
   remoteExecutionState:unpaid?'NOT_RUN':rejection?'CONFIRMED_NONEXECUTION':'TERMINATION_UNPROVEN',
-  capacityReleaseEligibility:!input.accountMapped?unpaid?'NOT_APPLICABLE':'NOT_OBSERVABLE':input.reported?'ALREADY_RELEASED_BY_SETTLEMENT':rejection?'EVIDENCE_BOUND_RECONCILIATION_REQUIRED':'INSUFFICIENT_PROVIDER_EVIDENCE',
-  recoveryReason:unpaid?'No paid operation was admitted.':input.accountMapped&&input.reported?'Confirmed accounting released the slot; inspect canonical semantic outcome independently.':rejection?'Explicit retained rejection supports the existing evidence-bound operator reconciliation.':'Obtain independently bound provider completion/rejection evidence. Lease expiry, timeout, cancellation and elapsed time are insufficient.'
+  capacityReleaseEligibility:input.quarantine?'OPERATOR_QUARANTINED_WITH_UNPROVEN_TERMINATION':!input.accountMapped?unpaid?'NOT_APPLICABLE':'NOT_OBSERVABLE':input.reported?'ALREADY_RELEASED_BY_SETTLEMENT':rejection?'EVIDENCE_BOUND_RECONCILIATION_REQUIRED':'INSUFFICIENT_PROVIDER_EVIDENCE',
+  recoveryReason:input.quarantine?'Explicit operator risk acceptance removed this identity from new admission; financial exposure and UNKNOWN fences remain. Remote termination is unproven.':unpaid?'No paid operation was admitted.':input.accountMapped&&input.reported?'Confirmed accounting released the slot; inspect canonical semantic outcome independently.':rejection?'Explicit retained rejection supports the existing evidence-bound operator reconciliation.':'Obtain independently bound provider completion/rejection evidence. Lease expiry, timeout, cancellation and elapsed time are insufficient.'
  };
 }

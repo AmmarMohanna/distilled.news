@@ -39,3 +39,19 @@ it('quarantined exposure still prevents spending beyond the unchanged grant',asy
  await authorizeModelSpending(ctx.db,{...g,maxExposureUsd:1});await reserveModelSpending(ctx.db,r('held','old',.9));await quarantineModelExecutions(ctx.db,a(['held']));
  await expect(reserveModelSpending(ctx.db,r('new','new',.2))).rejects.toMatchObject({reason:'ACCOUNT_RESOURCE_WAIT'});
 });
+it('operator pause and quarantine commit together, leaving unrelated feeds unchanged',async()=>{
+ await ctx.db.exec('CREATE TABLE briefings(id TEXT PRIMARY KEY,paused INTEGER,updated_at TEXT)');
+ await ctx.db.exec("INSERT INTO briefings VALUES('old',0,'before'),('unrelated',0,'before')");
+ await ctx.db.prepare("UPDATE v1_feeds SET json=? WHERE id='old'").bind(JSON.stringify({revision:2,paused:false})).run();
+ await authorizeModelSpending(ctx.db,g);await reserveModelSpending(ctx.db,r('held'));
+ const approval={...a(['held']),pauseExistingFeeds:true as const};
+ // A deliberately conflicting immutable retirement forces the whole batch to roll back.
+ await ctx.db.prepare("INSERT INTO v1_feed_documents VALUES('model_execution_retirements','old','old','{}')").run();
+ await expect(quarantineModelExecutions(ctx.db,approval)).rejects.toThrow();
+ expect((await ctx.db.prepare("SELECT json FROM v1_feeds WHERE id='old'").first<{json:string}>())!.json).toContain('"paused":false');
+ expect((await ctx.db.prepare("SELECT paused FROM briefings WHERE id='old'").first<{paused:number}>())!.paused).toBe(0);
+ await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE kind='model_execution_retirements' AND id='old'").run();
+ await quarantineModelExecutions(ctx.db,approval);
+ expect((await ctx.db.prepare("SELECT paused FROM briefings WHERE id='old'").first<{paused:number}>())!.paused).toBe(1);
+ expect((await ctx.db.prepare("SELECT paused FROM briefings WHERE id='unrelated'").first<{paused:number}>())!.paused).toBe(0);
+});
