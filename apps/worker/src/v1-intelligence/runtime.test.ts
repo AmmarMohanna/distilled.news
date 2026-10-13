@@ -1,4 +1,6 @@
-import {afterEach,beforeEach,expect,it} from 'vitest';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+import * as editorialContinuation from './editorial-continuation';
+import * as shortlistModule from './shortlist';
 import {createIntakeDatabase,seedIntakeScope,testPolicy} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,feedTransact} from './store';
@@ -11,6 +13,18 @@ import {DeterministicSalienceScorer} from './salience';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env,sent:DistilledQueueMessage[];
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});await seedIntelligence(store);sent=[];env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env});
 afterEach(async()=>ctx.dispose());
+it('an UNKNOWN comparative outcome stays visibly pending without consuming retries or invoking writing',async()=>{
+ env={...env,V1_REAL_MODEL_REQUIRED:'true',V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'fixture-only'};
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
+ const shortlist=vi.spyOn(shortlistModule,'prepareSemanticShortlist').mockResolvedValue({candidates:[{targetVersionId:'retained'}],overflow:[]} as any);
+ const planner=vi.spyOn(editorialContinuation,'prepareAdaptiveEditorialPlan').mockResolvedValue({route:'DETERMINISTIC_FALLBACK',fallbackReason:'SEMANTIC_OUTCOME_UNKNOWN'} as any);
+ const fetcher=vi.fn(async()=>{throw Error('No provider call is authorized by UNKNOWN replay')});
+ try{
+  for(let i=0;i<6;i++)await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher as typeof fetch)).resolves.toBeUndefined();
+  expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'PENDING',attempts:0,reason:'SEMANTIC_OUTCOME_UNKNOWN'}]);
+  expect(await store.list('feed-1','selections')).toHaveLength(0);expect(await store.list('feed-1','editions')).toHaveLength(0);expect(fetcher).not.toHaveBeenCalled();
+ }finally{shortlist.mockRestore();planner.mockRestore()}
+},20000);
 it('salience contention cannot exhaust request retries while one judgment is in flight',async()=>{
  const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
  let finish!:(value:any)=>void;

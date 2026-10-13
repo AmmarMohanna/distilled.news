@@ -136,7 +136,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   const shortlist=frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher):undefined);
   failureStage='EDITORIAL_PLAN';
   const plan=shortlist?(legacyPlan?await prepareEditorialPlan(store,shortlist,budget,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):await prepareAdaptiveEditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'))):undefined;
-  if(plan?.route!=='GPT'&&plan?.fallbackReason&&/ACCOUNT_|MODEL_CAPABILITY|MODEL_CONTEXT|RESOURCE|AUTHORIZATION|LEGACY_LIABILITIES|CONCURRENCY|COST_ESTIMATE|EXECUTION_YIELD|GLOBAL_RECONCILIATION_CAPACITY/.test(plan.fallbackReason))throw new ModelSpendingWait(plan.fallbackReason);
+  if(plan?.route!=='GPT'&&plan?.fallbackReason&&/ACCOUNT_|MODEL_CAPABILITY|MODEL_CONTEXT|RESOURCE|AUTHORIZATION|LEGACY_LIABILITIES|CONCURRENCY|COST_ESTIMATE|EXECUTION_YIELD|GLOBAL_RECONCILIATION_CAPACITY|^SEMANTIC_OUTCOME_UNKNOWN$/.test(plan.fallbackReason))throw new ModelSpendingWait(plan.fallbackReason);
   if(required&&shortlist?.candidates.length&&plan?.route!=='GPT')throw new HandoffError('TEMPORARY_UNAVAILABLE');
   failureStage='SELECTION';
   const selection=await scoreAndSelect(store,feedId,window,budget,now(),salienceScorer??(plan?.route==='GPT'?undefined:createSemanticSalienceScorer(env)),plan);
