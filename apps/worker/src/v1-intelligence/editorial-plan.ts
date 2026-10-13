@@ -1,3 +1,4 @@
+import {editorialContextFacts,editorialFactReferencesValid} from './editorial-context';
 import {shareSchemaEnums} from '../provider-schema';
 import {findStartedEditorialBoundary,type StartedEditorialBoundary} from './editorial-replay';
 import {HandoffError,sha256} from '@distilled/contracts';
@@ -17,7 +18,7 @@ import {deferEditorialWork,resolveEditorialWork,BLOCKED_DEFERRAL_REASON,type Edi
 export const EDITORIAL_PLAN_POLICY='comparative-editorial-plan-v21';
 // Output-contract repair does not change model input, reservations or call identity.
 export const EDITORIAL_NORMALIZATION_POLICY='selected-new-facts-required-v1';
-export interface EditorialNormalization {policyVersion:string;added:{targetVersionId:string;factIds:string[]}[]}
+export interface EditorialNormalization {policyVersion:string;added:{targetVersionId:string;factIds:string[]}[];contextBindings?:{targetVersionId:string;sourceTargetVersionId:string;factId:string;evidenceRevisionIds:string[];role:'CONTEXT'|'DISAGREEMENT'}[]}
 const ids=z.array(z.string().min(1));
 export const planStorySchema=z.object({targetType:z.enum(['EVENT','STORYLINE']),targetVersionId:z.string().min(1),decision:z.enum(['SELECT','SUPPRESS','DEFER']),order:z.number().int().nonnegative(),treatment:z.enum(['OMIT','BRIEF','STANDARD','DETAILED']),deltaType:z.enum(['NEW','STATE_CHANGE','CERTAINTY_CHANGE','CONTRADICTION','CORRECTION','RETRACTION','DETAIL','REPEAT','UNRESOLVED']),newUnderstandingFactIds:ids,contextFactIds:ids,mustIncludeFactIds:ids,attributionFactIds:ids,certaintyFactIds:ids,disagreementFactIds:ids,openQuestionFactIds:ids,correctionObligationIds:ids,previousLedgerEntryIds:ids,rationale:z.string().min(1),relevanceRationale:z.string().min(1),feedFit:z.enum(['DIRECT','CONTEXTUAL','UNCERTAIN','OUT_OF_SCOPE']).optional(),editorialImportance:z.number().min(0).max(1).optional()}).strict();
 export type PlanStory=z.infer<typeof planStorySchema>;
@@ -35,7 +36,7 @@ export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistR
  const plan=planBodySchema.parse(raw),targets=new Set(plan.stories.map(s=>s.targetVersionId));
  if(targets.size!==plan.stories.length||targets.size!==shortlist.candidates.length||shortlist.candidates.some(c=>!targets.has(c.targetVersionId)))throw new HandoffError('SCOPE_DENIED');
  const orders=plan.stories.filter(s=>s.decision==='SELECT').map(s=>s.order);if(new Set(orders).size!==orders.length)throw new HandoffError('SCOPE_DENIED');
- for(const s of plan.stories){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;if(s.targetType!==c.targetType || allRefs(s).some(id=>!c.facts.some(f=>f.id===id))||s.previousLedgerEntryIds.some(id=>!shortlist.ledger.some(e=>e.id===id))||s.correctionObligationIds.some(id=>!c.correctionObligationIds.includes(id)))throw new HandoffError('SCOPE_DENIED');
+ for(const s of plan.stories){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;if(s.targetType!==c.targetType || !editorialFactReferencesValid(s,c,shortlist)||s.previousLedgerEntryIds.some(id=>!shortlist.ledger.some(e=>e.id===id))||s.correctionObligationIds.some(id=>!c.correctionObligationIds.includes(id)))throw new HandoffError('SCOPE_DENIED');
   const allowedHistory=new Set(shortlist.ledger.filter(e=>e.eventIds?.includes(c.stableTargetId)||Boolean(c.storylineId&&e.storylineIds?.includes(c.storylineId))||shortlist.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id));
   if(s.previousLedgerEntryIds.some(id=>!allowedHistory.has(id)))throw new HandoffError('SCOPE_DENIED');
   if(options.requirePublicationCorrection&&readyTargets.length<=correctionCapacity&&publicationCorrectionReady(c,shortlist.obligations)&&(s.decision!=='SELECT'||!['CORRECTION','RETRACTION'].includes(s.deltaType)))throw new HandoffError('SCOPE_DENIED');
@@ -76,7 +77,8 @@ export function normalizeEditorialPlan(raw:EditorialPlanBody,shortlist:Shortlist
  const body=planBodySchema.parse(raw),normalization:EditorialNormalization={policyVersion:EDITORIAL_NORMALIZATION_POLICY,added:[]};
  for(const story of body.stories.filter(s=>s.decision==='SELECT')){
   const candidate=shortlist.candidates.find(c=>c.targetVersionId===story.targetVersionId);
-  if(!candidate||candidate.targetType!==story.targetType||allRefs(story).some(id=>!candidate.facts.some(f=>f.id===id)))throw new HandoffError('SCOPE_DENIED');
+  if(!candidate||candidate.targetType!==story.targetType||!editorialFactReferencesValid(story,candidate,shortlist))throw new HandoffError('SCOPE_DENIED');
+  for(const [role,refs] of [['CONTEXT',story.contextFactIds],['DISAGREEMENT',story.disagreementFactIds]] as const)for(const id of refs)if(!candidate.facts.some(f=>f.id===id)){const owner=shortlist.candidates.find(c=>c.facts.some(f=>f.id===id&&f.evidenceRevisionIds.some(revision=>candidate.evidenceRevisionIds.includes(revision))))!,fact=owner.facts.find(f=>f.id===id)!;(normalization.contextBindings??=[]).push({targetVersionId:candidate.targetVersionId,sourceTargetVersionId:owner.targetVersionId,factId:id,evidenceRevisionIds:fact.evidenceRevisionIds.filter(id=>candidate.evidenceRevisionIds.includes(id)),role})}
   const added=[...new Set(story.newUnderstandingFactIds.filter(id=>!story.mustIncludeFactIds.includes(id)))];
   if(added.length){story.mustIncludeFactIds.push(...added);normalization.added.push({targetVersionId:story.targetVersionId,factIds:added})}
  }
@@ -194,7 +196,7 @@ const selectionItem=(s:PlanStory,c:ShortlistCandidate):SelectionItem=>({id:s.tar
 /** Same admission rule as allocation, applied to the planner's own order (protected first): a proposal that fits is never rewritten. */
 export function planCapacityFailures(body:EditorialPlanBody,shortlist:ShortlistRecord,budget:BriefingBudget){
  const usage={stories:0,input:0,evidence:0,words:0,publishers:new Map<string,number>()},failures:{targetVersionId:string;reason:string}[]=[];
- const items=body.stories.filter(s=>s.decision==='SELECT').map(s=>selectionItem(s,shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!)).sort((a,b)=>Number(b.protectedItem)-Number(a.protectedItem)||a.order-b.order);
+ const items=body.stories.filter(s=>s.decision==='SELECT').map(s=>{const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!,facts=editorialContextFacts(c,shortlist).filter(f=>c.facts.some(local=>local.id===f.id)||s.contextFactIds.includes(f.id)||s.disagreementFactIds.includes(f.id));return selectionItem(s,facts.length===c.facts.length?c:{...c,facts,communicationCost:communicationCost({...c,facts})})}).sort((a,b)=>Number(b.protectedItem)-Number(a.protectedItem)||a.order-b.order);
  for(const item of items){
   const reason=capacityReason(usage,item,budget);
   if(reason)failures.push({targetVersionId:item.id,reason});
@@ -313,7 +315,7 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
    if(proposal?.model===strong.model&&proposal.shortlistId===shortlist.id){
     try{
      const output=normalizeEditorialPlan(decodeProposal(proposal.rawProposal),offeredShortlist,{requirePublicationCorrection:true,correctionCapacity,requireFeedFit:true,requireImportance:budget.mode==='ADAPTIVE'});
-     if(!output.normalization.added.length||planCapacityFailures(output.value,shortlist,budget).length)throw Error('SEMANTIC_NORMALIZATION_NOT_RECOVERABLE');
+     if(!output.normalization.added.length&&!output.normalization.contextBindings?.length||planCapacityFailures(output.value,shortlist,budget).length)throw Error('SEMANTIC_NORMALIZATION_NOT_RECOVERABLE');
      const recoveryId=JSON.stringify([id,'RETAINED_NORMALIZATION']);
      await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision||await communicationFingerprint(tx,shortlist.window.end)!==shortlist.communicationFingerprint)throw new HandoffError('TEMPORARY_UNAVAILABLE');if(!await tx.read('editorial_proposals',recoveryId))await tx.write('editorial_proposals',recoveryId,{id:recoveryId,feedId:shortlist.feedId,shortlistId:shortlist.id,window:shortlist.window,attempt:'RETAINED_NORMALIZATION',sourceProposalId:JSON.stringify([baseId,'INITIAL']),sourceOperationId:saved.id,decodedProposal:output.value,normalization:output.normalization,usage:{calls:0,costUsd:0,reported:true},createdAt:now})});
      normalization=output.normalization;accepted={...saved,status:'SUCCEEDED',failure:undefined,value:addOverflow(output.value)};
@@ -349,7 +351,7 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
  // Hard capacity is allocated protected-first (changed state/certainty, contradiction, correction, retraction, obligations): an ordinary story can never
  // displace protected information, however the planner ranked it. Ordinary stories then take the most valuable combination that actually fits,
  // not the first-ranked story that happens to leave no room for the rest.
- const capacityAdjustments:{targetVersionId:string;reason:string}[]=[],allocation=allocateFeasibleSelection(body.stories.filter(s=>s.decision==='SELECT').map(s=>selectionItem(s,shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!)),budget);
+ const capacityAdjustments:{targetVersionId:string;reason:string}[]=[],allocation=allocateFeasibleSelection(body.stories.filter(s=>s.decision==='SELECT').map(s=>{const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!,facts=editorialContextFacts(c,shortlist).filter(f=>c.facts.some(local=>local.id===f.id)||s.contextFactIds.includes(f.id)||s.disagreementFactIds.includes(f.id));return selectionItem(s,facts.length===c.facts.length?c:{...c,facts,communicationCost:communicationCost({...c,facts})})}),budget);
  for(const s of body.stories.filter(s=>s.decision==='SELECT')){const reason=allocation.rejected.get(s.targetVersionId);
   if(reason){s.decision='DEFER';s.treatment='OMIT';s.rationale=`${reason}: reconsider in a later window.`;capacityAdjustments.push({targetVersionId:s.targetVersionId,reason})}
  }

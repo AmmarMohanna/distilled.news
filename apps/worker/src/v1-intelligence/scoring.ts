@@ -1,3 +1,4 @@
+import {editorialContextFacts} from './editorial-context';
 import {HandoffError,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,sha256,type EventVersion,type EventMembership,type EvidenceRevision,type EventSalienceAssessment,type UserRelevance,type WindowScore,type BriefingCandidate,type TargetType} from '@distilled/contracts';
 import {z} from 'zod';
 import {evaluateEditorialDelta,communicationFingerprint,boundedEditorialContext,priorContextEvidence,type EditorialDecision} from './editorial';
@@ -215,8 +216,8 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
   const admissionOrder=plan?[...assessments].sort((a,b)=>Number(protectedVersions.has(b.target.id))-Number(protectedVersions.has(a.target.id))):assessments;
   for(const {target,candidate,publisherIds,editorial} of admissionOrder) {
    const planned=plan?.stories.find(s=>s.targetVersionId===target.id),scope=plan?(await tx.read<ShortlistRecord>('shortlists',plan.shortlistId))?.candidates.find(c=>c.targetVersionId===target.id):undefined;
-   const requiredIds=new Set(planned?[...planned.mustIncludeFactIds,...planned.newUnderstandingFactIds,...planned.attributionFactIds,...planned.certaintyFactIds,...planned.disagreementFactIds,...planned.openQuestionFactIds]:[]);
-   const inspectionFacts=scope?scope.facts.filter(f=>requiredIds.has(f.id)):editorial.newUnderstanding;
+   const requiredIds=new Set(planned?[...planned.mustIncludeFactIds,...planned.newUnderstandingFactIds,...planned.attributionFactIds,...planned.certaintyFactIds,...planned.disagreementFactIds,...planned.contextFactIds,...planned.openQuestionFactIds]:[]);
+   const inspectionFacts=scope?editorialContextFacts(scope,planShortlist!).filter(f=>requiredIds.has(f.id)):editorial.newUnderstanding;
    const uncovered=new Set(inspectionFacts.map((_,i)=>i)),inspectionEvidence:EvidenceRevision[]=[];
    const available=[...target.evidence];
    while(uncovered.size && available.length) {
