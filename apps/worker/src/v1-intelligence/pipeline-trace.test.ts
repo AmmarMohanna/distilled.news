@@ -57,6 +57,12 @@ beforeAll(async () => {
     ]);
 }, 30000);
 afterAll(async () => ctx.dispose());
+it('trace separates expired local ownership from unproven remote termination and financial exposure',async()=>{
+ const r=await readPipelineTrace(ctx.db,'feed-1',{view:'operations',recordId:'unknown-op'});
+ expect(r.items[0]).toMatchObject({state:'UNKNOWN',heldExposureUsd:.02,executionCapacity:{localLeaseState:'EXPIRED',remoteExecutionState:'TERMINATION_UNPROVEN',capacityReleaseEligibility:'NOT_OBSERVABLE'}});
+ const known=await readPipelineTrace(ctx.db,'feed-1',{view:'operations',recordId:'construct-op'});
+ expect(known.items[0]).toMatchObject({state:'FAILED',heldExposureUsd:0,executionCapacity:{countedAgainstConcurrency:false,capacityReleaseEligibility:'ALREADY_RELEASED_BY_SETTLEMENT'}});
+});
 it('traces a retained article through publication and actual ledger communication', async () => { const r = await readPipelineTrace(ctx.db, 'feed-1', { ...options, view: 'articles', evidenceRevisionId: 'rev-a' }); expect(r.items[0]).toMatchObject({ id: 'obs-a', acquisition: { state: 'SUCCESS' }, publication: { editionIds: ['edition'] }, ledger: { entryIds: ['ledger-a'] } }); });
 it('discovery without acquisition is not editorial rejection', async () => { const r = await readPipelineTrace(ctx.db, 'feed-1', { ...options, view: 'articles', url: 'https://publisher.example/b' }); expect(r.items[0]).toMatchObject({ acquisition: { state: 'FAILED', records: [{ id: 'acquire-b', failureCode: 'EXTRACTION_FAILED' }] }, editorial: { state: 'NOT_OBSERVABLE' } }); });
 it('no recorded URL match never proves provider omission or editorial rejection', async () => { const r = await readPipelineTrace(ctx.db, 'feed-1', { view: 'articles', url: 'https://publisher.example/never-observed' }); expect(r.page.total).toBe(0); expect(r.lookup.state).toBe('NOT_OBSERVABLE'); });

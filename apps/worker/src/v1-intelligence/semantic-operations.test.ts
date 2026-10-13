@@ -22,6 +22,15 @@ it('unknown provider outcomes stay deferred and cannot automatically issue anoth
  expect(await durableSemanticOperation(store,input,run,'2026-10-03T13:00:00Z')).toEqual(first);expect(calls).toBe(1);
 },15000);
 
+it('a new editorial window key cannot rebill the same unchanged UNKNOWN planner question',async()=>{
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'test',model:'fake',budgetKey:'editorial:original-window',state:{offered:['retained-development'],history:[]}};
+ let calls=0;const run=async()=>{calls++;throw Error('SEMANTIC_MODEL_TIMEOUT')};
+ const first=await durableSemanticOperation(store,input,run,'2026-10-03T12:00:00Z');
+ const next=await durableSemanticOperation(new V1FeedStore(ctx.db),{...input,budgetKey:'editorial:later-window',state:{...input.state,attempt:2}},run,'2026-10-04T12:00:00Z');
+ expect(next.id).toBe(first.id);expect(next.failure).toBe('SEMANTIC_OUTCOME_UNKNOWN');expect(calls).toBe(1);
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(1);
+},15000);
+
 it('comparative planning reserves a ninety-second lease without increasing the cost reservation',async()=>{
  const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'test',model:'fake',budgetKey:'planner',state:{}};
  await durableSemanticOperation(store,input,async()=>{const [intent]=await store.list<any>('feed-1','semantic_intents');expect(intent.leaseUntil-Date.now()).toBeGreaterThan(85000);expect(intent.reservedCostUsd).toBe(.02);return {value:{},usage:{calls:1,costUsd:.001,reported:true}}},'2026-10-03T12:00:00Z');

@@ -1,0 +1,74 @@
+UNKNOWN model capacity: operator investigation and staging prerequisites
+
+The current admission rule deliberately counts every unreported reservation as
+possibly executing. Local lease expiry is not provider termination. This change
+does not release slots, alter a grant, reset UNKNOWN identities or settle money.
+
+Read-only operator interface (platform-admin session required):
+GET /api/admin/briefings/<feed-id>/pipeline-trace?view=operations&pageSize=100
+GET /api/admin/briefings/<feed-id>/pipeline-trace?view=operations&recordId=<operation-id>
+GET /api/admin/briefings/<feed-id>/pipeline-trace?view=overview
+Follow the returned continuation cursor to inspect every operation.
+
+Operation executionCapacity fields:
+- countedAgainstConcurrency: existing account admission occupancy; null if unmapped.
+- localLeaseState: LIVE/EXPIRED/NOT_OBSERVABLE, never a provider termination guarantee.
+- remoteExecutionState: TERMINATION_UNPROVEN unless no paid work ran or a complete,
+  retained explicit schema-rejection proof exists. A confirmed accounting settlement
+  does not make the canonical semantic outcome successful.
+- capacityReleaseEligibility and recoveryReason: evidence/approval required.
+Overview unsettledConcurrencySlots is conservative occupancy, not actual remote
+active execution count. heldExposureUsd is unresolved liability, not actual spend.
+
+Future provider errors retain a validated X-Generation-Id when returned. This is
+only a lookup identity, not termination or billing proof. It cannot recreate IDs
+or diagnostic bodies that historical code never stored.
+
+Independent evidence required for a historical operation:
+1. Identify the exact provider account and immutable paid operation.
+2. Obtain its generation/request ID from previously retained gateway/provider
+   records or provider support; do not guess from approximate timestamps alone.
+3. With separate authorization, inspect authenticated OpenRouter generation
+   metadata or obtain provider-confirmed completion/nonexecution and final charge.
+   No provider request is initiated by this trace or this implementation.
+4. Preserve the evidence and its exact operation binding. Missing/404/pending
+   metadata, abort, lease expiry and generic HTTP errors are insufficient.
+5. An explicit known schema rejection may use the existing evidence-bound admin
+   reconciliation route after separate settlement approval. Known charges require
+   the existing owner-bound actual-cost settlement; never force them to zero.
+   The current admin route accepts only proof already retained by the model
+   transport. It cannot import a newly obtained historical support receipt.
+   If external evidence is obtained, review a narrowly scoped, append-only proof
+   ingestion/verification step before applying recovery. Do not overwrite an
+   original UNKNOWN result to make that route accept it.
+
+If provider-confirmed termination has no final cost, financial exposure must stay
+held and the original semantic question must stay UNKNOWN. The current release
+primitive cannot represent this case independently. A future evidence-bound,
+immutable execution-completion receipt and atomic admission exclusion would be
+needed, including provider verification and late-settlement tests. No receipt
+may be created from local time or an operator's unverified assertion. This task
+does not add such a release path because no current operation has the evidence
+needed to validate it. Do not increase slots or invent a termination lifetime.
+
+Controlled staging test requires separate authorization for deployment, any
+evidence retrieval/settlement, and feed scheduling changes:
+- Record deployment rollback reference and preserve live funded provider variables.
+- Preserve the $50/7-day authorization and its 21-operation limit.
+- Resolve enough holds using independently justified evidence; deployment alone
+  will not restore execution capacity.
+- Approve running one feed only; leave other feeds paused for the controlled test.
+  Do not resume all feeds or reset terminal requests.
+- Allow one new normal scheduled window to process retained source evidence.
+- Inspect construction, global editorial plan, required facts, writer, verifier,
+  immutable edition, ledger projection and delivery through Pipeline Trace.
+- Inspect actual settled charges, remaining held exposure and conservative slot
+  occupancy afterwards. UNKNOWN semantic results remain fenced after settlement.
+
+Provider references:
+https://openrouter.ai/docs/api_reference/streaming
+  Non-streaming cancellation does not stop provider processing/billing.
+https://openrouter.ai/docs/api/api-reference/generations/get-request-&-usage-metadata-for-a-generation
+  Generation lookup requires an ID and returns request/usage/finish metadata.
+https://developers.cloudflare.com/workers/platform/limits/
+  Worker wall-time/CPU limits govern local execution, not upstream termination.

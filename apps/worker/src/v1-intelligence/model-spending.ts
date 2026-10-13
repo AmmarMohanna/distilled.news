@@ -1,3 +1,4 @@
+import type {ProviderDiagnostic} from '../provider-outcome';
 import {canonicalJson} from '../v1-intake/canonical';
 export interface ModelSpendingAuthorization {id:string;accountId:string;modelIds:string[];validFrom:string;validUntil:string;maxExposureUsd:number;maxConcurrentOperations:number}
 export interface ModelSpendingReservation {id:string;accountId:string;model:string;feedId:string;token:string;reservedCostUsd:number;leaseUntil:number;createdAt:string}
@@ -22,7 +23,7 @@ export async function spendingAuthorization(db:D1Database,r:ModelSpendingReserva
  * expired owners/older grants. A new day or Feed never erases UNKNOWN money. */
 export async function spendingExposure(db:D1Database,accountId:string,at:string){
  const grant=await db.prepare('SELECT valid_from,valid_until FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<=? AND valid_until>?').bind(accountId,instant(at),instant(at)).first<{valid_from:string;valid_until:string}>();
- const result=await db.prepare(`SELECT COALESCE(SUM(CASE WHEN s.reported=1 AND r.created_at>=? AND r.created_at<? THEN s.cost_usd ELSE 0 END),0) AS reportedCostUsd,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 THEN MAX(r.reserved_cost_usd,COALESCE(s.cost_usd,0)) ELSE 0 END),0) AS heldCostUsd,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 AND r.lease_until<=? THEN 1 ELSE 0 END),0) AS unknown FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.account_id=?`).bind(grant?.valid_from??instant(at),grant?.valid_until??instant(at),Date.now(),accountId).first<{reportedCostUsd:number;heldCostUsd:number;unknown:number}>();return result!;
+ const result=await db.prepare(`SELECT COALESCE(SUM(CASE WHEN s.reported=1 AND r.created_at>=? AND r.created_at<? THEN s.cost_usd ELSE 0 END),0) AS reportedCostUsd,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 THEN MAX(r.reserved_cost_usd,COALESCE(s.cost_usd,0)) ELSE 0 END),0) AS heldCostUsd,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 THEN 1 ELSE 0 END),0) AS unsettledConcurrencySlots,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 AND r.lease_until<=? THEN 1 ELSE 0 END),0) AS unknown FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.account_id=?`).bind(grant?.valid_from??instant(at),grant?.valid_until??instant(at),Date.now(),accountId).first<{reportedCostUsd:number;heldCostUsd:number;unknown:number;unsettledConcurrencySlots:number}>();return result!;
 }
 export async function modelSpendingStatements(db:D1Database,r:ModelSpendingReservation):Promise<D1PreparedStatement[]>{
  if(!r.id||!r.accountId||!r.token||!r.model||!r.feedId||!Number.isFinite(r.reservedCostUsd)||r.reservedCostUsd<0||!Number.isFinite(r.leaseUntil)||!Number.isFinite(Date.parse(r.createdAt)))throw Error('INVALID_MODEL_RESERVATION');
@@ -62,4 +63,19 @@ export async function reconcileLegacyModelSpending(db:D1Database,kind:'semantic_
  await db.prepare('INSERT INTO v1_model_spending_reservations VALUES(?,?,NULL,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(key,r.accountId,r.token,r.model,r.feedId,r.reservedCostUsd,r.leaseUntil,instant(r.createdAt),JSON.stringify(r)).run();
 
  if(usage&&Number.isFinite(usage.costUsd)&&usage.costUsd>=0)await settleModelSpending(db,key,token,{costUsd:usage.costUsd,reported:Boolean(usage.reported)});
+}
+
+/** Read-only explanation of the existing admission rule. Local ownership and
+ * unresolved billing cannot establish a remote execution lifetime. No release,
+ * provider lookup, settlement or semantic mutation is performed here. */
+export function executionCapacityDiagnostic(input:{accountMapped:boolean;reported?:boolean;leaseUntil?:number;calls?:number;providerDiagnostic?:ProviderDiagnostic},now=Date.now()){
+ const unpaid=!input.accountMapped&&input.calls===0,d=input.providerDiagnostic;
+ const rejection=d?.httpStatus===400&&d.code==='invalid_json_schema'&&d.category==='invalid_request_error'&&d.execution==='REJECTED_BEFORE_EXECUTION'&&Boolean(d.requestId);
+ return {
+  localLeaseState:typeof input.leaseUntil==='number'?input.leaseUntil>now?'LIVE':'EXPIRED':'NOT_OBSERVABLE',
+  countedAgainstConcurrency:input.accountMapped?!input.reported:unpaid?false:null,
+  remoteExecutionState:unpaid?'NOT_RUN':rejection?'CONFIRMED_NONEXECUTION':'TERMINATION_UNPROVEN',
+  capacityReleaseEligibility:!input.accountMapped?unpaid?'NOT_APPLICABLE':'NOT_OBSERVABLE':input.reported?'ALREADY_RELEASED_BY_SETTLEMENT':rejection?'EVIDENCE_BOUND_RECONCILIATION_REQUIRED':'INSUFFICIENT_PROVIDER_EVIDENCE',
+  recoveryReason:unpaid?'No paid operation was admitted.':input.accountMapped&&input.reported?'Confirmed accounting released the slot; inspect canonical semantic outcome independently.':rejection?'Explicit retained rejection supports the existing evidence-bound operator reconciliation.':'Obtain independently bound provider completion/rejection evidence. Lease expiry, timeout, cancellation and elapsed time are insufficient.'
+ };
 }
