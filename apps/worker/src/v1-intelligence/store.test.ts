@@ -7,6 +7,21 @@ let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 const now=testPolicy.now(),feed:FeedRecord={id:'feed-1',ownerId:'owner-1',title:'Feed',interests:[],geography:[],outputLanguage:'en',briefingFrequency:'DAILY',paused:false,revision:1,createdAt:now,updatedAt:now};
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feed)});
 afterEach(async()=>ctx.dispose());
+it('batches 227 immutable lookups without losing missing IDs or changing the Feed epoch',async()=>{
+ const ids=Array.from({length:227},(_,i)=>`retained-${i}`);
+ for(let offset=0;offset<ids.length;offset+=90)await ctx.db.batch(ids.slice(offset,offset+90).map(id=>ctx.db.prepare('INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?)').bind('intelligence_receipts',id,feed.id,JSON.stringify({id,feedId:feed.id}))));
+ const epoch=(await store.snapshot(feed.id)).epoch,prepare=vi.fn((sql:string)=>ctx.db.prepare(sql));
+ const measured=new V1FeedStore({prepare} as unknown as D1Database);
+ const result=await measured.readMany<{id:string}>(feed.id,'intelligence_receipts',[...ids,ids[0],'missing']);
+ expect(result.size).toBe(227);expect([...result.values()].map(r=>r.id).sort()).toEqual([...ids].sort());expect(result.has('missing')).toBe(false);
+ expect(prepare.mock.calls).toHaveLength(3);expect((await store.snapshot(feed.id)).epoch).toBe(epoch);
+});
+it('batched immutable reads reject foreign global IDs rather than hiding them',async()=>{
+ await store.registerFeed({...feed,id:'foreign-feed'});
+ await ctx.db.prepare('INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?)').bind('intelligence_receipts','foreign-receipt','foreign-feed',JSON.stringify({id:'foreign-receipt'})).run();
+ await expect(store.readMany(feed.id,'intelligence_receipts',['foreign-receipt'])).rejects.toMatchObject({code:'SCOPE_DENIED'});
+ expect(await store.readMany(feed.id,'intelligence_receipts',[])).toEqual(new Map());
+});
 it('read-only relay checks do not invalidate writers; real writes still fence stale snapshots',async()=>{
  const snapshot=await store.snapshot(feed.id),writer=new FeedTransaction(store,snapshot);
  await writer.write('intelligence_receipts','receipt-1',{id:'receipt-1',feedId:feed.id});

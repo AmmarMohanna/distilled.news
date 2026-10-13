@@ -30,14 +30,18 @@ export interface SemanticPreparation {input:EventMatchInput;prepared:PreparedSem
 /** Bounded retrieval retains current Events regardless of publication age.
  * Lexical overlap is retrieval priority only, never the semantic relation. */
 export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:string,now:string,options:{fetcher?:typeof fetch;strong?:StrongSemanticModel;attempt?:number}={}):Promise<SemanticPreparation|undefined> {
+ const preparationStarted=Date.now();
  if(env.V1_SEMANTIC_POLICY==='DETERMINISTIC'||!env.OPENROUTER_API_KEY && !options.strong)return undefined;
  const job=(await new V1IntakeStore(store.db).read<DownstreamJob>('jobs',jobId))?.value;if(!job)return undefined;
  const feed=await store.getFeed(job.feedId),active=await store.currentEvidence(job.feedId),revision=active.find(e=>e.revision.sourceObservationId===job.observationId)?.revision;if(!feed||!revision)return undefined;
  // Teasers, promotions and calls to action contain nothing to relate or construct: spend no semantic call on them.
  const extracted=await extractClaimMentions(revision);if(!extracted.mentions.some(isNewsMention))return undefined;
  const members=await store.list<EventMembership>(job.feedId,'memberships'),candidates:EventMatchInput['candidates']=[],activeIds=new Set(active.map(e=>e.revision.id)),knownEventVersions:Record<string,string>={};
- for(const root of await store.list<EventRecord>(job.feedId,'events')){
-  const version=await store.read<EventVersion>(job.feedId,'event_versions',root.currentVersionId),support=members.filter(m=>m.eventVersionId===root.currentVersionId).map(m=>m.evidenceRevisionId);
+ const roots=await store.list<EventRecord>(job.feedId,'events'),eventIds=roots.map(r=>r.currentVersionId);
+ const [versions,semanticStates]=await Promise.all([store.readMany<EventVersion>(job.feedId,'event_versions',eventIds),store.readMany<import('./semantic-state').EventSemanticState>(job.feedId,'event_semantic_states',eventIds)]);
+ const supportByVersion=new Map<string,string[]>();for(const member of members){const support=supportByVersion.get(member.eventVersionId)??[];support.push(member.evidenceRevisionId);supportByVersion.set(member.eventVersionId,support)}
+ for(const root of roots){
+  const version=versions.get(root.currentVersionId),support=supportByVersion.get(root.currentVersionId)??[];
   if(!version||version.type==='WITHDRAWN')continue;
   // Catalog the same non-withdrawn universe consumed by the engine, including
   // unavailable roots. Only active supports can be offered to the model.
@@ -45,7 +49,7 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
   if(!support.length||support.some(id=>!activeIds.has(id)))continue;
   // A provisional representation is not independent confirmation of itself.
   // It remains catalogued for consumption fencing, but needs construction.
-  const semantic=await store.read<import('./semantic-state').EventSemanticState>(job.feedId,'event_semantic_states',version.id);
+  const semantic=semanticStates.get(version.id);
   if(semantic?.provisional&&support.every(id=>id===revision.id))continue;
   candidates.push({id:root.id,version,evidenceRevisionIds:support,newestAt:version.createdAt});
  }
@@ -53,10 +57,14 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
  const priority=(c:EventMatchInput['candidates'][number])=>overlap(features(sourceText).keywords,features(c.version.state).keywords)+entityAnchors.filter(e=>e.aliases.some(a=>c.version.state.includes(a))).length;
  candidates.sort((a,b)=>priority(b)-priority(a)||b.newestAt.localeCompare(a.newestAt));
  const shortlist=candidates,storylines:StorylineRecord[]=[];
- for(const root of await store.list<StorylineRecord>(job.feedId,'storylines')){const version=await store.read<import('./types').StorylineVersion>(job.feedId,'storyline_versions',root.currentVersionId);if(version?.eventVersionIds.length && version.eventVersionIds.every(id=>candidates.some(c=>c.version.id===id)))storylines.push(root)}
+ const storylineRoots=await store.list<StorylineRecord>(job.feedId,'storylines'),storylineVersionIds=storylineRoots.map(r=>r.currentVersionId);
+ const [storylineVersions,storylineMemories]=await Promise.all([store.readMany<import('./types').StorylineVersion>(job.feedId,'storyline_versions',storylineVersionIds),store.readMany<StorylineMemory>(job.feedId,'storyline_memories',storylineVersionIds)]);
+ const candidateVersionIds=new Set(candidates.map(c=>c.version.id));
+ for(const root of storylineRoots){const version=storylineVersions.get(root.currentVersionId);if(version?.eventVersionIds.length && version.eventVersionIds.every(id=>candidateVersionIds.has(id)))storylines.push(root)}
 
  const input:EventMatchInput={revision,role:classifyRole(sourceText).role,candidates:shortlist,storylineIds:storylines.map(s=>s.id)};
- const memory=await Promise.all(storylines.map(async s=>({id:s.id,version:await store.read<any>(job.feedId,'storyline_versions',s.currentVersionId),structured:await store.read<StorylineMemory>(job.feedId,'storyline_memories',s.currentVersionId)})));
+ const memory=storylines.map(s=>({id:s.id,version:storylineVersions.get(s.currentVersionId),structured:storylineMemories.get(s.currentVersionId)}));
+ console.info(JSON.stringify({type:'V1_SEMANTIC_PREPARATION_CONTEXT',feedId:job.feedId,jobId,durationMs:Date.now()-preparationStarted,eventRoots:roots.length,storylineRoots:storylineRoots.length,offeredEvents:candidates.length,offeredStorylines:storylines.length,contextBatchQueries:2*Math.ceil(new Set(eventIds).size/90)+2*Math.ceil(new Set(storylineVersionIds).size/90),leaseRemainingMs:store.semanticLease?store.semanticLease.leaseUntil-Date.now():undefined}));
  const state={source:{id:revision.id,title:revision.title,text:revision.body??''},events:shortlist.map(c=>({id:c.id,versionId:c.version.id,state:c.version.state})),storylines:memory.map(s=>({id:s.id,state:String(s.version?.currentState??'')})),instruction:'Judge only supplied approved evidence. Separate bounded developments from ongoing Storylines. Preserve attributed conflicting claims and hedges. Structural identity is independent of epistemic effects. No external facts.'};
  const evidenceRevisionIds=[...new Set([revision.id,...shortlist.flatMap(c=>c.evidenceRevisionIds),...memory.flatMap(m=>members.filter(x=>m.version?.eventVersionIds.includes(x.eventVersionId)).map(x=>x.evidenceRevisionId))])],operation={feedId:job.feedId,feedRevision:feed.revision,evidenceRevisionIds,policyVersion:SEMANTIC_POLICY,budgetKey:`semantic:${now.slice(0,10)}`,state:{...state,attempt:options.attempt??0}};
  const reuseContext={eventVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),storylineVersions:Object.fromEntries(storylines.map(s=>[s.id,s.currentVersionId])),extractorVersion:CLAIM_EXTRACTOR,extractionPolicy:CLAIM_POLICY};

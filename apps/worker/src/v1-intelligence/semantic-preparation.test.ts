@@ -1,6 +1,6 @@
 import {syntheticModelAdmission} from './test-utils';
 import {admitModelOperation} from './model-capacity';
-import {afterEach,beforeEach,expect,it} from 'vitest';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope,batchFixture,testPolicy} from '../v1-intake/test-utils';
 import {createCandidateIntakePort} from '../v1-intake/intake';
 import {acceptAcquiredContent} from '../v1-intake/evidence';
@@ -14,6 +14,16 @@ import type {Env} from '../types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
 afterEach(async()=>ctx.dispose());
+it('prepares retained Event context without sequential per-Event document reads',async()=>{
+ await seedIntelligence(store,1);
+ await acceptEvidence(store,2,'Officials announced a new electricity reform.');
+ const reads=vi.spyOn(store,'read');
+ const usage={calls:1,costUsd:.001,reported:true};
+ const strong={model:'batch-context-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:[],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage})};
+ const prepared=await prepareSemanticMatch(store,{} as Env,JSON.stringify(['REASSESS','observation-2','']),testPolicy.now(),{strong});
+ expect(prepared?.input.candidates).toHaveLength(1);
+ expect(reads.mock.calls.filter(([,kind])=>['event_versions','event_semantic_states','storyline_versions','storyline_memories'].includes(kind))).toHaveLength(0);
+},20000);
 it('prepares strong construction outside CAS and consumes persisted judgment without a second call',async()=>{
  const intake=new V1IntakeStore(ctx.db),accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batchFixture());
  await acceptAcquiredContent(intake,{id:'content',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-1',body:'Officials confirmed the banking reform passed.',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);

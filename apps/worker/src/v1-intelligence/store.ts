@@ -25,6 +25,15 @@ export class V1FeedStore {
   const row=await this.db.prepare('SELECT feed_id,json FROM v1_feed_documents WHERE kind=? AND id=?').bind(kind,id).first<{feed_id:string;json:string}>();
   if(row && row.feed_id!==feedId) throw new HandoffError('SCOPE_DENIED');return row?JSON.parse(row.json):undefined;
  }
+ async readMany<T>(feedId:string,kind:DocumentKind,ids:string[]):Promise<Map<string,T>> {
+  const unique=[...new Set(ids)],values=new Map<string,T>();
+  for(let offset=0;offset<unique.length;offset+=90){
+   const chunk=unique.slice(offset,offset+90),rows=await this.db.prepare(`SELECT id,feed_id,json FROM v1_feed_documents WHERE kind=? AND id IN (${chunk.map(()=>'?').join(',')})`).bind(kind,...chunk).all<{id:string;feed_id:string;json:string}>();
+   if(rows.results.some(row=>row.feed_id!==feedId))throw new HandoffError('SCOPE_DENIED');
+   for(const row of rows.results)values.set(row.id,JSON.parse(row.json));
+  }
+  return values;
+ }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
  async currentEvidence(feedId:string):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id`).bind(feedId).all<{item:string;revision:string}>();
