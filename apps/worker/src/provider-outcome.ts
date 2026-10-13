@@ -1,4 +1,4 @@
-export interface ProviderDiagnostic {httpStatus:number;category?:string;code?:string;message:string;requestId?:string;reportedCostUsd?:number;execution:'REJECTED_BEFORE_EXECUTION'|'COMPLETED_WITH_KNOWN_USAGE'|'UNKNOWN'}
+export interface ProviderDiagnostic {httpStatus:number;category?:string;code?:string;message:string;requestId?:string;generationId?:string;reportedCostUsd?:number;execution:'REJECTED_BEFORE_EXECUTION'|'COMPLETED_WITH_KNOWN_USAGE'|'UNKNOWN'}
 export class ProviderRequestError extends Error {constructor(message:string,readonly providerDiagnostic:ProviderDiagnostic){super(message)}}
 export async function readProviderRejection(response:Response,secrets:string[]):Promise<{diagnostic:ProviderDiagnostic;usage?:{prompt_tokens?:number;completion_tokens?:number;cost?:number}}> {
  const reader=response.body?.getReader();let raw='',size=0;
@@ -14,6 +14,7 @@ export async function readProviderRejection(response:Response,secrets:string[]):
  // An HTTP status alone proves neither nonexecution nor nonbilling. Only the
  // explicit schema validation code identifies a pre-inference rejection.
  const rejected=response.status===400&&error?.code==='invalid_json_schema'&&error?.type==='invalid_request_error';
- const diagnostic:ProviderDiagnostic={httpStatus:response.status,...(known?{reportedCostUsd:cost}:{}),category:tag(error?.type),code:tag(error?.code),message,requestId:tag(response.headers.get('x-request-id'))??tag(response.headers.get('request-id')),execution:known?'COMPLETED_WITH_KNOWN_USAGE':rejected?'REJECTED_BEFORE_EXECUTION':'UNKNOWN'};
+ const generation=response.headers.get('x-generation-id'),generationId=typeof generation==='string'&&/^gen-[0-9A-Za-z-]{1,124}$/.test(generation)&&!secrets.includes(generation)?generation:undefined;
+ const diagnostic:ProviderDiagnostic={httpStatus:response.status,...(generationId?{generationId}:{}),...(known?{reportedCostUsd:cost}:{}),category:tag(error?.type),code:tag(error?.code),message,requestId:tag(response.headers.get('x-request-id'))??tag(response.headers.get('request-id')),execution:known?'COMPLETED_WITH_KNOWN_USAGE':rejected?'REJECTED_BEFORE_EXECUTION':'UNKNOWN'};
  return {diagnostic,usage:known?{cost,prompt_tokens:count(body.usage.prompt_tokens??body.usage.input_tokens),completion_tokens:count(body.usage.completion_tokens??body.usage.output_tokens)}:rejected?{cost:0,prompt_tokens:0,completion_tokens:0}:undefined};
 }

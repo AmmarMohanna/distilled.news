@@ -2,6 +2,14 @@ import {it,expect} from 'vitest';
 import {createStrongSemanticModel} from './semantic-model';
 import type {Env} from '../types';
 const env={OPENROUTER_API_KEY:'private-fixture-secret',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env;
+it('retains a provider generation ID for investigation without treating it as termination proof',async()=>{
+ const {readProviderRejection}=await import('../provider-outcome');
+ const response=Response.json({error:{message:'transport failed'}},{status:502,headers:{'x-generation-id':'gen-123abc'}});
+ const {diagnostic,usage}=await readProviderRejection(response,[]);
+ expect(diagnostic).toMatchObject({generationId:'gen-123abc',execution:'UNKNOWN'});expect(usage).toBeUndefined();
+ const malformed=await readProviderRejection(Response.json({error:{}},{status:502,headers:{'x-generation-id':'private-fixture-secret'}}),[env.OPENROUTER_API_KEY!]);
+ expect(malformed.diagnostic).not.toHaveProperty('generationId');
+});
 it('retains bounded schema rejection evidence and settles only an explicit nonexecuted rejection',async()=>{
  const model=createStrongSemanticModel(env,(async()=>Response.json({error:{code:'invalid_json_schema',type:'invalid_request_error',message:'Invalid enum count; private-fixture-secret'}},{status:400,headers:{'x-request-id':'req-proof'}})) as typeof fetch)!;
  const error=await model.complete('f','COMPARATIVE_EDITORIAL_PLAN',{},{type:'object',properties:{},required:[],additionalProperties:false}).catch(e=>e);
