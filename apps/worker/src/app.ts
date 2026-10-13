@@ -1,3 +1,4 @@
+import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intelligence/model-reconciliation';
 import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-trace';
 import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
@@ -975,6 +976,18 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ retried, health: await repo.getHealth(briefing.id) });
   });
 
+  app.get('/api/admin/model-spending/:id/reconciliation',async c=>{
+    c.header('Cache-Control','private, no-store');
+    const accountId=c.req.query('accountId');if(!accountId)return c.json({error:'accountId required'},400);
+    try{const p=await reviewModelRejection(c.env.DB,c.req.param('id'),accountId);return c.json({id:p.id,eligible:p.eligible,reason:p.reason,evidenceHash:p.evidenceHash,providerDiagnostic:p.providerDiagnostic})}catch{return c.json({error:'reconciliation unavailable'},409)}
+  });
+  app.post('/api/admin/model-spending/:id/reconciliation',async c=>{
+    c.header('Cache-Control','private, no-store');
+    if(!c.req.header('Content-Type')?.startsWith('application/json')||c.req.header('Origin')&&c.req.header('Origin')!==new URL(c.req.url).origin)return c.json({error:'invalid operator request'},403);
+    const b=await c.req.json().catch(()=>null);
+    if(!b||b.approve!==true||typeof b.accountId!=='string'||typeof b.approvalId!=='string'||typeof b.evidenceHash!=='string')return c.json({error:'explicit evidence-bound approval required'},400);
+    try{return c.json(await reconcileConfirmedModelRejection(c.env.DB,c.req.param('id'),{accountId:b.accountId,approvalId:b.approvalId,evidenceHash:b.evidenceHash,approvedBy:c.get('account')!.id}))}catch{return c.json({error:'reconciliation refused; inspect retained evidence'},409)}
+  });
   app.get('/api/admin/briefings/:feedId/pipeline-trace',async c=>{
     c.header('Cache-Control','private, no-store');
     const query=traceOptionsSchema.safeParse(c.req.query());

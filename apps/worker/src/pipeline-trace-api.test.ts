@@ -31,3 +31,11 @@ it('signed-in operators can inspect an existing Feed without exposing data on pu
         await ctx.dispose();
     }
 }, 20000);
+
+it('financial reconciliation denies anonymous and nonoperator sessions without reading or writing D1',async()=>{
+ const repo=new InMemoryRepository(),app=createApp({repository:repo});let queries=0;
+ const env={ADMIN_SESSION_SECRET:'operator-test',DB:{prepare:()=>{queries++;throw Error('No unauthorized database access')}}} as unknown as Env;
+ const user=await repo.createAccount({email:'user@test.invalid',username:'ordinary',role:'user',passwordHash:'fixture'}),cookie='dn_session='+await createSession(env.ADMIN_SESSION_SECRET!,user);
+ for(const headers of [new Headers(),new Headers({cookie})])for(const method of ['GET','POST'])expect((await app.request('/api/admin/model-spending/semantic_intents:op/reconciliation?accountId=account',{method,headers},env)).status).toBe(401);
+ expect(queries).toBe(0);
+});

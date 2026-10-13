@@ -153,3 +153,10 @@ it('equivalent UTC timestamp representations locate the same persisted window',a
  const r=await readPipelineTrace(ctx.db,'feed-1',{...normalized,editionId:'edition'});expect(r.summary!.publication).toMatchObject({selected:2,published:1});
  const candidates=await readPipelineTrace(ctx.db,'feed-1',{...normalized,view:'candidates'});expect(candidates.page.total).toBe(125);
 });
+
+it('unpaid provider-schema rejection exposes admission metrics without a fabricated provider cost',async()=>{
+ const id='schema-admission-wait',record={id,feedId:'feed-1',operationId:'never-called',input:{kind:'COMPARATIVE_EDITORIAL_PLAN',model:'openai/gpt-4.1-mini',state:{}},status:'DEFERRED',failure:'SEMANTIC_MODEL_SCHEMA_CONTINUATION_REQUIRED',usage:{calls:0,costUsd:0,reported:true},admission:{fits:false,reason:'MODEL_SCHEMA_CONTINUATION_REQUIRED',schemaAdmission:{enumValues:1001,violations:['ENUM_COUNT']}}};
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('semantic_resource_waits',?,'feed-1',?)").bind(id,JSON.stringify(record)).run();
+ const response=await readPipelineTrace(ctx.db,'feed-1',{view:'operations',recordId:id});
+ expect(response.items[0]).toMatchObject({modelExecutionState:'NOT_RUN',providerReportedCostUsd:null,financialConfirmation:'NOT_RUN',admission:{schemaAdmission:{enumValues:1001,violations:['ENUM_COUNT']}}});
+});
