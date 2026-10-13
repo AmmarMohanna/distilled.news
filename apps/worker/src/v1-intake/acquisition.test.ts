@@ -64,6 +64,18 @@ it('verified supplied payload precedes native and HTTP routes',async()=>{
  expect(await runAcquisitionJob(store,JSON.stringify(['ACQUIRE','observation-2','']),testPolicy,router)).toBe('DONE');
  expect(externalCalls).toBe(0);expect((await store.list<AcceptedAcquiredContent>('acquired','feed-source-1'))[0].representation).toBe('ARTICLE_EXCERPT');
 });
+it('full-article mode upgrades an RSS excerpt and preserves the publisher date and canonical identity',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,readPayload:async()=>({body:'Feed excerpt only'}),fetcher:async()=>new Response('<meta property="article:published_time" content="2026-10-03T10:00:00Z"><h1>Actual article</h1><article>'+ 'Full publisher text. '.repeat(30)+'</article>')});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('DONE');
+ const acquired=(await store.list<AcceptedAcquiredContent>('acquired','feed-source-1'))[0];
+ expect(acquired.representation).toBe('FULL_ARTICLE');expect(acquired.publishedAt).toBe('2026-10-03T10:00:00.000Z');expect(acquired.body).toContain('Full publisher text.');
+ expect(acquired.provenance).toMatchObject({stages:['HTTP']});
+});
+it('private extraction of an undated article leaves the publication date unknown',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,fetcher:async()=>new Response('<html>Unstructured article</html>'),extractHtml:async()=>({body:'Article content. '.repeat(30),title:'Actual article'})});
+ const claim=(await claimAcquisition(store,jobId,now))!;delete claim.input.observation.publishedAtHint;
+ const acquired=await router(claim);expect(acquired.publishedAt).toBeUndefined();expect(acquired.representation).toBe('FULL_ARTICLE');
+});
 it('browser fallback preserves bounded verifier provenance in durable acquired content',async()=>{
  const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('<html>Article loading</html>'),stagesForClaim:claim=>({webOperator:async()=>({stage:'WEB_OPERATOR',status:'SUCCESS',result:{items:[{sourceResource:'candidate-resource',canonicalItemUrl:claim.input.observation.canonicalUrl,sourceItemId:claim.input.observation.sourceItemKey,title:'Development',text:'Parliament approved the banking reform.',publishedAt:'2026-10-03T10:00:00Z',acquisitionEvidence:{acceptanceId:'verified',observationId:'browser-observed',rawArtifactRef:'raw/artifact',unrelated:'not-retained'}}],requestedWindow:{startTime:now,endTime:now},effectiveWindow:{startTime:now,endTime:now},acquisitionAsOf:now,coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'}}})})});
  expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('DONE');

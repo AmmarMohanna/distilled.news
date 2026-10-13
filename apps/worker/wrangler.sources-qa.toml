@@ -8,12 +8,17 @@ preview_urls = false
 routes = []
 
 [vars]
-STAGING_ASSETS_PREFIX = "staging-assets/069e475ed9c0f3cc911c8b4f128cc3aa8866bc3a/"
+STAGING_ASSETS_PREFIX = "staging-assets/ad125b776e37e3a8c99ce11da1c03d379ba85f48/"
 PUBLIC_API_BASE_URL = "https://distilled-news-sources-qa.distillednews-platform.workers.dev"
 PUBLIC_WEB_BASE_URL = "https://distilled-news-sources-qa.distillednews-platform.workers.dev"
 EMAIL_FROM = "Distilled.news <distilled.news@outlook.com>"
 MAIL_TRANSPORT = "OUTLOOK_GRAPH"
 SOURCE_CONNECTORS_ENABLED = "true"
+SOURCE_QUEUE_SCHEDULING_ENABLED = "true"
+SOURCE_SHARED_PUBLIC_FETCH_ENABLED = "true"
+SOURCE_FULL_ARTICLES_ENABLED = "true"
+SOURCE_COLLECTION_INTERVAL_MS = "300000"
+SOURCE_PER_PROVIDER_BUDGET_USD = "15"
 SOURCE_POLL_MAX_JOBS_PER_TICK = "4"
 SOURCE_POLL_TICK_BUDGET_MS = "90000"
 SOURCE_LEGACY_POLLING_ENABLED = "false"
@@ -21,18 +26,26 @@ PRODUCT_FEEDS_ENABLED = "true"
 SOURCE_RECOMMENDATIONS_ENABLED = "false"
 SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
 SOURCE_GOOGLE_RESOLUTION_ENABLED = "true"
-SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0,"apify":0,"zyte":0}'
-SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":0,"x_apify":0,"google_apify":0,"linkedin_apify":0,"zyte":0}'
+SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.1,"apify":0.25,"zyte":0.03}'
+SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":225.40000000000038,"x_apify":180.750012,"google_apify":186.0001,"linkedin_apify":180.750012,"zyte":180.12}'
 V1_DOWNSTREAM_ENABLED = "true"
 V1_DOWNSTREAM_FEED_SOURCE_IDS = ""
 V1_EDITORIAL_PLAN_ENABLED = "true"
 V1_SEMANTIC_POLICY = "DETERMINISTIC"
 V1_SALIENCE_POLICY = "DETERMINISTIC"
-V1_SYNTHESIS_MODEL_ENABLED = "false"
+V1_SYNTHESIS_MODEL_ENABLED = "true"
 V1_BROWSER_ACQUISITION_ENABLED = "false"
 DISTILLED_WEB_OPERATOR_ENABLED = "false"
 DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE = "false"
 DISTILLED_NEWS_PIPELINE_EVALUATION = "false"
+
+DISTILLED_LIVE_OPENROUTER_MODEL = "openai/gpt-4.1-mini"
+
+DISTILLED_LLM_API_GATEWAY = "openrouter"
+
+V1_REAL_MODEL_REQUIRED = "true"
+
+V1_SEMANTIC_STRONG_MODEL = "openai/gpt-4.1"
 
 [[d1_databases]]
 binding = "DB"
@@ -55,13 +68,25 @@ max_batch_timeout = 1
 max_retries = 5
 dead_letter_queue = "distilled-news-sources-qa-dlq"
 
+[[queues.producers]]
+binding = "SOURCE_COLLECTION_QUEUE"
+queue = "distilled-news-sources-qa-collection"
+
+[[queues.consumers]]
+queue = "distilled-news-sources-qa-collection"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 5
+max_concurrency = 8
+dead_letter_queue = "distilled-news-sources-qa-collection-dlq"
+
 [[vpc_services]]
 binding = "SOURCE_EXECUTION_SERVICE"
 service_id = "01a1099d-e88a-7c23-a1c5-eeb51471e780"
 
 [triggers]
-# Use bounded authenticated maintenance probes until sustained operation is measured.
-crons = []
+# Collection is dispatched durably; no upstream fetch runs inside Cron.
+crons = ["* * * * *"]
 
 [observability]
 enabled = true

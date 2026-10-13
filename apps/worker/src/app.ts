@@ -2,6 +2,7 @@ import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
 import {approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState} from './product-feeds';
 import {connectorSourceHealth} from './connector-health';
+import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
@@ -827,7 +828,7 @@ export function createApp(options: AppOptions = {}) {
     if(!briefing)return c.json({error:'briefing not found'},404);
     const source=await c.get('repo').getSource(c.req.param('sourceId'));
     if(!source||source.briefingId!==briefing.id)return c.json({error:'source not found'},404);
-    return c.json({sourceId:source.id,enabled:source.enabled,health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
+    return c.json({sourceId:source.id,enabled:source.enabled,availability:(await feedSourceAvailability(c.env,briefing.id)).find(row=>row.sourceId===source.id),health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
   });
 
   app.post("/api/me/sources/recommend", async c => {
@@ -1010,6 +1011,7 @@ export function createApp(options: AppOptions = {}) {
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
       briefing: publicBriefing(briefing),
+      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' ? await feedSourceAvailability(c.env,briefing.id) : undefined,
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false

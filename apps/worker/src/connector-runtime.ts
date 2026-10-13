@@ -10,16 +10,16 @@ import {canonicalJson} from './v1-intake/canonical';
 
 /** Reads current approved product state; never enrolls or repairs stale queued work. */
 export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Promise<boolean> {
- if(env.SOURCE_CONNECTORS_ENABLED!=='true'||!v1SourceEnabled(env,r.scope.feedSourceId))return false;
+ if(env.SOURCE_CONNECTORS_ENABLED!=='true'||!v1SourceEnabled(env,r.scope.feedSourceId)&&!(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&env.PRODUCT_FEEDS_ENABLED==='true'&&env.V1_DOWNSTREAM_ENABLED==='true'))return false;
  const p=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.briefing_id=? AND s.enabled=1 AND s.collection_owner='connector' AND b.paused=0 AND a.disabled_at IS NULL`).bind(r.scope.feedSourceId,r.scope.feedId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null}>();
  const scope=await new V1IntakeStore(env.DB).getScope(r.scope.feedSourceId);
  const approved=p?productConnectorSource(p):undefined;
- return !!approved && canonicalJson(approved.source)===canonicalJson(r.source) && !!scope?.enabled && !scope.deletedAt && scope.sourceId===r.scope.sourceId && scope.feedId===r.scope.feedId && scope.feedRevision===r.configurationRevision && r.limit===approved.limit && Object.keys(r.requestedBounds).length===0 && (!['telegram','website'].includes(r.source.family)||!!env.SOURCE_EXECUTION_TOKEN&&!!env.SOURCE_EXECUTION_SERVICE);
+ return !!approved && canonicalJson(approved.source)===canonicalJson(r.source) && !!scope?.enabled && !scope.deletedAt && scope.sourceId===r.scope.sourceId && scope.feedId===r.scope.feedId && scope.feedRevision===r.configurationRevision && (r.limit===approved.limit||env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&r.source.family==='website'&&r.limit===30) && Object.keys(r.requestedBounds).length===0 && (!['telegram','website'].includes(r.source.family)||!!env.SOURCE_EXECUTION_TOKEN&&!!env.SOURCE_EXECUTION_SERVICE);
 }
 export function createConnectorRuntime(env:Env,fetcher?:typeof fetch) {
  const authorize=(r:SourceFetchRequest)=>authorizeConnectorSource(env,r);
  const intake:CandidateIntakePort={acceptBatch:request=>acceptV1Handoff(env,request)};
- return createSourceBackend(env,{authorize,intake,fetcher,providerPageLimit:10,intakeForRequest:r=>({acceptBatch:batch=>acceptV1Handoff(env,batch,r.configurationRevision)})});
+ return createSourceBackend(env,{authorize,intake,fetcher,providerPageLimit:100,intakeForRequest:r=>({acceptBatch:batch=>acceptV1Handoff(env,batch,r.configurationRevision)})});
 }
 /** Aggregate D1 reservations are separate from per-operation ceilings. No setting means no paid dispatch. */
 export async function configureConnectorBudgets(env:Env,backend:ReturnType<typeof createConnectorRuntime>) {
@@ -36,9 +36,10 @@ export async function configureConnectorBudgets(env:Env,backend:ReturnType<typeo
  * new-message cursor and never interprets a missing recheck as deletion. */
 export async function scheduleRecentTelegramRecheck(db:D1Database,
  scheduler:Pick<ReturnType<typeof createConnectorRuntime>['scheduler'],'schedule'>,
- request:SourceFetchRequest,now:Date):Promise<boolean>{
+ request:SourceFetchRequest,now:Date,intervalMs=86400000):Promise<boolean>{
  if(request.source.family!=='telegram'||!request.source.channelId)return false;
- const runId=await sha256(JSON.stringify([request.scope.feedSourceId,request.configurationRevision,'telegram-recheck',Math.floor(now.getTime()/86400000)]));
+ if(!Number.isSafeInteger(intervalMs)||intervalMs<60000||intervalMs>86400000)throw Error('INVALID_RECHECK_INTERVAL');
+ const runId=await sha256(JSON.stringify([request.scope.feedSourceId,request.configurationRevision,'telegram-recheck',Math.floor(now.getTime()/intervalMs)]));
  const expected={...request,runId};
  const alreadyScheduled=async()=>{
   const row=await db.prepare('SELECT request,initial_hash,provider_order FROM connector_provider_poll_jobs WHERE job_id=?').bind(runId).first<{request:string;initial_hash:string;provider_order:string}>();
@@ -50,11 +51,12 @@ export async function scheduleRecentTelegramRecheck(db:D1Database,
   if(row.initial_hash!==await sha256(JSON.stringify([JSON.stringify({...expected,recheckItemKeys}),row.provider_order])))throw new HandoffError('IDEMPOTENCY_CONFLICT');
   return true;
  };
- // Freeze the first accepted ID range for the day. A later poll may discover
- // newer IDs, but must not mutate this durable job or start another daily pass.
+ // Freeze the first accepted ID range for this recheck interval. Later polls
+ // must not mutate this durable job; a new interval gets a new identity.
  if(await alreadyScheduled())return false;
  const prefix=`telegram:${request.source.channelId}:`;
- const recent=await db.prepare(`SELECT source_item_key AS key FROM connector_item_fingerprints
+ const conflicts=await db.prepare("SELECT DISTINCT item_key AS key FROM v1_jobs WHERE feed_source_id=? AND json_extract(json,'$.kind')='AUTHORITATIVE_RECHECK' AND json_extract(json,'$.state')='PENDING' AND item_key LIKE ? ORDER BY id LIMIT 3").bind(request.scope.feedSourceId,`${prefix}%`).all<{key:string}>();
+ const recent=conflicts.results.length?conflicts:await db.prepare(`SELECT source_item_key AS key FROM connector_item_fingerprints
    WHERE feed_id=? AND feed_source_id=? AND source_item_key LIKE ?
    ORDER BY CAST(substr(source_item_key,length(?) + 1) AS INTEGER) DESC LIMIT 3`)
    .bind(request.scope.feedId,request.scope.feedSourceId,`${prefix}%`,prefix).all<{key:string}>();
@@ -87,7 +89,7 @@ export async function scheduleProviderWindow(db:D1Database,scheduler:Pick<Return
  }
 }
 /** Durable scheduler owns continuation and retries; one bounded slice per cron tick. */
-export async function runConnectorMaintenance(env:Env,now=new Date()) {
+export async function runConnectorMaintenance(env:Env,now=new Date(),options:{scheduleOnly?:boolean}={}) {
  if(env.SOURCE_CONNECTORS_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return;
  const maxJobs=Number(env.SOURCE_POLL_MAX_JOBS_PER_TICK??4),budgetMs=Number(env.SOURCE_POLL_TICK_BUDGET_MS??90000);
  if(!Number.isSafeInteger(maxJobs)||maxJobs<1||maxJobs>20||!Number.isSafeInteger(budgetMs)||budgetMs<1000||budgetMs>600000)throw new Error('INVALID_POLL_RUNNER_BOUNDS');
@@ -123,9 +125,10 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
   const enrolled=await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
   // Every polling window has one stable identity. Repeated cron ticks replay that run;
   // a later window may collect new source observations without reusing an old snapshot.
-  const intervalMs=['x_profile','x_search','website'].includes(approved.source.family)?3600000:
-    approved.source.family.startsWith('linkedin_')?21600000:300000;
-  const request:SourceFetchRequest={scope:{feedId:enrolled.scope.feedId,feedSourceId:id,sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:await sha256(JSON.stringify([id,enrolled.scope.feedRevision,Math.floor(now.getTime()/intervalMs)])),source:approved.source,requestedBounds:{},limit:approved.limit};
+  const intervalMs=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?Number(env.SOURCE_COLLECTION_INTERVAL_MS??300000):
+    ['x_profile','x_search','website'].includes(approved.source.family)?3600000:approved.source.family.startsWith('linkedin_')?21600000:300000;
+  if(!Number.isSafeInteger(intervalMs)||intervalMs<60000||intervalMs>86400000)throw new Error('INVALID_COLLECTION_INTERVAL');
+  const request:SourceFetchRequest={scope:{feedId:enrolled.scope.feedId,feedSourceId:id,sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:await sha256(JSON.stringify([id,enrolled.scope.feedRevision,Math.floor(now.getTime()/intervalMs)])),source:approved.source,requestedBounds:{},limit:env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&approved.source.family==='website'?30:approved.limit};
   if(await authorizeConnectorSource(env,request)) {
    if(request.source.family==='rss')await backend.rssScheduler.schedule(request.runId,{scope:request.scope,runId:request.runId,configurationRevision:request.configurationRevision,url:request.source.locator,requestedBounds:request.requestedBounds,maxItems:request.limit},now.toISOString());
    else {
@@ -136,10 +139,11 @@ export async function runConnectorMaintenance(env:Env,now=new Date()) {
       family.startsWith('linkedin_')?['linkedin_apify']:
       ['x_twitterapi_io','x_apify'].filter(provider=>provider==='x_twitterapi_io'?budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0:budgets.x_apify>0&&ceilings.apify>0);
     await scheduleProviderWindow(env.DB,backend.scheduler,request,now,order);
-    if(family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now);
+    if(family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?intervalMs:86400000);
    }
   }
  }
+ if(options.scheduleOnly)return {outcomes:[],durationMs:0};
  const started=Date.now();let rssIdle=false,providerIdle=false;
  const outcomes:{scheduler:string;state:string}[]=[];
  for(let index=0;index<maxJobs&&(index===0||Date.now()-started<budgetMs);index++){

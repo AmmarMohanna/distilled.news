@@ -57,6 +57,7 @@ export interface SessionStatus {
 export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInstruction">;
 
 export interface FeedPayload {
+  sourceAvailability?: {sourceId:string;title:string;state:'AVAILABLE'|'UNAVAILABLE';providers:string[];reason?:string}[];
   publicationState?: 'waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending';
   briefing: PublicBriefing;
   editions: BriefingEdition[];

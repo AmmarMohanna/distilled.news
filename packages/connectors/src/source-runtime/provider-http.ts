@@ -7,7 +7,10 @@ export const PROVIDER_BUDGET_SCHEMA=`
 CREATE TABLE IF NOT EXISTS connector_provider_budgets(provider_id TEXT PRIMARY KEY, limit_usd REAL NOT NULL, reserved_usd REAL NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS connector_provider_operations(
  provider_id TEXT NOT NULL, operation_id TEXT NOT NULL, request_hash TEXT NOT NULL, ceiling_usd REAL NOT NULL,
- payload_ref TEXT, status INTEGER, headers TEXT, PRIMARY KEY(provider_id,operation_id));`;
+ payload_ref TEXT, status INTEGER, headers TEXT, feed_id TEXT, feed_source_id TEXT, PRIMARY KEY(provider_id,operation_id));
+CREATE TABLE IF NOT EXISTS connector_source_provider_budgets(
+ feed_id TEXT NOT NULL,feed_source_id TEXT NOT NULL,provider_id TEXT NOT NULL,reserved_usd REAL NOT NULL DEFAULT 0,
+ PRIMARY KEY(feed_id,feed_source_id,provider_id));`;
 
 export interface ProviderHttpResult {status:number;headers:Record<string,string>;bytes:Uint8Array;json:unknown}
 export interface ProviderHttpPort {
@@ -17,12 +20,14 @@ export interface ProviderHttpPort {
  * not reported actual costs. Caps are configured by deployment, not by source input. */
 export class DurableProviderHttp implements ProviderHttpPort {
   constructor(private readonly db:SqlDatabase,private readonly payloads:ImmutablePayloadStore,
-    private readonly dispatch:(url:string,init:RequestInit)=>Promise<Response>,private readonly maxBytes=4_000_000,private readonly deadlineMs=20_000) {
+    private readonly dispatch:(url:string,init:RequestInit)=>Promise<Response>,private readonly maxBytes=4_000_000,private readonly deadlineMs=20_000,
+    private readonly sourceProviderLimitUsd?:number) {
     if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>10_000_000||!Number.isSafeInteger(deadlineMs)||deadlineMs<1||deadlineMs>60_000)throw new Error('INVALID_PROVIDER_LIMITS');
+    if(sourceProviderLimitUsd!==undefined&&(!Number.isFinite(sourceProviderLimitUsd)||sourceProviderLimitUsd<0))throw new Error('INVALID_SOURCE_PROVIDER_BUDGET');
   }
   async configureLimit(providerId:string,limitUsd:number) {
     if(!Number.isFinite(limitUsd)||limitUsd<0)throw new Error('INVALID_BUDGET');
-    await this.db.prepare('INSERT INTO connector_provider_budgets(provider_id,limit_usd) VALUES(?,?) ON CONFLICT(provider_id) DO UPDATE SET limit_usd=excluded.limit_usd')
+    await this.db.prepare('INSERT INTO connector_provider_budgets(provider_id,limit_usd) VALUES(?,?) ON CONFLICT(provider_id) DO UPDATE SET limit_usd=excluded.limit_usd WHERE limit_usd<>excluded.limit_usd')
       .bind(providerId,limitUsd).run();
   }
   async request(scope:SourceScope,operationId:string,providerId:string,ceilingUsd:number,url:string,init:RequestInit):Promise<ProviderHttpResult> {
@@ -42,13 +47,22 @@ export class DurableProviderHttp implements ProviderHttpPort {
     }
     // Atomic reserve + insertion. Update only if no prior operation exists. The insertion
     // observes the same transaction, preventing two workers claiming the same request.
-    await this.db.batch([
-      this.db.prepare(`INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd)
-        SELECT ?,?,?,? FROM connector_provider_budgets WHERE provider_id=? AND reserved_usd+?<=limit_usd ON CONFLICT DO NOTHING`)
-        .bind(providerId,scoped,hash,ceilingUsd,providerId,ceilingUsd),
+    // Preserve reservations made before per-provider source accounting existed.
+    // Legacy completed payload paths encode the immutable source scope. An
+    // unattributed uncertain legacy charge must be reconciled, never ignored.
+    if(this.sourceProviderLimitUsd!==undefined&&await this.db.prepare('SELECT 1 AS unresolved FROM connector_provider_operations WHERE provider_id=? AND payload_ref IS NULL AND feed_source_id IS NULL LIMIT 1').bind(providerId).first())throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+    const prefix='source-payloads/'+await sha256(JSON.stringify([scope.feedId,scope.feedSourceId,scope.sourceId]))+'/';
+    const sourceBudget=this.sourceProviderLimitUsd===undefined?[]:[this.db.prepare(`INSERT INTO connector_source_provider_budgets(feed_id,feed_source_id,provider_id,reserved_usd)
+      SELECT ?,?,?,COALESCE(SUM(ceiling_usd),0) FROM connector_provider_operations WHERE provider_id=? AND payload_ref>=? AND payload_ref<? ON CONFLICT DO NOTHING`).bind(scope.feedId,scope.feedSourceId,providerId,providerId,prefix,prefix+'\uffff')];
+    const sourceGuard=this.sourceProviderLimitUsd===undefined?'':` AND EXISTS(SELECT 1 FROM connector_source_provider_budgets WHERE feed_id=? AND feed_source_id=? AND provider_id=? AND reserved_usd+?<=?)`;
+    await this.db.batch([...sourceBudget,
+      this.db.prepare(`INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,feed_id,feed_source_id)
+        SELECT ?,?,?,?,?,? FROM connector_provider_budgets WHERE provider_id=? AND reserved_usd+?<=limit_usd${sourceGuard} ON CONFLICT DO NOTHING`)
+        .bind(providerId,scoped,hash,ceilingUsd,scope.feedId,scope.feedSourceId,providerId,ceilingUsd,...(this.sourceProviderLimitUsd===undefined?[]:[scope.feedId,scope.feedSourceId,providerId,ceilingUsd,this.sourceProviderLimitUsd])),
       this.db.prepare(`UPDATE connector_provider_budgets SET reserved_usd=reserved_usd+? WHERE provider_id=? AND EXISTS
         (SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id=? AND status IS NULL AND payload_ref IS NULL)`)
         .bind(ceilingUsd,providerId,providerId,scoped),
+      ...(this.sourceProviderLimitUsd===undefined?[]:[this.db.prepare(`UPDATE connector_source_provider_budgets SET reserved_usd=reserved_usd+? WHERE feed_id=? AND feed_source_id=? AND provider_id=? AND EXISTS(SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id=? AND status IS NULL AND payload_ref IS NULL)`).bind(ceilingUsd,scope.feedId,scope.feedSourceId,providerId,providerId,scoped)]),
       // -1 is the durable claim fence; a second caller cannot reserve/dispatch the same operation.
       this.db.prepare('UPDATE connector_provider_operations SET status=-1 WHERE provider_id=? AND operation_id=? AND status IS NULL').bind(providerId,scoped)
     ]);

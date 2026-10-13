@@ -41,6 +41,36 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it('carries legacy completed reservations forward and blocks unattributed uncertain charges',async()=>{
+    const s=setup([]);let calls=0;
+    const old=new DurableProviderHttp(s.db,s.payloads,async()=>{calls++;return Response.json({ok:true})});
+    await old.configureLimit('x_twitterapi_io',100);
+    await old.request(scope,'legacy','x_twitterapi_io',14,'https://api.twitterapi.io/test',{});
+    s.db.db.prepare('UPDATE connector_provider_operations SET feed_id=NULL,feed_source_id=NULL').run();
+    const next=new DurableProviderHttp(s.db,s.payloads,async()=>{calls++;return Response.json({ok:true})},4000000,20000,15);
+    await next.request(scope,'remaining','x_twitterapi_io',1,'https://api.twitterapi.io/test',{});
+    await expect(next.request(scope,'exhausted','x_twitterapi_io',1,'https://api.twitterapi.io/test',{})).rejects.toThrow('BUDGET_EXCEEDED');
+    expect(calls).toBe(2);
+    s.db.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status) VALUES('x_twitterapi_io','legacy-uncertain','hash',1,-1)").run();
+    await expect(next.request({...scope,feedSourceId:'other'},'unknown','x_twitterapi_io',1,'https://api.twitterapi.io/test',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+    expect(calls).toBe(2);
+  });
+  it('helper backpressure resumes the original paid operation without charging again or invoking fallback',async()=>{
+    const s=setup([]);let paidCalls=0,helperCalls=0;
+    const paid=new DurableProviderHttp(s.db,s.payloads,async()=>{paidCalls++;return Response.json({ok:true})},4000000,20000,15);
+    await paid.configureLimit('x_twitterapi_io',15);
+    const primary=provider('x_twitterapi_io',vi.fn(async()=>{
+      await paid.request(scope,'stable-paid-op','x_twitterapi_io',1,'https://api.twitterapi.io/test',{});
+      if(++helperCalls===1)throw new SourceProviderError('BACKPRESSURE');
+      return page();
+    }));
+    const fallback=provider('x_apify');
+    const collector=new FallbackSourceCollector(s.repository,s.payloads,s.intake,[primary,fallback],()=>time);
+    await expect(collector.collect(request,['x_twitterapi_io','x_apify'])).rejects.toThrow('BACKPRESSURE');
+    expect((await collector.collect(request,['x_twitterapi_io','x_apify'])).state).toBe('HANDED_OFF');
+    expect(paidCalls).toBe(1);expect(helperCalls).toBe(2);expect(fallback.fetch).not.toHaveBeenCalled();
+    expect(s.db.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='x_twitterapi_io'").get()).toEqual({reserved_usd:1});
+  });
   it('renews a long collection lease so another runner cannot claim the same paid window',async()=>{
     vi.useFakeTimers();vi.setSystemTime(new Date(time));
     let release!:(value:any)=>void,entered!:(value?:unknown)=>void;
@@ -162,9 +192,15 @@ describe('fallback policy and durable handoff',()=>{
     expect(result.state).toBe('HANDED_OFF');
     if(result.state==='HANDED_OFF'){expect(result.providerId).toBe('secondary');expect(result.request.coverage.fetchStartSequence).toBe(2);}
   });
-  it.each(['POLICY_REFUSAL','UNCERTAIN_PAID_SUBMISSION','BUDGET_EXCEEDED'] as const)('does not fallback around %s',async code=>{
+  it.each(['POLICY_REFUSAL','UNCERTAIN_PAID_SUBMISSION'] as const)('does not fallback around %s',async code=>{
     const a=provider('primary',vi.fn(async()=>{throw new SourceProviderError(code);})),b=provider('secondary'),s=setup([a,b]);
     await expect(s.collector.collect(request,['primary','secondary'])).rejects.toThrow(code);expect(b.fetch).not.toHaveBeenCalled();
+  });
+  it('an exhausted primary allowance permits an independently authorized fallback and replay',async()=>{
+    const a=provider('primary',vi.fn(async()=>{throw new SourceProviderError('BUDGET_EXCEEDED')})),b=provider('secondary'),s=setup([a,b]);
+    const result=await s.collector.collect(request,['primary','secondary']);
+    expect(result.state==='HANDED_OFF'&&result.providerId).toBe('secondary');
+    await s.collector.collect(request,['primary','secondary']);expect(a.fetch).toHaveBeenCalledTimes(1);expect(b.fetch).toHaveBeenCalledTimes(1);
   });
   it('replays uncertain intake without repeating either provider',async()=>{
     const a=provider('primary'),b=provider('secondary'),s=setup([a,b]);let original='';
@@ -407,13 +443,24 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     expect(result[0].sourceItemKey).toBe('linkedin:urn:li:activity:1');expect(result[0].publishedAt).toBeUndefined();expect(result[0].contentCompleteness).toBe('UNKNOWN');
   });
   it('website extraction has text and no model provenance',async()=>{
-    const p=new WebsiteSourceProvider('website_http',feed('<article>Text</article>'),{execute:async()=>({body:'Text '.repeat(100),title:'Title'})});
+    const p=new WebsiteSourceProvider('website_http',feed('<article>Text</article>'),{execute:async()=>({body:'Text '.repeat(100),title:'Title',publishedAt:time})});
     const result=await p.fetch({...request,source:{family:'website',locator:'https://publisher.example/article'}},run);
     expect(result.items[0]).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN'});expect(result.items[0]).not.toHaveProperty('modelId');
   });
+  it('a website listing emits independent article candidates and preserves pagination instead of a homepage story',async()=>{
+    const p=new WebsiteSourceProvider('website_http',feed('<article>Listing</article>'),{execute:async()=>({body:'Homepage aggregate '.repeat(40),pageKind:'listing',articleLinks:['https://publisher.example/one','https://publisher.example/two','https://other.example/three']})});
+    const first=await p.fetch({...request,limit:1,source:{family:'website',locator:'https://publisher.example/'}},run);
+    expect(first.items.map(i=>i.url)).toEqual(['https://publisher.example/one']);expect(first.items[0].representation).toBe('LISTING_RESULT');expect(first.complete).toBe(false);
+    const second=await p.fetch({...request,limit:1,continuation:{providerId:'website_http',token:first.continuationToken!},source:{family:'website',locator:'https://publisher.example/'}},run);
+    expect(second.items.map(i=>i.url)).toEqual(['https://publisher.example/two']);expect(second.continuationToken).toBeUndefined();
+  });
+  it('does not report an undated homepage as acquired full news coverage',async()=>{
+    const p=new WebsiteSourceProvider('website_http',feed('<html>Homepage</html>'),{execute:async()=>({body:'Homepage '.repeat(100)})});
+    await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run)).rejects.toThrow('MALFORMED');
+  });
   it('website uses the third route only after direct HTTP and browser failures',async()=>{
     const http:FeedHttpPort={get:vi.fn(async()=>({status:403,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
-    const execution={execute:vi.fn(async(kind:string)=>kind==='playwright'?{status:403}:{body:'Article text '.repeat(50),title:'Article'})};
+    const execution={execute:vi.fn(async(kind:string)=>kind==='playwright'?{status:403}:{body:'Article text '.repeat(50),title:'Article',publishedAt:time})};
     const envelope={statusCode:200,httpResponseBody:btoa('<article>Article</article>')};
     const paid={request:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(JSON.stringify(envelope)),json:envelope}))};
     const providers=[new WebsiteSourceProvider('website_http',http,execution),new WebsiteSourceProvider('website_playwright',http,execution),

@@ -35,9 +35,27 @@ export class WebsiteSourceProvider implements SourceProvider {
     }
     if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))throw new SourceProviderError('CHALLENGE');
     const result=record(await executeSource(this.execution,'extract',{url,html}));
+    const links=Array.isArray(result.articleLinks)?[...new Set(result.articleLinks.filter((v):v is string=>typeof v==='string').map(v=>articleUrl(v)).filter((v):v is string=>!!v&&new URL(v).origin===new URL(url).origin&&v!==url))]:[];
+    if(links.length&&(result.pageKind==='listing'||!timestamp(result.publishedAt))){
+      const offset=input.continuation?Number(input.continuation.token):0;
+      if(!Number.isSafeInteger(offset)||offset<0)throw Error('INVALID_WEBSITE_CONTINUATION');
+      const selected=links.slice(offset,offset+input.limit),items:ProviderPage['items']=[];
+      for(const link of selected){
+        // The listing has not acquired these articles yet. Emit exact candidates;
+        // the downstream router acquires each independently and retries failures.
+        items.push({sourceItemKey:`url:${link}`,upstreamId:link,url:link,publisherId:new URL(link).hostname,title:link,
+          representation:'LISTING_RESULT',contentCompleteness:'UNKNOWN',identityValid:true,authoritativeCurrentState:false});
+      }
+      return {items,raw:new TextEncoder().encode(html),complete:false,
+        continuationToken:offset+input.limit<links.length?String(offset+input.limit):undefined,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
+    }
     if(!string(result.body)||result.body.length<200)throw new SourceProviderError('CHALLENGE');
-    return {items:[{sourceItemKey:`url:${url}`,upstreamId:url,url,publisherId:new URL(url).hostname,title:string(result.title),body:result.body,
+    // A homepage with no article inventory/date is not a complete news article.
+    if(!timestamp(result.publishedAt)&&(new URL(url).pathname==='/'||result.pageKind==='listing'))throw new SourceProviderError('MALFORMED');
+    const canonical=articleUrl(string(result.canonicalUrl));
+    const article=canonical&&new URL(canonical).origin===new URL(url).origin?canonical:url;
+    return {items:[{sourceItemKey:`url:${article}`,upstreamId:article,url:article,publisherId:new URL(article).hostname,title:string(result.title),body:result.body,
       publishedAt:timestamp(result.publishedAt),language:string(result.language),representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
-      raw:new TextEncoder().encode(html),complete:true,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
+      raw:new TextEncoder().encode(html),complete:Boolean(timestamp(result.publishedAt)),requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
   }
 }

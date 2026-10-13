@@ -66,6 +66,12 @@ export interface Env extends Cloudflare.Env {
   PRODUCT_FEEDS_ENABLED?: string;
   SOURCE_RECOMMENDATIONS_ENABLED?: string;
   SOURCE_CONNECTORS_ENABLED?: string;
+  SOURCE_QUEUE_SCHEDULING_ENABLED?: string;
+  SOURCE_SHARED_PUBLIC_FETCH_ENABLED?: string;
+  SOURCE_FULL_ARTICLES_ENABLED?: string;
+  SOURCE_PER_PROVIDER_BUDGET_USD?: string;
+  SOURCE_COLLECTION_INTERVAL_MS?: string;
+  SOURCE_COLLECTION_QUEUE?: Queue<import('./connector-scheduling').ConnectorQueueMessage>;
   SOURCE_POLL_MAX_JOBS_PER_TICK?: string;
   SOURCE_POLL_TICK_BUDGET_MS?: string;
   STAGING_ASSETS_PREFIX?: string;
@@ -211,7 +217,7 @@ export interface SourceRefreshJobMessage {
   force?: boolean;
 }
 
-export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | {type:'v1_acquisition'|'v1_reassess';jobId:string} | {type:'v1_rematch';feedId:string;requestId:string} | import('./v1-intelligence/runtime').V1BriefingMessage;
+export type DistilledQueueMessage = import('./connector-scheduling').ConnectorQueueMessage | ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | {type:'v1_acquisition'|'v1_reassess';jobId:string} | {type:'v1_rematch';feedId:string;requestId:string} | import('./v1-intelligence/runtime').V1BriefingMessage;
 
 export interface SourceRecord {
   id: string;

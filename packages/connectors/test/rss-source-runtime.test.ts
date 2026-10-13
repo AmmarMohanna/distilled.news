@@ -60,6 +60,16 @@ function setup(feed=xml(item('one'))) {
 }
 
 describe('durable RSS source handoff (SQLite SQL and filesystem payload surrogate)',()=>{
+  it('successful continuation pages do not consume the failure retry allowance',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);
+    let pages=0;
+    const collect=vi.fn(async()=>({checkpoint:'UNCHANGED',coverage:{failureReason:'NONE'},...(++pages<12?{nextOffset:pages*2}:{})}));
+    const scheduler=new D1RssPollScheduler(s.db,{collect} as any,async()=>true,()=>Date.parse(timestamp));
+    await scheduler.schedule('long-snapshot',input,timestamp);
+    for(let i=0;i<11;i++)expect(await scheduler.runOne(120000,'long-snapshot')).toBe('RETRY');
+    expect(await scheduler.runOne(120000,'long-snapshot')).toBe('DONE');
+    expect(collect).toHaveBeenCalledTimes(12);
+  });
   it('persists observations and payloads before intake; declares excerpts honestly',async()=>{
     const s=setup();
     s.intake.acceptBatch=async batch=>{

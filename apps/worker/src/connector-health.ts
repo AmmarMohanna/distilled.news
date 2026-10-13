@@ -78,7 +78,7 @@ export function connectorOperationalAlerts(input:{job?:{state:string;lastError:s
   if(['AUTH_REQUIRED','BUDGET_EXCEEDED'].includes(code))alerts.push({code,severity:'error'});
  }
  // A newer successful poll does not settle an older potentially billed call.
- if((input.uncertainPaidAttempts??0)>0||input.failure?.failure==='UNCERTAIN_PAID_SUBMISSION')alerts.push({code:'PAID_RECONCILIATION_REQUIRED',severity:'warning'});
+ if((input.uncertainPaidAttempts??0)>0||input.failure?.failure==='UNCERTAIN_PAID_SUBMISSION'||input.job?.lastError==='UNCERTAIN_PAID_SUBMISSION')alerts.push({code:'PAID_RECONCILIATION_REQUIRED',severity:'warning'});
  if(input.nextRunAt&&now.getTime()-Date.parse(input.nextRunAt)>30*60000)alerts.push({code:'POLL_BACKLOG_OVERDUE',severity:'warning'});
  return alerts;
 }

@@ -7,13 +7,14 @@ import {productConnectorSource} from './connector-source';
 import {productRuntimeEnv} from './product-feeds';
 import {V1IntakeStore} from './v1-intake/store';
 import type {Env} from './types';
+import {recoverConnectorPoll} from './connector-scheduling';
 
 /** QA-only manual trigger for diagnosing the same maintenance path as Cron. */
 export default {
   ...worker,
   async fetch(request:Request,env:Env,ctx:ExecutionContext):Promise<Response> {
     const url=new URL(request.url);
-    if(!['/_qa/run-maintenance','/_qa/collect-provider'].includes(url.pathname))return worker.fetch(request,env,ctx);
+    if(!['/_qa/run-maintenance','/_qa/collect-provider','/_qa/recover-connector-job'].includes(url.pathname))return worker.fetch(request,env,ctx);
     if(request.method!=='POST')return new Response('Not found',{status:404});
     const expected=env.SOURCE_QA_MAINTENANCE_TOKEN;
     const supplied=request.headers.get('authorization')?.replace(/^Bearer /,'');
@@ -21,6 +22,12 @@ export default {
     let mismatch=0;
     for(let i=0;i<expected.length;i++)mismatch|=expected.charCodeAt(i)^supplied.charCodeAt(i);
     if(mismatch)return new Response('Not found',{status:404});
+    if(url.pathname==='/_qa/recover-connector-job'){
+      const input=await request.json() as {kind?:unknown;jobId?:unknown};
+      if(!['rss','provider'].includes(String(input.kind))||typeof input.jobId!=='string')return Response.json({error:'INVALID_RECOVERY'},{status:400});
+      try{await recoverConnectorPoll(env,input.kind as 'rss'|'provider',input.jobId);return Response.json({state:'RESUMABLE'});}
+      catch(error){return Response.json({error:error instanceof Error?error.message:'RECOVERY_FAILED'},{status:409});}
+    }
     if(url.pathname==='/_qa/run-maintenance'){
       await runScheduledMaintenance(env);
       return Response.json({ok:true});

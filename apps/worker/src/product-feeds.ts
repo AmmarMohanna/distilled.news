@@ -21,6 +21,7 @@ export async function productPublicationState(env:Env,feedId:string):Promise<'wa
 // This deployment opt-in admits only sources explicitly approved by an owner.
 // Owner approval controls source admission; paid-provider ceilings still apply.
 export async function productRuntimeEnv(env:Env):Promise<Env> {
+ if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')return env;
  if(env.PRODUCT_FEEDS_ENABLED!=='true')return env;
  const staticIds=(env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean);
  const rows=await env.DB.prepare("SELECT s.id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.collection_owner='connector' AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL ORDER BY s.id").all<{id:string}>();

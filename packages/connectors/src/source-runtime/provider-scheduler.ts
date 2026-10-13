@@ -5,7 +5,7 @@ import { DEFAULT_SOURCE_ORDER, SourceProviderError, type SourceFetchRequest } fr
 
 export const PROVIDER_POLL_SCHEMA=`CREATE TABLE IF NOT EXISTS connector_provider_poll_jobs(
  job_id TEXT PRIMARY KEY, request TEXT NOT NULL, initial_hash TEXT NOT NULL, provider_order TEXT NOT NULL,
- due_at TEXT NOT NULL, lease_until TEXT, lease_version INTEGER NOT NULL DEFAULT 0,
+ due_at TEXT NOT NULL, scheduled_at TEXT NOT NULL DEFAULT '', lease_until TEXT, lease_version INTEGER NOT NULL DEFAULT 0,
  offset INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, pages INTEGER NOT NULL DEFAULT 0,
  state TEXT NOT NULL DEFAULT 'PENDING', result TEXT, last_error TEXT);`;
 interface Job {job_id:string;request:string;provider_order:string;lease_version:number;offset:number;attempts:number;pages:number}
@@ -17,18 +17,18 @@ export class D1ProviderPollScheduler {
   async schedule(id:string,request:SourceFetchRequest,dueAt:string,order=DEFAULT_SOURCE_ORDER[request.source.family]) {
     if(!id||!Number.isFinite(Date.parse(dueAt)))throw new Error('INVALID_SCHEDULE');
     const data=JSON.stringify(request),providers=JSON.stringify(order),hash=await sha256(JSON.stringify([data,providers]));
-    await this.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING')
-      .bind(id,data,hash,providers,new Date(dueAt).toISOString()).run();
+    await this.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,scheduled_at) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING')
+      .bind(id,data,hash,providers,new Date(dueAt).toISOString(),new Date(dueAt).toISOString()).run();
     const row=await this.db.prepare('SELECT initial_hash FROM connector_provider_poll_jobs WHERE job_id=?').bind(id).first<{initial_hash:string}>();
     if(row?.initial_hash!==hash)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
-  async runOne(leaseMs=300000):Promise<'IDLE'|'DONE'|'RETRY'|'BLOCKED'|'CANCELLED'|'LEASE_LOST'> {
+  async runOne(leaseMs=300000,jobId?:string):Promise<'IDLE'|'DONE'|'RETRY'|'BLOCKED'|'CANCELLED'|'LEASE_LOST'> {
     if(!Number.isSafeInteger(leaseMs)||leaseMs<1000||leaseMs>600000)throw new Error('INVALID_LEASE');
     const now=new Date(this.now()).toISOString();
     const job=await this.db.prepare(`UPDATE connector_provider_poll_jobs SET lease_until=?,lease_version=lease_version+1,attempts=attempts+1
-      WHERE job_id=(SELECT job_id FROM connector_provider_poll_jobs WHERE state='PENDING' AND due_at<=? AND (lease_until IS NULL OR lease_until<=?) ORDER BY due_at,job_id LIMIT 1)
+      WHERE job_id=(SELECT job_id FROM connector_provider_poll_jobs WHERE state='PENDING' AND due_at<=? AND (lease_until IS NULL OR lease_until<=?) ${jobId===undefined?'':'AND job_id=?'} ORDER BY due_at,job_id LIMIT 1)
       RETURNING job_id,request,provider_order,lease_version,offset,attempts,pages`)
-      .bind(new Date(this.now()+leaseMs).toISOString(),now,now).first<Job>();
+      .bind(new Date(this.now()+leaseMs).toISOString(),now,now,...(jobId===undefined?[]:[jobId])).first<Job>();
     if(!job)return 'IDLE';
     const request:SourceFetchRequest=JSON.parse(job.request);
     let leaseLost=false,renewing:Promise<void>|undefined;
@@ -61,6 +61,7 @@ export class D1ProviderPollScheduler {
       if(!await this.authorize(request))return await finish('CANCELLED',null);
       const result=await this.collector.collect(request,JSON.parse(job.provider_order),job.offset);
       if(result.state==='FETCH_FAILED'){
+        if(result.attempts.length&&result.attempts.every(a=>a.failure==='BUDGET_EXCEEDED'))return await finish('BLOCKED',result,'BUDGET_EXCEEDED');
         if(result.attempts.every(a=>['AUTH_REQUIRED','UNAVAILABLE','MALFORMED'].includes(a.failure??'')))return await finish('BLOCKED',result,'PROVIDER_REPAIR_REQUIRED');
         const retryAt=Math.max(0,...result.attempts.map(a=>Date.parse(a.retryNotBefore??'')||0));
         return await retry(result,{...request,runId:request.runId+':retry:'+job.attempts},0,job.pages,Math.max(1000*2**job.attempts,retryAt-this.now()));
@@ -71,6 +72,7 @@ export class D1ProviderPollScheduler {
       if(result.continuation)return await retry(result,{...request,runId:await sha256(request.runId+':page'),continuation:result.continuation},0,job.pages+1,1000,true);
       return await finish('DONE',result);
     }catch(error){
+      if(error instanceof SourceProviderError&&error.code==='BACKPRESSURE')return await retry(null,request,job.offset,job.pages,Math.max(5000,Date.parse(error.retryNotBefore??'')-this.now()||0),true);
       if(error instanceof SourceProviderError)return await finish('BLOCKED',null,error.code);
       if(error instanceof HandoffError&&!error.retryable)return await finish('BLOCKED',null,error.code);
       // Unknown intake response: immutable saved batch is retried under its original identity.

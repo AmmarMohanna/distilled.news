@@ -1656,6 +1656,7 @@ function FeedPage(props: { username: string; slug: string }) {
       ) : null}
       {error ? <FeedNotice message={error} language={language} /> : null}
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
+      {payload?.sourceAvailability?.some(source=>source.state==='UNAVAILABLE') ? <FeedNotice severity="warning" language={language} heading={t('Some sources are unavailable')} message={payload.sourceAvailability.filter(source=>source.state==='UNAVAILABLE').map(source=>`${source.title}: ${source.reason==='PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED'?t('Paid collection is not authorized or configured.'):t('Source collection is unavailable.')}`).join(' ')} /> : null}
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {payload?.publicationState === 'checking' ? <p className="muted feed-status-message" role="status">{t('Checking sources for the next briefing…')}</p> : null}
       {summaryMessage ? (
