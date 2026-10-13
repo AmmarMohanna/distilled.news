@@ -22,3 +22,27 @@ it('receipt: captures the generation handle before a response body stalls, witho
   expect(usage.mock.calls[0][0].reportedCostUsd).toBeUndefined();
  }finally{vi.useRealTimers()}
 });
+
+it('assembles streamed structured output and preserves the final reported cost',async()=>{
+ const receipt=vi.fn(),usage=vi.fn(async(_record:any)=>{});let request:any;
+ const fetcher:typeof fetch=async(_url,init)=>{request=JSON.parse(String(init!.body));const text=': OPENROUTER PROCESSING\r\n\r\ndata: '+JSON.stringify({id:'gen-streamed',choices:[{delta:{content:'{"ok":'},finish_reason:null}]})+'\r\n\r\ndata: '+JSON.stringify({id:'gen-streamed',choices:[{delta:{content:'true}'},finish_reason:'stop'}]})+'\r\n\r\ndata: '+JSON.stringify({id:'gen-streamed',choices:[{delta:{content:''},finish_reason:'stop'}],usage:{cost:.004,prompt_tokens:30,completion_tokens:8}})+'\r\n\r\ndata: [DONE]\r\n\r\n';const bytes=new TextEncoder().encode(text);return new Response(new ReadableStream({start(c){for(let i=0;i<bytes.length;i+=7)c.enqueue(bytes.slice(i,i+7));c.close()}}),{headers:{'content-type':'text/event-stream','x-generation-id':'gen-streamed'}})};
+ expect(await boundedCompletion({accountId:'',gatewayId:'',provider:'OPENROUTER',apiKey:'fixture',model:'openai/gpt-4.1-mini',fetcher,usageRecorder:usage,onProviderReceipt:receipt} as any,'feed','event_review','CONSTRUCTION','{}',schema)).toEqual({ok:true});
+ expect(request.stream).toBe(true);expect(usage.mock.calls[0][0].reportedCostUsd).toBe(.004);expect(receipt).toHaveBeenCalledWith(expect.objectContaining({stage:'USAGE',generationId:'gen-streamed',reportedCostUsd:.004}));
+});
+it.each(['truncated','wrong-generation','provider-error'])('rejects %s streams without treating partial prose or intermediate usage as completion',async mode=>{
+ const usage=vi.fn(async(_record:any)=>{}),id=mode==='wrong-generation'?'gen-foreign':'gen-expected';
+ const frame=mode==='provider-error'?{id,error:{message:'provider disconnected'},choices:[]}:{id,choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{cost:.01}};
+ const text='data: '+JSON.stringify(frame)+'\n\n'+(mode==='truncated'?'':'data: [DONE]\n\n');
+ await expect(boundedCompletion({accountId:'',gatewayId:'',provider:'OPENROUTER',apiKey:'fixture',model:'openai/gpt-4.1-mini',usageRecorder:usage,fetcher:async()=>new Response(text,{headers:{'content-type':'text/event-stream','x-generation-id':'gen-expected'}})},'feed','event_review','CONSTRUCTION','{}',schema)).rejects.toThrow('MODEL_RESPONSE_INVALID');
+ expect(usage.mock.calls[0][0].reportedCostUsd).toBeUndefined();
+});
+it('retains a JSON response generation handle when the proxy omits its header',async()=>{
+ const receipt=vi.fn();
+ expect(await boundedCompletion({accountId:'',gatewayId:'',provider:'OPENROUTER',apiKey:'fixture',model:'openai/gpt-4.1-mini',onProviderReceipt:receipt,fetcher:async()=>Response.json({id:'gen-body-recovery',choices:[{message:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{cost:.001}})},'feed','event_review','CONSTRUCTION','{}',schema)).toEqual({ok:true});
+ expect(receipt).toHaveBeenCalledWith(expect.objectContaining({stage:'GENERATION',generationId:'gen-body-recovery'}));
+});
+it('conflicting JSON generation IDs cannot attribute a reported cost to this operation',async()=>{
+ const usage=vi.fn(async(_record:any)=>{});
+ await expect(boundedCompletion({accountId:'',gatewayId:'',provider:'OPENROUTER',apiKey:'fixture',model:'openai/gpt-4.1-mini',usageRecorder:usage,fetcher:async()=>Response.json({id:'gen-foreign',choices:[{message:{content:'{"ok":true}'}}],usage:{cost:.04}},{headers:{'x-generation-id':'gen-owned'}})},'feed','event_review','CONSTRUCTION','{}',schema)).rejects.toThrow('MODEL_RESPONSE_INVALID');
+ expect(usage.mock.calls[0][0].reportedCostUsd).toBeUndefined();
+});

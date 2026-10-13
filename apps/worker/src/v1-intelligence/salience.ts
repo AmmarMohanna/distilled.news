@@ -1,5 +1,5 @@
 import {inspectProviderSchema} from '../provider-schema';
-import {captureProviderReceipt,providerResponseReceipt} from '../provider-receipt';
+import {captureProviderReceipt,providerResponseReceipt,providerBodyReceipt} from '../provider-receipt';
 import {ProviderRequestError,readProviderRejection} from '../provider-outcome';
 import type {ModelCapability,ModelAdmission} from './model-capacity';
 import {z} from 'zod';
@@ -82,12 +82,15 @@ export class OpenRouterJudgmentClient implements JudgmentClient {
    const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
    let envelope:any,answer:any;
    try {envelope=JSON.parse(new TextDecoder().decode(bytes))}catch {throw Error('INVALID_EXPERIMENT_RESULT')}
+   const header=providerResponseReceipt(response,'OPENROUTER',this.model),bodyReceipt=providerBodyReceipt(header,envelope.id);
+   if(bodyReceipt.generationId&&!header.generationId)await captureProviderReceipt({...bodyReceipt,stage:'GENERATION'});
    // Known charges are authoritative even for a malformed answer or missing
    // token counts. Never replace a known overrun with a smaller reservation.
    const u=envelope.usage,cost=z.number().finite().nonnegative().safeParse(u?.cost),tokenSchema=z.number().int().nonnegative().max(1000000);
    const incoming=tokenSchema.safeParse(u?.input_tokens??u?.prompt_tokens),outgoing=tokenSchema.safeParse(u?.output_tokens??u?.completion_tokens);
    const actual:ExperimentUsage={calls:1,costUsd:cost.success?cost.data:reservation,reported:cost.success,tokensIn:incoming.success?incoming.data:undefined,tokensOut:outgoing.success?outgoing.data:undefined};
-   if(controller.signal.aborted) throw Error('EXPERIMENT_TIMEOUT');
+    if(actual.reported)await captureProviderReceipt({...bodyReceipt,stage:'USAGE',reportedCostUsd:actual.costUsd,inputTokens:actual.tokensIn,outputTokens:actual.tokensOut});
+    if(controller.signal.aborted) throw Error('EXPERIMENT_TIMEOUT');
    this.ledger={calls:before.calls+1,tokensIn:before.tokensIn!==undefined&&actual.tokensIn!==undefined?before.tokensIn+actual.tokensIn:undefined,tokensOut:before.tokensOut!==undefined&&actual.tokensOut!==undefined?before.tokensOut+actual.tokensOut:undefined,costUsd:before.costUsd+actual.costUsd,reported:before.reported&&actual.reported};
    this.unknownOutcome=!cost.success;
    if(!o.durable&&cost.success && cost.data>reservation) {this.costOverrun=true;throw Error('EXPERIMENT_REPORTED_COST_OVERRUN')}

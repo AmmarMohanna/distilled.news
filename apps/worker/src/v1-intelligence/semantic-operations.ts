@@ -7,7 +7,7 @@ import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {semanticQuestion,findSemanticReuse,settleSemanticOperation} from './semantic-settlement';
 import type {ExperimentUsage} from './salience';
 import {isSemanticProcessing,type SemanticWorkClass} from './semantic-admission';
-import {modelSpendingAccount,ModelSpendingWait} from './model-spending';
+import {modelSpendingAccount,ModelSpendingWait,modelSettlementStatement} from './model-spending';
 export interface SemanticOperationInput {feedId:string;feedRevision:number;evidenceRevisionIds:string[];kind:string;policyVersion:string;model:string;budgetKey:string;state:unknown}
 export interface SemanticValidationDiagnostic {stage:'OUTPUT_SCHEMA'|'CONSTRUCTION_BINDING';response:Record<string,unknown>;responseOmitted?:boolean;rejection:{name:string;code?:string;binding?:{invariant:string;path:(string|number)[]};issues?:{code:string;path:(string|number)[]}[]}}
 /** Unvalidated output is retained for audit only, never accepted as semantic state. */
@@ -74,10 +74,12 @@ export async function durableSemanticOperation<T>(store:V1FeedStore,input:Semant
  const started=Date.now();let value:T|undefined,failure:string|undefined,validationDiagnostic:SemanticValidationDiagnostic|undefined,providerDiagnostic:ProviderDiagnostic|undefined,usage:ExperimentUsage={calls:1,costUsd:acquired.intent!.reservedCostUsd,reported:false};
  try {const outcome=await withProviderReceiptSink(async receipt=>{
   if(receipt.model!==input.model)throw Error('SEMANTIC_PROVIDER_RECEIPT_MODEL_MISMATCH');
-  const receiptId=JSON.stringify(['semantic_intents:'+id,'HEADERS']),record={...receipt,id:receiptId,reservationId:'semantic_intents:'+id,feedId:input.feedId,createdAt:new Date().toISOString()};
-  await store.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT 'model_provider_receipts',?,?,? WHERE EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='semantic_intents' AND id=? AND feed_id=? AND json_extract(json,'$.token')=?) ON CONFLICT(kind,id) DO NOTHING").bind(receiptId,input.feedId,JSON.stringify(record),id,input.feedId,acquired.intent!.token).run();
+  const receiptId=JSON.stringify(['semantic_intents:'+id,receipt.stage]),record={...receipt,id:receiptId,reservationId:'semantic_intents:'+id,feedId:input.feedId,createdAt:new Date().toISOString()};
+  const statements=[store.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT 'model_provider_receipts',?,?,? WHERE EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='semantic_intents' AND id=? AND feed_id=? AND json_extract(json,'$.token')=?) ON CONFLICT(kind,id) DO NOTHING").bind(receiptId,input.feedId,JSON.stringify(record),id,input.feedId,acquired.intent!.token)];
+  if(receipt.stage==='USAGE'&&receipt.reportedCostUsd!==undefined)statements.push(modelSettlementStatement(store.db,'semantic_intents:'+id,acquired.intent!.token,{costUsd:receipt.reportedCostUsd,reported:true}));
+  await store.db.batch(statements);
   const saved=await store.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='model_provider_receipts' AND id=? AND feed_id=?").bind(receiptId,input.feedId).first<{json:string}>();
-  if(!saved||JSON.parse(saved.json).generationId!==receipt.generationId)throw Error('SEMANTIC_PROVIDER_RECEIPT_OWNER_MISMATCH');
+  if(!saved||JSON.parse(saved.json).generationId!==receipt.generationId||JSON.parse(saved.json).reportedCostUsd!==receipt.reportedCostUsd)throw Error('SEMANTIC_PROVIDER_RECEIPT_OWNER_MISMATCH');
  },run);usage=outcome.usage;if(usage.calls!==1||!Number.isFinite(usage.costUsd)||usage.costUsd<0)throw Error('SEMANTIC_INVALID_USAGE');if(usage.reported&&usage.costUsd>acquired.intent!.reservedCostUsd)console.warn(JSON.stringify({type:'V1_MODEL_COST_ESTIMATE_EXCEEDED',feedId:input.feedId,operationId:id,reservedCostUsd:reservation,reportedCostUsd:usage.costUsd}));value=outcome.value}
  catch(error){if(error instanceof ProviderRequestError)providerDiagnostic=error.providerDiagnostic;if(error instanceof SemanticValidationError)validationDiagnostic=new TextEncoder().encode(JSON.stringify(error.diagnostic)).length<=16384?error.diagnostic:{...error.diagnostic,response:{},responseOmitted:true};const reported=reportedUsage?.();if(reported?.reported && Number.isFinite(reported.costUsd) && reported.costUsd>=0)usage=reported;failure=error instanceof Error && /^(SEMANTIC_|EXPERIMENT_|INVALID_EXPERIMENT_)/.test(error.message)?error.message:'SEMANTIC_PROVIDER_FAILURE'}
  const receipt:SemanticOperationResult<T>={id,feedId:input.feedId,input,status:failure?'DEFERRED':'SUCCEEDED',value:failure?undefined:value,failure,...(validationDiagnostic?{validationDiagnostic}:{}),...(providerDiagnostic?{providerDiagnostic}:{}),usage,latencyMs:Date.now()-started,createdAt:now};

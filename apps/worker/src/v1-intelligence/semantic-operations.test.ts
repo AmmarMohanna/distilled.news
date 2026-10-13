@@ -15,7 +15,7 @@ it('durably binds provider headers to the paid operation without changing its re
   return {value,usage:{calls:1,costUsd:.001,reported:true}};
  },'2026-10-03T12:00:00Z');
  const rows=await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='model_provider_receipts' AND feed_id=?").bind('feed-1').all<{json:string}>();
- expect(rows.results).toHaveLength(1);expect(JSON.parse(rows.results[0].json)).toMatchObject({reservationId:'semantic_intents:'+first.id,generationId:'gen-durable',model:'fake',stage:'HEADERS'});
+ expect(rows.results).toHaveLength(2);expect(rows.results.map(r=>JSON.parse(r.json))).toContainEqual(expect.objectContaining({reservationId:'semantic_intents:'+first.id,generationId:'gen-durable',model:'fake',stage:'HEADERS'}));
  expect(await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations WHERE id=?').bind('semantic_intents:'+first.id).first()).toMatchObject({n:1});
 },15000);
 it('a captured header cannot release UNKNOWN money or authorize another paid call',async()=>{
@@ -30,6 +30,17 @@ it('a captured header cannot release UNKNOWN money or authorize another paid cal
  const money=await ctx.db.prepare('SELECT cost_usd,reported FROM v1_model_spending_settlements WHERE id=?').bind('semantic_intents:'+first.id).first();
  expect(money).toMatchObject({cost_usd:.02,reported:0});
  expect((await ctx.db.prepare("SELECT COUNT(*) n FROM v1_feed_documents WHERE kind='model_provider_receipts' AND feed_id=?").bind('feed-1').first())?.n).toBe(1);
+},15000);
+it('settles verified provider usage before subsequent semantic processing can lose its outcome',async()=>{
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'RELATION',policyVersion:'early-usage-test',model:'fake',budgetKey:'test',state:{}};
+ let reportedBeforeReturn:number|undefined;
+ await durableSemanticOperation(store,input,async()=>{
+  const value=await boundedCompletion({accountId:'',gatewayId:'',provider:'OPENROUTER',apiKey:'fixture',model:'fake',fetcher:async()=>Response.json({choices:[{message:{content:'{"ok":true}'}}],usage:{cost:.003}},{headers:{'x-generation-id':'gen-early-usage'}}),onProviderReceipt:async receipt=>{
+   if(receipt.stage==='USAGE'){const row=await ctx.db.prepare('SELECT s.reported FROM v1_model_spending_settlements s JOIN v1_model_spending_reservations r ON r.id=s.id WHERE r.feed_id=?').bind('feed-1').first<{reported:number}>();reportedBeforeReturn=row?.reported}
+  }},'feed-1','event_review','RELATION','{}',{});
+  return {value,usage:{calls:1,costUsd:.003,reported:true}};
+ },'2026-10-03T12:00:00Z');
+ expect(reportedBeforeReturn).toBe(1);
 },15000);
 it('commits intent before provider use, replays exactly and rejects source revocation during a call',async()=>{
  const evidence=(await store.currentEvidence('feed-1')).map(e=>e.revision.id),input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:evidence,kind:'RELATION',policyVersion:'test',model:'fake',budgetKey:'test',state:{text:'approved'}};
