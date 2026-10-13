@@ -10,6 +10,7 @@ export function inspectProviderSchema(model:string,schema:object):SchemaAdmissio
  const walk=(v:any)=>{
   if(!v||typeof v!=='object'||Array.isArray(v)){issue('INVALID_SCHEMA_NODE');return}
   if(v.type!==undefined){const types=Array.isArray(v.type)?v.type:[v.type];if(!types.length||types.some((t:unknown)=>!['object','array','string','number','integer','boolean','null'].includes(t as string)))issue('UNSUPPORTED_TYPE')}
+  if(v.required!==undefined&&(!Array.isArray(v.required)||v.required.some((k:unknown)=>typeof k!=='string')||new Set(v.required).size!==v.required.length))issue('INVALID_REQUIRED');
   if(v.anyOf!==undefined&&(!Array.isArray(v.anyOf)||!v.anyOf.length))issue('INVALID_ANYOF');
   if(v.items!==undefined&&(!v.items||typeof v.items!=='object'||Array.isArray(v.items)))issue('INVALID_ARRAY_ITEMS');
   if(v.$ref&&(typeof v.$ref!=='string'||!reference(v.$ref)))issue('INVALID_REFERENCE');

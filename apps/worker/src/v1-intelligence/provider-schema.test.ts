@@ -5,6 +5,17 @@ import {admitModelOperation,modelCapability} from './model-capacity';
 import {createStrongSemanticModel} from './semantic-model';
 import {inspectProviderSchema} from '../provider-schema';
 import type {Env} from '../types';
+it.each(cases)('adaptive $name required fields are unique, including editorial importance exactly once',c=>{
+ const state={...c.state,budget:{...(c.state as any).budget,mode:'ADAPTIVE'}} as any;
+ const schema=keyedEditorialPlanWireSchemaFor(state);
+ const walk=(node:any)=>{if(Array.isArray(node))node.forEach(walk);else if(node&&typeof node==='object'){if(Array.isArray(node.required)){expect(new Set(node.required).size).toBe(node.required.length);if(node.properties?.editorialImportance)expect(node.required.filter((k:string)=>k==='editorialImportance')).toHaveLength(1)}Object.values(node).forEach(walk)}};
+ walk(schema);expect(inspectProviderSchema('openai/gpt-4.1-mini',schema).fits).toBe(true);
+});
+it('duplicate required fields cannot reach the provider even if all names are otherwise valid',async()=>{
+ let calls=0;const model=createStrongSemanticModel({OPENROUTER_API_KEY:'fixture',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env,(async()=>{calls++;throw Error('NO_PAID_CALL')}) as typeof fetch)!;
+ const schema={type:'object',additionalProperties:false,required:['id','id'],properties:{id:{type:'string'}}};
+ await expect(model.complete('feed','COMPARATIVE_EDITORIAL_PLAN',{},schema)).rejects.toThrow('SEMANTIC_MODEL_SCHEMA_CONTINUATION_REQUIRED');expect(calls).toBe(0);
+});
 it.each(cases)('admits all retained $name candidates and facts within provider schema constraints',c=>{
  const state=c.state as any,schema=keyedEditorialPlanWireSchemaFor(state);
  const admission=admitModelOperation('openai/gpt-4.1-mini',state,schema,modelCapability('openai/gpt-4.1-mini'));

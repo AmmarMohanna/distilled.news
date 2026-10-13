@@ -111,7 +111,7 @@ export const editorialPlanWireSchema={...baseEditorialPlanWireSchema,properties:
  * be used as approved facts, even though both use compact R identifiers. */
 export function editorialPlanWireSchemaFor(state:ReturnType<typeof compactEditorialInput>['state']) {
  const schema=structuredClone(editorialPlanWireSchema);
- if((state as any).budget?.mode==='ADAPTIVE')for(const branch of schema.properties.stories.items.anyOf){(branch.properties as Record<string,unknown>).editorialImportance={type:'number',minimum:0,maximum:1};branch.required.push('editorialImportance' as any)}
+ if((state as any).budget?.mode==='ADAPTIVE')for(const branch of schema.properties.stories.items.anyOf){(branch.properties as Record<string,unknown>).editorialImportance={type:'number',minimum:0,maximum:1};branch.required=[...new Set([...branch.required,'editorialImportance'])] as any}
  const refs=(values:string[],minimum=0)=>values.length?{type:'array',minItems:minimum,items:{type:'string',enum:[...new Set(values)]}}:{type:'array',maxItems:0,items:{type:'string'}};
  const factIds=state.candidates.flatMap(c=>c.facts.map(f=>f.id)),ledgerIds=state.ledger.map(e=>e.id),obligationIds=state.obligations.map(o=>o.id),targets=state.candidates.map(c=>c.targetVersionId);
  Object.assign(schema.properties.stories,{minItems:targets.length,maxItems:targets.length});
