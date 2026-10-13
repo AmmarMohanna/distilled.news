@@ -1,4 +1,5 @@
 import {ProviderRequestError,type ProviderDiagnostic} from '../provider-outcome';
+import {withProviderReceiptSink} from '../provider-receipt';
 import {renewSemanticWorkLease} from './semantic-work-lease';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -71,7 +72,13 @@ export async function durableSemanticOperation<T>(store:V1FeedStore,input:Semant
  });
  if(acquired.result){if(acquired.result.id!==id)console.info(JSON.stringify({type:acquired.result.status==='SUCCEEDED'?'V1_SEMANTIC_RESULT_REUSED':acquired.result.usage.reported?'V1_SEMANTIC_REJECTED_RESULT_REUSED':'V1_SEMANTIC_UNKNOWN_FENCE',feedId:input.feedId,stage:input.kind,operationId:id,retainedOperationId:acquired.result.id}));return acquired.result;}
  const started=Date.now();let value:T|undefined,failure:string|undefined,validationDiagnostic:SemanticValidationDiagnostic|undefined,providerDiagnostic:ProviderDiagnostic|undefined,usage:ExperimentUsage={calls:1,costUsd:acquired.intent!.reservedCostUsd,reported:false};
- try {const outcome=await run();usage=outcome.usage;if(usage.calls!==1||!Number.isFinite(usage.costUsd)||usage.costUsd<0)throw Error('SEMANTIC_INVALID_USAGE');if(usage.reported&&usage.costUsd>acquired.intent!.reservedCostUsd)console.warn(JSON.stringify({type:'V1_MODEL_COST_ESTIMATE_EXCEEDED',feedId:input.feedId,operationId:id,reservedCostUsd:reservation,reportedCostUsd:usage.costUsd}));value=outcome.value}
+ try {const outcome=await withProviderReceiptSink(async receipt=>{
+  if(receipt.model!==input.model)throw Error('SEMANTIC_PROVIDER_RECEIPT_MODEL_MISMATCH');
+  const receiptId=JSON.stringify(['semantic_intents:'+id,'HEADERS']),record={...receipt,id:receiptId,reservationId:'semantic_intents:'+id,feedId:input.feedId,createdAt:new Date().toISOString()};
+  await store.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT 'model_provider_receipts',?,?,? WHERE EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='semantic_intents' AND id=? AND feed_id=? AND json_extract(json,'$.token')=?) ON CONFLICT(kind,id) DO NOTHING").bind(receiptId,input.feedId,JSON.stringify(record),id,input.feedId,acquired.intent!.token).run();
+  const saved=await store.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='model_provider_receipts' AND id=? AND feed_id=?").bind(receiptId,input.feedId).first<{json:string}>();
+  if(!saved||JSON.parse(saved.json).generationId!==receipt.generationId)throw Error('SEMANTIC_PROVIDER_RECEIPT_OWNER_MISMATCH');
+ },run);usage=outcome.usage;if(usage.calls!==1||!Number.isFinite(usage.costUsd)||usage.costUsd<0)throw Error('SEMANTIC_INVALID_USAGE');if(usage.reported&&usage.costUsd>acquired.intent!.reservedCostUsd)console.warn(JSON.stringify({type:'V1_MODEL_COST_ESTIMATE_EXCEEDED',feedId:input.feedId,operationId:id,reservedCostUsd:reservation,reportedCostUsd:usage.costUsd}));value=outcome.value}
  catch(error){if(error instanceof ProviderRequestError)providerDiagnostic=error.providerDiagnostic;if(error instanceof SemanticValidationError)validationDiagnostic=new TextEncoder().encode(JSON.stringify(error.diagnostic)).length<=16384?error.diagnostic:{...error.diagnostic,response:{},responseOmitted:true};const reported=reportedUsage?.();if(reported?.reported && Number.isFinite(reported.costUsd) && reported.costUsd>=0)usage=reported;failure=error instanceof Error && /^(SEMANTIC_|EXPERIMENT_|INVALID_EXPERIMENT_)/.test(error.message)?error.message:'SEMANTIC_PROVIDER_FAILURE'}
  const receipt:SemanticOperationResult<T>={id,feedId:input.feedId,input,status:failure?'DEFERRED':'SUCCEEDED',value:failure?undefined:value,failure,...(validationDiagnostic?{validationDiagnostic}:{}),...(providerDiagnostic?{providerDiagnostic}:{}),usage,latencyMs:Date.now()-started,createdAt:now};
  await settleSemanticOperation(store,acquired.intent!,receipt);

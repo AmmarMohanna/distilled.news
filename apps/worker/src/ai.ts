@@ -249,7 +249,7 @@ function formatEvidence(evidence: EventEquivalenceInput["left"]): string {
     .join("\n");
 }
 
-export type ModelOptions={accountId:string;gatewayId:string;apiKey:string;model:string;provider?:"OPENROUTER";gatewayAuthToken?:string;timeoutMs?:number;fetcher?:typeof fetch;usageRecorder?:LlmUsageRecorder;env?:Partial<Env>};
+export type ModelOptions={accountId:string;gatewayId:string;apiKey:string;model:string;provider?:"OPENROUTER";gatewayAuthToken?:string;timeoutMs?:number;fetcher?:typeof fetch;usageRecorder?:LlmUsageRecorder;onProviderReceipt?:(receipt:import('./provider-receipt').ProviderReceipt)=>Promise<void>;env?:Partial<Env>};
 function modelEndpoint(options:ModelOptions){return options.provider==="OPENROUTER"?"https://openrouter.ai/api/v1/chat/completions":`https://gateway.ai.cloudflare.com/v1/${options.accountId}/${options.gatewayId}/openai/chat/completions`}
 /** Shared exact wire body for transport and pre-reservation context accounting. */
 export function structuredCompletionBody(model:string,prompt:string,schema:object,maxOutputTokens:number){
@@ -262,7 +262,8 @@ export async function boundedCompletion(options:ModelOptions,briefingId:string,p
   const abort=()=>controller.abort();limits?.signal.addEventListener('abort',abort,{once:true});if(limits?.signal.aborted) controller.abort();
   try{
     const response=await (options.fetcher??fetch)(modelEndpoint(options),{method:"POST",signal:controller.signal,redirect:"manual",headers:{authorization:`Bearer ${options.apiKey}`,"content-type":"application/json",...(options.gatewayAuthToken?{"cf-aig-authorization":`Bearer ${options.gatewayAuthToken}`}:{})},body:JSON.stringify(structuredCompletionBody(options.model,prompt,schema,limits?.maxOutputTokens??1800))});
-    received=true;
+      received=true;
+      {const {providerResponseReceipt,captureProviderReceipt}=await import('./provider-receipt');const receipt=providerResponseReceipt(response,options.provider??'OPENAI_GATEWAY',options.model);await captureProviderReceipt(receipt);await options.onProviderReceipt?.(receipt);}
     if(!response.ok){outcome=`PROVIDER_HTTP_${response.status}`;const rejection=await readProviderRejection(response,[options.apiKey,options.gatewayAuthToken??'']);usage=rejection.usage;throw new ProviderRequestError(outcome,rejection.diagnostic)}
     const reader=response.body?.getReader();if(!reader)throw Error("MODEL_EMPTY_RESPONSE");
     // A raw response must fit a D1 value; larger work needs output packets, not a total news quota.

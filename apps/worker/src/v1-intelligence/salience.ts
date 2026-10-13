@@ -1,4 +1,5 @@
 import {inspectProviderSchema} from '../provider-schema';
+import {captureProviderReceipt,providerResponseReceipt} from '../provider-receipt';
 import {ProviderRequestError,readProviderRejection} from '../provider-outcome';
 import type {ModelCapability,ModelAdmission} from './model-capacity';
 import {z} from 'zod';
@@ -73,6 +74,7 @@ export class OpenRouterJudgmentClient implements JudgmentClient {
   const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
   const execute=async()=>{
    const response=await (o.fetcher??fetch)(this.kind==='JEV'?'https://openrouter.ai/api/alpha/decisions':'https://openrouter.ai/api/v1/chat/completions',{method:'POST',redirect:'manual',headers:{authorization:`Bearer ${o.apiKey}`,'content-type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
+   await captureProviderReceipt(providerResponseReceipt(response,'OPENROUTER',this.model));
    if(!response.ok) {const rejection=await readProviderRejection(response,[o.apiKey]);if(controller.signal.aborted)throw Error('EXPERIMENT_TIMEOUT');if(rejection.usage){this.ledger={calls:before.calls+1,costUsd:before.costUsd+rejection.usage.cost!,reported:before.reported,tokensIn:(before.tokensIn??0)+(rejection.usage.prompt_tokens??0),tokensOut:(before.tokensOut??0)+(rejection.usage.completion_tokens??0)};this.unknownOutcome=false}throw new ProviderRequestError(`EXPERIMENT_HTTP_${response.status}`,rejection.diagnostic)}
    const reader=response.body?.getReader();if(!reader) throw Error('INVALID_EXPERIMENT_RESULT');
    const chunks:Uint8Array[]=[];let length=0;

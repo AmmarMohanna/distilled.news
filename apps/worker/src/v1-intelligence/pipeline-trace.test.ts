@@ -73,6 +73,12 @@ it('accepted model omission exposes exact Feed fit and rationale', async () => {
 it('selected but failed or pending verification is not communicated', async () => { const r = await readPipelineTrace(ctx.db, 'feed-1', { ...options, view: 'candidates', targetId: 'version-2' }); expect(r.items[0]).toMatchObject({ selected: true, published: false, communicated: false, requiredUncommunicatedFactIds: ['fact-b'] }); });
 it('partial publication separates selected and communicated counts', async () => { const r = await readPipelineTrace(ctx.db, 'feed-1', options); expect(r.summary!.publication).toMatchObject({ selected: 2, published: 1, communicated: 1, selectedUncommunicated: 1 }); });
 it('UNKNOWN exposure is held, never reported actual spend; prompts and tokens omitted', async () => { const r = await readPipelineTrace(ctx.db, 'feed-1', { view: 'operations', evidenceRevisionId: 'rev-a' }); expect(r.items.find((i: any) => i.id === 'unknown-op')).toMatchObject({ state: 'UNKNOWN', reportedCostUsd: null, heldExposureUsd: .02 }); expect(JSON.stringify(r)).not.toContain('secret-owner'); expect(JSON.stringify(r)).not.toContain('never expose prompts'); });
+it('provider receipts remain correlation evidence rather than proof of UNKNOWN completion',async()=>{
+ await ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind('model_provider_receipts','receipt','feed-1',JSON.stringify({id:'receipt',reservationId:'semantic_intents:unknown-op',stage:'HEADERS',generationId:'gen-trace',httpStatus:200,model:'fixture',provider:'OPENROUTER',token:'never-expose-receipt-token'})).run();
+ const r=await readPipelineTrace(ctx.db,'feed-1',{view:'operations',recordId:'unknown-op'});
+ expect(r.items[0]).toMatchObject({state:'UNKNOWN',heldExposureUsd:.02,reportedCostUsd:null,providerReceipts:[{generationId:'gen-trace',stage:'HEADERS'}]});
+ expect(JSON.stringify(r)).not.toContain('never-expose-receipt-token');
+});
 it('pagination traces all 125 candidates with no hidden report truncation', async () => { let cursor: string | undefined; const ids: string[] = []; do {
     const r = await readPipelineTrace(ctx.db, 'feed-1', { ...options, view: 'candidates', pageSize: 30, cursor });
     expect(r.page.total).toBe(125);
