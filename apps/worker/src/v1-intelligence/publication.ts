@@ -451,11 +451,16 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     const fullVerifiedSet=proposals.filter(p=>p.candidateId===id).every(p=>supported.has(p.claim.id));
     const required=preservationFacts(candidates.get(id)!);
     const missing=required.filter(f=>!claims.some(c=>{
+     const sourceBound=c.support.some(s=>f.evidenceRevisionIds.includes(s.evidenceRevisionId));
      const quoted=c.support.some(s=>f.evidenceRevisionIds.includes(s.evidenceRevisionId) && normalize(s.quote).includes(normalize(f.text)));
      const literal=normalize(c.text).includes(normalize(f.text)) || supportedSentences(c.text).some(text=>equivalentFact(text,f.text));
      // A structured semantic verdict governs model coverage, including a
      // negative verdict on apparently literal prose. Writer IDs never count.
-     return quoted && (semanticChecks?fullVerifiedSet&&preservedFacts.has(f.id):literal || fullVerifiedSet && preservedFacts.has(f.id));
+     const verdict=semanticChecks?.find(check=>check.factId===f.id&&(!check.candidateId||check.candidateId===id));
+     // A title and its excerpt can express the same approved development in
+     // different words. Require cited evidence ownership plus the occurrence's
+     // faithful verdict and exact reader witness, rather than headline copying.
+     return semanticChecks?sourceBound&&fullVerifiedSet&&preservedFacts.has(f.id)&&!!verdict&&faithfulFact(verdict)&&hasReaderWitness(verdict,claims):quoted&&(literal||fullVerifiedSet&&preservedFacts.has(f.id));
     }));
     for(const f of missing){const verdict=semanticChecks?.find(c=>c.factId===f.id&&(!c.candidateId||c.candidateId===id));issues.push({code:'MISSING_REQUIRED_FACT',candidateId:id,factId:f.id,value:verdict?.reason});}
     if(claims.length && !missing.length) {stories.push({candidateId:id,claims:mergeEquivalentClaims(claims)});words+=storyWords}else rejected+=claims.length;
