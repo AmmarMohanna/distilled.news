@@ -672,6 +672,23 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .auth-dialog .auth-copy { min-width: 0; width: 100%; }
 :root.apple-ui.apple-ui .auth-dialog .auth-copy :is(h2,p) { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 :root.apple-ui.apple-ui .auth-dialog .auth-details-step .auth-copy h2 { font-size: clamp(24px, 3.5vw, 30px); line-height: 1.2; }
+/* First administrator setup follows the spacious centered reference. */
+:root.apple-ui.apple-ui .auth-dialog:has(.admin-setup) { width: min(720px, calc(100vw - 32px)); border-radius: 28px; }
+:root.apple-ui.apple-ui .auth-dialog .login.admin-setup { padding: 48px 36px 20px; gap: 14px; }
+:root.apple-ui.apple-ui .auth-dialog .admin-setup .auth-copy { margin-bottom: 14px; text-align: center; }
+:root.apple-ui.apple-ui .auth-dialog .admin-setup .auth-copy h2 { font-size: clamp(24px, 3vw, 34px); line-height: 1.2; font-weight: 700; text-align: center; }
+:root.apple-ui.apple-ui .auth-dialog .admin-setup .auth-copy p { margin: 12px 0 0; font-size: 16px !important; line-height: 1.5; text-align: center; }
+:root.apple-ui.apple-ui .auth-dialog .admin-setup > label { gap: 10px; font-size: 18px; font-weight: 500; }
+:root.apple-ui.apple-ui .auth-dialog .admin-setup :is(.auth-input, #admin-setup-token) { min-height: 58px; border-radius: 18px; }
+:root.apple-ui.apple-ui .auth-dialog .admin-setup > label > input { min-height: 58px; border-radius: 18px; background: var(--surface-quiet); border: 1px solid var(--line); }
+:root.apple-ui.apple-ui .auth-dialog .admin-setup .field-help { font-size: 15px; font-weight: 400; line-height: 1.5; color: var(--muted); }
+:root.apple-ui.apple-ui .auth-dialog .admin-setup .auth-submit { min-height: 62px; margin-top: 2px; border-radius: 999px; background: linear-gradient(110deg, #655cff, #5955f4); color: white; box-shadow: 0 10px 24px #625bff30; }
+:root.apple-ui.apple-ui .auth-dialog:has(.admin-setup) .dialog-close { top: 16px; right: 16px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+@media (max-width: 600px) {
+  :root.apple-ui.apple-ui .auth-dialog .login.admin-setup { padding: 64px 20px 24px; }
+  :root.apple-ui.apple-ui .auth-dialog .admin-setup .auth-copy p { font-size: 14px !important; }
+  :root.apple-ui.apple-ui .auth-dialog .admin-setup .field-help { font-size: 13px; }
+}
 :root.apple-ui.apple-ui .auth-dialog .auth-input { border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
 :root.apple-ui.apple-ui .auth-dialog .auth-input input { background: transparent; }
 :root.apple-ui.apple-ui .auth-dialog .auth-input:focus-within { border-color: var(--accent); outline-color: color-mix(in srgb, var(--accent) 30%, transparent); }

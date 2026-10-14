@@ -580,7 +580,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
 
   return (
     <form
-      className={`login auth-${authStep}-step`}
+      className={`login auth-${authStep}-step ${props.setupRequired ? "admin-setup" : ""}`}
       onSubmit={async (event) => {
         event.preventDefault();
         setError("");
@@ -630,7 +630,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       </div>
       {props.setupRequired ? (
         <label>
-          admin setup token
+          Admin Setup Token
           <input type="password" autoComplete="off" aria-describedby="admin-setup-token-help" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
           <span className="field-help" id="admin-setup-token-help">Required only for the site owner to create the first admin account. Regular sign-up and login do not require a setup token.</span>
         </label>
@@ -680,7 +680,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
 function getAuthPanelCopy(setupRequired: boolean, mode: "login" | "register" | "forgot"): { title: string; description: string } {
   if (setupRequired) {
     return {
-      title: "One-time administrator setup",
+      title: "One-Time Administrator Setup",
       description: "The site owner must complete setup before users can join. After setup, users can create an account and sign in with email and password."
     };
   }
