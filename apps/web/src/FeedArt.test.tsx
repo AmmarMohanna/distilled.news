@@ -27,6 +27,15 @@ afterEach(async()=>{for(const root of testRoots)await act(async()=>root.unmount(
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(r=>{resolve=r});return {promise,resolve}}
 function renderHost(){vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const host=document.createElement('div'),root=createRoot(host);testRoots.add(root);return {host,root}}
 const sketch=()=>({ok:true,status:200,headers:new Headers({'content-type':'image/png'}),blob:async()=>new Blob(['sketch'],{type:'image/png'})});
+it('does not flash fallback artwork while a saved sketch is loading',async()=>{
+ const pending=deferred<ReturnType<typeof sketch>>();vi.stubGlobal('fetch',vi.fn(()=>pending.promise));
+ vi.stubGlobal('URL',Object.assign(class {},{createObjectURL:()=> 'blob:stable-sketch',revokeObjectURL:vi.fn()}));
+ const {host,root}=renderHost();await act(async()=>root.render(<FeedArt feed={{id:'stable',title:'Science',ownerUsername:'owner',slug:'stable'}}/>));
+ expect(host.querySelector('svg')).toBeNull();
+ await act(async()=>pending.resolve(sketch()));expect(host.querySelector('svg')).toBeNull();
+ const img=host.querySelector('img')!;expect(img.style.visibility).toBe('hidden');
+ await act(async()=>img.dispatchEvent(new Event('load')));expect(img.style.visibility).toBe('visible');expect(host.querySelector('svg')).toBeNull();
+});
 it('coalesces update events during an in-flight retrieval and releases the saved blob URL',async()=>{
  const pending=deferred<ReturnType<typeof sketch>>(),fetcher=vi.fn(()=>pending.promise);vi.stubGlobal('fetch',fetcher);
  const create=vi.fn(()=> 'blob:saved-sketch'),revoke=vi.fn();vi.stubGlobal('URL',Object.assign(class {},{createObjectURL:create,revokeObjectURL:revoke}));

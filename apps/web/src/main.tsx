@@ -404,6 +404,10 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     if (autosave) scheduleBriefingAutosave(next);
   }
 
+  if (!session && !error) {
+    return <ScreenPages><main className="experience product-refresh"><AppHeader account={null} onAccount={() => {}}/><p className="page-loading" role="status">Loading…</p></main></ScreenPages>;
+  }
+
   if (!session?.authenticated) {
     return (
       <>
