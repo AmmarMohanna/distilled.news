@@ -16,3 +16,8 @@ it('bounds the call and excludes unsafe suggestions without subscribing anything
  const options=fetcher.mock.calls[0] as unknown as [string,RequestInit];
  expect(JSON.parse(options[1].body as string)).toMatchObject({max_tokens:400,temperature:0});
 });
+
+it('accepts official publisher websites and deduplicates suggestions',async()=>{
+ const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:JSON.stringify({sources:['https://www.mtv.com.lb/','https://www.mtv.com.lb/']})}}]}));
+ expect(await sourceRecommendations({SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env,{title:'Lebanon',description:'Lebanese news'},fetcher)).toEqual(['https://www.mtv.com.lb/']);
+});

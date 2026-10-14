@@ -24,7 +24,13 @@ Independent session, setup, and maintenance secrets are saved in the ignored
 `apps/worker/.dev.vars.joud` file. They were uploaded during initial deployment.
 Keep that file private. Use its `ADMIN_SETUP_TOKEN` for first administrator setup.
 
-This initial deployment has no scheduled collection, browser container, or paid
-provider credentials. Paid source budgets are zero. Email delivery, generated
-artwork, and model processing need their own provider configuration before use.
+AI source recommendations are enabled using the server-side `OPENROUTER_API_KEY`
+secret. The key is also stored in the ignored `.dev.vars.joud` file. Recommendations
+make one capped model call per click, with up to five public source suggestions;
+the existing per-account limit is two requests per hour. Website source rows use
+publisher favicons, with a globe fallback when an image cannot load.
+
+This deployment has no scheduled collection or browser container. Paid source
+budgets are zero. Email delivery, generated artwork, and briefing model processing
+still need their own provider configuration before use.
 Existing account data and feeds are not copied from other deployments.
