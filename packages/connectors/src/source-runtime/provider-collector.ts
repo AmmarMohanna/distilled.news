@@ -52,12 +52,14 @@ export class FallbackSourceCollector {
       if(existingRun){
         if(existingRun.configurationKey!==configurationKey)throw Error('IDEMPOTENCY_CONFLICT');
         const failed=await this.repository.loadAttempt(request.scope,runId);
-        if(!failed)throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
-        attempts.push(failed);
-        if(failed.failure==='POLICY_REFUSAL')throw new SourceProviderError(failed.failure);
-        if(failed.failure==='UNCERTAIN_PAID_SUBMISSION'){
+        if(failed)attempts.push(failed);
+        if(failed?.failure==='POLICY_REFUSAL')throw new SourceProviderError(failed.failure);
+        // A process can stop after reserving a read but before journaling its
+        // failure. The same scoped reconciliation proof is required in both
+        // cases; an absent journal alone never permits another provider call.
+        if(!failed||failed.failure==='UNCERTAIN_PAID_SUBMISSION'){
           if(!['x_apify','google_apify','linkedin_apify'].includes(id)||request.continuation?.providerId!==id||
-            !await this.repository.hasReadRecovery(request.scope,runId,id))throw new SourceProviderError(failed.failure);
+            !await this.repository.hasReadRecovery(request.scope,runId,id))throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
           resumeBackpressure=true;
         }else if(failed.failure==='BACKPRESSURE')resumeBackpressure=true;else continue;
       }
