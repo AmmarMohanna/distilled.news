@@ -54,8 +54,12 @@ export class FallbackSourceCollector {
         const failed=await this.repository.loadAttempt(request.scope,runId);
         if(!failed)throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
         attempts.push(failed);
-        if(['POLICY_REFUSAL','UNCERTAIN_PAID_SUBMISSION'].includes(failed.failure!))throw new SourceProviderError(failed.failure!);
-        if(failed.failure==='BACKPRESSURE')resumeBackpressure=true;else continue;
+        if(failed.failure==='POLICY_REFUSAL')throw new SourceProviderError(failed.failure);
+        if(failed.failure==='UNCERTAIN_PAID_SUBMISSION'){
+          if(!['x_apify','google_apify','linkedin_apify'].includes(id)||request.continuation?.providerId!==id||
+            !await this.repository.hasReadRecovery(request.scope,runId,id))throw new SourceProviderError(failed.failure);
+          resumeBackpressure=true;
+        }else if(failed.failure==='BACKPRESSURE')resumeBackpressure=true;else continue;
       }
       const run=resumeBackpressure?existingRun!:await this.repository.allocate(request.scope,runId,configurationKey,this.now());
       if(!resumeBackpressure&&!await this.repository.claimFetch(request.scope,runId))throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');

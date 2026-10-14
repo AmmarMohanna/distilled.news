@@ -1,6 +1,6 @@
 import { describe,it,expect,vi,afterEach } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
-import { receiptFixture, type CandidateIntakePort } from '@distilled/contracts';
+import { receiptFixture,sha256, type CandidateIntakePort } from '@distilled/contracts';
 import { SOURCE_STORAGE_SCHEMA,R2SourcePayloadStore,type SqlDatabase,type SqlStatement,type ObjectBucket } from '../src/source-runtime/storage';
 import { PROVIDER_SOURCE_SCHEMA,D1ProviderSourceRepository } from '../src/source-runtime/provider-storage';
 import { FallbackSourceCollector } from '../src/source-runtime/provider-collector';
@@ -41,6 +41,17 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it('a proven Apify read recovery resumes its saved continuation, never an uncertain actor start',async()=>{
+    let calls=0;const adapter=provider('x_apify',vi.fn(async()=>{if(++calls===1)throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');return page();}));
+    const s=setup([adapter]),r={...request,continuation:{providerId:'x_apify',token:'saved-actor-continuation'}};
+    await expect(s.collector.collect(r,['x_apify'])).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+    await expect(s.collector.collect(r,['x_apify'])).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');expect(calls).toBe(1);
+    const runId=await sha256(JSON.stringify([scope,r.runId,'x_apify']));
+    s.db.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,payload_ref,feed_id,feed_source_id) VALUES('x_apify','confirmed-read','hash',0.000001,200,'verified-payload',?,?)").run(scope.feedId,scope.feedSourceId);
+    s.db.db.prepare("INSERT INTO connector_provider_read_recoveries(feed_id,feed_source_id,source_id,run_id,provider_id,operation_id,state,token,lease_until,payload_ref) VALUES(?,?,?,?, 'x_apify','confirmed-read','RESOLVED','proof',0,'verified-payload')").run(scope.feedId,scope.feedSourceId,scope.sourceId,runId);
+    expect((await s.collector.collect(r,['x_apify'])).state).toBe('HANDED_OFF');expect(calls).toBe(2);
+    await s.collector.collect(r,['x_apify']);expect(calls).toBe(2);
+  });
   it('coalesces collection cadence while keeping authoritative rechecks and new revisions eligible',async()=>{
     const s=setup([]),scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(time),100,true);
     const tg={...request,source:{family:'telegram' as const,locator:'test',channelId:'-123'}};

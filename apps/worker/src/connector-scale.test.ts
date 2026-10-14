@@ -125,6 +125,15 @@ it('coalesces duplicate downstream delivery without losing crash recovery',async
  await coalescedProcessingQueue(env,121001).send(body);expect(messages).toHaveLength(2);
 });
 
+it('dedicated V1 delivery bypasses legacy backlog and retains coalescing',async()=>{
+ const dedicated=vi.fn(async()=>{}),legacy=vi.fn(async()=>{});
+ const runtime={...env,V1_PROCESSING_QUEUE:{send:dedicated},PROCESSING_QUEUE:{send:legacy}} as unknown as Env;
+ const queue=coalescedProcessingQueue(runtime,1000),body={type:'v1_reassess' as const,jobId:'dedicated-review'};
+ await queue.send(body);await queue.send(body);expect(dedicated).toHaveBeenCalledTimes(1);expect(legacy).not.toHaveBeenCalled();
+ await queue.send({type:'collect_source',sourceId:'legacy-source'} as any);expect(legacy).toHaveBeenCalledTimes(1);
+ await coalescedProcessingQueue(runtime,121001).send(body);expect(dedicated).toHaveBeenCalledTimes(2);
+});
+
 it('batch downstream sends retain coalescing and their per-message delay',async()=>{
  const deliveries:unknown[]=[];
  const runtime={...env,PROCESSING_QUEUE:{send:async(body:unknown,options:unknown)=>{deliveries.push({body,options})},sendBatch:async()=>{throw Error('bypass')}}} as unknown as Env;

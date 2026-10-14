@@ -30,9 +30,9 @@ export async function dispatchConnectorFeeds(env:Env,now=Date.now(),limit=FEED_D
 /** Existing canonical runners own processing. This proxy only coalesces queue
  * delivery, so the other owner's intelligence runtime needs no modification. */
 export function coalescedProcessingQueue(env:Env,now=Date.now()):Queue<DistilledQueueMessage>{
- const original=env.PROCESSING_QUEUE;
+ const original=env.V1_PROCESSING_QUEUE??env.PROCESSING_QUEUE;
  const send=async(body:DistilledQueueMessage,options?:QueueSendOptions)=>{
-  if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay')return original.send(body,options);
+  if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay')return env.PROCESSING_QUEUE.send(body,options);
   const id=await sha256(JSON.stringify(body)),token=crypto.randomUUID();
   if(body.type==='v1_briefing'&&!await collectionReadyForWindow(env,body.feedId,body.window.end,id,now))return;
   const claimed=await env.DB.prepare(`INSERT INTO connector_queue_dispatch(kind,id,available_ms,token) VALUES(?,?,?,?)
@@ -197,11 +197,20 @@ export async function recoverConnectorPoll(env:Env,kind:'rss'|'provider',jobId:s
  if(!row)throw Error('POLL_NOT_FOUND');
  if(row.state==='DONE'||row.state==='CANCELLED')throw Error('POLL_ALREADY_TERMINAL');
  if(row.lease_until&&Date.parse(row.lease_until)>Date.now())throw Error('POLL_LEASE_ACTIVE');
- if(row.last_error==='UNCERTAIN_PAID_SUBMISSION')throw Error('PAID_RECONCILIATION_REQUIRED');
  const request=JSON.parse(row.request);
+ let readRecovered=false;
+ if(row.last_error==='UNCERTAIN_PAID_SUBMISSION'){
+  const providerId=request.continuation?.providerId;
+  if(kind==='provider'&&['x_apify','google_apify','linkedin_apify'].includes(providerId)){
+   const {D1ProviderSourceRepository,sourceSqlFromD1}=await import('@distilled/connectors');
+   readRecovered=await new D1ProviderSourceRepository(sourceSqlFromD1(env.DB)).hasReadRecovery(request.scope,await sha256(JSON.stringify([request.scope,request.runId,providerId])),providerId)
+    &&!await env.DB.prepare('SELECT 1 FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND payload_ref IS NULL LIMIT 1').bind(request.scope.feedId,request.scope.feedSourceId).first();
+  }
+  if(!readRecovered)throw Error('PAID_RECONCILIATION_REQUIRED');
+ }
  const {authorizeConnectorSource}=await import('./connector-runtime');
  if(!await authorizeConnectorSource(env,request))throw Error('SOURCE_NOT_APPROVED');
- const changed=await env.DB.prepare(`UPDATE ${table} SET state='PENDING',due_at=?,dispatch_until=0,dispatch_token=NULL,attempts=0,last_error=NULL WHERE job_id=? AND state IN ('PENDING','BLOCKED') AND (last_error IS NULL OR last_error<>'UNCERTAIN_PAID_SUBMISSION') AND (lease_until IS NULL OR lease_until<=?) RETURNING job_id`).bind(new Date().toISOString(),jobId,new Date().toISOString()).first();
+ const changed=await env.DB.prepare(`UPDATE ${table} SET state='PENDING',due_at=?,dispatch_until=0,dispatch_token=NULL,attempts=0,last_error=NULL WHERE job_id=? AND state IN ('PENDING','BLOCKED') AND (last_error IS NULL OR last_error<>'UNCERTAIN_PAID_SUBMISSION' OR ?=1) AND (lease_until IS NULL OR lease_until<=?) RETURNING job_id`).bind(new Date().toISOString(),jobId,readRecovered?1:0,new Date().toISOString()).first();
  if(!changed)throw Error('POLL_STATE_CHANGED');
  await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=0 WHERE feed_id=? AND token IS NULL').bind(request.scope.feedId).run();
 }
