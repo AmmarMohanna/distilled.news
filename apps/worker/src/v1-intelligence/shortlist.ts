@@ -14,7 +14,7 @@ import {deferEditorialWork,resolveEditorialWork,unreviewedOverflow,UNREVIEWED_RE
 import {CLAIM_EXTRACTOR,type SourceDocument,nonFactRole} from './claims';
 import {communicationCost,type CommunicationCost} from './planning-capacity';
 import type {Env} from '../types';
-export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v14';
+export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v15';
 export type {NoveltyClass};
 export interface ShortlistFact {id:string;timing?:FactTiming;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
 export interface ShortlistCandidate {/** What the communication ledger shows about this target, independent of how old its source is. */readerState?:'UNSEEN'|'PARTIALLY_SEEN'|'SEEN';/** Deferred only by overflow: the planner has never compared it. */unreviewed?:boolean;/** When its earliest overflow deferral was recorded. */unreviewedSince?:string;publisherIds?:string[];sourceTitles?:string[];ranking?:EditorialRanking;communicationCost?:CommunicationCost;novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
@@ -44,7 +44,21 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
  const ledger=(await tx.list<LedgerEntry>('ledger_entries')).filter(e=>earlierEditions.has(e.editionId)),resolved=new Set((await tx.list<{id:string;obligationId:string}>('correction_resolutions')).map(r=>r.obligationId));
  const workResolutions=await tx.list<{id:string;workId:string;reason?:string}>('editorial_work_resolutions'),allWork=await tx.list<EditorialWork>('editorial_deferred_work');
  const completedWork=new Set(workResolutions.map(r=>r.workId)),pendingWork=allWork.filter(w=>!completedWork.has(w.id));
- const retiredVersions=new Set(allWork.filter(w=>w.windowEnd&&Date.parse(w.windowEnd)<Date.parse(window.end)&&workResolutions.some(r=>r.workId===w.id&&(adaptive?['OMITTED_BY_EDITOR']:['OMITTED_BY_EDITOR','STALE_AFTER_SEVEN_DAYS','STALE_UNREVIEWED_AFTER_RETENTION']).includes(r.reason??''))).map(w=>w.targetVersionId));
+ const omitted=allWork.filter(w=>w.windowEnd&&Date.parse(w.windowEnd)<Date.parse(window.end)&&workResolutions.some(r=>r.workId===w.id&&(adaptive?['OMITTED_BY_EDITOR']:['OMITTED_BY_EDITOR','STALE_AFTER_SEVEN_DAYS','STALE_UNREVIEWED_AFTER_RETENTION']).includes(r.reason??'')));
+ const contextChanged=new Set<string>(),retiredVersions=new Set<string>();
+ if(adaptive){
+  await tx.preload('editorial_plans',omitted.flatMap(w=>w.planId?[w.planId]:[]));
+  const plans=await Promise.all(omitted.map(w=>w.planId?tx.read<import('./editorial-plan').EditorialPlanRecord>('editorial_plans',w.planId):undefined));
+  await tx.preload('shortlists',plans.flatMap(p=>p?.shortlistId?[p.shortlistId]:[]));
+  for(const [i,work] of omitted.entries()){
+   const plan=plans[i],priorScope=plan?.shortlistId?await tx.read<ShortlistRecord>('shortlists',plan.shortlistId):undefined;
+   // An omission is reusable only under compatible interests and reader-state
+   // reasoning. Historical decisions remain immutable; changed context earns
+   // fresh comparison, never automatic selection or rewritten communication.
+   if(plan?.feedRevision===tx.snapshot.feed.revision&&priorScope?.policyVersion===SHORTLIST_POLICY)retiredVersions.add(work.targetVersionId);
+   else contextChanged.add(work.targetVersionId);
+  }
+ }else for(const work of omitted)retiredVersions.add(work.targetVersionId);
  const withdrawnStates=await tx.list<{id:string;editionId:string;status:string;reason:string}>('ledger_states');
  const obligations=(await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>!resolved.has(o.id)).map(o=>{
   const withdrawal=withdrawnStates.find(s=>s.id===o.triggerId&&s.editionId===o.editionId&&s.status==='WITHDRAWN');
@@ -104,7 +118,10 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   const titleExtractionPending=target.evidence.some(e=>e.title&&!nonFactRole(e.title)&&!sourceDocuments.some(d=>d.evidenceRevisionId===e.id&&d.extractorVersion===CLAIM_EXTRACTOR));
   const identityAffectsHistory=states.some(s=>s.provisional)&&facts.some(f=>ledger.some(e=>e.claimFacts.some(old=>equivalentFact(old,f.text)||provenMaterialDelta(old,f.text))));
   const flags=[...(repeatedProtectedEffect?['SETTLED_REPEATED_EFFECT']:[]),...(titleExtractionPending?['TITLE_EXTRACTION_PENDING']:[]),...(editorial.decision==='SUPPRESS'?['POSSIBLE_REPEAT']:[]),...(editorial.reasonCodes.includes('OLD_RECAP')?['OLD_RECAP']:[]),...(states.some(s=>s.provisional)?['PROVISIONAL']:[]),...(states.some(s=>s.provisional)&&awaitingBudget(target.evidence.map(e=>e.id))?['SEMANTIC_PENDING_BUDGET']:[]),...(states.some(s=>s.provisional)&&(protectedReasons.length||known.length||identityAffectsHistory)?['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE']:[]),...(facts.some(f=>f.certainty?.hedges.length)?['QUALIFIED']:[]),...(facts.some(f=>f.selfContained==='UNRESOLVED')?['NON_SELF_CONTAINED']:[])];
-  const seenFacts=facts.filter(f=>known.some(k=>equivalentFact(k,f.text))).length,candidate:ShortlistCandidate={readerState:seenFacts===0?'UNSEEN':seenFacts===facts.length?'SEEN':'PARTIALLY_SEEN',publisherIds:[...new Set(await Promise.all(target.evidence.map(e=>publisherIdentity(tx,e))))].sort(),sourceTitles:[...new Set(target.evidence.map(e=>e.title).filter((s):s is string=>Boolean(s)))],novelty:noveltyClass(editorial.reasonCodes[0],effects),targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),facts,stateSlotIds:[...new Set(states.flatMap(s=>s.stateSlotIds))],effects,flags,protectedReasons:[...new Set(protectedReasons)],correctionObligationIds:related.map(o=>o.id),priority:protectedReasons.length?1:editorial.reasonCodes.includes('OLD_RECAP')?.3:editorial.newUnderstanding.length?.6:.2,fallbackEditorial:editorial};
+  const seenFacts=facts.filter(f=>known.some(k=>equivalentFact(k,f.text))).length;
+  const classifiedNovelty=noveltyClass(editorial.reasonCodes[0],effects),readerNovelty=classifiedNovelty==='OLD_RECAP'&&seenFacts<facts.length?(known.length?'NEW_FACT':'NEW_EVENT'):classifiedNovelty;
+  if(contextChanged.has(target.id))flags.push('EDITORIAL_CONTEXT_CHANGED');
+  const candidate:ShortlistCandidate={readerState:seenFacts===0?'UNSEEN':seenFacts===facts.length?'SEEN':'PARTIALLY_SEEN',publisherIds:[...new Set(await Promise.all(target.evidence.map(e=>publisherIdentity(tx,e))))].sort(),sourceTitles:[...new Set(target.evidence.map(e=>e.title).filter((s):s is string=>Boolean(s)))],novelty:readerNovelty,targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),facts,stateSlotIds:[...new Set(states.flatMap(s=>s.stateSlotIds))],effects,flags,protectedReasons:[...new Set(protectedReasons)],correctionObligationIds:related.map(o=>o.id),priority:protectedReasons.length?1:editorial.reasonCodes.includes('OLD_RECAP')?.3:editorial.newUnderstanding.length?.6:.2,fallbackEditorial:editorial};
   if(deferred.length&&unreviewedOverflow(deferred)){candidate.unreviewed=true;candidate.unreviewedSince=deferred.map(w=>w.createdAt).sort()[0]}
   candidate.ranking=options.rankings?.get(target.id)??cheapEditorialRanking(tx.snapshot.feed,candidate);
   candidate.communicationCost=communicationCost(candidate);candidate.priority=candidate.ranking.score;
