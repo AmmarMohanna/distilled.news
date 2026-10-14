@@ -37,6 +37,7 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
  const env={DB:measuredDb,PRODUCT_FEEDS_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_SHARED_PUBLIC_FETCH_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',SOURCE_LEGACY_POLLING_ENABLED:'false',SOURCE_PROVIDER_BUDGETS_JSON:'{}',SOURCE_OPERATION_CEILINGS_JSON:'{}',
   RAW_ARCHIVE:{put:async(k:string,b:Uint8Array)=>{if(!objects.has(k))objects.set(k,b.slice());},get:async(k:string)=>{const b=objects.get(k);return b?{arrayBuffer:async()=>b.slice().buffer,size:b.length,json:async()=>JSON.parse(new TextDecoder().decode(b))}:null},delete:async(k:string)=>{objects.delete(k)}},
   SOURCE_COLLECTION_QUEUE:{sendBatch:async(batch:{body:ConnectorQueueMessage}[])=>{sourceMessages.push(...batch.map(m=>m.body));}},
+  V1_PROCESSING_QUEUE:{send:async()=>{downstreamMessages++;}},V1_ACQUISITION_QUEUE:{send:async()=>{downstreamMessages++;}},
   PROCESSING_QUEUE:{send:async()=>{downstreamMessages++;},sendBatch:async()=>{throw Error('UNCOALESCED_BATCH');}}
  } as unknown as Env;
  const start=performance.now(),deadline=start+580_000,phaseTimes:Record<string,number>={};

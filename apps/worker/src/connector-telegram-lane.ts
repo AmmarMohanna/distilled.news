@@ -1,4 +1,5 @@
 import type {Env} from './types';
+import {requireConnectorQueues} from './connector-queue-config';
 import type {ConnectorQueueMessage} from './connector-scheduling';
 
 /** One queued or executing session operation. Feed turns are durable, and the
@@ -6,6 +7,7 @@ import type {ConnectorQueueMessage} from './connector-scheduling';
  * state, checkpoint or paid operation is rewritten by this dispatcher. */
 export async function dispatchTelegramLane(env:Env,now=Date.now()):Promise<number>{
  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true'||env.SOURCE_CONNECTORS_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return 0;
+ requireConnectorQueues(env);
  if(!env.SOURCE_COLLECTION_QUEUE)throw Error('SOURCE_COLLECTION_QUEUE_REQUIRED');
  const token=crypto.randomUUID(),at=new Date(now).toISOString();
  const results=await env.DB.batch([

@@ -64,3 +64,32 @@ it('blocks new operations behind unattributed legacy uncertainty without inventi
  expect((await ctx.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='primary'").first())?.reserved_usd).toBe(10);
  expect(dispatch).toHaveBeenCalledTimes(1);
 });
+
+it('an absent per-provider cap cannot bypass an unknown source submission through a later run or fallback',async()=>{
+ http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch);
+ dispatch.mockRejectedValueOnce(new Error('lost response'));
+ await expect(send(scope,'uncapped-unknown',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await expect(send(scope,'later-window',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await expect(send(scope,'other-provider',1,'fallback')).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await send(other,'independent-uncapped',1);
+ expect(dispatch).toHaveBeenCalledTimes(2);
+});
+it('uncapped concurrent providers cannot reserve around another source submission in flight',async()=>{
+ http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch);
+ let release!:()=>void,started!:()=>void;
+ const entered=new Promise<void>(resolve=>{started=resolve});
+ dispatch.mockImplementationOnce(async()=>{started();await new Promise<void>(resolve=>{release=resolve});return new Response('{"ok":true}');});
+ const first=send(scope,'uncapped-first',1);await entered;
+ try{await expect(send(scope,'uncapped-second',1,'fallback')).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});}
+ finally{release();await first;}
+ expect(dispatch).toHaveBeenCalledTimes(1);
+});
+
+it('an absent per-provider cap still fences unattributed legacy uncertainty for its provider',async()=>{
+ http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch);
+ dispatch.mockRejectedValueOnce(new Error('lost old response'));
+ await expect(send(scope,'uncapped-legacy-unknown',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await ctx.db.prepare('UPDATE connector_provider_operations SET feed_id=NULL,feed_source_id=NULL WHERE payload_ref IS NULL').run();
+ await expect(send(other,'unattributed-later',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ expect(dispatch).toHaveBeenCalledTimes(1);
+});

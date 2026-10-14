@@ -13,7 +13,7 @@ export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Pro
  if(env.SOURCE_CONNECTORS_ENABLED!=='true'||!v1SourceEnabled(env,r.scope.feedSourceId)&&!(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&env.PRODUCT_FEEDS_ENABLED==='true'&&env.V1_DOWNSTREAM_ENABLED==='true'))return false;
  // Observe product authorization and its intake fence in one query, rather
  // than making two database round trips at every transport/cache boundary.
- const p=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,v.json AS scope_json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id JOIN v1_intake_scopes v ON v.id=s.id WHERE s.id=? AND s.briefing_id=? AND s.enabled=1 AND s.collection_owner='connector' AND b.paused=0 AND a.disabled_at IS NULL`).bind(r.scope.feedSourceId,r.scope.feedId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;scope_json:string}>();
+ const p=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,v.json AS scope_json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id JOIN v1_intake_scopes v ON v.id=s.id JOIN v1_feeds f ON f.id=b.id AND json_extract(f.json,'$.ownerId')=b.owner_account_id WHERE s.id=? AND s.briefing_id=? AND s.enabled=1 AND s.collection_owner='connector' AND b.paused=0 AND a.disabled_at IS NULL`).bind(r.scope.feedSourceId,r.scope.feedId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;scope_json:string}>();
  const scope=p?JSON.parse(p.scope_json) as IntakeScope:undefined;
  const approved=p?productConnectorSource(p):undefined;
  return !!approved && canonicalJson(approved.source)===canonicalJson(r.source) && !!scope?.enabled && !scope.deletedAt && scope.sourceId===r.scope.sourceId && scope.feedId===r.scope.feedId && scope.feedRevision===r.configurationRevision && (r.limit===approved.limit||(['rss','google_news'].includes(r.source.family)&&r.limit===30)||(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&r.source.family==='website'&&r.limit===30)) && Object.keys(r.requestedBounds).length===0 && (!['telegram','website'].includes(r.source.family)||!!env.SOURCE_EXECUTION_TOKEN&&!!env.SOURCE_EXECUTION_SERVICE);
@@ -114,14 +114,14 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
  // that first pass left earlier sources with stale requests at handoff.
  // A single source needs no preliminary enrollment pass.
  if(!options.skipSchedule)for(const id of ids.length>1?ids:[]){
-  const row=await env.DB.prepare(`SELECT s.provider,s.kind,s.source_url,s.input,s.actor_id,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL`).bind(id).first<{provider:string;kind:string;source_url:string;input:string|null;actor_id:string|null;owner_account_id:string}>();
+  const row=await env.DB.prepare(`SELECT s.provider,s.kind,s.source_url,s.input,s.actor_id,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND (?=0 OR s.collection_owner='connector')`).bind(id,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?1:0).first<{provider:string;kind:string;source_url:string;input:string|null;actor_id:string|null;owner_account_id:string}>();
   const approved=row&&productConnectorSource(row);if(!row||!approved)continue;
   if(['telegram','website'].includes(approved.source.family)&&!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE))continue;
   await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
  }
  const scheduled:{id:string;scheduler:string;sourceId:string}[]=[];
  if(!options.skipSchedule)for(const id of ids) {
-  const row=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,s.collection_owner,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL`).bind(id).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;collection_owner:string;owner_account_id:string}>();
+  const row=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,s.collection_owner,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND (?=0 OR s.collection_owner='connector')`).bind(id,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?1:0).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;collection_owner:string;owner_account_id:string}>();
   if(!row)continue;
   const approved=productConnectorSource(row);if(!approved)continue;
   // Do not transfer a source away from its working owner until the private
@@ -134,7 +134,8 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   if((paidFamily==='x_profile'||paidFamily==='x_search')&&
     !((budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0)||(budgets.x_apify>0&&ceilings.apify>0)))continue;
   if(paidFamily.startsWith('linkedin_')&&!(budgets.linkedin_apify>0&&ceilings.apify>0))continue;
-  // Explicit allowlist admission persists exclusive ownership before connector execution.
+  // Only explicit legacy-mode admission may transfer collection ownership.
+  // A queue tick's earlier source list cannot reclaim a later legacy handoff.
   if(row.collection_owner==='legacy')await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND collection_owner='legacy'").bind(id).run();
   const enrolled=await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
   // Every polling window has one stable identity. Repeated cron ticks replay that run;

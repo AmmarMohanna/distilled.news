@@ -23,7 +23,7 @@ beforeAll(async()=>{
  SELECT printf('scale-%04d',i),'scale-owner',printf('scale-%04d',i),'Scale','news',1,'2026-10-13','2026-10-13' FROM n;
  INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,enabled,collection_owner,last_seen_at,created_at,updated_at)
  SELECT id||'-rss',id,'RSS','channel','rss','rss_feed','https://example.com/feed.xml',1,'connector','2026-10-13','2026-10-13','2026-10-13' FROM briefings;`.replace(/\r?\n/g,' '));
- env={DB:ctx.db,SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',PRODUCT_FEEDS_ENABLED:'true',SOURCE_COLLECTION_QUEUE:{sendBatch:async(batch:unknown[])=>{messages.push(...batch)}},PROCESSING_QUEUE:{send:async(body:unknown)=>{messages.push(body)},sendBatch:async()=>{}}} as unknown as Env;
+ env={DB:ctx.db,SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',PRODUCT_FEEDS_ENABLED:'true',SOURCE_COLLECTION_QUEUE:{sendBatch:async(batch:unknown[])=>{messages.push(...batch)}},V1_PROCESSING_QUEUE:{send:async(body:unknown)=>{messages.push(body)}},V1_ACQUISITION_QUEUE:{send:async(body:unknown)=>{messages.push(body)}},PROCESSING_QUEUE:{send:async(body:unknown)=>{messages.push(body)},sendBatch:async()=>{}}} as unknown as Env;
 },60_000);
 afterAll(async()=>ctx?.dispose());
 it('Telegram dispatch is exclusive and serves a quiet feed before repeating a busy feed',async()=>{
@@ -136,7 +136,7 @@ it('dedicated V1 delivery bypasses legacy backlog and retains coalescing',async(
 
 it('batch downstream sends retain coalescing and their per-message delay',async()=>{
  const deliveries:unknown[]=[];
- const runtime={...env,PROCESSING_QUEUE:{send:async(body:unknown,options:unknown)=>{deliveries.push({body,options})},sendBatch:async()=>{throw Error('bypass')}}} as unknown as Env;
+ const runtime={...env,V1_PROCESSING_QUEUE:{send:async(body:unknown,options:unknown)=>{deliveries.push({body,options})},sendBatch:async()=>{throw Error('bypass')}}} as unknown as Env;
  const queue=coalescedProcessingQueue(runtime,1000);
  await queue.sendBatch([{body:{type:'v1_reassess',jobId:'batch-review'},delaySeconds:9},{body:{type:'v1_reassess',jobId:'batch-review'},delaySeconds:9}]);
  expect(deliveries).toEqual([{body:{type:'v1_reassess',jobId:'batch-review'},options:{delaySeconds:9}}]);
@@ -150,7 +150,7 @@ it('acquisition has independent delivery slots while reviews retain their queue 
  await queue.send({type:'v1_reassess',jobId:'isolated-review'});expect(review).toHaveBeenCalledTimes(1);expect(legacy).not.toHaveBeenCalled();
  await queue.send({type:'connector_relay',feedId:'scale-0001'});expect(acquire).toHaveBeenCalledTimes(2);expect(review).toHaveBeenCalledTimes(1);
  await coalescedProcessingQueue(runtime,121001).send(body);expect(acquire).toHaveBeenCalledTimes(3);
- const fallback={...runtime,V1_ACQUISITION_QUEUE:undefined};await coalescedProcessingQueue(fallback,242002).send(body);expect(review).toHaveBeenCalledTimes(2);
+ const incomplete={...runtime,V1_ACQUISITION_QUEUE:undefined};expect(()=>coalescedProcessingQueue(incomplete,242002)).toThrow('V1_ACQUISITION_QUEUE_REQUIRED');expect(review).toHaveBeenCalledTimes(1);
 });
 
 it('simultaneous completions refill one per-feed relay without waiting for Cron or entering the review queue',async()=>{

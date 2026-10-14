@@ -4,6 +4,7 @@ import {createConnectorRuntime,runConnectorMaintenance} from './connector-runtim
 import {dispatchV1Acquisitions} from './v1-downstream-runtime';
 import {dispatchV1Intelligence} from './v1-intelligence/runtime';
 import {dispatchTelegramLane} from './connector-telegram-lane';
+import {requireConnectorQueues} from './connector-queue-config';
 
 export type ConnectorQueueMessage={type:'connector_feed';feedId:string;token:string}|{type:'connector_poll';feedId:string;jobId:string;table:'rss'|'provider';token:string}|{type:'connector_relay';feedId:string};
 const tables={rss:'connector_rss_poll_jobs',provider:'connector_provider_poll_jobs'} as const;
@@ -15,6 +16,7 @@ export const FEED_DISPATCH_BATCH=100;
  * never inside Cron. One crashed delivery remains discoverable after expiry. */
 export async function dispatchConnectorFeeds(env:Env,now=Date.now(),limit=FEED_DISPATCH_BATCH){
  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true'||env.SOURCE_CONNECTORS_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return 0;
+ requireConnectorQueues(env);
  if(!env.SOURCE_COLLECTION_QUEUE)throw Error('SOURCE_COLLECTION_QUEUE_REQUIRED');
  if(!Number.isInteger(limit)||limit<1||limit>100)throw Error('INVALID_DISPATCH_LIMIT');
  let sent=0;
@@ -30,7 +32,8 @@ export async function dispatchConnectorFeeds(env:Env,now=Date.now(),limit=FEED_D
 /** Existing canonical runners own processing. This proxy only coalesces queue
  * delivery, so the other owner's intelligence runtime needs no modification. */
 export function coalescedProcessingQueue(env:Env,now=Date.now()):Queue<DistilledQueueMessage>{
- const original=env.V1_PROCESSING_QUEUE??env.PROCESSING_QUEUE;
+ requireConnectorQueues(env);
+ const original=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?env.V1_PROCESSING_QUEUE!:env.V1_PROCESSING_QUEUE??env.PROCESSING_QUEUE;
  const send=async(body:DistilledQueueMessage,options?:QueueSendOptions)=>{
   if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay')return env.PROCESSING_QUEUE.send(body,options);
   const id=await sha256(JSON.stringify(body)),token=crypto.randomUUID();
@@ -38,7 +41,8 @@ export function coalescedProcessingQueue(env:Env,now=Date.now()):Queue<Distilled
   const claimed=await env.DB.prepare(`INSERT INTO connector_queue_dispatch(kind,id,available_ms,token) VALUES(?,?,?,?)
    ON CONFLICT(kind,id) DO UPDATE SET available_ms=excluded.available_ms,token=excluded.token,sends=sends+1,last_error=NULL WHERE available_ms<=? RETURNING id`).bind(body.type,id,now+DELIVERY_LEASE_MS,token,now).first();
   if(!claimed)return;
-  const target=body.type==='v1_acquisition'||body.type==='connector_relay'?(env.V1_ACQUISITION_QUEUE??original):original;
+  const acquisition=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?env.V1_ACQUISITION_QUEUE!:env.V1_ACQUISITION_QUEUE??original;
+  const target=body.type==='v1_acquisition'||body.type==='connector_relay'?acquisition:original;
   try{return await target.send(body,options)}catch(error){await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=?,last_error=? WHERE kind=? AND id=? AND token=?').bind(now+30_000,'QUEUE_SEND_FAILED',body.type,id,token).run();throw error;}
  };
  // Canonical dispatchers ignore send metadata. A coalesced no-op returns no
@@ -64,8 +68,9 @@ export async function collectionReadyForWindow(env:Env,feedId:string,end:string,
 async function feedEnv(env:Env,feedId:string):Promise<Env|undefined>{
  const row=await env.DB.prepare(`SELECT (SELECT json_group_array(id) FROM
    (SELECT id FROM sources WHERE briefing_id=b.id AND collection_owner='connector' AND enabled=1 ORDER BY id)) AS source_ids
-   FROM briefings b JOIN accounts a ON a.id=b.owner_account_id
-   WHERE b.id=? AND b.paused=0 AND a.disabled_at IS NULL`).bind(feedId).first<{source_ids:string}>();
+   FROM briefings b JOIN accounts a ON a.id=b.owner_account_id LEFT JOIN v1_feeds f ON f.id=b.id
+   WHERE b.id=? AND b.paused=0 AND a.disabled_at IS NULL
+   AND (f.id IS NULL OR json_extract(f.json,'$.ownerId')=b.owner_account_id)`).bind(feedId).first<{source_ids:string}>();
  if(!row)return;
  const ids=JSON.parse(row.source_ids) as string[];if(!ids.length)return;
  return {...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:ids.join(','),PROCESSING_QUEUE:coalescedProcessingQueue(env)};
@@ -84,6 +89,7 @@ export async function connectorDownstreamEnv(env:Env,body:DistilledQueueMessage)
 /** Indexed per-feed pending-job discovery keeps a prolific feed from taking all
  * dispatch slots. Stable poll IDs retain paid submission/pagination identities. */
 export async function dispatchConnectorPolls(env:Env,feedId:string,now=Date.now(),perKind=4){
+ requireConnectorQueues(env);
  if(!env.SOURCE_COLLECTION_QUEUE)throw Error('SOURCE_COLLECTION_QUEUE_REQUIRED');
  const kinds=['rss','provider'] as const,token=crypto.randomUUID();
  const claims=kinds.map(kind=>{
@@ -109,6 +115,7 @@ export async function relayConnectorDownstream(env:Env){
 
 export async function processConnectorMessage(env:Env,body:ConnectorQueueMessage){
  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true')throw Error('CONNECTOR_SCHEDULER_DISABLED');
+ requireConnectorQueues(env);
  if(body.type==='connector_relay'){
   const token=crypto.randomUUID();
   const claim=await env.DB.prepare('UPDATE connector_feed_schedule SET relay_token=?,relay_until=? WHERE feed_id=? AND relay_until<=? RETURNING feed_id').bind(token,Date.now()+DELIVERY_LEASE_MS,body.feedId,Date.now()).first();

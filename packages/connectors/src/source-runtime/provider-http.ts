@@ -58,21 +58,22 @@ export class DurableProviderHttp implements ProviderHttpPort {
     // Preserve reservations made before per-provider source accounting existed.
     // Legacy completed payload paths encode the immutable source scope. An
     // unattributed uncertain legacy charge must be reconciled, never ignored.
-    if(this.sourceProviderLimitUsd!==undefined&&await this.db.prepare('SELECT 1 AS unresolved FROM connector_provider_operations WHERE provider_id=? AND payload_ref IS NULL AND feed_source_id IS NULL LIMIT 1').bind(providerId).first())throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
-    if(this.sourceProviderLimitUsd!==undefined&&await this.db.prepare('SELECT 1 AS unresolved FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND payload_ref IS NULL LIMIT 1').bind(scope.feedId,scope.feedSourceId).first())throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+    if(await this.db.prepare('SELECT 1 AS unresolved FROM connector_provider_operations WHERE provider_id=? AND payload_ref IS NULL AND feed_source_id IS NULL LIMIT 1').bind(providerId).first())throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+    if(await this.db.prepare('SELECT 1 AS unresolved FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND payload_ref IS NULL LIMIT 1').bind(scope.feedId,scope.feedSourceId).first())throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
     const prefix='source-payloads/'+await sha256(JSON.stringify([scope.feedId,scope.feedSourceId,scope.sourceId]))+'/';
     const sourceBudget=this.sourceProviderLimitUsd===undefined?[]:[this.db.prepare(`INSERT INTO connector_source_provider_budgets(feed_id,feed_source_id,provider_id,reserved_usd)
       SELECT ?,?,?,COALESCE(SUM(ceiling_usd),0) FROM connector_provider_operations WHERE provider_id=? AND payload_ref>=? AND payload_ref<? ON CONFLICT DO NOTHING`).bind(scope.feedId,scope.feedSourceId,providerId,providerId,prefix,prefix+'\uffff')];
     const sourceGuard=this.sourceProviderLimitUsd===undefined?'':` AND EXISTS(SELECT 1 FROM connector_source_provider_budgets WHERE feed_id=? AND feed_source_id=? AND provider_id=? AND reserved_usd+?<=?)`;
     const deploymentGuard=deploymentLimit===undefined?'':' AND reserved_usd+?<=?';
     // A later polling window or funded fallback cannot bypass an unresolved
-    // submission for this FeedSource. Include the fence in the reservation
+    // submission for this FeedSource, even with no configured source cap.
+    // Include both scoped and unattributed legacy fences in the reservation
     // transaction so two different run IDs cannot race past the read above.
-    const unresolvedGuard=this.sourceProviderLimitUsd===undefined?'':' AND NOT EXISTS(SELECT 1 FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND payload_ref IS NULL)';
+    const unresolvedGuard=' AND NOT EXISTS(SELECT 1 FROM connector_provider_operations WHERE payload_ref IS NULL AND ((feed_id=? AND feed_source_id=?) OR (provider_id=? AND feed_source_id IS NULL)))';
     await this.db.batch([...sourceBudget,
       this.db.prepare(`INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,feed_id,feed_source_id)
         SELECT ?,?,?,?,?,? FROM connector_provider_budgets WHERE provider_id=? AND reserved_usd+?<=limit_usd${sourceGuard}${deploymentGuard}${unresolvedGuard} ON CONFLICT DO NOTHING`)
-        .bind(providerId,scoped,hash,ceilingUsd,scope.feedId,scope.feedSourceId,providerId,ceilingUsd,...(this.sourceProviderLimitUsd===undefined?[]:[scope.feedId,scope.feedSourceId,providerId,ceilingUsd,this.sourceProviderLimitUsd]),...(deploymentLimit===undefined?[]:[ceilingUsd,deploymentLimit]),...(this.sourceProviderLimitUsd===undefined?[]:[scope.feedId,scope.feedSourceId])),
+        .bind(providerId,scoped,hash,ceilingUsd,scope.feedId,scope.feedSourceId,providerId,ceilingUsd,...(this.sourceProviderLimitUsd===undefined?[]:[scope.feedId,scope.feedSourceId,providerId,ceilingUsd,this.sourceProviderLimitUsd]),...(deploymentLimit===undefined?[]:[ceilingUsd,deploymentLimit]),scope.feedId,scope.feedSourceId,providerId),
       this.db.prepare(`UPDATE connector_provider_budgets SET reserved_usd=reserved_usd+? WHERE provider_id=? AND EXISTS
         (SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id=? AND status IS NULL AND payload_ref IS NULL)`)
         .bind(ceilingUsd,providerId,providerId,scoped),
@@ -82,7 +83,7 @@ export class DurableProviderHttp implements ProviderHttpPort {
     ]);
     const claimed=await load();
     if(!claimed){
-      if(this.sourceProviderLimitUsd!==undefined&&await this.db.prepare('SELECT 1 AS unresolved FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND payload_ref IS NULL LIMIT 1').bind(scope.feedId,scope.feedSourceId).first())throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+      if(await this.db.prepare('SELECT 1 AS unresolved FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND payload_ref IS NULL LIMIT 1').bind(scope.feedId,scope.feedSourceId).first())throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
       throw new SourceProviderError('BUDGET_EXCEEDED');
     }
     if(claimed.request_hash!==hash)throw new Error('IDEMPOTENCY_CONFLICT');
