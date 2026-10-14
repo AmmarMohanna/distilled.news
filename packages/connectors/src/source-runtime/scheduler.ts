@@ -54,6 +54,7 @@ export class D1RssPollScheduler {
       if (result.nextOffset !== undefined) return await this.retry(job,request,result.nextOffset,result,0,true) ? 'RETRY' : 'LEASE_LOST';
       return await this.finish(job,'DONE',result) ? 'DONE' : 'LEASE_LOST';
     } catch (error) {
+      console.warn(JSON.stringify({type:'CONNECTOR_POLL_FAILURE',family:'rss',jobId:job.job_id,attempt:job.attempts,cause:error instanceof HandoffError?error.code:'INTERNAL_FAILURE'}));
       // An invalid boundary response/identity conflict must be investigated, never auto-accepted.
       if (error instanceof HandoffError && !error.retryable) return await this.finish(job,'BLOCKED',null,error.code) ? 'BLOCKED' : 'LEASE_LOST';
       const unknown=error instanceof Error && /FETCH_OUTCOME_UNKNOWN|FETCH_ALREADY_CLAIMED/.test(error.message);

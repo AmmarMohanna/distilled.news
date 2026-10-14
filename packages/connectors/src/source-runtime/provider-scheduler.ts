@@ -72,6 +72,7 @@ export class D1ProviderPollScheduler {
       if(result.continuation)return await retry(result,{...request,runId:await sha256(request.runId+':page'),continuation:result.continuation},0,job.pages+1,1000,true);
       return await finish('DONE',result);
     }catch(error){
+      console.warn(JSON.stringify({type:'CONNECTOR_POLL_FAILURE',family:'provider',jobId:job.job_id,attempt:job.attempts,cause:error instanceof HandoffError||error instanceof SourceProviderError?error.code:'INTERNAL_FAILURE'}));
       if(error instanceof SourceProviderError&&error.code==='BACKPRESSURE')return await retry(null,request,job.offset,job.pages,Math.max(5000,Date.parse(error.retryNotBefore??'')-this.now()||0),true);
       if(error instanceof SourceProviderError)return await finish('BLOCKED',null,error.code);
       if(error instanceof HandoffError&&!error.retryable)return await finish('BLOCKED',null,error.code);
