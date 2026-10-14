@@ -1,10 +1,27 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {D1Repository,InMemoryRepository} from './repository';
 import {runRetentionCleanup} from './retention';
+import {expireSharedPublicFetches} from './connector-public-cache';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import type {NormalizedMessage} from '@distilled/core';
 
 afterEach(()=>vi.restoreAllMocks());
+it('retries expired cache deletion after R2 failure without deleting a new generation',async()=>{
+ const ctx=await createIntakeDatabase({product:true});
+ try{
+  await ctx.db.prepare("INSERT INTO connector_public_fetch_cache(cache_key,expires_at,payload_key) VALUES('cache',0,'connector-public-cache/old')").run();
+  const remove=vi.fn().mockRejectedValueOnce(new Error('R2 unavailable')).mockResolvedValue(undefined),bucket={delete:remove} as unknown as R2Bucket;
+  await expireSharedPublicFetches(ctx.db,bucket,now.getTime());
+  expect(await ctx.db.prepare('SELECT cache_key FROM connector_public_fetch_cache').first()).toBeNull();
+  const repo=new D1Repository(ctx.db);
+  expect(await repo.listPendingArchiveDeletions(now)).toEqual(['connector-public-cache/old']);
+  await ctx.db.prepare("INSERT INTO connector_public_fetch_cache(cache_key,expires_at,payload_key) VALUES('cache',?,'connector-public-cache/new')").bind(now.getTime()+60000).run();
+  expect((await runRetentionCleanup(repo,bucket,now)).archivesDeleted).toBe(1);
+  expect(await repo.listPendingArchiveDeletions(now)).toEqual([]);
+  expect(remove.mock.calls.map(call=>call[0])).toEqual(['connector-public-cache/old','connector-public-cache/old']);
+  expect(await ctx.db.prepare('SELECT payload_key FROM connector_public_fetch_cache').first()).toEqual({payload_key:'connector-public-cache/new'});
+ }finally{await ctx.dispose();}
+},30000);
 const now=new Date('2026-10-09T12:00:00Z');
 const message=(expiresAt='2026-10-01T00:00:00Z')=>({id:'expired',rawPayloadKey:'archive/item',expiresAt} as NormalizedMessage);
 it('retains failed R2 work after SQL expiry and retries it on the next cleanup',async()=>{

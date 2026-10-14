@@ -1,16 +1,18 @@
-import {afterEach,expect,it} from 'vitest';
+import {afterEach,expect,it,vi} from 'vitest';
 import {DatabaseSync} from 'node:sqlite';
 import {sharedPublicHttp,expireSharedPublicFetches} from './connector-public-cache';
 
 const databases:DatabaseSync[]=[];
 afterEach(()=>{for(const db of databases.splice(0))db.close();});
 function setup(){
+ let claimReads=0;
  const sqlite=new DatabaseSync(':memory:');databases.push(sqlite);
  sqlite.exec('CREATE TABLE connector_public_fetch_cache(cache_key TEXT PRIMARY KEY,lease_until INTEGER DEFAULT 0,token TEXT,expires_at INTEGER DEFAULT 0,payload_key TEXT,status INTEGER,headers TEXT)');
- const db={prepare:(sql:string)=>{let args:unknown[]=[];const statement={bind:(...v:unknown[])=>{args=v;return statement},first:async()=>sqlite.prepare(sql).get(...args as any[])??null,all:async()=>({results:sqlite.prepare(sql).all(...args as any[])}),run:async()=>({meta:sqlite.prepare(sql).run(...args as any[])})};return statement}} as unknown as D1Database;
+ sqlite.exec('CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT,updated_at TEXT)');
+ const db={prepare:(sql:string)=>{let args:unknown[]=[];const statement={bind:(...v:unknown[])=>{args=v;return statement},first:async()=>{const row=sqlite.prepare(sql).get(...args as any[])??null;if(sql.startsWith('INSERT INTO connector_public_fetch_cache'))claimReads++;return row;},all:async()=>({results:sqlite.prepare(sql).all(...args as any[])}),run:async()=>({meta:sqlite.prepare(sql).run(...args as any[])})};return statement},batch:async(statements:any[])=>{sqlite.exec('BEGIN');try{const results=[];for(const statement of statements)results.push(await statement.all());sqlite.exec('COMMIT');return results;}catch(error){sqlite.exec('ROLLBACK');throw error;}}} as unknown as D1Database;
  const objects=new Map<string,Uint8Array>();
  const bucket={put:async(k:string,b:Uint8Array)=>{objects.set(k,b)},get:async(k:string)=>{const b=objects.get(k);return b?{arrayBuffer:async()=>b.slice().buffer}:null},delete:async(k:string)=>{objects.delete(k)}} as unknown as R2Bucket;
- return {db,bucket,objects,sqlite};
+ return {db,bucket,objects,sqlite,get claimReads(){return claimReads}};
 }
 const response=(status=200,headers:Record<string,string>={})=>({status,headers,bytes:new TextEncoder().encode('article'),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}});
 
@@ -36,8 +38,13 @@ it('single-flights concurrent misses and rechecks authorization after transport'
  const http=sharedPublicHttp(s.db,s.bucket,{get:async()=>{calls++;return new Promise(resolve=>{release=resolve})}},async()=>{if(!approved)throw Error('REVOKED')},()=>1000);
  const first=http.get('https://example.com/article',{});
  while(!release)await new Promise(resolve=>setTimeout(resolve,1));
- await expect(http.get('https://example.com/article',{})).rejects.toThrow('TEMPORARY_UNAVAILABLE');
- approved=false;release(response());await expect(first).rejects.toThrow('REVOKED');
+ const second=http.get('https://example.com/article',{});
+ // Attach both rejection handlers before transport settles. A revoked owner
+ // publishes no cache entry, so its waiter must retry without refetching here.
+ const outcomes=Promise.allSettled([first,second]);
+ await vi.waitFor(()=>expect(s.claimReads).toBe(2));
+ approved=false;release(response());
+ expect((await outcomes).map(result=>result.status==='rejected'?result.reason.message:'fulfilled')).toEqual(['REVOKED','TEMPORARY_UNAVAILABLE']);
  expect(calls).toBe(1);expect(s.objects.size).toBe(0);
 });
 

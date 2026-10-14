@@ -64,11 +64,18 @@ export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort
 }
 
 export async function expireSharedPublicFetches(db:D1Database,bucket:R2Bucket,now=Date.now()){
- // Remove the index entry atomically before deleting its immutable generation.
- // A concurrent refresh can then install a new generation without its payload
- // being mistaken for the expired object selected by cleanup.
- const rows=await db.prepare('DELETE FROM connector_public_fetch_cache WHERE cache_key IN (SELECT cache_key FROM connector_public_fetch_cache WHERE expires_at<? AND lease_until<=? ORDER BY expires_at LIMIT 100) RETURNING payload_key').bind(now-3600_000,now).all<{payload_key:string|null}>();
- for(const row of rows.results){
-  if(row.payload_key)await bucket.delete(row.payload_key);
+ // Journal the exact immutable generation in the same transaction that removes
+ // its cache index. The existing retention worker retries R2 failures or a
+ // crash after SQL commit; a new cache generation is never queued for deletion.
+ const due='SELECT cache_key FROM connector_public_fetch_cache WHERE expires_at<? AND lease_until<=? ORDER BY expires_at,cache_key LIMIT 100';
+ const results=await db.batch([
+  db.prepare(`INSERT INTO settings(key,value,updated_at) SELECT 'retention:archive:'||payload_key,payload_key,? FROM connector_public_fetch_cache WHERE cache_key IN (${due}) AND payload_key IS NOT NULL ON CONFLICT(key) DO NOTHING`).bind(new Date(now).toISOString(),now-3600_000,now),
+  db.prepare(`DELETE FROM connector_public_fetch_cache WHERE cache_key IN (${due}) RETURNING payload_key`).bind(now-3600_000,now)
+ ]);
+ for(const row of results[1].results as {payload_key:string|null}[]){
+  if(row.payload_key){
+   try{await bucket.delete(row.payload_key);}catch{continue;}
+   await db.prepare('DELETE FROM settings WHERE key=?').bind('retention:archive:'+row.payload_key).run();
+  }
  }
 }
