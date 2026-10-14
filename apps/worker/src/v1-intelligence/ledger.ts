@@ -142,7 +142,11 @@ export async function refreshSourceCorrectionObligations(tx:FeedTransaction,now:
   else if(current.currentRevisionId && current.currentRevisionId!==id){
    const next=await tx.revision(current.currentRevisionId);
    if(!next||await sourceChangesReaderMeaning(tx.store,tx.snapshot.feed.id,entry,revision,next,tx))await recordCorrectionObligation(tx,entry,'SOURCE_REVISED',current.currentRevisionId,now);
-   else for(const obligation of (await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>o.ledgerEntryId===entry.id&&o.kind==='SOURCE_REVISED'&&o.triggerId===current.currentRevisionId)){
+   else for(const obligation of (await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>o.ledgerEntryId===entry.id&&o.kind==='SOURCE_REVISED')){
+    // Prove each retained trigger non-material independently; a later source
+    // revision must not leave an older false obligation stranded.
+    const trigger=obligation.triggerId===next?.id?next:await tx.revision(obligation.triggerId);
+    if(!trigger||trigger.evidenceId!==revision.evidenceId||await sourceChangesReaderMeaning(tx.store,tx.snapshot.feed.id,entry,revision,trigger,tx))continue;
     const resolutionId=JSON.stringify([obligation.id,'NON_MATERIAL_SOURCE_REVISION']);
     if(!await tx.read('correction_resolutions',resolutionId))await tx.write('correction_resolutions',resolutionId,{id:resolutionId,feedId:tx.snapshot.feed.id,obligationId:obligation.id,reason:'NON_MATERIAL_SOURCE_REVISION',createdAt:now});
    }

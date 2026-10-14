@@ -15,7 +15,7 @@ const READ_ON=/^(?:in this (?:episode|video|article|piece|story|guide|podcast|ne
 const LISTICLE_TITLE=/^\d+\s+(?:best|top|ways|things|reasons|tips|tools|apps|gadgets|games|movies|shows|books)\b/i;
 const EVENT_PROMO=/\b(?:pass(?:es)? savings|ticket(?:s)? (?:are|on sale|sales)|early[- ]bird|at the door|promo(?:tion(?:al)?)? code|use code\b|lock in your|\d+% off|save up to [$\u20ac\u00a3]?\d+)\b|^\d+\s+days?\s+to\s+[^.]*\b(?:disrupt|summit|conference|expo|festival|pass|tickets?|registration|register)\b|^(?:hear|learn|get insights) from\b[^.]*\b(?:stage|session|panel|roundtable|summit|conference|disrupt|keynote)\b|\b(?:is|are) (?:coming|heading|headed) to (?:the )?[\w' -]*?\b(?:stage|summit|disrupt|conference)\b/i;
 export function nonFactRole(text:string):'QUESTION'|'CALL_TO_ACTION'|'PROMOTION'|'TEASER'|undefined {
- if(/\?\s*$/.test(text.trim()))return 'QUESTION';
+ if(/\?\s*\.*\s*$/.test(text.trim()))return 'QUESTION';
  if(/^(?:if\b[^.!?]*\byou\b[^.!?]*[,;]\s*)?(?:don(?:'|\u2019)t wait to\s+|do not wait to\s+)?(?:register|subscribe|sign up|buy tickets|book your|join us|get (?:all of )?your)\b/i.test(text.trim())||/^save (?:up to )?[$\u20ac\u00a3]?\d/i.test(text.trim()))return 'CALL_TO_ACTION';
  if(/^(?:we explain (?:all|everything)|learn how|find out (?:more|how)|read more|watch (?:now|here))\b/i.test(text.trim()))return 'TEASER';
  if(/^(?:sponsored (?:by|content)|advertisement)\b/i.test(text.trim()))return 'PROMOTION';
