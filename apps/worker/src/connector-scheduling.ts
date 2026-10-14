@@ -84,18 +84,19 @@ export async function connectorDownstreamEnv(env:Env,body:DistilledQueueMessage)
  * dispatch slots. Stable poll IDs retain paid submission/pagination identities. */
 export async function dispatchConnectorPolls(env:Env,feedId:string,now=Date.now(),perKind=4){
  if(!env.SOURCE_COLLECTION_QUEUE)throw Error('SOURCE_COLLECTION_QUEUE_REQUIRED');
- let sent=0;
- for(const kind of ['rss','provider'] as const){
-  const table=tables[kind],token=crypto.randomUUID();
-  const rows=await env.DB.prepare(`UPDATE ${table} SET dispatch_until=?,dispatch_token=? WHERE job_id IN (
+ const kinds=['rss','provider'] as const,token=crypto.randomUUID();
+ const claims=kinds.map(kind=>{
+  const table=tables[kind];
+  return env.DB.prepare(`UPDATE ${table} SET dispatch_until=?,dispatch_token=? WHERE job_id IN (
    SELECT job_id FROM ${table} WHERE json_extract(request,'$.scope.feedId')=? AND state='PENDING' AND due_at<=?
    AND dispatch_until<=? AND (lease_until IS NULL OR lease_until<=?) ${kind==='provider'?"AND COALESCE(json_extract(request,'$.source.family'),'')<>'telegram'":''} ORDER BY due_at,job_id LIMIT ?) RETURNING job_id`)
-   .bind(now+POLL_DELIVERY_MS,token,feedId,new Date(now).toISOString(),now,new Date(now).toISOString(),perKind).all<{job_id:string}>();
-  if(!rows.results.length)continue;
-  try{await env.SOURCE_COLLECTION_QUEUE.sendBatch(rows.results.map(row=>({body:{type:'connector_poll',feedId,jobId:row.job_id,table:kind,token} as ConnectorQueueMessage})));sent+=rows.results.length;}
-  catch(error){await env.DB.prepare(`UPDATE ${table} SET dispatch_until=?,dispatch_token=NULL WHERE dispatch_token=?`).bind(now+30_000,token).run();throw error;}
- }
- return sent;
+   .bind(now+POLL_DELIVERY_MS,token,feedId,new Date(now).toISOString(),now,new Date(now).toISOString(),perKind);
+ });
+ const results=await env.DB.batch(claims);
+ const messages=results.flatMap((rows,index)=>(rows.results as {job_id:string}[]).map(row=>({body:{type:'connector_poll',feedId,jobId:row.job_id,table:kinds[index],token} as ConnectorQueueMessage})));
+ if(!messages.length)return 0;
+ try{await env.SOURCE_COLLECTION_QUEUE.sendBatch(messages);return messages.length;}
+ catch(error){await env.DB.batch(kinds.map(kind=>env.DB.prepare(`UPDATE ${tables[kind]} SET dispatch_until=?,dispatch_token=NULL WHERE dispatch_token=?`).bind(now+30_000,token)));throw error;}
 }
 
 /** Coordination interface: feed-scoped environment + existing dispatchers.

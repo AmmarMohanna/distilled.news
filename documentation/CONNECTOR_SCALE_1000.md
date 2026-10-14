@@ -364,3 +364,23 @@ in `finally`. This result is diagnostic, not a capacity pass. The complete
 connector regression pass had one outdated test double that reported scheduling
 without persisting its job; it now delegates to the real scheduler, and the two
 affected Telegram/payload tests pass. The other 44 tests passed unchanged.
+
+The atomic-completion repeat still failed (986 done, 14 pending). Batching RSS
+and provider dispatch claims into one atomic D1 call then PASSED the identical
+nonempty 1,000-feed workload: 560,166 ms total, eight consumers, 1,000 independent
+receipts/checkpoints/candidates, six freshness-preserving upstream requests and
+zero paid calls. Duplicate delivery of all 1,000 polls produced no extra batch.
+Enrollment took 176,161 ms and collection 364,251 ms. Cold D1 growth was
+17,436,672 bytes (17,437 bytes/feed); scoped R2 payloads occupied 1,492,321 bytes
+in 3,001 objects. This measures one simulated acquisition cycle, not continuous
+mixed-provider operation or final synthesis. The 19 dispatch regressions pass,
+including release of both source-family claims after a combined send failure.
+
+Fresh pre-migration backup: `.review-tmp/qa-before-connector-lane-20261014.sql`
+(387,664,586 bytes). Before deployment, live QA had 2,481 pending provider jobs,
+30 RSS jobs and 1,471 Telegram jobs. One unresolved Apify operation was retained
+with its reservation; it must not be blindly resubmitted. The rollout fixture
+had eight complete RSS article revisions and no edition; other source families
+still had downstream acquisition pending. Source-health endpoints all passed,
+and X honestly reported unavailable. Retention and sustained live capacity
+remain explicit shared-owner verification gaps.

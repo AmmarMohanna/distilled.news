@@ -105,6 +105,19 @@ it('per-feed dispatch gives a quiet feed slots even when another has a large bac
  expect(messages.map(m=>(m as {body:{feedId:string}}).body.feedId)).toEqual([...Array(4).fill('scale-0001'),...Array(4).fill('scale-0002')]);
 });
 
+it('a failed mixed-family send releases both atomic claims for retry',async()=>{
+ const feedId='scale-0090',request=JSON.stringify({scope:{feedId}}),due='1970-01-01T00:00:00.000Z';
+ await ctx.db.batch([
+  ctx.db.prepare('INSERT INTO connector_rss_poll_jobs(job_id,request,request_hash,due_at) VALUES(?,?,?,?)').bind('mixed-rss',request,'hash',due),
+  ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at) VALUES(?,?,?,?,?)').bind('mixed-provider',request,'hash','[]',due)
+ ]);
+ const broken={...env,SOURCE_COLLECTION_QUEUE:{sendBatch:async()=>{throw Error('transport')}}} as unknown as Env;
+ await expect(dispatchConnectorPolls(broken,feedId,1000)).rejects.toThrow('transport');
+ expect(await dispatchConnectorPolls(env,feedId,30999)).toBe(0);
+ messages.length=0;expect(await dispatchConnectorPolls(env,feedId,31000)).toBe(2);
+ expect(messages.map((m:any)=>m.body.table).sort()).toEqual(['provider','rss']);
+});
+
 it('coalesces duplicate downstream delivery without losing crash recovery',async()=>{
  messages.length=0;const body={type:'v1_reassess' as const,jobId:'review-1'};
  await Promise.all(Array.from({length:10},()=>coalescedProcessingQueue(env,1000).send(body)));
