@@ -25,8 +25,9 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
  const job=(await new V1IntakeStore(store.db).read<DownstreamJob>('jobs',jobId))?.value;if(!job)return undefined;
  const feed=await store.getFeed(job.feedId),active=await store.currentEvidence(job.feedId),revision=active.find(e=>e.revision.sourceObservationId===job.observationId)?.revision;if(!feed||!revision)return undefined;
  const members=await store.list<EventMembership>(job.feedId,'memberships'),candidates:EventMatchInput['candidates']=[],activeIds=new Set(active.map(e=>e.revision.id));
- for(const root of await store.list<EventRecord>(job.feedId,'events')){
-  const version=await store.read<EventVersion>(job.feedId,'event_versions',root.currentVersionId),support=members.filter(m=>m.eventVersionId===root.currentVersionId).map(m=>m.evidenceRevisionId);
+ const eventRoots=await store.list<EventRecord>(job.feedId,'events'),eventVersions=await store.readMany<EventVersion>(job.feedId,'event_versions',eventRoots.map(r=>r.currentVersionId));
+ for(const root of eventRoots){
+  const version=eventVersions.get(root.currentVersionId),support=members.filter(m=>m.eventVersionId===root.currentVersionId).map(m=>m.evidenceRevisionId);
   if(!version||version.type==='WITHDRAWN'||!support.length||support.some(id=>!activeIds.has(id)))continue;
   candidates.push({id:root.id,version,evidenceRevisionIds:support,newestAt:version.createdAt});
  }
@@ -34,10 +35,12 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
  const priority=(c:EventMatchInput['candidates'][number])=>overlap(features(sourceText).keywords,features(c.version.state).keywords)+entityAnchors.filter(e=>e.aliases.some(a=>c.version.state.includes(a))).length;
  candidates.sort((a,b)=>priority(b)-priority(a)||b.newestAt.localeCompare(a.newestAt));
  const shortlist=candidates.slice(0,4),storylines:StorylineRecord[]=[];
- for(const root of await store.list<StorylineRecord>(job.feedId,'storylines')){const version=await store.read<import('./types').StorylineVersion>(job.feedId,'storyline_versions',root.currentVersionId);if(version?.eventVersionIds.length && version.eventVersionIds.every(id=>candidates.some(c=>c.version.id===id)))storylines.push(root)}
+ const storylineRoots=await store.list<StorylineRecord>(job.feedId,'storylines'),storylineVersions=await store.readMany<import('./types').StorylineVersion>(job.feedId,'storyline_versions',storylineRoots.map(r=>r.currentVersionId));
+ for(const root of storylineRoots){const version=storylineVersions.get(root.currentVersionId);if(version?.eventVersionIds.length && version.eventVersionIds.every(id=>candidates.some(c=>c.version.id===id)))storylines.push(root)}
  storylines.splice(0,Math.max(0,storylines.length-4));
  const input:EventMatchInput={revision,role:classifyRole(sourceText).role,candidates:shortlist,storylineIds:storylines.map(s=>s.id)};
- const memory=await Promise.all(storylines.map(async s=>({id:s.id,version:await store.read<any>(job.feedId,'storyline_versions',s.currentVersionId),structured:await store.read<StorylineMemory>(job.feedId,'storyline_memories',s.currentVersionId)})));
+ const memories=await store.readMany<StorylineMemory>(job.feedId,'storyline_memories',storylines.map(s=>s.currentVersionId));
+ const memory=storylines.map(s=>({id:s.id,version:storylineVersions.get(s.currentVersionId),structured:memories.get(s.currentVersionId)}));
  const state={source:{id:revision.id,title:revision.title?.slice(0,600),text:(revision.body??'').slice(0,2600)},events:shortlist.map(c=>({id:c.id,versionId:c.version.id,state:c.version.state.slice(0,500)})),storylines:memory.map(s=>({id:s.id,state:String(s.version?.currentState??'').slice(0,350)})),instruction:'Judge only supplied approved evidence. Separate bounded developments from ongoing Storylines. Preserve attributed conflicting claims and hedges. Structural identity is independent of epistemic effects. No external facts.'};
  const evidenceRevisionIds=[...new Set([revision.id,...shortlist.flatMap(c=>c.evidenceRevisionIds),...memory.flatMap(m=>members.filter(x=>m.version?.eventVersionIds.includes(x.eventVersionId)).map(x=>x.evidenceRevisionId))])],operation={feedId:job.feedId,feedRevision:feed.revision,evidenceRevisionIds,policyVersion:SEMANTIC_POLICY,budgetKey:`semantic:${now.slice(0,10)}`,state:{...state,attempt:options.attempt??0}};
  let decision:EventMatchDecision={structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'NO_ACCEPTED_JUDGMENT'}},reasons=['CONSTRUCTION'];

@@ -106,6 +106,7 @@ export interface Env extends Cloudflare.Env {
   AUTHENTICATED_BROWSER_CONTAINER: DurableObjectNamespace<AuthenticatedBrowserContainer>;
   PROCESSING_QUEUE: Queue<DistilledQueueMessage>;
   V1_PROCESSING_QUEUE?: Queue<DistilledQueueMessage>;
+  V1_ACQUISITION_QUEUE?: Queue<DistilledQueueMessage>;
   WEB_OPERATOR_QUEUE: Queue<WebOperatorQueueMessage>;
   WEB_OPERATOR_RUNTIME_URL: string;
   WEB_OPERATOR_RUNTIME_TOKEN?: string;

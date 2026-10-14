@@ -142,6 +142,16 @@ it('batch downstream sends retain coalescing and their per-message delay',async(
  expect(deliveries).toEqual([{body:{type:'v1_reassess',jobId:'batch-review'},options:{delaySeconds:9}}]);
 });
 
+it('acquisition has independent delivery slots while reviews retain their queue and replay fence',async()=>{
+ const acquire=vi.fn(async()=>{}),review=vi.fn(async()=>{}),legacy=vi.fn(async()=>{});
+ const runtime={...env,V1_ACQUISITION_QUEUE:{send:acquire},V1_PROCESSING_QUEUE:{send:review},PROCESSING_QUEUE:{send:legacy}} as unknown as Env;
+ const queue=coalescedProcessingQueue(runtime,1000),body={type:'v1_acquisition' as const,jobId:'isolated-acquire'};
+ await Promise.all([queue.send(body),queue.send(body)]);expect(acquire).toHaveBeenCalledTimes(1);
+ await queue.send({type:'v1_reassess',jobId:'isolated-review'});expect(review).toHaveBeenCalledTimes(1);expect(legacy).not.toHaveBeenCalled();
+ await coalescedProcessingQueue(runtime,121001).send(body);expect(acquire).toHaveBeenCalledTimes(2);
+ const fallback={...runtime,V1_ACQUISITION_QUEUE:undefined};await coalescedProcessingQueue(fallback,242002).send(body);expect(review).toHaveBeenCalledTimes(2);
+});
+
 it('persisted provider revocations and exhausted source budgets are immediately visible',async()=>{
  const feedId='scale-0060',id=feedId+'-x';
  await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES(?,?,'NASA','channel','twitterapi_io','x_profile','https://x.com/NASA','{\"username\":\"NASA\"}',1,'connector','2026-10-13','2026-10-13','2026-10-13')").bind(id,feedId).run();

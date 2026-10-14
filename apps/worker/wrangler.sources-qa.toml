@@ -92,6 +92,20 @@ max_retries = 5
 max_concurrency = 8
 dead_letter_queue = "distilled-news-sources-qa-v1-dlq"
 
+# Acquisition must keep draining even while an intelligence delivery waits on a
+# model or revalidates a review graph. Canonical job leases remain shared.
+[[queues.producers]]
+binding = "V1_ACQUISITION_QUEUE"
+queue = "distilled-news-sources-qa-acquisition"
+
+[[queues.consumers]]
+queue = "distilled-news-sources-qa-acquisition"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 5
+max_concurrency = 8
+dead_letter_queue = "distilled-news-sources-qa-acquisition-dlq"
+
 [[vpc_services]]
 binding = "SOURCE_EXECUTION_SERVICE"
 service_id = "01a1099d-e88a-7c23-a1c5-eeb51471e780"
