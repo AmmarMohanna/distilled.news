@@ -5,6 +5,11 @@ import { D1SourceRepository, type SqlDatabase } from './storage';
 import type { ProviderAttempt, SourceFetchRequest, ProviderPage } from './provider-types';
 
 export const PROVIDER_SOURCE_SCHEMA=`
+CREATE TABLE IF NOT EXISTS connector_provider_read_recoveries (
+ feed_id TEXT NOT NULL,feed_source_id TEXT NOT NULL,source_id TEXT NOT NULL,
+ run_id TEXT NOT NULL,provider_id TEXT NOT NULL,operation_id TEXT NOT NULL,
+ state TEXT NOT NULL DEFAULT 'PENDING',token TEXT NOT NULL,lease_until INTEGER NOT NULL,
+ checked_at TEXT,payload_ref TEXT,PRIMARY KEY(feed_id,feed_source_id,run_id,operation_id));
 CREATE TABLE IF NOT EXISTS connector_item_fingerprints (
  feed_id TEXT NOT NULL, feed_source_id TEXT NOT NULL, source_id TEXT NOT NULL, source_item_key TEXT NOT NULL,
  configuration_revision INTEGER NOT NULL, fingerprint TEXT NOT NULL, fetch_sequence INTEGER NOT NULL,
@@ -48,10 +53,11 @@ export class D1ProviderSourceRepository extends D1SourceRepository {
     // Round-trip strict wire validation drops undefined values deterministically.
     batch={...batch,request:connectorHandoffRequestSchema.parse(batch.request)};
     const data=JSON.stringify(batch), c=batch.request.coverage;
-    await this.sql.prepare('INSERT INTO connector_provider_batches(feed_id,feed_source_id,batch_key,data) VALUES(?,?,?,?) ON CONFLICT DO NOTHING')
-      .bind(c.feedId,c.feedSourceId,key,data).run();
-    const current=await this.loadProviderBatch(batch.originalRequest.scope,key);
-    if (JSON.stringify(current)!==data) throw new HandoffError('IDEMPOTENCY_CONFLICT');
+    const row=await this.sql.prepare(`INSERT INTO connector_provider_batches(feed_id,feed_source_id,batch_key,data) VALUES(?,?,?,?)
+      ON CONFLICT(feed_id,feed_source_id,batch_key) DO UPDATE SET data=connector_provider_batches.data
+      WHERE connector_provider_batches.data=excluded.data RETURNING batch_key`)
+      .bind(c.feedId,c.feedSourceId,key,data).first();
+    if(!row)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
   async loadProviderBatch(scope:SourceScope,key:string):Promise<StoredProviderBatch|undefined> {
     const row=await this.sql.prepare('SELECT data FROM connector_provider_batches WHERE feed_id=? AND feed_source_id=? AND batch_key=?')
@@ -81,6 +87,13 @@ export class D1ProviderSourceRepository extends D1SourceRepository {
       .bind(scope.feedId,scope.feedSourceId,runId).first<{data:string}>();
     return row?JSON.parse(row.data):undefined;
   }
+  async hasReadRecovery(scope:SourceScope,runId:string,providerId:string):Promise<boolean> {
+    return !!await this.sql.prepare(`SELECT r.operation_id FROM connector_provider_read_recoveries r
+      JOIN connector_provider_operations o ON o.provider_id=r.provider_id AND o.operation_id=r.operation_id AND o.feed_id=r.feed_id AND o.feed_source_id=r.feed_source_id
+      WHERE r.feed_id=? AND r.feed_source_id=? AND r.source_id=? AND r.run_id=? AND r.provider_id=?
+      AND r.state='RESOLVED' AND r.payload_ref=o.payload_ref AND o.status>=200 AND o.status<300 LIMIT 1`)
+      .bind(scope.feedId,scope.feedSourceId,scope.sourceId,runId,providerId).first();
+  }
   async recordFailureCoverage(coverage:CollectionCoverage) {
     const data=JSON.stringify(collectionCoverageSchema.parse(coverage));
     await this.sql.prepare('INSERT INTO connector_provider_failure_coverage(feed_id,feed_source_id,coverage_id,data) VALUES(?,?,?,?) ON CONFLICT DO NOTHING')
@@ -88,9 +101,11 @@ export class D1ProviderSourceRepository extends D1SourceRepository {
   }
   async saveSnapshot(scope:SourceScope,id:string,snapshot:StoredProviderSnapshot) {
     const data=JSON.stringify(snapshot);
-    await this.sql.prepare('INSERT INTO connector_provider_snapshots(feed_id,feed_source_id,snapshot_id,data) VALUES(?,?,?,?) ON CONFLICT DO NOTHING')
-      .bind(scope.feedId,scope.feedSourceId,id,data).run();
-    if(JSON.stringify(await this.loadSnapshot(scope,id))!==data)throw new HandoffError('IDEMPOTENCY_CONFLICT');
+    const row=await this.sql.prepare(`INSERT INTO connector_provider_snapshots(feed_id,feed_source_id,snapshot_id,data) VALUES(?,?,?,?)
+      ON CONFLICT(feed_id,feed_source_id,snapshot_id) DO UPDATE SET data=connector_provider_snapshots.data
+      WHERE connector_provider_snapshots.data=excluded.data RETURNING snapshot_id`)
+      .bind(scope.feedId,scope.feedSourceId,id,data).first();
+    if(!row)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
   async loadSnapshot(scope:SourceScope,id:string):Promise<StoredProviderSnapshot|undefined> {
     const row=await this.sql.prepare('SELECT data FROM connector_provider_snapshots WHERE feed_id=? AND feed_source_id=? AND snapshot_id=?')

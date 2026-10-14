@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, expect, it } from 'vitest';
+import { beforeEach, afterEach, expect, it,vi } from 'vitest';
 import { handoffConnectorBatch, type IntakeReceipt, type NormalizedEvidenceItem } from '@distilled/contracts';
 import { V1IntakeStore } from './store';
 import { createCandidateIntakePort } from './intake';
@@ -16,6 +16,28 @@ it('accepted UPSERT commits a candidate, exact input binding and one acquisition
   expect(result.receipts[0]).toMatchObject({decision:'ACCEPTED',checkpointResolution:'RESOLVED'});
   expect(await store.list('candidates','feed-source-1')).toHaveLength(1);
   expect(await store.listPendingJobs('feed-source-1')).toMatchObject([{observationId:'observation-1',kind:'ACQUIRE'}]);
+});
+it('prefetches large batches in bounded indexed reads without per-item round trips',async()=>{
+ const fixture=batchFixture(),request={...fixture,observations:Array.from({length:75},(_,i)=>({...fixture.observations[0],id:'bulk-'+i,sourceItemKey:'bulk-item-'+i})),proposals:Array.from({length:75},(_,i)=>({...fixture.proposals[0],observationId:'bulk-'+i,sourceItemKey:'bulk-item-'+i}))};
+ const reads=vi.spyOn(store,'read');
+ try{
+  const result=await createCandidateIntakePort(store,testPolicy).acceptBatch(request);
+  expect(result.receipts).toHaveLength(75);expect(result.receipts.every(r=>r.decision==='ACCEPTED')).toBe(true);
+  expect(reads).not.toHaveBeenCalled();expect(await store.listPendingJobs('feed-source-1')).toHaveLength(75);
+ }finally{reads.mockRestore()}
+},15000);
+it('a concurrent intake invalidates cached misses before canonical effects commit',async()=>{
+ const original=store.readMany.bind(store);let raced=false;
+ const read=vi.spyOn(store,'readMany').mockImplementation(async keys=>{
+  const rows=await original(keys);
+  if(!raced){raced=true;await createCandidateIntakePort(new V1IntakeStore(ctx.db),testPolicy).acceptBatch(batchFixture(2));}
+  return rows;
+ });
+ try{
+  await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture());
+  expect(await store.list('candidates','feed-source-1')).toMatchObject([{latestObservationId:'observation-2'}]);
+  expect(await store.listPendingJobs('feed-source-1')).toHaveLength(2);
+ }finally{read.mockRestore()}
 });
 it('lost response retry through a fresh store returns the same durable terminal receipt',async()=>{
   const first=await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture());
@@ -116,9 +138,30 @@ it('concurrent cross-scope reuse of an observation ID never commits mixed owners
   const candidates=[...await store.list('candidates','feed-source-1'),...await store.list('candidates','feed-source-2')];expect(candidates).toHaveLength(1);
 });
 it('failed D1 job persistence rolls back the entire handoff including candidate and receipt',async()=>{
+ const logs=vi.spyOn(console,'error').mockImplementation(()=>{});
+ try{
   await ctx.db.exec("CREATE TRIGGER fail_job BEFORE INSERT ON v1_jobs BEGIN SELECT RAISE(ABORT,'provider-private-diagnostic'); END;");
   await expect(createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE',message:'TEMPORARY_UNAVAILABLE'});
   for(const table of ['handoffs','inputs','candidates','intake_receipts','jobs'] as const) expect(await store.list(table,'feed-source-1')).toHaveLength(0);
+  expect(logs).toHaveBeenCalled();expect(JSON.stringify(logs.mock.calls)).not.toContain('provider-private-diagnostic');
+ }finally{logs.mockRestore()}
+});
+it('query-limit diagnostics omit raw external text and retain the retryable wire error',async()=>{
+ const read=vi.spyOn(store,'readMany').mockRejectedValueOnce(Error('Too many subrequests: private-token-value'));
+ const logs=vi.spyOn(console,'error').mockImplementation(()=>{});
+ try{
+  await expect(createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE',message:'TEMPORARY_UNAVAILABLE'});
+  expect(logs.mock.calls.map(([value])=>JSON.parse(String(value)))).toContainEqual(expect.objectContaining({type:'V1_INTAKE_LOOKUP_FAILED',cause:'QUERY_LIMIT'}));
+  expect(JSON.stringify(logs.mock.calls)).not.toContain('private-token-value');
+ }finally{read.mockRestore();logs.mockRestore()}
+});
+it('exhausted scope contention is reported without returning an undurable receipt',async()=>{
+ const commit=vi.spyOn(store,'commit').mockResolvedValue(false),logs=vi.spyOn(console,'warn').mockImplementation(()=>{});
+ try{
+  await expect(createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+  expect(commit).toHaveBeenCalledTimes(12);expect(logs.mock.calls.map(([value])=>JSON.parse(String(value)))).toContainEqual(expect.objectContaining({type:'V1_INTAKE_CAS_EXHAUSTED',attempts:12}));
+  expect(await store.list('intake_receipts','feed-source-1')).toHaveLength(0);
+ }finally{commit.mockRestore();logs.mockRestore()}
 });
 it('one durable batch returns mixed accepted, rejected, quarantined and deleted receipts',async()=>{
   await store.registerScope({...scopeFixture,feedRevision:2,restrictions:{publisherIds:['publisher']}});

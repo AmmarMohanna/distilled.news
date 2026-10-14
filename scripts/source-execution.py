@@ -16,6 +16,8 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 from urllib.parse import urlsplit, urlencode
+from urllib.parse import urljoin
+from html.parser import HTMLParser
 
 
 def iso(value):
@@ -56,16 +58,66 @@ def parse_feed(data):
     return {'items': items}
 
 
+class ArticleLinks(HTMLParser):
+    """Observed same-origin listing links only; never follows body references."""
+    def __init__(self, base):
+        super().__init__()
+        self.base, self.depth, self.links, self.canonical, self.article_count = base, 0, [], None, 0
+        self.article_metadata = False
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'meta':
+            prop = attrs.get('property', attrs.get('name', '')).lower()
+            content = attrs.get('content', '').strip().lower()
+            if (prop == 'og:type' and content in ('article', 'newsarticle', 'blogposting')) or (prop == 'article:published_time' and content):
+                self.article_metadata = True
+        if tag == 'article':
+            self.depth += 1
+            self.article_count += 1
+        if tag == 'link' and 'canonical' in attrs.get('rel', '').split():
+            candidate = urljoin(self.base, attrs.get('href', ''))
+            if urlsplit(candidate).scheme == 'https' and urlsplit(candidate).netloc == urlsplit(self.base).netloc:
+                self.canonical = candidate
+        if tag == 'a' and self.depth and attrs.get('href'):
+            candidate = urljoin(self.base, attrs['href']).split('#')[0]
+            parsed = urlsplit(candidate)
+            if parsed.scheme == 'https' and parsed.netloc == urlsplit(self.base).netloc and not parsed.username and candidate != self.base and candidate not in self.links:
+                self.links.append(candidate)
+        elif tag == 'a' and attrs.get('href') and re.fullmatch(r'/(?:news|technology|business|ai|games|stories|articles)?/?', urlsplit(self.base).path):
+            candidate = urljoin(self.base, attrs['href']).split('#')[0]
+            parsed = urlsplit(candidate)
+            article_route = re.search(r'/(?:stories|story|articles|article|news)/.+|/\d{4}/\d{1,2}/\d{1,2}/.+|/(?:ai|technology|business|games)/[^/]{12,}', parsed.path)
+            if article_route and parsed.scheme == 'https' and parsed.netloc == urlsplit(self.base).netloc and not parsed.username and candidate not in self.links:
+                self.links.append(candidate)
+
+    def handle_endtag(self, tag):
+        if tag == 'article':
+            self.depth = max(0, self.depth-1)
+
+
 def extract(data):
     import trafilatura
     result = trafilatura.bare_extraction(data['html'], url=data['url'], include_comments=False,
                                         include_images=False, include_tables=True, with_metadata=True)
+    links = ArticleLinks(data['url'])
+    links.feed(data['html'])
+    # A publisher landing page remains a listing even if the extractor finds a
+    # date on its lead story. Conversely, links within a single article are
+    # citations/related stories, not a recursively discoverable news inventory.
+    landing = bool(re.fullmatch(r'/(?:news|technology|business|ai|games|stories|articles|latest)?/?', urlsplit(data['url']).path))
+    article_metadata = links.article_metadata or bool(re.search(r'"@type"\s*:\s*"(?:NewsArticle|Article|BlogPosting)"', data['html'], re.I))
+    page_kind = 'listing' if landing else 'article' if article_metadata or links.article_count == 1 else 'listing' if links.article_count > 1 else 'unknown'
+    inventory = links.links if page_kind == 'listing' else []
     if not result:
-        return {'body': ''}
+        return {'body': '', 'articleLinks': inventory, 'canonicalUrl': links.canonical,
+                'pageKind': page_kind}
     if not isinstance(result, dict):
         result = result.as_dict()
     return {'body': result.get('text', ''), 'title': result.get('title'),
-            'publishedAt': result.get('date'), 'language': result.get('language')}
+            'publishedAt': result.get('date'), 'language': result.get('language'),
+            'canonicalUrl': links.canonical, 'articleLinks': inventory,
+            'pageKind': page_kind}
 
 
 def fetch_google_feed(data):

@@ -2,6 +2,10 @@ import {retireManualBriefing,retireManualBriefingRequests} from './manual-briefi
 import {recordV1QueueOutcome} from './v1-queue-dispatch';
 import {productRuntimeEnv} from './product-feeds';
 import { sendBriefingNotifications } from './push';
+import {dispatchConnectorFeeds,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
+import {expireSharedPublicFetches} from './connector-public-cache';
+import {dispatchTelegramLane} from './connector-telegram-lane';
+import {withIntelligenceTurn,isIntelligenceTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
 import { createApp } from "./app";
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
@@ -47,18 +51,25 @@ export default {
     const summaryAdapter = createSummaryAdapterFromEnv(env, repo);
     const reviewAdapter = createEventReviewAdapterFromEnv(env, repo);
     for (const message of batch.messages) {
+      if(isRecord(message.body)&&['connector_feed','connector_poll','connector_relay'].includes(String(message.body.type))){
+        try{await processConnectorMessage(env,message.body as ConnectorQueueMessage);message.ack();}
+        catch{await recordConnectorQueueFailure(env,message.id,message.body as ConnectorQueueMessage,message.attempts);message.retry({delaySeconds:retryDelaySeconds(message.attempts)});}
+        continue;
+      }
       const startedAt = Date.now();
       const bodyType = queueBodyType(message.body);
       const bodyId = queueBodyId(message.body);
       let completedProcessing=false;
       try {
-        if(isRecord(message.body)&&message.body.type==='v1_manual_briefing'&&typeof message.body.feedId==='string'&&typeof message.body.requestId==='string'){
-          await retireManualBriefing(env,message.body.feedId,message.body.requestId);
-        }
-        else if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(env,message.body.jobId);
-        else if(isRecord(message.body) && message.body.type==='v1_rematch' && typeof message.body.feedId==='string' && typeof message.body.requestId==='string') await processV1Rematch(env,message.body.feedId,message.body.requestId);
-        else if(isRecord(message.body) && message.body.type==='v1_reassess' && typeof message.body.jobId==='string') await processV1Reassessment(env,message.body.jobId);
-        else if(isRecord(message.body) && message.body.type==='v1_briefing') await processV1Briefing(env,message.body as import('./v1-intelligence/runtime').V1BriefingMessage);
+        const downstreamEnv=await connectorDownstreamEnv(env,message.body as DistilledQueueMessage);
+        if(isRecord(message.body)&&message.body.type==='v1_manual_briefing'&&typeof message.body.feedId==='string'&&typeof message.body.requestId==='string') await retireManualBriefing(env,message.body.feedId,message.body.requestId);
+        else if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(downstreamEnv,message.body.jobId);
+        else if(isRecord(message.body) && isIntelligenceTurn(message.body as DistilledQueueMessage)) await withIntelligenceTurn(downstreamEnv,message.body as DistilledQueueMessage,async()=>{
+          if(message.body.type==='v1_rematch' && typeof message.body.feedId==='string' && typeof message.body.requestId==='string') await processV1Rematch(downstreamEnv,message.body.feedId,message.body.requestId);
+          else if(message.body.type==='v1_reassess' && typeof message.body.jobId==='string') await processV1Reassessment(downstreamEnv,message.body.jobId);
+          else if(message.body.type==='v1_briefing') await processV1Briefing(downstreamEnv,message.body as import('./v1-intelligence/runtime').V1BriefingMessage);
+          else throw new HandoffError('INVALID_REQUEST');
+        });
         else if (isWebOperatorRunMessage(message.body)) await processWebOperatorRunMessage(env,message.body);
         else if (isWebOperatorLiveSmokeMessage(message.body)) {
           await processLivePublicAcquisitionSmoke(env, message.body, async (request) => app.fetch(request, env));
@@ -73,6 +84,7 @@ export default {
           await drainNextProcessingJob(repo,env.PROCESSING_QUEUE,message.body.briefingId,completedProcessing);
         }
         const durationMs = Date.now() - startedAt;
+        if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')await completeConnectorDownstream(env,message.body as DistilledQueueMessage);
         if (durationMs >= SLOW_QUEUE_JOB_MS) {
           console.warn("Slow queue job completed", {
             messageId: message.id,
@@ -84,11 +96,15 @@ export default {
         }
         message.ack();
       } catch (error) {
+        if(error instanceof IntelligenceTurnBusy){message.ack();continue;}
         if(isRecord(message.body) && typeof message.body.type==='string' && message.body.type.startsWith('v1_')) {
           await recordV1QueueOutcome(env,message.id,message.body,message.attempts,error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE');
           if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') message.ack();
           else if(message.attempts<MAX_QUEUE_ATTEMPTS) message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
-          else message.ack();
+          else if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+            await env.DB.prepare('INSERT INTO connector_queue_recovery(id,kind,job_id,attempts,reason,observed_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET attempts=excluded.attempts').bind(message.id,String(message.body.type),'jobId' in message.body?String(message.body.jobId):null,message.attempts,'DOWNSTREAM_DELIVERY_EXHAUSTED',new Date().toISOString()).run();
+            message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
+          }else message.ack();
           console.warn('V1 queue work deferred or terminal',{bodyType,bodyId,messageId:message.id,attempts:message.attempts,durationMs:Date.now()-startedAt,code:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'});continue;
         }
         // Contention is not a failed attempt. The completed job drains the next
@@ -262,6 +278,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export async function runScheduledMaintenance(env: Env): Promise<void> {
   env = await productRuntimeEnv(env);
   try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}
+  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+    // Ten bounded queue batches can dispatch 1,000 due feeds without a
+    // population scan or doing any upstream collection in Cron.
+    for(let page=0;page<10;page++)if(await dispatchConnectorFeeds(env)<100)break;
+    await dispatchTelegramLane(env);
+    await expireConnectorDeliveries(env);
+    if(env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true')await expireSharedPublicFetches(env.DB,env.RAW_ARCHIVE);
+    // Preserve reader notifications in the indexed scheduling path.
+    try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
+    // Keep auxiliary recovery/retention; avoid the legacy population scans below.
+    const repo=new D1Repository(env.DB),now=new Date();
+    await dispatchPendingOpenRouterModelDiagnostics(env,now);
+    await dispatchPendingAuthenticatedProfileBootstraps(env,now);
+    await dispatchPendingAuthenticatedSurfaceDiagnostics(env,now);
+    await dispatchPendingPublicAcquisitionRequests(env);
+    await dispatchPendingAuthenticatedXAcquisitionRequests(env);
+    await expireAcquisitionDiagnostics(env.DB,now);
+    if(env.DISTILLED_WEB_OPERATOR_ENABLED==='true')await relayPendingWebOperatorOutbox(env,undefined,25,now);
+    await runRetentionCleanup(repo,env.RAW_ARCHIVE,now);
+    await rescueStaleProcessingJobs(repo,env.PROCESSING_QUEUE,now);
+    return;
+  }
   try {await dispatchV1Acquisitions(env)} catch {console.warn('Could not dispatch v1 acquisition jobs')}
   try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
   try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}

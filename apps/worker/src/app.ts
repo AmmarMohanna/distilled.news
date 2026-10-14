@@ -3,9 +3,10 @@ import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-t
 import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
-import {approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
+import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
 import {connectorSourceHealth} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
+import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
@@ -835,7 +836,9 @@ export function createApp(options: AppOptions = {}) {
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
     // Validate every requested source before saving the Feed or changing approval.
-    const resolved=await Promise.all(input.sourceInputs.map(value=>resolveProductSourceInput(value,fetcher)));
+    let resolved:Awaited<ReturnType<typeof resolveProductSourceInput>>[];
+    try{resolved=await Promise.all(input.sourceInputs.map(value=>resolveProductSourceInput(value,fetcher,c.env)));}
+    catch(error){if(error instanceof ProductSourceApprovalError)return c.json({error:error.message},error.status,error.status===503?{'Retry-After':'5'}:{});throw error;}
     const plans=[...new Map(resolved.map(plan=>[plan.canonicalUrl,plan] as const)).values()];
     if(plans.some(plan=>plan.detected.kind==='web_page')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Website extraction requires the source execution service.'},400);
     if(plans.some(plan=>plan.detected.kind==='telegram_channel')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_URL||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Telegram collection requires the private source execution service.'},400);
@@ -875,7 +878,7 @@ export function createApp(options: AppOptions = {}) {
     if(!briefing)return c.json({error:'briefing not found'},404);
     const source=await c.get('repo').getSource(c.req.param('sourceId'));
     if(!source||source.briefingId!==briefing.id)return c.json({error:'source not found'},404);
-    return c.json({sourceId:source.id,enabled:source.enabled,health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
+    return c.json({sourceId:source.id,enabled:source.enabled,availability:(await feedSourceAvailability(c.env,briefing.id)).find(row=>row.sourceId===source.id),health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
   });
 
   app.post("/api/me/sources/recommend", async c => {
@@ -1096,6 +1099,7 @@ export function createApp(options: AppOptions = {}) {
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
       briefing: publicBriefing(briefing),
+      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' ? await feedSourceAvailability(c.env,briefing.id) : undefined,
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
@@ -1766,7 +1770,7 @@ function localizedPublicSectionTitle(title: string, language: BriefingConfig["la
     const normalized = title.trim().toLowerCase();
     if (normalized.includes("economy")) return "اقتصاد";
     if (normalized.includes("infrastructure")) return "بنية تحتية";
-    if (normalized.includes("security")) return "أ�…ن";
+    if (normalized.includes("security")) return "أ�…ن";
     if (normalized.includes("no update")) return "لا تحديثات";
     return "تحديث";
   }

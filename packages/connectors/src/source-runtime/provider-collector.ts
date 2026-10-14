@@ -48,15 +48,24 @@ export class FallbackSourceCollector {
       if(!provider.families.includes(request.source.family))throw new Error('PROVIDER_FAMILY_MISMATCH');
       const runId=await sha256(JSON.stringify([request.scope,request.runId,id]));
       // Never refetch an uncertain run under the same sequence, especially a paid actor submission.
-      if(await this.repository.loadRun(request.scope,runId)){
+      const existingRun=await this.repository.loadRun(request.scope,runId);
+      let resumeBackpressure=false;
+      if(existingRun){
+        if(existingRun.configurationKey!==configurationKey)throw Error('IDEMPOTENCY_CONFLICT');
         const failed=await this.repository.loadAttempt(request.scope,runId);
-        if(!failed)throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
-        attempts.push(failed);
-        if(['POLICY_REFUSAL','UNCERTAIN_PAID_SUBMISSION','BUDGET_EXCEEDED'].includes(failed.failure!))throw new SourceProviderError(failed.failure!);
-        continue;
+        if(failed)attempts.push(failed);
+        if(failed?.failure==='POLICY_REFUSAL')throw new SourceProviderError(failed.failure);
+        // A process can stop after reserving a read but before journaling its
+        // failure. The same scoped reconciliation proof is required in both
+        // cases; an absent journal alone never permits another provider call.
+        if(!failed||failed.failure==='UNCERTAIN_PAID_SUBMISSION'){
+          if(!['x_apify','google_apify','linkedin_apify'].includes(id)||request.continuation?.providerId!==id||
+            !await this.repository.hasReadRecovery(request.scope,runId,id))throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+          resumeBackpressure=true;
+        }else if(failed.failure==='BACKPRESSURE')resumeBackpressure=true;else continue;
       }
-      const run=await this.repository.allocate(request.scope,runId,configurationKey,this.now());
-      if(!await this.repository.claimFetch(request.scope,runId))throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+      const run=resumeBackpressure?existingRun!:await this.repository.allocate(request.scope,runId,configurationKey,this.now());
+      if(!resumeBackpressure&&!await this.repository.claimFetch(request.scope,runId))throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
       const cursor=await this.repository.cursor(request.scope,id,configurationKey);
       const actual={...request,continuation:request.continuation?.providerId===id?request.continuation:undefined,
         requestedBounds:{...request.requestedBounds,startCursor:request.requestedBounds.startCursor??cursor?.cursor}};
@@ -97,7 +106,7 @@ export class FallbackSourceCollector {
         const a={providerId:id,runId:run.id,sequence:run.sequence,failure:error.code,retryNotBefore:error.retryNotBefore};
         attempts.push(a);await this.repository.attempt(request.scope,a);
         await this.failureCoverage(request,run,error.code);
-        if(['POLICY_REFUSAL','UNCERTAIN_PAID_SUBMISSION','BUDGET_EXCEEDED'].includes(error.code))throw error;
+        if(['POLICY_REFUSAL','UNCERTAIN_PAID_SUBMISSION','BACKPRESSURE'].includes(error.code))throw error;
       }
     }
     if(attempts.every(a=>a.sequence===0)){

@@ -6,25 +6,32 @@ import {createSourceExecution} from './source-execution.mjs';
 // Bind to loopback; expose only through an authenticated TLS reverse proxy/tunnel.
 export function createSourceExecutionServer({token,execution,maxConcurrent=2}) {
   if(typeof token!=='string'||token.length<32)throw new Error('SOURCE_EXECUTION_TOKEN_REQUIRED');
-  const expected=Buffer.from(`Bearer ${token}`);let active=0;
+  if(!Number.isSafeInteger(maxConcurrent)||maxConcurrent<1||maxConcurrent>32)throw new Error('INVALID_EXECUTION_CONCURRENCY');
+  const expected=Buffer.from(`Bearer ${token}`);let active=0,activeTelegram=0;
   const server=createServer(async(req,res)=>{
-    const reply=(status,value)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(value));};
+    const reply=(status,value)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store',...(status===503?{'retry-after':'5'}:{})});res.end(JSON.stringify(value));};
     const supplied=Buffer.from(req.headers.authorization??'');
     if(supplied.length!==expected.length||!timingSafeEqual(supplied,expected))return reply(401,{error:'UNAUTHORIZED'});
     if(req.method!=='POST'||req.url!=='/v1/source-execution')return reply(404,{error:'NOT_FOUND'});
     if(active>=maxConcurrent)return reply(503,{error:'BUSY'});
     active++;
+    let ownsTelegram=false;
     try{
       const chunks=[];let size=0;
       for await(const chunk of req){size+=chunk.length;if(size>8000000){reply(413,{error:'INPUT_TOO_LARGE'});return;}chunks.push(chunk);}
       let request;try{request=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return reply(400,{error:'INVALID_REQUEST'});}
       if(!request||!['feedparser','telethon','telegram_resolve','google_resolve','google_feed','extract','playwright'].includes(request.kind)||
         !request.input||typeof request.input!=='object'||Array.isArray(request.input))return reply(400,{error:'INVALID_REQUEST'});
+      if(['telethon','telegram_resolve'].includes(request.kind)){
+        // One MTProto session must not be written by parallel Python clients.
+        if(activeTelegram)return reply(503,{error:'BUSY'});
+        activeTelegram++;ownsTelegram=true;
+      }
       const result=await execution.execute(request.kind,request.input);
       const data=JSON.stringify(result);
       if(Buffer.byteLength(data)>8000000)return reply(502,{error:'OUTPUT_TOO_LARGE'});
       reply(200,result);
-    }catch{return reply(502,{error:'EXECUTION_FAILED'});}finally{active--;}
+    }catch{return reply(502,{error:'EXECUTION_FAILED'});}finally{active--;if(ownsTelegram)activeTelegram--;}
   });
   server.requestTimeout=70000;server.headersTimeout=10000;server.maxHeadersCount=16;
   return server;

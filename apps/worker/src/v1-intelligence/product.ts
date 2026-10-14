@@ -21,12 +21,16 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
   if(!definitionSource || !['hourly','daily','weekly'].includes(p.cadence)) throw new HandoffError('INVALID_REQUEST');
   const url=definitionSource.canonicalUrl;
   const sourceId=await sha256(canonicalJson(definitionSource.identity));
-  const [priorFeed,priorScope,catalog,binding]=await Promise.all([
-   db.prepare('SELECT json,epoch FROM v1_feeds WHERE id=?').bind(p.feedId).first<{json:string;epoch:number}>(),
-   db.prepare('SELECT json,epoch FROM v1_intake_scopes WHERE id=?').bind(id).first<{json:string;epoch:number}>(),
-   db.prepare('SELECT json FROM v1_source_catalog WHERE id=?').bind(sourceId).first<{json:string}>(),
-   db.prepare('SELECT source_id,configuration FROM v1_product_bindings WHERE feed_source_id=?').bind(id).first<{source_id:string;configuration:string}>()
+  // One read batch reduces polling RPCs and observes the enrollment metadata
+  // together. The existing product/scope/feed CAS guards remain unchanged.
+  const [feedRows,scopeRows,catalogRows,bindingRows]=await db.batch([
+   db.prepare('SELECT json,epoch FROM v1_feeds WHERE id=?').bind(p.feedId),
+   db.prepare('SELECT json,epoch FROM v1_intake_scopes WHERE id=?').bind(id),
+   db.prepare('SELECT json FROM v1_source_catalog WHERE id=?').bind(sourceId),
+   db.prepare('SELECT source_id,configuration FROM v1_product_bindings WHERE feed_source_id=?').bind(id)
   ]);
+  const priorFeed=feedRows.results[0] as {json:string;epoch:number}|undefined,priorScope=scopeRows.results[0] as {json:string;epoch:number}|undefined,
+   catalog=catalogRows.results[0] as {json:string}|undefined,binding=bindingRows.results[0] as {source_id:string;configuration:string}|undefined;
   const existingFeed=priorFeed?JSON.parse(priorFeed.json) as FeedRecord:undefined,existingScope=priorScope?JSON.parse(priorScope.json) as IntakeScope:undefined;
   if(existingFeed?.deletedAt || existingScope?.deletedAt) throw new HandoffError('SCOPE_DENIED');
   if(existingFeed && existingFeed.ownerId!==ownerId || existingScope && (existingScope.sourceId!==sourceId || existingScope.feedId!==p.feedId) || binding && binding.source_id!==sourceId) throw new HandoffError('IDEMPOTENCY_CONFLICT');
@@ -63,8 +67,15 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
 
 /** Revalidates product-backed scopes before execution, preserving fail-closed DB fences. */
 export async function synchronizeV1ProductSource(db:D1Database,id:string,now:string):Promise<void> {
- const binding=await db.prepare('SELECT feed_id FROM v1_product_bindings WHERE feed_source_id=?').bind(id).first<{feed_id:string}>();if(!binding) return;
- const feed=await new V1FeedStore(db).getFeed(binding.feed_id);if(!feed || feed.deletedAt) throw new HandoffError('SCOPE_DENIED');
+ const binding=await db.prepare(`SELECT f.json AS feed_json,CASE WHEN b.configuration=(${PRODUCT_SQL})
+   AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL
+   AND json_extract(f.json,'$.deletedAt') IS NULL AND json_extract(f.json,'$.paused')=0
+   AND json_extract(s.json,'$.feedRevision')=json_extract(f.json,'$.revision') THEN 1 ELSE 0 END AS current
+   FROM v1_product_bindings b LEFT JOIN v1_feeds f ON f.id=b.feed_id
+   LEFT JOIN v1_intake_scopes s ON s.id=b.feed_source_id WHERE b.feed_source_id=?`).bind(id,id).first<{feed_json:string|null;current:number}>();if(!binding)return;
+ const feed=binding.feed_json?JSON.parse(binding.feed_json) as FeedRecord:undefined;
+ if(!feed||feed.deletedAt)throw new HandoffError('SCOPE_DENIED');
+ if(binding.current===1)return;
  await enrollV1Source(db,id,feed.ownerId,now);
 }
 

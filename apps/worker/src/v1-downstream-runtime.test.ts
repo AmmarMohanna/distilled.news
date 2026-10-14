@@ -6,7 +6,7 @@ import {createApp} from './app';
 import {InMemoryRepository} from './repository';
 import type {Env,DistilledQueueMessage} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1IntakeStore,env:Env,sent:DistilledQueueMessage[];
-beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);sent=[];env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',WEB_OPERATOR_RUNTIME_TOKEN:'test-runtime',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env});
+beforeEach(async()=>{ctx=await createIntakeDatabase({product:true});store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);sent=[];env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',WEB_OPERATOR_RUNTIME_TOKEN:'test-runtime',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env});
 afterEach(async()=>ctx.dispose());
 it('runtime-authenticated handoff persists before queue send; disabled and unapproved scopes fail closed',async()=>{
  const app=createApp({repository:new InMemoryRepository()});

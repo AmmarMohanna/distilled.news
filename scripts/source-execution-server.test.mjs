@@ -26,3 +26,13 @@ test('passes only an authenticated Telegram username to private resolution',asyn
   assert.equal(response.status,200);
   assert.deepEqual(await response.json(),{channelId:'-1001234567890',username:'examplechannel'});
 });
+test('serializes one Telegram session and reports retryable backpressure while allowing extraction',async t=>{
+  let release,entered;
+  const started=new Promise(resolve=>{entered=resolve});
+  const url=await server(t,async kind=>{if(kind==='telethon'){entered();return new Promise(resolve=>{release=()=>resolve({records:[]})})}return {body:'article'};});
+  const call=kind=>fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind,input:{}})});
+  const first=call('telethon');await started;
+  const busy=await call('telegram_resolve');assert.equal(busy.status,503);assert.equal(busy.headers.get('retry-after'),'5');
+  assert.equal((await call('extract')).status,200);
+  release();assert.equal((await first).status,200);
+});
