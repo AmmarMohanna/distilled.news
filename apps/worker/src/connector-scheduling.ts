@@ -19,7 +19,7 @@ export async function dispatchConnectorFeeds(env:Env,now=Date.now(),limit=FEED_D
  let sent=0;
  const token=crypto.randomUUID();
  const rows=await env.DB.prepare(`UPDATE connector_feed_schedule SET due_ms=?,token=? WHERE feed_id IN
-  (SELECT feed_id FROM connector_feed_schedule WHERE due_ms<=? ORDER BY due_ms,feed_id LIMIT ?) RETURNING feed_id`).bind(now+DELIVERY_LEASE_MS,token,now,limit).all<{feed_id:string}>();
+  (SELECT feed_id FROM connector_feed_schedule WHERE due_ms<=? AND processing_until<=? ORDER BY due_ms,feed_id LIMIT ?) RETURNING feed_id`).bind(now+DELIVERY_LEASE_MS,token,now,now,limit).all<{feed_id:string}>();
  if(!rows.results.length)return 0;
  try{await env.SOURCE_COLLECTION_QUEUE.sendBatch(rows.results.map(row=>({body:{type:'connector_feed',feedId:row.feed_id,token} as ConnectorQueueMessage})));sent=rows.results.length;}
  catch(error){await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=?,last_error=? WHERE token=?').bind(now+30_000,'QUEUE_SEND_FAILED',token).run();throw error;}
@@ -119,12 +119,25 @@ export async function processConnectorMessage(env:Env,body:ConnectorQueueMessage
  }
  if(body.type==='connector_feed'){
   const workToken=crypto.randomUUID();
-  const claimed=await env.DB.prepare('UPDATE connector_feed_schedule SET processing_token=?,processing_until=? WHERE feed_id=? AND token=? AND processing_until<=? RETURNING token').bind(workToken,Date.now()+DELIVERY_LEASE_MS,body.feedId,body.token,Date.now()).first();
+  const claimed=await env.DB.prepare('UPDATE connector_feed_schedule SET processing_token=?,processing_until=? WHERE feed_id=? AND token=? AND processing_until<=? RETURNING token,collection_due_ms,collection_epoch').bind(workToken,Date.now()+DELIVERY_LEASE_MS,body.feedId,body.token,Date.now()).first<{token:string;collection_due_ms:number;collection_epoch:number}>();
   if(!claimed)return;
   try{
    const scoped=await feedEnv(env,body.feedId);
-   if(scoped){await runConnectorMaintenance(scoped,new Date(),{scheduleOnly:true});await dispatchConnectorPolls(scoped,body.feedId);await scoped.PROCESSING_QUEUE.send({type:'connector_relay',feedId:body.feedId});}
-   await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=?,token=NULL,last_error=NULL,attempts=0 WHERE feed_id=? AND token=? AND processing_token=?').bind(Date.now()+(scoped?60_000:300_000),body.feedId,body.token,workToken).run();
+   let nextCollection=claimed.collection_due_ms;
+   if(scoped){
+    if(claimed.collection_due_ms<=Date.now()){
+     const interval=Number(scoped.SOURCE_COLLECTION_INTERVAL_MS??300000);
+     if(!Number.isSafeInteger(interval)||interval<60000||interval>86400000)throw Error('INVALID_COLLECTION_INTERVAL');
+     await runConnectorMaintenance(scoped,new Date(),{scheduleOnly:true});
+     nextCollection=(Math.floor(Date.now()/interval)+1)*interval;
+    }
+    await dispatchConnectorPolls(scoped,body.feedId);await scoped.PROCESSING_QUEUE.send({type:'connector_relay',feedId:body.feedId});
+   }
+   await env.DB.prepare(`UPDATE connector_feed_schedule SET
+    due_ms=CASE WHEN collection_epoch=? THEN ? ELSE 0 END,
+    collection_due_ms=CASE WHEN collection_epoch=? THEN ? ELSE collection_due_ms END,
+    token=NULL,last_error=NULL,attempts=0 WHERE feed_id=? AND token=? AND processing_token=?`)
+    .bind(claimed.collection_epoch,Math.min(Date.now()+(scoped?60_000:300_000),nextCollection||Infinity),claimed.collection_epoch,nextCollection,body.feedId,body.token,workToken).run();
   }finally{await env.DB.prepare('UPDATE connector_feed_schedule SET processing_until=0,processing_token=NULL WHERE feed_id=? AND processing_token=?').bind(body.feedId,workToken).run();}
  }else{
   if(!Object.hasOwn(tables,body.table))throw Error('INVALID_CONNECTOR_MESSAGE');

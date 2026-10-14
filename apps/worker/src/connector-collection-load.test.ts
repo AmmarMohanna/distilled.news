@@ -36,14 +36,21 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
   SOURCE_COLLECTION_QUEUE:{sendBatch:async(batch:{body:ConnectorQueueMessage}[])=>{sourceMessages.push(...batch.map(m=>m.body));}},
   PROCESSING_QUEUE:{send:async()=>{downstreamMessages++;},sendBatch:async()=>{throw Error('UNCOALESCED_BATCH');}}
  } as unknown as Env;
- const start=performance.now(),phaseTimes:Record<string,number>={};
+ const start=performance.now(),deadline=start+580_000,phaseTimes:Record<string,number>={};
  async function drain(phase:string,bodies:ConnectorQueueMessage[]){
   activePhase=phase;
-  const durations:number[]=[],started=performance.now();let cursor=0,completed=0;
-  await Promise.all(Array.from({length:8},async()=>{while(cursor<bodies.length){const body=bodies[cursor++],before=performance.now();await processConnectorMessage(env,body);durations.push(performance.now()-before);if(++completed%100===0)console.info(JSON.stringify({load:'source-collection',phase,completed,total:bodies.length,upstreamCalls}));}}));
+  const durations:number[]=[],started=performance.now();let cursor=0,completed=0,stopped=false;
+  const workers=await Promise.allSettled(Array.from({length:8},async()=>{
+   try{while(!stopped&&cursor<bodies.length){
+    if(performance.now()>=deadline)throw Error('COLLECTION_DRAIN_DEADLINE');
+    const body=bodies[cursor++],before=performance.now();await processConnectorMessage(env,body);durations.push(performance.now()-before);
+    if(++completed%100===0)console.info(JSON.stringify({load:'source-collection',phase,completed,total:bodies.length,upstreamCalls,databaseRequests:[...queryProfile].filter(([key])=>key.startsWith(phase+':')).reduce((n,[,entry])=>n+entry.calls,0)}));
+   }}catch(error){stopped=true;throw error;}
+  }));
   phaseTimes[phase]=Math.round(performance.now()-started);durations.sort((a,b)=>a-b);
   const database=Object.fromEntries([...queryProfile].filter(([key])=>key.startsWith(phase+':')).map(([key,value])=>[key.slice(phase.length+1),{...value,elapsedMs:Math.round(value.elapsedMs)}]));
-  console.info(JSON.stringify({load:'source-collection',phase,messages:bodies.length,durationMs:phaseTimes[phase],p95Ms:Math.round(durations[Math.floor(durations.length*.95)]??0),database}));
+  console.info(JSON.stringify({load:'source-collection',phase,messages:bodies.length,completed,durationMs:phaseTimes[phase],p95Ms:Math.round(durations[Math.floor(durations.length*.95)]??0),database}));
+  const failed=workers.find(result=>result.status==='rejected');if(failed?.status==='rejected')throw failed.reason;
  }
  try{
   await ctx.db.prepare("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,email_verified_at,created_at,updated_at) VALUES('load-owner','load@example.invalid','load@example.invalid','load-owner','user','unused',?,?,?)").bind(at,at,at).run();
@@ -66,6 +73,7 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
    const pending=await ctx.db.prepare("SELECT json_extract(request,'$.scope.feedId') AS feedId,due_at FROM connector_rss_poll_jobs WHERE state='PENDING' ORDER BY due_at").all<{feedId:string;due_at:string}>();
    if(!pending.results.length)break;
    const wait=Math.max(0,Date.parse(pending.results[0].due_at)-Date.now());if(wait>60_000)throw Error('UNEXPECTED_LOAD_BACKOFF');
+   if(performance.now()+wait>=deadline)throw Error('COLLECTION_DRAIN_DEADLINE');
    if(wait)await new Promise(resolve=>setTimeout(resolve,wait+20));
    for(const row of pending.results)await dispatchConnectorPolls(env,row.feedId);
    await drain('retry-'+round,sourceMessages.splice(0));
@@ -84,5 +92,15 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
   expect(Number.isFinite(bytesBefore)&&Number.isFinite(bytesAfter)).toBe(true);
   const storage={d1BytesBefore:bytesBefore,d1BytesAfter:bytesAfter,d1GrowthBytes:bytesAfter-bytesBefore,coldBytesPerFeed:Math.round((bytesAfter-bytesBefore)/count),r2Objects:objects.size,r2Bytes:[...objects.values()].reduce((n,b)=>n+b.byteLength,0)};
   console.info(JSON.stringify({load:'source-collection-complete',feeds:count,queueConcurrency:8,upstreamCalls,independentReceipts:count,independentCheckpoints:count,paidCalls:0,downstreamMessages,durationMs:Math.round(performance.now()-start),phaseTimes,storage}));
+ }catch(error){
+  // Leave a usable capacity diagnostic even when the acceptance deadline fails.
+  // Drain workers finish before this snapshot; cleanup does not race live RPCs.
+  const [states,receipts,size]=await ctx.db.batch([
+   ctx.db.prepare('SELECT state,COUNT(*) AS n FROM connector_rss_poll_jobs GROUP BY state'),
+   ctx.db.prepare('SELECT COUNT(DISTINCT feed_id) AS feeds FROM connector_batches WHERE receipts IS NOT NULL'),
+   ctx.db.prepare('SELECT 1 AS storage_probe')
+  ]);
+  console.info(JSON.stringify({load:'source-collection-incomplete',feeds:count,phase:activePhase,durationMs:Math.round(performance.now()-start),phaseTimes,jobs:states.results,receipts:receipts.results,d1Bytes:size.meta.size_after,r2Objects:objects.size,database:Object.fromEntries(queryProfile)}));
+  throw error;
  }finally{fetch.mockRestore();await ctx.dispose();}
 },600_000);

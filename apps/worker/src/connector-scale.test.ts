@@ -9,6 +9,7 @@ import {processV1Reassessment} from './v1-intelligence/runtime';
 import {verifyConnectorAuthority} from './connector-authority';
 import {handoffFixture} from '@distilled/contracts';
 import {feedSourceAvailability} from './connector-availability';
+import * as connectorRuntime from './connector-runtime';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env;
 const messages:unknown[]=[];
@@ -45,6 +46,31 @@ it('failed sends release the durable dispatch for bounded retry',async()=>{
  await expect(dispatchConnectorFeeds(broken,2000,1)).rejects.toThrow('transport');
  const row=await ctx.db.prepare("SELECT due_ms,last_error FROM connector_feed_schedule WHERE feed_id='scale-1000'").first();
  expect(row).toEqual({due_ms:32000,last_error:'QUEUE_SEND_FAILED'});
+});
+
+it('an active feed claim cannot take another feed dispatch slot after a configuration wakeup',async()=>{
+ await ctx.db.prepare("UPDATE connector_feed_schedule SET due_ms=-10000,processing_until=9000 WHERE feed_id='scale-0999'").run();
+ await ctx.db.prepare("UPDATE connector_feed_schedule SET due_ms=-9000 WHERE feed_id='scale-0998'").run();messages.length=0;
+ expect(await dispatchConnectorFeeds(env,4000,1)).toBe(1);
+ expect(messages).toMatchObject([{body:{feedId:'scale-0998'}}]);
+ expect(await ctx.db.prepare("SELECT due_ms FROM connector_feed_schedule WHERE feed_id='scale-0999'").first()).toEqual({due_ms:-10000});
+ await ctx.db.prepare("UPDATE connector_feed_schedule SET processing_until=0,due_ms=999999 WHERE feed_id='scale-0999'").run();
+});
+
+it('retry ticks skip reenrollment until collection is due, and preserve changes during scheduling',async()=>{
+ const feedId='scale-0070';messages.length=0;
+ const clock=vi.spyOn(Date,'now').mockReturnValue(Math.floor(Date.now()/300000)*300000+60000);
+ const tick=async(token:string)=>{await ctx.db.prepare('UPDATE connector_feed_schedule SET token=?,processing_until=0 WHERE feed_id=?').bind(token,feedId).run();await processConnectorMessage(env,{type:'connector_feed',feedId,token});};
+ const maintenance=vi.spyOn(connectorRuntime,'runConnectorMaintenance').mockResolvedValue({outcomes:[],durationMs:0});
+ try{
+  await tick('clock-first');expect(maintenance).toHaveBeenCalledTimes(1);
+  await tick('clock-retry');expect(maintenance).toHaveBeenCalledTimes(1);
+  await ctx.db.prepare('UPDATE sources SET title=? WHERE id=?').bind('Changed',feedId+'-rss').run();
+  maintenance.mockImplementationOnce(async()=>{await ctx.db.prepare('UPDATE briefings SET interest_profile=? WHERE id=?').bind('Changed while claimed',feedId).run();return {outcomes:[],durationMs:0};});
+  await tick('clock-edited');expect(maintenance).toHaveBeenCalledTimes(2);
+  expect(await ctx.db.prepare('SELECT due_ms,collection_due_ms FROM connector_feed_schedule WHERE feed_id=?').bind(feedId).first()).toEqual({due_ms:0,collection_due_ms:0});
+  await tick('clock-recover');expect(maintenance).toHaveBeenCalledTimes(3);
+ }finally{maintenance.mockRestore();clock.mockRestore()}
 });
 
 it('per-feed dispatch gives a quiet feed slots even when another has a large backlog',async()=>{

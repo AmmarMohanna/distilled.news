@@ -78,6 +78,11 @@ runtime or alter contract schemas as part of this merge.
 QA opts into a common five-minute source collection interval through
 `SOURCE_COLLECTION_INTERVAL_MS=300000`; feed scheduling wakes every minute to
 dispatch due work and continue pending downstream jobs. These are distinct clocks.
+Intermediate retry/relay ticks now skip source reenrollment until the next
+collection boundary. Connector-owned migration `0054_connector_collection_clock.sql`
+wakes collection immediately for source/feed configuration edits. Its generation
+fence preserves an edit made during a running scheduling pass. Cron does not
+replace the token or consume dispatch slots for a currently claimed feed.
 Provider Retry-After and helper backpressure delay only affected work. Production
 config is unchanged and retains its existing behavior until explicitly switched.
 
@@ -125,7 +130,7 @@ node scripts/authorize-source-provider.mjs --provider x_twitterapi_io --aggregat
    It backs up QA, provisions collection/DLQ queues and applies additive migrations
    `0048_connector_scaling.sql`, `0050_connector_financial_scope.sql` and
    `0051_connector_feed_scope_index.sql`, `0052_connector_relay_lease.sql`, and
-   `0053_connector_uncertain_scope_index.sql`. The indexes prevent canonical
+   `0053_connector_uncertain_scope_index.sql`, and `0054_connector_collection_clock.sql`. The indexes prevent canonical
    feed snapshots and unresolved paid-operation checks from scanning all deployment sources. Migration
    names are tracked independently; do not replace other contributors' 0048/0049
    migrations with this file just because their numeric prefixes overlap.
@@ -189,6 +194,23 @@ The pre-optimization collection workload timed out after ten minutes: first at
 the relay, at 800/1,000 poll handlers. Those are failed capacity observations,
 not passes. Further measurements must include warm repeated polling waves and
 compare their drain time to the configured five-minute collection interval.
+
+The subsequent profiled cold run also failed at ten minutes, with only 500 polls
+completed. It scheduled all 1,000 feeds in 274,874 ms (p95 2,485 ms), making 19,001
+D1 requests containing 30,005 statements in that phase. This is local Miniflare
+evidence, not a measurement of Cloudflare production throughput. The collection
+clock avoids repeating that enrollment work on every intermediate minute; it
+does not, by itself, prove sufficient sustained throughput.
+
+[Cloudflare D1 limits](https://developers.cloudflare.com/d1/platform/limits/)
+document per-database serial execution, per-request overhead, and per-invocation
+query limits. Batching reduces request overhead; increasing queue concurrency
+alone cannot remove a single database bottleneck. Measure real queue age, query
+duration, database bytes and service time before choosing concurrency or sharding.
+[Queues concurrency](https://developers.cloudflare.com/queues/configuration/consumer-concurrency/)
+also distinguishes upstream bottlenecks from queue scaling. The current eight
+collection consumers are a measured starting configuration, not a certified
+capacity setting for 1,000 mixed-source feeds.
 
 Canonical evidence/connector fetch history does not currently have complete
 retention cleanup. At five-minute cadence, 1,000 single-source feeds can produce
