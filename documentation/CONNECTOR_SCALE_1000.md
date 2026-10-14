@@ -297,3 +297,21 @@ recoverable. This does not serialize account onboarding or independent
 authoritative rechecks, so helper backpressure handling is still required.
 The provider/RSS regression suites passed 104 tests, including concurrent
 claim, unrelated progress and waiting-attempt preservation cases.
+
+The source-claim rollout succeeded as QA version
+`bcfc7108-7fda-40b1-8d88-fcb6ce396e0b` after a transient authentication
+failure and a verified authenticated retry. At 11:49 UTC the backlog was still
+2,155 provider jobs and D1 occupied 453,095,424 bytes; no paid operation was
+currently missing its response. Test-account health showed accepted batches
+for the six fixture source paths, including Google News and X, but no fixture
+edition had published. Partial source coverage is not full-article proof.
+
+The actual 1,000-feed Miniflare run at commit 2991896 FAILED at its drain
+deadline: enrollment completed in 322,650 ms with 19,001 database requests;
+503 polls completed and 497 remained pending after 582,636 ms. Local timings
+include concurrent regression work and are not a remote capacity benchmark.
+They still establish that the collection acceptance gate has not passed.
+The follow-up optimization removes preliminary enrollment only for a
+single-source feed; its scheduling pass still validates current product state
+and enrolls before freezing a revision. Multi-source revision synchronization
+retains both passes. All 24 Worker connector-runtime regressions passed.

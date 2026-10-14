@@ -5,6 +5,7 @@ import {D1Repository} from './repository';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {createIntakeDatabase,testPolicy} from './v1-intake/test-utils';
 import {enrollV1Source,isV1ProductSource} from './v1-intelligence/product';
+import * as productEnrollment from './v1-intelligence/product';
 import {authorizeConnectorSource,configureConnectorBudgets,createConnectorRuntime,runConnectorMaintenance,scheduleRecentTelegramRecheck,scheduleProviderWindow} from './connector-runtime';
 import {productConnectorSource} from './connector-source';
 import {processV1Acquisition} from './v1-downstream-runtime';
@@ -28,6 +29,18 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('enrolls a single source once and freezes the updated product revision',async()=>{
+ await ctx.db.prepare("UPDATE briefings SET interest_profile='updated single-source interests' WHERE id='feed-1'").run();
+ const enrollment=vi.spyOn(productEnrollment,'enrollV1Source');
+ try{
+  await runConnectorMaintenance(env,new Date(testPolicy.now()),{scheduleOnly:true});
+  expect(enrollment).toHaveBeenCalledTimes(1);
+  const job=await ctx.db.prepare('SELECT request FROM connector_rss_poll_jobs').first<{request:string}>();
+  const feed=await new V1FeedStore(ctx.db).getFeed('feed-1');
+  expect(feed?.interests).toEqual(['updated single-source interests']);
+  expect(JSON.parse(job!.request).configurationRevision).toBe(feed?.revision);
+ }finally{enrollment.mockRestore()}
+});
 it('synchronizes all source configurations before freezing same-feed polling revisions',async()=>{
  await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('feed-source-2','feed-1','Second RSS','channel','rss','rss_feed','https://example.com/second.xml',1,'connector',?,?,?)").bind(testPolicy.now(),testPolicy.now(),testPolicy.now()).run();
  await ctx.db.prepare("UPDATE briefings SET interest_profile='changed interests' WHERE id='feed-1'").run();
