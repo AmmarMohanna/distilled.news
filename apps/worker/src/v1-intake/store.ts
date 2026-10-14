@@ -1,3 +1,4 @@
+import {assertIntelligenceTurn,intelligenceTurnGuard} from '../connector-intelligence-turn';
 import { HandoffError } from '@distilled/contracts';
 import { z } from 'zod';
 import {intakeStorageCause} from './diagnostics';
@@ -24,6 +25,7 @@ export class V1IntakeStore {
     if(!row) throw new HandoffError('SCOPE_DENIED');
     const scope=JSON.parse(row.json) as IntakeScope;
     if(!scope.enabled || scope.deletedAt) throw new HandoffError('SCOPE_DENIED');
+    await assertIntelligenceTurn(this.db,scope.feedId);
     return {scope,epoch:row.epoch};
   }
   async getScope(id:string):Promise<IntakeScope|undefined> {
@@ -58,19 +60,19 @@ export class V1IntakeStore {
    * The guard CHECK aborts the entire batch before any effects on a stale snapshot. */
   async commit(snapshot:ScopeSnapshot,writes:Write[]):Promise<boolean> {
     if(!writes.length)return true;
-    const nonce=crypto.randomUUID();
+    const nonce=crypto.randomUUID(),turnGuard=intelligenceTurnGuard(this.db,snapshot.scope.feedId);
     const journalOnly=writes.every(w=>w.table==='handoffs'&&w.immutable);
     // Evidence-free coverage is an append-only journal, not canonical intake.
     // Keep scope authorization and conflicting identity checks atomic even when
     // concurrent journals no longer advance the evidence/configuration epoch.
     const journalGuards=journalOnly?writes.map(()=>` AND NOT EXISTS(SELECT 1 FROM v1_handoffs WHERE id=? AND (feed_source_id!=? OR json!=?))`).join(''):'';
-    const statements=[this.db.prepare(`INSERT INTO v1_transaction_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=? AND json_extract(json,'$.enabled')=1 AND json_extract(json,'$.deletedAt') IS NULL) ${journalGuards} THEN 1 ELSE 0 END`).bind(nonce,snapshot.scope.feedSourceId,snapshot.epoch,...(journalOnly?writes.flatMap(w=>[w.id,snapshot.scope.feedSourceId,JSON.stringify(w.value)]):[]))];
+    const statements=[this.db.prepare(`INSERT INTO v1_transaction_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=? AND json_extract(json,'$.enabled')=1 AND json_extract(json,'$.deletedAt') IS NULL) ${journalGuards}${turnGuard.sql} THEN 1 ELSE 0 END`).bind(nonce,snapshot.scope.feedSourceId,snapshot.epoch,...(journalOnly?writes.flatMap(w=>[w.id,snapshot.scope.feedSourceId,JSON.stringify(w.value)]):[]),...turnGuard.args)];
     for(const w of writes) statements.push(this.db.prepare(`INSERT INTO ${tableName(w.table)}(id,feed_source_id,item_key,json) VALUES(?,?,?,?) ${w.immutable?'ON CONFLICT(id) DO NOTHING':'ON CONFLICT(id) DO UPDATE SET json=excluded.json'}`).bind(w.id,snapshot.scope.feedSourceId,w.itemKey??null,JSON.stringify(w.value)));
     if(!journalOnly)statements.push(this.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(snapshot.scope.feedSourceId));
     statements.push(this.db.prepare('DELETE FROM v1_transaction_guards WHERE id=?').bind(nonce));
     try { await this.db.batch(statements); return true }
     catch(error) {
-      if(String(error).includes('CHECK constraint failed: v1_cas')) return false;
+      if(String(error).includes('CHECK constraint failed: v1_cas')){await assertIntelligenceTurn(this.db,snapshot.scope.feedId);return false;}
       if(String(error).includes('V1_IDEMPOTENCY')) throw new HandoffError('IDEMPOTENCY_CONFLICT');
       // Provider/database diagnostics can contain external text: never put them on the wire.
       console.error(JSON.stringify({type:'V1_INTAKE_BATCH_FAILED',feedSourceId:snapshot.scope.feedSourceId,statements:statements.length,cause:intakeStorageCause(error)}));
