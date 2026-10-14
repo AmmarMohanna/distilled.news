@@ -1,3 +1,4 @@
+import {readerHistoryMatches} from './reader-history';
 import {prepareGlobalEditorialContext} from './editorial-global-context';
 ﻿import {sha256} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -20,7 +21,7 @@ export async function prepareAdaptiveEditorialPlan(store:V1FeedStore,shortlist:S
  if(frame(shortlist).admission.fits&&Date.now()+60000<=deadlineMs)return prepareEditorialPlan(store,shortlist,ADAPTIVE_BRIEFING_PROCESSING,now,strong);
  const id=await sha256(canonicalJson({shortlistId:shortlist.id,model:strong.model,policy:'global-editorial-continuation-v2'}));
  const existing=await store.read<EditorialPlanRecord>(shortlist.feedId,'editorial_plans',id);if(existing)return existing;
- const scopeFor=(candidates:ShortlistCandidate[]):ShortlistRecord=>({...shortlist,candidates,overflow:[],obligations:shortlist.obligations.filter(o=>candidates.some(c=>c.correctionObligationIds.includes(o.id))),ledger:shortlist.ledger.filter(e=>candidates.some(c=>e.eventIds.includes(c.stableTargetId)||Boolean(c.storylineId&&e.storylineIds.includes(c.storylineId))||shortlist.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id))),evidenceRevisionIds:[...new Set(candidates.flatMap(c=>c.evidenceRevisionIds))]});
+ const scopeFor=(candidates:ShortlistCandidate[]):ShortlistRecord=>({...shortlist,candidates,overflow:[],obligations:shortlist.obligations.filter(o=>candidates.some(c=>c.correctionObligationIds.includes(o.id))),ledger:shortlist.ledger.filter(e=>candidates.some(c=>readerHistoryMatches(c,e)||shortlist.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id))),evidenceRevisionIds:[...new Set(candidates.flatMap(c=>c.evidenceRevisionIds))]});
  const work=await feedTransact(store,shortlist.feedId,async tx=>{
   const prior=await tx.read<{id:string;cohorts:ShortlistRecord[];unrepresentable:string[]}>('editorial_processing_work',id);if(prior)return prior;
   const cohorts:ShortlistRecord[]=[],unrepresentable:string[]=[];let pending:ShortlistCandidate[]=[];
