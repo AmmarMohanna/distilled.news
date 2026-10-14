@@ -180,7 +180,7 @@ export {EDITORIAL_OUTPUT_CONTRACT} from './editorial-transport';
 /** Required request-local keys make coverage structural. Shared definitions
  * avoid repeating the full decision schema for every candidate. Ownership and
  * all semantic/capacity guards remain authoritative after decoding. */
-export function keyedEditorialPlanWireSchemaFor(state:ReturnType<typeof compactEditorialInput>['state']) {
+export function keyedEditorialPlanWireSchemaFor(state:ReturnType<typeof compactEditorialInput>['state'],contextFactCapabilities?:Record<string,string[]>) {
  const legacy=editorialPlanWireSchemaFor(state),definitions:Record<string,unknown>={},byValue=new Map<string,string>();
  const reference=(raw:unknown,identity:string)=>{
   const branch=structuredClone(raw) as {properties:Record<string,unknown>;required:string[]};
@@ -188,7 +188,9 @@ export function keyedEditorialPlanWireSchemaFor(state:ReturnType<typeof compactE
   const signature=canonicalJson(branch);let key=byValue.get(signature);if(!key){key=`D${byValue.size}`;byValue.set(signature,key);definitions[key]=branch}
   return {$ref:`#/$defs/${key}`};
  };
- const stories=Object.fromEntries(state.candidates.map(c=>[c.targetVersionId,{anyOf:legacy.properties.stories.items.anyOf.filter(b=>(b.properties.targetVersionId as unknown as {enum:string[]}).enum.includes(c.targetVersionId)).map(b=>{const branch=structuredClone(b),properties=branch.properties as Record<string,unknown>;properties.targetType={type:'string',enum:[c.targetType]};properties.correctionObligationIds=c.correctionObligationIds.length?{...branch.properties.correctionObligationIds,items:{type:'string',enum:c.correctionObligationIds}}:{type:'array',items:{type:'string'},maxItems:0};return reference(branch,'targetVersionId')})}]));
+ // Nonselected publication roles are inactive: retain complete candidate facts
+ // in the input and deferred work, without repeating their enums in omissions.
+ const stories=Object.fromEntries(state.candidates.map(c=>[c.targetVersionId,{anyOf:legacy.properties.stories.items.anyOf.filter(b=>(b.properties.targetVersionId as unknown as {enum:string[]}).enum.includes(c.targetVersionId)).map(b=>{const branch=structuredClone(b),properties=branch.properties as Record<string,unknown>;properties.targetType={type:'string',enum:[c.targetType]};for(const role of ['newUnderstandingFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','openQuestionFactIds','contextFactIds','disagreementFactIds']){const selected=(branch.properties.decision as {enum:string[]}).enum.includes('SELECT'),ids=!selected?[]:['contextFactIds','disagreementFactIds'].includes(role)?contextFactCapabilities?.[c.targetVersionId]??c.facts.map(f=>f.id):c.facts.map(f=>f.id);properties[role]={...(properties[role] as object),items:ids.length?{type:'string',enum:ids}:{type:'string'},...(!ids.length?{maxItems:0}:{})}};properties.correctionObligationIds=c.correctionObligationIds.length?{...branch.properties.correctionObligationIds,items:{type:'string',enum:c.correctionObligationIds}}:{type:'array',items:{type:'string'},maxItems:0};return reference(branch,'targetVersionId')})}]));
  const obligationItems=legacy.properties.obligations.items as unknown as {anyOf?:{properties:{obligationId:{enum:string[]}}}[]};
  const obligations=Object.fromEntries(state.obligations.map(o=>[o.id,{anyOf:(obligationItems.anyOf??[]).filter(b=>b.properties.obligationId.enum.includes(o.id)).map(b=>reference(b,'obligationId'))}]));
  return shareSchemaEnums({...object({stories:object(stories),obligations:object(obligations)}),$defs:definitions});
@@ -280,13 +282,13 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
  const oldKeyedState=keyedEditorialState(transport.state,{compact:false});
  const oldKeyedOperationId=keyed?await sha256(canonicalJson({feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:policy,model:strong?.model,budgetKey:options.processingScope??`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:oldKeyedState})):undefined;
  const oldKeyedStarted=oldKeyedOperationId?Boolean(await store.read(shortlist.feedId,'semantic_intents',oldKeyedOperationId)||await store.read(shortlist.feedId,'semantic_results',oldKeyedOperationId)):false;
- const bounded=retainedBoundary?.bounded??(!retainedBoundary&&keyed&&!oldKeyedStarted?boundedEditorialInput(state,strong?.admission?{fits:(wire,t)=>{const admission=strong.admission!(wire,keyedEditorialPlanWireSchemaFor(t.state),'COMPARATIVE_EDITORIAL_PLAN');return admission.reason==='MODEL_CAPABILITY_UNAVAILABLE'||admission.fits}}:{}):undefined);
+ const bounded=retainedBoundary?.bounded??(!retainedBoundary&&keyed&&!oldKeyedStarted?boundedEditorialInput(state,strong?.admission?{fits:(wire,t)=>{const admission=strong.admission!(wire,keyedEditorialPlanWireSchemaFor(t.state,t.contextFactCapabilities),'COMPARATIVE_EDITORIAL_PLAN');return admission.reason==='MODEL_CAPABILITY_UNAVAILABLE'||admission.fits}}:{}):undefined);
  if(bounded)transport=bounded.transport;
  const inputState=retainedBoundary?.inputState??(keyed?bounded?.inputState??oldKeyedState:transport.state);
  const overflowIds=bounded?.overflowIds??[],offeredShortlist=overflowIds.length?{...shortlist,candidates:shortlist.candidates.filter(c=>!overflowIds.includes(c.targetVersionId))}:shortlist;
  const inputCoverage=bounded?{policyVersion:EDITORIAL_INPUT_POLICY,inputBytes:new TextEncoder().encode(canonicalJson(inputState)).length,offeredTargetVersionIds:bounded.offeredCandidates.map(c=>c.targetVersionId),notComparativelyReviewedTargetVersionIds:overflowIds}:undefined;
  if(bounded?.failure)fallbackReason=bounded.failure;
- const outputSchema=keyed?keyedEditorialPlanWireSchemaFor(transport.state):editorialPlanWireSchemaFor(transport.state);
+ const outputSchema=keyed?keyedEditorialPlanWireSchemaFor(transport.state,transport.contextFactCapabilities):editorialPlanWireSchemaFor(transport.state);
  const addOverflow=(value:EditorialPlanBody):EditorialPlanBody=>{
   if(!overflowIds.length)return value;
   const firstOrder=Math.max(-1,...value.stories.map(s=>s.order))+1;

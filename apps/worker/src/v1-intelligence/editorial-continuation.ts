@@ -17,7 +17,7 @@ export async function prepareAdaptiveEditorialPlan(store:V1FeedStore,shortlist:S
  if(!strong?.admission)return prepareEditorialPlan(store,shortlist,ADAPTIVE_BRIEFING_PROCESSING,now,strong);
  const feed=await store.getFeed(shortlist.feedId);
  const deadlineMs=options.deadlineMs??Date.now()+ADAPTIVE_BRIEFING_PROCESSING.maxWallClockMs;
- const frame=(scope:ShortlistRecord,context?:unknown)=>{const parent={...editorialPlannerState(scope,ADAPTIVE_BRIEFING_PROCESSING,feed,'CURRENT'),...(context?{comparativeContext:context}:{})},transport=compactEditorialInput(parent),state=keyedEditorialState(transport.state),schema=keyedEditorialPlanWireSchemaFor(transport.state);return {state,schema,admission:strong.admission!(state,schema,'COMPARATIVE_EDITORIAL_PLAN')}};
+ const frame=(scope:ShortlistRecord,context?:unknown)=>{const parent={...editorialPlannerState(scope,ADAPTIVE_BRIEFING_PROCESSING,feed,'CURRENT'),...(context?{comparativeContext:context}:{})},transport=compactEditorialInput(parent),state=keyedEditorialState(transport.state),schema=keyedEditorialPlanWireSchemaFor(transport.state,transport.contextFactCapabilities);return {state,schema,admission:strong.admission!(state,schema,'COMPARATIVE_EDITORIAL_PLAN')}};
  if(frame(shortlist).admission.fits&&Date.now()+60000<=deadlineMs)return prepareEditorialPlan(store,shortlist,ADAPTIVE_BRIEFING_PROCESSING,now,strong);
  const id=await sha256(canonicalJson({shortlistId:shortlist.id,model:strong.model,policy:'global-editorial-continuation-v2'}));
  const existing=await store.read<EditorialPlanRecord>(shortlist.feedId,'editorial_plans',id);if(existing)return existing;

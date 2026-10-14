@@ -1,3 +1,4 @@
+import {editorialContextFacts} from './editorial-context';
 import type {EditorialPlanBody,PlanStory} from './editorial-plan';
 import type {ShortlistRecord} from './shortlist';
 import {HandoffError} from '@distilled/contracts';
@@ -31,7 +32,10 @@ export function compactEditorialInput<T extends Pick<ShortlistRecord,'candidates
   for(const obligation of Object.values(body.obligations))if(!obligation||typeof obligation!=='object'||'obligationId' in obligation)throw new HandoffError('SCOPE_DENIED');
   return decode({stories:candidateIds.map(targetVersionId=>({...body.stories[targetVersionId],targetVersionId})),obligations:value.obligations.map(({id:obligationId})=>({...body.obligations[obligationId],obligationId}))});
  };
- return {state:{...value,...(inputCompaction?{inputCompaction}:{})},encode,decode,encodeKeyed,decodeKeyed};
+ // Compile source capabilities outside the paid input; references keep their
+ // original registration order and retained wire frames remain byte-identical.
+ const contextFactCapabilities=Object.fromEntries(state.candidates.map((c,i)=>[candidateIds[i],editorialContextFacts(c,state).map(f=>forward.get(f.id)!)]));
+ return {state:{...value,...(inputCompaction?{inputCompaction}:{})},contextFactCapabilities,encode,decode,encodeKeyed,decodeKeyed};
 }
 /** Exact duplicated history prose may be elided only from new oversized wire
  * inputs, never from retained ledger records or an existing call identity. */
