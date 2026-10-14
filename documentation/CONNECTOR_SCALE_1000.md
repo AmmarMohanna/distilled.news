@@ -172,8 +172,12 @@ transport and sharing, not article extraction, real providers or editorial load.
 It retains real cache expiry/backoff and reports phase latency and revalidation.
 It also reports database round trips and statement counts by phase. An empty RSS
 resource deliberately does not imply article/model throughput or sustained capacity.
-Use `scripts/connector-scale-metrics.sql` with remote `wrangler d1 execute --file`
-to compare backlog, oldest due time, held publication windows, failures, storage,
+Run `node scripts/connector-scale-metrics.mjs --remote` to snapshot the explicitly
+named sources QA database. The script passes read-only SQL as a structured
+`--command` argument and retains every query's rows plus D1 size metadata in an
+ignored private JSON file. Wrangler's `--file` import path returns aggregate query
+totals rather than the SELECT rows and is unsuitable for this monitoring check.
+Compare backlog, oldest due time, held publication windows, failures, storage,
 cache and conservative reservations over time. Pair it with Cloudflare queue
 backlog/latency and VPS CPU/memory/concurrency metrics and provider invoices.
 
@@ -240,3 +244,22 @@ Cloudflare CLI authentication expired after the first deployment, so final D1
 metrics and the follow-up deploy require fresh authorization. Update this record
 with the resulting version and actual collection/drain observations; don't
 attribute historical accepted batches or editions to the new rollout.
+
+## October 14 pre-rollout observations
+
+After fresh sign-in, the current deployed Worker was still version
+`5673cd0e-476d-46d0-894d-7259d40b4f1f`. A real SELECT snapshot found 2,125 pending
+provider jobs, the oldest due at 03:48 UTC (snapshot 10:54 UTC), plus nine pending
+RSS jobs. Nine historical provider jobs were marked uncertain; no paid operation
+was currently missing its response payload. Those are different states and must
+be investigated independently before any paid retry. D1 occupied 427,757,568 bytes.
+
+The helper article-classification update is backed up at
+`/home/distilled-bench/distilled-source-runtime/backup-article-classification-20261014-retry`.
+Its observed service/listener restart and article-versus-listing checks passed.
+The first restart check was premature, restored the prior Python file, and was
+corrected to wait for actual listener readiness before retrying. Credentials and
+Telegram session files were preserved.
+
+The pre-rollout grants/reservations were read, not replenished. Any rollout record
+must distinguish the above backlog from the drain results after deployment.
