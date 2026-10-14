@@ -1,4 +1,5 @@
 import {ASYNC_MODEL_CALL_MS,ASYNC_OPERATION_LEASE_MS} from './operation-timing';
+import {settledEditorialBlockerResolved} from './editorial-blocker-successor';
 import {ProviderRequestError,type ProviderDiagnostic} from '../provider-outcome';
 import {withProviderReceiptSink} from '../provider-receipt';
 import {renewSemanticWorkLease} from './semantic-work-lease';
@@ -61,7 +62,10 @@ export async function durableSemanticOperation<T>(store:V1FeedStore,input:Semant
   }
   if(options.preserveStartedEditorialScope){
    const rows=await tx.store.db.prepare("SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind='semantic_intents' AND json_extract(json,'$.input.budgetKey')=?").bind(input.feedId,input.budgetKey).all<{json:string}>();
-   if(rows.results.some(row=>{const p=JSON.parse(row.json) as SemanticIntent;return p.id!==id&&p.input.kind===input.kind&&p.input.model===input.model&&p.input.policyVersion===input.policyVersion&&p.input.feedRevision===input.feedRevision}))throw new SemanticContentionError();
+   for(const row of rows.results){const p=JSON.parse(row.json) as SemanticIntent;if(p.id===id||p.input.kind!==input.kind||p.input.model!==input.model||p.input.policyVersion!==input.policyVersion||p.input.feedRevision!==input.feedRevision)continue;
+    if(!await settledEditorialBlockerResolved(store,p.input,input))throw new SemanticContentionError();
+    const transitionId=JSON.stringify(['SETTLED_BLOCKER_RESOLVED',p.id,id]);if(!await tx.read('editorial_processing_progress',transitionId))await tx.write('editorial_processing_progress',transitionId,{id:transitionId,feedId:input.feedId,sourceOperationId:p.id,operationId:id,reason:'SETTLED_BLOCKER_RESOLVED',createdAt:now});
+   }
   }
   if(reservation===undefined){const result=deferred('SEMANTIC_COST_ESTIMATE_REQUIRED',{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...result,id:waitId,operationId:id,category:'ACCOUNT_AUTHORIZATION'});return {result}}
   const accountId=await modelSpendingAccount(store.db,input.model,now,store.spendingAccountId);
