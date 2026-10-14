@@ -315,3 +315,13 @@ The follow-up optimization removes preliminary enrollment only for a
 single-source feed; its scheduling pass still validates current product state
 and enrolls before freezing a revision. Multi-source revision synchronization
 retains both passes. All 24 Worker connector-runtime regressions passed.
+
+The optimization (`850683a`) is deployed as QA version
+`83848edf-3601-4491-86b6-9ba6acc38e16`; its rollback version is
+`bcfc7108-7fda-40b1-8d88-fcb6ce396e0b`. Worker typecheck passed. A separate
+ten-feed diagnostic completed with ten independent receipts/checkpoints,
+one upstream fetch and zero paid calls in 20,210 ms. Enrollment used 161
+database requests including initialization, compared with approximately
+190 for the prior path. This ten-feed result does not close the 1,000-feed
+acceptance gate. Database batching, sustained backlog drain, mixed-source
+full-article checks and retention/storage capacity remain outstanding.
