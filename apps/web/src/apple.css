@@ -668,8 +668,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .auth-dialog .auth-copy p { max-width: 38ch; margin-inline: auto; font-size: 15px !important; line-height: 1.45; }
 :root.apple-ui.apple-ui .auth-dialog .auth-email-step .auth-copy { margin-bottom: 12px; }
 :root.apple-ui.apple-ui .auth-dialog .auth-details-step .auth-copy p { max-width: none; font-size: 13px !important; }
-:root.apple-ui.apple-ui[lang="en"] .auth-dialog .auth-details-step .auth-copy p { white-space: nowrap; }
-@media (max-width: 600px) { :root.apple-ui.apple-ui[lang="en"] .auth-dialog .auth-details-step .auth-copy p { white-space: normal; } }
+:root.apple-ui.apple-ui .auth-dialog .auth-copy { min-width: 0; width: 100%; }
+:root.apple-ui.apple-ui .auth-dialog .auth-copy :is(h2,p) { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .auth-dialog .auth-details-step .auth-copy h2 { font-size: clamp(24px, 3.5vw, 30px); line-height: 1.2; }
 :root.apple-ui.apple-ui .auth-dialog .auth-input { border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
 :root.apple-ui.apple-ui .auth-dialog .auth-input input { background: transparent; }
 :root.apple-ui.apple-ui .auth-dialog .auth-input:focus-within { border-color: var(--accent); outline-color: color-mix(in srgb, var(--accent) 30%, transparent); }
