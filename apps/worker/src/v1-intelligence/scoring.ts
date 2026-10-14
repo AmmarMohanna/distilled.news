@@ -10,6 +10,7 @@ import type {AcceptedInput} from '../v1-intake/types';
 import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {INTELLIGENCE_POLICY,tokens,features,overlap} from './policies';
+import {prefetchReviewGraph} from './review-prefetch';
 import type {DuplicateDecision,EventRecord,StorylineRecord,StorylineVersion} from './types';
 import type {EditorialPlanRecord,PlanStory} from './editorial-plan';
 import type {ShortlistRecord} from './shortlist';
@@ -67,6 +68,7 @@ export async function independentSupportCount(tx:FeedTransaction,revisions:Evide
 }
 export async function targets(tx:FeedTransaction,window:PublicationWindow,includeOutsideWindow=false):Promise<Target[]> {
  const active=new Map((await tx.store.currentEvidence(tx.snapshot.feed.id)).map(r=>[r.revision.id,r.revision]));
+ await prefetchReviewGraph(tx,[...active.values()]);
  const roots=await tx.list<EventRecord>('events'),events=new Map<string,Target>();
  const memberships=await tx.list<EventMembership>('memberships');
  await tx.preload('event_versions',roots.map(root=>root.currentVersionId));
