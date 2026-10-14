@@ -10,3 +10,4 @@ it('fully communicated protected effects may be suppressed when no obligation re
 import {keyedEditorialPlanWireSchemaFor} from './editorial-plan';
 import {expandedSchema} from './schema-test-utils';
 it('keyed decisions cannot attach a foreign correction obligation from the global pool',()=>{const s=structuredClone(scope);s.obligations=[{id:'other-obligation'}] as never;const schema=expandedSchema(keyedEditorialPlanWireSchemaFor(s as never)) as any;for(const branch of schema.properties.stories.properties.v.anyOf)expect(branch.properties.correctionObligationIds.maxItems).toBe(0)});
+it('a keyed decision cannot relabel an Event as a Storyline',()=>{const schema=expandedSchema(keyedEditorialPlanWireSchemaFor(scope as never)) as any;for(const branch of schema.properties.stories.properties.v.anyOf)expect(branch.properties.targetType.enum).toEqual(['EVENT'])});
