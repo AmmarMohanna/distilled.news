@@ -410,3 +410,82 @@ D1 grew from 476,958,720 to 477,900,800 bytes during the sample. Retention must
 be coordinated with canonical evidence/publication ownership before sustained
 1,000-feed readiness can be asserted. A cold nine-minute simulated cycle also
 does not establish five-minute freshness for every live provider at that scale.
+
+### October 14 recovery closeout and remaining publication blocker
+
+The current branch is `codex/source-execution-backend`. Nothing was pushed.
+Commits `3afd5a7`, `440fb48`, and `44e77df` add the following changes:
+
+- A dedicated `V1_PROCESSING_QUEUE` for V1 work separates it from the legacy
+  processing queue's approximately 36,590-message backlog. Existing canonical
+  claims, delivery coalescing, retries and dead-letter queues remain in force.
+- QA-only operator reconciliation permits a GET for an already identified
+  Apify run/status or dataset operation. It verifies the original endpoint hash,
+  source authorization and scoped ledger identity, fences concurrent recovery,
+  and stores the actual response. It cannot start another actor, reset spending,
+  fabricate a checkpoint or resolve an uncertain actor-start operation.
+- A crash before the failure journal is written can resume only with the same
+  scoped reconciliation proof and saved Apify continuation. Missing journals
+  without that proof continue to fail closed.
+- Expired anonymous cache generations are journaled atomically with SQL removal.
+  R2 failures and process restarts leave durable deletion work for the existing
+  retention worker. A replacement generation remains retained. Canonical
+  evidence, receipts, financial operations and published support are untouched.
+
+Migration 0057 is applied. The latest QA deployment of `44e77df` is
+`ebf437cf-8f75-47f4-bc6f-75abf2c6f837` (2026-10-14 17:26 UTC), on the existing
+sources QA site. Rollback to `464b700c-03ab-4776-b8ed-29c7fe33b864` retains the
+Apify crash-recovery fix but omits durable cache cleanup; migration 0057 can stay.
+The new consumer was reconnected with identical settings without purging messages.
+
+Live verification at 17:39 UTC: the saved Apify poll
+`1626204d7c55f0fd8efd349462a645c008ce1278c121d0799a48430073833188`
+is DONE/HANDED_OFF, using the same actor run. Unresolved paid operations were
+zero in that sample; active operations can temporarily appear unresolved while
+an HTTP call is executing, so this is not a permanent zero guarantee. Financial
+reservations were not refunded or reset. Normal QA login, eight public feed
+pages and all fifteen configured source-health endpoints pass. Those HTTP checks
+do not certify every configured source's upstream coverage.
+
+The mixed-source rollout fixture has 20 complete article revisions, seven X
+social-post revisions and eleven complete Telegram-message revisions. Forty-one
+acquisition jobs are DONE and eighteen intelligence receipts exist. There is
+still **no mixed-source published edition**. Forty publication requests report
+`AWAITING_INTAKE_REASSESSMENT`, with about 1,720 pending acquisitions and twenty
+pending reassessments in the fixture. Some historical acquisition leases are
+expired and require normal durable recovery; they were not manually overwritten.
+
+The fresh queue trace identifies an additional downstream bottleneck, rather
+than proving a Cloudflare platform outage: V1 work hit `exceededWallTime` at
+approximately 900,000 ms. Feed CAS diagnostics showed 326,750 and 394,061 ms
+computation times, 1,293–1,332 document reads and 445–536 revision reads before
+the first rejected commit. The feed epoch did not change, but participating
+source epochs did while collection continued. Delivery resumed after reconnect,
+yet neither the cause of that resumption nor sustained drain is established.
+Increasing queue concurrency alone does not resolve this expensive stale work.
+
+Required intelligence-owner integration work:
+
+1. Profile and bound the review/reassessment transaction's history reads; reuse
+   immutable revision reads and fetch only required current records with indexes.
+2. Make deferred work resumable in bounded units. Revalidate the actual evidence
+   and configuration dependencies immediately before commit; preserve the
+   normative CAS/order checks rather than removing them or accepting stale work.
+3. Coordinate acquisition/review execution so expensive review cannot occupy all
+   delivery slots. Recovery must consume saved results rather than repeat paid
+   model/provider submissions.
+4. Demonstrate expired acquisition recovery and sustained backlog reduction, then
+   publish and inspect a grounded mixed-source edition through the real frontend.
+
+`v1-intelligence/runtime.ts` was not modified. Shared retention remains subject
+to Appendix C/C10 and the parallel implementation agreement. Durable cache
+cleanup is verified; canonical V1 retention and multi-cycle 1,000-feed storage
+capacity are **not** certified. The 17:28 UTC storage sample was 504,565,760 D1
+bytes, up from 477,900,800 at 15:38 UTC (live work and historical backlog both
+contribute). Reservations measure authorized ceilings, not provider invoices.
+
+Regression validation: 108 provider/RSS tests; 20 scalability, five read-recovery,
+five retention and four public-cache tests; connector and Worker typechecks.
+This targeted validation does not claim a full Worker-suite pass. A successful
+one-cycle simulated 1,000-feed collection test remains valid, but the live
+publication/continuous-capacity acceptance gates remain open.
