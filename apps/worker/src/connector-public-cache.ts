@@ -1,5 +1,8 @@
 import {sha256,HandoffError} from '@distilled/contracts';
 import type {FeedHttpPort} from '@distilled/connectors';
+// Notification only: each waiter reloads durable bytes and checks its own
+// authorization. The D1 lease remains the cross-isolate fetch authority.
+const publicFetches=new WeakMap<D1Database,Map<string,Promise<void>>>();
 
 /** Public HTTP bytes only. No sessions, paid results, feed receipts, cursors or
  * editorial state are shared. Authorization is rechecked on every cache read. */
@@ -16,13 +19,30 @@ export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort
   const cached=await load();
   if(cached?.payload_key&&cached.expires_at>now()){
    const object=await bucket.get(cached.payload_key);
-   if(object){await authorize(url);return {status:cached.status,headers:JSON.parse(cached.headers),bytes:new Uint8Array(await object.arrayBuffer()),telemetry:{requests:0,latencyMs:0,providerCostUsd:0,status:cached.status}};}
+   if(object){const bytes=new Uint8Array(await object.arrayBuffer());await authorize(url);return {status:cached.status,headers:JSON.parse(cached.headers),bytes,telemetry:{requests:0,latencyMs:0,providerCostUsd:0,status:cached.status}};}
   }
   const token=crypto.randomUUID(),at=now();
   const claim=await db.prepare(`INSERT INTO connector_public_fetch_cache(cache_key,lease_until,token) VALUES(?,?,?)
    ON CONFLICT(cache_key) DO UPDATE SET lease_until=excluded.lease_until,token=excluded.token WHERE lease_until<=? RETURNING cache_key`).bind(key,at+90_000,token,at).first();
-  // Let durable job retry after the fetch owner finishes; don't stampede upstream.
-  if(!claim)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  if(!claim){
+   const active=publicFetches.get(db)?.get(key);
+   if(active){
+    const timeout=bounds?.timeoutMs??15_000;if(!Number.isInteger(timeout)||timeout<1||timeout>60_000)throw Error('INVALID_HTTP_LIMITS');
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    try{await Promise.race([active,new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new HandoffError('TEMPORARY_UNAVAILABLE')),timeout);})]);}
+    finally{if(timer)clearTimeout(timer);}
+   }
+   const completed=await load();
+   if(completed?.payload_key&&completed.expires_at>now()){
+    const object=await bucket.get(completed.payload_key);
+    if(object){const bytes=new Uint8Array(await object.arrayBuffer());await authorize(url);return {status:completed.status,headers:JSON.parse(completed.headers),bytes,telemetry:{requests:0,latencyMs:0,providerCostUsd:0,status:completed.status}};}
+   }
+   // Other isolates retain durable retry/backoff rather than duplicate fetches.
+   throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  }
+  let completed!:()=>void;
+  const active=new Promise<void>(resolve=>{completed=resolve}),flights=publicFetches.get(db)??new Map<string,Promise<void>>();
+  publicFetches.set(db,flights);flights.set(key,active);
   try{
    const response=await http.get(url,headers,bounds);
    await authorize(url);
@@ -36,7 +56,10 @@ export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort
     else if(cached?.payload_key&&cached.payload_key!==objectKey)await bucket.delete(cached.payload_key);
    }
    return response;
-  }finally{await db.prepare('UPDATE connector_public_fetch_cache SET lease_until=0 WHERE cache_key=? AND token=?').bind(key,token).run();}
+  }finally{
+   try{await db.prepare('UPDATE connector_public_fetch_cache SET lease_until=0 WHERE cache_key=? AND token=?').bind(key,token).run();}
+   finally{if(flights.get(key)===active)flights.delete(key);completed();}
+  }
  }};
 }
 

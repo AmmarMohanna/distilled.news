@@ -1,6 +1,7 @@
 import {productRuntimeEnv} from './product-feeds';
 import {dispatchConnectorFeeds,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
 import {expireSharedPublicFetches} from './connector-public-cache';
+import {dispatchTelegramLane} from './connector-telegram-lane';
 import { createApp } from "./app";
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
@@ -270,6 +271,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
     // Ten bounded queue batches can dispatch 1,000 due feeds without a
     // population scan or doing any upstream collection in Cron.
     for(let page=0;page<10;page++)if(await dispatchConnectorFeeds(env)<100)break;
+    await dispatchTelegramLane(env);
     await expireConnectorDeliveries(env);
     if(env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true')await expireSharedPublicFetches(env.DB,env.RAW_ARCHIVE);
     // Keep auxiliary recovery/retention; avoid the legacy population scans below.

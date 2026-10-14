@@ -41,6 +41,18 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it('coalesces collection cadence while keeping authoritative rechecks and new revisions eligible',async()=>{
+    const s=setup([]),scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(time),100,true);
+    const tg={...request,source:{family:'telegram' as const,locator:'test',channelId:'-123'}};
+    await scheduler.schedule('first',tg,time);
+    await scheduler.schedule('next',{...tg,runId:'next'},time);
+    await scheduler.schedule('recheck',{...tg,runId:'recheck',recheckItemKeys:['telegram:-123:1']},time);
+    await scheduler.schedule('later-recheck',{...tg,runId:'later-recheck',recheckItemKeys:['telegram:-123:2']},time);
+    expect(s.db.db.prepare('SELECT COUNT(*) AS n FROM connector_provider_poll_jobs').get()).toEqual({n:2});
+    await expect(scheduler.schedule('first',{...tg,limit:1},time)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+    await scheduler.schedule('reconfigured',{...tg,configurationRevision:2,runId:'reconfigured'},time);
+    expect(s.db.db.prepare('SELECT COUNT(*) AS n FROM connector_provider_poll_jobs').get()).toEqual({n:3});
+  });
   it('serializes a shared source checkpoint while unrelated sources keep running',async()=>{
     const s=setup([]);let release!:(v:any)=>void;
     const collect=vi.fn((r:SourceFetchRequest)=>r.runId==='held'?new Promise<any>(resolve=>{release=resolve}):Promise.resolve({state:'HANDED_OFF',checkpoint:'UNCHANGED'}));

@@ -28,9 +28,16 @@ async function approvedDynamicSource(env:Env,id:string):Promise<boolean>{
  return !!await env.DB.prepare("SELECT s.id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.collection_owner='connector' AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL").bind(id).first();
 }
 export function createV1RuntimePolicy(fetcher:typeof fetch=fetch,bucket?:R2Bucket,verifyAuthority?:(o:SourceObservation)=>Promise<boolean>):IntakePolicy {
+ // Scope-bound content-addressed payload verification is immutable. Keep only
+ // its small verified metadata for this call's CAS retries, never article bytes
+ // or current-origin/restriction checks, and never share it across requests.
+ const supplied=new Map<string,ReturnType<IntakePolicy['verifySuppliedContent']>>();
  return {version:'v1-runtime-1',now:()=>new Date().toISOString(),factsFor:async()=>({}),verifySuppliedContent:async o=>{
-  const payload=bucket?await readConnectorPayload(bucket,o):undefined;
-  return payload?{representation:o.representation,contentCompleteness:o.contentCompleteness,contentHash:o.contentHash!}:undefined;
+  if(!bucket)return undefined;
+  const key=JSON.stringify([o.feedId,o.feedSourceId,o.sourceId,o.id,o.suppliedPayloadRef,o.contentHash,o.representation,o.contentCompleteness,o.canonicalUrl,o.publisherId]);
+  let verified=supplied.get(key);
+  if(!verified){verified=readConnectorPayload(bucket,o).then(payload=>payload?{representation:o.representation,contentCompleteness:o.contentCompleteness,contentHash:o.contentHash!}:undefined);supplied.set(key,verified);}
+  return verified;
  },
  orderingFor:async observation=>{
   let authoritativeReplacementAllowed=verifyAuthority?await verifyAuthority(observation):false;

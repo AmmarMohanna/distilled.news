@@ -1,17 +1,26 @@
 import { HandoffError } from '@distilled/contracts';
-import { type ScopeSnapshot, type Table, type Write, V1IntakeStore } from './store';
+import { type ScopeSnapshot, type Table, type Write,type ReadKey,type Stored, V1IntakeStore } from './store';
 import {intakeStorageCause} from './diagnostics';
 /** In-batch overlay makes multiple decisions on one item observe preceding effects. */
 export class IntakeTransaction {
   readonly writes = new Map<string,Write>();
   reads=0;
+  private readonly cached=new Map<string,Stored<unknown>|undefined>();
   constructor(readonly store:V1IntakeStore,readonly snapshot:ScopeSnapshot) {}
   async read<T>(table:Table,id:string):Promise<T|undefined> {
     const staged=this.writes.get(JSON.stringify([table,id]));
     if(staged) return staged.value as T;
-    this.reads++;const row=await this.store.read<T>(table,id);
+    const key=JSON.stringify([table,id]);
+    const row=this.cached.has(key)?this.cached.get(key) as Stored<T>|undefined:await this.store.read<T>(table,id);
+    if(!this.cached.has(key))this.reads++;
     if(row && row.feedSourceId!==this.snapshot.scope.feedSourceId) throw new HandoffError('IDEMPOTENCY_CONFLICT');
     return row?.value;
+  }
+  async prefetch(keys:ReadKey[]):Promise<void> {
+    const missing=keys.filter(key=>!this.cached.has(JSON.stringify([key.table,key.id]))&&!this.writes.has(JSON.stringify([key.table,key.id])));
+    if(!missing.length)return;
+    const values=await this.store.readMany(missing);this.reads+=values.size;
+    for(const [key,value] of values)this.cached.set(key,value);
   }
   write(table:Table,id:string,value:unknown,itemKey?:string,immutable=false) { this.writes.set(JSON.stringify([table,id]),{table,id,value,itemKey,immutable}) }
 }

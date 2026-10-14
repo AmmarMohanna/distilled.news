@@ -79,17 +79,22 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
       rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake)};
   };
+  const scheduledCollector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>makeCollector(request).provider.collect(request,order,offset)};
   const collector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>{
     if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
-    return makeCollector(request).provider.collect(request,order,offset);
+    return scheduledCollector.collect(request,order,offset);
   }};
   const rssRequest=(r:RssRequest):SourceFetchRequest=>({scope:r.scope,runId:r.runId,configurationRevision:r.configurationRevision,source:{family:'rss',locator:r.url},requestedBounds:r.requestedBounds??{},limit:r.maxItems??100});
+  const scheduledRssCollector={collect:async(r:RssRequest,offset=0)=>makeCollector(rssRequest(r)).rss.collect(r,offset)};
   const rssCollector={collect:async(r:RssRequest,offset=0)=>{
     const request=rssRequest(r);
     if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
-    return makeCollector(request).rss.collect(r,offset);
+    return scheduledRssCollector.collect(r,offset);
   }};
   return {collect:collector.collect,collectRss:rssCollector.collect,payloads,paidHttp,
-    scheduler:new D1ProviderPollScheduler(sql,collector,options.authorize,Date.now,options.providerPageLimit??100),
-    rssScheduler:new D1RssPollScheduler(sql,rssCollector,r=>options.authorize(rssRequest(r)))};
+    // Scheduler admission already performed the initial approval read. Public
+    // direct calls retain their own admission; every transport/cache/handoff
+    // boundary still revalidates current persisted approval independently.
+    scheduler:new D1ProviderPollScheduler(sql,scheduledCollector,options.authorize,Date.now,options.providerPageLimit??100,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'),
+    rssScheduler:new D1RssPollScheduler(sql,scheduledRssCollector,r=>options.authorize(rssRequest(r)),Date.now,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')};
 }

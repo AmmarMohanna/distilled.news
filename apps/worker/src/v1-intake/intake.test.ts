@@ -17,6 +17,28 @@ it('accepted UPSERT commits a candidate, exact input binding and one acquisition
   expect(await store.list('candidates','feed-source-1')).toHaveLength(1);
   expect(await store.listPendingJobs('feed-source-1')).toMatchObject([{observationId:'observation-1',kind:'ACQUIRE'}]);
 });
+it('prefetches large batches in bounded indexed reads without per-item round trips',async()=>{
+ const fixture=batchFixture(),request={...fixture,observations:Array.from({length:75},(_,i)=>({...fixture.observations[0],id:'bulk-'+i,sourceItemKey:'bulk-item-'+i})),proposals:Array.from({length:75},(_,i)=>({...fixture.proposals[0],observationId:'bulk-'+i,sourceItemKey:'bulk-item-'+i}))};
+ const reads=vi.spyOn(store,'read');
+ try{
+  const result=await createCandidateIntakePort(store,testPolicy).acceptBatch(request);
+  expect(result.receipts).toHaveLength(75);expect(result.receipts.every(r=>r.decision==='ACCEPTED')).toBe(true);
+  expect(reads).not.toHaveBeenCalled();expect(await store.listPendingJobs('feed-source-1')).toHaveLength(75);
+ }finally{reads.mockRestore()}
+},15000);
+it('a concurrent intake invalidates cached misses before canonical effects commit',async()=>{
+ const original=store.readMany.bind(store);let raced=false;
+ const read=vi.spyOn(store,'readMany').mockImplementation(async keys=>{
+  const rows=await original(keys);
+  if(!raced){raced=true;await createCandidateIntakePort(new V1IntakeStore(ctx.db),testPolicy).acceptBatch(batchFixture(2));}
+  return rows;
+ });
+ try{
+  await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture());
+  expect(await store.list('candidates','feed-source-1')).toMatchObject([{latestObservationId:'observation-2'}]);
+  expect(await store.listPendingJobs('feed-source-1')).toHaveLength(2);
+ }finally{read.mockRestore()}
+});
 it('lost response retry through a fresh store returns the same durable terminal receipt',async()=>{
   const first=await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture());
   const again=await createCandidateIntakePort(new V1IntakeStore(ctx.db),testPolicy).acceptBatch(batchFixture());
@@ -125,7 +147,7 @@ it('failed D1 job persistence rolls back the entire handoff including candidate 
  }finally{logs.mockRestore()}
 });
 it('query-limit diagnostics omit raw external text and retain the retryable wire error',async()=>{
- const read=vi.spyOn(store,'read').mockRejectedValueOnce(Error('Too many subrequests: private-token-value'));
+ const read=vi.spyOn(store,'readMany').mockRejectedValueOnce(Error('Too many subrequests: private-token-value'));
  const logs=vi.spyOn(console,'error').mockImplementation(()=>{});
  try{
   await expect(createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE',message:'TEMPORARY_UNAVAILABLE'});

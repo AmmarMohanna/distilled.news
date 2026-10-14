@@ -1,6 +1,6 @@
 import {connectorSourceHealth} from './connector-health';
 import {publishedProductEditions} from './product-feeds';
-import {HandoffError,sha256} from '@distilled/contracts';
+import {HandoffError,sha256,hashContent,handoffFixture} from '@distilled/contracts';
 import {D1Repository} from './repository';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {createIntakeDatabase,testPolicy} from './v1-intake/test-utils';
@@ -8,7 +8,7 @@ import {enrollV1Source,isV1ProductSource} from './v1-intelligence/product';
 import * as productEnrollment from './v1-intelligence/product';
 import {authorizeConnectorSource,configureConnectorBudgets,createConnectorRuntime,runConnectorMaintenance,scheduleRecentTelegramRecheck,scheduleProviderWindow} from './connector-runtime';
 import {productConnectorSource} from './connector-source';
-import {processV1Acquisition} from './v1-downstream-runtime';
+import {processV1Acquisition,createV1RuntimePolicy} from './v1-downstream-runtime';
 import {V1IntakeStore} from './v1-intake/store';
 import {V1FeedStore} from './v1-intelligence/store';
 import {processEvidenceIntelligence} from './v1-intelligence/engine';
@@ -29,6 +29,22 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('CAS retries reuse only verified immutable payload metadata within their own policy instance',async()=>{
+ const body='Known immutable body',fixture=handoffFixture().observations[0],canonicalUrl='https://example.com/article';
+ const o={...fixture,...request.scope,id:'verification-observation',representation:'ARTICLE_EXCERPT' as const,contentCompleteness:'UNKNOWN' as const,canonicalUrl,titleHint:'Known title',contentHash:await hashContent({representation:'ARTICLE_EXCERPT',title:'Known title',body})};
+ const payload=await createConnectorRuntime(env).payloads.put(request.scope,new TextEncoder().encode(JSON.stringify({body,title:'Known title',canonicalUrl,representation:o.representation,contentCompleteness:o.contentCompleteness})),'application/json');
+ const get=vi.spyOn(env.RAW_ARCHIVE,'get');const supplied={...o,suppliedPayloadRef:payload.ref};
+ try{
+  const policy=createV1RuntimePolicy(fetch,env.RAW_ARCHIVE);
+  expect(await policy.verifySuppliedContent(supplied)).toMatchObject({contentHash:o.contentHash});
+  await policy.verifySuppliedContent(supplied);expect(get).toHaveBeenCalledTimes(1);
+  await createV1RuntimePolicy(fetch,env.RAW_ARCHIVE).verifySuppliedContent(supplied);expect(get).toHaveBeenCalledTimes(2);
+  await expect(policy.verifySuppliedContent({...supplied,contentHash:'0'.repeat(64)})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+  expect(get).toHaveBeenCalledTimes(3);
+  await expect(policy.verifySuppliedContent({...supplied,canonicalUrl:'https://different.example/article'})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+  expect(get).toHaveBeenCalledTimes(4);
+ }finally{get.mockRestore()}
+});
 it('enrolls a single source once and freezes the updated product revision',async()=>{
  await ctx.db.prepare("UPDATE briefings SET interest_profile='updated single-source interests' WHERE id='feed-1'").run();
  const enrollment=vi.spyOn(productEnrollment,'enrollV1Source');
@@ -366,7 +382,7 @@ it('routes bounded approved Telegram through VPC, durable intake, evidence and p
  const result=await backend.collect(r,['telegram_telethon']);
  if(result.state==='FETCH_FAILED')throw new Error('Telegram fixture fetch failed');
  expect(result.checkpoint).toBe('ADVANCED');
- const scheduled=vi.fn(async(_id:string,_request:SourceFetchRequest,_due:string,_order?:readonly string[])=>{});
+ const scheduled=vi.fn(async(id:string,request:SourceFetchRequest,due:string,order?:readonly string[])=>backend.scheduler.schedule(id,request,due,order));
  expect(await scheduleRecentTelegramRecheck(ctx.db,{schedule:scheduled},r,new Date(now))).toBe(true);
  expect(scheduled.mock.calls[0][1]).toMatchObject({source:r.source,recheckItemKeys:['telegram:-100123:1']});
  expect(scheduled.mock.calls[0][3]).toEqual(['telegram_telethon']);

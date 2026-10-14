@@ -60,6 +60,19 @@ function setup(feed=xml(item('one'))) {
 }
 
 describe('durable RSS source handoff (SQLite SQL and filesystem payload surrogate)',()=>{
+  it('queue-mode cadence coalesces unfinished windows without rewriting saved requests',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);
+    const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(timestamp),true);
+    await scheduler.schedule('first',input,timestamp);
+    await scheduler.schedule('next',{...input,runId:'next'},timestamp);
+    expect(s.db.db.prepare('SELECT COUNT(*) AS n FROM connector_rss_poll_jobs').get()).toEqual({n:1});
+    await expect(scheduler.schedule('first',{...input,url:'https://different.example/feed'},timestamp)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+    await scheduler.schedule('reconfigured',{...input,configurationRevision:2,runId:'reconfigured'},timestamp);
+    expect(s.db.db.prepare('SELECT COUNT(*) AS n FROM connector_rss_poll_jobs').get()).toEqual({n:2});
+    s.db.db.prepare("UPDATE connector_rss_poll_jobs SET state='DONE'").run();
+    await scheduler.schedule('next',{...input,runId:'next'},timestamp);
+    expect(s.db.db.prepare('SELECT COUNT(*) AS n FROM connector_rss_poll_jobs').get()).toEqual({n:3});
+  });
   it('serializes a shared RSS checkpoint and preserves waiting job attempts',async()=>{
     const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let release!:(v:any)=>void;
     const collect=vi.fn((r:RssRequest)=>r.runId==='held'?new Promise<any>(resolve=>{release=resolve}):Promise.resolve({checkpoint:'UNCHANGED',coverage:{failureReason:'NONE'}}));

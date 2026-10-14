@@ -10,6 +10,7 @@ import {verifyConnectorAuthority} from './connector-authority';
 import {handoffFixture} from '@distilled/contracts';
 import {feedSourceAvailability} from './connector-availability';
 import * as connectorRuntime from './connector-runtime';
+import {dispatchTelegramLane} from './connector-telegram-lane';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env;
 const messages:unknown[]=[];
@@ -25,6 +26,28 @@ beforeAll(async()=>{
  env={DB:ctx.db,SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',PRODUCT_FEEDS_ENABLED:'true',SOURCE_COLLECTION_QUEUE:{sendBatch:async(batch:unknown[])=>{messages.push(...batch)}},PROCESSING_QUEUE:{send:async(body:unknown)=>{messages.push(body)},sendBatch:async()=>{}}} as unknown as Env;
 },60_000);
 afterAll(async()=>ctx?.dispose());
+it('Telegram dispatch is exclusive and serves a quiet feed before repeating a busy feed',async()=>{
+ const at=Date.now(),due=new Date(at-60000).toISOString();messages.length=0;
+ const seed=(feedId:string,jobId:string)=>ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,scheduled_at) VALUES(?,?,?,?,?,?)').bind(jobId,JSON.stringify({scope:{feedId,feedSourceId:feedId+'-rss',sourceId:'telegram'},runId:jobId,source:{family:'telegram',locator:'test',channelId:'-123'},requestedBounds:{},limit:3}),jobId,'["telegram_telethon"]',due,due);
+ await ctx.db.batch([...Array.from({length:25},(_,i)=>seed('scale-0001','lane-busy-'+i)),seed('scale-0002','lane-quiet')]);
+ expect((await Promise.all(Array.from({length:4},()=>dispatchTelegramLane(env,at)))).reduce((a,b)=>a+b,0)).toBe(1);
+ const first=(messages[0] as {body:ConnectorQueueMessage}).body;expect(first.feedId).toBe('scale-0001');
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='DONE',dispatch_until=0,dispatch_token=NULL WHERE job_id=?").bind('jobId' in first?first.jobId:'').run();
+ expect(await dispatchTelegramLane(env,at+1)).toBe(1);
+ expect((messages[1] as {body:ConnectorQueueMessage}).body.feedId).toBe('scale-0002');
+ // An expired delivery fence cannot override an independently renewed execution lease.
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET dispatch_until=0,lease_until=? WHERE job_id='lane-quiet'").bind(new Date(at+60000).toISOString()).run();
+ expect(await dispatchTelegramLane(env,at+2)).toBe(0);
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='CANCELLED',lease_until=NULL,dispatch_until=0,dispatch_token=NULL WHERE job_id LIKE 'lane-%'").run();
+});
+it('a finished Telegram page immediately dispatches the next fair session job without waiting for Cron',async()=>{
+ const at=Date.now(),due=new Date(at-1000).toISOString();messages.length=0;
+ for(const [feedId,id] of [['scale-0003','lane-chain-first'],['scale-0004','lane-chain-next']])await ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,scheduled_at) VALUES(?,?,?,?,?,?)').bind(id,JSON.stringify({scope:{feedId,feedSourceId:feedId+'-rss',sourceId:'telegram'},runId:id,source:{family:'telegram',locator:'test',channelId:'-123'},requestedBounds:{},limit:3}),id,'["telegram_telethon"]',due,due).run();
+ await dispatchTelegramLane(env,at);const first=(messages[0] as {body:ConnectorQueueMessage}).body;
+ const runner=vi.spyOn(connectorRuntime,'createConnectorRuntime').mockReturnValue({scheduler:{runOne:async(_lease:number,id:string)=>{await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='DONE' WHERE job_id=?").bind(id).run();return 'DONE';}}} as any);
+ try{await processConnectorMessage(env,first);expect(messages.filter((m:any)=>m.body?.type==='connector_poll')).toHaveLength(2);}
+ finally{runner.mockRestore();await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='CANCELLED',dispatch_until=0,dispatch_token=NULL WHERE job_id LIKE 'lane-chain-%'").run();}
+});
 
 it('dispatches 1,000 feeds in bounded indexed batches, with no repeated sends before lease expiry',async()=>{
  messages.length=0;const start=performance.now();
@@ -128,6 +151,26 @@ it('reuses one public upstream fetch across 1,000 authorized consumers without s
  await expect(denied.get('https://example.com/feed.xml',{accept:'application/xml'})).rejects.toThrow('SOURCE_NOT_APPROVED');
  expect(calls).toBe(1);
 },60_000);
+it('concurrent public-cache waiters reuse the fetch and independently enforce revocation',async()=>{
+ const objects=new Map<string,Uint8Array>();let release!:()=>void,calls=0,admitted=0,revoked=false;
+ const bucket={put:async(k:string,b:Uint8Array)=>{objects.set(k,b.slice())},get:async(k:string)=>{const b=objects.get(k);return b?{arrayBuffer:async()=>b.slice().buffer}:null},delete:async(k:string)=>{objects.delete(k)}} as unknown as R2Bucket;
+ const http={get:async()=>{calls++;await new Promise<void>(resolve=>{release=resolve});return {status:200,headers:{'cache-control':'public,max-age=60'},bytes:new TextEncoder().encode('<rss/>'),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}}};
+ const owner=sharedPublicHttp(ctx.db,bucket,http,async()=>{}).get('https://example.com/concurrent.xml',{accept:'application/xml'});
+ await vi.waitFor(()=>expect(calls).toBe(1));
+ const waiters=Array.from({length:8},(_,i)=>sharedPublicHttp(ctx.db,bucket,http,async()=>{admitted++;if(i===0&&revoked)throw Error('SOURCE_NOT_APPROVED')}).get('https://example.com/concurrent.xml',{accept:'application/xml'}));
+ const settled=Promise.allSettled(waiters);await vi.waitFor(()=>expect(admitted).toBeGreaterThanOrEqual(8));revoked=true;release();
+ expect((await owner).status).toBe(200);const results=await settled;
+ expect(results[0]).toMatchObject({status:'rejected',reason:expect.objectContaining({message:'SOURCE_NOT_APPROVED'})});
+ expect(results.slice(1).every(r=>r.status==='fulfilled'&&r.value.status===200)).toBe(true);expect(calls).toBe(1);
+});
+it('cached public bytes are not returned if approval is revoked during the body read',async()=>{
+ const objects=new Map<string,Uint8Array>();let revoked=false,revokeOnRead=false;
+ const bucket={put:async(k:string,b:Uint8Array)=>{objects.set(k,b.slice())},get:async(k:string)=>{const b=objects.get(k);return b?{arrayBuffer:async()=>{if(revokeOnRead)revoked=true;return b.slice().buffer}}:null},delete:async()=>{}} as unknown as R2Bucket;
+ const http={get:async()=>({status:200,headers:{},bytes:new TextEncoder().encode('<rss/>'),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}})};
+ const cached=sharedPublicHttp(ctx.db,bucket,http,async()=>{if(revoked)throw Error('SOURCE_NOT_APPROVED')});
+ await cached.get('https://example.com/body-fence.xml',{accept:'application/xml'});revokeOnRead=true;
+ await expect(cached.get('https://example.com/body-fence.xml',{accept:'application/xml'})).rejects.toThrow('SOURCE_NOT_APPROVED');
+});
 
 it('primary and fallback budgets are independent, concurrent replay reserves and pays once',async()=>{
  const objects=new Map<string,Uint8Array>();let calls=0;

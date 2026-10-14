@@ -13,13 +13,17 @@ interface Job {job_id:string;request:string;provider_order:string;lease_version:
  * create an endpoint. Authorization must also ensure legacy polling is disabled. */
 export class D1ProviderPollScheduler {
   constructor(private db:SqlDatabase,private collector:Pick<FallbackSourceCollector,'collect'>,
-    private authorize:(request:SourceFetchRequest)=>Promise<boolean>,private now=Date.now,private maxPages=100){}
+    private authorize:(request:SourceFetchRequest)=>Promise<boolean>,private now=Date.now,private maxPages=100,private coalescePending=false){}
   async schedule(id:string,request:SourceFetchRequest,dueAt:string,order=DEFAULT_SOURCE_ORDER[request.source.family]) {
     if(!id||!Number.isFinite(Date.parse(dueAt)))throw new Error('INVALID_SCHEDULE');
     const data=JSON.stringify(request),providers=JSON.stringify(order),hash=await sha256(JSON.stringify([data,providers]));
-    await this.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,scheduled_at) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING')
-      .bind(id,data,hash,providers,new Date(dueAt).toISOString(),new Date(dueAt).toISOString()).run();
+    await this.db.prepare(`INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,scheduled_at)
+      SELECT ?,?,?,?,?,? ${this.coalescePending?`WHERE NOT EXISTS(SELECT 1 FROM connector_provider_poll_jobs WHERE state='PENDING'
+      AND json_extract(request,'$.scope.feedSourceId')=? AND json_extract(request,'$.configurationRevision') IS ? AND job_id<>?
+      AND (json_type(request,'$.recheckItemKeys') IS NULL)=?)`:''} ON CONFLICT DO NOTHING`)
+      .bind(id,data,hash,providers,new Date(dueAt).toISOString(),new Date(dueAt).toISOString(),...(this.coalescePending?[request.scope.feedSourceId,request.configurationRevision??null,id,request.recheckItemKeys?0:1]:[])).run();
     const row=await this.db.prepare('SELECT initial_hash FROM connector_provider_poll_jobs WHERE job_id=?').bind(id).first<{initial_hash:string}>();
+    if(!row&&this.coalescePending)return;
     if(row?.initial_hash!==hash)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
   async runOne(leaseMs=300000,jobId?:string):Promise<'IDLE'|'DONE'|'RETRY'|'BLOCKED'|'CANCELLED'|'LEASE_LOST'> {

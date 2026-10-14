@@ -77,7 +77,7 @@ export async function scheduleRecentTelegramRecheck(db:D1Database,
   recheckItemKeys:recent.results.map(row=>row.key)};
  try{await scheduler.schedule(recheck.runId,recheck,now.toISOString(),['telegram_telethon']);}
  catch(error){if(error instanceof HandoffError&&error.code==='IDEMPOTENCY_CONFLICT'&&await alreadyScheduled())return false;throw error;}
- return true;
+ return alreadyScheduled(); // A coalesced older recheck is not a newly queued job.
 }
 /** Funding changes affect the next window; never rewrite an existing durable
  * poll or manufacture a second paid run inside the current window. */
@@ -122,7 +122,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
  }
  for(const id of ids) {
-  const row=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL`).bind(id).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;owner_account_id:string}>();
+  const row=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,s.collection_owner,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL`).bind(id).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;collection_owner:string;owner_account_id:string}>();
   if(!row)continue;
   const approved=productConnectorSource(row);if(!approved)continue;
   // Do not transfer a source away from its working owner until the private
@@ -136,7 +136,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
     !((budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0)||(budgets.x_apify>0&&ceilings.apify>0)))continue;
   if(paidFamily.startsWith('linkedin_')&&!(budgets.linkedin_apify>0&&ceilings.apify>0))continue;
   // Explicit allowlist admission persists exclusive ownership before connector execution.
-  await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND collection_owner='legacy'").bind(id).run();
+  if(row.collection_owner==='legacy')await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND collection_owner='legacy'").bind(id).run();
   const enrolled=await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
   // Every polling window has one stable identity. Repeated cron ticks replay that run;
   // a later window may collect new source observations without reusing an old snapshot.

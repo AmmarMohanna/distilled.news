@@ -28,6 +28,8 @@ export interface StoredRssBatch {
 }
 /** Storage is connector-owned. Intake owns its own receipts and canonical effects. */
 export interface SourceRepository {
+  /** Optional single-round-trip read; generic adapters retain the separate reads. */
+  loadCollectionState?(scope:SourceScope,runId:string,handoffId:string):Promise<{run?:FetchRun;batch?:StoredRssBatch}>;
   allocate(scope: SourceScope, runId: string, configurationKey: string, startedAt: string): Promise<FetchRun>;
   loadRun(scope: SourceScope, runId: string): Promise<FetchRun | undefined>;
   claimFetch(scope: SourceScope, runId: string): Promise<boolean>;

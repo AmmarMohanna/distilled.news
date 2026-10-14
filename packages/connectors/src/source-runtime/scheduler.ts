@@ -18,14 +18,17 @@ interface PollJob {
 export class D1RssPollScheduler {
   constructor(private readonly db: SqlDatabase, private readonly collector: Pick<RssSourceCollector,'collect'>,
     private readonly authorize: (request:RssRequest)=>Promise<boolean>,
-    private readonly now:()=>number = Date.now) {}
+    private readonly now:()=>number = Date.now,private readonly coalescePending=false) {}
 
   async schedule(jobId:string,request:RssRequest,dueAt:string):Promise<void> {
     if (!jobId || !Number.isFinite(Date.parse(dueAt))) throw new Error('INVALID_SCHEDULE');
     const data=JSON.stringify(request), hash=await sha256(data);
-    await this.db.prepare('INSERT INTO connector_rss_poll_jobs(job_id,request,request_hash,due_at,scheduled_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING')
-      .bind(jobId,data,hash,new Date(dueAt).toISOString(),new Date(dueAt).toISOString()).run();
+    await this.db.prepare(`INSERT INTO connector_rss_poll_jobs(job_id,request,request_hash,due_at,scheduled_at)
+      SELECT ?,?,?,?,? ${this.coalescePending?`WHERE NOT EXISTS(SELECT 1 FROM connector_rss_poll_jobs WHERE state='PENDING'
+      AND json_extract(request,'$.scope.feedSourceId')=? AND json_extract(request,'$.configurationRevision') IS ? AND job_id<>?)`:''} ON CONFLICT DO NOTHING`)
+      .bind(jobId,data,hash,new Date(dueAt).toISOString(),new Date(dueAt).toISOString(),...(this.coalescePending?[request.scope.feedSourceId,request.configurationRevision??null,jobId]:[])).run();
     const existing=await this.db.prepare('SELECT request_hash FROM connector_rss_poll_jobs WHERE job_id=?').bind(jobId).first<{request_hash:string}>();
+    if(!existing&&this.coalescePending)return;
     if (existing?.request_hash !== hash) throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
 

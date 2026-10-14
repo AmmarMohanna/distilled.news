@@ -8,7 +8,9 @@ import type {Env} from './types';
 // this does not prove live provider or editorial capacity.
 it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collection for 1,000 independent feeds through bounded queue consumers',async()=>{
  const count=Number(process.env.CONNECTOR_LOAD_FEEDS??1000);
+ const articles=Number(process.env.CONNECTOR_LOAD_ARTICLES??0);
  if(!Number.isSafeInteger(count)||count<1||count>1000)throw Error('INVALID_LOAD_FEEDS');
+ if(![0,1].includes(articles))throw Error('INVALID_LOAD_ARTICLES');
  const ctx=await createIntakeDatabase({product:true}),at=new Date().toISOString();
  const ids=Array.from({length:count},(_,i)=>`load-${String(i+1).padStart(4,'0')}`);
  const sourceMessages:ConnectorQueueMessage[]=[],objects=new Map<string,Uint8Array>();
@@ -30,7 +32,8 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
   const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
  }});
  let upstreamCalls=0,downstreamMessages=0;
- const fetch=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>{upstreamCalls++;return new Response('<rss><channel><title>Shared public news</title></channel></rss>',{headers:{'content-type':'application/rss+xml','cache-control':'public,max-age=60'}});});
+ const fixture=`<rss><channel><title>Shared public news</title>${articles?`<item><guid>shared-article</guid><title>Shared source story</title><link>https://example.com/article</link><description>A concrete test article collected independently for each feed.</description><pubDate>${new Date(at).toUTCString()}</pubDate></item>`:''}</channel></rss>`;
+ const fetch=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>{upstreamCalls++;return new Response(fixture,{headers:{'content-type':'application/rss+xml','cache-control':'public,max-age=60'}});});
  const env={DB:measuredDb,PRODUCT_FEEDS_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_SHARED_PUBLIC_FETCH_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',SOURCE_LEGACY_POLLING_ENABLED:'false',SOURCE_PROVIDER_BUDGETS_JSON:'{}',SOURCE_OPERATION_CEILINGS_JSON:'{}',
   RAW_ARCHIVE:{put:async(k:string,b:Uint8Array)=>{if(!objects.has(k))objects.set(k,b.slice());},get:async(k:string)=>{const b=objects.get(k);return b?{arrayBuffer:async()=>b.slice().buffer,size:b.length,json:async()=>JSON.parse(new TextDecoder().decode(b))}:null},delete:async(k:string)=>{objects.delete(k)}},
   SOURCE_COLLECTION_QUEUE:{sendBatch:async(batch:{body:ConnectorQueueMessage}[])=>{sourceMessages.push(...batch.map(m=>m.body));}},
@@ -84,6 +87,8 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
   expect(receipts).toEqual({feeds:count});
   expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_checkpoints').first()).toEqual({n:count});
   expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_provider_operations').first()).toEqual({n:0});
+  expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM v1_candidates').first()).toEqual({n:count*articles});
+  expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_jobs WHERE json_extract(json,'$.kind')='ACQUIRE'").first()).toEqual({n:count*articles});
   // Expiry may legitimately refresh during a long load. Reuse must still avoid
   // one upstream fetch per feed; freshness is not extended to force a pass.
   expect(upstreamCalls).toBeLessThanOrEqual(Math.ceil((performance.now()-start)/60_000)+1);
@@ -91,7 +96,7 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
   const bytesAfter=(await ctx.db.prepare('SELECT 1 AS storage_probe').run()).meta.size_after;
   expect(Number.isFinite(bytesBefore)&&Number.isFinite(bytesAfter)).toBe(true);
   const storage={d1BytesBefore:bytesBefore,d1BytesAfter:bytesAfter,d1GrowthBytes:bytesAfter-bytesBefore,coldBytesPerFeed:Math.round((bytesAfter-bytesBefore)/count),r2Objects:objects.size,r2Bytes:[...objects.values()].reduce((n,b)=>n+b.byteLength,0)};
-  console.info(JSON.stringify({load:'source-collection-complete',feeds:count,queueConcurrency:8,upstreamCalls,independentReceipts:count,independentCheckpoints:count,paidCalls:0,downstreamMessages,durationMs:Math.round(performance.now()-start),phaseTimes,storage}));
+  console.info(JSON.stringify({load:'source-collection-complete',feeds:count,articlesPerSnapshot:articles,queueConcurrency:8,upstreamCalls,independentReceipts:count,independentCheckpoints:count,independentCandidates:count*articles,paidCalls:0,downstreamMessages,durationMs:Math.round(performance.now()-start),phaseTimes,storage}));
  }catch(error){
   // Leave a usable capacity diagnostic even when the acceptance deadline fails.
   // Drain workers finish before this snapshot; cleanup does not race live RPCs.

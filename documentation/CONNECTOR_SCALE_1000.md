@@ -325,3 +325,42 @@ database requests including initialization, compared with approximately
 190 for the prior path. This ten-feed result does not close the 1,000-feed
 acceptance gate. Database batching, sustained backlog drain, mixed-source
 full-article checks and retention/storage capacity remain outstanding.
+
+### October 14 fair-lane and batching follow-up
+
+Migration 0056 adds indexed Telegram due-work and durable per-feed turns. A
+separate `connector-telegram-lane.ts` dispatcher permits one queued or executing
+session operation, then immediately offers the next eligible feed a turn. Cron
+recovers expired deliveries. Normal polls and authoritative rechecks keep their
+independent immutable requests; neither rewrites the other's checkpoint.
+
+The queue-enabled schedulers coalesce newly due windows while a matching
+FeedSource/configuration already has pending work. Existing backlog is retained
+and drained normally. Reconfigured sources remain eligible. This prevents
+unattended scheduling from adding another identical unfinished collection every
+five minutes without cancelling history or changing financial authorization.
+
+Intake prefetch batches indexed reads within one guarded CAS attempt. Writes
+and receipt decisions retain their existing order and scope checks, and a failed
+CAS creates a fresh read cache. Immutable supplied-content verification is
+memoized only within one policy instance and includes scope, payload/hash,
+representation, completeness, publisher and canonical URL. Public-cache waiters
+reload durable bytes and recheck authorization; they never inherit another
+feed's receipts or authorization.
+
+Regression evidence: 106 provider/RSS tests, 31 intake/product tests and 18
+scalability tests passed. Both packages typecheck. The intelligence runtime is
+unchanged. The nonempty 1,000-feed load is opt-in with
+`CONNECTOR_LOAD_COLLECTION=true`, `CONNECTOR_LOAD_FEEDS=1000`, and
+`CONNECTOR_LOAD_ARTICLES=1`; upstream/model services are simulated. A passing
+collection load alone does not prove mixed-provider production throughput,
+editorial capacity, continuous storage capacity or a successful publication.
+
+The first nonempty 1,000-feed run completed 991 polls and left nine pending at
+581,350 ms, failing the unchanged 580-second drain deadline. Enrollment took
+209,503 ms with 14,001 database requests. The next change atomically batches
+successful feed completion and lease release; failure still releases the lease
+in `finally`. This result is diagnostic, not a capacity pass. The complete
+connector regression pass had one outdated test double that reported scheduling
+without persisting its job; it now delegates to the real scheduler, and the two
+affected Telegram/payload tests pass. The other 44 tests passed unchanged.
