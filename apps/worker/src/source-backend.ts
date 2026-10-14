@@ -18,6 +18,8 @@ export interface SourceBackendEnv {
   SOURCE_OPERATION_CEILINGS_JSON?:string;
   SOURCE_PER_PROVIDER_BUDGET_USD?:string;
   SOURCE_SHARED_PUBLIC_FETCH_ENABLED?:string;
+  SOURCE_QUEUE_SCHEDULING_ENABLED?:string;
+  SOURCE_PROVIDER_BUDGETS_JSON?:string;
 }
 
 /** Composition shared by the connector staging backend and downstream integration.
@@ -42,7 +44,9 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
   }
   const sourceProviderLimit=env.SOURCE_PER_PROVIDER_BUDGET_USD===undefined?undefined:Number(env.SOURCE_PER_PROVIDER_BUDGET_USD);
   if(sourceProviderLimit!==undefined&&(!env.SOURCE_PER_PROVIDER_BUDGET_USD?.trim()||!Number.isFinite(sourceProviderLimit)||sourceProviderLimit<0))throw new Error('INVALID_SOURCE_PROVIDER_BUDGET');
-  const paidHttp=new DurableProviderHttp(sql,payloads,dispatch,4_000_000,20_000,sourceProviderLimit);
+  const deploymentLimits=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?JSON.parse(env.SOURCE_PROVIDER_BUDGETS_JSON??'{}'):undefined;
+  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&(!deploymentLimits||typeof deploymentLimits!=='object'||Array.isArray(deploymentLimits)||Object.keys(deploymentLimits).some(k=>!['x_twitterapi_io','x_apify','google_apify','linkedin_apify','zyte'].includes(k))))throw new Error('INVALID_SOURCE_BUDGETS');
+  const paidHttp=new DurableProviderHttp(sql,payloads,dispatch,4_000_000,20_000,sourceProviderLimit,deploymentLimits);
   const makeCollector=(request:SourceFetchRequest)=>{
     const guardedDispatch:typeof fetch=async(value,init)=>{
       if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
@@ -71,7 +75,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     };
     const baseHttp=new BoundedFeedHttp(async(value,init)=>{await authorizeUrl(value);return dispatch(value,{...init,redirect:'manual'})});
     const http=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,baseHttp,authorizeUrl):baseHttp;
-    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch,4_000_000,20_000,sourceProviderLimit),execution,secrets,ceilings,
+    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch,4_000_000,20_000,sourceProviderLimit,deploymentLimits),execution,secrets,ceilings,
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
       rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake)};
   };

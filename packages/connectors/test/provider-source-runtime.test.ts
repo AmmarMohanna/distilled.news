@@ -41,6 +41,21 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it('runtime initialization cannot replenish a revoked grant and new paid work requires both grants',async()=>{
+    const s=setup([]);let calls=0;
+    const make=(grant:number)=>new DurableProviderHttp(s.db,s.payloads,async()=>{calls++;return Response.json({ok:true})},4000000,20000,15,{x_twitterapi_io:grant});
+    const http=make(10);await http.configureLimits({x_twitterapi_io:10},true);
+    await http.request(scope,'first','x_twitterapi_io',1,'https://api.twitterapi.io/test',{});
+    await http.configureLimit('x_twitterapi_io',0); // Explicit operator revocation.
+    await http.configureLimits({x_twitterapi_io:10},true);
+    await expect(http.request(scope,'revoked','x_twitterapi_io',1,'https://api.twitterapi.io/test',{})).rejects.toThrow('BUDGET_EXCEEDED');
+    expect(s.db.db.prepare("SELECT limit_usd,reserved_usd FROM connector_provider_budgets WHERE provider_id='x_twitterapi_io'").get()).toEqual({limit_usd:0,reserved_usd:1});
+    await http.request(scope,'first','x_twitterapi_io',1,'https://api.twitterapi.io/test',{});expect(calls).toBe(1);
+    await http.configureLimit('x_twitterapi_io',100);
+    await expect(make(0).request(scope,'deployment-revoked','x_twitterapi_io',1,'https://api.twitterapi.io/test',{})).rejects.toThrow('BUDGET_EXCEEDED');
+    await expect(make(1).request(scope,'deployment-exhausted','x_twitterapi_io',1,'https://api.twitterapi.io/test',{})).rejects.toThrow('BUDGET_EXCEEDED');
+    expect(calls).toBe(1);
+  });
   it('carries legacy completed reservations forward and blocks unattributed uncertain charges',async()=>{
     const s=setup([]);let calls=0;
     const old=new DurableProviderHttp(s.db,s.payloads,async()=>{calls++;return Response.json({ok:true})});
@@ -458,6 +473,20 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const p=new WebsiteSourceProvider('website_http',feed('<html>Homepage</html>'),{execute:async()=>({body:'Homepage '.repeat(100)})});
     await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run)).rejects.toThrow('MALFORMED');
   });
+  it('an undated article retains its identity and does not crawl embedded story references',async()=>{
+    const p=new WebsiteSourceProvider('website_http',feed('<article>News</article>'),{execute:async()=>({body:'Article text '.repeat(50),pageKind:'article',canonicalUrl:'https://publisher.example/',articleLinks:['https://publisher.example/other-story']})});
+    const result=await p.fetch({...request,source:{family:'website',locator:'https://publisher.example/news/story'}},run);
+    expect(result.items).toHaveLength(1);expect(result.items[0]).toMatchObject({url:'https://publisher.example/news/story',sourceItemKey:'url:https://publisher.example/news/story',representation:'FULL_ARTICLE'});
+    expect(result.items[0].publishedAt).toBeUndefined();expect(result.complete).toBe(false);
+  });
+  it('a dated homepage is still a listing, and missing inventory is not a full article',async()=>{
+    const execute=vi.fn(async()=>({body:'Homepage '.repeat(50),pageKind:'article',publishedAt:time,articleLinks:['https://publisher.example/news/story']}));
+    const p=new WebsiteSourceProvider('website_http',feed('<html>Lead story</html>'),{execute});
+    const result=await p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run);
+    expect(result.items[0].representation).toBe('LISTING_RESULT');expect(result.complete).toBe(false);
+    execute.mockResolvedValueOnce({body:'Homepage '.repeat(50),pageKind:'article',publishedAt:time,articleLinks:[]});
+    await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run)).rejects.toThrow('MALFORMED');
+  });
   it('website uses the third route only after direct HTTP and browser failures',async()=>{
     const http:FeedHttpPort={get:vi.fn(async()=>({status:403,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
     const execution={execute:vi.fn(async(kind:string)=>kind==='playwright'?{status:403}:{body:'Article text '.repeat(50),title:'Article',publishedAt:time})};
@@ -496,6 +525,20 @@ describe('durable paid HTTP',()=>{
     await http.configureLimit('paid',1);
     await expect(http.request(scope,'op','paid',0.02,'https://api.apify.com/v2/actors/a~b/runs',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
     await expect(http.request(scope,'op','paid',0.02,'https://api.apify.com/v2/actors/a~b/runs',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+  it('a new polling window and another provider cannot bypass an unresolved paid source operation',async()=>{
+    const s=setup([]),dispatch=vi.fn(async():Promise<Response>=>{throw new Error('connection lost')}),http=new DurableProviderHttp(s.db,s.payloads,dispatch,1000,1000,15);
+    await http.configureLimits({primary:100,fallback:100});
+    await expect(http.request(scope,'old-window','primary',1,'https://api.twitterapi.io/twitter/tweets',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+    await expect(http.request(scope,'new-window','primary',1,'https://api.twitterapi.io/twitter/tweets',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+    await expect(http.request(scope,'new-window','fallback',1,'https://api.apify.com/v2/actors/a~b/runs',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(await s.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='primary'").first()).toEqual({reserved_usd:1});
+    expect(await s.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='fallback'").first()).toEqual({reserved_usd:0});
+    // Other independently authorized FeedSources retain their own execution history.
+    dispatch.mockImplementationOnce(async()=>Response.json({ok:true}));
+    await http.request({...scope,feedSourceId:'other-source'},'new-window','primary',1,'https://api.twitterapi.io/twitter/tweets',{});
+    expect(dispatch).toHaveBeenCalledTimes(2);
   });
   it('bounds a dispatcher that ignores abort signals',async()=>{
     const s=setup([]),http=new DurableProviderHttp(s.db,s.payloads,()=>new Promise(()=>{}),1000,5);await http.configureLimit('paid',1);

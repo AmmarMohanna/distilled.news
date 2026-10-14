@@ -36,7 +36,8 @@ export class WebsiteSourceProvider implements SourceProvider {
     if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))throw new SourceProviderError('CHALLENGE');
     const result=record(await executeSource(this.execution,'extract',{url,html}));
     const links=Array.isArray(result.articleLinks)?[...new Set(result.articleLinks.filter((v):v is string=>typeof v==='string').map(v=>articleUrl(v)).filter((v):v is string=>!!v&&new URL(v).origin===new URL(url).origin&&v!==url))]:[];
-    if(links.length&&(result.pageKind==='listing'||!timestamp(result.publishedAt))){
+    const landing=new URL(url).pathname==='/';
+    if(links.length&&(result.pageKind==='listing'||landing)){
       const offset=input.continuation?Number(input.continuation.token):0;
       if(!Number.isSafeInteger(offset)||offset<0)throw Error('INVALID_WEBSITE_CONTINUATION');
       const selected=links.slice(offset,offset+input.limit),items:ProviderPage['items']=[];
@@ -51,9 +52,11 @@ export class WebsiteSourceProvider implements SourceProvider {
     }
     if(!string(result.body)||result.body.length<200)throw new SourceProviderError('CHALLENGE');
     // A homepage with no article inventory/date is not a complete news article.
-    if(!timestamp(result.publishedAt)&&(new URL(url).pathname==='/'||result.pageKind==='listing'))throw new SourceProviderError('MALFORMED');
+    if(landing||result.pageKind==='listing')throw new SourceProviderError('MALFORMED');
     const canonical=articleUrl(string(result.canonicalUrl));
-    const article=canonical&&new URL(canonical).origin===new URL(url).origin?canonical:url;
+    // A misconfigured publisher canonical must not collapse all stories onto
+    // the homepage. Cross-origin identities remain excluded as before.
+    const article=canonical&&new URL(canonical).origin===new URL(url).origin&&new URL(canonical).pathname!=='/'?canonical:url;
     return {items:[{sourceItemKey:`url:${article}`,upstreamId:article,url:article,publisherId:new URL(article).hostname,title:string(result.title),body:result.body,
       publishedAt:timestamp(result.publishedAt),language:string(result.language),representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
       raw:new TextEncoder().encode(html),complete:Boolean(timestamp(result.publishedAt)),requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};

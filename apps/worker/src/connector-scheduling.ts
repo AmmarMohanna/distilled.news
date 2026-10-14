@@ -4,7 +4,7 @@ import {createConnectorRuntime,runConnectorMaintenance} from './connector-runtim
 import {dispatchV1Acquisitions} from './v1-downstream-runtime';
 import {dispatchV1Intelligence} from './v1-intelligence/runtime';
 
-export type ConnectorQueueMessage={type:'connector_feed';feedId:string;token:string}|{type:'connector_poll';feedId:string;jobId:string;table:'rss'|'provider';token:string};
+export type ConnectorQueueMessage={type:'connector_feed';feedId:string;token:string}|{type:'connector_poll';feedId:string;jobId:string;table:'rss'|'provider';token:string}|{type:'connector_relay';feedId:string};
 const tables={rss:'connector_rss_poll_jobs',provider:'connector_provider_poll_jobs'} as const;
 const DELIVERY_LEASE_MS=120_000;
 const POLL_DELIVERY_MS=360_000;
@@ -30,15 +30,18 @@ export async function dispatchConnectorFeeds(env:Env,now=Date.now(),limit=FEED_D
  * delivery, so the other owner's intelligence runtime needs no modification. */
 export function coalescedProcessingQueue(env:Env,now=Date.now()):Queue<DistilledQueueMessage>{
  const original=env.PROCESSING_QUEUE;
- return {send:async(body:DistilledQueueMessage,options?:QueueSendOptions)=>{
-  if(!body.type?.startsWith('v1_'))return original.send(body,options);
+ const send=async(body:DistilledQueueMessage,options?:QueueSendOptions)=>{
+  if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay')return original.send(body,options);
   const id=await sha256(JSON.stringify(body)),token=crypto.randomUUID();
   if(body.type==='v1_briefing'&&!await collectionReadyForWindow(env,body.feedId,body.window.end,id,now))return;
   const claimed=await env.DB.prepare(`INSERT INTO connector_queue_dispatch(kind,id,available_ms,token) VALUES(?,?,?,?)
    ON CONFLICT(kind,id) DO UPDATE SET available_ms=excluded.available_ms,token=excluded.token,sends=sends+1,last_error=NULL WHERE available_ms<=? RETURNING id`).bind(body.type,id,now+DELIVERY_LEASE_MS,token,now).first();
   if(!claimed)return;
-  try{await original.send(body,options)}catch(error){await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=?,last_error=? WHERE kind=? AND id=? AND token=?').bind(now+30_000,'QUEUE_SEND_FAILED',body.type,id,token).run();throw error;}
- },sendBatch:original.sendBatch.bind(original)} as Queue<DistilledQueueMessage>;
+  try{return await original.send(body,options)}catch(error){await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=?,last_error=? WHERE kind=? AND id=? AND token=?').bind(now+30_000,'QUEUE_SEND_FAILED',body.type,id,token).run();throw error;}
+ };
+ // Canonical dispatchers ignore send metadata. A coalesced no-op returns no
+ // fabricated queue statistics; native metrics remain directly available.
+ return {send,sendBatch:async(batch:Iterable<MessageSendRequest<DistilledQueueMessage>>,options?:QueueSendBatchOptions)=>{let last;for(const item of batch){const {body,...individual}=item;const result=await send(body,{...options,...individual});if(result)last=result;}return last;},metrics:()=>original.metrics()} as unknown as Queue<DistilledQueueMessage>;
 }
 
 /** Publication must not silently call an uncollected window "quiet". Later
@@ -101,13 +104,26 @@ export async function relayConnectorDownstream(env:Env){
 
 export async function processConnectorMessage(env:Env,body:ConnectorQueueMessage){
  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true')throw Error('CONNECTOR_SCHEDULER_DISABLED');
+ if(body.type==='connector_relay'){
+  const token=crypto.randomUUID();
+  const claim=await env.DB.prepare('UPDATE connector_feed_schedule SET relay_token=?,relay_until=? WHERE feed_id=? AND relay_until<=? RETURNING feed_id').bind(token,Date.now()+DELIVERY_LEASE_MS,body.feedId,Date.now()).first();
+  if(!claim)return; // The active delivery owns this relay; expiry remains recoverable.
+  let lost=false,renewing:Promise<void>|undefined;
+  const timer=setInterval(()=>{if(renewing||lost)return;renewing=(async()=>{try{const r=await env.DB.prepare('UPDATE connector_feed_schedule SET relay_until=? WHERE feed_id=? AND relay_token=? AND relay_until>? RETURNING feed_id').bind(Date.now()+DELIVERY_LEASE_MS,body.feedId,token,Date.now()).first();if(!r)lost=true;}catch{lost=true;}})().finally(()=>{renewing=undefined;});},DELIVERY_LEASE_MS/3);
+  try{
+   const scoped=await feedEnv(env,body.feedId);if(scoped)await relayConnectorDownstream(scoped);
+   if(renewing)await renewing;if(lost)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   await completeConnectorDownstream(env,body);
+  }finally{clearInterval(timer);if(renewing)await renewing;await env.DB.prepare('UPDATE connector_feed_schedule SET relay_until=0,relay_token=NULL WHERE feed_id=? AND relay_token=?').bind(body.feedId,token).run();}
+  return;
+ }
  if(body.type==='connector_feed'){
   const workToken=crypto.randomUUID();
   const claimed=await env.DB.prepare('UPDATE connector_feed_schedule SET processing_token=?,processing_until=? WHERE feed_id=? AND token=? AND processing_until<=? RETURNING token').bind(workToken,Date.now()+DELIVERY_LEASE_MS,body.feedId,body.token,Date.now()).first();
   if(!claimed)return;
   try{
    const scoped=await feedEnv(env,body.feedId);
-   if(scoped){await runConnectorMaintenance(scoped,new Date(),{scheduleOnly:true});await dispatchConnectorPolls(scoped,body.feedId);await relayConnectorDownstream(scoped);}
+   if(scoped){await runConnectorMaintenance(scoped,new Date(),{scheduleOnly:true});await dispatchConnectorPolls(scoped,body.feedId);await scoped.PROCESSING_QUEUE.send({type:'connector_relay',feedId:body.feedId});}
    await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=?,token=NULL,last_error=NULL,attempts=0 WHERE feed_id=? AND token=? AND processing_token=?').bind(Date.now()+(scoped?60_000:300_000),body.feedId,body.token,workToken).run();
   }finally{await env.DB.prepare('UPDATE connector_feed_schedule SET processing_until=0,processing_token=NULL WHERE feed_id=? AND processing_token=?').bind(body.feedId,workToken).run();}
  }else{
@@ -122,6 +138,7 @@ export async function processConnectorMessage(env:Env,body:ConnectorQueueMessage
   const state=await (body.table==='rss'?backend.rssScheduler:backend.scheduler).runOne(300_000,body.jobId);
   await env.DB.prepare(`UPDATE ${table} SET dispatch_until=0,dispatch_token=NULL WHERE job_id=? AND dispatch_token=?`).bind(body.jobId,body.token).run();
   if(state==='LEASE_LOST')throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  await scoped.PROCESSING_QUEUE.send({type:'connector_relay',feedId:body.feedId});
   // Finish one page, then yield: other feeds run before this continuation.
   await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),body.feedId).run();
  }
@@ -133,7 +150,7 @@ export async function recordConnectorQueueFailure(env:Env,id:string,body:Connect
 }
 
 export async function completeConnectorDownstream(env:Env,body:DistilledQueueMessage){
- if(!body.type?.startsWith('v1_'))return;
+ if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay')return;
  await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=?').bind(body.type,await sha256(JSON.stringify(body))).run();
  if('jobId' in body){
   const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();
@@ -161,6 +178,7 @@ export async function recoverConnectorPoll(env:Env,kind:'rss'|'provider',jobId:s
  const request=JSON.parse(row.request);
  const {authorizeConnectorSource}=await import('./connector-runtime');
  if(!await authorizeConnectorSource(env,request))throw Error('SOURCE_NOT_APPROVED');
- await env.DB.prepare(`UPDATE ${table} SET state='PENDING',due_at=?,dispatch_until=0,dispatch_token=NULL,attempts=0,last_error=NULL WHERE job_id=? AND (lease_until IS NULL OR lease_until<=?)`).bind(new Date().toISOString(),jobId,new Date().toISOString()).run();
+ const changed=await env.DB.prepare(`UPDATE ${table} SET state='PENDING',due_at=?,dispatch_until=0,dispatch_token=NULL,attempts=0,last_error=NULL WHERE job_id=? AND state IN ('PENDING','BLOCKED') AND (last_error IS NULL OR last_error<>'UNCERTAIN_PAID_SUBMISSION') AND (lease_until IS NULL OR lease_until<=?) RETURNING job_id`).bind(new Date().toISOString(),jobId,new Date().toISOString()).first();
+ if(!changed)throw Error('POLL_STATE_CHANGED');
  await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=0 WHERE feed_id=? AND token IS NULL').bind(request.scope.feedId).run();
 }

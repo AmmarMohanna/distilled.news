@@ -21,12 +21,16 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
   if(!definitionSource || !['hourly','daily','weekly'].includes(p.cadence)) throw new HandoffError('INVALID_REQUEST');
   const url=definitionSource.canonicalUrl;
   const sourceId=await sha256(canonicalJson(definitionSource.identity));
-  const [priorFeed,priorScope,catalog,binding]=await Promise.all([
-   db.prepare('SELECT json,epoch FROM v1_feeds WHERE id=?').bind(p.feedId).first<{json:string;epoch:number}>(),
-   db.prepare('SELECT json,epoch FROM v1_intake_scopes WHERE id=?').bind(id).first<{json:string;epoch:number}>(),
-   db.prepare('SELECT json FROM v1_source_catalog WHERE id=?').bind(sourceId).first<{json:string}>(),
-   db.prepare('SELECT source_id,configuration FROM v1_product_bindings WHERE feed_source_id=?').bind(id).first<{source_id:string;configuration:string}>()
+  // One read batch reduces polling RPCs and observes the enrollment metadata
+  // together. The existing product/scope/feed CAS guards remain unchanged.
+  const [feedRows,scopeRows,catalogRows,bindingRows]=await db.batch([
+   db.prepare('SELECT json,epoch FROM v1_feeds WHERE id=?').bind(p.feedId),
+   db.prepare('SELECT json,epoch FROM v1_intake_scopes WHERE id=?').bind(id),
+   db.prepare('SELECT json FROM v1_source_catalog WHERE id=?').bind(sourceId),
+   db.prepare('SELECT source_id,configuration FROM v1_product_bindings WHERE feed_source_id=?').bind(id)
   ]);
+  const priorFeed=feedRows.results[0] as {json:string;epoch:number}|undefined,priorScope=scopeRows.results[0] as {json:string;epoch:number}|undefined,
+   catalog=catalogRows.results[0] as {json:string}|undefined,binding=bindingRows.results[0] as {source_id:string;configuration:string}|undefined;
   const existingFeed=priorFeed?JSON.parse(priorFeed.json) as FeedRecord:undefined,existingScope=priorScope?JSON.parse(priorScope.json) as IntakeScope:undefined;
   if(existingFeed?.deletedAt || existingScope?.deletedAt) throw new HandoffError('SCOPE_DENIED');
   if(existingFeed && existingFeed.ownerId!==ownerId || existingScope && (existingScope.sourceId!==sourceId || existingScope.feedId!==p.feedId) || binding && binding.source_id!==sourceId) throw new HandoffError('IDEMPOTENCY_CONFLICT');

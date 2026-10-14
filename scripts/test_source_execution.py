@@ -29,6 +29,21 @@ class RuntimeTests(unittest.TestCase):
         links.feed('<link rel="canonical" href="https://private.example/article">')
         self.assertIsNone(links.canonical)
 
+    def test_single_undated_article_does_not_emit_its_body_references(self):
+        fake = types.SimpleNamespace(bare_extraction=lambda *args, **kwargs: {'text': 'Article text', 'date': None})
+        with patch.dict('sys.modules', {'trafilatura': fake}):
+            result = runtime.extract({'url': 'https://publisher.example/news/story', 'html': '<article><p>News <a href="/other-story">reference</a></p></article>'})
+        self.assertEqual(result['pageKind'], 'article')
+        self.assertEqual(result['articleLinks'], [])
+        self.assertIsNone(result['publishedAt'])
+
+    def test_dated_homepage_lead_story_still_emits_a_listing(self):
+        fake = types.SimpleNamespace(bare_extraction=lambda *args, **kwargs: {'text': 'Lead story', 'date': '2026-10-14'})
+        with patch.dict('sys.modules', {'trafilatura': fake}):
+            result = runtime.extract({'url': 'https://publisher.example/', 'html': '<article><a href="/news/lead">Lead story</a></article>'})
+        self.assertEqual(result['pageKind'], 'listing')
+        self.assertEqual(result['articleLinks'], ['https://publisher.example/news/lead'])
+
     def test_google_feed_cannot_be_used_as_an_arbitrary_url_proxy(self):
         for url in ['https://127.0.0.1/rss/search', 'https://news.google.com/other', 'https://user@news.google.com/rss/search', 'http://news.google.com/rss/search']:
             with self.assertRaises(ValueError): runtime.fetch_google_feed({'url': url})

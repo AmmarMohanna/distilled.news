@@ -58,6 +58,12 @@ approved source IDs. `coalescedProcessingQueue` suppresses repeated sends while
 allowing expired deliveries to resume. The existing canonical job leases and
 revision rules remain authoritative.
 
+`connector_relay` deliveries execute on the processing queue with their own
+renewable, fenced lease. Collection consumers only schedule/deliver those relays;
+they do not run the intelligence graph inline. Enrollment metadata reads are
+batched, and source authorization reads the product row plus intake fence in one
+query. Both changes preserve configuration checks and canonical CAS guards.
+
 Before dispatching `v1_briefing`, collection scheduled before that publication
 boundary must finish. Its original `scheduled_at` survives retries. Later
 collection windows do not hold an earlier briefing indefinitely. A blocked source
@@ -80,6 +86,12 @@ provider separately**. X primary and X fallback have separate ledgers. This is
 a cumulative reservation allowance, not a daily reset or measured invoice cost.
 Aggregate operator authorizations and per-operation reservation ceilings remain
 additional checks. None are silently replenished by retries or source inputs.
+Queue mode initializes missing grants once, in a batch, and never overwrites an
+existing operator grant. Paid dispatch checks both the deployment authorization
+and persisted D1 grant in the reservation transaction. Setting the D1 grant to
+zero immediately revokes new spending even while old deployment settings remain.
+Completed paid results can still replay without another external request. The
+API immediately reports exhausted/revoked providers and retains funded fallbacks.
 
 The QA database's aggregate limits differed from its deployed text settings.
 Rollout configuration preserves the actual authorized D1 limits and reservations.
@@ -88,6 +100,9 @@ when initializing the new ledger. Unattributed uncertain legacy submissions bloc
 new dispatch until reconciled. New operations persist financial source scope.
 Primary budget exhaustion can proceed to an independently funded fallback;
 uncertain submission and policy refusal cannot initiate a blind replacement call.
+An unresolved paid submission also fences later polling windows and other paid
+providers for that same FeedSource. The fence is checked atomically with the
+reservation; another feed/source retains independent authorization and history.
 
 For a new operator authorization, review then run:
 
@@ -95,6 +110,9 @@ For a new operator authorization, review then run:
 node scripts/authorize-source-provider.mjs --provider x_twitterapi_io --aggregate-usd <explicit-total> --operation-ceiling-usd 0.1
 # Add --apply only after reviewing the authorization. This edits local config;
 # it does not deploy, install credentials or reset existing reservations.
+# To explicitly update the persisted QA grant as well as local configuration:
+node scripts/authorize-source-provider.mjs --provider x_twitterapi_io --aggregate-usd <explicit-total> --operation-ceiling-usd 0.1 --apply --remote
+# Revocation: --aggregate-usd 0 --operation-ceiling-usd 0 --apply --remote
 ```
 
 ## Rollout and rollback
@@ -105,7 +123,10 @@ node scripts/authorize-source-provider.mjs --provider x_twitterapi_io --aggregat
    D1 queries; keep the backup out of Git and shared documents.
 3. Run `scripts/prepare-connector-scale-qa.ps1 -Apply` after dependency installation.
    It backs up QA, provisions collection/DLQ queues and applies additive migrations
-   `0048_connector_scaling.sql` and `0050_connector_financial_scope.sql`. Migration
+   `0048_connector_scaling.sql`, `0050_connector_financial_scope.sql` and
+   `0051_connector_feed_scope_index.sql`, `0052_connector_relay_lease.sql`, and
+   `0053_connector_uncertain_scope_index.sql`. The indexes prevent canonical
+   feed snapshots and unresolved paid-operation checks from scanning all deployment sources. Migration
    names are tracked independently; do not replace other contributors' 0048/0049
    migrations with this file just because their numeric prefixes overlap.
 4. Back up the VPS helper, atomically replace its three execution files and restart
@@ -138,6 +159,14 @@ test shares one HTTP fetch across 1,000 authorized consumers. These are componen
 and integration load checks, **not a live 1,000-feed end-to-end soak**.
 
 Run `node scripts/test-connector-scale.mjs` to reproduce the 1,000-feed check.
+Run `node scripts/test-connector-scale.mjs --collect` for the opt-in actual
+collection workload: real D1 configuration, claims, R2 payloads, independent
+intake receipts and checkpoints across 1,000 feeds with eight queue consumers.
+It uses a simulated empty public RSS resource, so it measures collection
+transport and sharing, not article extraction, real providers or editorial load.
+It retains real cache expiry/backoff and reports phase latency and revalidation.
+It also reports database round trips and statement counts by phase. An empty RSS
+resource deliberately does not imply article/model throughput or sustained capacity.
 Use `scripts/connector-scale-metrics.sql` with remote `wrangler d1 execute --file`
 to compare backlog, oldest due time, held publication windows, failures, storage,
 cache and conservative reservations over time. Pair it with Cloudflare queue
@@ -154,6 +183,19 @@ requires a channel the tester owns; public-channel rechecks cannot manufacture i
 
 Full suite and live results must be reported separately from the targeted checks.
 No 1,000-feed production-capacity claim follows solely from these tests.
+
+The pre-optimization collection workload timed out after ten minutes: first at
+800/1,000 feed handlers with inline downstream dispatch; then, after separating
+the relay, at 800/1,000 poll handlers. Those are failed capacity observations,
+not passes. Further measurements must include warm repeated polling waves and
+compare their drain time to the configured five-minute collection interval.
+
+Canonical evidence/connector fetch history does not currently have complete
+retention cleanup. At five-minute cadence, 1,000 single-source feeds can produce
+288,000 polling windows per day before additional sources/pages/retries. Measure
+D1 bytes and retained rows per window before rollout. A retention/archive change
+needs coordination under the parallel agreement, must preserve all exact support
+for published editions, and must not reset financial reservations or idempotency.
 
 ## October 13 rollout record
 

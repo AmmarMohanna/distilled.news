@@ -1,6 +1,6 @@
 import {afterAll,beforeAll,expect,it,vi} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
-import {dispatchConnectorFeeds,dispatchConnectorPolls,coalescedProcessingQueue,processConnectorMessage,connectorDownstreamEnv,completeConnectorDownstream,collectionReadyForWindow} from './connector-scheduling';
+import {dispatchConnectorFeeds,dispatchConnectorPolls,coalescedProcessingQueue,processConnectorMessage,connectorDownstreamEnv,completeConnectorDownstream,collectionReadyForWindow,type ConnectorQueueMessage} from './connector-scheduling';
 import {sharedPublicHttp} from './connector-public-cache';
 import {DurableProviderHttp,sourceSqlFromD1} from '@distilled/connectors';
 import type {Env} from './types';
@@ -8,6 +8,7 @@ import {processV1Acquisition} from './v1-downstream-runtime';
 import {processV1Reassessment} from './v1-intelligence/runtime';
 import {verifyConnectorAuthority} from './connector-authority';
 import {handoffFixture} from '@distilled/contracts';
+import {feedSourceAvailability} from './connector-availability';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env;
 const messages:unknown[]=[];
@@ -28,6 +29,8 @@ it('dispatches 1,000 feeds in bounded indexed batches, with no repeated sends be
  messages.length=0;const start=performance.now();
  const plans=await ctx.db.prepare('EXPLAIN QUERY PLAN SELECT feed_id FROM connector_feed_schedule WHERE due_ms<=? ORDER BY due_ms,feed_id LIMIT 100').bind(1).all<{detail:string}>();
  expect(plans.results.some(p=>p.detail.includes('connector_feed_due'))).toBe(true);
+ const scopePlan=await ctx.db.prepare('EXPLAIN QUERY PLAN SELECT id,epoch FROM v1_intake_scopes WHERE feed_id=? ORDER BY id').bind('scale-0001').all<{detail:string}>();
+ expect(scopePlan.results.some(p=>p.detail.includes('connector_intake_feed'))).toBe(true);
  for(let i=0;i<10;i++)expect(await dispatchConnectorFeeds(env,1000)).toBe(100);
  expect(await dispatchConnectorFeeds(env,1000)).toBe(0);
  const ids=messages.map(m=>(m as {body:{feedId:string}}).body.feedId);
@@ -58,6 +61,25 @@ it('coalesces duplicate downstream delivery without losing crash recovery',async
  await Promise.all(Array.from({length:10},()=>coalescedProcessingQueue(env,1000).send(body)));
  expect(messages).toHaveLength(1);
  await coalescedProcessingQueue(env,121001).send(body);expect(messages).toHaveLength(2);
+});
+
+it('batch downstream sends retain coalescing and their per-message delay',async()=>{
+ const deliveries:unknown[]=[];
+ const runtime={...env,PROCESSING_QUEUE:{send:async(body:unknown,options:unknown)=>{deliveries.push({body,options})},sendBatch:async()=>{throw Error('bypass')}}} as unknown as Env;
+ const queue=coalescedProcessingQueue(runtime,1000);
+ await queue.sendBatch([{body:{type:'v1_reassess',jobId:'batch-review'},delaySeconds:9},{body:{type:'v1_reassess',jobId:'batch-review'},delaySeconds:9}]);
+ expect(deliveries).toEqual([{body:{type:'v1_reassess',jobId:'batch-review'},options:{delaySeconds:9}}]);
+});
+
+it('persisted provider revocations and exhausted source budgets are immediately visible',async()=>{
+ const feedId='scale-0060',id=feedId+'-x';
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES(?,?,'NASA','channel','twitterapi_io','x_profile','https://x.com/NASA','{\"username\":\"NASA\"}',1,'connector','2026-10-13','2026-10-13','2026-10-13')").bind(id,feedId).run();
+ await ctx.db.prepare("INSERT INTO connector_provider_budgets(provider_id,limit_usd) VALUES('x_twitterapi_io',0) ON CONFLICT(provider_id) DO UPDATE SET limit_usd=0").run();
+ await ctx.db.prepare("INSERT INTO connector_provider_budgets(provider_id,limit_usd) VALUES('x_apify',100) ON CONFLICT(provider_id) DO UPDATE SET limit_usd=100").run();
+ const runtime={...env,SOURCE_PROVIDER_BUDGETS_JSON:'{"x_twitterapi_io":100,"x_apify":100}',SOURCE_OPERATION_CEILINGS_JSON:'{"twitterApiIo":1,"apify":1}',SOURCE_PER_PROVIDER_BUDGET_USD:'15',TWITTERAPI_IO_API_KEY:'test-primary',APIFY_API_TOKEN:'test-fallback'} as Env;
+ expect((await feedSourceAvailability(runtime,feedId)).find(s=>s.sourceId===id)).toMatchObject({state:'AVAILABLE',providers:['x_apify']});
+ await ctx.db.prepare("INSERT INTO connector_source_provider_budgets(feed_id,feed_source_id,provider_id,reserved_usd) VALUES(?,?,'x_apify',15)").bind(feedId,id).run();
+ expect((await feedSourceAvailability(runtime,feedId)).find(s=>s.sourceId===id)).toMatchObject({state:'UNAVAILABLE',reason:'BUDGET_EXHAUSTED',providers:[]});
 });
 
 it('rechecks feed authorization before executing a queued tick',async()=>{
@@ -103,7 +125,7 @@ it('the new queue path acquires a full article and reaches intelligence with a f
  const fixture=vi.fn(async(url:unknown)=>String(url).endsWith('feed.xml')?new Response(`<rss><channel><item><guid>launch</guid><title>Launch update</title><link>https://example.com/news/launch</link><pubDate>${published}</pubDate><description>Short excerpt.</description></item></channel></rss>`):new Response(`<meta property="article:published_time" content="${published}"><h1>Launch update</h1><article>${'The launch completed successfully. '.repeat(20)}</article>`));
  const fetch=vi.spyOn(globalThis,'fetch').mockImplementation(fixture);
  const runtime={...env,RAW_ARCHIVE:bucket,SOURCE_FULL_ARTICLES_ENABLED:'true',SOURCE_SHARED_PUBLIC_FETCH_ENABLED:'true',V1_SEMANTIC_POLICY:'DETERMINISTIC'} as Env;
- const tick=async(token:string)=>{await ctx.db.prepare('UPDATE connector_feed_schedule SET token=?,processing_until=0 WHERE feed_id=?').bind(token,feedId).run();await processConnectorMessage(runtime,{type:'connector_feed',feedId,token});};
+ const tick=async(token:string)=>{await ctx.db.prepare('UPDATE connector_feed_schedule SET token=?,processing_until=0 WHERE feed_id=?').bind(token,feedId).run();await processConnectorMessage(runtime,{type:'connector_feed',feedId,token});const index=messages.findIndex((m:any)=>m.type==='connector_relay'&&m.feedId===feedId);if(index>=0)await processConnectorMessage(runtime,messages.splice(index,1)[0] as ConnectorQueueMessage);};
  try{
   await tick('initial');
   const poll=messages.find((m:any)=>m.body?.type==='connector_poll'&&m.body.feedId===feedId) as {body:Parameters<typeof processConnectorMessage>[1]};expect(poll).toBeDefined();

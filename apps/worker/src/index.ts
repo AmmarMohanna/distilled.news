@@ -46,7 +46,7 @@ export default {
     const summaryAdapter = createSummaryAdapterFromEnv(env, repo);
     const reviewAdapter = createEventReviewAdapterFromEnv(env, repo);
     for (const message of batch.messages) {
-      if(isRecord(message.body)&&['connector_feed','connector_poll'].includes(String(message.body.type))){
+      if(isRecord(message.body)&&['connector_feed','connector_poll','connector_relay'].includes(String(message.body.type))){
         try{await processConnectorMessage(env,message.body as ConnectorQueueMessage);message.ack();}
         catch{await recordConnectorQueueFailure(env,message.id,message.body as ConnectorQueueMessage,message.attempts);message.retry({delaySeconds:retryDelaySeconds(message.attempts)});}
         continue;

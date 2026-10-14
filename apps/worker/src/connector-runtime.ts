@@ -3,7 +3,7 @@ import {DEFAULT_SOURCE_ORDER,type SourceFetchRequest} from '@distilled/connector
 import {createSourceBackend} from './source-backend';
 import {acceptV1Handoff,v1SourceEnabled} from './v1-downstream-runtime';
 import {enrollV1Source} from './v1-intelligence/product';
-import {V1IntakeStore} from './v1-intake/store';
+import type {IntakeScope} from './v1-intake/types';
 import type {Env} from './types';
 import {productConnectorSource} from './connector-source';
 import {canonicalJson} from './v1-intake/canonical';
@@ -11,8 +11,10 @@ import {canonicalJson} from './v1-intake/canonical';
 /** Reads current approved product state; never enrolls or repairs stale queued work. */
 export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Promise<boolean> {
  if(env.SOURCE_CONNECTORS_ENABLED!=='true'||!v1SourceEnabled(env,r.scope.feedSourceId)&&!(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&env.PRODUCT_FEEDS_ENABLED==='true'&&env.V1_DOWNSTREAM_ENABLED==='true'))return false;
- const p=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.briefing_id=? AND s.enabled=1 AND s.collection_owner='connector' AND b.paused=0 AND a.disabled_at IS NULL`).bind(r.scope.feedSourceId,r.scope.feedId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null}>();
- const scope=await new V1IntakeStore(env.DB).getScope(r.scope.feedSourceId);
+ // Observe product authorization and its intake fence in one query, rather
+ // than making two database round trips at every transport/cache boundary.
+ const p=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,v.json AS scope_json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id JOIN v1_intake_scopes v ON v.id=s.id WHERE s.id=? AND s.briefing_id=? AND s.enabled=1 AND s.collection_owner='connector' AND b.paused=0 AND a.disabled_at IS NULL`).bind(r.scope.feedSourceId,r.scope.feedId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;scope_json:string}>();
+ const scope=p?JSON.parse(p.scope_json) as IntakeScope:undefined;
  const approved=p?productConnectorSource(p):undefined;
  return !!approved && canonicalJson(approved.source)===canonicalJson(r.source) && !!scope?.enabled && !scope.deletedAt && scope.sourceId===r.scope.sourceId && scope.feedId===r.scope.feedId && scope.feedRevision===r.configurationRevision && (r.limit===approved.limit||env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&r.source.family==='website'&&r.limit===30) && Object.keys(r.requestedBounds).length===0 && (!['telegram','website'].includes(r.source.family)||!!env.SOURCE_EXECUTION_TOKEN&&!!env.SOURCE_EXECUTION_SERVICE);
 }
@@ -22,6 +24,7 @@ export function createConnectorRuntime(env:Env,fetcher?:typeof fetch) {
  return createSourceBackend(env,{authorize,intake,fetcher,providerPageLimit:100,intakeForRequest:r=>({acceptBatch:batch=>acceptV1Handoff(env,batch,r.configurationRevision)})});
 }
 /** Aggregate D1 reservations are separate from per-operation ceilings. No setting means no paid dispatch. */
+const budgetInitializations=new WeakMap<D1Database,{key:string;ready:Promise<void>}>();
 export async function configureConnectorBudgets(env:Env,backend:ReturnType<typeof createConnectorRuntime>) {
  const allowed=['x_twitterapi_io','x_apify','google_apify','linkedin_apify','zyte'] as const;
  let limits:unknown={};
@@ -29,8 +32,17 @@ export async function configureConnectorBudgets(env:Env,backend:ReturnType<typeo
  if(!limits||typeof limits!=='object'||Array.isArray(limits)||Object.keys(limits).some(key=>!allowed.includes(key as typeof allowed[number])))throw new Error('INVALID_SOURCE_BUDGETS');
  const values=allowed.map(id=>({id,value:(limits as Record<string,unknown>)[id]??0}));
  if(values.some(({value})=>typeof value!=='number'||!Number.isFinite(value)||value<0))throw new Error('INVALID_SOURCE_BUDGETS');
- for(const {id,value} of values)await backend.paidHttp.configureLimit(id,value as number);
- return Object.fromEntries(values.map(({id,value})=>[id,value as number])) as Record<typeof allowed[number],number>;
+ const budgets=Object.fromEntries(values.map(({id,value})=>[id,value as number])) as Record<typeof allowed[number],number>;
+ if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+  const key=JSON.stringify(budgets),prior=budgetInitializations.get(env.DB);
+  if(prior?.key===key)await prior.ready;
+  else{
+   const entry={key,ready:backend.paidHttp.configureLimits(budgets,true)};
+   budgetInitializations.set(env.DB,entry);
+   try{await entry.ready;}catch(error){if(budgetInitializations.get(env.DB)===entry)budgetInitializations.delete(env.DB);throw error;}
+  }
+ }else await backend.paidHttp.configureLimits(budgets);
+ return budgets;
 }
 /** A bounded edit pass reads only accepted recent IDs. It never advances the
  * new-message cursor and never interprets a missing recheck as deletion. */

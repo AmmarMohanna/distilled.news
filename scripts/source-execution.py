@@ -63,9 +63,15 @@ class ArticleLinks(HTMLParser):
     def __init__(self, base):
         super().__init__()
         self.base, self.depth, self.links, self.canonical, self.article_count = base, 0, [], None, 0
+        self.article_metadata = False
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if tag == 'meta':
+            prop = attrs.get('property', attrs.get('name', '')).lower()
+            content = attrs.get('content', '').strip().lower()
+            if (prop == 'og:type' and content in ('article', 'newsarticle', 'blogposting')) or (prop == 'article:published_time' and content):
+                self.article_metadata = True
         if tag == 'article':
             self.depth += 1
             self.article_count += 1
@@ -96,15 +102,22 @@ def extract(data):
                                         include_images=False, include_tables=True, with_metadata=True)
     links = ArticleLinks(data['url'])
     links.feed(data['html'])
+    # A publisher landing page remains a listing even if the extractor finds a
+    # date on its lead story. Conversely, links within a single article are
+    # citations/related stories, not a recursively discoverable news inventory.
+    landing = bool(re.fullmatch(r'/(?:news|technology|business|ai|games|stories|articles|latest)?/?', urlsplit(data['url']).path))
+    article_metadata = links.article_metadata or bool(re.search(r'"@type"\s*:\s*"(?:NewsArticle|Article|BlogPosting)"', data['html'], re.I))
+    page_kind = 'listing' if landing else 'article' if article_metadata or links.article_count == 1 else 'listing' if links.article_count > 1 else 'unknown'
+    inventory = links.links if page_kind == 'listing' else []
     if not result:
-        return {'body': '', 'articleLinks': links.links, 'canonicalUrl': links.canonical,
-                'pageKind': 'listing' if links.article_count > 1 else 'unknown'}
+        return {'body': '', 'articleLinks': inventory, 'canonicalUrl': links.canonical,
+                'pageKind': page_kind}
     if not isinstance(result, dict):
         result = result.as_dict()
     return {'body': result.get('text', ''), 'title': result.get('title'),
             'publishedAt': result.get('date'), 'language': result.get('language'),
-            'canonicalUrl': links.canonical, 'articleLinks': links.links,
-            'pageKind': 'listing' if links.article_count > 1 else 'article' if links.article_count == 1 else 'unknown'}
+            'canonicalUrl': links.canonical, 'articleLinks': inventory,
+            'pageKind': page_kind}
 
 
 def fetch_google_feed(data):
