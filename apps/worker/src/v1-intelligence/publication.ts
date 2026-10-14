@@ -1,3 +1,4 @@
+import {ASYNC_MODEL_CALL_MS,ASYNC_OPERATION_LEASE_MS,ASYNC_PROCESSING_SLICE_MS} from './operation-timing';
 import {readerVerificationHistoryMatches} from './reader-history';
 import {editorialContextFacts} from './editorial-context';
 import {deferEditorialWork} from './editorial-work';
@@ -244,7 +245,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   if(prior?.pendingCall && !safeFallback&&!safeAdaptive || !adaptiveExecution&&(prior?.attempts??0)>=5 || prior?.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
   const input=await selectionInput(tx,selection,adaptiveExecution);
   if(options.requireModel&&input.editorialPlan?.route!=='GPT')throw new HandoffError('INVALID_REQUEST');
-  const job:PublicationJob={id:editionId,feedId,selectionId,state:'RUNNING',attempts:(prior?.attempts??0)+1,token,leaseUntil:new Date(Date.parse(now)+selection.budget.maxWallClockMs).toISOString(),callsUsed:prior?.callsUsed??0,tokensIn:prior?.tokensIn??0,tokensOut:prior?.tokensOut??0,cost:prior?.cost??0,pendingCall:prior?.pendingCall,repairRequested:prior?.repairRequested};
+  const job:PublicationJob={id:editionId,feedId,selectionId,state:'RUNNING',attempts:(prior?.attempts??0)+1,token,leaseUntil:new Date(Date.parse(now)+(adaptiveExecution?ASYNC_OPERATION_LEASE_MS:selection.budget.maxWallClockMs)).toISOString(),callsUsed:prior?.callsUsed??0,tokensIn:prior?.tokensIn??0,tokensOut:prior?.tokensOut??0,cost:prior?.cost??0,pendingCall:prior?.pendingCall,repairRequested:prior?.repairRequested};
   await tx.write('synthesis_jobs',editionId,job);return {input,authorizationScopes:tx.snapshot.scopes};
  });
  if(claimed.edition) return claimed.edition;
@@ -285,11 +286,11 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   const operation={feedId,feedRevision:selection.feedRevision,evidenceRevisionIds:[...new Set(input.stories.flatMap(s=>s.evidence.map(e=>e.id)))],kind:'PUBLICATION_'+phase,policyVersion:'adaptive-publication-operations-v1:'+model.promptVersion,model:model.model,budgetKey:'publication:'+editionId,state:{selectionId,resultKey,payload,publicationScope:reuseScope}};
   const operationId=await sha256(canonicalJson(operation));
   const retained=await store.read(feedId,'semantic_results',operationId)??await store.read(feedId,'semantic_settlements',operationId);
-  if(!retained&&Date.now()+60000>started+Math.max(90000,selection.budget.maxWallClockMs))throw new ModelSpendingWait('PUBLICATION_EXECUTION_YIELD');
-  await feedTransact(store,feedId,async tx=>{await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,pendingCall:operationId,leaseUntil:new Date(Date.parse(options.now())+90000).toISOString()})});
+  if(!retained&&Date.now()+ASYNC_MODEL_CALL_MS>started+Math.max(ASYNC_PROCESSING_SLICE_MS,selection.budget.maxWallClockMs))throw new ModelSpendingWait('PUBLICATION_EXECUTION_YIELD');
+  await feedTransact(store,feedId,async tx=>{await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,pendingCall:operationId,leaseUntil:new Date(Date.parse(options.now())+ASYNC_OPERATION_LEASE_MS).toISOString()})});
   const saved=await durableSemanticOperation<T>(store,operation,async()=>{
    await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution)});
-   const result=await execute({maxOutputTokens:envelope.maxOutputTokens,signal:AbortSignal.timeout(60000)}),usage=usageSchema.parse(result.usage);
+   const result=await execute({maxOutputTokens:envelope.maxOutputTokens,signal:AbortSignal.timeout(ASYNC_MODEL_CALL_MS)}),usage=usageSchema.parse(result.usage);
    return {value:result,usage:{calls:1,tokensIn:usage.tokensIn,tokensOut:usage.tokensOut,costUsd:usage.cost,reported:usage.confirmed}};
   },options.now(),()=>{const usage=model.usage?.();return usage?{calls:1,costUsd:usage.cost,reported:usage.confirmed,tokensIn:usage.tokensIn,tokensOut:usage.tokensOut}:{calls:1,costUsd:envelope.reservationCostUsd,reported:false}},{operationAdmission:envelope,reuseContext:reuseScope});
   if(saved.status!=='SUCCEEDED'||!saved.value){

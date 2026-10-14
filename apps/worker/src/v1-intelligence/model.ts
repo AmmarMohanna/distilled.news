@@ -1,3 +1,4 @@
+import {ASYNC_MODEL_CALL_MS} from './operation-timing';
 import {admitModelOperation,modelCapability} from './model-capacity';
 import {boundedCompletion,type ModelOptions} from '../ai';
 import type {Env} from '../types';
@@ -10,8 +11,8 @@ export const APPROVED_FACT_PROMPT_VERSION='approved-fact-spans-editorial-v28';
 export function createStoredEvidenceModel(env:Env,fetcher:typeof fetch=fetch):BriefingModelPort|undefined {
  if(env.V1_SYNTHESIS_MODEL_ENABLED!=='true') return undefined;
  let options:ModelOptions;
- if(env.DISTILLED_LLM_API_GATEWAY==='openrouter' && env.OPENROUTER_API_KEY) options={accountId:'',gatewayId:'',apiKey:env.OPENROUTER_API_KEY,provider:'OPENROUTER',model:env.DISTILLED_LIVE_OPENROUTER_MODEL??'openai/gpt-4.1-mini',env,fetcher};
- else if(env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_AI_GATEWAY_ID && env.OPENAI_API_KEY) options={accountId:env.CLOUDFLARE_ACCOUNT_ID,gatewayId:env.CLOUDFLARE_AI_GATEWAY_ID,apiKey:env.OPENAI_API_KEY,gatewayAuthToken:env.CLOUDFLARE_AI_GATEWAY_TOKEN,model:env.OPENAI_MODEL??'gpt-4.1-mini',env,fetcher};
+ if(env.DISTILLED_LLM_API_GATEWAY==='openrouter' && env.OPENROUTER_API_KEY) options={accountId:'',gatewayId:'',apiKey:env.OPENROUTER_API_KEY,provider:'OPENROUTER',model:env.DISTILLED_LIVE_OPENROUTER_MODEL??'openai/gpt-4.1-mini',env,fetcher,timeoutMs:ASYNC_MODEL_CALL_MS};
+ else if(env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_AI_GATEWAY_ID && env.OPENAI_API_KEY) options={accountId:env.CLOUDFLARE_ACCOUNT_ID,gatewayId:env.CLOUDFLARE_AI_GATEWAY_ID,apiKey:env.OPENAI_API_KEY,gatewayAuthToken:env.CLOUDFLARE_AI_GATEWAY_TOKEN,model:env.OPENAI_MODEL??'gpt-4.1-mini',env,fetcher,timeoutMs:ASYNC_MODEL_CALL_MS};
  else return undefined;
  let latestUsage:ModelUsage={tokensIn:0,tokensOut:0,cost:0,confirmed:true};
  const capability=modelCapability(options.model,env.V1_MODEL_CAPABILITIES_JSON);

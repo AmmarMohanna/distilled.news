@@ -1,3 +1,4 @@
+import {ASYNC_MODEL_CALL_MS} from './operation-timing';
 import {readerHistoryMatches} from './reader-history';
 import {prepareGlobalEditorialContext} from './editorial-global-context';
 ﻿import {sha256} from '@distilled/contracts';
@@ -18,7 +19,7 @@ export async function prepareAdaptiveEditorialPlan(store:V1FeedStore,shortlist:S
  const feed=await store.getFeed(shortlist.feedId);
  const deadlineMs=options.deadlineMs??Date.now()+ADAPTIVE_BRIEFING_PROCESSING.maxWallClockMs;
  const frame=(scope:ShortlistRecord,context?:unknown)=>{const parent={...editorialPlannerState(scope,ADAPTIVE_BRIEFING_PROCESSING,feed,'CURRENT'),...(context?{comparativeContext:context}:{})},transport=compactEditorialInput(parent),state=keyedEditorialState(transport.state),schema=keyedEditorialPlanWireSchemaFor(transport.state,transport.contextFactCapabilities);return {state,schema,admission:strong.admission!(state,schema,'COMPARATIVE_EDITORIAL_PLAN')}};
- if(frame(shortlist).admission.fits&&Date.now()+60000<=deadlineMs)return prepareEditorialPlan(store,shortlist,ADAPTIVE_BRIEFING_PROCESSING,now,strong);
+ if(frame(shortlist).admission.fits&&Date.now()+ASYNC_MODEL_CALL_MS<=deadlineMs)return prepareEditorialPlan(store,shortlist,ADAPTIVE_BRIEFING_PROCESSING,now,strong);
  const id=await sha256(canonicalJson({shortlistId:shortlist.id,model:strong.model,policy:'global-editorial-continuation-v2'}));
  const existing=await store.read<EditorialPlanRecord>(shortlist.feedId,'editorial_plans',id);if(existing)return existing;
  const scopeFor=(candidates:ShortlistCandidate[]):ShortlistRecord=>({...shortlist,candidates,overflow:[],obligations:shortlist.obligations.filter(o=>candidates.some(c=>c.correctionObligationIds.includes(o.id))),ledger:shortlist.ledger.filter(e=>candidates.some(c=>readerHistoryMatches(c,e)||shortlist.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id))),evidenceRevisionIds:[...new Set(candidates.flatMap(c=>c.evidenceRevisionIds))]});
@@ -42,7 +43,7 @@ export async function prepareAdaptiveEditorialPlan(store:V1FeedStore,shortlist:S
  }if(pending.length){const scope=scopeFor(pending);scope.id=JSON.stringify([id,'GLOBAL_FINAL',global.root!.id,finalScopes.length]);finalScopes.push(scope)}
  await feedTransact(store,shortlist.feedId,async tx=>{for(const scope of finalScopes)if(!await tx.read('shortlists',scope.id))await tx.write('shortlists',scope.id,scope)});}
  for(const scope of finalScopes){
-  if(Date.now()+60000>deadlineMs)break;
+  if(Date.now()+ASYNC_MODEL_CALL_MS>deadlineMs)break;
   const plan=await prepareEditorialPlan(store,scope,ADAPTIVE_BRIEFING_PROCESSING,now,strong,{processingScope:'editorial-global:'+scope.id,comparativeContext:context});plans.push(plan);operationIds.push(...plan.modelOperationIds??[]);
   const operations=await Promise.all((plan.modelOperationIds??[]).map(op=>store.read<any>(shortlist.feedId,'semantic_results',op)));
   const offeredIds=plan.inputCoverage?.offeredTargetVersionIds??scope.candidates.map(c=>c.targetVersionId);

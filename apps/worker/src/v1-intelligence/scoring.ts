@@ -1,3 +1,4 @@
+import {ASYNC_PROCESSING_SLICE_MS} from './operation-timing';
 import {editorialContextFacts} from './editorial-context';
 import {HandoffError,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,sha256,type EventVersion,type EventMembership,type EvidenceRevision,type EventSalienceAssessment,type UserRelevance,type WindowScore,type BriefingCandidate,type TargetType} from '@distilled/contracts';
 import {z} from 'zod';
@@ -22,7 +23,7 @@ const salienceScorer=new DeterministicSalienceScorer();
 export interface BriefingBudget {mode?:'ADAPTIVE';maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
 /** Zero legacy dimensions are explicit, ignored sentinels, never tiny fallback quotas.
  * Context/output admission belongs to each model operation; spending belongs to the account ledger. */
-export const ADAPTIVE_BRIEFING_PROCESSING:BriefingBudget={mode:'ADAPTIVE',maxStories:0,maxReadingWords:0,maxEvidenceInspections:0,maxInputTokens:0,maxOutputTokens:0,maxModelCalls:0,maxCostUsd:0,maxPerPublisher:0,maxWallClockMs:90000};
+export const ADAPTIVE_BRIEFING_PROCESSING:BriefingBudget={mode:'ADAPTIVE',maxStories:0,maxReadingWords:0,maxEvidenceInspections:0,maxInputTokens:0,maxOutputTokens:0,maxModelCalls:0,maxCostUsd:0,maxPerPublisher:0,maxWallClockMs:ASYNC_PROCESSING_SLICE_MS};
 export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:4,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
 export interface PublicationWindow {start:string;end:string;kind:'30M'|'HOURLY'|'DAILY'|'WEEKLY';durationMinutes?:LiveInterval;timezone?:string;deliveryAnchor?:string;schedulePolicy?:'local-calendar-anchors-v1'}
 export interface SelectionRecord {id:string;feedId:string;feedRevision:number;window:PublicationWindow;candidateIds:string[];selectedCandidateIds:string[];evidenceByCandidate:Record<string,string[]>;budget:BriefingBudget;policyVersion:string;computedAt:string;omissions:{candidateId:string;reason:string}[];editorialByCandidate?:Record<string,EditorialDecision>;communicationFingerprint?:string;editorialPlanId?:string;deferredProtectedTargetIds?:string[]}

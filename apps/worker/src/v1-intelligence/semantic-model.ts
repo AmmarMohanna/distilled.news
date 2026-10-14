@@ -1,3 +1,4 @@
+import {ASYNC_MODEL_CALL_MS,ASYNC_JUDGMENT_CALL_MS} from './operation-timing';
 import {ProviderRequestError} from '../provider-outcome';
 import {admitModelOperation,modelCapability,type ModelAdmission} from './model-capacity';
 import {boundedCompletion} from '../ai';
@@ -17,7 +18,7 @@ export function createStrongSemanticModel(env:Env,fetcher:typeof fetch=fetch,pur
   // Complete construction, targeted repair and reconciliation need the same
   // operational headroom as comparative planning. Durable ownership is renewed
   // before each operation; all remain below the 90-second financial lease.
-  const timeoutMs=phase==='COMPARATIVE_EDITORIAL_PLAN'||phase.startsWith('SEMANTIC_')?60000:10000;
+  const timeoutMs=phase==='COMPARATIVE_EDITORIAL_PLAN'||phase.startsWith('SEMANTIC_')?ASYNC_MODEL_CALL_MS:ASYNC_JUDGMENT_CALL_MS;
   let value:Record<string,unknown>;try{value=await boundedCompletion({accountId:'',gatewayId:'',apiKey:env.OPENROUTER_API_KEY!,provider:'OPENROUTER',model,fetcher,timeoutMs,usageRecorder:async record=>{usage={calls:1,tokensIn:record.inputTokens,tokensOut:record.outputTokens,costUsd:record.reportedCostUsd??envelope.reservationCostUsd,reported:record.reportedCostUsd!==undefined}}},feedId,'event_review',phase,JSON.stringify(state),schema,{maxOutputTokens:envelope.maxOutputTokens,signal:new AbortController().signal});
   }catch(error){if(error instanceof ProviderRequestError)throw new ProviderRequestError('SEMANTIC_'+error.message,error.providerDiagnostic);throw Error(error instanceof Error&&/^MODEL_|^PROVIDER_HTTP_/.test(error.message)?`SEMANTIC_${error.message}`:"SEMANTIC_PROVIDER_FAILURE")}
   return {value,usage};

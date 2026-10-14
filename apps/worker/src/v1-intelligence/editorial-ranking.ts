@@ -1,3 +1,4 @@
+import {ASYNC_JUDGMENT_CALL_MS} from './operation-timing';
 import {modelCapability} from './model-capacity';
 import {tokens} from './policies';
 import type {ShortlistCandidate} from './shortlist';
@@ -31,7 +32,7 @@ export async function rankEditorialCandidates(store:V1FeedStore,env:Env,feed:Fee
  for(let offset=0;offset<ordered.length;offset+=8){
   const batch=ordered.slice(offset,offset+8),state={feed:{title:feed.title,interests:feed.interests,geography:feed.geography},candidates:batch.map((c,i)=>({key:`candidate_${String.fromCharCode(97+i)}`,sourceTitles:c.sourceTitles?.join(' '),facts:c.facts.map(f=>f.text).join(' ')}))};
   const questions:Record<string,SemanticQuestion>=Object.fromEntries(batch.map((c,i)=>[`candidate_${String.fromCharCode(97+i)}`,{kind:'SCORE',instructions:`How relevant is this supported development to the Feed: ${[feed.title,...feed.interests].join('; ')}? Development: ${c.facts.map(f=>f.text).join(' ')}. Source headline context: ${(c.sourceTitles??[]).join('; ')}. Judge this development, not other candidates. Topic adjacency alone is weak. Unknown relevance is not irrelevance. Do not assess source popularity.`,levels:['Clearly unrelated','Uncertain or tangential','Directly relevant']} satisfies SemanticQuestion]));
-  const client=new OpenRouterJudgmentClient({kind:'JEV',model,apiKey:env.OPENROUTER_API_KEY,durable:true,capability:modelCapability(model,env.V1_MODEL_CAPABILITIES_JSON),timeoutMs:10000,fetcher});
+  const client=new OpenRouterJudgmentClient({kind:'JEV',model,apiKey:env.OPENROUTER_API_KEY,durable:true,capability:modelCapability(model,env.V1_MODEL_CAPABILITIES_JSON),timeoutMs:ASYNC_JUDGMENT_CALL_MS,fetcher});
   const result=await durableSemanticOperation(store,{feedId:feed.id,feedRevision:feed.revision,evidenceRevisionIds:[...new Set(batch.flatMap(c=>c.evidenceRevisionIds))],kind:'EDITORIAL_RELEVANCE',policyVersion:'complete-source-relevance-v4',model,budgetKey:'relevance:'+feed.revision,state},async()=>{const r=await client.decide(state,questions);return {value:r.answers,usage:r.usage}},now,()=>client.usage(),{operationAdmission:client.admission(state,questions),reuseContext:{state}});
   batch.forEach((c,i)=>{c.ranking={...c.ranking!,operationId:result.id,...(result.status!=='SUCCEEDED'?{pendingReason:result.failure??'RELEVANCE_PENDING'}:{})};const answer=result.value?.[`candidate_${String.fromCharCode(97+i)}`];if(result.status==='SUCCEEDED'&&answer?.kind==='SCORE'&&answer.confidence>=.6){const old=c.ranking!;c.ranking={...old,relevance:answer.value,relevanceConfidence:answer.confidence,source:'JEV',score:old.score+.5*(answer.value-old.relevance),operationId:result.id}}});
  }

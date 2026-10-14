@@ -1,3 +1,4 @@
+import {ASYNC_MODEL_CALL_MS} from './operation-timing';
 import {z} from 'zod';
 import {sha256} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -20,7 +21,7 @@ export async function prepareGlobalEditorialContext(store:V1FeedStore,shortlist:
   const state=stateFor(children.map(({id,value})=>({id,value})),level),wire=schema(children.map(c=>c.id)),id=await sha256(canonicalJson({feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,communicationFingerprint:shortlist.communicationFingerprint,model:strong.model,policy,level,children:children.map(c=>c.id)}));
   const op={feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:policy,model:strong.model,budgetKey:'editorial-context:'+id,state};
   const prior=await store.read<any>(shortlist.feedId,'semantic_results',await sha256(canonicalJson(op)));
-  if(!prior&&Date.now()+60000>deadlineMs)return {reason:'EDITORIAL_EXECUTION_YIELD'};
+  if(!prior&&Date.now()+ASYNC_MODEL_CALL_MS>deadlineMs)return {reason:'EDITORIAL_EXECUTION_YIELD'};
   const result=await durableSemanticOperation(store,op,async()=>{const response=await strong.complete(shortlist.feedId,'COMPARATIVE_EDITORIAL_PLAN',state,wire),value=synopsis.parse(response.value),allowed=new Set(children.map(c=>c.id)),covered=new Set(value.themes.flatMap(t=>t.childIds));if([...covered].some(id=>!allowed.has(id))||[...allowed].some(id=>!covered.has(id)))throw Error('SEMANTIC_EDITORIAL_CONTEXT_REFERENCE_INVALID');return {value,usage:response.usage}},now,()=>strong.usage(),{operationAdmission:strong.admission?.(state,wire,'COMPARATIVE_EDITORIAL_PLAN'),reuseContext:{state}});
   if(result.usage.calls>0&&!operationIds.includes(result.id))operationIds.push(result.id);
   if(result.status!=='SUCCEEDED'||!result.value)return {reason:result.failure??'EDITORIAL_CONTEXT_UNRESOLVED'};
