@@ -531,3 +531,43 @@ window; diagnosis and operator-approved reactivation of the specific MTV X sourc
 a live evidence-to-Event-to-editorial-to-published-fact/reader-history audit; and
 sustained mixed-source operation with retention at 1,000 feeds. The previously
 passing simulated 1,000-feed collection cycle does not certify those live gates.
+
+### Deployed merge and live closeout (October 14, 19:58 UTC)
+
+Merge commit `34a7a6c` was pushed to `origin/backend-sources-reiteration`; the
+verified GitHub head matched the local commit. QA runs that code as Worker version
+`0880e3bc-897d-4b95-878e-c74d2a1bf9f7`. Previous Worker version
+`f3a9692f-74e4-4547-abc8-13cc6d314193` remains the rollback target; additive tables
+can remain if rolling back. Production and other remote branches were not changed.
+
+The deployed index and its exact new `index-Bp6wyXX2.js` asset both returned HTTP
+200. Cloudflare consumer settings confirm native autoscaling for the acquisition
+and V1 queues, with collection concurrency remaining eight. Four independent Feed
+intelligence turns were active in the first sample. Native DLQ/recovery state was
+preserved rather than purged; existing historical backlogs remain.
+
+The VPS helper passes its post-install classification checks, with body-reference
+crawling disabled. Both the execution and egress services are active. The installed
+Python helper hash equals the pushed branch:
+`82bfacadbd043d66eb65ff24a37ca3df123504d1cbf85721e607849b18fc54b2`.
+Backup: `/home/distilled-bench/distilled-source-runtime/backup-merged-source-integration-20261014`.
+The server code already matched and did not need replacement.
+
+In the mixed-source fixture, acquisition DONE increased from 479 to 483 between
+19:57:18 and 19:58:12 UTC, while pending decreased from 1,201 to 1,185. Some jobs
+failed honestly with authentication, extraction, policy, rate-limit or recovery
+errors; reduced pending count is not equivalent to successful coverage. The second
+sample had 323 evidence revisions and no edition. Unresolved paid-provider
+operations and pending cache R2 deletions were zero in both samples. D1 size was
+542,199,808 bytes. This is immediate progress, not a sustained-capacity certificate.
+
+OpenRouter authority is still blocked: zero active account grants and seven legacy
+model intents missing account-spending reconciliation. Existing model records are
+retained. A separate operator-approved grant plus legitimate historical account
+mapping/reconciliation is required; do not reset unknown charges or fabricate costs.
+The user was asked for a QA OpenRouter allowance; none was installed during this
+closeout. Source-provider authorization does not imply model-account authorization.
+
+A read of current QA feed/source rows found no AI Industry Watch2 or MTV source.
+Their scheduled-window, approved-X restoration and resulting-briefing audit cannot
+be certified against this database; identify their actual deployment first.
