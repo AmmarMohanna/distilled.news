@@ -38,7 +38,7 @@ export function coalescedProcessingQueue(env:Env,now=Date.now()):Queue<Distilled
   const claimed=await env.DB.prepare(`INSERT INTO connector_queue_dispatch(kind,id,available_ms,token) VALUES(?,?,?,?)
    ON CONFLICT(kind,id) DO UPDATE SET available_ms=excluded.available_ms,token=excluded.token,sends=sends+1,last_error=NULL WHERE available_ms<=? RETURNING id`).bind(body.type,id,now+DELIVERY_LEASE_MS,token,now).first();
   if(!claimed)return;
-  const target=body.type==='v1_acquisition'?(env.V1_ACQUISITION_QUEUE??original):original;
+  const target=body.type==='v1_acquisition'||body.type==='connector_relay'?(env.V1_ACQUISITION_QUEUE??original):original;
   try{return await target.send(body,options)}catch(error){await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=?,last_error=? WHERE kind=? AND id=? AND token=?').bind(now+30_000,'QUEUE_SEND_FAILED',body.type,id,token).run();throw error;}
  };
  // Canonical dispatchers ignore send metadata. A coalesced no-op returns no
@@ -178,7 +178,13 @@ export async function completeConnectorDownstream(env:Env,body:DistilledQueueMes
  await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=?').bind(body.type,await sha256(JSON.stringify(body))).run();
  if('jobId' in body){
   const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();
-  if(row)await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),row.feed_id).run();
+  if(row){
+   await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),row.feed_id).run();
+   // Completion opens a consumer slot. Refill the bounded per-feed relay now;
+   // Cron remains crash recovery rather than the speed limit of backlog drain.
+   // The durable relay fence coalesces simultaneous completions for this feed.
+   if(env.V1_ACQUISITION_QUEUE)await coalescedProcessingQueue(env).send({type:'connector_relay',feedId:row.feed_id});
+  }
  }
 }
 

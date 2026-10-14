@@ -148,8 +148,18 @@ it('acquisition has independent delivery slots while reviews retain their queue 
  const queue=coalescedProcessingQueue(runtime,1000),body={type:'v1_acquisition' as const,jobId:'isolated-acquire'};
  await Promise.all([queue.send(body),queue.send(body)]);expect(acquire).toHaveBeenCalledTimes(1);
  await queue.send({type:'v1_reassess',jobId:'isolated-review'});expect(review).toHaveBeenCalledTimes(1);expect(legacy).not.toHaveBeenCalled();
- await coalescedProcessingQueue(runtime,121001).send(body);expect(acquire).toHaveBeenCalledTimes(2);
+ await queue.send({type:'connector_relay',feedId:'scale-0001'});expect(acquire).toHaveBeenCalledTimes(2);expect(review).toHaveBeenCalledTimes(1);
+ await coalescedProcessingQueue(runtime,121001).send(body);expect(acquire).toHaveBeenCalledTimes(3);
  const fallback={...runtime,V1_ACQUISITION_QUEUE:undefined};await coalescedProcessingQueue(fallback,242002).send(body);expect(review).toHaveBeenCalledTimes(2);
+});
+
+it('simultaneous completions refill one per-feed relay without waiting for Cron or entering the review queue',async()=>{
+ const acquire=vi.fn(async()=>{}),review=vi.fn(async()=>{}),feedId='scale-0004',sourceId='refill-source',jobId='refill-job';
+ await ctx.db.prepare('INSERT INTO v1_intake_scopes(id,feed_id,source_id,json) VALUES(?,?,?,?)').bind(sourceId,feedId,'refill-identity',JSON.stringify({feedId,feedSourceId:sourceId,sourceId:'refill-identity',feedRevision:1,enabled:true,restrictions:{}})).run();
+ await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind(jobId,sourceId,JSON.stringify({id:jobId,state:'DONE',kind:'ACQUIRE'})).run();
+ const runtime={...env,V1_ACQUISITION_QUEUE:{send:acquire},V1_PROCESSING_QUEUE:{send:review}} as unknown as Env;
+ await Promise.all(Array.from({length:4},()=>completeConnectorDownstream(runtime,{type:'v1_acquisition',jobId})));
+ expect(acquire.mock.calls).toEqual([[{type:'connector_relay',feedId},undefined]]);expect(review).not.toHaveBeenCalled();
 });
 
 it('persisted provider revocations and exhausted source budgets are immediately visible',async()=>{
