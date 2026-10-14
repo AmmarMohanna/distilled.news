@@ -16,3 +16,7 @@ export function sharesReaderEvidence(revisionIds:readonly string[],entry:{eviden
 export function readerHistoryMatches(candidate:{stableTargetId:string;storylineId?:string;evidenceRevisionIds?:readonly string[]},entry:{eventIds?:readonly string[];storylineIds?:readonly string[];evidenceRevisionIds?:readonly string[];withdrawn?:boolean}):boolean {
  return Boolean(entry.eventIds?.includes(candidate.stableTargetId)||candidate.storylineId&&entry.storylineIds?.includes(candidate.storylineId)||!entry.withdrawn&&sharesReaderEvidence(candidate.evidenceRevisionIds??[],entry));
 }
+
+/** Article identity supplies comparison context across revisions, never literal
+ * equivalence or shared Event identity. Only semantic verification uses it. */
+export function readerVerificationHistoryMatches(candidate:Parameters<typeof readerHistoryMatches>[0]&{evidenceIds?:readonly string[]},entry:Parameters<typeof readerHistoryMatches>[1]&{evidenceIds?:readonly string[]}):boolean {return readerHistoryMatches(candidate,entry)||!entry.withdrawn&&Boolean(candidate.evidenceIds?.some(id=>entry.evidenceIds?.includes(id)))}

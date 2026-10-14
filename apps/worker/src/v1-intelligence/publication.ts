@@ -1,4 +1,4 @@
-import {readerHistoryMatches} from './reader-history';
+import {readerVerificationHistoryMatches} from './reader-history';
 import {editorialContextFacts} from './editorial-context';
 import {deferEditorialWork} from './editorial-work';
 import {partitionVerification,mergeVerification,type VerificationOutcome} from './verification-packets';
@@ -88,6 +88,9 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord,adapt
  // changing the supported state eligible for this closed publication window.
  const eligible=new Map((await targets(tx,selection.window,true)).map(t=>[t.id,t]));
  const memberships=await tx.list<EventMembership>('memberships');
+ const historyRevisionIds=[...new Set(shortlist?.ledger.flatMap(e=>e.evidenceRevisionIds??[])??[])];
+ await tx.preloadRevisions(historyRevisionIds);
+ const historyArticleIds=new Map(await Promise.all(historyRevisionIds.map(async id=>[id,(await tx.revision(id))?.evidenceId] as const)));
  let inspected=0;
  for(const id of selection.selectedCandidateIds) {
   const candidate=await tx.read<BriefingCandidate>('candidates',id);
@@ -118,7 +121,7 @@ async function selectionInput(tx:FeedTransaction,selection:SelectionRecord,adapt
   const planned=plan?.stories.find(s=>s.targetVersionId===candidate.targetVersionId),scope=shortlist?.candidates.find(c=>c.targetVersionId===candidate.targetVersionId);
   if(plan && (!planned||planned.decision!=='SELECT'||!scope))throw new HandoffError('SCOPE_DENIED');
   const approvedIds=planned?new Set([...planned.newUnderstandingFactIds,...planned.contextFactIds,...planned.mustIncludeFactIds,...planned.attributionFactIds,...planned.certaintyFactIds,...planned.disagreementFactIds,...planned.openQuestionFactIds]):undefined;
-  const writerPlan:SelectedPlanStory|undefined=planned&&scope?{...planned,facts:editorialContextFacts(scope,shortlist!).filter(f=>approvedIds!.has(f.id)),previousLedgerEntries:shortlist!.ledger.filter(e=>planned.previousLedgerEntryIds.includes(e.id)||e.evidenceRevisionIds!==undefined&&scope&&readerHistoryMatches(scope,e)),correctionObligations:shortlist!.obligations.filter(o=>planned.correctionObligationIds.includes(o.id)&&plan!.obligations.some(p=>p.obligationId===o.id&&p.handling==='ADDRESS'&&p.targetVersionId===scope.targetVersionId))}:undefined;
+  const writerPlan:SelectedPlanStory|undefined=planned&&scope?{...planned,facts:editorialContextFacts(scope,shortlist!).filter(f=>approvedIds!.has(f.id)),previousLedgerEntries:shortlist!.ledger.filter(e=>planned.previousLedgerEntryIds.includes(e.id)||e.evidenceRevisionIds!==undefined&&scope&&readerVerificationHistoryMatches({...scope,evidenceIds:evidence.map(r=>r.evidenceId)},{...e,evidenceIds:(e.evidenceRevisionIds??[]).map(id=>historyArticleIds.get(id)).filter((id):id is string=>Boolean(id))})),correctionObligations:shortlist!.obligations.filter(o=>planned.correctionObligationIds.includes(o.id)&&plan!.obligations.some(p=>p.obligationId===o.id&&p.handling==='ADDRESS'&&p.targetVersionId===scope.targetVersionId))}:undefined;
   if(writerPlan && preservationFacts({candidate,eventVersions,evidence,plan:writerPlan}).some(f=>!f.evidenceRevisionIds.some(id=>evidence.some(e=>e.id===id))))throw new HandoffError('SCOPE_DENIED');
   stories.push({candidate,eventVersions,editorial:editorial?boundedEditorialContext(editorial):undefined,plan:writerPlan,storylineVersion:storyline?{...storyline,currentState:storyline.currentState.slice(0,1800),previousState:storyline.previousState?.slice(0,1000),supportedFacts:storyline.supportedFacts.slice(0,10),turningPoints:storyline.turningPoints.slice(0,10)}:undefined,evidence});
  }

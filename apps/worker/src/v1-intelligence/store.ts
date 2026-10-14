@@ -120,7 +120,7 @@ export class FeedTransaction {
   if(kind==='memberships')await this.preloadRevisions(values.map(row=>(row as T&{evidenceRevisionId:string}).evidenceRevisionId));
   return values;
  }
- private async preloadRevisions(ids:string[]):Promise<void>{
+ async preloadRevisions(ids:string[]):Promise<void>{
   const missing=[...new Set(ids)].filter(id=>!this.revisions.has(id));
   for(let offset=0;offset<missing.length;offset+=90){this.metrics.preloadQueries++;const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(this.snapshot.feed.id,...chunk).all<{id:string;json:string}>(),values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json) as EvidenceRevision]));for(const id of chunk)this.revisions.set(id,Promise.resolve(values.get(id)))}
  }
