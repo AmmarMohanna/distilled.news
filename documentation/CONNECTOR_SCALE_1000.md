@@ -286,3 +286,14 @@ The diagnostics are deployed as QA version
 `4888908a-a73c-48a6-ac41-ac5931fdc850`; rollback version is
 `b9f7cc18-2d88-4dee-9958-fd270c5d188a`. No push or production rollout occurred.
 The 1,000-feed collection acceptance test remains unproven.
+
+Polling diagnostics confirmed helper `BACKPRESSURE`. Migration 0055 adds
+indexes for atomic execution exclusion: only one poll may hold a given
+FeedSource checkpoint, and Telegram provider polls share the configured
+helper's single session slot across feeds. A waiting claim returns `IDLE`
+without consuming an attempt or allocating a provider operation. Other source
+families and unrelated checkpoints remain concurrent; expired leases remain
+recoverable. This does not serialize account onboarding or independent
+authoritative rechecks, so helper backpressure handling is still required.
+The provider/RSS regression suites passed 104 tests, including concurrent
+claim, unrelated progress and waiting-attempt preservation cases.

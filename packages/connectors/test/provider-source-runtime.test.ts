@@ -41,6 +41,33 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it('serializes a shared source checkpoint while unrelated sources keep running',async()=>{
+    const s=setup([]);let release!:(v:any)=>void;
+    const collect=vi.fn((r:SourceFetchRequest)=>r.runId==='held'?new Promise<any>(resolve=>{release=resolve}):Promise.resolve({state:'HANDED_OFF',checkpoint:'UNCHANGED'}));
+    const scheduler=new D1ProviderPollScheduler(s.db,{collect} as any,async()=>true,()=>Date.parse(time));
+    await scheduler.schedule('a',{...request,runId:'held'},time);
+    await scheduler.schedule('b',{...request,runId:'next'},time);
+    await scheduler.schedule('c',{...request,runId:'other',scope:{...scope,feedSourceId:'other'}},time);
+    const running=scheduler.runOne(300000,'a');await vi.waitFor(()=>expect(collect).toHaveBeenCalledTimes(1));
+    expect(await scheduler.runOne(300000,'b')).toBe('IDLE');
+    expect(await scheduler.runOne(300000,'c')).toBe('DONE');
+    expect(s.db.db.prepare("SELECT attempts FROM connector_provider_poll_jobs WHERE job_id='b'").get()).toEqual({attempts:0});
+    release({state:'HANDED_OFF',checkpoint:'UNCHANGED'});expect(await running).toBe('DONE');
+    expect(await scheduler.runOne(300000,'b')).toBe('DONE');
+  });
+  it('protects the single Telegram session across feeds without blocking other provider families',async()=>{
+    const s=setup([]);let release!:(v:any)=>void;
+    const collect=vi.fn((r:SourceFetchRequest)=>r.runId==='held'?new Promise<any>(resolve=>{release=resolve}):Promise.resolve({state:'HANDED_OFF',checkpoint:'UNCHANGED'}));
+    const scheduler=new D1ProviderPollScheduler(s.db,{collect} as any,async()=>true,()=>Date.parse(time));
+    const tg={...request,source:{family:'telegram' as const,locator:'test'},runId:'held'};
+    await scheduler.schedule('a',tg,time);
+    await scheduler.schedule('b',{...tg,runId:'next',scope:{feedId:'other',feedSourceId:'other',sourceId:'other'}},time);
+    await scheduler.schedule('c',{...request,scope:{...scope,feedSourceId:'x'},runId:'x'},time);
+    const running=scheduler.runOne(300000,'a');await vi.waitFor(()=>expect(collect).toHaveBeenCalledTimes(1));
+    expect(await scheduler.runOne(300000,'b')).toBe('IDLE');expect(await scheduler.runOne(300000,'c')).toBe('DONE');
+    release({state:'HANDED_OFF',checkpoint:'UNCHANGED'});expect(await running).toBe('DONE');
+    expect(await scheduler.runOne(300000,'b')).toBe('DONE');
+  });
   it('runtime initialization cannot replenish a revoked grant and new paid work requires both grants',async()=>{
     const s=setup([]);let calls=0;
     const make=(grant:number)=>new DurableProviderHttp(s.db,s.payloads,async()=>{calls++;return Response.json({ok:true})},4000000,20000,15,{x_twitterapi_io:grant});

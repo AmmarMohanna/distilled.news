@@ -33,8 +33,11 @@ export class D1RssPollScheduler {
     if (!Number.isSafeInteger(leaseMs) || leaseMs < 1000 || leaseMs > 600_000) throw new Error('INVALID_LEASE');
     const now=new Date(this.now()).toISOString(), until=new Date(this.now()+leaseMs).toISOString();
     const job=await this.db.prepare(`UPDATE connector_rss_poll_jobs SET lease_until=?,lease_version=lease_version+1,attempts=attempts+1
-      WHERE job_id=(SELECT job_id FROM connector_rss_poll_jobs WHERE state='PENDING' AND due_at<=? AND (lease_until IS NULL OR lease_until<=?) ${jobId===undefined?'':'AND job_id=?'} ORDER BY due_at,job_id LIMIT 1)
-      RETURNING job_id,request,lease_version,offset,attempts`).bind(until,now,now,...(jobId===undefined?[]:[jobId])).first<PollJob>();
+      WHERE job_id=(SELECT j.job_id FROM connector_rss_poll_jobs j WHERE j.state='PENDING' AND j.due_at<=? AND (j.lease_until IS NULL OR j.lease_until<=?)
+        AND NOT EXISTS(SELECT 1 FROM connector_rss_poll_jobs active WHERE active.state='PENDING' AND active.lease_until>?
+          AND json_extract(active.request,'$.scope.feedSourceId')=json_extract(j.request,'$.scope.feedSourceId'))
+        ${jobId===undefined?'':'AND j.job_id=?'} ORDER BY j.due_at,j.job_id LIMIT 1)
+      RETURNING job_id,request,lease_version,offset,attempts`).bind(until,now,now,now,...(jobId===undefined?[]:[jobId])).first<PollJob>();
     if (!job) return 'IDLE';
     const heartbeat=setInterval(()=>{void this.db.prepare("UPDATE connector_rss_poll_jobs SET lease_until=? WHERE job_id=? AND lease_version=? AND state='PENDING' AND lease_until>?").bind(new Date(this.now()+leaseMs).toISOString(),job.job_id,job.lease_version,new Date(this.now()).toISOString()).run().catch(()=>{});},Math.max(250,Math.floor(leaseMs/3)));
     try{

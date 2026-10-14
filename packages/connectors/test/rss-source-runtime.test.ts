@@ -60,6 +60,19 @@ function setup(feed=xml(item('one'))) {
 }
 
 describe('durable RSS source handoff (SQLite SQL and filesystem payload surrogate)',()=>{
+  it('serializes a shared RSS checkpoint and preserves waiting job attempts',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let release!:(v:any)=>void;
+    const collect=vi.fn((r:RssRequest)=>r.runId==='held'?new Promise<any>(resolve=>{release=resolve}):Promise.resolve({checkpoint:'UNCHANGED',coverage:{failureReason:'NONE'}}));
+    const scheduler=new D1RssPollScheduler(s.db,{collect} as any,async()=>true,()=>Date.parse(timestamp));
+    await scheduler.schedule('a',{...input,runId:'held'},timestamp);
+    await scheduler.schedule('b',{...input,runId:'next'},timestamp);
+    await scheduler.schedule('c',{...input,runId:'other',scope:{...scope,feedSourceId:'other'}},timestamp);
+    const running=scheduler.runOne(300000,'a');await vi.waitFor(()=>expect(collect).toHaveBeenCalledTimes(1));
+    expect(await scheduler.runOne(300000,'b')).toBe('IDLE');expect(await scheduler.runOne(300000,'c')).toBe('DONE');
+    expect(s.db.db.prepare("SELECT attempts FROM connector_rss_poll_jobs WHERE job_id='b'").get()).toEqual({attempts:0});
+    release({checkpoint:'UNCHANGED',coverage:{failureReason:'NONE'}});expect(await running).toBe('DONE');
+    expect(await scheduler.runOne(300000,'b')).toBe('DONE');
+  });
   it('successful continuation pages do not consume the failure retry allowance',async()=>{
     const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);
     let pages=0;
