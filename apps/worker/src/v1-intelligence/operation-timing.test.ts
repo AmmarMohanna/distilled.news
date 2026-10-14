@@ -5,7 +5,13 @@ import {createStrongSemanticModel} from './semantic-model';
 import {ADAPTIVE_BRIEFING_PROCESSING} from './scoring';
 import {SEMANTIC_WORK_LEASE_MS} from './semantic-work-lease';
 import type {Env} from '../types';
+import {readFileSync} from 'node:fs';
 const env={V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'fixture',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env;
+it('staging queue batches cannot multiply asynchronous slices beyond one consumer invocation',()=>{
+ const config=readFileSync(new URL('../../wrangler.staging.toml',import.meta.url),'utf8'),batch=Number(config.match(/max_batch_size\s*=\s*(\d+)/)?.[1]);
+ expect(batch).toBeGreaterThan(0);
+ expect(batch*(2*ASYNC_PROCESSING_SLICE_MS+120000)).toBeLessThan(15*60*1000);
+});
 it('continuation admits a full operation and leaves a durable settlement margin',()=>{
  expect(ASYNC_OPERATION_LEASE_MS-ASYNC_MODEL_CALL_MS).toBeGreaterThanOrEqual(60000);
  expect(SEMANTIC_WORK_LEASE_MS).toBe(ASYNC_OPERATION_LEASE_MS);
