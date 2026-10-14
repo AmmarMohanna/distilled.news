@@ -2,6 +2,7 @@ import {productRuntimeEnv} from './product-feeds';
 import {dispatchConnectorFeeds,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
 import {expireSharedPublicFetches} from './connector-public-cache';
 import {dispatchTelegramLane} from './connector-telegram-lane';
+import {withIntelligenceTurn,isIntelligenceTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
 import { createApp } from "./app";
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
@@ -59,9 +60,12 @@ export default {
       try {
         const downstreamEnv=await connectorDownstreamEnv(env,message.body as DistilledQueueMessage);
         if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(downstreamEnv,message.body.jobId);
-        else if(isRecord(message.body) && message.body.type==='v1_rematch' && typeof message.body.feedId==='string' && typeof message.body.requestId==='string') await processV1Rematch(downstreamEnv,message.body.feedId,message.body.requestId);
-        else if(isRecord(message.body) && message.body.type==='v1_reassess' && typeof message.body.jobId==='string') await processV1Reassessment(downstreamEnv,message.body.jobId);
-        else if(isRecord(message.body) && message.body.type==='v1_briefing') await processV1Briefing(downstreamEnv,message.body as import('./v1-intelligence/runtime').V1BriefingMessage);
+        else if(isRecord(message.body) && isIntelligenceTurn(message.body as DistilledQueueMessage)) await withIntelligenceTurn(downstreamEnv,message.body as DistilledQueueMessage,async()=>{
+          if(message.body.type==='v1_rematch' && typeof message.body.feedId==='string' && typeof message.body.requestId==='string') await processV1Rematch(downstreamEnv,message.body.feedId,message.body.requestId);
+          else if(message.body.type==='v1_reassess' && typeof message.body.jobId==='string') await processV1Reassessment(downstreamEnv,message.body.jobId);
+          else if(message.body.type==='v1_briefing') await processV1Briefing(downstreamEnv,message.body as import('./v1-intelligence/runtime').V1BriefingMessage);
+          else throw new HandoffError('INVALID_REQUEST');
+        });
         else if (isWebOperatorRunMessage(message.body)) await processWebOperatorRunMessage(env,message.body);
         else if (isWebOperatorLiveSmokeMessage(message.body)) {
           await processLivePublicAcquisitionSmoke(env, message.body, async (request) => app.fetch(request, env));
@@ -88,6 +92,7 @@ export default {
         }
         message.ack();
       } catch (error) {
+        if(error instanceof IntelligenceTurnBusy){message.ack();continue;}
         if(isRecord(message.body) && typeof message.body.type==='string' && message.body.type.startsWith('v1_')) {
           if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') message.ack();
           else if(message.attempts<MAX_QUEUE_ATTEMPTS) message.retry({delaySeconds:retryDelaySeconds(message.attempts)});

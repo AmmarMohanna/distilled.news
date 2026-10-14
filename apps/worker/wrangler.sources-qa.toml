@@ -89,7 +89,7 @@ queue = "distilled-news-sources-qa-v1"
 max_batch_size = 1
 max_batch_timeout = 1
 max_retries = 5
-max_concurrency = 8
+# Autoscale across feeds; a durable per-feed turn prevents competing reviews.
 dead_letter_queue = "distilled-news-sources-qa-v1-dlq"
 
 # Acquisition must keep draining even while an intelligence delivery waits on a
@@ -103,7 +103,7 @@ queue = "distilled-news-sources-qa-acquisition"
 max_batch_size = 1
 max_batch_timeout = 1
 max_retries = 5
-max_concurrency = 8
+# Autoscale independently; canonical acquisition leases protect each job.
 dead_letter_queue = "distilled-news-sources-qa-acquisition-dlq"
 
 [[vpc_services]]
