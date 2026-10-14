@@ -172,3 +172,47 @@ it('unpaid provider-schema rejection exposes admission metrics without a fabrica
  const response=await readPipelineTrace(ctx.db,'feed-1',{view:'operations',recordId:id});
  expect(response.items[0]).toMatchObject({modelExecutionState:'NOT_RUN',providerReportedCostUsd:null,financialConfirmation:'NOT_RUN',admission:{schemaAdmission:{enumValues:1001,violations:['ENUM_COUNT']}}});
 });
+
+// Observe actual D1 rows returned to the Worker: a small response must not hide
+// unbounded context hydration before its SQL page is read.
+function observeTraceReads(db:D1Database){
+ const reads:{sql:string;params:unknown[];rows:number}[]=[];
+ const statement=(query:D1PreparedStatement,sql:string,params:unknown[]=[]):D1PreparedStatement=>new Proxy(query,{get(target,key){
+  if(key==='bind')return (...values:unknown[])=>statement(target.bind(...values),sql,values);
+  if(key==='all')return async()=>{const result=await target.all();reads.push({sql,params,rows:result.results.length});return result};
+  if(key==='first')return async(...args:unknown[])=>{const result=await (target.first as any)(...args);reads.push({sql,params,rows:result?1:0});return result};
+  const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+ }});
+ return {reads,db:new Proxy(db,{get(target,key){if(key==='prepare')return (sql:string)=>statement(target.prepare(sql),sql);const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value}})};
+}
+it.each(['records','sources','operations'] as const)('%s pagination does not hydrate unrelated editorial context',async view=>{
+ const observed=observeTraceReads(ctx.db);
+ const result=await readPipelineTrace(observed.db,'feed-1',{view,pageSize:1,...(view==='records'?{kind:'events'}:{})});
+ expect(result.page.returned).toBeLessThanOrEqual(1);
+ expect(observed.reads.filter(r=>/^SELECT json FROM v1_feed_documents/.test(r.sql)&&r.params.some(p=>['selections','editorial_plans','shortlists','briefing_requests'].includes(String(p))))).toEqual([]);
+});
+it.each(['overview','articles','candidates'] as const)('%s resolves latest context without returning retained history',async view=>{
+ const history=['selections','editorial_plans','briefing_requests'].flatMap(kind=>Array.from({length:3},(_,i)=>ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind(kind,'old-trace-context-'+i,'feed-1',JSON.stringify({id:'old-trace-context-'+i,window:{start:'2000-01-01T00:00:00Z',end:'2000-01-01T01:00:00Z'},createdAt:'2000-01-01T00:00:00Z'}))));
+ await ctx.db.batch(history);
+ try{
+  const observed=observeTraceReads(ctx.db);
+  const result=await readPipelineTrace(observed.db,'feed-1',{view,pageSize:1});
+  expect(result.page.returned).toBeLessThanOrEqual(1);
+  const context=observed.reads.filter(r=>/^SELECT json FROM v1_feed_documents/.test(r.sql)&&r.params.some(p=>['selections','editorial_plans','briefing_requests'].includes(String(p)))&&!r.sql.includes('$.cohorts'));
+  expect(context.length).toBeGreaterThan(0);
+  expect(context.map(r=>r.rows)).toEqual(context.map(()=>1));
+ }finally{await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE feed_id=? AND id LIKE 'old-trace-context-%'").bind('feed-1').run()}
+});
+
+it('overview pages unresolved obligations in SQL with an exact total',async()=>{
+ await ctx.db.batch(Array.from({length:4},(_,i)=>ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind('correction_obligations','paged-obligation-'+i,'feed-1',JSON.stringify({id:'paged-obligation-'+i}))));
+ await ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind('correction_resolutions','paged-resolution','feed-1',JSON.stringify({id:'paged-resolution',obligationId:'paged-obligation-1'})).run();
+ try{
+  const observed=observeTraceReads(ctx.db);
+  const seen:string[]=[];let cursor:string|undefined;
+  do{const result=await readPipelineTrace(observed.db,'feed-1',{view:'overview',pageSize:1,cursor});expect(result.page.total).toBe(3);seen.push(...result.items.map(i=>i.id));cursor=result.page.nextCursor??undefined}while(cursor);
+  expect(seen).toEqual(['paged-obligation-0','paged-obligation-2','paged-obligation-3']);
+  expect(observed.reads.filter(r=>/^SELECT json FROM v1_feed_documents/.test(r.sql)&&r.params.includes('correction_obligations')).every(r=>r.rows<=2)).toBe(true);
+  expect(observed.reads.filter(r=>/^SELECT json FROM v1_feed_documents/.test(r.sql)&&r.params.includes('correction_resolutions'))).toEqual([]);
+ }finally{await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE feed_id=? AND id LIKE 'paged-%'").bind('feed-1').run()}
+});
