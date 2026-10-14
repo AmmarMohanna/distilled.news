@@ -263,3 +263,26 @@ Telegram session files were preserved.
 
 The pre-rollout grants/reservations were read, not replenished. Any rollout record
 must distinguish the above backlog from the drain results after deployment.
+
+### October 14 rollout and retry investigation
+
+Migrations 0051–0054 were applied after the fresh D1 export
+`.review-tmp/qa-before-connector-clock-20261014.sql` (350,953,466 bytes).
+Collection-clock rollout version `fb9a7322-0503-4ea6-9355-a2eb116165ea`
+was deployed successfully. The mixed-source QA fixture saved successfully;
+Telegram accepted three observations, while the other source paths still
+required investigation. This is not a complete acquisition/publication pass.
+
+At 11:32 UTC, indexed metrics found 2,153 pending provider jobs (oldest due
+04:40 UTC), six pending RSS jobs and 445,894,656 bytes of D1 storage. One
+paid operation had an unresolved response. Do not resubmit it or replenish
+its reservation without reconciliation. The backlog has not drained.
+
+Sanitized intake diagnostics (`e7ad094`) passed 22 intake regressions and
+Worker typecheck. Polling-boundary diagnostics (`9d5b882`) passed 70 provider
+and 31 RSS runtime regressions plus connectors typecheck. They log typed
+failure codes, not raw exceptions, source content, SQL or credentials.
+The diagnostics are deployed as QA version
+`4888908a-a73c-48a6-ac41-ac5931fdc850`; rollback version is
+`b9f7cc18-2d88-4dee-9958-fd270c5d188a`. No push or production rollout occurred.
+The 1,000-feed collection acceptance test remains unproven.
