@@ -384,3 +384,29 @@ had eight complete RSS article revisions and no edition; other source families
 still had downstream acquisition pending. Source-health endpoints all passed,
 and X honestly reported unavailable. Retention and sustained live capacity
 remain explicit shared-owner verification gaps.
+
+### Verified QA rollout of the passing collection build
+
+Commit `7175e9b` (following `80ea60f`) deployed successfully as Worker version
+`c37a7204-4285-4f13-9254-0eb144f4a15c`. Migration 0056 is applied; the remote
+migration list reports none pending. Rollback Worker version is
+`83848edf-3601-4491-86b6-9ba6acc38e16`; additive migration 0056 can remain in
+place for this rollback. The existing assets, credentials and authorized
+financial allowances were preserved. No push or production deployment occurred.
+
+The final clean serial connector/intake/product run passed 56 tests. The 106
+provider/RSS tests, 19 scalability tests, typechecks and QA dry-run also passed.
+The full Worker suite has not been certified. QA normal login, eight public
+feed pages and all 15 configured source-health endpoints returned successful
+responses. The mixed-source fixture still had no published edition.
+
+Six read-only live samples from 15:33:02 to 15:38:26 UTC found provider pending
+jobs decrease from 2,473 to 2,464 and DONE increase from 4,283 to 4,293. RSS
+pending decreased from 31 to 29. Telegram pending went from 1,469 to 1,468,
+with one active session operation in every sample. This proves immediate work
+is continuing, not that the historical backlog has cleared. One unresolved
+Apify operation remained; no blind resubmission or reservation reset occurred.
+D1 grew from 476,958,720 to 477,900,800 bytes during the sample. Retention must
+be coordinated with canonical evidence/publication ownership before sustained
+1,000-feed readiness can be asserted. A cold nine-minute simulated cycle also
+does not establish five-minute freshness for every live provider at that scale.
