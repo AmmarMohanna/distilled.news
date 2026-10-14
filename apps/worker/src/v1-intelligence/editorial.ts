@@ -135,11 +135,14 @@ export async function communicatedState(tx:FeedTransaction,target:EditorialTarge
  }
  return result;
 }
-export async function evaluateEditorialDelta(tx:FeedTransaction,target:EditorialTarget,windowEnd:string,windowStart?:string):Promise<EditorialDecision> {
+export async function evaluateEditorialDelta(tx:FeedTransaction,target:EditorialTarget,windowEnd:string,windowStart?:string,ownedFacts?:EditorialFact[]):Promise<EditorialDecision> {
  const previous=await communicatedState(tx,target,windowEnd),facts:EditorialFact[]=[];
- for(const evidence of target.evidence) for(const text of [evidence.title,evidence.body].flatMap(value=>supportedSentences(value??'')).filter(text=>!nonFactRole(text))) {
+ // Sharing an article is support provenance, not ownership of every development
+ // in it. Semantic shortlists supply the complete facts assigned to this target.
+ const supported=ownedFacts??target.evidence.flatMap(evidence=>[evidence.title,evidence.body].flatMap(value=>supportedSentences(value??'')).filter(text=>!nonFactRole(text)).map(text=>({text,evidenceRevisionIds:[evidence.id]})));
+ for(const {text,evidenceRevisionIds} of supported) {
   const same=facts.find(f=>equivalentFact(f.text,text));
-  if(same) same.evidenceRevisionIds.push(evidence.id);else facts.push({text,evidenceRevisionIds:[evidence.id]});
+  if(same) same.evidenceRevisionIds=[...new Set([...same.evidenceRevisionIds,...evidenceRevisionIds])];else facts.push({text,evidenceRevisionIds:[...evidenceRevisionIds]});
  }
  const known=previous.filter(p=>!p.withdrawn).flatMap(p=>p.facts),newUnderstanding=facts.filter(f=>!known.some(old=>equivalentFact(old,f.text)));
  const repeatedFactCount=facts.length-newUnderstanding.length,repeatPenalty=facts.length?repeatedFactCount/facts.length:1;
@@ -156,7 +159,7 @@ export async function evaluateEditorialDelta(tx:FeedTransaction,target:Editorial
  const reasonCodes:EditorialReason[]=include&&staleRecap?['OLD_RECAP']:!include?[previous.length && target.evidence.some(e=>!previous.some(p=>p.evidenceRevisionIds.includes(e.id)))?'CORROBORATION_ONLY':'ALREADY_COMMUNICATED']:!previous.length?['NEW_SUPPORTED_DEVELOPMENT']:changedPhase?['MAJOR_STATE_CHANGE']:['MATERIAL_NEW_FACT'];
  const caveats=newUnderstanding.some(f=>/\b(unresolved|uncertain|disputed|may|might|no new date|not confirmed|however|but)\b/i.test(f.text));
  const contextNeed=!include?'NONE':changedPhase || caveats?'MODERATE':previous.length||staleRecap?'SMALL':'NONE';
- return {freshness,policyVersion:EDITORIAL_POLICY,targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,decision:include?'INCLUDE':'SUPPRESS',reasonCodes,previouslyCommunicated:previous,newUnderstanding,repeatedFactCount,repeatPenalty,contextNeed,treatment:!include?'OMIT':staleRecap&&!changedPhase&&!caveats?'BRIEF':caveats || newUnderstanding.length>=4?'DETAILED':changedPhase || newUnderstanding.length>1?'STANDARD':'BRIEF'};
+ return {freshness,policyVersion:ownedFacts?EDITORIAL_POLICY+'-owned-facts-v1':EDITORIAL_POLICY,targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,decision:include?'INCLUDE':'SUPPRESS',reasonCodes,previouslyCommunicated:previous,newUnderstanding,repeatedFactCount,repeatPenalty,contextNeed,treatment:!include?'OMIT':staleRecap&&!changedPhase&&!caveats?'BRIEF':caveats || newUnderstanding.length>=4?'DETAILED':changedPhase || newUnderstanding.length>1?'STANDARD':'BRIEF'};
 }
 
 /** Necessary prior comparison context follows the same latest-edition/two-fact

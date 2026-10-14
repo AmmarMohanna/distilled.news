@@ -96,7 +96,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   if(!facts.length)continue;
   for(const fact of facts){fact.timing=factTiming(target.evidence.filter(e=>fact.evidenceRevisionIds.includes(e.id)),window,fact);fact.reportTime=fact.timing.reportTime;}
   for(const fact of facts){const a=assessSelfContainment(fact.text,target.evidence.filter(e=>fact.evidenceRevisionIds.includes(e.id)));fact.selfContained=a.status;if(a.context)fact.context=a.context}
-  const editorial=await evaluateEditorialDelta(tx,target,window.end,window.start),effects=[...new Set(states.flatMap(s=>s.epistemicEffects))],protectedReasons:string[]=effects.filter(e=>protectedEffects.has(e));
+  const editorial=await evaluateEditorialDelta(tx,target,window.end,window.start,facts),effects=[...new Set(states.flatMap(s=>s.epistemicEffects))],protectedReasons:string[]=effects.filter(e=>protectedEffects.has(e));
   if(related.length)protectedReasons.push('CORRECTION_OBLIGATION');
   // Recompute protection from supported meaning, never inherit a historic false
   // numeric-presence flag from deferred work. Unknown paraphrases stay ordinary.
