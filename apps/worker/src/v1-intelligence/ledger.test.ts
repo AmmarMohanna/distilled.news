@@ -111,11 +111,14 @@ it('an enumeration-punctuation-only source revision opens no obligation',async()
  for(let i=0;i<2;i++)await feedTransact(store,'feed-1',tx=>refreshSourceCorrectionObligations(tx,testPolicy.now()));
  expect(await sourceRevised()).toEqual([]);
 },15000);
-it('a false SOURCE_REVISED obligation from an earlier policy is resolved exactly once by the durable non-material resolution',async()=>{
- await seedIntelligence(store,2,'Company A competes with Instinct, Muse and Bee.','publisher-2','2026-10-03T12:30:00Z');
+it.each([
+ ['Company A competes with Instinct, Muse and Bee.','Company A competes with Instinct, Muse, and Bee.','Instinct'],
+ ["Max Hodak detailed on stage at TechCrunch Disrupt how his company's work with PRIMA is part of its path toward a novel brain-computer interface.","Max Hodak detailed onstage at TechCrunch Disrupt how his company's work with PRIMA is part of its path toward a novel brain-computer interface.",'Max Hodak'],
+])('a false SOURCE_REVISED obligation resolves exactly once through the durable non-material lifecycle: %s',async(previous,currentText,marker)=>{
+ await seedIntelligence(store,2,previous,'publisher-2','2026-10-03T12:30:00Z');
  await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end);
- await reviseItem(3,'Company A competes with Instinct, Muse, and Bee.',undefined,'item-2');
- const entry=(await store.list<LedgerEntry>('feed-1','ledger_entries')).find(e=>/Instinct/.test(e.claimText))!,current=(await store.currentEvidence('feed-1')).find(r=>r.revision.sourceObservationId==='observation-3')!.revision;
+ await reviseItem(3,currentText,undefined,'item-2');
+ const entry=(await store.list<LedgerEntry>('feed-1','ledger_entries')).find(e=>e.claimText.includes(marker))!,current=(await store.currentEvidence('feed-1')).find(r=>r.revision.sourceObservationId==='observation-3')!.revision;
  await feedTransact(store,'feed-1',tx=>recordCorrectionObligation(tx,entry,'SOURCE_REVISED',current.id,testPolicy.now()));
  expect(await sourceRevised()).toHaveLength(1);
  for(let i=0;i<3;i++)await feedTransact(store,'feed-1',tx=>refreshSourceCorrectionObligations(tx,testPolicy.now()));

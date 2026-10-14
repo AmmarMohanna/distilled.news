@@ -45,3 +45,10 @@ it.each([
 ])('substantive or ambiguous punctuation stays a change: %s',(_,a,b)=>{
  expect(changedCommunicatedSpans([span(a)],doc(a),doc(b))).toHaveLength(1);
 });
+it('established stage-location spelling variants preserve meaning without joining arbitrary words',()=>{
+ const a="Max Hodak detailed on stage at TechCrunch Disrupt how his company's work with PRIMA is part of its path toward a novel brain-computer interface.";
+ expect(changedCommunicatedSpans([span(a)],doc(a),doc(a.replace('on stage','onstage')))).toEqual([]);
+ expect(changedCommunicatedSpans([span('The speaker waited off stage.')],doc('The speaker waited off stage.'),doc('The speaker waited offstage.'))).toEqual([]);
+ expect(changedCommunicatedSpans([span('The speaker is now here.')],doc('The speaker is now here.'),doc('The speaker is nowhere.'))).toHaveLength(1);
+ expect(changedCommunicatedSpans([span(a)],doc(a),doc(a.replace('on stage','offstage')))).toHaveLength(1);
+});
