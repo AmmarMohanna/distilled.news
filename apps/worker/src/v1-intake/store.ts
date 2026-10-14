@@ -1,5 +1,6 @@
 import { HandoffError } from '@distilled/contracts';
 import { z } from 'zod';
+import {intakeStorageCause} from './diagnostics';
 import type { DownstreamJob, IntakeScope } from './types';
 
 const scopeSchema = z.object({feedId:z.string().min(1),feedSourceId:z.string().min(1),sourceId:z.string().min(1),feedRevision:z.number().int().positive().max(Number.MAX_SAFE_INTEGER),enabled:z.boolean(),deletedAt:z.string().datetime().optional(),restrictions:z.object({startTime:z.string().datetime().optional(),endTime:z.string().datetime().optional(),publisherIds:z.array(z.string().min(1)).optional(),accountIds:z.array(z.string().min(1)).optional()}).strict()}).strict().refine(s=>!s.restrictions.startTime || !s.restrictions.endTime || Date.parse(s.restrictions.startTime)<Date.parse(s.restrictions.endTime));
@@ -49,6 +50,7 @@ export class V1IntakeStore {
       if(String(error).includes('CHECK constraint failed: v1_cas')) return false;
       if(String(error).includes('V1_IDEMPOTENCY')) throw new HandoffError('IDEMPOTENCY_CONFLICT');
       // Provider/database diagnostics can contain external text: never put them on the wire.
+      console.error(JSON.stringify({type:'V1_INTAKE_BATCH_FAILED',feedSourceId:snapshot.scope.feedSourceId,statements:statements.length,cause:intakeStorageCause(error)}));
       throw new HandoffError('TEMPORARY_UNAVAILABLE');
     }
   }

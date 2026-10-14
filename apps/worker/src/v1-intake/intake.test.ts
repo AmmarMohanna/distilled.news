@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, expect, it } from 'vitest';
+import { beforeEach, afterEach, expect, it,vi } from 'vitest';
 import { handoffConnectorBatch, type IntakeReceipt, type NormalizedEvidenceItem } from '@distilled/contracts';
 import { V1IntakeStore } from './store';
 import { createCandidateIntakePort } from './intake';
@@ -116,9 +116,30 @@ it('concurrent cross-scope reuse of an observation ID never commits mixed owners
   const candidates=[...await store.list('candidates','feed-source-1'),...await store.list('candidates','feed-source-2')];expect(candidates).toHaveLength(1);
 });
 it('failed D1 job persistence rolls back the entire handoff including candidate and receipt',async()=>{
+ const logs=vi.spyOn(console,'error').mockImplementation(()=>{});
+ try{
   await ctx.db.exec("CREATE TRIGGER fail_job BEFORE INSERT ON v1_jobs BEGIN SELECT RAISE(ABORT,'provider-private-diagnostic'); END;");
   await expect(createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE',message:'TEMPORARY_UNAVAILABLE'});
   for(const table of ['handoffs','inputs','candidates','intake_receipts','jobs'] as const) expect(await store.list(table,'feed-source-1')).toHaveLength(0);
+  expect(logs).toHaveBeenCalled();expect(JSON.stringify(logs.mock.calls)).not.toContain('provider-private-diagnostic');
+ }finally{logs.mockRestore()}
+});
+it('query-limit diagnostics omit raw external text and retain the retryable wire error',async()=>{
+ const read=vi.spyOn(store,'read').mockRejectedValueOnce(Error('Too many subrequests: private-token-value'));
+ const logs=vi.spyOn(console,'error').mockImplementation(()=>{});
+ try{
+  await expect(createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE',message:'TEMPORARY_UNAVAILABLE'});
+  expect(logs.mock.calls.map(([value])=>JSON.parse(String(value)))).toContainEqual(expect.objectContaining({type:'V1_INTAKE_LOOKUP_FAILED',cause:'QUERY_LIMIT'}));
+  expect(JSON.stringify(logs.mock.calls)).not.toContain('private-token-value');
+ }finally{read.mockRestore();logs.mockRestore()}
+});
+it('exhausted scope contention is reported without returning an undurable receipt',async()=>{
+ const commit=vi.spyOn(store,'commit').mockResolvedValue(false),logs=vi.spyOn(console,'warn').mockImplementation(()=>{});
+ try{
+  await expect(createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+  expect(commit).toHaveBeenCalledTimes(12);expect(logs.mock.calls.map(([value])=>JSON.parse(String(value)))).toContainEqual(expect.objectContaining({type:'V1_INTAKE_CAS_EXHAUSTED',attempts:12}));
+  expect(await store.list('intake_receipts','feed-source-1')).toHaveLength(0);
+ }finally{commit.mockRestore();logs.mockRestore()}
 });
 it('one durable batch returns mixed accepted, rejected, quarantined and deleted receipts',async()=>{
   await store.registerScope({...scopeFixture,feedRevision:2,restrictions:{publisherIds:['publisher']}});
