@@ -10,6 +10,7 @@ import type {AcceptedInput} from '../v1-intake/types';
 import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {INTELLIGENCE_POLICY,tokens,features,overlap} from './policies';
+import {prefetchReviewGraph} from './review-prefetch';
 import type {DuplicateDecision,EventRecord,StorylineRecord,StorylineVersion} from './types';
 import type {EditorialPlanRecord,PlanStory} from './editorial-plan';
 import type {ShortlistRecord} from './shortlist';
@@ -75,6 +76,7 @@ export async function targets(tx:FeedTransaction,window:PublicationWindow,includ
  const admissions=new Map(admissionRows.results.map(row=>[row.observation_id,Date.parse(row.admitted_at)]));
  const beforeCutoff=(ids:string[])=>ids.length>0&&ids.every(id=>active.has(id)&&(admissions.get(active.get(id)!.sourceObservationId)??Date.parse(active.get(id)!.acceptedAt))<Date.parse(window.end));
  let historicalEvents:EventVersion[]|undefined;
+ await prefetchReviewGraph(tx,[...active.values()]);
  const roots=await tx.list<EventRecord>('events'),events=new Map<string,Target>();
  const memberships=await tx.list<EventMembership>('memberships'),memberIds=new Map<string,string[]>();
  for(const m of memberships){const ids=memberIds.get(m.eventVersionId)??[];ids.push(m.evidenceRevisionId);memberIds.set(m.eventVersionId,ids)}

@@ -1,5 +1,5 @@
 import {enqueueV1,pendingV1Jobs} from './v1-queue-dispatch';
-import { connectorHandoffRequestSchema, HandoffError } from '@distilled/contracts';
+import { connectorHandoffRequestSchema, HandoffError,type SourceObservation } from '@distilled/contracts';
 import { z } from 'zod';
 import type { Env } from './types';
 import { V1IntakeStore } from './v1-intake/store';
@@ -12,6 +12,9 @@ import {synchronizeV1ProductSource} from './v1-intelligence/product';
 import {createV1BrowserStages} from './v1-intake/browser-stages';
 import {languageResolutionSchema} from './v1-intelligence/language';
 import {readConnectorPayload} from './connector-payload';
+import {HttpSourceExecution,BoundedFeedHttp} from '@distilled/connectors';
+import {verifyConnectorAuthority} from './connector-authority';
+import {sharedPublicHttp} from './connector-public-cache';
 
 function enabledSources(env:Env):string[] {
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
@@ -21,15 +24,26 @@ function enabledSources(env:Env):string[] {
 export function v1SourceEnabled(env:Env,id:string):boolean {
  return enabledSources(env).includes(id);
 }
-export function createV1RuntimePolicy(fetcher:typeof fetch=fetch,bucket?:R2Bucket):IntakePolicy {
+async function approvedDynamicSource(env:Env,id:string):Promise<boolean>{
+ if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true')return v1SourceEnabled(env,id);
+ return !!await env.DB.prepare("SELECT s.id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.collection_owner='connector' AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL").bind(id).first();
+}
+export function createV1RuntimePolicy(fetcher:typeof fetch=fetch,bucket?:R2Bucket,verifyAuthority?:(o:SourceObservation)=>Promise<boolean>):IntakePolicy {
+ // Scope-bound content-addressed payload verification is immutable. Keep only
+ // its small verified metadata for this call's CAS retries, never article bytes
+ // or current-origin/restriction checks, and never share it across requests.
+ const supplied=new Map<string,ReturnType<IntakePolicy['verifySuppliedContent']>>();
  return {version:'v1-runtime-1',now:()=>new Date().toISOString(),factsFor:async()=>({}),verifySuppliedContent:async o=>{
-  const payload=bucket?await readConnectorPayload(bucket,o):undefined;
-  return payload?{representation:o.representation,contentCompleteness:o.contentCompleteness,contentHash:o.contentHash!}:undefined;
+  if(!bucket)return undefined;
+  const key=JSON.stringify([o.feedId,o.feedSourceId,o.sourceId,o.id,o.suppliedPayloadRef,o.contentHash,o.representation,o.contentCompleteness,o.canonicalUrl,o.publisherId]);
+  let verified=supplied.get(key);
+  if(!verified){verified=readConnectorPayload(bucket,o).then(payload=>payload?{representation:o.representation,contentCompleteness:o.contentCompleteness,contentHash:o.contentHash!}:undefined);supplied.set(key,verified);}
+  return verified;
  },
  orderingFor:async observation=>{
-  let authoritativeReplacementAllowed=false;
+  let authoritativeReplacementAllowed=verifyAuthority?await verifyAuthority(observation):false;
   // An origin 410 is independent explicit deletion evidence. Provider-specific deletion checks remain connector integrations.
-  if(observation.operation==='DELETE' && observation.authoritativeCurrentState && observation.canonicalUrl) {
+  if(!authoritativeReplacementAllowed&&observation.operation==='DELETE' && observation.authoritativeCurrentState && observation.canonicalUrl) {
    try {authoritativeReplacementAllowed=(await new WorkerPublicSourceFetch(observation.canonicalUrl,fetcher).get(observation.canonicalUrl)).status===410} catch { /* unresolved, fail closed */ }
   }
   return {authoritativeReplacementAllowed,compareRevisions:(a,b)=>{
@@ -43,17 +57,24 @@ export function createV1RuntimePolicy(fetcher:typeof fetch=fetch,bucket?:R2Bucke
 export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:number) {
  const parsed=connectorHandoffRequestSchema.safeParse(raw);
  if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
- if(!v1SourceEnabled(env,parsed.data.coverage.feedSourceId)) throw new HandoffError('SCOPE_DENIED');
+ if(env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,parsed.data.coverage.feedSourceId)) throw new HandoffError('SCOPE_DENIED');
  await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
- return createCandidateIntakePort(new V1IntakeStore(env.DB),{...createV1RuntimePolicy(fetch,env.RAW_ARCHIVE),expectedFeedRevision}).acceptBatch(parsed.data);
+ return createCandidateIntakePort(new V1IntakeStore(env.DB),{...createV1RuntimePolicy(fetch,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined),expectedFeedRevision}).acceptBatch(parsed.data);
 }
 const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();
 export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetch=fetch) {
  const store=new V1IntakeStore(env.DB),job=await store.read<{feedSourceId:string}>('jobs',id);
- if(!job || !v1SourceEnabled(env,job.feedSourceId)) return 'SKIPPED' as const;
+ if(!job || env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,job.feedSourceId)) return 'SKIPPED' as const;
  await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
- const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE);
- const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,stagesForClaim:claim=>createV1BrowserStages(env,claim),readPayload:async claim=>{
+ const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
+ const authorizeArticle=async(url:string)=>{new WorkerPublicSourceFetch(url,fetcher);if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);};
+ const articleHttp=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,new BoundedFeedHttp(async(url,init)=>{await authorizeArticle(url);return fetcher(url,{...init,redirect:'manual'})},{maxBytes:512000}),authorizeArticle):undefined;
+ const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
+ publicGet:articleHttp?async(url)=>{const r=await articleHttp.get(url,{accept:'text/html'});if(r.status===0)throw new AcquisitionFailure('NETWORK',true);if(r.status>=300&&r.status<400)throw new AcquisitionFailure('POLICY_DENIED',false);return {url,body:new TextDecoder().decode(r.bytes),contentType:r.headers['content-type']??'',status:r.status};}:undefined,
+ extractHtml:env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?async(url,html)=>{
+  const port=new HttpSourceExecution(env.SOURCE_EXECUTION_URL!,env.SOURCE_EXECUTION_TOKEN!, (value,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init),true);
+  return port.execute('extract',{url,html});
+ }:undefined,stagesForClaim:claim=>createV1BrowserStages(env,claim),readPayload:async claim=>{
   const ref=claim.input.observation.suppliedPayloadRef;
   const connectorPayload=await readConnectorPayload(env.RAW_ARCHIVE,claim.input.observation);
   if(connectorPayload)return connectorPayload;

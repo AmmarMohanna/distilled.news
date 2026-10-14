@@ -1,5 +1,6 @@
 import { HandoffError } from '@distilled/contracts';
 import { z } from 'zod';
+import {intakeStorageCause} from './diagnostics';
 import type { DownstreamJob, IntakeScope } from './types';
 
 const scopeSchema = z.object({feedId:z.string().min(1),feedSourceId:z.string().min(1),sourceId:z.string().min(1),feedRevision:z.number().int().positive().max(Number.MAX_SAFE_INTEGER),enabled:z.boolean(),deletedAt:z.string().datetime().optional(),restrictions:z.object({startTime:z.string().datetime().optional(),endTime:z.string().datetime().optional(),publisherIds:z.array(z.string().min(1)).optional(),accountIds:z.array(z.string().min(1)).optional()}).strict()}).strict().refine(s=>!s.restrictions.startTime || !s.restrictions.endTime || Date.parse(s.restrictions.startTime)<Date.parse(s.restrictions.endTime));
@@ -7,6 +8,7 @@ export type Table = 'handoffs'|'inputs'|'candidates'|'intake_receipts'|'jobs'|'e
 export interface Stored<T> { feedSourceId: string; value: T }
 export interface ScopeSnapshot { scope: IntakeScope; epoch: number }
 export interface Write { table: Table; id: string; itemKey?: string; value: unknown; immutable?: boolean }
+export interface ReadKey {table:Table;id:string}
 const tables: Table[] = ['handoffs','inputs','candidates','intake_receipts','jobs','evidence','revisions','tombstones','acquired','evidence_receipts','conflicts','acquisition_results'];
 function tableName(table: Table) { if(!tables.includes(table)) throw new Error('V1_INVALID_TABLE'); return `v1_${table}` }
 export function itemId(feedSourceId:string, itemKey:string) { return JSON.stringify([feedSourceId,itemKey]) }
@@ -32,6 +34,21 @@ export class V1IntakeStore {
     const row=await this.db.prepare(`SELECT feed_source_id,json FROM ${tableName(table)} WHERE id=?`).bind(id).first<{feed_source_id:string;json:string}>();
     return row ? {feedSourceId:row.feed_source_id,value:JSON.parse(row.json) as T} : undefined;
   }
+  /** Bounded indexed reads in one D1 round trip. Commit still checks the same
+   * scope epoch, so cached rows/misses cannot survive a concurrent mutation. */
+  async readMany(keys:ReadKey[]):Promise<Map<string,Stored<unknown>|undefined>> {
+    const values=new Map<string,Stored<unknown>|undefined>(),groups=new Map<Table,string[]>();
+    for(const key of keys){const cacheKey=JSON.stringify([key.table,key.id]);if(values.has(cacheKey))continue;values.set(cacheKey,undefined);const ids=groups.get(key.table)??[];ids.push(key.id);groups.set(key.table,ids);}
+    const queries:{table:Table;statement:D1PreparedStatement}[]=[];
+    for(const [table,ids] of groups)for(let offset=0;offset<ids.length;offset+=50){
+      const chunk=ids.slice(offset,offset+50);
+      queries.push({table,statement:this.db.prepare(`SELECT id,feed_source_id,json FROM ${tableName(table)} WHERE id IN (${chunk.map(()=>'?').join(',')})`).bind(...chunk)});
+    }
+    if(!queries.length)return values;
+    const results=await this.db.batch(queries.map(q=>q.statement));
+    results.forEach((result,index)=>{for(const row of result.results as {id:string;feed_source_id:string;json:string}[])values.set(JSON.stringify([queries[index].table,row.id]),{feedSourceId:row.feed_source_id,value:JSON.parse(row.json)});});
+    return values;
+  }
   async list<T>(table:Table,feedSourceId:string):Promise<T[]> {
     const {results}=await this.db.prepare(`SELECT json FROM ${tableName(table)} WHERE feed_source_id=? ORDER BY id`).bind(feedSourceId).all<{json:string}>();
     return results.map(row=>JSON.parse(row.json) as T);
@@ -50,6 +67,7 @@ export class V1IntakeStore {
       if(String(error).includes('CHECK constraint failed: v1_cas')) return false;
       if(String(error).includes('V1_IDEMPOTENCY')) throw new HandoffError('IDEMPOTENCY_CONFLICT');
       // Provider/database diagnostics can contain external text: never put them on the wire.
+      console.error(JSON.stringify({type:'V1_INTAKE_BATCH_FAILED',feedSourceId:snapshot.scope.feedSourceId,statements:statements.length,cause:intakeStorageCause(error)}));
       throw new HandoffError('TEMPORARY_UNAVAILABLE');
     }
   }

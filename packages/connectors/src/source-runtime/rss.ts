@@ -30,9 +30,10 @@ export class RssSourceCollector {
     if(input.initialLookbackHours!==undefined&&(!Number.isInteger(input.initialLookbackHours)||input.initialLookbackHours<1||input.initialLookbackHours>168))throw new Error('INVALID_INITIAL_LOOKBACK');
     const configurationKey = await sha256(JSON.stringify([input.scope, input.url, input.requestedBounds ?? {}, maxItems,...(input.initialLookbackHours===undefined?[]:[input.initialLookbackHours])]));
     const handoffId = await sha256(JSON.stringify([input.scope, input.runId, offset]));
-    const saved = await this.repository.loadBatch(input.scope,handoffId);
+    const initial=this.repository.loadCollectionState?await this.repository.loadCollectionState(input.scope,input.runId,handoffId):undefined;
+    const saved = initial?initial.batch:await this.repository.loadBatch(input.scope,handoffId);
     if (saved) {
-      const run = await this.repository.loadRun(input.scope,input.runId);
+      const run = initial?initial.run:await this.repository.loadRun(input.scope,input.runId);
       if (!run || run.configurationKey !== configurationKey) throw new Error('IDEMPOTENCY_CONFLICT');
       return this.deliver(input,saved,{requests:0,latencyMs:0,providerCostUsd:0});
     }
@@ -52,7 +53,7 @@ export class RssSourceCollector {
     }
     // A crash between allocation/fetch and batch persistence has an uncertain fetch outcome.
     // Do not fetch again under that sequence. Caller starts a fresh run; old content is unaffected.
-    if (await this.repository.loadRun(input.scope,input.runId)) throw new Error('FETCH_OUTCOME_UNKNOWN_START_NEW_RUN');
+    if (initial?initial.run:await this.repository.loadRun(input.scope,input.runId)) throw new Error('FETCH_OUTCOME_UNKNOWN_START_NEW_RUN');
     const run = await this.repository.allocate(input.scope,input.runId,configurationKey,this.now());
     if (!await this.repository.claimFetch(input.scope,input.runId)) throw new Error('FETCH_ALREADY_CLAIMED');
     const checkpoint = await this.repository.checkpoint(input.scope);

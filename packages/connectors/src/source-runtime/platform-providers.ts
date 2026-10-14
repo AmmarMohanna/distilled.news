@@ -8,7 +8,7 @@ import { articleUrl, record, string, timestamp } from './provider-normalize';
 /** Authorized backend execution binding. Worker code never spawns Python or stores sessions. */
 export interface SourceExecutionPort {execute(kind:'feedparser'|'telethon'|'telegram_resolve'|'google_resolve'|'google_feed'|'extract'|'playwright',input:Record<string,unknown>,bounds?:{timeoutMs?:number}):Promise<unknown>}
 export async function executeSource(port:SourceExecutionPort,kind:Parameters<SourceExecutionPort['execute']>[0],input:Record<string,unknown>,bounds?:{timeoutMs?:number}) {
-  try {return await port.execute(kind,input,bounds);}catch{throw new SourceProviderError('TRANSIENT');}
+  try {return await port.execute(kind,input,bounds);}catch(error){if(error instanceof SourceProviderError)throw error;throw new SourceProviderError('TRANSIENT');}
 }
 const raw=(v:unknown)=>new TextEncoder().encode(JSON.stringify(v));
 function requireFeed(status:number){if(status===451)throw new SourceProviderError('POLICY_REFUSAL');if(status===429)throw new SourceProviderError('RATE_LIMIT');if([401,403].includes(status))throw new SourceProviderError('AUTH_REQUIRED');if(status!==200)throw new SourceProviderError(status>=500||status===0?'TRANSIENT':'CHALLENGE');}

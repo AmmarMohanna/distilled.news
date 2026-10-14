@@ -61,7 +61,7 @@ export interface SourceProvider {
   families:SourceFamily[];
   fetch(request:SourceFetchRequest,run:FetchRun):Promise<ProviderPage>;
 }
-export type ProviderFailure='TRANSIENT'|'RATE_LIMIT'|'AUTH_REQUIRED'|'UNAVAILABLE'|'MALFORMED'|'CHALLENGE'|'POLICY_REFUSAL'|'UNCERTAIN_PAID_SUBMISSION'|'BUDGET_EXCEEDED';
+export type ProviderFailure='TRANSIENT'|'BACKPRESSURE'|'RATE_LIMIT'|'AUTH_REQUIRED'|'UNAVAILABLE'|'MALFORMED'|'CHALLENGE'|'POLICY_REFUSAL'|'UNCERTAIN_PAID_SUBMISSION'|'BUDGET_EXCEEDED';
 export class SourceProviderError extends Error {
   constructor(readonly code:ProviderFailure,readonly retryNotBefore?:string) {super(code);}
 }

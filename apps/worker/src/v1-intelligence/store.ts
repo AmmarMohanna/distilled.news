@@ -26,6 +26,16 @@ export class V1FeedStore {
   if(row && row.feed_id!==feedId) throw new HandoffError('SCOPE_DENIED');return row?JSON.parse(row.json):undefined;
  }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
+ /** Same scope checks as read(), with bounded transport for immutable lookup graphs. */
+ async readMany<T>(feedId:string,kind:DocumentKind,ids:string[]):Promise<Map<string,T|undefined>> {
+  const unique=[...new Set(ids)],values=new Map<string,T|undefined>(unique.map(id=>[id,undefined]));
+  for(let offset=0;offset<unique.length;offset+=90){
+   const chunk=unique.slice(offset,offset+90),rows=await this.db.prepare(`SELECT id,feed_id,json FROM v1_feed_documents WHERE kind=? AND id IN (${chunk.map(()=>'?').join(',')})`).bind(kind,...chunk).all<{id:string;feed_id:string;json:string}>();
+   if(rows.results.some(row=>row.feed_id!==feedId))throw new HandoffError('SCOPE_DENIED');
+   for(const row of rows.results)values.set(row.id,JSON.parse(row.json));
+  }
+  return values;
+ }
  async currentEvidence(feedId:string):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id`).bind(feedId).all<{item:string;revision:string}>();
   return rows.results.map(r=>({item:JSON.parse(r.item),revision:JSON.parse(r.revision)}));
@@ -111,12 +121,19 @@ export class FeedTransaction {
   if(kind==='memberships')await this.preloadRevisions(values.map(row=>(row as T&{evidenceRevisionId:string}).evidenceRevisionId));
   return values;
  }
- private async preloadRevisions(ids:string[]):Promise<void>{
-  const missing=[...new Set(ids)].filter(id=>!this.revisions.has(id));
-  for(let offset=0;offset<missing.length;offset+=90){this.metrics.preloadQueries++;const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(this.snapshot.feed.id,...chunk).all<{id:string;json:string}>(),values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json) as EvidenceRevision]));for(const id of chunk)this.revisions.set(id,Promise.resolve(values.get(id)))}
- }
  revision(id:string):Promise<EvidenceRevision|undefined> {
   if(!this.revisions.has(id)){this.metrics.revisionReads++;this.revisions.set(id,this.store.revision(this.snapshot.feed.id,id))}return this.revisions.get(id)!;
+ }
+ /** Immutable revisions are read together, but cached only for this CAS attempt.
+  * A foreign/missing revision stays absent just as with store.revision(). */
+ async preloadRevisions(ids:string[]):Promise<void> {
+  const missing=[...new Set(ids)].filter(id=>!this.revisions.has(id));
+  for(let offset=0;offset<missing.length;offset+=90){
+   this.metrics.preloadQueries++;
+   const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(this.snapshot.feed.id,...chunk).all<{id:string;json:string}>();
+   const values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json) as EvidenceRevision]));
+   for(const id of chunk)this.revisions.set(id,Promise.resolve(values.get(id)));
+  }
  }
  async write(kind:DocumentKind,id:string,value:unknown) {
   if(!value || typeof value!=='object' || !('id' in value) || value.id!==id) throw new HandoffError('SCOPE_DENIED');

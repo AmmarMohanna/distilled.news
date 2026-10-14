@@ -22,7 +22,7 @@ it('rejects invalid paid ceilings during composition',()=>{
     {intake:{acceptBatch:vi.fn()},authorize:async()=>true})).toThrow('INVALID_SOURCE_CEILINGS');
 });
 
-it('rejects invalid per-source budgets before any collection',()=>{
- for(const value of ['', ' ', '-1', 'NaN', 'Infinity'])expect(()=>createSourceBackend({...env,SOURCE_PER_SOURCE_BUDGET_USD:value},
-  {intake:{acceptBatch:vi.fn()},authorize:async()=>true})).toThrow('INVALID_SOURCE_BUDGET');
+it('rejects invalid per-source/provider budgets before any collection',()=>{
+ for(const value of ['', ' ', '-1', 'NaN', 'Infinity'])expect(()=>createSourceBackend({...env,SOURCE_PER_PROVIDER_BUDGET_USD:value},
+  {intake:{acceptBatch:vi.fn()},authorize:async()=>true})).toThrow('INVALID_SOURCE_PROVIDER_BUDGET');
 });
