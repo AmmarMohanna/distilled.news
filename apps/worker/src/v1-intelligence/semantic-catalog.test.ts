@@ -2,14 +2,14 @@ import {afterEach,beforeEach,expect,it} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope,testPolicy} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore} from './store';
-import {feedFixture,seedIntelligence,acceptEvidence} from './test-utils';
+import {feedFixture,seedIntelligence,acceptEvidence,syntheticModelAdmission} from './test-utils';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {processEvidenceIntelligence} from './engine';
 import type {Env} from '../types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
 afterEach(async()=>ctx.dispose());
-const strong={model:'catalog-test',usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async(_feed:string,_phase:string,state:any)=>({value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:[],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage:{calls:1,costUsd:.001,reported:true}})};
+const strong={model:'catalog-test',admission:syntheticModelAdmission,usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async(_feed:string,_phase:string,state:any)=>({value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:[],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage:{calls:1,costUsd:.001,reported:true}})};
 async function prepare(){
  await seedIntelligence(store,1,'Parliament approved a banking reform.');
  // Faithful bounded fixture: the retained Event survives, but its old support is no longer active.

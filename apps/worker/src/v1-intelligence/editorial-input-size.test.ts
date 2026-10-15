@@ -48,7 +48,7 @@ it('uses actual model admission to retain a complete large comparison rather tha
  const growth=structuredClone(state);growth.candidates=[];
  for(let i=0;i<40;i++){const c=structuredClone(state.candidates[i%state.candidates.length]);c.targetVersionId+=':growth:'+i;c.stableTargetId+=':growth:'+i;for(const f of c.facts)f.id+=':growth:'+i;c.correctionObligationIds=[];c.protectedReasons=[];growth.candidates.push(c)}
  const capability=modelCapability('openai/gpt-4.1-mini');
- const result=boundedEditorialInput(growth,{fits:input=>admitModelOperation('openai/gpt-4.1-mini',input,{},capability).fits});
+ const result=boundedEditorialInput(growth,{fits:input=>admitModelOperation('openai/gpt-4.1-mini',input,{type:'object',properties:{},required:[],additionalProperties:false},capability).fits});
  expect(result.failure).toBeUndefined();expect(result.overflowIds).toEqual([]);expect(result.offeredCandidates).toHaveLength(40);
  expect(result.offeredCandidates.flatMap(c=>c.facts)).toEqual(growth.candidates.flatMap((c:any)=>c.facts));
  expect(bytes(result.inputState)).toBeGreaterThan(48000);

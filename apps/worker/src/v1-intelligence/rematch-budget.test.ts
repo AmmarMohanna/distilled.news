@@ -15,13 +15,16 @@ it('legacy budget-denial indices do not exhaust remaining real attempts',()=>{
  expect(nextRematch(request,[completed,denied],'2026-10-09T00:00:00Z')).toBe(2);
 });
 
-it('the canonical rematch path durably records budget waiting without issuing a provider call',async()=>{
+it('unmapped historical liabilities durably defer canonical rematch without issuing a provider call',async()=>{
  const {createIntakeDatabase,seedIntakeScope}=await import('../v1-intake/test-utils'),{V1IntakeStore}=await import('../v1-intake/store'),{V1FeedStore,feedTransact}=await import('./store'),{feedFixture,acceptEvidence}=await import('./test-utils'),{scheduleRematch}=await import('./rematch'),{processV1Rematch}=await import('./runtime');
  const ctx=await createIntakeDatabase(),fetcher=vi.spyOn(globalThis,'fetch').mockRejectedValue(Error('No model call is allowed after exhaustion'));try{
   await seedIntakeScope(new V1IntakeStore(ctx.db));const store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await acceptEvidence(store);
   const revision=(await store.currentEvidence('feed-1'))[0].revision,now='2026-10-08T09:00:00Z';
   await feedTransact(store,'feed-1',async tx=>{for(let i=0;i<5;i++){const id='prior-'+i,input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:[revision.id],kind:'SEMANTIC_CONSTRUCTION',policyVersion:'test',model:'test',budgetKey:'semantic:2026-10-08',state:{i}};await tx.write('semantic_intents',id,{id,feedId:'feed-1',input,token:id,leaseUntil:0,reservedCostUsd:.02,createdAt:now});await tx.write('semantic_results',id,{id,feedId:'feed-1',input,status:'SUCCEEDED',usage:{calls:1,costUsd:.02,reported:true},createdAt:now});}await scheduleRematch(tx,JSON.stringify(['REASSESS','observation-1','']),revision.id,now)});
+  // Retained paid intents have no explicit account mapping. A new account
+  // reservation must wait for reconciliation even though the test grant fits.
+  expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM v1_model_spending_reservations').first()).toEqual({n:0});
   const [request]=await store.list<any>('feed-1','rematch_requests');await processV1Rematch({DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',OPENROUTER_API_KEY:'test-only',V1_SEMANTIC_POLICY:'SEMANTIC'} as any,'feed-1',request.id,now);
-  const [attempt]=await store.list<RematchAttempt>('feed-1','rematch_attempts');expect(attempt).toMatchObject({state:'WAITING_BUDGET',attempt:1,reason:'SEMANTIC_BUDGET_EXHAUSTED',resourcePolicy:'semantic-cost-admission-v1',nextAttemptAt:semanticResourceRetryAt(request.id,now,0)});expect(fetcher).not.toHaveBeenCalled();expect(nextRematch(request,[attempt],now)).toBeUndefined();expect(nextRematch(request,[attempt],attempt.nextAttemptAt!)).toBe(1);expect(Date.parse(attempt.nextAttemptAt!)-Date.parse(now)).toBeGreaterThanOrEqual(300000);expect(Date.parse(attempt.nextAttemptAt!)-Date.parse(now)).toBeLessThan(420000);expect(await store.revision('feed-1',revision.id)).toEqual(revision);
+  const [attempt]=await store.list<RematchAttempt>('feed-1','rematch_attempts');expect(attempt).toMatchObject({state:'WAITING_BUDGET',attempt:1,reason:'ACCOUNT_RESOURCE_WAIT',resourcePolicy:'semantic-cost-admission-v1',nextAttemptAt:semanticResourceRetryAt(request.id,now,0)});expect(fetcher).not.toHaveBeenCalled();expect(nextRematch(request,[attempt],now)).toBeUndefined();expect(nextRematch(request,[attempt],attempt.nextAttemptAt!)).toBe(1);expect(Date.parse(attempt.nextAttemptAt!)-Date.parse(now)).toBeGreaterThanOrEqual(300000);expect(Date.parse(attempt.nextAttemptAt!)-Date.parse(now)).toBeLessThan(420000);expect(await store.revision('feed-1',revision.id)).toEqual(revision);
  }finally{fetcher.mockRestore();await ctx.dispose()}
 },25000);

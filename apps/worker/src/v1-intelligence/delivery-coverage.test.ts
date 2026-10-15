@@ -146,9 +146,11 @@ describe('blocked windows, overflow retention and composite grouping',()=>{
   const legacy={...work,id:'legacy',expiresAt:new Date(Date.parse(first.end)+7*86400000).toISOString(),stableTargetId:'legacy-target'};void legacy;
   expect(await readUnreviewedOverflow(store,'feed-1','2026-10-20T00:00:00Z')).toMatchObject({atRisk:1,retiredUnreviewed:0,waiting:[{stableTargetId:c.stableTargetId,status:'AT_RISK'}]});
   const day8={start:'2026-10-11T12:00:00Z',end:'2026-10-11T13:00:00Z',kind:'HOURLY' as const};
-  expect((await prepareSemanticShortlist(store,'feed-1',day8,day8.end)).candidates.map(x=>x.stableTargetId)).toContain(c.stableTargetId);
+  expect((await prepareSemanticShortlist(store,'feed-1',day8,day8.end,20)).candidates.map(x=>x.stableTargetId)).toContain(c.stableTargetId);
   const day31={start:'2026-11-03T12:00:00Z',end:'2026-11-03T13:00:00Z',kind:'HOURLY' as const};
-  expect((await prepareSemanticShortlist(store,'feed-1',day31,day31.end)).candidates.map(x=>x.stableTargetId)).not.toContain(c.stableTargetId);
+  expect((await prepareSemanticShortlist(store,'feed-1',day31,day31.end)).candidates.map(x=>x.stableTargetId)).toContain(c.stableTargetId);
+  expect(await store.list('feed-1','editorial_work_resolutions')).toEqual([]);
+  expect((await prepareSemanticShortlist(store,'feed-1',day31,day31.end,20)).candidates.map(x=>x.stableTargetId)).not.toContain(c.stableTargetId);
   expect(await store.list('feed-1','editorial_work_resolutions')).toEqual(expect.arrayContaining([expect.objectContaining({reason:'STALE_UNREVIEWED_AFTER_RETENTION'})]));
   expect(await readUnreviewedOverflow(store,'feed-1','2026-11-03T13:00:00Z')).toMatchObject({waiting:[],retiredUnreviewed:1});
  },60000);
