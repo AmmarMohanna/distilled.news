@@ -40,6 +40,8 @@ export class WebsiteSourceProvider implements SourceProvider {
     if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))throw new SourceProviderError('CHALLENGE');
     const discovery=discoverWebsiteArticles(html,url);
     if(discovery){
+      // Do not report a readable but unrecognized section layout as success.
+      if(!discovery.articles.length)throw new SourceProviderError('MALFORMED');
       const selected=input.recheckItemKeys?discovery.articles.filter(a=>input.recheckItemKeys!.includes(`url:${a.url}`)):discovery.articles;
       return {items:selected.map(a=>({sourceItemKey:`url:${a.url}`,upstreamId:a.url,url:a.url,publisherId:new URL(a.url).hostname,title:a.title,
         representation:'LISTING_RESULT' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true,authoritativeCurrentState:false})),

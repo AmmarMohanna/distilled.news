@@ -3,6 +3,10 @@ import {articleUrl} from './provider-normalize';
 
 interface Node {tagName?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];parentNode?:Node;value?:string}
 export interface WebsiteDiscovery {articles:{url:string;title?:string}[];nextPage?:string}
+/** Section locators are discovery surfaces, never a single full article. */
+export function isWebsiteListingUrl(value:string):boolean {
+ return /^\/(?:tags?|category|categories|topics?|sections?)(?:\/[^/?#]+)*\/?$/i.test(new URL(value).pathname);
+}
 const attr=(n:Node,key:string)=>n.attrs?.find(a=>a.name===key)?.value??'';
 function nodes(root:Node):Node[]{const result:Node[]=[],stack=[root];while(stack.length){const n=stack.pop()!;result.push(n);stack.push(...[...(n.childNodes??[])].reverse())}return result}
 const text=(n:Node)=>nodes(n).filter(n=>!n.tagName&&n.value).map(n=>n.value).join('').replace(/\s+/g,' ').trim();
@@ -31,7 +35,8 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
  }
  const bodies=all.filter(n=>n.tagName==='article');
  const directBody=bodies.length===1&&nodes(bodies[0]).some(n=>n.tagName==='h1'&&!nodes(n).some(child=>child.tagName==='a'))&&nodes(bodies[0]).some(n=>n.tagName==='p'&&text(n));
- if(isArticle||directBody)return undefined;
+ const section=isWebsiteListingUrl(approvedUrl);
+ if(!section&&(isArticle||directBody))return undefined;
  for(const anchor of all.filter(n=>n.tagName==='a')){
   const href=attr(anchor,'href');if(!href)continue;
   const rel=attr(anchor,'rel').toLowerCase().split(/\s+/);
@@ -39,10 +44,12 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
   const lineage:Node[]=[];for(let n:Node|undefined=anchor;n;n=n.parentNode)lineage.push(n);
   if(lineage.some(n=>['nav','header','footer','aside','script'].includes(n.tagName??'')||attr(n,'role')==='navigation'))continue;
   if(/(?:^|[\s_-])(?:comment|comments|print|share|reply)(?:$|[\s_-])/i.test(attr(anchor,'class'))||/#(?:comments?|reply)/i.test(href))continue;
-  const heading=lineage.some(n=>/^h[1-6]$/.test(n.tagName??''));
+  // Publishers commonly wrap the heading in its link (<a><h3>...), rather
+  // than placing a link inside the heading. Both are observed headline links.
+  const heading=lineage.some(n=>/^h[1-6]$/.test(n.tagName??''))||nodes(anchor).some(n=>/^h[1-6]$/.test(n.tagName??''));
   const entry=lineage.some(n=>n.tagName==='article'||/(?:^|[\s_-])(?:story|post|entry|item|article)(?:$|[\s_-])/i.test(attr(n,'class')));
   const title=/(?:^|[\s_-])(?:title|headline)(?:$|[\s_-])/i.test(attr(anchor,'class'));
   if(heading||rel.includes('bookmark')||(entry&&title))add(href,text(anchor)||undefined);
  }
- return structuredListing&&articles.size||articles.size>=2?{articles:[...articles.values()],nextPage}:undefined;
+ return section||structuredListing&&articles.size||articles.size>=2?{articles:[...articles.values()],nextPage}:undefined;
 }

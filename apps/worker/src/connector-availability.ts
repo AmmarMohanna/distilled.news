@@ -1,8 +1,9 @@
 import type {SourceFamily} from '@distilled/connectors';
 import {productConnectorSource} from './connector-source';
 import type {Env} from './types';
+import {hasUncertainSourcePayment} from './connector-paid-fence';
 
-export interface SourceAvailability {state:'AVAILABLE'|'UNAVAILABLE';providers:string[];reason?:'UNSUPPORTED_SOURCE'|'PRIVATE_SERVICE_UNAVAILABLE'|'PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED'|'CONNECTORS_DISABLED'|'COLLECTION_BLOCKED'|'BUDGET_EXHAUSTED'}
+export interface SourceAvailability {state:'AVAILABLE'|'UNAVAILABLE';providers:string[];reason?:'UNSUPPORTED_SOURCE'|'PRIVATE_SERVICE_UNAVAILABLE'|'PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED'|'CONNECTORS_DISABLED'|'COLLECTION_BLOCKED'|'BUDGET_EXHAUSTED'|'PAID_OPERATION_UNCERTAIN'}
 /** Availability is configuration admission, never proof of successful collection. */
 export function sourceAvailability(env:Env,family:SourceFamily):SourceAvailability{
  if(env.SOURCE_CONNECTORS_ENABLED!=='true')return {state:'UNAVAILABLE',providers:[],reason:'CONNECTORS_DISABLED'};
@@ -28,6 +29,9 @@ export async function feedSourceAvailability(env:Env,feedId:string){
  ]):[{results:[]},{results:[]}];
  const global=new Map(globalRows.results.map(r=>[r.provider_id,r])),reservations=new Map(sourceRows.results.map(r=>[`${r.feed_source_id}:${r.provider_id}`,r.reserved_usd]));
  const limits=JSON.parse(env.SOURCE_PROVIDER_BUDGETS_JSON??'{}'),ceilings=JSON.parse(env.SOURCE_OPERATION_CEILINGS_JSON??'{}');
+ const acquired=await env.DB.prepare(`SELECT j.feed_source_id,json_extract(j.json,'$.state') state,json_extract(j.json,'$.failureCode') failure,COUNT(*) count
+  FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE s.feed_id=? AND json_extract(j.json,'$.kind')='ACQUIRE'
+  GROUP BY j.feed_source_id,state,failure`).bind(feedId).all<{feed_source_id:string;state:string;failure:string|null;count:number}>();
  const costs:Record<string,string>={x_twitterapi_io:'twitterApiIo',x_apify:'apify',google_apify:'apify',linkedin_apify:'apify',zyte:'zyte'};
  const rows=await env.DB.prepare("SELECT id,title,provider,kind,source_url,input,actor_id FROM sources WHERE briefing_id=? AND collection_owner='connector' AND enabled=1 ORDER BY id").bind(feedId).all<{id:string;title:string;provider:string;kind:string;source_url:string|null;input:string|null;actor_id:string|null}>();
  return Promise.all(rows.results.map(async row=>{
@@ -41,8 +45,20 @@ export async function feedSourceAvailability(env:Env,feedId:string){
    if(!availability.providers.length){availability.state='UNAVAILABLE';availability.reason='BUDGET_EXHAUSTED';}
   }
   const table=source?.source.family==='rss'?'connector_rss_poll_jobs':'connector_provider_poll_jobs';
-  const latest=await env.DB.prepare(`SELECT state FROM ${table} WHERE json_extract(request,'$.scope.feedSourceId')=? ORDER BY due_at DESC LIMIT 1`).bind(row.id).first<{state:string}>();
-  if(latest?.state==='BLOCKED'&&availability.state==='AVAILABLE'){availability.state='UNAVAILABLE';availability.reason='COLLECTION_BLOCKED';}
-  return {sourceId:row.id,title:row.title,...availability};
+  if(financial&&source&&(source.source.family.startsWith('x_')||source.source.family.startsWith('linkedin_'))&&
+   await hasUncertainSourcePayment(env.DB,feedId,row.id,source.source.family.startsWith('x_')?['x_twitterapi_io','x_apify']:['linkedin_apify'])){
+   availability.state='UNAVAILABLE';availability.reason='PAID_OPERATION_UNCERTAIN';
+  }
+  const latest=await env.DB.prepare(`SELECT state,last_error,result FROM ${table} WHERE json_extract(request,'$.scope.feedSourceId')=? ORDER BY scheduled_at DESC,job_id DESC LIMIT 1`).bind(row.id).first<{state:string;last_error:string|null;result:string|null}>();
+  if(latest?.state==='BLOCKED'&&availability.state==='AVAILABLE'){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
+  const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),acquisition={completed:0,pending:0,failed:0};
+  for(const job of jobs){if(job.state==='DONE')acquisition.completed+=job.count;else if(job.state==='FAILED')acquisition.failed+=job.count;else if(['PENDING','RUNNING'].includes(job.state))acquisition.pending+=job.count;}
+  const warning=acquisition.failed?jobs.some(j=>j.state==='FAILED'&&j.failure==='AUTH_REQUIRED')?'ARTICLE_AUTH_REQUIRED':jobs.some(j=>j.state==='FAILED'&&j.failure==='CHALLENGE_REQUIRED')?'ARTICLE_CHALLENGE_REQUIRED':'ARTICLE_ACQUISITION_FAILED':undefined;
+  // Only typed errors are public. Never expose URLs, provider response text or
+  // claim tokens retained in diagnostic storage.
+  let failure=latest?.last_error;
+  if(!failure&&latest?.result){try{const result=JSON.parse(latest.result);if(result?.state==='FETCH_FAILED')failure=result.attempts?.at(-1)?.failure}catch{/* Corrupt diagnostics are not public messages. */}}
+  const collectionError=failure&&['TRANSIENT','RATE_LIMIT','AUTH_REQUIRED','CHALLENGE','MALFORMED','UNCERTAIN_PAID_SUBMISSION'].includes(failure)?failure:undefined;
+  return {sourceId:row.id,title:row.title,...availability,acquisition,...(warning?{warning}:{}),...(collectionError?{collectionError}:{})};
  }));
 }

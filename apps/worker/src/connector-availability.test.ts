@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {sourceAvailability} from './connector-availability';
+import {sourceAvailability,feedSourceAvailability} from './connector-availability';
 import type {Env} from './types';
 it('zero budgets or missing credentials explicitly deny paid sources while free news remains available',()=>{
  const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:'{}',SOURCE_OPERATION_CEILINGS_JSON:'{}'} as Env;
@@ -18,4 +18,10 @@ it('missing private execution is reported instead of pretending Telegram or webs
  const env={SOURCE_CONNECTORS_ENABLED:'true'} as Env;
  expect(sourceAvailability(env,'telegram').reason).toBe('PRIVATE_SERVICE_UNAVAILABLE');
  expect(sourceAvailability(env,'website').state).toBe('UNAVAILABLE');
+});
+it('reports article failures and pending work without leaking stored diagnostics',async()=>{
+ const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[{feed_source_id:'rss',state:'FAILED',failure:'AUTH_REQUIRED',count:2},{feed_source_id:'rss',state:'PENDING',failure:null,count:1}]:[{id:'rss',title:'News',provider:'rss',kind:'rss',source_url:'https://example.com/rss',input:null,actor_id:null}]}},async first(){return {state:'DONE',last_error:null,result:JSON.stringify({state:'FETCH_FAILED',attempts:[{failure:'TRANSIENT',secret:'never-public'}]})}}})};
+ const result=await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true'} as unknown as Env,'feed');
+ expect(result[0]).toMatchObject({acquisition:{completed:0,pending:1,failed:2},warning:'ARTICLE_AUTH_REQUIRED',collectionError:'TRANSIENT'});
+ expect(JSON.stringify(result)).not.toContain('never-public');
 });

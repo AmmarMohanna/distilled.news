@@ -15,6 +15,37 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_public_article_fetch_is_anonymous_bounded_and_exact(self):
+        class Response:
+            status = 200
+            headers = {'Content-Type': 'text/html'}
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self, limit): return b'<article>Permitted article</article>'[:limit]
+        calls = []
+        def open_request(request, timeout):
+            calls.append(request)
+            self.assertEqual(timeout, 15)
+            self.assertIsNone(request.get_header('Authorization'))
+            self.assertIsNone(request.get_header('Cookie'))
+            return Response()
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=open_request)), patch.object(runtime, 'extract', return_value={'body':'Article', 'pageKind':'article'}):
+            result = runtime.fetch_public_article({'url':'https://publisher.example/news/one'})
+        self.assertEqual(result['url'], 'https://publisher.example/news/one')
+        self.assertEqual(result['status'], 200)
+        self.assertEqual(len(calls), 1)
+
+    def test_public_article_rejects_credentials_private_dns_and_redirects(self):
+        for url in ['http://publisher.example/story', 'https://user:pass@publisher.example/story', 'https://publisher.example:443/story']:
+            with self.assertRaises(ValueError): runtime.fetch_public_article({'url':url})
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url', side_effect=ValueError('NONPUBLIC_ADDRESS')), patch.object(runtime.urllib.request, 'build_opener') as opener:
+            with self.assertRaises(ValueError): runtime.fetch_public_article({'url':'https://127.0.0.1/story'})
+            opener.assert_not_called()
+        for status in (301, 401, 403, 429, 451):
+            error = runtime.urllib.error.HTTPError('https://publisher.example/story', status, 'blocked', {}, None)
+            with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=lambda *a, **kw: (_ for _ in ()).throw(error))):
+                self.assertEqual(runtime.fetch_public_article({'url':'https://publisher.example/story'}), {'status':status})
+
     def test_article_inventory_is_same_origin_and_does_not_follow_body_references(self):
         links = runtime.ArticleLinks('https://publisher.example/')
         links.feed('<a href="/navigation">Navigation</a><article><a href="/one">One</a></article>'

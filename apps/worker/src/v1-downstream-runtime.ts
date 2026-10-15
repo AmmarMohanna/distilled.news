@@ -70,11 +70,13 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  const authorizeArticle=async(url:string)=>{new WorkerPublicSourceFetch(url,fetcher);if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);};
  const articleMaxBytes=512000;
  const articleHttp=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,new BoundedFeedHttp(async(url,init)=>{await authorizeArticle(url);return fetcher(url,{...init,redirect:'manual'})},{maxBytes:articleMaxBytes}),authorizeArticle,Date.now,articleMaxBytes):undefined;
+ const execution=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
+  new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return env.SOURCE_EXECUTION_SERVICE!.fetch(value,init)},true):undefined;
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
- publicGet:articleHttp?async(url)=>{const r=await articleHttp.get(url,{accept:'text/html'});if(r.status===0)throw new AcquisitionFailure('NETWORK',true);if(r.status>=300&&r.status<400)throw new AcquisitionFailure('POLICY_DENIED',false);return {url,body:new TextDecoder().decode(r.bytes),contentType:r.headers['content-type']??'',status:r.status};}:undefined,
+ publicGet:articleHttp?async(url)=>{const r=await articleHttp.get(url,{accept:'text/html'});if(r.status===0)throw new AcquisitionFailure('NETWORK',true);if(r.status>=300&&r.status<400)throw new AcquisitionFailure('POLICY_DENIED',false);return {url,body:new TextDecoder().decode(r.bytes),contentType:r.headers['content-type']??'',status:r.status,...(Object.keys(r.headers).some(k=>k.toLowerCase()==='www-authenticate')?{authenticationRequired:true}:{})};}:undefined,
+ publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:25000});await authorizeArticle(url);return result;}:undefined,
  extractHtml:env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?async(url,html)=>{
-  const port=new HttpSourceExecution(env.SOURCE_EXECUTION_URL!,env.SOURCE_EXECUTION_TOKEN!, (value,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init),true);
-  return port.execute('extract',{url,html});
+  await authorizeArticle(url);const result=await execution!.execute('extract',{url,html});await authorizeArticle(url);return result;
  }:undefined,stagesForClaim:claim=>createV1BrowserStages(env,claim),readPayload:async claim=>{
   const ref=claim.input.observation.suppliedPayloadRef;
   const connectorPayload=await readConnectorPayload(env.RAW_ARCHIVE,claim.input.observation);

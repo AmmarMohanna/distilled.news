@@ -17,12 +17,16 @@ SOURCE_CONNECTORS_ENABLED = "true"
 SOURCE_QUEUE_SCHEDULING_ENABLED = "true"
 SOURCE_SHARED_PUBLIC_FETCH_ENABLED = "true"
 SOURCE_FULL_ARTICLES_ENABLED = "true"
+SOURCE_GOOGLE_RESOLUTION_ENABLED = "true"
 SOURCE_LEGACY_POLLING_ENABLED = "false"
 PRODUCT_FEEDS_ENABLED = "true"
 SOURCE_RECOMMENDATIONS_ENABLED = "false"
-# Preserve the existing staging authorization; no QA per-source allowance is imported.
-SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.01,"apify":0,"zyte":0}'
-SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":10.01,"x_apify":0,"google_apify":0,"linkedin_apify":0,"zyte":0}'
+# Authorized mixed-source test: independent $15 source/provider cumulative caps.
+# Aggregate deployment caps remain a second conservative ceiling. Updating this
+# file does not change existing D1 grants or reconcile uncertain paid operations.
+SOURCE_PER_PROVIDER_BUDGET_USD = "15"
+SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.01,"apify":0.25,"zyte":0.02}'
+SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":15,"x_apify":15,"google_apify":15,"linkedin_apify":15,"zyte":15}'
 SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
 V1_DOWNSTREAM_ENABLED = "true"
 V1_DOWNSTREAM_FEED_SOURCE_IDS = "staging-rss-source,staging-twitter-source"

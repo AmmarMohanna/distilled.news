@@ -2,6 +2,15 @@ import {describe,it,expect} from 'vitest';
 import {discoverWebsiteArticles} from '../src/source-runtime/website-discovery';
 const url='https://publisher.example/news';
 describe('source-scoped article discovery',()=>{
+ it('discovers CoinDesk-style headings inside links on a tag listing',()=>{
+  const html='<main>'+['ETF decision','Corporate purchase'].map((title,i)=>`<div class="flex"><a class="content-card-title" href="/markets/2026/10/15/story-${i}"><h3>${title}</h3></a><p>Summary</p></div>`).join('')+'</main>';
+  expect(discoverWebsiteArticles(html,'https://publisher.example/tag/bitcoin')?.articles).toEqual([
+   {url:'https://publisher.example/markets/2026/10/15/story-0',title:'ETF decision'},
+   {url:'https://publisher.example/markets/2026/10/15/story-1',title:'Corporate purchase'}]);
+ });
+ it('never promotes an unrecognized tag layout into full article evidence',()=>{
+  expect(discoverWebsiteArticles('<main><p>Several headline excerpts</p></main>','https://publisher.example/tag/bitcoin')).toEqual({articles:[],nextPage:undefined});
+ });
  it('discovers independent headline entries without turning a listing into article evidence',()=>{
   const html='<nav><a href="/about">About</a></nav>'+['Flight policy changes','Minister considers resignation','Security investigation'].map((t,i)=>`<div class="latest-story"><a class="title" href="/articles/${i}">${t}</a><a href="/articles/${i}#comments">Comments</a></div>`).join('');
   expect(discoverWebsiteArticles(html,url)).toEqual({articles:['Flight policy changes','Minister considers resignation','Security investigation'].map((title,i)=>({url:`https://publisher.example/articles/${i}`,title})),nextPage:undefined});

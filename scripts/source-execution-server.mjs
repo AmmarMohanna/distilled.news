@@ -20,7 +20,7 @@ export function createSourceExecutionServer({token,execution,maxConcurrent=2}) {
       const chunks=[];let size=0;
       for await(const chunk of req){size+=chunk.length;if(size>8000000){reply(413,{error:'INPUT_TOO_LARGE'});return;}chunks.push(chunk);}
       let request;try{request=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return reply(400,{error:'INVALID_REQUEST'});}
-      if(!request||!['feedparser','telethon','telegram_resolve','google_resolve','google_feed','extract','playwright'].includes(request.kind)||
+      if(!request||!['feedparser','telethon','telegram_resolve','google_resolve','google_feed','public_article','extract','playwright'].includes(request.kind)||
         !request.input||typeof request.input!=='object'||Array.isArray(request.input))return reply(400,{error:'INVALID_REQUEST'});
       if(['telethon','telegram_resolve'].includes(request.kind)){
         // One MTProto session must not be written by parallel Python clients.

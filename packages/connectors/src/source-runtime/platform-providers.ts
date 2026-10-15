@@ -6,7 +6,7 @@ import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type
 import { articleUrl, record, string, timestamp } from './provider-normalize';
 
 /** Authorized backend execution binding. Worker code never spawns Python or stores sessions. */
-export interface SourceExecutionPort {execute(kind:'feedparser'|'telethon'|'telegram_resolve'|'google_resolve'|'google_feed'|'extract'|'playwright',input:Record<string,unknown>,bounds?:{timeoutMs?:number}):Promise<unknown>}
+export interface SourceExecutionPort {execute(kind:'feedparser'|'telethon'|'telegram_resolve'|'google_resolve'|'google_feed'|'public_article'|'extract'|'playwright',input:Record<string,unknown>,bounds?:{timeoutMs?:number}):Promise<unknown>}
 export async function executeSource(port:SourceExecutionPort,kind:Parameters<SourceExecutionPort['execute']>[0],input:Record<string,unknown>,bounds?:{timeoutMs?:number}) {
   try {return await port.execute(kind,input,bounds);}catch(error){if(error instanceof SourceProviderError)throw error;throw new SourceProviderError('TRANSIENT');}
 }

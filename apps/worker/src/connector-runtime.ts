@@ -7,6 +7,7 @@ import type {IntakeScope} from './v1-intake/types';
 import type {Env} from './types';
 import {productConnectorSource} from './connector-source';
 import {canonicalJson} from './v1-intake/canonical';
+import {hasUncertainSourcePayment} from './connector-paid-fence';
 
 /** Reads current approved product state; never enrolls or repairs stale queued work. */
 export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Promise<boolean> {
@@ -121,7 +122,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
  }
  const scheduled:{id:string;scheduler:string;sourceId:string}[]=[];
  if(!options.skipSchedule)for(const id of ids) {
-  const row=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,s.collection_owner,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND (?=0 OR s.collection_owner='connector')`).bind(id,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?1:0).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;collection_owner:string;owner_account_id:string}>();
+  const row=await env.DB.prepare(`SELECT s.briefing_id,s.source_url,s.provider,s.kind,s.input,s.actor_id,s.collection_owner,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND (?=0 OR s.collection_owner='connector')`).bind(id,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?1:0).first<{briefing_id:string;source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;collection_owner:string;owner_account_id:string}>();
   if(!row)continue;
   const approved=productConnectorSource(row);if(!approved)continue;
   // Do not transfer a source away from its working owner until the private
@@ -134,6 +135,9 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   if((paidFamily==='x_profile'||paidFamily==='x_search')&&
     !((budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0)||(budgets.x_apify>0&&ceilings.apify>0)))continue;
   if(paidFamily.startsWith('linkedin_')&&!(budgets.linkedin_apify>0&&ceilings.apify>0))continue;
+  if((paidFamily.startsWith('x_')||paidFamily.startsWith('linkedin_'))&&await hasUncertainSourcePayment(env.DB,
+   row.briefing_id,id,
+   paidFamily.startsWith('x_')?['x_twitterapi_io','x_apify']:['linkedin_apify']))continue;
   // Only explicit legacy-mode admission may transfer collection ownership.
   // A queue tick's earlier source list cannot reclaim a later legacy handoff.
   if(row.collection_owner==='legacy')await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND collection_owner='legacy'").bind(id).run();

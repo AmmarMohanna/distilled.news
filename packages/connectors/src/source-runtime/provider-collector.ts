@@ -150,6 +150,7 @@ export class FallbackSourceCollector {
             if(!request.recheckItemKeys?.includes(key)&&item.identityValid&&hashes[key]===await itemFingerprint(o))continue;
             if(item.identityValid)proposals.push({observationId:o.id,...request.scope,sourceItemKey:key,connectorType:id,
               upstreamId:o.upstreamId,url:o.canonicalUrl,titleHint:o.titleHint,representation:o.representation,contentCompleteness:o.contentCompleteness,
+              publishedAtHint:o.publishedAtHint,languageHint:o.languageHint,
               discoveredAt:run.startedAt,discoveryRunId:run.id});
           } else if(op==='UPSERT' && (item.body || item.title)) {
             o.contentHash=await hashContent({representation:item.representation,title:item.title,body:item.body??''});
