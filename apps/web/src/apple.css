@@ -1218,3 +1218,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 /* Language segments meet the 44pt target. */
 :root.apple-ui.apple-ui .language-segments button { min-height: 44px; }
+
+/* A card's open menu must sit above the cards after it (each card is its own stacking context), and its items
+   read as a list, not centered labels. */
+:root.apple-ui.apple-ui :is(.topic-card, .ranked-feed):has(.feed-options[open]) { position: relative; z-index: 30; }
+:root.apple-ui.apple-ui .feed-options-popover { z-index: 40; }
+:root.apple-ui.apple-ui .feed-options-popover :is(button, a) { justify-content: flex-start; }

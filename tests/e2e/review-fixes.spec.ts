@@ -86,3 +86,31 @@ test("language segments in Settings meet the 44pt target", async ({ page }) => {
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   }
 });
+
+test("a feed card's menu is never covered by the next card", async ({ page }) => {
+  const feeds = ["Lebanon", "Technology", "Science"].map((title, index) => ({ ...feed, id: `f${index}`, slug: title.toLowerCase(), title, stars: index }));
+  await page.route("**/api/**", route => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path === "/api/auth/session" ? { authenticated: true, setupRequired: false, account: { id: "joud", username: "joud", email: "j@example.test", role: "admin" } }
+      : path === "/api/me/briefings" || path === "/api/explore/feeds" ? { briefings: feeds, feeds }
+      : path.startsWith("/api/feed/") ? { briefing: feeds[0], editions: [], viewerHasStarred: false }
+      : path === "/api/me/sources" ? { sources: [] }
+      : path === "/api/me/health" ? { health: { processing: { queued: 0, completed: 0, failed: 0 } } }
+      : {};
+    return route.fulfill({ json: body });
+  });
+  for (const size of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+    await page.setViewportSize(size);
+    await page.goto("/");
+    await page.locator(".personal-feed-grid .topic-card").first().locator(".feed-options > summary").click();
+    const popover = page.locator(".personal-feed-grid .topic-card").first().locator(".feed-options-popover");
+    await expect(popover).toBeVisible();
+    const box = (await popover.boundingBox())!;
+    const covered = await page.evaluate(({ x, y, width, height }) => {
+      const popover = document.querySelector(".personal-feed-grid .topic-card .feed-options-popover")!;
+      const points = [[0.1, 0.1], [0.5, 0.2], [0.9, 0.2], [0.1, 0.5], [0.5, 0.5], [0.9, 0.5], [0.1, 0.9], [0.5, 0.9], [0.9, 0.9]];
+      return points.filter(([px, py]) => !popover.contains(document.elementFromPoint(x + width * px, y + height * py))).length;
+    }, box);
+    expect(covered).toBe(0);
+  }
+});
