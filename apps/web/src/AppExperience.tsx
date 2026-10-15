@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Ellipsis, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, HealthStatus, PublicBriefing } from "./types";
@@ -54,6 +54,25 @@ export function AppExperience(props: {
   const [installStatus, setInstallStatus] = useState<InstallStatus>("pending");
   const [installError, setInstallError] = useState("");
   const { language, t } = useLanguage();
+  const homeRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const home = homeRef.current;
+    const viewport = home?.closest('.screen-page-viewport');
+    const content = home?.closest('.screen-page-content');
+    if (!home || !viewport || !content || tab !== 'home') return;
+    const distribute = () => {
+      const current = parseFloat(home.style.getPropertyValue('--home-feed-extra-space')) || 0;
+      const spare = viewport.getBoundingClientRect().bottom - content.getBoundingClientRect().bottom + current;
+      const extra = innerWidth >= 900 ? Math.floor(Math.min(48, Math.max(0, spare - 12) * .7)) : 0;
+      if (Math.abs(extra - current) > 1) home.style.setProperty('--home-feed-extra-space', `${extra}px`);
+    };
+    distribute();
+    const observer = new ResizeObserver(distribute);
+    observer.observe(content);
+    observer.observe(viewport);
+    window.addEventListener('resize', distribute);
+    return () => { observer.disconnect(); window.removeEventListener('resize', distribute); };
+  }, [tab, query, props.briefings.length]);
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : "Settings")} · Distilled.news` : "distilled.news — A calmer perspective on a complex world."; }, [tab, language, props.account]);
   useEffect(() => {
     let active = true;
@@ -105,7 +124,7 @@ export function AppExperience(props: {
     {(tab === "home" || !props.account) && <div className="ambient-lights" aria-hidden="true"/>}
     <AppHeader account={props.account} onAccount={props.onAccount}/>
     {(props.error || error) && <p className="error" role="alert">{props.error || error}</p>}
-    {tab === "home" && props.account && <div className="home-view">
+    {tab === "home" && props.account && <div className="home-view" ref={homeRef}>
       <section className="welcome-hero"><div className="welcome-copy"><h1>{t("Welcome back!")}</h1><p>{t("You choose what matters.")}</p></div></section>
       <div className="explore-controls home-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button className="primary-button home-add-feed" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={20}/><span className="create-feed-label">{t("Create feed")}</span></button></div>
       <section className="your-feeds"><div className="experience-section-heading"><h2>{t("Your feeds")}</h2></div><FeedGrid className="personal-feed-grid">{props.briefings.filter(feed => !query || feed.title.toLowerCase().includes(query.toLowerCase())).map(feed => <article className="topic-card feed-widget" key={feed.id}><a href={feedUrl(feed)}><FeedArt canGenerate feed={feed} kind={topics.find(topic => topic.pattern.test(feed.title))?.art}/><span className="topic-name"><span className="feed-card-identity"><strong>{feed.title}</strong><small>@{feed.ownerUsername}</small></span><ArrowRight size={14}/></span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a><FeedCardActions feed={feed} owner onError={setError} canPublish={props.account?.role === "admin"} featured={loading ? undefined : feeds.some(selected => selected.id === feed.id)}/></article>)}</FeedGrid>{!props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
