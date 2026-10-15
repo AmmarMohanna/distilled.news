@@ -50,7 +50,7 @@ class PublicationOperationFailure extends HandoffError {constructor(readonly rea
 class VerificationContractError extends HandoffError {readonly reason='VERIFICATION_CONTRACT_MISMATCH';constructor(){super('INVALID_REQUEST')}}
 export class QuietPublication extends Error {constructor(){super('NO_NEW_VERIFIED_STORIES')}}
 interface PublicationJob {id:string;feedId:string;selectionId:string;state:'PENDING'|'RUNNING'|'DONE'|'FAILED';attempts:number;token:string;leaseUntil:string;callsUsed:number;tokensIn:number;tokensOut:number;cost:number;pendingCall?:string;repairRequested?:boolean;failure?:string}
-interface StoredDraft {id:string;feedId:string;draft:BriefingDraft;model:string;provider:string;promptVersion?:string;createdAt:string}
+interface StoredDraft {id:string;feedId:string;draft:BriefingDraft;model:string;provider:string;promptVersion?:string;createdAt:string;sourceDraftId?:string}
 interface GroundedClaim extends DraftClaim {id:string}
 interface GroundingResult {id:string;feedId:string;stories:{candidateId:string;claims:GroundedClaim[]}[];rejectedClaims:number;policyVersion:string;createdAt:string}
 export interface BriefingEditionRecord {
@@ -524,7 +524,30 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   for(let attempt=0;attempt<2;attempt++){
    try {grounding=await verifyDraft(storedDraft,draftKey);break;}
    catch(error){
-    if(!(error instanceof DraftVerificationError)||draftKey===repairKey||storedDraft.provider==='NONE'||!options.model?.repair||!input.editorialPlan)throw error;
+    if(!(error instanceof DraftVerificationError)||storedDraft.provider==='NONE'||!input.editorialPlan)throw error;
+    if(draftKey===repairKey){
+     if(!adaptiveExecution||!options.model?.verify)throw error;
+     // Only deterministic, candidate-owned precheck failures can isolate an
+     // independent sibling. Semantic rejection and ambiguous ownership stay closed.
+     const problems=inspectWriterDraft(input,storedDraft.draft,s=>approvedSupportSpans(s),true);
+     if(!problems.length||problems.some(p=>!p.candidateId||p.code==='UNKNOWN_OR_DUPLICATE_STORY'||!input.stories.some(s=>s.candidate.id===p.candidateId)))throw error;
+     const blocked=new Set(problems.map(p=>p.candidateId!)),remaining=input.stories.filter(s=>!blocked.has(s.candidate.id));
+     await recordPendingDelivery([...blocked],'WRITER_PRECHECK_FAILED');
+     if(!remaining.length)throw error;
+     const key=JSON.stringify([repairKey,'independent-stories-v1']),draft={...storedDraft.draft,stories:storedDraft.draft.stories.filter(s=>!blocked.has(s.candidateId))};
+     const sourceDraft=storedDraft;
+     storedDraft=await feedTransact(store,feedId,async tx=>{
+      await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);
+      const prior=await tx.read<StoredDraft>('drafts',key);
+      if(prior){if(prior.sourceDraftId!==repairKey||canonicalJson(prior.draft)!==canonicalJson(draft))throw new HandoffError('SCOPE_DENIED');return prior;}
+      const value={...sourceDraft,id:key,draft,sourceDraftId:repairKey,createdAt:options.now()};await tx.write('drafts',key,value);return value;
+     });
+     input={...input,stories:remaining};draftKey=key;
+     // No rewriting or third repair. These unchanged stories still require the
+     // complete independent entailment, novelty and correction verification.
+     grounding=await verifyDraft(storedDraft,draftKey);break;
+    }
+    if(!options.model?.repair)throw error;
     const writer=synthesisWriterInput(input),failed=storedDraft.draft;
     await feedTransact(store,feedId,async tx=>{const job=await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);await tx.write('synthesis_jobs',editionId,{...job,repairRequested:true})});
     await callModel('REPAIR',options.model!.repairPayload?.(writer,failed,error.feedback)??{input:writer,draft:failed,feedback:error.feedback},limits=>options.model!.repair!(writer,failed,error.feedback,limits),repairKey,{scope:writerReuseScope(writer),failed,feedback:error.feedback.issues});
@@ -550,7 +573,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     provisionalSemanticStates.push({eventVersionId,provenance:state.provenance,rematchRequestIds:requests.filter(r=>versionEvidenceIds.includes(r.evidenceRevisionId)).map(r=>r.id)});
    }
    if(!adaptiveExecution&&(job.tokensIn>selection.budget.maxInputTokens || job.tokensOut>selection.budget.maxOutputTokens || job.cost>selection.budget.maxCostUsd || Date.now()-started>selection.budget.maxWallClockMs)) throw new HandoffError('INVALID_REQUEST');
-   const edition:BriefingEditionRecord={provisionalSemanticStates,id:editionId,feedId,feedRevision:selection.feedRevision,windowStart:selection.window.start,windowEnd:selection.window.end,language:input.feed.outputLanguage,selectionId,selectedCandidateIds:usedCandidates,eventVersionIds,storylineVersionIds,evidenceRevisionIds,stories:finalGrounding.stories,generation:{model:finalDraft.model,provider:finalDraft.provider,promptVersion:finalDraft.promptVersion??'selected-evidence-v1',routerVersion:'stored-evidence-only-v1',tokensIn:job.tokensIn,tokensOut:job.tokensOut,cost:job.cost,latencyMs:Date.now()-started,repairCount:draftKey===repairKey?1:0,draftId:draftKey,verificationId:draftKey,usageConfirmed:(await tx.list<{id:string;editionId:string;confirmed:boolean}>('model_executions')).filter(e=>e.editionId===editionId).every(e=>e.confirmed)},selectionPolicyVersion:selection.policyVersion,groundingPolicyVersion:finalGrounding.policyVersion,createdAt:options.now()};
+   const edition:BriefingEditionRecord={provisionalSemanticStates,id:editionId,feedId,feedRevision:selection.feedRevision,windowStart:selection.window.start,windowEnd:selection.window.end,language:input.feed.outputLanguage,selectionId,selectedCandidateIds:usedCandidates,eventVersionIds,storylineVersionIds,evidenceRevisionIds,stories:finalGrounding.stories,generation:{model:finalDraft.model,provider:finalDraft.provider,promptVersion:finalDraft.promptVersion??'selected-evidence-v1',routerVersion:'stored-evidence-only-v1',tokensIn:job.tokensIn,tokensOut:job.tokensOut,cost:job.cost,latencyMs:Date.now()-started,repairCount:draftKey===repairKey||finalDraft.sourceDraftId===repairKey?1:0,draftId:draftKey,verificationId:draftKey,usageConfirmed:(await tx.list<{id:string;editionId:string;confirmed:boolean}>('model_executions')).filter(e=>e.editionId===editionId).every(e=>e.confirmed)},selectionPolicyVersion:selection.policyVersion,groundingPolicyVersion:finalGrounding.policyVersion,createdAt:options.now()};
    await tx.write('editions',editionId,edition);await tx.write('publication_status',editionId,{id:editionId,feedId,status:'PUBLISHED',publishedAt:edition.createdAt});
    await tx.write('delivery_jobs',editionId,{id:editionId,feedId,editionId,state:'PENDING',attempts:0,createdAt:edition.createdAt});
    await tx.write('synthesis_jobs',editionId,{...job,state:'DONE'});return edition;

@@ -268,3 +268,17 @@ it('traces RSS discovery with the real handoff_id storage schema and preserves F
  expect(r.items[0]).toMatchObject({id:'rss-discovery',discovery:{state:'SUCCESS',collectionBatchId:'rss-discovery'},intake:{state:'NOT_OBSERVABLE'},editorial:{state:'NOT_OBSERVABLE'}});
  expect(JSON.stringify(r)).not.toContain('private-discovery');
 });
+
+it('candidate diagnostics follow an independently verified derived publication draft',async()=>{
+ const key=JSON.stringify([JSON.stringify(['selection','repair-1']),'independent-stories-v1']);
+ const put=(kind:string,id:string,value:object)=>ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind(kind,id,'feed-1',JSON.stringify({id,feedId:'feed-1',...value}));
+ await ctx.db.batch([
+  put('drafts',key,{sourceDraftId:JSON.stringify(['selection','repair-1']),draft:{stories:[{candidateId:'candidate-a',claims:[{text:'Officials approved a policy.'}]}]}}),
+  put('verification_results',key,{supportedClaimIds:['derived-claim'],semanticChecks:[]}),
+  put('grounding_results',key,{stories:[{candidateId:'candidate-a'}]}),
+  put('editions','derived-edition',{selectionId:'selection',windowStart:start,windowEnd:end,stories:[{candidateId:'candidate-a'}],generation:{draftId:key,verificationId:key}})
+ ]);
+ const r=await readPipelineTrace(ctx.db,'feed-1',{...options,view:'candidates',targetId:'version-0'});
+ expect(r.items[0].writer.draftIds).toContain(key);
+ expect(r.items[0].verification.semanticResults).toEqual(expect.arrayContaining([expect.objectContaining({id:key,supportedClaimIds:['derived-claim']})]));
+});
