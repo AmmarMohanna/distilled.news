@@ -23,6 +23,31 @@ it('missing account authorization remains an explicit durable wait, without a pr
  const model:BriefingModelPort={model:'test',provider:'SYNTHETIC',maxCallCostUsd:0,admission:syntheticModelAdmission,synthesize:async()=>{calls++;throw Error('not called')}};
  await expect(publishSelection(store,'feed-1',selection.id,{now:testPolicy.now,model})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});expect(calls).toBe(0);expect(await store.list('feed-1','editions')).toHaveLength(0);expect((await store.list<any>('feed-1','synthesis_jobs'))[0]).toMatchObject({state:'PENDING',failure:'ACCOUNT_AUTHORIZATION_REQUIRED'});
 },20000);
+it('failed intent commit before provider execution remains recoverable without inventing an UNKNOWN charge',async()=>{
+ await seedIntelligence(store);const selection=await scoreAndSelect(store,'feed-1',window,ADAPTIVE_BRIEFING_PROCESSING,testPolicy.now());let calls=0;
+ const usage={tokensIn:20,tokensOut:20,cost:.001,confirmed:true};
+ const model:BriefingModelPort={model:'test-model',provider:'SYNTHETIC',maxCallCostUsd:0,admission:syntheticModelAdmission,synthesize:async input=>{calls++;const s=input.stories[0],e=s.evidence[0];return {draft:{language:'en',stories:[{candidateId:s.candidate.id,claims:[{text:e.body!,support:[{evidenceRevisionId:e.id,quote:e.body!}]}]}]},usage}},verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),usage})};
+ await ctx.db.exec("CREATE TRIGGER fail_unstarted_publication_intent BEFORE INSERT ON v1_feed_documents WHEN NEW.kind='semantic_intents' BEGIN SELECT RAISE(ABORT,'simulated intent commit outage'); END;");
+ await expect(publishSelection(store,'feed-1',selection.id,{now:testPolicy.now,model})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ expect(calls).toBe(0);expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+ expect((await store.list<any>('feed-1','synthesis_jobs'))[0]).toMatchObject({state:'PENDING'});
+ expect((await store.list<any>('feed-1','model_executions')).some(e=>e.status==='OUTCOME_UNKNOWN')).toBe(false);
+ expect((await ctx.db.prepare('SELECT COUNT(*) AS n FROM v1_model_spending_reservations').first<{n:number}>())!.n).toBe(0);
+ await ctx.db.exec('DROP TRIGGER fail_unstarted_publication_intent;');
+ const edition=await publishSelection(new V1FeedStore(ctx.db),'feed-1',selection.id,{now:testPolicy.now,model});expect(calls).toBe(1);expect(edition.stories).toHaveLength(1);
+},30000);
+it('a provider failure after committed intent retains UNKNOWN liability and cannot be reissued',async()=>{
+ await seedIntelligence(store);const selection=await scoreAndSelect(store,'feed-1',window,ADAPTIVE_BRIEFING_PROCESSING,testPolicy.now());let calls=0;
+ const model:BriefingModelPort={model:'test-model',provider:'SYNTHETIC',maxCallCostUsd:0,admission:syntheticModelAdmission,synthesize:async()=>{
+  calls++;const job=(await store.list<any>('feed-1','synthesis_jobs'))[0];expect(typeof job.pendingCall).toBe('string');expect(await store.read('feed-1','semantic_intents',job.pendingCall)).toBeTruthy();throw Error('provider outcome unavailable');
+ }};
+ await expect(publishSelection(store,'feed-1',selection.id,{now:testPolicy.now,model})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ expect((await store.list<any>('feed-1','synthesis_jobs'))[0]).toMatchObject({state:'FAILED',failure:'MODEL_OUTCOME_UNKNOWN'});
+ expect((await ctx.db.prepare('SELECT SUM(reserved_cost_usd) AS exposure FROM v1_model_spending_reservations').first<{exposure:number}>())!.exposure).toBeCloseTo(.02);
+ expect((await ctx.db.prepare('SELECT COUNT(*) AS n FROM v1_model_spending_settlements WHERE reported=1').first<{n:number}>())!.n).toBe(0);
+ await expect(publishSelection(new V1FeedStore(ctx.db),'feed-1',selection.id,{now:testPolicy.now,model})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(calls).toBe(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
+},30000);
 import {acceptEvidence} from './test-utils';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {processEvidenceIntelligence} from './engine';
