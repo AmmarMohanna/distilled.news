@@ -29,7 +29,8 @@ describe("model operation deadlines and recovery",()=>{
     const processing=coordinator.process(admitted.run.runId,"worker-a",startedAt);
     const outcome=processing.then(()=>null,(error:unknown)=>error);
 
-    await flushUntil(()=>gateway.requests.length===1);
+    await gateway.requestStarted;
+    expect(gateway.requests).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(16_000);
     expect(await outcome).toMatchObject({failureClass:"deadline_exceeded"});
 
@@ -59,7 +60,8 @@ describe("model operation deadlines and recovery",()=>{
     const admitted=await strategy.admitKnownCandidate(invocation("remaining-run-clamp"),admittedAt);
     const processing=coordinator.process(admitted.run.runId,"worker-a",processAt);
     const outcome=processing.then(()=>null,(error:unknown)=>error);
-    await flushUntil(()=>gateway.requests.length===1);
+    await gateway.requestStarted;
+    expect(gateway.requests).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(0);
     expect(await outcome).toMatchObject({failureClass:"deadline_exceeded"});
 
@@ -97,7 +99,8 @@ describe("model operation deadlines and recovery",()=>{
     const processing=coordinator.process(admitted.run.runId,"worker-a",startedAt);
     const outcome=processing.then(()=>null,(error:unknown)=>error);
 
-    await flushUntil(()=>gateway.requests.length===1);
+    await gateway.requestStarted;
+    expect(gateway.requests).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(20_000);
     expect(await outcome).toMatchObject({name:"LeaseRenewalLostError"});
 
@@ -116,7 +119,8 @@ describe("model operation deadlines and recovery",()=>{
     const processing=coordinator.process(admitted.run.runId,"worker-a",startedAt);
     const outcome=processing.then(()=>null,(error:unknown)=>error);
 
-    await flushUntil(()=>gateway.requests.length===1);
+    await gateway.requestStarted;
+    expect(gateway.requests).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(5_000);
     await store.failRunDelivery(admitted.run.runId,"authoritative queue quarantine",new Date(Date.now()).toISOString());
     await vi.advanceTimersByTimeAsync(15_000);
@@ -143,9 +147,12 @@ class RenewalFailureStore extends MemoryRuntimeStore {
 class DelayedFailureGateway implements ModelGateway {
   readonly id="delayed-deadline";
   readonly requests:ModelRequest[]=[];
+  private signalRequest!:()=>void;
+  readonly requestStarted=new Promise<void>(resolve=>{this.signalRequest=resolve});
   constructor(private readonly delayMs:number) {}
   async complete(request:ModelRequest):Promise<ModelGatewayResult> {
     this.requests.push(request);
+    this.signalRequest();
     await new Promise<void>((resolve)=>setTimeout(resolve,this.delayMs));
     throw new ModelGatewayError(
       "openrouter transport failed: model gateway deadline exceeded",
@@ -160,9 +167,12 @@ class DelayedFailureGateway implements ModelGateway {
 class StubbornGateway implements ModelGateway {
   readonly id="stubborn";
   readonly requests:ModelRequest[]=[];
+  private signalRequest!:()=>void;
+  readonly requestStarted=new Promise<void>(resolve=>{this.signalRequest=resolve});
   constructor(private readonly delayMs:number) {}
   async complete(request:ModelRequest):Promise<ModelGatewayResult> {
     this.requests.push(request);
+    this.signalRequest();
     await new Promise<void>((resolve)=>setTimeout(resolve,this.delayMs));
     return {
       plan:{version:1,actions:[]},usage:{inputTokens:1,outputTokens:1,costUsd:0,latencyMs:this.delayMs},
@@ -223,7 +233,3 @@ function observation(url:string):BrowserObservationData {
     observationSource:"CDP_DOM_SNAPSHOT",protocolSnapshotVersion:"test",controls:[],challengeState:"NO_CHALLENGE",watermarkObserved:false};
 }
 
-async function flushUntil(predicate:()=>boolean) {
-  for (let index=0;index<500&&!predicate();index+=1) await new Promise<void>((resolve)=>setImmediate(resolve));
-  expect(predicate()).toBe(true);
-}

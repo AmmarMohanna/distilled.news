@@ -401,10 +401,13 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
       status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:4,providerCostUsd:0}
     }:{status:302,headers:{location:'https://publisher.example/article?utm_source=google&edition=us#top'},bytes:new Uint8Array(),
       telemetry:{requests:1,latencyMs:6,providerCostUsd:0}})};
+    const clock=vi.spyOn(Date,'now').mockReturnValue(0);
+    try{
     const result=await new FeedSourceProvider('google_rss',http).fetch({...request,source:{family:'google_news',locator:'AI'}});
     expect(result.items[0]).toMatchObject({sourceItemKey:'id:google-id',url:'https://publisher.example/article?edition=us',publisherId:'publisher.example',representation:'LISTING_RESULT'});
     expect(result).toMatchObject({requests:2,latencyMs:10});
     expect(vi.mocked(http.get).mock.calls.map(([url])=>new URL(url).hostname)).toEqual(['news.google.com','news.google.com']);
+    }finally{clock.mockRestore();}
   });
   it('keeps Google listing links when redirect destinations are unsafe or resolution fails',async()=>{
     const links=['https://news.google.com/rss/articles/one','https://news.google.com/rss/articles/two'];
