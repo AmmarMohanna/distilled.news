@@ -109,6 +109,7 @@ describe("worker app accounts", () => {
       }
     });
     expect(await repo.countAdmins()).toBe(1);
+    expect(await repo.listBriefings()).toEqual([]);
   });
 
   it("prevents multiple accounts for the same email and reserves usernames", async () => {
@@ -299,7 +300,7 @@ describe("worker app accounts", () => {
       expect((await app.request(endpoint,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token,password:"changed-pass123"})},config)).status).toBe(400);
     }
     const verify=tokenFromMessage(mail.messages[0].text);await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);
-    const replay=await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);expect(replay.status).toBe(200);expect(replay.headers.get("set-cookie")).toBeNull();
+    const replay=await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);expect(replay.status).toBe(200);expect(replay.headers.get("set-cookie")).toBeNull();expect(await repo.listBriefings(account.id)).toEqual([]);
     await app.request("/api/auth/password/forgot",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email})},config);
     const reset=tokenFromMessage(mail.messages[1].text),body=JSON.stringify({token:reset,password:"changed-pass123"});
     expect((await app.request("/api/auth/password/reset",{method:"POST",headers:{"content-type":"application/json"},body},config)).status).toBe(200);
@@ -317,6 +318,9 @@ describe("worker app accounts", () => {
     expect(briefings).toHaveLength(1);
     const deleted = await app.request(`/api/me/briefings/${briefings[0].id}`, { method: "DELETE", headers }, env());
     expect(deleted.status).toBe(200);
+    for (const path of ["/api/me/sources", "/api/me/health"]) {
+      expect((await app.request(path, { headers }, env())).status).toBe(404);
+    }
     const remaining = await app.request("/api/me/briefings", { headers }, env());
     expect(await remaining.json()).toEqual({ briefings: [] });
   });
