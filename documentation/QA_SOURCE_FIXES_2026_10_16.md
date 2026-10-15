@@ -35,6 +35,10 @@ validation recorded in `FIVE_FEED_QA_VALIDATION_2026_10_15.md`.
   Downstream article acquisition also rejects discovered listings.
 - Mixed acquisition failures use a generic failure warning rather than claiming
   the entire count consists of authentication failures.
+- The shared article HTTP path now resolves at most three publisher-local
+  redirects, preserving the observed candidate identity and final transport URL.
+  Cross-origin, credential-bearing, insecure and looping redirects still fail
+  before another fetch. Authentication responses remain unavailable content.
 - Skip automatic publication windows ending before feed creation. The admission
   function lives in `connector-publication-window.ts`; the intelligence runtime
   has only its import/call integration. Existing historical requests are untouched.
@@ -52,6 +56,7 @@ bindings, source budgets and immutable frontend asset prefix on deployment.
 - Additional focused queue, optional-fact verification, source-warning, approved
   synthesis and independent-story isolation suites passed.
 - Website discovery: 12 tests passed. Website provider cases: seven passed.
+- Publisher-local redirect and downstream runtime integration: 13 tests passed.
 - Local 1,000-feed dispatcher and 1,000-consumer public-fetch reuse checks passed;
   these are bounded local checks, not sustained live production capacity proof.
 
@@ -68,4 +73,16 @@ A retained RSS replay needs fresh verification when a corrected precheck admits
 more stories than its previously cached verification packet covered. The old
 narrower verdict cannot be reused as approval of the expanded claim set.
 
-Rollout and any further live-run results are recorded below after deployment.
+## QA rollout
+
+Code commit `926f151` was deployed to sources QA as version
+`6350728c-7f4b-46b9-8510-e10ab052ed05`. A settings comparison found no missing or
+unrelated changed bindings. The immutable frontend prefix and secrets remain
+unchanged. The redirect follow-up has its own subsequent commit/deployment.
+
+For follow-up validation on the same RSS test feed, the remaining original $5
+allowance was calculated from recorded exposure: $2.2346228 already used,
+$2.765377 maximum additional exposure (rounded down). A non-overlapping grant
+expires October 16 at 02:21:51 Beirut. Existing charges and the old unknown
+$0.02 hold remain intact; no additional $5 allowance was granted. Other test
+feeds remain paused. Final observation and cleanup follow below.

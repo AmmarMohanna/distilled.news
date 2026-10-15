@@ -16,6 +16,7 @@ import {HttpSourceExecution,BoundedFeedHttp} from '@distilled/connectors';
 import {verifyConnectorAuthority} from './connector-authority';
 import {sharedPublicHttp} from './connector-public-cache';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
+import {readPublicArticle} from './v1-intake/public-article-http';
 
 function enabledSources(env:Env):string[] {
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
@@ -76,7 +77,7 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  const execution=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
   new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return env.SOURCE_EXECUTION_SERVICE!.fetch(value,init)},true):undefined;
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
- publicGet:articleHttp?async(url)=>{const r=await articleHttp.get(url,{accept:'text/html'});if(r.status===0)throw new AcquisitionFailure('NETWORK',true);if(r.status>=300&&r.status<400)throw new AcquisitionFailure('POLICY_DENIED',false);return {url,body:new TextDecoder().decode(r.bytes),contentType:r.headers['content-type']??'',status:r.status,...(Object.keys(r.headers).some(k=>k.toLowerCase()==='www-authenticate')?{authenticationRequired:true}:{})};}:undefined,
+ publicGet:articleHttp?url=>readPublicArticle(articleHttp,url):undefined,
  publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:25000});await authorizeArticle(url);return result;}:undefined,
  extractHtml:env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?async(url,html)=>{
   await authorizeArticle(url);const result=await execution!.execute('extract',{url,html});await authorizeArticle(url);return result;
