@@ -984,7 +984,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Feed toolbar: search on the leading side, Star / Share / Refresh as one group on the trailing side.
    Share replaces the old Copy URL + Share pair (it falls back to copying where the Web Share API is absent).
    Phones show icons only (44pt targets, labels stay in the accessible name); wider screens show labels. */
-:root.apple-ui.apple-ui .feed-shell .feed-tools { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .feed-shell .feed-tools { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 8px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 :root.apple-ui.apple-ui .feed-shell .feed-side-actions { display: flex; flex: 1 1 auto; min-width: 0; width: auto; }
 :root.apple-ui.apple-ui .feed-shell .feed-side-actions .search { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 44px; }
 :root.apple-ui.apple-ui .feed-shell .feed-side-actions .search input { text-overflow: ellipsis; }
@@ -993,4 +993,59 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (max-width: 700px) {
   :root.apple-ui.apple-ui .feed-shell .feed-actions > button { padding: 8px 12px; gap: 6px; }
   :root.apple-ui.apple-ui .feed-shell .feed-actions .action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+
+/* Apple design pass.
+   Motion: critically damped (no overshoot) because nothing here carries momentum from a flick.
+   Press feedback is instant (transition 0ms on :active) and the release eases out.
+   Only transform, opacity and colors animate. */
+:root.apple-ui {
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --elev-1: 0 0.5px 0 rgb(0 0 0 / 5%), 0 2px 10px rgb(0 0 0 / 5%);
+  --elev-2: 0 1px 0 rgb(0 0 0 / 4%), 0 14px 34px rgb(0 0 0 / 10%);
+  --hairline: 0.5px solid var(--line);
+}
+:root.apple-ui[data-theme="dark"] {
+  --elev-1: 0 0 0 0.5px rgb(255 255 255 / 6%), 0 2px 12px rgb(0 0 0 / 45%);
+  --elev-2: 0 0 0 0.5px rgb(255 255 255 / 8%), 0 16px 36px rgb(0 0 0 / 55%);
+}
+:root.apple-ui.apple-ui :is(button, a, summary, [role="button"]) { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+/* Cards are surfaces with depth rather than outlined boxes. */
+:root.apple-ui.apple-ui :is(.topic-card, .ranked-feed, .feed-shell .news-copy) {
+  border: var(--hairline); box-shadow: var(--elev-1);
+  transition: transform 380ms var(--ease-settle), box-shadow 380ms var(--ease-settle);
+}
+:root.apple-ui.apple-ui :is(.topic-card, .ranked-feed):active { transform: scale(0.985); transition-duration: 0ms; }
+@media (hover: hover) and (pointer: fine) {
+  :root.apple-ui.apple-ui :is(.topic-card, .ranked-feed):hover { transform: translateY(-2px); box-shadow: var(--elev-2); }
+  :root.apple-ui.apple-ui :is(.topic-card, .ranked-feed):active { transform: scale(0.985); }
+}
+
+/* Chrome: the tab bar / sidebar gets the system's saturated blur. Headers keep their existing material. */
+:root.apple-ui.apple-ui .bottom-navigation { backdrop-filter: blur(28px) saturate(180%); -webkit-backdrop-filter: blur(28px) saturate(180%); }
+
+/* Feed actions read as one grouped control, as in a system toolbar. */
+:root.apple-ui.apple-ui .feed-shell .feed-actions { gap: 0; padding: 2px; border: var(--hairline); border-radius: 999px; background: var(--surface-quiet); }
+:root.apple-ui.apple-ui .feed-shell .feed-actions > button { border: 0; border-radius: 999px; background: transparent; }
+:root.apple-ui.apple-ui .feed-shell .feed-actions > button:hover:not(:disabled) { background: var(--surface-hover); }
+:root.apple-ui.apple-ui .feed-shell .feed-side-actions .search { min-height: 48px; }
+
+/* Typography: tracking follows size (tight when large, slightly open when small); numerals align. */
+:root.apple-ui.apple-ui :is(small, .eyebrow, .feed-card-status, .explore-feed-owner, .bottom-navigation span) { letter-spacing: 0.01em; }
+:root.apple-ui.apple-ui :is(time, .star-vote .action-count, .feed-updated-at) { font-variant-numeric: tabular-nums; }
+:root.apple-ui.apple-ui .experience-section-heading h2 { letter-spacing: -0.022em; }
+
+/* Selection and state changes settle rather than snap. */
+:root.apple-ui.apple-ui .category-chips button { transition: background-color 200ms var(--ease-settle), color 200ms var(--ease-settle), transform 200ms var(--ease-settle); }
+:root.apple-ui.apple-ui .category-chips button:active { transform: scale(0.96); transition-duration: 0ms; }
+:root.apple-ui.apple-ui .star-vote svg { transition: transform 300ms var(--ease-settle), fill 200ms var(--ease-settle); }
+:root.apple-ui.apple-ui .star-vote.is-starred svg { fill: currentColor; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root.apple-ui.apple-ui :is(.topic-card, .ranked-feed, .feed-shell .news-copy, .category-chips button, .star-vote svg) { transition: background-color 150ms linear, color 150ms linear; }
+  :root.apple-ui.apple-ui :is(.topic-card, .ranked-feed):is(:hover, :active), :root.apple-ui.apple-ui .category-chips button:active { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root.apple-ui.apple-ui :is(.experience-header, .auth-header, .shell > header, .bottom-navigation) { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--surface); }
 }
