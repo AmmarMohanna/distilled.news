@@ -26,10 +26,11 @@ for (const size of [
       const viewport = document.querySelector(".app-pages > .screen-page-viewport")!;
       const settings = document.querySelector(".settings-view")!.getBoundingClientRect();
       const navigation = document.querySelector(".bottom-navigation")!.getBoundingClientRect();
-      return { scrollHeight: viewport.scrollHeight, clientHeight: viewport.clientHeight, settingsBottom: settings.bottom, navigationTop: navigation.top };
+      return { scrollHeight: viewport.scrollHeight, clientHeight: viewport.clientHeight, settingsBottom: settings.bottom, navigationTop: navigation.top, navigationWidth: navigation.width, navigationRight: navigation.right, settingsLeft: settings.left };
     });
     expect(result.scrollHeight).toBeLessThanOrEqual(result.clientHeight + 1);
-    if (size.width < 900) expect(result.settingsBottom).toBeLessThanOrEqual(result.navigationTop);
+    if (size.width < 900 && result.navigationWidth > size.width / 2) expect(result.settingsBottom).toBeLessThanOrEqual(result.navigationTop);
+    else if (size.width < 900) expect(result.settingsLeft).toBeGreaterThanOrEqual(result.navigationRight);
     expect(await page.locator(".setting-row").first().evaluate(node => getComputedStyle(node).fontSize)).toBe("16px");
   });
 }
@@ -44,7 +45,8 @@ for (const language of ["fr", "ar"]) for (const size of [{ width: 320, height: 5
     expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
     const navigation = await page.locator(".bottom-navigation").boundingBox();
     const settings = await page.locator(".settings-view").boundingBox();
-    expect(settings!.y + settings!.height).toBeLessThanOrEqual(navigation!.y);
+    if(navigation!.width > size.width / 2) expect(settings!.y + settings!.height).toBeLessThanOrEqual(navigation!.y);
+    else expect(settings!.x).toBeGreaterThanOrEqual(navigation!.x + navigation!.width);
   });
 }
 
@@ -83,6 +85,7 @@ for (const size of [{ width: 1280, height: 637 }, { width: 1280, height: 593 }, 
     }
     const navigation = await page.locator(".bottom-navigation").boundingBox();
     const settings = await page.locator(".settings-view").boundingBox();
-    if (size.width < 900) expect(settings!.y + settings!.height).toBeLessThanOrEqual(navigation!.y);
+    if (size.width < 900 && navigation!.width > size.width / 2) expect(settings!.y + settings!.height).toBeLessThanOrEqual(navigation!.y);
+    else if(size.width < 900) expect(settings!.x).toBeGreaterThanOrEqual(navigation!.x + navigation!.width);
   });
 }

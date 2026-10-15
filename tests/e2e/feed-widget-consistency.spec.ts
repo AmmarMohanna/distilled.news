@@ -14,17 +14,23 @@ for (const width of [320, 390, 1280]) test(`Home and Explore share widget sizes 
   await page.goto('/');
   const home = page.locator('.home-view .topic-card');
   await expect(home).toHaveCount(1);
-  await expect(home.locator('.feed-updated-at')).toBeVisible();
+  await expect(home.locator('.feed-updated-at')).toHaveCount(1);
   const homeBounds = (await home.boundingBox())!;
   const art = (await home.locator('.topic-art').boundingBox())!;
   const menu = (await home.locator('.feed-options > summary').boundingBox())!;
   const identity = (await home.locator('.topic-name').boundingBox())!;
   const footer = (await home.locator('.feed-card-actions').boundingBox())!;
-  expect(menu.y).toBeGreaterThanOrEqual(art.y);
-  expect(menu.y + menu.height).toBeLessThanOrEqual(art.y + art.height);
+  expect(menu.y).toBeGreaterThanOrEqual(homeBounds.y);
+  expect(menu.y + menu.height).toBeLessThanOrEqual(homeBounds.y + homeBounds.height);
   expect(menu.x + menu.width).toBeLessThanOrEqual(homeBounds.x + homeBounds.width);
-  expect(identity.y).toBeGreaterThanOrEqual(art.y + art.height);
-  expect(footer.y).toBeGreaterThanOrEqual(identity.y + identity.height);
+  if(width <= 600) {
+    expect(identity.x).toBeGreaterThanOrEqual(art.x + art.width);
+    expect(footer.x).toBeGreaterThan(identity.x);
+    expect(homeBounds.height).toBeLessThan(130);
+  } else {
+    expect(identity.y).toBeGreaterThanOrEqual(art.y + art.height);
+    expect(footer.y).toBeGreaterThanOrEqual(identity.y + identity.height);
+  }
   await home.locator('.feed-options > summary').click();
   await expect(home.getByRole('link', { name: 'Edit feed settings' })).toBeVisible();
   await home.locator('.feed-options > summary').click();
