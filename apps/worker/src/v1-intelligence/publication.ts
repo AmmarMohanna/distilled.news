@@ -135,7 +135,7 @@ export function approvedWriterFacts(story:SynthesisInput['stories'][number]):App
  const p=story.plan,ids=new Set([...p.newUnderstandingFactIds,...p.contextFactIds,...p.mustIncludeFactIds,...p.attributionFactIds,...p.certaintyFactIds,...p.disagreementFactIds,...p.openQuestionFactIds]);
  return p.facts.filter(f=>ids.has(f.id)).map(f=>({...f,support:story.evidence.filter(e=>f.evidenceRevisionIds.includes(e.id)).flatMap(e=>{
   // A merged fact keeps the exact sentence of every equivalent supporter, even when worded differently.
-  const body=e.body??'',quote=e.title?.includes(f.text)?f.text:body.includes(f.text)?f.text:body.trim().split(/(?<=[.!?])\s+|\n+/u).find(s=>normalize(s)===normalize(f.text)||equivalentFact(s,f.text));
+  const body=e.body??'',quote=e.title?.includes(f.text)?f.text:body.includes(f.text)?f.text:[...new Intl.Segmenter('und',{granularity:'sentence'}).segment(body)].map(s=>s.segment.trim()).find(s=>normalize(s)===normalize(f.text)||equivalentFact(s,f.text));
   return quote?[{evidenceRevisionId:e.id,quote}]:[];
  }).concat(f.context&&story.evidence.some(e=>e.id===f.context!.evidenceRevisionId&&e.title===f.context!.text)?[{evidenceRevisionId:f.context.evidenceRevisionId,quote:f.context.text}]:[])}));
 }
@@ -147,9 +147,14 @@ export function approvedSupportSpans(story:SynthesisInput['stories'][number]):Cl
  // title span, rather than an incomplete body sentence to reject or expand.
  for(const e of story.evidence){const body=e.body??'',parts=facts.flatMap(f=>f.support.filter(s=>s.evidenceRevisionId===e.id&&s.quote!==e.title&&body.includes(s.quote)).map(s=>({start:body.indexOf(s.quote),end:body.indexOf(s.quote)+s.quote.length}))).sort((a,b)=>a.start-b.start||a.end-b.end),merged:{start:number;end:number}[]=[];
   for(const part of parts){const last=merged.at(-1);if(last&&part.start<=last.end || last&&/^\s*$/.test(body.slice(last.end,part.start)))last.end=Math.max(last.end,part.end);else merged.push({...part});}
+  const sentences=[...new Intl.Segmenter('und',{granularity:'sentence'}).segment(body)];
+  const sentenceStarts=new Set(sentences.map(s=>s.index+s.segment.length-s.segment.trimStart().length)),sentenceEnds=new Set(sentences.map(s=>s.index+s.segment.trimEnd().length));
   for(const p of merged){const quote=body.slice(p.start,p.end),abbreviation=/\b(?:Oct|Nov|Dec|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Mr|Mrs|Dr|etc|a\.m|p\.m)\.$/i;
    const prefix=body.slice(0,p.start),suffix=body.slice(p.end);
-   if(abbreviation.test(quote)||abbreviation.test(prefix.trim())||prefix.trim()&&!/[.!?]$/.test(prefix.trim())&&!/\n\s*$/.test(prefix)||suffix.trim()&&!/[.!?]$/.test(quote)&&!/^\s*\n/.test(suffix))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
+   // Use the same sentence boundaries as exact claim extraction. Closing
+   // quotation marks are valid sentence endings; arbitrary substrings are not.
+   const sentenceStart=sentenceStarts.has(p.start),sentenceEnd=sentenceEnds.has(p.end);
+   if(abbreviation.test(quote)||abbreviation.test(prefix.trim())||prefix.trim()&&!sentenceStart&&!/\n\s*$/.test(prefix)||suffix.trim()&&!sentenceEnd&&!/^\s*\n/.test(suffix))throw new SynthesisCompatibilityError('EXTRACTIVE_CAPACITY_UNSUPPORTED');
    out.push({evidenceRevisionId:e.id,quote});
   }
  }
@@ -266,7 +271,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    if(phase==='SYNTHESIS'||phase==='REPAIR') {
     const parsed=draftSchema.safeParse((result as any & {draft?:unknown}).draft);
     if(!parsed.success || parsed.data.language!==input.feed.outputLanguage) throw new HandoffError('INVALID_REQUEST');
-    await tx.write('drafts',resultKey,{id:resultKey,feedId,draft:parsed.data,model:model.model,provider:model.provider,promptVersion:model.promptVersion??'selected-evidence-editorial-v2',createdAt:options.now()});
+    await tx.write('drafts',resultKey,{id:resultKey,feedId,draft:parsed.data,model:model.model,provider:model.provider,promptVersion:model.promptVersion??'selected-evidence-editorial-v2',createdAt:(await tx.read<{createdAt:string}>('drafts',resultKey))?.createdAt??options.now()});
    } else if(phase==='GROUNDING') {
     const ids=z.array(z.string().min(1)).safeParse((result as any & {supportedClaimIds?:unknown}).supportedClaimIds);
     if(!ids.success) throw new HandoffError('INVALID_REQUEST');
@@ -276,7 +281,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     const addressed=z.array(z.string().min(1)).optional().safeParse((result as any & {addressedCorrectionObligationIds?:unknown}).addressedCorrectionObligationIds);if(!addressed.success)throw new HandoffError('INVALID_REQUEST');
     const semantic=z.array(z.object({candidateId:z.string().min(1).optional(),readerNovelty:z.object({status:z.enum(['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED','NOT_APPLICABLE']),reason:z.string().min(1),previousFactTexts:z.array(z.string())}).strict().optional(),factId:z.string().min(1),communicated:z.boolean(),attribution:z.boolean(),certainty:z.boolean(),temporal:z.boolean(),qualifiers:z.boolean(),nonRepetitive:z.boolean().optional(),reason:z.string(),readerSpans:z.array(z.object({claimId:z.string().min(1),text:z.string().min(1)}).strict()).optional()}).strict()).optional().parse((result as any & {semanticChecks?:unknown}).semanticChecks);
     if(semantic&&(new Set(semantic.map(c=>JSON.stringify([c.candidateId??null,c.factId]))).size!==semantic.length||semantic.some(c=>!input.stories.some(s=>(!c.candidateId||s.candidate.id===c.candidateId)&&(s.plan?.facts.some(f=>f.id===c.factId)||preservationFacts(s).some(f=>f.id===c.factId))))))throw new HandoffError('INVALID_REQUEST');
-    await tx.write('verification_results',resultKey,{id:resultKey,feedId,supportedClaimIds:ids.data,preservedFactIds:preserved.data,addressedCorrectionObligationIds:addressed.data,novelFactIds:novel.data,semanticChecks:semantic,claimEntailment:'claimEntailment' in result?result.claimEntailment:undefined,createdAt:options.now()});
+    await tx.write('verification_results',resultKey,{id:resultKey,feedId,supportedClaimIds:ids.data,preservedFactIds:preserved.data,addressedCorrectionObligationIds:addressed.data,novelFactIds:novel.data,semanticChecks:semantic,claimEntailment:'claimEntailment' in result?result.claimEntailment:undefined,createdAt:(await tx.read<{createdAt:string}>('verification_results',resultKey))?.createdAt??options.now()});
    }
  };
  const writerReuseScope=(writer:SynthesisWriterInput)=>({language:writer.feed.outputLanguage,stories:writer.stories.map(s=>({target:s.candidate.targetVersionId,facts:s.approvedFacts?.map(f=>({id:f.id,text:f.text,support:f.support,certainty:f.certainty,attribution:f.attribution,context:f.context,eventTime:f.eventTime,reportTime:f.reportTime})),plan:s.plan?{required:s.plan.mustIncludeFactIds,newFacts:s.plan.newUnderstandingFactIds,context:s.plan.contextFactIds,previousReader:s.plan.previousLedgerEntries,obligations:s.plan.correctionObligations}:undefined})).sort((a,b)=>a.target.localeCompare(b.target))});

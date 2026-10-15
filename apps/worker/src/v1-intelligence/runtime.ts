@@ -3,6 +3,7 @@ import {ModelSpendingWait} from './model-spending';
 import {recoverPendingProviderGenerations} from './provider-recovery';
 import {prepareAdaptiveEditorialPlan} from './editorial-continuation';
 import {enqueueV1,pendingV1Jobs} from '../v1-queue-dispatch';
+import {feedExistedInWindow} from '../connector-publication-window';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {z} from 'zod';
 import type {Env,DistilledQueueMessage} from '../types';
@@ -232,6 +233,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   // live scheduling option. Existing UTC schedules remain unchanged otherwise.
   if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
   const window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now),editionId=await windowIdentity(id,window);
+  if(!feedExistedInWindow(feed.createdAt,window.end))continue;
   // Record the observed boundary even while intake is busy. A gap is an
   // observation made NOW, not a fabricated historical request or quiet result.
   await maintenance(id,'SCHEDULE_OBSERVATION',async()=>{

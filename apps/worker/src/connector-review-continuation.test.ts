@@ -24,6 +24,14 @@ it('does not bypass retry times, terminal failures, source switch or feed isolat
  expect(await continueFeedReview(env,'completed',now)).toBe(false);
  expect(env.PROCESSING_QUEUE.send).not.toHaveBeenCalled();
 });
+it('completed acquisition starts review; drained review refills acquisition',async()=>{
+ await job('acquired','DONE','feed-source-1',{kind:'ACQUIRE'});await job('review','PENDING');await job('acquire-next','PENDING','feed-source-1',{kind:'ACQUIRE'});
+ expect(await continueFeedReview(env,'acquired',now)).toBe(true);
+ expect(env.PROCESSING_QUEUE.send).toHaveBeenLastCalledWith({type:'v1_reassess',jobId:'review'});
+ await ctx.db.prepare("UPDATE v1_jobs SET json=json_set(json,'$.state','DONE') WHERE id='review'").run();
+ expect(await continueFeedReview(env,'review',now)).toBe(true);
+ expect(env.PROCESSING_QUEUE.send).toHaveBeenLastCalledWith({type:'v1_acquisition',jobId:'acquire-next'});
+});
 it('does not chain from unfinished work or when queue scheduling is disabled',async()=>{
  await job('unfinished','PENDING');expect(await continueFeedReview(env,'unfinished',now)).toBe(false);
  env.SOURCE_QUEUE_SCHEDULING_ENABLED='false';expect(await continueFeedReview(env,'completed',now)).toBe(false);

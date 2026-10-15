@@ -30,7 +30,7 @@ export function numberSequence(text:string):string[] {
 }
 function numericalBounds(text:string):Set<string>{
  const operators:Record<string,string>={'at least':'>=','no fewer than':'>=','at most':'<=','no more than':'<=','more than':'>','over':'>','less than':'<','under':'<'};
- return new Set([...numericText(text).matchAll(/\b(at least|no fewer than|at most|no more than|more than|over|less than|under)\s+(?:a\s+)?(\d+(?:[.,]\d+)*(?:\s*(?:%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b|bn\b|mn\b|tn\b))?)/g)].flatMap(m=>[...numbers(m[2])].map(n=>operators[m[1]]+n)));
+ return new Set([...numericText(text).matchAll(/\b(at least|no fewer than|at most|no more than|more than|over|less than|under)\s+(?:(?:the\s+)?age\s+of\s+)?(?:a\s+)?(\d+(?:[.,]\d+)*(?:\s*(?:%|percent\b|hundred\b|thousand\b|million\b|billion\b|trillion\b|bn\b|mn\b|tn\b))?)/g)].flatMap(m=>[...numbers(m[2])].map(n=>operators[m[1]]+n)));
 }
 /** Calendar dates are provenance-qualified dates, not casualty counts or ages.
  * Only exact supported calendar dates may bypass the quantity floor; the

@@ -8,6 +8,14 @@ it('all stories and every cross-story pair are verified beyond one operation con
 it('a permissive verdict cannot override a rejected claim from another comparison',()=>{
  const packets=partitionVerification(claims,packet=>packet.length<=2),results=packets.map((packet,index)=>({claims:packet,result:{supportedClaimIds:packet.filter(c=>index!==0||c.id!=='claim-0').map(c=>c.id),preservedFactIds:packet.flatMap(c=>c.requiredFacts!.map(f=>f.id)),usage:{tokensIn:1,tokensOut:1,cost:0,confirmed:true}}}));expect(mergeVerification(results).supportedClaimIds).not.toContain('claim-0');expect(mergeVerification(results).supportedClaimIds).toHaveLength(5);
 });
+it('accepts offered optional facts while preserving ownership and required completeness',()=>{
+ const claim={...claims[0],allowedFacts:[{id:'optional',text:'Offered context',evidenceRevisionIds:['source-0']}]};
+ const check={candidateId:'story-0',factId:'optional',communicated:false,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Offered context omitted'};
+ const result={supportedClaimIds:['claim-0'],semanticChecks:[check],usage:{tokensIn:0,tokensOut:0,cost:0,confirmed:true}};
+ expect(mergeVerification([{claims:[claim],result}]).semanticChecks).toEqual([check]);
+ expect(()=>mergeVerification([{claims:[claim],result:{...result,semanticChecks:[{...check,candidateId:'story-1'}]}}])).toThrow('SCOPE_DENIED');
+ expect(()=>mergeVerification([{claims:[claim],result}],true)).toThrow('SCOPE_DENIED');
+});
 it('unoffered claims or facts cannot be imported through verification reconciliation',()=>{
  expect(()=>mergeVerification([{claims:[claims[0]],result:{supportedClaimIds:['claim-1'],usage:{tokensIn:0,tokensOut:0,cost:0,confirmed:true}}}])).toThrow();
 });

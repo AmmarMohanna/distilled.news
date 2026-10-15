@@ -71,6 +71,11 @@ it('full-article mode upgrades an RSS excerpt and preserves the publisher date a
  expect(acquired.representation).toBe('FULL_ARTICLE');expect(acquired.publishedAt).toBe('2026-10-03T10:00:00.000Z');expect(acquired.body).toContain('Full publisher text.');
  expect(acquired.provenance).toMatchObject({stages:['HTTP']});
 });
+it('retains RSS time precision and both date observations after full article extraction',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!;claim.input.observation.publishedAtHint='2026-10-03T10:52:44Z';
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,fetcher:async()=>new Response('<meta property="article:published_time" content="2026-10-03"><h1>Development</h1><article>'+ 'Full reporting. '.repeat(30)+'</article>')});
+ expect(await router(claim)).toMatchObject({publishedAt:'2026-10-03T10:52:44.000Z',provenance:{publicationDate:{timestampSource:'connector_precision_same_article_date',articlePublishedAt:'2026-10-03T00:00:00.000Z',connectorPublishedAt:'2026-10-03T10:52:44.000Z'}}});
+});
 it('an anonymous private HTTP fallback retrieves an exact RSS article after a public 403',async()=>{
  let privateCalls=0;
  const claim=(await claimAcquisition(store,jobId,now))!,url=claim.input.observation.canonicalUrl!;

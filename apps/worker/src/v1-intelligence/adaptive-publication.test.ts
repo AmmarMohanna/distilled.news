@@ -18,6 +18,17 @@ it('adaptive paid results survive failed draft commit and restart, retaining act
  const edition=await publishSelection(new V1FeedStore(ctx.db),'feed-1',selection.id,{now:testPolicy.now,model});expect(calls).toBe(1);expect(edition.stories).toHaveLength(1);expect(edition.generation.cost).toBeCloseTo(.026);expect(await publishSelection(store,'feed-1',selection.id,{now:testPolicy.now,model})).toEqual(edition);
  const charges=await ctx.db.prepare('SELECT SUM(cost_usd) AS cost FROM v1_model_spending_settlements WHERE reported=1').first<{cost:number}>();expect(charges!.cost).toBeCloseTo(.026);
 },30000);
+it('cached verification packets resume after a later-clock restart without rebilling or rewriting immutable timestamps',async()=>{
+ await seedIntelligence(store);const selection=await scoreAndSelect(store,'feed-1',window,ADAPTIVE_BRIEFING_PROCESSING,testPolicy.now());let calls=0;
+ const usage={tokensIn:20,tokensOut:20,cost:.001,confirmed:true};
+ const model:BriefingModelPort={model:'test-model',provider:'SYNTHETIC',maxCallCostUsd:0,admission:syntheticModelAdmission,synthesize:async input=>{calls++;const s=input.stories[0],e=s.evidence[0];return {draft:{language:'en',stories:[{candidateId:s.candidate.id,claims:[{text:e.body!,support:[{evidenceRevisionId:e.id,quote:e.body!}]}]}]},usage}},verify:async claims=>{calls++;return {supportedClaimIds:claims.map(c=>c.id),usage}}};
+ await ctx.db.exec(`CREATE TRIGGER fail_merged_verification BEFORE INSERT ON v1_feed_documents WHEN NEW.kind='verification_results' AND NEW.id='${selection.id}' BEGIN SELECT RAISE(ABORT,'simulated merge persistence outage'); END;`);
+ await expect(publishSelection(store,'feed-1',selection.id,{now:testPolicy.now,model})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ const packet=(await store.list<any>('feed-1','verification_results'))[0];expect(packet).toBeDefined();expect(calls).toBe(2);
+ await ctx.db.exec('DROP TRIGGER fail_merged_verification;');
+ const edition=await publishSelection(new V1FeedStore(ctx.db),'feed-1',selection.id,{now:()=> '2026-10-03T12:10:00Z',model});
+ expect(edition.stories).toHaveLength(1);expect(calls).toBe(2);expect(await store.read('feed-1','verification_results',packet.id)).toEqual(packet);
+},30000);
 it('missing account authorization remains an explicit durable wait, without a provider call or a false quiet edition',async()=>{
  await seedIntelligence(store);const selection=await scoreAndSelect(store,'feed-1',window,ADAPTIVE_BRIEFING_PROCESSING,testPolicy.now());await ctx.db.prepare('DELETE FROM v1_model_spending_authorizations').run();let calls=0;
  const model:BriefingModelPort={model:'test',provider:'SYNTHETIC',maxCallCostUsd:0,admission:syntheticModelAdmission,synthesize:async()=>{calls++;throw Error('not called')}};

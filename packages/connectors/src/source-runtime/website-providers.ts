@@ -45,7 +45,7 @@ export class WebsiteSourceProvider implements SourceProvider {
       const selected=input.recheckItemKeys?discovery.articles.filter(a=>input.recheckItemKeys!.includes(`url:${a.url}`)):discovery.articles;
       return {items:selected.map(a=>({sourceItemKey:`url:${a.url}`,upstreamId:a.url,url:a.url,publisherId:new URL(a.url).hostname,title:a.title,
         representation:'LISTING_RESULT' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true,authoritativeCurrentState:false})),
-        raw:new TextEncoder().encode(html),complete:!discovery.nextPage,continuationToken:discovery.nextPage,
+        raw:new TextEncoder().encode(html),complete:!discovery.nextPage&&!discovery.paginationUnresolved,continuationToken:discovery.nextPage,
         requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
     const result=record(await executeSource(this.execution,'extract',{url,html}));

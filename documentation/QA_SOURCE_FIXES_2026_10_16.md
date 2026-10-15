@@ -1,0 +1,71 @@
+# Sources QA fixes — October 16, 2026
+
+Branch: `backend-sources-mixed-source-fixes`. These changes follow the five-feed
+validation recorded in `FIVE_FEED_QA_VALIDATION_2026_10_15.md`.
+
+## Fixes to preserve when merging
+
+- Coordinate acquisition, intake handoff and intelligence through the existing
+  renewable feed turn. Different feeds remain concurrent; canonical CAS and
+  authorization still fence every commit. Collection HTTP runs outside the
+  handoff turn. Busy queue deliveries back off without consuming canonical
+  attempts; exhausted contention remains durable scheduler recovery.
+- Continue due review after acquisition and refill acquisition after review,
+  rather than requiring another minute tick for each handoff between stages.
+- Accept verifier verdicts for optional facts explicitly offered in that packet.
+  Foreign fact/story ownership is still rejected, and complete mandatory fact
+  and claim-entailment verdicts remain required. This fixes a real RSS
+  `SCOPE_DENIED` path after otherwise valid model verification.
+- Reuse immutable result timestamps on paid-result recovery. A restarted packet
+  cannot create an idempotency conflict merely because its persistence clock
+  advanced. Different result contents still fail immutable comparison.
+- Use the claim extractor's sentence boundaries for approved spans, including
+  closing quotation marks. Partial source sentences remain rejected. Retained
+  Google News selected spans were exercised locally without model calls.
+- Recognize equivalent age-bound wording: “under the age of eight” and “under
+  eight.” A different age or an invented bound is still rejected.
+- Preserve precise connector publication time when article metadata reduces the
+  same calendar date to midnight. Distinct original-publication/update dates
+  are not equated. Both observed timestamps and the selection rule are retained
+  in acquisition provenance; existing evidence revisions are not rewritten.
+- Discover NASA-style news indexes as independent article candidates; exclude
+  div-based global navigation and recognize item-heading links. A fresh public
+  NASA HTML capture yielded 15 actual news links. JavaScript-only pagination is
+  explicitly incomplete; no next-page URL or archive exhaustion is invented.
+  Downstream article acquisition also rejects discovered listings.
+- Mixed acquisition failures use a generic failure warning rather than claiming
+  the entire count consists of authentication failures.
+- Skip automatic publication windows ending before feed creation. The admission
+  function lives in `connector-publication-window.ts`; the intelligence runtime
+  has only its import/call integration. Existing historical requests are untouched.
+
+No shared handoff contract, financial ledger identity or database migration is
+changed. Staging remains outside this rollout. Preserve existing QA secrets,
+bindings, source budgets and immutable frontend asset prefix on deployment.
+
+## Validation
+
+- Worker typecheck and sources-QA dry-run build passed during implementation.
+- 104 tests passed across runtime scheduling, acquisition, adaptive publication,
+  fidelity, connector integration safety and scale checks. The adaptive suite
+  includes later-clock verification recovery without a second paid call.
+- Additional focused queue, optional-fact verification, source-warning, approved
+  synthesis and independent-story isolation suites passed.
+- Website discovery: 12 tests passed. Website provider cases: seven passed.
+- Local 1,000-feed dispatcher and 1,000-consumer public-fetch reuse checks passed;
+  these are bounded local checks, not sustained live production capacity proof.
+
+## Limits of the result
+
+Publisher authentication, policy refusals and exhausted acquisition recovery
+remain genuine coverage failures. These changes do not bypass publisher access
+rules or label blocked articles as collected. Uncertain X/LinkedIn payments and
+the historical unknown model hold remain fenced pending authoritative receipts.
+
+Model prose can still fail grounding, quantities or required-fact checks. Such
+content must remain unpublished; no validation was disabled to force delivery.
+A retained RSS replay needs fresh verification when a corrected precheck admits
+more stories than its previously cached verification packet covered. The old
+narrower verdict cannot be reused as approval of the expanded claim set.
+
+Rollout and any further live-run results are recorded below after deployment.

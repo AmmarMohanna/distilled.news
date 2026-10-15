@@ -134,6 +134,13 @@ it('keeps a repeated RSS title as an exact title span without relaxing body sent
  story.plan!.facts[1].text='Parliament approved banking reform';
  expect(()=>approvedSupportSpans(story)).toThrowError(expect.objectContaining({reason:'EXTRACTIVE_CAPACITY_UNSUPPORTED'}));
 });
+it('recognizes complete quoted sentences without admitting partial sentence facts',()=>{
+ const text='Officials said “Rates remain unchanged.”',body=text+' Inflation is still elevated.';
+ const story={plan:{facts:[{id:'f',text,evidenceRevisionIds:['r']}],mustIncludeFactIds:['f'],newUnderstandingFactIds:['f'],contextFactIds:[],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[]},evidence:[{id:'r',body}]} as unknown as SynthesisInput['stories'][number];
+ expect(approvedSupportSpans(story)).toEqual([{evidenceRevisionId:'r',quote:text}]);
+ story.plan!.facts[0].text='Rates remain unchanged';
+ expect(()=>approvedSupportSpans(story)).toThrowError(expect.objectContaining({reason:'EXTRACTIVE_CAPACITY_UNSUPPORTED'}));
+});
 it('uses a safe deterministic draft after model failure, retains unknown-call reservation and never repeats the call',async()=>{
  const selected=await selection();let calls=0;
  const model:BriefingModelPort={model:'unavailable',provider:'TEST',maxCallCostUsd:.01,synthesize:async()=>{calls++;throw Error('response unavailable');}};
