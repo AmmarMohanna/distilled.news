@@ -1,0 +1,8 @@
+/** Intake completion is operational coverage, never an editorial judgment. */
+export interface WindowIntakeCoverage {state:'COMPLETE'|'PENDING'|'INCOMPLETE';pendingJobs:number;failedJobs:number;failures:{kind:string;code:string;count:number}[]}
+export async function windowIntakeCoverage(db:D1Database,feedId:string,end:string):Promise<WindowIntakeCoverage>{
+ const rows=await db.prepare(`SELECT json_extract(j.json,'$.kind') kind,json_extract(j.json,'$.state') state,COALESCE(json_extract(j.json,'$.exhausted'),0) exhausted,COALESCE(json_extract(j.json,'$.failureCode'),'UNSPECIFIED') code,COUNT(*) n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state')!='DONE' AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?)) GROUP BY kind,state,exhausted,code ORDER BY kind,state,exhausted,code`).bind(feedId,end).all<{kind:string;state:string;exhausted:number;code:string;n:number}>();
+ let pendingJobs=0,failedJobs=0;const failures:WindowIntakeCoverage['failures']=[];
+ for(const row of rows.results){if(row.exhausted||row.state==='FAILED'){failedJobs+=row.n;failures.push({kind:row.kind,code:row.code,count:row.n})}else pendingJobs+=row.n}
+ return {state:pendingJobs?'PENDING':failedJobs?'INCOMPLETE':'COMPLETE',pendingJobs,failedJobs,failures};
+}

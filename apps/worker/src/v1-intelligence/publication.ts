@@ -1,3 +1,4 @@
+import {windowIntakeCoverage} from './window-coverage';
 import {ASYNC_MODEL_CALL_MS,ASYNC_OPERATION_LEASE_MS,ASYNC_PROCESSING_SLICE_MS} from './operation-timing';
 import {readerVerificationHistoryMatches} from './reader-history';
 import {editorialContextFacts} from './editorial-context';
@@ -506,7 +507,14 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    await feedTransact(store,feedId,async tx=>{if(!await tx.read('fidelity_results',draftKey))await tx.write('fidelity_results',draftKey,{id:draftKey,feedId,editorialPlanId:input.editorialPlan!.id,checks,passed:checks.every(c=>c.passed||removed.includes(c.candidateId)),reconciledCandidateIds:removed,policyVersion:'semantic-publication-fidelity-v4',createdAt:options.now()})});
    if(checks.some(c=>!c.passed&&!removed.includes(c.candidateId)))await rejectDraft(draftKey,checks.filter(c=>!c.passed&&!removed.includes(c.candidateId)).flatMap(c=>[{code:c.novelty==='NO_SUPPORTED_DELTA'?'NO_SUPPORTED_DELTA':'PLAN_FIDELITY_FAILED',candidateId:c.candidateId},...c.fidelity.failures.map(f=>({...f,candidateId:c.candidateId}))]));
   }
-   if(!grounding.stories.length){await feedTransact(store,feedId,async tx=>{await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,state:'DONE',failure:undefined});const request=await tx.read<any>('briefing_requests',editionId);if(request)await tx.write('briefing_requests',editionId,{...request,state:'DONE',result:'QUIET',reason:'NO_NEW_VERIFIED_STORIES',completedAt:options.now()})});throw new QuietPublication();}
+   if(!grounding.stories.length){await feedTransact(store,feedId,async tx=>{
+    await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());
+    await tx.write('synthesis_jobs',editionId,{...job,state:'DONE',failure:undefined});
+    const request=await tx.read<any>('briefing_requests',editionId),coverage=await windowIntakeCoverage(store.db,feedId,selection.window.end);
+    // Completion and its coverage classification share one CAS. The runtime
+    // catch may never execute after a crash or replacement of its work lease.
+    if(request){const incomplete=coverage.state!=='COMPLETE'||Boolean(request.semanticCoverage?.unresolvedTargets?.length);await tx.write('briefing_requests',editionId,{...request,coverage,state:'DONE',result:incomplete?'DEFERRED':'QUIET',reason:coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':incomplete?'INCOMPLETE_SEMANTIC_OWNERSHIP':'NO_NEW_VERIFIED_STORIES',completedAt:options.now()})}
+   });throw new QuietPublication();}
    return grounding;
   };
   const repairKey=JSON.stringify([selectionId,'repair-1']);

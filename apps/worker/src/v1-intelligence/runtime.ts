@@ -1,3 +1,4 @@
+import {windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
 import {ModelSpendingWait} from './model-spending';
 import {recoverPendingProviderGenerations} from './provider-recovery';
 import {prepareAdaptiveEditorialPlan} from './editorial-continuation';
@@ -36,7 +37,7 @@ import {publicationWindowSchema,livePublicationWindow} from './schedule';
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
-interface BriefingRequest {id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
+export interface BriefingRequest {coverage?:WindowIntakeCoverage;semanticCoverage?:{unresolvedTargets:unknown[]};id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
 export const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') throw new HandoffError('SCOPE_DENIED');
@@ -118,6 +119,13 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  });
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
+ const initialCoverage=await feedTransact(store,feedId,async tx=>{
+  const coverage=await windowIntakeCoverage(env.DB,feedId,window.end),current=await tx.read<BriefingRequest>('briefing_requests',id);
+  if(current&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||coverage.pendingJobs&&current.reason!=='AWAITING_INTAKE_REASSESSMENT'))await tx.write('briefing_requests',id,{...current,coverage,...(coverage.pendingJobs?{reason:'AWAITING_INTAKE_REASSESSMENT',nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()}: {})});
+  return coverage;
+ });
+ if(initialCoverage.pendingJobs)return undefined;
+
  if(required&&!createStoredEvidenceModel(env,fetcher)){
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!=='MODEL_SETUP_REQUIRED')await tx.write('briefing_requests',id,{...current,reason:'MODEL_SETUP_REQUIRED'});});
   return undefined;
@@ -141,6 +149,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   const budget=legacyPlan?DEFAULT_BRIEFING_BUDGET:ADAPTIVE_BRIEFING_PROCESSING;
   const frozen=legacyPlan?await store.read<import('./shortlist').ShortlistRecord>(feedId,'shortlists',legacyPlan.shortlistId):undefined;
   const shortlist=frozenSelection?undefined:frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher):undefined);
+  if(shortlist)await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),semanticCoverage=shortlist.unresolvedTargets?.length?{unresolvedTargets:shortlist.unresolvedTargets}:undefined;if(current&&canonicalJson(current.semanticCoverage)!==canonicalJson(semanticCoverage))await tx.write('briefing_requests',id,{...current,semanticCoverage})});
   failureStage='EDITORIAL_PLAN';
   const plan=shortlist?(legacyPlan?await prepareEditorialPlan(store,shortlist,budget,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):await prepareAdaptiveEditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'))):undefined;
   if(plan&&plan.route!=='GPT'&&plan.modelOperationIds?.length){
@@ -159,9 +168,11 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   failureStage='LEDGER_PROJECTION';
   if(edition)await projectEditionLedger(store,feedId,edition.id);
   const deferred=!edition&&(plan?.stories.some(story=>story.decision==='DEFER')||Boolean(shortlist?.overflow.length));
-  await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current) await tx.write('briefing_requests',id,{...current,state:'DONE',result:edition?'PUBLISHED':deferred?'DEFERRED':'QUIET',reason:edition?undefined:deferred?'EDITORIAL_WORK_DEFERRED':'NO_SELECTED_DEVELOPMENTS',completedAt:now()})});return edition;
+  await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(!current)return;
+   const semanticCoverage=frozenSelection?current.semanticCoverage:shortlist?.unresolvedTargets?.length?{unresolvedTargets:shortlist.unresolvedTargets}:undefined,incomplete=!edition&&(coverage.state!=='COMPLETE'||Boolean(semanticCoverage));
+   await tx.write('briefing_requests',id,{...current,coverage,semanticCoverage,state:'DONE',result:edition?'PUBLISHED':incomplete?'DEFERRED':deferred?'DEFERRED':'QUIET',reason:incomplete?(coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'INCOMPLETE_SEMANTIC_OWNERSHIP'):edition?undefined:deferred?'EDITORIAL_WORK_DEFERRED':'NO_SELECTED_DEVELOPMENTS',completedAt:now()});});return edition;
  } catch(error) {
-  if(error instanceof QuietPublication)return undefined;
+  if(error instanceof QuietPublication){await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(current)await tx.write('briefing_requests',id,{...current,coverage,...(coverage.state!=='COMPLETE'||current.semanticCoverage?.unresolvedTargets.length?{state:'DONE',result:'DEFERRED',reason:coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'INCOMPLETE_SEMANTIC_OWNERSHIP',completedAt:now()}: {})})});return undefined;}
   const waitingJob=await store.read<{state:string;failure?:string}>(feedId,'synthesis_jobs',id);
   if(error instanceof ModelSpendingWait||waitingJob?.state==='PENDING'&&waitingJob.failure&&/ACCOUNT_|AUTHORIZATION|EXECUTION_YIELD|MODEL_CONTEXT|PAID_RESULT_AWAITING/.test(waitingJob.failure)){const reason=error instanceof ModelSpendingWait?error.reason:waitingJob!.failure!;await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!==reason)await tx.write('briefing_requests',id,{...current,reason,nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()})});return undefined;}
   console.error(JSON.stringify({type:'V1_BRIEFING_ATTEMPT_FAILED',feedId,requestId:id,stage:failureStage,error:error instanceof Error?error.message.slice(0,300):'UNKNOWN'}));
@@ -242,8 +253,9 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   // Reobserving an unchanged wait is read-only: an epoch bump every minute
   // would fence slow reassessment/publication work for other windows too.
   // A wait label is written once on entry and cleared once on release; unchanged observations stay read-only.
-  const waiting=Boolean(pending?.n),current=await store.read<BriefingRequest>(id,'briefing_requests',editionId);
-  if(current?.state==='PENDING'&&waiting!==(current.reason==='AWAITING_INTAKE_REASSESSMENT')&&(waiting||current.reason==='AWAITING_INTAKE_REASSESSMENT'))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;if(waiting&&request.reason!=='AWAITING_INTAKE_REASSESSMENT')await tx.write('briefing_requests',editionId,{...request,reason:'AWAITING_INTAKE_REASSESSMENT'});else if(!waiting&&request.reason==='AWAITING_INTAKE_REASSESSMENT'){const {reason:_released,...rest}=request;await tx.write('briefing_requests',editionId,rest)}});
+  const coverage=await windowIntakeCoverage(env.DB,id,window.end),waiting=Boolean(pending?.n),current=await store.read<BriefingRequest>(id,'briefing_requests',editionId);
+  const coverageReason=waiting?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
+  if(current?.state==='PENDING'&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;await tx.write('briefing_requests',editionId,{...request,coverage,...(coverageReason?{reason:coverageReason}:request.reason==='AWAITING_INTAKE_REASSESSMENT'?{reason:undefined}:{})})});
   const requests=await store.list<BriefingRequest>(id,'briefing_requests');
   let briefingSends=0;
   for(const request of requests.filter(r=>r.state==='PENDING' && (!r.nextAttemptAt || Date.parse(r.nextAttemptAt)<=now.getTime()))) {

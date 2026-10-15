@@ -1,3 +1,4 @@
+import {readBriefingOutcome} from './v1-intelligence/briefing-outcome';
 import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intelligence/model-reconciliation';
 import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-trace';
 import {readV1QueueAudit} from './v1-queue-dispatch';
@@ -305,8 +306,8 @@ export function createApp(options: AppOptions = {}) {
     if(c.env.V1_DOWNSTREAM_ENABLED!=='true') return c.json({error:'not found'},404);
     if(!isRuntimeAuthorized(c)) return c.json({error:'unauthorized'},401);
     const input=z.object({feedId:z.string().min(1).max(200),window:publicationWindowSchema}).strict().parse(await c.req.json());
-    try {const edition=await processV1Briefing(c.env,{type:'v1_briefing',...input},()=>nowFor().toISOString());return c.json({editionId:edition?.id,state:edition?'PUBLISHED':'NO_NEWS'})}
-    catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
+    try {await processV1Briefing(c.env,{type:'v1_briefing',...input},()=>nowFor().toISOString());return c.json(await readBriefingOutcome(c.env.DB,input.feedId,input.window))}
+    catch(error) {if(error instanceof HandoffError&&error.code==='SCOPE_DENIED')return c.json({error:error.code},403);return c.json({...await readBriefingOutcome(c.env.DB,input.feedId,input.window),error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},503)}
   });
   app.get('/api/v1/editions/:id',async c=>{
     if (!await canReadPublishedEdition(c, c.req.param('id'))) return c.json({error:'not found'},404);

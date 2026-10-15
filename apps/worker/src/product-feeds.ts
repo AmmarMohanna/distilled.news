@@ -12,12 +12,12 @@ export async function productPublicationState(env:Env,feedId:string):Promise<'wa
  if(pending)return 'correction_pending';
  const setup=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.state')='PENDING' AND json_extract(json,'$.reason')='MODEL_SETUP_REQUIRED' LIMIT 1").bind(feedId).first();
  if(setup)return 'setup_required';
- const request=await env.DB.prepare("SELECT id,json_extract(json,'$.state') AS state FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1").bind(feedId).first<{id:string;state:string}>();
+ const request=await env.DB.prepare("SELECT id,json_extract(json,'$.state') AS state,json_extract(json,'$.result') AS result,json_extract(json,'$.coverage.state') AS coverage FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1").bind(feedId).first<{id:string;state:string;result?:string;coverage?:string}>();
  if(!request)return 'waiting';
  if(request.state==='FAILED')return 'failed';
- if(request.state!=='DONE')return 'checking';
+ if(request.state!=='DONE')return request.coverage==='INCOMPLETE'?'failed':'checking';
  const edition=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='editions' AND id=?").bind(feedId,request.id).first();
- return edition?'published':'quiet';
+ return edition?'published':request.coverage==='INCOMPLETE'?'failed':request.result==='QUIET'?'quiet':'checking';
 }
 
 export interface PublicationProgress {stage:'COLLECTING'|'PROCESSING'|'PUBLISHING';acquisition:{completed:number;total:number;failed:number};review:{completed:number;total:number;failed:number};pending:number}

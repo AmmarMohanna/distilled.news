@@ -171,7 +171,7 @@ it('reassessment of evidence that arrived inside the window still holds that win
  await pendingJobObservedAt('2026-10-03T12:30:00Z');
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));
  expect(briefingSends()).toHaveLength(0);expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT'}]);
- // Once the job is exhausted the window is released instead of blocking forever.
+ // Exhausted work permits available-news processing but retains incomplete coverage.
  await pendingJobObservedAt('2026-10-03T12:30:00Z',{exhausted:true,state:'FAILED'});
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));expect(briefingSends()).toHaveLength(1);
 });
@@ -189,7 +189,7 @@ it('a released intake wait label is cleared once and unchanged waits never rewri
  expect(await epoch()).toBe(before);
  await pendingJobObservedAt('2026-10-03T12:30:00Z',{exhausted:true,state:'FAILED'});
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));
- expect((await store.list<any>('feed-1','briefing_requests'))[0].reason).toBeUndefined();
+ expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',failedJobs:1}});
 });
 
 it('a lost scheduled delivery recovers after transport expiry and publishes once with its ledger',async()=>{
