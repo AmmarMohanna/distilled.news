@@ -242,3 +242,18 @@ it.each(['intake','semantic'])('published available news stays SUCCESS with a se
   expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='briefing_requests' AND id='request'").first<{json:string}>())!.json)).toEqual(request);
  }finally{await ctx.db.prepare("UPDATE v1_feed_documents SET json=? WHERE kind='briefing_requests' AND id='request'").bind(previous!.json).run()}
 });
+
+
+it('overview follows the published repair verification identity instead of an absent or superseded initial grounding',async()=>{
+ const window={start:'2026-10-03T16:00:00Z',end:'2026-10-03T18:00:00Z'},selectionId='repaired-selection',verificationId=JSON.stringify([selectionId,'repair-1']);
+ const put=(kind:string,id:string,value:unknown)=>ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind(kind,id,'feed-1',JSON.stringify({id,feedId:'feed-1',...value as object}));
+ await ctx.db.batch([
+  put('selections',selectionId,{window,candidateIds:['candidate-a','candidate-b'],selectedCandidateIds:['candidate-a','candidate-b']}),
+  put('editions','repaired-edition',{selectionId,windowStart:window.start,windowEnd:window.end,stories:[{candidateId:'candidate-a'}],generation:{verificationId}}),
+  put('grounding_results',verificationId,{stories:[{candidateId:'candidate-a'}]})
+ ]);
+ const options={view:'overview' as const,windowStart:window.start,windowEnd:window.end};
+ expect((await readPipelineTrace(ctx.db,'feed-1',options)).summary!.publication.verified).toBe(1);
+ await put('grounding_results',selectionId,{stories:[{candidateId:'candidate-a'},{candidateId:'candidate-b'}]}).run();
+ expect((await readPipelineTrace(ctx.db,'feed-1',options)).summary!.publication.verified).toBe(1);
+});

@@ -160,9 +160,10 @@ export async function readPipelineTrace(db: D1Database, feedId: string, raw: Tra
             summary.problems.push({ stage: 'REQUEST', state: state(request), reason: request.failure, recordId: request.id, lastConfirmedStage: plan?.route === 'GPT' ? 'EDITORIAL_PLAN_ACCEPTED' : 'REQUEST_RECORDED', firstUnconfirmedStage: selection ? 'WRITING_OR_VERIFICATION_OR_PUBLICATION' : 'SELECTION_COMMIT', rootCause: 'Request label alone does not prove the failing operation; inspect records and operation views.' });
         if(request?.coverage?.state==='INCOMPLETE'||request?.semanticCoverage?.unresolvedTargets?.length)
             summary.problems.push({stage:'COVERAGE',state:'BLOCKED',reason:request.reason??'INCOMPLETE_PROCESSING',recordId:request.id,coverage:request.coverage,semanticCoverage:request.semanticCoverage});
-        const grounding = selection ? await doc('grounding_results', selection.id) : undefined;
-        if (grounding)
-            summary.publication.verified = grounding.stories.length;
+        const verificationIds = [...new Set(editions.length ? editions.map(e => e.generation?.verificationId ?? selection?.id).filter(Boolean) : selection ? [selection.id] : [])];
+        const grounding = await readMany('grounding_results', 'd.id', verificationIds);
+        if (grounding.length)
+            summary.publication.verified = new Set(grounding.flatMap(g => g.stories.map((s: Row) => s.candidateId))).size;
         summary.semantic = { completedReassessments: null, eventsCreatedOrUpdated: null, storylinesCreatedOrUpdated: null, note: 'No stage-to-window execution attribution is invented. Article lineage and operation records show source identity and processing time independently.' };
         summary.retainedFeedFootprint = (await db.prepare("SELECT kind,COUNT(*) AS count FROM v1_feed_documents WHERE feed_id=? AND kind IN ('events','event_versions','storylines','storyline_versions','claim_mentions','semantic_intents','rematch_requests','rematch_attempts') GROUP BY kind").bind(feedId).all<Row>()).results;
         if (tables.has('v1_model_spending_reservations'))
