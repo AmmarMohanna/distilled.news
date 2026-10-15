@@ -211,7 +211,7 @@ const translations: Record<string, [string, string]> = {
   "Pause feed": ["Suspendre", "إيقاف الخلاصة"], "Resume feed": ["Reprendre", "استئناف الخلاصة"],
   "Retry illustration": ["Réessayer l’illustration", "إعادة محاولة الرسم"],
   "Feed options": ["Options du fil", "خيارات الخلاصة"],
-  "Language": ["Langue", "اللغة"],
+  "Language": ["Langue", "اللغة"], "You haven’t created any feeds yet.": ["Vous n’avez pas encore créé de fil.", "لم تنشئ أي خلاصة بعد."],
   "Dark mode": ["Mode sombre", "الوضع الداكن"], "More options": ["Plus d’options", "المزيد"],
   "Copy URL": ["Copier le lien", "نسخ الرابط"], "Delete feed": ["Supprimer", "حذف الخلاصة"],
   "Search topics, feeds, or keywords…": ["Rechercher des sujets, fils ou mots-clés…", "ابحث عن مواضيع أو خلاصات…"],

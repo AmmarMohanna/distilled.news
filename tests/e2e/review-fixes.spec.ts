@@ -1,0 +1,88 @@
+import { expect, test } from "@playwright/test";
+
+const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
+
+async function mock(page: import("@playwright/test").Page, authenticated: boolean) {
+  await page.route("**/api/**", route => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path === "/api/auth/session" ? { authenticated, setupRequired: false, account: authenticated ? { id: "joud", username: "joud", email: "j@example.test", role: "user" } : null }
+      : path === "/api/me/briefings" ? { briefings: authenticated ? [feed] : [] }
+      : path === "/api/explore/feeds" ? { feeds: [] }
+      : path === "/api/feed/joud/lebanon" ? { briefing: feed, editions: [], viewerHasStarred: false }
+      : path === "/api/me/sources" ? { sources: [] }
+      : path === "/api/me/health" ? { health: { processing: { queued: 0, completed: 0, failed: 0 } } }
+      : {};
+    return route.fulfill({ json: body });
+  });
+}
+
+const headerItems = (page: import("@playwright/test").Page) => page.evaluate(() => {
+  const items = [...document.querySelectorAll(".experience-header a, .experience-header button, .experience-header summary")]
+    .map(node => ({ node, rect: node.getBoundingClientRect(), shown: getComputedStyle(node).display !== "none" }))
+    .filter(item => item.shown && item.rect.width > 0 && item.rect.x >= 0);
+  const overlaps: string[] = [];
+  for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+    const a = items[i].rect, b = items[j].rect;
+    if (Math.abs(a.y - b.y) < 4 && a.x < b.right - 1 && b.x < a.right - 1) overlaps.push(`${items[i].node.textContent?.trim()}×${items[j].node.textContent?.trim()}`);
+  }
+  return { overlaps, offscreen: items.filter(item => item.rect.right > innerWidth + 1).length, horizontalScroll: document.documentElement.scrollWidth > innerWidth };
+});
+
+test("guest feed header never overlaps or leaves the screen at 320px or with doubled text", async ({ page }) => {
+  await mock(page, false);
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto("/joud/lebanon/");
+  await expect(page.getByRole("link", { name: "Log in" })).toBeVisible();
+  expect(await headerItems(page)).toEqual({ overlaps: [], offscreen: 0, horizontalScroll: false });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addStyleTag({ content: "html { font-size: 32px !important; }" });
+  expect(await headerItems(page)).toEqual({ overlaps: [], offscreen: 0, horizontalScroll: false });
+});
+
+test("guests on phones reach Language and Dark mode from the feed's More menu", async ({ page }) => {
+  await mock(page, false);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/joud/lebanon/");
+  await page.locator(".feed-more > summary").click();
+  await page.getByRole("button", { name: /^Dark mode/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+
+test("appearance follows the system until the person chooses", async ({ browser }) => {
+  const context = await browser.newContext({ colorScheme: "dark" });
+  const page = await context.newPage();
+  await mock(page, true);
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(await page.evaluate(() => localStorage.getItem("dn_theme"))).toBeNull();
+  await context.close();
+  const light = await browser.newContext({ colorScheme: "light" });
+  const lightPage = await light.newPage();
+  await lightPage.addInitScript(() => localStorage.setItem("dn_theme", "dark"));
+  await mock(lightPage, true);
+  await lightPage.goto("/");
+  await expect(lightPage.locator("html")).toHaveAttribute("data-theme", "dark");
+  await light.close();
+});
+
+test("Home explains an empty search and an empty library", async ({ page }) => {
+  await mock(page, true);
+  await page.goto("/");
+  await page.getByRole("searchbox", { name: "Search feeds" }).fill("zzzz");
+  await expect(page.getByText("No feeds match your search.")).toBeVisible();
+  await page.unroute("**/api/**");
+  await mock(page, true);
+  await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: [] } }));
+  await page.goto("/");
+  await expect(page.getByText("You haven’t created any feeds yet.")).toBeVisible();
+});
+
+test("language segments in Settings meet the 44pt target", async ({ page }) => {
+  await mock(page, true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.locator(".bottom-navigation .navigation-settings").click();
+  for (const button of await page.locator(".language-segments button").all()) {
+    expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+});

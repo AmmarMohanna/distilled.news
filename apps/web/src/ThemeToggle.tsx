@@ -3,22 +3,26 @@ import { useLanguage } from "./LanguageControl";
 import { Moon, Sun } from "lucide-react";
 
 const THEME_EVENT = "dn-theme";
-const readTheme = () => localStorage.getItem("dn_theme") === "dark" ? "dark" : "light";
+const storedTheme = (): "dark" | "light" | null => {
+  try { const value = localStorage.getItem("dn_theme"); return value === "dark" || value === "light" ? value : null; } catch { return null; }
+};
+const systemQuery = () => window.matchMedia?.("(prefers-color-scheme: dark)");
+/** Follows the system appearance until the person chooses one. */
+const readTheme = (): "dark" | "light" => storedTheme() ?? (systemQuery()?.matches ? "dark" : "light");
 
 /** Shared by the header button and the Settings switch so both stay in step. */
 export function useTheme() {
   const [theme, setThemeState] = useState<"dark" | "light">(readTheme);
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("dn_theme", theme);
-  }, [theme]);
+  useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => {
     const sync = () => setThemeState(readTheme());
+    const query = systemQuery();
     window.addEventListener(THEME_EVENT, sync);
-    return () => window.removeEventListener(THEME_EVENT, sync);
+    query?.addEventListener?.("change", sync);
+    return () => { window.removeEventListener(THEME_EVENT, sync); query?.removeEventListener?.("change", sync); };
   }, []);
   const setTheme = (next: "dark" | "light") => {
-    localStorage.setItem("dn_theme", next);
+    try { localStorage.setItem("dn_theme", next); } catch { /* storage unavailable: the choice lasts for this visit */ }
     setThemeState(next);
     window.dispatchEvent(new Event(THEME_EVENT));
   };

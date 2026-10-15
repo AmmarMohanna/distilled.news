@@ -1180,9 +1180,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 
 /* Briefings: as many columns as fit, grouped under day headings, cards equal height within a row. */
-:root.apple-ui.apple-ui .feed-shell .news-line { display: grid; grid-template-columns: var(--cards); gap: var(--gap); padding: 0; min-width: 0; align-items: start; }
-:root.apple-ui.apple-ui .feed-shell .news-day { grid-column: 1 / -1; margin: 0; padding-top: calc(var(--gap) / 2); font-size: var(--text-day); font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; color: var(--text); }
-:root.apple-ui.apple-ui .feed-shell .news-day:first-child { padding-top: 0; }
+:root.apple-ui.apple-ui .feed-shell .news-day { margin: 0; font-size: var(--text-day); font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; color: var(--text); }
 :root.apple-ui.apple-ui .feed-shell .news-item { gap: 12px; padding: var(--card-pad-y) var(--card-pad-x) 0; }
 :root.apple-ui.apple-ui .feed-shell .news-summary { font-size: var(--text-body); }
 :root.apple-ui.apple-ui .feed-shell .news-foot { margin-top: auto; }
@@ -1195,12 +1193,28 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view) :is(.explore-controls, .landing-controls) { max-width: 720px; }
 :root.apple-ui.apple-ui .experience.product-refresh :is(.personal-feed-grid, .curated-feed-grid) { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: var(--gap); }
 
-/* One column shows day headings; several columns put the day inside each card so no column sits empty. */
-:root.apple-ui.apple-ui .feed-shell .news-day-inline { display: none; }
-@media (min-width: 900px) {
-  :root.apple-ui.apple-ui .feed-shell .news-day { display: none; }
-  :root.apple-ui.apple-ui .feed-shell .news-day-inline { display: inline; }
-}
 
 /* Cards keep a readable measure however wide the screen is. */
 :root.apple-ui.apple-ui .feed-shell .news-item { max-width: 720px; width: 100%; }
+
+/* Briefings are grouped by day and flow into balanced columns (like a newspaper): a day's cards stack under its
+   heading, so no row ever mixes days and card footers cannot misalign; the columns use the available width. */
+:root.apple-ui.apple-ui .feed-shell .news-line { display: block; columns: 360px; column-gap: var(--gap); padding: 0; min-width: 0; }
+:root.apple-ui.apple-ui .feed-shell .news-day-group { display: block; margin: 0 0 var(--gap); }
+:root.apple-ui.apple-ui .feed-shell .news-day { margin: 0 0 8px; break-after: avoid; }
+:root.apple-ui.apple-ui .feed-shell .news-day-cards { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+:root.apple-ui.apple-ui .feed-shell .news-day-cards > .news-item { max-width: none; width: 100%; break-inside: avoid; }
+:root.apple-ui.apple-ui .feed-shell .read-section .news-line { columns: 360px; }
+
+/* Feed header: wraps instead of overflowing (large text, 320px); guests get Language and Dark mode in More on phones. */
+:root.apple-ui.apple-ui .feed-shell .experience-header { height: auto; min-height: 76px; max-height: none; flex-wrap: wrap; row-gap: 0; padding-block: 8px; }
+:root.apple-ui.apple-ui .feed-shell .experience-header-actions { flex-wrap: wrap; justify-content: flex-end; min-width: 0; margin-inline-start: auto; }
+:root.apple-ui.apple-ui .feed-shell .page-title-row h1 { overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .menu-narrow-only { display: none; }
+@media (max-width: 700px) {
+  :root.apple-ui.apple-ui .feed-shell .experience-header :is(.language-cycle, .theme-toggle) { display: none; }
+  :root.apple-ui.apple-ui .feed-header-actions .feed-options-popover .menu-narrow-only { display: flex; }
+}
+
+/* Language segments meet the 44pt target. */
+:root.apple-ui.apple-ui .language-segments button { min-height: 44px; }

@@ -89,10 +89,11 @@ import {
   type SourceRefreshResult
 } from "./api";
 import { deriveBriefingSlug, formatClock, formatDayHeading, formatTime, publicFeedUrl, slugify } from "./helpers";
+import { useTheme } from "./ThemeToggle";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
 import { accountInitials, AppExperience, AppHeader, BrandMark, PublicNavigation } from "./AppExperience";
-import { LanguageControl, preferredLanguage, useLanguage } from "./LanguageControl";
+import { LanguageControl, preferredLanguage, useLanguage, languageNames, setWebsiteLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
 import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
@@ -1595,6 +1596,8 @@ function FeedPage(props: { username: string; slug: string }) {
     setSelectedReport({ editionId: edition.id, sectionIndex });
   }
 
+  const { theme, setTheme } = useTheme();
+  const nextLanguage = ({ en: "fr", fr: "ar", ar: "en" } as const)[language];
   const feedActions = (
     <div className="feed-header-actions">
       <button
@@ -1625,6 +1628,10 @@ function FeedPage(props: { username: string; slug: string }) {
         {close => <>
           <button type="button" onClick={() => { close(); void refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))); }}><RefreshCw size={16} aria-hidden />{refreshControlLabel(language)}</button>
           {ownedFeed ? <button type="button" onClick={() => { close(); setEditorOpen(true); }}><Settings size={16} aria-hidden />{t("Edit feed settings")}</button> : null}
+          {account ? null : <>
+            <button type="button" className="menu-narrow-only" onClick={() => { close(); setWebsiteLanguage(nextLanguage); }}><Globe size={16} aria-hidden />{t("Language")}: {languageNames[nextLanguage]}</button>
+            <button type="button" className="menu-narrow-only" onClick={() => { close(); setTheme(theme === "dark" ? "light" : "dark"); }}><Moon size={16} aria-hidden />{t("Dark mode")}: {theme === "dark" ? "On" : "Off"}</button>
+          </>}
         </>}
       </FeedMoreMenu>
     </div>
@@ -1696,24 +1703,25 @@ function FeedPage(props: { username: string; slug: string }) {
       ) : null}
       {searchLoading && !error && currentEditions.length === 0 ? <p className="muted feed-loading-message" role="status">{loadingFeedLabel(language)}</p> : null}
       <div className="news-line">
-        {visibleUnreadEditions.map((edition, index) => {
-          const day = formatDayHeading(edition.publishedAt, language, clock);
-          const startsDay = index === 0 || formatDayHeading(visibleUnreadEditions[index - 1].publishedAt, language, clock) !== day;
-          return (
-            <React.Fragment key={edition.id}>
-              {startsDay ? <h2 className="news-day">{day}</h2> : null}
-              <FeedEditionRow
-                edition={edition}
-                detailEdition={editionDetails.get(edition.id)}
-                language={language}
-                isLoading={editionBusyIds.has(edition.id)}
-                isRead={false}
-                onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, true)}
-                onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
-              />
-            </React.Fragment>
-          );
-        })}
+        {groupEditionsByDay(visibleUnreadEditions, language, clock).map(group => (
+          <section className="news-day-group" key={group.key}>
+            <h2 className="news-day">{group.day}</h2>
+            <div className="news-day-cards">
+              {group.editions.map(edition => (
+                <FeedEditionRow
+                  key={edition.id}
+                  edition={edition}
+                  detailEdition={editionDetails.get(edition.id)}
+                  language={language}
+                  isLoading={editionBusyIds.has(edition.id)}
+                  isRead={false}
+                  onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, true)}
+                  onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
         {hiddenUnreadCount > 0 ? (
           <div className="load-more-row">
             <button type="button" title={loadMoreLabel(language)} onClick={() => setVisibleUnreadCount((count) => count + FEED_BATCH_SIZE)}>
@@ -1800,6 +1808,17 @@ function FeedSignalPanel(props: {
   );
 }
 
+function groupEditionsByDay(editions: BriefingEdition[], language: "en" | "ar" | "fr", now: number) {
+  const groups: { key: string; day: string; editions: BriefingEdition[] }[] = [];
+  for (const edition of editions) {
+    const day = formatDayHeading(edition.publishedAt, language, now);
+    const last = groups[groups.length - 1];
+    if (last && last.day === day) last.editions.push(edition);
+    else groups.push({ key: `${day}:${edition.id}`, day, editions: [edition] });
+  }
+  return groups;
+}
+
 function FeedEditionRow(props: {
   edition: BriefingEdition;
   detailEdition?: BriefingEdition;
@@ -1818,7 +1837,7 @@ function FeedEditionRow(props: {
     <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={language} dir={textDir}>
       <div className="news-head">
         {props.isRead ? null : <span className="news-unread" aria-hidden />}
-        <time dateTime={edition.publishedAt}><span className="news-day-inline">{formatDayHeading(edition.publishedAt, language)} · </span>{formatClock(edition.publishedAt, language)}</time>
+        <time dateTime={edition.publishedAt}>{formatClock(edition.publishedAt, language)}</time>
       </div>
       <ReferenceParagraph
         className="news-summary"

@@ -27,6 +27,22 @@ export function Dialog(props: {
       : undefined;
     return () => {
       entry?.cancel();
+      // The dialog unmounts right away, so leave a faded, inert copy behind: closing eases out instead of vanishing.
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && dialog.isConnected) {
+        const ghost = dialog.cloneNode(true) as HTMLDialogElement;
+        ghost.removeAttribute("open");
+        ghost.setAttribute("inert", "");
+        ghost.setAttribute("aria-hidden", "true");
+        ghost.removeAttribute("aria-label");
+        document.body.appendChild(ghost);
+        try {
+          ghost.showModal();
+          const options = { duration: 140, easing: "ease-in", fill: "forwards" as const };
+          ghost.animate([{ opacity: 1 }, { opacity: 0 }], options);
+          ghost.animate([{ opacity: 1 }, { opacity: 0 }], { ...options, pseudoElement: "::backdrop" });
+          window.setTimeout(() => { try { ghost.close(); } catch { /* already closed */ } ghost.remove(); }, 160);
+        } catch { ghost.remove(); }
+      }
       dialog.close();
       if (--openDialogs === 0) document.body.style.overflow = previousOverflow;
       if (previousFocus?.isConnected) previousFocus.focus();
