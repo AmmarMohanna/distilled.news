@@ -1,8 +1,8 @@
 # Source and AI editorial integration review
 
-This is a local integration record, not a deployment certificate. Deployment,
-remote migrations, financial authorization and live acceptance results must be
-recorded separately by the integration owner.
+This chronological review preserves the original preflight snapshots. The final
+sections record authorized staging activation and actual canary outcomes; earlier
+"pending" statements describe their checkpoint, not the current deployment.
 
 ## Compared revisions
 
@@ -249,3 +249,114 @@ A final path review also caught a consequence of removing the broad review prefe
 That regression, all 34 selection-quality tests and four 100-Event/read-cost tests pass **39/39**; duplicate direct reads fall from two to zero in the two-Event fixture without candidate loss. Final Worker typecheck and exact staging dry-run pass. The final code checkpoint must receive the complete CI rerun too; the known six baseline browser failures are not waived or reported as green.
 
 Staging backup export completed successfully: 1,291,495,617 bytes, SHA-256 `f02b1e07e8bbb80f87ec4c35998f1811b4cd45c98e2dec16bb1c02b1900b9cd7`. It is retained only in the ignored local review directory; its private contents were neither printed nor committed. Export succeeded and its final SQL statement is terminated; a complete 1.29-GB restore test was not performed. The separate migration compatibility checker did exercise full parent-schema upgrades with preservation fixtures. Wrangler's own remote migration listing independently confirms the same ten pending full filenames. No migrations or queue-resource creation have occurred.
+
+## Authorized activation and first integration canary (October 15)
+
+The user approved activation and observation of the active Feed's next normal
+scheduled model-backed window. Reviewed code `303b73958827ceb9fbce0f6db39a993ffebf7abb`
+was deployed to **distilled-news-staging**, version
+`5010024a-1933-4eba-bfa6-e895b4fbacb0`. The previous version was
+`feb41152-2a44-462a-ad9b-d0f26f6f3754`. No production, sources-QA or contributor
+branch was changed. Both remote parent heads still match the compared revisions.
+
+All ten reviewed additive migrations applied successfully: staging now records
+64 exact migration filenames. Six staging queues were created (collection,
+acquisition and intelligence, each with its own DLQ), retaining the original
+processing queue/DLQ. All four primary consumers point to the staging Worker.
+Existing D1/R2/assets/helper bindings, 14 secret bindings and existing variables
+were preserved. Only the reviewed queue scheduling, shared public fetch and
+full-article flags were enabled. The frontend asset is `index-Bp6wyXX2.js`;
+the public Feed API returns 200 and anonymous operator-trace access returns 401.
+
+[Complete checks for 303b739](https://github.com/AmmarMohanna/distilled.news/actions/runs/38691988606)
+passed **1,485 Worker tests, 11 skipped**, all other package/script/helper tests,
+workspace typechecks and builds. Playwright remains **275 passed, six failed,
+one skipped** with the same unchanged-parent failures classified above. This is
+not a fully green browser suite. The staging Worker dry-run also passed.
+
+The only active sourced Feed is AI Industry Watch2; old Lebanon/AI Feeds remain
+paused. TechCrunch polling succeeded; a BBC poll retried and then completed
+normally. Its intermediate generic exception was not retained sufficiently to
+prove a root cause. VentureBeat has recorded RATE_LIMIT coverage and exhausted
+polls; configured provider availability is not evidence of successful acquisition.
+No new EvidenceRevision was accepted during the observed activation-to-canary
+interval, so full-article enrichment and new semantic construction are not live
+validated by this window. A retained reassessment did complete normally.
+
+### Actual 10:00 Beirut outcome: failed writer precheck, no publication
+
+Request `f433410b1ebdb23d5deda25d59de169955be2dfad9f6e6194de724924a25effa`
+was created naturally at 07:00:38.015Z for 06:00-07:00Z. It had zero pending
+intake jobs and two failed October 14 reassessments (`IDEMPOTENCY_CONFLICT`).
+These remain explicit INCOMPLETE coverage, rather than becoming quiet news.
+
+Shortlist `980181de...00e4d` contains **35 candidates, 67 facts, 31 ledger entries,
+two relevant correction obligations, zero overflow**. The real comparative plan
+`42b7c308...950c` offered all 35 candidates in **65,805 bytes**, accepted 35
+decisions, selected four and deferred 31. No candidate was capacity-excluded.
+The planner operation `0c88711f...11d0` succeeded in **39,162 ms**, with
+36,979 input/4,984 output tokens and **$0.022766** reported cost. Three relevance
+calls also succeeded. Candidate/fact reference ownership validated; meaningful
+selection rationales were associated with their actual source facts. This is live
+schema/coverage evidence, not proof that every editorial judgment was sound.
+
+Selection `8599231d...d85b` committed all four selected stories. Synthesis and
+one bounded repair completed with known costs/results. Both drafts were rejected
+by the deterministic precheck: the approved phrase **"One of the core promises"**
+was interpreted as mandatory numeric `1`, while the prose used **"a core promise"**.
+Only that story had precheck issues; the other three passed. No semantic grounding
+call occurred. The synthesis job and request are terminal FAILED/INVALID_REQUEST
+after one attempt. There is **no edition or ledger entry for this window**; it
+was not reset or manually republished.
+
+The six natural model calls reported **$0.027457136** total. Account reported
+spending moved from $10.914427942 to **$10.941885078**; held exposure remained
+**$1.528542294**, with 26 unresolved reservations including 25 existing operator
+quarantines. The existing $50 grant, effective concurrency 25, amendments and
+historical liability records were unchanged. No investigation-only paid call ran.
+One observed acquisition CAS rejection reported changed Feed epoch, unchanged
+intake scope and no writes; no CAS exhaustion was observed. Success timings/query
+counts are not universally persisted, and this does not establish the historical
+CAS failure's cause.
+
+### Narrow partitive-quantity repair
+
+The new floor recognizes a regular plural partitive only when the counterpart
+contains the matching indefinite singular noun phrase. It does not globally
+ignore `one`, invent counts from arbitrary articles, change numeric materiality
+helpers or weaken model entailment. Exclusive/bounded quantities, explicit
+population counts, another numeric `one` in the same fact, and unmatched noun
+phrases retain the numeric floor. Unrecognized inflections remain conservative.
+The diagnostic fidelity label changes to v8; no paid-operation identity changes.
+
+The exact retained source/original/repair prose is preserved in a minimal sanitized
+fixture. Pure regressions were **five failing/seven passing before**, then all
+12 passing. Two D1 publication-boundary tests failed before and pass afterward:
+the draft can reach independent verification, retain both mandatory facts and
+citations, project the ledger and replay idempotently; a negative semantic verdict
+still prevents publication and communication. These controlled verifier responses
+are structural tests, not live entailment judgments. The wider focused run passed
+**86/86** with unchanged deadlines. Full follow-up CI/deployment results must be
+recorded before claiming this repair live validated. The terminal 10:00 window
+and its paid results remain untouched.
+
+### Important quality gaps remain
+
+- Firmus's Nvidia-backed IPO cancellation and the two sides of the OpenAI
+  researchers' dispute were offered to the real model, not excluded by capacity.
+  They were deferred as older/less relevant to products or breakthroughs, although
+  the actual Feed includes company announcements and industry developments.
+  Reporting age is not reader repetition; these are questionable editorial
+  judgments, not evidence-processing failures in this window.
+- The researchers' allegation and employer's counterclaim are separate Event
+  candidates from the same article. One retained Anthropic Event combines the
+  cruelty policy with the independent police-tip incident. These stored identity
+  problems are not repaired by complete candidate coverage or faster selection.
+- Five SOURCE_REVISED obligations remain OPEN on the active Feed; two appear in
+  this shortlist. Revision alone does not prove a factual correction. No verified
+  corrective delivery is claimed. The older withdrawn Anthropic-policy history
+  on a paused Feed is unchanged too.
+- The window used retained excerpts. It cannot prove complete source acquisition,
+  new Event construction, X/Telegram health, sustained scalability, or useful
+  published editorial quality. X still has the legacy unresolved provider
+  submission noted above; no new financial authority was created.
