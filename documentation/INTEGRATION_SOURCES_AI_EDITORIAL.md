@@ -220,3 +220,20 @@ Before deployment: pass the complete Linux checks, final typechecks, frontend bu
 Rollback must account for in-flight new queue message kinds and dispatch generations. Keep the additive schema and queues; do not purge evidence or paid records. Do not attach an older consumer that silently acknowledges unsupported messages. Use a reviewed compatible rollback/configuration sequence rather than assuming a Worker version change undoes queue infrastructure.
 
 No integration deployment or real-model canary has occurred at this checkpoint. Separate authorization is needed before enabling the new normal paid execution; use the one currently active feed, retain old feeds paused and inspect the next naturally scheduled window. Inspect source acquisition, Event ownership, all planner coverage, verified publication and ledger facts, not merely HTTP or test success.
+
+## First full integration CI and follow-up
+
+[Project checks run 38688511683](https://github.com/AmmarMohanna/distilled.news/actions/runs/38688511683), commit `5927f8f`, completed the full workspace test step. Worker: **1,482 passed, two failed, 11 skipped** (212 files). The two failures were exact, not timeouts:
+
+- Selection invoked the source review prefetch before its own complete selection prefetch. This redundantly requested duplicate-analysis/mention context and assumed an entity array absent from the older minimal selection fixture. Remove the review-only invocation from selection; retain it in reassessment. Selection still builds all candidate targets and warms all owned propositions/slots/entities in bounded batches. The original 100-Event/104-revision test, zero sequential document-read assertion and <=12 preload-query bound now pass.
+- The added store test expected missing keys in `readMany`, contradicting the recovery sparse-map contract and another existing test. Preserve the sparse map used by callers (including iteration over real operations), verify `get(missing)` is undefined and an absent key is not a successful record; foreign IDs still throw and stale snapshots still fail CAS. No production scope guard changed.
+
+The two affected suites now pass **13/13**. No size/read budget, validation assertion or timeout was increased.
+
+Other complete CI packages passed: connectors **237**, contracts **44**, core **43**, agent runtime **267** (two skipped), web **27**, browser bridge **82**. CI also passed all script tests, helper tests and workspace typechecks. Build and Playwright were skipped because the two Worker assertions failed; a subsequent full run is required after the fix.
+
+Local isolation of push/ledger/publication yielded **26 passed, 18 deadline failures**: all 14 push tests timed out in the shared 10-second setup, four publication tests exceeded five seconds, and all 13 ledger tests passed. The exact unchanged-parent push setup also exceeds ten seconds. Three of four publication failures reproduce on unchanged `61c3548`; the refutation case passed on the parent but timed out locally after integration, including an isolated rerun. The complete Linux integration run passed **all 14 push, 17 publication and 13 ledger tests**, with original deadlines. Thus these are local deadline observations, not silently waived failures or proof of a production outage. No deadlines were changed.
+
+The acquisition benchmark workflow passed on `5927f8f`. The final follow-up full CI result remains to be recorded.
+
+A refreshed read-only staging snapshot at 08:48 Beirut still shows the old Worker and unchanged grants/liabilities. Its actual 05:00 edition (`2b23de3c...f49cb`) reviewed all nine candidates (47,341 bytes), selected four and published three with three ledger entries: Anthropic revenue, Ricursive chips and Gudea crisis-monitoring. Writer/verification generation cost $0.0062716, 107,725 ms; not a full window subtotal. The following 06:00/07:00/08:00 requests each failed `TEMPORARY_UNAVAILABLE` after five attempts. Neither these publications nor failures validate the undeployed integration.

@@ -68,7 +68,8 @@ it('scoped list cache cannot hide a foreign global document ID or a concurrent r
  const tx=new FeedTransaction(store,await store.snapshot(feed.id));await tx.list('briefing_requests');
  await expect(tx.read('briefing_requests','foreign')).rejects.toMatchObject({code:'SCOPE_DENIED'});
  await expect(store.readMany(feed.id,'briefing_requests',['missing','foreign'])).rejects.toMatchObject({code:'SCOPE_DENIED'});
- expect(await store.readMany(feed.id,'briefing_requests',['missing','missing'])).toEqual(new Map([['missing',undefined]]));
+ const missing=await store.readMany(feed.id,'briefing_requests',['missing','missing']);
+ expect(missing.size).toBe(0);expect(missing.get('missing')).toBeUndefined();
  await store.registerFeed({...feed,title:'Changed',revision:2});expect(await store.commit(tx)).toBe(false);
 });
 
