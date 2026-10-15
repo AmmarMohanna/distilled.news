@@ -15,7 +15,7 @@ test("requested feed layout and language controls", async ({ page }) => {
   await expect(card.locator(".feed-card-identity small")).toHaveText("@admin");
   await expect(card.locator(".feed-card-status")).toHaveText("Paused");
   await expect(card.locator("time")).toContainText("Updated");
-  await expect(card.locator(".topic-name svg")).toBeVisible();
+  await expect(card.locator(".topic-art")).toBeVisible();
   await expect(page.locator(".distilled-logo-dot").first()).toHaveCSS("color", "rgb(94, 92, 230)");
   await page.getByRole("button", { name: "Create feed", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Add feed" });

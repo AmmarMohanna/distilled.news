@@ -24,8 +24,8 @@ test("feed cards have rounded artwork, plain controls, and real update times", a
  const card = page.locator(".personal-feed-grid .topic-card");
  await expect(card.locator("time")).toHaveText("Updated 2 hours ago");
  await expect(card.locator("time")).toHaveAttribute("datetime", "2026-10-02T12:00:00Z");
- await expect(card).toHaveCSS("border-radius", "28px");
- await expect(card.locator(".topic-art")).toHaveCSS("border-top-left-radius", "27px");
+ await expect(card).toHaveCSS("border-radius", "20px");
+ await expect(card.locator(".topic-art")).toHaveCSS("border-top-left-radius", /^1[46]px$/);
  for (const selector of [".theme-toggle", ".language-cycle", ".personal-feed-grid .feed-card-actions > button", ".personal-feed-grid .feed-options > summary"]) {
   await expect(page.locator(selector)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
  }

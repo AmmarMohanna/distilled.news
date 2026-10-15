@@ -1807,15 +1807,11 @@ function FeedEditionRow(props: {
   const textDir = textDirection(language);
   const summary = normalizeSummary(edition.summary);
   const referenceCount = Math.max(props.detailEdition?.sections.length ?? 0, edition.sections.length, highestReferenceNumber(edition.summary));
-  const headline = edition.title.trim() || capitalize(cadenceMetaLabel(edition.cadence, language));
-  const titleId = `edition-${edition.id}-title`;
+  const stamp = `${formatDayHeading(edition.publishedAt, language)}, ${formatClock(edition.publishedAt, language)}`;
   return (
-    <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-labelledby={titleId} lang={language} dir={textDir}>
+    <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={language} dir={textDir}>
       <div className="news-head">
-        <h3 id={titleId} className="news-title">
-          {props.isRead ? null : <span className="news-unread" aria-hidden />}
-          <bdi>{headline}</bdi>
-        </h3>
+        {props.isRead ? null : <span className="news-unread" aria-hidden />}
         <time dateTime={edition.publishedAt}>{formatClock(edition.publishedAt, language)}</time>
       </div>
       <ReferenceParagraph
@@ -1911,8 +1907,8 @@ function SourcesSheet(props: {
     >
       <div className="sources-module" lang={language} dir={textDir}>
         <p className="sources-edition">
-          <strong><bdi>{edition.title.trim() || capitalize(cadenceMetaLabel(edition.cadence, language))}</bdi></strong>
-          <span>{formatDayHeading(edition.publishedAt, language)}, {formatClock(edition.publishedAt, language)}</span>
+          <strong>{formatDayHeading(edition.publishedAt, language)}</strong>
+          <span>{formatClock(edition.publishedAt, language)}</span>
         </p>
         <ol className="sources-stories">
           {edition.sections.map((section, index) => (
@@ -2456,10 +2452,6 @@ function showLessLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "عرض أقل";
   if (language === "fr") return "Voir moins";
   return "Show less";
-}
-
-function capitalize(value: string): string {
-  return value ? value.charAt(0).toLocaleUpperCase() + value.slice(1) : value;
 }
 
 function cadenceMetaLabel(cadence: BriefingConfig["briefingCadence"], language: "en" | "ar" | "fr"): string {
