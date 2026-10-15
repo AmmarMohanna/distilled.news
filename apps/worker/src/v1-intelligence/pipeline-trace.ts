@@ -217,9 +217,9 @@ export async function readPipelineTrace(db: D1Database, feedId: string, raw: Tra
         // Include discovery batches that never reached canonical intake. Prefer the
         // immutable intake row when present, then the latest recorded discovery.
         const branches = [`SELECT d.id,d.json,d.feed_source_id,s.source_id,0 AS priority,0 AS sequence FROM v1_inputs d JOIN v1_intake_scopes s ON s.id=d.feed_source_id WHERE s.feed_id=?`], branchParams: any[] = [feedId];
-        for (const table of ['connector_provider_batches', 'connector_batches'])
+        for (const [table, batchId] of [['connector_provider_batches', 'batch_key'], ['connector_batches', 'handoff_id']])
             if (tables.has(table)) {
-                branches.push(`SELECT json_extract(ob.value,'$.id') AS id,json_object('observation',json(ob.value),'collectionBatchId',b.batch_key,'discoveryRecordKind','${table}') AS json,b.feed_source_id,COALESCE(s.source_id,b.feed_source_id) AS source_id,1 AS priority,COALESCE(json_extract(b.data,'$.request.coverage.fetchStartSequence'),0) AS sequence FROM ${table} b LEFT JOIN v1_intake_scopes s ON s.id=b.feed_source_id AND s.feed_id=b.feed_id,json_each(b.data,'$.request.observations') ob WHERE b.feed_id=? AND json_extract(ob.value,'$.id') IS NOT NULL`);
+                branches.push(`SELECT json_extract(ob.value,'$.id') AS id,json_object('observation',json(ob.value),'collectionBatchId',b.${batchId},'discoveryRecordKind','${table}') AS json,b.feed_source_id,COALESCE(s.source_id,b.feed_source_id) AS source_id,1 AS priority,COALESCE(json_extract(b.data,'$.request.coverage.fetchStartSequence'),0) AS sequence FROM ${table} b LEFT JOIN v1_intake_scopes s ON s.id=b.feed_source_id AND s.feed_id=b.feed_id,json_each(b.data,'$.request.observations') ob WHERE b.feed_id=? AND json_extract(ob.value,'$.id') IS NOT NULL`);
                 branchParams.push(feedId);
             }
         let where = '1', params: any[] = [];

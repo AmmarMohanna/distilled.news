@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, it, expect } from 'vitest';
+import {SOURCE_STORAGE_SCHEMA} from '@distilled/connectors';
 import { createIntakeDatabase, seedIntakeScope } from '../v1-intake/test-utils';
 import { V1IntakeStore } from '../v1-intake/store';
 import { V1FeedStore } from './store';
@@ -256,4 +257,14 @@ it('overview follows the published repair verification identity instead of an ab
  expect((await readPipelineTrace(ctx.db,'feed-1',options)).summary!.publication.verified).toBe(1);
  await put('grounding_results',selectionId,{stories:[{candidateId:'candidate-a'},{candidateId:'candidate-b'}]}).run();
  expect((await readPipelineTrace(ctx.db,'feed-1',options)).summary!.publication.verified).toBe(1);
+});
+
+
+it('traces RSS discovery with the real handoff_id storage schema and preserves Feed isolation',async()=>{
+ await ctx.db.exec(SOURCE_STORAGE_SCHEMA.replace(/\r?\n/g,' '));
+ for(const [feed,id] of [['feed-1','rss-discovery'],['feed-2','private-discovery']])await ctx.db.prepare('INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data) VALUES(?,?,?,?)').bind(feed,'feed-source-1',id,JSON.stringify({request:{coverage:{fetchStartSequence:9},observations:[{id,canonicalUrl:'https://publisher.example/rss-only',observedAt:start}]}})).run();
+ const r=await readPipelineTrace(ctx.db,'feed-1',{view:'articles',url:'https://publisher.example/rss-only'});
+ expect(r.page.total).toBe(1);expect(r.items).toHaveLength(1);
+ expect(r.items[0]).toMatchObject({id:'rss-discovery',discovery:{state:'SUCCESS',collectionBatchId:'rss-discovery'},intake:{state:'NOT_OBSERVABLE'},editorial:{state:'NOT_OBSERVABLE'}});
+ expect(JSON.stringify(r)).not.toContain('private-discovery');
 });
