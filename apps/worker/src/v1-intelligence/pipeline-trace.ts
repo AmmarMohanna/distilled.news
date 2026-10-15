@@ -30,7 +30,11 @@ function state(value: Row | undefined): string { if (!value)
     return 'NOT_OBSERVABLE'; const reason = value.failure ?? value.failureCode ?? value.reason ?? ''; if (/UNKNOWN|UNCERTAIN_PAID/.test(reason) || value.usage?.reported === false)
     return 'UNKNOWN'; if (/AUTHORIZATION|RESOURCE_WAIT|BUDGET|CAPABILITY|CONTEXT_WAIT/.test(reason))
     return 'BLOCKED'; if (value.state === 'FAILED' || /REJECTED|VALIDATION_FAILED|_FAILED|KNOWN_.*FAILURE|INVALID_SCHEMA|SCOPE_DENIED/.test(reason))
-    return 'FAILED'; if(value.coverage?.state==='INCOMPLETE'||value.semanticCoverage?.unresolvedTargets?.length)return 'BLOCKED';if(value.result==='DEFERRED')return 'DEFERRED';if (value.status === 'SUCCEEDED' || value.state === 'DONE')
+    return 'FAILED';
+    // Publication can succeed with explicit incomplete coverage. Keep that
+    // warning in COVERAGE instead of contradicting the durable request result.
+    if(value.state==='DONE'&&value.result==='PUBLISHED')return 'SUCCESS';
+    if(value.coverage?.state==='INCOMPLETE'||value.semanticCoverage?.unresolvedTargets?.length)return 'BLOCKED';if(value.result==='DEFERRED')return 'DEFERRED';if (value.status === 'SUCCEEDED' || value.state === 'DONE')
     return 'SUCCESS'; if (['PENDING', 'RUNNING', 'WAITING_BUDGET'].includes(value.state) || value.status === 'DEFERRED')
     return 'DEFERRED'; return 'UNKNOWN'; }
 function canonicalUrl(raw: string) { const u = new URL(raw); if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password)

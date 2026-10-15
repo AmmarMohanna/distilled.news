@@ -473,3 +473,119 @@ held UNKNOWN exposure $1.528542294 across 26 unresolved operations, with the
 same 25 prior operator quarantines. No financial record was changed to make
 capacity available. The 11:00 planner's known charge explains the increase from
 $10.941885078 after the 10:00 attempt. No investigation-only model call was made.
+
+## Current release verification: 38c41f1
+
+Code repair `a915d68` and its report checkpoint `38c41f1` are deployed as Worker
+`bfa07b46-bcf5-4f18-86cf-c642cfcce625`. Read-back preserves every binding/variable,
+64 migration names, eight queues, the existing grant/amendment and historical
+financial liabilities. Compatible rollback is prior integrated Worker
+`e05d2278-2405-4395-ad39-45621e6fc1c6`; no database snapshot rollback is proposed.
+
+[Project checks 38706854159](https://github.com/AmmarMohanna/distilled.news/actions/runs/38706854159)
+completed: Worker **1,503 passed, 11 skipped**; connectors 237, contracts 44,
+core 43, agent runtime 267 (two skipped), web 27 and browser bridge 82 passed.
+Workspace typechecks, script/helper checks and workspace builds passed.
+Playwright: **275 passed, six failed, one skipped**. All six are the same
+baseline-reproduced cases: Preferences panel internal overflow at 1280x720 and
+390x664 under both projects (four failures), and the guest All feeds button
+visibility assertion under both projects (two). The former measures real retained
+layout overflow; the latter conflicts with the existing account-guarded control
+and needs a frontend contract decision. Neither is dismissed as Chromium load.
+The earlier agent startup and Worker deadline failures did not recur in this run.
+No assertions or deadlines changed.
+
+Additional durable editorial run: **68/68 passed**, including 40/100/120-candidate
+coverage, complete comparison across context-sized cohorts, UNKNOWN fencing,
+retained billed results after restart and model-capacity continuation. Combined
+focused runs for this repair: 184 passed, four explicitly skipped replay tests.
+These deterministic tests do not establish model editorial accuracy.
+
+The real public reader loaded without JavaScript errors, rendered 12 retained
+editions and the correction-pending warning, did not claim Feed unavailable and
+has no Brief now control. The underlying API remains publication-only; anonymous
+operator trace access remains denied. No mailbox/authentication changes occurred.
+
+Remaining correction ownership is now concretely located: prior YouTube and
+Anthropic-revenue Event roots are WITHDRAWN with no current memberships. The
+shortlist cannot safely invent a link to similar current stories. Both obligations
+remain unresolved; no corrective delivery is claimed. This is distinct from the
+older withdrawn Anthropic-policy edition on the paused Feed.
+
+Quality inventory of retained canary evidence: 36 distinct revisions have body
+lengths of only 83-424 characters. This does not validate new full-article
+acquisition. Firmus and both sides of the researchers' dispute appear in real
+accepted plans across seven distinct windows; duplicated plan/projection records
+are not extra model reviews. Their latest accepted treatment was DEFER with
+age/product-focused rationales, not a capacity exclusion. The current 31-entry
+ledger has no literal Firmus/IPO/researchers witness; this bounded search is not
+itself a semantic proof of novelty. These items remain in the current shortlist.
+
+Immediately before 12:00: no active intake jobs; 75 ACQUIRE and 73 REASSESS DONE,
+plus two retained REASSESS failures (IDEMPOTENCY_CONFLICT). These are job counts,
+not unique article counts or a claim that every semantic judgment is correct.
+
+## Natural 12:00 canary: verified publication, with honest coverage gaps
+
+Request/edition `69ae778152e834144d7916d5d6b920d4c96db6315ad11803e9176d3f10920471`
+was created at 12:00:43.192 Beirut on October 15. The real plan accepted all 35
+candidates/67 facts, selected four and deferred 31; input 65,805 bytes, no capacity
+exclusions or deterministic publication. Operation `d5290d7f...b546e8` succeeded
+in 34,802 ms, 36,977 input / 4,866 output tokens, confirmed cost $0.0189284.
+Selection `068fe287...e94baa` committed. Both obligations remained DEFER. One
+DEFER target reference points to unrelated Plaud work; it grants no corrective
+ownership and is not evidence that alias interpretation is universally correct.
+
+Writer: 3,475 input / 430 output tokens, 11,948 ms, $0.002078. Independent grounding/
+novelty verifier: 3,464 input / 1,378 output tokens, 18,962 ms, $0.0035904. All
+three charges are confirmed, totaling **$0.0245968**. Four stories were grounded;
+four facts in two stories were reader-new, while the two YouTube and two Anthropic
+revenue facts were ALREADY_COMMUNICATED with actual prior prose witnesses.
+
+Existing `verified-repetition-v1` reconciliation removed only those two repeated
+stories. Plaud funding and Brad Smith regulation comments survived, preserving
+all four mandatory new facts. No repair call or fallback edition was needed.
+The fidelity attestation passed. Edition publication status became PUBLISHED at
+**12:06:22.491**; the request became DONE/PUBLISHED at **12:06:31.826**, zero recorded
+failure attempts. The queue execution completed in 335,803 ms. This is not a
+low-latency or sustained-throughput claim; provider latencies alone do not explain
+all elapsed processing time.
+
+Two new communication-ledger entries project the actual published prose. The API
+returns 13 editions with this edition first and two original TechCrunch/BBC URLs.
+A real browser renders both stories and two references on expansion, and preserves
+them after reload. The collapsed card intentionally previews only the lead story;
+the second is not missing from the API or edition. No new unsupported event date
+appears: both stories are framed as earlier source reporting. Funding amount,
+Smith attribution and the tech-company qualification are retained. The Plaud
+application/founder name and deeper funding context cannot be recovered from the
+retained short excerpt; the output does not invent them. This is a successful
+real-model publication path, not proof of comprehensive or substantive coverage.
+
+Financial read-back: reported spending $10.989107078, held exposure $1.528542294,
+26 unresolved liabilities and the same 25 prior quarantines. Three new reservations
+settled normally. Total confirmed model-cost increase across the observed 10:00,
+11:00 and 12:00 windows is **$0.074679136**, matching the account delta. No
+investigation-only model call, new grant, concurrency change or UNKNOWN release
+occurred. Browser delivery remains PENDING with no acceptance receipts; the owner
+has zero push subscriptions. Publication is confirmed, device notification is not.
+
+The live trace exposed a final reporting defect: incomplete coverage overwrote
+DONE/PUBLISHED with diagnostic BLOCKED. The follow-up changes only read-only state
+precedence: publication is SUCCESS, with the separate COVERAGE/BLOCKED problem
+still present. Both new intake/semantic-coverage regressions failed before and
+pass after; the complete trace and partial-publication run passed **45/45**.
+Worker typecheck and staging dry-run passed. Direct read-only replay of actual
+staging records shows 35 offered/judged, four grounded, two published/projected,
+and the two excluded repetitions. All 35 candidate records are available; overview
+used 21 queries and candidate view 28. Local elapsed trace times include external
+D1 API round trips and are not Worker API latency measurements. This final
+read-only patch is additional to the full CI result on `38c41f1`, not falsely
+included in that earlier 1,503-test count.
+
+Unresolved: two historical reassessment failures; withdrawn-root correction
+ownership; 31 deferred candidates including Firmus/researchers; thin retained
+source text; the demonstrated Anthropic policy/police-tip grouping; X's historical
+provider fence; no natural Telegram or new full-article canary; six baseline browser
+failures. No historical edition, paid identity or failed request was reset. Main,
+main2, production and sources QA were untouched.

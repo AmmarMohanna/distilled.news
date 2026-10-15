@@ -227,3 +227,18 @@ it('overview pages unresolved obligations in SQL with an exact total',async()=>{
   expect(observed.reads.filter(r=>/^SELECT json FROM v1_feed_documents/.test(r.sql)&&r.params.includes('correction_resolutions'))).toEqual([]);
  }finally{await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE feed_id=? AND id LIKE 'paged-%'").bind('feed-1').run()}
 });
+
+it.each(['intake','semantic'])('published available news stays SUCCESS with a separate %s coverage warning',async kind=>{
+ const previous=await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='briefing_requests' AND id='request'").first<{json:string}>();
+ try{
+  const request=JSON.parse(previous!.json);
+  if(kind==='intake')request.coverage={state:'INCOMPLETE',pendingJobs:0,failedJobs:2,failures:[{kind:'REASSESS',code:'IDEMPOTENCY_CONFLICT',count:2}]};
+  else request.semanticCoverage={unresolvedTargets:[{targetVersionId:'pending-owner',reason:'EVENT_FACT_OWNERSHIP_UNRESOLVED'}]};
+  await ctx.db.prepare("UPDATE v1_feed_documents SET json=? WHERE kind='briefing_requests' AND id='request'").bind(JSON.stringify(request)).run();
+  const result=await readPipelineTrace(ctx.db,'feed-1',options);
+  expect(result.summary!.publication.briefingRequest).toMatchObject({state:'DONE',result:'PUBLISHED',diagnosticState:'SUCCESS'});
+  expect(result.summary!.publication).toMatchObject({published:1,communicated:1});
+  expect(result.summary!.problems).toEqual(expect.arrayContaining([expect.objectContaining({stage:'COVERAGE',state:'BLOCKED',recordId:'request'})]));
+  expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='briefing_requests' AND id='request'").first<{json:string}>())!.json)).toEqual(request);
+ }finally{await ctx.db.prepare("UPDATE v1_feed_documents SET json=? WHERE kind='briefing_requests' AND id='request'").bind(previous!.json).run()}
+});
