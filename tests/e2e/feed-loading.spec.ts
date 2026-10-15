@@ -16,14 +16,15 @@ test('initial errors never masquerade as empty feeds or keep claiming loading',a
  await page.goto('/reader/news/');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();await expect(page.locator('.feed-empty-state')).toHaveCount(0);await expect(page.locator('.feed-loading-message')).toHaveCount(0);
  await page.getByPlaceholder('Search briefings').press('Enter');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();
 });
-test('refresh preserves read status, loaded pages and expanded citations while pending and after success',async({page})=>{
+test('refresh preserves read status, loaded pages and loaded sources while pending and after success',async({page})=>{
  let delay=false;const pending=gate();const editions=Array.from({length:25},(_,i)=>edition(String(i+1)));
  await mock(page,async route=>{if(delay)await pending.promise;await route.fulfill({json:{briefing:feed,editions}})});
  await page.goto('/reader/news/');const unread=page.locator('.news-line:not(.news-line-read) .news-item');await expect(unread).toHaveCount(20);
  await unread.first().getByRole('button',{name:/mark .* read/i}).click();await page.getByRole('button',{name:'load more',exact:true}).click();await expect(unread).toHaveCount(24);
- await unread.first().getByRole('button',{name:/show /i}).click();await expect(page.locator('.reference-digest-row')).toHaveCount(1);
- delay=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(unread).toHaveCount(24);await expect(page.locator('.reference-digest-row')).toHaveCount(1);
- const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await expect(page.locator('.reference-digest-row')).toHaveCount(1);await expect(page.locator('.news-line-read .news-item')).toHaveCount(1);
+ await unread.first().getByRole('button',{name:/^Sources/}).click();await expect(page.locator('.sources-story')).toHaveCount(1);await page.getByRole('button',{name:'Close',exact:true}).click();
+ delay=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(unread).toHaveCount(24);
+ const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await expect(page.locator('.news-line-read .news-item')).toHaveCount(1);
+ await unread.first().getByRole('button',{name:/^Sources/}).click();await expect(page.locator('.sources-story')).toHaveCount(1);
 });
 test('a failed refresh preserves previously published editions',async({page})=>{
  let failed=false;await mock(page,route=>failed?route.fulfill({status:503,json:{error:'Refresh unavailable.'}}):route.fulfill({json:{briefing:feed,editions:[edition('one')]}}));
@@ -70,10 +71,10 @@ test('a late detail response cannot reopen a withdrawn edition after refresh',as
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
- const detail=page.waitForRequest(r=>new URL(r.url()).pathname.endsWith('/editions/one'));await page.getByRole('button',{name:/show /i}).click();await detail;
+ const detail=page.waitForRequest(r=>new URL(r.url()).pathname.endsWith('/editions/one'));await page.getByRole('button',{name:/^Sources/}).click();await detail;
  withdrawn=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(0);
  const finished=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/editions/one'));pending.release();await finished;
- await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.locator('.reference-digest-row')).toHaveCount(0);
+ await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.locator('.sources-story')).toHaveCount(0);
 });
 
 test('refresh removes withdrawn prose from active search results even if search subsequently fails',async({page})=>{

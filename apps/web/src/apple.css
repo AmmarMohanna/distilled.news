@@ -1012,7 +1012,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui :is(button, a, summary, [role="button"]) { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
 /* Cards are surfaces with depth rather than outlined boxes. */
-:root.apple-ui.apple-ui :is(.topic-card, .ranked-feed, .feed-shell .news-copy) {
+:root.apple-ui.apple-ui :is(.topic-card, .ranked-feed) {
   border: var(--hairline); box-shadow: var(--elev-1);
   transition: transform 380ms var(--ease-settle), box-shadow 380ms var(--ease-settle);
 }
@@ -1043,9 +1043,69 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .star-vote.is-starred svg { fill: currentColor; }
 
 @media (prefers-reduced-motion: reduce) {
-  :root.apple-ui.apple-ui :is(.topic-card, .ranked-feed, .feed-shell .news-copy, .category-chips button, .star-vote svg) { transition: background-color 150ms linear, color 150ms linear; }
+  :root.apple-ui.apple-ui :is(.topic-card, .ranked-feed, .category-chips button, .star-vote svg) { transition: background-color 150ms linear, color 150ms linear; }
   :root.apple-ui.apple-ui :is(.topic-card, .ranked-feed):is(:hover, :active), :root.apple-ui.apple-ui .category-chips button:active { transform: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
   :root.apple-ui.apple-ui :is(.experience-header, .auth-header, .shell > header, .bottom-navigation) { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--surface); }
 }
+
+/* Feed reading experience.
+   One centered reading column (about 65 characters per line at body size), briefings grouped by day,
+   each briefing a headline card whose sources open in a sheet instead of expanding in place. */
+:root.apple-ui.apple-ui .feed-shell > :not(header, .experience-header, .bottom-navigation, dialog) { width: 100%; max-width: 760px; margin-inline: auto; }
+:root.apple-ui.apple-ui .feed-shell .news-line { display: flex; flex-direction: column; gap: 12px; padding: 0; min-width: 0; }
+:root.apple-ui.apple-ui .feed-shell .news-day { margin: 22px 4px 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; color: var(--text); }
+:root.apple-ui.apple-ui .feed-shell .news-day:first-child { margin-top: 14px; }
+:root.apple-ui.apple-ui .feed-shell .news-item { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px 4px; border: var(--hairline); border-radius: 20px; background: var(--surface); box-shadow: var(--elev-1); }
+:root.apple-ui.apple-ui .feed-shell .news-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+:root.apple-ui.apple-ui .feed-shell .news-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.0625rem; font-weight: 650; letter-spacing: -0.01em; line-height: 1.3; color: var(--text); }
+:root.apple-ui.apple-ui .feed-shell .news-unread { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+:root.apple-ui.apple-ui .feed-shell .news-head time { flex: none; color: var(--muted); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+:root.apple-ui.apple-ui .feed-shell .news-summary { display: block; overflow: visible; -webkit-line-clamp: unset; margin: 0; font-size: 1.0625rem; line-height: 1.55; letter-spacing: -0.005em; text-wrap: pretty; color: var(--text); }
+:root.apple-ui.apple-ui .feed-shell .news-item.is-read :is(.news-title, .news-summary) { color: var(--muted); }
+:root.apple-ui.apple-ui .feed-shell .news-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; border-top: var(--hairline); }
+:root.apple-ui.apple-ui .feed-shell .news-sources { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; border: 0; border-radius: 10px; background: transparent; color: var(--accent-ink); font-size: 0.9375rem; font-weight: 600; box-shadow: none; }
+:root.apple-ui.apple-ui .feed-shell .news-sources-count { display: grid; place-items: center; min-width: 22px; height: 22px; padding-inline: 6px; border-radius: 11px; background: color-mix(in srgb, var(--accent) 14%, transparent); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+:root.apple-ui.apple-ui .feed-shell .news-sources[aria-busy="true"] { opacity: 0.6; }
+:root.apple-ui.apple-ui .feed-shell .news-foot .read-button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 0 4px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-size: 0.875rem; font-weight: 550; box-shadow: none; }
+:root.apple-ui.apple-ui .feed-shell .news-foot .read-button[aria-pressed="true"] { color: var(--accent-ink); }
+
+/* Source markers behave like footnotes: small, attached to the word, with a 44pt hit region. */
+:root.apple-ui.apple-ui .news-summary .inline-reference { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; min-height: 0; padding: 0 6px; margin-inline: 3px 1px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-ink); font-size: 0.75rem; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; vertical-align: 0.12em; text-decoration: none; box-shadow: none; }
+:root.apple-ui.apple-ui .news-summary .inline-reference::after { content: ""; position: absolute; inset: -12px -6px; }
+:root.apple-ui.apple-ui .news-summary .inline-reference:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+:root.apple-ui.apple-ui .news-summary .inline-reference:disabled { background: transparent; color: var(--muted); }
+
+/* Read archive. */
+:root.apple-ui.apple-ui .feed-shell .read-section { margin-top: 20px; }
+:root.apple-ui.apple-ui .feed-shell .read-section > summary { display: flex; align-items: center; min-height: 44px; padding: 0 4px; color: var(--muted); font-size: 0.9375rem; font-weight: 600; cursor: pointer; }
+:root.apple-ui.apple-ui .feed-shell .read-section .news-line { margin-top: 8px; }
+
+/* Sources sheet. */
+:root.apple-ui.apple-ui .sources-module { display: grid; gap: 16px; }
+:root.apple-ui.apple-ui .sources-edition { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin: 0; color: var(--muted); font-size: 0.875rem; }
+:root.apple-ui.apple-ui .sources-edition strong { color: var(--text); font-size: 1.0625rem; font-weight: 650; letter-spacing: -0.01em; }
+:root.apple-ui.apple-ui .sources-stories { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+:root.apple-ui.apple-ui .sources-story { padding: 16px; border-radius: 16px; background: var(--surface-quiet); scroll-margin-top: 4px; }
+:root.apple-ui.apple-ui .sources-story.is-selected { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+:root.apple-ui.apple-ui .sources-story-head { display: flex; align-items: flex-start; gap: 10px; }
+:root.apple-ui.apple-ui .sources-story-head h3 { margin: 0; font-size: 1.0625rem; font-weight: 650; letter-spacing: -0.01em; line-height: 1.3; color: var(--text); }
+:root.apple-ui.apple-ui .sources-story-number { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-ink); font-size: 0.8125rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+:root.apple-ui.apple-ui .sources-story-summary { margin: 8px 0 0; color: var(--muted); font-size: 0.9375rem; line-height: 1.5; }
+:root.apple-ui.apple-ui .sources-posts { display: grid; margin: 12px 0 0; padding: 0; list-style: none; border-radius: 12px; background: var(--surface); }
+:root.apple-ui.apple-ui .sources-post { display: grid; gap: 4px; padding: 12px 14px 4px; }
+:root.apple-ui.apple-ui .sources-post + .sources-post { border-top: var(--hairline); }
+:root.apple-ui.apple-ui .sources-post-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+:root.apple-ui.apple-ui .sources-post-source { font-size: 0.9375rem; font-weight: 650; color: var(--text); }
+:root.apple-ui.apple-ui .sources-post-head time { flex: none; color: var(--muted); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+:root.apple-ui.apple-ui .sources-post-text { margin: 0; color: var(--muted); font-size: 0.9375rem; line-height: 1.5; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+:root.apple-ui.apple-ui .sources-post-text.is-open { display: block; overflow: visible; }
+:root.apple-ui.apple-ui .sources-post-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
+:root.apple-ui.apple-ui .sources-post-actions :is(a, button) { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--accent-ink); font-size: 0.9375rem; font-weight: 600; text-decoration: none; box-shadow: none; }
+
+/* The sheet's title and close control stay reachable while its stories scroll. */
+:root.apple-ui.apple-ui .sheet-dialog .sheet-head { position: sticky; top: 0; z-index: 3; margin-top: -1px; padding-block: 12px; background: var(--surface); }
+
+/* RTL: the feed header keeps its controls on the end side, so Back must sit opposite them. */
+:root.apple-ui.apple-ui[dir="rtl"] .feed-shell .experience-header { flex-direction: row-reverse; }

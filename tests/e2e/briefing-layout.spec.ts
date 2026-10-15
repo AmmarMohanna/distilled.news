@@ -66,8 +66,8 @@ test("published summaries retain original citations and read-only refresh", asyn
   await expect(page.locator(".news-summary")).toContainText("Acme released an updated research model");
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
   await page.locator(".news-summary button").click();
-  await expect(page.getByRole("dialog", { name: "Report" }).getByRole("link", { name: /original/i })).toHaveAttribute("href", sourceUrl);
-  await page.getByRole("button", { name: "close report" }).click();
+  await expect(page.getByRole("dialog", { name: "Sources" }).getByRole("link", { name: /open post/i })).toHaveAttribute("href", sourceUrl);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
   const readsBefore = feedReads;
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect.poll(() => feedReads).toBeGreaterThan(readsBefore);

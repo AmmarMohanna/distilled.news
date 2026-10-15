@@ -262,19 +262,16 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   expect(sessionRequests).toBeGreaterThan(0);
   await expect(page.getByPlaceholder("Search briefings")).toBeVisible();
   await expect(page.locator(".news-item").filter({ hasText: "Electricite du Liban confirmed two extra hours" }).first()).toBeVisible();
-  await expect(page.getByText("A third operational note stays in the full brief")).toHaveCount(0);
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
 
-  await page.getByRole("button", { name: /show .*updates/i }).first().click();
   await expect(page.getByText("A third operational note stays in the full brief").first()).toBeVisible();
-  await expect(page.locator(".reference-digest-row").first()).toBeVisible();
   await expect(page.locator(".brief-synthesis-text")).toHaveCount(0);
-  await page.getByRole("button", { name: /open reference 1/i }).first().click();
-  const reportDialog = page.getByRole("dialog", { name: "Report" });
+  await page.getByRole("button", { name: "Source 1" }).first().click();
+  const reportDialog = page.getByRole("dialog", { name: "Sources" });
   await expect(reportDialog).toBeVisible();
   await expect(reportDialog.getByText("Beirut Local")).toBeVisible();
-  await expect(reportDialog.getByRole("link", { name: /original/i })).toHaveAttribute("href", item.evidence[0].sourceUrl);
-  await page.getByRole("button", { name: "close report" }).click();
+  await expect(reportDialog.getByRole("link", { name: /open post/i })).toHaveAttribute("href", item.evidence[0].sourceUrl);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
 
   await page.getByPlaceholder("Search briefings").fill("power supply");
   await page.keyboard.press("Enter");
@@ -283,7 +280,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   expect(sessionRequests).toBeGreaterThan(0);
 });
 
-test("arabic feed keeps public chrome localized and summary stable on expand", async ({ page }) => {
+test("arabic feed keeps public chrome localized and summary stable when opening sources", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("dn_language", "ar"));
   await page.route("**/api/auth/session", route => route.fulfill({ json: { authenticated: false, setupRequired: false } }));
   await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
@@ -311,10 +308,11 @@ test("arabic feed keeps public chrome localized and summary stable on expand", a
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
   await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
 
-  await page.getByRole("button", { name: /عرض تحديثات موثوقة/i }).click();
+  await page.getByRole("button", { name: "المصدر 1" }).first().click();
+  await expect(page.getByRole("dialog", { name: "المصادر" })).toBeVisible();
+  await page.getByRole("button", { name: "إغلاق", exact: true }).click();
   await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
   await expect(page.locator(".news-summary").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
-  await expect(page.getByText("المراجع")).toBeVisible();
   await expect(page.getByText("refresh")).toHaveCount(0);
   await expect(page.getByText("Explore")).toHaveCount(0);
   await expect(page.getByText("Search briefings")).toHaveCount(0);
