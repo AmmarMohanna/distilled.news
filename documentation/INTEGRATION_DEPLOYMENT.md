@@ -153,8 +153,29 @@ corepack pnpm --filter @distilled/worker exec wrangler secret list --config wran
 
 ## Deployment verification record
 
-Deployment and post-deployment checks are pending. The baseline staging deployment is
+Successfully deployed on 2026-10-15 at 16:38 UTC from commit `ea44b4a`.
+Integration deployment: `fdaf31a4-3625-44f8-a826-e81baec16d00`.
+Integration version: `b5ba65bd-b941-4770-9510-04671b9a879e`, serving 100% of traffic.
+Cloudflare confirms all eight resource bindings, all 32 variables, and the two
+admin secret bindings as `secret_text`. Exactly the 12 secrets listed above are absent.
+
+The before/after Cloudflare comparison confirms that staging settings, deployment
+history, active version, secret inventory, Cron schedule, workers.dev settings,
+queue settings/consumers, and route/domain inventory are unchanged. No staging
+deployment command was run. The protected staging deployment remains
 `d5e369d6-7de1-4e24-8511-478129a1abf5`, serving version
 `8649bc0f-ec15-45c0-9667-72506c1beb15` at 100%.
 Before integration deployment, staging's homepage, session, and Explore endpoints
 returned HTTP 200; protected account/admin endpoints correctly returned HTTP 401.
+
+After deployment, both Workers returned HTTP 200 for `/`, `/api/auth/session`, and
+`/api/explore/feeds`; `/api/me/health` and `/api/admin/accounts` correctly returned
+HTTP 401 without authentication. Integration served `/assets/index-C2cvMOWu.js`
+with bytes identical to this branch's local production build. Staging's homepage
+SHA-256 and asset path were unchanged.
+
+Local validation passed: four deployment safety tests, Wrangler dry run, and
+Wrangler integration binding/runtime type generation. Frontend validation before
+deployment also passed: 30 unit tests, 14 responsive browser tests, typecheck,
+and production build. Missing provider/mail/push credentials were not exercised
+or represented as functional. No remote migrations or mail sends were performed.
