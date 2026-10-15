@@ -38,9 +38,9 @@ for (const size of [
   });
 }
 
-test("landing feeds scroll when there is a second row", async ({ page }) => {
+test("landing feeds scroll only when they no longer fit", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
-  await openLanding(page, 8);
+  await openLanding(page, 40);
   const viewport = page.locator(".app-pages > .screen-page-viewport");
   expect(await viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
 });

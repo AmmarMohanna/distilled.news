@@ -18,6 +18,7 @@ export async function openEditSettings(page: Page) {
 
 /** Cycles the website language: the header control where it exists, otherwise (phones, signed in) the same setting Settings writes. */
 export async function cycleLanguage(page: Page) {
+  await page.locator(".experience-header").first().waitFor();
   const button = page.locator(".language-cycle");
   if (await button.isVisible()) { await button.click(); return; }
   await page.evaluate(() => {
@@ -30,6 +31,7 @@ export async function cycleLanguage(page: Page) {
 
 /** Toggles dark mode: the header button where it exists, otherwise (phones, signed in) the setting Settings writes. */
 export async function toggleTheme(page: Page) {
+  await page.locator(".experience-header").first().waitFor();
   const button = page.locator(".theme-toggle");
   if (await button.isVisible()) { await button.click(); return; }
   await page.evaluate(() => {

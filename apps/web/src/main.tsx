@@ -1818,7 +1818,7 @@ function FeedEditionRow(props: {
     <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={language} dir={textDir}>
       <div className="news-head">
         {props.isRead ? null : <span className="news-unread" aria-hidden />}
-        <time dateTime={edition.publishedAt}>{formatClock(edition.publishedAt, language)}</time>
+        <time dateTime={edition.publishedAt}><span className="news-day-inline">{formatDayHeading(edition.publishedAt, language)} · </span>{formatClock(edition.publishedAt, language)}</time>
       </div>
       <ReferenceParagraph
         className="news-summary"
