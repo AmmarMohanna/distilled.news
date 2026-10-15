@@ -148,9 +148,15 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
  const window={...parsedWindow.data,start:new Date(parsedWindow.data.start).toISOString(),end:new Date(parsedWindow.data.end).toISOString()},budget:BriefingBudget=parsedBudget.data;
  const resolved=new Map<string,Awaited<ReturnType<typeof durableSalience>>>();
  const targetList=async(tx:FeedTransaction)=>{
-  const values=await targets(tx,window,Boolean(plan));if(!plan)return values;
-  if(plan.feedId!==feedId||plan.feedRevision!==tx.snapshot.feed.revision||canonicalJson({...plan.window,start:new Date(plan.window.start).toISOString(),end:new Date(plan.window.end).toISOString()})!==canonicalJson(window)||plan.communicationFingerprint!==await communicationFingerprint(tx,window.end))throw new HandoffError('TEMPORARY_UNAVAILABLE');
-  const selected=values.filter(t=>plan.stories.some(s=>s.targetVersionId===t.id));if(selected.length!==plan.stories.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');return selected;
+  const values=await targets(tx,window,Boolean(plan));let selected=values;
+  if(plan){
+   if(plan.feedId!==feedId||plan.feedRevision!==tx.snapshot.feed.revision||canonicalJson({...plan.window,start:new Date(plan.window.start).toISOString(),end:new Date(plan.window.end).toISOString()})!==canonicalJson(window)||plan.communicationFingerprint!==await communicationFingerprint(tx,window.end))throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   selected=values.filter(t=>plan.stories.some(s=>s.targetVersionId===t.id));if(selected.length!==plan.stories.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  }
+  // Support counting needs duplicate judgments, not the whole review graph.
+  // Warm them across this complete selection snapshot, including cached misses.
+  await tx.preload('duplicates',selected.flatMap(target=>target.evidence.map(revision=>JSON.stringify([revision.id,INTELLIGENCE_POLICY]))));
+  return selected;
  };
  const planEditorial=async(tx:FeedTransaction,target:Target):Promise<EditorialDecision>=>{
   const editorial=await evaluateEditorialDelta(tx,target,window.end,window.start);if(!plan){deterministicPrefilter(editorial,tx.snapshot.feed.interests,tx.snapshot.feed.geography);return editorial}
