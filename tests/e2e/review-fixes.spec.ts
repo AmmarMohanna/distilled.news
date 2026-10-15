@@ -114,3 +114,36 @@ test("a feed card's menu is never covered by the next card", async ({ page }) =>
     expect(covered).toBe(0);
   }
 });
+
+test("Create feed and the search row stay put when switching between Home and Explore", async ({ page }) => {
+  const position = async () => page.evaluate(() => {
+    const box = (element: Element | undefined | null) => { const r = element!.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; };
+    const create = [...document.querySelectorAll("button")].find(button => /Create feed/.test(button.textContent ?? "") && button.getBoundingClientRect().width > 0);
+    return { create: box(create), search: box(document.querySelector(".explore-search")) };
+  });
+  for (const size of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1280, height: 800 }]) {
+    await page.setViewportSize(size);
+    await mock(page, true);
+    await page.goto("/");
+    await page.waitForSelector(".home-view .explore-search");
+    const home = await position();
+    await page.locator(".bottom-navigation").getByRole("button", { name: "Explore" }).click();
+    await page.waitForSelector(".explore-view .explore-search");
+    expect(await position()).toEqual(home);
+    await page.unroute("**/api/**");
+  }
+});
+
+test("Add feed microphones align and preferences are a single-column list", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 664 });
+  await mock(page, true);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create feed", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Add feed" });
+  const mics = await dialog.locator(".voice-input button").evaluateAll(nodes => nodes.map(node => Math.round(node.getBoundingClientRect().right)));
+  expect(mics).toHaveLength(2);
+  expect(mics[0]).toBe(mics[1]);
+  await dialog.getByRole("button", { name: "Preferences" }).click();
+  const tops = await dialog.locator(".feed-preferences-fields > *").evaluateAll(nodes => nodes.map(node => Math.round(node.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(tops.length);
+});
