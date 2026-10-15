@@ -262,6 +262,10 @@ html.apple-ui, .apple-ui body, .apple-ui #root { height: 100%; overflow: hidden;
   }
   :root.apple-ui.apple-ui .bottom-navigation :is(button,a) { display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: 0.875rem; min-height: 50px; padding: 0.875rem; font-size: 0.9375rem; }
   :root.apple-ui.apple-ui .bottom-navigation .sidebar-logo { position: absolute; top: 28px; left: 15px; display: flex; }
+  :root.apple-ui.apple-ui .guest-landing .experience-header > .experience-brand { position: fixed; top: 28px; left: 15px; padding: 0; transform: translateX(-8px); }
+  :root.apple-ui.apple-ui .guest-landing .experience-header .distilled-logo { gap: 4px; }
+  :root.apple-ui.apple-ui .guest-landing .experience-header .distilled-logo-symbol { width: 44px; }
+  :root.apple-ui.apple-ui .guest-landing .experience-header .distilled-logo-wordmark { font-size: 21px; letter-spacing: -1px; }
   :root.apple-ui.apple-ui .bottom-navigation .navigation-settings { margin-top: auto; position: relative; }
   :root.apple-ui.apple-ui .bottom-navigation .navigation-settings::before { content: ""; position: absolute; top: -0.75rem; inset-inline: 0; border-top: 1px solid var(--line); }
   :root.apple-ui.apple-ui .shell > header .brand-lockup { visibility: hidden; }
@@ -735,11 +739,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .profile-dialog-content { padding: 40px 20px 16px; }
 }
 @media (max-width: 600px) {
-  :root.apple-ui.apple-ui .guest-landing .experience-header-actions .button-link { width: 96px; min-width: 96px; font-size: 12px; }
-  :root.apple-ui.apple-ui .guest-landing .experience-header .distilled-logo-wordmark { font-size: 16px; }
+  :root.apple-ui.apple-ui .guest-landing .experience-header-actions .button-link { width: auto; min-width: 48px; padding-inline: 6px; font-size: 12px; }
+  :root.apple-ui.apple-ui .guest-landing .experience-header-actions .language-cycle { width: 52px; min-width: 52px; flex-basis: 52px; padding-inline: 4px; }
+  :root.apple-ui.apple-ui .guest-landing .experience-header .distilled-logo-wordmark { font-size: 22px; }
 }
 @media (max-width: 360px) {
-  :root.apple-ui.apple-ui .guest-landing .experience-header .distilled-logo-wordmark { display: none; }
+  :root.apple-ui.apple-ui .experience-header .distilled-logo-wordmark { display: inline; font-size: 16px; }
+  :root.apple-ui.apple-ui .guest-landing .experience-header .distilled-logo-wordmark { font-size: 16px; }
   :root.apple-ui.apple-ui .auth-dialog .login { gap: 6px; padding: 32px 16px 12px; }
 }
 @media (max-width: 360px) and (max-height: 700px) {
