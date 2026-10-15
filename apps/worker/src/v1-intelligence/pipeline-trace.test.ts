@@ -192,8 +192,9 @@ it.each(['records','sources','operations'] as const)('%s pagination does not hyd
  expect(observed.reads.filter(r=>/^SELECT json FROM v1_feed_documents/.test(r.sql)&&r.params.some(p=>['selections','editorial_plans','shortlists','briefing_requests'].includes(String(p))))).toEqual([]);
 });
 it.each(['overview','articles','candidates'] as const)('%s resolves latest context without returning retained history',async view=>{
- const history=['selections','editorial_plans','briefing_requests'].flatMap(kind=>Array.from({length:3},(_,i)=>ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind(kind,'old-trace-context-'+i,'feed-1',JSON.stringify({id:'old-trace-context-'+i,window:{start:'2000-01-01T00:00:00Z',end:'2000-01-01T01:00:00Z'},createdAt:'2000-01-01T00:00:00Z'}))));
- await ctx.db.batch(history);
+ // Seed all999 retained context records in one fixture operation; measuring
+ // hundreds of RPC fixture inserts is unrelated to trace retrieval performance.
+ await ctx.db.prepare(`WITH kinds(kind) AS (VALUES ('selections'),('editorial_plans'),('briefing_requests')) INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT kind,'old-trace-context-'||n.value,'feed-1',json_object('id','old-trace-context-'||n.value,'window',json_object('start','2000-01-01T00:00:00Z','end','2000-01-01T01:00:00Z'),'createdAt','2000-01-01T00:00:00Z') FROM kinds CROSS JOIN json_each(?) n`).bind(JSON.stringify(Array.from({length:333},(_,i)=>i))).run();
  try{
   const observed=observeTraceReads(ctx.db);
   const result=await readPipelineTrace(observed.db,'feed-1',{view,pageSize:1});
@@ -202,6 +203,16 @@ it.each(['overview','articles','candidates'] as const)('%s resolves latest conte
   expect(context.length).toBeGreaterThan(0);
   expect(context.map(r=>r.rows)).toEqual(context.map(()=>1));
  }finally{await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE feed_id=? AND id LIKE 'old-trace-context-%'").bind('feed-1').run()}
+});
+
+it('a completed window with failed coverage is not diagnosed as successful coverage',async()=>{
+ const previous=await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='briefing_requests' AND id='request'").first<{json:string}>();
+ try{
+  await ctx.db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.result','DEFERRED','$.reason','INCOMPLETE_INTAKE_COVERAGE','$.coverage',json(?)) WHERE kind='briefing_requests' AND id='request'").bind(JSON.stringify({state:'INCOMPLETE',pendingJobs:0,failedJobs:1,failures:[{kind:'ACQUIRE',code:'EXTRACTION_FAILED',count:1}]})).run();
+  const result=await readPipelineTrace(ctx.db,'feed-1',options);
+  expect(result.summary!.publication.briefingRequest).toMatchObject({state:'DONE',result:'DEFERRED',diagnosticState:'BLOCKED',coverage:{failedJobs:1}});
+  expect(result.summary!.problems).toEqual(expect.arrayContaining([expect.objectContaining({stage:'COVERAGE',state:'BLOCKED',reason:'INCOMPLETE_INTAKE_COVERAGE',recordId:'request'})]));
+ }finally{await ctx.db.prepare("UPDATE v1_feed_documents SET json=? WHERE kind='briefing_requests' AND id='request'").bind(previous!.json).run()}
 });
 
 it('overview pages unresolved obligations in SQL with an exact total',async()=>{

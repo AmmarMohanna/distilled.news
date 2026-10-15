@@ -122,3 +122,7 @@ fidelity, corrections, withdrawal, novelty, duplicate delivery and public/privat
 reader access. Report actual account usage separately from held exposure and shared
 cost attribution. The shared $50/7-day staging authorization is context, not
 permission to activate/change a grant, budgets, concurrency or provider credentials.
+
+Request status is projected at summary.publication.briefingRequest. This is a
+whitelist of durable status/coverage fields; raw provider request bodies remain
+redacted. The readable CLI also accepts older saved reports with publication.request.
