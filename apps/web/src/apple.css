@@ -1034,7 +1034,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .experience.product-refresh .home-view .welcome-copy h1 { font-size: clamp(32px, 3.2vw, 52px); font-weight: 700; letter-spacing: -1.5px; max-width: none; }
   :root.apple-ui.apple-ui .experience.product-refresh .home-view .welcome-copy p { font-size: 17px !important; }
   :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.personal-feed-grid,.curated-feed-grid) { grid-template-columns: repeat(3,minmax(0,1fr)); gap: clamp(20px,2.4vw,40px); }
-  :root.apple-ui.apple-ui .experience.product-refresh .home-controls { grid-template-columns: minmax(0,1fr) clamp(160px,16vw,240px); gap: 24px; }
+  :root.apple-ui.apple-ui .experience.product-refresh .home-controls { width: 91%; margin-inline: auto; grid-template-columns: minmax(0,1fr) clamp(160px,16vw,240px); gap: 24px; }
   :root.apple-ui.apple-ui .experience.product-refresh .home-controls .explore-search { width: 100%; max-width: none; border-radius: 999px; }
   :root.apple-ui.apple-ui .experience.product-refresh .home-controls .home-add-feed { border-radius: 999px; }
   :root.apple-ui.apple-ui .experience.product-refresh .topic-card.feed-widget > a { overflow: visible; }
@@ -1048,7 +1048,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (min-width: 900px) and (min-height: 760px) {
   :root.apple-ui.apple-ui .experience.product-refresh .home-view .welcome-hero { min-height: 120px; }
   :root.apple-ui.apple-ui .experience.product-refresh .explore-view .experience-title { min-height: 120px; }
-  :root.apple-ui.apple-ui .experience.product-refresh .home-view .home-controls { margin-bottom: 12px; }
+  :root.apple-ui.apple-ui .experience.product-refresh .home-view .home-controls { margin-bottom: clamp(12px, calc(12px + (100dvh - 760px) * .15), 32px); }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view,.explore-view) { padding-top: clamp(16px, calc(16px + (100dvh - 760px) * .12), 32px); }
   :root.apple-ui.apple-ui .experience.product-refresh .home-controls :is(.explore-search,.home-add-feed) { min-height: 56px; height: 56px; }
   :root.apple-ui.apple-ui .experience.product-refresh .topic-card.feed-widget .topic-art { height: clamp(112px,18dvh,160px); max-height: 160px; }
   :root.apple-ui.apple-ui .experience.product-refresh .your-feeds .experience-section-heading h2 { font-size: 24px; }
