@@ -147,3 +147,16 @@ test("Add feed microphones align and preferences are a single-column list", asyn
   const tops = await dialog.locator(".feed-preferences-fields > *").evaluateAll(nodes => nodes.map(node => Math.round(node.getBoundingClientRect().top)));
   expect(new Set(tops).size).toBe(tops.length);
 });
+
+test("a few feeds become large capped cards on laptops but stay compact on phones", async ({ page }) => {
+  await mock(page, true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const card = page.locator(".personal-feed-grid .topic-card").first();
+  await expect(card).toBeVisible();
+  const large = await card.boundingBox();
+  expect(large!.height).toBeGreaterThan(250);
+  expect(large!.width).toBeLessThanOrEqual(341);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(async () => (await card.boundingBox())!.height).toBeLessThan(140);
+});

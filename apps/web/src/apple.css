@@ -1326,3 +1326,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-language-options { flex-wrap: nowrap; flex: 0 0 auto; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > label { font-size: 0.9375rem; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > label > :is(select, input) { flex: 0 0 auto; }
+
+/* Laptop and desktop: with only a few feeds the cards grow into large artwork cards;
+   from four feeds on they stay as compact rows. Phones always keep the compact rows. */
+@media (min-width: 900px) and (min-height: 700px) {
+  :root.apple-ui.apple-ui .experience.product-refresh:not(.guest-landing) :is(.home-view, .explore-view) :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 340px)); gap: 20px; max-width: none; justify-content: start; }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) > .topic-card { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "art art" "name name" "status updated" "actions actions"; row-gap: 6px; padding: 14px 18px 8px; border-radius: 20px; align-items: center; }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) > .topic-card .topic-art { width: 100%; height: clamp(120px, 24dvh, 220px); max-height: none; aspect-ratio: auto; margin-bottom: 8px; border-radius: 16px; }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) > .topic-card .topic-art svg { max-height: 100%; }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) > .topic-card .topic-name { font-size: 1.1875rem; }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) > .topic-card .feed-card-actions { justify-content: space-between; align-self: stretch; margin-top: 6px; padding-top: 4px; border-top: 1px solid var(--line); }
+}
