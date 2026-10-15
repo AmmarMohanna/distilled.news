@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BriefingConfig } from "@distilled/core";
-import { deriveBriefingSlug, formatFeedUpdated, formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
+import { deriveBriefingSlug, formatClock, formatDayHeading, formatFeedUpdated, formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
 
 const baseBriefing: BriefingConfig = {
   id: "briefing_default",
@@ -63,5 +63,18 @@ describe("web helpers", () => {
     expect(french).toMatch(/\d{1,2} [A-Za-zÀ-ÖØ-öø-ÿ]+, \d{2}:\d{2}/u);
     expect(french).not.toBe(english);
     expect(english).not.toMatch(/am|pm/i);
+  });
+
+  it("labels briefing days relative to now and formats the time of day", () => {
+    const now = new Date(2026, 9, 15, 18, 0).getTime();
+    const at = (day: number, hour = 9, minute = 5) => new Date(2026, 9, day, hour, minute).toISOString();
+    expect(formatDayHeading(at(15), "en", now)).toBe("Today");
+    expect(formatDayHeading(at(14), "en", now)).toBe("Yesterday");
+    expect(formatDayHeading(at(14), "fr", now)).toBe("Hier");
+    expect(formatDayHeading(at(12), "en", now)).toBe("Monday");
+    expect(formatDayHeading(at(1), "en", now)).toBe("October 1");
+    expect(formatDayHeading(new Date(2025, 11, 30).toISOString(), "en", now)).toBe("December 30, 2025");
+    expect(formatClock(at(15, 9, 5), "en")).toBe("09:05");
+    expect(formatClock(at(15, 16, 57), "fr")).toBe("16:57");
   });
 });

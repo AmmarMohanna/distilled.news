@@ -90,3 +90,29 @@ export function formatFeedUpdated(value: string, language: "en" | "ar" | "fr", n
   const relative = new Intl.RelativeTimeFormat(language, { numeric: "always" }).format(-amount, unit);
   return language === "fr" ? `Mis à jour ${relative}` : language === "ar" ? `تم التحديث ${relative}` : `Updated ${relative}`;
 }
+
+export function formatClock(value: string, language: "en" | "ar" | "fr"): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const locale = language === "ar" ? "ar-LB" : language === "fr" ? "fr-FR" : "en-GB";
+  return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
+}
+
+/** "Today", "Yesterday", a weekday within the last week, otherwise a calendar date; local time. */
+export function formatDayHeading(value: string, language: "en" | "ar" | "fr", now = Date.now()): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const startOfDay = (input: Date) => new Date(input.getFullYear(), input.getMonth(), input.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date(now)) - startOfDay(date)) / 86_400_000);
+  const labels = {
+    en: ["Today", "Yesterday"],
+    fr: ["Aujourd’hui", "Hier"],
+    ar: ["اليوم", "أمس"]
+  }[language];
+  if (days === 0) return labels[0];
+  if (days === 1) return labels[1];
+  const locale = language === "ar" ? "ar-LB" : language === "fr" ? "fr-FR" : "en-US";
+  if (days > 1 && days < 7) return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(date);
+  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+  return new Intl.DateTimeFormat(locale, sameYear ? { month: "long", day: "numeric" } : { month: "long", day: "numeric", year: "numeric" }).format(date);
+}

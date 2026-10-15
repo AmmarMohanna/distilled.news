@@ -1,5 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+/** On phones Settings may scroll (it also hosts Language and Dark mode); every row must be reachable above the tab bar. */
+async function expectLastRowReachable(page: import("@playwright/test").Page) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator(".app-pages > .screen-page-viewport").evaluate(node => { node.scrollTop = node.scrollHeight; });
+  const settings = await page.locator(".settings-view").boundingBox();
+  const navigation = await page.locator(".bottom-navigation").boundingBox();
+  expect(settings!.y + settings!.height).toBeLessThanOrEqual(navigation!.y + 1);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
@@ -28,8 +37,11 @@ for (const size of [
       const navigation = document.querySelector(".bottom-navigation")!.getBoundingClientRect();
       return { scrollHeight: viewport.scrollHeight, clientHeight: viewport.clientHeight, settingsBottom: settings.bottom, navigationTop: navigation.top };
     });
-    expect(result.scrollHeight).toBeLessThanOrEqual(result.clientHeight + 1);
-    if (size.width < 900) expect(result.settingsBottom).toBeLessThanOrEqual(result.navigationTop);
+    if (size.width < 700) await expectLastRowReachable(page);
+    else {
+      expect(result.scrollHeight).toBeLessThanOrEqual(result.clientHeight + 1);
+      if (size.width < 900) expect(result.settingsBottom).toBeLessThanOrEqual(result.navigationTop);
+    }
     expect(await page.locator(".setting-row").first().evaluate(node => getComputedStyle(node).fontSize)).toBe("16px");
   });
 }
@@ -40,11 +52,7 @@ for (const language of ["fr", "ar"]) for (const size of [{ width: 320, height: 5
     await page.addInitScript(value => localStorage.setItem("dn_language", value), language);
     await page.goto("/");
     await page.locator(".bottom-navigation .navigation-settings").click();
-    const viewport = page.locator(".app-pages > .screen-page-viewport");
-    expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
-    const navigation = await page.locator(".bottom-navigation").boundingBox();
-    const settings = await page.locator(".settings-view").boundingBox();
-    expect(settings!.y + settings!.height).toBeLessThanOrEqual(navigation!.y);
+    await expectLastRowReachable(page);
   });
 }
 
@@ -64,7 +72,8 @@ for (const size of [{ width: 1280, height: 637 }, { width: 1280, height: 593 }, 
     await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
     await expect(page.locator(".accounts-section")).toBeVisible();
     const viewport = page.locator(".app-pages > .screen-page-viewport");
-    expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+    if (size.width < 700) await expectLastRowReachable(page);
+    else expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
     const corners = await page.evaluate(() => ({
       group: getComputedStyle(document.querySelector(".settings-account-group")!).borderTopLeftRadius,
       management: getComputedStyle(document.querySelector(".accounts-section")!).borderTopLeftRadius
@@ -83,6 +92,6 @@ for (const size of [{ width: 1280, height: 637 }, { width: 1280, height: 593 }, 
     }
     const navigation = await page.locator(".bottom-navigation").boundingBox();
     const settings = await page.locator(".settings-view").boundingBox();
-    if (size.width < 900) expect(settings!.y + settings!.height).toBeLessThanOrEqual(navigation!.y);
+    if (size.width < 900) expect(settings!.y + settings!.height).toBeLessThanOrEqual(navigation!.y + 1);
   });
 }

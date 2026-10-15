@@ -7,6 +7,7 @@ import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
 import { getSources, recommendSources } from "./api";
 import { VoiceInput } from "./VoiceInput";
+import { SourceLogo } from "./SourceLogo";
 
 export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { id: string; sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
 export function FeedEditor(props: {
@@ -72,7 +73,7 @@ export function FeedEditor(props: {
         {sources.length > 0 && <div className="selected-sources"><span className="selected-sources-label">{t("Selected sources")}</span>{sources.map(source => <div className="selected-source-row" key={source}><SourceIdentity source={source}/><button type="button" aria-label={`${t("Remove source")}: ${source}`} onClick={() => setSources(current => current.filter(value => value !== source))}><X size={20}/></button></div>)}
         </div>}
       </div>
-      <button type="button" className="feed-preferences-disclosure" aria-label={t("Preferences")} aria-expanded={advanced} aria-controls="feed-preferences" onClick={() => setAdvanced(value => !value)}><Settings size={26}/><span><strong>{t("Preferences")}</strong><small>{t(publicFeedEnabled ? "Public" : "Private")} ? {t(rhythmLabels[rhythm])}{rhythm === 1440 ? ` at ${deliveryTime}` : ""} ? {t(({ en: "English", fr: "French", ar: "Arabic" } as const)[feedLanguage])}</small></span><ChevronDown size={20}/></button>
+      <button type="button" className="feed-preferences-disclosure" aria-label={t("Preferences")} aria-expanded={advanced} aria-controls="feed-preferences" onClick={() => setAdvanced(value => !value)}><Settings size={26}/><span><strong>{t("Preferences")}</strong><small>{t(publicFeedEnabled ? "Public" : "Private")} · {t(rhythmLabels[rhythm])}{rhythm === 1440 ? ` at ${deliveryTime}` : ""} · {t(({ en: "English", fr: "French", ar: "Arabic" } as const)[feedLanguage])}</small></span><ChevronDown size={20}/></button>
       <div id="feed-preferences" className="feed-preferences-fields" hidden={!advanced}>
       <label>{t("Update rhythm")}<select value={rhythm} onChange={event => setRhythm(Number(event.target.value) as FeedInput["updateIntervalMinutes"])}>{Object.entries(rhythmLabels).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label>
       {rhythm === 1440 && <label>{t("Deliver at")}<input type="time" required value={deliveryTime} onChange={event => setDeliveryTime(event.target.value)}/></label>}
@@ -97,5 +98,5 @@ function SourceIdentity({ source }: { source: string }) {
   try { const url = new URL(source.includes("://") ? source : `https://${source}`); if (url.hostname.includes(".")) { host = url.hostname.replace(/^www\./, ""); detail = `${host}${url.pathname === "/" ? "" : url.pathname}`; } } catch { /* Source names are also supported. */ }
   const platform = /(^|\.)(twitter\.com|x\.com)$/.test(host) ? "X" : host === "t.me" || host === "telegram.me" ? "Telegram" : /(^|\.)linkedin\.com$/.test(host) ? "LinkedIn" : host ? "Website" : "Source";
   const title = platform === "Website" || platform === "Source" ? host || source : detail.split("/").filter(Boolean).slice(1).join("/") || source;
-  return <><span className={`source-platform-icon platform-${platform.toLowerCase()}`} aria-hidden="true">{platform === "X" ? "𝕏" : platform === "Telegram" ? "➤" : platform === "LinkedIn" ? "in" : <Globe size={23}/>}</span><span className="source-identity"><strong>{title}</strong><small>{detail}</small></span><span className="source-platform-label">{platform}</span></>;
+  return <><span className={`source-platform-icon platform-${platform.toLowerCase()}`} aria-hidden="true">{platform === "X" ? "𝕏" : platform === "Telegram" ? "➤" : platform === "LinkedIn" ? "in" : <SourceLogo source={source}/>}</span><span className="source-identity"><strong>{title}</strong><small>{detail}</small></span><span className="source-platform-label">{platform}</span></>;
 }

@@ -37,9 +37,10 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
   const [image, setImage] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [failure, setFailure] = useState("");
+  const [missing, setMissing] = useState(false);
   useEffect(() => {
-    setImage(""); setLoaded(false); setFailure("");
-    if (!feed?.ownerUsername || !feed?.slug) return;
+    setImage(""); setLoaded(false); setFailure(""); setMissing(false);
+    if (!feed?.ownerUsername || !feed?.slug) { setMissing(true); return; }
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let objectUrl = "";
@@ -69,10 +70,13 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
           await requestMissingSketch(feed.id, JSON.stringify([feed.title, feed.interestProfile]));
           if (!controller.signal.aborted) schedule(0);
         } else if (response.status === 404 && retries++ < 20 && !controller.signal.aborted) {
+          setMissing(!canGenerate);
           schedule(3000);
+        } else if (!controller.signal.aborted) {
+          setMissing(true);
         }
       } catch (error) {
-        if (!controller.signal.aborted) setFailure(error instanceof Error ? error.message : "Illustration unavailable.");
+        if (!controller.signal.aborted) { setMissing(true); setFailure(error instanceof Error ? error.message : "Illustration unavailable."); }
       } finally {
         inFlight = false;
         if (refreshPending && !objectUrl && !controller.signal.aborted) schedule(0);
@@ -90,7 +94,7 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
     ?? subjects.find(item => item.pattern.test(feed?.interestProfile ?? ""));
   const Icon = match?.icon ?? ({ coast: Trees, world: Globe2, tech: Cpu, city: Building2, science: Atom, culture: Palette })[kind ?? ""] ?? Newspaper;
   return <span className="topic-art pencil-art" title={failure || undefined} aria-hidden="true">
-    {!loaded && <span className="pencil-drawing"><Icon strokeWidth={0.95}/><Icon className="pencil-trace" strokeWidth={0.45}/></span>}
-    {image && <img src={image} alt="" onLoad={() => setLoaded(true)} onError={() => setLoaded(false)}/>}
+    {!loaded && missing && <span className="pencil-drawing"><Icon strokeWidth={0.95}/><Icon className="pencil-trace" strokeWidth={0.45}/></span>}
+    {image && <img src={image} alt="" style={{ visibility: loaded ? "visible" : "hidden" }} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); setMissing(true); }}/>}
   </span>;
 }

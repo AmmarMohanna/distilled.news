@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openMore, refreshFeed } from "./helpers";
 
 const briefing = { id: "personal", ownerAccountId: "admin-id", ownerUsername: "admin", slug: "personal-briefing", title: "Personal Briefing", stars: 0, interestProfile: "Current events", publicFeedEnabled: true, paused: true, language: "en", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "UTC", retentionDays: 15 };
 
@@ -20,21 +21,24 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   await expect(page.locator(".page-heading")).toContainText("by admin");
   await expect(page.getByRole("link", { name: "Back" })).toBeVisible();
   await expect(page.locator(".feed-page-description")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Edit feed settings" })).toBeVisible();
+  const actions = page.locator(".feed-header-actions");
+  await expect(actions.getByRole("button", { name: "Share" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: /Star/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Brief now/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Explore/i })).toHaveCount(0);
+  await openMore(page);
+  await expect(page.getByRole("button", { name: "Edit feed settings", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Refresh", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   const toolbar = page.locator(".feed-tools");
-  await expect(toolbar.getByRole("button", { name: "Copy URL" })).toBeVisible();
-  await expect(toolbar.getByRole("button", { name: "Share" })).toBeVisible();
-  await expect(toolbar.getByRole("button", { name: /Brief now/i })).toHaveCount(0);
-  await expect(toolbar.getByRole("button", { name: "refresh", exact: true })).toBeVisible();
-  await expect(toolbar.getByRole("button", { name: /Explore/i })).toBeVisible();
-  await expect(toolbar.getByPlaceholder("search published briefing")).toBeVisible();
+  await expect(toolbar.getByPlaceholder("Search briefings")).toBeVisible();
   const empty = page.locator(".feed-empty-state");
   await expect(empty).toContainText("no published briefings");
   await expect(empty.locator(".feed-empty-icon")).toBeVisible();
   const emptyBounds = await empty.boundingBox();
   expect(emptyBounds).not.toBeNull();
   expect(emptyBounds!.y + emptyBounds!.height).toBeLessThanOrEqual(page.viewportSize()!.height + 1);
-  for (const control of await toolbar.locator("button, input").all()) {
+  for (const control of await page.locator(".feed-tools input, .feed-header-actions button").all()) {
     const bounds = await control.boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
@@ -66,10 +70,10 @@ test("published summaries retain original citations and read-only refresh", asyn
   await expect(page.locator(".news-summary")).toContainText("Acme released an updated research model");
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
   await page.locator(".news-summary button").click();
-  await expect(page.getByRole("dialog", { name: "report" }).getByRole("link", { name: /original/i })).toHaveAttribute("href", sourceUrl);
-  await page.getByRole("button", { name: "close report" }).click();
+  await expect(page.getByRole("dialog", { name: "Sources" }).getByRole("link", { name: /open post/i })).toHaveAttribute("href", sourceUrl);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
   const readsBefore = feedReads;
-  await page.getByRole("button", { name: "refresh", exact: true }).click();
+  await refreshFeed(page);
   await expect.poll(() => feedReads).toBeGreaterThan(readsBefore);
   await expect(page.locator(".news-summary")).toHaveCount(1);
   expect(manualRequests).toBe(0);

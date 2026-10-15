@@ -171,7 +171,7 @@ test("selected user fits a desktop viewport without panel or table scrolling", a
 test("settings use contact links and honest installation popups", async ({ page }) => {
   await mock(page); await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Install App (PWA)", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Install app", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Privacy", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Help & Support", exact: true }).click();
   const support = page.getByRole("dialog", { name: "Help & Support" });
@@ -183,15 +183,15 @@ test("settings use contact links and honest installation popups", async ({ page 
     Object.assign(event, { prompt: async () => { (window as Window & { __testInstallRequested?: boolean }).__testInstallRequested = true; }, userChoice: Promise.resolve({ outcome: "accepted" }) });
     window.dispatchEvent(event);
   });
-  await page.getByRole("button", { name: "Install App (PWA)", exact: true }).click();
+  await page.getByRole("button", { name: "Install app", exact: true }).click();
   expect(await page.evaluate(() => (window as Window & { __testInstallRequested?: boolean }).__testInstallRequested)).toBe(true);
-  const installation = page.getByRole("dialog", { name: "Install App (PWA)" });
+  const installation = page.getByRole("dialog", { name: "Install app" });
   await expect(installation.getByRole("status")).toHaveText("Installing…");
   await page.evaluate(() => window.dispatchEvent(new Event("appinstalled")));
   await expect(installation.getByRole("status")).toHaveText("Installation completed. Check your apps.");
   await expect(installation.locator(".install-status-icon.success")).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Install App (PWA)", exact: true }).click();
+  await page.getByRole("button", { name: "Install app", exact: true }).click();
   await expect(installation.getByRole("status")).toHaveText("Already installed");
 });
 
@@ -243,8 +243,8 @@ test("installed app detection works from a browser tab", async ({ page }) => {
   });
   await mock(page); await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Install App (PWA)", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Install App (PWA)" });
+  await page.getByRole("button", { name: "Install app", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Install app" });
   await expect(dialog.getByRole("status")).toHaveText("Already installed");
   await expect(dialog.locator(".install-status-icon.success svg")).toBeVisible();
 });
@@ -256,19 +256,19 @@ test("Edge users can confirm an existing installation when detection is unavaila
   });
   await mock(page); await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Install App (PWA)", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Install App (PWA)" });
+  await page.getByRole("button", { name: "Install app", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Install app" });
   await expect(dialog.getByRole("button", { name: "Already installed on this device" })).toBeVisible();
   await dialog.getByRole("button", { name: "Already installed on this device" }).click();
   await expect(dialog.getByRole("status")).toHaveText("Already installed");
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Install App (PWA)", exact: true }).click();
+  await page.getByRole("button", { name: "Install app", exact: true }).click();
   await expect(dialog.getByRole("status")).toHaveText("Already installed");
   await page.keyboard.press("Escape");
   await page.reload();
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Install App (PWA)", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Install App (PWA)" }).getByRole("status")).toHaveText("Already installed");
+  await page.getByRole("button", { name: "Install app", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Install app" }).getByRole("status")).toHaveText("Already installed");
 });
 
 test("dark controls have no inset frames and support has one surface", async ({ page }) => {

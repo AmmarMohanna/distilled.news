@@ -16,7 +16,6 @@ const translations: Record<string, [string, string]> = {
   "Change Password": ["Modifier le mot de passe", "تغيير كلمة المرور"],
   "Current Password": ["Mot de passe actuel", "كلمة المرور الحالية"],
   "New Password": ["Nouveau mot de passe", "كلمة المرور الجديدة"],
-  "Install App (PWA)": ["Installer l’application (PWA)", "تثبيت التطبيق (PWA)"],
   "User Management": ["Gestion des utilisateurs", "إدارة المستخدمين"],
   "All Roles": ["Tous les rôles", "جميع الأدوار"],
   "Help & Support": ["Aide et assistance", "المساعدة والدعم"],
@@ -202,7 +201,7 @@ const translations: Record<string, [string, string]> = {
   "Customize your experience.": ["Personnalisez votre expérience.", "خصص تجربتك."],
   "Sign in": ["Connexion", "تسجيل الدخول"], "Help & support": ["Aide et assistance", "المساعدة والدعم"],
   "Privacy": ["Confidentialité", "الخصوصية"], "Notifications": ["Notifications", "الإشعارات"],
-  "Install app (PWA)": ["Installer l’application", "تثبيت التطبيق"],
+  "Install app": ["Installer l’application", "تثبيت التطبيق"],
   "Feed title": ["Titre du fil", "عنوان الخلاصة"], "Prompt": ["Vos intérêts", "اهتماماتك"],
   "Update rhythm": ["Fréquence", "وتيرة التحديث"], "Hourly": ["Toutes les heures", "كل ساعة"],
   "Daily": ["Chaque jour", "يومياً"], "Weekly": ["Chaque semaine", "أسبوعياً"],
@@ -211,6 +210,8 @@ const translations: Record<string, [string, string]> = {
   "Pause feed": ["Suspendre", "إيقاف الخلاصة"], "Resume feed": ["Reprendre", "استئناف الخلاصة"],
   "Retry illustration": ["Réessayer l’illustration", "إعادة محاولة الرسم"],
   "Feed options": ["Options du fil", "خيارات الخلاصة"],
+  "Language": ["Langue", "اللغة"], "You haven’t created any feeds yet.": ["Vous n’avez pas encore créé de fil.", "لم تنشئ أي خلاصة بعد."],
+  "Dark mode": ["Mode sombre", "الوضع الداكن"], "More options": ["Plus d’options", "المزيد"],
   "Copy URL": ["Copier le lien", "نسخ الرابط"], "Delete feed": ["Supprimer", "حذف الخلاصة"],
   "Search topics, feeds, or keywords…": ["Rechercher des sujets, fils ou mots-clés…", "ابحث عن مواضيع أو خلاصات…"],
 };
@@ -223,6 +224,11 @@ export function useLanguage() {
   }, []);
   return { language, t: (text: string) => language === "en" ? text : translations[text]?.[language === "fr" ? 0 : 1] ?? text };
 }
+export function setWebsiteLanguage(next: Language) {
+  localStorage.setItem("dn_language", next);
+  window.dispatchEvent(new Event("dn-language"));
+}
+export const languageNames: Record<Language, string> = { en: "English", fr: "Français", ar: "العربية" };
 export function LanguageControl() {
   const { language } = useLanguage();
   const next = ({ en: "fr", fr: "ar", ar: "en" } as const)[language];

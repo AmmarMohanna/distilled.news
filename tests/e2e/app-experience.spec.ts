@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { cycleLanguage, openEditSettings, openMore } from "./helpers";
 const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 async function mock(page: any, authenticated = true, username = 'joud') {
  let currentFeed = { ...feed, ownerUsername: username };
@@ -43,7 +44,7 @@ test('guests can explore and star feeds',async({page})=>{
 });
 test('owner opens feed settings from feed page',async({page})=>{
  await mock(page); await page.goto('/joud/lebanon/');
- await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
+ await openEditSettings(page);
  const dialog=page.getByRole('dialog');
  await expect(dialog.getByLabel('Feed name')).toHaveValue('Lebanon');
  await dialog.getByRole('button',{name:'Preferences',exact:true}).click();
@@ -62,7 +63,9 @@ test('feed header matches home and opens the signed-in account profile',async({p
  const homeHeader = await headerState();
  await page.goto('/joud/lebanon/');
  await expect(page.locator('.experience-header .avatar-button')).toHaveText('J');
- expect(await headerState()).toEqual(homeHeader);
+ const feedHeader = await headerState();
+ expect(feedHeader.height).toBe(homeHeader.height);
+ expect(feedHeader.controls).toContain('Account profile');
  await page.getByRole('button',{name:'Account profile',exact:true}).click();
  await expect(page.getByRole('dialog',{name:'account',exact:true})).toBeVisible();
  await expect(page.getByRole('dialog').getByLabel('username',{exact:true})).toHaveValue('joud');
@@ -73,7 +76,7 @@ test('admin username feed card opens its feed and settings',async({page})=>{
  await mock(page,true,'admin'); await page.goto('/');
  await page.locator('.personal-feed-grid .topic-card > a .topic-name').click();
  await expect(page).toHaveURL(/\/admin\/lebanon\/$/);
- await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
+ await openEditSettings(page);
  await expect(page.getByRole('dialog').getByLabel('Feed name')).toHaveValue('Lebanon');
 });
 test('login link opens a dismissible dialog over the landing page',async({page})=>{
@@ -86,14 +89,14 @@ test('login link opens a dismissible dialog over the landing page',async({page})
 });
 test('feed pause persists and header language changes the interface',async({page})=>{
  await mock(page); await page.goto('/joud/lebanon/');
- await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
+ await openEditSettings(page);
  const saved=page.waitForRequest(r=>r.url().endsWith('/api/me/briefings')&&r.method()==='POST');
  await page.getByRole('button',{name:'Preferences',exact:true}).click();
  await page.getByRole('button',{name:'Pause feed',exact:true}).click();
  expect((await saved).postDataJSON().paused).toBe(true);
  await expect(page.getByRole('dialog')).toHaveCount(0);
  await page.goto('/explore');
- await page.getByRole('button',{name:/^Website language:/}).click();
+ await cycleLanguage(page);
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
  await expect(page.getByRole('button',{name:'Créer le fil',exact:true})).toBeVisible();
 });
@@ -141,9 +144,9 @@ test('feed language and advanced settings persist independently of website langu
  await mock(page); await page.goto('/joud/lebanon/');
  const edits: any[]=[];
  page.on('request',request=>{if(request.url().endsWith('/api/me/feeds')&&request.method()==='POST')edits.push(request.postDataJSON());});
- await page.getByRole('button',{name:/^Website language:/}).click();
+ await cycleLanguage(page);
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
- await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
+ await openMore(page);await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  const dialog=page.getByRole('dialog');
  await dialog.locator('.feed-preferences-disclosure').click();
  await expect(dialog.getByRole('radio',{name:'EN',exact:true})).toBeChecked();
@@ -155,7 +158,7 @@ test('feed language and advanced settings persist independently of website langu
  expect((await saved).postDataJSON()).toMatchObject({language:'ar',briefingTimezone:'Asia/Beirut',sourceInputs:['https://example.test/feed.xml']});
  await expect(page.getByRole('dialog')).toHaveCount(0);
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
- await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
+ await openMore(page);await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  await page.locator('.feed-preferences-disclosure').click();
  await expect(page.getByRole('radio',{name:'AR',exact:true})).toBeChecked();
  await page.mouse.click(4,4);
@@ -166,7 +169,7 @@ test('clicking outside delete confirmation cancels without deleting the feed',as
  await mock(page); await page.goto('/joud/lebanon/');
  const deletions:string[]=[];
  page.on('request',request=>{if(request.method()==='DELETE')deletions.push(request.url());});
- await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
+ await openEditSettings(page);
  await page.getByRole('button',{name:'Preferences',exact:true}).click();
  await page.getByRole('button',{name:'Delete feed',exact:true}).click();
  await expect(page.getByRole('dialog',{name:'Confirm deletion'})).toBeVisible();
@@ -193,7 +196,7 @@ test('new feed keeps the language selected in advanced settings',async({page})=>
  await dialog.getByRole('button',{name:'Create feed',exact:true}).click();
  expect((await saved).postDataJSON()).toMatchObject({language:'ar',title:'Science today',briefingTimezone:deviceZone,publicFeedEnabled:true});
  await expect(page).toHaveURL(/\/joud\/science-today\/$/);
- await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
+ await openEditSettings(page);
  await page.locator('.feed-preferences-disclosure').click();
  await expect(page.getByRole('radio',{name:'AR',exact:true})).toBeChecked();
  await expect(page.locator('.feed-preferences-disclosure')).toContainText('Public');

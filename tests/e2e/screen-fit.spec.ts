@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { cycleLanguage } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", route => {
@@ -35,7 +36,7 @@ for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }, {
 test("website language cycles en fr ar en without a menu", async ({ page }) => {
   await page.goto("/");
   for (const next of ["fr", "ar", "en"]) {
-    await page.getByRole("button", { name: /^Website language:/ }).click();
+    await cycleLanguage(page);
     await expect(page.locator("html")).toHaveAttribute("lang", next);
   }
   await expect(page.locator(".language-menu")).toHaveCount(0);
@@ -129,7 +130,7 @@ test("language changes keep navigation in place and localize empty Explore", asy
   const before = await navigation.boundingBox();
   const searchBefore = await page.locator('.explore-search').boundingBox();
   for (const language of ['fr', 'ar']) {
-    await page.getByRole('button', { name: /^Website language:/ }).click();
+    await cycleLanguage(page);
     await expect(page.locator('html')).toHaveAttribute('lang', language);
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
     const after = await navigation.boundingBox();
@@ -158,7 +159,7 @@ test("mobile search and create stay together across languages", async ({ page })
     expect(b!.x).toBeGreaterThanOrEqual(0);
     expect(b!.x + b!.width).toBeLessThanOrEqual(390);
     expect(b!.y).toBeCloseTo(original!.y, 0);
-    await page.getByRole('button', { name: /^Website language:/ }).click();
+    await cycleLanguage(page);
     await page.waitForTimeout(200);
   }
   const homeFont = await page.locator('h1').evaluate(el => getComputedStyle(el).fontFamily);
@@ -175,10 +176,10 @@ test("install action invokes the browser installation prompt", async ({ page }) 
     window.dispatchEvent(event);
   });
   await page.getByRole('navigation').getByRole('button', {name:'Settings'}).click();
-  await page.getByRole('button', {name:'Install App (PWA)'}).click();
+  await page.getByRole('button', {name:'Install app'}).click();
   expect(await page.evaluate(() => (window as any).installRequested)).toBe(true);
   await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
-  await expect(page.getByRole('dialog', {name:'Install App (PWA)'}).getByRole('status')).toHaveText('Installation completed. Check your apps.');
+  await expect(page.getByRole('dialog', {name:'Install app'}).getByRole('status')).toHaveText('Installation completed. Check your apps.');
 });
 
 test("disabled notifications do not request a browser subscription", async ({ page }) => {

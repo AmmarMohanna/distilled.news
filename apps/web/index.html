@@ -9,8 +9,9 @@
         root.classList.add("app-pending");
 
         try {
-          const theme = localStorage.getItem("dn_theme");
-          root.dataset.theme = theme === "dark" ? "dark" : "light";
+          const stored = localStorage.getItem("dn_theme");
+          const dark = stored ? stored === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+          root.dataset.theme = dark ? "dark" : "light";
         } catch {}
 
         const reveal = () => root.classList.remove("app-pending");
