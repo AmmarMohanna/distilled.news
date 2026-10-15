@@ -9,7 +9,7 @@ import {feedFixture,seedIntelligence,acceptEvidence} from './test-utils';
 import {extractClaimMentions} from './claims';
 import {deterministicMatchers} from './matchers';
 import {processEvidenceIntelligence} from './engine';
-import {validateConstruction,type SemanticGroup} from './semantic-state';
+import {persistEventSemanticState,validateConstruction,type SemanticGroup} from './semantic-state';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
 afterEach(async()=>ctx.dispose());
@@ -82,4 +82,21 @@ it('later source evidence retains immutable entity provenance while the new Even
  expect(receipt.decision).toBe('PROCESSED');expect(await store.read('feed-1','entities',entity.id)).toEqual(entity);
  const current=(await store.list<any>('feed-1','events'))[0],state=await store.read<any>('feed-1','event_semantic_states',current.currentVersionId);
  expect(state.provenance.judgmentId).toBe('second-paid-judgment');expect(state.entityIds).toContain(entity.id);expect(state.propositionIds).toHaveLength(2);expect(await store.list('feed-1','events')).toHaveLength(1);
+},30000);
+
+
+it.each(['alias order','label case'] as const)('reuses immutable entity support across equivalent %s on replay',async variation=>{
+ await acceptEvidence(store,1,'ResearchLab (RL) announced a research platform.');
+ const revision=(await store.currentEvidence('feed-1'))[0].revision,{mentions}=await extractClaimMentions(revision),provenance={scorer:'GPT' as const,policyVersion:'fixture',judgmentId:'original-judgment'};
+ const group:SemanticGroup={claimMentionIds:mentions.map(m=>m.id),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[{canonicalLabel:'ResearchLab',aliases:['ResearchLab','RL'],claimMentionIds:mentions.map(m=>m.id)}],slots:[]};
+ await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),{...deterministicMatchers,event:{match:()=>({structuralRelation:'NEW_STORYLINE',epistemicEffects:[],confidence:.99,provenance})},construction:()=>({groups:[group],backgroundMentionIds:[],provenance})});
+ const entity=(await store.list<any>('feed-1','entities'))[0],event=(await store.list<any>('feed-1','event_versions'))[0],changed={...group,entities:group.entities.map(e=>({...e,...(variation==='alias order'?{aliases:[...e.aliases].reverse()}:{canonicalLabel:'researchlab'})}))};
+ await feedTransact(store,'feed-1',tx=>persistEventSemanticState(tx,event,testPolicy.now(),{group:changed,provenance}));
+ expect(await store.list('feed-1','entities')).toEqual([entity]);
+ expect((await store.read<any>('feed-1','event_semantic_states',event.id)).entityIds).toEqual([entity.id]);
+ // A matching ID does not license changing the retained source-support witness.
+ await expect(feedTransact(store,'feed-1',async tx=>{
+  const read=tx.read.bind(tx);tx.read=(async(kind,id)=>{const value=await read<any>(kind,id);return kind==='entities'&&value?{...value,aliases:['UnsupportedAlias']}:value}) as typeof tx.read;
+  return persistEventSemanticState(tx,event,testPolicy.now(),{group,provenance});
+ })).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
 },30000);
