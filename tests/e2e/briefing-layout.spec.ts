@@ -22,12 +22,12 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   await expect(page.locator(".feed-page-description")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit feed settings" })).toBeVisible();
   const toolbar = page.locator(".feed-tools");
-  await expect(toolbar.getByRole("button", { name: "Copy URL" })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: "Copy URL" })).toHaveCount(0);
   await expect(toolbar.getByRole("button", { name: "Share" })).toBeVisible();
   await expect(toolbar.getByRole("button", { name: /Brief now/i })).toHaveCount(0);
   await expect(toolbar.getByRole("button", { name: "Refresh", exact: true })).toBeVisible();
-  await expect(toolbar.getByRole("button", { name: /Explore/i })).toBeVisible();
-  await expect(toolbar.getByPlaceholder("Search published briefing")).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: /Explore/i })).toHaveCount(0);
+  await expect(toolbar.getByPlaceholder("Search briefings")).toBeVisible();
   const empty = page.locator(".feed-empty-state");
   await expect(empty).toContainText("no published briefings");
   await expect(empty.locator(".feed-empty-icon")).toBeVisible();

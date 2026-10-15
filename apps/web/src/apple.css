@@ -938,3 +938,59 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .feed-shell .feed-side-actions { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
   :root.apple-ui.apple-ui .feed-shell .page-heading .primary-button { grid-column: 1; grid-row: auto; margin-top: 4px; }
 }
+
+/* HIG review pass: contrast, targets, hierarchy and compact toolbars.
+   Kept in one block so the intent is reviewable; it intentionally sits last. */
+:root.apple-ui { --accent-ink: #4240c4; }
+:root.apple-ui[data-theme="dark"] { --accent-ink: #a8a7ff; }
+
+/* Accent used as text must clear 4.5:1 in both appearances (accent itself is 4.1:1 on its own tint,
+   3.6:1 on the dark surface). Fills and borders keep the brand accent. */
+:root.apple-ui.apple-ui .bottom-navigation :is(button.active,a[aria-current="page"]) { color: var(--accent-ink); }
+:root.apple-ui.apple-ui :is(.auth-choice, .auth-switch) button,
+:root.apple-ui.apple-ui .auth-dialog .auth-choice button { color: var(--accent-ink); }
+:root.apple-ui.apple-ui .source-recommend-button:not(:disabled),
+:root.apple-ui.apple-ui .add-source-button { color: var(--accent-ink); }
+:root.apple-ui.apple-ui .feed-shell .feed-actions .star-vote.is-starred { color: var(--accent-ink); }
+/* A count that cannot be acted on is information, not a dimmed control. */
+:root.apple-ui.apple-ui .star-vote:disabled { opacity: 1; color: var(--muted); cursor: default; }
+
+/* Smallest text is 12px (HIG minimum is 11pt; avoid sitting on it). */
+:root.apple-ui.apple-ui :is(.topic-card, .ranked-feed) small,
+:root.apple-ui.apple-ui .explore-feed-owner,
+:root.apple-ui.apple-ui .experience-dialog small { font-size: 0.75rem; }
+
+/* Edition cards: the briefing is the content, the timestamp is metadata. */
+:root.apple-ui.apple-ui .feed-shell .news-summary { color: var(--text); }
+:root.apple-ui.apple-ui .feed-shell .news-item.is-read .news-summary { color: var(--muted); }
+:root.apple-ui.apple-ui .feed-shell .news-meta :is(time, span) { font-weight: 500; font-size: 0.8125rem; }
+:root.apple-ui.apple-ui .feed-shell .news-meta span { text-transform: capitalize; }
+:root.apple-ui.apple-ui .feed-shell :is(.read-button, .expand) { min-width: 44px; }
+
+/* Desktop: the search/create row starts on the same leading edge as the page title. */
+@media (min-width: 900px) {
+  :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.home-controls, .explore-controls) { margin-inline: 0; }
+}
+
+/* Touch: hit regions reach 44pt without changing layout. */
+@media (max-width: 700px), (pointer: coarse) {
+  :root.apple-ui.apple-ui :is(.voice-input button, .source-recommend-button) { position: relative; }
+  :root.apple-ui.apple-ui :is(.dialog-close, .voice-input button)::after { content: ""; position: absolute; inset: -4px; }
+  :root.apple-ui.apple-ui .source-recommend-button::after { content: ""; position: absolute; inset: -7px 0; }
+  :root.apple-ui.apple-ui .feed-shell .feed-back { min-height: 44px; }
+  :root.apple-ui.apple-ui .feed-shell .page-heading .primary-button { min-height: 44px; }
+}
+
+/* Feed toolbar: search on the leading side, Star / Share / Refresh as one group on the trailing side.
+   Share replaces the old Copy URL + Share pair (it falls back to copying where the Web Share API is absent).
+   Phones show icons only (44pt targets, labels stay in the accessible name); wider screens show labels. */
+:root.apple-ui.apple-ui .feed-shell .feed-tools { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .feed-shell .feed-side-actions { display: flex; flex: 1 1 auto; min-width: 0; width: auto; }
+:root.apple-ui.apple-ui .feed-shell .feed-side-actions .search { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 44px; }
+:root.apple-ui.apple-ui .feed-shell .feed-side-actions .search input { text-overflow: ellipsis; }
+:root.apple-ui.apple-ui .feed-shell .feed-actions { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 8px; width: auto; }
+:root.apple-ui.apple-ui .feed-shell .feed-actions > button { flex-direction: row; gap: 8px; min-width: 44px; min-height: 44px; width: auto; padding: 8px 14px; font-size: 0.875rem; line-height: 1.2; white-space: nowrap; }
+@media (max-width: 700px) {
+  :root.apple-ui.apple-ui .feed-shell .feed-actions > button { padding: 8px 12px; gap: 6px; }
+  :root.apple-ui.apple-ui .feed-shell .feed-actions .action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}

@@ -773,15 +773,6 @@ function ExploreFeedsPanel() {
   );
 }
 
-function ExploreFeedsSheet(props: { currentFeed?: PublicBriefing; language?: "en" | "ar" | "fr"; onClose: () => void }) {
-  const language = props.language ?? "en";
-  return (
-    <Sheet title={exploreControlLabel(language)} closeLabel={closeExploreLabel(language)} icon={<Compass size={16} aria-hidden />} onClose={props.onClose}>
-      <ExploreFeedList currentFeed={props.currentFeed} language={language} />
-    </Sheet>
-  );
-}
-
 function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" | "ar" | "fr" }) {
   const [feeds, setFeeds] = useState<PublicBriefing[] | null>(null);
   const [error, setError] = useState("");
@@ -1436,7 +1427,6 @@ function FeedPage(props: { username: string; slug: string }) {
   const [error, setError] = useState("");
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
-  const [exploreOpen, setExploreOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
@@ -1559,6 +1549,17 @@ function FeedPage(props: { username: string; slug: string }) {
     </span>
   ) : "briefing";
 
+  async function shareFeed() {
+    const url = window.location.origin + window.location.pathname;
+    if (navigator.share) {
+      try { await navigator.share({ title: payload?.briefing.title, url }); }
+      catch (cause) { if (!(cause instanceof DOMException && cause.name === "AbortError")) setError(t("Could not copy URL")); }
+      return;
+    }
+    try { await navigator.clipboard.writeText(url); setSummaryMessage(t("URL copied")); }
+    catch { setError(t("Could not copy URL")); }
+  }
+
   async function loadEditionDetail(edition: BriefingEdition): Promise<BriefingEdition | null> {
     const key = feedKey;
     if (!visibleEditionIds.current.has(edition.id)) return null;
@@ -1626,11 +1627,24 @@ function FeedPage(props: { username: string; slug: string }) {
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
       <div className="feed-tools" dir={pageDir}>
+        <div className="feed-side-actions">
+          <form
+            className="search"
+            onSubmit={(event) => {
+              event.preventDefault(); void applySearch(latestQuery.current, ++searchRequest.current);
+            }}
+          >
+            <Search size={15} aria-hidden />
+            <input
+              aria-label={searchPublishedLabel(language)}
+              dir={pageDir}
+              value={query}
+              onChange={(event) => { latestQuery.current = event.target.value; searchRequest.current++; setQuery(event.target.value); }}
+              placeholder={searchPublishedLabel(language)}
+            />
+          </form>
+        </div>
         <div className="feed-actions">
-          {payload?.briefing.publicFeedEnabled && <><button type="button" onClick={() => void navigator.clipboard.writeText(window.location.origin + window.location.pathname).then(() => setSummaryMessage(t("URL copied"))).catch(() => setError(t("Could not copy URL")))}><Copy size={15}/>{t("Copy URL")}</button><button type="button" onClick={() => { const url = window.location.origin + window.location.pathname; void (navigator.share ? navigator.share({ title: payload.briefing.title, url }) : navigator.clipboard.writeText(url)).catch(() => {}); }}><Share size={15}/>{t("Share")}</button></>}
-          <button type="button" onClick={() => void refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))}>
-            <RefreshCw size={15} aria-hidden /> {refreshControlLabel(language)}
-          </button>
           <button
             type="button"
             className={`star-vote${payload?.viewerHasStarred ? " is-starred" : ""}`}
@@ -1650,30 +1664,16 @@ function FeedPage(props: { username: string; slug: string }) {
               }
             }}
           >
-            <Star size={15} aria-hidden />
-            {starControlLabel(payload?.viewerHasStarred ?? false, language)} {payload?.briefing.stars ?? 0}
+            <Star size={18} aria-hidden />
+            <span className="action-label">{starControlLabel(payload?.viewerHasStarred ?? false, language)}</span>{" "}
+            <span className="action-count">{payload?.briefing.stars ?? 0}</span>
+          </button>
+          {payload?.briefing.publicFeedEnabled && <button type="button" title={t("Share")} onClick={() => void shareFeed()}><Share size={18} aria-hidden /><span className="action-label">{t("Share")}</span></button>}
+          <button type="button" title={refreshControlLabel(language)} onClick={() => void refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))}>
+            <RefreshCw size={18} aria-hidden /><span className="action-label">{refreshControlLabel(language)}</span>
           </button>
         </div>
-        <div className="feed-side-actions">
-          <button type="button" title={exploreFeedsLabel(language)} onClick={() => setExploreOpen(true)}><Compass size={15} aria-hidden /> {exploreControlLabel(language)}</button>
-          <form
-            className="search"
-            onSubmit={(event) => {
-              event.preventDefault(); void applySearch(latestQuery.current, ++searchRequest.current);
-            }}
-          >
-            <Search size={15} aria-hidden />
-            <input
-              aria-label={searchPublishedLabel(language)}
-              dir={pageDir}
-              value={query}
-              onChange={(event) => { latestQuery.current = event.target.value; searchRequest.current++; setQuery(event.target.value); }}
-              placeholder={searchPublishedLabel(language)}
-            />
-          </form>
-        </div>
       </div>
-      {exploreOpen ? <ExploreFeedsSheet currentFeed={payload?.briefing} language={language} onClose={() => setExploreOpen(false)} /> : null}
       {reportEdition && reportSection ? (
         <ReportSheet
           edition={reportEdition}
@@ -2363,24 +2363,6 @@ function starTitleLabel(starred: boolean, language: "en" | "ar" | "fr"): string 
   return starred ? "remove star" : "star feed";
 }
 
-function exploreControlLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "استكشاف";
-  if (language === "fr") return "Explorer";
-  return "Explore";
-}
-
-function exploreFeedsLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "استكشاف الموجزات";
-  if (language === "fr") return "explorer les fils";
-  return "explore feeds";
-}
-
-function closeExploreLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "إغلاق الاستكشاف";
-  if (language === "fr") return "fermer l'exploration";
-  return "close explore";
-}
-
 function loadingFeedsLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "جار تحميل الموجزات";
   if (language === "fr") return "chargement des fils";
@@ -2395,8 +2377,8 @@ function noFeaturedFeedsLabel(language: "en" | "ar" | "fr"): string {
 
 function searchPublishedLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "ابحث في الموجز المنشور";
-  if (language === "fr") return "Chercher dans le brief publié";
-  return "Search published briefing";
+  if (language === "fr") return "Chercher dans les briefs";
+  return "Search briefings";
 }
 
 function loadMoreLabel(language: "en" | "ar" | "fr"): string {

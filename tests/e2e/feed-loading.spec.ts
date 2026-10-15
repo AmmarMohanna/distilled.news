@@ -14,7 +14,7 @@ for(const language of ['en','fr','ar'])test('initial '+language+' loading does n
 test('initial errors never masquerade as empty feeds or keep claiming loading',async({page})=>{
  await mock(page,route=>route.fulfill({status:503,json:{error:'Feed read temporarily failed.'}}));
  await page.goto('/reader/news/');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();await expect(page.locator('.feed-empty-state')).toHaveCount(0);await expect(page.locator('.feed-loading-message')).toHaveCount(0);
- await page.getByPlaceholder('Search published briefing').press('Enter');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();
+ await page.getByPlaceholder('Search briefings').press('Enter');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();
 });
 test('refresh preserves read status, loaded pages and expanded citations while pending and after success',async({page})=>{
  let delay=false;const pending=gate();const editions=Array.from({length:25},(_,i)=>edition(String(i+1)));
@@ -43,8 +43,8 @@ test('stale search and refresh responses cannot replace the current search resul
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
- const oldRequest=page.waitForRequest(r=>r.url().includes('/search?q=old'));await page.getByPlaceholder('Search published briefing').fill('old');await oldRequest;
- await page.getByPlaceholder('Search published briefing').fill('current');await expect(page.locator('.news-summary')).toContainText('current');
+ const oldRequest=page.waitForRequest(r=>r.url().includes('/search?q=old'));await page.getByPlaceholder('Search briefings').fill('old');await oldRequest;
+ await page.getByPlaceholder('Search briefings').fill('current');await expect(page.locator('.news-summary')).toContainText('current');
  oldSearch.release();await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('current');
  await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect.poll(()=>reads).toBeGreaterThan(1);await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('current');
 });
@@ -85,7 +85,7 @@ test('refresh removes withdrawn prose from active search results even if search 
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
- const searched=page.waitForResponse(r=>r.url().includes('/search?q=one'));await page.getByPlaceholder('Search published briefing').fill('one');await searched;
+ const searched=page.waitForResponse(r=>r.url().includes('/search?q=one'));await page.getByPlaceholder('Search briefings').fill('one');await searched;
  withdrawn=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.getByText('Search unavailable.')).toBeVisible();
  await expect(page.getByText('Supported development one')).toHaveCount(0);
 });
@@ -104,6 +104,6 @@ test('clearing a failed search restores the successful empty feed without a stal
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });
  await page.goto('/reader/news/');await expect(page.locator('.feed-empty-state')).toBeVisible();
- await page.getByPlaceholder('Search published briefing').fill('test');await expect(page.getByText('Search unavailable.')).toBeVisible();
- await page.getByPlaceholder('Search published briefing').fill('');await expect(page.getByText('Search unavailable.')).toHaveCount(0);await expect(page.locator('.feed-empty-state')).toBeVisible();
+ await page.getByPlaceholder('Search briefings').fill('test');await expect(page.getByText('Search unavailable.')).toBeVisible();
+ await page.getByPlaceholder('Search briefings').fill('');await expect(page.getByText('Search unavailable.')).toHaveCount(0);await expect(page.locator('.feed-empty-state')).toBeVisible();
 });
