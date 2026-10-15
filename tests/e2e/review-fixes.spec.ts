@@ -160,3 +160,16 @@ test("a few feeds become large capped cards on laptops but stay compact on phone
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(async () => (await card.boundingBox())!.height).toBeLessThan(140);
 });
+
+test("a feed offers All and Unread filters in one reading column", async ({ page }) => {
+  await mock(page, true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/joud/lebanon/");
+  const filter = page.getByRole("group", { name: "Filter briefings" });
+  await expect(filter.getByRole("button", { name: "All", exact: true })).toBeVisible();
+  await expect(filter.getByRole("button", { name: /^Unread/ })).toHaveAttribute("aria-pressed", "true");
+  await filter.getByRole("button", { name: "All", exact: true }).click();
+  await expect(filter.getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const width = await page.locator(".news-line").evaluate(node => node.getBoundingClientRect().width);
+  expect(width).toBeLessThanOrEqual(721);
+});

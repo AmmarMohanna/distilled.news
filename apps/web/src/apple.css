@@ -1359,3 +1359,19 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .experience.product-refresh .explore-view .category-chips button { flex: 0 0 auto; }
 }
 :root.apple-ui.apple-ui .reference-cluster { white-space: nowrap; }
+
+/* Feed page: one calm reading column. Title, then a single toolbar (All / Unread filter + search),
+   then briefings grouped under day headings. One thing to read at a time, one place to look. */
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell.feed-shell { grid-template-columns: minmax(0, 1fr); max-width: calc(720px + 2 * var(--gutter)); }
+@media (min-width: 900px) {
+  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell.feed-shell { grid-template-columns: minmax(0, 1fr); }
+  :root.apple-ui.apple-ui .feed-shell.feed-shell > .page-heading, :root.apple-ui.apple-ui .feed-shell.feed-shell > .feed-tools { grid-column: 1 / -1; grid-row: auto; align-self: auto; }
+}
+:root.apple-ui.apple-ui .feed-shell .news-line { display: block; columns: auto; max-width: 720px; }
+:root.apple-ui.apple-ui .feed-shell .feed-tools { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+:root.apple-ui.apple-ui .feed-shell .feed-filter { display: inline-flex; flex: 0 0 auto; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface-quiet); }
+:root.apple-ui.apple-ui .feed-shell .feed-filter button { min-height: 40px; min-width: 64px; padding: 0 16px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 0.9375rem; font-weight: 600; cursor: pointer; transition: background-color 200ms var(--ease-settle), color 200ms var(--ease-settle); }
+:root.apple-ui.apple-ui .feed-shell .feed-filter button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgb(0 0 0 / 0.14); }
+:root.apple-ui.apple-ui .feed-shell .feed-filter button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+:root.apple-ui.apple-ui .feed-shell .feed-side-actions { flex: 1 1 200px; }
+:root.apple-ui.apple-ui .feed-shell .news-item.is-read { background: transparent; box-shadow: none; }
