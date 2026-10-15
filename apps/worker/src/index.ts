@@ -1,5 +1,6 @@
 import {retireManualBriefing,retireManualBriefingRequests} from './manual-briefing';
 import {recordV1QueueOutcome} from './v1-queue-dispatch';
+import {continueFeedReview} from './connector-review-continuation';
 import {productRuntimeEnv} from './product-feeds';
 import { sendBriefingNotifications } from './push';
 import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
@@ -94,6 +95,9 @@ export default {
             bodyId,
             durationMs
           });
+        }
+        if(isRecord(body)&&body.type==='v1_reassess'&&typeof body.jobId==='string'){
+          try{await continueFeedReview(downstreamEnv,body.jobId)}catch{console.warn(JSON.stringify({type:'V1_REVIEW_CONTINUATION_FAILED',reason:'CRON_RECOVERY_REQUIRED'}))}
         }
         message.ack();
       } catch (error) {
