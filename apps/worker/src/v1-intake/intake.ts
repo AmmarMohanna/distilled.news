@@ -43,9 +43,9 @@ async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:Inta
         set('DELETION_ACCEPTED','ACCEPTED_DELETION');receipt.tombstoneId=tombstone.id;
       }
     } else if(!input.proposal) set('REJECTED','REJECT_UNSUPPORTED');
-    // A URL-only listing observation requests extraction, not replacement of
-    // canonical content. Acceptance still checks the acquired representation.
-    else if(current?.revision && !(o.representation==='LISTING_RESULT'&&!o.suppliedPayloadRef&&o.canonicalUrl&&!verified) && representationDowngrade(current.revision,verified??o) && !authoritative) set('QUARANTINED','QUARANTINE_REVISION_CONFLICT');
+    // A URL-bearing excerpt/listing requests acquisition, not replacement of
+    // canonical content. The acquired result still cannot downgrade full text.
+    else if(current?.revision && !(o.canonicalUrl&&['ARTICLE_EXCERPT','LISTING_RESULT','LINK_ONLY'].includes(o.representation)) && representationDowngrade(current.revision,verified??o) && !authoritative) set('QUARANTINED','QUARANTINE_REVISION_CONFLICT');
     else {
       receipt.candidateItemId=id;
       if(verified && current?.item.state==='ACTIVE' && verified.contentHash===current.revision?.contentHash) {
