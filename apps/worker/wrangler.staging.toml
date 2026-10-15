@@ -14,11 +14,15 @@ PUBLIC_WEB_BASE_URL = "https://distilled-news-staging.distillednews-platform.wor
 MAIL_TRANSPORT = "OUTLOOK_GRAPH"
 EMAIL_FROM = "Distilled.news <distilled.news@outlook.com>"
 SOURCE_CONNECTORS_ENABLED = "true"
+SOURCE_QUEUE_SCHEDULING_ENABLED = "true"
+SOURCE_SHARED_PUBLIC_FETCH_ENABLED = "true"
+SOURCE_FULL_ARTICLES_ENABLED = "true"
 SOURCE_LEGACY_POLLING_ENABLED = "false"
 PRODUCT_FEEDS_ENABLED = "true"
 SOURCE_RECOMMENDATIONS_ENABLED = "false"
-SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0,"apify":0,"zyte":0}'
-SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":0,"x_apify":0,"google_apify":0,"linkedin_apify":0,"zyte":0}'
+# Preserve the existing staging authorization; no QA per-source allowance is imported.
+SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.01,"apify":0,"zyte":0}'
+SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":10.01,"x_apify":0,"google_apify":0,"linkedin_apify":0,"zyte":0}'
 SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
 V1_DOWNSTREAM_ENABLED = "true"
 V1_DOWNSTREAM_FEED_SOURCE_IDS = "staging-rss-source,staging-twitter-source"
@@ -59,6 +63,40 @@ max_batch_timeout = 1
 max_retries = 5
 dead_letter_queue = "distilled-news-staging-processing-dlq"
 
+[[queues.producers]]
+binding = "SOURCE_COLLECTION_QUEUE"
+queue = "distilled-news-staging-collection"
+
+[[queues.consumers]]
+queue = "distilled-news-staging-collection"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 5
+max_concurrency = 8
+dead_letter_queue = "distilled-news-staging-collection-dlq"
+
+[[queues.producers]]
+binding = "V1_ACQUISITION_QUEUE"
+queue = "distilled-news-staging-acquisition"
+
+[[queues.consumers]]
+queue = "distilled-news-staging-acquisition"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 5
+dead_letter_queue = "distilled-news-staging-acquisition-dlq"
+
+[[queues.producers]]
+binding = "V1_PROCESSING_QUEUE"
+queue = "distilled-news-staging-v1"
+
+[[queues.consumers]]
+queue = "distilled-news-staging-v1"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 5
+dead_letter_queue = "distilled-news-staging-v1-dlq"
+
 [[vpc_services]]
 binding = "SOURCE_EXECUTION_SERVICE"
 service_id = "01a1099d-e88a-7c23-a1c5-eeb51471e780"
@@ -68,3 +106,10 @@ crons = ["* * * * *"]
 
 [observability]
 enabled = true
+
+# Keep the live staging asset binding; R2 remains the historical asset fallback.
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
