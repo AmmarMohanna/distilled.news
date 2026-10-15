@@ -360,3 +360,116 @@ and its paid results remain untouched.
   new Event construction, X/Telegram health, sustained scalability, or useful
   published editorial quality. X still has the legacy unresolved provider
   submission noted above; no new financial authority was created.
+
+
+## Fidelity repair activation and accounting verification
+
+The partitive repair is committed as `93d83ea607833426a9c09721915c2df1c9efda5b`
+and deployed to staging as `e05d2278-2405-4395-ad39-45621e6fc1c6`. Compatible
+rollback reference: integration version `5010024a-1933-4eba-bfa6-e895b4fbacb0`.
+No additional migration or resource creation accompanied this repair. Read-back
+confirmed identical bindings, all 14 secret names, variables, grants/amendments,
+64 applied migrations, reported cost and held exposure. Frontend assets are
+unchanged. The old 10:00 terminal window was not reset.
+
+The first complete CI attempt on this code passed **1,499 Worker tests, 11 skipped**,
+and all connectors/contracts/core/web/browser-bridge tests. Agent runtime had
+**266 passed, one failed, two skipped**: `runtime-timeout.test.ts`,
+`cancels on lease renewal failure without settling a late model response` failed
+at its `flushUntil` startup predicate, before model invocation and lease-loss
+assertions. The implementation and test are byte-identical to `61c3548`. The
+complete affected five-test file passes in local isolation on both revisions
+with unchanged deadlines. This is a precisely located intermittent test-startup
+failure; its CI recurrence must not be hidden behind the Worker pass count.
+A complete unchanged workflow rerun was initiated. Its final outcome is recorded
+below when available; the first attempt skipped build and Playwright.
+
+Local contracts/core/connectors/frontend builds passed. The root build command
+first failed before compilation because this shell lacks standalone `pnpm`;
+running its same package sequence through Corepack reached the default Worker's
+Docker-image step, which requires an unavailable local Docker daemon. Worker
+code build with `--containers-rollout=none` passed, as did the exact separate
+staging dry-run. This does not claim a local Docker image build succeeded.
+
+The existing trace builder was executed against read-only staging D1, without
+an admin-session bypass or a model call. It reports 35 eligible/offered/judged,
+four SELECT, 31 DEFER, zero SUPPRESS, four selected but uncommunicated, no edition
+or ledger communication, and FAILED/INVALID_REQUEST. All 35 candidates were
+returned. Overview used 19 queries; the candidate view used 27. Local diagnostic
+elapsed times include separate Cloudflare API round trips and are not Worker
+API or selection latency measurements. Its Feed-operation cost total is
+explicitly not a window-only cost; the separately reconciled six-call canary
+cost above is the window's confirmed charge.
+
+Correction projection clarification: the active Feed has five immutable rows
+whose stored state is OPEN, but **three already have NON_MATERIAL_SOURCE_REVISION
+resolution records**. Only two remain unresolved, YouTube Music labels and
+Anthropic revenue; both reached the canary shortlist. These are distinct from
+the older withdrawn Anthropic-policy edition on a paused Feed. Neither the
+presence of a revision obligation nor its DEFER handling proves misinformation
+or successful corrective communication.
+
+Persisted semantic states also locate the grouping problems in pre-integration
+GPT judgments: the two researcher Events share judgment `2039110c...25ba`, while
+the combined Anthropic policy/police-tip Event references `e0cfca92...265d`.
+The Event versions were created October 13. They are not provisional budget
+fallbacks, and the read-batching integration did not create these identities.
+No historical canonical identity or paid judgment was rewritten during audit.
+
+## 11:00 canary: correction output capability mismatch
+
+The first request on Worker `e05d2278-2405-4395-ad39-45621e6fc1c6`,
+`46ff121c54ff8608ee25aa8a63843bc5c0fe8dc5da7d45849482b62e07e8472a`,
+reached a real comparative planner but ended FAILED after five attempts, with
+no committed selection, writer draft, edition or ledger projection. The known
+planner result cost $0.0226252 and took 38,273 ms. Its 35 candidates and 67 facts
+were retained; the server rejected the proposal with SCOPE_DENIED.
+
+Offline replay locates the rejection in ADDRESS validation: the model claimed
+to address both SOURCE_REVISED obligations, while no offered candidate owned
+either obligation. Their prior Event/Storyline IDs are absent from this candidate
+set. Merely selecting similar news is not corrective ownership. Changing only
+those two decisions in a diagnostic copy makes the remainder validate; this copy
+was never used for publication, persisted as a replacement, or sent to a model.
+
+The narrow repair removes ADDRESS from the provider output capabilities only
+when no offered candidate owns the obligation. It preserves DEFER and all source
+correction, ready-withdrawal, candidate ownership and full-plan validation rules.
+It does not infer a corrective relationship or resolve an obligation. Existing
+paid operation identities, input policy and historical results are unchanged;
+the terminal request is not reset or rebilled.
+
+Regression before repair: one failure, three passes. After repair: four passes,
+including owned source corrections and mandatory withdrawal corrections. The
+actual retained workload's repaired schema passes provider admission with 133
+enum values, 10,470 schema string characters, 688 properties and nesting depth 4.
+All 35 candidate keys and 67 facts remain available. The original raw proposal
+still fails the authoritative validator, as required.
+
+## Full-suite uncertainty after the partitive repair
+
+The unchanged CI rerun also failed the agent-runtime startup predicate above.
+Its Worker result was 1,497 passed, two failed and 11 skipped. The failures were:
+`push.integration.test.ts` / unprojected-edition notification (10-second setup
+hook) and `publication.test.ts` / restart from durable draft and grounding
+(5-second test). Both passed the first complete CI attempt. In isolation on this
+machine, both deadline failures reproduce on the integrated revision AND unchanged
+`61c3548`, with the original deadlines. The agent-runtime five-test file passes
+in isolation on both. No failing assertion or timeout was weakened. These results
+classify the precise failures and baseline behavior; they do not establish a
+fully green suite or prove the underlying timing cause. Build and Playwright
+were skipped by both failed workflows. Earlier integration browser results and
+baseline comparisons remain separately recorded above.
+
+The correction-capability repair is committed as `a915d68`. Focused results:
+67 planner/schema tests passed; 49 integrity tests passed and four existing
+semantic-replay tests were explicitly skipped. Worker typecheck, exact staging
+dry-run and `git diff --check` passed. No frontend/source/runtime binding changes
+are part of this repair. The larger CI limitations above remain unresolved.
+
+Predeployment read-back: 64 migrations, eight staging queues, unchanged $50
+seven-day grant and effective concurrency 25. Reported model cost $10.964510278;
+held UNKNOWN exposure $1.528542294 across 26 unresolved operations, with the
+same 25 prior operator quarantines. No financial record was changed to make
+capacity available. The 11:00 planner's known charge explains the increase from
+$10.941885078 after the 10:00 attempt. No investigation-only model call was made.
