@@ -3,23 +3,30 @@ import type {FeedHttpPort} from '@distilled/connectors';
 // Notification only: each waiter reloads durable bytes and checks its own
 // authorization. The D1 lease remains the cross-isolate fetch authority.
 const publicFetches=new WeakMap<D1Database,Map<string,Promise<void>>>();
+export const PUBLIC_SOURCE_MAX_BYTES=2_000_000;
+const credentialQueries=new Set(['access_token','api_key','apikey','token','authorization']);
 
 /** Public HTTP bytes only. No sessions, paid results, feed receipts, cursors or
  * editorial state are shared. Authorization is rechecked on every cache read. */
 export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort,
- authorize:(url:string)=>Promise<void>,now=Date.now):FeedHttpPort {
+ authorize:(url:string)=>Promise<void>,now=Date.now,maxBytes=PUBLIC_SOURCE_MAX_BYTES):FeedHttpPort {
  return {get:async(url,headers,bounds)=>{
+  const attempts=bounds?.attempts??3,timeoutMs=bounds?.timeoutMs??15_000;
+  if(!Number.isInteger(attempts)||attempts<1||attempts>5||!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>60_000||!Number.isInteger(maxBytes)||maxBytes<1||maxBytes>10_000_000)throw Error('INVALID_HTTP_LIMITS');
   await authorize(url);
   // Anonymous validators are part of the key: a 304 may only be reused by
   // another consumer presenting precisely the same validator, never a newcomer.
-  if(Object.keys(headers).some(k=>!['accept','accept-language','if-none-match','if-modified-since'].includes(k.toLowerCase()))){const response=await http.get(url,headers,bounds);await authorize(url);return response;}
+  // Explicit URL credentials are authentication too. Ordinary search/page
+  // parameters retain anonymous reuse; values are never logged or inspected.
+  const credentialUrl=[...new URL(url).searchParams.keys()].some(name=>credentialQueries.has(name.toLowerCase()));
+  if(credentialUrl||Object.keys(headers).some(k=>!['accept','accept-language','if-none-match','if-modified-since'].includes(k.toLowerCase()))){const response=await http.get(url,headers,bounds);await authorize(url);if(response.bytes.byteLength>maxBytes)throw Error('FEED_TOO_LARGE');return response;}
   const normalized=Object.entries(headers).map(([k,v])=>[k.toLowerCase(),v]).sort(([a],[b])=>a.localeCompare(b));
   const key=await sha256(JSON.stringify(['public-http-v1',url,normalized]));
   const load=()=>db.prepare('SELECT expires_at,payload_key,status,headers FROM connector_public_fetch_cache WHERE cache_key=?').bind(key).first<{expires_at:number;payload_key:string|null;status:number;headers:string}>();
   const cached=await load();
   if(cached?.payload_key&&cached.expires_at>now()){
    const object=await bucket.get(cached.payload_key);
-   if(object){const bytes=new Uint8Array(await object.arrayBuffer());await authorize(url);return {status:cached.status,headers:JSON.parse(cached.headers),bytes,telemetry:{requests:0,latencyMs:0,providerCostUsd:0,status:cached.status}};}
+   if(object){if(object.size>maxBytes){await object.body?.cancel().catch(()=>{});throw Error('FEED_TOO_LARGE');}const bytes=new Uint8Array(await object.arrayBuffer());await authorize(url);if(bytes.byteLength>maxBytes)throw Error('FEED_TOO_LARGE');return {status:cached.status,headers:JSON.parse(cached.headers),bytes,telemetry:{requests:0,latencyMs:0,providerCostUsd:0,status:cached.status}};}
   }
   const token=crypto.randomUUID(),at=now();
   const claim=await db.prepare(`INSERT INTO connector_public_fetch_cache(cache_key,lease_until,token) VALUES(?,?,?)
@@ -35,7 +42,7 @@ export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort
    const completed=await load();
    if(completed?.payload_key&&completed.expires_at>now()){
     const object=await bucket.get(completed.payload_key);
-    if(object){const bytes=new Uint8Array(await object.arrayBuffer());await authorize(url);return {status:completed.status,headers:JSON.parse(completed.headers),bytes,telemetry:{requests:0,latencyMs:0,providerCostUsd:0,status:completed.status}};}
+    if(object){if(object.size>maxBytes){await object.body?.cancel().catch(()=>{});throw Error('FEED_TOO_LARGE');}const bytes=new Uint8Array(await object.arrayBuffer());await authorize(url);if(bytes.byteLength>maxBytes)throw Error('FEED_TOO_LARGE');return {status:completed.status,headers:JSON.parse(completed.headers),bytes,telemetry:{requests:0,latencyMs:0,providerCostUsd:0,status:completed.status}};}
    }
    // Other isolates retain durable retry/backoff rather than duplicate fetches.
    throw new HandoffError('TEMPORARY_UNAVAILABLE');
@@ -46,6 +53,7 @@ export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort
   try{
    const response=await http.get(url,headers,bounds);
    await authorize(url);
+   if(response.bytes.byteLength>maxBytes)throw Error('FEED_TOO_LARGE');
    // Origin privacy/cache directives apply even to nominally public URLs.
    const cacheControl=response.headers['cache-control']??'',maxAge=cacheControl.match(/(?:^|,)\s*max-age=(\d+)/i);
    if([200,304].includes(response.status)&&!/(?:private|no-store|no-cache)/i.test(cacheControl)&&(!maxAge||Number(maxAge[1])>0)&&!response.headers['set-cookie']&&!(response.headers.vary??'').split(',').some(v=>v.trim()&&!['accept','accept-language'].includes(v.trim().toLowerCase()))){

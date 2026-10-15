@@ -53,3 +53,44 @@ it('expiry cleanup removes only the old immutable generation',async()=>{
  expect(s.objects.size).toBe(1);await expireSharedPublicFetches(s.db,s.bucket,4_000_000);
  expect(s.objects.size).toBe(0);expect(s.sqlite.prepare('SELECT COUNT(*) AS n FROM connector_public_fetch_cache').get()).toEqual({n:0});
 });
+
+it.each(['access_token','api_key','apikey','token','authorization'])('explicit %s query credentials bypass shared storage across approved feeds',async credential=>{
+ const s=setup();let calls=0,approvals=0;
+ const transport={get:async()=>{calls++;return response()}};
+ const url='https://example.com/feed.xml?'+credential+'=synthetic-private-value';
+ const first=sharedPublicHttp(s.db,s.bucket,transport,async()=>{approvals++},()=>1000);
+ const other=sharedPublicHttp(s.db,s.bucket,transport,async()=>{approvals++},()=>1000);
+ await first.get(url,{});await other.get(url,{});
+ expect(calls).toBe(2);expect(approvals).toBe(4);expect(s.objects.size).toBe(0);
+ expect(s.sqlite.prepare('SELECT COUNT(*) AS n FROM connector_public_fetch_cache').get()).toEqual({n:0});
+});
+it('ordinary public search and page queries still share approved bytes',async()=>{
+ const s=setup();let calls=0;
+ const transport={get:async()=>{calls++;return response()}};
+ const url='https://example.com/feed.xml?q=AI+news&page=2';
+ await sharedPublicHttp(s.db,s.bucket,transport,async()=>{},()=>1000).get(url,{});
+ await sharedPublicHttp(s.db,s.bucket,transport,async()=>{},()=>1000).get(url,{});
+ expect(calls).toBe(1);expect(s.objects.size).toBe(1);
+});
+it('a cache populated by a larger transport cannot exceed a later caller response cap',async()=>{
+ const s=setup();let calls=0;const transport={get:async()=>{calls++;return response()}};
+ await sharedPublicHttp(s.db,s.bucket,transport,async()=>{},()=>1000).get('https://example.com/size',{});
+ const small=sharedPublicHttp(s.db,s.bucket,transport,async()=>{},()=>1000,3);
+ await expect(small.get('https://example.com/size',{})).rejects.toThrow('FEED_TOO_LARGE');
+ expect(calls).toBe(1);
+});
+it('a cache waiter independently enforces its smaller response cap',async()=>{
+ const s=setup();let release!:(r:ReturnType<typeof response>)=>void,calls=0;
+ const transport={get:async()=>{calls++;return new Promise<ReturnType<typeof response>>(resolve=>{release=resolve})}};
+ const large=sharedPublicHttp(s.db,s.bucket,transport,async()=>{},()=>1000).get('https://example.com/wait-size',{});
+ await vi.waitFor(()=>expect(release).toBeTypeOf('function'));
+ const small=sharedPublicHttp(s.db,s.bucket,transport,async()=>{},()=>1000,3).get('https://example.com/wait-size',{});
+ const outcome=expect(small).rejects.toThrow('FEED_TOO_LARGE');
+ await vi.waitFor(()=>expect(s.claimReads).toBe(2));release(response());
+ await large;await outcome;expect(calls).toBe(1);
+});
+it.each([{attempts:0},{attempts:6},{timeoutMs:0},{timeoutMs:60001}])('cached responses cannot bypass invalid transport limits %j',async bounds=>{
+ const s=setup(),http=sharedPublicHttp(s.db,s.bucket,{get:async()=>response()},async()=>{},()=>1000);
+ await http.get('https://example.com/limits',{});
+ await expect(http.get('https://example.com/limits',{},bounds)).rejects.toThrow('INVALID_HTTP_LIMITS');
+});
