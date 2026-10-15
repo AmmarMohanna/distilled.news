@@ -171,6 +171,9 @@ export function editorialPlanWireSchemaFor(state:ReturnType<typeof compactEditor
    const branch=structuredClone(base),p=branch.properties as Record<string,unknown>;
    p.obligationId={type:'string',enum:[o.id]};
    if(candidate&&!allowCorrectionDeferral){p.handling={type:'string',enum:['ADDRESS']};p.targetVersionId={type:'string',enum:[candidate.targetVersionId]};}
+   // An obligation alone cannot grant an unrelated story corrective ownership.
+   // Keep unresolved work visible without offering a decision validation forbids.
+   else if(!state.candidates.some(c=>c.correctionObligationIds.includes(o.id)))p.handling={type:'string',enum:['DEFER']};
    return branch;
   })};
  }
