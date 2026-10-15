@@ -11,10 +11,10 @@ beforeEach(async()=>{
  await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,enabled,last_seen_at,created_at,updated_at) VALUES('feed-source-1','feed-1','News RSS','channel','rss','rss_feed','https://feeds.bbci.co.uk/news/world/rss.xml',1,?,?,?)").bind(testPolicy.now(),testPolicy.now(),testPolicy.now()).run();
 });
 afterEach(async()=>ctx?.dispose());
-it('unchanged enrollment takes one guarded read and title edits still advance the scope fence',async()=>{
+it('unchanged enrollment takes an indexed optional-product boundary read and one guarded product read',async()=>{
  const prior=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());let reads=0;
  const measured=new Proxy(ctx.db,{get(target,key){if(key==='prepare')return (sql:string)=>{reads++;return target.prepare(sql)};const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;}});
- await synchronizeV1ProductSource(measured,'feed-source-1',testPolicy.now());expect(reads).toBe(1);
+ await synchronizeV1ProductSource(measured,'feed-source-1',testPolicy.now());expect(reads).toBe(2);
  await ctx.db.prepare("UPDATE sources SET title='Changed title' WHERE id='feed-source-1'").run();
  await synchronizeV1ProductSource(measured,'feed-source-1',testPolicy.now());
  expect((await new V1IntakeStore(ctx.db).snapshot('feed-source-1')).scope.feedRevision).toBeGreaterThan(prior.scope.feedRevision);

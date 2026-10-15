@@ -67,6 +67,10 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
 
 /** Revalidates product-backed scopes before execution, preserving fail-closed DB fences. */
 export async function synchronizeV1ProductSource(db:D1Database,id:string,now:string):Promise<void> {
+ // Core-only V1 deployments may have no product tables. Resolve this indexed
+ // optional boundary before compiling SQL that references product state. A
+ // bound source still uses the complete product/configuration/owner checks.
+ if(!await db.prepare('SELECT feed_id FROM v1_product_bindings WHERE feed_source_id=?').bind(id).first())return;
  const binding=await db.prepare(`SELECT f.json AS feed_json,CASE WHEN b.configuration=(${PRODUCT_SQL})
    AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL
    AND json_extract(f.json,'$.deletedAt') IS NULL AND json_extract(f.json,'$.paused')=0
