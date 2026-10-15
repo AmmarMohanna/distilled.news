@@ -288,9 +288,11 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   const operationId=await sha256(canonicalJson(operation));
   const retained=await store.read(feedId,'semantic_results',operationId)??await store.read(feedId,'semantic_settlements',operationId);
   if(!retained&&Date.now()+ASYNC_MODEL_CALL_MS>started+Math.max(ASYNC_PROCESSING_SLICE_MS,selection.budget.maxWallClockMs))throw new ModelSpendingWait('PUBLICATION_EXECUTION_YIELD');
-  await feedTransact(store,feedId,async tx=>{await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,pendingCall:operationId,leaseUntil:new Date(Date.parse(options.now())+ASYNC_OPERATION_LEASE_MS).toISOString()})});
+  await feedTransact(store,feedId,async tx=>{await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,leaseUntil:new Date(Date.parse(options.now())+ASYNC_OPERATION_LEASE_MS).toISOString()})});
   const saved=await durableSemanticOperation<T>(store,operation,async()=>{
-   await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution)});
+   // This callback runs only after intent and financial reservation commit.
+   // An admission/DB failure before it must not masquerade as a paid UNKNOWN.
+   await feedTransact(store,feedId,async tx=>{const job=await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);await tx.write('synthesis_jobs',editionId,{...job,pendingCall:operationId})});
    const result=await execute({maxOutputTokens:envelope.maxOutputTokens,signal:AbortSignal.timeout(ASYNC_MODEL_CALL_MS)}),usage=usageSchema.parse(result.usage);
    return {value:result,usage:{calls:1,tokensIn:usage.tokensIn,tokensOut:usage.tokensOut,costUsd:usage.cost,reported:usage.confirmed}};
   },options.now(),()=>{const usage=model.usage?.();return usage?{calls:1,costUsd:usage.cost,reported:usage.confirmed,tokensIn:usage.tokensIn,tokensOut:usage.tokensOut}:{calls:1,costUsd:envelope.reservationCostUsd,reported:false}},{operationAdmission:envelope,reuseContext:reuseScope});
