@@ -10,7 +10,8 @@
     "db:migrate": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "deploy:integration": "node ../../scripts/deploy-integration.mjs"
   },
   "dependencies": {
     "@block65/webcrypto-web-push": "2.0.0",
