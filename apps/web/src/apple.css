@@ -1026,7 +1026,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-shell .feed-side-actions .search { min-height: 48px; }
 
 /* Typography: tracking follows size (tight when large, slightly open when small); numerals align. */
-:root.apple-ui.apple-ui :is(small, .eyebrow, .feed-card-status, .explore-feed-owner, .bottom-navigation span) { letter-spacing: 0.01em; }
+:root.apple-ui.apple-ui :is(small, .eyebrow, .feed-card-status, .explore-feed-owner, .bottom-navigation :is(button, .guest-nav-link) > span) { letter-spacing: 0.01em; }
 :root.apple-ui.apple-ui :is(time, .star-vote .action-count, .feed-updated-at) { font-variant-numeric: tabular-nums; }
 :root.apple-ui.apple-ui .experience-section-heading h2 { letter-spacing: -0.022em; }
 

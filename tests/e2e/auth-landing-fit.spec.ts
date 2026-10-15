@@ -13,6 +13,7 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
   test(`landing header stays fixed across languages at ${size.width}x${size.height}`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.goto("/");
+    await expect(page.locator(".guest-landing .experience-header .experience-brand")).toBeVisible();
     const positions = async () => page.evaluate(() => Object.fromEntries(
       [".experience-brand", ".language-cycle", ".theme-toggle", ".experience-header-actions .button-link"].map(selector => {
         const { x, y, width, height } = document.querySelector(`.guest-landing .experience-header ${selector}`)!.getBoundingClientRect();
