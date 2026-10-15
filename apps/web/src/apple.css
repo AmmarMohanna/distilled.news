@@ -1358,3 +1358,4 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .experience.product-refresh .explore-view .category-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   :root.apple-ui.apple-ui .experience.product-refresh .explore-view .category-chips button { flex: 0 0 auto; }
 }
+:root.apple-ui.apple-ui .reference-cluster { white-space: nowrap; }

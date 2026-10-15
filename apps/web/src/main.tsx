@@ -1868,6 +1868,8 @@ function FeedEditionRow(props: {
   );
 }
 
+const trailingPunctuation = /^[.,;:!?)\]…،؛؟]+/u;
+
 function ReferenceParagraph(props: {
   text: string;
   language: "en" | "ar" | "fr";
@@ -1887,11 +1889,16 @@ function ReferenceParagraph(props: {
         if (part.kind === "text") {
           // A marker hugs the word before it, like a footnote.
           const next = parts[index + 1];
-          const value = next?.kind === "reference" ? part.value.replace(/\s+$/u, "") : part.value;
-          return <bdi key={`${part.value}:${index}`} dir={textDir}>{value}</bdi>;
+          const previous = parts[index - 1];
+          let value = next?.kind === "reference" ? part.value.replace(/\s+$/u, "") : part.value;
+          // Punctuation right after a marker stays on the marker's line.
+          if (previous?.kind === "reference") value = value.replace(trailingPunctuation, "");
+          return value ? <bdi key={`${part.value}:${index}`} dir={textDir}>{value}</bdi> : null;
         }
         const canOpen = part.value >= 1 && part.value <= props.referenceCount;
-        return (
+        const following = parts[index + 1];
+        const punctuation = following?.kind === "text" ? following.value.match(trailingPunctuation)?.[0] ?? "" : "";
+        const marker = (
           <button
             key={`reference-${part.value}-${index}`}
             type="button"
@@ -1904,6 +1911,7 @@ function ReferenceParagraph(props: {
             {part.value}
           </button>
         );
+        return punctuation ? <span key={`cluster-${part.value}-${index}`} className="reference-cluster">{marker}<bdi dir={textDir}>{punctuation}</bdi></span> : marker;
       })}
     </p>
   );
