@@ -321,8 +321,6 @@ html, body, #root { margin: 0; height: 100%; }
 .topic-art.pencil-art { background: transparent; background-image: none; color: #4bac9d; }
 .topic-art.pencil-art > .pencil-drawing { inset: 9%; }
 .topic-art.pencil-art > img { inset: 4%; width: 92%; height: 92%; mix-blend-mode: normal; filter: drop-shadow(.4px 0 #4bac9d) drop-shadow(-.4px 0 #4bac9d); }
-.feed-back { margin-bottom: 16px; width: fit-content; }
-[dir="rtl"] .feed-back svg { transform: rotate(180deg); }
 /* Compact layouts scale to the available screen without continuation controls. */
 html, body, #root { height: 100%; overflow: hidden; }
 .screen-pages { display: flex; flex-direction: column; min-height: 0; }
@@ -365,7 +363,6 @@ html, body, #root { height: 100%; overflow: hidden; }
 .shell { min-height: 0; padding-block: 12px; }
 .shell > header { padding-block: 8px; }
 .page-heading { margin-block: 12px; }
-.feed-back { margin-bottom: 8px; }
 @media (max-height: 720px) {
  .feed-editor .dialog-inner { padding: 16px; gap: 7px; }
  .feed-editor h2 { margin: 0 30px 4px 0; font-size: 21px; }

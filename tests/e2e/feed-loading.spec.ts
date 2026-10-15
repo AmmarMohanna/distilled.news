@@ -1,4 +1,5 @@
 import {expect,test,type Page,type Route} from '@playwright/test';
+import { refreshFeed } from "./helpers";
 const feed={id:'loading-feed',ownerUsername:'reader',slug:'news',title:'Reader News',publicFeedEnabled:true,paused:false,language:'en',briefingCadence:'daily',briefingTimezone:'UTC',stars:0};
 const edition=(id:string)=>({id,title:'Development '+id,summary:'Supported development '+id+' [1].',publishedAt:'2026-10-11T12:00:00Z',sections:[{title:'Development '+id,summary:'Supported development '+id+'.',evidence:[{messageId:'evidence-'+id,sourceTitle:'Original source',sourceUrl:'https://example.test/'+id,text:'Supported development '+id+'.',postedAt:'2026-10-11T10:00:00Z',links:[],media:[]}]}]});
 const path='/api/feed/reader/news';
@@ -22,19 +23,19 @@ test('refresh preserves read status, loaded pages and loaded sources while pendi
  await page.goto('/reader/news/');const unread=page.locator('.news-line:not(.news-line-read) .news-item');await expect(unread).toHaveCount(20);
  await unread.first().getByRole('button',{name:/mark .* read/i}).click();await page.getByRole('button',{name:'load more',exact:true}).click();await expect(unread).toHaveCount(24);
  await unread.first().getByRole('button',{name:/^Sources/}).click();await expect(page.locator('.sources-story')).toHaveCount(1);await page.getByRole('button',{name:'Close',exact:true}).click();
- delay=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(unread).toHaveCount(24);
+ delay=true;await refreshFeed(page);await expect(unread).toHaveCount(24);
  const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await expect(page.locator('.news-line-read .news-item')).toHaveCount(1);
  await unread.first().getByRole('button',{name:/^Sources/}).click();await expect(page.locator('.sources-story')).toHaveCount(1);
 });
 test('a failed refresh preserves previously published editions',async({page})=>{
  let failed=false;await mock(page,route=>failed?route.fulfill({status:503,json:{error:'Refresh unavailable.'}}):route.fulfill({json:{briefing:feed,editions:[edition('one')]}}));
- await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);failed=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.getByText('Refresh unavailable.')).toBeVisible();await expect(page.locator('.news-item')).toHaveCount(1);await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+ await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);failed=true;await refreshFeed(page);await expect(page.getByText('Refresh unavailable.')).toBeVisible();await expect(page.locator('.news-item')).toHaveCount(1);await expect(page.locator('.feed-empty-state')).toHaveCount(0);
 });
 test('an older refresh response cannot overwrite a newer successful response',async({page})=>{
  const pending=gate();let calls=0;await mock(page,async route=>{const call=++calls;if(call===2)await pending.promise;await route.fulfill({json:{briefing:feed,editions:[edition(call===2?'stale':call>=3?'latest':'initial')]}})});
  await page.goto('/reader/news/');await expect(page.locator('.news-summary')).toContainText('Supported development initial');
- const second=page.waitForRequest(r=>new URL(r.url()).pathname===path);await page.getByRole('button',{name:'Refresh',exact:true}).click();await second;
- await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.news-summary')).toContainText('latest');pending.release();await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('latest');await expect(page.getByText('Supported development stale')).toHaveCount(0);
+ const second=page.waitForRequest(r=>new URL(r.url()).pathname===path);await refreshFeed(page);await second;
+ await refreshFeed(page);await expect(page.locator('.news-summary')).toContainText('latest');pending.release();await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('latest');await expect(page.getByText('Supported development stale')).toHaveCount(0);
 });
 test('stale search and refresh responses cannot replace the current search results',async({page})=>{
  const oldSearch=gate();let reads=0;
@@ -47,7 +48,7 @@ test('stale search and refresh responses cannot replace the current search resul
  const oldRequest=page.waitForRequest(r=>r.url().includes('/search?q=old'));await page.getByPlaceholder('Search briefings').fill('old');await oldRequest;
  await page.getByPlaceholder('Search briefings').fill('current');await expect(page.locator('.news-summary')).toContainText('current');
  oldSearch.release();await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('current');
- await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect.poll(()=>reads).toBeGreaterThan(1);await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('current');
+ await refreshFeed(page);await expect.poll(()=>reads).toBeGreaterThan(1);await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('current');
 });
 
 test('navigation cannot inherit a pending response from another feed',async({page})=>{
@@ -72,7 +73,7 @@ test('a late detail response cannot reopen a withdrawn edition after refresh',as
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
  const detail=page.waitForRequest(r=>new URL(r.url()).pathname.endsWith('/editions/one'));await page.getByRole('button',{name:/^Sources/}).click();await detail;
- withdrawn=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(0);
+ withdrawn=true;await refreshFeed(page);await expect(page.locator('.news-item')).toHaveCount(0);
  const finished=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/editions/one'));pending.release();await finished;
  await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.locator('.sources-story')).toHaveCount(0);
 });
@@ -87,7 +88,7 @@ test('refresh removes withdrawn prose from active search results even if search 
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
  const searched=page.waitForResponse(r=>r.url().includes('/search?q=one'));await page.getByPlaceholder('Search briefings').fill('one');await searched;
- withdrawn=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.getByText('Search unavailable.')).toBeVisible();
+ withdrawn=true;await refreshFeed(page);await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.getByText('Search unavailable.')).toBeVisible();
  await expect(page.getByText('Supported development one')).toHaveCount(0);
 });
 
@@ -95,7 +96,7 @@ test('initial read retry shows loading while its replacement response is pending
  const pending=gate();let reads=0;
  await mock(page,async route=>{if(++reads===1)return route.fulfill({status:503,json:{error:'Initial read failed.'}});await pending.promise;await route.fulfill({json:{briefing:feed,editions:[edition('recovered')]}})});
  await page.goto('/reader/news/');await expect(page.getByText('Initial read failed.')).toBeVisible();
- await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.feed-loading-message')).toBeVisible();await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+ await refreshFeed(page);await expect(page.locator('.feed-loading-message')).toBeVisible();await expect(page.locator('.feed-empty-state')).toHaveCount(0);
  pending.release();await expect(page.locator('.news-summary')).toContainText('recovered');await expect(page.locator('.feed-loading-message')).toHaveCount(0);
 });
 test('clearing a failed search restores the successful empty feed without a stale error',async({page})=>{

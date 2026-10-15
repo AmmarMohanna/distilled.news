@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { cycleLanguage, toggleTheme } from "./helpers";
 const feed = { id: "one", ownerAccountId: "owner", ownerUsername: "owner", slug: "science", title: "Science", stars: 2, interestProfile: "Science news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "UTC", retentionDays: 15 };
 async function mock(page: import("@playwright/test").Page, authenticated = true) {
  await page.route("**/api/**", route => {
@@ -34,7 +35,7 @@ test("feed cards have rounded artwork, plain controls, and real update times", a
  await expect(card.getByRole("link", { name: "Edit feed settings" })).toBeVisible();
  await card.locator("summary").press("Escape");
  await expect(card.locator("details")).not.toHaveAttribute("open", "");
- await page.locator(".theme-toggle").click();
+ await toggleTheme(page);
  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
  await expect(page.locator(".theme-toggle")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
  await expect(card.locator(".feed-options > summary")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
@@ -74,8 +75,8 @@ test("shared scaling keeps navigation and headers equal after visiting home and 
  expect(await page.locator(".screen-page-content").evaluate(node => getComputedStyle(node).zoom)).toBe(scale);
  expect((await page.locator(".experience-header").boundingBox())!.height).toBeCloseTo(header!.height, 0);
  expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
- await page.getByRole("button", { name: /^Website language:/ }).click();
- await page.getByRole("button", { name: /^Website language:/ }).click();
+ await cycleLanguage(page);
+ await cycleLanguage(page);
  await expect(page.locator("html")).toHaveAttribute("lang", "ar");
  expect(await page.locator(".welcome-copy p").evaluate(node => getComputedStyle(node).direction)).toBe("rtl");
 });

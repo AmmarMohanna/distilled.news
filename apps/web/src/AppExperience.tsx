@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Ellipsis, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
+import { Ellipsis, Globe, Moon, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, HealthStatus, PublicBriefing } from "./types";
 import { getExploreFeeds, getFeed, setFeedStar } from "./api";
-import { ThemeToggle } from "./ThemeToggle";
-import { LanguageControl, useLanguage } from "./LanguageControl";
+import { ThemeToggle, useTheme } from "./ThemeToggle";
+import { LanguageControl, languageNames, setWebsiteLanguage, useLanguage } from "./LanguageControl";
 import { installApp, notificationsEnabled, setNotificationsEnabled } from "./pwa";
 import { InstallDialog, type InstallStatus } from "./SettingsDialogs";
 import { FeedArt } from "./FeedArt";
@@ -21,9 +21,9 @@ const topics = [
 ];
 const feedUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">) => `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
 export function BrandMark() { return <span className="distilled-logo" aria-hidden="true"><span className="distilled-logo-symbol"/><span className="distilled-logo-wordmark">Distilled<span className="distilled-logo-dot">.</span>news</span></span>; }
-export function AppHeader({ account, onAccount }: { account: AccountRecord | null; onAccount: () => void }) {
+export function AppHeader({ account, onAccount, leading, actions }: { account: AccountRecord | null; onAccount: () => void; leading?: React.ReactNode; actions?: React.ReactNode }) {
   const { t } = useLanguage();
-  return <header className="experience-header"><div className="experience-brand" aria-label="Distilled.news"><BrandMark/></div><div className="experience-header-actions"><LanguageControl/><ThemeToggle/>{account ? <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><span aria-hidden="true">{accountInitials(account.username)}</span></button> : <a className="button-link" href="/login">{t("Log in")}</a>}</div></header>;
+  return <header className={`experience-header${account ? " has-account" : ""}`}>{leading ? <div className="experience-leading">{leading}</div> : <div className="experience-brand" aria-label="Distilled.news"><BrandMark/></div>}<div className="experience-header-actions">{actions}<LanguageControl/><ThemeToggle/>{account ? <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><span aria-hidden="true">{accountInitials(account.username)}</span></button> : <a className="button-link" href="/login">{t("Log in")}</a>}</div></header>;
 }
 
 export function AppExperience(props: {
@@ -45,6 +45,7 @@ export function AppExperience(props: {
   const [installStatus, setInstallStatus] = useState<InstallStatus>("pending");
   const [installError, setInstallError] = useState("");
   const { language, t } = useLanguage();
+  const { theme, setTheme } = useTheme();
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : "Settings")} · Distilled.news` : "distilled.news — A calmer perspective on a complex world."; }, [tab, language, props.account]);
   useEffect(() => {
     let active = true;
@@ -121,7 +122,7 @@ export function AppExperience(props: {
         </article>)}</div> : query.trim() ? <p className="empty-copy" role="status">{t("No feeds match your search.")}</p> : null}
       </section>
     </section>}
-    {tab === "settings" && <section className="settings-view"><div className="experience-title"><h1>{t("Settings")}</h1><p>{t("Customize your experience.")}</p></div><p className="settings-group-label settings-account-label">{t("Account")}</p><div className="settings-group settings-account-group">{setting(<User/>, "Profile", props.onAccount)}<button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Notifications")} aria-checked={notificationEnabled ?? false} disabled={notificationBusy || notificationEnabled === undefined} onClick={() => void toggleNotifications()}><Bell/><span>{t("Notifications")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div>{notificationError && <p className="error" role="alert">{t(notificationError)}</p>}<p className="settings-group-label settings-app-label">{t("App")}</p><div className="settings-group settings-app-group">{setting(<Smartphone/>, "Install App (PWA)", () => { setSettingsDialog("install"); setInstallStatus("pending"); setInstallError(""); void installApp().then(result => setInstallStatus(current => current === "installed" ? current : result)).catch(cause => { setInstallStatus("error"); setInstallError(String(cause)); }); })}{setting(<HelpCircle/>, "Help & Support", props.onHelp)}</div>{props.account?.role === "admin" && props.children}</section>}
+    {tab === "settings" && <section className="settings-view"><div className="experience-title"><h1>{t("Settings")}</h1><p>{t("Customize your experience.")}</p></div><p className="settings-group-label settings-account-label">{t("Account")}</p><div className="settings-group settings-account-group">{setting(<User/>, "Profile", props.onAccount)}<button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Notifications")} aria-checked={notificationEnabled ?? false} disabled={notificationBusy || notificationEnabled === undefined} onClick={() => void toggleNotifications()}><Bell/><span>{t("Notifications")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div>{notificationError && <p className="error" role="alert">{t(notificationError)}</p>}<p className="settings-group-label settings-preferences-label">{t("Preferences")}</p><div className="settings-group settings-preferences-group"><div className="setting-row setting-language" role="group" aria-label={t("Language")}><Globe/><span>{t("Language")}</span><span className="language-segments">{(["en", "fr", "ar"] as const).map(code => <button key={code} type="button" lang={code} aria-pressed={language === code} onClick={() => setWebsiteLanguage(code)}>{languageNames[code]}</button>)}</span></div><button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Dark mode")} aria-checked={theme === "dark"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><Moon/><span>{t("Dark mode")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div><p className="settings-group-label settings-app-label">{t("App")}</p><div className="settings-group settings-app-group">{setting(<Smartphone/>, "Install App (PWA)", () => { setSettingsDialog("install"); setInstallStatus("pending"); setInstallError(""); void installApp().then(result => setInstallStatus(current => current === "installed" ? current : result)).catch(cause => { setInstallStatus("error"); setInstallError(String(cause)); }); })}{setting(<HelpCircle/>, "Help & Support", props.onHelp)}</div>{props.account?.role === "admin" && props.children}</section>}
     {settingsDialog === "install" && <InstallDialog status={installStatus} error={installError} onInstalled={() => setInstallStatus("installed")} onClose={() => setSettingsDialog(null)}/>}
     {props.account && <nav className="bottom-navigation" aria-label={t("Main navigation")}><div className="sidebar-logo experience-brand" aria-label="Distilled.news"><BrandMark/></div>{([{ id: "home", label: "Home", icon: Home }, { id: "explore", label: "Explore", icon: Search }, { id: "settings", label: "Settings", icon: Settings }] as const).map(({ id, label, icon: Icon }) => <button key={id} aria-current={tab === id ? "page" : undefined} className={`${tab === id ? "active" : ""} ${id === "settings" ? "navigation-settings" : ""}`} onClick={() => changeTab(id)}><Icon size={23}/><span>{t(label)}</span></button>)}</nav>}
   </main>;

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { refreshFeed } from "./helpers";
 const feed = { id: "one", ownerAccountId: "owner", ownerUsername: "admin", slug: "personal", title: "Personal Briefing", stars: 0, interestProfile: "News", styleInstruction: "Calm", publicFeedEnabled: true, paused: true, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "UTC", retentionDays: 15 };
 test("requested feed layout and language controls", async ({ page }) => {
   await page.route("**/api/**", route => {
@@ -78,5 +79,5 @@ for(const width of [1280,390])test(`scheduled processing remains visible without
  await page.goto('/admin/personal/');
  await expect(page.getByRole('button',{name:/brief now/i})).toHaveCount(0);
  await expect(page.getByText(/Reviewing collected items/)).toBeVisible();
- await page.getByRole('button',{name:'Refresh',exact:true}).click();expect(calls).toBe(0);
+ await refreshFeed(page);expect(calls).toBe(0);
 });

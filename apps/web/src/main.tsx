@@ -11,6 +11,7 @@ import {
   LockKeyhole,
   ArrowRight,
   ArrowUpRight,
+  Ellipsis,
   Check,
   Layers,
   ChevronDown,
@@ -1594,15 +1595,49 @@ function FeedPage(props: { username: string; slug: string }) {
     setSelectedReport({ editionId: edition.id, sectionIndex });
   }
 
+  const feedActions = (
+    <div className="feed-header-actions">
+      <button
+        type="button"
+        className={`star-vote${payload?.viewerHasStarred ? " is-starred" : ""}`}
+        title={starTitleLabel(payload?.viewerHasStarred ?? false, language)}
+        disabled={!canStar || starBusy || !payload}
+        aria-pressed={payload?.viewerHasStarred ?? false}
+        onClick={async () => {
+          if (!payload) return;
+          setStarBusy(true);
+          try {
+            const result = await setFeedStar(props.username, props.slug, !payload.viewerHasStarred);
+            setFeedResult(current => current?.key === feedKey && feedIdentity.current === feedKey ? {
+              key: feedKey, value: { ...current.value, briefing: { ...current.value.briefing, stars: result.stars }, viewerHasStarred: result.viewerHasStarred }
+            } : current);
+          } finally {
+            setStarBusy(false);
+          }
+        }}
+      >
+        <Star size={20} aria-hidden fill={payload?.viewerHasStarred ? "currentColor" : "none"} />
+        <span className="action-label">{starControlLabel(payload?.viewerHasStarred ?? false, language)}</span>{" "}
+        <span className="action-count">{payload?.briefing.stars ?? 0}</span>
+      </button>
+      {payload?.briefing.publicFeedEnabled ? <button type="button" title={t("Share")} aria-label={t("Share")} onClick={() => void shareFeed()}><Share size={20} aria-hidden /></button> : null}
+      <FeedMoreMenu label={t("More options")}>
+        {close => <>
+          <button type="button" onClick={() => { close(); void refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))); }}><RefreshCw size={16} aria-hidden />{refreshControlLabel(language)}</button>
+          {ownedFeed ? <button type="button" onClick={() => { close(); setEditorOpen(true); }}><Settings size={16} aria-hidden />{t("Edit feed settings")}</button> : null}
+        </>}
+      </FeedMoreMenu>
+    </div>
+  );
+
   return (
     <Shell
-      header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)}/>}
+      header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : initialLoading ? <span className="feed-loading-message" role="status">{loadingFeedLabel(language)}</span> : undefined}
       feed={payload?.briefing}
       pageLanguage={language}
-      headingAction={ownedFeed ? <button className="primary-button" onClick={() => setEditorOpen(true)}><Settings size={17}/>{t("Edit feed settings")}</button> : undefined}
     >
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
         onLogout={async () => { await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); }}
@@ -1633,35 +1668,6 @@ function FeedPage(props: { username: string; slug: string }) {
               placeholder={searchPublishedLabel(language)}
             />
           </form>
-        </div>
-        <div className="feed-actions">
-          <button
-            type="button"
-            className={`star-vote${payload?.viewerHasStarred ? " is-starred" : ""}`}
-            title={starTitleLabel(payload?.viewerHasStarred ?? false, language)}
-            disabled={!canStar || starBusy || !payload}
-            aria-pressed={payload?.viewerHasStarred ?? false}
-            onClick={async () => {
-              if (!payload) return;
-              setStarBusy(true);
-              try {
-                const result = await setFeedStar(props.username, props.slug, !payload.viewerHasStarred);
-                setFeedResult(current => current?.key === feedKey && feedIdentity.current === feedKey ? {
-                  key: feedKey, value: { ...current.value, briefing: { ...current.value.briefing, stars: result.stars }, viewerHasStarred: result.viewerHasStarred }
-                } : current);
-              } finally {
-                setStarBusy(false);
-              }
-            }}
-          >
-            <Star size={18} aria-hidden />
-            <span className="action-label">{starControlLabel(payload?.viewerHasStarred ?? false, language)}</span>{" "}
-            <span className="action-count">{payload?.briefing.stars ?? 0}</span>
-          </button>
-          {payload?.briefing.publicFeedEnabled && <button type="button" title={t("Share")} onClick={() => void shareFeed()}><Share size={18} aria-hidden /><span className="action-label">{t("Share")}</span></button>}
-          <button type="button" title={refreshControlLabel(language)} onClick={() => void refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))}>
-            <RefreshCw size={18} aria-hidden /><span className="action-label">{refreshControlLabel(language)}</span>
-          </button>
         </div>
       </div>
       {reportEdition && selectedReport ? (
@@ -1992,6 +1998,35 @@ function StatusLine(props: { label: string; value: React.ReactNode; valueDir?: "
   );
 }
 
+function FeedBackLink({ language }: { language: "en" | "ar" | "fr" }) {
+  const label = language === "ar" ? "رجوع" : language === "fr" ? "Retour" : "Back";
+  return <a className="feed-nav-back" href="/" onClick={event => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (document.referrer && new URL(document.referrer).origin === window.location.origin && window.history.length > 1) { event.preventDefault(); window.history.back(); }
+  }}>{language === "ar" ? <ChevronRight size={24} aria-hidden /> : <ChevronLeft size={24} aria-hidden />}<span>{label}</span></a>;
+}
+
+function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  const close = () => { if (ref.current) ref.current.open = false; };
+  useEffect(() => {
+    const down = (event: PointerEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) close(); };
+    document.addEventListener("pointerdown", down);
+    return () => document.removeEventListener("pointerdown", down);
+  }, []);
+  return (
+    <details
+      ref={ref}
+      className="feed-options feed-more"
+      onKeyDown={event => { if (event.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}
+      onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) close(); }}
+    >
+      <summary aria-label={props.label} title={props.label}><Ellipsis size={22} aria-hidden /></summary>
+      <div className="feed-options-popover">{props.children(close)}</div>
+    </details>
+  );
+}
+
 function Shell(props: {
   header?: React.ReactNode;
   title: React.ReactNode;
@@ -2049,10 +2084,6 @@ function Shell(props: {
         </div>
       </header>}
       <div className="page-heading">
-        {props.feed && <a className="button-link feed-back" href="/" onClick={event => {
-          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-          if (document.referrer && new URL(document.referrer).origin === window.location.origin && window.history.length > 1) { event.preventDefault(); window.history.back(); }
-        }}>{selectedLanguage === "ar" ? <ChevronRight size={18}/> : <ChevronLeft size={18}/>}{selectedLanguage === "ar" ? "رجوع" : selectedLanguage === "fr" ? "Retour" : "Back"}</a>}
         <div className="page-title-row"><h1>{props.title}</h1>{props.headingAction}</div>
         <p>{props.meta ?? getPageMeta(titleText)}</p>
         {props.description && <div className="feed-page-description">{props.description}</div>}

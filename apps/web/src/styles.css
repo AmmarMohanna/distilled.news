@@ -993,13 +993,6 @@ summary {
   padding-inline: 8px;
 }
 
-.feed-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
 .feed-side-actions {
   display: flex;
   align-items: center;
@@ -1289,22 +1282,11 @@ summary {
     align-items: start;
   }
 
-  .feed-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
-  }
-
   .feed-side-actions {
     display: grid;
     grid-template-columns: 1fr;
     align-items: stretch;
     min-width: 0;
-  }
-
-  .feed-actions button,
-  .feed-actions .button-link {
-    width: 100%;
   }
 
   .source-add {
@@ -2148,10 +2130,6 @@ html[dir="rtl"] .news-item {
 
   .feed-tools {
     position: static;
-  }
-
-  .feed-actions {
-    grid-template-columns: 1fr;
   }
 
   .feed-side-actions {
