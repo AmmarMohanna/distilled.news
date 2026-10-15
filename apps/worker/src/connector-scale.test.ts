@@ -1,6 +1,6 @@
 import {afterAll,beforeAll,expect,it,vi} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
-import {dispatchConnectorFeeds,dispatchConnectorPolls,coalescedProcessingQueue,processConnectorMessage,connectorDownstreamEnv,completeConnectorDownstream,collectionReadyForWindow,type ConnectorQueueMessage} from './connector-scheduling';
+import {dispatchConnectorFeeds,dispatchConnectorPolls,decodeConnectorDelivery,coalescedProcessingQueue,processConnectorMessage,connectorDownstreamEnv,completeConnectorDownstream,collectionReadyForWindow,type ConnectorQueueMessage} from './connector-scheduling';
 import {sharedPublicHttp} from './connector-public-cache';
 import {DurableProviderHttp,sourceSqlFromD1} from '@distilled/connectors';
 import type {Env} from './types';
@@ -136,7 +136,7 @@ it('dedicated V1 delivery bypasses legacy backlog and retains coalescing',async(
 
 it('batch downstream sends retain coalescing and their per-message delay',async()=>{
  const deliveries:unknown[]=[];
- const runtime={...env,V1_PROCESSING_QUEUE:{send:async(body:unknown,options:unknown)=>{deliveries.push({body,options})},sendBatch:async()=>{throw Error('bypass')}}} as unknown as Env;
+ const runtime={...env,V1_PROCESSING_QUEUE:{send:async(body:unknown,options:unknown)=>{deliveries.push({body:decodeConnectorDelivery(body).body,options})},sendBatch:async()=>{throw Error('bypass')}}} as unknown as Env;
  const queue=coalescedProcessingQueue(runtime,1000);
  await queue.sendBatch([{body:{type:'v1_reassess',jobId:'batch-review'},delaySeconds:9},{body:{type:'v1_reassess',jobId:'batch-review'},delaySeconds:9}]);
  expect(deliveries).toEqual([{body:{type:'v1_reassess',jobId:'batch-review'},options:{delaySeconds:9}}]);
@@ -154,12 +154,14 @@ it('acquisition has independent delivery slots while reviews retain their queue 
 });
 
 it('simultaneous completions refill one per-feed relay without waiting for Cron or entering the review queue',async()=>{
- const acquire=vi.fn(async()=>{}),review=vi.fn(async()=>{}),feedId='scale-0004',sourceId='refill-source',jobId='refill-job';
+ const acquire=vi.fn(async(_body:unknown,_options?:unknown)=>{}),review=vi.fn(async()=>{}),feedId='scale-0004',sourceId='refill-source',jobId='refill-job';
  await ctx.db.prepare('INSERT INTO v1_intake_scopes(id,feed_id,source_id,json) VALUES(?,?,?,?)').bind(sourceId,feedId,'refill-identity',JSON.stringify({feedId,feedSourceId:sourceId,sourceId:'refill-identity',feedRevision:1,enabled:true,restrictions:{}})).run();
  await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind(jobId,sourceId,JSON.stringify({id:jobId,state:'DONE',kind:'ACQUIRE'})).run();
  const runtime={...env,V1_ACQUISITION_QUEUE:{send:acquire},V1_PROCESSING_QUEUE:{send:review}} as unknown as Env;
- await Promise.all(Array.from({length:4},()=>completeConnectorDownstream(runtime,{type:'v1_acquisition',jobId})));
- expect(acquire.mock.calls).toEqual([[{type:'connector_relay',feedId},undefined]]);expect(review).not.toHaveBeenCalled();
+ const body={type:'v1_acquisition' as const,jobId};
+ await coalescedProcessingQueue(runtime).send(body);const delivery=decodeConnectorDelivery(acquire.mock.calls[0][0]);acquire.mockClear();
+ await Promise.all(Array.from({length:4},()=>completeConnectorDownstream(runtime,body,delivery.token)));
+ expect(acquire.mock.calls.map(([wire,options])=>[decodeConnectorDelivery(wire).body,options])).toEqual([[{type:'connector_relay',feedId},undefined]]);expect(review).not.toHaveBeenCalled();
 });
 
 it('persisted provider revocations and exhausted source budgets are immediately visible',async()=>{
@@ -243,7 +245,7 @@ it('the new queue path acquires a full article and reaches intelligence with a f
   await processConnectorMessage(runtime,poll.body);await tick('after-poll');
   const acquired=messages.find((m:any)=>m.type==='v1_acquisition') as {type:'v1_acquisition';jobId:string};expect(acquired).toBeDefined();
   const scoped=await connectorDownstreamEnv(runtime,acquired);expect(scoped.V1_DOWNSTREAM_FEED_SOURCE_IDS).toBe(`${feedId}-rss`);
-  expect(await processV1Acquisition(scoped,acquired.jobId,fixture as typeof globalThis.fetch)).toBe('DONE');await completeConnectorDownstream(runtime,acquired);
+  expect(await processV1Acquisition(scoped,acquired.jobId,fixture as typeof globalThis.fetch)).toBe('DONE');const delivery=decodeConnectorDelivery(acquired);await completeConnectorDownstream(runtime,delivery.body,delivery.token);
   await tick('after-acquisition');
   const review=messages.find((m:any)=>m.type==='v1_reassess') as {type:'v1_reassess';jobId:string};expect(review).toBeDefined();
   expect(await processV1Reassessment(await connectorDownstreamEnv(runtime,review),review.jobId)).toBe('DONE');

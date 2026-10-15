@@ -12,6 +12,16 @@ const DELIVERY_LEASE_MS=120_000;
 const POLL_DELIVERY_MS=360_000;
 export const FEED_DISPATCH_BATCH=100;
 
+/** Dispatch generations are transport bookkeeping, never canonical job/model
+ * identity. Strip metadata before strict parsers and canonical journaling. */
+export function decodeConnectorDelivery<T>(raw:T):{body:T;token?:string}{
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))return {body:raw};
+ const record=raw as T&{type?:unknown;_connectorDispatchToken?:unknown};
+ if(typeof record.type!=='string'||!record.type.startsWith('v1_')&&record.type!=='connector_relay'||!Object.hasOwn(record,'_connectorDispatchToken'))return {body:raw};
+ const {_connectorDispatchToken,...body}=record;
+ return {body:body as unknown as T,...(typeof _connectorDispatchToken==='string'&&_connectorDispatchToken?{token:_connectorDispatchToken}: {})};
+}
+
 /** Indexed feed round-robin: expensive collection happens in queue consumers,
  * never inside Cron. One crashed delivery remains discoverable after expiry. */
 export async function dispatchConnectorFeeds(env:Env,now=Date.now(),limit=FEED_DISPATCH_BATCH){
@@ -34,7 +44,8 @@ export async function dispatchConnectorFeeds(env:Env,now=Date.now(),limit=FEED_D
 export function coalescedProcessingQueue(env:Env,now=Date.now()):Queue<DistilledQueueMessage>{
  requireConnectorQueues(env);
  const original=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?env.V1_PROCESSING_QUEUE!:env.V1_PROCESSING_QUEUE??env.PROCESSING_QUEUE;
- const send=async(body:DistilledQueueMessage,options?:QueueSendOptions)=>{
+ const send=async(raw:DistilledQueueMessage,options?:QueueSendOptions)=>{
+  const {body}=decodeConnectorDelivery(raw);
   if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay')return env.PROCESSING_QUEUE.send(body,options);
   const id=await sha256(JSON.stringify(body)),token=crypto.randomUUID();
   if(body.type==='v1_briefing'&&!await collectionReadyForWindow(env,body.feedId,body.window.end,id,now))return;
@@ -43,7 +54,8 @@ export function coalescedProcessingQueue(env:Env,now=Date.now()):Queue<Distilled
   if(!claimed)return;
   const acquisition=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?env.V1_ACQUISITION_QUEUE!:env.V1_ACQUISITION_QUEUE??original;
   const target=body.type==='v1_acquisition'||body.type==='connector_relay'?acquisition:original;
-  try{return await target.send(body,options)}catch(error){await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=?,last_error=? WHERE kind=? AND id=? AND token=?').bind(now+30_000,'QUEUE_SEND_FAILED',body.type,id,token).run();throw error;}
+  const transport={...body,_connectorDispatchToken:token};
+  try{return await target.send(transport,options)}catch(error){await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=?,last_error=? WHERE kind=? AND id=? AND token=?').bind(now+30_000,'QUEUE_SEND_FAILED',body.type,id,token).run();throw error;}
  };
  // Canonical dispatchers ignore send metadata. A coalesced no-op returns no
  // fabricated queue statistics; native metrics remain directly available.
@@ -113,7 +125,9 @@ export async function relayConnectorDownstream(env:Env){
  await dispatchV1Intelligence(env);
 }
 
-export async function processConnectorMessage(env:Env,body:ConnectorQueueMessage){
+export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,dispatchToken?:string){
+ const delivery=decodeConnectorDelivery(raw),body=delivery.body;
+ const completionToken=dispatchToken??delivery.token;
  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true')throw Error('CONNECTOR_SCHEDULER_DISABLED');
  requireConnectorQueues(env);
  if(body.type==='connector_relay'){
@@ -125,7 +139,7 @@ export async function processConnectorMessage(env:Env,body:ConnectorQueueMessage
   try{
    const scoped=await feedEnv(env,body.feedId);if(scoped)await relayConnectorDownstream(scoped);
    if(renewing)await renewing;if(lost)throw new HandoffError('TEMPORARY_UNAVAILABLE');
-   await completeConnectorDownstream(env,body);
+   await completeConnectorDownstream(env,body,completionToken);
   }finally{clearInterval(timer);if(renewing)await renewing;await env.DB.prepare('UPDATE connector_feed_schedule SET relay_until=0,relay_token=NULL WHERE feed_id=? AND relay_token=?').bind(body.feedId,token).run();}
   return;
  }
@@ -180,9 +194,12 @@ export async function recordConnectorQueueFailure(env:Env,id:string,body:Connect
  .bind(id,body.type,body.feedId,body.type==='connector_poll'?body.jobId:null,attempts,'QUEUE_DELIVERY_FAILED',new Date().toISOString()).run();
 }
 
-export async function completeConnectorDownstream(env:Env,body:DistilledQueueMessage){
- if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay')return;
- await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=?').bind(body.type,await sha256(JSON.stringify(body))).run();
+export async function completeConnectorDownstream(env:Env,body:DistilledQueueMessage,dispatchToken?:string){
+ if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay'||!dispatchToken)return;
+ // A successful old delivery or a legacy tokenless message cannot release a
+ // replacement generation. Only the matching delivery can refill its lane.
+ const completed=await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=? AND token=? AND available_ms>0 RETURNING id').bind(body.type,await sha256(JSON.stringify(body)),dispatchToken).first();
+ if(!completed)return;
  if('jobId' in body){
   const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();
   if(row){

@@ -2,7 +2,7 @@ import {retireManualBriefing,retireManualBriefingRequests} from './manual-briefi
 import {recordV1QueueOutcome} from './v1-queue-dispatch';
 import {productRuntimeEnv} from './product-feeds';
 import { sendBriefingNotifications } from './push';
-import {dispatchConnectorFeeds,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
+import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
 import {expireSharedPublicFetches} from './connector-public-cache';
 import {dispatchTelegramLane} from './connector-telegram-lane';
 import {withIntelligenceTurn,isIntelligenceTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
@@ -51,40 +51,41 @@ export default {
     const summaryAdapter = createSummaryAdapterFromEnv(env, repo);
     const reviewAdapter = createEventReviewAdapterFromEnv(env, repo);
     for (const message of batch.messages) {
-      if(isRecord(message.body)&&['connector_feed','connector_poll','connector_relay'].includes(String(message.body.type))){
-        try{await processConnectorMessage(env,message.body as ConnectorQueueMessage);message.ack();}
-        catch{await recordConnectorQueueFailure(env,message.id,message.body as ConnectorQueueMessage,message.attempts);message.retry({delaySeconds:retryDelaySeconds(message.attempts)});}
+      const delivery=decodeConnectorDelivery(message.body),body=delivery.body;
+      if(isRecord(body)&&['connector_feed','connector_poll','connector_relay'].includes(String(body.type))){
+        try{await processConnectorMessage(env,body as ConnectorQueueMessage,delivery.token);message.ack();}
+        catch{await recordConnectorQueueFailure(env,message.id,body as ConnectorQueueMessage,message.attempts);message.retry({delaySeconds:retryDelaySeconds(message.attempts)});}
         continue;
       }
       const startedAt = Date.now();
-      const bodyType = queueBodyType(message.body);
-      const bodyId = queueBodyId(message.body);
+      const bodyType = queueBodyType(body);
+      const bodyId = queueBodyId(body);
       let completedProcessing=false;
       try {
-        const downstreamEnv=await connectorDownstreamEnv(env,message.body as DistilledQueueMessage);
-        if(isRecord(message.body)&&message.body.type==='v1_manual_briefing'&&typeof message.body.feedId==='string'&&typeof message.body.requestId==='string') await retireManualBriefing(env,message.body.feedId,message.body.requestId);
-        else if (isRecord(message.body) && message.body.type==='v1_acquisition' && typeof message.body.jobId==='string') await processV1Acquisition(downstreamEnv,message.body.jobId);
-        else if(isRecord(message.body) && isIntelligenceTurn(message.body as DistilledQueueMessage)) await withIntelligenceTurn(downstreamEnv,message.body as DistilledQueueMessage,async()=>{
-          if(message.body.type==='v1_rematch' && typeof message.body.feedId==='string' && typeof message.body.requestId==='string') await processV1Rematch(downstreamEnv,message.body.feedId,message.body.requestId);
-          else if(message.body.type==='v1_reassess' && typeof message.body.jobId==='string') await processV1Reassessment(downstreamEnv,message.body.jobId);
-          else if(message.body.type==='v1_briefing') await processV1Briefing(downstreamEnv,message.body as import('./v1-intelligence/runtime').V1BriefingMessage);
+        const downstreamEnv=await connectorDownstreamEnv(env,body as DistilledQueueMessage);
+        if(isRecord(body)&&body.type==='v1_manual_briefing'&&typeof body.feedId==='string'&&typeof body.requestId==='string') await retireManualBriefing(env,body.feedId,body.requestId);
+        else if (isRecord(body) && body.type==='v1_acquisition' && typeof body.jobId==='string') await processV1Acquisition(downstreamEnv,body.jobId);
+        else if(isRecord(body) && isIntelligenceTurn(body as DistilledQueueMessage)) await withIntelligenceTurn(downstreamEnv,body as DistilledQueueMessage,async()=>{
+          if(body.type==='v1_rematch' && typeof body.feedId==='string' && typeof body.requestId==='string') await processV1Rematch(downstreamEnv,body.feedId,body.requestId);
+          else if(body.type==='v1_reassess' && typeof body.jobId==='string') await processV1Reassessment(downstreamEnv,body.jobId);
+          else if(body.type==='v1_briefing') await processV1Briefing(downstreamEnv,body as import('./v1-intelligence/runtime').V1BriefingMessage);
           else throw new HandoffError('INVALID_REQUEST');
         });
-        else if (isWebOperatorRunMessage(message.body)) await processWebOperatorRunMessage(env,message.body);
-        else if (isWebOperatorLiveSmokeMessage(message.body)) {
-          await processLivePublicAcquisitionSmoke(env, message.body, async (request) => app.fetch(request, env));
+        else if (isWebOperatorRunMessage(body)) await processWebOperatorRunMessage(env,body);
+        else if (isWebOperatorLiveSmokeMessage(body)) {
+          await processLivePublicAcquisitionSmoke(env, body, async (request) => app.fetch(request, env));
         }
-        else if (isPublicAcquisitionRequestMessage(message.body)) await processPublicAcquisitionRequest(env,message.body,async request=>app.fetch(request,env));
-        else if (isAuthenticatedXAcquisitionRequestMessage(message.body)) await processAuthenticatedXAcquisitionRequest(env,message.body,async request=>app.fetch(request,env));
-        else if (isOpenRouterModelDiagnosticMessage(message.body)) await processOpenRouterModelDiagnostic(env,message.body);
-        else if(isAuthenticatedProfileBootstrapMessage(message.body))await processAuthenticatedProfileBootstrap(env,message.body);
-        else if(isAuthenticatedSurfaceDiagnosticMessage(message.body))await processAuthenticatedSurfaceDiagnostic(env,message.body);
-        else completedProcessing=await processDistilledQueueMessage(repo, env, message.body, summaryAdapter, reviewAdapter);
-        if(completedProcessing&&isProcessingJobMessage(message.body)){
-          await drainNextProcessingJob(repo,env.PROCESSING_QUEUE,message.body.briefingId,completedProcessing);
+        else if (isPublicAcquisitionRequestMessage(body)) await processPublicAcquisitionRequest(env,body,async request=>app.fetch(request,env));
+        else if (isAuthenticatedXAcquisitionRequestMessage(body)) await processAuthenticatedXAcquisitionRequest(env,body,async request=>app.fetch(request,env));
+        else if (isOpenRouterModelDiagnosticMessage(body)) await processOpenRouterModelDiagnostic(env,body);
+        else if(isAuthenticatedProfileBootstrapMessage(body))await processAuthenticatedProfileBootstrap(env,body);
+        else if(isAuthenticatedSurfaceDiagnosticMessage(body))await processAuthenticatedSurfaceDiagnostic(env,body);
+        else completedProcessing=await processDistilledQueueMessage(repo, env, body, summaryAdapter, reviewAdapter);
+        if(completedProcessing&&isProcessingJobMessage(body)){
+          await drainNextProcessingJob(repo,env.PROCESSING_QUEUE,body.briefingId,completedProcessing);
         }
         const durationMs = Date.now() - startedAt;
-        if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')await completeConnectorDownstream(env,message.body as DistilledQueueMessage);
+        if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')await completeConnectorDownstream(env,body as DistilledQueueMessage,delivery.token);
         if (durationMs >= SLOW_QUEUE_JOB_MS) {
           console.warn("Slow queue job completed", {
             messageId: message.id,
@@ -97,12 +98,12 @@ export default {
         message.ack();
       } catch (error) {
         if(error instanceof IntelligenceTurnBusy){message.ack();continue;}
-        if(isRecord(message.body) && typeof message.body.type==='string' && message.body.type.startsWith('v1_')) {
-          await recordV1QueueOutcome(env,message.id,message.body,message.attempts,error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE');
+        if(isRecord(body) && typeof body.type==='string' && body.type.startsWith('v1_')) {
+          await recordV1QueueOutcome(env,message.id,body,message.attempts,error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE');
           if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') message.ack();
           else if(message.attempts<MAX_QUEUE_ATTEMPTS) message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
           else if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
-            await env.DB.prepare('INSERT INTO connector_queue_recovery(id,kind,job_id,attempts,reason,observed_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET attempts=excluded.attempts').bind(message.id,String(message.body.type),'jobId' in message.body?String(message.body.jobId):null,message.attempts,'DOWNSTREAM_DELIVERY_EXHAUSTED',new Date().toISOString()).run();
+            await env.DB.prepare('INSERT INTO connector_queue_recovery(id,kind,job_id,attempts,reason,observed_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET attempts=excluded.attempts').bind(message.id,String(body.type),'jobId' in body?String(body.jobId):null,message.attempts,'DOWNSTREAM_DELIVERY_EXHAUSTED',new Date().toISOString()).run();
             message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
           }else message.ack();
           console.warn('V1 queue work deferred or terminal',{bodyType,bodyId,messageId:message.id,attempts:message.attempts,durationMs:Date.now()-startedAt,code:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'});continue;
@@ -112,7 +113,7 @@ export default {
         if(error instanceof ProcessingLeaseBusy){message.ack();continue}
         const errorMessage = error instanceof Error ? error.message : String(error);
         const shouldQuarantine = shouldQuarantineQueueFailure(error, message.attempts);
-        await recordQueueFailure(repo,agentStore,message.body,errorMessage,shouldQuarantine);
+        await recordQueueFailure(repo,agentStore,body,errorMessage,shouldQuarantine);
         console.error(shouldQuarantine ? "Quarantined queue job" : "Retrying queue job", {
           messageId: message.id,
           attempts: message.attempts,
