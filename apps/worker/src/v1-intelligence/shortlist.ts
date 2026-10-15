@@ -14,11 +14,11 @@ import {deferEditorialWork,resolveEditorialWork,unreviewedOverflow,UNREVIEWED_RE
 import {CLAIM_EXTRACTOR,type SourceDocument,nonFactRole} from './claims';
 import {communicationCost,type CommunicationCost} from './planning-capacity';
 import type {Env} from '../types';
-export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v16';
+export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v17';
 export type {NoveltyClass};
 export interface ShortlistFact {id:string;timing?:FactTiming;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
 export interface ShortlistCandidate {/** What the communication ledger shows about this target, independent of how old its source is. */readerState?:'UNSEEN'|'PARTIALLY_SEEN'|'SEEN';/** Deferred only by overflow: the planner has never compared it. */unreviewed?:boolean;/** When its earliest overflow deferral was recorded. */unreviewedSince?:string;publisherIds?:string[];sourceTitles?:string[];ranking?:EditorialRanking;communicationCost?:CommunicationCost;novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
-export interface ShortlistRecord {bootstrap?:boolean;id:string;feedId:string;feedRevision:number;window:PublicationWindow;communicationFingerprint:string;candidates:ShortlistCandidate[];overflow:ShortlistCandidate[];obligations:CorrectionObligation[];ledger:{id:string;claimText:string;claimFacts:string[];eventIds:string[];storylineIds:string[];certainty:LedgerEntry['certainty'];editionId:string;evidenceRevisionIds?:string[];withdrawn?:boolean}[];evidenceRevisionIds:string[];policyVersion:string;createdAt:string}
+export interface ShortlistRecord {unresolvedTargets?:{targetVersionId:string;eventVersionIds:string[];evidenceRevisionIds:string[];missingPropositionIds:string[];reason:'EVENT_FACT_OWNERSHIP_UNRESOLVED'}[];bootstrap?:boolean;id:string;feedId:string;feedRevision:number;window:PublicationWindow;communicationFingerprint:string;candidates:ShortlistCandidate[];overflow:ShortlistCandidate[];obligations:CorrectionObligation[];ledger:{id:string;claimText:string;claimFacts:string[];eventIds:string[];storylineIds:string[];certainty:LedgerEntry['certainty'];editionId:string;evidenceRevisionIds?:string[];withdrawn?:boolean}[];evidenceRevisionIds:string[];policyVersion:string;createdAt:string}
 /** Review slots reserved per window for never-reviewed overflow news. One goes to the best-ranked such candidate; the others go to the
  * longest-waiting ones, so a steady arrival of higher-ranked news cannot keep an older candidate unreviewed until its retention bound. */
 export const UNREVIEWED_REVIEW_SLOTS=3,UNREVIEWED_RANK_SLOTS=1;
@@ -66,7 +66,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   return withdrawal?{...o,publicationWithdrawal:{reason:withdrawal.reason}}:o;
  });
  const sourceDocuments=await tx.list<SourceDocument>('source_documents');
- const candidates:ShortlistCandidate[]=[];
+ const candidates:ShortlistCandidate[]=[],unresolvedTargets:NonNullable<ShortlistRecord['unresolvedTargets']>=[];
  const currentTargets=await targets(tx,window,true);
  // News the planner was never shown (shortlist or planner-input overflow) is not retired by a short calendar: it is retained for a
  // bounded period during which it is guaranteed a review slot (see boundShortlist). Only a recorded review or the retention bound ends it.
@@ -88,8 +88,20 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   const deferred=pendingWork.filter(w=>!completedWork.has(w.id)&&(w.stableTargetId===target.stableId||target.storylineId && w.storylineId===target.storylineId));
   if(!adaptive&&Date.parse(target.updatedAt)<Date.parse(window.start) && !bootstrap && !related.length && !deferred.length)continue;
   const states=(await Promise.all(target.eventVersionIds.map(id=>tx.read<EventSemanticState>('event_semantic_states',id)))).filter((s):s is EventSemanticState=>Boolean(s)),rawFacts:ShortlistFact[]=[];
-  for(const id of [...new Set(states.flatMap(s=>s.propositionIds))]){const p=await tx.read<Proposition>('propositions',id);if(p&&!nonFactRole(p.text))rawFacts.push({id:p.id,propositionId:p.id,text:p.text,evidenceRevisionIds:p.evidenceRevisionIds,claimMentionIds:p.claimMentionIds,certainty:p.certainty,attribution:p.attribution,reportTime:p.reportTime,eventTime:p.eventTime})}
-  if(!rawFacts.length)for(const evidence of target.evidence)for(const text of supportedSentences(evidence.body??evidence.title??'').filter(text=>!nonFactRole(text)))rawFacts.push({id:await sha256(canonicalJson({feedId:tx.snapshot.feed.id,evidenceId:evidence.id,text,policy:SHORTLIST_POLICY})),text,evidenceRevisionIds:[evidence.id],claimMentionIds:[]});
+  const missingPropositionIds:string[]=[],unresolvedLegacyVersions:string[]=[];
+  for(const id of [...new Set(states.flatMap(s=>s.propositionIds))]){const p=await tx.read<Proposition>('propositions',id);if(!p){missingPropositionIds.push(id);continue;}if(!nonFactRole(p.text))rawFacts.push({id:p.id,propositionId:p.id,text:p.text,evidenceRevisionIds:p.evidenceRevisionIds,claimMentionIds:p.claimMentionIds,certainty:p.certainty,attribution:p.attribution,reportTime:p.reportTime,eventTime:p.eventTime})}
+  // Legacy Events have no semantic state. Only their own retained state prose
+  // may fall back to exact source support; sharing an article grants no facts.
+  for(const versionId of target.eventVersionIds.filter(id=>!states.some(s=>s.eventVersionId===id))){
+   const before=rawFacts.length;
+   const version=await tx.read<import('@distilled/contracts').EventVersion>('event_versions',versionId),memberIds=new Set((await tx.list<import('@distilled/contracts').EventMembership>('memberships')).filter(m=>m.eventVersionId===versionId).map(m=>m.evidenceRevisionId));
+   for(const text of supportedSentences(version?.state??'').filter(text=>!nonFactRole(text)))for(const evidence of target.evidence.filter(e=>memberIds.has(e.id)))if([evidence.body,evidence.title].some(field=>field?.includes(text)))rawFacts.push({id:await sha256(canonicalJson({feedId:tx.snapshot.feed.id,evidenceId:evidence.id,text,policy:SHORTLIST_POLICY})),text,evidenceRevisionIds:[evidence.id],claimMentionIds:[]});
+   if(rawFacts.length===before)unresolvedLegacyVersions.push(versionId);
+  }
+  if(missingPropositionIds.length||states.some(state=>!state.propositionIds.length)||unresolvedLegacyVersions.length){
+   const gap={targetVersionId:target.id,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),missingPropositionIds,reason:'EVENT_FACT_OWNERSHIP_UNRESOLVED' as const};unresolvedTargets.push(gap);
+   if(!options.collectOnly){const id=await sha256(canonicalJson({feedId:tx.snapshot.feed.id,window,...gap}));if(!await tx.read('editorial_processing_waits',id))await tx.write('editorial_processing_waits',id,{id,feedId:tx.snapshot.feed.id,window,...gap,createdAt:now})}
+  }
   // One reader-facing fact per supported meaning: equivalent propositions from different mentions/publishers keep every support reference.
   const sameTime=(a?:string,b?:string)=>a===b,facts=mergeEquivalentFacts(rawFacts,(survivor,duplicate)=>{survivor.claimMentionIds=[...new Set([...survivor.claimMentionIds,...duplicate.claimMentionIds])];survivor.mergedPropositionIds=[...new Set([...(survivor.mergedPropositionIds??[]),...(duplicate.propositionId?[duplicate.propositionId]:[])])]},(a,b)=>a.attribution===b.attribution&&sameTime(a.eventTime,b.eventTime)&&(a.certainty?.kind??'UNSPECIFIED')===(b.certainty?.kind??'UNSPECIFIED'));
   // Preserve proposition report/event times separately from source publication and Feed observation.
@@ -131,9 +143,9 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   if(knownRepeat&&!candidate.protectedReasons.length&&!related.length)continue;
   candidates.push(candidate);
  }
- const communication=await communicationFingerprint(tx,window.end),bounded=boundShortlist(candidates,ordinaryLimit),id=await sha256(canonicalJson({feedId:tx.snapshot.feed.id,revision:tx.snapshot.feed.revision,window,communication,candidates:candidates.map(c=>[c.targetVersionId,c.protectedReasons,c.correctionObligationIds]).sort(),ordinaryLimit:ordinaryLimit??null,ranking:candidates.map(c=>[c.targetVersionId,c.ranking]),bootstrap,policy:SHORTLIST_POLICY}));
+ const communication=await communicationFingerprint(tx,window.end),bounded=boundShortlist(candidates,ordinaryLimit),id=await sha256(canonicalJson({feedId:tx.snapshot.feed.id,revision:tx.snapshot.feed.revision,window,communication,...(unresolvedTargets.length?{unresolvedTargets}:{}),candidates:candidates.map(c=>[c.targetVersionId,c.protectedReasons,c.correctionObligationIds]).sort(),ordinaryLimit:ordinaryLimit??null,ranking:candidates.map(c=>[c.targetVersionId,c.ranking]),bootstrap,policy:SHORTLIST_POLICY}));
  const prior=await tx.read<ShortlistRecord>('shortlists',id);if(prior)return prior;
- const value:ShortlistRecord={bootstrap,id,feedId:tx.snapshot.feed.id,feedRevision:tx.snapshot.feed.revision,window,communicationFingerprint:communication,candidates:bounded.selected,overflow:bounded.overflow,obligations,ledger:ledger.map(e=>({id:e.id,claimText:e.claimText,claimFacts:e.claimFacts,eventIds:e.eventIds,storylineIds:e.storylineIds,certainty:e.certainty,editionId:e.editionId,evidenceRevisionIds:e.evidenceRevisionIds,...(publicationStates.get(e.editionId)==='WITHDRAWN'?{withdrawn:true}:{})})),evidenceRevisionIds:[...new Set(bounded.selected.flatMap(c=>c.evidenceRevisionIds))],policyVersion:SHORTLIST_POLICY,createdAt:now};if(!options.collectOnly){await tx.write('shortlists',id,value);for(const c of bounded.overflow)await deferEditorialWork(tx,c,'SHORTLIST_OVERFLOW',now,id,window.end)}return value;
+ const value:ShortlistRecord={...(unresolvedTargets.length?{unresolvedTargets}:{}),bootstrap,id,feedId:tx.snapshot.feed.id,feedRevision:tx.snapshot.feed.revision,window,communicationFingerprint:communication,candidates:bounded.selected,overflow:bounded.overflow,obligations,ledger:ledger.map(e=>({id:e.id,claimText:e.claimText,claimFacts:e.claimFacts,eventIds:e.eventIds,storylineIds:e.storylineIds,certainty:e.certainty,editionId:e.editionId,evidenceRevisionIds:e.evidenceRevisionIds,...(publicationStates.get(e.editionId)==='WITHDRAWN'?{withdrawn:true}:{})})),evidenceRevisionIds:[...new Set(bounded.selected.flatMap(c=>c.evidenceRevisionIds))],policyVersion:SHORTLIST_POLICY,createdAt:now};if(!options.collectOnly){await tx.write('shortlists',id,value);for(const c of bounded.overflow)await deferEditorialWork(tx,c,'SHORTLIST_OVERFLOW',now,id,window.end)}return value;
 }
 export async function prepareSemanticShortlist(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,ordinaryLimit:number|undefined=undefined,env?:Env,fetcher:typeof fetch=fetch):Promise<ShortlistRecord>{
  if(!env)return feedTransact(store,feedId,tx=>shortlistInTransaction(tx,window,now,ordinaryLimit));
