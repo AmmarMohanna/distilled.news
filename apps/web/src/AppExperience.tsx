@@ -55,16 +55,21 @@ export function AppExperience(props: {
   const [installError, setInstallError] = useState("");
   const { language, t } = useLanguage();
   const homeRef = useRef<HTMLDivElement>(null);
+  const exploreRef = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
-    const home = homeRef.current;
+    const home = tab === 'home' ? homeRef.current : exploreRef.current;
     const viewport = home?.closest('.screen-page-viewport');
     const content = home?.closest('.screen-page-content');
-    if (!home || !viewport || !content || tab !== 'home') return;
+    if (!home || !viewport || !content || !props.account || !['home','explore'].includes(tab)) return;
     const distribute = () => {
       const current = parseFloat(home.style.getPropertyValue('--home-feed-extra-space')) || 0;
-      const spare = viewport.getBoundingClientRect().bottom - content.getBoundingClientRect().bottom + current;
-      const extra = innerWidth >= 900 ? Math.floor(Math.min(48, Math.max(0, spare - 12) * .7)) : 0;
+      const currentTop = parseFloat(home.style.getPropertyValue('--dashboard-top-space')) || 0;
+      const spare = viewport.getBoundingClientRect().bottom - content.getBoundingClientRect().bottom + current + currentTop;
+      const total = innerWidth >= 900 ? Math.floor(Math.min(72, Math.max(0, spare - 12) * .7)) : 0;
+      const top = innerWidth >= 900 ? Math.min(16, Math.max(0, Math.floor((innerHeight - 560) * .2))) : 0;
+      const extra = Math.max(0, total - top);
       if (Math.abs(extra - current) > 1) home.style.setProperty('--home-feed-extra-space', `${extra}px`);
+      if (Math.abs(top - currentTop) > 1) home.style.setProperty('--dashboard-top-space', `${top}px`);
     };
     distribute();
     const observer = new ResizeObserver(distribute);
@@ -72,7 +77,7 @@ export function AppExperience(props: {
     observer.observe(viewport);
     window.addEventListener('resize', distribute);
     return () => { observer.disconnect(); window.removeEventListener('resize', distribute); };
-  }, [tab, query, props.briefings.length]);
+  }, [tab, query, props.briefings.length, feeds.length, props.account?.id]);
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : "Settings")} · Distilled.news` : "distilled.news — A calmer perspective on a complex world."; }, [tab, language, props.account]);
   useEffect(() => {
     let active = true;
@@ -126,20 +131,21 @@ export function AppExperience(props: {
     {(props.error || error) && <p className="error" role="alert">{props.error || error}</p>}
     {tab === "home" && props.account && <div className="home-view" ref={homeRef}>
       <section className="welcome-hero"><div className="welcome-copy"><h1>{t("Welcome back!")}</h1><p>{t("You choose what matters.")}</p></div></section>
-      <div className="explore-controls home-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button className="primary-button home-add-feed" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={20}/><span className="create-feed-label">{t("Create feed")}</span></button></div>
+      <div className="explore-controls home-controls dashboard-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button className="primary-button home-add-feed" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={20}/><span className="create-feed-label">{t("Create feed")}</span></button></div>
       <section className="your-feeds"><div className="experience-section-heading"><h2>{t("Your feeds")}</h2></div><FeedGrid className="personal-feed-grid">{props.briefings.filter(feed => !query || feed.title.toLowerCase().includes(query.toLowerCase())).map(feed => <article className="topic-card feed-widget" key={feed.id}><a href={feedUrl(feed)}><FeedArt canGenerate feed={feed} kind={topics.find(topic => topic.pattern.test(feed.title))?.art}/><span className="topic-name"><span className="feed-card-identity"><strong>{feed.title}</strong><small>@{feed.ownerUsername}</small></span><ArrowRight size={14}/></span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a><FeedCardActions feed={feed} owner onError={setError} canPublish={props.account?.role === "admin"} featured={loading ? undefined : feeds.some(selected => selected.id === feed.id)}/></article>)}</FeedGrid>{!props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
     </div>}
-    {(tab === "explore" || !props.account) && <section className="explore-view">
+    {(tab === "explore" || !props.account) && <section className="explore-view" ref={exploreRef}>
       {props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
         <h1>{t("A calmer perspective on a complex world.")}</h1>
         <p>{t("You choose what matters.")}</p>
       </div>}
-      <div className={props.account ? "explore-controls" : "landing-controls"}>
+      <div className={props.account ? "explore-controls dashboard-controls" : "landing-controls"}>
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds…")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
       </div>
-      {props.account && feeds.length > 0 && <div className="category-chips" aria-label={t("Topic categories")}><select className="compact-category-filter" aria-label={t("Topic categories")} value={category} onChange={event => setCategory(event.target.value)}>{["All feeds", ...availableTopics.map(topic => topic.category)].map(item => <option key={item} value={item}>{t(item)}</option>)}</select>{["All feeds", ...availableTopics.map(topic => topic.category)].map(item => <button key={item} aria-pressed={category === item} className={category === item ? "selected" : ""} onClick={() => setCategory(item)}>{t(item)}</button>)}</div>}
+
       <section className="featured-feeds">
+      {props.account && feeds.length > 0 && <div className="category-chips" aria-label={t("Topic categories")}><select className="compact-category-filter" aria-label={t("Topic categories")} value={category} onChange={event => setCategory(event.target.value)}>{["All feeds", ...availableTopics.map(topic => topic.category)].map(item => <option key={item} value={item}>{t(item)}</option>)}</select>{["All feeds", ...availableTopics.map(topic => topic.category)].map(item => <button key={item} aria-pressed={category === item} className={category === item ? "selected" : ""} onClick={() => setCategory(item)}>{t(item)}</button>)}</div>}
         {loading ? <p role="status">{t("Loading feeds…")}</p> : visibleFeeds.length ? <FeedGrid className="topic-grid curated-feed-grid">{visibleFeeds.map(feed => <article className="topic-card feed-widget" key={feed.id}>
           <a href={feedUrl(feed)}><FeedArt canGenerate={props.briefings.some(owned => owned.id === feed.id)} feed={props.briefings.find(owned => owned.id === feed.id) ?? feed}/><span className="topic-name"><span className="feed-card-identity"><strong>{feed.title}</strong><small>@{feed.ownerUsername}</small></span><ArrowRight size={14}/></span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a>
           <FeedUpdatedAt value={feed.latestUpdatedAt}/>
