@@ -12,9 +12,9 @@ export async function traceSourceCollection(db: D1Database, feedId: string, sour
     for (const table of ['connector_provider_poll_jobs', 'connector_rss_poll_jobs'])
         if (tables.has(table))
             reads.push({ kind: 'jobs', statement: db.prepare(`SELECT job_id AS id,state,due_at AS dueAt,lease_until AS leaseUntil,attempts,last_error AS lastError${table === 'connector_provider_poll_jobs' ? ',provider_order AS providerOrder' : ''} FROM ${table} WHERE json_extract(request,'$.scope.feedId')=? AND json_extract(request,'$.scope.feedSourceId')=? ORDER BY due_at DESC LIMIT 1`).bind(feedId, sourceId) });
-    for (const table of ['connector_provider_batches', 'connector_batches'])
+    for (const [table, batchId] of [['connector_provider_batches', 'batch_key'], ['connector_batches', 'handoff_id']])
         if (tables.has(table))
-            reads.push({ kind: 'batches', statement: db.prepare(`SELECT batch_key AS id,json_extract(data,'$.providerId') AS provider,json_extract(data,'$.request.coverage') AS coverage,json_array_length(json_extract(data,'$.request.observations')) AS observations,json_array_length(json_extract(data,'$.request.proposals')) AS proposals,receipts IS NOT NULL AS accepted FROM ${table} WHERE feed_id=? AND feed_source_id=? ORDER BY json_extract(data,'$.request.coverage.fetchStartSequence') DESC LIMIT 1`).bind(feedId, sourceId) });
+            reads.push({ kind: 'batches', statement: db.prepare(`SELECT ${batchId} AS id,json_extract(data,'$.providerId') AS provider,json_extract(data,'$.request.coverage') AS coverage,json_array_length(json_extract(data,'$.request.observations')) AS observations,json_array_length(json_extract(data,'$.request.proposals')) AS proposals,receipts IS NOT NULL AS accepted FROM ${table} WHERE feed_id=? AND feed_source_id=? ORDER BY json_extract(data,'$.request.coverage.fetchStartSequence') DESC LIMIT 1`).bind(feedId, sourceId) });
     if (tables.has('connector_provider_attempts'))
         reads.push({ kind: 'attempts', statement: db.prepare("SELECT run_id AS id,json_extract(data,'$.providerId') AS provider,json_extract(data,'$.failure') AS failure,json_extract(data,'$.sequence') AS sequence FROM connector_provider_attempts WHERE feed_id=? AND feed_source_id=? ORDER BY json_extract(data,'$.sequence') DESC LIMIT 1").bind(feedId, sourceId) });
     if (tables.has('connector_fetch_runs'))

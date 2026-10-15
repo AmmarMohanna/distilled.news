@@ -2,6 +2,21 @@ import { it, expect } from 'vitest';
 import { createIntakeDatabase, seedIntakeScope } from '../v1-intake/test-utils';
 import { V1IntakeStore } from '../v1-intake/store';
 import { traceSourceCollection } from './pipeline-trace-sources';
+import { SOURCE_STORAGE_SCHEMA } from '@distilled/connectors';
+it('reads real RSS batch identities without exposing another Feed collection', async () => {
+    const ctx = await createIntakeDatabase();
+    try {
+        await seedIntakeScope(new V1IntakeStore(ctx.db));
+        await ctx.db.exec(SOURCE_STORAGE_SCHEMA.replace(/\r?\n/g, ' '));
+        for (const [feed, id] of [['feed-1', 'rss-batch'], ['feed-2', 'private-batch']]) {
+            await ctx.db.prepare('INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data) VALUES(?,?,?,?)').bind(feed, 'feed-source-1', id, JSON.stringify({request:{coverage:{fetchStartSequence:1},observations:[{id:'article'}]}})).run();
+        }
+        const r = await traceSourceCollection(ctx.db, 'feed-1', 'feed-source-1', new Set(['connector_batches']));
+        expect(r.lastBatches).toEqual([expect.objectContaining({id:'rss-batch',observations:1,accepted:0})]);
+        expect(r.lastConfirmedStage).toBe('OBSERVATIONS_SAVED');
+        expect(JSON.stringify(r)).not.toContain('private-batch');
+    } finally { await ctx.dispose(); }
+}, 20000);
 it('saved provider order, attempt and partial coverage are diagnostic evidence, never successful content acquisition', async () => {
     const ctx = await createIntakeDatabase();
     try {
