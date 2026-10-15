@@ -60,8 +60,8 @@ test("phone install control explains the browser install path", async ({ browser
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Install App (PWA)" }).click();
-  await expect(page.getByRole("dialog", { name: "Install App (PWA)" })).toContainText("Add to Home Screen");
+  await page.getByRole("button", { name: "Install app" }).click();
+  await expect(page.getByRole("dialog", { name: "Install app" })).toContainText("Add to Home Screen");
   await context.close();
 });
 

@@ -176,10 +176,10 @@ test("install action invokes the browser installation prompt", async ({ page }) 
     window.dispatchEvent(event);
   });
   await page.getByRole('navigation').getByRole('button', {name:'Settings'}).click();
-  await page.getByRole('button', {name:'Install App (PWA)'}).click();
+  await page.getByRole('button', {name:'Install app'}).click();
   expect(await page.evaluate(() => (window as any).installRequested)).toBe(true);
   await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
-  await expect(page.getByRole('dialog', {name:'Install App (PWA)'}).getByRole('status')).toHaveText('Installation completed. Check your apps.');
+  await expect(page.getByRole('dialog', {name:'Install app'}).getByRole('status')).toHaveText('Installation completed. Check your apps.');
 });
 
 test("disabled notifications do not request a browser subscription", async ({ page }) => {
