@@ -26,3 +26,12 @@ No changes to `v1-intelligence/runtime.ts`, historical payment reservations, rem
 7. Create a mixed-source test feed and inspect source health before publishing. Compare published facts against individual acquired articles. Local tests/builds do not establish live collection, full recall or briefing quality.
 
 The reported staging failures require this rollout and payment reconciliation; they are not claimed fixed on the running site by a local commit.
+
+## Targeted X/LinkedIn operational repair
+
+The subsequent staging repair changes configuration only, preserving the deployed code and unrelated bindings:
+
+- X primary, X fallback and LinkedIn deployment limits and existing D1 grants are each $15. The per-source/provider cap is $15, TwitterAPI.io request ceiling $0.01 and Apify actor ceiling $0.25. Existing reservations are retained; unrelated provider grants are unchanged.
+- The sole legacy unattributed TwitterAPI.io operation `98ad1e956b77a779f3c9cbd20a28bddcb9c3c15add2ab4c89eab2ceae306fafa` matches one immutable fetch run on feed `briefing_e4a09418-6702-4546-ac94-055fe70dd9ec`, source suffix `apify_x_profile_1o7k6ao`. Its operation ID is exactly SHA-256 of the canonical JSON tuple `[scope, run_id]`. Restoring these missing scope columns removes the incorrect global fence without resolving its unknown outcome or changing its $0.01 reservation. That original source remains fenced across primary and fallback.
+- `scripts/attribute-legacy-x-operation.mjs` provides dry-run and explicit `--apply` modes for this narrow repair. It accepts only an unattributed, unresolved TwitterAPI.io operation with exactly one matching immutable run, compares the original request hash during update, and verifies that payment state is unchanged. It does not call a provider or manufacture a response.
+- Historical blocked polling jobs are retained. New ordinary polling windows for unrelated, approved sources can proceed. Live acquisition evidence must still be checked; configuration admission alone is insufficient.

@@ -224,7 +224,7 @@ export async function expireConnectorDeliveries(env:Env,now=Date.now()){
 export async function recoverConnectorPoll(env:Env,kind:'rss'|'provider',jobId:string){
  const table=tables[kind];
  if(!table)throw Error('INVALID_POLL_KIND');
- const row=await env.DB.prepare(`SELECT request,state,last_error,lease_until FROM ${table} WHERE job_id=?`).bind(jobId).first<{request:string;state:string;last_error:string|null;lease_until:string|null}>();
+ const row=await env.DB.prepare(`SELECT request,state,last_error,lease_until${kind==='provider'?',provider_order':''} FROM ${table} WHERE job_id=?`).bind(jobId).first<{request:string;state:string;last_error:string|null;lease_until:string|null;provider_order?:string}>();
  if(!row)throw Error('POLL_NOT_FOUND');
  if(row.state==='DONE'||row.state==='CANCELLED')throw Error('POLL_ALREADY_TERMINAL');
  if(row.lease_until&&Date.parse(row.lease_until)>Date.now())throw Error('POLL_LEASE_ACTIVE');
@@ -236,6 +236,14 @@ export async function recoverConnectorPoll(env:Env,kind:'rss'|'provider',jobId:s
    const {D1ProviderSourceRepository,sourceSqlFromD1}=await import('@distilled/connectors');
    readRecovered=await new D1ProviderSourceRepository(sourceSqlFromD1(env.DB)).hasReadRecovery(request.scope,await sha256(JSON.stringify([request.scope,request.runId,providerId])),providerId)
     &&!await env.DB.prepare('SELECT 1 FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND payload_ref IS NULL LIMIT 1').bind(request.scope.feedId,request.scope.feedSourceId).first();
+  }
+  if(!readRecovered&&kind==='provider'){
+   // A poll may have stopped before dispatch because a different source had an
+   // unattributed legacy hold. Once immutable lineage restores that hold's
+   // owner, resume this same poll only if none of its providers remain fenced.
+   const providers=JSON.parse(row.provider_order??'[]') as string[];
+   const {hasUncertainSourcePayment}=await import('./connector-paid-fence');
+   if(providers.length&&!await hasUncertainSourcePayment(env.DB,request.scope.feedId,request.scope.feedSourceId,providers))readRecovered=true;
   }
   if(!readRecovered)throw Error('PAID_RECONCILIATION_REQUIRED');
  }

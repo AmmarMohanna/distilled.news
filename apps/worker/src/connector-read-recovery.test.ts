@@ -19,6 +19,16 @@ beforeEach(async()=>{
 });
 afterEach(async()=>{vi.restoreAllMocks();await ctx.dispose();});
 const response=()=>Response.json({data:{id:'ExistingRun',status:'SUCCEEDED',defaultDatasetId:'ExistingDataset'}});
+it('resumes a poll blocked before dispatch once another source owns the legacy hold',async()=>{
+ await ctx.db.prepare("UPDATE connector_provider_operations SET feed_id='other-feed',feed_source_id='other-source'").run();
+ await recoverConnectorPoll(env,'provider','read-job');
+ expect(await ctx.db.prepare("SELECT state,last_error FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual({state:'PENDING',last_error:null});
+ expect(await ctx.db.prepare('SELECT status,payload_ref,feed_source_id FROM connector_provider_operations').first()).toEqual({status:-1,payload_ref:null,feed_source_id:'other-source'});
+});
+it('does not resume behind an unattributed hold on a provider in the frozen order',async()=>{
+ await ctx.db.prepare('UPDATE connector_provider_operations SET feed_id=NULL,feed_source_id=NULL').run();
+ await expect(recoverConnectorPoll(env,'provider','read-job')).rejects.toThrow('PAID_RECONCILIATION_REQUIRED');
+});
 it('recovers only the saved status GET, preserves reservations and resumes the same poll',async()=>{
  await expect(recoverConnectorPoll(env,'provider','read-job')).rejects.toThrow('PAID_RECONCILIATION_REQUIRED');
  const fetcher=vi.fn(async(value:unknown,init?:RequestInit)=>{expect(value).toBe(url);expect(init?.method).toBe('GET');return response();});
