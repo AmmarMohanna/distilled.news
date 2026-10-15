@@ -232,4 +232,3 @@ function observation(url:string):BrowserObservationData {
   return {url,finalUrl:url,title:"",pageId:"page",pageRevision:"revision",contentType:"application/json",raw:new Uint8Array(),representation:{},
     observationSource:"CDP_DOM_SNAPSHOT",protocolSnapshotVersion:"test",controls:[],challengeState:"NO_CHALLENGE",watermarkObserved:false};
 }
-

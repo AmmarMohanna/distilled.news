@@ -589,3 +589,76 @@ source text; the demonstrated Anthropic policy/police-tip grouping; X's historic
 provider fence; no natural Telegram or new full-article canary; six baseline browser
 failures. No historical edition, paid identity or failed request was reset. Main,
 main2, production and sources QA were untouched.
+
+## October 15 independent integration audit (follow-up from 96f91d4)
+
+Audited starting commit `96f91d4`; same integration branch, no repeat merge. Original latest inspected heads: recovery `61c354871dadde07d261064db6408f8f016131e0`, sources `9052b56434adb58474f52fc1f78dfba4b7fd6eb4`; common base `23c4c49d06561fbe1c7f02af0a640f1135a4547c`. Both heads and `34a7a6c` are ancestors. Conclusions below use actual source, local D1 tests and independent read-only Cloudflare/D1 queries, not branch authorship.
+
+## Component comparison
+
+| Component | Retained result and evidence |
+|---|---|
+| Indexed scheduler/fair continuation | Source implementation retained: indexed due-feed/poll queries, durable ownership, configuration wakeups and per-feed refill. Integration adds generation-specific completion and mandatory lane configuration checks. 1,000-feed local dispatch test processed 1,000 messages in 420 ms; synthetic, not live throughput. |
+| Queue lanes/renewable turns | Source collection/acquisition/intelligence separation retained alongside recovery publication pipeline. Token/lease checks and feed/source CAS remain authoritative; each retry owns a fresh transaction cache. Existing integration tests cover expiration, stale delivery and concurrent Feeds. |
+| Acquisition/provenance | Source full-article, Google/website discovery, canonical URLs and pagination retained. New RSS update repair lets excerpts request reacquisition; canonical promotion still rejects downgrade, conflicting ordering and revoked scope. No historical refetch. |
+| Telegram/provider finance | Source session lane, explicit edit/deletion checks and independent primary/fallback accounting retained; recovery UNKNOWN fences strengthen provider submission safety. No live Telegram validation on the sole active RSS Feed. |
+| Shared public cache | Source anonymous-only cache retained, with private/cookie/credential bypass and independent authorization/receipts. 1,000-consumer reuse covered locally; no shared Event ownership introduced. |
+| Events/editorial/publication | Recovery semantic construction, Event-owned facts, global comparison, continuation, reader ledger, writer/independent verifier and correction safeguards retained. This preserves implementation functionality, not proof that model judgments are correct. |
+| Model financial state | Recovery streaming receipts, spending authority, settlements, UNKNOWN compatibility and existing approved quarantine behavior retained. No grant or concurrency changes, new quarantine or financial settlement performed by this audit. |
+| Product/authentication | No frontend, visibility, Outlook, push configuration or source schedule code changed. Public/Private contracts and manual-Brief-now retirement retained. |
+| Migrations/resources | Exact 64-file union retained, including six duplicate numeric prefixes; full filenames govern migration identity. Fresh/recovery/source SQLite upgrade checks converge without deleting history. Staging independently has all 64, with none missing/extra. |
+
+## Four prior review findings
+
+1. Failed intake is explicit `INCOMPLETE`, not successful quiet coverage; available verified stories may still publish. The two failed current revisions remain genuinely unrecovered.
+2. Internal briefing response reads durable outcome instead of equating missing edition to `NO_NEWS`.
+3. Shortlist fallback uses exact Event-owned retained state and membership support, not all article sentences.
+4. Trace resolves window/page context in scoped SQL. A separate live repair-reference defect was reproduced and fixed: overview now follows the edition verification ID, rather than assuming the original draft ID. It does not hydrate all historical drafts.
+
+## Independently verified actual staging
+
+Worker `distilled-news-staging`, account `e32b564514d4f9b9e383b7dd30dbb026`, D1 `ab259bfe-6029-4e20-8cb6-eea6b7a67459`. Sources QA is separate and untouched. Version `f6096ff9-32a3-4045-9801-8a973017f715` explicitly annotates commit `96f91d4`; all deployed staging variables match Wrangler. Four queue lanes plus four DLQs, R2, private VPC source-service binding and 14 secret bindings are retained. Binding presence is not proof of a successful Telegram request.
+
+Only AI Industry Watch2 is active with three RSS sources; old Lebanon/AI test Feeds are paused. They were not resumed. Existing authorization remains $50/7 days with the pre-existing effective concurrency25. Snapshot13:35 UTC: reported $11.194038418, held exposure $1.528542294,26 unresolved liabilities and unchanged25 approved historical quarantines. Held exposure was not written off and expired leases were not interpreted as provider termination.
+
+## Actual publications and omissions
+
+| Beirut window | Retained outcome |
+|---|---|
+|12:00|35 candidates/67 facts all model-reviewed;4 SELECT,31 DEFER. Two repeats removed by independent verifier. Plaud funding and Brad Smith regulation comments published,4 mandatory facts,2 ledger entries. Edition69ae7781...0471 at12:06:22.491;3 confirmed calls total$0.0245968.|
+|13:00|33 candidates all reviewed;2 SELECT,31 SUPPRESS. No edition; durable DEFERRED because intake coverage remains incomplete. These are accepted omissions, not input-capacity exclusions.|
+|14:00|2 candidates/4 facts,2 SELECT; no edition, DEFERRED/incomplete coverage.|
+|15:00|2 candidates/30 facts, both offered and selected. Full BBC article3594chars, one provisional Event28 candidate facts;22 required facts published in one long claim. One repeated sibling removed;1 ledger entry. Edition54bc7868...9cf0 at15:06:54.518. Planner$0.0060912 plus writer/repair/verifier$0.0167916=$0.0228828;4 confirmed calls.|
+|16:00|3 candidates offered;1 SELECT,2 DEFER. Selection committed; writer and one repair completed but quantity fidelity rejected the required headline$75 versus body/draft$74.99. FAILED/INVALID_REQUEST,1 recorded attempt, no semantic-verifier call or edition. Planner/writer/repair total$0.0186504. Terminal request untouched.|
+
+The public API independently returns14 editions, including noon and15:00; unauthenticated operator trace returns401. The long15:00 text is already one stored writer claim: frontend joining did not create this grouping.
+
+## Confirmed quality and retention gaps
+
+- Five rematches of the full BBC article remain rejected. Exact original and repair diagnostics: `MATERIAL_BACKGROUND`, backgroundMentionIds[1]. A related-story-style 'How ... could ...' heading triggers the blanket hedge prohibition. Model references resolve correctly. Removing the guard would risk losing genuine uncertain facts. Even accepting this response would not prove its proposed Event grouping correct.
+- The engine's rejected-construction fallback formed one provisional Event over the mixed article. Investor outreach, other companies, market movements and safety commentary were then approved as22 new required facts, with zero designated context facts. Publication success is not validated semantic separation.
+- Firmus IPO cancellation and both sides of the OpenAI researchers dispute were reader-UNSEEN but SUPPRESS/OUT_OF_SCOPE at13:00. Rationales narrowed broad industry interests to current model/product news and invoked reporting age. This is a demonstrated judgment mismatch, not a reason to force every deferred candidate into publication. Ticket promotions/unrelated entertainment had defensible omissions. No story count/input capacity excluded these candidates.
+- Durable editorial omissions are reconsidered for new evidence/version, changed Feed interests/revision or policy. Unchanged compatible omissions retire; new reader-history context alone is not an implemented reopening condition. No retained example yet proves that latter limitation caused a later omission.
+- Reader history knows only generic Anthropic revenue growth, not the newly published precise financial figures. Generic contextual overlap is not proof that all new details repeat. The repeated YouTube sibling was independently rejected rather than projected as new.
+- Exact revenue fact ends 'the BBC understands'; published prose omits that explicit source qualification. Approved structured attribution was unset/UNSPECIFIED and the verifier accepted. Citation supports origin, but explicit reporting qualification was lost. Assess materiality rather than inventing a correction automatically.
+- Current retained revision inventory:75 excerpts83-476chars and2 full articles3487-3594chars. Full acquisition is now demonstrated on natural arrivals; historical thin evidence was not refetched. No complete-source coverage claim is justified.
+- Two FAILED Oct13 reassessments are Microsoft regulation revision8efef... and WindBorne62ec... . Current revision IDs remain unchanged; only observation pointers advanced on replay. Their coverage failure is truthful. The new alias-order/case regression is independently proven but not falsely assigned as their historical cause; prior provenance collision repair does not reset terminal jobs.
+- Three SOURCE_REVISED obligations are currently OPEN on the active Feed. The old withdrawn roots cannot be invented into current corrective ownership. No verified corrective ledger delivery is claimed. Older paused-Feed Anthropic-policy correction is distinct.
+- RSS publication-date-only change detection remains an inherited limitation: fingerprints exclude publication metadata. A naive hash change risks rediscovering/rebilling history; a compatibility-safe metadata propagation repair remains needed.
+
+## Bounded fixes
+
+`02b118b`: entity witness equality now uses the same label normalization/sorted aliases as its existing durable identity; retains original immutable entity/provenance. Paid identities/policy versions unchanged. Reordered aliases and case-only labels failed before, pass after; changed support still rejects.
+
+`a874962`: URL-bearing excerpt/listing may reach ACQUIRE; acquired full article must pass independent canonical guards. Both variants failed before, pass after, and failed excerpt fallback preserves prior full text. No historical jobs or records reset.
+
+`2a76b3a`: trace overview reads bounded, Feed-scoped grounding records from published verification references. New regression failed null-versus1 before; also rejects counting superseded initial grounding as final. Actual15:00 replay now reports2 grounded,1 published,1 ledger-projected.
+
+## Verification and release
+
+Local:71/71 intake/evidence/semantic-state/connector-scale tests;42/42 trace tests;4/4 partial-publication tests. Worker and workspace typechecks pass, frontend build passes, staging dry-run passes, migration checker passes, git diff --check passes. First draft fixture failures (incorrect strict proposal property and attempted mutation of an immutable fixture) were corrected; immutable production guards were preserved. Full CI/release results will be appended after completion.
+
+No manual edition, investigation-only inference/provider call, remote migration, grant amendment, reset, new quarantine, source refetch or production/QA deployment occurred in this investigation.
+
+
+Broader verification at `a874962`: full Worker1509 passed/11 skipped, contracts44, core43, web27 and browser-bridge82 passed. Two other suites had one failure each: agent-runtime266 pass/1 fail/2 skipped (500-setImmediate startup readiness race, before settlement assertions), connectors236 pass/1 fail (exact10 ms expectation versus actual14 ms elapsed time). Both pass in isolation. The following test-only correction replaces the readiness poll with the stub request-start promise and freezes Date.now for deterministic telemetry; no assertion/deadline changed. Complete affected files subsequently pass80 connector and5 runtime tests; runtime typecheck passes. These are not claimed as a fully passing final workspace run: final CI is pending. Earlier six browser failures have separate baseline evidence (four real Preferences overflow cases, two guest-navigation contract mismatches); this audit does not hide or weaken them. Final staging deployment and later-window results are recorded separately after their actual execution.
