@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-for (const size of [{width:320,height:568},{width:390,height:664},{width:1280,height:593},{width:667,height:375}]) {
+for (const size of [{width:320,height:568},{width:390,height:664},{width:1280,height:593},{width:1825,height:900},{width:667,height:375}]) {
   test(`balanced pages and accessible header at ${size.width}x${size.height}`, async ({page}, testInfo) => {
     await page.setViewportSize(size);
     const feeds=Array.from({length:12},(_,i)=>({id:`feed-${i}`,ownerUsername:'reader',ownerAccountId:'owner',slug:`feed-${i}`,title:`Science ${i}`,stars:0,publicFeedEnabled:true}));
@@ -22,6 +22,11 @@ for (const size of [{width:320,height:568},{width:390,height:664},{width:1280,he
       await page.keyboard.press('Escape');
     }
     const homeSearch=(await page.locator('.home-controls').boundingBox())!;
+    if(size.width>=900){
+      const field=(await page.locator('.home-controls .explore-search').boundingBox())!;
+      const create=(await page.locator('.home-add-feed').boundingBox())!;
+      expect(create.x-field.x-field.width).toBeCloseTo(24,0);
+    }
     const heading=(await page.locator('.your-feeds .experience-section-heading').boundingBox())!;
     const card=(await page.locator('.home-view .topic-card').first().boundingBox())!;
     expect(card.y-heading.y-heading.height).toBeGreaterThanOrEqual(11);
@@ -29,7 +34,7 @@ for (const size of [{width:320,height:568},{width:390,height:664},{width:1280,he
     expect(await viewport.evaluate(el=>el.scrollHeight-el.clientHeight)).toBeLessThanOrEqual(1);
     await page.getByRole('button',{name:'Next page',exact:true}).click();
     await expect(page.locator('.feed-grid-pagination')).toContainText('2 /');
-    if(size.width===390)await page.screenshot({path:testInfo.outputPath('home.png')});
+    if(size.width===390||size.width===1825)await page.screenshot({path:testInfo.outputPath('home.png')});
     await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Explore',exact:true}).click();
     await expect(page.locator('.explore-view .topic-card').first()).toBeVisible();
     const exploreSearch=(await page.locator('.explore-controls').boundingBox())!;
