@@ -1,3 +1,5 @@
+import {ASYNC_PROCESSING_SLICE_MS} from './operation-timing';
+import {editorialContextFacts} from './editorial-context';
 import {HandoffError,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,sha256,type EventVersion,type EventMembership,type EvidenceRevision,type EventSalienceAssessment,type UserRelevance,type WindowScore,type BriefingCandidate,type TargetType} from '@distilled/contracts';
 import {z} from 'zod';
 import {evaluateEditorialDelta,communicationFingerprint,boundedEditorialContext,priorContextEvidence,type EditorialDecision} from './editorial';
@@ -21,7 +23,7 @@ const salienceScorer=new DeterministicSalienceScorer();
 export interface BriefingBudget {mode?:'ADAPTIVE';maxStories:number;maxReadingWords:number;maxEvidenceInspections:number;maxInputTokens:number;maxOutputTokens:number;maxModelCalls:number;maxCostUsd:number;maxPerPublisher:number;maxWallClockMs:number}
 /** Zero legacy dimensions are explicit, ignored sentinels, never tiny fallback quotas.
  * Context/output admission belongs to each model operation; spending belongs to the account ledger. */
-export const ADAPTIVE_BRIEFING_PROCESSING:BriefingBudget={mode:'ADAPTIVE',maxStories:0,maxReadingWords:0,maxEvidenceInspections:0,maxInputTokens:0,maxOutputTokens:0,maxModelCalls:0,maxCostUsd:0,maxPerPublisher:0,maxWallClockMs:90000};
+export const ADAPTIVE_BRIEFING_PROCESSING:BriefingBudget={mode:'ADAPTIVE',maxStories:0,maxReadingWords:0,maxEvidenceInspections:0,maxInputTokens:0,maxOutputTokens:0,maxModelCalls:0,maxCostUsd:0,maxPerPublisher:0,maxWallClockMs:ASYNC_PROCESSING_SLICE_MS};
 export const DEFAULT_BRIEFING_BUDGET:BriefingBudget={maxStories:5,maxReadingWords:500,maxEvidenceInspections:20,maxInputTokens:12000,maxOutputTokens:1500,maxModelCalls:4,maxCostUsd:.1,maxPerPublisher:2,maxWallClockMs:60000};
 export interface PublicationWindow {start:string;end:string;kind:'30M'|'HOURLY'|'DAILY'|'WEEKLY';durationMinutes?:LiveInterval;timezone?:string;deliveryAnchor?:string;schedulePolicy?:'local-calendar-anchors-v1'}
 export interface SelectionRecord {id:string;feedId:string;feedRevision:number;window:PublicationWindow;candidateIds:string[];selectedCandidateIds:string[];evidenceByCandidate:Record<string,string[]>;budget:BriefingBudget;policyVersion:string;computedAt:string;omissions:{candidateId:string;reason:string}[];editorialByCandidate?:Record<string,EditorialDecision>;communicationFingerprint?:string;editorialPlanId?:string;deferredProtectedTargetIds?:string[]}
@@ -119,11 +121,13 @@ export async function targets(tx:FeedTransaction,window:PublicationWindow,includ
  // follows durable intake admission, not queue completion time. Source reporting
  // age remains a separate freshness/framing decision. Scope and graph fences
  // still validate this read together with every other selection input at commit.
- return result.filter(target=>{
+ const eligible=result.filter(target=>{
   const times=target.evidence.map(revision=>admissions.get(revision.sourceObservationId)??Date.parse(revision.acceptedAt));
   const admittedAt=times.length?Math.max(...times):Date.parse(target.updatedAt);
   return admittedAt<Date.parse(window.end)&&(includeOutsideWindow||admittedAt>=Date.parse(window.start));
  });
+ await tx.preloadSemanticReferences(eligible.flatMap(target=>target.eventVersionIds));
+ return eligible;
 }
 function deterministicPrefilter(editorial:EditorialDecision,interests:string[],geography:string[]):void {
  if(editorial.decision!=='INCLUDE')return;
@@ -144,9 +148,15 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
  const window={...parsedWindow.data,start:new Date(parsedWindow.data.start).toISOString(),end:new Date(parsedWindow.data.end).toISOString()},budget:BriefingBudget=parsedBudget.data;
  const resolved=new Map<string,Awaited<ReturnType<typeof durableSalience>>>();
  const targetList=async(tx:FeedTransaction)=>{
-  const values=await targets(tx,window,Boolean(plan));if(!plan)return values;
-  if(plan.feedId!==feedId||plan.feedRevision!==tx.snapshot.feed.revision||canonicalJson({...plan.window,start:new Date(plan.window.start).toISOString(),end:new Date(plan.window.end).toISOString()})!==canonicalJson(window)||plan.communicationFingerprint!==await communicationFingerprint(tx,window.end))throw new HandoffError('TEMPORARY_UNAVAILABLE');
-  const selected=values.filter(t=>plan.stories.some(s=>s.targetVersionId===t.id));if(selected.length!==plan.stories.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');return selected;
+  const values=await targets(tx,window,Boolean(plan));let selected=values;
+  if(plan){
+   if(plan.feedId!==feedId||plan.feedRevision!==tx.snapshot.feed.revision||canonicalJson({...plan.window,start:new Date(plan.window.start).toISOString(),end:new Date(plan.window.end).toISOString()})!==canonicalJson(window)||plan.communicationFingerprint!==await communicationFingerprint(tx,window.end))throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   selected=values.filter(t=>plan.stories.some(s=>s.targetVersionId===t.id));if(selected.length!==plan.stories.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  }
+  // Support counting needs duplicate judgments, not the whole review graph.
+  // Warm them across this complete selection snapshot, including cached misses.
+  await tx.preload('duplicates',selected.flatMap(target=>target.evidence.map(revision=>JSON.stringify([revision.id,INTELLIGENCE_POLICY]))));
+  return selected;
  };
  const planEditorial=async(tx:FeedTransaction,target:Target):Promise<EditorialDecision>=>{
   const editorial=await evaluateEditorialDelta(tx,target,window.end,window.start);if(!plan){deterministicPrefilter(editorial,tx.snapshot.feed.interests,tx.snapshot.feed.geography);return editorial}
@@ -215,8 +225,8 @@ export async function scoreAndSelect(store:V1FeedStore,feedId:string,rawWindow:P
   const admissionOrder=plan?[...assessments].sort((a,b)=>Number(protectedVersions.has(b.target.id))-Number(protectedVersions.has(a.target.id))):assessments;
   for(const {target,candidate,publisherIds,editorial} of admissionOrder) {
    const planned=plan?.stories.find(s=>s.targetVersionId===target.id),scope=plan?(await tx.read<ShortlistRecord>('shortlists',plan.shortlistId))?.candidates.find(c=>c.targetVersionId===target.id):undefined;
-   const requiredIds=new Set(planned?[...planned.mustIncludeFactIds,...planned.newUnderstandingFactIds,...planned.attributionFactIds,...planned.certaintyFactIds,...planned.disagreementFactIds,...planned.openQuestionFactIds]:[]);
-   const inspectionFacts=scope?scope.facts.filter(f=>requiredIds.has(f.id)):editorial.newUnderstanding;
+   const requiredIds=new Set(planned?[...planned.mustIncludeFactIds,...planned.newUnderstandingFactIds,...planned.attributionFactIds,...planned.certaintyFactIds,...planned.disagreementFactIds,...planned.contextFactIds,...planned.openQuestionFactIds]:[]);
+   const inspectionFacts=scope?editorialContextFacts(scope,planShortlist!).filter(f=>requiredIds.has(f.id)):editorial.newUnderstanding;
    const uncovered=new Set(inspectionFacts.map((_,i)=>i)),inspectionEvidence:EvidenceRevision[]=[];
    const available=[...target.evidence];
    while(uncovered.size && available.length) {

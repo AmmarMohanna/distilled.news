@@ -4,9 +4,44 @@ import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
 import {testDurableSemanticOperation as durableSemanticOperation} from './test-utils';
+import {boundedCompletion} from '../ai';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await seedIntelligence(store)});
 afterEach(async()=>ctx.dispose());
+it('durably binds provider headers to the paid operation without changing its reservation identity',async()=>{
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'RELATION',policyVersion:'receipt-test',model:'fake',budgetKey:'test',state:{}};
+ const first=await durableSemanticOperation(store,input,async()=>{
+  const value=await boundedCompletion({accountId:'',gatewayId:'',provider:'OPENROUTER',apiKey:'fixture',model:'fake',fetcher:async()=>Response.json({choices:[{message:{content:'{"ok":true}'}}],usage:{cost:.001}},{headers:{'x-generation-id':'gen-durable'}})},'feed-1','event_review','RELATION','{}',{});
+  return {value,usage:{calls:1,costUsd:.001,reported:true}};
+ },'2026-10-03T12:00:00Z');
+ const rows=await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='model_provider_receipts' AND feed_id=?").bind('feed-1').all<{json:string}>();
+ expect(rows.results).toHaveLength(2);expect(rows.results.map(r=>JSON.parse(r.json))).toContainEqual(expect.objectContaining({reservationId:'semantic_intents:'+first.id,generationId:'gen-durable',model:'fake',stage:'HEADERS'}));
+ expect(await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations WHERE id=?').bind('semantic_intents:'+first.id).first()).toMatchObject({n:1});
+},15000);
+it('a captured header cannot release UNKNOWN money or authorize another paid call',async()=>{
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'RELATION',policyVersion:'receipt-unknown-test',model:'fake',budgetKey:'test',state:{}};let calls=0;
+ const run=async()=>{
+  calls++;
+  await boundedCompletion({accountId:'',gatewayId:'',provider:'OPENROUTER',apiKey:'fixture',model:'fake',fetcher:async()=>new Response(new ReadableStream({start(c){c.error(new DOMException('body lost','AbortError'))}}),{headers:{'x-generation-id':'gen-unknown'}})},'feed-1','event_review','RELATION','{}',{});
+  return {value:{},usage:{calls:1,costUsd:0,reported:false}};
+ };
+ const first=await durableSemanticOperation(store,input,run,'2026-10-03T12:00:00Z');expect(first.usage.reported).toBe(false);
+ await durableSemanticOperation(store,input,run,'2026-10-03T13:00:00Z');expect(calls).toBe(1);
+ const money=await ctx.db.prepare('SELECT cost_usd,reported FROM v1_model_spending_settlements WHERE id=?').bind('semantic_intents:'+first.id).first();
+ expect(money).toMatchObject({cost_usd:.02,reported:0});
+ expect((await ctx.db.prepare("SELECT COUNT(*) n FROM v1_feed_documents WHERE kind='model_provider_receipts' AND feed_id=?").bind('feed-1').first())?.n).toBe(1);
+},15000);
+it('settles verified provider usage before subsequent semantic processing can lose its outcome',async()=>{
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'RELATION',policyVersion:'early-usage-test',model:'fake',budgetKey:'test',state:{}};
+ let reportedBeforeReturn:number|undefined;
+ await durableSemanticOperation(store,input,async()=>{
+  const value=await boundedCompletion({accountId:'',gatewayId:'',provider:'OPENROUTER',apiKey:'fixture',model:'fake',fetcher:async()=>Response.json({choices:[{message:{content:'{"ok":true}'}}],usage:{cost:.003}},{headers:{'x-generation-id':'gen-early-usage'}}),onProviderReceipt:async receipt=>{
+   if(receipt.stage==='USAGE'){const row=await ctx.db.prepare('SELECT s.reported FROM v1_model_spending_settlements s JOIN v1_model_spending_reservations r ON r.id=s.id WHERE r.feed_id=?').bind('feed-1').first<{reported:number}>();reportedBeforeReturn=row?.reported}
+  }},'feed-1','event_review','RELATION','{}',{});
+  return {value,usage:{calls:1,costUsd:.003,reported:true}};
+ },'2026-10-03T12:00:00Z');
+ expect(reportedBeforeReturn).toBe(1);
+},15000);
 it('commits intent before provider use, replays exactly and rejects source revocation during a call',async()=>{
  const evidence=(await store.currentEvidence('feed-1')).map(e=>e.revision.id),input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:evidence,kind:'RELATION',policyVersion:'test',model:'fake',budgetKey:'test',state:{text:'approved'}};
  let calls=0;
@@ -20,6 +55,15 @@ it('unknown provider outcomes stay deferred and cannot automatically issue anoth
  const run=async()=>{calls++;throw Error('lost connection')};
  const first=await durableSemanticOperation(store,input,run,'2026-10-03T12:00:00Z');expect(first).toMatchObject({status:'DEFERRED',usage:{reported:false,costUsd:.02}});
  expect(await durableSemanticOperation(store,input,run,'2026-10-03T13:00:00Z')).toEqual(first);expect(calls).toBe(1);
+},15000);
+
+it('a new editorial window key cannot rebill the same unchanged UNKNOWN planner question',async()=>{
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'test',model:'fake',budgetKey:'editorial:original-window',state:{offered:['retained-development'],history:[]}};
+ let calls=0;const run=async()=>{calls++;throw Error('SEMANTIC_MODEL_TIMEOUT')};
+ const first=await durableSemanticOperation(store,input,run,'2026-10-03T12:00:00Z');
+ const next=await durableSemanticOperation(new V1FeedStore(ctx.db),{...input,budgetKey:'editorial:later-window',state:{...input.state,attempt:2}},run,'2026-10-04T12:00:00Z');
+ expect(next.id).toBe(first.id);expect(next.failure).toBe('SEMANTIC_OUTCOME_UNKNOWN');expect(calls).toBe(1);
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(1);
 },15000);
 
 it('comparative planning reserves a ninety-second lease without increasing the cost reservation',async()=>{

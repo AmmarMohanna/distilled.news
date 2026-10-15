@@ -11,7 +11,7 @@ import {prepareSemanticShortlist,type ShortlistCandidate,type ShortlistRecord} f
 import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,feedTransact} from './store';
-import {feedFixture,seedIntelligence} from './test-utils';
+import {feedFixture,seedIntelligence,syntheticModelAdmission} from './test-utils';
 import {deferEditorialWork} from './editorial-work';
 import {publishSelection} from './publication';
 import {projectEditionLedger} from './ledger';
@@ -66,8 +66,8 @@ describe('candidate-specific feasibility replaces the worst-case cardinality est
  it('protected publisher exceptions agree across validation and allocation without bypassing hard limits',()=>{
   const items=[item('A',1000,.9,{publisherIds:['p'],protectedItem:true,order:0}),item('B',1000,.8,{publisherIds:['p'],protectedItem:true,order:1}),item('C',1000,.7,{publisherIds:['p'],protectedItem:true,order:2}),item('D',1000,.6,{publisherIds:['p'],order:3})];
   const r=allocateFeasibleSelection(items,budget);expect([...r.accepted]).toEqual(['A','B','C']);expect(r.rejected.get('D')).toBe('PUBLISHER_CAPACITY');
-  const sl={candidates:items.map(i=>({targetVersionId:i.id,protectedReasons:i.protectedItem?['CORRECTION_OBLIGATION']:[],publisherIds:i.publisherIds,communicationCost:i.cost}))} as unknown as ShortlistRecord;
-  const body={stories:items.map(i=>({targetVersionId:i.id,decision:'SELECT',treatment:i.treatment,order:i.order})),obligations:[]} as unknown as EditorialPlanBody;
+  const sl={candidates:items.map(i=>({targetVersionId:i.id,protectedReasons:i.protectedItem?['CORRECTION_OBLIGATION']:[],publisherIds:i.publisherIds,communicationCost:i.cost,facts:[],evidenceRevisionIds:[],flags:[],correctionObligationIds:[]}))} as unknown as ShortlistRecord;
+  const body={stories:items.map(i=>({targetVersionId:i.id,decision:'SELECT',treatment:i.treatment,order:i.order,contextFactIds:[],disagreementFactIds:[]})),obligations:[]} as unknown as EditorialPlanBody;
   expect(planCapacityFailures(body,sl,budget)).toEqual([{targetVersionId:'D',reason:'PUBLISHER_CAPACITY'}]);
   expect(allocateFeasibleSelection(items,{...budget,maxStories:2}).rejected.get('C')).toBe('STORY_CAPACITY');
   expect(allocateFeasibleSelection(items,{...budget,maxInputTokens:5500}).rejected.get('B')).toBe('INPUT_CAPACITY');
@@ -109,7 +109,7 @@ describe('end to end: planner, selection, writer-input admission and publication
  afterEach(async()=>ctx.dispose());
  const first={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
  const texts=['Acme released an AI model with a longer context window.','The university opened a robotics laboratory for humanoid research.','Parliament passed a technology regulation covering model audits.'];
- const strongFor=(sl:ShortlistRecord,observe:(s:any)=>void)=>({model:'synthetic',usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async(_f:string,_p:string,state:any)=>{observe(state);return {value:compactEditorialInput(sl).encodeKeyed(fallbackEditorialPlan(sl)),usage:{calls:1,costUsd:.001,reported:true}}}});
+ const strongFor=(sl:ShortlistRecord,observe:(s:any)=>void)=>({model:'synthetic',admission:syntheticModelAdmission,usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async(_f:string,_p:string,state:any)=>{observe(state);return {value:compactEditorialInput(sl).encodeKeyed(fallbackEditorialPlan(sl)),usage:{calls:1,costUsd:.001,reported:true}}}});
  it('three distinct short stories are planned, selected, published and projected; distinct developments stay separate',async()=>{
   for(let i=0;i<3;i++)await seedIntelligence(store,i+1,texts[i],`publisher-${i}`);
   const sl=await prepareSemanticShortlist(store,'feed-1',first,first.end);let observed:any;
@@ -153,7 +153,9 @@ describe('end to end: planner, selection, writer-input admission and publication
   const stored=await store.list<any>('feed-1','editorial_deferred_work');
   expect(stored.find(w=>w.stableTargetId===a.stableTargetId).expiresAt).toBeUndefined();expect(stored.find(w=>w.stableTargetId===b.stableTargetId).expiresAt).toBeDefined();
   const later={start:'2026-10-11T12:00:00Z',end:'2026-10-11T13:00:00Z',kind:'HOURLY' as const};
-  const next=await prepareSemanticShortlist(store,'feed-1',later,later.end);
+  const adaptive=await prepareSemanticShortlist(store,'feed-1',later,later.end);
+  expect(adaptive.candidates.map(c=>c.stableTargetId)).toEqual(expect.arrayContaining([a.stableTargetId,b.stableTargetId]));expect(await store.list('feed-1','editorial_work_resolutions')).toEqual([]);
+  const next=await prepareSemanticShortlist(store,'feed-1',later,later.end,20);
   expect(next.candidates.map(c=>c.stableTargetId)).toContain(a.stableTargetId);expect(next.candidates.map(c=>c.stableTargetId)).not.toContain(b.stableTargetId);
  },30000);
  it('8. an unresolved-identity or extraction-pending candidate cannot be selected and is deferred as a technical blocker',async()=>{

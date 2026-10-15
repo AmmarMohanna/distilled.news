@@ -1,0 +1,19 @@
+Operator model-rejection reconciliation (after an authorized deployment)
+
+This task has not applied any live settlement or deployed these routes.
+Existing HTTP400 records without retained provider proof remain ineligible.
+Do not infer nonexecution from a status code, expired lease, or schema replay.
+
+1. Sign in as a platform admin on the intended Worker origin.
+2. GET /api/admin/model-spending/<URL-encoded reservation ID>/reconciliation?accountId=<approved provider account>
+   This is read-only. Inspect eligible, providerDiagnostic, reason and evidenceHash.
+3. Obtain separate operator approval for the exact evidenceHash and reservation.
+4. POST the same path with application/json, same-origin credentials and body:
+   {"approve":true,"accountId":"<provider account>","approvalId":"<approval reference>","evidenceHash":"<exact preview hash>"}
+   The authenticated admin identity is recorded server-side. No token/cookie values belong in commands or reports.
+5. Audit model_spending_reconciliations in the protected Pipeline Trace records view.
+   Inspect the original operation and account settlement separately. Reconciliation does not make a failed/UNKNOWN semantic result usable and does not retry it.
+
+Eligible proof is a retained provider request ID and an explicit invalid_json_schema / invalid_request_error HTTP400 pre-execution rejection. Generic errors and timeouts are refused. Known charged responses use the existing actual-cost settlement lifecycle, not this zero-charge route.
+
+After independently resolving financial holds, allow a NEW normal scheduled window to process retained reader-unseen developments. Do not reset terminal requests or modify historical identities. An old terminal window remains historical failure; publication and ledger projection require a new accepted plan and verified writing.

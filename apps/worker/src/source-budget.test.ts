@@ -17,13 +17,13 @@ beforeEach(async()=>{
 });
 afterEach(async()=>ctx?.dispose());
 const send=(s:SourceScope,id:string,cost:number,provider='primary')=>http.request(s,id,provider,cost,url,{});
-async function reserved(s:SourceScope){const key=await http.configureSourceLimit(s);return (await ctx.db.prepare('SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id=?').bind(key).first<{reserved_usd:number}>())!.reserved_usd}
+async function reserved(s:SourceScope,provider='primary'){return (await ctx.db.prepare('SELECT reserved_usd FROM connector_source_provider_budgets WHERE feed_id=? AND feed_source_id=? AND provider_id=?').bind(s.feedId,s.feedSourceId,provider).first<{reserved_usd:number}>())?.reserved_usd??0}
 
-it('shares fifteen dollars across primary and fallback and permits an independent source',async()=>{
- await send(scope,'primary-1',10);await send(scope,'fallback-1',5,'fallback');
+it('authorizes fifteen dollars for primary and a separate fifteen for fallback on each source',async()=>{
+ await send(scope,'primary-1',15);await send(scope,'fallback-1',15,'fallback');
  await expect(send(scope,'over-cap',0.01)).rejects.toMatchObject({code:'BUDGET_EXCEEDED'});
  await send(other,'other-1',15);
- expect(await reserved(scope)).toBe(15);expect(await reserved(other)).toBe(15);expect(dispatch).toHaveBeenCalledTimes(3);
+ expect(await reserved(scope)).toBe(15);expect(await reserved(scope,'fallback')).toBe(15);expect(await reserved(other)).toBe(15);expect(dispatch).toHaveBeenCalledTimes(3);
 });
 it('replays without refilling usage and retains usage after configuration changes',async()=>{
  await send(scope,'same',10);await send(scope,'same',10);
@@ -51,15 +51,45 @@ it('retains uncertain costs without charging an unrelated source or resubmitting
 it('imports scoped legacy costs while retaining global provider reservations',async()=>{
  const legacy=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch);
  await legacy.request(scope,'legacy', 'primary',10,url,{});
- expect(await reserved(scope)).toBe(10);expect(await reserved(other)).toBe(0);
  await expect(send(scope,'extra',6)).rejects.toMatchObject({code:'BUDGET_EXCEEDED'});
+ expect(await reserved(scope)).toBe(10);expect(await reserved(other)).toBe(0);
  expect((await ctx.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='primary'").first())?.reserved_usd).toBe(10);
 });
-it('conservatively holds unattributed legacy uncertain costs',async()=>{
+it('blocks new operations behind unattributed legacy uncertainty without inventing scope or repeating dispatch',async()=>{
  const legacy=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch);
  dispatch.mockRejectedValueOnce(new Error('lost legacy connection'));
  await expect(legacy.request(scope,'legacy-unknown','primary',10,url,{})).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
- expect(await reserved(scope)).toBe(10);expect(await reserved(other)).toBe(10);
- await expect(send(other,'over',6)).rejects.toMatchObject({code:'BUDGET_EXCEEDED'});
+ await ctx.db.prepare('UPDATE connector_provider_operations SET feed_id=NULL,feed_source_id=NULL WHERE payload_ref IS NULL').run();
+ await expect(send(other,'over',6)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ expect((await ctx.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='primary'").first())?.reserved_usd).toBe(10);
+ expect(dispatch).toHaveBeenCalledTimes(1);
+});
+
+it('an absent per-provider cap cannot bypass an unknown source submission through a later run or fallback',async()=>{
+ http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch);
+ dispatch.mockRejectedValueOnce(new Error('lost response'));
+ await expect(send(scope,'uncapped-unknown',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await expect(send(scope,'later-window',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await expect(send(scope,'other-provider',1,'fallback')).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await send(other,'independent-uncapped',1);
+ expect(dispatch).toHaveBeenCalledTimes(2);
+});
+it('uncapped concurrent providers cannot reserve around another source submission in flight',async()=>{
+ http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch);
+ let release!:()=>void,started!:()=>void;
+ const entered=new Promise<void>(resolve=>{started=resolve});
+ dispatch.mockImplementationOnce(async()=>{started();await new Promise<void>(resolve=>{release=resolve});return new Response('{"ok":true}');});
+ const first=send(scope,'uncapped-first',1);await entered;
+ try{await expect(send(scope,'uncapped-second',1,'fallback')).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});}
+ finally{release();await first;}
+ expect(dispatch).toHaveBeenCalledTimes(1);
+});
+
+it('an absent per-provider cap still fences unattributed legacy uncertainty for its provider',async()=>{
+ http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch);
+ dispatch.mockRejectedValueOnce(new Error('lost old response'));
+ await expect(send(scope,'uncapped-legacy-unknown',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await ctx.db.prepare('UPDATE connector_provider_operations SET feed_id=NULL,feed_source_id=NULL WHERE payload_ref IS NULL').run();
+ await expect(send(other,'unattributed-later',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
  expect(dispatch).toHaveBeenCalledTimes(1);
 });

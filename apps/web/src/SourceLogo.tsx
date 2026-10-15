@@ -3,6 +3,8 @@ import { Globe } from 'lucide-react';
 
 export function sourceLogoDomain(source: string): string | undefined {
   if (/^mtv(?:\s+lebanon)?$/i.test(source.trim())) return 'mtv.com.lb';
+  const embedded = source.match(/https?:\/\/[^\s)]+/i)?.[0];
+  if (embedded) source = embedded;
   try {
     const url = new URL(source.includes('://') ? source : `https://${source}`);
     const host = url.hostname.replace(/^www\./, '').toLowerCase();

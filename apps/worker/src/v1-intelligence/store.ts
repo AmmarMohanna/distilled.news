@@ -1,3 +1,4 @@
+import {assertIntelligenceTurn,intelligenceTurnGuard} from '../connector-intelligence-turn';
 import {modelSpendingStatements,ModelSpendingWait,type ModelSpendingReservation} from './model-spending';
 import {SemanticLeaseError,type SemanticWorkLease} from './semantic-work-lease';
 import {HandoffError,eventMembershipSchema,eventVersionSchema,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,type BriefingCandidate,type EventVersion,type EvidenceRevision,type NormalizedEvidenceItem} from '@distilled/contracts';
@@ -9,7 +10,7 @@ import type {FeedRecord,EventRecord,StorylineRecord,StorylineVersion,DuplicateDe
 import type {SelectionRecord} from './scoring';
 import type {BriefingEditionRecord} from './publication';
 import {claimMentionSchema,assertClaimSpan,type SourceDocument} from './claims';
-export type DocumentKind='manual_briefing_requests'|'browser_push_receipts'|'roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'publication_work'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts'|'entities'|'propositions'|'state_slots'|'event_semantic_states'|'storyline_memories'|'source_origins'|'shortlists'|'editorial_processing_work'|'editorial_processing_progress'|'editorial_proposals'|'editorial_processing_waits'|'editorial_plans'|'editorial_deferred_work'|'editorial_work_resolutions'|'ledger_fact_bindings'|'fidelity_results'|'verification_feedback'|'publication_reconciliations'|'schedule_observations'|'semantic_resource_waits'|'semantic_settlements'|'semantic_work_leases'|'semantic_work_releases'|'semantic_construction_work'|'semantic_construction_progress';
+export type DocumentKind='manual_briefing_requests'|'browser_push_receipts'|'roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'publication_work'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts'|'entities'|'propositions'|'state_slots'|'event_semantic_states'|'storyline_memories'|'source_origins'|'shortlists'|'editorial_processing_work'|'editorial_processing_progress'|'editorial_proposals'|'editorial_processing_waits'|'editorial_plans'|'editorial_deferred_work'|'editorial_work_resolutions'|'ledger_fact_bindings'|'fidelity_results'|'verification_feedback'|'publication_reconciliations'|'schedule_observations'|'semantic_resource_waits'|'semantic_settlements'|'semantic_work_leases'|'semantic_work_releases'|'semantic_construction_work'|'semantic_construction_progress'|'model_spending_reconciliations';
 interface DocumentWrite {kind:DocumentKind;id:string;value:unknown}
 interface Snapshot {feed:FeedRecord;epoch:number;scopes:{id:string;epoch:number}[]}
 const mutable=new Set<DocumentKind>(['manual_briefing_requests','events','storylines','publication_status','delivery_jobs','synthesis_jobs','briefing_requests']);
@@ -25,6 +26,15 @@ export class V1FeedStore {
   const row=await this.db.prepare('SELECT feed_id,json FROM v1_feed_documents WHERE kind=? AND id=?').bind(kind,id).first<{feed_id:string;json:string}>();
   if(row && row.feed_id!==feedId) throw new HandoffError('SCOPE_DENIED');return row?JSON.parse(row.json):undefined;
  }
+ async readMany<T>(feedId:string,kind:DocumentKind,ids:string[]):Promise<Map<string,T>> {
+  const unique=[...new Set(ids)],values=new Map<string,T>();
+  for(let offset=0;offset<unique.length;offset+=90){
+   const chunk=unique.slice(offset,offset+90),rows=await this.db.prepare(`SELECT id,feed_id,json FROM v1_feed_documents WHERE kind=? AND id IN (${chunk.map(()=>'?').join(',')})`).bind(kind,...chunk).all<{id:string;feed_id:string;json:string}>();
+   if(rows.results.some(row=>row.feed_id!==feedId))throw new HandoffError('SCOPE_DENIED');
+   for(const row of rows.results)values.set(row.id,JSON.parse(row.json));
+  }
+  return values;
+ }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
  async currentEvidence(feedId:string):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id`).bind(feedId).all<{item:string;revision:string}>();
@@ -34,6 +44,7 @@ export class V1FeedStore {
   const row=await this.db.prepare('SELECT r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE r.id=? AND s.feed_id=?').bind(id,feedId).first<{json:string}>();return row?JSON.parse(row.json):undefined;
  }
  async snapshot(id:string):Promise<Snapshot> {
+  await assertIntelligenceTurn(this.db,id);
   if(this.semanticLease){const lease=this.semanticLease;if(lease.feedId!==id||!await this.db.prepare(`SELECT id FROM v1_feed_documents l WHERE l.kind='semantic_work_leases' AND l.id=? AND l.feed_id=? AND json_extract(l.json,'$.token')=? AND json_extract(l.json,'$.leaseUntil')>? AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='semantic_work_releases' AND r.id=l.id AND json_extract(r.json,'$.token')=json_extract(l.json,'$.token'))`).bind(lease.id,id,lease.token,Date.now()).first())throw new SemanticLeaseError()}
   const row=await this.db.prepare('SELECT json,epoch FROM v1_feeds WHERE id=?').bind(id).first<{json:string;epoch:number}>();
   if(!row) throw new HandoffError('SCOPE_DENIED');const feed=JSON.parse(row.json) as FeedRecord;
@@ -50,11 +61,11 @@ export class V1FeedStore {
  }
  async commit(tx:FeedTransaction):Promise<boolean> {
   const validationStarted=Date.now();await tx.validateGraph();tx.metrics.validationMs+=Date.now()-validationStarted;
-  const {snapshot:s}=tx,nonce=crypto.randomUUID();
+  const {snapshot:s}=tx,nonce=crypto.randomUUID(),turnGuard=intelligenceTurnGuard(this.db,s.feed.id);
   const scopeChecks=s.scopes.map(()=>`EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=?)`).join(' AND ');
   const leaseCheck=this.semanticLease?` AND EXISTS(SELECT 1 FROM v1_feed_documents l WHERE l.kind='semantic_work_leases' AND l.id=? AND l.feed_id=? AND json_extract(l.json,'$.token')=? AND json_extract(l.json,'$.leaseUntil')>((julianday('now')-2440587.5)*86400000) AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='semantic_work_releases' AND r.id=l.id AND json_extract(r.json,'$.token')=json_extract(l.json,'$.token')))`:'';
-  const args:unknown[]=[nonce,s.feed.id,s.epoch,s.feed.id,s.scopes.length,...s.scopes.flatMap(x=>[x.id,x.epoch]),...(this.semanticLease?[this.semanticLease.id,s.feed.id,this.semanticLease.token]:[])];
-  const statements:D1PreparedStatement[]=[this.db.prepare(`INSERT INTO v1_feed_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_feeds WHERE id=? AND epoch=? AND json_extract(json,'$.deletedAt') IS NULL AND json_extract(json,'$.paused')=0) AND (SELECT COUNT(*) FROM v1_intake_scopes WHERE feed_id=?)=? ${scopeChecks?'AND '+scopeChecks:''}${leaseCheck} THEN 1 ELSE 0 END`).bind(...args)];
+  const args:unknown[]=[nonce,s.feed.id,s.epoch,s.feed.id,s.scopes.length,...s.scopes.flatMap(x=>[x.id,x.epoch]),...(this.semanticLease?[this.semanticLease.id,s.feed.id,this.semanticLease.token]:[]),...turnGuard.args];
+  const statements:D1PreparedStatement[]=[this.db.prepare(`INSERT INTO v1_feed_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_feeds WHERE id=? AND epoch=? AND json_extract(json,'$.deletedAt') IS NULL AND json_extract(json,'$.paused')=0) AND (SELECT COUNT(*) FROM v1_intake_scopes WHERE feed_id=?)=? ${scopeChecks?'AND '+scopeChecks:''}${leaseCheck}${turnGuard.sql} THEN 1 ELSE 0 END`).bind(...args)];
   for(const reservation of tx.modelReservations)statements.push(...await modelSpendingStatements(this.db,reservation));
   for(const w of tx.writes.values()) statements.push(this.db.prepare(`INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?) ${mutable.has(w.kind)?'ON CONFLICT(kind,id) DO UPDATE SET json=excluded.json':'ON CONFLICT(kind,id) DO NOTHING'}`).bind(w.kind,w.id,s.feed.id,JSON.stringify(w.value)));
   for(const job of tx.jobs.values()) {
@@ -65,7 +76,7 @@ export class V1FeedStore {
   // invalidate concurrent writers merely by checking an existing request.
   if(tx.writes.size || tx.jobs.size) statements.push(this.db.prepare('UPDATE v1_feeds SET epoch=epoch+1 WHERE id=?').bind(s.feed.id));
   statements.push(this.db.prepare('DELETE FROM v1_feed_guards WHERE id=?').bind(nonce));
-  try {await this.db.batch(statements);return true} catch(error) {if(String(error).includes('v1_model_spending_admission'))throw new ModelSpendingWait('ACCOUNT_RESOURCE_WAIT');if(String(error).includes('CHECK constraint failed: v1_feed_cas')) return false;const text=String(error),cause=/too many subrequests|query limit/i.test(text)?'QUERY_LIMIT':/overloaded/i.test(text)?'OVERLOADED':/timeout|timed out/i.test(text)?'DATABASE_TIMEOUT':/constraint/i.test(text)?'DATABASE_CONSTRAINT':'DATABASE_BATCH_FAILED';console.error(JSON.stringify({type:'V1_FEED_BATCH_FAILED',feedId:s.feed.id,epoch:s.epoch,statements:statements.length,writes:tx.writes.size,jobs:tx.jobs.size,cause}));throw new HandoffError('TEMPORARY_UNAVAILABLE')}
+  try {await this.db.batch(statements);return true} catch(error) {if(String(error).includes('v1_model_spending_admission'))throw new ModelSpendingWait('ACCOUNT_RESOURCE_WAIT');if(String(error).includes('CHECK constraint failed: v1_feed_cas')){await assertIntelligenceTurn(this.db,s.feed.id);return false;}const text=String(error),cause=/too many subrequests|query limit/i.test(text)?'QUERY_LIMIT':/overloaded/i.test(text)?'OVERLOADED':/timeout|timed out/i.test(text)?'DATABASE_TIMEOUT':/constraint/i.test(text)?'DATABASE_CONSTRAINT':'DATABASE_BATCH_FAILED';console.error(JSON.stringify({type:'V1_FEED_BATCH_FAILED',feedId:s.feed.id,epoch:s.epoch,statements:statements.length,writes:tx.writes.size,jobs:tx.jobs.size,cause}));throw new HandoffError('TEMPORARY_UNAVAILABLE')}
  }
 }
 export class FeedTransaction {
@@ -111,12 +122,19 @@ export class FeedTransaction {
   if(kind==='memberships')await this.preloadRevisions(values.map(row=>(row as T&{evidenceRevisionId:string}).evidenceRevisionId));
   return values;
  }
- private async preloadRevisions(ids:string[]):Promise<void>{
-  const missing=[...new Set(ids)].filter(id=>!this.revisions.has(id));
-  for(let offset=0;offset<missing.length;offset+=90){this.metrics.preloadQueries++;const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(this.snapshot.feed.id,...chunk).all<{id:string;json:string}>(),values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json) as EvidenceRevision]));for(const id of chunk)this.revisions.set(id,Promise.resolve(values.get(id)))}
- }
  revision(id:string):Promise<EvidenceRevision|undefined> {
   if(!this.revisions.has(id)){this.metrics.revisionReads++;this.revisions.set(id,this.store.revision(this.snapshot.feed.id,id))}return this.revisions.get(id)!;
+ }
+ /** Immutable revisions are read together, but cached only for this CAS attempt.
+  * A foreign/missing revision stays absent just as with store.revision(). */
+ async preloadRevisions(ids:string[]):Promise<void> {
+  const missing=[...new Set(ids)].filter(id=>!this.revisions.has(id));
+  for(let offset=0;offset<missing.length;offset+=90){
+   this.metrics.preloadQueries++;
+   const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(this.snapshot.feed.id,...chunk).all<{id:string;json:string}>();
+   const values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json) as EvidenceRevision]));
+   for(const id of chunk)this.revisions.set(id,Promise.resolve(values.get(id)));
+  }
  }
  async write(kind:DocumentKind,id:string,value:unknown) {
   if(!value || typeof value!=='object' || !('id' in value) || value.id!==id) throw new HandoffError('SCOPE_DENIED');

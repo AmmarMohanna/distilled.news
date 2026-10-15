@@ -3,6 +3,7 @@ import {BoundedFeedHttp,createSourceCollector,D1ProviderSourceRepository,D1Provi
   D1RssPollScheduler,RssSourceCollector,D1SourceRepository,type RssRequest,
   type SourceFetchRequest} from '@distilled/connectors';
 import type {CandidateIntakePort} from '@distilled/contracts';
+import {sharedPublicHttp,PUBLIC_SOURCE_MAX_BYTES} from './connector-public-cache';
 
 export interface SourceBackendEnv {
   DB:D1Database;
@@ -15,7 +16,10 @@ export interface SourceBackendEnv {
   SOURCE_EXECUTION_SERVICE?:Fetcher;
   SOURCE_GOOGLE_RESOLUTION_ENABLED?:string;
   SOURCE_OPERATION_CEILINGS_JSON?:string;
-  SOURCE_PER_SOURCE_BUDGET_USD?:string;
+  SOURCE_PER_PROVIDER_BUDGET_USD?:string;
+  SOURCE_SHARED_PUBLIC_FETCH_ENABLED?:string;
+  SOURCE_QUEUE_SCHEDULING_ENABLED?:string;
+  SOURCE_PROVIDER_BUDGETS_JSON?:string;
 }
 
 /** Composition shared by the connector staging backend and downstream integration.
@@ -38,9 +42,11 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
       const value=parsed[key]??0;if(typeof value!=='number'||!Number.isFinite(value)||value<0)throw new Error('INVALID_SOURCE_CEILINGS');ceilings[key]=value;
     }
   }
-  const sourceBudget=env.SOURCE_PER_SOURCE_BUDGET_USD===undefined?undefined:Number(env.SOURCE_PER_SOURCE_BUDGET_USD);
-  if(env.SOURCE_PER_SOURCE_BUDGET_USD!==undefined&&(!env.SOURCE_PER_SOURCE_BUDGET_USD.trim()||!Number.isFinite(sourceBudget)||(sourceBudget!==undefined&&sourceBudget<0)))throw new Error('INVALID_SOURCE_BUDGET');
-  const paidHttp=new DurableProviderHttp(sql,payloads,dispatch,4_000_000,20_000,sourceBudget);
+  const sourceProviderLimit=env.SOURCE_PER_PROVIDER_BUDGET_USD===undefined?undefined:Number(env.SOURCE_PER_PROVIDER_BUDGET_USD);
+  if(sourceProviderLimit!==undefined&&(!env.SOURCE_PER_PROVIDER_BUDGET_USD?.trim()||!Number.isFinite(sourceProviderLimit)||sourceProviderLimit<0))throw new Error('INVALID_SOURCE_PROVIDER_BUDGET');
+  const deploymentLimits=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?JSON.parse(env.SOURCE_PROVIDER_BUDGETS_JSON??'{}'):undefined;
+  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&(!deploymentLimits||typeof deploymentLimits!=='object'||Array.isArray(deploymentLimits)||Object.keys(deploymentLimits).some(k=>!['x_twitterapi_io','x_apify','google_apify','linkedin_apify','zyte'].includes(k))))throw new Error('INVALID_SOURCE_BUDGETS');
+  const paidHttp=new DurableProviderHttp(sql,payloads,dispatch,4_000_000,20_000,sourceProviderLimit,deploymentLimits);
   const makeCollector=(request:SourceFetchRequest)=>{
     const guardedDispatch:typeof fetch=async(value,init)=>{
       if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
@@ -60,29 +66,36 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     }};
     // Only the exact approved source URL or its deterministic provider endpoint is admitted.
     const approved=request.source.family==='google_news'?'https://news.google.com':request.source.family==='telegram'?'https://t.me':new URL(request.source.family==='rss'||request.source.family==='website'?request.source.locator:'https://unused.example').origin;
-    const http=new BoundedFeedHttp(async(value,init)=>{
+    const authorizeUrl=async(value:string)=>{
       if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
       const url=new URL(value),host=url.hostname;
       if(url.protocol!=='https:'||url.port||url.username||url.password||url.origin!==approved||
         !host.includes('.')||/\.(?:localhost|local|internal|test|invalid)$/.test(host)||/^\d+(?:\.\d+){0,3}$/.test(host)||host.startsWith('['))throw new Error('SOURCE_URL_DENIED');
       // Deployment must retain global_fetch_strictly_public to enforce public DNS at dispatch.
-      return dispatch(url.href,{...init,redirect:'manual'});
-    });
-    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch,4_000_000,20_000,sourceBudget),execution,secrets,ceilings,
+    };
+    const baseHttp=new BoundedFeedHttp(async(value,init)=>{await authorizeUrl(value);return dispatch(value,{...init,redirect:'manual'})},{maxBytes:PUBLIC_SOURCE_MAX_BYTES,followSameOriginRedirects:request.source.family==='rss'});
+    const http=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,baseHttp,authorizeUrl,Date.now,PUBLIC_SOURCE_MAX_BYTES):baseHttp;
+    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch,4_000_000,20_000,sourceProviderLimit,deploymentLimits),execution,secrets,ceilings,
+
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
       rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake)};
   };
+  const scheduledCollector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>makeCollector(request).provider.collect(request,order,offset)};
   const collector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>{
     if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
-    return makeCollector(request).provider.collect(request,order,offset);
+    return scheduledCollector.collect(request,order,offset);
   }};
   const rssRequest=(r:RssRequest):SourceFetchRequest=>({scope:r.scope,runId:r.runId,configurationRevision:r.configurationRevision,source:{family:'rss',locator:r.url},requestedBounds:r.requestedBounds??{},limit:r.maxItems??100});
+  const scheduledRssCollector={collect:async(r:RssRequest,offset=0)=>makeCollector(rssRequest(r)).rss.collect(r,offset)};
   const rssCollector={collect:async(r:RssRequest,offset=0)=>{
     const request=rssRequest(r);
     if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
-    return makeCollector(request).rss.collect(r,offset);
+    return scheduledRssCollector.collect(r,offset);
   }};
   return {collect:collector.collect,collectRss:rssCollector.collect,payloads,paidHttp,
-    scheduler:new D1ProviderPollScheduler(sql,collector,options.authorize,Date.now,options.providerPageLimit??100),
-    rssScheduler:new D1RssPollScheduler(sql,rssCollector,r=>options.authorize(rssRequest(r)))};
+    // Scheduler admission already performed the initial approval read. Public
+    // direct calls retain their own admission; every transport/cache/handoff
+    // boundary still revalidates current persisted approval independently.
+    scheduler:new D1ProviderPollScheduler(sql,scheduledCollector,options.authorize,Date.now,options.providerPageLimit??100,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'),
+    rssScheduler:new D1RssPollScheduler(sql,scheduledRssCollector,r=>options.authorize(rssRequest(r)),Date.now,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')};
 }

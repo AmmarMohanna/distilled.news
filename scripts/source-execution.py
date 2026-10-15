@@ -16,6 +16,8 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 from urllib.parse import urlsplit, urlencode
+from urllib.parse import urljoin
+from html.parser import HTMLParser
 
 
 def iso(value):
@@ -56,16 +58,106 @@ def parse_feed(data):
     return {'items': items}
 
 
+class ArticleLinks(HTMLParser):
+    """Observed same-origin listing links only; never follows body references."""
+    def __init__(self, base):
+        super().__init__()
+        self.base, self.depth, self.links, self.canonical, self.article_count = base, 0, [], None, 0
+        self.article_metadata = False
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'meta':
+            prop = attrs.get('property', attrs.get('name', '')).lower()
+            content = attrs.get('content', '').strip().lower()
+            if (prop == 'og:type' and content in ('article', 'newsarticle', 'blogposting')) or (prop == 'article:published_time' and content):
+                self.article_metadata = True
+        if tag == 'article':
+            self.depth += 1
+            self.article_count += 1
+        if tag == 'link' and 'canonical' in attrs.get('rel', '').split():
+            candidate = urljoin(self.base, attrs.get('href', ''))
+            if urlsplit(candidate).scheme == 'https' and urlsplit(candidate).netloc == urlsplit(self.base).netloc:
+                self.canonical = candidate
+        if tag == 'a' and self.depth and attrs.get('href'):
+            candidate = urljoin(self.base, attrs['href']).split('#')[0]
+            parsed = urlsplit(candidate)
+            if parsed.scheme == 'https' and parsed.netloc == urlsplit(self.base).netloc and not parsed.username and candidate != self.base and candidate not in self.links:
+                self.links.append(candidate)
+        elif tag == 'a' and attrs.get('href') and re.fullmatch(r'/(?:news|technology|business|ai|games|stories|articles)?/?', urlsplit(self.base).path):
+            candidate = urljoin(self.base, attrs['href']).split('#')[0]
+            parsed = urlsplit(candidate)
+            article_route = re.search(r'/(?:stories|story|articles|article|news)/.+|/\d{4}/\d{1,2}/\d{1,2}/.+|/(?:ai|technology|business|games)/[^/]{12,}', parsed.path)
+            if article_route and parsed.scheme == 'https' and parsed.netloc == urlsplit(self.base).netloc and not parsed.username and candidate not in self.links:
+                self.links.append(candidate)
+
+    def handle_endtag(self, tag):
+        if tag == 'article':
+            self.depth = max(0, self.depth-1)
+
+
 def extract(data):
     import trafilatura
     result = trafilatura.bare_extraction(data['html'], url=data['url'], include_comments=False,
                                         include_images=False, include_tables=True, with_metadata=True)
+    links = ArticleLinks(data['url'])
+    links.feed(data['html'])
+    # A publisher landing page remains a listing even if the extractor finds a
+    # date on its lead story. Conversely, links within a single article are
+    # citations/related stories, not a recursively discoverable news inventory.
+    path = urlsplit(data['url']).path
+    landing = bool(re.fullmatch(r'/(?:news|technology|business|ai|games|stories|articles|latest)?/?', path) or re.fullmatch(r'/(?:tags?|category|categories|topics?|sections?)(?:/[^/]+)*/?', path, re.I))
+    article_metadata = links.article_metadata or bool(re.search(r'"@type"\s*:\s*"(?:NewsArticle|Article|BlogPosting)"', data['html'], re.I))
+    page_kind = 'listing' if landing else 'article' if article_metadata or links.article_count == 1 else 'listing' if links.article_count > 1 else 'unknown'
+    inventory = links.links if page_kind == 'listing' else []
     if not result:
-        return {'body': ''}
+        return {'body': '', 'articleLinks': inventory, 'canonicalUrl': links.canonical,
+                'pageKind': page_kind}
     if not isinstance(result, dict):
         result = result.as_dict()
     return {'body': result.get('text', ''), 'title': result.get('title'),
-            'publishedAt': result.get('date'), 'language': result.get('language')}
+            'publishedAt': result.get('date'), 'language': result.get('language'),
+            'canonicalUrl': links.canonical, 'articleLinks': inventory,
+            'pageKind': page_kind}
+
+
+def fetch_public_article(data):
+    """Anonymous exact-candidate HTTP from the approved private egress.
+
+    No cookies, credentials, redirects, login or challenge solving. Return only
+    bounded extracted text; a readable page is not automatically an article.
+    """
+    url = data.get('url', '')
+    parsed = urlsplit(url)
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.port or parsed.fragment:
+        raise ValueError('INVALID_ARTICLE_URL')
+    if os.environ.get('SOURCE_BROWSER_EGRESS_CONFIRMED') != 'true':
+        return {'error': 'UNAVAILABLE'}
+    public_url(url)
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args): return None
+    try:
+        request = urllib.request.Request(url, headers={'Accept': 'text/html,application/xhtml+xml'})
+        with urllib.request.build_opener(NoRedirect()).open(request, timeout=15) as response:
+            if response.status != 200:
+                return {'status': response.status}
+            content_type = response.headers.get('Content-Type', '').lower()
+            if not any(t in content_type for t in ('text/html', 'application/xhtml+xml')):
+                return {'error': 'INVALID_CONTENT_TYPE'}
+            body = response.read(4000001)
+            if len(body) > 4000000:
+                return {'error': 'BODY_TOO_LARGE'}
+            page = body.decode('utf-8', errors='replace')
+            if re.search(r'<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)', page, re.I):
+                return {'status': 403}
+            result = extract({'url': url, 'html': page})
+            if len(result.get('body', '').encode()) > 500000:
+                return {'error': 'BODY_TOO_LARGE'}
+            return {'status': 200, 'url': url, **result}
+    except urllib.error.HTTPError as error:
+        return {'status': error.code}
+    except (OSError, TimeoutError):
+        return {'error': 'TRANSIENT'}
 
 
 def fetch_google_feed(data):
@@ -499,6 +591,8 @@ async def main():
         result = await asyncio.to_thread(resolve_google_articles if 'urls' in inputs else resolve_google_article, inputs)
     elif kind == 'google_feed':
         result = await asyncio.to_thread(fetch_google_feed, inputs)
+    elif kind == 'public_article':
+        result = await asyncio.to_thread(fetch_public_article, inputs)
     elif kind == 'playwright':
         result = await browser(inputs)
     else:

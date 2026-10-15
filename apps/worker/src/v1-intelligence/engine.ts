@@ -9,6 +9,7 @@ import {validateConstruction,persistEventSemanticState,persistStorylineMemory,ty
 import {refreshSourceCorrectionObligations,recordCorrectionObligation,type LedgerEntry} from './ledger';
 import {scheduleRematch} from './rematch';
 import {partitionProvisionalMentions} from './composite-partition';
+import {prefetchReviewGraph} from './review-prefetch';
 import type {DuplicateDecision,EventRecord,IntelligenceReceipt,RoleDecision,StorylineRecord,StorylineVersion,SupportedFact} from './types';
 
 function revisionText(revision:EvidenceRevision):string {return [revision.title,revision.body].filter(Boolean).join('\n')}
@@ -34,6 +35,7 @@ async function versionEvent(tx:FeedTransaction,event:EventRecord,revisions:Evide
  const text=binding?exact.map(m=>m.sourceText).join('\n'):ordered.map(r=>r.body??r.title??'').join('\n').slice(0,2400);
  const value:EventVersion={id:crypto.randomUUID(),eventId:event.id,feedId:tx.snapshot.feed.id,version:(old?.version??0)+1,title:ordered[0]?.title??ordered[0]?.body?.slice(0,120)??old?.title,type:ordered.length?features(revisionText(ordered[0])).development:'WITHDRAWN',entities:[...new Set(ordered.flatMap(r=>features(revisionText(r)).entities))],geography:[],state:text,confidence:ordered.length?.6:0,algorithmVersion:INTELLIGENCE_POLICY,createdAt:now};
  await tx.write('event_versions',value.id,value);
+ await tx.preload('memberships',ordered.map(r=>JSON.stringify([value.id,r.id])));
  for(const r of ordered) {
   const membership:EventMembership={id:JSON.stringify([value.id,r.id]),eventVersionId:value.id,evidenceRevisionId:r.id,confidence:.6,algorithmVersion:INTELLIGENCE_POLICY,createdAt:now};
   await tx.write('memberships',membership.id,membership);
@@ -105,6 +107,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   const target=active.find(r=>r.item.id===current?.value.id);
   // Identical-content replay may advance the observation watermark without emitting a new reassessment job.
   if(!current || (target?target.revision.sourceObservationId!==o.id:current.value.currentObservationId!==o.id)) {await tx.write('intelligence_receipts',receiptId,receipt);tx.completeJob(job);return receipt}
+  await prefetchReviewGraph(tx,active.map(r=>r.revision));
   const events=await tx.list<EventRecord>('events'),changed:EventVersion[]=[];
   await tx.preloadSemanticReferences(events.map(event=>event.currentVersionId));
   const preferredStorylines=new Map<string,string>();

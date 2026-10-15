@@ -21,7 +21,11 @@ it('published provisional identity and rematch remain durable through exhaustion
   expect(scope.candidates[0].flags).toContain('PROVISIONAL');
   const plan=await prepareEditorialPlan(store,scope,DEFAULT_BRIEFING_BUDGET,window.end),selection=await scoreAndSelect(store,'feed-1',window,DEFAULT_BRIEFING_BUDGET,window.end,undefined,plan),edition=await publishSelection(store,'feed-1',selection.id,{now:()=>window.end});await projectEditionLedger(store,'feed-1',edition.id);
   expect(edition.provisionalSemanticStates).toHaveLength(1);expect(edition.provisionalSemanticStates![0].rematchRequestIds).toHaveLength(1);
-  const [request]=await store.list<any>('feed-1','rematch_requests');expect(nextRematch(request,[{requestId:request.id,state:'EXHAUSTED',attempt:3} as any],window.end)).toBeUndefined();expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
+  const [request]=await store.list<any>('feed-1','rematch_requests'),history=[{requestId:request.id,state:'EXHAUSTED',attempt:3,createdAt:window.end} as any];
+  expect(nextRematch({...request,policyVersion:'legacy-bounded-rematch'},history,window.end)).toBeUndefined();
+  expect(nextRematch(request,history,window.end)).toBe(4);
+  expect(nextRematch(request,[...history,{requestId:request.id,state:'SUCCEEDED',attempt:4,createdAt:window.end} as any],window.end)).toBeUndefined();
+  expect(await store.list('feed-1','rematch_requests')).toEqual([request]);
   const [event]=await store.list<any>('feed-1','events');await processEvidenceIntelligence(store,job,'2026-10-03T13:10:00Z',{...deterministicMatchers,event:{match:()=>({structuralRelation:'SAME_EVENT',eventId:event.id,epistemicEffects:['CORROBORATES'],confidence:.99,provenance})}},'resolved-semantic-identity');
   expect(await store.read('feed-1','editions',edition.id)).toEqual(edition);expect(await store.list('feed-1','ledger_entries')).not.toHaveLength(0);
   const current=(await store.list<any>('feed-1','events'))[0],state=await store.read<any>('feed-1','event_semantic_states',current.currentVersionId);expect(state.provisional).toBe(false);expect(await store.read<any>('feed-1','event_semantic_states',edition.eventVersionIds[0])).toMatchObject({provisional:true});

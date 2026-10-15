@@ -30,7 +30,15 @@ make one capped model call per click, with up to five public source suggestions;
 the existing per-account limit is two requests per hour. Website source rows use
 publisher favicons, with a globe fallback when an image cannot load.
 
-This deployment has no scheduled collection or browser container. Paid source
-budgets are zero. Email delivery, generated artwork, and briefing model processing
-still need their own provider configuration before use.
+The mixed-source backend branch is integrated without frontend-specific backend logic changes.
+Product feeds, downstream processing, stored-evidence synthesis through OpenRouter,
+and minute-based maintenance are enabled on Joud with explicit owner approval.
+Source-provider budgets remain zero. Paid X/LinkedIn collection therefore remains
+unavailable until separately authorized and configured. There is no private source
+execution service binding or browser container on Joud; sources requiring those
+services fail explicitly rather than appearing to collect successfully.
+RSS-backed websites can be approved through the backend discovery path.
+Selected enabled sources are read back from the backend and displayed with logos
+on the owner feed page; public source availability and blocker messages remain
+provided by the imported backend. Generated artwork uses the existing image setup.
 Existing account data and feeds are not copied from other deployments.

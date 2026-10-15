@@ -1,3 +1,6 @@
+import {inspectProviderSchema} from '../provider-schema';
+import {captureProviderReceipt,providerResponseReceipt,providerBodyReceipt} from '../provider-receipt';
+import {ProviderRequestError,readProviderRejection} from '../provider-outcome';
 import type {ModelCapability,ModelAdmission} from './model-capacity';
 import {z} from 'zod';
 import type {EventSalienceAssessment,TargetType} from '@distilled/contracts';
@@ -44,7 +47,8 @@ export class OpenRouterJudgmentClient implements JudgmentClient {
   const output=this.kind==='GPT'?c.maxOutputTokens:0;
   const payload=this.kind==='JEV'?{model:this.model,state,questions:wireQuestions(questions)}:choiceCompletion(this.model,state,question.instructions,(question as Extract<SemanticQuestion,{kind:'CHOICE'}>).criteria,output);
   const requestBytes=new TextEncoder().encode(JSON.stringify(payload)).length;
-  const fits=requestBytes+output<=c.contextTokens;return {fits,...(!fits?{reason:'MODEL_CONTEXT_CONTINUATION_REQUIRED' as const}:{}),requestBytes,inputTokenUpperBound:requestBytes,maxOutputTokens:output,reservationCostUsd:requestBytes*c.inputUsdPerToken+output*c.outputUsdPerToken,capability:c};
+  const schemaAdmission=this.kind==='GPT'?inspectProviderSchema(this.model,(payload as ReturnType<typeof choiceCompletion>).response_format.json_schema.schema):undefined;
+  const fits=schemaAdmission?.fits!==false&&requestBytes+output<=c.contextTokens;return {fits,...(!fits?{reason:schemaAdmission?.fits===false?'MODEL_SCHEMA_CONTINUATION_REQUIRED' as const:'MODEL_CONTEXT_CONTINUATION_REQUIRED' as const}:{}),schemaAdmission,requestBytes,inputTokenUpperBound:requestBytes,maxOutputTokens:output,reservationCostUsd:requestBytes*c.inputUsdPerToken+output*c.outputUsdPerToken,capability:c};
  }
  usage():ExperimentUsage {return {...this.ledger}}
  async choose(state:unknown,instructions:string,criteria:Record<string,string>):Promise<Judgment> {
@@ -63,25 +67,30 @@ export class OpenRouterJudgmentClient implements JudgmentClient {
   const o=this.options;if(!o.durable&&(this.ledger.calls>=o.maxCalls! || this.ledger.costUsd+o.maxCallCostUsd!>o.maxCostUsd!+1e-9)) throw Error('EXPERIMENT_BUDGET_EXHAUSTED');
   const schema={type:'object',additionalProperties:false,required:['type','choice','confidence','probabilities'],properties:{type:{type:'string',enum:['choice']},choice:{type:'string',enum:keys},confidence:{type:'number',minimum:0,maximum:1},probabilities:{type:'object',additionalProperties:false,required:keys,properties:Object.fromEntries(keys.map(k=>[k,{type:'number',minimum:0,maximum:1}]))}}};
   const payload=this.kind==='JEV'?{model:this.model,state,questions:semantic?.wire??{judgment:{type:'choice',instructions,criteria}}}:choiceCompletion(this.model,state,instructions,criteria,o.durable?o.capability?.maxOutputTokens??0:300);
+  if(this.kind==='GPT'&&!inspectProviderSchema(this.model,schema).fits)throw Error('SEMANTIC_MODEL_SCHEMA_CONTINUATION_REQUIRED');
   const envelope=o.durable?this.admission(state,semantic?.questions??{judgment:{kind:'CHOICE',instructions,criteria}}):undefined;if(envelope&&!envelope.fits)throw Error('SEMANTIC_'+envelope.reason);const reservation=envelope?.reservationCostUsd??o.maxCallCostUsd!;
   const before=this.usage();this.ledger={...before,calls:before.calls+1,costUsd:before.costUsd+reservation,reported:false};
   this.inFlight=true;this.unknownOutcome=true;
   const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
   const execute=async()=>{
    const response=await (o.fetcher??fetch)(this.kind==='JEV'?'https://openrouter.ai/api/alpha/decisions':'https://openrouter.ai/api/v1/chat/completions',{method:'POST',redirect:'manual',headers:{authorization:`Bearer ${o.apiKey}`,'content-type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
-   if(!response.ok) {await response.body?.cancel();throw Error(`EXPERIMENT_HTTP_${response.status}`)}
+   await captureProviderReceipt(providerResponseReceipt(response,'OPENROUTER',this.model));
+   if(!response.ok) {const rejection=await readProviderRejection(response,[o.apiKey]);if(controller.signal.aborted)throw Error('EXPERIMENT_TIMEOUT');if(rejection.usage){this.ledger={calls:before.calls+1,costUsd:before.costUsd+rejection.usage.cost!,reported:before.reported,tokensIn:(before.tokensIn??0)+(rejection.usage.prompt_tokens??0),tokensOut:(before.tokensOut??0)+(rejection.usage.completion_tokens??0)};this.unknownOutcome=false}throw new ProviderRequestError(`EXPERIMENT_HTTP_${response.status}`,rejection.diagnostic)}
    const reader=response.body?.getReader();if(!reader) throw Error('INVALID_EXPERIMENT_RESULT');
    const chunks:Uint8Array[]=[];let length=0;
    try {for(;;){const part=await reader.read();if(part.done) break;length+=part.value.byteLength;if(length>2000000) throw Error('INVALID_EXPERIMENT_RESULT');chunks.push(part.value)}}finally {await reader.cancel().catch(()=>undefined)}
    const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
    let envelope:any,answer:any;
    try {envelope=JSON.parse(new TextDecoder().decode(bytes))}catch {throw Error('INVALID_EXPERIMENT_RESULT')}
+   const header=providerResponseReceipt(response,'OPENROUTER',this.model),bodyReceipt=providerBodyReceipt(header,envelope.id);
+   if(bodyReceipt.generationId&&!header.generationId)await captureProviderReceipt({...bodyReceipt,stage:'GENERATION'});
    // Known charges are authoritative even for a malformed answer or missing
    // token counts. Never replace a known overrun with a smaller reservation.
    const u=envelope.usage,cost=z.number().finite().nonnegative().safeParse(u?.cost),tokenSchema=z.number().int().nonnegative().max(1000000);
    const incoming=tokenSchema.safeParse(u?.input_tokens??u?.prompt_tokens),outgoing=tokenSchema.safeParse(u?.output_tokens??u?.completion_tokens);
    const actual:ExperimentUsage={calls:1,costUsd:cost.success?cost.data:reservation,reported:cost.success,tokensIn:incoming.success?incoming.data:undefined,tokensOut:outgoing.success?outgoing.data:undefined};
-   if(controller.signal.aborted) throw Error('EXPERIMENT_TIMEOUT');
+    if(actual.reported)await captureProviderReceipt({...bodyReceipt,stage:'USAGE',reportedCostUsd:actual.costUsd,inputTokens:actual.tokensIn,outputTokens:actual.tokensOut});
+    if(controller.signal.aborted) throw Error('EXPERIMENT_TIMEOUT');
    this.ledger={calls:before.calls+1,tokensIn:before.tokensIn!==undefined&&actual.tokensIn!==undefined?before.tokensIn+actual.tokensIn:undefined,tokensOut:before.tokensOut!==undefined&&actual.tokensOut!==undefined?before.tokensOut+actual.tokensOut:undefined,costUsd:before.costUsd+actual.costUsd,reported:before.reported&&actual.reported};
    this.unknownOutcome=!cost.success;
    if(!o.durable&&cost.success && cost.data>reservation) {this.costOverrun=true;throw Error('EXPERIMENT_REPORTED_COST_OVERRUN')}

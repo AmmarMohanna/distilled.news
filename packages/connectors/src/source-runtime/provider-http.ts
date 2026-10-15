@@ -7,7 +7,10 @@ export const PROVIDER_BUDGET_SCHEMA=`
 CREATE TABLE IF NOT EXISTS connector_provider_budgets(provider_id TEXT PRIMARY KEY, limit_usd REAL NOT NULL, reserved_usd REAL NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS connector_provider_operations(
  provider_id TEXT NOT NULL, operation_id TEXT NOT NULL, request_hash TEXT NOT NULL, ceiling_usd REAL NOT NULL,
- payload_ref TEXT, status INTEGER, headers TEXT, PRIMARY KEY(provider_id,operation_id));`;
+ payload_ref TEXT, status INTEGER, headers TEXT, feed_id TEXT, feed_source_id TEXT, PRIMARY KEY(provider_id,operation_id));
+CREATE TABLE IF NOT EXISTS connector_source_provider_budgets(
+ feed_id TEXT NOT NULL,feed_source_id TEXT NOT NULL,provider_id TEXT NOT NULL,reserved_usd REAL NOT NULL DEFAULT 0,
+ PRIMARY KEY(feed_id,feed_source_id,provider_id));`;
 
 export interface ProviderHttpResult {status:number;headers:Record<string,string>;bytes:Uint8Array;json:unknown}
 export interface ProviderHttpPort {
@@ -17,33 +20,21 @@ export interface ProviderHttpPort {
  * not reported actual costs. Caps are configured by deployment, not by source input. */
 export class DurableProviderHttp implements ProviderHttpPort {
   constructor(private readonly db:SqlDatabase,private readonly payloads:ImmutablePayloadStore,
-    private readonly dispatch:(url:string,init:RequestInit)=>Promise<Response>,private readonly maxBytes=4_000_000,private readonly deadlineMs=20_000,private readonly sourceBudgetUsd?:number) {
+    private readonly dispatch:(url:string,init:RequestInit)=>Promise<Response>,private readonly maxBytes=4_000_000,private readonly deadlineMs=20_000,
+    private readonly sourceProviderLimitUsd?:number,private readonly deploymentLimits?:Readonly<Record<string,number>>) {
     if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>10_000_000||!Number.isSafeInteger(deadlineMs)||deadlineMs<1||deadlineMs>60_000)throw new Error('INVALID_PROVIDER_LIMITS');
-    if(sourceBudgetUsd!==undefined&&(!Number.isFinite(sourceBudgetUsd)||sourceBudgetUsd<0))throw new Error('INVALID_SOURCE_BUDGET');
+    if(sourceProviderLimitUsd!==undefined&&(!Number.isFinite(sourceProviderLimitUsd)||sourceProviderLimitUsd<0))throw new Error('INVALID_SOURCE_PROVIDER_BUDGET');
+    if(deploymentLimits!==undefined&&(!deploymentLimits||typeof deploymentLimits!=='object'||Array.isArray(deploymentLimits)||Object.values(deploymentLimits).some(v=>typeof v!=='number'||!Number.isFinite(v)||v<0)))throw new Error('INVALID_BUDGET');
   }
   async configureLimit(providerId:string,limitUsd:number) {
     if(!Number.isFinite(limitUsd)||limitUsd<0)throw new Error('INVALID_BUDGET');
-    await this.db.prepare('INSERT INTO connector_provider_budgets(provider_id,limit_usd) VALUES(?,?) ON CONFLICT(provider_id) DO UPDATE SET limit_usd=excluded.limit_usd')
+    await this.db.prepare('INSERT INTO connector_provider_budgets(provider_id,limit_usd) VALUES(?,?) ON CONFLICT(provider_id) DO UPDATE SET limit_usd=excluded.limit_usd WHERE limit_usd<>excluded.limit_usd')
       .bind(providerId,limitUsd).run();
   }
-  /** One durable allowance shared by every fallback provider for an approved source.
-   * Existing reservations are never reset. Saved legacy responses identify their
-   * scope by the same immutable payload prefix used by R2SourcePayloadStore.
-   * Unattributed legacy unknown outcomes are conservatively held against each
-   * newly initialized allowance; scoped unknowns already charged another source
-   * carry their budget identity in the dispatch claim. */
-  async configureSourceLimit(scope:SourceScope):Promise<string|undefined> {
-    if(this.sourceBudgetUsd===undefined)return undefined;
-    const key='source:'+await sha256(JSON.stringify([scope.feedId,scope.feedSourceId]));
-    const existing=await this.db.prepare('SELECT limit_usd FROM connector_provider_budgets WHERE provider_id=?').bind(key).first<{limit_usd:number}>();
-    if(existing){if(existing.limit_usd!==this.sourceBudgetUsd)await this.configureLimit(key,this.sourceBudgetUsd);return key;}
-    const prefix='source-payloads/'+await sha256(JSON.stringify([scope.feedId,scope.feedSourceId,scope.sourceId]))+'/';
-    await this.db.prepare(`INSERT INTO connector_provider_budgets(provider_id,limit_usd,reserved_usd)
-      SELECT ?,?,COALESCE(SUM(ceiling_usd),0) FROM connector_provider_operations
-      WHERE substr(payload_ref,1,?)=? OR json_extract(headers,'$.sourceBudgetKey')=? OR (payload_ref IS NULL AND json_extract(headers,'$.sourceBudgetKey') IS NULL)
-      ON CONFLICT(provider_id) DO UPDATE SET limit_usd=excluded.limit_usd`)
-      .bind(key,this.sourceBudgetUsd,prefix.length,prefix,key).run();
-    return key;
+  async configureLimits(limits:Readonly<Record<string,number>>,initializeOnly=false){
+    if(Object.values(limits).some(v=>typeof v!=='number'||!Number.isFinite(v)||v<0))throw new Error('INVALID_BUDGET');
+    if(!Object.keys(limits).length)return;
+    await this.db.batch(Object.entries(limits).map(([id,value])=>this.db.prepare(`INSERT INTO connector_provider_budgets(provider_id,limit_usd) VALUES(?,?) ON CONFLICT(provider_id) ${initializeOnly?'DO NOTHING':'DO UPDATE SET limit_usd=excluded.limit_usd WHERE limit_usd<>excluded.limit_usd'}`).bind(id,value)));
   }
   async request(scope:SourceScope,operationId:string,providerId:string,ceilingUsd:number,url:string,init:RequestInit):Promise<ProviderHttpResult> {
     if(!Number.isFinite(ceilingUsd)||ceilingUsd<=0)throw new SourceProviderError('BUDGET_EXCEEDED');
@@ -54,38 +45,52 @@ export class DurableProviderHttp implements ProviderHttpPort {
     const hash=await sha256(JSON.stringify([url,init.method??'GET',init.body??null]));
     const load=()=>this.db.prepare('SELECT request_hash,payload_ref,status,headers FROM connector_provider_operations WHERE provider_id=? AND operation_id=?')
       .bind(providerId,scoped).first<{request_hash:string;payload_ref:string|null;status:number|null;headers:string|null}>();
-    const sourceBudgetKey=await this.configureSourceLimit(scope);
     const previous=await load();
     if(previous) {
       if(previous.request_hash!==hash)throw new Error('IDEMPOTENCY_CONFLICT');
       if(!previous.payload_ref)throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
       return this.decode(previous.status!,JSON.parse(previous.headers!),await this.payloads.get(scope,previous.payload_ref));
     }
-    const initialHeaders=sourceBudgetKey?JSON.stringify({sourceBudgetKey}):null;
+    const deploymentLimit=this.deploymentLimits?.[providerId]??(this.deploymentLimits?0:undefined);
+    if(deploymentLimit!==undefined&&deploymentLimit<ceilingUsd)throw new SourceProviderError('BUDGET_EXCEEDED');
     // Atomic reserve + insertion. Update only if no prior operation exists. The insertion
     // observes the same transaction, preventing two workers claiming the same request.
-    await this.db.batch([
-      this.db.prepare(`INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,headers)
-        SELECT ?,?,?,?,? FROM connector_provider_budgets WHERE provider_id=? AND reserved_usd+?<=limit_usd
-        AND (? IS NULL OR EXISTS (SELECT 1 FROM connector_provider_budgets s WHERE s.provider_id=? AND s.reserved_usd+?<=s.limit_usd))
-        ON CONFLICT DO NOTHING`)
-        .bind(providerId,scoped,hash,ceilingUsd,initialHeaders,providerId,ceilingUsd,sourceBudgetKey??null,sourceBudgetKey??null,ceilingUsd),
+    // Preserve reservations made before per-provider source accounting existed.
+    // Legacy completed payload paths encode the immutable source scope. An
+    // unattributed uncertain legacy charge must be reconciled, never ignored.
+    if(await this.db.prepare('SELECT 1 AS unresolved FROM connector_provider_operations WHERE provider_id=? AND payload_ref IS NULL AND feed_source_id IS NULL LIMIT 1').bind(providerId).first())throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+    if(await this.db.prepare('SELECT 1 AS unresolved FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND payload_ref IS NULL LIMIT 1').bind(scope.feedId,scope.feedSourceId).first())throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+    const prefix='source-payloads/'+await sha256(JSON.stringify([scope.feedId,scope.feedSourceId,scope.sourceId]))+'/';
+    const sourceBudget=this.sourceProviderLimitUsd===undefined?[]:[this.db.prepare(`INSERT INTO connector_source_provider_budgets(feed_id,feed_source_id,provider_id,reserved_usd)
+      SELECT ?,?,?,COALESCE(SUM(ceiling_usd),0) FROM connector_provider_operations WHERE provider_id=? AND payload_ref>=? AND payload_ref<? ON CONFLICT DO NOTHING`).bind(scope.feedId,scope.feedSourceId,providerId,providerId,prefix,prefix+'\uffff')];
+    const sourceGuard=this.sourceProviderLimitUsd===undefined?'':` AND EXISTS(SELECT 1 FROM connector_source_provider_budgets WHERE feed_id=? AND feed_source_id=? AND provider_id=? AND reserved_usd+?<=?)`;
+    const deploymentGuard=deploymentLimit===undefined?'':' AND reserved_usd+?<=?';
+    // A later polling window or funded fallback cannot bypass an unresolved
+    // submission for this FeedSource, even with no configured source cap.
+    // Include both scoped and unattributed legacy fences in the reservation
+    // transaction so two different run IDs cannot race past the read above.
+    const unresolvedGuard=' AND NOT EXISTS(SELECT 1 FROM connector_provider_operations WHERE payload_ref IS NULL AND ((feed_id=? AND feed_source_id=?) OR (provider_id=? AND feed_source_id IS NULL)))';
+    await this.db.batch([...sourceBudget,
+      this.db.prepare(`INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,feed_id,feed_source_id)
+        SELECT ?,?,?,?,?,? FROM connector_provider_budgets WHERE provider_id=? AND reserved_usd+?<=limit_usd${sourceGuard}${deploymentGuard}${unresolvedGuard} ON CONFLICT DO NOTHING`)
+        .bind(providerId,scoped,hash,ceilingUsd,scope.feedId,scope.feedSourceId,providerId,ceilingUsd,...(this.sourceProviderLimitUsd===undefined?[]:[scope.feedId,scope.feedSourceId,providerId,ceilingUsd,this.sourceProviderLimitUsd]),...(deploymentLimit===undefined?[]:[ceilingUsd,deploymentLimit]),scope.feedId,scope.feedSourceId,providerId),
       this.db.prepare(`UPDATE connector_provider_budgets SET reserved_usd=reserved_usd+? WHERE provider_id=? AND EXISTS
         (SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id=? AND status IS NULL AND payload_ref IS NULL)`)
         .bind(ceilingUsd,providerId,providerId,scoped),
-      ...(sourceBudgetKey?[this.db.prepare(`UPDATE connector_provider_budgets SET reserved_usd=reserved_usd+? WHERE provider_id=? AND EXISTS
-        (SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id=? AND status IS NULL AND payload_ref IS NULL)`)
-        .bind(ceilingUsd,sourceBudgetKey,providerId,scoped)]:[]),
+      ...(this.sourceProviderLimitUsd===undefined?[]:[this.db.prepare(`UPDATE connector_source_provider_budgets SET reserved_usd=reserved_usd+? WHERE feed_id=? AND feed_source_id=? AND provider_id=? AND EXISTS(SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id=? AND status IS NULL AND payload_ref IS NULL)`).bind(ceilingUsd,scope.feedId,scope.feedSourceId,providerId,providerId,scoped)]),
       // -1 is the durable claim fence; a second caller cannot reserve/dispatch the same operation.
       this.db.prepare('UPDATE connector_provider_operations SET status=-1 WHERE provider_id=? AND operation_id=? AND status IS NULL').bind(providerId,scoped)
     ]);
     const claimed=await load();
-    if(!claimed)throw new SourceProviderError('BUDGET_EXCEEDED');
+    if(!claimed){
+      if(await this.db.prepare('SELECT 1 AS unresolved FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND payload_ref IS NULL LIMIT 1').bind(scope.feedId,scope.feedSourceId).first())throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+      throw new SourceProviderError('BUDGET_EXCEEDED');
+    }
     if(claimed.request_hash!==hash)throw new Error('IDEMPOTENCY_CONFLICT');
     // Readback alone cannot tell who inserted the operation. Acquire a unique dispatch token.
     const token=crypto.randomUUID();
-    const mine=await this.db.prepare('UPDATE connector_provider_operations SET headers=? WHERE provider_id=? AND operation_id=? AND status=-1 AND headers IS ? RETURNING operation_id')
-      .bind(JSON.stringify({claimToken:token,...(sourceBudgetKey?{sourceBudgetKey}:{})}),providerId,scoped,initialHeaders).first();
+    const mine=await this.db.prepare('UPDATE connector_provider_operations SET headers=? WHERE provider_id=? AND operation_id=? AND status=-1 AND headers IS NULL RETURNING operation_id')
+      .bind(JSON.stringify({claimToken:token}),providerId,scoped).first();
     if(!mine)throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
     const abort=new AbortController();
     let timer:ReturnType<typeof setTimeout>;
@@ -101,11 +106,10 @@ export class DurableProviderHttp implements ProviderHttpPort {
     const payload=await this.payloads.put(scope,bytes,'application/json');
     const headers:Record<string,string>={};for(const name of ['retry-after','content-type']){const v=response.headers.get(name);if(v)headers[name]=v;}
     await this.db.prepare('UPDATE connector_provider_operations SET payload_ref=?,status=?,headers=? WHERE provider_id=? AND operation_id=? AND headers=?')
-      .bind(payload.ref,response.status,JSON.stringify({...headers,...(sourceBudgetKey?{sourceBudgetKey}:{})}),providerId,scoped,JSON.stringify({claimToken:token,...(sourceBudgetKey?{sourceBudgetKey}:{})})).run();
+      .bind(payload.ref,response.status,JSON.stringify(headers),providerId,scoped,JSON.stringify({claimToken:token})).run();
     return this.decode(response.status,headers,bytes);
   }
   private decode(status:number,headers:Record<string,string>,bytes:Uint8Array):ProviderHttpResult {
-    delete headers.sourceBudgetKey;
     let json:unknown;try{json=JSON.parse(new TextDecoder().decode(bytes));}catch{json=undefined;}
     return {status,headers,bytes,json};
   }

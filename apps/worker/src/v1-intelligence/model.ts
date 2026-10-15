@@ -1,3 +1,4 @@
+import {ASYNC_MODEL_CALL_MS} from './operation-timing';
 import {admitModelOperation,modelCapability} from './model-capacity';
 import {boundedCompletion,type ModelOptions} from '../ai';
 import type {Env} from '../types';
@@ -10,19 +11,20 @@ export const APPROVED_FACT_PROMPT_VERSION='approved-fact-spans-editorial-v28';
 export function createStoredEvidenceModel(env:Env,fetcher:typeof fetch=fetch):BriefingModelPort|undefined {
  if(env.V1_SYNTHESIS_MODEL_ENABLED!=='true') return undefined;
  let options:ModelOptions;
- if(env.DISTILLED_LLM_API_GATEWAY==='openrouter' && env.OPENROUTER_API_KEY) options={accountId:'',gatewayId:'',apiKey:env.OPENROUTER_API_KEY,provider:'OPENROUTER',model:env.DISTILLED_LIVE_OPENROUTER_MODEL??'openai/gpt-4.1-mini',env,fetcher};
- else if(env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_AI_GATEWAY_ID && env.OPENAI_API_KEY) options={accountId:env.CLOUDFLARE_ACCOUNT_ID,gatewayId:env.CLOUDFLARE_AI_GATEWAY_ID,apiKey:env.OPENAI_API_KEY,gatewayAuthToken:env.CLOUDFLARE_AI_GATEWAY_TOKEN,model:env.OPENAI_MODEL??'gpt-4.1-mini',env,fetcher};
+ if(env.DISTILLED_LLM_API_GATEWAY==='openrouter' && env.OPENROUTER_API_KEY) options={accountId:'',gatewayId:'',apiKey:env.OPENROUTER_API_KEY,provider:'OPENROUTER',model:env.DISTILLED_LIVE_OPENROUTER_MODEL??'openai/gpt-4.1-mini',env,fetcher,timeoutMs:ASYNC_MODEL_CALL_MS};
+ else if(env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_AI_GATEWAY_ID && env.OPENAI_API_KEY) options={accountId:env.CLOUDFLARE_ACCOUNT_ID,gatewayId:env.CLOUDFLARE_AI_GATEWAY_ID,apiKey:env.OPENAI_API_KEY,gatewayAuthToken:env.CLOUDFLARE_AI_GATEWAY_TOKEN,model:env.OPENAI_MODEL??'gpt-4.1-mini',env,fetcher,timeoutMs:ASYNC_MODEL_CALL_MS};
  else return undefined;
  let latestUsage:ModelUsage={tokensIn:0,tokensOut:0,cost:0,confirmed:true};
  const capability=modelCapability(options.model,env.V1_MODEL_CAPABILITIES_JSON);
  const admission=(wire:unknown)=>{const value=wire as {payload:unknown;schema:object};if(!value||!value.schema)return admitModelOperation(options.model,wire,{},undefined);return admitModelOperation(options.model,value.payload,value.schema,capability)};
  const complete=async(feedId:string,phase:string,payload:unknown,schema:object,limits:{maxOutputTokens:number;signal:AbortSignal})=>{
   const envelope=admitModelOperation(options.model,payload,schema,capability,limits.maxOutputTokens);
+  if(!envelope.fits)throw Error(envelope.reason);
   let usage:ModelUsage=latestUsage={tokensIn:0,tokensOut:0,cost:envelope.reservationCostUsd,confirmed:false};
   const result=await boundedCompletion({...options,usageRecorder:async record=>{
    // Estimates never masquerade as provider-reported charges. Unknown usage
    // retains the durable reservation and prevents further calls that exceed it.
-   latestUsage=usage={tokensIn:record.inputTokens,tokensOut:record.outputTokens,cost:record.reportedCostUsd??record.estimatedCostUsd,confirmed:record.reportedCostUsd!==undefined && record.inputTokens>0 && record.outputTokens>0};
+   latestUsage=usage={tokensIn:record.inputTokens,tokensOut:record.outputTokens,cost:record.reportedCostUsd??record.estimatedCostUsd,confirmed:record.reportedCostUsd!==undefined};
   }},feedId,phase==='SYNTHESIS'?'summary':'event_review',phase,JSON.stringify(payload),schema,limits);
   return {result,usage};
  };

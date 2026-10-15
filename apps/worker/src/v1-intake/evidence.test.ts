@@ -96,3 +96,20 @@ it('empty listing does not infer deletion or change current evidence',async()=>{
   expect((await createCandidateIntakePort(store,testPolicy).acceptBatch(request)).receipts).toEqual([]);
   expect(await store.list('evidence','feed-source-1')).toEqual(before);expect(await store.list('tombstones','feed-source-1')).toHaveLength(0);
 });
+
+
+it.each(['ARTICLE_EXCERPT','LISTING_RESULT'] as const)('reacquires a URL-bearing %s update without allowing full-article downgrade',async representation=>{
+ const first=await acquire(1,'Original complete article.');
+ await acceptAcquiredContent(store,{...first,representation:'FULL_ARTICLE'},testPolicy);
+ const request=batchFixture(2);Object.assign(request.observations[0],{representation,canonicalUrl:'https://example.com/article',contentCompleteness:'PARTIAL'});Object.assign(request.proposals[0],{representation,url:'https://example.com/article',contentCompleteness:'PARTIAL'});
+ const intake=await createCandidateIntakePort(store,testPolicy).acceptBatch(request);
+ expect(intake.receipts[0].decision).toBe('ACCEPTED');
+ expect((await store.listPendingJobs('feed-source-1')).filter(j=>j.kind==='ACQUIRE').map(j=>j.observationId)).toContain('observation-2');
+ const content={...first,id:'acquired-2',sourceObservationId:'observation-2',body:'Updated complete article.',representation:'FULL_ARTICLE' as const};
+ expect((await acceptAcquiredContent(store,content,testPolicy)).decision).toBe('PROMOTED_NEW_REVISION');
+ const fallback=batchFixture(3);Object.assign(fallback.observations[0],{representation,canonicalUrl:'https://example.com/article',contentCompleteness:'PARTIAL'});Object.assign(fallback.proposals[0],{representation,url:'https://example.com/article',contentCompleteness:'PARTIAL'});
+ expect((await createCandidateIntakePort(store,testPolicy).acceptBatch(fallback)).receipts[0].decision).toBe('ACCEPTED');
+ expect((await acceptAcquiredContent(store,{...content,id:'acquired-3',sourceObservationId:'observation-3',body:'Only an excerpt.',representation:'ARTICLE_EXCERPT',contentCompleteness:'PARTIAL'},testPolicy)).decision).toBe('QUARANTINED_REVISION_CONFLICT');
+ expect((await store.list<EvidenceRevision>('revisions','feed-source-1')).map(r=>r.body).sort()).toEqual(['Original complete article.','Updated complete article.']);
+ expect((await store.list<NormalizedEvidenceItem>('evidence','feed-source-1'))[0].currentFetchStartSequence).toBe(2);
+});

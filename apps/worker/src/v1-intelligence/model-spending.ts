@@ -1,3 +1,5 @@
+import {effectiveModelConcurrency} from './model-spending-amendments';
+import type {ProviderDiagnostic} from '../provider-outcome';
 import {canonicalJson} from '../v1-intake/canonical';
 export interface ModelSpendingAuthorization {id:string;accountId:string;modelIds:string[];validFrom:string;validUntil:string;maxExposureUsd:number;maxConcurrentOperations:number}
 export interface ModelSpendingReservation {id:string;accountId:string;model:string;feedId:string;token:string;reservedCostUsd:number;leaseUntil:number;createdAt:string}
@@ -14,23 +16,26 @@ export async function authorizeModelSpending(db:D1Database,grant:ModelSpendingAu
  const guard=crypto.randomUUID();
  await db.batch([db.prepare(`INSERT INTO v1_model_spending_guards(id,valid) SELECT ?,CASE WHEN (${legacyMissing})=0 AND NOT EXISTS(SELECT 1 FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<? AND valid_until>?) THEN 1 ELSE 0 END`).bind(guard,grant.accountId,instant(grant.validUntil),instant(grant.validFrom)),db.prepare('INSERT INTO v1_model_spending_authorizations VALUES(?,?,?,?,?)').bind(grant.id,grant.accountId,instant(grant.validFrom),instant(grant.validUntil),JSON.stringify(grant)),db.prepare('DELETE FROM v1_model_spending_guards WHERE id=?').bind(guard)]);
 }
-export async function spendingAuthorization(db:D1Database,r:ModelSpendingReservation):Promise<ModelSpendingAuthorization>{
+export async function spendingAuthorization(db:D1Database,r:ModelSpendingReservation):Promise<ModelSpendingAuthorization&{concurrencyRevision:number;concurrencySchemaAvailable:boolean}>{
  const rows=await db.prepare('SELECT json FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<=? AND valid_until>?').bind(r.accountId,instant(r.createdAt),instant(r.createdAt)).all<{json:string}>();
- const grants=rows.results.map(x=>JSON.parse(x.json) as ModelSpendingAuthorization).filter(g=>g.modelIds.includes(r.model)||g.modelIds.includes('*'));if(grants.length!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return grants[0];
+ const grants=rows.results.map(x=>JSON.parse(x.json) as ModelSpendingAuthorization).filter(g=>g.modelIds.includes(r.model)||g.modelIds.includes('*'));if(grants.length!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return {...grants[0],...await effectiveModelConcurrency(db,grants[0].id,grants[0].maxConcurrentOperations)};
 }
 /** Shared exposure: period charges plus ALL unsettled liabilities, even from
  * expired owners/older grants. A new day or Feed never erases UNKNOWN money. */
 export async function spendingExposure(db:D1Database,accountId:string,at:string){
  const grant=await db.prepare('SELECT valid_from,valid_until FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<=? AND valid_until>?').bind(accountId,instant(at),instant(at)).first<{valid_from:string;valid_until:string}>();
- const result=await db.prepare(`SELECT COALESCE(SUM(CASE WHEN s.reported=1 AND r.created_at>=? AND r.created_at<? THEN s.cost_usd ELSE 0 END),0) AS reportedCostUsd,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 THEN MAX(r.reserved_cost_usd,COALESCE(s.cost_usd,0)) ELSE 0 END),0) AS heldCostUsd,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 AND r.lease_until<=? THEN 1 ELSE 0 END),0) AS unknown FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.account_id=?`).bind(grant?.valid_from??instant(at),grant?.valid_until??instant(at),Date.now(),accountId).first<{reportedCostUsd:number;heldCostUsd:number;unknown:number}>();return result!;
+ const result=await db.prepare(`SELECT COALESCE(SUM(CASE WHEN s.reported=1 AND r.created_at>=? AND r.created_at<? THEN s.cost_usd ELSE 0 END),0) AS reportedCostUsd,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 THEN MAX(r.reserved_cost_usd,COALESCE(s.cost_usd,0)) ELSE 0 END),0) AS heldCostUsd,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 THEN 1 ELSE 0 END),0) AS unsettledConcurrencySlots,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 AND r.lease_until<=? THEN 1 ELSE 0 END),0) AS unknown FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.account_id=?`).bind(grant?.valid_from??instant(at),grant?.valid_until??instant(at),Date.now(),accountId).first<{reportedCostUsd:number;heldCostUsd:number;unknown:number;unsettledConcurrencySlots:number}>();
+ const quarantine=await db.prepare(`SELECT COUNT(*) AS n FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.account_id=? AND COALESCE(s.reported,0)=0 AND EXISTS(SELECT 1 FROM v1_feed_documents q WHERE q.kind='model_execution_quarantines' AND q.id=r.id AND q.feed_id=r.feed_id AND json_extract(q.json,'$.accountId')=r.account_id AND json_extract(q.json,'$.reservationToken')=r.token)`).bind(accountId).first<{n:number}>();return {...result!,quarantinedConcurrencySlots:quarantine?.n??0,activeConcurrencySlots:result!.unsettledConcurrencySlots-(quarantine?.n??0)};
 }
 export async function modelSpendingStatements(db:D1Database,r:ModelSpendingReservation):Promise<D1PreparedStatement[]>{
  if(!r.id||!r.accountId||!r.token||!r.model||!r.feedId||!Number.isFinite(r.reservedCostUsd)||r.reservedCostUsd<0||!Number.isFinite(r.leaseUntil)||!Number.isFinite(Date.parse(r.createdAt)))throw Error('INVALID_MODEL_RESERVATION');
+ if(await db.prepare("SELECT id FROM v1_feed_documents WHERE kind='model_execution_retirements' AND id=? AND feed_id=?").bind(r.feedId,r.feedId).first())throw new ModelSpendingWait('FEED_EXECUTION_RETIRED');
  const existing=await db.prepare('SELECT json FROM v1_model_spending_reservations WHERE id=?').bind(r.id).first<{json:string}>();if(existing){if(canonicalJson(JSON.parse(existing.json))!==canonicalJson(r))throw new ModelSpendingWait('RESERVATION_IDENTITY_CONFLICT');return []}
  const g=await spendingAuthorization(db,r),guard=crypto.randomUUID();
  const exposure=`SELECT COALESCE(SUM(CASE WHEN s.reported=1 AND p.created_at>=? AND p.created_at<? THEN s.cost_usd WHEN COALESCE(s.reported,0)=0 THEN MAX(p.reserved_cost_usd,COALESCE(s.cost_usd,0)) ELSE 0 END),0) FROM v1_model_spending_reservations p LEFT JOIN v1_model_spending_settlements s ON s.id=p.id WHERE p.account_id=?`;
- const concurrency=`SELECT COUNT(*) FROM v1_model_spending_reservations p LEFT JOIN v1_model_spending_settlements s ON s.id=p.id WHERE p.account_id=? AND COALESCE(s.reported,0)=0`;
- return [db.prepare(`INSERT INTO v1_model_spending_guards(id,valid) SELECT ?,CASE WHEN (${legacyMissing})=0 AND (${exposure})+?<=? AND (${concurrency})<? THEN 1 ELSE 0 END`).bind(guard,instant(g.validFrom),instant(g.validUntil),r.accountId,r.reservedCostUsd,g.maxExposureUsd,r.accountId,g.maxConcurrentOperations),db.prepare('INSERT INTO v1_model_spending_reservations VALUES(?,?,?,?,?,?,?,?,?,?)').bind(r.id,r.accountId,g.id,r.token,r.model,r.feedId,r.reservedCostUsd,r.leaseUntil,instant(r.createdAt),JSON.stringify(r)),db.prepare('DELETE FROM v1_model_spending_guards WHERE id=?').bind(guard)];
+ const concurrency=`SELECT COUNT(*) FROM v1_model_spending_reservations p LEFT JOIN v1_model_spending_settlements s ON s.id=p.id WHERE p.account_id=? AND COALESCE(s.reported,0)=0 AND NOT EXISTS(SELECT 1 FROM v1_feed_documents q WHERE q.kind='model_execution_quarantines' AND q.id=p.id AND q.feed_id=p.feed_id AND json_extract(q.json,'$.accountId')=p.account_id AND json_extract(q.json,'$.reservationToken')=p.token)`;
+ const amendmentGuard=g.concurrencySchemaAvailable?' AND COALESCE((SELECT MAX(sequence) FROM v1_model_spending_concurrency_amendments WHERE authorization_id=?),0)=?':'';
+ return [db.prepare(`INSERT INTO v1_model_spending_guards(id,valid) SELECT ?,CASE WHEN (${legacyMissing})=0 AND (${exposure})+?<=? AND (${concurrency})<? AND NOT EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='model_execution_retirements' AND id=? AND feed_id=?) ${amendmentGuard} THEN 1 ELSE 0 END`).bind(guard,instant(g.validFrom),instant(g.validUntil),r.accountId,r.reservedCostUsd,g.maxExposureUsd,r.accountId,g.maxConcurrentOperations,r.feedId,r.feedId,...(g.concurrencySchemaAvailable?[g.id,g.concurrencyRevision]:[])),db.prepare('INSERT INTO v1_model_spending_reservations VALUES(?,?,?,?,?,?,?,?,?,?)').bind(r.id,r.accountId,g.id,r.token,r.model,r.feedId,r.reservedCostUsd,r.leaseUntil,instant(r.createdAt),JSON.stringify(r)),db.prepare('DELETE FROM v1_model_spending_guards WHERE id=?').bind(guard)];
 }
 export async function reserveModelSpending(db:D1Database,r:ModelSpendingReservation):Promise<void>{try{const statements=await modelSpendingStatements(db,r);if(statements.length)await db.batch(statements)}catch(e){if(String(e).includes('v1_model_spending_admission'))throw new ModelSpendingWait('ACCOUNT_RESOURCE_WAIT');throw e}}
 export function modelSettlementStatement(db:D1Database,id:string,token:string,usage:{costUsd:number;reported:boolean}):D1PreparedStatement{
@@ -62,4 +67,20 @@ export async function reconcileLegacyModelSpending(db:D1Database,kind:'semantic_
  await db.prepare('INSERT INTO v1_model_spending_reservations VALUES(?,?,NULL,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(key,r.accountId,r.token,r.model,r.feedId,r.reservedCostUsd,r.leaseUntil,instant(r.createdAt),JSON.stringify(r)).run();
 
  if(usage&&Number.isFinite(usage.costUsd)&&usage.costUsd>=0)await settleModelSpending(db,key,token,{costUsd:usage.costUsd,reported:Boolean(usage.reported)});
+}
+
+/** Read-only explanation of the existing admission rule. Local ownership and
+ * unresolved billing cannot establish a remote execution lifetime. No release,
+ * provider lookup, settlement or semantic mutation is performed here. */
+export function executionCapacityDiagnostic(input:{accountMapped:boolean;reported?:boolean;leaseUntil?:number;calls?:number;providerDiagnostic?:ProviderDiagnostic;quarantine?:{approvalId:string;approvedBy:string}},now=Date.now()){
+ const unpaid=!input.accountMapped&&input.calls===0,d=input.providerDiagnostic;
+ const rejection=d?.httpStatus===400&&d.code==='invalid_json_schema'&&d.category==='invalid_request_error'&&d.execution==='REJECTED_BEFORE_EXECUTION'&&Boolean(d.requestId);
+ return {
+  localLeaseState:typeof input.leaseUntil==='number'?input.leaseUntil>now?'LIVE':'EXPIRED':'NOT_OBSERVABLE',
+  countedAgainstConcurrency:input.accountMapped?!input.reported&&!input.quarantine:unpaid?false:null,
+  quarantine:input.quarantine?{...input.quarantine,riskAcceptance:'REMOTE_TERMINATION_UNPROVEN'}:null,
+  remoteExecutionState:unpaid?'NOT_RUN':rejection?'CONFIRMED_NONEXECUTION':'TERMINATION_UNPROVEN',
+  capacityReleaseEligibility:input.quarantine?'OPERATOR_QUARANTINED_WITH_UNPROVEN_TERMINATION':!input.accountMapped?unpaid?'NOT_APPLICABLE':'NOT_OBSERVABLE':input.reported?'ALREADY_RELEASED_BY_SETTLEMENT':rejection?'EVIDENCE_BOUND_RECONCILIATION_REQUIRED':'INSUFFICIENT_PROVIDER_EVIDENCE',
+  recoveryReason:input.quarantine?'Explicit operator risk acceptance removed this identity from new admission; financial exposure and UNKNOWN fences remain. Remote termination is unproven.':unpaid?'No paid operation was admitted.':input.accountMapped&&input.reported?'Confirmed accounting released the slot; inspect canonical semantic outcome independently.':rejection?'Explicit retained rejection supports the existing evidence-bound operator reconciliation.':'Obtain independently bound provider completion/rejection evidence. Lease expiry, timeout, cancellation and elapsed time are insufficient.'
+ };
 }

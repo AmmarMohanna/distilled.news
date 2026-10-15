@@ -4,7 +4,7 @@ import {structuredCompletionBody} from '../ai';
 import {createStrongSemanticModel} from './semantic-model';
 import type {Env} from '../types';
 it('counts the actual complete request, including schema, framing and UTF-8 evidence',()=>{
- const c=modelCapability('openai/gpt-4.1-mini')!,state={text:'Supported factual news. '.repeat(2400)},schema={type:'object',properties:{fact:{type:'string',enum:['Approved exact source text']}}};
+ const c=modelCapability('openai/gpt-4.1-mini')!,state={text:'Supported factual news. '.repeat(2400)},schema={type:'object',additionalProperties:false,required:['fact'],properties:{fact:{type:'string',enum:['Approved exact source text']}}};
  const r=admitModelOperation('openai/gpt-4.1-mini',state,schema,c);
  expect(r.fits).toBe(true);expect(r.requestBytes).toBe(new TextEncoder().encode(JSON.stringify(structuredCompletionBody('openai/gpt-4.1-mini',JSON.stringify(state),schema,32768))).length);
  expect(r.reservationCostUsd).toBeGreaterThan(.02);expect(r.inputTokenUpperBound+32768).toBeLessThanOrEqual(1047576);
@@ -27,6 +27,6 @@ it('unknown capabilities and true context overflow never invoke the paid transpo
 it('allocates the actual model output capability and classifies completed output exhaustion distinctly',async()=>{
  let body:any;const fetcher=(async(_u:any,init:any)=>{body=JSON.parse(init.body);return Response.json({choices:[{finish_reason:'length',message:{content:'{"groups":['}}],usage:{prompt_tokens:120,completion_tokens:32768,cost:.12}})}) as typeof fetch;
  const model=createStrongSemanticModel({OPENROUTER_API_KEY:'fixture'} as Env,fetcher)!;
- await expect(model.complete('feed','SEMANTIC_CONSTRUCTION',{claimMentions:[{id:'m1',text:'supported'}]},{})).rejects.toThrow('SEMANTIC_MODEL_OUTPUT_CONTINUATION_REQUIRED');
+ await expect(model.complete('feed','SEMANTIC_CONSTRUCTION',{claimMentions:[{id:'m1',text:'supported'}]},{type:'object',properties:{},required:[],additionalProperties:false})).rejects.toThrow('SEMANTIC_MODEL_OUTPUT_CONTINUATION_REQUIRED');
  expect(body.max_tokens).toBe(32768);expect(model.usage()).toMatchObject({calls:1,costUsd:.12,reported:true});
 });

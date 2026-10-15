@@ -43,9 +43,9 @@ async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:Inta
         set('DELETION_ACCEPTED','ACCEPTED_DELETION');receipt.tombstoneId=tombstone.id;
       }
     } else if(!input.proposal) set('REJECTED','REJECT_UNSUPPORTED');
-    // A URL-only listing observation requests extraction, not replacement of
-    // canonical content. Acceptance still checks the acquired representation.
-    else if(current?.revision && !(o.representation==='LISTING_RESULT'&&!o.suppliedPayloadRef&&o.canonicalUrl&&!verified) && representationDowngrade(current.revision,verified??o) && !authoritative) set('QUARANTINED','QUARANTINE_REVISION_CONFLICT');
+    // A URL-bearing excerpt/listing requests acquisition, not replacement of
+    // canonical content. The acquired result still cannot downgrade full text.
+    else if(current?.revision && !(o.canonicalUrl&&['ARTICLE_EXCERPT','LISTING_RESULT','LINK_ONLY'].includes(o.representation)) && representationDowngrade(current.revision,verified??o) && !authoritative) set('QUARANTINED','QUARANTINE_REVISION_CONFLICT');
     else {
       receipt.candidateItemId=id;
       if(verified && current?.item.state==='ACTIVE' && verified.contentHash===current.revision?.contentHash) {
@@ -77,7 +77,19 @@ export function createCandidateIntakePort(store:V1IntakeStore,policy:IntakePolic
       return transact(store,request.coverage.feedSourceId,async tx=>{
         if(policy.expectedFeedRevision!==undefined && tx.snapshot.scope.feedRevision!==policy.expectedFeedRevision) throw new HandoffError('SCOPE_DENIED');
         if(tx.snapshot.scope.feedId!==request.coverage.feedId || request.observations.some(o=>o.sourceId!==tx.snapshot.scope.sourceId)) throw new HandoffError('SCOPE_DENIED');
-        const key=itemId(request.coverage.feedSourceId,request.handoffId),existing=await tx.read<{canonical:string}>('handoffs',key);
+        const key=itemId(request.coverage.feedSourceId,request.handoffId);
+        await tx.prefetch([{table:'handoffs',id:key},...request.observations.flatMap(o=>[
+          {table:'inputs' as const,id:o.id},{table:'intake_receipts' as const,id:o.id},
+          {table:'candidates' as const,id:itemId(o.feedSourceId,o.sourceItemKey)},
+          {table:'evidence' as const,id:itemId(o.feedSourceId,o.sourceItemKey)}])]);
+        const related=[];
+        for(const o of request.observations){
+          const id=itemId(o.feedSourceId,o.sourceItemKey),candidate=await tx.read<CandidateRecord>('candidates',id),evidence=await tx.read<NormalizedEvidenceItem>('evidence',id);
+          if(candidate)related.push({table:'inputs' as const,id:candidate.latestObservationId});
+          if(evidence?.currentRevisionId)related.push({table:'revisions' as const,id:evidence.currentRevisionId});
+        }
+        await tx.prefetch(related);
+        const existing=await tx.read<{canonical:string}>('handoffs',key);
         if(existing && existing.canonical!==canonical) throw new HandoffError('IDEMPOTENCY_CONFLICT');
         if(!existing) tx.write('handoffs',key,{canonical},undefined,true);
         const receipts:IntakeReceipt[]=[];

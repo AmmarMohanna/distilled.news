@@ -66,7 +66,7 @@ export function AppExperience(props: {
       const currentTop = parseFloat(home.style.getPropertyValue('--dashboard-top-space')) || 0;
       const spare = viewport.getBoundingClientRect().bottom - content.getBoundingClientRect().bottom + current + currentTop;
       const total = innerWidth >= 900 ? Math.floor(Math.min(72, Math.max(0, spare - 12) * .7)) : 0;
-      const top = innerWidth >= 900 ? Math.min(16, Math.max(0, Math.floor((innerHeight - 560) * .2))) : 0;
+      const top = innerWidth >= 900 ? Math.min(40, Math.max(12, Math.floor((innerHeight - 500) * .2))) : 0;
       const extra = Math.max(0, total - top);
       if (Math.abs(extra - current) > 1) home.style.setProperty('--home-feed-extra-space', `${extra}px`);
       if (Math.abs(top - currentTop) > 1) home.style.setProperty('--dashboard-top-space', `${top}px`);

@@ -1,0 +1,128 @@
+Distilled.news operator Pipeline Trace
+
+Status: implemented on v1/pipeline-trace. Deployment requires separate approval.
+No source fetch, paid call, enrollment, retry, ledger projection, or financial
+write occurs when reading a trace. No migrations or new history tables.
+
+1. Create a test Feed through the ordinary signed-in Feed editor after deployment.
+Choose interests, permitted sources, visibility and schedule. Let normal polling
+and the scheduler run; there is no manual Brief now action. This document does
+not authorize creating test Feeds or running paid operations.
+
+2. Find its ID while signed in as an existing platform administrator:
+GET /api/admin/briefings
+Use briefing.id, not its slug. Non-admin account sessions cannot access traces,
+including their own private Feeds. Platform administrators have existing
+platform-wide diagnostic authority; every query is still scoped to the requested
+Feed, and foreign source/evidence/edition/candidate references are rejected.
+
+3. Read a window (UTC boundaries; both required when either supplied):
+GET /api/admin/briefings/<feed-id>/pipeline-trace?view=overview&windowStart=2026-10-13T00%3A00%3A00Z&windowEnd=2026-10-13T02%3A00%3A00Z
+Use view=sources for configuration, actual providers, receipts, coverage and jobs.
+Use view=articles for discovery, acquisition, source timing, content completeness,
+claim-to-Event lineage, semantic-operation references, editions and ledger IDs.
+Use view=candidates for the full parent shortlist, including overflow, approved
+facts, relevant reader history, relevance provenance, final recorded treatment,
+accepted model judgment, writing/verification and communication evidence.
+Use view=operations for models, failures, repairs, token usage, latency, reported
+cost and held exposure. Window filtering includes only directly window/selection-
+bound operations; shared article semantics must be inspected by evidence ID.
+Without a window, editorialContextWindow identifies the latest retained snapshot.
+
+4. Missing article (do not combine an old-article lookup with a new window):
+GET .../pipeline-trace?view=articles&sourceId=<owned-source>&url=<URL-encoded-article-url>
+Discovery batches are included even without accepted intake. Exact recorded URLs
+are matched after URL parsing/fragment removal; arbitrary URLs are never fetched.
+No match means NOT_OBSERVABLE, not proof that the publisher had no article or
+that an editor rejected it. Redirect/alias identities absent from the records
+cannot be inferred. Follow an acquired evidence ID with:
+GET .../pipeline-trace?view=operations&evidenceRevisionId=<revision-id>
+
+5. Candidate omitted, suppressed, deferred or not considered:
+GET .../pipeline-trace?view=candidates&targetId=<Event-or-Storyline-id-or-version>&windowStart=<UTC-start>&windowEnd=<UTC-end>
+The same view accepts candidateId, sourceId or evidenceRevisionId. A final
+recordedDecision is separate from an acceptedComparativeJudgment. decision is
+null when no accepted real-model judgment is established. Never interpret a
+technical DEFER/overflow as irrelevance. Inspect modelOperationIds,
+globalContextOperationIds, planId, flags and pendingDelivery. Exact mandatory-fact
+communication requires ledger_fact_bindings; one ledger sentence is insufficient.
+
+6. Failed publication and original retained records:
+GET .../pipeline-trace?view=records&kind=briefing_requests&windowStart=<UTC-start>&windowEnd=<UTC-end>
+GET .../pipeline-trace?view=records&kind=synthesis_jobs&recordId=<request-id>
+GET .../pipeline-trace?view=records&kind=editorial_proposals&windowStart=<UTC-start>&windowEnd=<UTC-end>
+GET .../pipeline-trace?view=records&kind=drafts&recordId=<draft-id>
+GET .../pipeline-trace?view=records&kind=verification_results&recordId=<verification-id>
+GET .../pipeline-trace?view=records&kind=verification_feedback&candidateId=<candidate-id>
+GET .../pipeline-trace?view=records&kind=publication_status&recordId=<edition-id>
+GET .../pipeline-trace?view=records&kind=ledger_entries&candidateId=<candidate-id>
+GET .../pipeline-trace?view=records&kind=correction_obligations
+GET .../pipeline-trace?view=records&kind=correction_resolutions
+GET .../pipeline-trace?view=records&kind=delivery_jobs&recordId=<edition-id>
+Other allowed kinds include semantic_construction_work/progress,
+editorial_processing_work/progress/waits, publication_work,
+publication_reconciliations, rematch_requests/attempts, event_semantic_states,
+events/versions, storylines/versions, entities, propositions and state_slots.
+Raw model prompts/provider responses, token/lease ownership and credentials are
+withheld. Proposals retain rejection, attempt, usage and original record ID;
+rawProposal is deliberately not echoed. Inspect exact retained raw responses only
+through an independently authorized database investigation if necessary.
+
+7. Costs:
+GET .../pipeline-trace?view=operations&recordId=<operation-id>
+Reported costs use account settlements when available, otherwise persisted usage.
+Held/UNKNOWN exposure is never labeled confirmed spending. A late known settlement
+does not make an UNKNOWN canonical result usable. Feed accounting totals cover
+mapped operations, not all platform spending; unmappedIntentCount is explicit.
+windowSpending is a directly bound subtotal, not the total cost of shared semantics.
+Legacy reuse without a durable alias receipt remains NOT_OBSERVABLE.
+
+8. CLI (run from repository root):
+Set DISTILLED_TRACE_COOKIE through a secure process environment containing an
+existing operator session. Never include it in command arguments or a file.
+The CLI refuses non-HTTPS origins and redirects and does not print credentials.
+node scripts/pipeline-trace.mjs --origin https://distilled-news-staging.distillednews-platform.workers.dev --feed <feed-id> --view candidates --window-start <UTC-start> --window-end <UTC-end> --all
+node scripts/pipeline-trace.mjs --feed <feed-id> --view articles --url <article-url> --all
+node scripts/pipeline-trace.mjs --feed <feed-id> --view operations --evidence <revision-id> --all
+node scripts/pipeline-trace.mjs --input <sanitized-local-trace.json>
+Add --json for structured output. pageSize (1..100) is only a transport page size;
+--all follows all cursors. Counts and cursor scope changes abort pagination.
+Do not publish private diagnostic exports or commit retained evidence.
+Unsupported filters return INVALID_REQUEST rather than being silently ignored.
+
+Limitations:
+- Live SELECTs are not one transaction snapshot; immutable identities are stable,
+  but requests/jobs may progress between pages. Rerun on concurrent changes.
+- Source metadata is last known, not proof every enabled source was polled in a
+  given window. Poll-job lookup includes jobs without an executed fetch run. Legacy poll-job
+  tables lack Feed-scope indexes: this uses the existing health query pattern
+  on queue metadata, not raw article bodies. A source-team scope index is
+  recommended before large-platform diagnostic polling.
+- Missing instrumentation, frontend/device receipt and historical reuse receipts
+  remain NOT_OBSERVABLE. Push-service acceptance is not device delivery.
+- Published means an immutable edition exists; currentlyPublished means its
+  publication status remains PUBLISHED. Neither proves frontend rendering or
+  public access to a private Feed. Withdrawal preserves historical communication.
+- Semantic/window counts that cannot be faithfully attributed remain null with
+  reasons. Different entities (observations, revisions, claims, Events, stories)
+  are never presented as interchangeable article counts.
+
+Staging live test plan (prepared; not executed by this task):
+Use Lebanon News, AI Developments and broad international news with overlapping
+approved sources, after separate deployment/live-test authorization. Inventory
+actual source permissions/providers and compare publisher article URLs with raw
+batch discovery and accepted evidence for at least two normal closed windows.
+For each article verify extraction coverage/timing, claim lineage, distinct versus
+shared Events, Storyline continuity and unresolved operations. For every candidate
+compare Feed interests and reader history with accepted global model judgment,
+including overflow and technical waits. Compare selected mandatory facts with
+writer packet inputs, verifier results, final edition and exact ledger bindings.
+Check omissions independently, not solely from planner rationales. Audit source
+fidelity, corrections, withdrawal, novelty, duplicate delivery and public/private
+reader access. Report actual account usage separately from held exposure and shared
+cost attribution. The shared $50/7-day staging authorization is context, not
+permission to activate/change a grant, budgets, concurrency or provider credentials.
+
+Request status is projected at summary.publication.briefingRequest. This is a
+whitelist of durable status/coverage fields; raw provider request bodies remain
+redacted. The readable CLI also accepts older saved reports with publication.request.

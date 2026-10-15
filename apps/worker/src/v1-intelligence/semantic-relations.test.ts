@@ -2,7 +2,7 @@ import {afterEach,beforeEach,expect,it} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope,testPolicy} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore} from './store';
-import {feedFixture,seedIntelligence,acceptEvidence} from './test-utils';
+import {feedFixture,seedIntelligence,acceptEvidence,syntheticModelAdmission} from './test-utils';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {processEvidenceIntelligence} from './engine';
 import type {Env} from '../types';
@@ -45,7 +45,7 @@ it('same Event from another publisher: effect and entailment are judged against 
 it('same Event with a changed certainty keeps structural identity AND the epistemic effect, and is escalated as high consequence',async()=>{
  await twoEvents();
  const {fetcher}=jev({structure:pick('lebanon'),effect:'CHANGES_CERTAINTY',entails:.2});
- let escalated:string[]=[];const strong={model:'fake',usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{escalated=state.reasons;return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.prior.eventId,storylineId:null,epistemicEffects:['CHANGES_CERTAINTY'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
+ let escalated:string[]=[];const strong={model:'fake',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{escalated=state.reasons;return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.prior.eventId,storylineId:null,epistemicEffects:['CHANGES_CERTAINTY'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
  await incoming(3,'Lebanon Parliament has now passed the banking reform law after Tuesday debate.');
  const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong,fetcher});
  expect(escalated).toContain('HIGH_CONSEQUENCE');expect(prepared?.prepared.decision.structuralRelation).toBe('SAME_EVENT');expect(prepared?.prepared.decision.epistemicEffects).toContain('CHANGES_CERTAINTY');
@@ -53,7 +53,7 @@ it('same Event with a changed certainty keeps structural identity AND the episte
 it('a new development in an existing Storyline is a NEW Event continuing that Storyline, not a collapse into the old Event',async()=>{
  await twoEvents();
  const {fetcher}=jev({structure:state=>`STORY_${state.storylines.findIndex((s:any)=>s.state.toLowerCase().includes('lebanon'))}`});
- const strong={model:'fake',usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_EVENT_EXISTING_STORYLINE',eventId:null,storylineId:state.prior.storylineId,epistemicEffects:['CHANGES_STATE'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage})};
+ const strong={model:'fake',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_EVENT_EXISTING_STORYLINE',eventId:null,storylineId:state.prior.storylineId,epistemicEffects:['CHANGES_STATE'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage})};
  await incoming(3,'Lebanon central bank issued new depositor withdrawal rules.');
  const eventsBefore=(await store.list('feed-1','events')).length,storylinesBefore=(await store.list('feed-1','storylines')).length;
  const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong,fetcher});
@@ -86,7 +86,7 @@ it('choosing a non-first candidate Event no longer forces strong escalation and 
 },60000);
 it('arrival order: an Event committed after preparation makes the prepared NEW judgment stale (defer + rematch), never a duplicate Event/Storyline',async()=>{
  await incoming(2,'Ukraine opened a new grain corridor through the Black Sea.','publisher-2');
- const strong={model:'fake',usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:['CHANGES_STATE'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage})};
+ const strong={model:'fake',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:['CHANGES_STATE'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage})};
  // B is prepared against an empty memory, then A (same development) commits first.
  const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test'} as Env,job(2),testPolicy.now(),{strong});
  expect(prepared?.prepared.decision.structuralRelation).toBe('NEW_STORYLINE');

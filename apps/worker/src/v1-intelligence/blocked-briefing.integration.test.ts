@@ -12,7 +12,7 @@ import {withdrawV1Edition} from './public-read';
 import {fallbackEditorialPlan} from './editorial-plan';
 import {compactEditorialInput} from './editorial-transport';
 import {readScheduleAudit} from './schedule-audit';
-import {readBlockedWindows,BLOCKED_REASON,ESCALATED_REASON} from './blocked-window';
+import {readBlockedWindows,BLOCKED_REASON} from './blocked-window';
 import type {ShortlistRecord} from './shortlist';
 import type {RematchRequest,RematchAttempt} from './rematch';
 import type {BriefingEditionRecord} from './publication';
@@ -32,6 +32,7 @@ const fetcher=(async(_url:unknown,init:RequestInit)=>{
   calls.planner++;
   const shortlists=(await store.list<ShortlistRecord>('feed-1','shortlists')).filter(s=>s.window.end===prompt.window.end).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),sl=shortlists[0],plan=fallbackEditorialPlan(sl);
   for(const s of plan.stories){
+   s.editorialImportance=.8;
    const c=sl.candidates.find(c=>c.targetVersionId===s.targetVersionId)!,blocked=c.flags.some(f=>['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE','TITLE_EXTRACTION_PENDING'].includes(f));
    if(blocked)Object.assign(s,{decision:'DEFER',treatment:'OMIT',deltaType:'UNRESOLVED',mustIncludeFactIds:[],newUnderstandingFactIds:[],rationale:'Identity not established; reassessment pending.'});
    else if(c.correctionObligationIds.length)Object.assign(s,{decision:'SELECT',treatment:'STANDARD',deltaType:'CORRECTION',feedFit:'DIRECT',newUnderstandingFactIds:[],mustIncludeFactIds:c.facts.map(f=>f.id),previousLedgerEntryIds:sl.ledger.filter(e=>e.eventIds.includes(c.stableTargetId)).map(e=>e.id),rationale:'Correct the withdrawn communication with the supported facts.'});
@@ -110,6 +111,8 @@ describe('blocked protected correction, through processV1Briefing',()=>{
   // and ledger projection below are allowed to resolve it.
   const edition=await run('2026-10-06T13:30:00Z') as BriefingEditionRecord;
   expect(edition).toBeDefined();expect(edition.id).not.toBe(first.id);expect(edition.generation.provider).not.toBe('NONE');
+  expect(calls.planner).toBe(plannerCalls+1);
+  expect((await store.list<any>('feed-1','editorial_processing_progress')).filter(r=>r.reason==='SETTLED_BLOCKER_RESOLVED')).toHaveLength(1);
   expect(calls.writer).toBe(writerBefore+1);expect(calls.verifier).toBe(verifierBefore+1);
   expect(edition.stories[0].claims[0].text).toContain('withdrawn');expect(edition.stories[0].claims[0].text).toContain('Anthropic');
   expect(await store.list('feed-1','correction_resolutions')).toHaveLength(1);expect(await open()).toHaveLength(0);
@@ -124,24 +127,24 @@ describe('blocked protected correction, through processV1Briefing',()=>{
   expect(await store.list('feed-1','editions')).toHaveLength(2);
  },90000);
 
- it('with reassessment exhausted the condition stays visible, rechecks slowly, and settles as an escalated deferral without ever failing or resolving the obligation',async()=>{
+ it('adaptive reassessment remains durable after legacy exhaustion markers without rebilling or resolving an uncommunicated correction',async()=>{
   await openCorrection();
   await run();
-  let request=await request2();expect(request.blocked.reassessment.prospect).toBe('SCHEDULED');
+  let request=await request2();expect(request.blocked.reassessment.prospect).toBe('SCHEDULED');const originalRequests=(await store.list<RematchRequest>('feed-1','rematch_requests')).map(r=>r.id);
   const exhaust=async(at:string)=>{for(const r of await store.list<RematchRequest>('feed-1','rematch_requests')){if(!(await store.list<RematchAttempt>('feed-1','rematch_attempts')).some(a=>a.requestId===r.id&&a.state==='EXHAUSTED'))await feedTransact(store,'feed-1',tx=>tx.write('rematch_attempts',`ex-${r.id}`,{id:`ex-${r.id}`,feedId:'feed-1',requestId:r.id,attempt:3,state:'EXHAUSTED',reason:'SEMANTIC_IDENTITY_UNRESOLVED',createdAt:at}))}};
   await exhaust('2026-10-06T13:10:00Z');
-  // The legacy request is exhausted, so one bounded new generation is scheduled once; when that is exhausted too there is no prospect.
-  await run('2026-10-06T13:30:00Z');request=await request2();expect(request.blocked.reassessment.prospect).toBe('NEW_REQUEST_SCHEDULED');
+  // Current continuation does not interpret a historical fixed-attempt marker as completed semantic understanding.
+  await run('2026-10-06T13:30:00Z');request=await request2();expect(request.blocked.reassessment.prospect).toBe('SCHEDULED');
   await exhaust('2026-10-06T13:40:00Z');
   const times=['2026-10-06T14:00:00Z','2026-10-06T20:00:00Z','2026-10-07T02:00:00Z','2026-10-07T08:00:00Z'];let before=calls.planner;
-  for(const [i,at] of times.entries()){
+  for(const at of times){
    await run(at);request=await request2();
-   if(i<3){expect(request).toMatchObject({state:'PENDING',attempts:0,reason:BLOCKED_REASON});expect(request.blocked.reassessment.prospect).toBe('NONE');expect(Date.parse(request.nextAttemptAt)-Date.parse(at)).toBeGreaterThanOrEqual(6*3600000)}
+   expect(request).toMatchObject({state:'PENDING',attempts:0,reason:BLOCKED_REASON});expect(request.blocked.reassessment.prospect).toBe('SCHEDULED');expect(Date.parse(request.nextAttemptAt)-Date.parse(at)).toBeGreaterThanOrEqual(5*60000)
   }
-  expect(request).toMatchObject({state:'DONE',result:'DEFERRED',reason:ESCALATED_REASON,attempts:0});expect(request.failure).toBeUndefined();expect(request.blocked.escalated).toBe(true);
+  expect(request).toMatchObject({state:'PENDING',attempts:0,reason:BLOCKED_REASON});expect(request.failure).toBeUndefined();expect(request.blocked.escalated).not.toBe(true);
   expect(calls.planner).toBe(before);// no paid re-planning in any recheck
-  expect((await store.list('feed-1','rematch_requests')).length).toBe(2);// bounded: legacy + one protected generation, never more
+  expect((await store.list<RematchRequest>('feed-1','rematch_requests')).map(r=>r.id)).toEqual(originalRequests);// durable identity, no manufactured retry generations
   expect(await open()).toHaveLength(1);expect(await store.list('feed-1','correction_resolutions')).toHaveLength(0);expect(await store.list('feed-1','editions')).toHaveLength(1);
-  expect(await readBlockedWindows(store,'feed-1')).toMatchObject([{state:'ESCALATED',reassessment:{prospect:'NONE'}}]);
+  expect(await readBlockedWindows(store,'feed-1')).toMatchObject([{state:'BLOCKED',reassessment:{prospect:'SCHEDULED'}}]);
  },90000);
 });

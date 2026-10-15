@@ -1,3 +1,4 @@
+import { SourceLogo } from "./SourceLogo";
 import { referenceDigestSummary, surfaceBriefSummary, summarySentences, normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import React, { useEffect, useRef, useState } from "react";
 import { FeedNotice, FeedPublicationNotice, FeedProcessingProgress } from "./FeedNotice";
@@ -1403,6 +1404,13 @@ function FeedPage(props: { username: string; slug: string }) {
   const [account, setAccount] = useState<AccountRecord | null>(null);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [ownedFeed, setOwnedFeed] = useState<BriefingConfig | null>(null);
+  const [selectedSources, setSelectedSources] = useState<{feedId:string;items:SourceRecord[]} | null>(null);
+  useEffect(() => {
+    let active = true;
+    setSelectedSources(null);
+    if (ownedFeed) void getSources(ownedFeed.id).then(items => { if(active) setSelectedSources({feedId:ownedFeed.id,items:items.filter(source=>source.enabled)}); }).catch(() => {});
+    return () => { active = false; };
+  }, [ownedFeed]);
   const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
   useEffect(() => {
     let active = true;
@@ -1683,7 +1691,15 @@ function FeedPage(props: { username: string; slug: string }) {
         />
       ) : null}
       {error ? <FeedNotice message={error} language={language} /> : null}
+      {payload && <div className="feed-selected-sources" aria-label={t("Selected sources")}>{(selectedSources?.feedId === payload.briefing.id ? selectedSources.items.map(source=>({id:source.id,title:source.title,input:source.sourceUrl || source.url || source.input || source.title})) : (payload.sourceAvailability ?? []).map(source=>({id:source.sourceId,title:source.title,input:source.title}))).map(source=><span className="feed-selected-source" key={source.id}><SourceLogo source={source.input}/><span>{source.title}</span></span>)}</div>}
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
+      {payload?.sourceAvailability?.some(source=>source.state==='UNAVAILABLE'||source.warning||source.collectionError) ? <FeedNotice severity="warning" language={language} heading={t('Some sources need attention')} message={payload.sourceAvailability.filter(source=>source.state==='UNAVAILABLE'||source.warning||source.collectionError).map(source=>{
+        const messages:string[]=[];
+        if(source.state==='UNAVAILABLE')messages.push(t(source.reason==='PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED'?'Paid collection is not authorized or configured.':source.reason==='PAID_OPERATION_UNCERTAIN'?'A previous paid request needs reconciliation before collection can continue.':source.reason==='BUDGET_EXHAUSTED'?'The authorized collection budget is exhausted.':'Source collection is unavailable.'));
+        if(source.warning)messages.push(`${source.acquisition?.failed??0} ${t(source.warning==='ARTICLE_AUTH_REQUIRED'?'article acquisition jobs failed with an authentication requirement.':source.warning==='ARTICLE_CHALLENGE_REQUIRED'?'article acquisition jobs were blocked by the publisher.':'article acquisition jobs failed.')}`);
+        if(source.collectionError&&!['UNCERTAIN_PAID_SUBMISSION'].includes(source.collectionError))messages.push(t(source.collectionError==='RATE_LIMIT'?'Collection is waiting for the provider rate limit.':source.collectionError==='TRANSIENT'?'Collection encountered a temporary failure and is retrying.':'The latest collection attempt failed.'));
+        return `${source.title}: ${messages.join(' ')}`;
+      }).join(' ')} /> : null}
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
       {payload?.publicationState === 'checking' ? <FeedProcessingProgress progress={payload.publicationProgress} language={language}/> : null}

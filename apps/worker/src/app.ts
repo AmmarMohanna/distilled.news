@@ -1,9 +1,13 @@
+import {readBriefingOutcome} from './v1-intelligence/briefing-outcome';
+import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intelligence/model-reconciliation';
+import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-trace';
 import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
-import {approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
+import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
 import {connectorSourceHealth} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
+import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
@@ -302,8 +306,8 @@ export function createApp(options: AppOptions = {}) {
     if(c.env.V1_DOWNSTREAM_ENABLED!=='true') return c.json({error:'not found'},404);
     if(!isRuntimeAuthorized(c)) return c.json({error:'unauthorized'},401);
     const input=z.object({feedId:z.string().min(1).max(200),window:publicationWindowSchema}).strict().parse(await c.req.json());
-    try {const edition=await processV1Briefing(c.env,{type:'v1_briefing',...input},()=>nowFor().toISOString());return c.json({editionId:edition?.id,state:edition?'PUBLISHED':'NO_NEWS'})}
-    catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
+    try {await processV1Briefing(c.env,{type:'v1_briefing',...input},()=>nowFor().toISOString());return c.json(await readBriefingOutcome(c.env.DB,input.feedId,input.window))}
+    catch(error) {if(error instanceof HandoffError&&error.code==='SCOPE_DENIED')return c.json({error:error.code},403);return c.json({...await readBriefingOutcome(c.env.DB,input.feedId,input.window),error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},503)}
   });
   app.get('/api/v1/editions/:id',async c=>{
     if (!await canReadPublishedEdition(c, c.req.param('id'))) return c.json({error:'not found'},404);
@@ -833,7 +837,9 @@ export function createApp(options: AppOptions = {}) {
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
     // Validate every requested source before saving the Feed or changing approval.
-    const resolved=await Promise.all(input.sourceInputs.map(value=>resolveProductSourceInput(value,fetcher)));
+    let resolved:Awaited<ReturnType<typeof resolveProductSourceInput>>[];
+    try{resolved=await Promise.all(input.sourceInputs.map(value=>resolveProductSourceInput(value,fetcher,c.env)));}
+    catch(error){if(error instanceof ProductSourceApprovalError)return c.json({error:error.message},error.status,error.status===503?{'Retry-After':'5'}:{});throw error;}
     const plans=[...new Map(resolved.map(plan=>[plan.canonicalUrl,plan] as const)).values()];
     if(plans.some(plan=>plan.detected.kind==='web_page')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Website extraction requires the source execution service.'},400);
     if(plans.some(plan=>plan.detected.kind==='telegram_channel')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_URL||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Telegram collection requires the private source execution service.'},400);
@@ -873,7 +879,7 @@ export function createApp(options: AppOptions = {}) {
     if(!briefing)return c.json({error:'briefing not found'},404);
     const source=await c.get('repo').getSource(c.req.param('sourceId'));
     if(!source||source.briefingId!==briefing.id)return c.json({error:'source not found'},404);
-    return c.json({sourceId:source.id,enabled:source.enabled,health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
+    return c.json({sourceId:source.id,enabled:source.enabled,availability:(await feedSourceAvailability(c.env,briefing.id)).find(row=>row.sourceId===source.id),health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
   });
 
   app.post("/api/me/sources/recommend", async c => {
@@ -972,6 +978,26 @@ export function createApp(options: AppOptions = {}) {
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
     const retried = await retryProcessingJobs(repo, queueFor(c), briefing.id);
     return c.json({ retried, health: await repo.getHealth(briefing.id) });
+  });
+
+  app.get('/api/admin/model-spending/:id/reconciliation',async c=>{
+    c.header('Cache-Control','private, no-store');
+    const accountId=c.req.query('accountId');if(!accountId)return c.json({error:'accountId required'},400);
+    try{const p=await reviewModelRejection(c.env.DB,c.req.param('id'),accountId);return c.json({id:p.id,eligible:p.eligible,reason:p.reason,evidenceHash:p.evidenceHash,providerDiagnostic:p.providerDiagnostic})}catch{return c.json({error:'reconciliation unavailable'},409)}
+  });
+  app.post('/api/admin/model-spending/:id/reconciliation',async c=>{
+    c.header('Cache-Control','private, no-store');
+    if(!c.req.header('Content-Type')?.startsWith('application/json')||c.req.header('Origin')&&c.req.header('Origin')!==new URL(c.req.url).origin)return c.json({error:'invalid operator request'},403);
+    const b=await c.req.json().catch(()=>null);
+    if(!b||b.approve!==true||typeof b.accountId!=='string'||typeof b.approvalId!=='string'||typeof b.evidenceHash!=='string')return c.json({error:'explicit evidence-bound approval required'},400);
+    try{return c.json(await reconcileConfirmedModelRejection(c.env.DB,c.req.param('id'),{accountId:b.accountId,approvalId:b.approvalId,evidenceHash:b.evidenceHash,approvedBy:c.get('account')!.id}))}catch{return c.json({error:'reconciliation refused; inspect retained evidence'},409)}
+  });
+  app.get('/api/admin/briefings/:feedId/pipeline-trace',async c=>{
+    c.header('Cache-Control','private, no-store');
+    const query=traceOptionsSchema.safeParse(c.req.query());
+    if(!query.success)return c.json({error:'invalid trace filters'},400);
+    try{return c.json(await readPipelineTrace(c.env.DB,c.req.param('feedId'),query.data,{admittedSourceIds:c.env.V1_DOWNSTREAM_FEED_SOURCE_IDS?.split(',').map(s=>s.trim()).filter(Boolean)}))}
+    catch(error){if(error instanceof HandoffError)return c.json({error:error.code},error.code==='SCOPE_DENIED'?404:400);throw error}
   });
 
   app.get("/api/admin/accounts", async (c) => {
@@ -1074,6 +1100,7 @@ export function createApp(options: AppOptions = {}) {
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
       briefing: publicBriefing(briefing),
+      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' ? await feedSourceAvailability(c.env,briefing.id) : undefined,
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
@@ -1744,7 +1771,7 @@ function localizedPublicSectionTitle(title: string, language: BriefingConfig["la
     const normalized = title.trim().toLowerCase();
     if (normalized.includes("economy")) return "اقتصاد";
     if (normalized.includes("infrastructure")) return "بنية تحتية";
-    if (normalized.includes("security")) return "أ�…ن";
+    if (normalized.includes("security")) return "أ�…ن";
     if (normalized.includes("no update")) return "لا تحديثات";
     return "تحديث";
   }

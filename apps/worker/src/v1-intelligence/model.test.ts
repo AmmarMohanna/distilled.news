@@ -1,6 +1,17 @@
-import {expect,it} from 'vitest';
+import {expect,it,vi} from 'vitest';
 import {createStoredEvidenceModel} from './model';
 import type {Env} from '../types';
+it.each([['writer',45000],['verifier',45000],['writer',135000],['verifier',135000]] as const)('asynchronous %s accepts a valid response after %i milliseconds',async(phase,delay)=>{
+ vi.useFakeTimers();try{
+  const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'fixture'} as Env,async(_,init)=>new Promise<Response>((resolve,reject)=>{
+   const timer=setTimeout(()=>resolve(new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(phase==='writer'?{language:'en',stories:[]}:{supportedClaimIds:['claim_1'],claimEntailment:[{claimId:'claim_1',fullyEntailed:true,unsupportedMeaning:[],reason:'Supported complete meaning.'}]})}}],usage:{prompt_tokens:80,completion_tokens:10,cost:.001}}))),delay);
+   init?.signal?.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('Aborted','AbortError'))},{once:true});
+  }))!;
+  const limits={maxOutputTokens:321,signal:new AbortController().signal};
+  const call=phase==='writer'?model.synthesize({feed:{id:'f',revision:1,title:'Feed',interests:[],outputLanguage:'en'},selectionId:'s',stories:[]},limits):model.verify!([{id:'c',text:'Supported fact',support:[{evidenceRevisionId:'r',quote:'Supported fact'}],context:[{evidenceRevisionId:'r',text:'Supported fact',truncated:false}]}],limits);
+  const outcome=call.then(()=> 'SUCCEEDED',e=>e.message);await vi.advanceTimersByTimeAsync(delay);expect(await outcome).toBe('SUCCEEDED');expect(model.usage!().confirmed).toBe(true);
+ }finally{vi.useRealTimers()}
+});
 it('constrains short writer identities and maps exact durable candidate/support references back',async()=>{
  const candidateId='["immutable-selection-hash","EVENT","event-version"]';let offered:any,unknown=false;
  const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic'} as Env,async(_,init)=>{

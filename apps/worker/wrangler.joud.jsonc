@@ -10,6 +10,16 @@
   "assets": { "directory": "../web/dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": true },
   "vars": {
     "SOURCE_RECOMMENDATIONS_ENABLED": "true",
+    "PRODUCT_FEEDS_ENABLED": "true",
+    "V1_DOWNSTREAM_ENABLED": "true",
+    "V1_EDITORIAL_PLAN_ENABLED": "true",
+    "V1_EDITORIAL_MODEL_POLICY": "SEMANTIC",
+    "V1_EDITORIAL_RANKING_POLICY": "SEMANTIC",
+    "V1_REAL_MODEL_REQUIRED": "true",
+    "V1_SEMANTIC_POLICY": "SEMANTIC",
+    "V1_SYNTHESIS_MODEL_ENABLED": "true",
+    "DISTILLED_LLM_API_GATEWAY": "openrouter",
+    "DISTILLED_LIVE_OPENROUTER_MODEL": "openai/gpt-4.1-mini",
     "PUBLIC_API_BASE_URL": "https://distilled-news-joud.distillednews-platform.workers.dev",
     "PUBLIC_WEB_BASE_URL": "https://distilled-news-joud.distillednews-platform.workers.dev",
     "CLOUDFLARE_ACCOUNT_ID": "e32b564514d4f9b9e383b7dd30dbb026",
@@ -27,5 +37,6 @@
     "producers": [{ "binding": "PROCESSING_QUEUE", "queue": "distilled-news-joud-processing" }],
     "consumers": [{ "queue": "distilled-news-joud-processing", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 4, "dead_letter_queue": "distilled-news-joud-processing-dlq" }]
   },
+  "triggers": { "crons": ["* * * * *"] },
   "observability": { "enabled": true }
 }

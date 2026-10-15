@@ -6,7 +6,7 @@ export type AuthorizedFeedFetch = (url: string, init: RequestInit) => Promise<Re
 export class BoundedFeedHttp implements FeedHttpPort {
   constructor(private readonly dispatch: AuthorizedFeedFetch, private readonly options: {
     attempts?: number; timeoutMs?: number; maxBytes?: number; maxBackoffMs?: number;
-    sleep?: (ms: number) => Promise<void>; clock?: () => number;
+    sleep?: (ms: number) => Promise<void>; clock?: () => number; followSameOriginRedirects?: boolean;
   } = {}) {}
   async get(url: string, headers: Record<string,string>, bounds?: {attempts?:number;timeoutMs?:number}): Promise<FeedResponse> {
     const parsed = new URL(url);
@@ -27,11 +27,20 @@ export class BoundedFeedHttp implements FeedHttpPort {
           const deadline=new Promise<never>((_resolve,reject)=>{abort=()=>reject(new Error('FETCH_TIMEOUT'));signal.addEventListener('abort',abort,{once:true});});
           try {return await Promise.race([operation,deadline]);} finally {signal.removeEventListener('abort',abort);}
         };
-        const response = await bounded(this.dispatch(url, { method:'GET', headers, redirect:'manual', signal }));
-        requests++;
+        let current=parsed.href,response:Response;const visited=new Set([current]);
+        for(;;){
+          response=await bounded(this.dispatch(current,{method:'GET',headers,redirect:'manual',signal}));requests++;
+          if(!this.options.followSameOriginRedirects||![301,302,303,307,308].includes(response.status))break;
+          const location=response.headers.get('location');if(!location)break;
+          const next=new URL(location,current);
+          if(next.protocol!=='https:'||next.origin!==parsed.origin||next.username||next.password||next.port||visited.has(next.href)||visited.size>=20)break;
+          await response.body?.cancel();visited.add(next.href);current=next.href;
+        }
         status = response.status; responseHeaders = Object.fromEntries(response.headers.entries());
         if (status === 429 || status >= 500) {
           await response.body?.cancel();
+          // Durable scheduling owns rate-limit recovery; immediate retries amplify pressure.
+          if(status===429)return this.result(status,responseHeaders,new Uint8Array(),requests,clock()-start);
           if (attempt + 1 < attempts) {
             const raw = response.headers.get('retry-after');
             const delay = raw ? /^\d+$/.test(raw) ? Number(raw)*1000 : Date.parse(raw)-clock() : 250*2**attempt;

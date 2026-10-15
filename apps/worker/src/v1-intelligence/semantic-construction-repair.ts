@@ -10,6 +10,7 @@ import type {V1FeedStore} from './store';
 /** Structural diagnostics are objective scope checks, not semantic judgments. */
 export function constructionFailureClass(failed:SemanticOperationResult<ConstructionOutcome>,mentions:ClaimMention[],input:EventMatchInput):string {
  const diagnostic=failed.validationDiagnostic;if(!diagnostic)return 'DIAGNOSTIC_UNAVAILABLE';
+ if(diagnostic.rejection.binding)return diagnostic.rejection.binding.invariant;
  if(diagnostic.stage==='OUTPUT_SCHEMA')return 'INVALID_STRUCTURED_OUTPUT';
  const raw=diagnostic.response,groups=Array.isArray(raw.groups)?raw.groups as Record<string,any>[]:[];
  const known=new Set(mentions.map(m=>m.id)),references=[...groups.flatMap(g=>Array.isArray(g.claimMentionIds)?g.claimMentionIds:[]),...(Array.isArray(raw.backgroundMentionIds)?raw.backgroundMentionIds:[])];
@@ -31,6 +32,6 @@ export async function repairSemanticConstruction(store:V1FeedStore,base:Semantic
  return durableSemanticOperation<ConstructionOutcome>(store,op,async()=>{
   const response=await strong.complete(base.feedId,'SEMANTIC_CONSTRUCTION_REPAIR',repairState,schema);let stage:'OUTPUT_SCHEMA'|'CONSTRUCTION_BINDING'='OUTPUT_SCHEMA';
   try{const parsed=constructionSchema.parse(response.value);stage='CONSTRUCTION_BINDING';return {value:{construction:parseConstruction(response.value,mentions,input,{scorer:'GPT',policyVersion:op.policyVersion}),confidence:parsed.confidence},usage:response.usage}}
-  catch(error){throw new SemanticValidationError({stage,response:response.value,rejection:{name:error instanceof Error?error.name:'UNKNOWN',...(error instanceof Error&&'code' in error?{code:String(error.code)}:{})}})}
+  catch(error){throw new SemanticValidationError({stage,response:response.value,rejection:{name:error instanceof Error?error.name:'UNKNOWN',...(error instanceof Error&&'binding' in error?{binding:error.binding as {invariant:string;path:(string|number)[]}}:{}),...(error instanceof Error&&'code' in error?{code:String(error.code)}:{})}})}
  },now,()=>strong.usage(),{...options,operationAdmission:strong.admission?.(repairState,schema,'SEMANTIC_CONSTRUCTION_REPAIR')});
 }

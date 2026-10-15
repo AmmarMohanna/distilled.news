@@ -1,3 +1,4 @@
+import {expandedSchema} from './schema-test-utils';
 import {describe,it,expect} from 'vitest';
 import cases from './fixtures/oct11-rejected-repeat-proposals.json';
 import {compactEditorialInput} from './editorial-transport';
@@ -5,7 +6,7 @@ import {keyedEditorialPlanWireSchemaFor,normalizeEditorialPlan,fallbackEditorial
 import {equivalentFact} from './editorial';
 import type {ShortlistRecord} from './shortlist';
 const scopeFor=(c:typeof cases[number])=>({...c.shortlist,candidates:c.shortlist.candidates.filter(t=>!(c.coverage!.notComparativelyReviewedTargetVersionIds as string[]).includes(t.targetVersionId))}) as unknown as ShortlistRecord;
-const branches=(schema:any,key:string)=>schema.properties.stories.properties[key].anyOf.map((r:any)=>schema.$defs[r.$ref.split('/').at(-1)]);
+const branches=(raw:any,key:string)=>{const schema=expandedSchema(raw);return schema.properties.stories.properties[key].anyOf.map((r:any)=>r);};
 describe('retained October 11 proposals: source age is not reader repetition',()=>{
  it.each(cases)('prevents unsupported REPEAT labels at the provider boundary: $proposal.window.end',c=>{
   const sl=scopeFor(c),tr=compactEditorialInput(sl),body=tr.decodeKeyed(c.proposal.rawProposal);

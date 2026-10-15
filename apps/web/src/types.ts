@@ -66,6 +66,7 @@ export interface PublicationProgress {
 export interface FeedPayload {
   publicationProgress?: PublicationProgress;
   publicationState?: 'waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'|'setup_required';
+  sourceAvailability?: {sourceId:string;title:string;state:'AVAILABLE'|'UNAVAILABLE';providers:string[];reason?:string;acquisition?:{completed:number;pending:number;failed:number};warning?:string;collectionError?:string}[];
   briefing: PublicBriefing;
   editions: BriefingEdition[];
   viewerHasStarred: boolean;

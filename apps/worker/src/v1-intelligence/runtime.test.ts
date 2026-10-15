@@ -1,16 +1,45 @@
-import {afterEach,beforeEach,expect,it} from 'vitest';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+import * as editorialContinuation from './editorial-continuation';
+import * as shortlistModule from './shortlist';
+import * as publicationModule from './publication';
+import {scoreAndSelect,ADAPTIVE_BRIEFING_PROCESSING} from './scoring';
+import {ModelSpendingWait} from './model-spending';
 import {createIntakeDatabase,seedIntakeScope,testPolicy} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,feedTransact} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
-import {dispatchV1Intelligence,processV1Briefing,publicationWindow} from './runtime';
+import {dispatchV1Intelligence,processV1Briefing,publicationWindow,windowIdentity} from './runtime';
 import type {Env,DistilledQueueMessage} from '../types';
 import {readScheduleAudit} from './schedule-audit';
 import {livePublicationWindow} from './schedule';
 import {DeterministicSalienceScorer} from './salience';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env,sent:DistilledQueueMessage[];
-beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});await seedIntelligence(store);sent=[];env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env});
+beforeEach(async()=>{ctx=await createIntakeDatabase({product:true});await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});await seedIntelligence(store);sent=[];env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env});
 afterEach(async()=>ctx.dispose());
+it('an UNKNOWN comparative outcome stays visibly pending without consuming retries or invoking writing',async()=>{
+ env={...env,V1_REAL_MODEL_REQUIRED:'true',V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'fixture-only'};
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
+ const shortlist=vi.spyOn(shortlistModule,'prepareSemanticShortlist').mockResolvedValue({candidates:[{targetVersionId:'retained'}],overflow:[]} as any);
+ const planner=vi.spyOn(editorialContinuation,'prepareAdaptiveEditorialPlan').mockResolvedValue({route:'DETERMINISTIC_FALLBACK',fallbackReason:'SEMANTIC_OUTCOME_UNKNOWN'} as any);
+ const fetcher=vi.fn(async()=>{throw Error('No provider call is authorized by UNKNOWN replay')});
+ try{
+  for(let i=0;i<6;i++)await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher as typeof fetch)).resolves.toBeUndefined();
+  expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'PENDING',attempts:0,reason:'SEMANTIC_OUTCOME_UNKNOWN'}]);
+  expect(await store.list('feed-1','selections')).toHaveLength(0);expect(await store.list('feed-1','editions')).toHaveLength(0);expect(fetcher).not.toHaveBeenCalled();
+ }finally{shortlist.mockRestore();planner.mockRestore()}
+},20000);
+it.each(['SEMANTIC_MODEL_TIMEOUT','SEMANTIC_MODEL_STREAM_INCOMPLETE'])('an unreported %s operation remains pending without exhausting the request',async failure=>{
+ env={...env,V1_REAL_MODEL_REQUIRED:'true',V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'fixture-only'};
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
+ await ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind('semantic_results','interrupted-planner','feed-1',JSON.stringify({id:'interrupted-planner',status:'DEFERRED',failure,usage:{calls:1,reported:false,costUsd:.02}})).run();
+ const shortlist=vi.spyOn(shortlistModule,'prepareSemanticShortlist').mockResolvedValue({candidates:[{targetVersionId:'retained'}],overflow:[]} as any);
+ const planner=vi.spyOn(editorialContinuation,'prepareAdaptiveEditorialPlan').mockResolvedValue({route:'DETERMINISTIC_FALLBACK',fallbackReason:failure,modelOperationIds:['interrupted-planner']} as any);
+ const fetcher=vi.fn(async()=>{throw Error('No duplicate inference')});
+ try{
+  await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher as typeof fetch)).resolves.toBeUndefined();
+  expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'PENDING',attempts:0,reason:'SEMANTIC_OUTCOME_UNKNOWN'}]);expect(fetcher).not.toHaveBeenCalled();
+ }finally{shortlist.mockRestore();planner.mockRestore()}
+},20000);
 it('salience contention cannot exhaust request retries while one judgment is in flight',async()=>{
  const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
  let finish!:(value:any)=>void;
@@ -142,7 +171,7 @@ it('reassessment of evidence that arrived inside the window still holds that win
  await pendingJobObservedAt('2026-10-03T12:30:00Z');
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));
  expect(briefingSends()).toHaveLength(0);expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT'}]);
- // Once the job is exhausted the window is released instead of blocking forever.
+ // Exhausted work permits available-news processing but retains incomplete coverage.
  await pendingJobObservedAt('2026-10-03T12:30:00Z',{exhausted:true,state:'FAILED'});
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));expect(briefingSends()).toHaveLength(1);
 });
@@ -160,7 +189,7 @@ it('a released intake wait label is cleared once and unchanged waits never rewri
  expect(await epoch()).toBe(before);
  await pendingJobObservedAt('2026-10-03T12:30:00Z',{exhausted:true,state:'FAILED'});
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));
- expect((await store.list<any>('feed-1','briefing_requests'))[0].reason).toBeUndefined();
+ expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',failedJobs:1}});
 });
 
 it('a lost scheduled delivery recovers after transport expiry and publishes once with its ledger',async()=>{
@@ -188,3 +217,21 @@ it('relay recovers settled paid results while unknown outcomes remain fenced',as
  const dispatches=await ctx.db.prepare("SELECT id FROM v1_queue_dispatches WHERE kind='v1_briefing'").all<{id:string}>();
  expect(JSON.stringify(dispatches.results)).toContain('settled');expect(JSON.stringify(dispatches.results)).not.toContain('unknown');
 },15000);
+
+it('a pending publication resumes its committed selection without rebuilding editorial work',async()=>{
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const},selection=await scoreAndSelect(store,'feed-1',window,ADAPTIVE_BRIEFING_PROCESSING,window.end);
+ const id=await windowIdentity('feed-1',window);
+ await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,reason:'PUBLICATION_EXECUTION_YIELD',createdAt:window.end});await tx.write('synthesis_jobs',id,{id,feedId:'feed-1',selectionId:selection.id,state:'PENDING',attempts:1,failure:'PUBLICATION_EXECUTION_YIELD'})});
+ env.V1_EDITORIAL_PLAN_ENABLED='true';
+ const shortlist=vi.spyOn(shortlistModule,'prepareSemanticShortlist').mockRejectedValue(Error('Completed editorial work must not be rebuilt'));
+ const planner=vi.spyOn(editorialContinuation,'prepareAdaptiveEditorialPlan').mockRejectedValue(Error('No repeated comparative call'));
+ const publisher=vi.spyOn(publicationModule,'publishSelection').mockRejectedValue(new ModelSpendingWait('PUBLICATION_EXECUTION_YIELD'));
+ try{let failure:string|undefined;try{await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end)}catch(error){failure=(error as Error).message}expect(failure).toBeUndefined();expect(shortlist.mock.calls.length).toBe(0);expect(planner.mock.calls.length).toBe(0);expect(publisher.mock.calls.length).toBe(1);expect(publisher.mock.calls[0].slice(1,3)).toEqual(['feed-1',selection.id]);expect(publisher.mock.calls[0][3].requireModel).toBe(false);expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',attempts:0});expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','ledger_entries')).toHaveLength(0)}finally{shortlist.mockRestore();planner.mockRestore();publisher.mockRestore()}
+},30000);
+
+it('resuming a committed selection still rejects revoked source support before publication',async()=>{
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const},selection=await scoreAndSelect(store,'feed-1',window,ADAPTIVE_BRIEFING_PROCESSING,window.end),id=await windowIdentity('feed-1',window);
+ await feedTransact(store,'feed-1',tx=>tx.write('synthesis_jobs',id,{id,feedId:'feed-1',selectionId:selection.id,state:'PENDING',attempts:1,failure:'PUBLICATION_EXECUTION_YIELD'}));
+ const intake=new V1IntakeStore(ctx.db),scope=(await intake.getScope('feed-source-1'))!;await intake.registerScope({...scope,enabled:false});
+ await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end)).rejects.toMatchObject({code:'SCOPE_DENIED'});expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','ledger_entries')).toHaveLength(0);
+},30000);

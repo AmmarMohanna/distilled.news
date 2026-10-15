@@ -1,3 +1,4 @@
+import {editorialContextFacts} from './editorial-context';
 import type {EditorialPlanBody,PlanStory} from './editorial-plan';
 import type {ShortlistRecord} from './shortlist';
 import {HandoffError} from '@distilled/contracts';
@@ -8,7 +9,8 @@ export function compactEditorialInput<T extends Pick<ShortlistRecord,'candidates
  const forward=new Map<string,string>(),reverse=new Map<string,string>();
  const ref=(id:string)=>{let key=forward.get(id);if(!key){key=`R${forward.size}`;forward.set(id,key);reverse.set(key,id)}return key};
  const candidateIds=state.candidates.map(c=>ref(c.targetVersionId));
- const value={...state,transportVersion:'editorial-compact-references-v1',candidates:state.candidates.map((c,i)=>({readerState:c.readerState,publisherIds:c.publisherIds,sourceTitles:c.sourceTitles,targetType:c.targetType,targetVersionId:candidateIds[i],stableTargetId:ref(c.stableTargetId),storylineId:c.storylineId?ref(c.storylineId):undefined,facts:c.facts.map(f=>({id:ref(f.id),text:f.text,selfContained:f.selfContained,context:f.context?{field:f.context.field,text:f.context.text}:undefined,certainty:f.certainty,attribution:f.attribution,reportTime:f.reportTime,eventTime:f.eventTime,timing:f.timing})),ranking:c.ranking?{...c.ranking}:undefined,communicationCost:c.communicationCost,novelty:c.novelty,effects:c.effects,flags:c.flags,protectedReasons:c.protectedReasons,correctionObligationIds:c.correctionObligationIds.map(ref),priority:c.priority})),ledger:state.ledger.map(e=>({...e,id:ref(e.id),eventIds:e.eventIds.map(ref),storylineIds:e.storylineIds.map(ref)})),obligations:state.obligations.map(o=>({...o,id:ref(o.id),ledgerEntryId:ref(o.ledgerEntryId)}))};
+ const sourceHistory=state.ledger.some(e=>e.evidenceRevisionIds!==undefined);
+ const value={...state,transportVersion:'editorial-compact-references-v1',candidates:state.candidates.map((c,i)=>({readerState:c.readerState,...(sourceHistory?{evidenceRevisionIds:c.evidenceRevisionIds.map(ref)}:{}),publisherIds:c.publisherIds,sourceTitles:c.sourceTitles,targetType:c.targetType,targetVersionId:candidateIds[i],stableTargetId:ref(c.stableTargetId),storylineId:c.storylineId?ref(c.storylineId):undefined,facts:c.facts.map(f=>({id:ref(f.id),text:f.text,selfContained:f.selfContained,context:f.context?{field:f.context.field,text:f.context.text}:undefined,certainty:f.certainty,attribution:f.attribution,reportTime:f.reportTime,eventTime:f.eventTime,timing:f.timing})),ranking:c.ranking?{...c.ranking}:undefined,communicationCost:c.communicationCost,novelty:c.novelty,effects:c.effects,flags:c.flags,protectedReasons:c.protectedReasons,correctionObligationIds:c.correctionObligationIds.map(ref),priority:c.priority})),ledger:state.ledger.map(e=>({...e,id:ref(e.id),evidenceRevisionIds:e.evidenceRevisionIds?.map(ref),eventIds:e.eventIds.map(ref),storylineIds:e.storylineIds.map(ref)})),obligations:state.obligations.map(o=>({...o,id:ref(o.id),ledgerEntryId:ref(o.ledgerEntryId)}))};
  if((state as any).comparativeContext)(value as any).comparativeContext={...(state as any).comparativeContext,localCandidateReferences:Object.fromEntries(state.candidates.map((c,i)=>[c.targetVersionId,candidateIds[i]])),referenceInstruction:'Global synopsis references retain original identities. localCandidateReferences maps this operation original candidate identities to its output capabilities. Only offered local fact IDs are valid in the output.'};
  const originalBytes=new TextEncoder().encode(canonicalJson(value)).length;
  let inputCompaction:{policyVersion:string;originalBytes:number;omittedRankingFields:string[]}|undefined;
@@ -30,7 +32,10 @@ export function compactEditorialInput<T extends Pick<ShortlistRecord,'candidates
   for(const obligation of Object.values(body.obligations))if(!obligation||typeof obligation!=='object'||'obligationId' in obligation)throw new HandoffError('SCOPE_DENIED');
   return decode({stories:candidateIds.map(targetVersionId=>({...body.stories[targetVersionId],targetVersionId})),obligations:value.obligations.map(({id:obligationId})=>({...body.obligations[obligationId],obligationId}))});
  };
- return {state:{...value,...(inputCompaction?{inputCompaction}:{})},encode,decode,encodeKeyed,decodeKeyed};
+ // Compile source capabilities outside the paid input; references keep their
+ // original registration order and retained wire frames remain byte-identical.
+ const contextFactCapabilities=Object.fromEntries(state.candidates.map((c,i)=>[candidateIds[i],editorialContextFacts(c,state).map(f=>forward.get(f.id)!)]));
+ return {state:{...value,...(inputCompaction?{inputCompaction}:{})},contextFactCapabilities,encode,decode,encodeKeyed,decodeKeyed};
 }
 /** Exact duplicated history prose may be elided only from new oversized wire
  * inputs, never from retained ledger records or an existing call identity. */

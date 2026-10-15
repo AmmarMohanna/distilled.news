@@ -4,7 +4,7 @@ import {createCandidateIntakePort} from '../v1-intake/intake';
 import {acceptAcquiredContent} from '../v1-intake/evidence';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore} from './store';
-import {feedFixture,seedIntelligence} from './test-utils';
+import {feedFixture,seedIntelligence,syntheticModelAdmission} from './test-utils';
 import {processEvidenceIntelligence} from './engine';
 import {deterministicMatchers,type IntelligenceMatchers} from './matchers';
 import {processV1Briefing} from './runtime';
@@ -54,7 +54,7 @@ it.each([true,false])('the CORRECTS obligation reaches the shortlist and resolve
  const body=fallbackEditorialPlan(scope),fresh=candidate.facts.filter(f=>/Correction:/.test(f.text)).map(f=>f.id);expect(fresh).toHaveLength(1);
  for(const story of body.stories)Object.assign(story,{decision:'SELECT',treatment:'STANDARD',deltaType:'CORRECTION',newUnderstandingFactIds:fresh,mustIncludeFactIds:fresh,previousLedgerEntryIds:scope.ledger.map(e=>e.id)});
  body.obligations=[{obligationId:scope.obligations[0].id,handling:'ADDRESS',targetVersionId:candidate.targetVersionId,reason:'Correct earlier reader communication.'}];
- const plan=await prepareEditorialPlan(store,scope,DEFAULT_BRIEFING_BUDGET,next.end,{model:'controlled-planner',usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async()=>({value:compactEditorialInput(scope).encodeKeyed(body),usage:{calls:1,costUsd:.001,reported:true}})});
+ const plan=await prepareEditorialPlan(store,scope,DEFAULT_BRIEFING_BUDGET,next.end,{model:'controlled-planner',admission:syntheticModelAdmission,usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async()=>({value:compactEditorialInput(scope).encodeKeyed(body),usage:{calls:1,costUsd:.001,reported:true}})});
 const selected=await scoreAndSelect(store,'feed-1',next,DEFAULT_BRIEFING_BUDGET,next.end,undefined,plan),usage={tokensIn:100,tokensOut:40,cost:.001,confirmed:true};
  const model=(attest:boolean):BriefingModelPort=>({model:'controlled',provider:'TEST',maxCallCostUsd:.01,synthesize:async input=>({draft:{language:'en',stories:input.stories.map(s=>({candidateId:s.candidate.id,claims:[{text:'Correction to an earlier briefing. '+s.approvedFacts!.map(f=>f.text).join(' '),support:s.approvedSpans!,communicatedFactIds:s.approvedFacts!.map(f=>f.id)}]}))},usage}),verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>f.id)),novelFactIds:[],addressedCorrectionObligationIds:attest?claims.flatMap(c=>(c.correctionObligations??[]).map(o=>o.id)):[],semanticChecks:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>({factId:f.id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,...(attest?{nonRepetitive:true}:{}),reason:'Supported explicit correction.',readerSpans:[{claimId:c.id,text:c.text}]}))),usage})});
  if(!attested){

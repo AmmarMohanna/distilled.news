@@ -15,6 +15,66 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_public_article_fetch_is_anonymous_bounded_and_exact(self):
+        class Response:
+            status = 200
+            headers = {'Content-Type': 'text/html'}
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self, limit): return b'<article>Permitted article</article>'[:limit]
+        calls = []
+        def open_request(request, timeout):
+            calls.append(request)
+            self.assertEqual(timeout, 15)
+            self.assertIsNone(request.get_header('Authorization'))
+            self.assertIsNone(request.get_header('Cookie'))
+            return Response()
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=open_request)), patch.object(runtime, 'extract', return_value={'body':'Article', 'pageKind':'article'}):
+            result = runtime.fetch_public_article({'url':'https://publisher.example/news/one'})
+        self.assertEqual(result['url'], 'https://publisher.example/news/one')
+        self.assertEqual(result['status'], 200)
+        self.assertEqual(len(calls), 1)
+
+    def test_public_article_rejects_credentials_private_dns_and_redirects(self):
+        for url in ['http://publisher.example/story', 'https://user:pass@publisher.example/story', 'https://publisher.example:443/story']:
+            with self.assertRaises(ValueError): runtime.fetch_public_article({'url':url})
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url', side_effect=ValueError('NONPUBLIC_ADDRESS')), patch.object(runtime.urllib.request, 'build_opener') as opener:
+            with self.assertRaises(ValueError): runtime.fetch_public_article({'url':'https://127.0.0.1/story'})
+            opener.assert_not_called()
+        for status in (301, 401, 403, 429, 451):
+            error = runtime.urllib.error.HTTPError('https://publisher.example/story', status, 'blocked', {}, None)
+            with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=lambda *a, **kw: (_ for _ in ()).throw(error))):
+                self.assertEqual(runtime.fetch_public_article({'url':'https://publisher.example/story'}), {'status':status})
+
+    def test_article_inventory_is_same_origin_and_does_not_follow_body_references(self):
+        links = runtime.ArticleLinks('https://publisher.example/')
+        links.feed('<a href="/navigation">Navigation</a><article><a href="/one">One</a></article>'
+                   '<article><a href="https://external.example/two">External</a><a href="/two">Two</a></article>'
+                   '<link rel="canonical" href="https://publisher.example/">')
+        self.assertEqual(links.links, ['https://publisher.example/one', 'https://publisher.example/two'])
+        self.assertEqual(links.article_count, 2)
+        self.assertEqual(links.canonical, 'https://publisher.example/')
+
+    def test_article_canonical_cannot_point_to_another_origin(self):
+        links = runtime.ArticleLinks('https://publisher.example/article')
+        links.feed('<link rel="canonical" href="https://private.example/article">')
+        self.assertIsNone(links.canonical)
+
+    def test_single_undated_article_does_not_emit_its_body_references(self):
+        fake = types.SimpleNamespace(bare_extraction=lambda *args, **kwargs: {'text': 'Article text', 'date': None})
+        with patch.dict('sys.modules', {'trafilatura': fake}):
+            result = runtime.extract({'url': 'https://publisher.example/news/story', 'html': '<article><p>News <a href="/other-story">reference</a></p></article>'})
+        self.assertEqual(result['pageKind'], 'article')
+        self.assertEqual(result['articleLinks'], [])
+        self.assertIsNone(result['publishedAt'])
+
+    def test_dated_homepage_lead_story_still_emits_a_listing(self):
+        fake = types.SimpleNamespace(bare_extraction=lambda *args, **kwargs: {'text': 'Lead story', 'date': '2026-10-14'})
+        with patch.dict('sys.modules', {'trafilatura': fake}):
+            result = runtime.extract({'url': 'https://publisher.example/', 'html': '<article><a href="/news/lead">Lead story</a></article>'})
+        self.assertEqual(result['pageKind'], 'listing')
+        self.assertEqual(result['articleLinks'], ['https://publisher.example/news/lead'])
+
     def test_google_feed_cannot_be_used_as_an_arbitrary_url_proxy(self):
         for url in ['https://127.0.0.1/rss/search', 'https://news.google.com/other', 'https://user@news.google.com/rss/search', 'http://news.google.com/rss/search']:
             with self.assertRaises(ValueError): runtime.fetch_google_feed({'url': url})

@@ -18,7 +18,7 @@ it.each([40,100,120])('all %s eligible candidates receive owned comparative deci
  const shortlist:ShortlistRecord={...original,id:'growth-'+count,candidates:base.facts.slice(0,count).map((f,i)=>({...base,targetVersionId:'fixture-version-'+i,stableTargetId:'fixture-event-'+i,eventVersionIds:['fixture-version-'+i],facts:[f],ranking:base.ranking?{...base.ranking,semanticKey:f.text}:undefined,fallbackEditorial:{...base.fallbackEditorial,newUnderstanding:[{text:f.text,evidenceRevisionIds:f.evidenceRevisionIds}]},protectedReasons:[],correctionObligationIds:[]})),overflow:[]};await feedTransact(store,'feed-1',tx=>tx.write('shortlists',shortlist.id,shortlist));
  expect(boundShortlist(shortlist.candidates,20).selected).toHaveLength(20);expect(boundShortlist(shortlist.candidates).selected).toHaveLength(count);
  let calls=0;const model='openai/gpt-4.1-mini',strong={model,admission:(state:unknown,schema:object)=>admitModelOperation(model,state,schema,modelCapability(model)),usage:()=>({calls:1,costUsd:.001,reported:true}),complete:async(_f:string,_phase:string,state:any)=>{calls++;return {value:answer(state),usage:{calls:1,costUsd:.001,reported:true}}}};
- const plan=await prepareAdaptiveEditorialPlan(store,shortlist,testPolicy.now(),strong);expect(plan.route).toBe('GPT');expect(plan.stories).toHaveLength(count);expect(plan.stories.every(s=>s.decision==='SELECT'&&s.mustIncludeFactIds.length===1)).toBe(true);expect(plan.inputCoverage!.offeredTargetVersionIds).toHaveLength(count);expect(plan.inputCoverage!.notComparativelyReviewedTargetVersionIds).toEqual([]);expect(calls).toBe(1);
+ const plan=await prepareAdaptiveEditorialPlan(store,shortlist,testPolicy.now(),strong);expect(plan.route,JSON.stringify({reason:plan.fallbackReason,proposals:await store.list('feed-1','editorial_proposals'),failures:(await store.list<any>('feed-1','semantic_results')).filter(r=>r.status!=='SUCCEEDED')})).toBe('GPT');expect(plan.stories).toHaveLength(count);expect(plan.stories.every(s=>s.decision==='SELECT'&&s.mustIncludeFactIds.length===1)).toBe(true);expect(plan.inputCoverage!.offeredTargetVersionIds).toHaveLength(count);expect(plan.inputCoverage!.notComparativelyReviewedTargetVersionIds).toEqual([]);expect(calls).toBe(1);
  expect((await prepareAdaptiveEditorialPlan(new V1FeedStore(ctx.db),shortlist,testPolicy.now(),strong)).id).toBe(plan.id);expect(calls).toBe(1);
 },30000);
 
@@ -65,6 +65,8 @@ it('an unknown leaf remains fenced while independent global context can complete
  }};
  const first=await prepareGlobalEditorialContext(store,original,strong,leaves,testPolicy.now(),Date.now()+600000);
  expect(first.root?.targetVersionIds.sort()).toEqual(['leaf-target-1','leaf-target-2']);expect(first.pending?.[0].targetVersionIds).toEqual(['leaf-target-0']);
+ const lost=(await store.list<any>('feed-1','semantic_results')).find(r=>r.usage.calls>0&&!r.usage.reported);
+ expect((first as any).operationIds).toContain(lost.id);
  const count=calls;const second=await prepareGlobalEditorialContext(new V1FeedStore(ctx.db),original,strong,leaves,testPolicy.now(),Date.now()+600000);
  expect(second.root?.id).toBe(first.root?.id);expect(calls).toBe(count);
 },30000);

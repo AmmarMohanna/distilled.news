@@ -1,3 +1,6 @@
+import {readerHistoryMatches} from './reader-history';
+import {editorialContextFacts,editorialFactReferencesValid} from './editorial-context';
+import {shareSchemaEnums} from '../provider-schema';
 import {findStartedEditorialBoundary,type StartedEditorialBoundary} from './editorial-replay';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {z} from 'zod';
@@ -16,7 +19,7 @@ import {deferEditorialWork,resolveEditorialWork,BLOCKED_DEFERRAL_REASON,type Edi
 export const EDITORIAL_PLAN_POLICY='comparative-editorial-plan-v21';
 // Output-contract repair does not change model input, reservations or call identity.
 export const EDITORIAL_NORMALIZATION_POLICY='selected-new-facts-required-v1';
-export interface EditorialNormalization {policyVersion:string;added:{targetVersionId:string;factIds:string[]}[]}
+export interface EditorialNormalization {policyVersion:string;added:{targetVersionId:string;factIds:string[]}[];contextBindings?:{targetVersionId:string;sourceTargetVersionId:string;factId:string;evidenceRevisionIds:string[];role:'CONTEXT'|'DISAGREEMENT'}[]}
 const ids=z.array(z.string().min(1));
 export const planStorySchema=z.object({targetType:z.enum(['EVENT','STORYLINE']),targetVersionId:z.string().min(1),decision:z.enum(['SELECT','SUPPRESS','DEFER']),order:z.number().int().nonnegative(),treatment:z.enum(['OMIT','BRIEF','STANDARD','DETAILED']),deltaType:z.enum(['NEW','STATE_CHANGE','CERTAINTY_CHANGE','CONTRADICTION','CORRECTION','RETRACTION','DETAIL','REPEAT','UNRESOLVED']),newUnderstandingFactIds:ids,contextFactIds:ids,mustIncludeFactIds:ids,attributionFactIds:ids,certaintyFactIds:ids,disagreementFactIds:ids,openQuestionFactIds:ids,correctionObligationIds:ids,previousLedgerEntryIds:ids,rationale:z.string().min(1),relevanceRationale:z.string().min(1),feedFit:z.enum(['DIRECT','CONTEXTUAL','UNCERTAIN','OUT_OF_SCOPE']).optional(),editorialImportance:z.number().min(0).max(1).optional()}).strict();
 export type PlanStory=z.infer<typeof planStorySchema>;
@@ -25,7 +28,8 @@ export const planBodySchema=z.object({stories:z.array(planStorySchema),obligatio
 export type EditorialPlanBody=z.infer<typeof planBodySchema>;
 export interface EditorialPlanRecord extends EditorialPlanBody {id:string;feedId:string;feedRevision:number;shortlistId:string;window:ShortlistRecord['window'];communicationFingerprint:string;route:'GPT'|'DETERMINISTIC_FALLBACK';plannerSource?:'REAL_COMPARATIVE_MODEL'|'DETERMINISTIC_FALLBACK';capacityAdjustments?:{targetVersionId:string;reason:string}[];/** Stated reasons that the supplied data does not support; informational, never blocking. */reasoningAudit?:import('./shortlist-audit').ReasoningFinding[];modelOperationIds?:string[];inputCoverage?:{policyVersion:string;inputBytes:number;offeredTargetVersionIds:string[];notComparativelyReviewedTargetVersionIds:string[];globalContextOperationIds?:string[]};operationId?:string;fallbackReason?:string;normalization?:EditorialNormalization;recoveredFromPlanId?:string;evidenceRevisionIds:string[];policyVersion:string;createdAt:string}
 const allRefs=(s:PlanStory)=>[...s.newUnderstandingFactIds,...s.contextFactIds,...s.mustIncludeFactIds,...s.attributionFactIds,...s.certaintyFactIds,...s.disagreementFactIds,...s.openQuestionFactIds];
-function knownFacts(c:ShortlistCandidate,shortlist:ShortlistRecord):string[]{return shortlist.ledger.filter(e=>e.eventIds?.includes(c.stableTargetId)||c.storylineId && e.storylineIds?.includes(c.storylineId)).flatMap(e=>e.claimFacts)}
+function knownFacts(c:ShortlistCandidate,shortlist:ShortlistRecord):string[]{return shortlist.ledger.filter(e=>readerHistoryMatches(c,e)).flatMap(e=>e.claimFacts)}
+function suppressionAllowed(c:ShortlistCandidate,state:ShortlistRecord):boolean{return !c.protectedReasons.length||!c.correctionObligationIds.length&&c.facts.every(f=>knownFacts(c,state).some(text=>equivalentFact(text,f.text)))}
 export function publicationCorrectionReady(c:Pick<ShortlistCandidate,'facts'|'correctionObligationIds'> & {flags?:string[]},obligations:ShortlistRecord['obligations']):boolean {
  return !c.flags?.some(f=>['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE','TITLE_EXTRACTION_PENDING'].includes(f))&&c.facts.length>0&&c.facts.every(f=>f.selfContained==='YES'||f.selfContained==='RESOLVED_BY_CONTEXT')&&c.correctionObligationIds.length>0&&c.correctionObligationIds.every(id=>obligations.some(o=>o.id===id&&o.publicationWithdrawal));
 }
@@ -34,8 +38,8 @@ export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistR
  const plan=planBodySchema.parse(raw),targets=new Set(plan.stories.map(s=>s.targetVersionId));
  if(targets.size!==plan.stories.length||targets.size!==shortlist.candidates.length||shortlist.candidates.some(c=>!targets.has(c.targetVersionId)))throw new HandoffError('SCOPE_DENIED');
  const orders=plan.stories.filter(s=>s.decision==='SELECT').map(s=>s.order);if(new Set(orders).size!==orders.length)throw new HandoffError('SCOPE_DENIED');
- for(const s of plan.stories){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;if(s.targetType!==c.targetType || allRefs(s).some(id=>!c.facts.some(f=>f.id===id))||s.previousLedgerEntryIds.some(id=>!shortlist.ledger.some(e=>e.id===id))||s.correctionObligationIds.some(id=>!c.correctionObligationIds.includes(id)))throw new HandoffError('SCOPE_DENIED');
-  const allowedHistory=new Set(shortlist.ledger.filter(e=>e.eventIds?.includes(c.stableTargetId)||Boolean(c.storylineId&&e.storylineIds?.includes(c.storylineId))||shortlist.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id));
+ for(const s of plan.stories){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;if(s.targetType!==c.targetType || !editorialFactReferencesValid(s,c,shortlist)||s.previousLedgerEntryIds.some(id=>!shortlist.ledger.some(e=>e.id===id))||s.correctionObligationIds.some(id=>!c.correctionObligationIds.includes(id)))throw new HandoffError('SCOPE_DENIED');
+  const allowedHistory=new Set(shortlist.ledger.filter(e=>readerHistoryMatches(c,e)||shortlist.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id));
   if(s.previousLedgerEntryIds.some(id=>!allowedHistory.has(id)))throw new HandoffError('SCOPE_DENIED');
   if(options.requirePublicationCorrection&&readyTargets.length<=correctionCapacity&&publicationCorrectionReady(c,shortlist.obligations)&&(s.decision!=='SELECT'||!['CORRECTION','RETRACTION'].includes(s.deltaType)))throw new HandoffError('SCOPE_DENIED');
   if(options.requireImportance&&s.editorialImportance===undefined)throw Error('EDITORIAL_IMPORTANCE_MISSING');
@@ -49,7 +53,7 @@ export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistR
   // persisted publication withdrawal permits corrective supported restatement.
   if(s.decision==='SELECT'){const known=knownFacts(c,shortlist),withdrawal=c.correctionObligationIds.some(id=>shortlist.obligations.some(o=>o.id===id&&o.publicationWithdrawal));if(known.length&&!withdrawal&&!s.newUnderstandingFactIds.some(id=>c.facts.some(f=>f.id===id&&!known.some(text=>equivalentFact(text,f.text)))))throw new HandoffError('SCOPE_DENIED')}
   if(s.decision==='SELECT' && c.protectedReasons.length){const known=knownFacts(c,shortlist);for(const f of c.facts)if(!known.some(k=>equivalentFact(k,f.text)) && !s.mustIncludeFactIds.includes(f.id))throw new HandoffError('SCOPE_DENIED')}
-  if(s.decision==='SUPPRESS' && c.protectedReasons.length && (!c.facts.every(f=>knownFacts(c,shortlist).some(k=>equivalentFact(k,f.text)))||c.correctionObligationIds.length))throw new HandoffError('SCOPE_DENIED');
+  if(s.decision==='SUPPRESS' && !suppressionAllowed(c,shortlist))throw new HandoffError('SCOPE_DENIED');
  }
  if(options.requirePublicationCorrection&&readyTargets.length>correctionCapacity&&plan.stories.filter(s=>s.decision==='SELECT'&&readyTargets.some(c=>c.targetVersionId===s.targetVersionId)).length<correctionCapacity)throw new HandoffError('SCOPE_DENIED');
  const obligations=new Set(plan.obligations.map(o=>o.obligationId));if(obligations.size!==plan.obligations.length||obligations.size!==shortlist.obligations.length||shortlist.obligations.some(o=>!obligations.has(o.id)))throw new HandoffError('SCOPE_DENIED');
@@ -75,7 +79,8 @@ export function normalizeEditorialPlan(raw:EditorialPlanBody,shortlist:Shortlist
  const body=planBodySchema.parse(raw),normalization:EditorialNormalization={policyVersion:EDITORIAL_NORMALIZATION_POLICY,added:[]};
  for(const story of body.stories.filter(s=>s.decision==='SELECT')){
   const candidate=shortlist.candidates.find(c=>c.targetVersionId===story.targetVersionId);
-  if(!candidate||candidate.targetType!==story.targetType||allRefs(story).some(id=>!candidate.facts.some(f=>f.id===id)))throw new HandoffError('SCOPE_DENIED');
+  if(!candidate||candidate.targetType!==story.targetType||!editorialFactReferencesValid(story,candidate,shortlist))throw new HandoffError('SCOPE_DENIED');
+  for(const [role,refs] of [['CONTEXT',story.contextFactIds],['DISAGREEMENT',story.disagreementFactIds]] as const)for(const id of refs)if(!candidate.facts.some(f=>f.id===id)){const owner=shortlist.candidates.find(c=>c.facts.some(f=>f.id===id&&f.evidenceRevisionIds.some(revision=>candidate.evidenceRevisionIds.includes(revision))))!,fact=owner.facts.find(f=>f.id===id)!;(normalization.contextBindings??=[]).push({targetVersionId:candidate.targetVersionId,sourceTargetVersionId:owner.targetVersionId,factId:id,evidenceRevisionIds:fact.evidenceRevisionIds.filter(id=>candidate.evidenceRevisionIds.includes(id)),role})}
   const added=[...new Set(story.newUnderstandingFactIds.filter(id=>!story.mustIncludeFactIds.includes(id)))];
   if(added.length){story.mustIncludeFactIds.push(...added);normalization.added.push({targetVersionId:story.targetVersionId,factIds:added})}
  }
@@ -91,7 +96,7 @@ export function fallbackEditorialPlan(shortlist:ShortlistRecord):EditorialPlanBo
   const repeated=c.fallbackEditorial.decision==='SUPPRESS'&&!c.protectedReasons.length&&!c.correctionObligationIds.length,understanding=c.facts.filter(f=>c.fallbackEditorial.newUnderstanding.some(n=>equivalentFact(n.text,f.text))).map(f=>f.id),required=c.protectedReasons.length?c.facts.map(f=>f.id):understanding.length?understanding:c.facts.map(f=>f.id);
   // A non-protected fact whose referent cannot be established from permitted evidence is never invented around: drop it, and defer a story with nothing self-contained left.
   const unresolved=new Set(c.protectedReasons.length?[]:c.facts.filter(f=>f.selfContained==='UNRESOLVED').map(f=>f.id)),keep=(l:string[])=>l.filter(id=>!unresolved.has(id)),kept=keep(required),incomplete=c.flags.includes('TITLE_EXTRACTION_PENDING')||c.flags.includes('IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE')||c.correctionObligationIds.length>0||!repeated&&unresolved.size>0&&!kept.length;
-  return {targetType:c.targetType,targetVersionId:c.targetVersionId,decision:repeated?'SUPPRESS':incomplete?'DEFER':'SELECT',order,treatment:repeated||incomplete?'OMIT':c.fallbackEditorial.treatment==='OMIT'?'STANDARD':c.fallbackEditorial.treatment,deltaType:repeated?'REPEAT':incomplete?'UNRESOLVED':c.effects.includes('CONTRADICTS')?'CONTRADICTION':c.effects.includes('RETRACTS')?'RETRACTION':c.effects.includes('CHANGES_CERTAINTY')?'CERTAINTY_CHANGE':c.effects.includes('CHANGES_STATE')?'STATE_CHANGE':'NEW',newUnderstandingFactIds:keep(understanding),contextFactIds:[],mustIncludeFactIds:repeated||incomplete?[]:kept,attributionFactIds:c.facts.filter(f=>f.attribution).map(f=>f.id),certaintyFactIds:c.facts.filter(f=>f.certainty?.hedges.length).map(f=>f.id),disagreementFactIds:c.effects.includes('CONTRADICTS')?required:[],openQuestionFactIds:[],correctionObligationIds:c.correctionObligationIds,previousLedgerEntryIds:shortlist.ledger.filter(e=>e.eventIds?.includes(c.stableTargetId)).map(e=>e.id),rationale:repeated?'Conservative exact communicated-fact repetition.':'Deterministic fallback: preserve supported information for the writer.',relevanceRationale:'Feed-scoped approved evidence; no semantic relevance claim.',feedFit:'UNCERTAIN'};
+  return {targetType:c.targetType,targetVersionId:c.targetVersionId,decision:repeated?'SUPPRESS':incomplete?'DEFER':'SELECT',order,treatment:repeated||incomplete?'OMIT':c.fallbackEditorial.treatment==='OMIT'?'STANDARD':c.fallbackEditorial.treatment,deltaType:repeated?'REPEAT':incomplete?'UNRESOLVED':c.effects.includes('CONTRADICTS')?'CONTRADICTION':c.effects.includes('RETRACTS')?'RETRACTION':c.effects.includes('CHANGES_CERTAINTY')?'CERTAINTY_CHANGE':c.effects.includes('CHANGES_STATE')?'STATE_CHANGE':'NEW',newUnderstandingFactIds:keep(understanding),contextFactIds:[],mustIncludeFactIds:repeated||incomplete?[]:kept,attributionFactIds:c.facts.filter(f=>f.attribution).map(f=>f.id),certaintyFactIds:c.facts.filter(f=>f.certainty?.hedges.length).map(f=>f.id),disagreementFactIds:c.effects.includes('CONTRADICTS')?required:[],openQuestionFactIds:[],correctionObligationIds:c.correctionObligationIds,previousLedgerEntryIds:shortlist.ledger.filter(e=>readerHistoryMatches(c,e)).map(e=>e.id),rationale:repeated?'Conservative exact communicated-fact repetition.':'Deterministic fallback: preserve supported information for the writer.',relevanceRationale:'Feed-scoped approved evidence; no semantic relevance claim.',feedFit:'UNCERTAIN'};
  });
  // Correction obligations need an explicit supported editorial decision. A
  // fallback cannot infer that publishing the same news corrects a withdrawal.
@@ -110,7 +115,7 @@ export const editorialPlanWireSchema={...baseEditorialPlanWireSchema,properties:
  * be used as approved facts, even though both use compact R identifiers. */
 export function editorialPlanWireSchemaFor(state:ReturnType<typeof compactEditorialInput>['state']) {
  const schema=structuredClone(editorialPlanWireSchema);
- if((state as any).budget?.mode==='ADAPTIVE')for(const branch of schema.properties.stories.items.anyOf){(branch.properties as Record<string,unknown>).editorialImportance={type:'number',minimum:0,maximum:1};branch.required.push('editorialImportance' as any)}
+ if((state as any).budget?.mode==='ADAPTIVE')for(const branch of schema.properties.stories.items.anyOf){(branch.properties as Record<string,unknown>).editorialImportance={type:'number',minimum:0,maximum:1};branch.required=[...new Set([...branch.required,'editorialImportance'])] as any}
  const refs=(values:string[],minimum=0)=>values.length?{type:'array',minItems:minimum,items:{type:'string',enum:[...new Set(values)]}}:{type:'array',maxItems:0,items:{type:'string'}};
  const factIds=state.candidates.flatMap(c=>c.facts.map(f=>f.id)),ledgerIds=state.ledger.map(e=>e.id),obligationIds=state.obligations.map(o=>o.id),targets=state.candidates.map(c=>c.targetVersionId);
  Object.assign(schema.properties.stories,{minItems:targets.length,maxItems:targets.length});
@@ -132,21 +137,22 @@ export function editorialPlanWireSchemaFor(state:ReturnType<typeof compactEditor
  // Exact candidate ownership is still enforced by validateEditorialPlan before
  // any plan is persisted or any writer runs. Mandatory correction capabilities
  // retain their individual schema branches.
- const historyFor=(c:ShortlistCandidate)=>state.ledger.filter(e=>e.eventIds.includes(c.stableTargetId)||Boolean(c.storylineId&&e.storylineIds.includes(c.storylineId))||state.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id);
+ const historyFor=(c:ShortlistCandidate)=>state.ledger.filter(e=>readerHistoryMatches(c,e)||state.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id);
  const withoutHistory=state.candidates.filter(c=>ordinaryTargets.includes(c.targetVersionId)&&!historyFor(c).length),withHistory=state.candidates.filter(c=>ordinaryTargets.includes(c.targetVersionId)&&historyFor(c).length);
  // REPEAT means communicated to this reader, never merely old reporting. Use
  // the validator's exact history predicate; retain all other editorial choices.
  const repeatAllowed=(c:ShortlistCandidate)=>c.facts.every(f=>knownFacts(c,state as unknown as ShortlistRecord).some(text=>equivalentFact(text,f.text)));
  const restrictRepeat=(branch:typeof sharedBranches[number],allowed:boolean)=>{if(!allowed)branch.properties.deltaType.enum=branch.properties.deltaType.enum.filter(value=>value!=='REPEAT');return branch};
  const ordinaryBranches:typeof sharedBranches=[];
- for(const allowed of [false,true]){const group=withoutHistory.filter(c=>repeatAllowed(c)===allowed);if(group.length)ordinaryBranches.push(...sharedBranches.map(b=>{const branch=structuredClone(b),p=branch.properties as Record<string,unknown>;p.targetVersionId={type:'string',enum:group.map(c=>c.targetVersionId)};p.previousLedgerEntryIds=refs([]);return restrictRepeat(branch,allowed)}))}
- for(const c of withHistory)for(const b of sharedBranches){const branch=structuredClone(b),p=branch.properties as Record<string,unknown>;p.targetVersionId={type:'string',enum:[c.targetVersionId]};p.previousLedgerEntryIds=refs(historyFor(c));for(const field of ['newUnderstandingFactIds','contextFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'])p[field]=refs(c.facts.map(f=>f.id),field==='mustIncludeFactIds'&&b.properties.decision.enum[0]==='SELECT'?1:0);ordinaryBranches.push(restrictRepeat(branch,repeatAllowed(c)))}
+ const restrictSuppression=(branch:typeof sharedBranches[number],allowed:boolean)=>{if(!allowed)branch.properties.decision.enum=branch.properties.decision.enum.filter(value=>value!=='SUPPRESS');return branch};
+ for(const allowed of [false,true])for(const suppress of [false,true]){const group=withoutHistory.filter(c=>repeatAllowed(c)===allowed&&suppressionAllowed(c,state as unknown as ShortlistRecord)===suppress);if(group.length)ordinaryBranches.push(...sharedBranches.map(b=>{const branch=structuredClone(b),p=branch.properties as Record<string,unknown>;p.targetVersionId={type:'string',enum:group.map(c=>c.targetVersionId)};p.previousLedgerEntryIds=refs([]);return restrictSuppression(restrictRepeat(branch,allowed),suppress)}))}
+ for(const c of withHistory)for(const b of sharedBranches){const branch=structuredClone(b),p=branch.properties as Record<string,unknown>;p.targetVersionId={type:'string',enum:[c.targetVersionId]};p.previousLedgerEntryIds=refs(historyFor(c));for(const field of ['newUnderstandingFactIds','contextFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'])p[field]=refs(c.facts.map(f=>f.id),field==='mustIncludeFactIds'&&b.properties.decision.enum[0]==='SELECT'?1:0);ordinaryBranches.push(restrictSuppression(restrictRepeat(branch,repeatAllowed(c)),suppressionAllowed(c,state as unknown as ShortlistRecord)))}
  const allowCorrectionDeferral=readyCandidates.length>((state as unknown as {communicationCapacity?:{maxStories:number}}).communicationCapacity?.maxStories??Infinity);
  const correctionBranches=readyCandidates.flatMap(c=>{
   const branch=structuredClone(sharedBranches[0]),p=branch.properties as Record<string,unknown>;
   p.targetVersionId={type:'string',enum:[c.targetVersionId]};p.deltaType={type:'string',enum:['CORRECTION','RETRACTION']};
   for(const field of ['newUnderstandingFactIds','contextFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'])p[field]=refs(c.facts.map(f=>f.id),field==='mustIncludeFactIds'?1:0);
-  p.previousLedgerEntryIds=refs(state.ledger.filter(e=>e.eventIds.includes(c.stableTargetId)||Boolean(c.storylineId&&e.storylineIds.includes(c.storylineId))||state.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id));
+  p.previousLedgerEntryIds=refs(state.ledger.filter(e=>readerHistoryMatches(c,e)||state.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id));
   p.correctionObligationIds=refs(c.correctionObligationIds,c.correctionObligationIds.length);
   if(!allowCorrectionDeferral)return [branch];
   const deferred=structuredClone(sharedBranches[1]),dp=deferred.properties as Record<string,unknown>;dp.targetVersionId={type:'string',enum:[c.targetVersionId]};dp.decision={type:'string',enum:['DEFER']};return [branch,restrictRepeat(deferred,repeatAllowed(c))];
@@ -165,6 +171,9 @@ export function editorialPlanWireSchemaFor(state:ReturnType<typeof compactEditor
    const branch=structuredClone(base),p=branch.properties as Record<string,unknown>;
    p.obligationId={type:'string',enum:[o.id]};
    if(candidate&&!allowCorrectionDeferral){p.handling={type:'string',enum:['ADDRESS']};p.targetVersionId={type:'string',enum:[candidate.targetVersionId]};}
+   // An obligation alone cannot grant an unrelated story corrective ownership.
+   // Keep unresolved work visible without offering a decision validation forbids.
+   else if(!state.candidates.some(c=>c.correctionObligationIds.includes(o.id)))p.handling={type:'string',enum:['DEFER']};
    return branch;
   })};
  }
@@ -174,7 +183,7 @@ export {EDITORIAL_OUTPUT_CONTRACT} from './editorial-transport';
 /** Required request-local keys make coverage structural. Shared definitions
  * avoid repeating the full decision schema for every candidate. Ownership and
  * all semantic/capacity guards remain authoritative after decoding. */
-export function keyedEditorialPlanWireSchemaFor(state:ReturnType<typeof compactEditorialInput>['state']) {
+export function keyedEditorialPlanWireSchemaFor(state:ReturnType<typeof compactEditorialInput>['state'],contextFactCapabilities?:Record<string,string[]>) {
  const legacy=editorialPlanWireSchemaFor(state),definitions:Record<string,unknown>={},byValue=new Map<string,string>();
  const reference=(raw:unknown,identity:string)=>{
   const branch=structuredClone(raw) as {properties:Record<string,unknown>;required:string[]};
@@ -182,10 +191,12 @@ export function keyedEditorialPlanWireSchemaFor(state:ReturnType<typeof compactE
   const signature=canonicalJson(branch);let key=byValue.get(signature);if(!key){key=`D${byValue.size}`;byValue.set(signature,key);definitions[key]=branch}
   return {$ref:`#/$defs/${key}`};
  };
- const stories=Object.fromEntries(state.candidates.map(c=>[c.targetVersionId,{anyOf:legacy.properties.stories.items.anyOf.filter(b=>(b.properties.targetVersionId as unknown as {enum:string[]}).enum.includes(c.targetVersionId)).map(b=>reference(b,'targetVersionId'))}]));
+ // Nonselected publication roles are inactive: retain complete candidate facts
+ // in the input and deferred work, without repeating their enums in omissions.
+ const stories=Object.fromEntries(state.candidates.map(c=>[c.targetVersionId,{anyOf:legacy.properties.stories.items.anyOf.filter(b=>(b.properties.targetVersionId as unknown as {enum:string[]}).enum.includes(c.targetVersionId)).map(b=>{const branch=structuredClone(b),properties=branch.properties as Record<string,unknown>;properties.targetType={type:'string',enum:[c.targetType]};for(const role of ['newUnderstandingFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','openQuestionFactIds','contextFactIds','disagreementFactIds']){const selected=(branch.properties.decision as {enum:string[]}).enum.includes('SELECT'),ids=!selected?[]:['contextFactIds','disagreementFactIds'].includes(role)?contextFactCapabilities?.[c.targetVersionId]??c.facts.map(f=>f.id):c.facts.map(f=>f.id);properties[role]={...(properties[role] as object),items:ids.length?{type:'string',enum:[...ids].sort()}:{type:'string'},...(!ids.length?{maxItems:0}:{})}};properties.correctionObligationIds=c.correctionObligationIds.length?{...branch.properties.correctionObligationIds,items:{type:'string',enum:c.correctionObligationIds}}:{type:'array',items:{type:'string'},maxItems:0};return reference(branch,'targetVersionId')})}]));
  const obligationItems=legacy.properties.obligations.items as unknown as {anyOf?:{properties:{obligationId:{enum:string[]}}}[]};
  const obligations=Object.fromEntries(state.obligations.map(o=>[o.id,{anyOf:(obligationItems.anyOf??[]).filter(b=>b.properties.obligationId.enum.includes(o.id)).map(b=>reference(b,'obligationId'))}]));
- return {...object({stories:object(stories),obligations:object(obligations)}),$defs:definitions};
+ return shareSchemaEnums({...object({stories:object(stories),obligations:object(obligations)}),$defs:definitions});
 }
 /** The editor must submit a feasible plan; a known, valid but oversized proposal
  * gets at most one comparative repair, never a silent downstream truncation. */
@@ -193,7 +204,7 @@ const selectionItem=(s:PlanStory,c:ShortlistCandidate):SelectionItem=>({id:s.tar
 /** Same admission rule as allocation, applied to the planner's own order (protected first): a proposal that fits is never rewritten. */
 export function planCapacityFailures(body:EditorialPlanBody,shortlist:ShortlistRecord,budget:BriefingBudget){
  const usage={stories:0,input:0,evidence:0,words:0,publishers:new Map<string,number>()},failures:{targetVersionId:string;reason:string}[]=[];
- const items=body.stories.filter(s=>s.decision==='SELECT').map(s=>selectionItem(s,shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!)).sort((a,b)=>Number(b.protectedItem)-Number(a.protectedItem)||a.order-b.order);
+ const items=body.stories.filter(s=>s.decision==='SELECT').map(s=>{const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!,facts=editorialContextFacts(c,shortlist).filter(f=>c.facts.some(local=>local.id===f.id)||s.contextFactIds.includes(f.id)||s.disagreementFactIds.includes(f.id));return selectionItem(s,facts.length===c.facts.length?c:{...c,facts,communicationCost:communicationCost({...c,facts})})}).sort((a,b)=>Number(b.protectedItem)-Number(a.protectedItem)||a.order-b.order);
  for(const item of items){
   const reason=capacityReason(usage,item,budget);
   if(reason)failures.push({targetVersionId:item.id,reason});
@@ -274,13 +285,13 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
  const oldKeyedState=keyedEditorialState(transport.state,{compact:false});
  const oldKeyedOperationId=keyed?await sha256(canonicalJson({feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:policy,model:strong?.model,budgetKey:options.processingScope??`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:oldKeyedState})):undefined;
  const oldKeyedStarted=oldKeyedOperationId?Boolean(await store.read(shortlist.feedId,'semantic_intents',oldKeyedOperationId)||await store.read(shortlist.feedId,'semantic_results',oldKeyedOperationId)):false;
- const bounded=retainedBoundary?.bounded??(!retainedBoundary&&keyed&&!oldKeyedStarted?boundedEditorialInput(state,strong?.admission?{fits:(wire,t)=>{const admission=strong.admission!(wire,keyedEditorialPlanWireSchemaFor(t.state),'COMPARATIVE_EDITORIAL_PLAN');return admission.reason==='MODEL_CAPABILITY_UNAVAILABLE'||admission.fits}}:{}):undefined);
+ const bounded=retainedBoundary?.bounded??(!retainedBoundary&&keyed&&!oldKeyedStarted?boundedEditorialInput(state,strong?.admission?{fits:(wire,t)=>{const admission=strong.admission!(wire,keyedEditorialPlanWireSchemaFor(t.state,t.contextFactCapabilities),'COMPARATIVE_EDITORIAL_PLAN');return admission.reason==='MODEL_CAPABILITY_UNAVAILABLE'||admission.fits}}:{}):undefined);
  if(bounded)transport=bounded.transport;
  const inputState=retainedBoundary?.inputState??(keyed?bounded?.inputState??oldKeyedState:transport.state);
  const overflowIds=bounded?.overflowIds??[],offeredShortlist=overflowIds.length?{...shortlist,candidates:shortlist.candidates.filter(c=>!overflowIds.includes(c.targetVersionId))}:shortlist;
  const inputCoverage=bounded?{policyVersion:EDITORIAL_INPUT_POLICY,inputBytes:new TextEncoder().encode(canonicalJson(inputState)).length,offeredTargetVersionIds:bounded.offeredCandidates.map(c=>c.targetVersionId),notComparativelyReviewedTargetVersionIds:overflowIds}:undefined;
  if(bounded?.failure)fallbackReason=bounded.failure;
- const outputSchema=keyed?keyedEditorialPlanWireSchemaFor(transport.state):editorialPlanWireSchemaFor(transport.state);
+ const outputSchema=keyed?keyedEditorialPlanWireSchemaFor(transport.state,transport.contextFactCapabilities):editorialPlanWireSchemaFor(transport.state);
  const addOverflow=(value:EditorialPlanBody):EditorialPlanBody=>{
   if(!overflowIds.length)return value;
   const firstOrder=Math.max(-1,...value.stories.map(s=>s.order))+1;
@@ -312,7 +323,7 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
    if(proposal?.model===strong.model&&proposal.shortlistId===shortlist.id){
     try{
      const output=normalizeEditorialPlan(decodeProposal(proposal.rawProposal),offeredShortlist,{requirePublicationCorrection:true,correctionCapacity,requireFeedFit:true,requireImportance:budget.mode==='ADAPTIVE'});
-     if(!output.normalization.added.length||planCapacityFailures(output.value,shortlist,budget).length)throw Error('SEMANTIC_NORMALIZATION_NOT_RECOVERABLE');
+     if(!output.normalization.added.length&&!output.normalization.contextBindings?.length||planCapacityFailures(output.value,shortlist,budget).length)throw Error('SEMANTIC_NORMALIZATION_NOT_RECOVERABLE');
      const recoveryId=JSON.stringify([id,'RETAINED_NORMALIZATION']);
      await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision||await communicationFingerprint(tx,shortlist.window.end)!==shortlist.communicationFingerprint)throw new HandoffError('TEMPORARY_UNAVAILABLE');if(!await tx.read('editorial_proposals',recoveryId))await tx.write('editorial_proposals',recoveryId,{id:recoveryId,feedId:shortlist.feedId,shortlistId:shortlist.id,window:shortlist.window,attempt:'RETAINED_NORMALIZATION',sourceProposalId:JSON.stringify([baseId,'INITIAL']),sourceOperationId:saved.id,decodedProposal:output.value,normalization:output.normalization,usage:{calls:0,costUsd:0,reported:true},createdAt:now})});
      normalization=output.normalization;accepted={...saved,status:'SUCCEEDED',failure:undefined,value:addOverflow(output.value)};
@@ -348,7 +359,7 @@ export async function prepareEditorialPlan(store:V1FeedStore,shortlist:Shortlist
  // Hard capacity is allocated protected-first (changed state/certainty, contradiction, correction, retraction, obligations): an ordinary story can never
  // displace protected information, however the planner ranked it. Ordinary stories then take the most valuable combination that actually fits,
  // not the first-ranked story that happens to leave no room for the rest.
- const capacityAdjustments:{targetVersionId:string;reason:string}[]=[],allocation=allocateFeasibleSelection(body.stories.filter(s=>s.decision==='SELECT').map(s=>selectionItem(s,shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!)),budget);
+ const capacityAdjustments:{targetVersionId:string;reason:string}[]=[],allocation=allocateFeasibleSelection(body.stories.filter(s=>s.decision==='SELECT').map(s=>{const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!,facts=editorialContextFacts(c,shortlist).filter(f=>c.facts.some(local=>local.id===f.id)||s.contextFactIds.includes(f.id)||s.disagreementFactIds.includes(f.id));return selectionItem(s,facts.length===c.facts.length?c:{...c,facts,communicationCost:communicationCost({...c,facts})})}),budget);
  for(const s of body.stories.filter(s=>s.decision==='SELECT')){const reason=allocation.rejected.get(s.targetVersionId);
   if(reason){s.decision='DEFER';s.treatment='OMIT';s.rationale=`${reason}: reconsider in a later window.`;capacityAdjustments.push({targetVersionId:s.targetVersionId,reason})}
  }

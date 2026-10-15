@@ -1,3 +1,4 @@
+import {faithfulFact,type SemanticFactCheck} from './fidelity';
 import {equivalentFact} from './editorial';
 import type {EditorialWork} from './editorial-work';
 import {provenMaterialDelta} from './material-delta';
@@ -94,9 +95,9 @@ export async function projectEditionLedger(store:V1FeedStore,feedId:string,editi
  const selection=await store.read<SelectionRecord>(feedId,'selections',edition.selectionId),plan=selection?.editorialPlanId?await store.read<EditorialPlanRecord>(feedId,'editorial_plans',selection.editorialPlanId):undefined,shortlist=plan?await store.read<ShortlistRecord>(feedId,'shortlists',plan.shortlistId):undefined;
  if(plan && shortlist && status.status==='PUBLISHED'){
   const fidelity=await store.read<{passed:boolean;checks:{candidateId:string;addressedCorrectionObligationIds?:string[]}[]}>(feedId,'fidelity_results',edition.generation.verificationId??edition.selectionId);
-  const verification=await store.read<{preservedFactIds?:string[]}>(feedId,'verification_results',edition.generation.verificationId??edition.selectionId),pending=await store.list<EditorialWork> (feedId,'editorial_deferred_work');
+  const verification=await store.read<{preservedFactIds?:string[];semanticChecks?:SemanticFactCheck[]}>(feedId,'verification_results',edition.generation.verificationId??edition.selectionId),pending=await store.list<EditorialWork> (feedId,'editorial_deferred_work');
   for(const story of edition.stories){const candidate=await store.read<BriefingCandidate>(feedId,'candidates',story.candidateId),planned=plan.stories.find(s=>s.targetVersionId===candidate?.targetVersionId),scope=shortlist.candidates.find(c=>c.targetVersionId===candidate?.targetVersionId);if(!planned||!scope)continue;
-   const preserved=scope.facts.filter(f=>story.claims.some(c=>literal(c.text,f.text))||verification?.preservedFactIds?.includes(f.id));
+   const preserved=scope.facts.filter(f=>story.claims.some(c=>literal(c.text,f.text))||(verification?.semanticChecks?.some(c=>c.candidateId)?verification.semanticChecks.some(c=>c.candidateId===story.candidateId&&c.factId===f.id&&faithfulFact(c)):verification?.preservedFactIds?.includes(f.id)));
    for(const fact of preserved){const id=JSON.stringify([editionId,story.candidateId,fact.id]);if(!await store.read(feedId,'ledger_fact_bindings',id))writes.push({kind:'ledger_fact_bindings',id,value:{id,feedId,editionId,candidateId:story.candidateId,factId:fact.id,propositionId:fact.propositionId,ledgerEntryIds:entries.filter(e=>e.candidateId===story.candidateId).map(e=>e.id),evidenceRevisionIds:fact.evidenceRevisionIds,policyVersion:LEDGER_POLICY}})}
    if(planned.mustIncludeFactIds.every(id=>preserved.some(f=>f.id===id))){
     for(const obligation of plan.obligations.filter(o=>o.handling==='ADDRESS'&&o.targetVersionId===scope.targetVersionId&&fidelity?.passed&&fidelity.checks.some(c=>c.candidateId===story.candidateId&&c.addressedCorrectionObligationIds?.includes(o.obligationId)))){const id=JSON.stringify([obligation.obligationId,editionId]);if(!await store.read(feedId,'correction_resolutions',id))writes.push({kind:'correction_resolutions',id,value:{id,feedId,obligationId:obligation.obligationId,editionId,planId:plan.id,createdAt:edition.createdAt}})}
@@ -141,7 +142,11 @@ export async function refreshSourceCorrectionObligations(tx:FeedTransaction,now:
   else if(current.currentRevisionId && current.currentRevisionId!==id){
    const next=await tx.revision(current.currentRevisionId);
    if(!next||await sourceChangesReaderMeaning(tx.store,tx.snapshot.feed.id,entry,revision,next,tx))await recordCorrectionObligation(tx,entry,'SOURCE_REVISED',current.currentRevisionId,now);
-   else for(const obligation of (await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>o.ledgerEntryId===entry.id&&o.kind==='SOURCE_REVISED'&&o.triggerId===current.currentRevisionId)){
+   else for(const obligation of (await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>o.ledgerEntryId===entry.id&&o.kind==='SOURCE_REVISED')){
+    // Prove each retained trigger non-material independently; a later source
+    // revision must not leave an older false obligation stranded.
+    const trigger=obligation.triggerId===next?.id?next:await tx.revision(obligation.triggerId);
+    if(!trigger||trigger.evidenceId!==revision.evidenceId||await sourceChangesReaderMeaning(tx.store,tx.snapshot.feed.id,entry,revision,trigger,tx))continue;
     const resolutionId=JSON.stringify([obligation.id,'NON_MATERIAL_SOURCE_REVISION']);
     if(!await tx.read('correction_resolutions',resolutionId))await tx.write('correction_resolutions',resolutionId,{id:resolutionId,feedId:tx.snapshot.feed.id,obligationId:obligation.id,reason:'NON_MATERIAL_SOURCE_REVISION',createdAt:now});
    }

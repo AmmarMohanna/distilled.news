@@ -45,3 +45,12 @@ it.each([
 ])('substantive or ambiguous punctuation stays a change: %s',(_,a,b)=>{
  expect(changedCommunicatedSpans([span(a)],doc(a),doc(b))).toHaveLength(1);
 });
+it('established stage-location spelling variants preserve meaning without joining arbitrary words',()=>{
+ const a="Max Hodak detailed on stage at TechCrunch Disrupt how his company's work with PRIMA is part of its path toward a novel brain-computer interface.";
+ expect(changedCommunicatedSpans([span(a)],doc(a),doc(a.replace('on stage','onstage')))).toEqual([]);
+ expect(changedCommunicatedSpans([span('The speaker waited off stage.')],doc('The speaker waited off stage.'),doc('The speaker waited offstage.'))).toEqual([]);
+ expect(changedCommunicatedSpans([span('The speaker is now here.')],doc('The speaker is now here.'),doc('The speaker is nowhere.'))).toHaveLength(1);
+ expect(changedCommunicatedSpans([span(a)],doc(a),doc(a.replace('on stage','offstage')))).toHaveLength(1);
+});
+
+it('a question followed by a supplied-payload period cannot create a factual source correction',()=>{const old='Is it OK for jobseekers or employers to use AI?.';const fact='Graduates are increasingly using AI to misrepresent themselves in job applications, research suggests.';expect(changedCommunicatedSpans([span(old),span(fact)],doc(old+' '+fact),doc('How AI job applications can backfire. '+fact))).toEqual([])});

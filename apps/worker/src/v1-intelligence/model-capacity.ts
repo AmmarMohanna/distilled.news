@@ -1,6 +1,7 @@
 import {structuredCompletionBody} from '../ai';
+import {inspectProviderSchema,type SchemaAdmission} from '../provider-schema';
 export interface ModelCapability {contextTokens:number;maxOutputTokens:number;inputUsdPerToken:number;outputUsdPerToken:number;source:string;transport?:'STRUCTURED_COMPLETION'|'DECISIONS'}
-export interface ModelAdmission {fits:boolean;reason?:'MODEL_CAPABILITY_UNAVAILABLE'|'MODEL_CONTEXT_CONTINUATION_REQUIRED';requestBytes:number;inputTokenUpperBound:number;maxOutputTokens:number;reservationCostUsd:number;capability?:ModelCapability}
+export interface ModelAdmission {fits:boolean;reason?:'MODEL_CAPABILITY_UNAVAILABLE'|'MODEL_CONTEXT_CONTINUATION_REQUIRED'|'MODEL_SCHEMA_CONTINUATION_REQUIRED';schemaAdmission?:SchemaAdmission;requestBytes:number;inputTokenUpperBound:number;maxOutputTokens:number;reservationCostUsd:number;capability?:ModelCapability}
 /** Capability evidence, not spend permission. https://openrouter.ai/api/v1/models,
  * checked 2026-10-12. Unknown routes require an operator-verified descriptor.
  * The override can reflect a narrower selected provider context. */
@@ -22,6 +23,7 @@ export function admitModelOperation(model:string,state:unknown,schema:object,cap
  const maxOutputTokens=Math.min(capability.maxOutputTokens,requestedOutputTokens??capability.maxOutputTokens);
  if(!Number.isSafeInteger(maxOutputTokens)||maxOutputTokens<1)throw Error('SEMANTIC_MODEL_OUTPUT_INVALID');
  const requestBytes=new TextEncoder().encode(JSON.stringify(structuredCompletionBody(model,JSON.stringify(state),schema,maxOutputTokens))).length;
- const fits=requestBytes+maxOutputTokens<=capability.contextTokens;
- return {fits,...(!fits?{reason:'MODEL_CONTEXT_CONTINUATION_REQUIRED' as const}:{}),requestBytes,inputTokenUpperBound:requestBytes,maxOutputTokens,reservationCostUsd:requestBytes*capability.inputUsdPerToken+maxOutputTokens*capability.outputUsdPerToken,capability};
+ const schemaAdmission=inspectProviderSchema(model,schema);
+ const fits=schemaAdmission.fits&&requestBytes+maxOutputTokens<=capability.contextTokens;
+ return {fits,...(!fits?{reason:!schemaAdmission.fits?'MODEL_SCHEMA_CONTINUATION_REQUIRED' as const:'MODEL_CONTEXT_CONTINUATION_REQUIRED' as const}:{}),schemaAdmission,requestBytes,inputTokenUpperBound:requestBytes,maxOutputTokens,reservationCostUsd:requestBytes*capability.inputUsdPerToken+maxOutputTokens*capability.outputUsdPerToken,capability};
 }

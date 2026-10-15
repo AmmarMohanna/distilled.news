@@ -7,6 +7,23 @@ import {prepareProductSourceInput,productRuntimeEnv,productPublicationState} fro
 import {V1IntakeStore} from './v1-intake/store';
 import type {Env} from './types';
 
+it('Telegram backpressure cannot partially create a feed or change its approved sources',async()=>{
+ const ctx=await createIntakeDatabase({product:true});
+ try{
+  const repo=new D1Repository(ctx.db),owner=await repo.createAccount({email:'approval@example.com',username:'approval',role:'user',passwordHash:'unused',emailVerifiedAt:new Date().toISOString()});
+  const env={DB:ctx.db,ADMIN_SESSION_SECRET:'test-secret',PRODUCT_FEEDS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_EXECUTION_URL:'http://127.0.0.1:8790/v1/source-execution',SOURCE_EXECUTION_TOKEN:'a'.repeat(32),SOURCE_EXECUTION_SERVICE:{fetch:async()=>new Response('{}',{status:503,headers:{'Retry-After':'5'}})}} as unknown as Env;
+  const app=createApp({repository:repo}),cookie=`dn_session=${await createSession(env.ADMIN_SESSION_SECRET!,owner)}`;
+  const input={id:'approval-feed',title:'Approval',interestProfile:'News',sourceInputs:['https://example.com/rss.xml','https://t.me/examplechannel'],publicFeedEnabled:true,updateIntervalMinutes:30,briefingTimezone:'UTC',language:'en'};
+  const save=(body:unknown)=>app.request('/api/me/feeds',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify(body)},env);
+  const denied=await save(input);expect(denied.status).toBe(503);expect(denied.headers.get('Retry-After')).toBe('5');
+  expect(await repo.getBriefingById(input.id)).toBeNull();
+  expect((await save({...input,sourceInputs:['https://example.com/rss.xml']})).status).toBe(200);
+  const before=await repo.listSources(input.id);
+  expect((await save({...input,title:'Changed'})).status).toBe(503);
+  expect((await repo.getBriefingById(input.id))?.title).toBe('Approval');expect(await repo.listSources(input.id)).toEqual(before);
+ }finally{await ctx.dispose();}
+},60000);
+
 it('admits more than five sources per feed and more than ten across the deployment',async()=>{
  const ctx=await createIntakeDatabase({product:true});
  try {
@@ -44,7 +61,7 @@ it('saves explicit owner sources into connector approval, retries without duplic
   const before=await new V1IntakeStore(ctx.db).getScope(sources[0].id);expect(before?.enabled).toBe(true);
   expect((await productRuntimeEnv(env)).V1_DOWNSTREAM_FEED_SOURCE_IDS).toBe(sources[0].id);
   expect(await productPublicationState(env,input.id)).toBe('waiting');
-  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','quiet-test',?,?)").bind(input.id,JSON.stringify({id:'quiet-test',state:'DONE',createdAt:new Date().toISOString()})).run();
+  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','quiet-test',?,?)").bind(input.id,JSON.stringify({id:'quiet-test',state:'DONE',result:'QUIET',createdAt:new Date().toISOString()})).run();
   expect(await productPublicationState(env,input.id)).toBe('quiet');
   await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','failed-test',?,?)").bind(input.id,JSON.stringify({id:'failed-test',state:'FAILED',createdAt:new Date(Date.now()+1000).toISOString()})).run();
   expect(await productPublicationState(env,input.id)).toBe('failed');

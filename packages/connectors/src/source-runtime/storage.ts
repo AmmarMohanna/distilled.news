@@ -57,6 +57,17 @@ function canonical(value: unknown): string {
 
 export class D1SourceRepository implements SourceRepository {
   constructor(private readonly db: SqlDatabase) {}
+  async loadCollectionState(scope:SourceScope,runId:string,handoffId:string):Promise<{run?:FetchRun;batch?:StoredRssBatch}> {
+    const row=await this.db.prepare(`SELECT
+      (SELECT data FROM connector_batches WHERE feed_id=? AND feed_source_id=? AND handoff_id=?) AS batch,
+      (SELECT json_object('source_id',source_id,'sequence',sequence,'started_at',started_at,'configuration_key',configuration_key)
+        FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=? AND run_id=?) AS run`)
+      .bind(scope.feedId,scope.feedSourceId,handoffId,scope.feedId,scope.feedSourceId,runId).first<{batch:string|null;run:string|null}>();
+    const batch=row?.batch?JSON.parse(row.batch) as StoredRssBatch:undefined;
+    const stored=row?.run?JSON.parse(row.run) as {source_id:string;sequence:number;started_at:string;configuration_key:string}:undefined;
+    if(stored&&stored.source_id!==scope.sourceId||batch?.request.observations.some(o=>o.sourceId!==scope.sourceId))throw new HandoffError('SCOPE_DENIED');
+    return {batch,run:stored?{...scope,id:runId,sequence:stored.sequence,startedAt:stored.started_at,configurationKey:stored.configuration_key}:undefined};
+  }
   async knownItemHash(scope:SourceScope,key:string,revision:number):Promise<string|undefined> {
     const row=await this.db.prepare('SELECT source_id,configuration_revision,fingerprint FROM connector_item_fingerprints WHERE feed_id=? AND feed_source_id=? AND source_item_key=?')
       .bind(scope.feedId,scope.feedSourceId,key).first<{source_id:string;configuration_revision:number;fingerprint:string}>();
@@ -92,15 +103,20 @@ export class D1SourceRepository implements SourceRepository {
   }
   async allocate(scope: SourceScope, id: string, configurationKey: string, startedAt: string): Promise<FetchRun> {
     // D1 batch is atomic. Existing runs are idempotent and do not allocate another sequence.
-    await this.db.batch([
+    const results=await this.db.batch([
       this.db.prepare('INSERT INTO connector_source_sequences(feed_id,feed_source_id) VALUES(?,?) ON CONFLICT DO NOTHING').bind(scope.feedId, scope.feedSourceId),
       this.db.prepare(`UPDATE connector_source_sequences SET sequence=sequence+1 WHERE feed_id=? AND feed_source_id=? AND sequence < 9007199254740991 AND NOT EXISTS
         (SELECT 1 FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=? AND run_id=?)`).bind(scope.feedId, scope.feedSourceId, scope.feedId, scope.feedSourceId, id),
       this.db.prepare(`INSERT INTO connector_fetch_runs(feed_id,feed_source_id,run_id,source_id,sequence,started_at,configuration_key)
         SELECT ?,?,?,?,sequence,?,? FROM connector_source_sequences WHERE feed_id=? AND feed_source_id=? ON CONFLICT DO NOTHING`)
-        .bind(scope.feedId, scope.feedSourceId, id, scope.sourceId, startedAt, configurationKey, scope.feedId, scope.feedSourceId)
+        .bind(scope.feedId, scope.feedSourceId, id, scope.sourceId, startedAt, configurationKey, scope.feedId, scope.feedSourceId),
+      this.db.prepare('SELECT source_id,sequence,started_at,configuration_key FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=? AND run_id=?').bind(scope.feedId,scope.feedSourceId,id)
     ]);
-    const run = await this.loadRun(scope, id);
+    // Native D1 returns SELECT results from the atomic batch. Structural test/
+    // self-host adapters without result rows can use the original guarded read.
+    const row=Array.isArray(results)?results[3]?.results?.[0] as {source_id:string;sequence:number;started_at:string;configuration_key:string}|undefined:undefined;
+    if(row&&row.source_id!==scope.sourceId)throw new HandoffError('SCOPE_DENIED');
+    const run=row?{...scope,id,sequence:row.sequence,startedAt:row.started_at,configurationKey:row.configuration_key}:await this.loadRun(scope,id);
     if (!run) throw new Error('SEQUENCE_EXHAUSTED');
     if (run.configurationKey !== configurationKey) throw new HandoffError('IDEMPOTENCY_CONFLICT');
     return run;
@@ -118,11 +134,11 @@ export class D1SourceRepository implements SourceRepository {
     connectorHandoffRequestSchema.parse(batch.request);
     const { feedId, feedSourceId } = batch.request.coverage;
     const data = canonical(batch);
-    await this.db.prepare('INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data) VALUES(?,?,?,?) ON CONFLICT DO NOTHING')
-      .bind(feedId, feedSourceId, batch.request.handoffId, data).run();
-    const row = await this.db.prepare('SELECT data FROM connector_batches WHERE feed_id=? AND feed_source_id=? AND handoff_id=?')
-      .bind(feedId, feedSourceId, batch.request.handoffId).first<{data:string}>();
-    if (row?.data !== data) throw new HandoffError('IDEMPOTENCY_CONFLICT');
+    const row=await this.db.prepare(`INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data) VALUES(?,?,?,?)
+      ON CONFLICT(feed_id,feed_source_id,handoff_id) DO UPDATE SET data=connector_batches.data
+      WHERE connector_batches.data=excluded.data RETURNING handoff_id`)
+      .bind(feedId,feedSourceId,batch.request.handoffId,data).first();
+    if(!row)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
   async loadBatch(scope: SourceScope, id: string): Promise<StoredRssBatch | undefined> {
     const row = await this.db.prepare('SELECT data FROM connector_batches WHERE feed_id=? AND feed_source_id=? AND handoff_id=?')
@@ -134,10 +150,13 @@ export class D1SourceRepository implements SourceRepository {
   }
   async recordReceipts(batch: StoredRssBatch, response: ConnectorHandoffResponse): Promise<void> {
     validateHandoffResponse(batch.request, response);
-    await this.saveBatch(batch);
+    connectorHandoffRequestSchema.parse(batch.request);
     const c = batch.request.coverage;
-    await this.db.prepare('UPDATE connector_batches SET receipts=? WHERE feed_id=? AND feed_source_id=? AND handoff_id=?')
-      .bind(canonical(response), c.feedId, c.feedSourceId, batch.request.handoffId).run();
+    const row=await this.db.prepare(`INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data,receipts) VALUES(?,?,?,?,?)
+      ON CONFLICT(feed_id,feed_source_id,handoff_id) DO UPDATE SET receipts=excluded.receipts
+      WHERE connector_batches.data=excluded.data RETURNING handoff_id`)
+      .bind(c.feedId,c.feedSourceId,batch.request.handoffId,canonical(batch),canonical(response)).first();
+    if(!row)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
   async commitCheckpoint(scope: SourceScope, expectedVersion: number, checkpoint: Omit<RssCheckpoint,'version'>): Promise<boolean> {
     const data = canonical(checkpoint);

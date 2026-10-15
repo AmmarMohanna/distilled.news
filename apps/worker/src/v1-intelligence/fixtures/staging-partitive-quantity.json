@@ -1,0 +1,12 @@
+{
+  "windowEnd": "2026-10-15T07:00:00.000Z",
+  "requestId": "f433410b1ebdb23d5deda25d59de169955be2dfad9f6e6194de724924a25effa",
+  "fundingFact": "Former Plaud exec raises $26M for AI app that listens to you in the background",
+  "partitiveFact": "One of the core promises of AI is that the more it knows about a person, the better it will be able to assist them with tasks and make appropriate suggestions, which, if you'll believe the tech companies, requires apps and devices to listen, watch, or record users' activity all the time and gather all possible context.",
+  "originalDraft": "An earlier report shows that a former Plaud executive has raised $26 million to develop an AI application designed to listen to users in the background. This aligns with a core promise of AI technology: the more it knows about a person, the better it can assist with tasks and make appropriate suggestions. According to tech companies, achieving this level of assistance requires apps and devices to continuously listen, watch, or record users' activities to gather comprehensive context.",
+  "repairDraft": "An earlier source report shows that a former Plaud executive has raised $26 million to develop an AI application that listens to users in the background. This effort reflects a core promise of AI technology: the more it knows about a person, the better it can assist with tasks and make appropriate suggestions. According to tech companies, achieving this requires apps and devices to continuously listen, watch, or record users' activity to gather all possible context.",
+  "rejection": {
+    "code": "LOST_QUANTITY",
+    "value": "1"
+  }
+}
