@@ -925,9 +925,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui :is(.home-add-feed, .landing-create) { white-space: nowrap; flex-shrink: 0; gap: 6px; }
 :root.apple-ui.apple-ui :is(.home-add-feed, .landing-create) svg { flex-shrink: 0; }
 :root.apple-ui.apple-ui .feed-shell .page-heading { padding-top: 12px; row-gap: 8px; }
-:root.apple-ui.apple-ui .feed-shell .news-copy { gap: 12px; padding: clamp(14px, 2vw, 20px); }
-:root.apple-ui.apple-ui .feed-shell .news-topline { flex-wrap: wrap; gap: 10px; }
-:root.apple-ui.apple-ui .feed-shell .news-meta { flex-wrap: wrap; gap: 8px 12px; }
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .experience:not(.guest-landing) :is(.personal-feed-grid, .curated-feed-grid) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 240px)); gap: 12px; }
 }
@@ -963,9 +960,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Edition cards: the briefing is the content, the timestamp is metadata. */
 :root.apple-ui.apple-ui .feed-shell .news-summary { color: var(--text); }
 :root.apple-ui.apple-ui .feed-shell .news-item.is-read .news-summary { color: var(--muted); }
-:root.apple-ui.apple-ui .feed-shell .news-meta :is(time, span) { font-weight: 500; font-size: 0.8125rem; }
-:root.apple-ui.apple-ui .feed-shell .news-meta span { text-transform: capitalize; }
-:root.apple-ui.apple-ui .feed-shell :is(.read-button, .expand) { min-width: 44px; }
 
 /* Desktop: the search/create row starts on the same leading edge as the page title. */
 @media (min-width: 900px) {
