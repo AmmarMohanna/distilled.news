@@ -25,9 +25,9 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   await expect(toolbar.getByRole("button", { name: "Copy URL" })).toBeVisible();
   await expect(toolbar.getByRole("button", { name: "Share" })).toBeVisible();
   await expect(toolbar.getByRole("button", { name: /Brief now/i })).toHaveCount(0);
-  await expect(toolbar.getByRole("button", { name: "refresh", exact: true })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: "Refresh", exact: true })).toBeVisible();
   await expect(toolbar.getByRole("button", { name: /Explore/i })).toBeVisible();
-  await expect(toolbar.getByPlaceholder("search published briefing")).toBeVisible();
+  await expect(toolbar.getByPlaceholder("Search published briefing")).toBeVisible();
   const empty = page.locator(".feed-empty-state");
   await expect(empty).toContainText("no published briefings");
   await expect(empty.locator(".feed-empty-icon")).toBeVisible();
@@ -66,10 +66,10 @@ test("published summaries retain original citations and read-only refresh", asyn
   await expect(page.locator(".news-summary")).toContainText("Acme released an updated research model");
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
   await page.locator(".news-summary button").click();
-  await expect(page.getByRole("dialog", { name: "report" }).getByRole("link", { name: /original/i })).toHaveAttribute("href", sourceUrl);
+  await expect(page.getByRole("dialog", { name: "Report" }).getByRole("link", { name: /original/i })).toHaveAttribute("href", sourceUrl);
   await page.getByRole("button", { name: "close report" }).click();
   const readsBefore = feedReads;
-  await page.getByRole("button", { name: "refresh", exact: true }).click();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect.poll(() => feedReads).toBeGreaterThan(readsBefore);
   await expect(page.locator(".news-summary")).toHaveCount(1);
   expect(manualRequests).toBe(0);

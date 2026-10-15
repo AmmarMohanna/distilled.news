@@ -261,7 +261,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.getByRole("button", { name: /explore/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /explore/i })).toHaveAttribute("title", "explore feeds");
   expect(sessionRequests).toBeGreaterThan(0);
-  await expect(page.getByPlaceholder("search published briefing")).toBeVisible();
+  await expect(page.getByPlaceholder("Search published briefing")).toBeVisible();
   await expect(page.locator(".news-item").filter({ hasText: "Electricite du Liban confirmed two extra hours" }).first()).toBeVisible();
   await expect(page.getByText("A third operational note stays in the full brief")).toHaveCount(0);
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
@@ -271,13 +271,13 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.locator(".reference-digest-row").first()).toBeVisible();
   await expect(page.locator(".brief-synthesis-text")).toHaveCount(0);
   await page.getByRole("button", { name: /open reference 1/i }).first().click();
-  const reportDialog = page.getByRole("dialog", { name: "report" });
+  const reportDialog = page.getByRole("dialog", { name: "Report" });
   await expect(reportDialog).toBeVisible();
   await expect(reportDialog.getByText("Beirut Local")).toBeVisible();
   await expect(reportDialog.getByRole("link", { name: /original/i })).toHaveAttribute("href", item.evidence[0].sourceUrl);
   await page.getByRole("button", { name: "close report" }).click();
 
-  await page.getByPlaceholder("search published briefing").fill("power supply");
+  await page.getByPlaceholder("Search published briefing").fill("power supply");
   await page.keyboard.press("Enter");
   await expect(page.locator(".news-item").filter({ hasText: "Electricite du Liban confirmed two extra hours" }).first()).toBeVisible();
 
@@ -321,7 +321,7 @@ test("arabic feed keeps public chrome localized and summary stable on expand", a
   await expect(page.getByText("المراجع")).toBeVisible();
   await expect(page.getByText("refresh")).toHaveCount(0);
   await expect(page.getByText("Explore")).toHaveCount(0);
-  await expect(page.getByText("search published briefing")).toHaveCount(0);
+  await expect(page.getByText("Search published briefing")).toHaveCount(0);
 });
 
 test("feed shows twenty unread items and backfills when one is read", async ({ page }) => {

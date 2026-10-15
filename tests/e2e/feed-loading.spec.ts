@@ -14,7 +14,7 @@ for(const language of ['en','fr','ar'])test('initial '+language+' loading does n
 test('initial errors never masquerade as empty feeds or keep claiming loading',async({page})=>{
  await mock(page,route=>route.fulfill({status:503,json:{error:'Feed read temporarily failed.'}}));
  await page.goto('/reader/news/');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();await expect(page.locator('.feed-empty-state')).toHaveCount(0);await expect(page.locator('.feed-loading-message')).toHaveCount(0);
- await page.getByPlaceholder('search published briefing').press('Enter');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();
+ await page.getByPlaceholder('Search published briefing').press('Enter');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();
 });
 test('refresh preserves read status, loaded pages and expanded citations while pending and after success',async({page})=>{
  let delay=false;const pending=gate();const editions=Array.from({length:25},(_,i)=>edition(String(i+1)));
@@ -22,18 +22,18 @@ test('refresh preserves read status, loaded pages and expanded citations while p
  await page.goto('/reader/news/');const unread=page.locator('.news-line:not(.news-line-read) .news-item');await expect(unread).toHaveCount(20);
  await unread.first().getByRole('button',{name:/mark .* read/i}).click();await page.getByRole('button',{name:'load more',exact:true}).click();await expect(unread).toHaveCount(24);
  await unread.first().getByRole('button',{name:/show /i}).click();await expect(page.locator('.reference-digest-row')).toHaveCount(1);
- delay=true;await page.getByRole('button',{name:'refresh',exact:true}).click();await expect(unread).toHaveCount(24);await expect(page.locator('.reference-digest-row')).toHaveCount(1);
+ delay=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(unread).toHaveCount(24);await expect(page.locator('.reference-digest-row')).toHaveCount(1);
  const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await expect(page.locator('.reference-digest-row')).toHaveCount(1);await expect(page.locator('.news-line-read .news-item')).toHaveCount(1);
 });
 test('a failed refresh preserves previously published editions',async({page})=>{
  let failed=false;await mock(page,route=>failed?route.fulfill({status:503,json:{error:'Refresh unavailable.'}}):route.fulfill({json:{briefing:feed,editions:[edition('one')]}}));
- await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);failed=true;await page.getByRole('button',{name:'refresh',exact:true}).click();await expect(page.getByText('Refresh unavailable.')).toBeVisible();await expect(page.locator('.news-item')).toHaveCount(1);await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+ await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);failed=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.getByText('Refresh unavailable.')).toBeVisible();await expect(page.locator('.news-item')).toHaveCount(1);await expect(page.locator('.feed-empty-state')).toHaveCount(0);
 });
 test('an older refresh response cannot overwrite a newer successful response',async({page})=>{
  const pending=gate();let calls=0;await mock(page,async route=>{const call=++calls;if(call===2)await pending.promise;await route.fulfill({json:{briefing:feed,editions:[edition(call===2?'stale':call>=3?'latest':'initial')]}})});
  await page.goto('/reader/news/');await expect(page.locator('.news-summary')).toContainText('Supported development initial');
- const second=page.waitForRequest(r=>new URL(r.url()).pathname===path);await page.getByRole('button',{name:'refresh',exact:true}).click();await second;
- await page.getByRole('button',{name:'refresh',exact:true}).click();await expect(page.locator('.news-summary')).toContainText('latest');pending.release();await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('latest');await expect(page.getByText('Supported development stale')).toHaveCount(0);
+ const second=page.waitForRequest(r=>new URL(r.url()).pathname===path);await page.getByRole('button',{name:'Refresh',exact:true}).click();await second;
+ await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.news-summary')).toContainText('latest');pending.release();await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('latest');await expect(page.getByText('Supported development stale')).toHaveCount(0);
 });
 test('stale search and refresh responses cannot replace the current search results',async({page})=>{
  const oldSearch=gate();let reads=0;
@@ -43,10 +43,10 @@ test('stale search and refresh responses cannot replace the current search resul
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
- const oldRequest=page.waitForRequest(r=>r.url().includes('/search?q=old'));await page.getByPlaceholder('search published briefing').fill('old');await oldRequest;
- await page.getByPlaceholder('search published briefing').fill('current');await expect(page.locator('.news-summary')).toContainText('current');
+ const oldRequest=page.waitForRequest(r=>r.url().includes('/search?q=old'));await page.getByPlaceholder('Search published briefing').fill('old');await oldRequest;
+ await page.getByPlaceholder('Search published briefing').fill('current');await expect(page.locator('.news-summary')).toContainText('current');
  oldSearch.release();await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('current');
- await page.getByRole('button',{name:'refresh',exact:true}).click();await expect.poll(()=>reads).toBeGreaterThan(1);await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('current');
+ await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect.poll(()=>reads).toBeGreaterThan(1);await page.waitForTimeout(350);await expect(page.locator('.news-summary')).toContainText('current');
 });
 
 test('navigation cannot inherit a pending response from another feed',async({page})=>{
@@ -71,7 +71,7 @@ test('a late detail response cannot reopen a withdrawn edition after refresh',as
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
  const detail=page.waitForRequest(r=>new URL(r.url()).pathname.endsWith('/editions/one'));await page.getByRole('button',{name:/show /i}).click();await detail;
- withdrawn=true;await page.getByRole('button',{name:'refresh',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(0);
+ withdrawn=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(0);
  const finished=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/editions/one'));pending.release();await finished;
  await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.locator('.reference-digest-row')).toHaveCount(0);
 });
@@ -85,8 +85,8 @@ test('refresh removes withdrawn prose from active search results even if search 
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
- const searched=page.waitForResponse(r=>r.url().includes('/search?q=one'));await page.getByPlaceholder('search published briefing').fill('one');await searched;
- withdrawn=true;await page.getByRole('button',{name:'refresh',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.getByText('Search unavailable.')).toBeVisible();
+ const searched=page.waitForResponse(r=>r.url().includes('/search?q=one'));await page.getByPlaceholder('Search published briefing').fill('one');await searched;
+ withdrawn=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.getByText('Search unavailable.')).toBeVisible();
  await expect(page.getByText('Supported development one')).toHaveCount(0);
 });
 
@@ -94,7 +94,7 @@ test('initial read retry shows loading while its replacement response is pending
  const pending=gate();let reads=0;
  await mock(page,async route=>{if(++reads===1)return route.fulfill({status:503,json:{error:'Initial read failed.'}});await pending.promise;await route.fulfill({json:{briefing:feed,editions:[edition('recovered')]}})});
  await page.goto('/reader/news/');await expect(page.getByText('Initial read failed.')).toBeVisible();
- await page.getByRole('button',{name:'refresh',exact:true}).click();await expect(page.locator('.feed-loading-message')).toBeVisible();await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+ await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.feed-loading-message')).toBeVisible();await expect(page.locator('.feed-empty-state')).toHaveCount(0);
  pending.release();await expect(page.locator('.news-summary')).toContainText('recovered');await expect(page.locator('.feed-loading-message')).toHaveCount(0);
 });
 test('clearing a failed search restores the successful empty feed without a stale error',async({page})=>{
@@ -104,6 +104,6 @@ test('clearing a failed search restores the successful empty feed without a stal
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });
  await page.goto('/reader/news/');await expect(page.locator('.feed-empty-state')).toBeVisible();
- await page.getByPlaceholder('search published briefing').fill('test');await expect(page.getByText('Search unavailable.')).toBeVisible();
- await page.getByPlaceholder('search published briefing').fill('');await expect(page.getByText('Search unavailable.')).toHaveCount(0);await expect(page.locator('.feed-empty-state')).toBeVisible();
+ await page.getByPlaceholder('Search published briefing').fill('test');await expect(page.getByText('Search unavailable.')).toBeVisible();
+ await page.getByPlaceholder('Search published briefing').fill('');await expect(page.getByText('Search unavailable.')).toHaveCount(0);await expect(page.locator('.feed-empty-state')).toBeVisible();
 });

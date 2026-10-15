@@ -776,7 +776,7 @@ function ExploreFeedsPanel() {
 function ExploreFeedsSheet(props: { currentFeed?: PublicBriefing; language?: "en" | "ar" | "fr"; onClose: () => void }) {
   const language = props.language ?? "en";
   return (
-    <Sheet title={exploreControlLabel(language).toLowerCase()} closeLabel={closeExploreLabel(language)} icon={<Compass size={16} aria-hidden />} onClose={props.onClose}>
+    <Sheet title={exploreControlLabel(language)} closeLabel={closeExploreLabel(language)} icon={<Compass size={16} aria-hidden />} onClose={props.onClose}>
       <ExploreFeedList currentFeed={props.currentFeed} language={language} />
     </Sheet>
   );
@@ -964,7 +964,7 @@ function FirstRunSetupSheet(props: {
   }, []);
 
   return (
-    <Sheet title="setup feed" closeLabel="skip feed setup" icon={<Globe size={16} aria-hidden />} onClose={props.onClose} wide>
+    <Sheet title="Set up feed" closeLabel="Skip feed setup" icon={<Globe size={16} aria-hidden />} onClose={props.onClose} wide>
       <form
         className="settings-grid"
         onSubmit={async (event) => {
@@ -2341,8 +2341,8 @@ function loadingFeedLabel(language: "en" | "ar" | "fr"): string {
 
 function refreshControlLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "تحديث";
-  if (language === "fr") return "actualiser";
-  return "refresh";
+  if (language === "fr") return "Actualiser";
+  return "Refresh";
 }
 
 function summaryPublishedLabel(language: "en" | "ar" | "fr"): string {
@@ -2353,8 +2353,8 @@ function summaryPublishedLabel(language: "en" | "ar" | "fr"): string {
 
 function starControlLabel(starred: boolean, language: "en" | "ar" | "fr"): string {
   if (language === "ar") return starred ? "مميّز" : "تمييز";
-  if (language === "fr") return starred ? "favori" : "favoriser";
-  return starred ? "starred" : "star";
+  if (language === "fr") return starred ? "Favori" : "Favoriser";
+  return starred ? "Starred" : "Star";
 }
 
 function starTitleLabel(starred: boolean, language: "en" | "ar" | "fr"): string {
@@ -2395,8 +2395,8 @@ function noFeaturedFeedsLabel(language: "en" | "ar" | "fr"): string {
 
 function searchPublishedLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "ابحث في الموجز المنشور";
-  if (language === "fr") return "chercher dans le brief publié";
-  return "search published briefing";
+  if (language === "fr") return "Chercher dans le brief publié";
+  return "Search published briefing";
 }
 
 function loadMoreLabel(language: "en" | "ar" | "fr"): string {
@@ -2594,8 +2594,8 @@ function openReportLabel(referenceNumber: number, language: "en" | "ar" | "fr"):
 
 function reportLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "تقرير";
-  if (language === "fr") return "rapport";
-  return "report";
+  if (language === "fr") return "Rapport";
+  return "Report";
 }
 
 function closeReportLabel(language: "en" | "ar" | "fr"): string {

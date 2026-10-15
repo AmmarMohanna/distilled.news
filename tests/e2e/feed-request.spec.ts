@@ -78,5 +78,5 @@ for(const width of [1280,390])test(`scheduled processing remains visible without
  await page.goto('/admin/personal/');
  await expect(page.getByRole('button',{name:/brief now/i})).toHaveCount(0);
  await expect(page.getByText(/Reviewing collected items/)).toBeVisible();
- await page.getByRole('button',{name:'refresh',exact:true}).click();expect(calls).toBe(0);
+ await page.getByRole('button',{name:'Refresh',exact:true}).click();expect(calls).toBe(0);
 });
