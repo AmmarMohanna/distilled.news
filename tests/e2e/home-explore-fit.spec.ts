@@ -16,7 +16,7 @@ async function openApp(page: import("@playwright/test").Page, count: number) {
     return route.fulfill({ json: {} });
   });
   await page.goto("/");
-  await expect(page.locator(".personal-feed-grid .topic-card")).toHaveCount(count);
+  await expect(page.locator(".personal-feed-grid .topic-card").first()).toBeVisible();
 }
 
 for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, { width: 390, height: 664 }, { width: 320, height: 568 }, { width: 667, height: 375 }]) {
@@ -31,10 +31,11 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
         const viewport = document.querySelector(".app-pages > .screen-page-viewport")!;
         const navigation = document.querySelector(".bottom-navigation")!.getBoundingClientRect();
         const card = document.querySelector(".home-view .topic-card, .explore-view .topic-card")!.getBoundingClientRect();
-        return { scrollHeight: viewport.scrollHeight, clientHeight: viewport.clientHeight, cardBottom: card.bottom, navigationTop: navigation.top };
+        return { scrollHeight: viewport.scrollHeight, clientHeight: viewport.clientHeight, cardBottom: card.bottom, navigationTop: navigation.top, navigationWidth: navigation.width, navigationRight: navigation.right, cardLeft: card.left };
       });
       expect(result.scrollHeight).toBeLessThanOrEqual(result.clientHeight + 1);
-      if (size.width < 900) expect(result.cardBottom).toBeLessThanOrEqual(result.navigationTop);
+      if (size.width < 900 && result.navigationWidth > size.width / 2) expect(result.cardBottom).toBeLessThanOrEqual(result.navigationTop);
+      else if (size.width < 900) expect(result.cardLeft).toBeGreaterThanOrEqual(result.navigationRight);
     });
   }
 }
@@ -46,19 +47,20 @@ for (const size of [{ width: 1280, height: 593, count: 4 }, { width: 390, height
       await openApp(page, size.count);
       if (tab === "explore") await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
       const viewport = page.locator(".app-pages > .screen-page-viewport");
-      await expect(page.locator(tab === "home" ? ".personal-feed-grid .topic-card" : ".curated-feed-grid .topic-card")).toHaveCount(size.count);
+      await expect(page.locator(tab === "home" ? ".personal-feed-grid .topic-card" : ".curated-feed-grid .topic-card").first()).toBeVisible();
       expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
     });
   }
 }
 
 for (const tab of ["home", "explore"] as const) {
-  test(`${tab} scrolls when feeds reach a second row`, async ({ page }) => {
+  test(`${tab} pages through additional feeds without scrolling`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 664 });
     await openApp(page, 8);
     if (tab === "explore") await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
     const viewport = page.locator(".app-pages > .screen-page-viewport");
-    expect(await viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+    expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+    await expect(page.locator(".feed-grid-pagination")).toBeVisible();
   });
 }
 

@@ -15,7 +15,7 @@ async function openLanding(page: import("@playwright/test").Page, count: number)
     return route.fulfill({ json: {} });
   });
   await page.goto("/");
-  await expect(page.locator(".guest-landing .curated-feed-grid .topic-card")).toHaveCount(count);
+  await expect(page.locator(".guest-landing .curated-feed-grid .topic-card").first()).toBeVisible();
 }
 
 for (const size of [
@@ -38,9 +38,10 @@ for (const size of [
   });
 }
 
-test("landing feeds scroll when there is a second row", async ({ page }) => {
+test("landing feeds use pagination for additional rows", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await openLanding(page, 8);
   const viewport = page.locator(".app-pages > .screen-page-viewport");
-  expect(await viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+  expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+  await expect(page.locator(".feed-grid-pagination")).toBeVisible();
 });
