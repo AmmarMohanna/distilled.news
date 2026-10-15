@@ -1,5 +1,6 @@
 import {it,expect} from 'vitest';
 import {checkReaderFidelity,verifiedCorrectionDelivery} from './fidelity';
+import ordinalDates from './fixtures/staging-writer-ordinal-dates.json';
 import temporalFalsePass from './fixtures/staging-temporal-false-pass.json';
 import googleReportDate from './fixtures/staging-google-report-date.json';
 import anthropicReportDate from './fixtures/staging-anthropic-report-date.json';
@@ -86,4 +87,33 @@ it('allows equivalent exact ages but rejects newly invented numerical bounds eve
  for(const text of ['The watch is over a century old.','The watch is more than one hundred years old.','The watch is under 100 years old.'])expect(checkReaderFidelity([text],[approved],[approved],true,{checks}).passed).toBe(false);
  expect(checkReaderFidelity(['No fewer than forty people died.'],[fact('At least 40 people died.')],[fact('At least 40 people died.')],true).passed).toBe(true);
  expect(checkReaderFidelity(['The cost exceeded expectations at over 12000000.'],[fact('The cost is over 12 million.')],[fact('The cost is over 12 million.')],true).passed).toBe(true);
+});
+
+const retainedOrdinalFacts=ordinalDates.facts.map(f=>({...f,evidenceRevisionIds:f.support.map(s=>s.evidenceRevisionId)}));
+it('retained first-day wording preserves Day 1 and Oct. 13 without accepting its other writer failures',()=>{
+ const required=retainedOrdinalFacts.filter(f=>f.text.includes('Day 1'));
+ const text=ordinalDates.claims.find(c=>c.texts.some(t=>t.includes('first day')))!.texts;
+ const failures=checkReaderFidelity(text,required,retainedOrdinalFacts,true).failures;
+ for(const value of ['1','13'])expect(failures.some(f=>f.code==='LOST_QUANTITY'&&f.value===value)).toBe(false);
+ expect(failures).toContainEqual({code:'UNSUPPORTED_QUANTITY',value:'>10000'});
+ expect(failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 15'});
+});
+it('retained second-day prose communicates Day 2 while an invented calendar date still fails',()=>{
+ const facts=retainedOrdinalFacts.filter(f=>f.text.includes('Day 2'));
+ const text=ordinalDates.claims.find(c=>c.texts.some(t=>t.startsWith('TechCrunch Disrupt 2026 entered its second day')))!.texts;
+ expect(checkReaderFidelity(text,facts,facts,true).passed).toBe(true);
+ expect(checkReaderFidelity(['On October 14, 2026, '+text[0]],facts,facts,true).failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 14, 2026'});
+});
+it('day ordinals cannot substitute a wrong day or a quantity of days',()=>{
+ const approved=fact('TechCrunch Disrupt 2026: Day 1');
+ expect(checkReaderFidelity(['TechCrunch Disrupt 2026 reached its third day.'],[approved],[approved],true).passed).toBe(false);
+ expect(checkReaderFidelity(['One day of TechCrunch Disrupt 2026.'],[fact('Two days of TechCrunch Disrupt 2026.')],[fact('Two days of TechCrunch Disrupt 2026.')],true).passed).toBe(false);
+});
+it('Oct. and October share exact dates while report metadata cannot license an event date',()=>{
+ const approved=fact('The event begins on Oct. 13.');
+ expect(checkReaderFidelity(['The event begins on October 13.'],[approved],[approved],true).passed).toBe(true);
+ expect(checkReaderFidelity(['Thirteen people attended.'],[],[approved],true).passed).toBe(false);
+ const reporting=fact('A report dated Oct. 13 describes the event.');
+ expect(checkReaderFidelity(['The event begins on October 13.'],[],[reporting],true).passed).toBe(false);
+ expect(checkReaderFidelity(['A report dated October 13 describes the event.'],[reporting],[reporting],true).passed).toBe(true);
 });

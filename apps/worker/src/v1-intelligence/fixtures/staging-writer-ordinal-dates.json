@@ -1,0 +1,142 @@
+{
+  "provenance": {
+    "requestId": "5cabb589897822f8949ca9b854315ae4a22124fcb48e0538483e6df9215104d2",
+    "boundary": "00:00",
+    "stage": "WRITER_PRECHECK",
+    "retainedDiagnostic": ".review-tmp/integration-writer-failures.json"
+  },
+  "facts": [
+    {
+      "id": "7d6f161bc4b01eebe51074dab5742fb116391379cd09186be557dea126460e04",
+      "text": "TechCrunch Disrupt 2026: Day 1",
+      "timing": {
+        "sourcePublishedAt": "2026-10-13T14:00:00.000Z",
+        "reportTime": "2026-10-13T14:00:00.000Z",
+        "firstSeenByFeedAt": "2026-10-13T22:18:15.393Z",
+        "observedAt": "2026-10-13T22:18:15.393Z",
+        "framingRequired": true
+      },
+      "support": [
+        {
+          "evidenceRevisionId": "41550bf2-49ba-41b1-ac27-eecb6c771730",
+          "quote": "TechCrunch Disrupt 2026: Day 1"
+        }
+      ]
+    },
+    {
+      "id": "1b18609eff79598ca73ac546f425c20d08937e46bf74d45aa06713e3c6d78e2b",
+      "text": "See what's in store for Day 1 (Oct. 13) at San Francisco's Moscone West.",
+      "timing": {
+        "sourcePublishedAt": "2026-10-13T14:00:00.000Z",
+        "reportTime": "2026-10-13T14:00:00.000Z",
+        "firstSeenByFeedAt": "2026-10-13T22:18:15.393Z",
+        "observedAt": "2026-10-13T22:18:15.393Z",
+        "framingRequired": true
+      },
+      "support": [
+        {
+          "evidenceRevisionId": "41550bf2-49ba-41b1-ac27-eecb6c771730",
+          "quote": "See what's in store for Day 1 (Oct. 13) at San Francisco's Moscone West."
+        }
+      ]
+    },
+    {
+      "id": "e2be7b767ab189fc33735001ae278f80c881619ab35b73a11f9dcc24bea58db1",
+      "text": "PT, it all begins z— 10,000+ founders, investors, and tech operators will gather at San Francisco’s Moscone West for TechCrunch Disrupt 2026 for three days of ideas, connections, and startups shaping what comes next.",
+      "timing": {
+        "sourcePublishedAt": "2026-10-12T14:00:00.000Z",
+        "reportTime": "2026-10-12T14:00:00.000Z",
+        "firstSeenByFeedAt": "2026-10-13T22:22:26.169Z",
+        "observedAt": "2026-10-13T22:22:26.169Z",
+        "framingRequired": true
+      },
+      "support": [
+        {
+          "evidenceRevisionId": "1f9d4938-0e74-48f7-bb79-b43bb7402824",
+          "quote": "PT, it all begins z— 10,000+ founders, investors, and tech operators will gather at San Francisco’s Moscone West for TechCrunch Disrupt 2026 for three days of ideas, connections, and startups shaping what comes next."
+        }
+      ]
+    },
+    {
+      "id": "d360ebaf555c8c504797505f61e257e1b0db83bd2848c66e9f50ccf11e546360",
+      "text": "Tomorrow at 8 a.m.",
+      "timing": {
+        "sourcePublishedAt": "2026-10-12T14:00:00.000Z",
+        "reportTime": "2026-10-12T14:00:00.000Z",
+        "firstSeenByFeedAt": "2026-10-13T22:22:26.169Z",
+        "observedAt": "2026-10-13T22:22:26.169Z",
+        "framingRequired": true
+      },
+      "support": [
+        {
+          "evidenceRevisionId": "1f9d4938-0e74-48f7-bb79-b43bb7402824",
+          "quote": "Tomorrow at 8 a.m."
+        }
+      ]
+    },
+    {
+      "id": "87f3536048ab349a9b4b7e79f17080dbbe9a4f2d6fcfa2e566f115111e0b671c",
+      "text": "TechCrunch Disrupt 2026: Day 2",
+      "timing": {
+        "sourcePublishedAt": "2026-10-14T14:30:00.000Z",
+        "reportTime": "2026-10-14T14:30:00.000Z",
+        "firstSeenByFeedAt": "2026-10-14T18:11:20.639Z",
+        "observedAt": "2026-10-14T18:11:20.639Z",
+        "framingRequired": false
+      },
+      "support": [
+        {
+          "evidenceRevisionId": "149ebaa9-757b-4dc5-a305-8fe122307d43",
+          "quote": "TechCrunch Disrupt 2026: Day 2"
+        }
+      ]
+    },
+    {
+      "id": "75e5363d10c06d3810223b37f35be8af54b9dc54099c5616748b5234199e21ad",
+      "text": "Day 2 at TechCrunch Disrupt 2026, full of all themes across AI, as well as an investor-only session, more roundtables, Side Events, and more.",
+      "timing": {
+        "sourcePublishedAt": "2026-10-14T14:30:00.000Z",
+        "reportTime": "2026-10-14T14:30:00.000Z",
+        "firstSeenByFeedAt": "2026-10-14T18:11:20.639Z",
+        "observedAt": "2026-10-14T18:11:20.639Z",
+        "framingRequired": false
+      },
+      "support": [
+        {
+          "evidenceRevisionId": "149ebaa9-757b-4dc5-a305-8fe122307d43",
+          "quote": "Day 2 at TechCrunch Disrupt 2026, full of all themes across AI, as well as an investor-only session, more roundtables, Side Events, and more."
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "draftId": "5d77c3f52e094c0045550ee3a90a63a0be3f96efe26a9d1d4c18b9a4d9d81b9c",
+      "candidateId": "[\"5d77c3f52e094c0045550ee3a90a63a0be3f96efe26a9d1d4c18b9a4d9d81b9c\",\"EVENT\",\"b80c0862-c637-4414-bfff-6302b0c2102f\"]",
+      "texts": [
+        "An earlier source report dated October 13, 2026, details the opening day of TechCrunch Disrupt 2026, held at San Francisco's Moscone West. The event officially kicked off on October 13 and runs through October 15, gathering over 10,000 founders, investors, and tech operators for three days focused on ideas, connections, and startups shaping the future. Attendees were reminded not to miss the first day, and there was a final chance to secure up to $100 in ticket savings before the event began."
+      ]
+    },
+    {
+      "draftId": "5d77c3f52e094c0045550ee3a90a63a0be3f96efe26a9d1d4c18b9a4d9d81b9c",
+      "candidateId": "[\"5d77c3f52e094c0045550ee3a90a63a0be3f96efe26a9d1d4c18b9a4d9d81b9c\",\"EVENT\",\"d63f0662-1238-47f8-9b18-94db12d3df6b\"]",
+      "texts": [
+        "On October 14, 2026, TechCrunch Disrupt 2026 entered its second day, featuring a full range of themes across artificial intelligence. The day included an investor-only session, additional roundtables, Side Events, and more activities."
+      ]
+    },
+    {
+      "draftId": "[\"5d77c3f52e094c0045550ee3a90a63a0be3f96efe26a9d1d4c18b9a4d9d81b9c\",\"repair-1\"]",
+      "candidateId": "[\"5d77c3f52e094c0045550ee3a90a63a0be3f96efe26a9d1d4c18b9a4d9d81b9c\",\"EVENT\",\"b80c0862-c637-4414-bfff-6302b0c2102f\"]",
+      "texts": [
+        "An earlier source report dated October 13, 2026, details the opening day of TechCrunch Disrupt 2026 at San Francisco's Moscone West. The event officially began on October 13 and will continue through October 15. Over 10,000 founders, investors, and tech operators gathered for three days focused on ideas, connections, and startups shaping the future. Attendees were reminded not to miss the first day, and there was a final chance to secure up to $100 in ticket savings before the event started, with activities beginning at 8 a.m. Pacific Time."
+      ]
+    },
+    {
+      "draftId": "[\"5d77c3f52e094c0045550ee3a90a63a0be3f96efe26a9d1d4c18b9a4d9d81b9c\",\"repair-1\"]",
+      "candidateId": "[\"5d77c3f52e094c0045550ee3a90a63a0be3f96efe26a9d1d4c18b9a4d9d81b9c\",\"EVENT\",\"d63f0662-1238-47f8-9b18-94db12d3df6b\"]",
+      "texts": [
+        "TechCrunch Disrupt 2026 entered its second day, featuring a full range of themes across artificial intelligence. The day included an investor-only session, additional roundtables, Side Events, and more activities."
+      ]
+    }
+  ]
+}

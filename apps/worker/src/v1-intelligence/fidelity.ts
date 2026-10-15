@@ -13,7 +13,8 @@ const factualText=(text:string)=>normalized(text).replace(/https?:\/\/[^\s]+/gu,
 function numericText(text:string):string {
  const words:Record<string,string>={zero:'0',one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',eleven:'11',twelve:'12',thirteen:'13',fourteen:'14',fifteen:'15',sixteen:'16',seventeen:'17',eighteen:'18',nineteen:'19',twenty:'20',thirty:'30',forty:'40',fifty:'50',sixty:'60',seventy:'70',eighty:'80',ninety:'90'};
  const magnitude:Record<string,string>={k:'thousand',m:'million',b:'billion'};
- return factualText(text.normalize('NFKC').replace(/(\d(?:[.,]\d+)*)([KMB])\b/g,(_,n:string,u:string)=>`${n} ${magnitude[u.toLowerCase()]}`)).replace(/([£€$]\s*\d+(?:[.,]\d+)*)\s*([kmb])\b/g,(_,n:string,u:string)=>`${n} ${magnitude[u]}`).replace(/\b(?:(?:a|one)\s+)?century(?=[-\s]+old\b)/g,'100').replace(/\b(?:(?:a|one)\s+)?hundred(?=[-\s]+years?[-\s]+old\b)/g,'100').replace(/[٠-٩۰-۹]/g,c=>String(c.charCodeAt(0)-(c.charCodeAt(0)>=0x6f0?0x6f0:0x660))).replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g,w=>words[w]);
+ const dayOrdinals:Record<string,string>={first:'1',second:'2'};
+ return factualText(text.normalize('NFKC').replace(/(\d(?:[.,]\d+)*)([KMB])\b/g,(_,n:string,u:string)=>`${n} ${magnitude[u.toLowerCase()]}`)).replace(/\b(first|second)(?=\s+day\b)/g,w=>dayOrdinals[w]).replace(/([£€$]\s*\d+(?:[.,]\d+)*)\s*([kmb])\b/g,(_,n:string,u:string)=>`${n} ${magnitude[u]}`).replace(/\b(?:(?:a|one)\s+)?century(?=[-\s]+old\b)/g,'100').replace(/\b(?:(?:a|one)\s+)?hundred(?=[-\s]+years?[-\s]+old\b)/g,'100').replace(/[٠-٩۰-۹]/g,c=>String(c.charCodeAt(0)-(c.charCodeAt(0)>=0x6f0?0x6f0:0x660))).replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g,w=>words[w]);
 }
 export function numbers(text:string):Set<string> {return new Set(numberSequence(text))}
 /** Ordered, de-notated quantities. Position is kept so callers can tell which slot each value fills. */
@@ -36,10 +37,10 @@ function numericalBounds(text:string):Set<string>{
  * reporting-date attachment floor below also constrains their reader role. */
 function calendarDates(text:string):{text:string;key:string;index:number}[] {
  const months=['january','february','march','april','may','june','july','august','september','october','november','december'];
- const month=months.join('|'),out:{text:string;key:string;index:number}[]=[];
+ const month=months.map(m=>m==='october'?'(?:october|oct\\.?)':m).join('|'),out:{text:string;key:string;index:number}[]=[];
  for(const m of text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})(?:T[0-9:.]+Z)?\b/g))out.push({text:m[0],key:`${Number(m[2])}-${Number(m[3])}-${m[1]}`,index:m.index!});
  const pattern=new RegExp(`\\b(?:(\\d{1,2})\\s+(${month})|(${month})\\s+(\\d{1,2}))(?:,?\\s+(\\d{4}))?\\b`,'gi');
- for(const m of text.matchAll(pattern))out.push({text:m[0],key:`${months.indexOf((m[2]??m[3]).toLowerCase())+1}-${Number(m[1]??m[4])}${m[5]?`-${m[5]}`:''}`,index:m.index!});
+ for(const m of text.matchAll(pattern))out.push({text:m[0],key:`${months.indexOf((m[2]??m[3]).toLowerCase().replace(/^oct\.?$/,'october'))+1}-${Number(m[1]??m[4])}${m[5]?`-${m[5]}`:''}`,index:m.index!});
  return out;
 }
 /** A metadata date licenses a date attached to reporting, not an arbitrary
@@ -107,7 +108,7 @@ export function checkReaderFidelity(claimTexts:string[],required:FidelityFact[],
   for(const [phrase,equivalent] of [['at least',/\b(at least|no fewer than)\b/],['at most',/\b(at most|no more than)\b/],['more than',/\b(more than|over)\b/],['less than',/\b(less than|under)\b/],['before',/\b(before|earlier than|prior to)\b/],['after',/\b(after|later than|following)\b/]] as const)if(source.includes(phrase)&&!equivalent.test(text))failures.push({code:'LOST_BOUND',factId:fact.id,value:phrase});
   if(fact.attribution&&!text.includes(normalized(fact.attribution)))failures.push({code:'LOST_ATTRIBUTION',factId:fact.id,value:fact.attribution});
  }
- return {passed:!failures.length,failures,policyVersion:'reader-fidelity-floors-v6'};
+ return {passed:!failures.length,failures,policyVersion:'reader-fidelity-floors-v7'};
 }
 
 /** Model attestation must concern actual supported reader prose. English adds
