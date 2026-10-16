@@ -198,7 +198,7 @@ function SidebarNavigation({ active, onNavigate }: { active?: string; onNavigate
   });
   return <nav className={`bottom-navigation collapsible-navigation${collapsed ? " is-collapsed" : ""}`} aria-label={t("Main navigation")}>
     <div className="sidebar-top">
-      <a className="sidebar-brand" href="/" aria-label="Distilled.news"><BrandMark/></a>
+      <div className="sidebar-brand" aria-label="Distilled.news"><BrandMark/></div>
       <button type="button" className="sidebar-toggle" aria-label={t(collapsed ? "Open sidebar" : "Close sidebar")} title={t(collapsed ? "Open sidebar" : "Close sidebar")} aria-expanded={!collapsed} onClick={toggle}><PanelLeft size={22}/></button>
     </div>
     {([{ id: "home", label: "Home", icon: Home, href: "/" }, { id: "explore", label: "Explore", icon: Search, href: "/explore" }, { id: "settings", label: "Settings", icon: Settings, href: "/?view=settings" }] as const).map(({ id, label, icon: Icon, href }) => onNavigate
