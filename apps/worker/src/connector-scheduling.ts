@@ -118,6 +118,19 @@ export async function dispatchConnectorPolls(env:Env,feedId:string,now=Date.now(
  catch(error){await env.DB.batch(kinds.map(kind=>env.DB.prepare(`UPDATE ${tables[kind]} SET dispatch_until=?,dispatch_token=NULL WHERE dispatch_token=?`).bind(now+30_000,token)));throw error;}
 }
 
+/** An already-fetched poll waiting on intake must wake at its persisted retry
+ * time, not the next minute-wide Feed scan. Claim a new transport generation;
+ * never change its fetch identity, attempts, checkpoint or paid operation. */
+export async function continueConnectorIntake(env:Env,feedId:string,jobId:string,kind:'rss'|'provider',now=Date.now()):Promise<boolean>{
+ if(!env.SOURCE_COLLECTION_QUEUE)return false;
+ const token=crypto.randomUUID(),table=tables[kind];
+ const row=await env.DB.prepare(`UPDATE ${table} SET dispatch_until=?,dispatch_token=? WHERE job_id=? AND json_extract(request,'$.scope.feedId')=?
+ AND state='PENDING' AND last_error='INTAKE_BUSY' AND dispatch_until<=? AND (lease_until IS NULL OR lease_until<=?) RETURNING due_at`).bind(now+POLL_DELIVERY_MS,token,jobId,feedId,now,new Date(now).toISOString()).first<{due_at:string}>();
+ if(!row)return false;
+ try{await env.SOURCE_COLLECTION_QUEUE.send({type:'connector_poll',feedId,jobId,table:kind,token},{delaySeconds:Math.min(43200,Math.max(1,Math.ceil((Date.parse(row.due_at)-now)/1000)))});return true;}
+ catch(error){await env.DB.prepare(`UPDATE ${table} SET dispatch_until=0,dispatch_token=NULL WHERE job_id=? AND dispatch_token=?`).bind(jobId,token).run();throw error;}
+}
+
 /** Coordination interface: feed-scoped environment + existing dispatchers.
  * Canonical intelligence/window policy stays owned by v1-intelligence/runtime. */
 export async function relayConnectorDownstream(env:Env){
@@ -183,6 +196,7 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
   // Persist continuation wakeup together with delivery release; relay failures
   // cannot strand a completed page or an eligible pending continuation.
   await env.DB.batch([release,env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),body.feedId)]);
+  await continueConnectorIntake(scoped,body.feedId,body.jobId,body.table);
   if(job.family==='telegram')await dispatchTelegramLane(env);
   await scoped.PROCESSING_QUEUE.send({type:'connector_relay',feedId:body.feedId});
   // Finish one page, then yield: other feeds run before this continuation.

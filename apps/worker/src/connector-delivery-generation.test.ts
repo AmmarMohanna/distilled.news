@@ -1,6 +1,6 @@
 import {beforeAll,afterAll,expect,it} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
-import {coalescedProcessingQueue,completeConnectorDownstream,deferConnectorDownstream,decodeConnectorDelivery,processConnectorMessage} from './connector-scheduling';
+import {coalescedProcessingQueue,completeConnectorDownstream,deferConnectorDownstream,continueConnectorIntake,decodeConnectorDelivery,processConnectorMessage} from './connector-scheduling';
 import {sha256} from '@distilled/contracts';
 import type {DistilledQueueMessage,Env} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env;
@@ -63,4 +63,15 @@ it('capacity waits immediately requeue the same work without releasing a replace
  await deferConnectorDownstream(env,body,old._connectorDispatchToken);
  expect(deliveries).toHaveLength(count+1);
  expect(await deferConnectorDownstream(env,body)).toBe(false);
+});
+it('saved collection intake waits wake at their due time without changing attempts or refetch identity',async()=>{
+ const now=Date.now(),options:QueueSendOptions[]=[];
+ const queue={send:async(_body:unknown,option:QueueSendOptions)=>{options.push(option)}} as unknown as Queue<DistilledQueueMessage>;
+ await ctx.db.prepare("INSERT INTO connector_rss_poll_jobs(job_id,request,request_hash,due_at,last_error,attempts,offset) VALUES(?,?,?,?,?,?,?)").bind('intake-wakeup',JSON.stringify({scope:{feedId:'delivery-feed'}}),'original-fetch',new Date(now+5000).toISOString(),'INTAKE_BUSY',2,10).run();
+ expect(await continueConnectorIntake({...env,SOURCE_COLLECTION_QUEUE:queue},'delivery-feed','intake-wakeup','rss',now)).toBe(true);
+ expect(options).toEqual([{delaySeconds:5}]);
+ expect(await continueConnectorIntake({...env,SOURCE_COLLECTION_QUEUE:queue},'delivery-feed','intake-wakeup','rss',now)).toBe(false);
+ expect(await ctx.db.prepare("SELECT attempts,offset,request_hash FROM connector_rss_poll_jobs WHERE job_id='intake-wakeup'").first()).toEqual({attempts:2,offset:10,request_hash:'original-fetch'});
+ await ctx.db.prepare("UPDATE connector_rss_poll_jobs SET dispatch_until=0,last_error='RATE_LIMIT' WHERE job_id='intake-wakeup'").run();
+ expect(await continueConnectorIntake({...env,SOURCE_COLLECTION_QUEUE:queue},'delivery-feed','intake-wakeup','rss',now)).toBe(false);
 });
