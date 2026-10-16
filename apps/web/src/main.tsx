@@ -1,3 +1,4 @@
+import { ArticleThumbnail } from "./ArticleThumbnail";
 import { BriefingPages } from "./BriefingPages";
 import { FeedDashboardSidebar } from "./FeedDashboardSidebar";
 import { SourceLogo } from "./SourceLogo";
@@ -1466,6 +1467,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
   const [editionDetails, setEditionDetails] = useState<Map<string, BriefingEdition>>(() => new Map());
+  const detailRequests=useRef(new Map<string,Promise<BriefingEdition|null>>());
 
   async function refresh(silent = false) {
     const key = feedKey, request = ++feedRequest.current;
@@ -1579,32 +1581,27 @@ function FeedPage(props: { username: string; slug: string }) {
     </span>
   ) : "briefing";
 
-  async function loadEditionDetail(edition: BriefingEdition): Promise<BriefingEdition | null> {
-    const key = feedKey;
-    if (!visibleEditionIds.current.has(edition.id)) return null;
-    const cached = editionDetails.get(edition.id);
-    if (cached) return cached;
-    if (edition.sections.length > 0) {
-      setEditionDetails((current) => new Map(current).set(edition.id, edition));
-      return edition;
-    }
-    if (!payload) return null;
-    setEditionBusyIds((current) => new Set(current).add(edition.id));
-    try {
-      const detailed = await getFeedEdition(props.username, props.slug, edition.id);
-      if (feedIdentity.current !== key || !visibleEditionIds.current.has(edition.id)) return null;
-      setEditionDetails((current) => new Map(current).set(edition.id, detailed));
-      return detailed;
-    } catch (cause) {
-      if (feedIdentity.current === key) setError(cause instanceof Error ? cause.message : String(cause));
-      return null;
-    } finally {
-      if (feedIdentity.current === key) setEditionBusyIds((current) => {
-        const next = new Set(current);
-        next.delete(edition.id);
-        return next;
-      });
-    }
+  async function loadEditionDetail(edition: BriefingEdition, quiet=false): Promise<BriefingEdition | null> {
+    const key=feedKey,requestKey=key+":"+edition.id;
+    if(!visibleEditionIds.current.has(edition.id))return null;
+    const cached=editionDetails.get(edition.id);if(cached)return cached;
+    if(edition.sections.length>0)return edition;
+    const existing=detailRequests.current.get(requestKey);if(existing)return existing;
+    const pending=(async()=>{
+      setEditionBusyIds(current=>new Set(current).add(edition.id));
+      try {
+        const detailed=await getFeedEdition(props.username,props.slug,edition.id);
+        if(feedIdentity.current!==key||!visibleEditionIds.current.has(edition.id)||!detailed)return null;
+        setEditionDetails(current=>new Map(current).set(edition.id,detailed));return detailed;
+      } catch(cause) {
+        if(!quiet&&feedIdentity.current===key&&visibleEditionIds.current.has(edition.id))setError(cause instanceof Error?cause.message:String(cause));
+        return null;
+      } finally {
+        detailRequests.current.delete(requestKey);
+        if(feedIdentity.current===key)setEditionBusyIds(current=>{const next=new Set(current);next.delete(edition.id);return next;});
+      }
+    })();
+    detailRequests.current.set(requestKey,pending);return pending;
   }
 
   async function toggleEditionExpanded(edition: BriefingEdition) {
@@ -1738,6 +1735,7 @@ function FeedPage(props: { username: string; slug: string }) {
             isRead={readIds.has(edition.id)}
             isSaved={savedIds.has(edition.id)}
             onToggleSaved={()=>toggleSaved(edition.id)}
+            onLoadPreview={()=>void loadEditionDetail(edition,true)}
             onToggleExpanded={() => void toggleEditionExpanded(edition)}
             onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
             onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
@@ -1812,25 +1810,29 @@ function FeedEditionRow(props: {
   isRead: boolean;
   isSaved?: boolean;
   onToggleSaved?: () => void;
+  onLoadPreview?: () => void;
   onToggleExpanded: () => void;
   onToggleRead: () => void;
   onOpenReport: (sectionIndex: number) => void;
 }) {
   const textDir = textDirection(props.language);
+  useEffect(()=>{if(!props.detailEdition && props.edition.sections.length===0)props.onLoadPreview?.();},[props.edition.id]);
   const detailEdition = props.detailEdition ?? props.edition;
   const surfaceSummary = surfaceBriefSummary(props.edition.summary);
   const referenceCount = Math.max(detailEdition.sections.length, highestReferenceNumber(props.edition.summary));
-  const closedIcon = textDir === "rtl" ? <ChevronLeft size={15} aria-hidden /> : <ChevronRight size={15} aria-hidden />;
+  const publisher = detailEdition.sections.flatMap(section=>section.evidence ?? []).map(evidence=>evidence.sourceTitle).filter(Boolean);
+  const sourceTitle=[...new Set(publisher)].slice(0,2).join(" / ");
+  const age=Date.now()-Date.parse(props.edition.publishedAt);
+  const timeUnit=age>=86400000?"day":age>=3600000?"hour":"minute";
+  const relativeTime=Number.isFinite(age)?new Intl.RelativeTimeFormat(props.language,{numeric:"auto"}).format(-Math.max(0,Math.floor(age/(timeUnit==="day"?86400000:timeUnit==="hour"?3600000:60000))),timeUnit):"";
   return (
     <article className={`news-item${props.isRead ? " is-read" : ""}`}>
-      <div className="news-rail" aria-hidden>
-        <span className="news-node" />
-      </div>
+      <button type="button" className="article-thumbnail-button" aria-label={`Preview ${props.edition.title}`} onClick={props.onToggleExpanded}><ArticleThumbnail edition={detailEdition}/></button>
       <div className="news-copy" lang={props.language} dir={textDir}>
         <div className="news-topline">
           <div className="news-meta" dir={textDir}>
-            <Timestamp value={props.edition.publishedAt} language={props.language} />
-            <span className="muted">{cadenceMetaLabel(props.edition.cadence, props.language)}</span>
+            {sourceTitle && <span className="article-publisher">{sourceTitle}</span>}
+            <time dateTime={props.edition.publishedAt} title={props.edition.publishedAt}>{relativeTime}</time>
           </div>
           <div className="news-row-actions" dir="ltr">
             {props.onToggleSaved && <button type="button" className="bookmark-story quiet-icon" aria-label={`${props.isSaved ? "Unsave" : "Save"} ${props.edition.title}`} aria-pressed={!!props.isSaved} onClick={props.onToggleSaved}><Bookmark size={18} fill={props.isSaved?"currentColor":"none"}/></button>}
@@ -1852,11 +1854,11 @@ function FeedEditionRow(props: {
               aria-label={briefingToggleAria(props.edition.title, props.isExpanded, props.language)}
               onClick={props.onToggleExpanded}
             >
-              {props.isExpanded ? <ChevronDown size={15} aria-hidden /> : closedIcon}
+              <MoreHorizontal size={18} aria-hidden />
             </button>
           </div>
         </div>
-        <h2 className="briefing-story-title">{props.edition.title}</h2>
+        <h2 className="briefing-story-title"><button type="button" onClick={props.onToggleExpanded}>{props.edition.title}</button></h2>
         <ReferenceParagraph
           className="news-summary"
           text={surfaceSummary}

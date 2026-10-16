@@ -1,13 +1,12 @@
-import {useEffect,useState,type ReactNode} from "react";
+import {useState,type ReactNode} from "react";
 import type { BriefingEdition } from '@distilled/core';
 import { useLanguage } from './LanguageControl';
 
 export function FeedDashboardSidebar({editions,readIds,savedIds,onOpen,paused,sourceContent,statusText}:{editions:BriefingEdition[];readIds:Set<string>;savedIds:Set<string>;onOpen:(edition:BriefingEdition)=>void;paused:boolean;sourceContent?:ReactNode;statusText?:string}) {
   const {t}=useLanguage();
   const activity=editions.filter(item=>readIds.has(item.id)||savedIds.has(item.id)).slice(0,3);
-  const [compact,setCompact]=useState(()=>matchMedia("(max-width:999px), (max-height:800px)").matches);
+  const compact=true;
   const [panel,setPanel]=useState(0);
-  useEffect(()=>{const query=matchMedia("(max-width:999px), (max-height:800px)");const change=()=>setCompact(query.matches);query.addEventListener("change",change);return()=>query.removeEventListener("change",change);},[]);
   const today=new Date().toDateString();
   const count=editions.filter(item=>new Date(item.publishedAt).toDateString()===today).length;
   const text=editions.map(item=>item.title+' '+item.summary).join(' ');

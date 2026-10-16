@@ -1,0 +1,21 @@
+import {expect,test} from '@playwright/test';
+for(const width of [390,1440])test(`compact photo news list fits ${width}px`,async({page},info)=>{
+ await page.setViewportSize({width,height:800});
+ const feed={id:'one',ownerUsername:'reader',slug:'news',title:'Personal Briefing',publicFeedEnabled:true,paused:false,language:'en',briefingCadence:'daily',stars:0};
+ const editions=Array.from({length:16},(_,i)=>({id:String(i),title:'Economy shows signs of stabilization '+i,summary:'Government officials announce verified developments. '.repeat(4),publishedAt:new Date(Date.now()-i*3600000).toISOString(),sections:[]}));
+ const evidence={messageId:'source',sourceId:'publisher',sourceTitle:'Reuters',sourceType:'rss',sourceUrl:'https://example.test/news',text:'Supporting article.',postedAt:new Date().toISOString(),links:[],media:[{type:'photo',url:'https://images.example.test/article.jpg'}]};
+ await page.route('https://images.example.test/**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="140" height="80"><rect width="140" height="80" fill="#b9c8d9"/></svg>'}));
+ await page.route('**/api/**',route=>{const p=new URL(route.request().url()).pathname;if(p.includes('/editions/')){const item=editions.find(item=>p.endsWith('/'+item.id))!;return route.fulfill({json:{edition:{...item,sections:[{title:item.title,summary:item.summary,evidence:[evidence]}]}}});}return route.fulfill({json:p==='/api/feed/reader/news'?{briefing:feed,editions,viewerHasStarred:false}:{authenticated:false,feeds:[]}})});
+ await page.goto('/reader/news/');
+ await expect(page.locator('.article-thumbnail img').first()).toBeVisible();
+ if(width>1000)await expect.poll(()=>page.locator('.news-item').count()).toBeGreaterThanOrEqual(3);
+ await expect(page.locator('.article-publisher').first()).toHaveText('Reuters');
+ await expect(page.locator('.briefing-sidebar')).toBeHidden();
+ const first=page.locator('.news-item').first(),image=(await first.locator('.article-thumbnail').boundingBox())!,copy=(await first.locator('.news-copy').boundingBox())!;
+ expect(copy.x).toBeGreaterThan(image.x+image.width);
+ const viewport=page.locator('.app-pages > .screen-page-viewport');expect(await viewport.evaluate(el=>el.scrollHeight-el.clientHeight)).toBeLessThanOrEqual(1);
+ await first.locator('.briefing-story-title button').click();await expect(page.locator('.briefing-detail-dialog')).toBeVisible();await page.getByRole('button',{name:'Close dialog',exact:true}).click();
+ await page.getByRole('button',{name:'Next stories',exact:true}).click();
+ await expect(page.locator('.article-thumbnail img').first()).toBeVisible();
+ await page.screenshot({path:info.outputPath('compact-list.png')});
+});
