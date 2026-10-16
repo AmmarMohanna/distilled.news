@@ -27,7 +27,9 @@ Keep that file private. Use its `ADMIN_SETUP_TOKEN` for first administrator setu
 AI source recommendations are enabled using the server-side `OPENROUTER_API_KEY`
 secret. The key is also stored in the ignored `.dev.vars.joud` file. Recommendations
 make one capped model call per click, with up to five public source suggestions;
-the existing per-account limit is two requests per hour. Website source rows use
+there is no application-level hourly recommendation quota. Each click makes one
+OpenRouter request with at most 400 output tokens. These direct recommendation
+calls are separate from the one-time briefing model allowance described below. Website source rows use
 publisher favicons, with a globe fallback when an image cannot load.
 
 The mixed-source backend branch is integrated without frontend-specific backend logic changes.
