@@ -124,7 +124,7 @@ for(const size of [{width:1280,height:593},{width:1920,height:1100},{width:390,h
     expect(artwork.ratio).toBeGreaterThan(0.8);
     expect(artwork.bottom).toBeLessThanOrEqual(artwork.titleTop+1);
    }
-   else if(density.height>=260)expect(density.slots).toBe(3);
+   else expect(await grid.locator('.topic-card').first().evaluate(n=>Math.round(n.getBoundingClientRect().height))).toBe(84);
    await expect.poll(complete).toBe(true);
    await expect.poll(async()=>grid.evaluate(n=>n.getBoundingClientRect().bottom)).toBeLessThanOrEqual(size.height-16);
    await grid.evaluate(n=>n.scrollTo({top:n.scrollHeight,behavior:'instant'}));
