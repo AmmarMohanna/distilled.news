@@ -1119,8 +1119,10 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const object = await c.env.RAW_ARCHIVE?.get(sketchKey(resolved.briefing));
-    if (!object || object.customMetadata?.fingerprint !== await sketchFingerprint(resolved.briefing)) return c.body(null, 404, { "Cache-Control": "no-store" });
-    return new Response(object.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+    if (!object) return c.body(null, 404, { "Cache-Control": "no-store" });
+    // Keep earlier sketches visible while their owners generate the new version.
+    const stale = object.customMetadata?.fingerprint !== await sketchFingerprint(resolved.briefing);
+    return new Response(object.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Sketch-Stale": stale ? "1" : "0" } });
   });
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {

@@ -12,6 +12,11 @@ function requestMissingSketch(id: string, revision: string) {
     pending = generationQueue.then(() => generateFeedSketch(id));
     generationQueue = pending.catch(() => {});
     generationAttempts.set(key, pending);
+    // Deduplicate only in-flight work; a failed attempt must be retryable.
+    void pending.then(
+      () => { if (generationAttempts.get(key) === pending) generationAttempts.delete(key); },
+      () => { if (generationAttempts.get(key) === pending) generationAttempts.delete(key); }
+    );
   }
   return pending;
 }
@@ -45,6 +50,7 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
     let timer: ReturnType<typeof setTimeout> | undefined;
     let objectUrl = "";
     let requested = false;
+    let staleImage = false;
     let retries = 0;
     let inFlight = false;
     let refreshPending = false;
@@ -53,17 +59,33 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
       timer = setTimeout(() => { timer = undefined; void check(); }, delay);
     };
     const check = async () => {
-      if (controller.signal.aborted || objectUrl) return;
+      if (controller.signal.aborted || (objectUrl && !staleImage)) return;
       if (inFlight) { refreshPending = true; return; }
       clearTimeout(timer);
       inFlight = true;
       try {
         const response = await fetch(`/api/feed/${encodeURIComponent(feed.ownerUsername!)}/${encodeURIComponent(feed.slug!)}/sketch`, { signal: controller.signal, cache: "no-store" });
         if (response.ok && response.headers.get("content-type")?.startsWith("image/")) {
-          const blob = await transparentSketch(await response.blob());
-          if (controller.signal.aborted) return;
-          clearTimeout(timer);
-          objectUrl = URL.createObjectURL(blob); setImage(objectUrl); return;
+          const stale = response.headers.get("X-Sketch-Stale") === "1";
+          if (!objectUrl || !stale) {
+            const blob = await transparentSketch(await response.blob());
+            if (controller.signal.aborted) return;
+            clearTimeout(timer);
+            const previous = objectUrl;
+            objectUrl = URL.createObjectURL(blob);
+            setImage(objectUrl);
+            if (previous) URL.revokeObjectURL(previous);
+          }
+          staleImage = stale;
+          if (stale && canGenerate && feed.id && !requested && !controller.signal.aborted) {
+            requested = true;
+            void requestMissingSketch(feed.id, JSON.stringify([feed.title, feed.interestProfile]))
+              .then(() => { if (!controller.signal.aborted) schedule(0); })
+              .catch(error => {
+                if (!controller.signal.aborted) setFailure(error instanceof Error ? error.message : "Sketch generation failed.");
+              });
+          }
+          return;
         }
         if (response.status === 404 && canGenerate && feed.id && !requested && !controller.signal.aborted) {
           requested = true;
@@ -79,11 +101,11 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
         if (!controller.signal.aborted) { setMissing(true); setFailure(error instanceof Error ? error.message : "Illustration unavailable."); }
       } finally {
         inFlight = false;
-        if (refreshPending && !objectUrl && !controller.signal.aborted) schedule(0);
+        if (refreshPending && (!objectUrl || staleImage) && !controller.signal.aborted) schedule(0);
         refreshPending = false;
       }
     };
-    const refresh = () => { if (!objectUrl && !controller.signal.aborted) { clearTimeout(timer); void check(); } };
+    const refresh = () => { if ((!objectUrl || staleImage) && !controller.signal.aborted) { clearTimeout(timer); void check(); } };
     window.addEventListener("feed-sketch-updated", refresh);
     void check();
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("feed-sketch-updated", refresh); if (objectUrl) URL.revokeObjectURL(objectUrl); };

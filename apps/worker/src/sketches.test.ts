@@ -55,3 +55,14 @@ it("changes the sketch fingerprint when the feed context changes", async () => {
   const original = await sketchFingerprint({ title: "AI news", interestProfile: "models" });
   expect(await sketchFingerprint({ title: "AI news", interestProfile: "research" })).not.toBe(original);
 });
+
+it("fingerprints the effective model request rather than unused description text", async () => {
+  const topic = "a".repeat(1200);
+  const briefing = { title: "Space news", interestProfile: topic };
+  const sameRenderedPrompt = { ...briefing, interestProfile: topic + " extra invisible tail" };
+  expect(sketchPrompt(briefing)).toBe(sketchPrompt(sameRenderedPrompt));
+  expect(await sketchFingerprint(briefing)).toBe(await sketchFingerprint(sameRenderedPrompt));
+
+  const altered = { ...briefing, interestProfile: "Different topic" };
+  expect(await sketchFingerprint(briefing)).not.toBe(await sketchFingerprint(altered));
+});

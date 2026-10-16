@@ -33,7 +33,7 @@ export function sketchKey(briefing: Pick<BriefingConfig, "id">): string {
 }
 
 export async function sketchFingerprint(briefing: Pick<BriefingConfig, "title" | "interestProfile">): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(["violet-pencil-flux1-schnell-4steps-v1", briefing.title, briefing.interestProfile])));
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([SKETCH_MODEL, SKETCH_STEPS, sketchPrompt(briefing)])));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
