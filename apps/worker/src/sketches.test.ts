@@ -1,11 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { BriefingConfig } from "@distilled/core";
 import type { Env } from "./types";
-import { generateSketch } from "./sketches";
+import { generateSketch, sketchFingerprint, sketchPrompt } from "./sketches";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("requests FLUX.2 Klein 4B from the image account and saves the JPEG in R2", async () => {
+it("requests FLUX.1 Schnell with JSON and saves the JPEG in R2", async () => {
   const image = btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xd9));
   const fetcher = vi.fn().mockResolvedValue(Response.json({ result: { image } }));
   const put = vi.fn().mockResolvedValue(undefined);
@@ -20,17 +20,38 @@ it("requests FLUX.2 Klein 4B from the image account and saves the JPEG in R2", a
   await generateSketch(env, briefing);
 
   expect(fetcher).toHaveBeenCalledWith(
-    "https://api.cloudflare.com/client/v4/accounts/image-account/ai/run/@cf/black-forest-labs/flux-2-klein-4b",
+    "https://api.cloudflare.com/client/v4/accounts/image-account/ai/run/@cf/black-forest-labs/flux-1-schnell",
     expect.objectContaining({
       method: "POST",
       headers: expect.objectContaining({ Authorization: "Bearer test-only-token" }),
-      body: expect.any(FormData)
+      body: expect.any(String)
     })
   );
   const request = fetcher.mock.calls[0]![1] as RequestInit;
-  expect(request.headers).not.toHaveProperty("Content-Type");
-  expect((request.body as FormData).get("prompt")).toContain("World politics");
-  expect((request.body as FormData).get("width")).toBe("512");
-  expect((request.body as FormData).get("height")).toBe("512");
+  expect(request.headers).toEqual(expect.objectContaining({ "Content-Type": "application/json" }));
+  const payload = JSON.parse(request.body as string) as { prompt: string; steps: number };
+  expect(payload).toEqual({ prompt: sketchPrompt(briefing), steps: 4 });
+  expect(payload.prompt).toContain("World politics");
   expect(put).toHaveBeenCalledWith("feed-sketches/feed-1.jpg", expect.any(Uint8Array), expect.objectContaining({ httpMetadata: { contentType: "image/jpeg" } }));
+});
+
+it("uses arbitrary feed details rather than hardcoded categories and stays within Schnell's limit", () => {
+  const prompt = sketchPrompt({
+    title: "AI Industry Watch3",
+    interestProfile: "News about AI including model releases, launches, research and partnerships"
+  });
+  expect(prompt).toContain("AI Industry Watch3");
+  expect(prompt).toContain("research and partnerships");
+  expect(prompt).toContain("#5E5CE6");
+  expect(prompt).toContain("pencil grain");
+  expect(prompt).not.toContain("Draw this subject: A ballot");
+  expect(prompt.length).toBeLessThanOrEqual(2048);
+
+  expect(sketchPrompt({ title: "Other", interestProfile: "very long ".repeat(800) }).length)
+    .toBeLessThanOrEqual(2048);
+});
+
+it("changes the sketch fingerprint when the feed context changes", async () => {
+  const original = await sketchFingerprint({ title: "AI news", interestProfile: "models" });
+  expect(await sketchFingerprint({ title: "AI news", interestProfile: "research" })).not.toBe(original);
 });
