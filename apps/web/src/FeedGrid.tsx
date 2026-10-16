@@ -20,7 +20,7 @@ export function FeedGrid({ children, className }: { children: ReactNode; classNa
       const gap = parseFloat(style.rowGap) || 0;
       const bottom = document.querySelector('.bottom-navigation')?.getBoundingClientRect();
       const limit = bottom && bottom.width > innerWidth / 2 ? bottom.top : innerHeight;
-      const available = limit - node.getBoundingClientRect().top - 60;
+      const available = limit - node.getBoundingClientRect().top - 80;
       const rows = Math.max(1, Math.floor((available + gap) / (card.getBoundingClientRect().height + gap)));
       setCapacity(Math.max(1, columns * rows));
     };

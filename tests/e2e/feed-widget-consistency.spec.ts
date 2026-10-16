@@ -23,14 +23,13 @@ for (const width of [320, 390, 1280]) test(`Home and Explore share widget sizes 
   expect(menu.y).toBeGreaterThanOrEqual(homeBounds.y);
   expect(menu.y + menu.height).toBeLessThanOrEqual(homeBounds.y + homeBounds.height);
   expect(menu.x + menu.width).toBeLessThanOrEqual(homeBounds.x + homeBounds.width);
-  if(width <= 600) {
-    expect(identity.x).toBeGreaterThanOrEqual(art.x + art.width);
-    expect(footer.x).toBeGreaterThan(identity.x);
-    expect(homeBounds.height).toBeLessThan(130);
-  } else {
-    expect(identity.y).toBeGreaterThanOrEqual(art.y + art.height);
-    expect(footer.y).toBeGreaterThanOrEqual(identity.y + identity.height);
-  }
+  expect(identity.x).toBeGreaterThanOrEqual(art.x + art.width);
+  expect(footer.y).toBeGreaterThanOrEqual(art.y + art.height);
+  expect(footer.y).toBeGreaterThanOrEqual(identity.y + identity.height);
+  const arrow=(await home.locator(".topic-name > svg").boundingBox())!;
+  expect(arrow.y).toBeGreaterThanOrEqual(footer.y);
+  expect(arrow.y+arrow.height).toBeLessThanOrEqual(homeBounds.y+homeBounds.height);
+  await page.screenshot({path:`test-results/widget-${width}.png`});
   await home.locator('.feed-options > summary').click();
   await expect(home.getByRole('link', { name: 'Edit feed settings' })).toBeVisible();
   await home.locator('.feed-options > summary').click();
