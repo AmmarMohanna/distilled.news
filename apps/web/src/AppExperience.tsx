@@ -158,6 +158,7 @@ function FeedCardActions({ feed, owner, onError, hideStar = false, children }: {
   const url = () => window.location.origin + feedUrl(feed);
   return <>{!hideStar && <FeedUpdatedAt value={updatedAt}/>}<div className="feed-card-actions">
     {children}
+    <a className="feed-card-open" href={feedUrl(feed)} aria-label={`${t("Open feed")}: ${feed.title}`}><ArrowRight size={20}/></a>
     {!hideStar && <button type="button" aria-label={t(starred ? "Unstar" : "Star")} aria-pressed={starred} disabled={busy} onClick={async () => { setBusy(true); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !starred); setStarred(result.viewerHasStarred); setStars(result.stars); } catch (cause) { onError(String(cause)); } finally { setBusy(false); } }}><Star size={16} fill={starred ? "currentColor" : "none"}/>{stars}</button>}
     {(owner || feed.publicFeedEnabled) && <details ref={menu} className="feed-options" onKeyDown={event => { if (event.key === "Escape" && menu.current) { menu.current.open = false; menu.current.querySelector("summary")?.focus(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node) && menu.current) menu.current.open = false; }}>
       <summary aria-label={t("Feed options")}><Ellipsis size={18}/></summary>

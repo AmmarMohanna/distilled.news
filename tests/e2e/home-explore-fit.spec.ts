@@ -119,10 +119,10 @@ for(const size of [{width:1280,height:593},{width:1920,height:1100},{width:390,h
     const artwork=await grid.locator('.topic-card').first().evaluate(card=>{
      const art=card.querySelector('.topic-art')!.getBoundingClientRect();
      const title=card.querySelector('.topic-name')!.getBoundingClientRect();
-     return {ratio:art.width/card.getBoundingClientRect().width,bottom:art.bottom,titleTop:title.top};
+     return {width:art.width,right:art.right,titleLeft:title.left};
     });
-    expect(artwork.ratio).toBeGreaterThan(0.8);
-    expect(artwork.bottom).toBeLessThanOrEqual(artwork.titleTop+1);
+    expect(artwork.width).toBe(128);
+    expect(artwork.right).toBeLessThan(artwork.titleLeft);
    }
    else expect(await grid.locator('.topic-card').first().evaluate(n=>Math.round(n.getBoundingClientRect().height))).toBe(84);
    await expect.poll(complete).toBe(true);
@@ -156,5 +156,5 @@ test('feed card design switches in both directions when the window resizes',asyn
  await expect(grid).toHaveAttribute('data-layout','compact');
  await page.setViewportSize({width:1920,height:1100});
  await expect(grid).toHaveAttribute('data-layout','large');
- await expect.poll(async()=>grid.locator('.topic-art').first().evaluate(n=>n.getBoundingClientRect().width)).toBeGreaterThan(200);
+ await expect.poll(async()=>grid.locator('.topic-art').first().evaluate(n=>n.getBoundingClientRect().width)).toBe(128);
 });
