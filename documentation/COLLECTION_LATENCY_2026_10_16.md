@@ -49,3 +49,19 @@ and 11:51:41 UTC reviews advanced from 7 to 24, while acquisition remained at 34
 completed of 60. This is progress, not an adequate latency result; it exposed the
 remaining minute-wide collection handoff retry described above. No provider
 jobs or financial authorizations were reset.
+
+Second rollout: commit `fbd733c`, active QA version
+`108f3452-b2ae-4b5e-a28e-0b39273d571a` at 100% traffic, verified 11:54:30 UTC.
+The public feed API returned 200. At that check acquisition was 34 DONE / 36
+PENDING and review was 28 DONE / 6 PENDING. Forty-one fetched acquisition results
+were retained. Collection remained INTAKE_BUSY and no edition was published.
+Therefore this rollout is **not a verified resolution of end-to-end latency**.
+It removes network-held turns and coarse retry delays, but the measured Feed
+still has substantial canonical-processing contention. Further work must profile
+canonical transaction/review duration and reduce per-feed transport contention;
+do not advertise a latency target from these measurements.
+
+Validation: 51 initial targeted regressions and 49 safety/scale regressions passed;
+the final acquisition file passed 27 tests, final transport-generation file 7,
+and scale/transport continuation run 29. Worker typecheck and QA dry-run passed.
+Staging was not modified.
