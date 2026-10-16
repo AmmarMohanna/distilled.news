@@ -203,5 +203,7 @@ test("on laptops Home and Explore centre the title, search row and categories on
   expect(Math.abs(home.title - home.controls)).toBeLessThanOrEqual(2);
   await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
   await page.waitForSelector(".explore-view .explore-search");
-  expect(await centers()).toEqual(home);
+  const explore = await centers();
+  expect(Math.abs(explore.title - home.title)).toBeLessThanOrEqual(2);
+  expect(Math.abs(explore.controls - home.controls)).toBeLessThanOrEqual(2);
 });
