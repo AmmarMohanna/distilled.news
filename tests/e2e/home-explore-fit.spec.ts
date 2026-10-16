@@ -94,3 +94,16 @@ for (const width of [1280, 1920]) {
     }
   });
 }
+
+for (const size of [{width:1280,height:593},{width:1920,height:885},{width:900,height:700}]) {
+ test(`all five feed widgets fit without pages at ${size.width}x${size.height}`, async ({page})=>{
+  await page.setViewportSize(size);await openApp(page,5);
+  for(const tab of ['home','explore']) {
+   if(tab==='explore'){await page.locator('.bottom-navigation').getByRole('button',{name:'Explore',exact:true}).click();await page.mouse.move(size.width-10,70);}
+   await expect(page.locator('.topic-card')).toHaveCount(5);
+   await expect(page.locator('.topic-card[hidden]')).toHaveCount(0);
+   await expect.poll(async()=>page.locator('.topic-card').evaluateAll(nodes=>Math.max(...nodes.map(n=>n.getBoundingClientRect().bottom)))).toBeLessThanOrEqual(size.height-16);
+   await expect(page.getByRole('button',{name:'Next page',exact:true})).toHaveCount(0);
+  }
+ });
+}
