@@ -114,7 +114,16 @@ for(const size of [{width:1280,height:593},{width:1920,height:1100},{width:390,h
     const css=getComputedStyle(node);const gap=parseFloat(css.rowGap);const row=parseFloat(css.getPropertyValue('--feed-row-height'));
     return {layout:(node as HTMLElement).dataset.layout,slots:Math.round((node.clientHeight+gap)/(row+gap)),height:node.clientHeight};
    });
-   if(density.layout==='large')expect(density.slots).toBe(2);
+   if(density.layout==='large') {
+    expect(density.slots).toBe(2);
+    const artwork=await grid.locator('.topic-card').first().evaluate(card=>{
+     const art=card.querySelector('.topic-art')!.getBoundingClientRect();
+     const title=card.querySelector('.topic-name')!.getBoundingClientRect();
+     return {ratio:art.width/card.getBoundingClientRect().width,bottom:art.bottom,titleTop:title.top};
+    });
+    expect(artwork.ratio).toBeGreaterThan(0.8);
+    expect(artwork.bottom).toBeLessThanOrEqual(artwork.titleTop+1);
+   }
    else if(density.height>=260)expect(density.slots).toBe(3);
    await expect.poll(complete).toBe(true);
    await expect.poll(async()=>grid.evaluate(n=>n.getBoundingClientRect().bottom)).toBeLessThanOrEqual(size.height-16);
@@ -124,3 +133,14 @@ for(const size of [{width:1280,height:593},{width:1920,height:1100},{width:390,h
   }
  });
 }
+
+test('feed card design switches in both directions when the window resizes',async({page})=>{
+ await page.setViewportSize({width:1920,height:1100});await openApp(page,5);
+ const grid=page.locator('.adaptive-feed-grid');
+ await expect(grid).toHaveAttribute('data-layout','large');
+ await page.setViewportSize({width:1280,height:593});
+ await expect(grid).toHaveAttribute('data-layout','compact');
+ await page.setViewportSize({width:1920,height:1100});
+ await expect(grid).toHaveAttribute('data-layout','large');
+ await expect.poll(async()=>grid.locator('.topic-art').first().evaluate(n=>n.getBoundingClientRect().width)).toBeGreaterThan(200);
+});
