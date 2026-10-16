@@ -61,11 +61,13 @@ export class V1IntakeStore {
   async commit(snapshot:ScopeSnapshot,writes:Write[]):Promise<boolean> {
     if(!writes.length)return true;
     const nonce=crypto.randomUUID(),turnGuard=intelligenceTurnGuard(this.db,snapshot.scope.feedId);
-    const journalOnly=writes.every(w=>w.table==='handoffs'&&w.immutable);
-    // Evidence-free coverage is an append-only journal, not canonical intake.
+    const journalOnly=writes.every(w=>['handoffs','acquisition_results'].includes(w.table)&&w.immutable);
+    // Evidence-free coverage and immutable fetched-result journals do not
+    // change canonical evidence. Result persistence still checks the scope
+    // epoch (including acquisition lease changes) and immutable identity.
     // Keep scope authorization and conflicting identity checks atomic even when
     // concurrent journals no longer advance the evidence/configuration epoch.
-    const journalGuards=journalOnly?writes.map(()=>` AND NOT EXISTS(SELECT 1 FROM v1_handoffs WHERE id=? AND (feed_source_id!=? OR json!=?))`).join(''):'';
+    const journalGuards=journalOnly?writes.map(w=>` AND NOT EXISTS(SELECT 1 FROM ${tableName(w.table)} WHERE id=? AND (feed_source_id!=? OR json!=?))`).join(''):'';
     const statements=[this.db.prepare(`INSERT INTO v1_transaction_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=? AND json_extract(json,'$.enabled')=1 AND json_extract(json,'$.deletedAt') IS NULL) ${journalGuards}${turnGuard.sql} THEN 1 ELSE 0 END`).bind(nonce,snapshot.scope.feedSourceId,snapshot.epoch,...(journalOnly?writes.flatMap(w=>[w.id,snapshot.scope.feedSourceId,JSON.stringify(w.value)]):[]),...turnGuard.args)];
     for(const w of writes) statements.push(this.db.prepare(`INSERT INTO ${tableName(w.table)}(id,feed_source_id,item_key,json) VALUES(?,?,?,?) ${w.immutable?'ON CONFLICT(id) DO NOTHING':'ON CONFLICT(id) DO UPDATE SET json=excluded.json'}`).bind(w.id,snapshot.scope.feedSourceId,w.itemKey??null,JSON.stringify(w.value)));
     if(!journalOnly)statements.push(this.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(snapshot.scope.feedSourceId));

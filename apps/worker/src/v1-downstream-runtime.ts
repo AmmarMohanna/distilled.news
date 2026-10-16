@@ -60,9 +60,16 @@ export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:
  const parsed=connectorHandoffRequestSchema.safeParse(raw);
  if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  if(env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,parsed.data.coverage.feedSourceId)) throw new HandoffError('SCOPE_DENIED');
+ const policy=createV1RuntimePolicy(fetch,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
+ // Verify immutable scoped payloads before admission. Four concurrent R2
+ // reads avoid serial network waits inside the Feed turn. Mutable authority,
+ // restrictions and canonical ordering are still checked inside acceptance.
+ const retained=await new V1IntakeStore(env.DB).readMany(parsed.data.observations.map(o=>({table:'intake_receipts' as const,id:o.id})));
+ const supplied=parsed.data.observations.filter(o=>o.operation==='UPSERT'&&o.suppliedPayloadRef&&!retained.get(JSON.stringify(['intake_receipts',o.id])));
+ for(let offset=0;offset<supplied.length;offset+=4)await Promise.all(supplied.slice(offset,offset+4).map(o=>policy.verifySuppliedContent(o)));
  try{return await withFeedWriteTurn(env,parsed.data.coverage.feedId,async()=>{
   await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
-  return createCandidateIntakePort(new V1IntakeStore(env.DB),{...createV1RuntimePolicy(fetch,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined),expectedFeedRevision}).acceptBatch(parsed.data);
+  return createCandidateIntakePort(new V1IntakeStore(env.DB),{...policy,expectedFeedRevision}).acceptBatch(parsed.data);
  },'handoff:'+parsed.data.handoffId);}catch(error){if(error instanceof IntelligenceTurnBusy)throw new SourceHandoffWait();throw error;}
 }
 const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();

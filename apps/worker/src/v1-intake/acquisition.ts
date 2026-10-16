@@ -55,8 +55,9 @@ export interface AcquisitionCompletionAdmission {
  isBusy(error:unknown):boolean;
 }
 export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:IntakePolicy,execute:(claim:AcquisitionClaim)=>Promise<AcceptedAcquiredContent>,admission?:AcquisitionCompletionAdmission):Promise<'DONE'|'SKIPPED'|'RETRY'|'FAILED'> {
- const claimWork=()=>claimAcquisition(store,id,policy.now());
- const claim=admission?await admission.run(claimWork):await claimWork();if(!claim) return 'SKIPPED';
+ // The observation lease/CAS owns acquisition claims. They need no Feed-wide
+ // admission; evidence promotion below is the shared canonical boundary.
+ const claim=await claimAcquisition(store,id,policy.now());if(!claim) return 'SKIPPED';
  const retained=!!await store.read('acquisition_results',id);
  try {
   if(!retained) await persistAcquisitionResult(store,claim,await execute(claim),policy.now());

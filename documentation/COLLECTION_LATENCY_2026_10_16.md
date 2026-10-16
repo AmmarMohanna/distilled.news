@@ -92,3 +92,26 @@ and continuation checks (including full-article acquisition through review).
 The other runtime/integration safety files passed 13 checks. Worker typecheck
 and QA dry-run build passed. Remote QA migration list showed only 0060 pending.
 Live measurements for this rollout are added after deployment.
+
+At 12:06:55 UTC version `8d70ca7b-c4ea-4ba1-b320-63bee54da345`
+was serving QA. Acquisition advanced from 34 to 39 completed and reviews from
+34 to 38 by 12:09:17. A logged review transaction completed in 9,212 ms with
+one CAS attempt; this is a transaction duration, not an end-to-end SLA. A live
+slot snapshot showed four acquisition deliveries. No cap or payment was reset.
+
+## Final lock-scope refinement
+
+Acquisition claims now use their existing observation lease and source CAS
+without taking the Feed turn. Only evidence promotion takes shared Feed
+admission. Immutable fetched-result storage no longer increments the canonical
+scope epoch: it still validates the current scope epoch, ownership lease and
+immutable identity atomically, but does not invalidate an unrelated review just
+for journaling downloaded bytes. A new regression checks both epoch preservation
+and rejection of a replaced acquisition owner.
+
+Supplied connector payload verification runs before Feed admission with at most
+four concurrent R2 reads. The same call-scoped verified metadata cache is consumed
+inside acceptance. Already receipted observations are excluded, so replay does
+not require deleted historical payloads. Mutable authorization, restrictions,
+authority and ordering are still checked inside the normal acceptance path.
+No source contract or editorial policy is changed.

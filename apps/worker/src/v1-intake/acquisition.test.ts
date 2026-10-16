@@ -12,16 +12,16 @@ beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ct
 afterEach(async()=>ctx.dispose());
 const now='2026-10-03T12:00:00Z',later='2026-10-03T12:02:00Z';
 function content(candidateId:string):AcceptedAcquiredContent {return {id:'content-1',feedId:'feed-1',candidateId,sourceObservationId:'observation-1',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',body:'A development',acquiredAt:now,acquisitionMethod:'supplied_payload'}}
-it('downloads outside admission while claim and promotion use short admitted phases',async()=>{
+it('claims and downloads use the observation lease while only evidence promotion takes Feed admission',async()=>{
  let admitted=false,phases=0;
  const admission={run:async<T>(run:()=>Promise<T>):Promise<T>=>{expect(admitted).toBe(false);admitted=true;phases++;try{return await run()}finally{admitted=false}},isBusy:()=>false};
  expect(await runAcquisitionJob(store,jobId,testPolicy,async claim=>{expect(admitted).toBe(false);return content(claim.candidate.id)},admission)).toBe('DONE');
- expect(phases).toBe(2);expect(admitted).toBe(false);
+ expect(phases).toBe(1);expect(admitted).toBe(false);
 });
 it('repeated completion admission waits retain fetched bytes and consume no recovery attempts',async()=>{
- const busy=new Error('capacity');let calls=0,admissions=0;
+ const busy=new Error('capacity');let calls=0;
  const execute=async(claim:Awaited<ReturnType<typeof claimAcquisition>>)=>{calls++;return content(claim!.candidate.id)};
- const admission={run:async<T>(run:()=>Promise<T>):Promise<T>=>{if(++admissions%2===1)return run();throw busy},isBusy:(error:unknown)=>error===busy};
+ const admission={run:async<T>(_run:()=>Promise<T>):Promise<T>=>{throw busy},isBusy:(error:unknown)=>error===busy};
  for(let i=0;i<9;i++){
   await expect(runAcquisitionJob(store,jobId,testPolicy,execute,admission)).rejects.toBe(busy);
   expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,resumeAttempts:0});
@@ -37,6 +37,15 @@ it('concurrent duplicate deliveries claim one lease; crash before fetching resum
  expect(restarted!.job.attempts).toBe(2);
  await expect(persistAcquisitionResult(store,claims.find(Boolean)!,content(restarted!.candidate.id),later)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
  expect(await store.list('acquisition_results','feed-source-1')).toHaveLength(0);
+});
+it('immutable fetched-result journaling preserves canonical scope epoch and still fences replaced acquisition leases',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!;
+ const epoch=(await store.snapshot(claim.job.feedSourceId)).epoch;
+ await persistAcquisitionResult(store,claim,content(claim.candidate.id),now);
+ expect((await store.snapshot(claim.job.feedSourceId)).epoch).toBe(epoch);
+ const replacement=(await claimAcquisition(store,jobId,later))!;
+ expect(replacement.token).not.toBe(claim.token);
+ await expect(persistAcquisitionResult(store,claim,content(claim.candidate.id),later)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
 });
 it('restart after durable fetch resumes acceptance without another external fetch; acknowledgement replay is harmless',async()=>{
  const claim=(await claimAcquisition(store,jobId,now))!;
