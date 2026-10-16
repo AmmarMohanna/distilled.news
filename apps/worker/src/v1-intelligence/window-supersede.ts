@@ -13,12 +13,14 @@ export async function supersedeExpiredWindows(store:V1FeedStore,feedId:string,po
  const newest=expired.reduce((a,b)=>Date.parse(b.window.end)>Date.parse(a.window.end)||b.window.end===a.window.end&&b.id>a.id?b:a);
  // Bounded per pass; the next relay settles any remainder.
  const older=expired.filter(r=>r.id!==newest.id).sort((a,b)=>a.window.end.localeCompare(b.window.end)).slice(0,50).map(r=>r.id);
+ // A window whose briefing already started (shortlist, selection or
+ // synthesis) finishes through its own run.
+ const started=new Set((await Promise.all((['shortlists','selections'] as const).map(kind=>store.list<{window?:{end?:string}}>(feedId,kind)))).flat().map(d=>d.window?.end).filter((end):end is string=>!!end));
  return feedTransact(store,feedId,async tx=>{
   const settled:string[]=[];
   for(const id of older){
    const current=await tx.read<PendingRequest>('briefing_requests',id);
-   // A window whose synthesis already started finishes through its own job.
-   if(current?.state!=='PENDING'||await tx.read('synthesis_jobs',id))continue;
+   if(current?.state!=='PENDING'||started.has(current.window.end)||await tx.read('synthesis_jobs',id))continue;
    await tx.write('briefing_requests',id,{...current,state:'DONE',result:'DEFERRED',reason:SUPERSEDED_REASON,supersededBy:newest.id,completedAt:now,nextAttemptAt:undefined});
    settled.push(id);
   }

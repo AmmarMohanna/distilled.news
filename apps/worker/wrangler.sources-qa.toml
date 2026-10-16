@@ -7,6 +7,11 @@ workers_dev = true
 preview_urls = false
 routes = []
 
+# Briefing selection on long-lived QA feeds measured >100 s of compute and was
+# killed at the 30 s default. Five minutes lets it finish while it is optimised.
+[limits]
+cpu_ms = 300000
+
 [vars]
 STAGING_ASSETS_PREFIX = "staging-assets/905fe696899a08e0e9a0521efed549416f3f3fe7/"
 PUBLIC_API_BASE_URL = "https://distilled-news-sources-qa.distillednews-platform.workers.dev"
