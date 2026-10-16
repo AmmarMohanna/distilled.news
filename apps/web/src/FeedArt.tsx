@@ -1,25 +1,6 @@
 import { Atom, BookOpen, Building2, Cpu, Globe2, Landmark, Music, Newspaper, Palette, Plane, Scale, Sprout, Trees, Trophy, Utensils } from "lucide-react";
 import { useEffect, useState } from "react";
-import { generateFeedSketch } from "./api";
 import { transparentSketch } from "./sketchImage";
-
-const generationAttempts = new Map<string, Promise<void>>();
-let generationQueue: Promise<void> = Promise.resolve();
-function requestMissingSketch(id: string, revision: string) {
-  const key = `${id}:${revision}`;
-  let pending = generationAttempts.get(key);
-  if (!pending) {
-    pending = generationQueue.then(() => generateFeedSketch(id));
-    generationQueue = pending.catch(() => {});
-    generationAttempts.set(key, pending);
-    // Deduplicate only in-flight work; a failed attempt must be retryable.
-    void pending.then(
-      () => { if (generationAttempts.get(key) === pending) generationAttempts.delete(key); },
-      () => { if (generationAttempts.get(key) === pending) generationAttempts.delete(key); }
-    );
-  }
-  return pending;
-}
 
 const subjects = [
   { pattern: /politic|politique|election|élection|parliament|government|diplomac|سياس|انتخاب/i, icon: Landmark },
@@ -38,7 +19,7 @@ const subjects = [
   { pattern: /world|global|international/i, icon: Globe2 }
 ];
 
-export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; canGenerate?: boolean; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string } }) {
+export function FeedArt({ kind, feed }: { kind?: string; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string } }) {
   const [image, setImage] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [failure, setFailure] = useState("");
@@ -49,8 +30,6 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let objectUrl = "";
-    let requested = false;
-    let staleImage = false;
     let retries = 0;
     let inFlight = false;
     let refreshPending = false;
@@ -59,40 +38,22 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
       timer = setTimeout(() => { timer = undefined; void check(); }, delay);
     };
     const check = async () => {
-      if (controller.signal.aborted || (objectUrl && !staleImage)) return;
+      if (controller.signal.aborted || objectUrl) return;
       if (inFlight) { refreshPending = true; return; }
       clearTimeout(timer);
       inFlight = true;
       try {
         const response = await fetch(`/api/feed/${encodeURIComponent(feed.ownerUsername!)}/${encodeURIComponent(feed.slug!)}/sketch`, { signal: controller.signal, cache: "no-store" });
         if (response.ok && response.headers.get("content-type")?.startsWith("image/")) {
-          const stale = response.headers.get("X-Sketch-Stale") === "1";
-          if (!objectUrl || !stale) {
-            const blob = await transparentSketch(await response.blob());
-            if (controller.signal.aborted) return;
-            clearTimeout(timer);
-            const previous = objectUrl;
-            objectUrl = URL.createObjectURL(blob);
-            setImage(objectUrl);
-            if (previous) URL.revokeObjectURL(previous);
-          }
-          staleImage = stale;
-          if (stale && canGenerate && feed.id && !requested && !controller.signal.aborted) {
-            requested = true;
-            void requestMissingSketch(feed.id, JSON.stringify([feed.title, feed.interestProfile]))
-              .then(() => { if (!controller.signal.aborted) schedule(0); })
-              .catch(error => {
-                if (!controller.signal.aborted) setFailure(error instanceof Error ? error.message : "Sketch generation failed.");
-              });
-          }
+          const blob = await transparentSketch(await response.blob());
+          if (controller.signal.aborted) return;
+          clearTimeout(timer);
+          objectUrl = URL.createObjectURL(blob);
+          setImage(objectUrl);
           return;
         }
-        if (response.status === 404 && canGenerate && feed.id && !requested && !controller.signal.aborted) {
-          requested = true;
-          await requestMissingSketch(feed.id, JSON.stringify([feed.title, feed.interestProfile]));
-          if (!controller.signal.aborted) schedule(0);
-        } else if (response.status === 404 && retries++ < 20 && !controller.signal.aborted) {
-          setMissing(!canGenerate);
+        if (response.status === 404 && retries++ < 20 && !controller.signal.aborted) {
+          setMissing(true);
           schedule(3000);
         } else if (!controller.signal.aborted) {
           setMissing(true);
@@ -101,15 +62,15 @@ export function FeedArt({ kind, feed, canGenerate = false }: { kind?: string; ca
         if (!controller.signal.aborted) { setMissing(true); setFailure(error instanceof Error ? error.message : "Illustration unavailable."); }
       } finally {
         inFlight = false;
-        if (refreshPending && (!objectUrl || staleImage) && !controller.signal.aborted) schedule(0);
+        if (refreshPending && !objectUrl && !controller.signal.aborted) schedule(0);
         refreshPending = false;
       }
     };
-    const refresh = () => { if ((!objectUrl || staleImage) && !controller.signal.aborted) { clearTimeout(timer); void check(); } };
+    const refresh = () => { if (!objectUrl && !controller.signal.aborted) { clearTimeout(timer); void check(); } };
     window.addEventListener("feed-sketch-updated", refresh);
     void check();
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("feed-sketch-updated", refresh); if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [feed?.ownerUsername, feed?.slug, feed?.title, feed?.interestProfile, feed?.id, canGenerate]);
+  }, [feed?.ownerUsername, feed?.slug, feed?.id]);
   // Resolve title first so incidental words in a longer profile don't replace
   // the feed's main topic. Public cards need only the public title.
   const match = subjects.find(item => item.pattern.test(feed?.title ?? ""))

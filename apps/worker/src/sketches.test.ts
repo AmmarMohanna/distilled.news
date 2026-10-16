@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { BriefingConfig } from "@distilled/core";
 import type { Env } from "./types";
-import { generateSketch, sketchFingerprint, sketchPrompt } from "./sketches";
+import { generateSketch, sketchPrompt } from "./sketches";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -9,11 +9,12 @@ it("requests FLUX.1 Schnell with JSON and saves the JPEG in R2", async () => {
   const image = btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xd9));
   const fetcher = vi.fn().mockResolvedValue(Response.json({ result: { image } }));
   const put = vi.fn().mockResolvedValue(undefined);
+  const head = vi.fn().mockResolvedValue(null);
   vi.stubGlobal("fetch", fetcher);
   const env = {
     CLOUDFLARE_IMAGE_ACCOUNT_ID: "image-account",
     CLOUDFLARE_IMAGE_API_TOKEN: "test-only-token",
-    RAW_ARCHIVE: { put }
+    RAW_ARCHIVE: { put, head }
   } as unknown as Env;
   const briefing = { id: "feed-1", title: "World politics", interestProfile: "Parliament news" } as BriefingConfig;
 
@@ -51,18 +52,13 @@ it("uses arbitrary feed details rather than hardcoded categories and stays withi
     .toBeLessThanOrEqual(2048);
 });
 
-it("changes the sketch fingerprint when the feed context changes", async () => {
-  const original = await sketchFingerprint({ title: "AI news", interestProfile: "models" });
-  expect(await sketchFingerprint({ title: "AI news", interestProfile: "research" })).not.toBe(original);
-});
 
-it("fingerprints the effective model request rather than unused description text", async () => {
-  const topic = "a".repeat(1200);
-  const briefing = { title: "Space news", interestProfile: topic };
-  const sameRenderedPrompt = { ...briefing, interestProfile: topic + " extra invisible tail" };
-  expect(sketchPrompt(briefing)).toBe(sketchPrompt(sameRenderedPrompt));
-  expect(await sketchFingerprint(briefing)).toBe(await sketchFingerprint(sameRenderedPrompt));
-
-  const altered = { ...briefing, interestProfile: "Different topic" };
-  expect(await sketchFingerprint(briefing)).not.toBe(await sketchFingerprint(altered));
+it("does not call the model or overwrite an existing feed illustration", async () => {
+  const fetcher = vi.fn();
+  vi.stubGlobal("fetch", fetcher);
+  const put = vi.fn();
+  const env = { RAW_ARCHIVE: { head: vi.fn().mockResolvedValue({ key: "existing" }), put } } as unknown as Env;
+  expect(await generateSketch(env, {id:"feed-1",title:"Changed",interestProfile:"New topic"})).toBe(true);
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(put).not.toHaveBeenCalled();
 });
