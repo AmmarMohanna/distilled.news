@@ -47,3 +47,13 @@ Source connector admission requires `SOURCE_CONNECTORS_ENABLED=true` in addition
 to the downstream switch and Cron. Google News publisher resolution is enabled.
 Bare publisher names are stored as Google News topic searches, not publisher-only
 subscriptions; the Google logo represents that configured search source.
+
+On 2026-10-16 the owner approved one nonrenewing model allowance: $1 total
+exposure, one concurrent operation, and only `openai/gpt-4.1-mini`. It expires
+on 2026-10-17 at 06:56:23.954 UTC (09:56 Beirut). The authorization was applied
+using the existing guarded `authorizeModelSpending` operation; backend logic and
+paid source-provider budgets are unchanged. Deployment does not recreate or
+renew the allowance. An API key alone does not supply model spending authority.
+
+The briefing reader uses viewport-sized story pages and compact overview pages
+on smaller screens. Full stories and source diagnostics open in dialogs.

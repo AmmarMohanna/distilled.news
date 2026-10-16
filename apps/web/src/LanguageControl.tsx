@@ -6,6 +6,16 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "Briefings": ["Bulletins", "النشرات"],
+  "Overview": ["Aperçu", "نظرة عامة"],
+  "Feed sections": ["Sections du fil", "أقسام الموجز"],
+  "Story pages": ["Pages d’actualités", "صفحات الأخبار"],
+  "Previous stories": ["Actualités précédentes", "الأخبار السابقة"],
+  "Next stories": ["Actualités suivantes", "الأخبار التالية"],
+  "Overview pages": ["Pages d’aperçu", "صفحات النظرة العامة"],
+  "Previous overview": ["Aperçu précédent", "النظرة السابقة"],
+  "Next overview": ["Aperçu suivant", "النظرة التالية"],
+  "Source articles are being collected and prepared. Briefings appear on the feed schedule.": ["Les articles sont en cours de collecte et de préparation. Les bulletins paraissent selon le calendrier du fil.", "يتم جمع مقالات المصادر وإعدادها. تظهر النشرات وفق جدول الموجز."],
   "Names and topics create Google News searches. Paste a publisher or RSS URL to follow that source directly.": ["Les noms et sujets créent des recherches Google Actualités. Collez l’URL d’un éditeur ou d’un flux RSS pour suivre cette source directement.", "تنشئ الأسماء والمواضيع عمليات بحث في أخبار Google. ألصق رابط الناشر أو رابط RSS لمتابعة ذلك المصدر مباشرة."],
   "Source collection is disabled on this deployment.": ["La collecte des sources est désactivée sur ce déploiement.", "جمع المصادر معطّل في هذا النشر."],
   "This source requires the private collection service.": ["Cette source nécessite le service privé de collecte.", "يتطلب هذا المصدر خدمة الجمع الخاصة."],

@@ -1,3 +1,4 @@
+import { BriefingPages } from "./BriefingPages";
 import { FeedDashboardSidebar } from "./FeedDashboardSidebar";
 import { SourceLogo } from "./SourceLogo";
 import { referenceDigestSummary, surfaceBriefSummary, summarySentences, normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
@@ -1450,9 +1451,9 @@ function FeedPage(props: { username: string; slug: string }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
-  const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [feedTab,setFeedTab] = useState<"latest"|"saved"|"read">("latest");
   const [feedSort,setFeedSort] = useState("newest");
+  const [readerPanel,setReaderPanel] = useState<"stories"|"overview">("stories");
   const [savedIds,setSavedIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     try { setSavedIds(new Set(JSON.parse(localStorage.getItem(`dn_saved:${props.username}:${props.slug}`) || "[]"))); } catch { setSavedIds(new Set()); }
@@ -1498,7 +1499,7 @@ function FeedPage(props: { username: string; slug: string }) {
   useEffect(() => {
     setError(""); setSummaryMessage(""); latestQuery.current = "";
     setQuery(""); setEditions([]); setExpanded(new Set()); setEditionBusyIds(new Set());
-    setEditionDetails(new Map()); setSelectedReport(null); setVisibleUnreadCount(FEED_BATCH_SIZE);
+    setEditionDetails(new Map()); setSelectedReport(null);
     visibleEditionIds.current = new Set(); setReadState({ key: feedKey, state: "loading" });
     void refresh();
     return () => { feedRequest.current++; searchRequest.current++; };
@@ -1530,12 +1531,6 @@ function FeedPage(props: { username: string; slug: string }) {
     return () => window.clearInterval(interval);
   }, []);
 
-  // A status refresh must not undo pages explicitly loaded by the reader.
-  // Reset pagination only when the search or feed navigation changes.
-  useEffect(() => {
-    setVisibleUnreadCount(FEED_BATCH_SIZE);
-  }, [props.username, props.slug, query]);
-
   async function applySearch(text: string, request: number) {
     if (!payload) return;
     const key = feedKey;
@@ -1565,13 +1560,14 @@ function FeedPage(props: { username: string; slug: string }) {
   const unreadEditions = currentEditions.filter((edition) => !readIds.has(edition.id));
   const tabEditions = feedTab === "saved" ? currentEditions.filter(item=>savedIds.has(item.id)) : feedTab === "read" ? currentEditions.filter(item=>readIds.has(item.id)) : unreadEditions;
   const sortedEditions=[...tabEditions].sort((a,b)=>(Date.parse(b.publishedAt)-Date.parse(a.publishedAt))*(feedSort==="oldest"?-1:1));
-  const visibleUnreadEditions = sortedEditions.slice(0, visibleUnreadCount);
-  const hiddenUnreadCount = Math.max(0, sortedEditions.length - visibleUnreadEditions.length);
+  const visibleUnreadEditions = sortedEditions;
   const archivedReadEditions = currentEditions.filter((edition) => readIds.has(edition.id));
   const language = uiLanguage;
   const pageDir = textDirection(language);
   const canStar = Boolean(payload);
   const sourceIssues = payload?.sourceAvailability?.some(source=>source.state === "UNAVAILABLE" || source.warning || source.collectionError) ?? false;
+  const sourceCollectionPending = payload?.sourceAvailability?.reduce((sum,source)=>sum+(source.acquisition?.pending??0),0) ?? 0;
+  const detailViewEdition = currentEditions.find(edition=>expanded.has(edition.id));
   const feedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language) : "";
   const reportEdition = selectedReport
     ? editionDetails.get(selectedReport.editionId) ?? editions.find((edition) => edition.id === selectedReport.editionId)
@@ -1617,7 +1613,7 @@ function FeedPage(props: { username: string; slug: string }) {
       return;
     }
 
-    toggleSetValue(expanded, setExpanded, edition.id);
+    setExpanded(new Set([edition.id]));
     await loadEditionDetail(edition);
   }
 
@@ -1649,7 +1645,8 @@ function FeedPage(props: { username: string; slug: string }) {
         if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
-      <div className="feed-dashboard-layout"><section className="briefing-main" aria-label={t("Published briefings")}>
+      <div className="reader-panel-switch" role="group" aria-label={t("Feed sections")}><button aria-pressed={readerPanel === "stories"} onClick={()=>setReaderPanel("stories")}>{t("Briefings")}</button><button aria-pressed={readerPanel === "overview"} onClick={()=>setReaderPanel("overview")}>{t("Overview")}</button></div>
+      <div className={`feed-dashboard-layout reader-panel-${readerPanel}`}><section className="briefing-main" aria-label={t("Published briefings")}>
       <div className="feed-tools" dir={pageDir}>
         <div className="feed-actions">
           {payload?.briefing.publicFeedEnabled && <><button type="button" onClick={() => void navigator.clipboard.writeText(window.location.origin + window.location.pathname).then(() => setSummaryMessage(t("URL copied"))).catch(() => setError(t("Could not copy URL")))}><Copy size={15}/>{t("Copy URL")}</button><button type="button" onClick={() => { const url = window.location.origin + window.location.pathname; void (navigator.share ? navigator.share({ title: payload.briefing.title, url }) : navigator.clipboard.writeText(url)).catch(() => {}); }}><Share size={15}/>{t("Share")}</button></>}
@@ -1698,6 +1695,7 @@ function FeedPage(props: { username: string; slug: string }) {
           </form>
         </div>
       </div>
+      {detailViewEdition && <Dialog className="briefing-detail-dialog" label={detailViewEdition.title} onClose={()=>setExpanded(new Set())}><div className="dialog-inner"><button className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={()=>setExpanded(new Set())}><X size={20}/></button><h2>{detailViewEdition.title}</h2><ReferenceParagraph className="briefing-full-summary" text={detailViewEdition.summary} language={language} referenceCount={Math.max(detailViewEdition.sections.length,highestReferenceNumber(detailViewEdition.summary))} onOpenReference={index=>void openEditionReport(detailViewEdition,index)}/><EditionSections edition={editionDetails.get(detailViewEdition.id) ?? detailViewEdition} surfaceSummary={detailViewEdition.summary} language={language} loading={editionBusyIds.has(detailViewEdition.id)} onOpenReport={index=>void openEditionReport(detailViewEdition,index)}/></div></Dialog>}
       {exploreOpen ? <ExploreFeedsSheet currentFeed={payload?.briefing} language={language} onClose={() => setExploreOpen(false)} /> : null}
       {reportEdition && reportSection ? (
         <ReportSheet
@@ -1707,39 +1705,35 @@ function FeedPage(props: { username: string; slug: string }) {
           onClose={() => setSelectedReport(null)}
         />
       ) : null}
-      {error ? <FeedNotice message={error} language={language} /> : null}
-      {payload && <div className="feed-selected-sources" aria-label={t("Selected sources")}>{(selectedSources?.feedId === payload.briefing.id ? selectedSources.items.map(source=>({id:source.id,title:source.title,input:source.sourceUrl || source.url || source.input || source.title})) : (payload.sourceAvailability ?? []).map(source=>({id:source.sourceId,title:source.title,input:source.title}))).map(source=><span className="feed-selected-source" key={source.id}><SourceLogo source={source.input}/><span>{source.title}</span></span>)}</div>}
+      {error ? <FeedNotice compact message={error} language={language} /> : null}
+
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
-      {payload?.sourceAvailability?.some(source=>source.state==='UNAVAILABLE'||source.warning||source.collectionError) ? <FeedNotice severity="warning" language={language} heading={t('Some sources need attention')} message={payload.sourceAvailability.filter(source=>source.state==='UNAVAILABLE'||source.warning||source.collectionError).map(source=>{
+      {payload?.sourceAvailability?.some(source=>source.state==='UNAVAILABLE'||source.warning||source.collectionError) ? <FeedNotice compact severity="warning" language={language} heading={t('Some sources need attention')} message={payload.sourceAvailability.filter(source=>source.state==='UNAVAILABLE'||source.warning||source.collectionError).map(source=>{
         const messages:string[]=[];
         if(source.state==='UNAVAILABLE')messages.push(t(source.reason==='PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED'?'Paid collection is not authorized or configured.':source.reason==='PAID_OPERATION_UNCERTAIN'?'A previous paid request needs reconciliation before collection can continue.':source.reason==='BUDGET_EXHAUSTED'?'The authorized collection budget is exhausted.':source.reason==='CONNECTORS_DISABLED'?'Source collection is disabled on this deployment.':source.reason==='PRIVATE_SERVICE_UNAVAILABLE'?'This source requires the private collection service.':source.reason==='UNSUPPORTED_SOURCE'?'This source type is not supported.':'Source collection is unavailable.'));
         if(source.warning)messages.push(`${source.acquisition?.failed??0} ${t(source.warning==='ARTICLE_AUTH_REQUIRED'?'article acquisition jobs failed with an authentication requirement.':source.warning==='ARTICLE_CHALLENGE_REQUIRED'?'article acquisition jobs were blocked by the publisher.':'article acquisition jobs failed.')}`);
         if(source.collectionError&&!['UNCERTAIN_PAID_SUBMISSION'].includes(source.collectionError))messages.push(t(source.collectionError==='RATE_LIMIT'?'Collection is waiting for the provider rate limit.':source.collectionError==='TRANSIENT'?'Collection encountered a temporary failure and is retrying.':'The latest collection attempt failed.'));
         return `${source.title}: ${messages.join(' ')}`;
       }).join(' ')} /> : null}
-      {payload?.publicationState === 'quiet' && !sourceIssues && (payload.editions.length > 0 || payload.sourceAvailability?.some(source => (source.acquisition?.completed ?? 0) > 0)) ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
+      {payload?.publicationState === 'quiet' && !sourceIssues && !sourceCollectionPending && (payload.editions.length > 0 || payload.sourceAvailability?.some(source => (source.acquisition?.completed ?? 0) > 0)) ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
+      {sourceCollectionPending > 0 && !sourceIssues && payload?.publicationState !== "checking" && <p className="feed-status-message source-pending" role="status">{t("Source articles are being collected and prepared. Briefings appear on the feed schedule.")}</p>}
       {payload?.publicationState === 'checking' ? <FeedProcessingProgress progress={payload.publicationProgress} language={language}/> : null}
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
           <bdi dir={pageDir}>{summaryMessage}</bdi>
         </p>
       ) : null}
-      {feedStatusMessage ? (
-        <p className="muted feed-status-message" lang={language} dir={pageDir}>
-          <bdi dir={pageDir}>{feedStatusMessage}</bdi>
-        </p>
-      ) : null}
       {searchLoading && !error && currentEditions.length === 0 ? <p className="muted feed-loading-message" role="status">{loadingFeedLabel(language)}</p> : null}
-      <div className="briefing-list-toolbar"><div className="briefing-tabs" role="tablist" aria-label={t("Briefing views")}>{(["latest","saved","read"] as const).map(tab=><button key={tab} role="tab" aria-selected={feedTab===tab} onClick={()=>{setFeedTab(tab);setVisibleUnreadCount(FEED_BATCH_SIZE);}}>{t(tab==="latest"?"Latest":tab==="saved"?"Saved":"Read")}</button>)}</div><label className="briefing-sort"><span>{t("Sort by")}</span><select aria-label={t("Sort by")} value={feedSort} onChange={event=>setFeedSort(event.target.value)}><option value="newest">{t("Most recent")}</option><option value="oldest">{t("Oldest first")}</option></select></label></div>
-      <div className="news-line">
+      <div className="briefing-list-toolbar"><div className="briefing-tabs" role="tablist" aria-label={t("Briefing views")}>{(["latest","saved","read"] as const).map(tab=><button key={tab} role="tab" aria-selected={feedTab===tab} onClick={()=>{setFeedTab(tab);}}>{t(tab==="latest"?"Latest":tab==="saved"?"Saved":"Read")}</button>)}</div><label className="briefing-sort"><span>{t("Sort by")}</span><select aria-label={t("Sort by")} value={feedSort} onChange={event=>setFeedSort(event.target.value)}><option value="newest">{t("Most recent")}</option><option value="oldest">{t("Oldest first")}</option></select></label></div>
+      <BriefingPages resetKey={`${feedKey}:${feedTab}:${feedSort}:${query}`}>
         {visibleUnreadEditions.map((edition) => (
           <FeedEditionRow
             key={edition.id}
             edition={edition}
             detailEdition={editionDetails.get(edition.id) ?? (edition.sections.length > 0 ? edition : undefined)}
             language={language}
-            isExpanded={expanded.has(edition.id)}
+            isExpanded={false}
             isLoading={editionBusyIds.has(edition.id)}
             isRead={readIds.has(edition.id)}
             isSaved={savedIds.has(edition.id)}
@@ -1749,14 +1743,6 @@ function FeedPage(props: { username: string; slug: string }) {
             onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
           />
         ))}
-        {hiddenUnreadCount > 0 ? (
-          <div className="load-more-row">
-            <button type="button" title={loadMoreLabel(language)} onClick={() => setVisibleUnreadCount((count) => count + FEED_BATCH_SIZE)}>
-              {loadMoreLabel(language)}
-            </button>
-            <span className="muted">{moreCountLabel(hiddenUnreadCount, language)}</span>
-          </div>
-        ) : null}
         {payload && !initialLoading && !searchLoading && tabEditions.length === 0 && !error ? (
           <div className="empty-state feed-empty-state">
             {archivedReadEditions.length === 0 && <Newspaper className="feed-empty-icon" size={42} strokeWidth={1.5} aria-hidden/>}
@@ -1766,31 +1752,8 @@ function FeedPage(props: { username: string; slug: string }) {
             </p>
           </div>
         ) : null}
-      </div>
-      {feedTab === "latest" && archivedReadEditions.length > 0 ? (
-        <details className="section read-section">
-          <summary>{readSectionLabel(archivedReadEditions.length, language)}</summary>
-          <div className="news-line news-line-read">
-            {archivedReadEditions.map((edition) => (
-              <FeedEditionRow
-                key={edition.id}
-                edition={edition}
-                detailEdition={editionDetails.get(edition.id) ?? (edition.sections.length > 0 ? edition : undefined)}
-                language={language}
-                isExpanded={expanded.has(edition.id)}
-                isLoading={editionBusyIds.has(edition.id)}
-                isRead={true}
-                isSaved={savedIds.has(edition.id)}
-                onToggleSaved={()=>toggleSaved(edition.id)}
-                onToggleExpanded={() => void toggleEditionExpanded(edition)}
-                onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, false)}
-                onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
-              />
-            ))}
-          </div>
-        </details>
-      ) : null}
-      </section>{payload && <FeedDashboardSidebar editions={payload.editions} readIds={readIds} savedIds={savedIds} paused={payload.briefing.paused} onOpen={edition=>{setFeedTab(readIds.has(edition.id)?"read":"latest");setVisibleUnreadCount(Math.max(FEED_BATCH_SIZE,currentEditions.length));void toggleEditionExpanded(edition);}}/>}</div>
+      </BriefingPages>
+      </section>{payload && <FeedDashboardSidebar sourceContent={payload && ((selectedSources?.feedId === payload.briefing.id ? selectedSources.items.length : payload.sourceAvailability?.length) ?? 0) > 0 && <div className="feed-selected-sources" aria-label={t("Selected sources")}>{(selectedSources?.feedId === payload.briefing.id ? selectedSources.items.map(source=>({id:source.id,title:source.title,input:source.sourceUrl || source.url || source.input || source.title})) : (payload.sourceAvailability ?? []).map(source=>({id:source.sourceId,title:source.title,input:source.title}))).map(source=><span className="feed-selected-source" key={source.id}><SourceLogo source={source.input}/><span>{source.title}</span></span>)}</div>} statusText={feedStatusMessage} editions={payload.editions} readIds={readIds} savedIds={savedIds} paused={payload.briefing.paused} onOpen={edition=>{setFeedTab(readIds.has(edition.id)?"read":"latest");setReaderPanel("stories");void toggleEditionExpanded(edition);}}/>}</div>
     </Shell>
   );
 }

@@ -4,11 +4,12 @@ for(const width of [390,1440])test(`feed reading dashboard works at ${width}px`,
  const feed={id:'reference',ownerUsername:'reader',slug:'news',title:'Personal Briefing',publicFeedEnabled:true,paused:false,language:'en',briefingCadence:'daily',stars:0};
  const editions=Array.from({length:6},(_,i)=>({id:String(i),title:['Lebanon economic reform','Technology infrastructure expands','Climate and energy investment'][i%3]+' '+i,summary:'A verified development with supporting evidence.',publishedAt:new Date(Date.now()-i*3600000).toISOString(),sections:[]}));
  await page.route('**/api/**',route=>{const path=new URL(route.request().url()).pathname;return route.fulfill({json:path==='/api/feed/reader/news'?{briefing:feed,editions,viewerHasStarred:false}:path==='/api/auth/session'?{authenticated:false}:path.endsWith('/editions/0')?{edition:editions[0]}:{feeds:[]}})});
- await page.goto('/reader/news/');await expect(page.locator('.briefing-story-title')).toHaveCount(6);
+ await page.goto('/reader/news/');await expect(page.locator('.briefing-story-title').first()).toBeVisible();
+ if(width<1000)await page.getByRole('button',{name:'Overview',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Feed Summary',exact:true})).toBeVisible();
+ if(width<1000)await page.getByRole('button',{name:'Briefings',exact:true}).click();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
- const main=(await page.locator('.briefing-main').boundingBox())!,side=(await page.locator('.briefing-sidebar').boundingBox())!;
- if(width>1000)expect(side.x).toBeGreaterThan(main.x+main.width);else expect(side.y).toBeGreaterThan(main.y);
+ if(width>1000){const main=(await page.locator('.briefing-main').boundingBox())!,side=(await page.locator('.briefing-sidebar').boundingBox())!;expect(side.x).toBeGreaterThan(main.x+main.width);}
  await page.screenshot({path:info.outputPath("before.png")});
  await page.getByRole('button',{name:'Save '+editions[0].title,exact:true}).click();
  await page.getByRole('tab',{name:'Saved',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(1);

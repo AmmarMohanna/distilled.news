@@ -13,6 +13,9 @@ test('saved mixed sources appear in the feed with publisher logos and survive re
     return route.fulfill({json:path==='/api/auth/session'?{authenticated:true,account:{id:'owner',username:'joud',role:'user'}}:path==='/api/me/briefings'?{briefings:[feed]}:path==='/api/me/sources'?{sources:sources.map((input,i)=>({id:String(i),briefingId:feed.id,title:new URL(input).hostname,input,sourceUrl:input,enabled:true}))}:path==='/api/feed/joud/mixed'?{briefing:feed,editions:[],viewerHasStarred:false}:{feeds:[]}});
   });
   await page.goto('/joud/mixed/');
+  await expect(page.getByRole('button',{name:'Edit feed settings',exact:true})).toBeVisible();
+  if(await page.getByRole('button',{name:'Overview',exact:true}).isVisible())await page.getByRole('button',{name:'Overview',exact:true}).click();
+  if(await page.locator('.feed-selected-source').count()===0)await page.getByRole('button',{name:'Next overview',exact:true}).click();
   await expect(page.locator('.feed-selected-source')).toHaveCount(1);
   await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
   const dialog=page.getByRole('dialog',{name:'Edit feed settings'});
@@ -26,6 +29,9 @@ test('saved mixed sources appear in the feed with publisher logos and survive re
   await expect(page.locator('.feed-selected-source .source-logo').first()).toHaveAttribute('src',/domain=mtv.com.lb/);
   await expect(page.locator('.feed-selected-source .source-logo').last()).toHaveAttribute('src',/domain=bbc.com/);
   await page.reload();
+  await expect(page.getByRole('button',{name:'Edit feed settings',exact:true})).toBeVisible();
+  if(await page.getByRole('button',{name:'Overview',exact:true}).isVisible())await page.getByRole('button',{name:'Overview',exact:true}).click();
+  if(await page.locator('.feed-selected-source').count()===0)await page.getByRole('button',{name:'Next overview',exact:true}).click();
   await expect(page.locator('.feed-selected-source')).toHaveCount(2);
   await page.getByRole('button',{name:'Edit feed settings',exact:true}).click();
   await expect(page.getByRole('dialog').locator('.selected-source-row')).toHaveCount(2);

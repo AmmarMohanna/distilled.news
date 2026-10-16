@@ -1,16 +1,21 @@
 import type {PublicationProgress} from './types';
 import React from 'react';
+import {Dialog} from './Dialog';
 type Language='en'|'ar'|'fr';
 const text={
  en:{unavailable:'feed unavailable',correction:'Correction pending',delayed:'Briefing delayed',pending:'A correction to an earlier briefing is pending.',available:'Published briefings remain available.',failed:'The latest briefing could not be completed.'},
  ar:{unavailable:'الموجز غير متاح',correction:'تصحيح قيد الانتظار',delayed:'الموجز متأخر',pending:'هناك تصحيح لموجز سابق قيد الانتظار.',available:'لا تزال الموجزات المنشورة متاحة.',failed:'تعذّر إكمال الموجز الأخير.'},
  fr:{unavailable:'fil indisponible',correction:'Correction en attente',delayed:'Brief en retard',pending:'Une correction à un brief précédent est en attente.',available:'Les briefs publiés restent disponibles.',failed:'Le dernier brief n’a pas pu être terminé.'}
 };
-export function FeedNotice(props:{message:string;language:Language;heading?:string;severity?:'error'|'warning'}){
+export function FeedNotice(props:{message:string;language:Language;heading?:string;severity?:'error'|'warning';compact?:boolean}){
+ const [open,setOpen]=React.useState(false);
  const warning=props.severity==='warning';
- return <section className="section notice" role={warning?'status':'alert'} data-severity={warning?'warning':'error'}>
+ const details=props.language==='ar'?'التفاصيل':props.language==='fr'?'Détails':'Details';
+ const close=props.language==='ar'?'إغلاق':props.language==='fr'?'Fermer':'Close';
+ return <><section className={`section notice ${props.compact?'compact-notice':''}`} role={warning?'status':'alert'} data-severity={warning?'warning':'error'}>
   <h2>{props.heading??text[props.language].unavailable}</h2><p>{props.message}</p>
- </section>;
+  {props.compact&&<button onClick={()=>setOpen(true)}>{details}</button>}
+ </section>{open&&<Dialog label={props.heading??text[props.language].unavailable} onClose={()=>setOpen(false)}><div className="dialog-inner"><h2>{props.heading??text[props.language].unavailable}</h2><p>{props.message}</p><button onClick={()=>setOpen(false)}>{close}</button></div></Dialog>}</>;
 }
 export function FeedPublicationNotice(props:{publicationState?:string;hasPublishedEditions:boolean;language:Language}){
  const labels=text[props.language];

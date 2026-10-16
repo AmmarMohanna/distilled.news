@@ -16,15 +16,22 @@ test('initial errors never masquerade as empty feeds or keep claiming loading',a
  await page.goto('/reader/news/');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();await expect(page.locator('.feed-empty-state')).toHaveCount(0);await expect(page.locator('.feed-loading-message')).toHaveCount(0);
  await page.getByPlaceholder('search published briefing').press('Enter');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();
 });
-test('refresh preserves read status, loaded pages and expanded citations while pending and after success',async({page})=>{
+test('refresh preserves the selected page, read status and open citations',async({page})=>{
  let delay=false;const pending=gate();const editions=Array.from({length:25},(_,i)=>edition(String(i+1)));
  await mock(page,async route=>{if(delay)await pending.promise;await route.fulfill({json:{briefing:feed,editions}})});
- await page.goto('/reader/news/');const unread=page.locator('.news-line:not(.news-line-read) .news-item');await expect(unread).toHaveCount(20);
- await unread.first().getByRole('button',{name:/mark .* read/i}).click();await page.getByRole('button',{name:'load more',exact:true}).click();await expect(unread).toHaveCount(24);
- await unread.first().getByRole('button',{name:/show /i}).click();await expect(page.locator('.reference-digest-row')).toHaveCount(1);
- delay=true;await page.getByRole('button',{name:'refresh',exact:true}).click();await expect(unread).toHaveCount(24);await expect(page.locator('.reference-digest-row')).toHaveCount(1);
- const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await expect(page.locator('.reference-digest-row')).toHaveCount(1);await expect(page.locator('.news-line-read .news-item')).toHaveCount(1);
+ await page.goto('/reader/news/');const unread=page.locator('.news-line .news-item');await expect(unread.first()).toBeVisible();
+ await unread.first().getByRole('button',{name:/mark .* read/i}).click();
+ await page.getByRole('button',{name:'Next stories',exact:true}).click();
+ const currentPage=await page.locator('.briefing-pages .briefing-pagination span').textContent(),currentTitle=await page.locator('.briefing-story-title').first().textContent();
+ await unread.first().getByRole('button',{name:/show /i}).click();await expect(page.locator('.briefing-detail-dialog .reference-digest-row')).toHaveCount(1);
+ delay=true;const requested=page.waitForRequest(r=>new URL(r.url()).pathname===path);await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await requested;
+ await expect(page.locator('.briefing-detail-dialog .reference-digest-row')).toHaveCount(1);
+ const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;
+ await expect(page.locator('.briefing-pages .briefing-pagination span')).toHaveText(currentPage!);await expect(page.locator('.briefing-story-title').first()).toHaveText(currentTitle!);
+ await expect(page.locator('.briefing-detail-dialog .reference-digest-row')).toHaveCount(1);
+ await page.getByRole('button',{name:'Close dialog',exact:true}).click();await page.getByRole('tab',{name:'Read',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(1);
 });
+
 test('a failed refresh preserves previously published editions',async({page})=>{
  let failed=false;await mock(page,route=>failed?route.fulfill({status:503,json:{error:'Refresh unavailable.'}}):route.fulfill({json:{briefing:feed,editions:[edition('one')]}}));
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);failed=true;await page.getByRole('button',{name:'refresh',exact:true}).click();await expect(page.getByText('Refresh unavailable.')).toBeVisible();await expect(page.locator('.news-item')).toHaveCount(1);await expect(page.locator('.feed-empty-state')).toHaveCount(0);
@@ -71,7 +78,7 @@ test('a late detail response cannot reopen a withdrawn edition after refresh',as
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
  const detail=page.waitForRequest(r=>new URL(r.url()).pathname.endsWith('/editions/one'));await page.getByRole('button',{name:/show /i}).click();await detail;
- withdrawn=true;await page.getByRole('button',{name:'refresh',exact:true}).click();await expect(page.locator('.news-item')).toHaveCount(0);
+ withdrawn=true;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect(page.locator('.news-item')).toHaveCount(0);
  const finished=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/editions/one'));pending.release();await finished;
  await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.locator('.reference-digest-row')).toHaveCount(0);
 });
