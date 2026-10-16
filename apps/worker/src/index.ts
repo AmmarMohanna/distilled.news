@@ -3,7 +3,7 @@ import {recordV1QueueOutcome} from './v1-queue-dispatch';
 import {continueFeedReview} from './connector-review-continuation';
 import {productRuntimeEnv} from './product-feeds';
 import { sendBriefingNotifications } from './push';
-import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
+import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,deferConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
 import {expireSharedPublicFetches} from './connector-public-cache';
 import {dispatchTelegramLane} from './connector-telegram-lane';
 import {withIntelligenceTurn,isIntelligenceTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
@@ -102,9 +102,10 @@ export default {
         message.ack();
       } catch (error) {
         if(error instanceof IntelligenceTurnBusy){
-          // Admission contention spends no canonical attempt and must not flood
-          // the DLQ. The durable job and expired dispatch remain Cron recovery.
-          if(message.attempts<MAX_QUEUE_ATTEMPTS)message.retry({delaySeconds:30});
+          // Capacity waits retain canonical identity and rotate only their
+          // transport generation. Cron is crash recovery, not the normal wakeup.
+          if(await deferConnectorDownstream(env,body as DistilledQueueMessage,delivery.token))message.ack();
+          else if(message.attempts<MAX_QUEUE_ATTEMPTS)message.retry({delaySeconds:1});
           else {if(isRecord(body))await recordV1QueueOutcome(env,message.id,body,message.attempts,'FEED_TURN_BUSY');message.ack();}
           continue;
         }

@@ -194,6 +194,17 @@ export async function recordConnectorQueueFailure(env:Env,id:string,body:Connect
  .bind(id,body.type,body.feedId,body.type==='connector_poll'?body.jobId:null,attempts,'QUEUE_DELIVERY_FAILED',new Date().toISOString()).run();
 }
 
+/** A capacity wait is not a failed delivery. Rotate only the matching transport
+ * generation and send its stable work identity with a short delay, so native
+ * retry exhaustion cannot impose the two-minute crash-recovery timeout. */
+export async function deferConnectorDownstream(env:Env,body:DistilledQueueMessage,dispatchToken?:string):Promise<boolean>{
+ if(!dispatchToken||!body.type?.startsWith('v1_'))return false;
+ const row=await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=? AND token=? AND available_ms>0 RETURNING id').bind(body.type,await sha256(JSON.stringify(body)),dispatchToken).first();
+ if(row)await coalescedProcessingQueue(env).send(body,{delaySeconds:1});
+ // A stale delivery has no authority to release or resend a replacement.
+ return true;
+}
+
 export async function completeConnectorDownstream(env:Env,body:DistilledQueueMessage,dispatchToken?:string){
  if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay'||!dispatchToken)return;
  // A successful old delivery or a legacy tokenless message cannot release a

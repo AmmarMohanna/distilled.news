@@ -17,12 +17,12 @@ beforeEach(async()=>{
  await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind('turn-job','turn-source',JSON.stringify({id:'turn-job',kind:'REASSESS',state:'PENDING',attempts:0})).run();
 });
 afterEach(async()=>{vi.useRealTimers();vi.restoreAllMocks();await ctx.dispose()});
-it('one Feed coordinates review and acquisition while another Feed remains independent',async()=>{
+it('one Feed serializes canonical turns while acquisition network work and another Feed remain independent',async()=>{
  let release!:()=>void,started!:()=>void;const entered=new Promise<void>(resolve=>{started=resolve}),run=vi.fn(async()=>new Promise<void>(resolve=>{release=resolve;started()}));
  const first=withIntelligenceTurn(env,{type:'v1_reassess',jobId:'turn-job'},run);await entered;
  const blocked=vi.fn();await expect(withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},blocked)).rejects.toThrow('INTELLIGENCE_TURN_BUSY');expect(blocked).not.toHaveBeenCalled();
  expect(await withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-2',window},async()=> 'other')).toBe('other');
- await expect(withIntelligenceTurn(env,{type:'v1_acquisition',jobId:'turn-job'},async()=> 'acquire')).rejects.toThrow('INTELLIGENCE_TURN_BUSY');
+ expect(await withIntelligenceTurn(env,{type:'v1_acquisition',jobId:'turn-job'},async()=> 'download')).toBe('download');
  await expect(withFeedWriteTurn(env,'turn-1',async()=> 'handoff')).rejects.toThrow('INTELLIGENCE_TURN_BUSY');
  release();await first;
  await ctx.db.prepare("DELETE FROM connector_feed_turn_waiters WHERE feed_id='turn-1'").run();
@@ -30,12 +30,19 @@ it('one Feed coordinates review and acquisition while another Feed remains indep
  expect(await ctx.db.prepare("SELECT json FROM v1_jobs WHERE id='turn-job'").first()).toEqual({json:JSON.stringify({id:'turn-job',kind:'REASSESS',state:'PENDING',attempts:0})});
 });
 it('durable FIFO prevents new review or collection work jumping an older waiter',async()=>{
- await ctx.db.prepare('INSERT INTO connector_feed_turn_waiters VALUES(?,?,?,?)').bind('turn-1','handoff:old',Date.now()-1000,Date.now()+60000).run();
+ await ctx.db.prepare('INSERT INTO connector_feed_turn_waiters VALUES(?,?,?,?)').bind('turn-1','handoff:old',Date.now()-1000,Date.now()+300000).run();
  const run=vi.fn();await expect(withFeedWriteTurn(env,'turn-1',run,'review:new')).rejects.toThrow('INTELLIGENCE_TURN_BUSY');expect(run).not.toHaveBeenCalled();
  expect(await withFeedWriteTurn(env,'turn-1',async()=> 'collected','handoff:old')).toBe('collected');
  await expect(withFeedWriteTurn(env,'turn-1',run,'handoff:new')).rejects.toThrow('INTELLIGENCE_TURN_BUSY');
  expect(await withFeedWriteTurn(env,'turn-1',async()=> 'reviewed','review:new')).toBe('reviewed');
  expect(await withFeedWriteTurn(env,'turn-1',async()=> 'next','handoff:new')).toBe('next');
+});
+it('a sleeping older delivery does not reserve an idle turn and keeps its age when it returns',async()=>{
+ const old=Date.now()-60000;
+ await ctx.db.prepare('INSERT INTO connector_feed_turn_waiters VALUES(?,?,?,?)').bind('turn-1','sleeping',old,Date.now()+240000).run();
+ expect(await withFeedWriteTurn(env,'turn-1',async()=> 'ready','ready')).toBe('ready');
+ expect(await ctx.db.prepare("SELECT queued_at FROM connector_feed_turn_waiters WHERE work_id='sleeping'").first()).toEqual({queued_at:old});
+ expect(await withFeedWriteTurn(env,'turn-1',async()=> 'returned','sleeping')).toBe('returned');
 });
 it('expired abandoned waiters cannot strand a feed and nested work inherits its turn',async()=>{
  await ctx.db.prepare('INSERT INTO connector_feed_turn_waiters VALUES(?,?,?,?)').bind('turn-1','abandoned',Date.now()-600000,Date.now()-1).run();

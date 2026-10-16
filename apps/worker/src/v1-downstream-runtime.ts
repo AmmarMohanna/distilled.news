@@ -67,7 +67,7 @@ export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:
 }
 const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();
 export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetch=fetch) {
- const store=new V1IntakeStore(env.DB),job=await store.read<{feedSourceId:string}>('jobs',id);
+ const store=new V1IntakeStore(env.DB),job=await store.read<{feedSourceId:string;feedId:string}>('jobs',id);
  if(!job || env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,job.feedSourceId)) return 'SKIPPED' as const;
  await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
  const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
@@ -94,7 +94,10 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
   if(!payload.success || payload.data.sourceObservationId!==claim.job.observationId) throw new AcquisitionFailure('INVALID_RESULT',false);
   const {sourceObservationId:_,...content}=payload.data;return content;
  }});
- return runAcquisitionJob(store,id,policy,router);
+ return runAcquisitionJob(store,id,policy,router,{
+  run:complete=>withFeedWriteTurn(env,job.value.feedId,complete,JSON.stringify({type:'v1_acquisition',jobId:id})),
+  isBusy:error=>error instanceof IntelligenceTurnBusy
+ });
 }
 /** Existing queue transport; bounded relay recovers crashes, lost sends and delayed transient retries. */
 export async function dispatchV1Acquisitions(env:Env,now=new Date()):Promise<number> {

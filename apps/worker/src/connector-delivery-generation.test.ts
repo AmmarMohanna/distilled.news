@@ -1,6 +1,6 @@
 import {beforeAll,afterAll,expect,it} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
-import {coalescedProcessingQueue,completeConnectorDownstream,decodeConnectorDelivery,processConnectorMessage} from './connector-scheduling';
+import {coalescedProcessingQueue,completeConnectorDownstream,deferConnectorDownstream,decodeConnectorDelivery,processConnectorMessage} from './connector-scheduling';
 import {sha256} from '@distilled/contracts';
 import type {DistilledQueueMessage,Env} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env;
@@ -51,4 +51,16 @@ it('collection feed and poll tokens remain independent of downstream transport m
  const feed={type:'connector_feed' as const,feedId:'delivery-feed',token:'feed-claim'};
  const poll={type:'connector_poll' as const,feedId:'delivery-feed',jobId:'poll',table:'rss' as const,token:'poll-claim'};
  expect(decodeConnectorDelivery(feed)).toEqual({body:feed});expect(decodeConnectorDelivery(poll)).toEqual({body:poll});
+});
+it('capacity waits immediately requeue the same work without releasing a replacement generation',async()=>{
+ const body={type:'v1_reassess' as const,jobId:'capacity-test'};
+ await coalescedProcessingQueue(env).send(body);const old=deliveries.at(-1)!;
+ const count=deliveries.length;
+ expect(await deferConnectorDownstream(env,body,old._connectorDispatchToken)).toBe(true);
+ expect(deliveries).toHaveLength(count+1);
+ const next=deliveries.at(-1)!;expect(decodeConnectorDelivery(next).body).toEqual(body);
+ expect(next._connectorDispatchToken).not.toBe(old._connectorDispatchToken);
+ await deferConnectorDownstream(env,body,old._connectorDispatchToken);
+ expect(deliveries).toHaveLength(count+1);
+ expect(await deferConnectorDownstream(env,body)).toBe(false);
 });

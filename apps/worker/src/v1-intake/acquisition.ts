@@ -49,12 +49,30 @@ export async function completeAcquisition(store:V1IntakeStore,claim:AcquisitionC
  if(!row || row.feedSourceId!==claim.job.feedSourceId) throw new HandoffError('INVALID_REQUEST');
  return acceptAcquiredContent(store,row.value,policy,{jobId:claim.job.id,token:claim.token});
 }
-export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:IntakePolicy,execute:(claim:AcquisitionClaim)=>Promise<AcceptedAcquiredContent>):Promise<'DONE'|'SKIPPED'|'RETRY'|'FAILED'> {
- const claim=await claimAcquisition(store,id,policy.now());if(!claim) return 'SKIPPED';
+export interface AcquisitionCompletionAdmission {
+ run<T>(complete:()=>Promise<T>):Promise<T>;
+ isBusy(error:unknown):boolean;
+}
+export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:IntakePolicy,execute:(claim:AcquisitionClaim)=>Promise<AcceptedAcquiredContent>,admission?:AcquisitionCompletionAdmission):Promise<'DONE'|'SKIPPED'|'RETRY'|'FAILED'> {
+ const claimWork=()=>claimAcquisition(store,id,policy.now());
+ const claim=admission?await admission.run(claimWork):await claimWork();if(!claim) return 'SKIPPED';
+ const retained=!!await store.read('acquisition_results',id);
  try {
-  if(!await store.read('acquisition_results',id)) await persistAcquisitionResult(store,claim,await execute(claim),policy.now());
-  await completeAcquisition(store,claim,policy);return 'DONE';
+  if(!retained) await persistAcquisitionResult(store,claim,await execute(claim),policy.now());
+  const complete=()=>completeAcquisition(store,claim,policy);
+  if(admission)await admission.run(complete);else await complete();
+  return 'DONE';
  } catch(error) {
+  if(admission?.isBusy(error)){
+   // Result is already durable. Release only this acquisition claim, so the
+   // next delivery can promote it without waiting 90s or refetching. A busy
+   // Feed consumes neither a provider attempt nor a saved-result recovery.
+   await transact(store,claim.job.feedSourceId,async tx=>{
+    const job=await requireAcquisitionLease(tx,id,claim.token,policy.now());
+    tx.write('jobs',id,{...job,state:'PENDING',resumeAttempts:Math.max(0,(job.resumeAttempts??0)-(retained?1:0)),leaseToken:undefined,leaseUntil:undefined},claim.input.observation.sourceItemKey);
+   });
+   throw error;
+  }
   // Unexpected crashes/DB outages leave the lease recoverable. Only adapter-classified failures change retry policy.
   let failure=error instanceof AcquisitionFailure?error:undefined;
   if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') failure=new AcquisitionFailure(error.code==='SCOPE_DENIED'?'APPROVAL_REVOKED':error.code==='IDEMPOTENCY_CONFLICT'?'IDEMPOTENCY_CONFLICT':'INVALID_RESULT',false);

@@ -2,6 +2,7 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import {HandoffError} from '@distilled/contracts';
 import type {Env,DistilledQueueMessage} from './types';
 const LEASE_MS=120000;
+const WAITER_TTL_MS=300000,READY_MS=1000;
 export class IntelligenceTurnBusy extends Error {constructor(){super('INTELLIGENCE_TURN_BUSY')}}
 export class IntelligenceTurnLost extends HandoffError {constructor(){super('TEMPORARY_UNAVAILABLE')}}
 interface IntelligenceTurn {db:D1Database;feedId:string;token:string}
@@ -22,30 +23,35 @@ export function isIntelligenceTurn(body:DistilledQueueMessage):boolean{return ['
 
 /** Admission isolates unrelated feeds while avoiding competing reviews of one
  * Feed. It grants no evidence/model authority and never replaces canonical CAS.
- * Busy deliveries retry with backoff; transport exhaustion leaves the durable
- * job/request discoverable without consuming a canonical processing attempt. */
+ * Busy deliveries rotate their fenced transport generation without consuming
+ * a canonical processing attempt; Cron recovers actual lost sends/crashes. */
 export async function withIntelligenceTurn<T>(env:Env,body:DistilledQueueMessage,run:()=>Promise<T>):Promise<T>{
  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true'||!isIntelligenceTurn(body))return run();
  let feedId='feedId' in body?String(body.feedId):undefined;
  if('jobId' in body){const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();feedId=row?.feed_id;}
  if(!feedId)throw new HandoffError('SCOPE_DENIED');
+ // Acquisition owns an observation lease. Network I/O and durable result
+ // storage must not hold the Feed turn; only evidence promotion takes it.
+ if(body.type==='v1_acquisition')return run();
  return withFeedWriteTurn(env,feedId,run,JSON.stringify(body));
 }
-/** Intake/acquisition and intelligence share the same canonical snapshot fence.
- * Upstream collection stays outside this turn; only its handoff takes admission.
+/** Intake and intelligence share the same canonical snapshot fence.
+ * Upstream collection/download stays outside this turn; handoff, acquisition
+ * claim and evidence promotion take admission.
  * Independent feeds remain concurrent. A nested same-feed operation inherits it. */
 export async function withFeedWriteTurn<T>(env:Env,feedId:string,run:()=>Promise<T>,workId='handoff'):Promise<T>{
  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true')return run();
  const current=intelligenceTurns.getStore();
  if(current){if(current.db!==env.DB||current.feedId!==feedId)throw new IntelligenceTurnLost();await assertIntelligenceTurn(env.DB,feedId);return run();}
  const token=crypto.randomUUID(),at=Date.now();
- // Stable work identity retains FIFO order across queue deliveries. Dead
- // waiters expire so a lost delivery cannot permanently block its feed.
+ // FIFO applies among recently ready deliveries. A waiter whose message is
+ // sleeping/backed off must not reserve an otherwise idle Feed. Retain its
+ // original age for priority when it returns, rather than resetting its place.
  await env.DB.prepare(`INSERT INTO connector_feed_turn_waiters(feed_id,work_id,queued_at,expires_at) VALUES(?,?,?,?)
- ON CONFLICT(feed_id,work_id) DO UPDATE SET queued_at=CASE WHEN expires_at<=? THEN excluded.queued_at ELSE queued_at END,expires_at=excluded.expires_at`).bind(feedId,workId,at,at+300000,at).run();
+ ON CONFLICT(feed_id,work_id) DO UPDATE SET queued_at=CASE WHEN expires_at<=? THEN excluded.queued_at ELSE queued_at END,expires_at=excluded.expires_at`).bind(feedId,workId,at,at+WAITER_TTL_MS,at).run();
  const claim=await env.DB.prepare(`INSERT INTO connector_intelligence_turns(feed_id,token,lease_until)
  SELECT ?,?,? WHERE (SELECT work_id FROM connector_feed_turn_waiters WHERE feed_id=? AND expires_at>? ORDER BY queued_at,work_id LIMIT 1)=?
- ON CONFLICT(feed_id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until WHERE lease_until<=? RETURNING feed_id`).bind(feedId,token,at+LEASE_MS,feedId,at,workId,at).first();
+ ON CONFLICT(feed_id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until WHERE lease_until<=? RETURNING feed_id`).bind(feedId,token,at+LEASE_MS,feedId,at+WAITER_TTL_MS-READY_MS,workId,at).first();
  if(!claim)throw new IntelligenceTurnBusy();
  let lost=false,renewing:Promise<void>|undefined;
  const timer=setInterval(()=>{if(lost||renewing)return;renewing=(async()=>{try{const row=await env.DB.prepare('UPDATE connector_intelligence_turns SET lease_until=? WHERE feed_id=? AND token=? AND lease_until>? RETURNING feed_id').bind(Date.now()+LEASE_MS,feedId,token,Date.now()).first();if(!row)lost=true;}catch{lost=true;}})().finally(()=>{renewing=undefined});},LEASE_MS/3);
