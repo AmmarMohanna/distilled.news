@@ -1429,15 +1429,16 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .collapsible-navigation .sidebar-brand { display: flex; min-height: 44px; padding: 0; min-width: 0; }
   :root.apple-ui.apple-ui .collapsible-navigation .sidebar-brand .distilled-logo-symbol { display: none; }
   :root.apple-ui.apple-ui .collapsible-navigation .sidebar-brand .distilled-logo-wordmark { font-size: 20px; letter-spacing: -1px; }
-  :root.apple-ui.apple-ui .collapsible-navigation .sidebar-toggle { display: grid; place-items: center; flex: 0 0 36px; width: 36px; min-height: 44px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--muted); box-shadow: none; }
-  :root.apple-ui.apple-ui .collapsible-navigation .sidebar-toggle:hover { background: var(--surface-quiet); color: var(--text); }
+  :root.apple-ui.apple-ui .collapsible-navigation .sidebar-toggle { display: grid; place-items: center; justify-content: center; flex: 0 0 36px; width: 36px; min-height: 44px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--muted); box-shadow: none; }
+  :root.apple-ui.apple-ui .collapsible-navigation .sidebar-toggle:hover { background: transparent; color: var(--text); }
   :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed { width: 72px; padding-inline: 10px; }
   :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed .sidebar-top { inset-inline: 14px; }
   :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed .sidebar-brand { width: 44px; justify-content: center; }
   :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed .sidebar-brand .distilled-logo-symbol { display: block; width: 36px; }
   :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed .sidebar-brand .distilled-logo-wordmark { display: none; }
   :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed .sidebar-toggle { position: absolute; inset: 0; width: 44px; opacity: 0; }
-  :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed .sidebar-top:is(:hover, :focus-within) .sidebar-toggle { opacity: 1; background: var(--sidebar); }
+  :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed .sidebar-top:is(:hover, :focus-within) .sidebar-toggle { opacity: 1; background: transparent; }
+  :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed .sidebar-top:is(:hover, :focus-within) .sidebar-brand { opacity: 0; }
   :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed .navigation-item { justify-content: center; padding-inline: 0; }
   :root.apple-ui.apple-ui .collapsible-navigation.is-collapsed .navigation-item > span { display: none; }
   :root.apple-ui.apple-ui :is(.experience.product-refresh, .shell:not(.feed-shell)):has(> .collapsible-navigation.is-collapsed) { width: calc(100% - 72px); margin-left: 72px; }

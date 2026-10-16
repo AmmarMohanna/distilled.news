@@ -17,6 +17,10 @@ test("desktop sidebar collapses, expands, and remembers its state", async ({ pag
   await expect(sidebar.locator(".distilled-logo-wordmark")).toBeHidden();
   await expect(sidebar.locator(".distilled-logo-symbol")).toBeVisible();
   await sidebar.locator(".sidebar-top").hover();
+  const toggleIcon = await sidebar.locator(".sidebar-toggle svg").boundingBox();
+  const homeIcon = await sidebar.locator(".navigation-item svg").first().boundingBox();
+  expect(Math.abs((toggleIcon!.x + toggleIcon!.width / 2) - (homeIcon!.x + homeIcon!.width / 2))).toBeLessThanOrEqual(1);
+  await expect(sidebar.locator(".sidebar-toggle")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await sidebar.getByRole("button", { name: "Open sidebar" }).click();
   await expect(sidebar).not.toHaveClass(/is-collapsed/);
   await expect(sidebar.locator(".distilled-logo-wordmark")).toBeVisible();
