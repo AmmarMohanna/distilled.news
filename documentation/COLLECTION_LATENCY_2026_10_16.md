@@ -142,3 +142,32 @@ result commit, an unrelated Feed snapshot surviving claim/result journaling,
 terminal coverage invalidation, simultaneous duplicate claims and all existing
 source-revocation/evidence ordering checks. No attempts, blocked jobs, grants,
 checkpoints or provider reservations are reset for rollout.
+
+## Final QA verification
+
+Code commit `823cbb6`; QA version
+`4736dd1e-43b2-4dd3-984c-966691a643ae` verified at 100% traffic.
+Migration 0060 was applied before rollout. Compared to the saved QA settings,
+no secrets or runtime bindings changed (the already deployed frontend prefix
+was preserved). Staging was not changed.
+
+At 12:21:05 UTC the public feed API returned 200 and reported the closed window
+at **66/81 acquisitions completed, 44/66 reviews completed, 37 pending, no failed
+acquisitions/reviews**. Live occupancy was four acquisition slots and one
+intelligence slot, as intended. Earlier in this work acquisition was stuck at
+34 and review at 40 while downloads/bookkeeping continued to invalidate reviews.
+
+Final-version logs included a 5,590 ms review transaction in one CAS attempt
+and a 20,712 ms transaction with two attempts. This confirms progress and reduced
+read/retry overhead, not a universal speed guarantee. Some canonical contention
+remains, external provider rate limits still apply, and the initial backlog has
+not completely drained. No edition had published at this check; complete live
+collection-to-publication latency and sustained 1,000-feed operation remain
+unverified. The full Worker suite was not run for this request.
+
+Final additional checks: 83 intake/runtime/scale regressions passed, the final
+31 acquisition regressions passed, 66 evidence/engine/turn regressions passed,
+and 14 history-prefetch/editorial/selection tests passed. These overlap earlier
+test runs and are not an additive unique-test count. Final Worker typecheck,
+QA dry-run and diff checks passed. Runtime timing diagnostics contain only
+identities, counts and timings, not source text or credentials.
