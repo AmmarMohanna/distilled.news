@@ -23,8 +23,9 @@ it("applies the complete migration chain to clean D1 with workflow and decision 
     expect(await repo.upsertBriefing({...feed,updateIntervalMinutes:120,briefingTimeOfDay:'00:00'})).toMatchObject({updateIntervalMinutes:120,briefingTimeOfDay:'00:00'});
     await repo.setBriefingStar(feed.id,'product-voter',true);
     expect(await repo.listExploreBriefings(10)).toEqual([]);
-    await repo.upsertBriefing({...feed,publicFeedEnabled:true,stars:1});
+    await repo.upsertBriefing({...feed,publicFeedEnabled:true,stars:0});
     expect((await repo.listExploreBriefings(10)).map(f=>f.id)).toContain(feed.id);
+    expect(await repo.listExploreBriefings(10, 1)).toEqual([]);
     for(const table of ["upstream_resources","web_operator_workflows","source_acquisition_state","browser_use_discovery_runs","bounded_decision_events","public_acquisition_requests","authenticated_x_acquisition_requests","acquired_source_items","source_acquisition_leases"]){
       expect(await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").bind(table).first()).not.toBeNull();
     }

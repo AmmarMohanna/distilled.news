@@ -1421,6 +1421,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience.product-refresh:not(.guest-landing) :is(.home-view, .explore-view) .your-feeds > .experience-section-heading { justify-content: flex-start; text-align: left; margin-block: 8px 24px; }
 
 .language-code { display: none; }
+:root.apple-ui.apple-ui .explore-feed-description p { margin: 0; color: var(--muted); font-size: 0.9375rem; line-height: 1.6; }
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .setting-row.setting-language { flex-wrap: nowrap; column-gap: 10px; }
   :root.apple-ui.apple-ui .setting-language .language-segments { flex: 0 0 auto; width: auto; flex-wrap: nowrap; margin-inline-start: auto; }

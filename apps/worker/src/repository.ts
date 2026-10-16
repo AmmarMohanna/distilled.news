@@ -454,7 +454,7 @@ export class D1Repository implements Repository {
     return rows.map(rowToBriefing);
   }
 
-  async listExploreBriefings(limit: number): Promise<BriefingConfig[]> {
+  async listExploreBriefings(limit: number, offset = 0): Promise<BriefingConfig[]> {
     if (limit <= 0) return [];
     const rows = await all<BriefingRow>(
       this.db
@@ -462,11 +462,11 @@ export class D1Repository implements Repository {
           `SELECT briefings.*, accounts.username as owner_username
           FROM briefings
           JOIN accounts ON accounts.id = briefings.owner_account_id
-          WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND (briefings.stars > 0 OR briefings.explore_featured = 1)
-          ORDER BY briefings.explore_featured DESC, briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
-          LIMIT ?`
+          WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1
+          ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
+          LIMIT ? OFFSET ?`
         )
-        .bind(limit)
+        .bind(limit, offset)
     );
     return rows.map(rowToBriefing);
   }
@@ -1871,13 +1871,13 @@ export class InMemoryRepository implements Repository {
       .map((briefing) => briefing);
   }
 
-  async listExploreBriefings(limit: number): Promise<BriefingConfig[]> {
+  async listExploreBriefings(limit: number, offset = 0): Promise<BriefingConfig[]> {
     if (limit <= 0) return [];
     return Array.from(this.briefings.values())
-      .filter((briefing) => briefing.publicFeedEnabled && (briefing.stars > 0 || briefing.exploreFeatured) && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
+      .filter((briefing) => briefing.publicFeedEnabled && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
-      .sort((a, b) => Number(Boolean(b.exploreFeatured)) - Number(Boolean(a.exploreFeatured)) || compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
-      .slice(0, limit);
+      .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
+      .slice(offset, offset + limit);
   }
 
   async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {

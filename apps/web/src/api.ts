@@ -287,8 +287,14 @@ export async function getFeedEdition(username: string, slug: string, editionId: 
 }
 
 export async function getExploreFeeds(): Promise<PublicBriefing[]> {
-  const payload = await requestJson<{ feeds: PublicBriefing[] }>("/api/explore/feeds");
-  return payload.feeds;
+  const feeds: PublicBriefing[] = [];
+  let offset: number | null = 0;
+  do {
+    const payload: { feeds: PublicBriefing[]; nextOffset?: number | null } = await requestJson(`/api/explore/feeds?offset=${offset}`);
+    feeds.push(...payload.feeds);
+    offset = payload.nextOffset ?? null;
+  } while (offset !== null);
+  return feeds;
 }
 
 export async function searchFeed(username: string, slug: string, query: string): Promise<FeedPayload["editions"]> {

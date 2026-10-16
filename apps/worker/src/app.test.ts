@@ -1868,12 +1868,30 @@ describe("worker app accounts", () => {
     const response = await app.request("/api/explore/feeds", {}, env());
     expect(response.status).toBe(200);
     const payload = (await response.json()) as { feeds: Array<{ title: string; stars: number }> };
-    expect(payload.feeds).toHaveLength(10);
+    expect(payload.feeds).toHaveLength(11);
     expect(payload.feeds.map((feed) => feed.title).slice(0, 3)).toEqual(["Top Feed", "Older Tie", "Newer Tie"]);
     expect(payload.feeds.some((feed) => feed.title === "Disabled Feed")).toBe(false);
   });
 
-  it("lets admins feature public feeds in Explore without changing stars", async () => {
+  it("pages through all public feeds without requiring stars or featuring", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "public-list@test.com", "Public List");
+    const original = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    for (let index = 0; index < 105; index++) {
+      await repo.upsertBriefing({ ...original, id: `public-${index}`, slug: `public-${index}`, publicFeedEnabled: true, stars: 0, exploreFeatured: false });
+    }
+    const first = await (await app.request("/api/explore/feeds", {}, env())).json() as { feeds: Array<{ id: string }>; nextOffset: number | null };
+    expect(first.feeds).toHaveLength(100);
+    expect(first.nextOffset).toBe(100);
+    const second = await (await app.request(`/api/explore/feeds?offset=${first.nextOffset}`, {}, env())).json() as typeof first;
+    expect(second.nextOffset).toBeNull();
+    const ids = new Set([...first.feeds, ...second.feeds].map(feed => feed.id));
+    for (let index = 0; index < 105; index++) expect(ids.has(`public-${index}`)).toBe(true);
+    expect(ids.size).toBe(first.feeds.length + second.feeds.length);
+  });
+
+  it("lets admins feature public feeds without controlling Explore membership", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const admin = await createVerifiedUser(app, repo, "curator@test.com", "Curator", "admin");
@@ -1892,7 +1910,7 @@ describe("worker app accounts", () => {
     expect((await repo.listExploreBriefings(10)).map(item => item.id)).toContain(feed.id);
     expect((await repo.getBriefingById(feed.id))?.stars).toBe(0);
     expect((await request(admin.cookie, false)).status).toBe(200);
-    expect((await repo.listExploreBriefings(10)).map(item => item.id)).not.toContain(feed.id);
+    expect((await repo.listExploreBriefings(10)).map(item => item.id)).toContain(feed.id);
   });
 
   it("stores and removes an authenticated browser push subscription", async () => {

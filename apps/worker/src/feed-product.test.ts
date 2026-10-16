@@ -15,7 +15,7 @@ it('persists intervals and daily time, enforcing visibility across reads, search
   const save = (body:unknown) => app.request('/api/me/briefings',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify(body)},env);
   expect((await save(input)).status).toBe(200);
   expect(await repo.getBriefingById(input.id)).toMatchObject({publicFeedEnabled:true,updateIntervalMinutes:1440,briefingTimeOfDay:'08:00',briefingTimezone:'Asia/Beirut',briefingCadence:'daily'});
-  await repo.setBriefingStar(input.id,'test-voter',true);
+  expect((await repo.getBriefingById(input.id))?.stars).toBe(0);
   expect((await app.request('/api/feed/owner/lebanon',{},env)).status).toBe(200);
   expect(((await (await app.request('/api/explore/feeds',{},env)).json()) as {feeds:{id:string}[]}).feeds.map((f:{id:string})=>f.id)).toContain(input.id);
   expect((await save({...input,publicFeedEnabled:false,briefingTimeOfDay:'20:00'})).status).toBe(200);

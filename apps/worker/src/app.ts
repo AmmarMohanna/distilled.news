@@ -1079,8 +1079,9 @@ export function createApp(options: AppOptions = {}) {
 
   app.get("/api/explore/feeds", async (c) => {
     const repo = repoFor(c);
-    const feeds = await repo.listExploreBriefings(10);
-    return c.json({ feeds: feeds.map(publicBriefing) });
+    const offset = z.coerce.number().int().min(0).max(1_000_000).parse(c.req.query("offset") ?? 0);
+    const feeds = await repo.listExploreBriefings(101, offset);
+    return c.json({ feeds: feeds.slice(0, 100).map(publicBriefing), nextOffset: feeds.length > 100 ? offset + 100 : null });
   });
 
   app.get("/api/feed/:username/:briefingSlug/sketch", async (c) => {

@@ -9,7 +9,7 @@ import { installApp, notificationsEnabled, setNotificationsEnabled } from "./pwa
 import { InstallDialog, type InstallStatus } from "./SettingsDialogs";
 import { FeedArt } from "./FeedArt";
 import { formatFeedUpdated } from "./helpers";
-import { EXPLORE_CHANGED_EVENT, ExplorePublishingControl } from "./ExplorePublishingControl";
+import { EXPLORE_CHANGED_EVENT } from "./ExplorePublishingControl";
 
 const topics = [
   { name: "Lebanon", category: "Lebanon", art: "coast", pattern: /lebanon|lebanese|beirut/i },
@@ -99,7 +99,7 @@ export function AppExperience(props: {
     {tab === "home" && props.account && <div className="home-view">
       <section className="welcome-hero"><div className="welcome-copy"><h1>{t("Welcome back!")}</h1><p>{t("You choose what matters.")}</p></div></section>
       <div className="explore-controls home-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button className="primary-button home-add-feed" onClick={props.onCreate}><Plus size={20}/>{t("Create feed")}</button></div>
-      <section className="your-feeds"><div className="experience-section-heading"><h2>{t("Your feeds")}</h2></div><div className="personal-feed-grid">{ownFeeds.map(feed => <article className="topic-card" key={feed.id}><a href={feedUrl(feed)}><FeedArt canGenerate feed={feed} kind={topics.find(topic => topic.pattern.test(feed.title))?.art}/><span className="topic-name"><span className="feed-card-identity"><strong>{feed.title}</strong><small>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a><FeedCardActions feed={feed} owner onError={setError} canPublish={props.account?.role === "admin"} featured={loading ? undefined : feeds.some(selected => selected.id === feed.id)}/></article>)}</div>{ownFeeds.length === 0 ? <p className="empty-copy" role="status">{t(props.briefings.length === 0 ? "You haven’t created any feeds yet." : "No feeds match your search.")}</p> : null}{!props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
+      <section className="your-feeds"><div className="experience-section-heading"><h2>{t("Your feeds")}</h2></div><div className="personal-feed-grid">{ownFeeds.map(feed => <article className="topic-card" key={feed.id}><a href={feedUrl(feed)}><FeedArt canGenerate feed={feed} kind={topics.find(topic => topic.pattern.test(feed.title))?.art}/><span className="topic-name"><span className="feed-card-identity"><strong>{feed.title}</strong><small>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a><FeedCardActions feed={feed} owner onError={setError}/></article>)}</div>{ownFeeds.length === 0 ? <p className="empty-copy" role="status">{t(props.briefings.length === 0 ? "You haven’t created any feeds yet." : "No feeds match your search.")}</p> : null}{!props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
     </div>}
     {(tab === "explore" || !props.account) && <section className="explore-view">
       {props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
@@ -111,11 +111,11 @@ export function AppExperience(props: {
         <button type="button" className="primary-button landing-create" onClick={props.onCreate}><Plus size={18} aria-hidden/>{t("Create feed")}</button>
       </div>
       <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"}>
-        {props.account && <div className="experience-section-heading" aria-hidden="true"><h2>&nbsp;</h2></div>}
+        {props.account && <div className="experience-section-heading explore-feed-description"><p>{t("Discover public feeds from the community. Every public feed appears here automatically.")}</p></div>}
         {loading ? <p role="status">{t("Loading feeds…")}</p> : visibleFeeds.length ? <div className="topic-grid curated-feed-grid">{visibleFeeds.map(feed => <article className="topic-card" key={feed.id}>
           <a href={feedUrl(feed)}><FeedArt canGenerate={props.briefings.some(owned => owned.id === feed.id)} feed={props.briefings.find(owned => owned.id === feed.id) ?? feed}/><span className="topic-name"><span className="feed-card-identity"><strong>{feed.title}</strong><small>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a>
           <FeedUpdatedAt value={feed.latestUpdatedAt}/>
-          <FeedCardActions feed={feed} owner={props.account?.username === feed.ownerUsername} onError={setError} hideStar canPublish={props.account?.role === "admin"} featured={feed.exploreFeatured}>
+          <FeedCardActions feed={feed} owner={props.account?.username === feed.ownerUsername} onError={setError} hideStar>
             <button type="button" className={feed.viewerHasStarred ? "star-vote is-starred" : "star-vote"} aria-label={`${feed.viewerHasStarred ? "Unstar" : "Star"} ${feed.title}`} aria-pressed={feed.viewerHasStarred ?? false} disabled={starBusy === feed.id || feed.viewerHasStarred === undefined} onClick={async () => { setStarBusy(feed.id); setError(""); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !feed.viewerHasStarred); setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item)); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setStarBusy(null); } }}><Star size={16}/>{feed.stars}</button>
           </FeedCardActions>
         </article>)}</div> : query.trim() ? <p className="empty-copy" role="status">{t("No feeds match your search.")}</p> : null}
@@ -132,7 +132,7 @@ export function accountInitials(username: string) {
   return (parts.map(part => Array.from(part)[0]).join("") || "?").toLocaleUpperCase();
 }
 
-function FeedCardActions({ feed, owner, onError, hideStar = false, canPublish, featured, children }: { feed: Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled">; owner: boolean; onError: (message: string) => void; hideStar?: boolean; canPublish?: boolean; featured?: boolean; children?: React.ReactNode }) {
+function FeedCardActions({ feed, owner, onError, hideStar = false, children }: { feed: Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled">; owner: boolean; onError: (message: string) => void; hideStar?: boolean; children?: React.ReactNode }) {
   const { t } = useLanguage();
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -162,7 +162,6 @@ function FeedCardActions({ feed, owner, onError, hideStar = false, canPublish, f
       <summary aria-label={t("Feed options")}><Ellipsis size={18}/></summary>
       <div className="feed-options-popover">
         {owner && <a href={`${feedUrl(feed)}?edit=1`}><Pencil size={16}/>{t("Edit feed settings")}</a>}
-        {canPublish && feed.publicFeedEnabled && <ExplorePublishingControl feedId={feed.id} featured={featured} onError={onError}/>}
         {feed.publicFeedEnabled && <button type="button" onClick={() => { if (menu.current) menu.current.open = false; void (navigator.share ? navigator.share({ title: feed.title, url: url() }) : navigator.clipboard.writeText(url())).catch(cause => { if (cause instanceof Error && cause.name === "AbortError") return; onError(String(cause)); }); }}><Share size={16}/>{t("Share")}</button>}
       </div>
     </details>}
