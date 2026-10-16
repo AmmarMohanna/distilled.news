@@ -1873,6 +1873,18 @@ describe("worker app accounts", () => {
     expect(payload.feeds.some((feed) => feed.title === "Disabled Feed")).toBe(false);
   });
 
+  it("returns a clear rate-limit response for source recommendations instead of a server error", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "source-limit@test.com", "Source Limit");
+    await repo.recordAuthAttempt({ key: `source-recommend:${owner.account.id}`, action: "source_recommend" });
+    await repo.recordAuthAttempt({ key: `source-recommend:${owner.account.id}`, action: "source_recommend" });
+    const response = await app.request("/api/me/sources/recommend", { method: "POST", headers: { cookie: owner.cookie, "content-type": "application/json" }, body: JSON.stringify({ title: "World", description: "World news" }) }, env());
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("3600");
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining("two AI source recommendations") });
+  });
+
   it("pages through all public feeds without requiring stars or featuring", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
