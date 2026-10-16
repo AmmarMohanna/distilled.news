@@ -33,7 +33,6 @@ export function AppExperience(props: {
 }) {
   const [tab, setTab] = useState(props.initialTab ?? "home");
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("All feeds");
   const [feeds, setFeeds] = useState<Array<PublicBriefing & { viewerHasStarred?: boolean; latestUpdatedAt?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -69,8 +68,7 @@ export function AppExperience(props: {
     window.addEventListener(EXPLORE_CHANGED_EVENT, changed);
     return () => { active = false; window.removeEventListener(EXPLORE_CHANGED_EVENT, changed); };
   }, []);
-  const matching = (title: string) => (!query || title.toLowerCase().includes(query.toLowerCase())) && (category === "All feeds" || !!topics.find(topic => topic.category === category)?.pattern.test(title));
-  const availableTopics = topics.filter(topic => feeds.some(feed => topic.pattern.test(feed.title)));
+  const matching = (title: string) => (!query || title.toLowerCase().includes(query.toLowerCase()));
   const ownFeeds = props.briefings.filter(feed => !query || feed.title.toLowerCase().includes(query.toLowerCase()));
   const visibleFeeds = feeds.filter(feed => matching(`${feed.title} ${feed.ownerUsername}`));
   const setting = (icon: React.ReactNode, label: string, action: () => void) => <button type="button" className="setting-row" onClick={action}>{icon}<span>{t(label)}</span><ChevronRight size={17}/></button>;
@@ -112,7 +110,6 @@ export function AppExperience(props: {
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         <button type="button" className="primary-button landing-create" onClick={props.onCreate}><Plus size={18} aria-hidden/>{t("Create feed")}</button>
       </div>
-      {props.account && feeds.length > 0 && <div className="category-chips" aria-label={t("Topic categories")}>{["All feeds", ...availableTopics.map(topic => topic.category)].map(item => <button key={item} aria-pressed={category === item} className={category === item ? "selected" : ""} onClick={() => setCategory(item)}>{t(item)}</button>)}</div>}
       <section className="featured-feeds">
         {loading ? <p role="status">{t("Loading feeds…")}</p> : visibleFeeds.length ? <div className="topic-grid curated-feed-grid">{visibleFeeds.map(feed => <article className="topic-card" key={feed.id}>
           <a href={feedUrl(feed)}><FeedArt canGenerate={props.briefings.some(owned => owned.id === feed.id)} feed={props.briefings.find(owned => owned.id === feed.id) ?? feed}/><span className="topic-name"><span className="feed-card-identity"><strong>{feed.title}</strong><small>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a>
