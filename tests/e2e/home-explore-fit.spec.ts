@@ -164,6 +164,12 @@ for(const width of [1280,390]) test(`create feed preferences use aligned grouped
  await page.getByRole('button',{name:'Create feed',exact:true}).click();
  await page.getByRole('button',{name:'Preferences',exact:true}).click();
  const preferences=page.locator('#feed-preferences');
+ const visibility=preferences.getByRole('group',{name:'Feed visibility'});
+ await visibility.getByRole('radio',{name:'Private',exact:true}).check();
+ await expect(page.locator('.feed-preferences-disclosure')).toContainText('Private');
+ await visibility.getByRole('radio',{name:'Public',exact:true}).check();
+ await expect(visibility.getByRole('radio',{name:'Public',exact:true})).toBeChecked();
+ expect(await preferences.locator('.feed-preference-row').evaluate(node=>getComputedStyle(node).fontWeight)).toBe(await preferences.locator('label').first().evaluate(node=>getComputedStyle(node).fontWeight));
  await expect(preferences.getByText('Schedule',{exact:true})).toBeVisible();
  await preferences.getByLabel('Briefing language').selectOption('fr');
  await expect(preferences.getByLabel('Briefing language')).toHaveValue('fr');

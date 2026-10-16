@@ -26,7 +26,7 @@ export function FeedEditor(props: {
   const [prompt, setPrompt] = useState(props.feed?.interestProfile ?? "");
   const [rhythm, setRhythm] = useState<FeedInput["updateIntervalMinutes"]>(props.feed?.updateIntervalMinutes ?? (props.feed?.briefingCadence === "hourly" ? 60 : 1440));
   const [feedLanguage, setFeedLanguage] = useState<BriefingConfig["language"]>(props.feed?.language ?? preferredLanguage());
-  const [publicFeedEnabled] = useState(props.feed?.publicFeedEnabled ?? true);
+  const [publicFeedEnabled, setPublicFeedEnabled] = useState(props.feed?.publicFeedEnabled ?? true);
   const [deliveryTime, setDeliveryTime] = useState(props.feed?.briefingTimeOfDay ?? "08:00");
   const [timezone] = useState(() => props.feed?.briefingTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [sources, setSources] = useState<string[]>([]);
@@ -105,7 +105,7 @@ export function FeedEditor(props: {
       <label><span className="feed-preference-label"><CalendarDays aria-hidden="true"/>{t("Update rhythm")}</span><select value={rhythm} onChange={event => setRhythm(Number(event.target.value) as FeedInput["updateIntervalMinutes"])}>{Object.entries(rhythmLabels).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label>
       {rhythm === 1440 && <label><span className="feed-preference-label"><Clock aria-hidden="true"/>{t("Deliver at")}</span><input type="time" required value={deliveryTime} onChange={event => setDeliveryTime(event.target.value)}/></label>}
       <p className="feed-preferences-group-label">{t("General")}</p>
-      <div className="feed-preference-row"><span className="feed-preference-label"><Users aria-hidden="true"/>{t("Feed visibility")}</span><span className="feed-public-value">{t("Public")}</span></div>
+      <div className="feed-preference-row"><span className="feed-preference-label" id="feed-visibility-label"><Users aria-hidden="true"/>{t("Feed visibility")}</span><span className="feed-visibility-options" role="group" aria-labelledby="feed-visibility-label">{([true, false] as const).map(option=><label key={String(option)}><input type="radio" name="feed-visibility" checked={publicFeedEnabled===option} onChange={()=>setPublicFeedEnabled(option)}/><span>{t(option?"Public":"Private")}</span></label>)}</span></div>
       <label><span className="feed-preference-label"><Globe aria-hidden="true"/>{t("Briefing language")}</span><select value={feedLanguage} onChange={event=>setFeedLanguage(event.target.value as BriefingConfig["language"])}>{(["en", "fr", "ar"] as const).map(option=><option key={option} value={option}>{t(({en:"English",fr:"French",ar:"Arabic"} as const)[option])}</option>)}</select></label>
       </div>
       {message && <p role="status">{message}</p>}
