@@ -15,7 +15,9 @@ export async function supersedeExpiredWindows(store:V1FeedStore,feedId:string,po
  const older=expired.filter(r=>r.id!==newest.id).sort((a,b)=>a.window.end.localeCompare(b.window.end)).slice(0,50).map(r=>r.id);
  // A window whose briefing already started (shortlist, selection or
  // synthesis) finishes through its own run.
- const started=new Set((await Promise.all((['shortlists','selections'] as const).map(kind=>store.list<{window?:{end?:string}}>(feedId,kind)))).flat().map(d=>d.window?.end).filter((end):end is string=>!!end));
+ // Read only window ends: shortlists can be megabytes each.
+ const startedRows=await store.db.prepare("SELECT DISTINCT json_extract(json,'$.window.end') AS window_end FROM v1_feed_documents WHERE feed_id=? AND kind IN ('shortlists','selections')").bind(feedId).all<{window_end:string|null}>();
+ const started=new Set(startedRows.results.flatMap(row=>row.window_end?[row.window_end]:[]));
  return feedTransact(store,feedId,async tx=>{
   const settled:string[]=[];
   for(const id of older){

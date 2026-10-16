@@ -33,6 +33,15 @@ export function boundShortlist<T extends {targetVersionId:string;priority:number
  const ids=new Set(reserved.map(c=>c.targetVersionId));
  return {selected:[...selected,...reserved].sort(compareEditorialCandidates),overflow:overflow.filter(c=>!ids.has(c.targetVersionId))};
 }
+async function shortlistPolicyVersions(tx:FeedTransaction,ids:string[]):Promise<Map<string,string|undefined>>{
+ const unique=[...new Set(ids)],found=new Map<string,string|undefined>();
+ for(let offset=0;offset<unique.length;offset+=90){
+  const chunk=unique.slice(offset,offset+90);
+  const rows=await tx.store.db.prepare(`SELECT id,json_extract(json,'$.policyVersion') AS policy FROM v1_feed_documents WHERE feed_id=? AND kind='shortlists' AND id IN (${chunk.map(()=>'?').join(',')})`).bind(tx.snapshot.feed.id,...chunk).all<{id:string;policy:string|null}>();
+  for(const row of rows.results)found.set(row.id,row.policy??undefined);
+ }
+ return found;
+}
 export async function shortlistInTransaction(tx:FeedTransaction,window:PublicationWindow,now:string,ordinaryLimit:number|undefined=undefined,options:{collectOnly?:boolean;rankings?:Map<string,EditorialRanking>}={}):Promise<ShortlistRecord> {
  const adaptive=ordinaryLimit===undefined;
  // Preserve the same retained semantic facts while shortening the CAS window.
@@ -49,9 +58,11 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
  if(adaptive){
   await tx.preload('editorial_plans',omitted.flatMap(w=>w.planId?[w.planId]:[]));
   const plans=await Promise.all(omitted.map(w=>w.planId?tx.read<import('./editorial-plan').EditorialPlanRecord>('editorial_plans',w.planId):undefined));
-  await tx.preload('shortlists',plans.flatMap(p=>p?.shortlistId?[p.shortlistId]:[]));
+  // Shortlists are immutable and can be megabytes each; only their policy
+  // version is needed here, so never load whole prior shortlists in bulk.
+  const policyVersions=await shortlistPolicyVersions(tx,plans.flatMap(p=>p?.shortlistId?[p.shortlistId]:[]));
   for(const [i,work] of omitted.entries()){
-   const plan=plans[i],priorScope=plan?.shortlistId?await tx.read<ShortlistRecord>('shortlists',plan.shortlistId):undefined;
+   const plan=plans[i],priorScope=plan?.shortlistId&&policyVersions.has(plan.shortlistId)?{policyVersion:policyVersions.get(plan.shortlistId)}:undefined;
    // An omission is reusable only under compatible interests and reader-state
    // reasoning. Historical decisions remain immutable; changed context earns
    // fresh comparison, never automatic selection or rewritten communication.
