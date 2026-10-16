@@ -111,7 +111,7 @@ export function AppExperience(props: {
         <button type="button" className="primary-button landing-create" onClick={props.onCreate}><Plus size={18} aria-hidden/>{t("Create feed")}</button>
       </div>
       <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"}>
-        {props.account && <div className="experience-section-heading"><h2>{t("Feeds")}</h2></div>}
+        {props.account && <div className="experience-section-heading" aria-hidden="true"><h2>&nbsp;</h2></div>}
         {loading ? <p role="status">{t("Loading feeds…")}</p> : visibleFeeds.length ? <div className="topic-grid curated-feed-grid">{visibleFeeds.map(feed => <article className="topic-card" key={feed.id}>
           <a href={feedUrl(feed)}><FeedArt canGenerate={props.briefings.some(owned => owned.id === feed.id)} feed={props.briefings.find(owned => owned.id === feed.id) ?? feed}/><span className="topic-name"><span className="feed-card-identity"><strong>{feed.title}</strong><small>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a>
           <FeedUpdatedAt value={feed.latestUpdatedAt}/>
