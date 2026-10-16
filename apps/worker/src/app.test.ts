@@ -1873,7 +1873,7 @@ describe("worker app accounts", () => {
     expect(payload.feeds.some((feed) => feed.title === "Disabled Feed")).toBe(false);
   });
 
-  it("allows repeated source recommendations without an hourly quota", async () => {
+  it("allows three source recommendations per user in a rolling five-hour window", async () => {
     const repo = new InMemoryRepository();
     let calls = 0;
     const app = createApp({ repository: repo, fetcher: async () => {
@@ -1881,13 +1881,16 @@ describe("worker app accounts", () => {
       return Response.json({ choices: [{ message: { content: JSON.stringify({ sources: ["https://feeds.bbci.co.uk/news/world/rss.xml"] }) } }] });
     } });
     const owner = await createVerifiedUser(app, repo, "source-limit@test.com", "Source Limit");
-    await repo.recordAuthAttempt({ key: `source-recommend:${owner.account.id}`, action: "source_recommend" });
-    await repo.recordAuthAttempt({ key: `source-recommend:${owner.account.id}`, action: "source_recommend" });
+    await repo.recordAuthAttempt({ key: `source-recommend:${owner.account.id}`, action: "source_recommend" }, new Date(Date.now() - 6 * 60 * 60 * 1000));
     for (let index = 0; index < 3; index++) {
       const response = await app.request("/api/me/sources/recommend", { method: "POST", headers: { cookie: owner.cookie, "content-type": "application/json" }, body: JSON.stringify({ title: "World", description: "World news" }) }, { ...env(), SOURCE_RECOMMENDATIONS_ENABLED: "true", OPENROUTER_API_KEY: "test" });
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({ sources: ["https://feeds.bbci.co.uk/news/world/rss.xml"] });
     }
+    const blocked = await app.request("/api/me/sources/recommend", { method: "POST", headers: { cookie: owner.cookie, "content-type": "application/json" }, body: JSON.stringify({ title: "World", description: "World news" }) }, { ...env(), SOURCE_RECOMMENDATIONS_ENABLED: "true", OPENROUTER_API_KEY: "test" });
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("Retry-After")).toBe("18000");
+    expect(await blocked.json()).toMatchObject({ error: expect.stringContaining("three times every five hours") });
     expect(calls).toBe(3);
   });
 

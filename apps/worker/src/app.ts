@@ -884,6 +884,13 @@ export function createApp(options: AppOptions = {}) {
 
   app.post("/api/me/sources/recommend", async c => {
     const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000)}).strict().parse(await c.req.json());
+    try {
+      await assertRateLimit(c.get('repo'), 'source-recommend:'+c.get('account')!.id, 'source_recommend', 3, 5*60*60*1000);
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "too many attempts") throw error;
+      c.header("Retry-After", "18000");
+      return c.json({ error: "You can request AI source recommendations three times every five hours. Please try again later, or add a source URL directly." }, 429);
+    }
     try { return c.json({sources:await sourceRecommendations(c.env,input,fetcher)}); }
     catch(error) { return c.json({error:error instanceof Error?error.message:'Source recommendations unavailable'}, c.env.SOURCE_RECOMMENDATIONS_ENABLED==='true'?502:503); }
   });
