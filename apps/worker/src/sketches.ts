@@ -32,10 +32,6 @@ export function sketchKey(briefing: Pick<BriefingConfig, "id">): string {
   return `feed-sketches/${encodeURIComponent(briefing.id)}.jpg`;
 }
 
-export async function sketchFingerprint(briefing: Pick<BriefingConfig, "title" | "interestProfile">): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([SKETCH_MODEL, SKETCH_STEPS, sketchPrompt(briefing)])));
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
-}
 
 export function sketchPrompt(briefing: Pick<BriefingConfig, "title" | "interestProfile">): string {
   return [
@@ -50,7 +46,8 @@ export function sketchPrompt(briefing: Pick<BriefingConfig, "title" | "interestP
   ].join("\n").slice(0, 2048);
 }
 
-export async function generateSketch(env: Env, briefing: BriefingConfig, stillCurrent?: () => Promise<boolean>): Promise<void> {
+export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'id' | 'title' | 'interestProfile'>, stillCurrent?: () => Promise<boolean> {
+  if (await env.RAW_ARCHIVE.head(sketchKey(briefing))) return true;
   if (!env.CLOUDFLARE_IMAGE_ACCOUNT_ID || !env.CLOUDFLARE_IMAGE_API_TOKEN) throw new SketchError("AI_NOT_CONFIGURED", "Image generation needs the new Cloudflare account ID and Workers AI API token.");
   const prompt = sketchPrompt(briefing);
   let result;
@@ -75,9 +72,10 @@ export async function generateSketch(env: Env, briefing: BriefingConfig, stillCu
   try { bytes = Uint8Array.from(atob(result.image), character => character.charCodeAt(0)); }
   catch { throw new SketchError("AI_INVALID_IMAGE", "Workers AI returned invalid image encoding. No sketch was saved."); }
   if (bytes[0] !== 0xff || bytes[1] !== 0xd8) throw new SketchError("AI_IMAGE_FORMAT", "Workers AI returned an unexpected image format instead of JPEG. No sketch was saved.");
-  if (stillCurrent && !await stillCurrent()) return;
+  if (stillCurrent && !await stillCurrent()) return false;
+  if (await env.RAW_ARCHIVE.head(sketchKey(briefing))) return true;
   try { await env.RAW_ARCHIVE.put(sketchKey(briefing), bytes, {
-    httpMetadata: { contentType: "image/jpeg" },
-    customMetadata: { fingerprint: await sketchFingerprint(briefing) }
+    httpMetadata: { contentType: "image/jpeg" }
   }); } catch { throw new SketchError("SKETCH_STORAGE_WRITE", "The image was generated, but saving it to R2 failed. Check the RAW_ARCHIVE binding."); }
+  return true;
 }

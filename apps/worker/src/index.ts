@@ -8,6 +8,7 @@ import {expireSharedPublicFetches} from './connector-public-cache';
 import {dispatchTelegramLane} from './connector-telegram-lane';
 import {withIntelligenceTurn,isIntelligenceTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
 import { createApp } from "./app";
+import { dispatchDueFeedSketches, processFeedSketchJob } from "./feed-sketch-jobs";
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch} from './v1-intelligence/runtime';
@@ -64,7 +65,8 @@ export default {
       let completedProcessing=false;
       try {
         const downstreamEnv=await connectorDownstreamEnv(env,body as DistilledQueueMessage);
-        if(isRecord(body)&&body.type==='v1_manual_briefing'&&typeof body.feedId==='string'&&typeof body.requestId==='string') await retireManualBriefing(env,body.feedId,body.requestId);
+        if(isRecord(body)&&body.type==='generate_feed_sketch'&&typeof body.feedId==='string') await processFeedSketchJob(env,body.feedId);
+        else if(isRecord(body)&&body.type==='v1_manual_briefing'&&typeof body.feedId==='string'&&typeof body.requestId==='string') await retireManualBriefing(env,body.feedId,body.requestId);
         else if(isRecord(body) && isIntelligenceTurn(body as DistilledQueueMessage)) await withIntelligenceTurn(downstreamEnv,body as DistilledQueueMessage,async()=>{
           if(body.type==='v1_acquisition' && typeof body.jobId==='string') await processV1Acquisition(downstreamEnv,body.jobId);
           else if(body.type==='v1_rematch' && typeof body.feedId==='string' && typeof body.requestId==='string') await processV1Rematch(downstreamEnv,body.feedId,body.requestId);
@@ -289,6 +291,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export async function runScheduledMaintenance(env: Env): Promise<void> {
   env = await productRuntimeEnv(env);
   try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}
+  try {await dispatchDueFeedSketches(env)} catch {console.warn('Could not recover feed illustration jobs')}
   if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
     // Ten bounded queue batches can dispatch 1,000 due feeds without a
     // population scan or doing any upstream collection in Cron.
