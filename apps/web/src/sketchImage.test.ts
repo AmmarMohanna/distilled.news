@@ -11,3 +11,11 @@ it("keeps white transparent and preserves subtle pencil pressure", () => {
   expect(medium).toBeGreaterThan(faint);
   expect(medium).toBeLessThan(255);
 });
+
+it("removes gray shadows and tinted paper while retaining violet pencil strokes", () => {
+  expect(violetStrokeAlpha(220, 220, 220)).toBe(0);
+  expect(violetStrokeAlpha(240, 238, 250, [240, 238, 250])).toBe(0);
+  expect(violetStrokeAlpha(210, 208, 220, [240, 238, 250])).toBe(0);
+  expect(violetStrokeAlpha(94, 92, 230, [240, 238, 250])).toBeGreaterThan(200);
+  expect(violetStrokeAlpha(230, 225, 250, [240, 238, 250])).toBeGreaterThan(0);
+});
