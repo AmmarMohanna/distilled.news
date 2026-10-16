@@ -7,6 +7,7 @@ import { requireAcquisitionLease } from './acquisition-lease';
 import type { AcceptedAcquiredContent, AcceptedInput, CandidateRecord, DownstreamJob, IntakePolicy } from './types';
 
 const MAX_ATTEMPTS=5, LEASE_MS=90_000;
+export const ACQUISITION_MAX_ATTEMPTS=MAX_ATTEMPTS;
 export interface AcquisitionClaim {job:DownstreamJob;input:AcceptedInput;candidate:CandidateRecord;token:string}
 export type AcquisitionFailureCode='NETWORK'|'RATE_LIMIT'|'AUTH_REQUIRED'|'CHALLENGE_REQUIRED'|'POLICY_DENIED'|'UNSUPPORTED'|'EXTRACTION_FAILED'|'INVALID_RESULT'|'BUDGET_EXHAUSTED'|'BODY_BUDGET_EXCEEDED'|'APPROVAL_REVOKED'|'IDEMPOTENCY_CONFLICT';
 export class AcquisitionFailure extends Error {

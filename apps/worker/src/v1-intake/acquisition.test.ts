@@ -114,6 +114,27 @@ it('verified supplied payload precedes native and HTTP routes',async()=>{
  expect(await runAcquisitionJob(store,JSON.stringify(['ACQUIRE','observation-2','']),testPolicy,router)).toBe('DONE');
  expect(externalCalls).toBe(0);expect((await store.list<AcceptedAcquiredContent>('acquired','feed-source-1'))[0].representation).toBe('ARTICLE_EXCERPT');
 });
+it('full-article mode keeps the supplied excerpt when the publisher page is rejected',async()=>{
+ const request=batchFixture(2),payload={body:'Supplied source excerpt'};
+ request.observations[0].contentHash=await hashContent({representation:'ARTICLE_EXCERPT',body:payload.body});
+ await createCandidateIntakePort(store,testPolicy).acceptBatch(request);
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,readPayload:async()=>payload,fetcher:async()=>new Response('gone',{status:410})});
+ expect(await runAcquisitionJob(store,JSON.stringify(['ACQUIRE','observation-2','']),testPolicy,router)).toBe('DONE');
+ const acquired=(await store.list<AcceptedAcquiredContent>('acquired','feed-source-1'))[0];
+ expect(acquired).toMatchObject({representation:'ARTICLE_EXCERPT',acquisitionMethod:'supplied_payload',body:'Supplied source excerpt'});
+});
+it('an unresolved Google News link keeps its excerpt without fetching Google',async()=>{
+ const request=batchFixture(2),payload={body:'Google News excerpt'};
+ request.observations[0].contentHash=await hashContent({representation:'ARTICLE_EXCERPT',body:payload.body});
+ request.observations[0].canonicalUrl='https://news.google.com/rss/articles/CBMiExample?oc=5';
+ if(request.proposals?.[0])request.proposals[0].url=request.observations[0].canonicalUrl;
+ await createCandidateIntakePort(store,testPolicy).acceptBatch(request);
+ let fetches=0;
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,readPayload:async()=>payload,fetcher:async()=>{fetches++;return new Response('',{status:302,headers:{location:'https://news.google.com/'}})}});
+ expect(await runAcquisitionJob(store,JSON.stringify(['ACQUIRE','observation-2','']),testPolicy,router)).toBe('DONE');
+ expect(fetches).toBe(0);
+ expect((await store.list<AcceptedAcquiredContent>('acquired','feed-source-1'))[0]).toMatchObject({representation:'ARTICLE_EXCERPT',body:'Google News excerpt'});
+});
 it('full-article mode upgrades an RSS excerpt and preserves the publisher date and canonical identity',async()=>{
  const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,readPayload:async()=>({body:'Feed excerpt only'}),fetcher:async()=>new Response('<meta property="article:published_time" content="2026-10-03T10:00:00Z"><h1>Actual article</h1><article>'+ 'Full publisher text. '.repeat(30)+'</article>')});
  expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('DONE');
