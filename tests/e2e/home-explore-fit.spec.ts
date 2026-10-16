@@ -110,6 +110,12 @@ for(const size of [{width:1280,height:593},{width:1920,height:1100},{width:390,h
      return overlap<=1||Math.abs(overlap-r.height)<=1;
     });
    });
+   const density=await grid.evaluate(node=>{
+    const css=getComputedStyle(node);const gap=parseFloat(css.rowGap);const row=parseFloat(css.getPropertyValue('--feed-row-height'));
+    return {layout:(node as HTMLElement).dataset.layout,slots:Math.round((node.clientHeight+gap)/(row+gap)),height:node.clientHeight};
+   });
+   if(density.layout==='large')expect(density.slots).toBe(2);
+   else if(density.height>=260)expect(density.slots).toBe(3);
    await expect.poll(complete).toBe(true);
    await expect.poll(async()=>grid.evaluate(n=>n.getBoundingClientRect().bottom)).toBeLessThanOrEqual(size.height-16);
    await grid.evaluate(n=>n.scrollTo({top:n.scrollHeight,behavior:'instant'}));

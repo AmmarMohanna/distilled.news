@@ -17,10 +17,10 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       const width = grid.clientWidth;
       const roomy = window.innerWidth >= 900 && width >= 640 && available >= 380;
       const columns = Math.min(count, roomy ? 2 : window.innerWidth >= 900 ? Math.max(1, Math.floor((width + 16) / 296)) : width >= 600 ? 2 : 1);
-      const totalRows = Math.ceil(count / columns);
       const gap = window.innerWidth >= 900 ? 16 : 10;
       const minimum = roomy ? 180 : 80;
-      const visibleRows = Math.max(1, Math.min(totalRows, roomy ? 2 : 3, Math.floor((available + gap) / (minimum + gap))));
+      // Card design determines density, not how many feeds happen to be saved.
+      const visibleRows = Math.max(1, Math.min(roomy ? 2 : 3, Math.floor((available + gap) / (minimum + gap))));
       const rowHeight = Math.floor((available - gap * (visibleRows - 1)) / visibleRows);
       grid.dataset.layout = roomy ? 'large' : 'compact';
       grid.style.setProperty('--feed-columns', String(columns));
