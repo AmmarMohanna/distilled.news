@@ -10,6 +10,7 @@ import { BoundedFeedHttp } from '../src/source-runtime/http';
 import { normalizeRssSnapshot } from '../src/source-runtime/rss-normalize';
 import { D1RssPollScheduler, RSS_POLL_SCHEMA } from '../src/source-runtime/scheduler';
 import type { FeedHttpPort, RssRequest } from '../src/source-runtime/ports';
+import {SourceHandoffWait} from '../src/source-runtime/handoff-wait';
 
 const directories: string[] = [], databases: DatabaseSync[] = [];
 afterEach(() => { for (const db of databases.splice(0)) db.close(); for (const dir of directories.splice(0)) rmSync(dir,{recursive:true,force:true}); });
@@ -60,6 +61,26 @@ function setup(feed=xml(item('one'))) {
 }
 
 describe('durable RSS source handoff (SQLite SQL and filesystem payload surrogate)',()=>{
+  it('intake waits replay the same fetched batch without consuming failure retries',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let at=Date.parse(timestamp),wait=true;
+    const accept=s.intake.acceptBatch;s.intake.acceptBatch=vi.fn(async b=>{if(wait)throw new SourceHandoffWait();return accept(b)});
+    const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>true,()=>at);
+    await scheduler.schedule('waiting',input,timestamp);
+    for(let i=0;i<12;i++){expect(await scheduler.runOne(120000,'waiting')).toBe('RETRY');at+=6000;}
+    expect(s.db.db.prepare("SELECT attempts,last_error FROM connector_rss_poll_jobs WHERE job_id='waiting'").get()).toEqual({attempts:0,last_error:'INTAKE_BUSY'});
+    expect(s.http.get).toHaveBeenCalledTimes(1);
+    wait=false;expect(await scheduler.runOne(120000,'waiting')).toBe('DONE');expect(s.http.get).toHaveBeenCalledTimes(1);
+  });
+  it('retry exhaustion preserves the rate-limit result and typed cause',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let at=Date.parse(timestamp);
+    const result={coverage:{failureReason:'RATE_LIMIT'},checkpoint:'UNCHANGED'} as any;
+    const scheduler=new D1RssPollScheduler(s.db,{collect:async()=>result},async()=>true,()=>at);
+    await scheduler.schedule('limited',input,timestamp);
+    for(let i=0;i<8;i++){expect(await scheduler.runOne(120000,'limited')).toBe('RETRY');at+=600000;}
+    expect(await scheduler.runOne(120000,'limited')).toBe('BLOCKED');
+    const row=s.db.db.prepare("SELECT result,last_error FROM connector_rss_poll_jobs WHERE job_id='limited'").get() as any;
+    expect(row.last_error).toBe('RETRY_LIMIT:RATE_LIMIT');expect(JSON.parse(row.result)).toEqual(result);
+  });
   it('queue-mode cadence coalesces unfinished windows without rewriting saved requests',async()=>{
     const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);
     const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(timestamp),true);

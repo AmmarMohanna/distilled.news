@@ -215,6 +215,7 @@ export async function completeConnectorDownstream(env:Env,body:DistilledQueueMes
 /** Delivery bookkeeping is disposable; canonical jobs and financial ledgers
  * remain the durable authority and are never deleted by this cleanup. */
 export async function expireConnectorDeliveries(env:Env,now=Date.now()){
+ await env.DB.prepare('DELETE FROM connector_feed_turn_waiters WHERE (feed_id,work_id) IN (SELECT feed_id,work_id FROM connector_feed_turn_waiters WHERE expires_at<=? ORDER BY expires_at LIMIT 1000)').bind(now).run();
  await env.DB.prepare('DELETE FROM connector_queue_dispatch WHERE (kind,id) IN (SELECT kind,id FROM connector_queue_dispatch WHERE available_ms<? ORDER BY available_ms LIMIT 1000)').bind(now-86400_000).run();
  await env.DB.prepare('DELETE FROM connector_queue_recovery WHERE id IN (SELECT id FROM connector_queue_recovery WHERE observed_at<? ORDER BY observed_at LIMIT 1000)').bind(new Date(now-30*86400_000).toISOString()).run();
 }

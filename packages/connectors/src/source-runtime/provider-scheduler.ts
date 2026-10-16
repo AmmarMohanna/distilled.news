@@ -2,13 +2,14 @@ import { sha256, HandoffError } from '@distilled/contracts';
 import type { SqlDatabase } from './storage';
 import { FallbackSourceCollector } from './provider-collector';
 import { DEFAULT_SOURCE_ORDER, SourceProviderError, type SourceFetchRequest } from './provider-types';
+import {SourceHandoffWait} from './handoff-wait';
 
 export const PROVIDER_POLL_SCHEMA=`CREATE TABLE IF NOT EXISTS connector_provider_poll_jobs(
  job_id TEXT PRIMARY KEY, request TEXT NOT NULL, initial_hash TEXT NOT NULL, provider_order TEXT NOT NULL,
  due_at TEXT NOT NULL, scheduled_at TEXT NOT NULL DEFAULT '', lease_until TEXT, lease_version INTEGER NOT NULL DEFAULT 0,
  offset INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, pages INTEGER NOT NULL DEFAULT 0,
  state TEXT NOT NULL DEFAULT 'PENDING', result TEXT, last_error TEXT);`;
-interface Job {job_id:string;request:string;provider_order:string;lease_version:number;offset:number;attempts:number;pages:number}
+interface Job {job_id:string;request:string;provider_order:string;lease_version:number;offset:number;attempts:number;pages:number;last_error:string|null}
 /** Explicit backend runner; does not register production cron, migrate a source, or
  * create an endpoint. Authorization must also ensure legacy polling is disabled. */
 export class D1ProviderPollScheduler {
@@ -37,7 +38,7 @@ export class D1ProviderPollScheduler {
           SELECT 1 FROM connector_provider_poll_jobs active WHERE active.state='PENDING' AND active.lease_until>?
           AND json_extract(active.request,'$.source.family')='telegram'))
         ${typeof jobId==='string'?'AND j.job_id=?':''} ORDER BY CASE WHEN j.job_id IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END,CASE WHEN CAST(strftime('%M',?) AS INTEGER)%4=0 OR (j.pages=0 AND j.offset=0) THEN 0 ELSE 1 END,j.due_at,j.job_id LIMIT 1)
-      RETURNING job_id,request,provider_order,lease_version,offset,attempts,pages`)
+      RETURNING job_id,request,provider_order,lease_version,offset,attempts,pages,last_error`)
       .bind(new Date(this.now()+leaseMs).toISOString(),now,now,now,now,...(typeof jobId==='string'?[jobId]:[]),JSON.stringify(Array.isArray(jobId)?jobId:[]),now).first<Job>();
     if(!job)return 'IDLE';
     const request:SourceFetchRequest=JSON.parse(job.request);
@@ -55,26 +56,27 @@ export class D1ProviderPollScheduler {
       })().finally(()=>{renewing=undefined;});
     };
     const heartbeat=setInterval(renew,Math.max(250,Math.floor(leaseMs/3)));
-    const update=async(state:string,result:unknown,error:string|null=null,next=request,offset=job.offset,pages=job.pages,delay=1000,reset=false)=>{
+    const update=async(state:string,result:unknown,error:string|null=null,next=request,offset=job.offset,pages=job.pages,delay=1000,reset=false,wait=false)=>{
       if(renewing)await renewing;
       if(leaseLost)return false;
-      const changed=await this.db.prepare(`UPDATE connector_provider_poll_jobs SET state=?,result=?,last_error=?,request=?,offset=?,pages=?,
+      const changed=await this.db.prepare(`UPDATE connector_provider_poll_jobs SET state=?,result=COALESCE(?,result),last_error=?,request=?,offset=?,pages=?,
         attempts=?,due_at=?,lease_until=NULL WHERE job_id=? AND lease_version=? AND lease_until>? RETURNING job_id`)
-        .bind(state,JSON.stringify(result),error,JSON.stringify(next),offset,pages,reset?0:job.attempts,new Date(this.now()+delay).toISOString(),job.job_id,job.lease_version,new Date(this.now()).toISOString()).first();
+        .bind(state,result===null?null:JSON.stringify(result),error,JSON.stringify(next),offset,pages,reset?0:wait?Math.max(0,job.attempts-1):job.attempts,new Date(this.now()+delay).toISOString(),job.job_id,job.lease_version,new Date(this.now()).toISOString()).first();
       return !!changed;
     };
     const finish=async(state:'DONE'|'BLOCKED'|'CANCELLED',result:unknown,error?:string)=>await update(state,result,error??null)?state:'LEASE_LOST' as const;
-    const retry=async(result:unknown,next=request,offset=job.offset,pages=job.pages,delay=Math.min(300000,1000*2**job.attempts),reset=false)=>
-      await update('PENDING',result,null,next,offset,pages,delay,reset)?'RETRY' as const:'LEASE_LOST' as const;
+    const retry=async(result:unknown,next=request,offset=job.offset,pages=job.pages,delay=Math.min(300000,1000*2**job.attempts),reset=false,error:string|null=null,wait=false)=>
+      await update('PENDING',result,error,next,offset,pages,delay,reset,wait)?'RETRY' as const:'LEASE_LOST' as const;
     try {
-      if(job.attempts>8||job.pages>=this.maxPages)return await finish('BLOCKED',null,'BOUNDED_LIMIT');
+      if(job.attempts>8)return await finish('BLOCKED',null,'RETRY_LIMIT'+(job.last_error?':'+job.last_error:''));
+      if(job.pages>=this.maxPages)return await finish('BLOCKED',null,'PAGE_LIMIT');
       if(!await this.authorize(request))return await finish('CANCELLED',null);
       const result=await this.collector.collect(request,JSON.parse(job.provider_order),job.offset);
       if(result.state==='FETCH_FAILED'){
         if(result.attempts.length&&result.attempts.every(a=>a.failure==='BUDGET_EXCEEDED'))return await finish('BLOCKED',result,'BUDGET_EXCEEDED');
         if(result.attempts.every(a=>['AUTH_REQUIRED','UNAVAILABLE','MALFORMED'].includes(a.failure??'')))return await finish('BLOCKED',result,'PROVIDER_REPAIR_REQUIRED');
         const retryAt=Math.max(0,...result.attempts.map(a=>Date.parse(a.retryNotBefore??'')||0));
-        return await retry(result,{...request,runId:request.runId+':retry:'+job.attempts},0,job.pages,Math.max(1000*2**job.attempts,retryAt-this.now()));
+        return await retry(result,{...request,runId:request.runId+':retry:'+job.attempts},0,job.pages,Math.max(1000*2**job.attempts,retryAt-this.now()),false,result.attempts.at(-1)?.failure??'TRANSIENT');
       }
       if(result.checkpoint==='CAS_CONFLICT')return await finish('BLOCKED',result,'CHECKPOINT_CONFLICT');
       if(result.checkpoint==='BLOCKED')return await retry(result);
@@ -82,12 +84,13 @@ export class D1ProviderPollScheduler {
       if(result.continuation)return await retry(result,{...request,runId:await sha256(request.runId+':page'),continuation:result.continuation},0,job.pages+1,1000,true);
       return await finish('DONE',result);
     }catch(error){
+      if(error instanceof SourceHandoffWait)return await retry(null,request,job.offset,job.pages,5000,false,error.code,true);
       console.warn(JSON.stringify({type:'CONNECTOR_POLL_FAILURE',family:'provider',jobId:job.job_id,attempt:job.attempts,cause:error instanceof HandoffError||error instanceof SourceProviderError?error.code:'INTERNAL_FAILURE'}));
-      if(error instanceof SourceProviderError&&error.code==='BACKPRESSURE')return await retry(null,request,job.offset,job.pages,Math.max(5000,Date.parse(error.retryNotBefore??'')-this.now()||0),true);
+      if(error instanceof SourceProviderError&&error.code==='BACKPRESSURE')return await retry(null,request,job.offset,job.pages,Math.max(5000,Date.parse(error.retryNotBefore??'')-this.now()||0),false,'BACKPRESSURE',true);
       if(error instanceof SourceProviderError)return await finish('BLOCKED',null,error.code);
       if(error instanceof HandoffError&&!error.retryable)return await finish('BLOCKED',null,error.code);
       // Unknown intake response: immutable saved batch is retried under its original identity.
-      return await retry(null);
+      return await retry(null,request,job.offset,job.pages,undefined,false,error instanceof HandoffError?error.code:'INTERNAL_FAILURE');
     }finally{clearInterval(heartbeat);if(renewing)await renewing;}
   }
 }

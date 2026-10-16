@@ -12,7 +12,7 @@ import {synchronizeV1ProductSource} from './v1-intelligence/product';
 import {createV1BrowserStages} from './v1-intake/browser-stages';
 import {languageResolutionSchema} from './v1-intelligence/language';
 import {readConnectorPayload} from './connector-payload';
-import {HttpSourceExecution,BoundedFeedHttp} from '@distilled/connectors';
+import {HttpSourceExecution,BoundedFeedHttp,SourceHandoffWait} from '@distilled/connectors';
 import {verifyConnectorAuthority} from './connector-authority';
 import {sharedPublicHttp} from './connector-public-cache';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
@@ -63,7 +63,7 @@ export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:
  try{return await withFeedWriteTurn(env,parsed.data.coverage.feedId,async()=>{
   await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
   return createCandidateIntakePort(new V1IntakeStore(env.DB),{...createV1RuntimePolicy(fetch,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined),expectedFeedRevision}).acceptBatch(parsed.data);
- });}catch(error){if(error instanceof IntelligenceTurnBusy)throw new HandoffError('TEMPORARY_UNAVAILABLE');throw error;}
+ },'handoff:'+parsed.data.handoffId);}catch(error){if(error instanceof IntelligenceTurnBusy)throw new SourceHandoffWait();throw error;}
 }
 const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();
 export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetch=fetch) {

@@ -12,6 +12,7 @@ import { WebsiteSourceProvider } from '../src/source-runtime/website-providers';
 import { D1ProviderPollScheduler,PROVIDER_POLL_SCHEMA } from '../src/source-runtime/provider-scheduler';
 import { normalizeProviderRecords } from '../src/source-runtime/provider-normalize';
 import type { FeedHttpPort, FeedResponse } from '../src/source-runtime/ports';
+import {SourceHandoffWait} from '../src/source-runtime/handoff-wait';
 
 const databases:DatabaseSync[]=[];
 afterEach(()=>{for(const db of databases.splice(0))db.close();});
@@ -41,6 +42,29 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it('intake admission waits preserve the captured provider page and failure allowance',async()=>{
+    const adapter=provider('x_twitterapi_io'),s=setup([adapter]);let at=Date.parse(time),wait=true;
+    const accept=s.intake.acceptBatch;s.intake.acceptBatch=vi.fn(async b=>{if(wait)throw new SourceHandoffWait();return accept(b)});
+    const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at);
+    await scheduler.schedule('wait',request,time,['x_twitterapi_io']);
+    for(let i=0;i<12;i++){expect(await scheduler.runOne(120000,'wait')).toBe('RETRY');at+=6000;}
+    expect(s.db.db.prepare("SELECT attempts,last_error,pages FROM connector_provider_poll_jobs WHERE job_id='wait'").get()).toEqual({attempts:0,last_error:'INTAKE_BUSY',pages:0});
+    expect(adapter.fetch).toHaveBeenCalledTimes(1);wait=false;
+    expect(await scheduler.runOne(120000,'wait')).toBe('DONE');expect(adapter.fetch).toHaveBeenCalledTimes(1);
+  });
+  it('separates provider retry exhaustion from page exhaustion and retains the failure cause',async()=>{
+    const s=setup([]);let at=Date.parse(time);const result={state:'FETCH_FAILED',attempts:[{failure:'RATE_LIMIT'}]};
+    const scheduler=new D1ProviderPollScheduler(s.db,{collect:async()=>result} as any,async()=>true,()=>at);
+    await scheduler.schedule('limited',request,time,['x_twitterapi_io']);
+    for(let i=0;i<8;i++){expect(await scheduler.runOne(120000,'limited')).toBe('RETRY');at+=600000;}
+    expect(await scheduler.runOne(120000,'limited')).toBe('BLOCKED');
+    const row=s.db.db.prepare("SELECT last_error,result FROM connector_provider_poll_jobs WHERE job_id='limited'").get() as any;
+    expect(row.last_error).toBe('RETRY_LIMIT:RATE_LIMIT');expect(JSON.parse(row.result)).toEqual(result);
+    await scheduler.schedule('pages',{...request,runId:'pages'},new Date(at).toISOString(),['x_twitterapi_io']);
+    s.db.db.prepare("UPDATE connector_provider_poll_jobs SET pages=100 WHERE job_id='pages'").run();
+    expect(await scheduler.runOne(120000,'pages')).toBe('BLOCKED');
+    expect(s.db.db.prepare("SELECT last_error FROM connector_provider_poll_jobs WHERE job_id='pages'").get()).toEqual({last_error:'PAGE_LIMIT'});
+  });
   it.each([false,true])('a proven Apify read recovery resumes its saved continuation with missing failure journal=%s',async(missingJournal)=>{
     let calls=0;const adapter=provider('x_apify',vi.fn(async()=>{if(++calls===1)throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');return page();}));
     const s=setup([adapter]),r={...request,continuation:{providerId:'x_apify',token:'saved-actor-continuation'}};
