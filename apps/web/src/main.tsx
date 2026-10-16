@@ -1,3 +1,4 @@
+import { FeedDashboardSidebar } from "./FeedDashboardSidebar";
 import { SourceLogo } from "./SourceLogo";
 import { referenceDigestSummary, surfaceBriefSummary, summarySentences, normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import React, { useEffect, useRef, useState } from "react";
@@ -5,6 +6,7 @@ import { FeedNotice, FeedPublicationNotice, FeedProcessingProgress } from "./Fee
 import { createRoot } from "react-dom/client";
 import {
   Activity,
+  Bookmark,
   Ban,
   Eye,
   EyeOff,
@@ -1449,6 +1451,17 @@ function FeedPage(props: { username: string; slug: string }) {
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
+  const [feedTab,setFeedTab] = useState<"latest"|"saved"|"read">("latest");
+  const [feedSort,setFeedSort] = useState("newest");
+  const [savedIds,setSavedIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try { setSavedIds(new Set(JSON.parse(localStorage.getItem(`dn_saved:${props.username}:${props.slug}`) || "[]"))); } catch { setSavedIds(new Set()); }
+    setFeedTab("latest");
+  }, [props.username,props.slug]);
+  function toggleSaved(id:string) {
+    const next=new Set(savedIds); if(next.has(id))next.delete(id);else next.add(id);
+    setSavedIds(next); localStorage.setItem(`dn_saved:${props.username}:${props.slug}`,JSON.stringify([...next]));
+  }
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
   const [editionDetails, setEditionDetails] = useState<Map<string, BriefingEdition>>(() => new Map());
@@ -1550,8 +1563,10 @@ function FeedPage(props: { username: string; slug: string }) {
   const currentEditions = payload ? editions : [];
   const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
   const unreadEditions = currentEditions.filter((edition) => !readIds.has(edition.id));
-  const visibleUnreadEditions = unreadEditions.slice(0, visibleUnreadCount);
-  const hiddenUnreadCount = Math.max(0, unreadEditions.length - visibleUnreadEditions.length);
+  const tabEditions = feedTab === "saved" ? currentEditions.filter(item=>savedIds.has(item.id)) : feedTab === "read" ? currentEditions.filter(item=>readIds.has(item.id)) : unreadEditions;
+  const sortedEditions=[...tabEditions].sort((a,b)=>(Date.parse(b.publishedAt)-Date.parse(a.publishedAt))*(feedSort==="oldest"?-1:1));
+  const visibleUnreadEditions = sortedEditions.slice(0, visibleUnreadCount);
+  const hiddenUnreadCount = Math.max(0, sortedEditions.length - visibleUnreadEditions.length);
   const archivedReadEditions = currentEditions.filter((edition) => readIds.has(edition.id));
   const language = uiLanguage;
   const pageDir = textDirection(language);
@@ -1616,7 +1631,7 @@ function FeedPage(props: { username: string; slug: string }) {
       header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
-      meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : initialLoading ? <span className="feed-loading-message" role="status">{loadingFeedLabel(language)}</span> : undefined}
+      meta={payload ? <span className="briefing-heading-meta"><span className="briefing-live"><i/>{t(payload.briefing.paused?"Paused":"Live")}</span><span>{payload.editions.filter(item=>new Date(item.publishedAt).toDateString()===new Date().toDateString()).length} {t("published today")}</span><span>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></span></span> : initialLoading ? <span className="feed-loading-message" role="status">{loadingFeedLabel(language)}</span> : undefined}
       feed={payload?.briefing}
       pageLanguage={language}
       headingAction={ownedFeed ? <button className="primary-button" onClick={() => setEditorOpen(true)}><Settings size={17}/>{t("Edit feed settings")}</button> : undefined}
@@ -1633,6 +1648,7 @@ function FeedPage(props: { username: string; slug: string }) {
         if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
+      <div className="feed-dashboard-layout"><section className="briefing-main" aria-label={t("Published briefings")}>
       <div className="feed-tools" dir={pageDir}>
         <div className="feed-actions">
           {payload?.briefing.publicFeedEnabled && <><button type="button" onClick={() => void navigator.clipboard.writeText(window.location.origin + window.location.pathname).then(() => setSummaryMessage(t("URL copied"))).catch(() => setError(t("Could not copy URL")))}><Copy size={15}/>{t("Copy URL")}</button><button type="button" onClick={() => { const url = window.location.origin + window.location.pathname; void (navigator.share ? navigator.share({ title: payload.briefing.title, url }) : navigator.clipboard.writeText(url)).catch(() => {}); }}><Share size={15}/>{t("Share")}</button></>}
@@ -1714,6 +1730,7 @@ function FeedPage(props: { username: string; slug: string }) {
         </p>
       ) : null}
       {searchLoading && !error && currentEditions.length === 0 ? <p className="muted feed-loading-message" role="status">{loadingFeedLabel(language)}</p> : null}
+      <div className="briefing-list-toolbar"><div className="briefing-tabs" role="tablist" aria-label={t("Briefing views")}>{(["latest","saved","read"] as const).map(tab=><button key={tab} role="tab" aria-selected={feedTab===tab} onClick={()=>{setFeedTab(tab);setVisibleUnreadCount(FEED_BATCH_SIZE);}}>{t(tab==="latest"?"Latest":tab==="saved"?"Saved":"Read")}</button>)}</div><label className="briefing-sort"><span>{t("Sort by")}</span><select aria-label={t("Sort by")} value={feedSort} onChange={event=>setFeedSort(event.target.value)}><option value="newest">{t("Most recent")}</option><option value="oldest">{t("Oldest first")}</option></select></label></div>
       <div className="news-line">
         {visibleUnreadEditions.map((edition) => (
           <FeedEditionRow
@@ -1723,9 +1740,11 @@ function FeedPage(props: { username: string; slug: string }) {
             language={language}
             isExpanded={expanded.has(edition.id)}
             isLoading={editionBusyIds.has(edition.id)}
-            isRead={false}
+            isRead={readIds.has(edition.id)}
+            isSaved={savedIds.has(edition.id)}
+            onToggleSaved={()=>toggleSaved(edition.id)}
             onToggleExpanded={() => void toggleEditionExpanded(edition)}
-            onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, true)}
+            onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
             onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
           />
         ))}
@@ -1737,17 +1756,17 @@ function FeedPage(props: { username: string; slug: string }) {
             <span className="muted">{moreCountLabel(hiddenUnreadCount, language)}</span>
           </div>
         ) : null}
-        {payload && !initialLoading && !searchLoading && unreadEditions.length === 0 && !error ? (
+        {payload && !initialLoading && !searchLoading && tabEditions.length === 0 && !error ? (
           <div className="empty-state feed-empty-state">
             {archivedReadEditions.length === 0 && <Newspaper className="feed-empty-icon" size={42} strokeWidth={1.5} aria-hidden/>}
-            <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>
+            <strong>{feedTab === "latest" ? emptyFeedTitle(archivedReadEditions.length, language) : t(feedTab === "saved" ? "No saved stories yet" : "No read stories yet")}</strong>
             <p className="muted">
-              {emptyFeedMessage(archivedReadEditions.length, language)}
+              {feedTab === "latest" ? emptyFeedMessage(archivedReadEditions.length, language) : t("Stories will appear here as you read or save them.")}
             </p>
           </div>
         ) : null}
       </div>
-      {archivedReadEditions.length > 0 ? (
+      {feedTab === "latest" && archivedReadEditions.length > 0 ? (
         <details className="section read-section">
           <summary>{readSectionLabel(archivedReadEditions.length, language)}</summary>
           <div className="news-line news-line-read">
@@ -1760,6 +1779,8 @@ function FeedPage(props: { username: string; slug: string }) {
                 isExpanded={expanded.has(edition.id)}
                 isLoading={editionBusyIds.has(edition.id)}
                 isRead={true}
+                isSaved={savedIds.has(edition.id)}
+                onToggleSaved={()=>toggleSaved(edition.id)}
                 onToggleExpanded={() => void toggleEditionExpanded(edition)}
                 onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, false)}
                 onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
@@ -1768,6 +1789,7 @@ function FeedPage(props: { username: string; slug: string }) {
           </div>
         </details>
       ) : null}
+      </section>{payload && <FeedDashboardSidebar editions={payload.editions} readIds={readIds} savedIds={savedIds} paused={payload.briefing.paused} onOpen={edition=>{setFeedTab(readIds.has(edition.id)?"read":"latest");setVisibleUnreadCount(Math.max(FEED_BATCH_SIZE,currentEditions.length));void toggleEditionExpanded(edition);}}/>}</div>
     </Shell>
   );
 }
@@ -1824,6 +1846,8 @@ function FeedEditionRow(props: {
   isExpanded: boolean;
   isLoading: boolean;
   isRead: boolean;
+  isSaved?: boolean;
+  onToggleSaved?: () => void;
   onToggleExpanded: () => void;
   onToggleRead: () => void;
   onOpenReport: (sectionIndex: number) => void;
@@ -1845,6 +1869,7 @@ function FeedEditionRow(props: {
             <span className="muted">{cadenceMetaLabel(props.edition.cadence, props.language)}</span>
           </div>
           <div className="news-row-actions" dir="ltr">
+            {props.onToggleSaved && <button type="button" className="bookmark-story quiet-icon" aria-label={`${props.isSaved ? "Unsave" : "Save"} ${props.edition.title}`} aria-pressed={!!props.isSaved} onClick={props.onToggleSaved}><Bookmark size={18} fill={props.isSaved?"currentColor":"none"}/></button>}
             <button
               type="button"
               className="read-button icon-button quiet-icon"
@@ -1867,6 +1892,7 @@ function FeedEditionRow(props: {
             </button>
           </div>
         </div>
+        <h2 className="briefing-story-title">{props.edition.title}</h2>
         <ReferenceParagraph
           className="news-summary"
           text={surfaceSummary}
