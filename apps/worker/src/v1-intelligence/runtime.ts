@@ -1,5 +1,6 @@
 import {windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
 import {windowHoldPolicy,windowHoldSql,type WindowHoldPolicy} from './window-hold';
+import {supersedeExpiredWindows} from './window-supersede';
 import {ModelSpendingWait} from './model-spending';
 import {recoverPendingProviderGenerations} from './provider-recovery';
 import {prepareAdaptiveEditorialPlan} from './editorial-continuation';
@@ -260,6 +261,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   const coverage=await windowIntakeCoverage(env.DB,id,window.end,windowHoldPolicy(env,now.getTime())),waiting=Boolean(pending?.n),current=await store.read<BriefingRequest>(id,'briefing_requests',editionId);
   const coverageReason=waiting?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
   if(current?.state==='PENDING'&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;await tx.write('briefing_requests',editionId,{...request,coverage,...(coverageReason?{reason:coverageReason}:request.reason==='AWAITING_INTAKE_REASSESSMENT'?{reason:undefined}:{})})});
+  await supersedeExpiredWindows(store,id,windowHoldPolicy(env,now.getTime()),now.toISOString());
   const requests=await store.list<BriefingRequest>(id,'briefing_requests');
   let briefingSends=0;
   for(const request of requests.filter(r=>r.state==='PENDING' && (!r.nextAttemptAt || Date.parse(r.nextAttemptAt)<=now.getTime()))) {

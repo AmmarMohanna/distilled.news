@@ -5,11 +5,15 @@ import {publicationWindowSchema} from './v1-intelligence/schedule';
 import {createStoredEvidenceModel} from './v1-intelligence/model';
 import {pendingWindowCollections} from './connector-publication-coverage';
 import {windowHoldPolicy} from './v1-intelligence/window-hold';
+import {supersedeExpiredWindows} from './v1-intelligence/window-supersede';
+import {V1FeedStore} from './v1-intelligence/store';
 /** Give an already-ready closed window one initial transport turn before new
  * reviews refill the single intelligence lane. Canonical publication still
  * rechecks all evidence, approvals, model accounting, grounding and leases. */
 export async function dispatchReadyConnectorBriefing(env:Env,feedId:string,now=new Date()):Promise<boolean>{
  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return false;
+ const policy=windowHoldPolicy(env,now.getTime());
+ await supersedeExpiredWindows(new V1FeedStore(env.DB),feedId,policy,now.toISOString());
  const row=await env.DB.prepare(`SELECT r.id,r.json FROM v1_feed_documents r JOIN briefings b ON b.id=r.feed_id JOIN accounts a ON a.id=b.owner_account_id
  WHERE r.feed_id=? AND r.kind='briefing_requests' AND b.paused=0 AND a.disabled_at IS NULL AND json_extract(r.json,'$.state')='PENDING'
  AND COALESCE(json_extract(r.json,'$.reason'),'')<>'MODEL_SETUP_REQUIRED'
@@ -20,7 +24,6 @@ export async function dispatchReadyConnectorBriefing(env:Env,feedId:string,now=n
  if(!row)return false;
  const request=JSON.parse(row.json),window=publicationWindowSchema.safeParse(request.window);if(!window.success)return false;
  if((request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!createStoredEvidenceModel(env))return false;
- const policy=windowHoldPolicy(env,now.getTime());
  if(await jobsHoldingWindow(env.DB,feedId,window.data.end,policy)||(await pendingWindowCollections(env.DB,feedId,window.data.end,policy)).pending)return false;
  return enqueueV1(env,'v1_briefing',row.id,{type:'v1_briefing',feedId,window:window.data},now);
 }

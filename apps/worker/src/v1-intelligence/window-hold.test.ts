@@ -52,3 +52,20 @@ it('failed jobs keep one failure group per kind and code under the bounded hold'
 it('rejects an invalid grace setting',()=>{
  expect(()=>windowHoldPolicy({V1_PUBLICATION_GRACE_MINUTES:'soon'})).toThrow('INVALID_PUBLICATION_GRACE');
 });
+
+it('only the newest past-deadline window stays pending; older ones are carried into it unless synthesis started',async()=>{
+ const {V1FeedStore}=await import('./store');
+ const {supersedeExpiredWindows,SUPERSEDED_REASON}=await import('./window-supersede');
+ await ctx.db.prepare("INSERT INTO v1_feeds(id,json) VALUES('feed',?)").bind(JSON.stringify({id:'feed',ownerId:'owner',revision:1,paused:false})).run();
+ const request=(id:string,windowEnd:string)=>ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests',?,'feed',?)").bind(id,JSON.stringify({id,feedId:'feed',state:'PENDING',attempts:0,createdAt:windowEnd,window:{start:new Date(Date.parse(windowEnd)-1800000).toISOString(),end:windowEnd,kind:'30M'}})).run();
+ await request('w1100','2026-10-16T11:00:00.000Z');await request('w1130','2026-10-16T11:30:00.000Z');await request('w1200','2026-10-16T12:00:00.000Z');await request('w1230','2026-10-16T12:30:00.000Z');
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('synthesis_jobs','w1130','feed','{}')").run();
+ const store=new V1FeedStore(ctx.db);
+ expect(await supersedeExpiredWindows(store,'feed',undefined,'2026-10-16T12:35:00Z')).toEqual([]);
+ expect(await supersedeExpiredWindows(store,'feed',at('2026-10-16T12:35:00Z'),'2026-10-16T12:35:00Z')).toEqual(['w1100']);
+ const state=async(id:string)=>JSON.parse((await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='briefing_requests' AND id=?").bind(id).first<{json:string}>())!.json);
+ expect(await state('w1100')).toMatchObject({state:'DONE',result:'DEFERRED',reason:SUPERSEDED_REASON,supersededBy:'w1200'});
+ expect((await state('w1130')).state).toBe('PENDING');
+ expect((await state('w1200')).state).toBe('PENDING');
+ expect((await state('w1230')).state).toBe('PENDING');
+});
