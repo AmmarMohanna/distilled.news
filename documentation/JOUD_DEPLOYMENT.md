@@ -42,3 +42,8 @@ Selected enabled sources are read back from the backend and displayed with logos
 on the owner feed page; public source availability and blocker messages remain
 provided by the imported backend. Generated artwork uses the existing image setup.
 Existing account data and feeds are not copied from other deployments.
+
+Source connector admission requires `SOURCE_CONNECTORS_ENABLED=true` in addition
+to the downstream switch and Cron. Google News publisher resolution is enabled.
+Bare publisher names are stored as Google News topic searches, not publisher-only
+subscriptions; the Google logo represents that configured search source.

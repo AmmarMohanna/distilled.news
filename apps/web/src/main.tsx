@@ -1571,6 +1571,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const language = uiLanguage;
   const pageDir = textDirection(language);
   const canStar = Boolean(payload);
+  const sourceIssues = payload?.sourceAvailability?.some(source=>source.state === "UNAVAILABLE" || source.warning || source.collectionError) ?? false;
   const feedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language) : "";
   const reportEdition = selectedReport
     ? editionDetails.get(selectedReport.editionId) ?? editions.find((edition) => edition.id === selectedReport.editionId)
@@ -1711,12 +1712,12 @@ function FeedPage(props: { username: string; slug: string }) {
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
       {payload?.sourceAvailability?.some(source=>source.state==='UNAVAILABLE'||source.warning||source.collectionError) ? <FeedNotice severity="warning" language={language} heading={t('Some sources need attention')} message={payload.sourceAvailability.filter(source=>source.state==='UNAVAILABLE'||source.warning||source.collectionError).map(source=>{
         const messages:string[]=[];
-        if(source.state==='UNAVAILABLE')messages.push(t(source.reason==='PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED'?'Paid collection is not authorized or configured.':source.reason==='PAID_OPERATION_UNCERTAIN'?'A previous paid request needs reconciliation before collection can continue.':source.reason==='BUDGET_EXHAUSTED'?'The authorized collection budget is exhausted.':'Source collection is unavailable.'));
+        if(source.state==='UNAVAILABLE')messages.push(t(source.reason==='PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED'?'Paid collection is not authorized or configured.':source.reason==='PAID_OPERATION_UNCERTAIN'?'A previous paid request needs reconciliation before collection can continue.':source.reason==='BUDGET_EXHAUSTED'?'The authorized collection budget is exhausted.':source.reason==='CONNECTORS_DISABLED'?'Source collection is disabled on this deployment.':source.reason==='PRIVATE_SERVICE_UNAVAILABLE'?'This source requires the private collection service.':source.reason==='UNSUPPORTED_SOURCE'?'This source type is not supported.':'Source collection is unavailable.'));
         if(source.warning)messages.push(`${source.acquisition?.failed??0} ${t(source.warning==='ARTICLE_AUTH_REQUIRED'?'article acquisition jobs failed with an authentication requirement.':source.warning==='ARTICLE_CHALLENGE_REQUIRED'?'article acquisition jobs were blocked by the publisher.':'article acquisition jobs failed.')}`);
         if(source.collectionError&&!['UNCERTAIN_PAID_SUBMISSION'].includes(source.collectionError))messages.push(t(source.collectionError==='RATE_LIMIT'?'Collection is waiting for the provider rate limit.':source.collectionError==='TRANSIENT'?'Collection encountered a temporary failure and is retrying.':'The latest collection attempt failed.'));
         return `${source.title}: ${messages.join(' ')}`;
       }).join(' ')} /> : null}
-      {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
+      {payload?.publicationState === 'quiet' && !sourceIssues && (payload.editions.length > 0 || payload.sourceAvailability?.some(source => (source.acquisition?.completed ?? 0) > 0)) ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
       {payload?.publicationState === 'checking' ? <FeedProcessingProgress progress={payload.publicationProgress} language={language}/> : null}
       {summaryMessage ? (
@@ -1761,7 +1762,7 @@ function FeedPage(props: { username: string; slug: string }) {
             {archivedReadEditions.length === 0 && <Newspaper className="feed-empty-icon" size={42} strokeWidth={1.5} aria-hidden/>}
             <strong>{feedTab === "latest" ? emptyFeedTitle(archivedReadEditions.length, language) : t(feedTab === "saved" ? "No saved stories yet" : "No read stories yet")}</strong>
             <p className="muted">
-              {feedTab === "latest" ? emptyFeedMessage(archivedReadEditions.length, language) : t("Stories will appear here as you read or save them.")}
+              {feedTab === "latest" ? (sourceIssues ? t("No briefing is available yet. Source collection needs attention; this does not mean there is no news.") : emptyFeedMessage(archivedReadEditions.length, language)) : t("Stories will appear here as you read or save them.")}
             </p>
           </div>
         ) : null}

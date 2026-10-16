@@ -6,6 +6,11 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "Names and topics create Google News searches. Paste a publisher or RSS URL to follow that source directly.": ["Les noms et sujets créent des recherches Google Actualités. Collez l’URL d’un éditeur ou d’un flux RSS pour suivre cette source directement.", "تنشئ الأسماء والمواضيع عمليات بحث في أخبار Google. ألصق رابط الناشر أو رابط RSS لمتابعة ذلك المصدر مباشرة."],
+  "Source collection is disabled on this deployment.": ["La collecte des sources est désactivée sur ce déploiement.", "جمع المصادر معطّل في هذا النشر."],
+  "This source requires the private collection service.": ["Cette source nécessite le service privé de collecte.", "يتطلب هذا المصدر خدمة الجمع الخاصة."],
+  "This source type is not supported.": ["Ce type de source n’est pas pris en charge.", "نوع المصدر هذا غير مدعوم."],
+  "No briefing is available yet. Source collection needs attention; this does not mean there is no news.": ["Aucun bulletin n’est encore disponible. La collecte des sources nécessite une intervention ; cela ne signifie pas qu’il n’y a pas d’actualité.", "لا توجد نشرة متاحة بعد. يحتاج جمع المصادر إلى معالجة؛ وهذا لا يعني عدم وجود أخبار."],
   "Latest": ["Récentes", "الأحدث"],
   "Saved": ["Enregistrées", "المحفوظة"],
   "Read": ["Lues", "المقروءة"],
