@@ -4,6 +4,7 @@ import {reserveConnectorWork,releaseConnectorWork} from './connector-work-admiss
 import {coalescedProcessingQueue,completeConnectorDownstream,decodeConnectorDelivery} from './connector-scheduling';
 import {enqueueV1} from './v1-queue-dispatch';
 import type {Env,DistilledQueueMessage} from './types';
+import {dispatchReadyConnectorBriefing} from './connector-briefing-priority';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env;
 beforeEach(async()=>{
  ctx=await createIntakeDatabase({product:true});
@@ -13,6 +14,25 @@ beforeEach(async()=>{
  for(let i=0;i<8;i++)await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind('job-'+i,'source',JSON.stringify({id:'job-'+i,feedId:'feed',kind:'ACQUIRE',state:'PENDING',attempts:0})).run();
 });
 afterEach(async()=>{await ctx.dispose()});
+it('a ready closed briefing takes a turn before later reviews without bypassing earlier unfinished evidence',async()=>{
+ const at=new Date('2026-10-16T13:30:00Z');
+ await ctx.db.prepare("INSERT INTO v1_feeds(id,json) VALUES('feed',?)").bind(JSON.stringify({id:'feed',ownerId:'owner',revision:1})).run();
+ await ctx.db.prepare("UPDATE v1_intake_scopes SET json=json_set(json,'$.enabled',1) WHERE id='source'").run();
+ await ctx.db.prepare("UPDATE v1_jobs SET json=json_set(json,'$.state','DONE') WHERE feed_source_id='source'").run();
+ await ctx.db.prepare("INSERT INTO v1_inputs(id,feed_source_id,json) VALUES('late','source',?)").bind(JSON.stringify({observation:{observedAt:'2026-10-16T13:00:00Z'}})).run();
+ await ctx.db.prepare("UPDATE v1_jobs SET json=json_set(json,'$.kind','REASSESS','$.state','PENDING','$.observationId','late') WHERE id='job-0'").run();
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','ready','feed',?)").bind(JSON.stringify({id:'ready',state:'PENDING',window:{start:'2026-10-16T11:30:00.000Z',end:'2026-10-16T12:00:00.000Z',kind:'30M'}})).run();
+ const scoped={...env,V1_DOWNSTREAM_ENABLED:'true',PROCESSING_QUEUE:coalescedProcessingQueue(env)};
+ await ctx.db.prepare("INSERT INTO v1_inputs(id,feed_source_id,json) VALUES('early','source',?)").bind(JSON.stringify({observation:{observedAt:'2026-10-16T11:45:00Z'}})).run();
+ await ctx.db.prepare("UPDATE v1_jobs SET json=json_set(json,'$.kind','REASSESS','$.state','PENDING','$.observationId','early') WHERE id='job-1'").run();
+ expect(await dispatchReadyConnectorBriefing(scoped,'feed',at)).toBe(false);
+ await ctx.db.prepare("UPDATE v1_jobs SET json=json_set(json,'$.state','DONE') WHERE id='job-1'").run();
+ expect(await dispatchReadyConnectorBriefing({...scoped,V1_REAL_MODEL_REQUIRED:'true'},'feed',at)).toBe(false);
+ expect(await dispatchReadyConnectorBriefing(scoped,'feed',at)).toBe(true);
+ expect((env.V1_PROCESSING_QUEUE!.send as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({type:'v1_briefing',feedId:'feed'});
+ expect(await enqueueV1(scoped,'v1_reassess','job-0',{type:'v1_reassess',jobId:'job-0'},at)).toBe(false);
+ expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_jobs WHERE id='job-0'").first<{json:string}>())!.json).state).toBe('PENDING');
+});
 it('bounds acquisition to four outstanding deliveries and intelligence to one per Feed, independently',async()=>{
  const results=await Promise.all(Array.from({length:8},(_,i)=>reserveConnectorWork(env,{type:'v1_acquisition',jobId:'job-'+i},'a'+i,1000)));
  expect(results.filter(Boolean)).toHaveLength(4);

@@ -7,6 +7,7 @@ import {dispatchTelegramLane} from './connector-telegram-lane';
 import {requireConnectorQueues} from './connector-queue-config';
 import {reserveConnectorWork,releaseConnectorWork} from './connector-work-admission';
 import {pendingWindowCollections} from './connector-publication-coverage';
+import {dispatchReadyConnectorBriefing} from './connector-briefing-priority';
 
 export type ConnectorQueueMessage={type:'connector_feed';feedId:string;token:string}|{type:'connector_poll';feedId:string;jobId:string;table:'rss'|'provider';token:string}|{type:'connector_relay';feedId:string};
 const tables={rss:'connector_rss_poll_jobs',provider:'connector_provider_poll_jobs'} as const;
@@ -135,7 +136,8 @@ export async function continueConnectorIntake(env:Env,feedId:string,jobId:string
 
 /** Coordination interface: feed-scoped environment + existing dispatchers.
  * Canonical intelligence/window policy stays owned by v1-intelligence/runtime. */
-export async function relayConnectorDownstream(env:Env){
+export async function relayConnectorDownstream(env:Env,feedId?:string){
+ if(feedId)await dispatchReadyConnectorBriefing(env,feedId);
  await dispatchV1Acquisitions(env);
  await dispatchV1Intelligence(env);
 }
@@ -152,7 +154,7 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
   let lost=false,renewing:Promise<void>|undefined;
   const timer=setInterval(()=>{if(renewing||lost)return;renewing=(async()=>{try{const r=await env.DB.prepare('UPDATE connector_feed_schedule SET relay_until=? WHERE feed_id=? AND relay_token=? AND relay_until>? RETURNING feed_id').bind(Date.now()+DELIVERY_LEASE_MS,body.feedId,token,Date.now()).first();if(!r)lost=true;}catch{lost=true;}})().finally(()=>{renewing=undefined;});},DELIVERY_LEASE_MS/3);
   try{
-   const scoped=await feedEnv(env,body.feedId);if(scoped)await relayConnectorDownstream(scoped);
+   const scoped=await feedEnv(env,body.feedId);if(scoped)await relayConnectorDownstream(scoped,body.feedId);
    if(renewing)await renewing;if(lost)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    await completeConnectorDownstream(env,body,completionToken);
   }finally{clearInterval(timer);if(renewing)await renewing;await env.DB.prepare('UPDATE connector_feed_schedule SET relay_until=0,relay_token=NULL WHERE feed_id=? AND relay_token=?').bind(body.feedId,token).run();}

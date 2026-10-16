@@ -55,6 +55,14 @@ Absent that timestamp proof, the barrier remains in place. New bounded scans kee
 their existing collection barrier. This matches the downstream observed-before
 cutoff; it does not re-date source posts or treat later observations as old evidence.
 
+`connector-briefing-priority.ts` gives a ready closed request its initial queue
+turn before reassessment refills the single intelligence lane. It uses the existing
+canonical enqueue identity, current acquisition/review window blocker check, and
+the shared collection gate. It skips future/backed-off windows, missing model
+configuration, and requests with an existing synthesis job. It does not reserve
+model funds, reopen synthesis, or change canonical publication rules. This avoids
+newer review arrivals monopolizing the lane after an older window is ready.
+
 The public progress API and queue publication admission share one collection-gate
 query. The frontend names blocking sources and can show completed review counts
 while collection remains pending. It says preparation only after that gate clears.
