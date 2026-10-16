@@ -1331,7 +1331,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
    1-3 feeds: large artwork cards. 4-6 feeds: medium cards in a tighter grid (only when the screen is tall enough
    to show them without scrolling). 7+ feeds and every phone: compact rows. Artwork height follows the screen height. */
 @media (min-width: 900px) and (min-height: 520px) {
-  :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 300px)); gap: 20px; max-width: none; justify-content: start; }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 300px)); gap: 20px; max-width: none; justify-content: start; }
   :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) > .topic-card { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "art art" "name name" "status updated" "actions actions"; grid-template-rows: auto auto auto 1fr; row-gap: 6px; padding: 14px 18px 8px; border-radius: 20px; align-items: center; }
   :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) > .topic-card .topic-art { width: 100%; height: clamp(72px, calc(100dvh - 500px - var(--feed-extra, 0px)), 220px); max-height: none; aspect-ratio: auto; margin-bottom: 8px; border-radius: 16px; }
   :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) > .topic-card .topic-art svg { max-height: 100%; }
@@ -1349,7 +1349,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):has(> .topic-card:nth-child(4)):not(:has(> .topic-card:nth-child(5))) > .topic-card .feed-options-popover { top: auto; bottom: calc(100% + 6px); }
 }
 @media (min-width: 900px) and (min-height: 800px) {
-  :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):has(> .topic-card:nth-child(5)):not(:has(> .topic-card:nth-child(7))) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 260px)); gap: 16px; max-width: none; justify-content: start; }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):has(> .topic-card:nth-child(5)):not(:has(> .topic-card:nth-child(7))) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 260px)); gap: 16px; max-width: none; justify-content: start; }
   :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):has(> .topic-card:nth-child(5)):not(:has(> .topic-card:nth-child(7))) > .topic-card { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "art art" "name name" "status updated" "actions actions"; grid-template-rows: auto auto auto 1fr; row-gap: 6px; padding: 14px 18px 8px; border-radius: 20px; align-items: center; }
   :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):has(> .topic-card:nth-child(5)):not(:has(> .topic-card:nth-child(7))) > .topic-card .topic-art { width: 100%; height: clamp(64px, calc((100dvh - 640px - var(--feed-extra, 0px)) / 2), 120px); max-height: none; aspect-ratio: auto; margin-bottom: 8px; border-radius: 16px; }
   :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):has(> .topic-card:nth-child(5)):not(:has(> .topic-card:nth-child(7))) > .topic-card .topic-art svg { max-height: 100%; }
@@ -1393,3 +1393,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 /* The guest landing has a taller hero above the feeds. */
 :root.apple-ui.apple-ui .experience.guest-landing { --feed-extra: 90px; }
+
+/* Guest landing: everything shares one centred axis with the hero (controls and cards were left-aligned under a
+   centred headline), and the cards grow on very large screens so they never look lost in the canvas. */
+:root.apple-ui.apple-ui .experience.guest-landing .landing-controls { width: min(100%, 720px); margin-inline: auto !important; }
+:root.apple-ui.apple-ui .experience.guest-landing .featured-feeds .curated-feed-grid { justify-content: center !important; }
+@media (min-width: 1600px) and (min-height: 860px) {
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):not(:has(> .topic-card:nth-child(4))) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 360px)); }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):has(> .topic-card:nth-child(4)):not(:has(> .topic-card:nth-child(7))) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 320px)); }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view, .featured-feeds) :is(.personal-feed-grid, .curated-feed-grid):has(> .topic-card:nth-child(4)):not(:has(> .topic-card:nth-child(5))) > .topic-card .topic-art { height: clamp(100px, calc((100dvh - 560px - var(--feed-extra, 0px)) / 1.6), 190px); }
+}
