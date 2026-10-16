@@ -1435,6 +1435,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
+  const [filter, setFilter] = useState<"all" | "unread">("unread");
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
   const [editionDetails, setEditionDetails] = useState<Map<string, BriefingEdition>>(() => new Map());
@@ -1535,9 +1536,10 @@ function FeedPage(props: { username: string; slug: string }) {
   const currentEditions = payload ? editions : [];
   const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
   const unreadEditions = currentEditions.filter((edition) => !readIds.has(edition.id));
-  const visibleUnreadEditions = unreadEditions.slice(0, visibleUnreadCount);
-  const hiddenUnreadCount = Math.max(0, unreadEditions.length - visibleUnreadEditions.length);
   const archivedReadEditions = currentEditions.filter((edition) => readIds.has(edition.id));
+  const filteredEditions = filter === "unread" ? unreadEditions : currentEditions;
+  const visibleUnreadEditions = filteredEditions.slice(0, visibleUnreadCount);
+  const hiddenUnreadCount = Math.max(0, filteredEditions.length - visibleUnreadEditions.length);
   const language = uiLanguage;
   const pageDir = textDirection(language);
   const canStar = Boolean(payload);
@@ -1659,6 +1661,13 @@ function FeedPage(props: { username: string; slug: string }) {
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
       <div className="feed-tools" dir={pageDir}>
+        <div className="feed-filter" role="group" aria-label={filterLabel(language)}>
+          {(["all", "unread"] as const).map(option => (
+            <button key={option} type="button" aria-pressed={filter === option} onClick={() => { setFilter(option); setVisibleUnreadCount(FEED_BATCH_SIZE); }}>
+              {option === "all" ? allFilterLabel(language) : `${unreadFilterLabel(language)}${unreadEditions.length ? ` ${unreadEditions.length}` : ""}`}
+            </button>
+          ))}
+        </div>
         <div className="feed-side-actions">
           <form
             className="search"
@@ -1720,8 +1729,8 @@ function FeedPage(props: { username: string; slug: string }) {
                   detailEdition={editionDetails.get(edition.id)}
                   language={language}
                   isLoading={editionBusyIds.has(edition.id)}
-                  isRead={false}
-                  onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, true)}
+                  isRead={readIds.has(edition.id)}
+                  onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
                   onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
                 />
               ))}
@@ -1736,7 +1745,7 @@ function FeedPage(props: { username: string; slug: string }) {
             <span className="muted">{moreCountLabel(hiddenUnreadCount, language)}</span>
           </div>
         ) : null}
-        {payload && !initialLoading && !searchLoading && unreadEditions.length === 0 && !error ? (
+        {payload && !initialLoading && !searchLoading && filteredEditions.length === 0 && !error ? (
           <div className="empty-state feed-empty-state">
             {archivedReadEditions.length === 0 && <Newspaper className="feed-empty-icon" size={42} strokeWidth={1.5} aria-hidden/>}
             <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>
@@ -1746,25 +1755,6 @@ function FeedPage(props: { username: string; slug: string }) {
           </div>
         ) : null}
       </div>
-      {archivedReadEditions.length > 0 ? (
-        <details className="section read-section">
-          <summary>{readSectionLabel(archivedReadEditions.length, language)}</summary>
-          <div className="news-line news-line-read">
-            {archivedReadEditions.map((edition) => (
-              <FeedEditionRow
-                key={edition.id}
-                edition={edition}
-                detailEdition={editionDetails.get(edition.id)}
-                language={language}
-                isLoading={editionBusyIds.has(edition.id)}
-                isRead={true}
-                onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, false)}
-                onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
-              />
-            ))}
-          </div>
-        </details>
-      ) : null}
     </Shell>
   );
 }
@@ -1874,6 +1864,8 @@ function FeedEditionRow(props: {
   );
 }
 
+const trailingPunctuation = /^[.,;:!?)\]…،؛؟]+/u;
+
 function ReferenceParagraph(props: {
   text: string;
   language: "en" | "ar" | "fr";
@@ -1893,11 +1885,16 @@ function ReferenceParagraph(props: {
         if (part.kind === "text") {
           // A marker hugs the word before it, like a footnote.
           const next = parts[index + 1];
-          const value = next?.kind === "reference" ? part.value.replace(/\s+$/u, "") : part.value;
-          return <bdi key={`${part.value}:${index}`} dir={textDir}>{value}</bdi>;
+          const previous = parts[index - 1];
+          let value = next?.kind === "reference" ? part.value.replace(/\s+$/u, "") : part.value;
+          // Punctuation right after a marker stays on the marker's line.
+          if (previous?.kind === "reference") value = value.replace(trailingPunctuation, "");
+          return value ? <bdi key={`${part.value}:${index}`} dir={textDir}>{value}</bdi> : null;
         }
         const canOpen = part.value >= 1 && part.value <= props.referenceCount;
-        return (
+        const following = parts[index + 1];
+        const punctuation = following?.kind === "text" ? following.value.match(trailingPunctuation)?.[0] ?? "" : "";
+        const marker = (
           <button
             key={`reference-${part.value}-${index}`}
             type="button"
@@ -1910,6 +1907,7 @@ function ReferenceParagraph(props: {
             {part.value}
           </button>
         );
+        return punctuation ? <span key={`cluster-${part.value}-${index}`} className="reference-cluster">{marker}<bdi dir={textDir}>{punctuation}</bdi></span> : marker;
       })}
     </p>
   );
@@ -2343,6 +2341,24 @@ function noFeaturedFeedsLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "لم يتم نشر أي خلاصات في الاستكشاف بعد.";
   if (language === "fr") return "Aucun fil n’a encore été publié dans Explorer.";
   return "No feeds have been published to Explore yet.";
+}
+
+function filterLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "تصفية الموجزات";
+  if (language === "fr") return "Filtrer les briefs";
+  return "Filter briefings";
+}
+
+function allFilterLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "الكل";
+  if (language === "fr") return "Tous";
+  return "All";
+}
+
+function unreadFilterLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "غير مقروء";
+  if (language === "fr") return "Non lus";
+  return "Unread";
 }
 
 function searchPublishedLabel(language: "en" | "ar" | "fr"): string {

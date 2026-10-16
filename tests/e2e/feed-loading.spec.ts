@@ -24,7 +24,7 @@ test('refresh preserves read status, loaded pages and loaded sources while pendi
  await unread.first().getByRole('button',{name:/mark .* read/i}).click();await page.getByRole('button',{name:'load more',exact:true}).click();await expect(unread).toHaveCount(24);
  await unread.first().getByRole('button',{name:/^Sources/}).click();await expect(page.locator('.sources-story')).toHaveCount(1);await page.getByRole('button',{name:'Close',exact:true}).click();
  delay=true;await refreshFeed(page);await expect(unread).toHaveCount(24);
- const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await expect(page.locator('.news-line-read .news-item')).toHaveCount(1);
+ const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await page.getByRole('button',{name:'All',exact:true}).click();await expect(page.locator('.news-item.is-read')).toHaveCount(1);
  await unread.first().getByRole('button',{name:/^Sources/}).click();await expect(page.locator('.sources-story')).toHaveCount(1);
 });
 test('a failed refresh preserves previously published editions',async({page})=>{
