@@ -115,3 +115,30 @@ inside acceptance. Already receipted observations are excluded, so replay does
 not require deleted historical payloads. Mutable authorization, restrictions,
 authority and ordering are still checked inside the normal acceptance path.
 No source contract or editorial policy is changed.
+
+## History expansion and acquisition bookkeeping CAS
+
+Live structured timings exposed an older Feed doing 247 preload queries and a
+67,964 ms transaction with a CAS retry. Listing retained memberships had eagerly
+preloaded every historical article body. That implicit expansion is removed:
+review already prefetches support for current Event/Storyline versions, while
+publication explicitly prefetches selected/history support. Historical references
+remain accessible on demand. A regression with 1,000 retired memberships verifies
+the current review does not expand those article bodies. Editorial engine and
+selection-support tests preserve exact decisions/support.
+
+Acquisition PENDING/RUNNING bookkeeping now uses an atomic exact-row job CAS,
+in addition to current source authorization/epoch checks. Every transaction that
+reads an ACQUIRE job supplies its observed serialized row to the atomic batch
+guard. Concurrent duplicate claims cannot both win; a replaced owner cannot
+persist or promote a result even when no source epoch changed. These operational
+updates no longer invalidate unrelated review snapshots. Terminal failures and
+canonical evidence changes still advance the epoch, preserving window-coverage
+and evidence/configuration invalidation. Direct lower-level writes without a job
+guard retain the original scope-epoch behavior.
+
+Regression coverage includes a takeover exactly between lease validation and
+result commit, an unrelated Feed snapshot surviving claim/result journaling,
+terminal coverage invalidation, simultaneous duplicate claims and all existing
+source-revocation/evidence ordering checks. No attempts, blocked jobs, grants,
+checkpoints or provider reservations are reset for rollout.

@@ -1,9 +1,10 @@
 import { HandoffError } from '@distilled/contracts';
-import { type ScopeSnapshot, type Table, type Write,type ReadKey,type Stored, V1IntakeStore } from './store';
+import { type ScopeSnapshot, type Table, type Write,type ReadKey,type Stored,type AcquisitionJobGuard, V1IntakeStore } from './store';
 import {intakeStorageCause} from './diagnostics';
 /** In-batch overlay makes multiple decisions on one item observe preceding effects. */
 export class IntakeTransaction {
   readonly writes = new Map<string,Write>();
+  readonly acquisitionGuards=new Map<string,AcquisitionJobGuard>();
   reads=0;
   private readonly cached=new Map<string,Stored<unknown>|undefined>();
   constructor(readonly store:V1IntakeStore,readonly snapshot:ScopeSnapshot) {}
@@ -12,8 +13,9 @@ export class IntakeTransaction {
     if(staged) return staged.value as T;
     const key=JSON.stringify([table,id]);
     const row=this.cached.has(key)?this.cached.get(key) as Stored<T>|undefined:await this.store.read<T>(table,id);
-    if(!this.cached.has(key))this.reads++;
+    if(!this.cached.has(key)){this.reads++;this.cached.set(key,row);}
     if(row && row.feedSourceId!==this.snapshot.scope.feedSourceId) throw new HandoffError('IDEMPOTENCY_CONFLICT');
+    if(table==='jobs'&&row&&(row.value as {kind?:string}).kind==='ACQUIRE')this.acquisitionGuards.set(id,{id,feedSourceId:row.feedSourceId,serialized:row.serialized??JSON.stringify(row.value)});
     return row?.value;
   }
   async prefetch(keys:ReadKey[]):Promise<void> {
@@ -31,7 +33,7 @@ export async function transact<T>(store:V1IntakeStore,feedSourceId:string,run:(t
       const tx=new IntakeTransaction(store,await store.snapshot(feedSourceId));
       const result=await run(tx);
       reads+=tx.reads;writes=tx.writes.size;
-      if(await store.commit(tx.snapshot,[...tx.writes.values()])) return result;
+      if(await store.commit(tx.snapshot,[...tx.writes.values()],[...tx.acquisitionGuards.values()])) return result;
     }
     console.warn(JSON.stringify({type:'V1_INTAKE_CAS_EXHAUSTED',feedSourceId,attempts:12,reads,writes,elapsedMs:Date.now()-started}));
     throw new HandoffError('TEMPORARY_UNAVAILABLE');

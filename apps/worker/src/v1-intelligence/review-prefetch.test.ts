@@ -51,3 +51,15 @@ it('bulk revision misses remain scoped, and a new CAS attempt reloads previous m
  const fresh=new FeedTransaction(store,await store.snapshot(feed.id));await fresh.preloadRevisions(['revision-seed']);
  expect(await fresh.revision('revision-seed')).toMatchObject({feedId:feed.id});
 });
+it('retained membership history does not implicitly preload unrelated historical article bodies',async()=>{
+ const {revision}=await seedCurrentEvidence(new V1IntakeStore(ctx.db));
+ const writes:D1PreparedStatement[]=[];
+ for(let i=0;i<1000;i++)writes.push(ctx.db.prepare('INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?)').bind('memberships','historical-'+i,feed.id,JSON.stringify({id:'historical-'+i,eventVersionId:'retired-'+i,evidenceRevisionId:'old-revision-'+i})));
+ for(let i=0;i<writes.length;i+=90)await ctx.db.batch(writes.slice(i,i+90));
+ const tx=new FeedTransaction(store,await store.snapshot(feed.id));
+ await prefetchReviewGraph(tx,[revision]);
+ expect(tx.metrics.preloadQueries).toBeLessThanOrEqual(3);
+ expect(await tx.revision(revision.id)).toEqual(revision);
+ // History is retained and readable; it is simply no longer eagerly expanded.
+ expect(await tx.list('memberships')).toHaveLength(1000);
+});

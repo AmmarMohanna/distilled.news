@@ -136,7 +136,9 @@ export class FeedTransaction {
   // and epoch validation still occurs at atomic commit; no meaning is inferred.
   if(kind==='events')await this.preload('event_versions',values.map(row=>(row as T&{currentVersionId:string}).currentVersionId));
   if(kind==='storylines'){await this.preload('storyline_versions',values.map(row=>(row as T&{currentVersionId:string}).currentVersionId));const versions=await Promise.all(values.map(row=>this.read<StorylineVersion>('storyline_versions',(row as T&{currentVersionId:string}).currentVersionId)));await this.preload('event_versions',versions.flatMap(version=>version?.eventVersionIds??[]))}
-  if(kind==='memberships')await this.preloadRevisions(values.map(row=>(row as T&{evidenceRevisionId:string}).evidenceRevisionId));
+  // Membership history is metadata, not a request to download every historical
+  // article body. Callers prefetch the exact current/selected support they use;
+  // historical references remain available through revision() when needed.
   return values;
  }
  revision(id:string):Promise<EvidenceRevision|undefined> {

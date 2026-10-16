@@ -6,6 +6,8 @@ import { claimAcquisition, persistAcquisitionResult, completeAcquisition, runAcq
 import type { AcceptedAcquiredContent, DownstreamJob } from './types';
 import { createCandidateAcquisitionRouter } from './acquisition-router';
 import { hashContent } from '@distilled/contracts';
+import {V1FeedStore,FeedTransaction} from '../v1-intelligence/store';
+import {feedFixture} from '../v1-intelligence/test-utils';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1IntakeStore;
 const jobId=JSON.stringify(['ACQUIRE','observation-1','']);
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())});
@@ -46,6 +48,27 @@ it('immutable fetched-result journaling preserves canonical scope epoch and stil
  const replacement=(await claimAcquisition(store,jobId,later))!;
  expect(replacement.token).not.toBe(claim.token);
  await expect(persistAcquisitionResult(store,claim,content(claim.candidate.id),later)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+});
+it('acquisition claims and immutable result storage do not invalidate an unrelated Feed review snapshot',async()=>{
+ const feedStore=new V1FeedStore(ctx.db);await feedStore.registerFeed({...feedFixture,id:'feed-1'});
+ const snapshot=await feedStore.snapshot('feed-1'),claim=(await claimAcquisition(store,jobId,now))!;
+ await persistAcquisitionResult(store,claim,content(claim.candidate.id),now);
+ const tx=new FeedTransaction(feedStore,snapshot);await tx.write('intelligence_receipts','independent-review',{id:'independent-review',feedId:'feed-1'});
+ expect(await feedStore.commit(tx)).toBe(true);
+});
+it('a replacement claim between lease validation and result commit is fenced by job CAS even without an epoch bump',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,commit=store.commit.bind(store);let raced=false;
+ store.commit=async(snapshot,writes,guards)=>{
+  if(!raced&&writes.some(w=>w.table==='acquisition_results')){raced=true;expect(await claimAcquisition(store,jobId,later)).toBeDefined();}
+  return commit(snapshot,writes,guards);
+ };
+ await expect(persistAcquisitionResult(store,claim,content(claim.candidate.id),now)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ expect(await store.read('acquisition_results',jobId)).toBeUndefined();
+});
+it('terminal acquisition failure still changes the canonical coverage epoch',async()=>{
+ const before=(await store.snapshot('feed-source-1')).epoch;
+ expect(await runAcquisitionJob(store,jobId,testPolicy,async()=>{throw new AcquisitionFailure('UNSUPPORTED',false)})).toBe('FAILED');
+ expect((await store.snapshot('feed-source-1')).epoch).toBeGreaterThan(before);
 });
 it('restart after durable fetch resumes acceptance without another external fetch; acknowledgement replay is harmless',async()=>{
  const claim=(await claimAcquisition(store,jobId,now))!;
