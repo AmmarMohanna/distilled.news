@@ -52,20 +52,14 @@ test('owner opens feed settings from feed page',async({page})=>{
  await expect(dialog.getByRole('button',{name:'Copy URL',exact:true})).toBeVisible();
  await expect(dialog.getByRole('button',{name:'Delete feed',exact:true})).toBeVisible();
 });
-test('feed header matches home and opens the signed-in account profile',async({page})=>{
- await mock(page); await page.goto('/');
- await expect(page.locator('.experience-header .avatar-button')).toBeVisible();
- const headerState = () => page.locator('.experience-header').evaluate(node => ({
-  height: node.getBoundingClientRect().height,
-  controls: Array.from(node.querySelectorAll('button')).map(button => button.getAttribute('aria-label')),
-  logo: node.querySelector('.distilled-logo-wordmark')?.textContent
- }));
- const homeHeader = await headerState();
- await page.goto('/joud/lebanon/');
+test('a signed-in feed header keeps only feed actions; the account profile lives on Home',async({page})=>{
+ await mock(page); await page.goto('/joud/lebanon/');
+ await expect(page.locator('.experience-header .experience-leading')).toBeVisible();
+ await expect(page.locator('.experience-header .avatar-button')).toHaveCount(0);
+ await expect(page.locator('.experience-header .language-cycle')).toHaveCount(0);
+ await expect(page.locator('.experience-header .theme-toggle')).toHaveCount(0);
+ await page.goto('/');
  await expect(page.locator('.experience-header .avatar-button')).toHaveText('J');
- const feedHeader = await headerState();
- expect(feedHeader.height).toBe(homeHeader.height);
- expect(feedHeader.controls).toContain('Account profile');
  await page.getByRole('button',{name:'Account profile',exact:true}).click();
  await expect(page.getByRole('dialog',{name:'account',exact:true})).toBeVisible();
  await expect(page.getByRole('dialog').getByLabel('username',{exact:true})).toHaveValue('joud');
