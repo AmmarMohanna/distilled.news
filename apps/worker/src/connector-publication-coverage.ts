@@ -14,6 +14,12 @@ export async function pendingWindowCollections(db:D1Database,feedId:string,end:s
  AND NOT(j.family='rss' AND COALESCE(j.last_error,'')='RATE_LIMIT'
  AND COALESCE(json_extract(j.result,'$.checkpoint'),'')='UNCHANGED'
  AND COALESCE(json_extract(j.result,'$.coverage.failureReason'),'')='RATE_LIMIT')
- GROUP BY s.id,s.title ORDER BY s.id`).bind(feedId,feedId,end).all<{id:string;title:string;n:number}>();
+ -- Legacy unbounded X jobs can span many closed windows. A saved later
+ -- page is still drained, but cannot enlarge the observed-before boundary
+ -- used by this request's acquisition/review and publication admission.
+ AND NOT(j.family='provider' AND COALESCE(json_extract(j.request,'$.source.family'),'') IN ('x_profile','x_search')
+ AND COALESCE(json_extract(j.request,'$.requestedBounds'),'')='{}'
+ AND COALESCE(julianday(json_extract(j.result,'$.request.coverage.createdAt')),0)>=julianday(?))
+ GROUP BY s.id,s.title ORDER BY s.id`).bind(feedId,feedId,end,end).all<{id:string;title:string;n:number}>();
  return {pending:rows.results.reduce((n,row)=>n+row.n,0),sources:rows.results.map(row=>row.title)};
 }

@@ -272,6 +272,17 @@ it('unfinished source collection holds its publication window but later windows 
  await ctx.db.prepare("UPDATE connector_rss_poll_jobs SET state='DONE' WHERE job_id='window-poll'").run();
  expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:01:00.000Z','window-request')).toBe(true);
 });
+it('a later captured legacy X page does not enlarge an earlier closed observation window',async()=>{
+ const feedId='scale-0031',request=JSON.stringify({scope:{feedId,feedSourceId:`${feedId}-rss`},source:{family:'x_profile'},requestedBounds:{}});
+ await ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,scheduled_at,result,last_error) VALUES(?,?,?,?,?,?,?,?)')
+ .bind('later-legacy-x',request,'hash','[]','2026-10-13T13:12:00.000Z','2026-10-13T11:16:00.000Z',JSON.stringify({request:{coverage:{createdAt:'2026-10-13T13:10:00.000Z'}}}),'INTAKE_BUSY').run();
+ expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:00:00.000Z','closed-x-request')).toBe(true);
+ expect(await collectionReadyForWindow(env,feedId,'2026-10-13T13:30:00.000Z','current-x-request')).toBe(false);
+ // Missing evidence of a later capture must retain the collection barrier.
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET result=NULL WHERE job_id='later-legacy-x'").run();
+ expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:00:00.000Z','closed-x-request')).toBe(false);
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='CANCELLED' WHERE job_id='later-legacy-x'").run();
+});
 
 it('Telegram authority requires an explicit current-origin signal, not a missing message',async()=>{
  const feedId='scale-0040',sourceId=`${feedId}-telegram`,input=JSON.stringify({channelId:'-100123',username:'examplechannel',public:true});

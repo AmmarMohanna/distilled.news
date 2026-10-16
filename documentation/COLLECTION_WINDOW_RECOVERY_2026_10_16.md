@@ -46,6 +46,15 @@ Unresolved handoffs and captured pages still block. This only releases collectio
 admission: downstream coverage, relevance, factual grounding, and model financial
 authorization must still pass before an edition can publish.
 
+Live verification also found that the old X scan's saved page was observed at
+13:10 but still held the 12:00 request because its original poll began at 11:16.
+Legacy unbounded X scans now stop blocking an older closed observation window
+once durable coverage proves their current saved page belongs to a later window.
+They retain their handoff and remain blocking for the appropriate newer window.
+Absent that timestamp proof, the barrier remains in place. New bounded scans keep
+their existing collection barrier. This matches the downstream observed-before
+cutoff; it does not re-date source posts or treat later observations as old evidence.
+
 The public progress API and queue publication admission share one collection-gate
 query. The frontend names blocking sources and can show completed review counts
 while collection remains pending. It says preparation only after that gate clears.
