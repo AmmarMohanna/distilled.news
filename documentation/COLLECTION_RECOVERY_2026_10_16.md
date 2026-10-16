@@ -65,3 +65,24 @@ No live spending was incurred to test this branch.
 
 Frontend production build also passed. These are local deterministic regressions,
 not a new live staging end-to-end run. Staging and its database remain unchanged.
+
+## Sources QA deployment — 16 October 2026
+
+Deployed commit `5c09f04` from `backend-sources-collection-recovery` to
+`distilled-news-sources-qa` only. Applied migration 0059 to QA database
+`d9c3d31c-25d3-4bc3-829d-1402bae58627` before the Worker deployment; verified
+the waiter table and its ordering index exist.
+
+Backend deployment version: `08457c55-d98b-4d9f-b39b-28b0f0aaf1d0`.
+After activating the rebuilt frontend, the final active version is
+`5eb1d43f-98be-43cb-bd73-8014ecc5715c` at 100% traffic, verified at
+2026-10-16 11:06 UTC (14:06 Beirut).
+
+Uploaded all 16 frontend assets and the manifest before activation, using prefix
+`staging-assets/d3e5d3a367b907cbce7b079f7ebaf65e4dd8cb53/`.
+The public QA homepage and its new JavaScript/CSS returned HTTP 200 with the
+expected content types. Compared QA bindings before and after: only the frontend
+asset prefix changed; existing secrets, settings and financial limits were
+preserved. No staging resources were modified and no blocked provider jobs were
+reset. These deployment smoke checks do not establish a new live end-to-end
+collection-to-publication pass.

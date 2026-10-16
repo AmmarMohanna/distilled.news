@@ -8,7 +8,7 @@ preview_urls = false
 routes = []
 
 [vars]
-STAGING_ASSETS_PREFIX = "staging-assets/8d74e45cd53c2a526f2d5234be4c7d154e7c4045/"
+STAGING_ASSETS_PREFIX = "staging-assets/d3e5d3a367b907cbce7b079f7ebaf65e4dd8cb53/"
 PUBLIC_API_BASE_URL = "https://distilled-news-sources-qa.distillednews-platform.workers.dev"
 PUBLIC_WEB_BASE_URL = "https://distilled-news-sources-qa.distillednews-platform.workers.dev"
 EMAIL_FROM = "Distilled.news <distilled.news@outlook.com>"
