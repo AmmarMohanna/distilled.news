@@ -42,6 +42,35 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it('retires unbounded X without fetching an uncaptured historical page',async()=>{
+    const p=provider('x_twitterapi_io'),s=setup([p]);
+    const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(time),100,false,true);
+    await scheduler.schedule('old',request,time,['x_twitterapi_io']);
+    expect(await scheduler.runOne(120000,'old')).toBe('BLOCKED');expect(p.fetch).not.toHaveBeenCalled();
+    expect(s.db.db.prepare("SELECT last_error FROM connector_provider_poll_jobs WHERE job_id='old'").get()).toEqual({last_error:'UNBOUNDED_SCOPE_RETIRED'});
+  });
+  it('a started legacy run without a saved page stays blocked for recovery without a paid fallback',async()=>{
+    const p=provider('x_twitterapi_io'),s=setup([p]);
+    await s.repository.allocate(scope,await sha256(JSON.stringify([scope,request.runId,p.id])),'original-config',time);
+    const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(time),100,false,true);
+    await scheduler.schedule('started',request,time,[p.id]);expect(await scheduler.runOne(120000,'started')).toBe('BLOCKED');expect(p.fetch).not.toHaveBeenCalled();
+    expect(s.db.db.prepare("SELECT last_error FROM connector_provider_poll_jobs WHERE job_id='started'").get()).toEqual({last_error:'UNBOUNDED_RECOVERY_REQUIRED'});
+  });
+  it('drains every captured slice before retiring unbounded X and preserves paid reservations',async()=>{
+    const p=provider('x_twitterapi_io',vi.fn(async()=>({...page(['1','2','3']),continuationToken:'older'}))),s=setup([p]);let at=Date.parse(time),wait=true;
+    const accept=s.intake.acceptBatch;s.intake.acceptBatch=async b=>{if(wait)throw new SourceHandoffWait();return accept(b)};
+    const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at,100,false,true);
+    await scheduler.schedule('captured',request,time,['x_twitterapi_io']);
+    // Capture using the pre-transition runner, with handoff temporarily busy.
+    const old=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at);
+    expect(await old.runOne(120000,'captured')).toBe('RETRY');expect(p.fetch).toHaveBeenCalledTimes(1);
+    s.db.db.prepare("INSERT INTO connector_provider_budgets VALUES('x_twitterapi_io',15,0.02)").run();
+    wait=false;at+=6000;expect(await scheduler.runOne(120000,'captured')).toBe('RETRY');
+    expect(await scheduler.runOne(120000,'captured')).toBe('BLOCKED');expect(p.fetch).toHaveBeenCalledTimes(1);
+    const row=s.db.db.prepare("SELECT request,result,last_error FROM connector_provider_poll_jobs WHERE job_id='captured'").get() as any;
+    expect(JSON.parse(row.request)).toEqual(request);expect(row.last_error).toBe('UNBOUNDED_SCOPE_RETIRED');expect(JSON.parse(row.result).request.coverage.status).toBe('PARTIAL');
+    expect(s.db.db.prepare("SELECT reserved_usd FROM connector_provider_budgets").get()).toEqual({reserved_usd:0.02});
+  });
   it('intake admission waits preserve the captured provider page and failure allowance',async()=>{
     const adapter=provider('x_twitterapi_io'),s=setup([adapter]);let at=Date.parse(time),wait=true;
     const accept=s.intake.acceptBatch;s.intake.acceptBatch=vi.fn(async b=>{if(wait)throw new SourceHandoffWait();return accept(b)});
@@ -517,6 +546,45 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const p=new TwitterApiIoProvider(http,async()=> 'private-key',0.01);
     const result=await p.fetch({...request,requestedBounds:{startTime:time,endTime:'2026-10-05T10:00:00.000Z'}},run);
     const url=new URL(http.request.mock.calls[0][4]);expect(url.searchParams.get('query')).toContain('from:NASA since_time:');expect(result.items[0].sourceItemKey).toBe('x:1');
+  });
+  it('bounded X pages keep the identical time query and stop on a repeated provider cursor',async()=>{
+    const http={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{tweets:[],has_next_page:true,next_cursor:'cursor'}}))};
+    const p=new TwitterApiIoProvider(http,async()=> 'private-key',0.01);
+    const bounded={...request,requestedBounds:{startTime:time,endTime:'2026-10-04T11:00:00.000Z'}};
+    await p.fetch(bounded,run);
+    await expect(p.fetch({...bounded,continuation:{providerId:p.id,token:'cursor'}},run)).rejects.toMatchObject({code:'MALFORMED'});
+    const urls=http.request.mock.calls.map(c=>new URL(c[4]));expect(urls[0].pathname).toBe('/twitter/tweet/advanced_search');
+    expect(urls[0].searchParams.get('query')).toBe(urls[1].searchParams.get('query'));expect(urls[1].searchParams.get('cursor')).toBe('cursor');
+  });
+  it.each([undefined,'2026-10-03T10:00:00Z'])('does not certify a bounded X window when returned dates are missing or outside it (%s)',async createdAt=>{
+    const http={request:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{tweets:[{id:'1',text:'Post',createdAt}],has_next_page:false}}))};
+    await expect(new TwitterApiIoProvider(http,async()=> 'private-key',.01).fetch({...request,requestedBounds:{startTime:time,endTime:'2026-10-04T11:00:00.000Z'}},run)).rejects.toMatchObject({code:'MALFORMED'});
+  });
+  it('legacy Apify actor recovery is resumed rather than stranded by X scope retirement',async()=>{
+    const actor=provider('x_apify',vi.fn(async()=>({...page(['1']),continuationToken:'actor-cursor'}))),s=setup([actor]);let at=Date.parse(time),wait=true;
+    const accept=s.intake.acceptBatch;s.intake.acceptBatch=async b=>{if(wait)throw new SourceHandoffWait();return accept(b)};
+    const old=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at);
+    await old.schedule('actor',request,time,['x_apify']);expect(await old.runOne(120000,'actor')).toBe('RETRY');
+    wait=false;at+=6000;const updated=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at,100,false,true);
+    expect(await updated.runOne(120000,'actor')).toBe('RETRY');expect(actor.fetch).toHaveBeenCalledTimes(1);
+    const saved=JSON.parse((s.db.db.prepare("SELECT request FROM connector_provider_poll_jobs WHERE job_id='actor'").get() as any).request);
+    expect(saved.continuation).toEqual({providerId:'x_apify',token:'actor-cursor'});
+  });
+  it('the X fallback receives the same profile and frozen time restrictions as the primary',async()=>{
+    const http={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{data:{id:'run'}}}))};
+    const p=new ApifySourceProvider('x_apify',['x_profile'],http,async()=> 'private-token',0.1);
+    await p.fetch({...request,requestedBounds:{startTime:time,endTime:'2026-10-04T11:00:00.000Z'}},run);
+    const body=JSON.parse(http.request.mock.calls[0][5].body);
+    expect(body.twitterContent).toBe(`from:NASA since_time:${Date.parse(time)/1000} until_time:${Date.parse('2026-10-04T11:00:00.000Z')/1000}`);expect(body.from).toBeUndefined();
+  });
+  it('time bounds restrict the entire approved OR search on both X providers',async()=>{
+    const primary={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{tweets:[],has_next_page:false}}))};
+    const fallback={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{data:{id:'run'}}}))};
+    const bounded={...request,source:{family:'x_search' as const,locator:'AI OR robotics'},requestedBounds:{startTime:time,endTime:'2026-10-04T11:00:00.000Z'}};
+    await new TwitterApiIoProvider(primary,async()=> 'key',.01).fetch(bounded,run);
+    await new ApifySourceProvider('x_apify',['x_search'],fallback,async()=> 'token',.1).fetch(bounded,run);
+    const query=new URL(primary.request.mock.calls[0][4]).searchParams.get('query');
+    expect(query).toMatch(/^\(AI OR robotics\) since_time:\d+ until_time:\d+$/);expect(JSON.parse(fallback.request.mock.calls[0][5].body).twitterContent).toBe(query);
   });
   it('accepts TwitterAPI.io posts inside the data envelope without losing pagination',async()=>{
     const json={status:'success',data:{tweets:[{id:'2',text:'NASA update',createdAt:time,author:{userName:'NASA'}}]},has_next_page:true,next_cursor:'next-page'};

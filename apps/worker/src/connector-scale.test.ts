@@ -265,6 +265,10 @@ it('unfinished source collection holds its publication window but later windows 
  await ctx.db.prepare('INSERT INTO connector_rss_poll_jobs(job_id,request,request_hash,due_at,scheduled_at) VALUES(?,?,?,?,?)').bind('window-poll',request,'hash','2026-10-13T12:05:00.000Z','2026-10-13T12:00:00.000Z').run();
  expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:01:00.000Z','window-request')).toBe(false);
  expect(await collectionReadyForWindow(env,feedId,'2026-10-13T11:59:00.000Z','earlier-request')).toBe(true);
+ await ctx.db.prepare("UPDATE connector_rss_poll_jobs SET last_error='RATE_LIMIT',result=? WHERE job_id='window-poll'").bind(JSON.stringify({checkpoint:'UNCHANGED',coverage:{failureReason:'RATE_LIMIT'}})).run();
+ expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:01:00.000Z','window-request')).toBe(true);
+ await ctx.db.prepare("UPDATE connector_rss_poll_jobs SET result=? WHERE job_id='window-poll'").bind(JSON.stringify({checkpoint:'BLOCKED',coverage:{failureReason:'RATE_LIMIT'}})).run();
+ expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:01:00.000Z','window-request')).toBe(false);
  await ctx.db.prepare("UPDATE connector_rss_poll_jobs SET state='DONE' WHERE job_id='window-poll'").run();
  expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:01:00.000Z','window-request')).toBe(true);
 });

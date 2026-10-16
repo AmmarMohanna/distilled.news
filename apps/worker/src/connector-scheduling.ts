@@ -6,6 +6,7 @@ import {dispatchV1Intelligence} from './v1-intelligence/runtime';
 import {dispatchTelegramLane} from './connector-telegram-lane';
 import {requireConnectorQueues} from './connector-queue-config';
 import {reserveConnectorWork,releaseConnectorWork} from './connector-work-admission';
+import {pendingWindowCollections} from './connector-publication-coverage';
 
 export type ConnectorQueueMessage={type:'connector_feed';feedId:string;token:string}|{type:'connector_poll';feedId:string;jobId:string;table:'rss'|'provider';token:string}|{type:'connector_relay';feedId:string};
 const tables={rss:'connector_rss_poll_jobs',provider:'connector_provider_poll_jobs'} as const;
@@ -72,12 +73,7 @@ export function coalescedProcessingQueue(env:Env,at?:number):Queue<DistilledQueu
  * collection windows do not hold this boundary; blocked sources are reported
  * separately as unavailable and remain visible to operators/readers. */
 export async function collectionReadyForWindow(env:Env,feedId:string,end:string,id:string,now=Date.now()){
- let pending=0;
- for(const table of Object.values(tables)){
-  const row=await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table} j JOIN sources s ON s.id=json_extract(j.request,'$.scope.feedSourceId')
-   WHERE json_extract(j.request,'$.scope.feedId')=? AND j.state='PENDING' AND s.enabled=1 AND s.collection_owner='connector'
-   AND (j.scheduled_at='' OR j.scheduled_at<?)` ).bind(feedId,end).first<{n:number}>();pending+=row?.n??0;
- }
+ const {pending}=await pendingWindowCollections(env.DB,feedId,end);
  if(pending)await env.DB.prepare('INSERT INTO connector_publication_waits(request_id,feed_id,window_end,pending_collections,checked_at) VALUES(?,?,?,?,?) ON CONFLICT(request_id) DO UPDATE SET pending_collections=excluded.pending_collections,checked_at=excluded.checked_at WHERE pending_collections<>excluded.pending_collections').bind(id,feedId,end,pending,new Date(now).toISOString()).run();
  else await env.DB.prepare('DELETE FROM connector_publication_waits WHERE request_id=?').bind(id).run();
  return pending===0;

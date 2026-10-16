@@ -27,12 +27,14 @@ const progressText={
  ar:{collecting:'جارٍ جمع المصادر…',processing:'جارٍ مراجعة العناصر المجمعة…',publishing:'جارٍ إعداد الموجز…',acquired:'العناصر المجمعة',reviewed:'العناصر التي تمت مراجعتها',failed:'العناصر التي تعذرت معالجتها',pending:'العناصر قيد المعالجة'},
  fr:{collecting:'Collecte des sources…',processing:'Analyse des éléments collectés…',publishing:'Préparation du brief…',acquired:'Éléments collectés',reviewed:'Éléments analysés',failed:'Éléments non traités',pending:'Éléments en cours de traitement'}
 };
+const collectionText={en:'Waiting for source collection',ar:'بانتظار جمع المصادر',fr:'En attente de la collecte des sources'};
 export function FeedProcessingProgress({progress,language}:{progress?:PublicationProgress;language:Language}){
  const labels=progressText[language],stage=progress?.stage??'COLLECTING';
  const failed=(progress?.acquisition.failed??0)+(progress?.review.failed??0);
  return <div className="muted feed-status-message" role="status" aria-live="polite">
   <p>{stage==='COLLECTING'?labels.collecting:stage==='PROCESSING'?labels.processing:labels.publishing}</p>
-  {progress&&stage==='PROCESSING'?<>
+  {progress?.collection?.pending?<p>{collectionText[language]} ({progress.collection.pending}): {progress.collection.sources.join(', ')}.</p>:null}
+  {progress&&(stage==='PROCESSING'||stage==='COLLECTING'&&progress.acquisition.total>0)?<>
    <p>{labels.acquired}: {progress.acquisition.completed} / {progress.acquisition.total}. {labels.reviewed}: {progress.review.completed} / {progress.review.total}.</p>
    <p>{labels.pending}: {progress.pending}.{failed>0?` ${labels.failed}: ${failed}.`:''}</p>
   </>:null}

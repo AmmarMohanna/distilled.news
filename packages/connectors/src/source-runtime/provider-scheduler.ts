@@ -3,6 +3,7 @@ import type { SqlDatabase } from './storage';
 import { FallbackSourceCollector } from './provider-collector';
 import { DEFAULT_SOURCE_ORDER, SourceProviderError, type SourceFetchRequest } from './provider-types';
 import {SourceHandoffWait} from './handoff-wait';
+import {D1ProviderSourceRepository} from './provider-storage';
 
 export const PROVIDER_POLL_SCHEMA=`CREATE TABLE IF NOT EXISTS connector_provider_poll_jobs(
  job_id TEXT PRIMARY KEY, request TEXT NOT NULL, initial_hash TEXT NOT NULL, provider_order TEXT NOT NULL,
@@ -14,7 +15,7 @@ interface Job {job_id:string;request:string;provider_order:string;lease_version:
  * create an endpoint. Authorization must also ensure legacy polling is disabled. */
 export class D1ProviderPollScheduler {
   constructor(private db:SqlDatabase,private collector:Pick<FallbackSourceCollector,'collect'>,
-    private authorize:(request:SourceFetchRequest)=>Promise<boolean>,private now=Date.now,private maxPages=100,private coalescePending=false){}
+    private authorize:(request:SourceFetchRequest)=>Promise<boolean>,private now=Date.now,private maxPages=100,private coalescePending=false,private retireUnboundedX=false){}
   async schedule(id:string,request:SourceFetchRequest,dueAt:string,order=DEFAULT_SOURCE_ORDER[request.source.family]) {
     if(!id||!Number.isFinite(Date.parse(dueAt)))throw new Error('INVALID_SCHEDULE');
     const data=JSON.stringify(request),providers=JSON.stringify(order),hash=await sha256(JSON.stringify([data,providers]));
@@ -71,6 +72,25 @@ export class D1ProviderPollScheduler {
       if(job.attempts>8)return await finish('BLOCKED',null,'RETRY_LIMIT'+(job.last_error?':'+job.last_error:''));
       if(job.pages>=this.maxPages)return await finish('BLOCKED',null,'PAGE_LIMIT');
       if(!await this.authorize(request))return await finish('CANCELLED',null);
+      // Legacy unbounded X scans must not keep opening historical pages. Drain
+      // already captured data under its original identity first. Actor dataset
+      // continuations retain their existing recovery path and paid actor ID.
+      const retiring=this.retireUnboundedX&&['x_profile','x_search'].includes(request.source.family)
+        &&!request.recheckItemKeys&&!request.requestedBounds.startTime&&!request.requestedBounds.endTime
+        &&(!request.continuation||request.continuation.providerId==='x_twitterapi_io');
+      if(retiring){
+        const repository=new D1ProviderSourceRepository(this.db);
+        const key=(n:number)=>sha256(JSON.stringify([request.scope,request.runId,'provider-batch',n]));
+        const saved=await repository.loadProviderBatch(request.scope,await key(job.offset))
+          ??await repository.loadSnapshot(request.scope,await key(-1));
+        // A started run without a durable page is not safe to re-fetch or send
+        // to another paid provider. Keep it for explicit reconciliation.
+        let started=false;
+        if(!saved)for(const providerId of JSON.parse(job.provider_order) as string[]){
+          if(await repository.loadRun(request.scope,await sha256(JSON.stringify([request.scope,request.runId,providerId])))){started=true;break;}
+        }
+        if(!saved)return await finish('BLOCKED',null,started?'UNBOUNDED_RECOVERY_REQUIRED':'UNBOUNDED_SCOPE_RETIRED');
+      }
       const result=await this.collector.collect(request,JSON.parse(job.provider_order),job.offset);
       if(result.state==='FETCH_FAILED'){
         if(result.attempts.length&&result.attempts.every(a=>a.failure==='BUDGET_EXCEEDED'))return await finish('BLOCKED',result,'BUDGET_EXCEEDED');
@@ -81,6 +101,7 @@ export class D1ProviderPollScheduler {
       if(result.checkpoint==='CAS_CONFLICT')return await finish('BLOCKED',result,'CHECKPOINT_CONFLICT');
       if(result.checkpoint==='BLOCKED')return await retry(result);
       if(result.nextOffset!==undefined)return await retry(result,request,result.nextOffset,job.pages,0,true);
+      if(retiring&&result.providerId!=='x_apify')return await finish('BLOCKED',result,'UNBOUNDED_SCOPE_RETIRED');
       if(result.continuation)return await retry(result,{...request,runId:await sha256(request.runId+':page'),continuation:result.continuation},0,job.pages+1,1000,true);
       return await finish('DONE',result);
     }catch(error){

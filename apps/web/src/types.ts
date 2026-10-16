@@ -58,6 +58,7 @@ export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInst
 
 export interface PublicationProgress {
   stage:'COLLECTING'|'PROCESSING'|'PUBLISHING';
+  collection?:{pending:number;sources:string[]};
   acquisition:{completed:number;total:number;failed:number};
   review:{completed:number;total:number;failed:number};
   pending:number;

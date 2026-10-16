@@ -4,6 +4,7 @@ import {BoundedFeedHttp,createSourceCollector,D1ProviderSourceRepository,D1Provi
   type SourceFetchRequest} from '@distilled/connectors';
 import type {CandidateIntakePort} from '@distilled/contracts';
 import {sharedPublicHttp,PUBLIC_SOURCE_MAX_BYTES} from './connector-public-cache';
+import {rateLimitedPublicHttp} from './connector-rate-limit';
 
 export interface SourceBackendEnv {
   DB:D1Database;
@@ -74,7 +75,8 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
       // Deployment must retain global_fetch_strictly_public to enforce public DNS at dispatch.
     };
     const baseHttp=new BoundedFeedHttp(async(value,init)=>{await authorizeUrl(value);return dispatch(value,{...init,redirect:'manual'})},{maxBytes:PUBLIC_SOURCE_MAX_BYTES,followSameOriginRedirects:request.source.family==='rss'});
-    const http=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,baseHttp,authorizeUrl,Date.now,PUBLIC_SOURCE_MAX_BYTES):baseHttp;
+    const originHttp=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?rateLimitedPublicHttp(env.DB,baseHttp,authorizeUrl):baseHttp;
+    const http=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,originHttp,authorizeUrl,Date.now,PUBLIC_SOURCE_MAX_BYTES):originHttp;
     return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch,4_000_000,20_000,sourceProviderLimit,deploymentLimits),execution,secrets,ceilings,
 
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
@@ -96,6 +98,6 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     // Scheduler admission already performed the initial approval read. Public
     // direct calls retain their own admission; every transport/cache/handoff
     // boundary still revalidates current persisted approval independently.
-    scheduler:new D1ProviderPollScheduler(sql,scheduledCollector,options.authorize,Date.now,options.providerPageLimit??100,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'),
+    scheduler:new D1ProviderPollScheduler(sql,scheduledCollector,options.authorize,Date.now,options.providerPageLimit??100,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true',env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'),
     rssScheduler:new D1RssPollScheduler(sql,scheduledRssCollector,r=>options.authorize(rssRequest(r)),Date.now,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')};
 }

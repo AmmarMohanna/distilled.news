@@ -68,5 +68,5 @@ export function collectionFailureReason(latest:{last_error:string|null;result:st
  let failure=latest?.last_error?.split(':').at(-1);
  if(latest?.result){try{const result=JSON.parse(latest.result);const saved=result?.coverage?.failureReason!=='NONE'?result?.coverage?.failureReason:undefined;const provider=result?.state==='FETCH_FAILED'?result.attempts?.at(-1)?.failure:undefined;if(!failure||['RETRY_LIMIT','BOUNDED_LIMIT'].includes(failure))failure=provider??saved??failure}catch{/* Diagnostics are not user instructions or public prose. */}}
  if(failure==='TRANSIENT_PROVIDER_FAILURE')failure='TRANSIENT';
- return failure&&['TRANSIENT','RATE_LIMIT','AUTH_REQUIRED','CHALLENGE','MALFORMED','UNCERTAIN_PAID_SUBMISSION','INTAKE_BUSY','BACKPRESSURE','RETRY_LIMIT','PAGE_LIMIT','TEMPORARY_UNAVAILABLE','INTERNAL_FAILURE','FETCH_OUTCOME_UNKNOWN'].includes(failure)?failure:undefined;
+ return failure&&['TRANSIENT','RATE_LIMIT','AUTH_REQUIRED','CHALLENGE','MALFORMED','UNCERTAIN_PAID_SUBMISSION','INTAKE_BUSY','BACKPRESSURE','RETRY_LIMIT','PAGE_LIMIT','UNBOUNDED_SCOPE_RETIRED','TEMPORARY_UNAVAILABLE','INTERNAL_FAILURE','FETCH_OUTCOME_UNKNOWN'].includes(failure)?failure:undefined;
 }

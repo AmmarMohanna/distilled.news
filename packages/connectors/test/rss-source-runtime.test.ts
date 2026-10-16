@@ -61,6 +61,17 @@ function setup(feed=xml(item('one'))) {
 }
 
 describe('durable RSS source handoff (SQLite SQL and filesystem payload surrogate)',()=>{
+  it('local origin cooldowns do not consume eight real HTTP failures or shorten Retry-After',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let at=Date.parse(timestamp);
+    const due=()=>new Date(at+3600000).toISOString();
+    const result=()=>({coverage:{failureReason:'RATE_LIMIT'},checkpoint:'UNCHANGED',telemetry:{requests:0},retryNotBefore:due()}) as any;
+    const scheduler=new D1RssPollScheduler(s.db,{collect:async()=>result()},async()=>true,()=>at);
+    await scheduler.schedule('cooldown',input,timestamp);
+    for(let i=0;i<10;i++){
+      const expected=due();expect(await scheduler.runOne(120000,'cooldown')).toBe('RETRY');
+      expect(s.db.db.prepare("SELECT attempts,due_at FROM connector_rss_poll_jobs WHERE job_id='cooldown'").get()).toEqual({attempts:0,due_at:expected});at+=3600000;
+    }
+  });
   it('intake waits replay the same fetched batch without consuming failure retries',async()=>{
     const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let at=Date.parse(timestamp),wait=true;
     const accept=s.intake.acceptBatch;s.intake.acceptBatch=vi.fn(async b=>{if(wait)throw new SourceHandoffWait();return accept(b)});

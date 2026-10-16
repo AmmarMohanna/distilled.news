@@ -30,4 +30,9 @@ it('processing shows actual review counts and updates without pretending publica
  await render(<FeedProcessingProgress progress={progress} language="en"/>,host=>{expect(host.textContent).toContain('Reviewing collected items');expect(host.textContent).toContain('Items reviewed: 69 / 409');expect(host.textContent).toContain('Items still processing: 340');expect(host.textContent).not.toContain('Checking sources');});
  await render(<FeedProcessingProgress progress={{...progress,review:{...progress.review,completed:70},pending:339}} language="en"/>,host=>expect(host.textContent).toContain('70 / 409'));
 });
+it.each(['en','ar','fr'] as const)('completed reviews still show the source collection blocker (%s)',async language=>{
+ await render(<FeedProcessingProgress progress={{stage:'COLLECTING',collection:{pending:1,sources:['@thsottiaux']},acquisition:{completed:81,total:81,failed:0},review:{completed:81,total:81,failed:0},pending:0}} language={language}/>,host=>{
+  expect(host.textContent).toContain('@thsottiaux');expect(host.textContent).toContain('81 / 81');expect(host.textContent).not.toContain('Preparing the briefing');
+ });
+});
 it.each(['en','ar','fr'] as const)('publishing displays its stage without stale review counters (%s)',async language=>{await render(<FeedProcessingProgress progress={{stage:'PUBLISHING',acquisition:{completed:1,total:1,failed:0},review:{completed:1,total:1,failed:0},pending:0}} language={language}/>,host=>{expect(host.querySelector('[role="status"]')).not.toBeNull();expect(host.textContent).not.toContain('1 / 1');expect(host.textContent?.length).toBeGreaterThan(5);});});

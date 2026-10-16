@@ -56,7 +56,8 @@ export class D1RssPollScheduler {
         // Auth/invalid feeds need operator/config repair; rate limits/transient failures are rescheduled.
         if (['AUTH_REQUIRED','UNKNOWN'].includes(result.coverage.failureReason ?? 'NONE')) return await this.finish(job,'BLOCKED',result) ? 'BLOCKED' : 'LEASE_LOST';
         const next={...request,runId:result.checkpoint === 'BLOCKED' ? request.runId : `${request.runId}:retry:${job.attempts}`};
-        return await this.retry(job,next,job.offset,result,undefined,false,result.coverage.failureReason) ? 'RETRY' : 'LEASE_LOST';
+        const cooldown=result.coverage.failureReason==='RATE_LIMIT'&&result.telemetry?.requests===0;
+        return await this.retry(job,next,job.offset,result,undefined,false,result.coverage.failureReason,cooldown) ? 'RETRY' : 'LEASE_LOST';
       }
       if (result.nextOffset !== undefined) return await this.retry(job,request,result.nextOffset,result,0,true) ? 'RETRY' : 'LEASE_LOST';
       return await this.finish(job,'DONE',result) ? 'DONE' : 'LEASE_LOST';

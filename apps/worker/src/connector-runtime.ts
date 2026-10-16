@@ -8,6 +8,7 @@ import type {Env} from './types';
 import {productConnectorSource} from './connector-source';
 import {canonicalJson} from './v1-intake/canonical';
 import {hasUncertainSourcePayment} from './connector-paid-fence';
+import {approvedCollectionBounds,freezeCollectionWindow,initialCollectionStart} from './connector-collection-window';
 
 /** Reads current approved product state; never enrolls or repairs stale queued work. */
 export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Promise<boolean> {
@@ -17,7 +18,9 @@ export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Pro
  const p=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,v.json AS scope_json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id JOIN v1_intake_scopes v ON v.id=s.id JOIN v1_feeds f ON f.id=b.id AND json_extract(f.json,'$.ownerId')=b.owner_account_id WHERE s.id=? AND s.briefing_id=? AND s.enabled=1 AND s.collection_owner='connector' AND b.paused=0 AND a.disabled_at IS NULL`).bind(r.scope.feedSourceId,r.scope.feedId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;scope_json:string}>();
  const scope=p?JSON.parse(p.scope_json) as IntakeScope:undefined;
  const approved=p?productConnectorSource(p):undefined;
- return !!approved && canonicalJson(approved.source)===canonicalJson(r.source) && !!scope?.enabled && !scope.deletedAt && scope.sourceId===r.scope.sourceId && scope.feedId===r.scope.feedId && scope.feedRevision===r.configurationRevision && (r.limit===approved.limit||(['rss','google_news'].includes(r.source.family)&&r.limit===30)||(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&r.source.family==='website'&&r.limit===30)) && Object.keys(r.requestedBounds).length===0 && (!['telegram','website'].includes(r.source.family)||!!env.SOURCE_EXECUTION_TOKEN&&!!env.SOURCE_EXECUTION_SERVICE);
+ const admitted=!!approved && canonicalJson(approved.source)===canonicalJson(r.source) && !!scope?.enabled && !scope.deletedAt && scope.sourceId===r.scope.sourceId && scope.feedId===r.scope.feedId && scope.feedRevision===r.configurationRevision && (r.limit===approved.limit||(['rss','google_news'].includes(r.source.family)&&r.limit===30)||(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&r.source.family==='website'&&r.limit===30)) && (!['telegram','website'].includes(r.source.family)||!!env.SOURCE_EXECUTION_TOKEN&&!!env.SOURCE_EXECUTION_SERVICE);
+ if(!admitted)return false;
+ return env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&['x_profile','x_search'].includes(r.source.family)?approvedCollectionBounds(env.DB,r):Object.keys(r.requestedBounds).length===0;
 }
 export function createConnectorRuntime(env:Env,fetcher?:typeof fetch) {
  const authorize=(r:SourceFetchRequest)=>authorizeConnectorSource(env,r);
@@ -122,7 +125,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
  }
  const scheduled:{id:string;scheduler:string;sourceId:string}[]=[];
  if(!options.skipSchedule)for(const id of ids) {
-  const row=await env.DB.prepare(`SELECT s.briefing_id,s.source_url,s.provider,s.kind,s.input,s.actor_id,s.collection_owner,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND (?=0 OR s.collection_owner='connector')`).bind(id,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?1:0).first<{briefing_id:string;source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;collection_owner:string;owner_account_id:string}>();
+  const row=await env.DB.prepare(`SELECT s.briefing_id,s.created_at,s.source_url,s.provider,s.kind,s.input,s.actor_id,s.collection_owner,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND (?=0 OR s.collection_owner='connector')`).bind(id,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?1:0).first<{briefing_id:string;created_at:string;source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;collection_owner:string;owner_account_id:string}>();
   if(!row)continue;
   const approved=productConnectorSource(row);if(!approved)continue;
   // Do not transfer a source away from its working owner until the private
@@ -148,14 +151,23 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
     ['x_profile','x_search','website'].includes(approved.source.family)?3600000:approved.source.family.startsWith('linkedin_')?21600000:300000;
   if(!Number.isSafeInteger(intervalMs)||intervalMs<60000||intervalMs>86400000)throw new Error('INVALID_COLLECTION_INTERVAL');
   const request:SourceFetchRequest={scope:{feedId:enrolled.scope.feedId,feedSourceId:id,sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:await sha256(JSON.stringify([id,enrolled.scope.feedRevision,Math.floor(now.getTime()/intervalMs)])),source:approved.source,requestedBounds:{},limit:env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&approved.source.family==='website'?30:approved.limit};
+  // Resume the frozen identity before deriving any new bounds or policy. The
+  // scheduler revalidates its saved request at every execution boundary.
+  const table=request.source.family==='rss'?'connector_rss_poll_jobs':'connector_provider_poll_jobs';
+  const existing=await env.DB.prepare(`SELECT job_id FROM ${table} WHERE job_id=?`).bind(request.runId).first();
+  if(existing){scheduled.push({id:request.runId,scheduler:request.source.family==='rss'?'rss':'provider',sourceId:id});if(request.source.family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now);continue;}
+  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&['x_profile','x_search'].includes(request.source.family)){
+   // Coalescing must happen before freezing a later window: the first scan
+   // still owns the source and its captured pages until it settles.
+   if(await env.DB.prepare("SELECT 1 FROM connector_provider_poll_jobs WHERE state='PENDING' AND json_extract(request,'$.scope.feedSourceId')=? AND json_extract(request,'$.configurationRevision')=? AND json_type(request,'$.recheckItemKeys') IS NULL").bind(id,request.configurationRevision!).first())continue;
+   if(Date.parse(initialCollectionStart(enrolled.feed,row.created_at))>=now.getTime())continue;
+   request.requestedBounds=await freezeCollectionWindow(env.DB,enrolled.feed,id,row.created_at,enrolled.scope.feedRevision,request.runId,now);
+  }
   if(await authorizeConnectorSource(env,request)) {
    scheduled.push({id:request.runId,scheduler:request.source.family==='rss'?'rss':'provider',sourceId:id});
    // A deployment can change slice sizes within an already scheduled window.
    // Its frozen job owns that identity; resume it rather than replace it or
    // allocate a second provider run for the same collection window.
-   const table=request.source.family==='rss'?'connector_rss_poll_jobs':'connector_provider_poll_jobs';
-   const existing=await env.DB.prepare(`SELECT job_id FROM ${table} WHERE job_id=?`).bind(request.runId).first();
-   if(existing){if(request.source.family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now);continue;}
    if(request.source.family==='rss')await backend.rssScheduler.schedule(request.runId,{scope:request.scope,runId:request.runId,configurationRevision:request.configurationRevision,url:request.source.locator,requestedBounds:request.requestedBounds,maxItems:request.limit,initialLookbackHours:48},now.toISOString());
    else {
     const family=request.source.family;

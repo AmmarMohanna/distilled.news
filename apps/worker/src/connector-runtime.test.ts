@@ -18,9 +18,45 @@ import {processV1Briefing} from './v1-intelligence/runtime';
 import type {SourceFetchRequest} from '@distilled/connectors';
 import {buildGoogleNewsRssUrl,TESTED_ACTORS,D1ProviderPollScheduler,sourceSqlFromD1} from '@distilled/connectors';
 import type {Env} from './types';
+import {freezeCollectionWindow,approvedCollectionBounds,initialCollectionStart} from './connector-collection-window';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env,request:SourceFetchRequest;
+it('freezes X date windows, advances only finished scans, and refuses invented scope or run identities',async()=>{
+ const {feed:enrolledFeed,scope}=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());
+ const feed={...enrolledFeed,briefingSchedule:undefined,briefingFrequency:'DAILY' as const};
+ const first=await freezeCollectionWindow(ctx.db,feed,scope.feedSourceId,feed.createdAt,scope.feedRevision,'bounded-first',new Date('2026-10-03T12:00:00Z'));
+ expect(first).toEqual({startTime:'2026-10-03T00:00:00.000Z',endTime:'2026-10-03T12:00:00.000Z'});
+ expect(await freezeCollectionWindow(ctx.db,feed,scope.feedSourceId,feed.createdAt,scope.feedRevision,'bounded-first',new Date('2026-10-03T13:00:00Z'))).toEqual(first);
+ const r={...request,runId:'bounded-first',requestedBounds:first};expect(await approvedCollectionBounds(ctx.db,r)).toBe(true);
+ expect(await approvedCollectionBounds(ctx.db,{...r,runId:'invented'})).toBe(false);
+ expect(await approvedCollectionBounds(ctx.db,{...r,requestedBounds:{...first,endTime:'2026-10-04T00:00:00Z'}})).toBe(false);
+ await expect(freezeCollectionWindow(ctx.db,{...feed,id:'other'},scope.feedSourceId,feed.createdAt,scope.feedRevision,'bounded-first',new Date())).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+ const backend=createConnectorRuntime(env);await backend.scheduler.schedule('bounded-first',r,'2026-10-03T12:00:00Z',['x_twitterapi_io']);
+ expect((await freezeCollectionWindow(ctx.db,feed,scope.feedSourceId,feed.createdAt,scope.feedRevision,'after-pending',new Date('2026-10-03T13:00:00Z'))).startTime).toBe(first.startTime);
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='DONE',result=? WHERE job_id='bounded-first'").bind(JSON.stringify({request:{coverage:{status:'PARTIAL'}}})).run();
+ expect((await freezeCollectionWindow(ctx.db,feed,scope.feedSourceId,feed.createdAt,scope.feedRevision,'after-partial',new Date('2026-10-03T13:00:00Z'))).startTime).toBe(first.startTime);
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET result=? WHERE job_id='bounded-first'").bind(JSON.stringify({request:{coverage:{status:'COMPLETE'}}})).run();
+ expect((await freezeCollectionWindow(ctx.db,feed,scope.feedSourceId,feed.createdAt,scope.feedRevision,'after-done',new Date('2026-10-03T13:00:00Z'))).startTime).toBe(first.endTime);
+ expect(initialCollectionStart({...feed,briefingSchedule:{durationMinutes:60,timezone:'Asia/Beirut'}},'2026-10-03T12:42:00Z')).toBe('2026-10-03T12:00:00.000Z');
+});
 const objects=new Map<string,Uint8Array>();
+it('queue-mode X maintenance schedules one authorized frozen window and resumes its saved identity',async()=>{
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,actor_id,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('x-source','feed-1','NASA','channel','apify','x_profile','https://x.com/NASA','https://x.com/NASA',?,1,'connector',?,?,?)").bind(TESTED_ACTORS.x,testPolicy.now(),testPolicy.now(),testPolicy.now()).run();
+ await ctx.db.prepare("UPDATE briefings SET briefing_cadence='hourly',v1_briefing_interval_minutes=60,briefing_timezone='UTC',briefing_time_of_day='00:00' WHERE id='feed-1'").run();
+ const queued={...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:'x-source',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',PRODUCT_FEEDS_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:JSON.stringify({x_twitterapi_io:15}),SOURCE_OPERATION_CEILINGS_JSON:JSON.stringify({twitterApiIo:.1})};
+ await runConnectorMaintenance(queued,new Date('2026-10-03T12:00:01Z'),{scheduleOnly:true});
+ const first=await ctx.db.prepare('SELECT request FROM connector_provider_poll_jobs').first<{request:string}>();expect(first).not.toBeNull();
+ const saved=JSON.parse(first!.request) as SourceFetchRequest;
+ expect(saved.requestedBounds).toEqual({startTime:'2026-10-03T12:00:00.000Z',endTime:'2026-10-03T12:00:01.000Z'});
+ expect(await authorizeConnectorSource(queued,saved)).toBe(true);
+ await runConnectorMaintenance(queued,new Date('2026-10-03T12:00:30Z'),{scheduleOnly:true});
+ expect(await ctx.db.prepare('SELECT request FROM connector_provider_poll_jobs').first()).toEqual(first);
+ expect(await authorizeConnectorSource(queued,{...saved,runId:'unscheduled-copy'})).toBe(false);
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET request=?").bind(JSON.stringify({...saved,runId:'frozen-next-page'})).run();
+ expect(await authorizeConnectorSource(queued,{...saved,runId:'frozen-next-page'})).toBe(true);
+ await ctx.db.prepare("UPDATE sources SET enabled=0 WHERE id='x-source'").run();
+ expect(await authorizeConnectorSource(queued,{...saved,runId:'frozen-next-page'})).toBe(false);
+});
 beforeEach(async()=>{
  ctx=await createIntakeDatabase({product:true});objects.clear();
  await ctx.db.prepare("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,email_verified_at,created_at,updated_at) VALUES('owner-1','owner@example.invalid','owner@example.invalid','owner','user','hash',?,?,?)").bind(testPolicy.now(),testPolicy.now(),testPolicy.now()).run();
