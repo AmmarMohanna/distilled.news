@@ -1428,8 +1428,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   grid-auto-rows: var(--feed-row-height, auto); height: var(--feed-grid-height, auto);
   gap: var(--feed-grid-gap, 16px) !important; max-width: none !important; padding: 0 !important;
   overflow-y: auto; overflow-x: hidden; scroll-snap-type: y mandatory; scroll-padding: 0;
-  scrollbar-width: thin; align-content: start;
+  scrollbar-width: none; align-content: start;
 }
+:root.apple-ui.apple-ui .adaptive-feed-grid::-webkit-scrollbar,
+:root.apple-ui.apple-ui .app-pages > .screen-page-viewport::-webkit-scrollbar { display: none; width: 0; height: 0; }
+:root.apple-ui.apple-ui .app-pages > .screen-page-viewport { scrollbar-width: none; scrollbar-gutter: auto; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card { scroll-snap-align: start; scroll-snap-stop: always; min-height: 0; box-sizing: border-box; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] > .topic-card {
   display: grid; grid-template-columns: 48px min-content minmax(0, 1fr) auto !important;
