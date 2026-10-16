@@ -189,3 +189,19 @@ test("the guest landing page also uses large cards when there are only a few fee
   expect((await card.boundingBox())!.height).toBeGreaterThan(250);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
 });
+
+test("on laptops Home and Explore centre the title, search row and categories on one axis", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mock(page, true);
+  await page.goto("/");
+  await page.waitForSelector(".home-view .explore-search");
+  const centers = () => page.evaluate(() => {
+    const center = (selector: string) => { const r = document.querySelector(selector)!.getBoundingClientRect(); return Math.round(r.left + r.width / 2); };
+    return { title: center(".home-view h1, .explore-view h1"), controls: center(".explore-controls") };
+  });
+  const home = await centers();
+  expect(Math.abs(home.title - home.controls)).toBeLessThanOrEqual(2);
+  await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
+  await page.waitForSelector(".explore-view .explore-search");
+  expect(await centers()).toEqual(home);
+});

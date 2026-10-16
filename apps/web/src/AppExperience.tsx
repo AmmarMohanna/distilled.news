@@ -109,7 +109,7 @@ export function AppExperience(props: {
         <p>{t("You choose what matters.")}</p>
       </div>}
       <div className={props.account ? "explore-controls" : "landing-controls"}>
-        <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds…")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
+        <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         <button type="button" className="primary-button landing-create" onClick={props.onCreate}><Plus size={18} aria-hidden/>{t("Create feed")}</button>
       </div>
       {props.account && feeds.length > 0 && <div className="category-chips" aria-label={t("Topic categories")}>{["All feeds", ...availableTopics.map(topic => topic.category)].map(item => <button key={item} aria-pressed={category === item} className={category === item ? "selected" : ""} onClick={() => setCategory(item)}>{t(item)}</button>)}</div>}
