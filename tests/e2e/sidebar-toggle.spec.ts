@@ -38,6 +38,8 @@ test("desktop sidebar collapses, expands, and remembers its state", async ({ pag
   await sidebar.getByRole("button", { name: "Unpin sidebar" }).click();
   await page.mouse.move(500, 300);
   await expect(sidebar).toHaveClass(/is-collapsed/);
+  await expect(sidebar.locator(".sidebar-brand")).toHaveCSS("opacity", "1");
+  await expect(sidebar.locator(".sidebar-toggle")).toHaveCSS("opacity", "0");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(sidebar.locator(".sidebar-top")).toBeHidden();
   await expect(sidebar.getByRole("button", { name: "Home", exact: true }).locator("span")).toBeVisible();
