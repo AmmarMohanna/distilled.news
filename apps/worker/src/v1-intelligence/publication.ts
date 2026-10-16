@@ -352,6 +352,10 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   let storedDraft=await store.read<StoredDraft>(feedId,'drafts',selectionId);
   if(!storedDraft) {
    if(options.model) {
+    // A story whose approved facts have no citable source span cannot be
+    // written. Defer that story instead of failing every story in the edition.
+    const unsupported=input.stories.filter(story=>approvedWriterFacts(story).some(fact=>!fact.support.length)).map(story=>story.candidate.id);
+    if(unsupported.length&&unsupported.length<input.stories.length){await recordPendingDelivery(unsupported,'WRITER_FACT_SUPPORT_MISSING');input={...input,stories:input.stories.filter(story=>!unsupported.includes(story.candidate.id))};}
     const writer=synthesisWriterInput(input);
     try {
      if(!adaptiveExecution)await callModel('SYNTHESIS',options.model.synthesisPayload?.(writer)??writer,limits=>options.model!.synthesize(writer,limits));
