@@ -53,13 +53,12 @@ for (const size of [{ width: 1280, height: 593, count: 4 }, { width: 390, height
 }
 
 for (const tab of ["home", "explore"] as const) {
-  test(`${tab} pages through feeds instead of cutting a second row`, async ({ page }) => {
+  test(`${tab} scrolls when feeds reach a second row`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 664 });
     await openApp(page, 8);
     if (tab === "explore") await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
     const viewport = page.locator(".app-pages > .screen-page-viewport");
-    expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
-    await expect(page.getByRole("button",{name:"Next page",exact:true})).toBeEnabled();
+    expect(await viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
   });
 }
 
@@ -92,32 +91,6 @@ for (const width of [1280, 1920]) {
         const cards = [...document.querySelectorAll(".home-view .topic-card, .explore-view .topic-card")].map(node => node.getBoundingClientRect());
         return Math.abs((Math.min(...cards.map(r => r.left)) + Math.max(...cards.map(r => r.right))) / 2 - (title.left + title.right) / 2);
       })).toBeLessThanOrEqual(1);
-    }
-  });
-}
-
-for (const size of [{width:1280,height:593},{width:1920,height:885},{width:390,height:664},{width:320,height:568},{width:667,height:375}]) {
-  test(`whole feed cards fit every page at ${size.width}x${size.height}`, async ({page}) => {
-    await page.setViewportSize(size);
-    await openApp(page,5);
-    for (const tab of ["home","explore"]) {
-      if(tab==="explore") { await page.locator('.bottom-navigation').getByRole('button',{name:'Explore',exact:true}).click(); await page.mouse.move(size.width-10,70); }
-      const seen=new Set<string>();
-      for(let step=0;step<10;step++) {
-        const visible=page.locator('.topic-card:not([hidden])');
-        await expect.poll(async()=>visible.count()).toBeGreaterThan(0);
-        await expect.poll(async()=>page.evaluate(()=>{
-          const cards=[...document.querySelectorAll('.topic-card:not([hidden])')].map(n=>n.getBoundingClientRect());
-          const nav=document.querySelector('.bottom-navigation')!.getBoundingClientRect();
-          const bottom=window.innerWidth<900?nav.top:window.innerHeight;
-          return Math.max(...cards.map(r=>r.bottom))-bottom;
-        })).toBeLessThanOrEqual(-8);
-        for(const title of await visible.locator('strong').allTextContents())seen.add(title);
-        const next=page.getByRole('button',{name:'Next page',exact:true});
-        if(!await next.count()||await next.isDisabled())break;
-        await next.click();
-      }
-      expect(seen.size).toBe(5);
     }
   });
 }
