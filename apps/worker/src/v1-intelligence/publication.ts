@@ -539,12 +539,16 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     if(!(error instanceof DraftVerificationError)||storedDraft.provider==='NONE'||!input.editorialPlan)throw error;
     if(draftKey===repairKey){
      if(!adaptiveExecution||!options.model?.verify)throw error;
-     // Only deterministic, candidate-owned precheck failures can isolate an
-     // independent sibling. Semantic rejection and ambiguous ownership stay closed.
+     // Candidate-owned failures isolate an independent sibling: deterministic
+     // precheck problems, and semantic rejections the verifier attributed to
+     // one story. Unattributed or ambiguous failures stay closed. The remaining
+     // unchanged stories are verified again in full before publication.
      const problems=inspectWriterDraft(input,storedDraft.draft,s=>approvedSupportSpans(s),true);
-     if(!problems.length||problems.some(p=>!p.candidateId||p.code==='UNKNOWN_OR_DUPLICATE_STORY'||!input.stories.some(s=>s.candidate.id===p.candidateId)))throw error;
-     const blocked=new Set(problems.map(p=>p.candidateId!)),remaining=input.stories.filter(s=>!blocked.has(s.candidate.id));
-     await recordPendingDelivery([...blocked],'WRITER_PRECHECK_FAILED');
+     const semantic=error.feedback.issues.filter(issue=>issue.code!=='UNSUPPORTED_OR_INCOMPLETE_CLAIMS');
+     const owned=[...problems,...semantic];
+     if(!owned.length||owned.some(p=>!p.candidateId||p.code==='UNKNOWN_OR_DUPLICATE_STORY'||p.code==='NO_SUPPORTED_STORIES'||!input.stories.some(s=>s.candidate.id===p.candidateId)))throw error;
+     const blocked=new Set(owned.map(p=>p.candidateId!)),remaining=input.stories.filter(s=>!blocked.has(s.candidate.id));
+     await recordPendingDelivery([...blocked],problems.length?'WRITER_PRECHECK_FAILED':'WRITER_VERIFICATION_FAILED');
      if(!remaining.length)throw error;
      const key=JSON.stringify([repairKey,'independent-stories-v1']),draft={...storedDraft.draft,stories:storedDraft.draft.stories.filter(s=>!blocked.has(s.candidateId))};
      const sourceDraft=storedDraft;
