@@ -53,12 +53,12 @@ for (const size of [{ width: 1280, height: 593, count: 4 }, { width: 390, height
 }
 
 for (const tab of ["home", "explore"] as const) {
-  test(`${tab} scrolls when feeds reach a second row`, async ({ page }) => {
+  test(`${tab} scrolls within complete rows when feeds exceed the available space`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 664 });
     await openApp(page, 8);
     if (tab === "explore") await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
     const viewport = page.locator(".app-pages > .screen-page-viewport");
-    expect(await viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+    expect(await page.locator(".adaptive-feed-grid").evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
   });
 }
 
@@ -95,14 +95,25 @@ for (const width of [1280, 1920]) {
   });
 }
 
-for (const size of [{width:1280,height:593},{width:1920,height:885},{width:900,height:700}]) {
- test(`all five feed widgets fit without pages at ${size.width}x${size.height}`, async ({page})=>{
+
+for(const size of [{width:1280,height:593},{width:1920,height:1100},{width:390,height:664},{width:667,height:375}]) {
+ test(`feed rows divide available space without partial cards at ${size.width}x${size.height}`,async({page})=>{
   await page.setViewportSize(size);await openApp(page,5);
   for(const tab of ['home','explore']) {
    if(tab==='explore'){await page.locator('.bottom-navigation').getByRole('button',{name:'Explore',exact:true}).click();await page.mouse.move(size.width-10,70);}
-   await expect(page.locator('.topic-card')).toHaveCount(5);
-   await expect(page.locator('.topic-card[hidden]')).toHaveCount(0);
-   await expect.poll(async()=>page.locator('.topic-card').evaluateAll(nodes=>Math.max(...nodes.map(n=>n.getBoundingClientRect().bottom)))).toBeLessThanOrEqual(size.height-16);
+   const grid=page.locator('.adaptive-feed-grid');
+   await expect(grid.locator('.topic-card')).toHaveCount(5);
+   const complete=async()=>grid.evaluate(node=>{
+    const bounds=node.getBoundingClientRect();
+    return [...node.querySelectorAll('.topic-card')].every(card=>{
+     const r=card.getBoundingClientRect();const overlap=Math.min(r.bottom,bounds.bottom)-Math.max(r.top,bounds.top);
+     return overlap<=1||Math.abs(overlap-r.height)<=1;
+    });
+   });
+   await expect.poll(complete).toBe(true);
+   await expect.poll(async()=>grid.evaluate(n=>n.getBoundingClientRect().bottom)).toBeLessThanOrEqual(size.height-16);
+   await grid.evaluate(n=>n.scrollTo({top:n.scrollHeight,behavior:'instant'}));
+   await expect.poll(complete).toBe(true);
    await expect(page.getByRole('button',{name:'Next page',exact:true})).toHaveCount(0);
   }
  });
