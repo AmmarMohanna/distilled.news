@@ -86,3 +86,24 @@ $2.765377 maximum additional exposure (rounded down). A non-overlapping grant
 expires October 16 at 02:21:51 Beirut. Existing charges and the old unknown
 $0.02 hold remain intact; no additional $5 allowance was granted. Other test
 feeds remain paused. Final observation and cleanup follow below.
+
+Final redirect deployment: `ae948d36-91ea-4568-8123-9ee0dd8bd3d2`, confirmed
+active on sources QA. No staging deployment was performed. At October 16,
+08:06:37 Beirut the RSS feed was paused again; a database read confirmed all
+five temporary feeds paused. The follow-up had 73 completed acquisitions and
+50 completed reassessments, with no pending acquisition/reassessment jobs at
+the final sample. Two checked fresh revisions retained exact RSS publication
+times (17:47:22 and 15:26:16 UTC), rather than midnight.
+
+**The follow-up did not publish an RSS edition.** The 23:00 UTC request remains
+`PUBLICATION_EXECUTION_YIELD`; retained writer feedback also contains missing
+quantities/facts and invalid direct quotes. Later windows encountered expired
+account authorization. These outcomes must not be called an end-to-end pass.
+The remaining work is reliable publication continuation plus writer fidelity;
+scope/grounding checks must remain enforced. Old failed requests were not reset.
+
+Follow-up reported model costs: $0.768936 (GPT-4.1) and $0.153506
+(GPT-4.1-mini), total $0.922442. Combined with the original $2.2346228,
+reported test spending is $3.1570648. No new unsettled model reservations
+appeared in the final query; the historical unknown $0.02 remains. Both test
+grants expired. A final binding comparison found no missing/unrelated changes.
