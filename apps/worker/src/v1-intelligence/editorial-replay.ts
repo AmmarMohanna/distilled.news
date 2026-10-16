@@ -14,6 +14,9 @@ export interface StartedEditorialBoundary {inputState:ReturnType<typeof keyedEdi
 export async function findStartedEditorialBoundary(store:V1FeedStore,common:Omit<SemanticOperationInput,'state'>,parents:EditorialParent[]):Promise<{state:EditorialParent;boundary:StartedEditorialBoundary}|undefined>{
  const rows=await store.db.prepare("SELECT id,json FROM v1_feed_documents WHERE feed_id=? AND kind IN ('semantic_intents','semantic_results') AND json_extract(json,'$.input.kind')=? AND json_extract(json,'$.input.model')=? AND json_extract(json,'$.input.policyVersion')=? AND json_extract(json,'$.input.budgetKey')=? AND json_extract(json,'$.input.feedRevision')=? ORDER BY id,kind").bind(common.feedId,common.kind,common.model,common.policyVersion,common.budgetKey,common.feedRevision).all<{id:string;json:string}>();
  const seen=new Set<string>();let unmatchedStarted=false;
+ // A settled call has a durable result and known cost. Only an unsettled
+ // (unknown-outcome) call may block asking a changed question again.
+ const settled=new Set(rows.results.filter(row=>{try{return typeof JSON.parse(row.json).status==='string'}catch{return false}}).map(row=>row.id));
  for(const row of rows.results){
   if(seen.has(row.id))continue;const record=JSON.parse(row.json),input=record.input as SemanticOperationInput;
   if(!record.token&&!(record.usage?.calls>0))continue;
@@ -35,7 +38,7 @@ export async function findStartedEditorialBoundary(store:V1FeedStore,common:Omit
    const inputState=input.state as StartedEditorialBoundary['inputState'];
    return {state,boundary:{inputState,transport,keyed:match.keyed,operationInput:input,bounded:match.keyed?{inputState:inputState as ReturnType<typeof keyedEditorialState>,transport,offeredCandidates,overflowIds,failure:undefined}:undefined}};
   }
-  if(!resolvedBlocker)unmatchedStarted=true;
+  if(!resolvedBlocker&&!settled.has(row.id))unmatchedStarted=true;
  }
  // An unmatched possibly-paid frame is not authorization to rebuild and bill.
  // Preserve the original records and fail visibly; no invented decoder/plan.
