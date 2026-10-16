@@ -65,9 +65,9 @@ export default {
       try {
         const downstreamEnv=await connectorDownstreamEnv(env,body as DistilledQueueMessage);
         if(isRecord(body)&&body.type==='v1_manual_briefing'&&typeof body.feedId==='string'&&typeof body.requestId==='string') await retireManualBriefing(env,body.feedId,body.requestId);
-        else if (isRecord(body) && body.type==='v1_acquisition' && typeof body.jobId==='string') await processV1Acquisition(downstreamEnv,body.jobId);
         else if(isRecord(body) && isIntelligenceTurn(body as DistilledQueueMessage)) await withIntelligenceTurn(downstreamEnv,body as DistilledQueueMessage,async()=>{
-          if(body.type==='v1_rematch' && typeof body.feedId==='string' && typeof body.requestId==='string') await processV1Rematch(downstreamEnv,body.feedId,body.requestId);
+          if(body.type==='v1_acquisition' && typeof body.jobId==='string') await processV1Acquisition(downstreamEnv,body.jobId);
+          else if(body.type==='v1_rematch' && typeof body.feedId==='string' && typeof body.requestId==='string') await processV1Rematch(downstreamEnv,body.feedId,body.requestId);
           else if(body.type==='v1_reassess' && typeof body.jobId==='string') await processV1Reassessment(downstreamEnv,body.jobId);
           else if(body.type==='v1_briefing') await processV1Briefing(downstreamEnv,body as import('./v1-intelligence/runtime').V1BriefingMessage);
           else throw new HandoffError('INVALID_REQUEST');
@@ -96,12 +96,18 @@ export default {
             durationMs
           });
         }
-        if(isRecord(body)&&body.type==='v1_reassess'&&typeof body.jobId==='string'){
+        if(isRecord(body)&&(body.type==='v1_reassess'||body.type==='v1_acquisition')&&typeof body.jobId==='string'){
           try{await continueFeedReview(downstreamEnv,body.jobId)}catch{console.warn(JSON.stringify({type:'V1_REVIEW_CONTINUATION_FAILED',reason:'CRON_RECOVERY_REQUIRED'}))}
         }
         message.ack();
       } catch (error) {
-        if(error instanceof IntelligenceTurnBusy){message.ack();continue;}
+        if(error instanceof IntelligenceTurnBusy){
+          // Admission contention spends no canonical attempt and must not flood
+          // the DLQ. The durable job and expired dispatch remain Cron recovery.
+          if(message.attempts<MAX_QUEUE_ATTEMPTS)message.retry({delaySeconds:30});
+          else {if(isRecord(body))await recordV1QueueOutcome(env,message.id,body,message.attempts,'FEED_TURN_BUSY');message.ack();}
+          continue;
+        }
         if(isRecord(body) && typeof body.type==='string' && body.type.startsWith('v1_')) {
           await recordV1QueueOutcome(env,message.id,body,message.attempts,error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE');
           if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') message.ack();

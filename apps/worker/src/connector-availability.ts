@@ -53,7 +53,8 @@ export async function feedSourceAvailability(env:Env,feedId:string){
   if(latest?.state==='BLOCKED'&&availability.state==='AVAILABLE'){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
   const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),acquisition={completed:0,pending:0,failed:0};
   for(const job of jobs){if(job.state==='DONE')acquisition.completed+=job.count;else if(job.state==='FAILED')acquisition.failed+=job.count;else if(['PENDING','RUNNING'].includes(job.state))acquisition.pending+=job.count;}
-  const warning=acquisition.failed?jobs.some(j=>j.state==='FAILED'&&j.failure==='AUTH_REQUIRED')?'ARTICLE_AUTH_REQUIRED':jobs.some(j=>j.state==='FAILED'&&j.failure==='CHALLENGE_REQUIRED')?'ARTICLE_CHALLENGE_REQUIRED':'ARTICLE_ACQUISITION_FAILED':undefined;
+  const failed=jobs.filter(j=>j.state==='FAILED');
+  const warning=acquisition.failed?failed.every(j=>j.failure==='AUTH_REQUIRED')?'ARTICLE_AUTH_REQUIRED':failed.every(j=>j.failure==='CHALLENGE_REQUIRED')?'ARTICLE_CHALLENGE_REQUIRED':'ARTICLE_ACQUISITION_FAILED':undefined;
   // Only typed errors are public. Never expose URLs, provider response text or
   // claim tokens retained in diagnostic storage.
   let failure=latest?.last_error;

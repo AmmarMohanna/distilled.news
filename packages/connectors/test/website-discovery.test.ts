@@ -2,6 +2,19 @@ import {describe,it,expect} from 'vitest';
 import {discoverWebsiteArticles} from '../src/source-runtime/website-discovery';
 const url='https://publisher.example/news';
 describe('source-scoped article discovery',()=>{
+ it('treats a news index as discovery despite misleading article metadata',()=>{
+  const html='<meta property="og:type" content="article"><article><h1>All NASA News</h1><p>Unrelated summaries</p><h2><a href="/missions/artemis/flight">Flight news</a></h2><h2><a href="/science/research">Research news</a></h2></article>';
+  expect(discoverWebsiteArticles(html,'https://www.nasa.gov/news/all-news/')?.articles).toEqual([{url:'https://www.nasa.gov/missions/artemis/flight',title:'Flight news'},{url:'https://www.nasa.gov/science/research',title:'Research news'}]);
+  expect(discoverWebsiteArticles('<p>Unknown index layout</p>','https://www.nasa.gov/news/all-news/')).toEqual({articles:[],nextPage:undefined});
+ });
+ it('excludes div-based global navigation while discovering item-heading links',()=>{
+  const html='<div id="global-navigation"><a href="/missions"><h3>Missions</h3></a></div><main><div class="hds-content-item"><a class="hds-content-item-heading" href="/science/new-result">Research result</a></div></main>';
+  expect(discoverWebsiteArticles(html,'https://www.nasa.gov/news/all-news/')?.articles).toEqual([{url:'https://www.nasa.gov/science/new-result',title:'Research result'}]);
+ });
+ it('does not invent a next URL or claim exhaustion for JavaScript-only pagination',()=>{
+  const html='<div class="hds-content-item"><a class="hds-content-item-heading" href="/science/result">Result</a></div><a class="next page-numbers" data-page-number="2" href="#">Next</a>';
+  expect(discoverWebsiteArticles(html,'https://www.nasa.gov/news/all-news/')).toMatchObject({articles:[{url:'https://www.nasa.gov/science/result'}],paginationUnresolved:true});
+ });
  it('discovers CoinDesk-style headings inside links on a tag listing',()=>{
   const html='<main>'+['ETF decision','Corporate purchase'].map((title,i)=>`<div class="flex"><a class="content-card-title" href="/markets/2026/10/15/story-${i}"><h3>${title}</h3></a><p>Summary</p></div>`).join('')+'</main>';
   expect(discoverWebsiteArticles(html,'https://publisher.example/tag/bitcoin')?.articles).toEqual([

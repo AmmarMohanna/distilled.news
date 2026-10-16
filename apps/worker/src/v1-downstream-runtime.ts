@@ -15,6 +15,8 @@ import {readConnectorPayload} from './connector-payload';
 import {HttpSourceExecution,BoundedFeedHttp} from '@distilled/connectors';
 import {verifyConnectorAuthority} from './connector-authority';
 import {sharedPublicHttp} from './connector-public-cache';
+import {withFeedWriteTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
+import {readPublicArticle} from './v1-intake/public-article-http';
 
 function enabledSources(env:Env):string[] {
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
@@ -58,8 +60,10 @@ export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:
  const parsed=connectorHandoffRequestSchema.safeParse(raw);
  if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  if(env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,parsed.data.coverage.feedSourceId)) throw new HandoffError('SCOPE_DENIED');
- await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
- return createCandidateIntakePort(new V1IntakeStore(env.DB),{...createV1RuntimePolicy(fetch,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined),expectedFeedRevision}).acceptBatch(parsed.data);
+ try{return await withFeedWriteTurn(env,parsed.data.coverage.feedId,async()=>{
+  await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
+  return createCandidateIntakePort(new V1IntakeStore(env.DB),{...createV1RuntimePolicy(fetch,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined),expectedFeedRevision}).acceptBatch(parsed.data);
+ });}catch(error){if(error instanceof IntelligenceTurnBusy)throw new HandoffError('TEMPORARY_UNAVAILABLE');throw error;}
 }
 const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();
 export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetch=fetch) {
@@ -73,7 +77,7 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  const execution=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
   new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return env.SOURCE_EXECUTION_SERVICE!.fetch(value,init)},true):undefined;
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
- publicGet:articleHttp?async(url)=>{const r=await articleHttp.get(url,{accept:'text/html'});if(r.status===0)throw new AcquisitionFailure('NETWORK',true);if(r.status>=300&&r.status<400)throw new AcquisitionFailure('POLICY_DENIED',false);return {url,body:new TextDecoder().decode(r.bytes),contentType:r.headers['content-type']??'',status:r.status,...(Object.keys(r.headers).some(k=>k.toLowerCase()==='www-authenticate')?{authenticationRequired:true}:{})};}:undefined,
+ publicGet:articleHttp?url=>readPublicArticle(articleHttp,url):undefined,
  publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:25000});await authorizeArticle(url);return result;}:undefined,
  extractHtml:env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?async(url,html)=>{
   await authorizeArticle(url);const result=await execution!.execute('extract',{url,html});await authorizeArticle(url);return result;

@@ -88,6 +88,11 @@ it('allows equivalent exact ages but rejects newly invented numerical bounds eve
  expect(checkReaderFidelity(['No fewer than forty people died.'],[fact('At least 40 people died.')],[fact('At least 40 people died.')],true).passed).toBe(true);
  expect(checkReaderFidelity(['The cost exceeded expectations at over 12000000.'],[fact('The cost is over 12 million.')],[fact('The cost is over 12 million.')],true).passed).toBe(true);
 });
+it('preserves the same age bound when the source says under the age of eight',()=>{
+ const approved=fact('Women who have children under the age of eight will receive leave.'),checks=[{factId:'fact',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Same age restriction.'}];
+ expect(checkReaderFidelity(['Women with children under eight will receive leave.'],[approved],[approved],true,{checks}).passed).toBe(true);
+ expect(checkReaderFidelity(['Women with children under nine will receive leave.'],[approved],[approved],true,{checks}).passed).toBe(false);
+});
 
 const retainedOrdinalFacts=ordinalDates.facts.map(f=>({...f,evidenceRevisionIds:f.support.map(s=>s.evidenceRevisionId)}));
 it('retained first-day wording preserves Day 1 and Oct. 13 without accepting its other writer failures',()=>{

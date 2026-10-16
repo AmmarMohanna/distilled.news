@@ -1,6 +1,6 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
-import {withIntelligenceTurn} from './connector-intelligence-turn';
+import {withIntelligenceTurn,withFeedWriteTurn} from './connector-intelligence-turn';
 import type {Env} from './types';
 import {V1FeedStore,FeedTransaction,feedTransact} from './v1-intelligence/store';
 import {V1IntakeStore} from './v1-intake/store';
@@ -17,12 +17,13 @@ beforeEach(async()=>{
  await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind('turn-job','turn-source',JSON.stringify({id:'turn-job',kind:'REASSESS',state:'PENDING',attempts:0})).run();
 });
 afterEach(async()=>{vi.useRealTimers();vi.restoreAllMocks();await ctx.dispose()});
-it('one Feed gets one review turn while another Feed and acquisition remain independent',async()=>{
+it('one Feed coordinates review and acquisition while another Feed remains independent',async()=>{
  let release!:()=>void,started!:()=>void;const entered=new Promise<void>(resolve=>{started=resolve}),run=vi.fn(async()=>new Promise<void>(resolve=>{release=resolve;started()}));
  const first=withIntelligenceTurn(env,{type:'v1_reassess',jobId:'turn-job'},run);await entered;
  const blocked=vi.fn();await expect(withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},blocked)).rejects.toThrow('INTELLIGENCE_TURN_BUSY');expect(blocked).not.toHaveBeenCalled();
  expect(await withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-2',window},async()=> 'other')).toBe('other');
- expect(await withIntelligenceTurn(env,{type:'v1_acquisition',jobId:'turn-job'},async()=> 'acquire')).toBe('acquire');
+ await expect(withIntelligenceTurn(env,{type:'v1_acquisition',jobId:'turn-job'},async()=> 'acquire')).rejects.toThrow('INTELLIGENCE_TURN_BUSY');
+ await expect(withFeedWriteTurn(env,'turn-1',async()=> 'handoff')).rejects.toThrow('INTELLIGENCE_TURN_BUSY');
  release();await first;
  expect(await withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},async()=> 'next')).toBe('next');
  expect(await ctx.db.prepare("SELECT json FROM v1_jobs WHERE id='turn-job'").first()).toEqual({json:JSON.stringify({id:'turn-job',kind:'REASSESS',state:'PENDING',attempts:0})});
