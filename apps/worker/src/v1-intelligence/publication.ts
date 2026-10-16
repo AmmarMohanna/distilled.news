@@ -549,7 +549,14 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
      if(!owned.length||owned.some(p=>!p.candidateId||p.code==='UNKNOWN_OR_DUPLICATE_STORY'||p.code==='NO_SUPPORTED_STORIES'||!input.stories.some(s=>s.candidate.id===p.candidateId)))throw error;
      const blocked=new Set(owned.map(p=>p.candidateId!)),remaining=input.stories.filter(s=>!blocked.has(s.candidate.id));
      await recordPendingDelivery([...blocked],problems.length?'WRITER_PRECHECK_FAILED':'WRITER_VERIFICATION_FAILED');
-     if(!remaining.length)throw error;
+     // Every selected story was deferred: nothing verified remains to publish.
+     // Settle the window as deferred work (carried forward), not a failure.
+     if(!remaining.length){await feedTransact(store,feedId,async tx=>{
+      await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());
+      await tx.write('synthesis_jobs',editionId,{...job,state:'DONE',failure:undefined});
+      const request=await tx.read<any>('briefing_requests',editionId),coverage=await windowIntakeCoverage(store.db,feedId,selection.window.end,windowHoldPolicy(options.windowHoldEnv??{},Date.parse(options.now())));
+      if(request)await tx.write('briefing_requests',editionId,{...request,coverage,state:'DONE',result:'DEFERRED',reason:'EDITORIAL_WORK_DEFERRED',completedAt:options.now()});
+     });throw new QuietPublication();}
      const key=JSON.stringify([repairKey,'independent-stories-v1']),draft={...storedDraft.draft,stories:storedDraft.draft.stories.filter(s=>!blocked.has(s.candidateId))};
      const sourceDraft=storedDraft;
      storedDraft=await feedTransact(store,feedId,async tx=>{
