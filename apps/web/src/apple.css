@@ -1422,10 +1422,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience.product-refresh:not(.guest-landing) :is(.home-view, .explore-view) .your-feeds > .experience-section-heading { justify-content: flex-start; text-align: left; margin-block: 8px 24px; }
 
 .language-code { display: none; }
-:root.apple-ui.apple-ui .feed-editor .voice-field textarea { scrollbar-width: thin; scrollbar-color: var(--muted) transparent; }
+:root.apple-ui.apple-ui .feed-editor .voice-field textarea { scrollbar-width: none; }
 @supports selector(::-webkit-scrollbar) {
-  :root.apple-ui.apple-ui .feed-editor .voice-field textarea { scrollbar-width: auto; scrollbar-color: auto; }
-  :root.apple-ui.apple-ui .feed-editor .voice-field textarea::-webkit-scrollbar { width: 4px; height: 4px; }
+  :root.apple-ui.apple-ui .feed-editor .voice-field textarea { scrollbar-width: none; }
+  :root.apple-ui.apple-ui .feed-editor .voice-field textarea::-webkit-scrollbar { display: none; width: 0; height: 0; }
   :root.apple-ui.apple-ui .feed-editor .voice-field textarea::-webkit-scrollbar-track { background: transparent; }
   :root.apple-ui.apple-ui .feed-editor .voice-field textarea::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 4px; }
   :root.apple-ui.apple-ui .feed-editor .voice-field textarea::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
