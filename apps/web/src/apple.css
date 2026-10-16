@@ -1424,7 +1424,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 .language-code { display: none; }
 .sidebar-top { display: none; }
 @media (min-width: 900px) {
-  :root.apple-ui.apple-ui .experience.product-refresh:has(> .collapsible-navigation.is-collapsed) :is(.home-view, .explore-view) .your-feeds { width: 100%; max-width: 1240px; margin-inline: auto; }
+  :root.apple-ui.apple-ui .experience.product-refresh:has(> .collapsible-navigation.is-collapsed) :is(.home-view, .explore-view) .your-feeds { --centered-card-width: 300px; width: 100%; max-width: 1240px; margin-inline: auto; }
   :root.apple-ui.apple-ui .experience.product-refresh:has(> .collapsible-navigation.is-collapsed) .your-feeds:has(.topic-card):not(:has(.topic-card:nth-child(2))) { max-width: var(--centered-card-width); }
   :root.apple-ui.apple-ui .experience.product-refresh:has(> .collapsible-navigation.is-collapsed) .your-feeds:has(.topic-card:nth-child(2)):not(:has(.topic-card:nth-child(3))) { max-width: calc(2 * var(--centered-card-width) + 20px); }
   :root.apple-ui.apple-ui .experience.product-refresh:has(> .collapsible-navigation.is-collapsed) .your-feeds:has(.topic-card:nth-child(3)):not(:has(.topic-card:nth-child(4))) { max-width: calc(3 * var(--centered-card-width) + 40px); }

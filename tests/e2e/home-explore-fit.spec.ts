@@ -74,3 +74,23 @@ for (const language of ["fr", "ar"]) {
     });
   }
 }
+
+for (const width of [1280, 1920]) {
+  test(`collapsed sidebar centers three cards at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.addInitScript(() => localStorage.setItem("dn-sidebar-collapsed", "true"));
+    await openApp(page, 3);
+    for (const tab of ["home", "explore"]) {
+      if (tab === "explore") {
+        await page.locator(".bottom-navigation").getByRole("button", { name: "Explore", exact: true }).click();
+        await page.mouse.move(600, 70);
+      }
+      await expect(page.locator(".collapsible-navigation")).toHaveClass(/is-collapsed/);
+      await expect.poll(async () => page.evaluate(() => {
+        const title = document.querySelector(".home-view .welcome-hero, .explore-view .experience-title")!.getBoundingClientRect();
+        const cards = [...document.querySelectorAll(".home-view .topic-card, .explore-view .topic-card")].map(node => node.getBoundingClientRect());
+        return Math.abs((Math.min(...cards.map(r => r.left)) + Math.max(...cards.map(r => r.right))) / 2 - (title.left + title.right) / 2);
+      })).toBeLessThanOrEqual(1);
+    }
+  });
+}
