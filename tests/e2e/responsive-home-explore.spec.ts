@@ -22,6 +22,7 @@ for (const size of [{width:320,height:568},{width:390,height:664},{width:1280,he
       await page.keyboard.press('Escape');
     }
     const homeSearch=(await page.locator('.home-controls').boundingBox())!;
+    const homeButton=await page.locator('.home-add-feed').evaluate(el=>{const s=getComputedStyle(el),box=el.getBoundingClientRect();return {width:box.width,height:box.height,font:s.fontSize,padding:s.padding,icon:el.querySelector('svg')!.getBoundingClientRect().width};});
     if(size.width>=900){
       const field=(await page.locator('.home-controls .explore-search').boundingBox())!;
       const create=(await page.locator('.home-add-feed').boundingBox())!;
@@ -41,6 +42,9 @@ for (const size of [{width:320,height:568},{width:390,height:664},{width:1280,he
     await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Explore',exact:true}).click();
     await expect(page.locator('.explore-view .topic-card').first()).toBeVisible();
     const exploreSearch=(await page.locator('.explore-controls').boundingBox())!;
+    await expect(page.locator('.explore-view .explore-search input')).toHaveAttribute('placeholder','Search feeds');
+    const exploreButton=await page.locator('.explore-view .landing-create').evaluate(el=>{const s=getComputedStyle(el),box=el.getBoundingClientRect();return {width:box.width,height:box.height,font:s.fontSize,padding:s.padding,icon:el.querySelector('svg')!.getBoundingClientRect().width};});
+    expect(exploreButton).toEqual(homeButton);
     expect(exploreSearch.y).toBeCloseTo(homeSearch.y,0);
     expect(await viewport.evaluate(el=>el.scrollHeight-el.clientHeight)).toBeLessThanOrEqual(1);
     if(size.width===390)await page.screenshot({path:testInfo.outputPath('explore.png')});

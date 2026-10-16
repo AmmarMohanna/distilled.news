@@ -1247,3 +1247,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
  :root.apple-ui.apple-ui .experience.product-refresh .topic-card.feed-widget .feed-card-actions { min-height:40px; padding-block:2px; }
  :root.apple-ui.apple-ui .experience.product-refresh .topic-card.feed-widget .topic-name > svg { bottom:5px; }
 }
+/* Home and Explore use the same Create feed control, including icon sizing. */
+:root.apple-ui.apple-ui .experience.product-refresh .create-feed-button { display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; width:100%; min-width:0; height:48px; min-height:48px; margin:0; padding:10px 16px; gap:8px; border-radius:999px; font-size:14px; font-weight:600; line-height:1.2; white-space:nowrap; flex-shrink:0; }
+:root.apple-ui.apple-ui .experience.product-refresh .create-feed-button svg { width:20px; height:20px; flex:0 0 20px; }
+@media (min-width:900px) and (min-height:760px) { :root.apple-ui.apple-ui .experience.product-refresh .create-feed-button { height:56px; min-height:56px; } }
+@media (max-width:600px), (max-height:450px) { :root.apple-ui.apple-ui .experience.product-refresh .create-feed-button { width:44px; min-width:44px; height:44px; min-height:44px; padding:0; } }
