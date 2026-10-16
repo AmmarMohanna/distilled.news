@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Ellipsis, Globe, Moon, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
+import { PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, HealthStatus, PublicBriefing } from "./types";
 import { getExploreFeeds, getFeed, setFeedStar } from "./api";
@@ -123,7 +123,7 @@ export function AppExperience(props: {
     </section>}
     {tab === "settings" && <section className="settings-view"><div className="experience-title"><h1>{t("Settings")}</h1><p>{t("Customize your experience.")}</p></div><p className="settings-group-label settings-account-label">{t("Account")}</p><div className="settings-group settings-account-group">{setting(<User/>, "Profile", props.onAccount)}<button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Notifications")} aria-checked={notificationEnabled ?? false} disabled={notificationBusy || notificationEnabled === undefined} onClick={() => void toggleNotifications()}><Bell/><span>{t("Notifications")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div>{notificationError && <p className="error" role="alert">{t(notificationError)}</p>}<p className="settings-group-label settings-preferences-label">{t("Preferences")}</p><div className="settings-group settings-preferences-group"><div className="setting-row setting-language" role="group" aria-label={t("Language")}><Globe/><span>{t("Language")}</span><span className="language-segments">{(["en", "fr", "ar"] as const).map(code => <button key={code} type="button" lang={code} aria-pressed={language === code} onClick={() => setWebsiteLanguage(code)} aria-label={languageNames[code]}><span className="language-name">{languageNames[code]}</span><span className="language-code" aria-hidden="true">{code.toUpperCase()}</span></button>)}</span></div><button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Dark mode")} aria-checked={theme === "dark"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><Moon/><span>{t("Dark mode")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div><p className="settings-group-label settings-app-label">{t("App")}</p><div className="settings-group settings-app-group">{setting(<Smartphone/>, "Install app", () => { setSettingsDialog("install"); setInstallStatus("pending"); setInstallError(""); void installApp().then(result => setInstallStatus(current => current === "installed" ? current : result)).catch(cause => { setInstallStatus("error"); setInstallError(String(cause)); }); })}{setting(<HelpCircle/>, "Help & Support", props.onHelp)}</div>{props.account?.role === "admin" && props.children}</section>}
     {settingsDialog === "install" && <InstallDialog status={installStatus} error={installError} onInstalled={() => setInstallStatus("installed")} onClose={() => setSettingsDialog(null)}/>}
-    {props.account && <nav className="bottom-navigation" aria-label={t("Main navigation")}><div className="sidebar-logo experience-brand" aria-label="Distilled.news"><BrandMark/></div>{([{ id: "home", label: "Home", icon: Home }, { id: "explore", label: "Explore", icon: Search }, { id: "settings", label: "Settings", icon: Settings }] as const).map(({ id, label, icon: Icon }) => <button key={id} aria-current={tab === id ? "page" : undefined} className={`${tab === id ? "active" : ""} ${id === "settings" ? "navigation-settings" : ""}`} onClick={() => changeTab(id)}><Icon size={23}/><span>{t(label)}</span></button>)}</nav>}
+    {props.account && <SidebarNavigation active={tab} onNavigate={changeTab}/>}
   </main>;
 }
 
@@ -186,9 +186,28 @@ function FeedUpdatedAt({ value }: { value?: string }) {
   return value ? <time className="feed-updated-at" dateTime={value}>{formatFeedUpdated(value, language, now)}</time> : null;
 }
 
+type NavigationTab = "home" | "explore" | "settings";
+function SidebarNavigation({ active, onNavigate }: { active?: string; onNavigate?: (tab: NavigationTab) => void }) {
+  const { t } = useLanguage();
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem("dn-sidebar-collapsed") !== "false"; } catch { return true; }
+  });
+  const toggle = () => setCollapsed(current => {
+    try { localStorage.setItem("dn-sidebar-collapsed", String(!current)); } catch {}
+    return !current;
+  });
+  return <nav className={`bottom-navigation collapsible-navigation${collapsed ? " is-collapsed" : ""}`} aria-label={t("Main navigation")}>
+    <div className="sidebar-top">
+      <a className="sidebar-brand" href="/" aria-label="Distilled.news"><BrandMark/></a>
+      <button type="button" className="sidebar-toggle" aria-label={t(collapsed ? "Open sidebar" : "Close sidebar")} title={t(collapsed ? "Open sidebar" : "Close sidebar")} aria-expanded={!collapsed} onClick={toggle}><PanelLeft size={22}/></button>
+    </div>
+    {([{ id: "home", label: "Home", icon: Home, href: "/" }, { id: "explore", label: "Explore", icon: Search, href: "/explore" }, { id: "settings", label: "Settings", icon: Settings, href: "/?view=settings" }] as const).map(({ id, label, icon: Icon, href }) => onNavigate
+      ? <button key={id} type="button" className={`navigation-item ${id === "settings" ? "navigation-settings" : ""} ${active === id ? "active" : ""}`} aria-current={active === id ? "page" : undefined} aria-label={t(label)} title={t(label)} onClick={() => onNavigate(id)}><Icon size={23}/><span>{t(label)}</span></button>
+      : <a key={id} className={`navigation-item ${id === "settings" ? "navigation-settings" : ""}`} href={href} aria-current={active === id ? "page" : undefined} aria-label={t(label)} title={t(label)}><Icon size={23}/><span>{t(label)}</span></a>)}
+  </nav>;
+}
 export function PublicNavigation() {
- const { t } = useLanguage();
- const path = window.location.pathname;
- const settings = new URLSearchParams(window.location.search).get("view") === "settings";
- return <nav className="bottom-navigation" aria-label={t("Main navigation")}><div className="sidebar-logo experience-brand"><BrandMark/></div><a href="/" aria-current={path === "/" && !settings ? "page" : undefined}><Home size={23}/><span>{t("Home")}</span></a><a href="/explore" aria-current={/^\/explore\/?$/.test(path) ? "page" : undefined}><Search size={23}/><span>{t("Explore")}</span></a><a className="navigation-settings" href="/?view=settings" aria-current={settings ? "page" : undefined}><Settings size={23}/><span>{t("Settings")}</span></a></nav>;
+  const path = window.location.pathname;
+  const settings = new URLSearchParams(window.location.search).get("view") === "settings";
+  return <SidebarNavigation active={settings ? "settings" : /^\/explore\/?$/.test(path) ? "explore" : path === "/" ? "home" : undefined}/>;
 }
