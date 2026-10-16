@@ -1375,3 +1375,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-shell .feed-filter button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 :root.apple-ui.apple-ui .feed-shell .feed-side-actions { flex: 1 1 200px; }
 :root.apple-ui.apple-ui .feed-shell .news-item.is-read { background: transparent; box-shadow: none; }
+@media (max-width: 700px) {
+  :root.apple-ui.apple-ui .feed-shell .feed-filter { flex: 1 1 100%; }
+  :root.apple-ui.apple-ui .feed-shell .feed-filter button { flex: 1 1 0; }
+}
