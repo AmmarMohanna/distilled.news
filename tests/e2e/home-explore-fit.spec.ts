@@ -159,6 +159,22 @@ test('feed card design switches in both directions when the window resizes',asyn
  await expect.poll(async()=>grid.locator('.topic-art').first().evaluate(n=>n.getBoundingClientRect().width)).toBe(144);
 });
 
+for(const width of [1280,390]) test(`create feed preferences use aligned grouped rows at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:900});await openApp(page,1);
+ await page.getByRole('button',{name:'Create feed',exact:true}).click();
+ await page.getByRole('button',{name:'Preferences',exact:true}).click();
+ const preferences=page.locator('#feed-preferences');
+ await expect(preferences.getByText('Schedule',{exact:true})).toBeVisible();
+ await preferences.getByLabel('Briefing language').selectOption('fr');
+ await expect(preferences.getByLabel('Briefing language')).toHaveValue('fr');
+ await preferences.getByLabel('Update rhythm').selectOption('60');
+ await expect(preferences.getByLabel('Deliver at')).toHaveCount(0);
+ await preferences.getByLabel('Update rhythm').selectOption('1440');
+ await expect(preferences.getByLabel('Deliver at')).toBeVisible();
+ expect(await preferences.evaluate(node=>node.scrollWidth<=node.clientWidth)).toBe(true);
+ await preferences.screenshot({path:`test-results/feed-preferences-${width}.png`});
+});
+
 test('desktop card has readable identity and separate menu and open controls',async({page})=>{
  await page.setViewportSize({width:1920,height:1100});await openApp(page,5);
  const card=page.locator('.adaptive-feed-grid .topic-card').first();
