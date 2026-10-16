@@ -35,6 +35,8 @@ V1_SEMANTIC_POLICY = "DETERMINISTIC"
 V1_SALIENCE_POLICY = "DETERMINISTIC"
 V1_SYNTHESIS_MODEL_ENABLED = "true"
 V1_REAL_MODEL_REQUIRED = "true"
+# Publish from reviewed work 10 minutes after a window closes; unfinished intake joins the next edition.
+V1_PUBLICATION_GRACE_MINUTES = "10"
 V1_SEMANTIC_STRONG_MODEL = "openai/gpt-4.1"
 V1_BROWSER_ACQUISITION_ENABLED = "false"
 DISTILLED_WEB_OPERATOR_ENABLED = "false"

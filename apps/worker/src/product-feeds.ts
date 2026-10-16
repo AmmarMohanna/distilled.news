@@ -7,6 +7,8 @@ import {publicV1Editions} from './v1-intelligence/public-read';
 import {productConnectorSource} from './connector-source';
 import {discoverPublicRssFeed} from './product-feed-discovery';
 import {pendingWindowCollections} from './connector-publication-coverage';
+import {windowHoldPolicy} from './v1-intelligence/window-hold';
+import {jobsHoldingWindow} from './v1-intelligence/runtime';
 
 export async function productPublicationState(env:Env,feedId:string):Promise<'waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'|'setup_required'> {
  const pending=await env.DB.prepare("SELECT o.id FROM v1_feed_documents o WHERE o.feed_id=? AND o.kind='correction_obligations' AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.feed_id=o.feed_id AND r.kind='correction_resolutions' AND json_extract(r.json,'$.obligationId')=o.id) LIMIT 1").bind(feedId).first();
@@ -31,8 +33,11 @@ export async function productPublicationProgress(env:Env,feedId:string):Promise<
  const rows=await env.DB.prepare("SELECT json_extract(j.json,'$.kind') AS kind,json_extract(j.json,'$.state') AS state,COALESCE(json_extract(j.json,'$.exhausted'),0) AS exhausted,COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?)) GROUP BY 1,2,3").bind(feedId,end).all<{kind:string;state:string;exhausted:number;n:number}>();
  const acquisition={completed:0,total:0,failed:0},review={completed:0,total:0,failed:0};let pending=0;
  for(const row of rows.results){const counts=row.kind==='ACQUIRE'?acquisition:review;counts.total+=row.n;if(row.state==='DONE')counts.completed+=row.n;else if(row.state==='FAILED'||row.exhausted)counts.failed+=row.n;else if(row.state==='PENDING'||row.state==='RUNNING')pending+=row.n;}
- const collection=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?await pendingWindowCollections(env.DB,feedId,end):undefined;
- return {stage:collection?.pending?'COLLECTING':pending?'PROCESSING':'PUBLISHING',...(collection?.pending?{collection}:{}),acquisition,review,pending};
+ const policy=windowHoldPolicy(env);
+ const collection=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?await pendingWindowCollections(env.DB,feedId,end,policy):undefined;
+ // Under a bounded hold, only work that still holds the window keeps it in processing.
+ const holding=policy&&pending?await jobsHoldingWindow(env.DB,feedId,end,policy):pending;
+ return {stage:collection?.pending?'COLLECTING':holding?'PROCESSING':'PUBLISHING',...(collection?.pending?{collection}:{}),acquisition,review,pending};
 }
 
 // This deployment opt-in admits only sources explicitly approved by an owner.

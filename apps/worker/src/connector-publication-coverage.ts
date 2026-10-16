@@ -1,6 +1,10 @@
+import {windowDeadlinePassed,type WindowHoldPolicy} from './v1-intelligence/window-hold';
 /** One read-only definition of the collection gate, shared by dispatch and UI.
  * Terminal failures and polls started after this boundary do not hold it open. */
-export async function pendingWindowCollections(db:D1Database,feedId:string,end:string){
+export async function pendingWindowCollections(db:D1Database,feedId:string,end:string,policy?:WindowHoldPolicy){
+ // Past the bounded-hold deadline, unfinished polls stay visible in source
+ // health and feed the next window; they no longer hold this one.
+ if(windowDeadlinePassed(policy,end))return {pending:0,sources:[] as string[]};
  const rows=await db.prepare(`SELECT s.id,s.title,COUNT(*) AS n FROM (
  SELECT request,scheduled_at,last_error,result,'rss' AS family FROM connector_rss_poll_jobs WHERE state='PENDING'
  UNION ALL SELECT request,scheduled_at,last_error,result,'provider' AS family FROM connector_provider_poll_jobs WHERE state='PENDING'

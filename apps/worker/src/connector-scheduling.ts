@@ -7,6 +7,7 @@ import {dispatchTelegramLane} from './connector-telegram-lane';
 import {requireConnectorQueues} from './connector-queue-config';
 import {reserveConnectorWork,releaseConnectorWork} from './connector-work-admission';
 import {pendingWindowCollections} from './connector-publication-coverage';
+import {windowHoldPolicy} from './v1-intelligence/window-hold';
 import {dispatchReadyConnectorBriefing} from './connector-briefing-priority';
 
 export type ConnectorQueueMessage={type:'connector_feed';feedId:string;token:string}|{type:'connector_poll';feedId:string;jobId:string;table:'rss'|'provider';token:string}|{type:'connector_relay';feedId:string};
@@ -74,7 +75,7 @@ export function coalescedProcessingQueue(env:Env,at?:number):Queue<DistilledQueu
  * collection windows do not hold this boundary; blocked sources are reported
  * separately as unavailable and remain visible to operators/readers. */
 export async function collectionReadyForWindow(env:Env,feedId:string,end:string,id:string,now=Date.now()){
- const {pending}=await pendingWindowCollections(env.DB,feedId,end);
+ const {pending}=await pendingWindowCollections(env.DB,feedId,end,windowHoldPolicy(env,now));
  if(pending)await env.DB.prepare('INSERT INTO connector_publication_waits(request_id,feed_id,window_end,pending_collections,checked_at) VALUES(?,?,?,?,?) ON CONFLICT(request_id) DO UPDATE SET pending_collections=excluded.pending_collections,checked_at=excluded.checked_at WHERE pending_collections<>excluded.pending_collections').bind(id,feedId,end,pending,new Date(now).toISOString()).run();
  else await env.DB.prepare('DELETE FROM connector_publication_waits WHERE request_id=?').bind(id).run();
  return pending===0;

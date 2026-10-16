@@ -91,6 +91,8 @@ export interface Env extends Cloudflare.Env {
     V1_EDITORIAL_MODEL_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
     V1_EDITORIAL_RANKING_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
     V1_REAL_MODEL_REQUIRED?: string;
+    /** Minutes after a window closes to stop waiting on unfinished intake work. Unset keeps the full wait. */
+    V1_PUBLICATION_GRACE_MINUTES?: string;
   V1_SYNTHESIS_MODEL_ENABLED?: string;
   V1_SALIENCE_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
   V1_SEMANTIC_POLICY?: 'DETERMINISTIC'|'SEMANTIC';

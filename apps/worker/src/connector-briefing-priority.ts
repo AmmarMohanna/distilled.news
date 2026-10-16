@@ -4,6 +4,7 @@ import {jobsHoldingWindow} from './v1-intelligence/runtime';
 import {publicationWindowSchema} from './v1-intelligence/schedule';
 import {createStoredEvidenceModel} from './v1-intelligence/model';
 import {pendingWindowCollections} from './connector-publication-coverage';
+import {windowHoldPolicy} from './v1-intelligence/window-hold';
 /** Give an already-ready closed window one initial transport turn before new
  * reviews refill the single intelligence lane. Canonical publication still
  * rechecks all evidence, approvals, model accounting, grounding and leases. */
@@ -19,6 +20,7 @@ export async function dispatchReadyConnectorBriefing(env:Env,feedId:string,now=n
  if(!row)return false;
  const request=JSON.parse(row.json),window=publicationWindowSchema.safeParse(request.window);if(!window.success)return false;
  if((request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!createStoredEvidenceModel(env))return false;
- if(await jobsHoldingWindow(env.DB,feedId,window.data.end)||(await pendingWindowCollections(env.DB,feedId,window.data.end)).pending)return false;
+ const policy=windowHoldPolicy(env,now.getTime());
+ if(await jobsHoldingWindow(env.DB,feedId,window.data.end,policy)||(await pendingWindowCollections(env.DB,feedId,window.data.end,policy)).pending)return false;
  return enqueueV1(env,'v1_briefing',row.id,{type:'v1_briefing',feedId,window:window.data},now);
 }

@@ -1,4 +1,5 @@
 import {windowIntakeCoverage} from './window-coverage';
+import {windowHoldPolicy} from './window-hold';
 import {ASYNC_MODEL_CALL_MS,ASYNC_OPERATION_LEASE_MS,ASYNC_PROCESSING_SLICE_MS} from './operation-timing';
 import {readerVerificationHistoryMatches} from './reader-history';
 import {editorialContextFacts} from './editorial-context';
@@ -219,7 +220,7 @@ async function requireJob(tx:FeedTransaction,id:string,token:string,now:string):
  if(!job || job.state!=='RUNNING' || job.token!==token || Date.parse(job.leaseUntil)<=Date.parse(now)) throw new HandoffError('TEMPORARY_UNAVAILABLE');return job;
 }
 /** The port gets selected stored objects only. Durable call intents consume budget before any provider call. */
-export async function publishSelection(store:V1FeedStore,feedId:string,selectionId:string,options:{now():string;model?:BriefingModelPort;requireModel?:boolean}):Promise<BriefingEditionRecord> {
+export async function publishSelection(store:V1FeedStore,feedId:string,selectionId:string,options:{now():string;model?:BriefingModelPort;requireModel?:boolean;windowHoldEnv?:{V1_PUBLICATION_GRACE_MINUTES?:string}}):Promise<BriefingEditionRecord> {
  const selection=await store.read<SelectionRecord>(feedId,'selections',selectionId);if(!selection) throw new HandoffError('INVALID_REQUEST');
  const editionId=await sha256(canonicalJson({feedId,start:selection.window.start,end:selection.window.end}));
  const requirement=await feedTransact(store,feedId,async tx=>{
@@ -517,7 +518,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    if(!grounding.stories.length){await feedTransact(store,feedId,async tx=>{
     await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());
     await tx.write('synthesis_jobs',editionId,{...job,state:'DONE',failure:undefined});
-    const request=await tx.read<any>('briefing_requests',editionId),coverage=await windowIntakeCoverage(store.db,feedId,selection.window.end);
+    const request=await tx.read<any>('briefing_requests',editionId),coverage=await windowIntakeCoverage(store.db,feedId,selection.window.end,windowHoldPolicy(options.windowHoldEnv??{},Date.parse(options.now())));
     // Completion and its coverage classification share one CAS. The runtime
     // catch may never execute after a crash or replacement of its work lease.
     if(request){const incomplete=coverage.state!=='COMPLETE'||Boolean(request.semanticCoverage?.unresolvedTargets?.length);await tx.write('briefing_requests',editionId,{...request,coverage,state:'DONE',result:incomplete?'DEFERRED':'QUIET',reason:coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':incomplete?'INCOMPLETE_SEMANTIC_OWNERSHIP':'NO_NEW_VERIFIED_STORIES',completedAt:options.now()})}
