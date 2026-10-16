@@ -173,3 +173,19 @@ test("a feed offers All and Unread filters in one reading column", async ({ page
   const width = await page.locator(".news-line").evaluate(node => node.getBoundingClientRect().width);
   expect(width).toBeLessThanOrEqual(721);
 });
+
+test("the guest landing page also uses large cards when there are only a few feeds", async ({ page }) => {
+  const feeds = ["Lebanon", "Technology"].map((title, index) => ({ ...feed, id: `g${index}`, slug: title.toLowerCase(), title, stars: index }));
+  await page.route("**/api/**", route => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path === "/api/auth/session" ? { authenticated: false, setupRequired: false, account: null }
+      : path === "/api/explore/feeds" ? { feeds } : {};
+    return route.fulfill({ json: body });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const card = page.locator(".curated-feed-grid .topic-card").first();
+  await expect(card).toBeVisible();
+  expect((await card.boundingBox())!.height).toBeGreaterThan(250);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
+});
