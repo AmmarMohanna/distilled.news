@@ -1430,7 +1430,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .collapsible-navigation .navigation-item { display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 14px; white-space: nowrap; transition: padding-inline 280ms cubic-bezier(0.22, 1, 0.36, 1), column-gap 280ms cubic-bezier(0.22, 1, 0.36, 1); }
   :root.apple-ui.apple-ui .collapsible-navigation .navigation-item > span { overflow: hidden; opacity: 1; transition: opacity 180ms ease; }
   :root.apple-ui.apple-ui .collapsible-navigation .sidebar-top { position: absolute; inset: 22px 12px auto; display: flex; align-items: center; justify-content: space-between; height: 44px; }
-  :root.apple-ui.apple-ui .collapsible-navigation .sidebar-brand { display: flex; min-height: 44px; padding: 0; min-width: 0; }
+  :root.apple-ui.apple-ui .collapsible-navigation .sidebar-brand { display: flex; align-items: center; min-height: 44px; padding: 0; min-width: 0; }
+  :root.apple-ui.apple-ui .collapsible-navigation .sidebar-brand .distilled-logo { display: inline-flex; align-items: center; line-height: 1; }
   :root.apple-ui.apple-ui .collapsible-navigation .sidebar-brand .distilled-logo-symbol { display: none; }
   :root.apple-ui.apple-ui .collapsible-navigation .sidebar-brand .distilled-logo-wordmark { font-size: 20px; letter-spacing: -1px; }
   :root.apple-ui.apple-ui .collapsible-navigation .sidebar-toggle { display: grid; place-items: center; justify-content: center; flex: 0 0 36px; width: 36px; min-height: 44px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--muted); box-shadow: none; }

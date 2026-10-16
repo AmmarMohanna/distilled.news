@@ -189,17 +189,19 @@ function FeedUpdatedAt({ value }: { value?: string }) {
 type NavigationTab = "home" | "explore" | "settings";
 function SidebarNavigation({ active, onNavigate }: { active?: string; onNavigate?: (tab: NavigationTab) => void }) {
   const { t } = useLanguage();
-  const [collapsed, setCollapsed] = useState(() => {
+  const [unpinned, setUnpinned] = useState(() => {
     try { return localStorage.getItem("dn-sidebar-collapsed") !== "false"; } catch { return true; }
   });
-  const toggle = () => setCollapsed(current => {
+  const [hovered, setHovered] = useState(false);
+  const collapsed = unpinned && !hovered;
+  const toggle = () => setUnpinned(current => {
     try { localStorage.setItem("dn-sidebar-collapsed", String(!current)); } catch {}
     return !current;
   });
-  return <nav className={`bottom-navigation collapsible-navigation${collapsed ? " is-collapsed" : ""}`} aria-label={t("Main navigation")}>
+  return <nav className={`bottom-navigation collapsible-navigation${collapsed ? " is-collapsed" : ""}`} aria-label={t("Main navigation")} onPointerEnter={event => { if (event.pointerType === "mouse" && window.matchMedia("(min-width: 900px)").matches) setHovered(true); }} onPointerLeave={() => setHovered(false)}>
     <div className="sidebar-top">
       <div className="sidebar-brand" aria-label="Distilled.news"><BrandMark/></div>
-      <button type="button" className="sidebar-toggle" aria-label={t(collapsed ? "Open sidebar" : "Close sidebar")} title={t(collapsed ? "Open sidebar" : "Close sidebar")} aria-expanded={!collapsed} onClick={toggle}><PanelLeft size={22}/></button>
+      <button type="button" className="sidebar-toggle" aria-label={t(unpinned ? "Pin sidebar" : "Unpin sidebar")} title={t(unpinned ? "Pin sidebar" : "Unpin sidebar")} aria-expanded={!collapsed} aria-pressed={!unpinned} onClick={toggle}><PanelLeft size={22}/></button>
     </div>
     {([{ id: "home", label: "Home", icon: Home, href: "/" }, { id: "explore", label: "Explore", icon: Search, href: "/explore" }, { id: "settings", label: "Settings", icon: Settings, href: "/?view=settings" }] as const).map(({ id, label, icon: Icon, href }) => onNavigate
       ? <button key={id} type="button" className={`navigation-item ${id === "settings" ? "navigation-settings" : ""} ${active === id ? "active" : ""}`} aria-current={active === id ? "page" : undefined} aria-label={t(label)} title={t(label)} onClick={() => onNavigate(id)}><Icon size={23}/><span>{t(label)}</span></button>
