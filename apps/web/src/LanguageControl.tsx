@@ -6,6 +6,7 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "Community feeds": ["Fils de la communaut\u00e9", "\u062e\u0644\u0627\u0635\u0627\u062a \u0627\u0644\u0645\u062c\u062a\u0645\u0639"],
   "Discover public feeds from the community. Every public feed appears here automatically.": ["D\u00e9couvrez les fils publics de la communaut\u00e9. Chaque fil public appara\u00eet ici automatiquement.", "\u0627\u0643\u062a\u0634\u0641 \u0627\u0644\u062e\u0644\u0627\u0635\u0627\u062a \u0627\u0644\u0639\u0627\u0645\u0629 \u0645\u0646 \u0627\u0644\u0645\u062c\u062a\u0645\u0639. \u062a\u0638\u0647\u0631 \u0643\u0644 \u062e\u0644\u0627\u0635\u0629 \u0639\u0627\u0645\u0629 \u0647\u0646\u0627 \u062a\u0644\u0642\u0627\u0626\u064a\u064b\u0627."],
 
   "Installation could not start in this browser.": ["L’installation n’a pas pu démarrer dans ce navigateur.", "تعذّر بدء التثبيت في هذا المتصفح."],
