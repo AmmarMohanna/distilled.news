@@ -47,11 +47,12 @@ export async function withFeedWriteTurn<T>(env:Env,feedId:string,run:()=>Promise
  // FIFO applies among recently ready deliveries. A waiter whose message is
  // sleeping/backed off must not reserve an otherwise idle Feed. Retain its
  // original age for priority when it returns, rather than resetting its place.
- await env.DB.prepare(`INSERT INTO connector_feed_turn_waiters(feed_id,work_id,queued_at,expires_at) VALUES(?,?,?,?)
- ON CONFLICT(feed_id,work_id) DO UPDATE SET queued_at=CASE WHEN expires_at<=? THEN excluded.queued_at ELSE queued_at END,expires_at=excluded.expires_at`).bind(feedId,workId,at,at+WAITER_TTL_MS,at).run();
- const claim=await env.DB.prepare(`INSERT INTO connector_intelligence_turns(feed_id,token,lease_until)
+ const offered=env.DB.prepare(`INSERT INTO connector_feed_turn_waiters(feed_id,work_id,queued_at,expires_at) VALUES(?,?,?,?)
+ ON CONFLICT(feed_id,work_id) DO UPDATE SET queued_at=CASE WHEN expires_at<=? THEN excluded.queued_at ELSE queued_at END,expires_at=excluded.expires_at`).bind(feedId,workId,at,at+WAITER_TTL_MS,at);
+ const claiming=env.DB.prepare(`INSERT INTO connector_intelligence_turns(feed_id,token,lease_until)
  SELECT ?,?,? WHERE (SELECT work_id FROM connector_feed_turn_waiters WHERE feed_id=? AND expires_at>? ORDER BY queued_at,work_id LIMIT 1)=?
- ON CONFLICT(feed_id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until WHERE lease_until<=? RETURNING feed_id`).bind(feedId,token,at+LEASE_MS,feedId,at+WAITER_TTL_MS-READY_MS,workId,at).first();
+ ON CONFLICT(feed_id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until WHERE lease_until<=? RETURNING feed_id`).bind(feedId,token,at+LEASE_MS,feedId,at+WAITER_TTL_MS-READY_MS,workId,at);
+ const claim=(await env.DB.batch([offered,claiming]))[1].results[0];
  if(!claim)throw new IntelligenceTurnBusy();
  let lost=false,renewing:Promise<void>|undefined;
  const timer=setInterval(()=>{if(lost||renewing)return;renewing=(async()=>{try{const row=await env.DB.prepare('UPDATE connector_intelligence_turns SET lease_until=? WHERE feed_id=? AND token=? AND lease_until>? RETURNING feed_id').bind(Date.now()+LEASE_MS,feedId,token,Date.now()).first();if(!row)lost=true;}catch{lost=true;}})().finally(()=>{renewing=undefined});},LEASE_MS/3);

@@ -7,6 +7,7 @@ import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,r
 import {expireSharedPublicFetches} from './connector-public-cache';
 import {dispatchTelegramLane} from './connector-telegram-lane';
 import {withIntelligenceTurn,isIntelligenceTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
+import {renewConnectorWork} from './connector-work-admission';
 import { createApp } from "./app";
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
@@ -62,6 +63,8 @@ export default {
       const bodyType = queueBodyType(body);
       const bodyId = queueBodyId(body);
       let completedProcessing=false;
+      let renewingWork:Promise<void>|undefined;
+      const workHeartbeat=delivery.token?setInterval(()=>{if(!renewingWork)renewingWork=renewConnectorWork(env,delivery.token!).catch(()=>{}).finally(()=>{renewingWork=undefined});},40000):undefined;
       try {
         const downstreamEnv=await connectorDownstreamEnv(env,body as DistilledQueueMessage);
         if(isRecord(body)&&body.type==='v1_manual_briefing'&&typeof body.feedId==='string'&&typeof body.requestId==='string') await retireManualBriefing(env,body.feedId,body.requestId);
@@ -140,7 +143,7 @@ export default {
         } else {
           message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
         }
-      }
+      }finally{if(workHeartbeat!==undefined)clearInterval(workHeartbeat);if(renewingWork)await renewingWork;}
     }
   }
 };

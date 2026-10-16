@@ -44,13 +44,19 @@ export class V1FeedStore {
   const row=await this.db.prepare('SELECT r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE r.id=? AND s.feed_id=?').bind(id,feedId).first<{json:string}>();return row?JSON.parse(row.json):undefined;
  }
  async snapshot(id:string):Promise<Snapshot> {
-  await assertIntelligenceTurn(this.db,id);
-  if(this.semanticLease){const lease=this.semanticLease;if(lease.feedId!==id||!await this.db.prepare(`SELECT id FROM v1_feed_documents l WHERE l.kind='semantic_work_leases' AND l.id=? AND l.feed_id=? AND json_extract(l.json,'$.token')=? AND json_extract(l.json,'$.leaseUntil')>? AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='semantic_work_releases' AND r.id=l.id AND json_extract(r.json,'$.token')=json_extract(l.json,'$.token'))`).bind(lease.id,id,lease.token,Date.now()).first())throw new SemanticLeaseError()}
-  const row=await this.db.prepare('SELECT json,epoch FROM v1_feeds WHERE id=?').bind(id).first<{json:string;epoch:number}>();
-  if(!row) throw new HandoffError('SCOPE_DENIED');const feed=JSON.parse(row.json) as FeedRecord;
+  const guard=intelligenceTurnGuard(this.db,id),lease=this.semanticLease;
+  if(lease&&lease.feedId!==id)throw new SemanticLeaseError();
+  const semantic=lease?`EXISTS(SELECT 1 FROM v1_feed_documents l WHERE l.kind='semantic_work_leases' AND l.id=? AND l.feed_id=? AND json_extract(l.json,'$.token')=? AND json_extract(l.json,'$.leaseUntil')>? AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='semantic_work_releases' AND r.id=l.id AND json_extract(r.json,'$.token')=json_extract(l.json,'$.token')))`:'1';
+  // One atomic read validates both leases and captures the Feed/scope epochs.
+  // The commit still rechecks every guard against current database state.
+  const row=await this.db.prepare(`SELECT json,epoch,(SELECT json_group_array(json_object('id',id,'epoch',epoch)) FROM (SELECT id,epoch FROM v1_intake_scopes WHERE feed_id=? ORDER BY id)) AS scopes,
+   (1${guard.sql}) AS turn_valid,${semantic} AS semantic_valid FROM v1_feeds WHERE id=?`).bind(id,...guard.args,...(lease?[lease.id,id,lease.token,Date.now()]:[]),id).first<{json:string;epoch:number;scopes:string;turn_valid:number;semantic_valid:number}>();
+  if(!row||!row.turn_valid)await assertIntelligenceTurn(this.db,id);
+  if(!row) throw new HandoffError('SCOPE_DENIED');
+  if(!row.semantic_valid)throw new SemanticLeaseError();
+  const feed=JSON.parse(row.json) as FeedRecord;
   if(feed.deletedAt || feed.paused) throw new HandoffError('SCOPE_DENIED');
-  const scopes=await this.db.prepare('SELECT id,epoch FROM v1_intake_scopes WHERE feed_id=? ORDER BY id').bind(id).all<{id:string;epoch:number}>();
-  return {feed,epoch:row.epoch,scopes:scopes.results};
+  return {feed,epoch:row.epoch,scopes:JSON.parse(row.scopes)};
  }
  /** One read-only atomic probe, sampled after first/final CAS rejection.
   * Epochs are monotonic; this describes observed guards, not a guessed DB outage. */
@@ -93,13 +99,24 @@ export class FeedTransaction {
  }
  /** Populate immutable lookup cache in bounded batches while checking global ID scope. */
  async preload(kind:DocumentKind,ids:string[]):Promise<void> {
-  const missing=[...new Set(ids)].filter(id=>!this.reads.has(JSON.stringify([kind,id]))&&!this.writes.has(JSON.stringify([kind,id])));
-  for(let offset=0;offset<missing.length;offset+=90){
-   this.metrics.preloadQueries++;
-   const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT id,feed_id,json FROM v1_feed_documents WHERE kind=? AND id IN (${chunk.map(()=>'?').join(',')})`).bind(kind,...chunk).all<{id:string;feed_id:string;json:string}>();
+  return this.preloadMany([{kind,ids}]);
+ }
+ /** Independent immutable lookups share one D1 round trip per bounded batch. */
+ async preloadMany(groups:{kind:DocumentKind;ids:string[]}[]):Promise<void>{
+  const queries:{kind:DocumentKind;ids:string[];statement:D1PreparedStatement}[]=[];
+  for(const {kind,ids} of groups){
+   const missing=[...new Set(ids)].filter(id=>!this.reads.has(JSON.stringify([kind,id]))&&!this.writes.has(JSON.stringify([kind,id])));
+   for(let offset=0;offset<missing.length;offset+=90){const chunk=missing.slice(offset,offset+90);queries.push({kind,ids:chunk,statement:this.store.db.prepare(`SELECT id,feed_id,json FROM v1_feed_documents WHERE kind=? AND id IN (${chunk.map(()=>'?').join(',')})`).bind(kind,...chunk)});}
+  }
+  for(let offset=0;offset<queries.length;offset+=20){
+   const page=queries.slice(offset,offset+20);this.metrics.preloadQueries+=page.length;
+   const results=await this.store.db.batch(page.map(q=>q.statement));
+   for(const [index,result] of results.entries()){
+   const {kind,ids}=page[index],rows=result as D1Result<{id:string;feed_id:string;json:string}>;
    if(rows.results.some(row=>row.feed_id!==this.snapshot.feed.id))throw new HandoffError('SCOPE_DENIED');
    const values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json)]));
-   for(const id of chunk)this.reads.set(JSON.stringify([kind,id]),Promise.resolve(values.get(id)));
+   for(const id of ids)this.reads.set(JSON.stringify([kind,id]),Promise.resolve(values.get(id)));
+   }
   }
  }
  /** Cache only immutable semantic references owned by the offered Event versions. */
@@ -234,7 +251,10 @@ export async function feedTransact<T>(store:V1FeedStore,id:string,run:(tx:FeedTr
  const started=Date.now();let firstEpoch:number|undefined,lastEpoch:number|undefined,lastWrites=0;
  for(let attempt=0;attempt<12;attempt++) {
   const tx=new FeedTransaction(store,await store.snapshot(id)),computationStarted=Date.now();firstEpoch??=tx.snapshot.epoch;lastEpoch=tx.snapshot.epoch;
-  const result=await run(tx),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;if(await store.commit(tx))return result;
+  const result=await run(tx),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;if(await store.commit(tx)){
+   if(Date.now()-started>=2000)console.info(JSON.stringify({type:'V1_FEED_TRANSACTION_TIMING',feedId:id,attempts:attempt+1,durationMs:Date.now()-started,computationMs,writes:tx.writes.size,jobs:tx.jobs.size,queries:tx.metrics}));
+   return result;
+  }
   if(attempt===0||attempt===11)try{console.warn(JSON.stringify({type:'V1_FEED_CAS_REJECTED',feedId:id,attempt:attempt+1,epoch:tx.snapshot.epoch,writes:tx.writes.size,jobs:tx.jobs.size,computationMs,queries:tx.metrics,...await store.casDiagnostic(tx.snapshot)}))}catch{console.warn(JSON.stringify({type:'V1_FEED_CAS_DIAGNOSTIC_UNAVAILABLE',feedId:id,attempt:attempt+1}))}
  }
  console.error(JSON.stringify({type:'V1_FEED_CAS_EXHAUSTED',feedId:id,firstEpoch,lastEpoch,writes:lastWrites,attempts:12,durationMs:Date.now()-started}));

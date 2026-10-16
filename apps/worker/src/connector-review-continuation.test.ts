@@ -8,7 +8,7 @@ const now=new Date('2026-10-15T12:00:00Z');
 async function job(id:string,state:string,source='feed-source-1',extra={}){
  await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind(id,source,JSON.stringify({id,kind:'REASSESS',state,attempts:0,...extra})).run();
 }
-beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));env={DB:ctx.db,SOURCE_QUEUE_SCHEDULING_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',PROCESSING_QUEUE:{send:vi.fn(async()=>{})}} as unknown as Env;await job('completed','DONE')});
+beforeEach(async()=>{ctx=await createIntakeDatabase({product:true});await seedIntakeScope(new V1IntakeStore(ctx.db));env={DB:ctx.db,SOURCE_QUEUE_SCHEDULING_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',PROCESSING_QUEUE:{send:vi.fn(async()=>{})}} as unknown as Env;await job('completed','DONE')});
 afterEach(async()=>ctx.dispose());
 it('continues one due review immediately, with concurrent continuations sharing transport admission',async()=>{
  await job('next','PENDING');

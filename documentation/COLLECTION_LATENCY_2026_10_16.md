@@ -65,3 +65,30 @@ Validation: 51 initial targeted regressions and 49 safety/scale regressions pass
 the final acquisition file passed 27 tests, final transport-generation file 7,
 and scale/transport continuation run 29. Worker typecheck and QA dry-run passed.
 Staging was not modified.
+
+## Bounded delivery and fewer D1 round trips
+
+Migration 0060 adds indexed, token-fenced transport slots: one intelligence
+delivery and four acquisitions per Feed. Long deliveries renew their slots;
+expiry recovers a crashed sender/consumer. Feeds have independent capacity.
+Canonical leases, receipt identities, paid operation records and authorization
+are unchanged. This is backpressure rather than a spending or polling cap.
+
+When a lane is full, pending-job discovery stops offering more work to that
+lane. A declined send releases its own canonical dispatch reservation, avoiding
+a phantom two-minute delivery. Matching completion releases its transport slot
+before continuing work. Queue sends compute their lease time at actual send,
+rather than reusing the time the queue proxy was constructed.
+
+Feed snapshots now read Feed/scopes and validate turn/semantic leases in one
+atomic query. Commit still revalidates every epoch and token. Independent
+immutable graph lookups share bounded D1 read batches; acquisition claim and
+promotion prefetch their independent records. Admission offer/claim uses one
+D1 batch. Slow successful Feed transactions report duration and query counts
+without logging source content or credentials.
+
+Validation: 84 core/concurrency/evidence regressions passed, plus 27 final scale
+and continuation checks (including full-article acquisition through review).
+The other runtime/integration safety files passed 13 checks. Worker typecheck
+and QA dry-run build passed. Remote QA migration list showed only 0060 pending.
+Live measurements for this rollout are added after deployment.

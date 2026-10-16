@@ -17,9 +17,11 @@ export async function prefetchReviewGraph(tx:FeedTransaction,active:EvidenceRevi
  await tx.preload('event_versions',versionIds);
  await tx.preload('event_semantic_states',versionIds);
  const states=(await Promise.all(versionIds.map(id=>tx.read<EventSemanticState>('event_semantic_states',id)))).filter((s):s is EventSemanticState=>Boolean(s));
- await tx.preload('propositions',states.flatMap(s=>s.propositionIds));
- await tx.preload('entities',states.flatMap(s=>s.entityIds));
- await tx.preload('state_slots',states.flatMap(s=>s.stateSlotIds));
+ await tx.preloadMany([
+  {kind:'propositions',ids:states.flatMap(s=>s.propositionIds)},
+  {kind:'entities',ids:states.flatMap(s=>s.entityIds)},
+  {kind:'state_slots',ids:states.flatMap(s=>s.stateSlotIds)}
+ ]);
  const versions=new Set(versionIds),revisionIds=[...active.map(r=>r.id),...members.filter(m=>versions.has(m.eventVersionId)).map(m=>m.evidenceRevisionId)],mentionIds:string[]=[];
  // Previous semantic state can retain immutable supporting revisions as well.
  for(const state of states)for(const id of state.propositionIds){const p=await tx.read<Proposition>('propositions',id);revisionIds.push(...p?.evidenceRevisionIds??[]);mentionIds.push(...p?.claimMentionIds??[])}

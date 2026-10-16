@@ -5,7 +5,7 @@ import {sharedPublicHttp} from './connector-public-cache';
 import {DurableProviderHttp,sourceSqlFromD1} from '@distilled/connectors';
 import type {Env} from './types';
 import {processV1Acquisition} from './v1-downstream-runtime';
-import {processV1Reassessment} from './v1-intelligence/runtime';
+import {processV1Reassessment,processV1Briefing,type V1BriefingMessage} from './v1-intelligence/runtime';
 import {verifyConnectorAuthority} from './connector-authority';
 import {handoffFixture} from '@distilled/contracts';
 import {feedSourceAvailability} from './connector-availability';
@@ -243,6 +243,11 @@ it('the new queue path acquires a full article and reaches intelligence with a f
   await tick('initial');
   const poll=messages.find((m:any)=>m.body?.type==='connector_poll'&&m.body.feedId===feedId) as {body:Parameters<typeof processConnectorMessage>[1]};expect(poll).toBeDefined();
   await processConnectorMessage(runtime,poll.body);await tick('after-poll');
+  // The earlier closed window can be queued before these newly observed
+  // items. Consume it just as the real Worker does, releasing its lane before
+  // expecting delivery of the next review for this Feed.
+  const prior=messages.find((m:any)=>m.type==='v1_briefing'&&m.feedId===feedId) as V1BriefingMessage|undefined;
+  if(prior){const delivery=decodeConnectorDelivery(prior);await processV1Briefing(await connectorDownstreamEnv(runtime,delivery.body),delivery.body);await completeConnectorDownstream(runtime,delivery.body,delivery.token);}
   const acquired=messages.find((m:any)=>m.type==='v1_acquisition') as {type:'v1_acquisition';jobId:string};expect(acquired).toBeDefined();
   const scoped=await connectorDownstreamEnv(runtime,acquired);expect(scoped.V1_DOWNSTREAM_FEED_SOURCE_IDS).toBe(`${feedId}-rss`);
   expect(await processV1Acquisition(scoped,acquired.jobId,fixture as typeof globalThis.fetch)).toBe('DONE');const delivery=decodeConnectorDelivery(acquired);await completeConnectorDownstream(runtime,delivery.body,delivery.token);

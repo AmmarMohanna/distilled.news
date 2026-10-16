@@ -20,6 +20,7 @@ export async function claimAcquisition(store:V1IntakeStore,id:string,rawNow:stri
   if(!job || job.state==='DONE' || job.state==='FAILED' || job.exhausted) return undefined;
   if(job.state==='RUNNING' && job.leaseUntil && Date.parse(job.leaseUntil)>Date.parse(now)) return undefined;
   if(job.nextAttemptAt && Date.parse(job.nextAttemptAt)>Date.parse(now)) return undefined;
+  await tx.prefetch([{table:'inputs',id:job.observationId},{table:'intake_receipts',id:job.observationId},{table:'acquisition_results',id}]);
   const input=await tx.read<AcceptedInput>('inputs',job.observationId),receipt=await tx.read<IntakeReceipt>('intake_receipts',job.observationId);
   if(!input || receipt?.decision!=='ACCEPTED' || !receipt.candidateItemId || input.observation.operation!=='UPSERT') throw new HandoffError('INVALID_REQUEST');
   const candidate=await tx.read<CandidateRecord>('candidates',receipt.candidateItemId);

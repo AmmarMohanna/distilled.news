@@ -29,6 +29,7 @@ export async function acceptAcquiredContent(store:V1IntakeStore,raw:AcceptedAcqu
   if(!stored) throw new HandoffError('INVALID_REQUEST');
   const hash=await hashContent({representation:content.representation,title:content.title,body:content.body});
   return transact(store,stored.feedSourceId,async tx=>{
+    await tx.prefetch([{table:'inputs',id:content.sourceObservationId},{table:'intake_receipts',id:content.sourceObservationId},{table:'acquired',id:content.id},{table:'evidence_receipts',id:content.sourceObservationId},...(lease?[{table:'jobs' as const,id:lease.jobId}]:[])]);
     const input=await tx.read<AcceptedInput>('inputs',content.sourceObservationId),intake=await tx.read<IntakeReceipt>('intake_receipts',content.sourceObservationId);
     if(!input || !intake || intake.decision!=='ACCEPTED' || intake.candidateItemId!==content.candidateId) throw new HandoffError('INVALID_REQUEST');
     const o=input.observation,id=itemId(o.feedSourceId,o.sourceItemKey),now=timestampSchema.parse(policy.now());

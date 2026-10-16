@@ -5,6 +5,7 @@ import {dispatchV1Acquisitions} from './v1-downstream-runtime';
 import {dispatchV1Intelligence} from './v1-intelligence/runtime';
 import {dispatchTelegramLane} from './connector-telegram-lane';
 import {requireConnectorQueues} from './connector-queue-config';
+import {reserveConnectorWork,releaseConnectorWork} from './connector-work-admission';
 
 export type ConnectorQueueMessage={type:'connector_feed';feedId:string;token:string}|{type:'connector_poll';feedId:string;jobId:string;table:'rss'|'provider';token:string}|{type:'connector_relay';feedId:string};
 const tables={rss:'connector_rss_poll_jobs',provider:'connector_provider_poll_jobs'} as const;
@@ -41,21 +42,26 @@ export async function dispatchConnectorFeeds(env:Env,now=Date.now(),limit=FEED_D
 
 /** Existing canonical runners own processing. This proxy only coalesces queue
  * delivery, so the other owner's intelligence runtime needs no modification. */
-export function coalescedProcessingQueue(env:Env,now=Date.now()):Queue<DistilledQueueMessage>{
+export function coalescedProcessingQueue(env:Env,at?:number):Queue<DistilledQueueMessage>{
  requireConnectorQueues(env);
  const original=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?env.V1_PROCESSING_QUEUE!:env.V1_PROCESSING_QUEUE??env.PROCESSING_QUEUE;
  const send=async(raw:DistilledQueueMessage,options?:QueueSendOptions)=>{
+  const now=at??Date.now();
   const {body}=decodeConnectorDelivery(raw);
   if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay')return env.PROCESSING_QUEUE.send(body,options);
   const id=await sha256(JSON.stringify(body)),token=crypto.randomUUID();
-  if(body.type==='v1_briefing'&&!await collectionReadyForWindow(env,body.feedId,body.window.end,id,now))return;
+  if(body.type==='v1_briefing'&&!await collectionReadyForWindow(env,body.feedId,body.window.end,id,now))return false as never;
   const claimed=await env.DB.prepare(`INSERT INTO connector_queue_dispatch(kind,id,available_ms,token) VALUES(?,?,?,?)
    ON CONFLICT(kind,id) DO UPDATE SET available_ms=excluded.available_ms,token=excluded.token,sends=sends+1,last_error=NULL WHERE available_ms<=? RETURNING id`).bind(body.type,id,now+DELIVERY_LEASE_MS,token,now).first();
-  if(!claimed)return;
+  if(!claimed)return false as never;
+  if(!await reserveConnectorWork(env,body,token,now)){
+   await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=? AND token=?').bind(body.type,id,token).run();
+   return false as never;
+  }
   const acquisition=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?env.V1_ACQUISITION_QUEUE!:env.V1_ACQUISITION_QUEUE??original;
   const target=body.type==='v1_acquisition'||body.type==='connector_relay'?acquisition:original;
   const transport={...body,_connectorDispatchToken:token};
-  try{return await target.send(transport,options)}catch(error){await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=?,last_error=? WHERE kind=? AND id=? AND token=?').bind(now+30_000,'QUEUE_SEND_FAILED',body.type,id,token).run();throw error;}
+  try{return await target.send(transport,options)}catch(error){await releaseConnectorWork(env,token);await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=?,last_error=? WHERE kind=? AND id=? AND token=?').bind(now+30_000,'QUEUE_SEND_FAILED',body.type,id,token).run();throw error;}
  };
  // Canonical dispatchers ignore send metadata. A coalesced no-op returns no
  // fabricated queue statistics; native metrics remain directly available.
@@ -214,7 +220,7 @@ export async function recordConnectorQueueFailure(env:Env,id:string,body:Connect
 export async function deferConnectorDownstream(env:Env,body:DistilledQueueMessage,dispatchToken?:string):Promise<boolean>{
  if(!dispatchToken||!body.type?.startsWith('v1_'))return false;
  const row=await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=? AND token=? AND available_ms>0 RETURNING id').bind(body.type,await sha256(JSON.stringify(body)),dispatchToken).first();
- if(row)await coalescedProcessingQueue(env).send(body,{delaySeconds:1});
+ if(row){await releaseConnectorWork(env,dispatchToken);await coalescedProcessingQueue(env).send(body,{delaySeconds:1});}
  // A stale delivery has no authority to release or resend a replacement.
  return true;
 }
@@ -225,6 +231,7 @@ export async function completeConnectorDownstream(env:Env,body:DistilledQueueMes
  // replacement generation. Only the matching delivery can refill its lane.
  const completed=await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=? AND token=? AND available_ms>0 RETURNING id').bind(body.type,await sha256(JSON.stringify(body)),dispatchToken).first();
  if(!completed)return;
+ await releaseConnectorWork(env,dispatchToken);
  if('jobId' in body){
   const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();
   if(row){

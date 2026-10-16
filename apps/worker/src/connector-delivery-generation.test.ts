@@ -1,4 +1,4 @@
-import {beforeAll,afterAll,expect,it} from 'vitest';
+import {beforeAll,beforeEach,afterAll,expect,it} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import {coalescedProcessingQueue,completeConnectorDownstream,deferConnectorDownstream,continueConnectorIntake,decodeConnectorDelivery,processConnectorMessage} from './connector-scheduling';
 import {sha256} from '@distilled/contracts';
@@ -12,6 +12,7 @@ beforeAll(async()=>{
  await ctx.db.exec("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,email_verified_at,created_at,updated_at) VALUES('delivery-owner','delivery@example.invalid','delivery@example.invalid','delivery-owner','user','hash','2026-10-13','2026-10-13','2026-10-13'); INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,public_feed_enabled,paused,created_at,updated_at) VALUES('delivery-feed','delivery-owner','delivery','Delivery','news',1,1,'2026-10-13','2026-10-13'); INSERT INTO connector_feed_schedule(feed_id) VALUES('delivery-feed');");
 });
 afterAll(async()=>ctx?.dispose());
+beforeEach(async()=>{await ctx.db.prepare('DELETE FROM connector_work_slots').run()});
 const row=(kind:string)=>ctx.db.prepare('SELECT token,available_ms FROM connector_queue_dispatch WHERE kind=?').bind(kind).first<{token:string;available_ms:number}>();
 it('an older successful delivery cannot release its replacement dispatch generation',async()=>{
  const body={type:'v1_rematch' as const,feedId:'delivery-feed',requestId:'replacement-test'};

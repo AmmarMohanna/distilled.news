@@ -11,7 +11,13 @@ export async function enqueueV1(env:Env,kind:string,id:string,body:DistilledQueu
  ON CONFLICT(kind,id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until,send_count=send_count+1,last_failure=NULL
  WHERE lease_until<=? AND not_before<=? RETURNING token`).bind(kind,id,token,time+DISPATCH_LEASE_MS,time,time).first();
  if(!claimed)return false;
- try{await env.PROCESSING_QUEUE.send(body);return true}
+ try{
+  const sent=await env.PROCESSING_QUEUE.send(body);
+  // The scoped transport may decline a full Feed lane. A declined send must
+  // not reserve a nonexistent delivery for the two-minute crash lease.
+  if((sent as unknown)===false){await env.DB.prepare('UPDATE v1_queue_dispatches SET lease_until=0 WHERE kind=? AND id=? AND token=?').bind(kind,id,token).run();return false;}
+  return true;
+ }
  catch(error){await env.DB.prepare('UPDATE v1_queue_dispatches SET lease_until=0,not_before=?,last_failure=? WHERE kind=? AND id=? AND token=?').bind(time+30_000,'QUEUE_SEND_FAILED',kind,id,token).run();throw error}
 }
 /** Record transport exhaustion separately from semantic/resource uncertainty.
@@ -29,6 +35,7 @@ export async function recordV1QueueOutcome(env:Env,messageId:string,body:Record<
  * minute is oldest-first so continuous arrivals cannot starve historical work.
  * Active transport reservations are excluded before the bounded page limit. */
 export async function pendingV1Jobs(env:Env,sourceId:string,kind:'ACQUIRE'|'REASSESS',now:Date):Promise<{id:string}[]> {
+ const capacity=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true';
  const rows=await env.DB.prepare(`SELECT j.id FROM v1_jobs j
  JOIN v1_intake_scopes s ON s.id=j.feed_source_id
  LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id
@@ -37,6 +44,7 @@ export async function pendingV1Jobs(env:Env,sourceId:string,kind:'ACQUIRE'|'REAS
  AND (json_extract(j.json,'$.state')='PENDING' OR (json_extract(j.json,'$.state')='RUNNING' AND json_extract(j.json,'$.leaseUntil')<=?))
  AND (json_extract(j.json,'$.nextAttemptAt') IS NULL OR json_extract(j.json,'$.nextAttemptAt')<=?)
  AND NOT EXISTS(SELECT 1 FROM v1_queue_dispatches d WHERE d.kind=? AND d.id=j.id AND (d.lease_until>? OR d.not_before>?))
+ ${capacity?`AND (SELECT COUNT(*) FROM connector_work_slots w WHERE w.feed_id=s.feed_id AND w.lane=? AND w.lease_until>?)<?`:''}
  ORDER BY CASE WHEN ?=1 THEN 0 WHEN EXISTS(SELECT 1 FROM v1_feed_documents r
  WHERE r.feed_id=s.feed_id AND r.kind='briefing_requests' AND json_extract(r.json,'$.state')='PENDING'
  AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR
@@ -44,7 +52,7 @@ export async function pendingV1Jobs(env:Env,sourceId:string,kind:'ACQUIRE'|'REAS
  julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(json_extract(r.json,'$.window.end'))))) THEN 0 ELSE 1 END,
  CASE WHEN ?=1 THEN 0 WHEN json_extract(i.json,'$.observation.publishedAtHint') IS NULL OR julianday(json_extract(i.json,'$.observation.publishedAtHint'))>=julianday(?,'-2 days') THEN 0 ELSE 1 END,
  json_extract(i.json,'$.observation.observedAt'),j.id LIMIT 5`)
- .bind(sourceId,kind,now.toISOString(),now.toISOString(),kind==='ACQUIRE'?'v1_acquisition':'v1_reassess',now.getTime(),now.getTime(),now.getUTCMinutes()%5===0?1:0,now.getUTCMinutes()%5===0?1:0,now.toISOString()).all<{id:string}>();
+ .bind(sourceId,kind,now.toISOString(),now.toISOString(),kind==='ACQUIRE'?'v1_acquisition':'v1_reassess',now.getTime(),now.getTime(),...(capacity?[kind==='ACQUIRE'?'acquisition':'intelligence',now.getTime(),kind==='ACQUIRE'?4:1]:[]),now.getUTCMinutes()%5===0?1:0,now.getUTCMinutes()%5===0?1:0,now.toISOString()).all<{id:string}>();
  return rows.results;
 }
 

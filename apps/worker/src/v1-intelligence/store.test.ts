@@ -7,6 +7,17 @@ let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 const now=testPolicy.now(),feed:FeedRecord={id:'feed-1',ownerId:'owner-1',title:'Feed',interests:[],geography:[],outputLanguage:'en',briefingFrequency:'DAILY',paused:false,revision:1,createdAt:now,updatedAt:now};
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feed)});
 afterEach(async()=>ctx.dispose());
+it('captures epochs in one read and preloads different document kinds in one bounded batch',async()=>{
+ const prepare=vi.fn((sql:string)=>ctx.db.prepare(sql)),batch=vi.fn((statements:D1PreparedStatement[])=>ctx.db.batch(statements));
+ const measured=new V1FeedStore({prepare,batch} as unknown as D1Database);
+ const snapshot=await measured.snapshot(feed.id);expect(prepare).toHaveBeenCalledTimes(1);
+ const tx=new FeedTransaction(measured,snapshot);
+ await tx.preloadMany([{kind:'roles',ids:['missing-role']},{kind:'duplicates',ids:['missing-duplicate']}]);
+ expect(batch).toHaveBeenCalledTimes(1);expect(batch.mock.calls[0][0]).toHaveLength(2);
+ expect(await tx.read('roles','missing-role')).toBeUndefined();
+ expect(await tx.read('duplicates','missing-duplicate')).toBeUndefined();
+ expect(tx.metrics.documentReads).toBe(0);
+});
 it('batches 227 immutable lookups without losing missing IDs or changing the Feed epoch',async()=>{
  const ids=Array.from({length:227},(_,i)=>`retained-${i}`);
  for(let offset=0;offset<ids.length;offset+=90)await ctx.db.batch(ids.slice(offset,offset+90).map(id=>ctx.db.prepare('INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?)').bind('intelligence_receipts',id,feed.id,JSON.stringify({id,feedId:feed.id}))));
