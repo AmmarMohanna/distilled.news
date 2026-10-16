@@ -46,7 +46,7 @@ export function sketchPrompt(briefing: Pick<BriefingConfig, "title" | "interestP
   ].join("\n").slice(0, 2048);
 }
 
-export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'id' | 'title' | 'interestProfile'>, stillCurrent?: () => Promise<boolean> {
+export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'id' | 'title' | 'interestProfile'>, stillCurrent?: () => Promise<boolean>): Promise<boolean> {
   if (await env.RAW_ARCHIVE.head(sketchKey(briefing))) return true;
   if (!env.CLOUDFLARE_IMAGE_ACCOUNT_ID || !env.CLOUDFLARE_IMAGE_API_TOKEN) throw new SketchError("AI_NOT_CONFIGURED", "Image generation needs the new Cloudflare account ID and Workers AI API token.");
   const prompt = sketchPrompt(briefing);
