@@ -1434,6 +1434,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .app-pages > .screen-page-viewport::-webkit-scrollbar { display: none; width: 0; height: 0; }
 :root.apple-ui.apple-ui .app-pages > .screen-page-viewport { scrollbar-width: none; scrollbar-gutter: auto; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card { scroll-snap-align: start; scroll-snap-stop: always; min-height: 0; box-sizing: border-box; }
+/* Keep the outline inside the scrolling grid when a card is hovered or pressed. */
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card:is(:hover, :active) { transform: none; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] > .topic-card {
   display: grid; grid-template-columns: 48px min-content minmax(0, 1fr) auto !important;
   grid-template-areas: "art name name actions" "art status updated actions" !important;

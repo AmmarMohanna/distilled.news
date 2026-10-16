@@ -134,6 +134,20 @@ for(const size of [{width:1280,height:593},{width:1920,height:1100},{width:390,h
  });
 }
 
+test('first feed card keeps its top outline inside the grid on hover',async({page})=>{
+ await page.setViewportSize({width:1280,height:593});await openApp(page,5);
+ for(const tab of ['home','explore']) {
+  if(tab==='explore') await page.locator('.bottom-navigation').getByRole('button',{name:'Explore',exact:true}).click();
+  const card=page.locator('.adaptive-feed-grid .topic-card').first();
+  await card.hover();
+  await expect(card).toHaveCSS('transform','none');
+  expect(await card.evaluate(node=>{
+   const css=getComputedStyle(node);
+   return node.getBoundingClientRect().top>=node.parentElement!.getBoundingClientRect().top && parseFloat(css.borderTopWidth)>=1 && css.borderTopStyle==='solid';
+  })).toBe(true);
+ }
+});
+
 test('feed card design switches in both directions when the window resizes',async({page})=>{
  await page.setViewportSize({width:1920,height:1100});await openApp(page,5);
  const grid=page.locator('.adaptive-feed-grid');
