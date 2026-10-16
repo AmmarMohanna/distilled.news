@@ -47,7 +47,7 @@ export function FeedEditor(props: {
     finally { setRecommending(false); }
   }
   function addSource(source: string) { setSources(current => current.includes(source) ? current : [...current, source]); }
-  const matchingSources = recommendations.filter(source => !sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase()));
+  const matchingSources = recommendations.filter(source => !sources.includes(source) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
   async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(false); } }
   return <Dialog className="feed-editor" label={t(props.feed ? "Edit feed settings" : "Add feed")} onClose={props.onClose}>
     <form className="dialog-inner" onSubmit={event => {
@@ -67,7 +67,7 @@ export function FeedEditor(props: {
           <div className="source-search-field"><Search size={21}/><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} placeholder={t("Search sources or paste a URL")} onChange={event => setSourceQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); if (sourceQuery.trim()) { addSource(sourceQuery.trim()); setSourceQuery(""); } } }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => setSourceQuery("")}><X size={18}/></button>}</div>
           <small>{t("Paste a website, feed, Telegram, X or LinkedIn link, or enter a news topic.")}</small>
           {matchingSources.length > 0 && <div className="source-search-results" aria-label={t("Suggested sources")}>{matchingSources.map(source => <button type="button" key={source} className={sources.includes(source) ? "selected" : ""} aria-pressed={sources.includes(source)} onClick={() => addSource(source)}><SourceIdentity source={source}/></button>)}</div>}
-          {sourceQuery.trim() && <button className="add-source-button" type="button" onClick={() => { addSource(sourceQuery.trim()); setSourceQuery(""); sourceSearchRef.current?.focus(); }}><Plus size={24}/>{t("Add source")}</button>}
+          {sourceQuery.trim() && !sources.includes(sourceQuery.trim()) && <button className="add-source-button" type="button" onClick={() => { addSource(sourceQuery.trim()); setSourceQuery(""); sourceSearchRef.current?.focus(); }}><Plus size={24}/>{t("Add source")}</button>}
           <button className="source-recommend-button" type="button" disabled={recommending || !title.trim() || !prompt.trim()} onClick={() => void findSources()}>{t(recommending ? "Finding sources..." : "Recommend sources with AI")}</button>
         </div>
         {sources.length > 0 && <div className="selected-sources"><span className="selected-sources-label">{t("Selected sources")}</span>{sources.map(source => <div className="selected-source-row" key={source}><SourceIdentity source={source}/><button type="button" aria-label={`${t("Remove source")}: ${source}`} onClick={() => setSources(current => current.filter(value => value !== source))}><X size={20}/></button></div>)}
