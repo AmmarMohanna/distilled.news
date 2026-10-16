@@ -121,7 +121,7 @@ for(const size of [{width:1280,height:593},{width:1920,height:1100},{width:390,h
      const title=card.querySelector('.topic-name')!.getBoundingClientRect();
      return {width:art.width,right:art.right,titleLeft:title.left};
     });
-    expect(artwork.width).toBe(128);
+    expect(artwork.width).toBe(144);
     expect(artwork.right).toBeLessThan(artwork.titleLeft);
    }
    else expect(await grid.locator('.topic-card').first().evaluate(n=>Math.round(n.getBoundingClientRect().height))).toBe(84);
@@ -156,5 +156,20 @@ test('feed card design switches in both directions when the window resizes',asyn
  await expect(grid).toHaveAttribute('data-layout','compact');
  await page.setViewportSize({width:1920,height:1100});
  await expect(grid).toHaveAttribute('data-layout','large');
- await expect.poll(async()=>grid.locator('.topic-art').first().evaluate(n=>n.getBoundingClientRect().width)).toBe(128);
+ await expect.poll(async()=>grid.locator('.topic-art').first().evaluate(n=>n.getBoundingClientRect().width)).toBe(144);
+});
+
+test('desktop card has readable identity and separate menu and open controls',async({page})=>{
+ await page.setViewportSize({width:1920,height:1100});await openApp(page,5);
+ const card=page.locator('.adaptive-feed-grid .topic-card').first();
+ await expect(card.locator('.topic-name')).toHaveCSS('font-size','22px');
+ const geometry=await card.evaluate(node=>{
+  const card=node.getBoundingClientRect();
+  const menu=node.querySelector('.feed-options')!.getBoundingClientRect();
+  const arrow=node.querySelector('.feed-card-open')!.getBoundingClientRect();
+  return {menuOffset:menu.top-card.top,separation:arrow.top-menu.bottom};
+ });
+ expect(geometry.menuOffset).toBeLessThan(20);
+ expect(geometry.separation).toBeGreaterThan(80);
+ await card.screenshot({path:'test-results/desktop-feed-card.png'});
 });
