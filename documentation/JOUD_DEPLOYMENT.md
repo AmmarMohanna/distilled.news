@@ -77,3 +77,18 @@ renew the allowance. An API key alone does not supply model spending authority.
 
 The briefing reader uses viewport-sized story pages and compact overview pages
 on smaller screens. Full stories and source diagnostics open in dialogs.
+
+Feed illustrations use Cloudflare Workers AI `@cf/black-forest-labs/flux-2-klein-4b`
+through the existing `CLOUDFLARE_IMAGE_ACCOUNT_ID` and
+`CLOUDFLARE_IMAGE_API_TOKEN` secrets. The request is multipart form data with a
+1024-by-1024 canvas and seed 42, matching the tested settings. Klein has a fixed
+four-step inference process; no `steps` parameter is sent. Generation has a
+90-second timeout within the illustration job's two-minute lease.
+
+The image prompt uses only the user's full interest profile (the “What would you
+like to follow” field), rather than the feed title. It requests a monochromatic
+`#5E5CE6` colored-pencil sketch with natural, slightly irregular strokes, fine
+pigment grain, subtle pressure variation, and thin-to-medium lines. The model
+chooses a recognizable subject from the interest. Existing saved JPEGs remain
+unchanged, including illustrations created before this model change; this does
+not automatically regenerate earlier blank images.

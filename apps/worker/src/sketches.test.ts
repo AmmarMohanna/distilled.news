@@ -5,7 +5,7 @@ import { generateSketch, sketchPrompt } from "./sketches";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("requests FLUX.1 Schnell with JSON and saves the JPEG in R2", async () => {
+it("sends the interest to Klein 4B as multipart form data and saves the returned JPEG", async () => {
   const image = btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xd9));
   const fetcher = vi.fn().mockResolvedValue(Response.json({ result: { image } }));
   const put = vi.fn().mockResolvedValue(undefined);
@@ -21,35 +21,47 @@ it("requests FLUX.1 Schnell with JSON and saves the JPEG in R2", async () => {
   await generateSketch(env, briefing);
 
   expect(fetcher).toHaveBeenCalledWith(
-    "https://api.cloudflare.com/client/v4/accounts/image-account/ai/run/@cf/black-forest-labs/flux-1-schnell",
+    "https://api.cloudflare.com/client/v4/accounts/image-account/ai/run/@cf/black-forest-labs/flux-2-klein-4b",
     expect.objectContaining({
       method: "POST",
       headers: expect.objectContaining({ Authorization: "Bearer test-only-token" }),
-      body: expect.any(String)
+      body: expect.any(FormData)
     })
   );
-  const request = fetcher.mock.calls[0]![1] as RequestInit;
-  expect(request.headers).toEqual(expect.objectContaining({ "Content-Type": "application/json" }));
-  const payload = JSON.parse(request.body as string) as { prompt: string; steps: number };
-  expect(payload).toEqual({ prompt: sketchPrompt(briefing), steps: 4 });
-  expect(payload.prompt).toContain("World politics");
-  expect(put).toHaveBeenCalledWith("feed-sketches/feed-1.jpg", expect.any(Uint8Array), expect.objectContaining({ httpMetadata: { contentType: "image/jpeg" } }));
+  const request = new Request(fetcher.mock.calls[0]![0], fetcher.mock.calls[0]![1]);
+  expect(request.headers.get("content-type")).toMatch(/^multipart\/form-data; boundary=/);
+  const fields = await request.formData();
+  expect([...fields.keys()].sort()).toEqual(["height", "prompt", "seed", "width"]);
+  expect(fields.get("width")).toBe("1024");
+  expect(fields.get("height")).toBe("1024");
+  expect(fields.get("seed")).toBe("42");
+  expect(fields.get("prompt")).toContain('"Parliament news"');
+  expect(fields.get("prompt")).not.toContain("World politics");
+  expect(put).toHaveBeenCalledWith("feed-sketches/feed-1.jpg", new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), expect.objectContaining({ httpMetadata: { contentType: "image/jpeg" } }));
 });
 
-it("uses arbitrary feed details rather than hardcoded categories and stays within Schnell's limit", () => {
-  const prompt = sketchPrompt({
-    title: "AI Industry Watch3",
-    interestProfile: "News about AI including model releases, launches, research and partnerships"
-  });
-  expect(prompt).toContain("AI Industry Watch3");
-  expect(prompt).toContain("research and partnerships");
-  expect(prompt).toContain("#5E5CE6");
-  expect(prompt).toContain("pencil grain");
-  expect(prompt).not.toContain("Draw this subject: A ballot");
-  expect(prompt.length).toBeLessThanOrEqual(2048);
+it("uses only the interest for subject selection and preserves the full allowed interest text", () => {
+  const interestProfile = 'Follow "AI" research\n'.repeat(190) + " and the latest partnerships";
+  const first = { title: "Unrelated title", interestProfile };
+  const renamed = { title: "Another unrelated title", interestProfile };
+  const prompt = sketchPrompt(first);
+  expect(prompt).toBe(sketchPrompt(renamed));
+  expect(prompt).toContain(JSON.stringify(interestProfile));
+  expect(prompt).toContain("Monochromatic colored-pencil sketch in #5E5CE6.");
+  expect(prompt).toContain("Natural, slightly irregular pencil strokes with visible fine-grained pigment and subtle pressure variation.");
+  expect(prompt).toContain("Thin-to-medium pencil lines, never thick marker outlines.");
+});
 
-  expect(sketchPrompt({ title: "Other", interestProfile: "very long ".repeat(800) }).length)
-    .toBeLessThanOrEqual(2048);
+it("does not save an image returned after the queue job has lost its lease", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ result: { image: btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xd9)) } })));
+  const put = vi.fn();
+  const env = {
+    CLOUDFLARE_IMAGE_ACCOUNT_ID: "image-account",
+    CLOUDFLARE_IMAGE_API_TOKEN: "test-only-token",
+    RAW_ARCHIVE: { head: vi.fn().mockResolvedValue(null), put }
+  } as unknown as Env;
+  expect(await generateSketch(env, { id: "feed-1", title: "AI", interestProfile: "AI research" }, async () => false)).toBe(false);
+  expect(put).not.toHaveBeenCalled();
 });
 
 
