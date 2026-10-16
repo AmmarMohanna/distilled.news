@@ -1551,7 +1551,7 @@ function FeedPage(props: { username: string; slug: string }) {
     <span className="feed-page-title">
       <span>{payload.briefing.title}</span>
     </span>
-  ) : "briefing";
+  ) : initialLoading ? loadingFeedLabel(language) : "briefing";
 
   async function shareFeed() {
     const url = window.location.origin + window.location.pathname;
@@ -1645,9 +1645,10 @@ function FeedPage(props: { username: string; slug: string }) {
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : initialLoading ? <span className="feed-loading-message" role="status">{loadingFeedLabel(language)}</span> : undefined}
-      feed={payload?.briefing}
+      feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
     >
+      {initialLoading ? <p className="feed-loading-message" role="status">{loadingFeedLabel(language)}</p> : <>
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
         onLogout={async () => { await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); }}
         onSaved={async (nextAccount, nextBriefings) => {
@@ -1755,6 +1756,7 @@ function FeedPage(props: { username: string; slug: string }) {
           </div>
         ) : null}
       </div>
+      </>}
     </Shell>
   );
 }
