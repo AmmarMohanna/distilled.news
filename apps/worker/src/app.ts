@@ -4,6 +4,7 @@ import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-t
 import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations} from './source-recommendations';
+import {assessSource,assessSources} from './source-assessment';
 import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
 import {connectorSourceHealth} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
@@ -836,6 +837,11 @@ export function createApp(options: AppOptions = {}) {
     if(input.updateIntervalMinutes===1440&&!input.briefingTimeOfDay)return c.json({error:'Choose a Daily delivery time.'},400);
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
+    if(c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
+      const checks=await assessSources(c.env,{title:input.title,description:input.interestProfile},input.sourceInputs,fetcher);
+      const blocked=checks.find(check=>check.status!=='accepted');
+      if(blocked)return c.json({error:blocked.reason,checks},422);
+    }
     // Validate every requested source before saving the Feed or changing approval.
     let resolved:Awaited<ReturnType<typeof resolveProductSourceInput>>[];
     try{resolved=await Promise.all(input.sourceInputs.map(value=>resolveProductSourceInput(value,fetcher,c.env)));}
@@ -882,6 +888,12 @@ export function createApp(options: AppOptions = {}) {
     return c.json({sourceId:source.id,enabled:source.enabled,availability:(await feedSourceAvailability(c.env,briefing.id)).find(row=>row.sourceId===source.id),health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
   });
 
+  app.post("/api/me/sources/assess", async c => {
+    const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000),source:z.string().trim().min(1).max(500)}).strict().parse(await c.req.json());
+    if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({assessment:{input:input.source,status:'unverified',reason:'Source assessment is not enabled on this deployment.',checkedAt:new Date().toISOString()}});
+    return c.json({assessment:await assessSource(c.env,input,input.source,fetcher)});
+  });
+
   app.post("/api/me/sources/recommend", async c => {
     const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000)}).strict().parse(await c.req.json());
     try {
@@ -891,7 +903,12 @@ export function createApp(options: AppOptions = {}) {
       c.header("Retry-After", "18000");
       return c.json({ error: "You can request AI source recommendations three times every five hours. Please try again later, or add a source URL directly." }, 429);
     }
-    try { return c.json({sources:await sourceRecommendations(c.env,input,fetcher)}); }
+    try {
+      const candidates=await sourceRecommendations(c.env,input,fetcher);
+      if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({sources:candidates});
+      const checks=await assessSources(c.env,input,candidates,fetcher);
+      return c.json({sources:checks.filter(check=>check.status==='accepted').map(check=>check.input),checks});
+    }
     catch(error) { return c.json({error:error instanceof Error?error.message:'Source recommendations unavailable'}, c.env.SOURCE_RECOMMENDATIONS_ENABLED==='true'?502:503); }
   });
 
@@ -904,6 +921,10 @@ export function createApp(options: AppOptions = {}) {
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
 
     if ("url" in body || "input" in body) {
+      if(c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
+        const assessment=await assessSource(c.env,{title:briefing.title,description:briefing.interestProfile},("input" in body?body.input:undefined)??("url" in body?body.url:""),fetcher);
+        if(assessment.status!=='accepted')return c.json({error:assessment.reason,assessment},422);
+      }
       let result;
       try {
         result = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await approveProductSource(c.env, repo, briefing, ("input" in body ? body.input : undefined) ?? ("url" in body ? body.url : "")) : await addSourceFromInput({
@@ -927,6 +948,10 @@ export function createApp(options: AppOptions = {}) {
 
     const source = await repo.getSource(body.sourceId);
     if (!source || source.briefingId !== briefing.id) return c.json({ error: "source not found" }, 404);
+    if(body.enabled&&c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
+      const assessment=await assessSource(c.env,{title:briefing.title,description:briefing.interestProfile},(source.kind==='telegram_channel'?(source.sourceUrl??source.url):source.input??source.sourceUrl??source.url)??'',fetcher);
+      if(assessment.status!=='accepted')return c.json({error:assessment.reason,assessment},422);
+    }
     await repo.setSourceEnabled(body.sourceId, body.enabled);
     return c.json({
       sources: await repo.listSources(briefing.id),

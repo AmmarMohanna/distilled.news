@@ -5,7 +5,7 @@ import type { BriefingConfig } from "@distilled/core";
 import { preferredLanguage, useLanguage } from "./LanguageControl";
 import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
-import { getSources, recommendSources } from "./api";
+import { getSources, recommendSourceCandidates, assessSourceInput, type SourceAssessment } from "./api";
 import { VoiceInput } from "./VoiceInput";
 import { SourceLogo } from "./SourceLogo";
 
@@ -31,6 +31,10 @@ export function FeedEditor(props: {
   const [timezone] = useState(() => props.feed?.briefingTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [sources, setSources] = useState<string[]>([]);
   const [sourceQuery, setSourceQuery] = useState("");
+  const [sourceChecks, setSourceChecks] = useState<SourceAssessment[]>([]);
+  const [checkingSource, setCheckingSource] = useState(false);
+  const sourceContext = useRef("");
+  sourceContext.current = JSON.stringify([title, prompt]);
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [recommendationQuery, setRecommendationQuery] = useState("");
   const sourceSearchRef = useRef<HTMLInputElement>(null);
@@ -42,11 +46,30 @@ export function FeedEditor(props: {
   const { confirm, confirmation } = useConfirmation();
   async function findSources() {
     setRecommending(true); setMessage("");
-    try { setRecommendations(await recommendSources(title.trim(), [prompt.trim(), sourceQuery.trim()].filter(Boolean).join("\n"))); setRecommendationQuery(sourceQuery.trim()); }
+    const context=sourceContext.current;
+    try {
+      const result=await recommendSourceCandidates(title.trim(), [prompt.trim(), sourceQuery.trim()].filter(Boolean).join("\n"));
+      if(sourceContext.current!==context)return;
+      setRecommendations(result.sources); setSourceChecks(result.checks??[]); setRecommendationQuery(sourceQuery.trim());
+      if(!result.sources.length)setMessage(t("No sources passed verification. Review the results below or try another source."));
+    }
     catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); }
     finally { setRecommending(false); }
   }
-  function addSource(source: string) { setSources(current => current.includes(source) ? current : [...current, source]); }
+  async function addSource(source: string): Promise<boolean> {
+    if(checkingSource||!title.trim()||!prompt.trim()) { setMessage(t("Enter a feed name and interests before checking a source.")); return false; }
+    if(sources.includes(source))return true;
+    const context=sourceContext.current;
+    setCheckingSource(true); setMessage("");
+    try {
+      const check=await assessSourceInput(title.trim(),prompt.trim(),source);
+      if(context!==sourceContext.current)return false;
+      setSourceChecks(current=>[...current.filter(item=>item.input!==source),check]);
+      if(check.status!=='accepted') { setMessage(check.reason); return false; }
+      setSources(current=>current.includes(source)?current:[...current,source]); return true;
+    } catch(cause) { setMessage(cause instanceof Error?cause.message:String(cause)); return false; }
+    finally { setCheckingSource(false); }
+  }
   const matchingSources = recommendations.filter(source => !sources.includes(source) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
   async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(false); } }
   return <Dialog className="feed-editor" label={t(props.feed ? "Edit feed settings" : "Add feed")} onClose={props.onClose}>
@@ -54,6 +77,7 @@ export function FeedEditor(props: {
       event.preventDefault();
       try { new Intl.DateTimeFormat("en", { timeZone: timezone.trim() }).format(); }
       catch { setMessage(t("Enter a valid time zone, such as Asia/Beirut or UTC.")); return; }
+      if (checkingSource || recommending) return;
       if (!sourcesReady || sources.length === 0) { setMessage(t("Add at least one source.")); return; }
       void run(() => props.onSave({ id, title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled, briefingTimezone: timezone.trim(), sourceInputs: sources }));
     }}>
@@ -64,12 +88,14 @@ export function FeedEditor(props: {
         <label>{t("What would you like to follow?")}<span className="voice-field"><textarea aria-label={t("What would you like to follow?")} placeholder={t("e.g. topics, keywords...")} required rows={1} value={prompt} onChange={event => setPrompt(event.target.value)}/><VoiceInput language={feedLanguage} onText={setPrompt}/></span></label>
         <div className="source-picker">
           <label htmlFor="feed-source-search">{t("Sources")}</label>
-          <div className="source-search-field"><Search size={21}/><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} placeholder={t("Search sources or paste a URL")} onChange={event => setSourceQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); if (sourceQuery.trim()) { addSource(sourceQuery.trim()); setSourceQuery(""); } } }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => setSourceQuery("")}><X size={18}/></button>}</div>
+          <div className="source-search-field"><Search size={21}/><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} placeholder={t("Search sources or paste a URL")} onChange={event => setSourceQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); if (sourceQuery.trim()) { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery("");}); } } }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => setSourceQuery("")}><X size={18}/></button>}</div>
           <small>{t("Paste a website, feed, Telegram, X or LinkedIn link, or enter a news topic.")}</small>
-          {matchingSources.length > 0 && <div className="source-search-results" aria-label={t("Suggested sources")}>{matchingSources.map(source => <button type="button" key={source} className={sources.includes(source) ? "selected" : ""} aria-pressed={sources.includes(source)} onClick={() => addSource(source)}><SourceIdentity source={source}/></button>)}</div>}
-          {sourceQuery.trim() && !sources.includes(sourceQuery.trim()) && <button className="add-source-button" type="button" onClick={() => { addSource(sourceQuery.trim()); setSourceQuery(""); sourceSearchRef.current?.focus(); }}><Plus size={24}/>{t("Add source")}</button>}
-          <button className="source-recommend-button" type="button" disabled={recommending || !title.trim() || !prompt.trim()} onClick={() => void findSources()}>{t(recommending ? "Finding sources..." : "Recommend sources with AI")}</button>
+          {matchingSources.length > 0 && <div className="source-search-results" aria-label={t("Suggested sources")}>{matchingSources.map(source => <button type="button" key={source} className={sources.includes(source) ? "selected" : ""} aria-pressed={sources.includes(source)} disabled={checkingSource} onClick={() => void addSource(source)}><SourceIdentity source={source}/></button>)}</div>}
+          {sourceQuery.trim() && !sources.includes(sourceQuery.trim()) && <button className="add-source-button" type="button" disabled={checkingSource} onClick={() => { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery(""); sourceSearchRef.current?.focus();}); }}><Plus size={24}/>{t("Add source")}</button>}
+          <button className="source-recommend-button" type="button" disabled={recommending || checkingSource || !title.trim() || !prompt.trim()} onClick={() => void findSources()}>{t(recommending ? "Finding sources..." : "Recommend sources with AI")}</button>
         </div>
+        {checkingSource && <p role="status">{t("Checking source safety, availability and relevance...")}</p>}
+        {sourceChecks.some(check=>check.status!=="accepted"&&!sources.includes(check.input)) && <div className="source-assessment-results" aria-label={t("Source verification results")}>{sourceChecks.filter(check=>check.status!=="accepted"&&!sources.includes(check.input)).map(check=><div key={check.input} className="source-assessment-result"><SourceIdentity source={check.input}/><small>{t(check.status==="unavailable"?"Setup required":check.status==="rejected"?"Not accepted":"Unverified")}: {check.reason}</small></div>)}</div>}
         {sources.length > 0 && <div className="selected-sources"><span className="selected-sources-label">{t("Selected sources")}</span>{sources.map(source => <div className="selected-source-row" key={source}><SourceIdentity source={source}/><button type="button" aria-label={`${t("Remove source")}: ${source}`} onClick={() => setSources(current => current.filter(value => value !== source))}><X size={20}/></button></div>)}
         </div>}
       </div>
@@ -81,7 +107,7 @@ export function FeedEditor(props: {
       <fieldset className="feed-language-row"><legend>{t("Briefing language")}</legend><span className="feed-language-options">{(["en", "fr", "ar"] as const).map(option => <label key={option}><input type="radio" name="feed-language" value={option} checked={feedLanguage === option} onChange={() => setFeedLanguage(option)}/><span>{option.toUpperCase()}</span></label>)}</span></fieldset>
       </div>
       {message && <p role="status">{message}</p>}
-      <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>
+      <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || checkingSource || recommending || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>
       {advanced && props.feed && <div className="feed-editor-actions">
         <button type="button" disabled={busy} onClick={() => void run(async () => { await props.onPause?.(); props.onClose(); })}>{t(props.feed?.paused ? "Resume feed" : "Pause feed")}</button>
         <button type="button" disabled={busy} onClick={() => void run(async () => { await props.onCopy?.(); setMessage(t("URL copied")); })}>{t("Copy URL")}</button>

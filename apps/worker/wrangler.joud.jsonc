@@ -10,6 +10,8 @@
   "assets": { "directory": "../web/dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": true },
   "vars": {
     "SOURCE_RECOMMENDATIONS_ENABLED": "true",
+    "SOURCE_ASSESSMENT_ENABLED": "true",
+    "DISTILLED_JEV_MODEL": "typesafe/jev-1.13",
     "PRODUCT_FEEDS_ENABLED": "true",
     "SOURCE_CONNECTORS_ENABLED": "true",
     "SOURCE_GOOGLE_RESOLUTION_ENABLED": "true",

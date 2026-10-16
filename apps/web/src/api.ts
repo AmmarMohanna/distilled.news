@@ -312,8 +312,22 @@ export async function setFeedStar(username: string, slug: string, starred: boole
 }
 
 export async function recommendSources(title: string, description: string): Promise<string[]> {
-  const payload = await requestJson<{ sources: string[] }>("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });
+  const payload = await recommendSourceCandidates(title, description);
   return payload.sources;
+}
+
+export interface SourceAssessment {
+  input: string;
+  status: "accepted" | "rejected" | "unverified" | "unavailable";
+  reason: string;
+  checkedAt: string;
+}
+export function recommendSourceCandidates(title: string, description: string): Promise<{ sources: string[]; checks?: SourceAssessment[] }> {
+  return requestJson("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });
+}
+export async function assessSourceInput(title: string, description: string, source: string): Promise<SourceAssessment> {
+  const payload = await requestJson<{ assessment: SourceAssessment }>("/api/me/sources/assess", { method: "POST", body: JSON.stringify({ title, description, source }) });
+  return payload.assessment;
 }
 
 export async function setExploreFeed(id: string, featured: boolean): Promise<void> {

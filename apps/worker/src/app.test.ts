@@ -1894,6 +1894,22 @@ describe("worker app accounts", () => {
     expect(calls).toBe(3);
   });
 
+  it("blocks unassessed sources before creating a feed or changing its existing sources", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "source-assessment@test.com", "Source Assessment");
+    const configured = { ...env(), PRODUCT_FEEDS_ENABLED: "true", SOURCE_ASSESSMENT_ENABLED: "true", SOURCE_CONNECTORS_ENABLED: "true", OPENROUTER_API_KEY: "test" };
+    const before = await repo.listBriefings(owner.account.id);
+    const response = await app.request("/api/me/feeds", { method: "POST", headers: { cookie: owner.cookie, "content-type": "application/json" }, body: JSON.stringify({ id: "unsafe-feed", title: "World", interestProfile: "World news", sourceInputs: ["https://x.com/BBCWorld"], publicFeedEnabled: true, updateIntervalMinutes: 60, briefingTimezone: "UTC", language: "en" }) }, configured);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ checks: [expect.objectContaining({ status: "unavailable" })] });
+    expect(await repo.getBriefingById("unsafe-feed")).toBeNull();
+    expect(await repo.listBriefings(owner.account.id)).toEqual(before);
+    const manual = await app.request("/api/me/sources", { method: "POST", headers: { cookie: owner.cookie, "content-type": "application/json" }, body: JSON.stringify({ briefingId: before[0].id, input: "https://x.com/BBCWorld" }) }, configured);
+    expect(manual.status).toBe(422);
+    expect(await repo.listSources(before[0].id)).toEqual([]);
+  });
+
   it("pages through all public feeds without requiring stars or featuring", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });

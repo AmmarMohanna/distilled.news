@@ -20,6 +20,7 @@ async function mock(page: Page) {
       : path === "/api/admin/accounts" || path === "/api/admin/accounts/reader" ? { accounts: [account, managedReader] }
       : path === "/api/admin/briefings" || path === "/api/me/briefings" || path === "/api/me/feeds" ? { briefings: [feed], briefing: feed }
       : path === "/api/explore/feeds" || path === "/api/explore/popular" ? { feeds: [feed] }
+      : path === "/api/me/sources/assess" ? { assessment: { input: route.request().postDataJSON().source, status: "accepted", reason: "Relevant", checkedAt: new Date().toISOString() } }
       : path === "/api/me/sources/recommend" ? { sources: ["https://x.com/mtvlebanon", "https://t.me/mtvlebanon", "https://www.mtv.com.lb"] }
       : path.startsWith("/api/feed/") ? { briefing: feed, editions: [], viewerHasStarred: false }
       : path === "/api/me/sources" ? { sources: [] }

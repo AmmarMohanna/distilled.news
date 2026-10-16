@@ -1422,6 +1422,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience.product-refresh:not(.guest-landing) :is(.home-view, .explore-view) .your-feeds > .experience-section-heading { justify-content: flex-start; text-align: left; margin-block: 8px 24px; }
 
 .language-code { display: none; }
+:root.apple-ui.apple-ui .source-assessment-results { display: grid; gap: 10px; }
+:root.apple-ui.apple-ui .source-assessment-result { display: grid; gap: 5px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+:root.apple-ui.apple-ui .source-assessment-result small { color: var(--muted); line-height: 1.5; }
 :root.apple-ui.apple-ui .feed-editor .voice-field textarea { scrollbar-width: none; }
 @supports selector(::-webkit-scrollbar) {
   :root.apple-ui.apple-ui .feed-editor .voice-field textarea { scrollbar-width: none; }

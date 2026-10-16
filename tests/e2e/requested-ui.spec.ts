@@ -10,7 +10,8 @@ async function mock(page: import("@playwright/test").Page, authenticated = true)
    : path.startsWith("/api/feed/") ? { briefing: feed, editions: [], viewerHasStarred: false }
    : path === "/api/me/sources" ? { sources: [] }
    : path === "/api/me/health" ? { health: { processing: { queued: 0, completed: 0, failed: 0 } } }
-   : path === "/api/me/sources/recommend" ? { sources: ["NASA", "Space exploration"] } : {};
+   : path === "/api/me/sources/assess" ? { assessment: { input: route.request().postDataJSON().source, status: "accepted", reason: "Relevant", checkedAt: new Date().toISOString() } }
+      : path === "/api/me/sources/recommend" ? { sources: ["NASA", "Space exploration"] } : {};
   return route.fulfill({ json: body });
  });
 }

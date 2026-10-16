@@ -45,6 +45,24 @@ on the owner feed page; public source availability and blocker messages remain
 provided by the imported backend. Generated artwork uses the existing image setup.
 Existing account data and feeds are not copied from other deployments.
 
+Source recommendations include supported websites, RSS/Atom, Google News searches,
+and public Telegram, X, and LinkedIn sources. With `SOURCE_ASSESSMENT_ENABLED=true`,
+suggestions and manually entered sources must pass assessment before selection,
+and the server repeats assessment before saving or enabling a source. Technical
+checks use the existing public HTTPS fetch policy (no credentials, IP literals,
+custom ports, redirects, or oversized responses) and the deployment's
+`global_fetch_strictly_public` runtime protection. Website discovery may resolve
+an advertised same-origin feed. Only public text is sent to Jev, through the
+native OpenRouter Decisions API using `typesafe/jev-1.13` and the existing key.
+Separate typed questions assess news content, topical alignment, and suspicious
+signals. Malformed, inconclusive, low-confidence, and unavailable-provider results
+cannot approve a source. Thresholds are conservative policy settings, not a
+measured accuracy or publisher-trust guarantee. Sources needing unavailable
+collection services display a setup blocker; no paid source collection is started.
+Existing feeds continue collecting without automatic source removal. Assessment
+Jev calls, like recommendation calls, are separate from the one-time briefing
+allowance; manually checking or saving a source can incur a small OpenRouter cost.
+
 Source connector admission requires `SOURCE_CONNECTORS_ENABLED=true` in addition
 to the downstream switch and Cron. Google News publisher resolution is enabled.
 Bare publisher names are stored as Google News topic searches, not publisher-only

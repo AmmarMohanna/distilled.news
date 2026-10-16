@@ -16,3 +16,10 @@ it('bounds the call and excludes unsafe suggestions without subscribing anything
  const options=fetcher.mock.calls[0] as unknown as [string,RequestInit];
  expect(JSON.parse(options[1].body as string)).toMatchObject({max_tokens:400,temperature:0});
 });
+
+it('allows supported non-RSS source suggestions without treating them as approved',async()=>{
+ const candidates=['https://www.bbc.com/news','https://t.me/bbcnews','https://x.com/BBCWorld','https://www.linkedin.com/company/bbc-news','news: Lebanon economy'];
+ const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:JSON.stringify({sources:candidates})}}]}));
+ expect(await sourceRecommendations({SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env,{title:'World',description:'News'},fetcher)).toEqual(candidates);
+ expect(fetcher).toHaveBeenCalledTimes(1);
+});
