@@ -1571,39 +1571,42 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 
 /* Profile: identity panel and account setting cards. */
-:root.apple-ui.apple-ui .profile-dialog { width: min(1040px, calc(100vw - 40px)); border-radius: 36px; background: var(--surface); }
-:root.apple-ui.apple-ui .profile-dialog-content { display: grid; grid-template-columns: 41% minmax(0, 1fr); grid-template-areas: "identity form" "identity password" "identity actions"; gap: 26px 36px; padding: 96px 36px 64px 0; min-height: 640px; overflow: hidden; isolation: isolate; }
-:root.apple-ui.apple-ui .profile-dialog .dialog-close { top: 24px; inset-inline-end: 28px; z-index: 2; border-radius: 50%; background: var(--surface-quiet); width: 46px; height: 46px; }
-:root.apple-ui.apple-ui .profile-dialog .profile-identity { grid-area: identity; position: relative; align-self: stretch; align-content: center; padding: 32px 24px; gap: 20px; }
-:root.apple-ui.apple-ui .profile-dialog .profile-identity::before { content: ""; position: absolute; z-index: -1; inset: -96px 0 -64px; background: radial-gradient(ellipse at 0 0, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%), radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%); }
+:root.apple-ui.apple-ui .profile-dialog { font-family: var(--app-font); }
+:root.apple-ui.apple-ui .profile-dialog .profile-username-field input { font-size: 16px; min-height: 40px; padding-block: 8px; }
+:root.apple-ui.apple-ui .profile-dialog .profile-card-icon svg { width: 22px; height: 22px; }
+:root.apple-ui.apple-ui .profile-dialog { width: min(760px, calc(100vw - 40px)); border-radius: 26px; background: var(--surface); }
+:root.apple-ui.apple-ui .profile-dialog-content { display: grid; grid-template-columns: 38% minmax(0, 1fr); grid-template-areas: "identity form" "identity password" "identity actions"; gap: 18px 24px; padding: 64px 24px 32px 0; min-height: 0; overflow: hidden; isolation: isolate; }
+:root.apple-ui.apple-ui .profile-dialog .dialog-close { top: 16px; inset-inline-end: 16px; z-index: 2; border-radius: 50%; background: var(--surface-quiet); width: 36px; height: 36px; }
+:root.apple-ui.apple-ui .profile-dialog .profile-identity { grid-area: identity; position: relative; align-self: stretch; align-content: center; padding: 24px 16px; gap: 14px; }
+:root.apple-ui.apple-ui .profile-dialog .profile-identity::before { content: ""; position: absolute; z-index: -1; inset: -64px 0 -32px; background: radial-gradient(ellipse at 0 0, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%), radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%); }
 :root.apple-ui.apple-ui .profile-dialog .profile-identity::after { content: ""; position: absolute; z-index: -1; width: 280px; height: 280px; border: 1px solid color-mix(in srgb, var(--surface) 80%, transparent); border-radius: 50%; background: color-mix(in srgb, var(--accent) 5%, transparent); inset-inline-start: -100px; bottom: -150px; }
-:root.apple-ui.apple-ui .profile-dialog .profile-avatar { width: 172px; height: 172px; border: 7px solid color-mix(in srgb, var(--surface) 90%, transparent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: #6256e8; font-size: 62px; margin: 0 0 6px; }
-:root.apple-ui.apple-ui .profile-dialog .profile-email { font-size: 18px; max-width: 100%; }
-:root.apple-ui.apple-ui .profile-dialog .profile-role { padding: 8px 26px; border-radius: 99px; color: #7068ca; background: color-mix(in srgb, var(--accent) 13%, transparent); }
-:root.apple-ui.apple-ui .profile-dialog-content > .account-form { grid-area: form; align-self: end; padding: 28px; border: 1px solid var(--line); border-radius: 22px; gap: 24px; background: var(--surface); }
-:root.apple-ui.apple-ui .profile-card-heading { display: flex; align-items: center; gap: 24px; }
-:root.apple-ui.apple-ui .profile-card-icon { display: grid; place-items: center; flex: 0 0 64px; width: 64px; height: 64px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 11%, var(--surface)); color: #7371b2; }
-:root.apple-ui.apple-ui .profile-dialog .profile-card-heading label, :root.apple-ui.apple-ui .profile-security-copy strong { color: var(--text); font-size: 21px; font-weight: 600; }
-:root.apple-ui.apple-ui .profile-dialog .profile-card-heading p, :root.apple-ui.apple-ui .profile-security-copy small { display: block; margin: 6px 0 0; color: var(--muted); font-size: 17px; line-height: 1.4; }
-:root.apple-ui.apple-ui .profile-dialog .profile-username-field { padding: 10px 12px 10px 22px; border-radius: 20px; }
-:root.apple-ui.apple-ui .profile-dialog .profile-edit-button { background: color-mix(in srgb, var(--accent) 11%, var(--surface)); border-radius: 15px; min-width: 52px; height: 52px; }
-:root.apple-ui.apple-ui .profile-dialog .profile-password-section { grid-area: password; align-self: start; padding: 0; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); }
-:root.apple-ui.apple-ui .profile-dialog .password-disclosure { padding: 28px; background: transparent; gap: 24px; text-align: start; }
+:root.apple-ui.apple-ui .profile-dialog .profile-avatar { width: 104px; height: 104px; border: 5px solid color-mix(in srgb, var(--surface) 90%, transparent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: #6256e8; font-size: 40px; margin: 0 0 6px; }
+:root.apple-ui.apple-ui .profile-dialog .profile-email { font-size: 14px; max-width: 100%; }
+:root.apple-ui.apple-ui .profile-dialog .profile-role { padding: 6px 18px; font-size: 13px; border-radius: 99px; color: #7068ca; background: color-mix(in srgb, var(--accent) 13%, transparent); }
+:root.apple-ui.apple-ui .profile-dialog-content > .account-form { grid-area: form; align-self: end; padding: 20px; border: 1px solid var(--line); border-radius: 18px; gap: 14px; background: var(--surface); }
+:root.apple-ui.apple-ui .profile-card-heading { display: flex; align-items: center; gap: 14px; }
+:root.apple-ui.apple-ui .profile-card-icon { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 11%, var(--surface)); color: #7371b2; }
+:root.apple-ui.apple-ui .profile-dialog .profile-card-heading label, :root.apple-ui.apple-ui .profile-security-copy strong { color: var(--text); font-size: 16px; font-weight: 600; }
+:root.apple-ui.apple-ui .profile-dialog .profile-card-heading p, :root.apple-ui.apple-ui .profile-security-copy small { display: block; margin: 6px 0 0; color: var(--muted); font-size: 14px; line-height: 1.4; }
+:root.apple-ui.apple-ui .profile-dialog .profile-username-field { padding: 4px 8px 4px 14px; border-radius: 20px; }
+:root.apple-ui.apple-ui .profile-dialog .profile-edit-button { background: color-mix(in srgb, var(--accent) 11%, var(--surface)); border-radius: 15px; min-width: 38px; height: 38px; }
+:root.apple-ui.apple-ui .profile-dialog .profile-password-section { grid-area: password; align-self: start; padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+:root.apple-ui.apple-ui .profile-dialog .password-disclosure { padding: 20px; background: transparent; gap: 14px; text-align: start; }
 :root.apple-ui.apple-ui .profile-security-copy { flex: 1; min-width: 0; }
 :root.apple-ui.apple-ui .profile-dialog .password-disclosure > svg { flex-shrink: 0; box-sizing: content-box; padding: 12px; border-radius: 50%; background: var(--surface-quiet); }
-:root.apple-ui.apple-ui .profile-dialog #change-password-form:not([hidden]) { padding: 0 28px 28px; border: 0; }
-:root.apple-ui.apple-ui .profile-dialog .account-actions { grid-area: actions; align-self: start; border-top: 1px solid var(--line); padding-top: 30px; }
-:root.apple-ui.apple-ui .profile-dialog .account-actions > button { width: 100%; min-height: 74px; border-radius: 20px; color: #dc1740; background: color-mix(in srgb, #dc1740 7%, var(--surface)); font-size: 21px; }
+:root.apple-ui.apple-ui .profile-dialog #change-password-form:not([hidden]) { padding: 0 20px 20px; border: 0; }
+:root.apple-ui.apple-ui .profile-dialog .account-actions { grid-area: actions; align-self: start; border-top: 1px solid var(--line); padding-top: 20px; }
+:root.apple-ui.apple-ui .profile-dialog .account-actions > button { width: 100%; min-height: 48px; border-radius: 20px; color: #dc1740; background: color-mix(in srgb, #dc1740 7%, var(--surface)); font-size: 16px; }
 @media (max-width: 700px) {
  :root.apple-ui.apple-ui .profile-dialog { width: calc(100vw - 24px); border-radius: 26px; }
- :root.apple-ui.apple-ui .profile-dialog-content { grid-template-columns: minmax(0, 1fr); grid-template-areas: "identity" "form" "password" "actions"; min-height: 0; gap: 20px; padding: 64px 20px 24px; }
- :root.apple-ui.apple-ui .profile-dialog .profile-identity { padding: 12px 12px 28px; gap: 12px; }
- :root.apple-ui.apple-ui .profile-dialog .profile-identity::before { inset: -64px -20px 0; }
- :root.apple-ui.apple-ui .profile-dialog .profile-avatar { width: 104px; height: 104px; font-size: 40px; }
- :root.apple-ui.apple-ui .profile-dialog-content > .account-form, :root.apple-ui.apple-ui .profile-dialog .password-disclosure { padding: 20px; gap: 16px; }
+ :root.apple-ui.apple-ui .profile-dialog-content { grid-template-columns: minmax(0, 1fr); grid-template-areas: "identity" "form" "password" "actions"; min-height: 0; gap: 12px; padding: 48px 16px 20px; }
+ :root.apple-ui.apple-ui .profile-dialog .profile-identity { padding: 0 8px 12px; gap: 8px; }
+ :root.apple-ui.apple-ui .profile-dialog .profile-identity::before { inset: -48px -16px 0; }
+ :root.apple-ui.apple-ui .profile-dialog .profile-avatar { width: 72px; height: 72px; font-size: 28px; }
+ :root.apple-ui.apple-ui .profile-dialog-content > .account-form, :root.apple-ui.apple-ui .profile-dialog .password-disclosure { padding: 14px; gap: 12px; }
  :root.apple-ui.apple-ui .profile-card-heading { gap: 16px; }
  :root.apple-ui.apple-ui .profile-card-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 13px; }
  :root.apple-ui.apple-ui .profile-dialog .profile-card-heading p, :root.apple-ui.apple-ui .profile-security-copy small { font-size: 14px; }
- :root.apple-ui.apple-ui .profile-dialog .profile-card-heading label, :root.apple-ui.apple-ui .profile-security-copy strong { font-size: 18px; }
+ :root.apple-ui.apple-ui .profile-dialog .profile-card-heading label, :root.apple-ui.apple-ui .profile-security-copy strong { font-size: 16px; }
  :root.apple-ui.apple-ui .profile-dialog .password-disclosure > svg { padding: 6px; }
 }
