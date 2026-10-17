@@ -809,8 +809,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-card-identity { display: grid; gap: 3px; min-width: 0; }
 :root.apple-ui.apple-ui .feed-card-identity strong { font: inherit; font-weight: 650; }
 :root.apple-ui.apple-ui .feed-card-identity small { color: var(--muted); font-size: 0.8em; font-weight: 400; }
-:root.apple-ui.apple-ui .feed-card-status { display: inline-flex; align-items: center; gap: 5px; margin: 0 1rem 0.3rem; color: var(--muted); font-size: 0.75rem; }
-:root.apple-ui.apple-ui .feed-card-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+:root.apple-ui.apple-ui .feed-card-status { display: inline-flex; align-items: center; gap: 5px; margin: 0 1rem 0.3rem; color: var(--muted); font-size: 0.75rem; white-space: nowrap; line-height: 1.25; }
+:root.apple-ui.apple-ui .feed-card-status::before { content: ""; width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--accent); }
 :root.apple-ui.apple-ui .feed-card-status.paused::before { background: var(--muted); }
 :root.apple-ui.apple-ui .guest-landing .curated-feed-grid .feed-card-status { padding: 0 0.75rem; margin: 0; }
 :root.apple-ui.apple-ui .feed-language-row { display: flex; align-items: center; justify-content: space-between; border: 0; padding: 0; margin: 12px 0; min-width: 0; }
