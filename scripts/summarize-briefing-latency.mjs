@@ -31,7 +31,7 @@ export function summarize(records){
  }
  return {phases:Object.fromEntries([...phases].map(([name,p])=>[name,{durationMs:percentiles(p.durations),outcomes:Object.fromEntries(p.outcomes),counts:Object.fromEntries(p.counts),stages:Object.fromEntries([...p.stages].map(([s,v])=>[s,{durationMs:percentiles(v.durations),operations:v.operations}]))}])),queue:{durationMs:percentiles(queue.durations),waitMs:percentiles(queue.waits),outcomes:Object.fromEntries(queue.outcomes)},uniqueReportedModelOperations:costs.size,uniqueReportedModelCostUsd:[...costs.values()].reduce((a,b)=>a+b,0)};
 }
-function recordsFromText(raw){
+export function recordsFromText(raw){
  const records=[];
  const inspect=value=>{
   if(Array.isArray(value)){value.forEach(inspect);return;}
@@ -39,11 +39,25 @@ function recordsFromText(raw){
   if(value.type==='V1_PIPELINE_LATENCY'||value.type==='V1_QUEUE_LATENCY')records.push(value);
   if(Array.isArray(value.logs))for(const entry of value.logs)for(const message of entry.message??[])if(typeof message==='string')try{inspect(JSON.parse(message))}catch{}
  };
- try{inspect(JSON.parse(raw))}catch{for(const line of raw.split(/\r?\n/))try{inspect(JSON.parse(line))}catch{}}
+ // Wrangler emits consecutive pretty-printed JSON objects, not necessarily JSONL.
+ // Scan only complete containers, respecting escaped strings (including prompts
+ // in legacy logs); inspect() still admits only our two numeric record types.
+ let start=-1,depth=0,quoted=false,escaped=false;
+ for(let i=0;i<raw.length;i++){
+  const c=raw[i];
+  if(start<0){if(c==='{'||c==='['){start=i;depth=1;quoted=false;escaped=false}continue}
+  if(quoted){if(escaped)escaped=false;else if(c==='\\')escaped=true;else if(c==='"')quoted=false;continue}
+  if(c==='"'){quoted=true;continue}
+  if(c==='{'||c==='[')depth++;
+  else if(c==='}'||c===']')if(--depth===0){try{inspect(JSON.parse(raw.slice(start,i+1)))}catch{}start=-1}
+ }
  return records;
+}
+export function decodeLog(buffer){
+ return buffer[0]===0xff&&buffer[1]===0xfe?buffer.subarray(2).toString('utf16le'):buffer.toString('utf8').replace(/^\uFEFF/,'');
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const files=process.argv.slice(2);if(!files.length)throw Error('Usage: node scripts/summarize-briefing-latency.mjs <redacted-log.jsonl> [...]');
- const records=(await Promise.all(files.map(file=>readFile(file,'utf8')))).flatMap(recordsFromText);
+ const records=(await Promise.all(files.map(async file=>decodeLog(await readFile(file))))).flatMap(recordsFromText);
  console.log(JSON.stringify(summarize(records),null,2));
 }
