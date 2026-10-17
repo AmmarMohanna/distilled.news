@@ -8,6 +8,7 @@ export type StructuralRelation='SAME_EVENT'|'NEW_EVENT_EXISTING_STORYLINE'|'NEW_
 export interface MatchProvenance {scorer:string;policyVersion:string;judgmentId?:string;fallbackReason?:string}
 export interface EventMatchDecision {structuralRelation:StructuralRelation;eventId?:string;storylineId?:string;epistemicEffects:EpistemicEffect[];confidence:number;provenance:MatchProvenance}
 export interface EventMatchInput {
+ feedRevision?:number;
  revision:EvidenceRevision;role:EvidenceRole;duplicateOfRevisionId?:string;
  candidates:{id:string;version:EventVersion;evidenceRevisionIds:string[];newestAt:string}[];
  storylineIds?:string[];

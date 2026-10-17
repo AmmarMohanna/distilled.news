@@ -1,4 +1,4 @@
-import type {EventMembership,EvidenceRevision} from '@distilled/contracts';
+import type {EvidenceRevision} from '@distilled/contracts';
 import type {FeedTransaction} from './store';
 import type {EventRecord,StorylineRecord,StorylineVersion} from './types';
 import type {EventSemanticState,Proposition} from './semantic-state';
@@ -9,7 +9,6 @@ import {INTELLIGENCE_POLICY} from './policies';
  * Each retry gets a fresh transaction and therefore fresh roots and misses. */
 export async function prefetchReviewGraph(tx:FeedTransaction,active:EvidenceRevision[]):Promise<void>{
  const events=await tx.list<EventRecord>('events'),storylines=await tx.list<StorylineRecord>('storylines');
- const members=await tx.list<EventMembership>('memberships');
  await tx.preload('duplicates',active.map(r=>JSON.stringify([r.id,INTELLIGENCE_POLICY])));
  await tx.preload('storyline_versions',storylines.map(s=>s.currentVersionId));
  const storyVersions=await Promise.all(storylines.map(s=>tx.read<StorylineVersion>('storyline_versions',s.currentVersionId)));
@@ -22,7 +21,7 @@ export async function prefetchReviewGraph(tx:FeedTransaction,active:EvidenceRevi
   {kind:'entities',ids:states.flatMap(s=>s.entityIds)},
   {kind:'state_slots',ids:states.flatMap(s=>s.stateSlotIds)}
  ]);
- const versions=new Set(versionIds),revisionIds=[...active.map(r=>r.id),...members.filter(m=>versions.has(m.eventVersionId)).map(m=>m.evidenceRevisionId)],mentionIds:string[]=[];
+ const members=await tx.membershipsForVersions(versionIds),revisionIds=[...active.map(r=>r.id),...members.map(m=>m.evidenceRevisionId)],mentionIds:string[]=[];
  // Previous semantic state can retain immutable supporting revisions as well.
  for(const state of states)for(const id of state.propositionIds){const p=await tx.read<Proposition>('propositions',id);revisionIds.push(...p?.evidenceRevisionIds??[]);mentionIds.push(...p?.claimMentionIds??[])}
  await tx.preload('claim_mentions',mentionIds);

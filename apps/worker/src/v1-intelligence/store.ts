@@ -1,7 +1,8 @@
 import {assertIntelligenceTurn,intelligenceTurnGuard} from '../connector-intelligence-turn';
+import {countLatency,measureLatency} from './latency';
 import {modelSpendingStatements,ModelSpendingWait,type ModelSpendingReservation} from './model-spending';
 import {SemanticLeaseError,type SemanticWorkLease} from './semantic-work-lease';
-import {HandoffError,eventMembershipSchema,eventVersionSchema,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,type BriefingCandidate,type EventVersion,type EvidenceRevision,type NormalizedEvidenceItem} from '@distilled/contracts';
+import {HandoffError,eventMembershipSchema,eventVersionSchema,eventSalienceAssessmentSchema,userRelevanceSchema,windowScoreSchema,briefingCandidateSchema,type BriefingCandidate,type EventMembership,type EventVersion,type EvidenceRevision,type NormalizedEvidenceItem} from '@distilled/contracts';
 import {z} from 'zod';
 import {liveScheduleSchema} from './schedule';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -66,7 +67,7 @@ export class V1FeedStore {
   return {observedAfterRejection:true,feedEpochChanged:!row||row.epoch!==snapshot.epoch,feedUnavailable:!row||Boolean(row.paused||row.deletedAt),scopeSetChanged:old.size!==current.size||[...old.keys()].some(id=>!current.has(id)),scopeChanges:[...new Set([...old.keys(),...current.keys()])].filter(id=>old.get(id)!==current.get(id)).map(id=>({id,before:old.get(id)??null,after:current.get(id)??null}))};
  }
  async commit(tx:FeedTransaction):Promise<boolean> {
-  const validationStarted=Date.now();await tx.validateGraph();tx.metrics.validationMs+=Date.now()-validationStarted;
+  const validationStarted=Date.now();await measureLatency('GRAPH_VALIDATION',()=>tx.validateGraph());tx.metrics.validationMs+=Date.now()-validationStarted;
   const {snapshot:s}=tx,nonce=crypto.randomUUID(),turnGuard=intelligenceTurnGuard(this.db,s.feed.id);
   const scopeChecks=s.scopes.map(()=>`EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=?)`).join(' AND ');
   const leaseCheck=this.semanticLease?` AND EXISTS(SELECT 1 FROM v1_feed_documents l WHERE l.kind='semantic_work_leases' AND l.id=? AND l.feed_id=? AND json_extract(l.json,'$.token')=? AND json_extract(l.json,'$.leaseUntil')>((julianday('now')-2440587.5)*86400000) AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='semantic_work_releases' AND r.id=l.id AND json_extract(r.json,'$.token')=json_extract(l.json,'$.token')))`:'';
@@ -92,6 +93,7 @@ export class FeedTransaction {
  private readonly reads=new Map<string,Promise<unknown>>();
  private readonly lists=new Map<DocumentKind,Promise<{id:string}[]>>();
  private readonly revisions=new Map<string,Promise<EvidenceRevision|undefined>>();
+ private membershipIndex?:Promise<Map<string,EventMembership[]>>;
  constructor(readonly store:V1FeedStore,readonly snapshot:Snapshot){}
  async read<T>(kind:DocumentKind,id:string):Promise<T|undefined> {
   const key=JSON.stringify([kind,id]),staged=this.writes.get(key);if(staged) return staged.value as T;
@@ -141,6 +143,23 @@ export class FeedTransaction {
   // historical references remain available through revision() when needed.
   return values;
  }
+ /** Index all retained membership metadata once per transaction, without
+  * expanding historical article bodies or pruning older Event support. New
+  * staged memberships invalidate the index; a CAS retry owns a fresh cache. */
+ async membershipsForVersions(versionIds:string[]):Promise<EventMembership[]> {
+  if(!versionIds.length)return [];
+  if(!this.membershipIndex)this.membershipIndex=(async()=>{
+   const index=new Map<string,EventMembership[]>();
+   for(const member of await this.list<EventMembership>('memberships')){
+    const rows=index.get(member.eventVersionId)??[];rows.push(member);index.set(member.eventVersionId,rows);
+   }
+   return index;
+  })();
+  const index=await this.membershipIndex;
+  // Callers can sort/filter/mutate their result without changing another
+  // lookup or disguising an immutable document conflict in this transaction.
+  return structuredClone([...new Set(versionIds)].flatMap(id=>index.get(id)??[]));
+ }
  revision(id:string):Promise<EvidenceRevision|undefined> {
   if(!this.revisions.has(id)){this.metrics.revisionReads++;this.revisions.set(id,this.store.revision(this.snapshot.feed.id,id))}return this.revisions.get(id)!;
  }
@@ -162,7 +181,10 @@ export class FeedTransaction {
    if(!member.success || !await this.read<EventVersion>('event_versions',member.data.eventVersionId) || !await this.revision(member.data.evidenceRevisionId)) throw new HandoffError('SCOPE_DENIED');
   } else if(!('feedId' in value) || value.feedId!==this.snapshot.feed.id) throw new HandoffError('SCOPE_DENIED');
   const previous=await this.read(kind,id);if(previous && !mutable.has(kind) && canonicalJson(previous)!==canonicalJson(value)) throw new HandoffError('IDEMPOTENCY_CONFLICT');
-  if(!previous || mutable.has(kind)) this.writes.set(JSON.stringify([kind,id]),{kind,id,value});
+  if(!previous || mutable.has(kind)) {
+   this.writes.set(JSON.stringify([kind,id]),{kind,id,value});
+   if(kind==='memberships')this.membershipIndex=undefined;
+  }
  }
  completeJob(job:DownstreamJob) {
   if(job.feedId!==this.snapshot.feed.id || !this.snapshot.scopes.some(s=>s.id===job.feedSourceId)) throw new HandoffError('SCOPE_DENIED');
@@ -241,7 +263,7 @@ export class FeedTransaction {
      else {const v=await this.read<StorylineVersion>('storyline_versions',c.targetVersionId);if(!v) throw new HandoffError('SCOPE_DENIED');storylineIds.add(v.id);for(const id of v.eventVersionIds) eventIds.add(id)}
     }
     const same=(a:Set<string>,b:string[])=>a.size===b.length && b.every(id=>a.has(id));
-    const support=new Set((await this.list<{id:string;eventVersionId:string;evidenceRevisionId:string}>('memberships')).filter(m=>eventIds.has(m.eventVersionId)).map(m=>m.evidenceRevisionId));
+    const support=new Set((await this.membershipsForVersions([...eventIds])).map(m=>m.evidenceRevisionId));
     if(!same(eventIds,e.eventVersionIds) || !same(storylineIds,e.storylineVersionIds) || !same(support,e.evidenceRevisionIds)) throw new HandoffError('SCOPE_DENIED');
     for(const id of e.evidenceRevisionIds) if(!await this.revision(id)) throw new HandoffError('SCOPE_DENIED');
     if(e.stories.some(story=>!e.selectedCandidateIds.includes(story.candidateId) || story.claims.some(claim=>claim.support.some(ref=>!support.has(ref.evidenceRevisionId))))) throw new HandoffError('SCOPE_DENIED');
@@ -252,11 +274,15 @@ export class FeedTransaction {
 export async function feedTransact<T>(store:V1FeedStore,id:string,run:(tx:FeedTransaction)=>Promise<T>):Promise<T> {
  const started=Date.now();let firstEpoch:number|undefined,lastEpoch:number|undefined,lastWrites=0;
  for(let attempt=0;attempt<12;attempt++) {
-  const tx=new FeedTransaction(store,await store.snapshot(id)),computationStarted=Date.now();firstEpoch??=tx.snapshot.epoch;lastEpoch=tx.snapshot.epoch;
-  const result=await run(tx),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;if(await store.commit(tx)){
+  const tx=new FeedTransaction(store,await measureLatency('DB_SNAPSHOT',()=>store.snapshot(id))),computationStarted=Date.now();firstEpoch??=tx.snapshot.epoch;lastEpoch=tx.snapshot.epoch;
+  const result=await measureLatency('TRANSACTION_COMPUTATION',()=>run(tx)),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;countLatency('casAttempts');const committed=await measureLatency('CAS_COMMIT',()=>store.commit(tx));
+  for(const [name,amount] of Object.entries(tx.metrics))countLatency(name,amount);
+  countLatency('documentWrites',tx.writes.size);countLatency('jobWrites',tx.jobs.size);
+  if(committed){
    if(Date.now()-started>=2000)console.info(JSON.stringify({type:'V1_FEED_TRANSACTION_TIMING',feedId:id,attempts:attempt+1,durationMs:Date.now()-started,computationMs,writes:tx.writes.size,jobs:tx.jobs.size,queries:tx.metrics}));
    return result;
   }
+  countLatency('casConflicts');
   if(attempt===0||attempt===11)try{console.warn(JSON.stringify({type:'V1_FEED_CAS_REJECTED',feedId:id,attempt:attempt+1,epoch:tx.snapshot.epoch,writes:tx.writes.size,jobs:tx.jobs.size,computationMs,queries:tx.metrics,...await store.casDiagnostic(tx.snapshot)}))}catch{console.warn(JSON.stringify({type:'V1_FEED_CAS_DIAGNOSTIC_UNAVAILABLE',feedId:id,attempt:attempt+1}))}
  }
  console.error(JSON.stringify({type:'V1_FEED_CAS_EXHAUSTED',feedId:id,firstEpoch,lastEpoch,writes:lastWrites,attempts:12,durationMs:Date.now()-started}));

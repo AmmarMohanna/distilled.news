@@ -10,11 +10,12 @@ import {refreshSourceCorrectionObligations,recordCorrectionObligation,type Ledge
 import {scheduleRematch} from './rematch';
 import {partitionProvisionalMentions} from './composite-partition';
 import {prefetchReviewGraph} from './review-prefetch';
+import {measureLatency,countLatency} from './latency';
 import type {DuplicateDecision,EventRecord,IntelligenceReceipt,RoleDecision,StorylineRecord,StorylineVersion,SupportedFact} from './types';
 
 function revisionText(revision:EvidenceRevision):string {return [revision.title,revision.body].filter(Boolean).join('\n')}
 export async function eventMemberships(tx:FeedTransaction,versionId:string):Promise<EventMembership[]> {
- return (await tx.list<EventMembership>('memberships')).filter(m=>m.eventVersionId===versionId);
+ return tx.membershipsForVersions([versionId]);
 }
 async function versionEvent(tx:FeedTransaction,event:EventRecord,revisions:EvidenceRevision[],now:string,binding?:{group:SemanticGroup;provenance:import('./matchers').MatchProvenance}):Promise<EventVersion> {
  const old=await tx.read<EventVersion>('event_versions',event.currentVersionId);
@@ -101,20 +102,21 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   const prior=await tx.read<IntelligenceReceipt>('intelligence_receipts',receiptId);if(prior) return prior;
   const row=await intake.read<DownstreamJob>('jobs',jobId),input=await intake.read<AcceptedInput>('inputs',initial.value.observationId);
   if(!row || !input || row.value.feedId!==tx.snapshot.feed.id || input.value.observation.feedId!==tx.snapshot.feed.id || row.feedSourceId!==input.feedSourceId) throw new HandoffError('SCOPE_DENIED');
-  const job=row.value,o=input.value.observation,active=await store.currentEvidence(o.feedId);
+  const job=row.value,o=input.value.observation,active=await measureLatency('EVIDENCE_LOAD',()=>store.currentEvidence(o.feedId));
   const current=await intake.read<NormalizedEvidenceItem>('evidence',JSON.stringify([o.feedSourceId,o.sourceItemKey]));
   const receipt:IntelligenceReceipt={id:receiptId,feedId:o.feedId,observationId:o.id,decision:'STALE',eventVersionIds:[],storylineVersionIds:[],computedAt:now};
   const target=active.find(r=>r.item.id===current?.value.id);
   // Identical-content replay may advance the observation watermark without emitting a new reassessment job.
   if(!current || (target?target.revision.sourceObservationId!==o.id:current.value.currentObservationId!==o.id)) {await tx.write('intelligence_receipts',receiptId,receipt);tx.completeJob(job);return receipt}
-  await prefetchReviewGraph(tx,active.map(r=>r.revision));
+  await measureLatency('GRAPH_LOAD',()=>prefetchReviewGraph(tx,active.map(r=>r.revision)));
   const events=await tx.list<EventRecord>('events'),changed:EventVersion[]=[];
   await tx.preloadSemanticReferences(events.map(event=>event.currentVersionId));
   const preferredStorylines=new Map<string,string>();
   let selected:EventRecord|undefined;
   const selectedEvents:EventRecord[]=[],bindings=new Map<string,{group:SemanticGroup;provenance:import('./matchers').MatchProvenance}>();
   if(target) {
-   await persistClaimMentions(tx,target.revision);
+   countLatency('acceptedToReviewMs',Math.max(0,Date.now()-Date.parse(target.revision.acceptedAt)));
+   await measureLatency('CLAIM_PREPROCESSING',()=>persistClaimMentions(tx,target.revision));
    const text=revisionText(target.revision),classification=classifyRole(text);
    const roleId=JSON.stringify([target.revision.id,INTELLIGENCE_POLICY]);
    const savedRole=await tx.read<RoleDecision>('roles',roleId);
@@ -146,7 +148,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
      candidates.push({id:event.id,version,evidenceRevisionIds:members.map(m=>m.evidenceRevisionId),newestAt:newest});
     }
    const storylineRoots=await tx.list<StorylineRecord>('storylines');
-   const matchInput={revision:target.revision,role:role.role,duplicateOfRevisionId:duplicate.duplicateOfRevisionId,candidates,storylineIds:storylineRoots.map(s=>s.id),storylineVersions:Object.fromEntries(storylineRoots.map(s=>[s.id,s.currentVersionId]))};
+   const matchInput={revision:target.revision,feedRevision:tx.snapshot.feed.revision,role:role.role,duplicateOfRevisionId:duplicate.duplicateOfRevisionId,candidates,storylineIds:storylineRoots.map(s=>s.id),storylineVersions:Object.fromEntries(storylineRoots.map(s=>[s.id,s.currentVersionId]))};
    const decision=validateEventMatch(matchers.event.match(matchInput),matchInput);
    receipt.semanticDeferred=decision.structuralRelation==='DEFER'&&decision.provenance.scorer!=='DETERMINISTIC';
    if(decision.structuralRelation==='SAME_EVENT')selected=events.find(e=>e.id===decision.eventId);
@@ -186,8 +188,9 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
    const previous=selected.currentVersionId?await supportingRevisions(tx,selected):[];
    changed.push(await versionEvent(tx,selected,[...previous.filter(r=>r.evidenceId!==target.item.id),target.revision],now,bindings.get(selected.id)));
   }
-  receipt.decision=target?'PROCESSED':'WITHDRAWN';receipt.eventVersionIds=changed.map(e=>e.id);receipt.storylineVersionIds=await updateStorylines(tx,changed,now,matchers,preferredStorylines);
-  await refreshSourceCorrectionObligations(tx,now);
+  receipt.decision=target?'PROCESSED':'WITHDRAWN';receipt.eventVersionIds=changed.map(e=>e.id);receipt.storylineVersionIds=await measureLatency('STORYLINE_UPDATES',()=>updateStorylines(tx,changed,now,matchers,preferredStorylines));
+  countLatency('eventVersionsUpdated',changed.length);countLatency('storylineVersionsUpdated',receipt.storylineVersionIds.length);
+  await measureLatency('CORRECTION_LEDGER',()=>refreshSourceCorrectionObligations(tx,now));
   for(const [eventId,binding] of bindings)for(const entry of await tx.list<LedgerEntry>('ledger_entries'))if(entry.eventIds.includes(eventId) || preferredStorylines.has(eventId) && entry.storylineIds.includes(preferredStorylines.get(eventId)!)){
    const trigger=binding.provenance.judgmentId??target?.revision.id??jobId;
    if(binding.group.epistemicEffects.includes('CONTRADICTS'))await recordCorrectionObligation(tx,entry,'CONTRADICTED',trigger,now);
