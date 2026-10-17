@@ -14,3 +14,15 @@ it('known actual overrun is recorded completely instead of capped or changed int
 it('historical paid work needs explicit account reconciliation before approval',async()=>{await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('historical',JSON.stringify({revision:1})).run();await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('semantic_intents','old','historical',?)").bind(JSON.stringify({id:'old',reservedCostUsd:.02})).run();await expect(authorizeModelSpending(ctx.db,grant)).rejects.toMatchObject({reason:'LEGACY_LIABILITIES_UNRECONCILED'})});
 
 it('explicit historical account mapping imports UNKNOWN liability without rewriting its paid identity',async()=>{await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('historical',JSON.stringify({revision:1})).run();const intent={id:'old',input:{model:'test-model'},token:'legacy-owner',reservedCostUsd:.7,leaseUntil:0,createdAt:'2026-10-11T12:00:00Z'};await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('semantic_intents','old','historical',?)").bind(JSON.stringify(intent)).run();await reconcileLegacyModelSpending(ctx.db,'semantic_intents','old',grant.accountId);await reconcileLegacyModelSpending(ctx.db,'semantic_intents','old',grant.accountId);await authorizeModelSpending(ctx.db,grant);expect(await spendingExposure(ctx.db,grant.accountId,'2026-10-12T12:00:00Z')).toMatchObject({heldCostUsd:.7,unknown:1});expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='semantic_intents' AND id='old'").first<{json:string}>())!.json)).toEqual(intent)});
+it('an overlapping newer grant for the same account is used instead of blocking every call',async()=>{
+ await authorizeModelSpending(ctx.db,{...grant,maxExposureUsd:.1});
+ // Operators can insert a second grant directly; grants are immutable, so the old one cannot be ended early.
+ const newer={...grant,id:'newer',validFrom:'2026-10-12T06:00:00Z',maxExposureUsd:3};
+ await ctx.db.prepare('INSERT INTO v1_model_spending_authorizations(id,account_id,valid_from,valid_until,json) VALUES(?,?,?,?,?)').bind(newer.id,newer.accountId,newer.validFrom,newer.validUntil,JSON.stringify(newer)).run();
+ await reserveModelSpending(ctx.db,request('a',.5));
+ expect(await spendingExposure(ctx.db,grant.accountId,'2026-10-12T12:00:00Z')).toMatchObject({heldCostUsd:.5});
+ const other={...newer,id:'other-account',accountId:'another-account'};
+ await ctx.db.prepare('INSERT INTO v1_model_spending_authorizations(id,account_id,valid_from,valid_until,json) VALUES(?,?,?,?,?)').bind(other.id,other.accountId,other.validFrom,other.validUntil,JSON.stringify(other)).run();
+ const {modelSpendingAccount}=await import('./model-spending');
+ await expect(modelSpendingAccount(ctx.db,'test-model','2026-10-12T12:00:00Z')).rejects.toMatchObject({reason:'ACCOUNT_AUTHORIZATION_REQUIRED'});
+});

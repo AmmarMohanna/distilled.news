@@ -16,14 +16,23 @@ export async function authorizeModelSpending(db:D1Database,grant:ModelSpendingAu
  const guard=crypto.randomUUID();
  await db.batch([db.prepare(`INSERT INTO v1_model_spending_guards(id,valid) SELECT ?,CASE WHEN (${legacyMissing})=0 AND NOT EXISTS(SELECT 1 FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<? AND valid_until>?) THEN 1 ELSE 0 END`).bind(guard,grant.accountId,instant(grant.validUntil),instant(grant.validFrom)),db.prepare('INSERT INTO v1_model_spending_authorizations VALUES(?,?,?,?,?)').bind(grant.id,grant.accountId,instant(grant.validFrom),instant(grant.validUntil),JSON.stringify(grant)),db.prepare('DELETE FROM v1_model_spending_guards WHERE id=?').bind(guard)]);
 }
+function newestGrant(grants:ModelSpendingAuthorization[]):ModelSpendingAuthorization|undefined{
+ if(!grants.length||new Set(grants.map(g=>g.accountId)).size!==1)return undefined;
+ const sorted=[...grants].sort((a,b)=>Date.parse(b.validFrom)-Date.parse(a.validFrom)||b.id.localeCompare(a.id));
+ return sorted.length>1&&sorted[0].validFrom===sorted[1].validFrom?undefined:sorted[0];
+}
 export async function spendingAuthorization(db:D1Database,r:ModelSpendingReservation):Promise<ModelSpendingAuthorization&{concurrencyRevision:number;concurrencySchemaAvailable:boolean}>{
  const rows=await db.prepare('SELECT json FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<=? AND valid_until>?').bind(r.accountId,instant(r.createdAt),instant(r.createdAt)).all<{json:string}>();
- const grants=rows.results.map(x=>JSON.parse(x.json) as ModelSpendingAuthorization).filter(g=>g.modelIds.includes(r.model)||g.modelIds.includes('*'));if(grants.length!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return {...grants[0],...await effectiveModelConcurrency(db,grants[0].id,grants[0].maxConcurrentOperations)};
+ const grants=rows.results.map(x=>JSON.parse(x.json) as ModelSpendingAuthorization).filter(g=>g.modelIds.includes(r.model)||g.modelIds.includes('*'));
+ // Overlapping grants for one account (an operator added a new grant before
+ // the old one expired; grants are immutable) resolve to the newest one.
+ // Different accounts are never chosen between: that stays ambiguous.
+ const grant=newestGrant(grants);if(!grant)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return {...grant,...await effectiveModelConcurrency(db,grant.id,grant.maxConcurrentOperations)};
 }
 /** Shared exposure: period charges plus ALL unsettled liabilities, even from
  * expired owners/older grants. A new day or Feed never erases UNKNOWN money. */
 export async function spendingExposure(db:D1Database,accountId:string,at:string){
- const grant=await db.prepare('SELECT valid_from,valid_until FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<=? AND valid_until>?').bind(accountId,instant(at),instant(at)).first<{valid_from:string;valid_until:string}>();
+ const grant=await db.prepare('SELECT valid_from,valid_until FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<=? AND valid_until>? ORDER BY valid_from DESC,id DESC LIMIT 1').bind(accountId,instant(at),instant(at)).first<{valid_from:string;valid_until:string}>();
  const result=await db.prepare(`SELECT COALESCE(SUM(CASE WHEN s.reported=1 AND r.created_at>=? AND r.created_at<? THEN s.cost_usd ELSE 0 END),0) AS reportedCostUsd,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 THEN MAX(r.reserved_cost_usd,COALESCE(s.cost_usd,0)) ELSE 0 END),0) AS heldCostUsd,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 THEN 1 ELSE 0 END),0) AS unsettledConcurrencySlots,COALESCE(SUM(CASE WHEN COALESCE(s.reported,0)=0 AND r.lease_until<=? THEN 1 ELSE 0 END),0) AS unknown FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.account_id=?`).bind(grant?.valid_from??instant(at),grant?.valid_until??instant(at),Date.now(),accountId).first<{reportedCostUsd:number;heldCostUsd:number;unknown:number;unsettledConcurrencySlots:number}>();
  const quarantine=await db.prepare(`SELECT COUNT(*) AS n FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.account_id=? AND COALESCE(s.reported,0)=0 AND EXISTS(SELECT 1 FROM v1_feed_documents q WHERE q.kind='model_execution_quarantines' AND q.id=r.id AND q.feed_id=r.feed_id AND json_extract(q.json,'$.accountId')=r.account_id AND json_extract(q.json,'$.reservationToken')=r.token)`).bind(accountId).first<{n:number}>();return {...result!,quarantinedConcurrencySlots:quarantine?.n??0,activeConcurrencySlots:result!.unsettledConcurrencySlots-(quarantine?.n??0)};
 }
@@ -49,7 +58,7 @@ export async function settleModelSpending(db:D1Database,id:string,token:string,u
 export async function modelSpendingAccount(db:D1Database,model:string,at:string,accountId?:string):Promise<string>{
  let rows:D1Result<{json:string}>;try{rows=await db.prepare('SELECT json FROM v1_model_spending_authorizations WHERE valid_from<=? AND valid_until>?').bind(instant(at),instant(at)).all<{json:string}>()}catch(error){if(String(error).includes('no such table'))throw new ModelSpendingWait('ACCOUNT_LEDGER_MIGRATION_REQUIRED');throw error}
  const matching=rows.results.map(r=>JSON.parse(r.json) as ModelSpendingAuthorization).filter(g=>(!accountId||g.accountId===accountId)&&(g.modelIds.includes(model)||g.modelIds.includes('*')));
- if(matching.length!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return matching[0].accountId;
+ const accounts=new Set(matching.map(g=>g.accountId));if(accounts.size!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return matching[0].accountId;
 }
 /** Explicit operator account mapping of immutable historical intent. Never
  * infer provider account from Feed, date, model name or missing metadata. */
