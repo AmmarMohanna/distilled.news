@@ -8,25 +8,26 @@ preview_urls = false
 routes = []
 
 [vars]
-STAGING_ASSETS_PREFIX = "staging-assets/758837e409f03d248288de04909e981d680abf6a/"
+STAGING_ASSETS_PREFIX = "staging-assets/905fe696899a08e0e9a0521efed549416f3f3fe7/"
 PUBLIC_API_BASE_URL = "https://distilled-news-staging.distillednews-platform.workers.dev"
 PUBLIC_WEB_BASE_URL = "https://distilled-news-staging.distillednews-platform.workers.dev"
+CLOUDFLARE_IMAGE_ACCOUNT_ID = "e32b564514d4f9b9e383b7dd30dbb026"
 MAIL_TRANSPORT = "OUTLOOK_GRAPH"
 EMAIL_FROM = "Distilled.news <distilled.news@outlook.com>"
 SOURCE_CONNECTORS_ENABLED = "true"
 SOURCE_QUEUE_SCHEDULING_ENABLED = "true"
+# Staging-only rollout; legacy deployments keep their existing review ownership.
+V1_REVIEW_PREPARATION_ISOLATED = "true"
 SOURCE_SHARED_PUBLIC_FETCH_ENABLED = "true"
 SOURCE_FULL_ARTICLES_ENABLED = "true"
-SOURCE_GOOGLE_RESOLUTION_ENABLED = "true"
 SOURCE_LEGACY_POLLING_ENABLED = "false"
 PRODUCT_FEEDS_ENABLED = "true"
 SOURCE_RECOMMENDATIONS_ENABLED = "false"
-# Authorized mixed-source test: independent $15 source/provider cumulative caps.
-# Aggregate deployment caps remain a second conservative ceiling. Updating this
-# file does not change existing D1 grants or reconcile uncertain paid operations.
+# Preserve the deployed staging source/provider authorization exactly. Google
+# Apify and Zyte remain disabled; D1 grants and uncertain holds are unchanged.
 SOURCE_PER_PROVIDER_BUDGET_USD = "15"
-SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.01,"apify":0.25,"zyte":0.02}'
-SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":15,"x_apify":15,"google_apify":15,"linkedin_apify":15,"zyte":15}'
+SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.01,"apify":0.25,"zyte":0}'
+SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":15,"x_apify":15,"google_apify":0,"linkedin_apify":15,"zyte":0}'
 SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
 V1_DOWNSTREAM_ENABLED = "true"
 V1_DOWNSTREAM_FEED_SOURCE_IDS = "staging-rss-source,staging-twitter-source"
