@@ -105,6 +105,16 @@ export async function scheduleProviderWindow(db:D1Database,scheduler:Pick<Return
  }
 }
 /** Durable scheduler owns continuation and retries; one bounded slice per cron tick. */
+/** One source whose V1 scope was retired (removed, then left behind by a
+ * partial edit) must not stop collection, review and briefings for the whole
+ * Feed. Skip it visibly; every other source keeps its normal fences. */
+async function enrollOrSkip(env:Env,id:string,ownerId:string,now:Date){
+ try{return await enrollV1Source(env.DB,id,ownerId,now.toISOString())}
+ catch(error){
+  if(error instanceof HandoffError&&['SCOPE_DENIED','IDEMPOTENCY_CONFLICT'].includes(error.code)){console.warn(JSON.stringify({type:'CONNECTOR_SOURCE_ENROLLMENT_SKIPPED',feedSourceId:id,code:error.code}));return undefined}
+  throw error;
+ }
+}
 export async function runConnectorMaintenance(env:Env,now=new Date(),options:{scheduleOnly?:boolean;skipSchedule?:boolean}={}) {
  if(env.SOURCE_CONNECTORS_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return;
  const maxJobs=Number(env.SOURCE_POLL_MAX_JOBS_PER_TICK??4),budgetMs=Number(env.SOURCE_POLL_TICK_BUDGET_MS??90000);
@@ -121,7 +131,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   const row=await env.DB.prepare(`SELECT s.provider,s.kind,s.source_url,s.input,s.actor_id,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND (?=0 OR s.collection_owner='connector')`).bind(id,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?1:0).first<{provider:string;kind:string;source_url:string;input:string|null;actor_id:string|null;owner_account_id:string}>();
   const approved=row&&productConnectorSource(row);if(!row||!approved)continue;
   if(['telegram','website'].includes(approved.source.family)&&!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE))continue;
-  await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
+  if(!await enrollOrSkip(env,id,row.owner_account_id,now))continue;
  }
  const scheduled:{id:string;scheduler:string;sourceId:string}[]=[];
  if(!options.skipSchedule)for(const id of ids) {
@@ -144,7 +154,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   // Only explicit legacy-mode admission may transfer collection ownership.
   // A queue tick's earlier source list cannot reclaim a later legacy handoff.
   if(row.collection_owner==='legacy')await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND collection_owner='legacy'").bind(id).run();
-  const enrolled=await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
+  const enrolled=await enrollOrSkip(env,id,row.owner_account_id,now);if(!enrolled)continue;
   // Every polling window has one stable identity. Repeated cron ticks replay that run;
   // a later window may collect new source observations without reusing an old snapshot.
   const intervalMs=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?Number(env.SOURCE_COLLECTION_INTERVAL_MS??300000):

@@ -644,7 +644,6 @@ export class D1Repository implements Repository {
   private async availableSourceId(baseId: string): Promise<string> {
     let candidate = baseId;
     for (let generation = 2; generation < 100; generation++) {
-      if (await this.db.prepare("SELECT 1 FROM sources WHERE id = ?").bind(candidate).first()) return candidate;
       let tombstoned = false;
       try {
         tombstoned = !!await this.db.prepare("SELECT 1 FROM v1_intake_scopes WHERE id = ? AND json_extract(json, '$.deletedAt') IS NOT NULL").bind(candidate).first();
