@@ -59,7 +59,9 @@ export async function feedSourceAvailability(env:Env,feedId:string){
   const warning=acquisition.failed?failed.every(j=>j.failure==='AUTH_REQUIRED')?'ARTICLE_AUTH_REQUIRED':failed.every(j=>j.failure==='CHALLENGE_REQUIRED')?'ARTICLE_CHALLENGE_REQUIRED':'ARTICLE_ACQUISITION_FAILED':undefined;
   // Only typed errors are public. Never expose URLs, provider response text or
   // claim tokens retained in diagnostic storage.
-  const collectionError=collectionFailureReason(latest);
+  // Waiting for this feed's processing turn is normal progress, not a source
+  // problem: the page is already collected and will be handed off shortly.
+  const reported=collectionFailureReason(latest),collectionError=latest?.state==='PENDING'&&(reported==='INTAKE_BUSY'||reported==='BACKPRESSURE')?undefined:reported;
   return {sourceId:row.id,title:row.title,...availability,acquisition,...(warning?{warning}:{}),...(collectionError?{collectionError}:{})};
  }));
 }
