@@ -1,4 +1,6 @@
 import {windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
+import {withFeedWriteTurn,IntelligenceTurnBusy} from '../connector-intelligence-turn';
+import {withLatency,measureLatency,countLatency} from './latency';
 import {ModelSpendingWait} from './model-spending';
 import {recoverPendingProviderGenerations} from './provider-recovery';
 import {prepareAdaptiveEditorialPlan} from './editorial-continuation';
@@ -65,9 +67,14 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
  if(row.value.nextAttemptAt&&Date.parse(row.value.nextAttemptAt)>Date.parse(now))return 'WAITING_RETRY';
  await synchronizeV1ProductSource(env.DB,row.feedSourceId,now);
  const scope=await intake.snapshot(row.feedSourceId);await approvedFeed(env,scope.scope.feedId);
- try {return await withSemanticWorkLease(env.DB,scope.scope.feedId,async store=>{const prepared=await prepareSemanticMatch(store,env,id,now);await processEvidenceIntelligence(store,id,now,prepared?.matchers);return 'DONE'})}
+ return withLatency({feedId:scope.scope.feedId,reviewId:id,phase:'REVIEW'},async()=>{
+ try {return await withSemanticWorkLease(env.DB,scope.scope.feedId,async store=>{
+  const prepared=await measureLatency('SEMANTIC_PREPARATION',()=>prepareSemanticMatch(store,env,id,now));
+  await withFeedWriteTurn(env,scope.scope.feedId,()=>measureLatency('CANONICAL_REVIEW',()=>processEvidenceIntelligence(store,id,now,prepared?.matchers)),`review:${id}`);
+  return 'DONE';
+ },env.V1_REVIEW_PREPARATION_ISOLATED==='true'?`review:${id}`:undefined)}
  catch(error) {
-  if(error instanceof SemanticContentionError||error instanceof SemanticLeaseError)throw error;
+  if(error instanceof SemanticContentionError||error instanceof SemanticLeaseError||error instanceof IntelligenceTurnBusy)throw error;
   // Provider preparation is outside CAS; only canonical consumption retries.
   // Failure state and retry scheduling are durable, bounded and source-scoped.
   await transact(intake,row.feedSourceId,async tx=>{
@@ -77,20 +84,25 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
   });
   if(error instanceof HandoffError) throw error;throw new HandoffError('TEMPORARY_UNAVAILABLE');
  }
+ });
 }
 export async function processV1Rematch(env:Env,feedId:string,requestId:string,now=new Date().toISOString()):Promise<void> {
+ return withLatency({feedId,reviewId:requestId,phase:'REMATCH'},async()=>{
  await approvedFeed(env,feedId);return withSemanticWorkLease(env.DB,feedId,async store=>{const request=await store.read<RematchRequest>(feedId,'rematch_requests',requestId);if(!request)return;
  const allAttempts=await store.list<RematchAttempt>(feedId,'rematch_attempts'),attempt=nextRematch(request,allAttempts,now,{costAdmission:true}),history=allAttempts.filter(a=>a.requestId===requestId);if(!attempt)return;
- const prepared=await prepareSemanticMatch(store,env,request.jobId,now,{attempt});
+ const prepared=await measureLatency('SEMANTIC_PREPARATION',()=>prepareSemanticMatch(store,env,request.jobId,now,{attempt}));
+ return withFeedWriteTurn(env,feedId,async()=>{
  const active=(await store.currentEvidence(feedId)).some(e=>e.revision.id===request.evidenceRevisionId);
  const eligible=active&&prepared&&prepared.prepared.decision.structuralRelation!=='DEFER';
  // Staleness is only observable at consumption (the engine sees the Events current at commit); record it so it is accounted as a race, not a semantic failure.
  let stale=false;const observed=eligible?{...prepared.matchers,event:{match:(input:Parameters<typeof prepared.matchers.event.match>[0])=>{const decision=prepared.matchers.event.match(input);if(decision.provenance.fallbackReason===STALE_REASON)stale=true;return decision}}}:undefined;
- const consumed=eligible?await processEvidenceIntelligence(store,request.jobId,now,observed!,JSON.stringify([request.id,attempt])):undefined;
+ const consumed=eligible?await measureLatency('CANONICAL_REVIEW',()=>processEvidenceIntelligence(store,request.jobId,now,observed!,JSON.stringify([request.id,attempt]))):undefined;
  const succeeded=Boolean(consumed&&consumed.decision==='PROCESSED'&&!consumed.semanticDeferred);
  const reason=!active?'STALE_EVIDENCE':succeeded?undefined:stale?STALE_REASON:prepared?.prepared.decision.provenance.fallbackReason??(prepared?.prepared.decision.structuralRelation==='DEFER'?'SEMANTIC_IDENTITY_UNRESOLVED':consumed?.semanticDeferred?'SEMANTIC_CONSTRUCTION_UNRESOLVED':'SEMANTIC_PREPARATION_UNAVAILABLE'),budgetWait=active&&isBudgetDenial({state:'DEFERRED',reason});
  const id=JSON.stringify([request.id,attempt,now,'semantic-cost-admission-v1']);
  await feedTransact(store,feedId,async tx=>{if(!await tx.read('rematch_attempts',id))await tx.write('rematch_attempts',id,{id,feedId,requestId,attempt,...(budgetWait?{resourcePolicy:'semantic-cost-admission-v1' as const}:{}),state:succeeded?'SUCCEEDED':budgetWait?'WAITING_BUDGET':!active||request.policyVersion!==REMATCH_CONTINUATION_POLICY&&rematchExhausted([...history,{reason,attempt,state:'DEFERRED'}])?'EXHAUSTED':'DEFERRED',nextAttemptAt:succeeded?undefined:budgetWait?semanticResourceRetryAt(request.id,now,history.filter(a=>a.state==='WAITING_BUDGET').length):new Date(Date.parse(now)+(reason===STALE_REASON?60000*2**history.filter(a=>a.reason===STALE_REASON).length:Math.min(3600000,300000*2**Math.min(attempt-1,4)))).toISOString(),createdAt:now,reason} satisfies RematchAttempt)});
+ },`rematch:${requestId}`);
+ },env.V1_REVIEW_PREPARATION_ISOLATED==='true'?`rematch:${requestId}`:undefined);
  });
 }
 export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch,publicationOptions?:{requireModel?:boolean}) {
@@ -98,6 +110,8 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  const {feedId,window}=parsed.data;
  if(Date.parse(window.end)>Date.parse(now()) || Date.parse(window.start)>=Date.parse(window.end) || Date.parse(window.end)-Date.parse(window.start)>7*86400000) throw new HandoffError('INVALID_REQUEST');
  await approvedFeed(env,feedId);const store=new V1FeedStore(env.DB),id=await windowIdentity(feedId,window);
+ return withLatency({feedId,windowId:id,phase:'PUBLICATION'},async()=>{
+ countLatency('windowClosedAgeMs',Math.max(0,Date.parse(now())-Date.parse(window.end)));
  const required=await feedTransact(store,feedId,async tx=>{
   const prior=await tx.read<BriefingRequest>('briefing_requests',id);
   if((publicationOptions?.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!prior?.requireModel){const value:BriefingRequest={...(prior??{id,feedId,window,state:'PENDING' as const,attempts:0,createdAt:now()}),requireModel:true};await tx.write('briefing_requests',id,value);return true;}
@@ -120,12 +134,13 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  });
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
- const initialCoverage=await feedTransact(store,feedId,async tx=>{
+ const initialCoverage=await measureLatency('WINDOW_READINESS',()=>feedTransact(store,feedId,async tx=>{
   const coverage=await windowIntakeCoverage(env.DB,feedId,window.end),current=await tx.read<BriefingRequest>('briefing_requests',id);
   if(current&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||coverage.pendingJobs&&current.reason!=='AWAITING_INTAKE_REASSESSMENT'))await tx.write('briefing_requests',id,{...current,coverage,...(coverage.pendingJobs?{reason:'AWAITING_INTAKE_REASSESSMENT',nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()}: {})});
   return coverage;
- });
- if(initialCoverage.pendingJobs)return undefined;
+ }));
+ countLatency('pendingJobs',initialCoverage.pendingJobs);countLatency('failedJobs',initialCoverage.failedJobs);
+ if(initialCoverage.pendingJobs){countLatency('publicationDeferred');return undefined;}
 
  if(required&&!createStoredEvidenceModel(env,fetcher)){
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!=='MODEL_SETUP_REQUIRED')await tx.write('briefing_requests',id,{...current,reason:'MODEL_SETUP_REQUIRED'});});
@@ -149,10 +164,10 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   const legacyPlan=historicalPlans.find(p=>p.policyVersion=== 'comparative-editorial-plan-v21');
   const budget=legacyPlan?DEFAULT_BRIEFING_BUDGET:ADAPTIVE_BRIEFING_PROCESSING;
   const frozen=legacyPlan?await store.read<import('./shortlist').ShortlistRecord>(feedId,'shortlists',legacyPlan.shortlistId):undefined;
-  const shortlist=frozenSelection?undefined:frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher):undefined);
+  const shortlist=frozenSelection?undefined:frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await measureLatency('SEMANTIC_SHORTLIST',()=>prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher)):undefined);
   if(shortlist)await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),semanticCoverage=shortlist.unresolvedTargets?.length?{unresolvedTargets:shortlist.unresolvedTargets}:undefined;if(current&&canonicalJson(current.semanticCoverage)!==canonicalJson(semanticCoverage))await tx.write('briefing_requests',id,{...current,semanticCoverage})});
   failureStage='EDITORIAL_PLAN';
-  const plan=shortlist?(legacyPlan?await prepareEditorialPlan(store,shortlist,budget,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):await prepareAdaptiveEditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'))):undefined;
+  const plan=shortlist?await measureLatency('EDITORIAL_PLAN',()=>legacyPlan?prepareEditorialPlan(store,shortlist,budget,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):prepareAdaptiveEditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'))):undefined;
   if(plan&&plan.route!=='GPT'&&plan.modelOperationIds?.length){
    const operations=await store.readMany<import('./semantic-operations').SemanticOperationResult>(feedId,'semantic_results',plan.modelOperationIds);
    if([...operations.values()].some(operation=>operation.usage.calls>0&&!operation.usage.reported))throw new ModelSpendingWait('SEMANTIC_OUTCOME_UNKNOWN');
@@ -160,12 +175,20 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   if(plan?.route!=='GPT'&&plan?.fallbackReason&&/ACCOUNT_|MODEL_CAPABILITY|MODEL_CONTEXT|RESOURCE|AUTHORIZATION|LEGACY_LIABILITIES|CONCURRENCY|COST_ESTIMATE|EXECUTION_YIELD|GLOBAL_RECONCILIATION_CAPACITY|^SEMANTIC_OUTCOME_UNKNOWN$/.test(plan.fallbackReason))throw new ModelSpendingWait(plan.fallbackReason);
   if(required&&shortlist?.candidates.length&&plan?.route!=='GPT')throw new HandoffError('TEMPORARY_UNAVAILABLE');
   failureStage='SELECTION';
-  const selection=frozenSelection??await scoreAndSelect(store,feedId,window,budget,now(),salienceScorer??(plan?.route==='GPT'?undefined:createSemanticSalienceScorer(env)),plan);
+  const selection=frozenSelection??await measureLatency('RANKING_SELECTION',()=>scoreAndSelect(store,feedId,window,budget,now(),salienceScorer??(plan?.route==='GPT'?undefined:createSemanticSalienceScorer(env)),plan));
   // Protected work that cannot be delivered yet is a durable, truthful BLOCKED state tied to reassessment progress, not a failure retried
   // identically until the attempt budget is spent. The obligation stays OPEN and nothing is reported as delivered.
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length && shortlist){await recordBlockedWindow(store,feedId,id,shortlist,selection,now());return undefined}
   failureStage='SYNTHESIS_PUBLICATION';
-  const edition=selection.selectedCandidateIds.length?await publishSelection(store,feedId,selection.id,{now,model:writer,requireModel:required}):undefined;
+  const edition=selection.selectedCandidateIds.length?await measureLatency('SYNTHESIS_VERIFICATION_PUBLICATION',()=>publishSelection(store,feedId,selection.id,{now,model:writer,requireModel:required})):undefined;
+  countLatency(edition?'publicationPublished':'publicationDeferred');
+  if(edition)countLatency('windowCloseToPublicationMs',Math.max(0,Date.parse(edition.createdAt)-Date.parse(window.end)));
+  if(edition)try{
+   // One bounded metadata-only query per published edition, never article bodies.
+   const lineage=await env.DB.prepare(`SELECT MIN(json_extract(i.json,'$.observation.observedAt')) AS firstObservedAt,MIN(json_extract(r.json,'$.acceptedAt')) AS firstAcceptedAt FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (SELECT value FROM json_each(?))`).bind(feedId,JSON.stringify(edition.evidenceRevisionIds)).first<{firstObservedAt:string|null;firstAcceptedAt:string|null}>();
+   if(lineage?.firstObservedAt)countLatency('firstObservedToPublicationMs',Math.max(0,Date.parse(edition.createdAt)-Date.parse(lineage.firstObservedAt)));
+   if(lineage?.firstAcceptedAt)countLatency('firstAcceptedToPublicationMs',Math.max(0,Date.parse(edition.createdAt)-Date.parse(lineage.firstAcceptedAt)));
+  }catch{countLatency('lineageDiagnosticUnavailable')}
   failureStage='LEDGER_PROJECTION';
   if(edition)await projectEditionLedger(store,feedId,edition.id);
   const deferred=!edition&&(plan?.stories.some(story=>story.decision==='DEFER')||Boolean(shortlist?.overflow.length));
@@ -186,6 +209,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
    await tx.write('briefing_requests',id,{...current,state:terminal?'FAILED':'PENDING',attempts,nextAttemptAt:new Date(Date.parse(now())+60000*2**(attempts-1)).toISOString(),failure:error instanceof SynthesisCompatibilityError?error.reason:error instanceof HandoffError?error.code:'PUBLICATION_FAILED'});
   });throw error instanceof HandoffError?error:new HandoffError('TEMPORARY_UNAVAILABLE');
  }
+ });
 }
 /** Auxiliary per-Feed maintenance (policy upgrades, rematch fan-out) must never prevent briefing dispatch:
  * a contended or failing maintenance step is reported and retried on the next tick, while the window requests

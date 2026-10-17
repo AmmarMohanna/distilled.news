@@ -7,11 +7,13 @@ import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,r
 import {expireSharedPublicFetches} from './connector-public-cache';
 import {dispatchTelegramLane} from './connector-telegram-lane';
 import {withIntelligenceTurn,isIntelligenceTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
+import {SemanticLeaseError} from './v1-intelligence/semantic-work-lease';
+import {SemanticContentionError} from './v1-intelligence/semantic-operations';
 import {renewConnectorWork} from './connector-work-admission';
 import { createApp } from "./app";
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
-import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch} from './v1-intelligence/runtime';
+import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch,windowIdentity} from './v1-intelligence/runtime';
 import {HandoffError} from '@distilled/contracts';
 import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
@@ -61,11 +63,13 @@ export default {
       }
       const startedAt = Date.now();
       const bodyType = queueBodyType(body);
-      const bodyId = queueBodyId(body);
+      let bodyId = queueBodyId(body);
+      let latencyOutcome='SUCCEEDED';
       let completedProcessing=false;
       let renewingWork:Promise<void>|undefined;
       const workHeartbeat=delivery.token?setInterval(()=>{if(!renewingWork)renewingWork=renewConnectorWork(env,delivery.token!).catch(()=>{}).finally(()=>{renewingWork=undefined});},40000):undefined;
       try {
+        if(isRecord(body)&&body.type==='v1_briefing'&&typeof body.feedId==='string'&&isRecord(body.window)&&typeof body.window.start==='string'&&typeof body.window.end==='string'&&Number.isFinite(Date.parse(body.window.start))&&Number.isFinite(Date.parse(body.window.end)))bodyId=await windowIdentity(body.feedId,body.window as unknown as import('./v1-intelligence/scoring').PublicationWindow);
         const downstreamEnv=await connectorDownstreamEnv(env,body as DistilledQueueMessage);
         if(isRecord(body)&&body.type==='v1_manual_briefing'&&typeof body.feedId==='string'&&typeof body.requestId==='string') await retireManualBriefing(env,body.feedId,body.requestId);
         else if(isRecord(body) && isIntelligenceTurn(body as DistilledQueueMessage)) await withIntelligenceTurn(downstreamEnv,body as DistilledQueueMessage,async()=>{
@@ -104,7 +108,8 @@ export default {
         }
         message.ack();
       } catch (error) {
-        if(error instanceof IntelligenceTurnBusy){
+        latencyOutcome=error instanceof IntelligenceTurnBusy?'FEED_TURN_BUSY':error instanceof HandoffError?error.code:'FAILED';
+        if(error instanceof IntelligenceTurnBusy||env.V1_REVIEW_PREPARATION_ISOLATED==='true'&&(error instanceof SemanticLeaseError||error instanceof SemanticContentionError)){
           // Capacity waits retain canonical identity and rotate only their
           // transport generation. Cron is crash recovery, not the normal wakeup.
           if(await deferConnectorDownstream(env,body as DistilledQueueMessage,delivery.token))message.ack();
@@ -143,7 +148,10 @@ export default {
         } else {
           message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
         }
-      }finally{if(workHeartbeat!==undefined)clearInterval(workHeartbeat);if(renewingWork)await renewingWork;}
+      }finally{
+        if(isRecord(body)&&typeof body.type==='string'&&body.type.startsWith('v1_'))console.info(JSON.stringify({type:'V1_QUEUE_LATENCY',messageId:message.id,workType:bodyType,workId:bodyId,attempts:message.attempts,queueWaitMs:message.timestamp?Math.max(0,startedAt-message.timestamp.getTime()):undefined,durationMs:Date.now()-startedAt,outcome:latencyOutcome}));
+        if(workHeartbeat!==undefined)clearInterval(workHeartbeat);if(renewingWork)await renewingWork;
+      }
     }
   }
 };
@@ -275,6 +283,10 @@ function queueBodyType(body: unknown): string {
 }
 
 function queueBodyId(body: unknown): string | undefined {
+  if(isRecord(body)&&typeof body.type==='string'&&body.type.startsWith('v1_')){
+    if(typeof body.jobId==='string')return body.jobId;
+    if(typeof body.requestId==='string')return body.requestId;
+  }
   if (isProcessingJobMessage(body)) return body.jobId;
   if (isSourceRefreshJobMessage(body)) return body.sourceId;
   if (isWebOperatorRunMessage(body)) return body.runId;

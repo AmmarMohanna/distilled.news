@@ -17,6 +17,15 @@ beforeEach(async()=>{
  await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind('turn-job','turn-source',JSON.stringify({id:'turn-job',kind:'REASSESS',state:'PENDING',attempts:0})).run();
 });
 afterEach(async()=>{vi.useRealTimers();vi.restoreAllMocks();await ctx.dispose()});
+it('isolated review preparation does not hold the canonical feed turn',async()=>{
+ env.V1_REVIEW_PREPARATION_ISOLATED='true';
+ let release!:()=>void,started!:()=>void;
+ const entered=new Promise<void>(resolve=>{started=resolve});
+ const preparing=withIntelligenceTurn(env,{type:'v1_reassess',jobId:'turn-job'},async()=>{started();await new Promise<void>(resolve=>{release=resolve})});
+ await entered;
+ try{expect(await withFeedWriteTurn(env,'turn-1',async()=> 'promoted','acquisition:ready')).toBe('promoted')}
+ finally{release();await preparing}
+});
 it('one Feed serializes canonical turns while acquisition network work and another Feed remain independent',async()=>{
  let release!:()=>void,started!:()=>void;const entered=new Promise<void>(resolve=>{started=resolve}),run=vi.fn(async()=>new Promise<void>(resolve=>{release=resolve;started()}));
  const first=withIntelligenceTurn(env,{type:'v1_reassess',jobId:'turn-job'},run);await entered;

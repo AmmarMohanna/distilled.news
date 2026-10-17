@@ -15,7 +15,8 @@ import type {EventRecord,StorylineRecord} from './types';
 import {type EventMatchDecision,type EventMatchInput,validateEventMatch} from './matchers';
 import {SEMANTIC_POLICY,escalationReasons,preparedMatchers,type PreparedSemanticMatch} from './semantic-routing';
 import {OpenRouterJudgmentClient} from './salience';
-import {durableSemanticOperation,SemanticValidationError,type BudgetLane,type SemanticOperationInput,type SemanticOperationResult} from './semantic-operations';
+import {durableSemanticOperation,SemanticValidationError,SemanticContentionError,type BudgetLane,type SemanticOperationInput,type SemanticOperationResult} from './semantic-operations';
+import {countLatency,measureLatency} from './latency';
 import {protectedRematchRevisionIds} from './rematch';
 import {sha256} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -34,9 +35,10 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
  const preparationStarted=Date.now();
  if(env.V1_SEMANTIC_POLICY==='DETERMINISTIC'||!env.OPENROUTER_API_KEY && !options.strong)return undefined;
  const job=(await new V1IntakeStore(store.db).read<DownstreamJob>('jobs',jobId))?.value;if(!job)return undefined;
- const feed=await store.getFeed(job.feedId),active=await store.currentEvidence(job.feedId),revision=active.find(e=>e.revision.sourceObservationId===job.observationId)?.revision;if(!feed||!revision)return undefined;
+ const snapshot=await store.snapshot(job.feedId),feed=snapshot.feed,active=await measureLatency('EVIDENCE_LOAD',()=>store.currentEvidence(job.feedId)),revision=active.find(e=>e.revision.sourceObservationId===job.observationId)?.revision;if(!revision)return undefined;
  // Teasers, promotions and calls to action contain nothing to relate or construct: spend no semantic call on them.
- const extracted=await extractClaimMentions(revision);if(!extracted.mentions.some(isNewsMention))return undefined;
+ const extracted=await measureLatency('CLAIM_EXTRACTION',()=>extractClaimMentions(revision));if(!extracted.mentions.some(isNewsMention))return undefined;
+ countLatency('activeEvidence',active.length);countLatency('claimMentions',extracted.mentions.length);
  const members=await store.list<EventMembership>(job.feedId,'memberships'),candidates:EventMatchInput['candidates']=[],activeIds=new Set(active.map(e=>e.revision.id)),knownEventVersions:Record<string,string>={};
  const roots=await store.list<EventRecord>(job.feedId,'events'),eventIds=roots.map(r=>r.currentVersionId);
  const [versions,semanticStates]=await Promise.all([store.readMany<EventVersion>(job.feedId,'event_versions',eventIds),store.readMany<import('./semantic-state').EventSemanticState>(job.feedId,'event_semantic_states',eventIds)]);
@@ -55,19 +57,23 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
   candidates.push({id:root.id,version,evidenceRevisionIds:support,newestAt:version.createdAt});
  }
  const sourceText=[revision.title,revision.body].filter(Boolean).join('\n'),entityMemory=await store.list<Entity>(job.feedId,'entities'),entityAnchors=entityMemory.filter(e=>e.aliases.some(a=>sourceText.includes(a)));
- const priority=(c:EventMatchInput['candidates'][number])=>overlap(features(sourceText).keywords,features(c.version.state).keywords)+entityAnchors.filter(e=>e.aliases.some(a=>c.version.state.includes(a))).length;
- candidates.sort((a,b)=>priority(b)-priority(a)||b.newestAt.localeCompare(a.newestAt));
+ const sourceFeatures=features(sourceText),priorities=new Map(candidates.map(c=>[c.id,overlap(sourceFeatures.keywords,features(c.version.state).keywords)+entityAnchors.filter(e=>e.aliases.some(a=>c.version.state.includes(a))).length]));
+ candidates.sort((a,b)=>priorities.get(b.id)!-priorities.get(a.id)!||b.newestAt.localeCompare(a.newestAt));
  const shortlist=candidates,storylines:StorylineRecord[]=[];
  const storylineRoots=await store.list<StorylineRecord>(job.feedId,'storylines'),storylineVersionIds=storylineRoots.map(r=>r.currentVersionId);
  const [storylineVersions,storylineMemories]=await Promise.all([store.readMany<import('./types').StorylineVersion>(job.feedId,'storyline_versions',storylineVersionIds),store.readMany<StorylineMemory>(job.feedId,'storyline_memories',storylineVersionIds)]);
  const candidateVersionIds=new Set(candidates.map(c=>c.version.id));
  for(const root of storylineRoots){const version=storylineVersions.get(root.currentVersionId);if(version?.eventVersionIds.length && version.eventVersionIds.every(id=>candidateVersionIds.has(id)))storylines.push(root)}
 
- const input:EventMatchInput={revision,role:classifyRole(sourceText).role,candidates:shortlist,storylineIds:storylines.map(s=>s.id)};
+ // All context reads must have observed one canonical Feed/scope epoch. A
+ // mixed snapshot is a capacity retry, not a semantic failure or a paid call.
+ const validated=await store.snapshot(job.feedId);
+ if(snapshot.epoch!==validated.epoch||canonicalJson(snapshot.scopes)!==canonicalJson(validated.scopes))throw new SemanticContentionError();
+ const input:EventMatchInput={feedRevision:feed.revision,revision,role:classifyRole(sourceText).role,candidates:shortlist,storylineIds:storylines.map(s=>s.id)};
  const memory=storylines.map(s=>({id:s.id,version:storylineVersions.get(s.currentVersionId),structured:storylineMemories.get(s.currentVersionId)}));
  console.info(JSON.stringify({type:'V1_SEMANTIC_PREPARATION_CONTEXT',feedId:job.feedId,jobId,durationMs:Date.now()-preparationStarted,eventRoots:roots.length,storylineRoots:storylineRoots.length,offeredEvents:candidates.length,offeredStorylines:storylines.length,contextBatchQueries:2*Math.ceil(new Set(eventIds).size/90)+2*Math.ceil(new Set(storylineVersionIds).size/90),leaseRemainingMs:store.semanticLease?store.semanticLease.leaseUntil-Date.now():undefined}));
  const state={source:{id:revision.id,title:revision.title,text:revision.body??''},events:shortlist.map(c=>({id:c.id,versionId:c.version.id,state:c.version.state})),storylines:memory.map(s=>({id:s.id,state:String(s.version?.currentState??'')})),instruction:'Judge only supplied approved evidence. Separate bounded developments from ongoing Storylines. Preserve attributed conflicting claims and hedges. Structural identity is independent of epistemic effects. No external facts.'};
- const evidenceRevisionIds=[...new Set([revision.id,...shortlist.flatMap(c=>c.evidenceRevisionIds),...memory.flatMap(m=>members.filter(x=>m.version?.eventVersionIds.includes(x.eventVersionId)).map(x=>x.evidenceRevisionId))])],operation={feedId:job.feedId,feedRevision:feed.revision,evidenceRevisionIds,policyVersion:SEMANTIC_POLICY,budgetKey:`semantic:${now.slice(0,10)}`,state:{...state,attempt:options.attempt??0}};
+ const evidenceRevisionIds=[...new Set([revision.id,...shortlist.flatMap(c=>c.evidenceRevisionIds),...memory.flatMap(m=>(m.version?.eventVersionIds??[]).flatMap(id=>supportByVersion.get(id)??[]))])],operation={feedId:job.feedId,feedRevision:feed.revision,evidenceRevisionIds,policyVersion:SEMANTIC_POLICY,budgetKey:`semantic:${now.slice(0,10)}`,state:{...state,attempt:options.attempt??0}};
  const reuseContext={eventVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),storylineVersions:Object.fromEntries(storylines.map(s=>[s.id,s.currentVersionId])),extractorVersion:CLAIM_EXTRACTOR,extractionPolicy:CLAIM_POLICY};
  // Retries re-run only what has not already been answered: a stage whose identical input already SUCCEEDED under an earlier attempt is read back (no call,
  // no allowance spent). Known failed stages retain bounded retries; unknown outcomes are fenced across attempts and days. Changed semantic context cannot reuse success.
@@ -122,7 +128,7 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
   if(saved.status==='SUCCEEDED'&&saved.value && saved.value.confidence>=.6){construction={...saved.value.construction,provenance:{...saved.value.construction.provenance,judgmentId:saved.id}};const first=construction.groups[0];decision={structuralRelation:first.structuralRelation,eventId:first.eventId??undefined,storylineId:first.storylineId??undefined,epistemicEffects:[...new Set(construction.groups.flatMap(g=>g.epistemicEffects))],confidence:saved.value.confidence,provenance:construction.provenance}}
   else decision={structuralRelation:'DEFER',epistemicEffects:decision.epistemicEffects,confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:saved.failure??'SEMANTIC_REASONING_UNCERTAIN'}};
  }else if(reasons.length)decision={structuralRelation:'DEFER',epistemicEffects:decision.epistemicEffects,confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'STRONG_MODEL_UNAVAILABLE'}};
- const prepared:PreparedSemanticMatch={knownEventIds:Object.keys(knownEventVersions),knownEventVersions,revisionId:revision.id,candidateVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),storylineVersions:Object.fromEntries(storylines.map(s=>[s.id,s.currentVersionId])),decision},matchers=preparedMatchers(prepared);
+ const prepared:PreparedSemanticMatch={feedRevision:feed.revision,knownEventIds:Object.keys(knownEventVersions),knownEventVersions,revisionId:revision.id,candidateVersions:Object.fromEntries(shortlist.map(c=>[c.id,c.version.id])),storylineVersions:Object.fromEntries(storylineRoots.map(s=>[s.id,s.currentVersionId])),decision},matchers=preparedMatchers(prepared);
  if(construction)matchers.construction=current=>matchers.event.match(current).provenance.judgmentId===decision.provenance.judgmentId?structuredClone(construction):undefined;
  return {input,prepared,matchers};
 }

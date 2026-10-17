@@ -14,6 +14,18 @@ import type {Env} from '../types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
 afterEach(async()=>ctx.dispose());
+it('rejects a graph/configuration change during context loading before a paid call',async()=>{
+ await acceptEvidence(store,1,'Officials confirmed the banking reform passed.');
+ const current=store.currentEvidence.bind(store);let changed=false;
+ vi.spyOn(store,'currentEvidence').mockImplementation(async feedId=>{
+  const result=await current(feedId);
+  if(!changed){changed=true;await store.registerFeed({...feedFixture,revision:2})}
+  return result;
+ });
+ let calls=0;const strong={model:'snapshot-fixture',admission:syntheticModelAdmission,usage:()=>({calls:0,costUsd:0,reported:true}),complete:async()=>{calls++;throw Error('must not call provider from mixed context')}};
+ await expect(prepareSemanticMatch(store,{} as Env,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),{strong})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ expect(calls).toBe(0);expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+},20000);
 it('prepares retained Event context without sequential per-Event document reads',async()=>{
  await seedIntelligence(store,1);
  await acceptEvidence(store,2,'Officials announced a new electricity reform.');

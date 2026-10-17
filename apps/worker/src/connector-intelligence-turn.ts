@@ -1,6 +1,7 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {HandoffError} from '@distilled/contracts';
 import type {Env,DistilledQueueMessage} from './types';
+import {countLatency,measureLatency} from './v1-intelligence/latency';
 const LEASE_MS=120000;
 const WAITER_TTL_MS=300000,READY_MS=1000;
 export class IntelligenceTurnBusy extends Error {constructor(){super('INTELLIGENCE_TURN_BUSY')}}
@@ -33,6 +34,10 @@ export async function withIntelligenceTurn<T>(env:Env,body:DistilledQueueMessage
  // Acquisition owns an observation lease. Network I/O and durable result
  // storage must not hold the Feed turn; only evidence promotion takes it.
  if(body.type==='v1_acquisition')return run();
+ // Isolated preparation owns a durable work lease, not canonical graph admission.
+ // Runtime reacquires this turn for deterministic consumption. Legacy default
+ // retains the original ownership boundary until explicitly rolled out.
+ if(env.V1_REVIEW_PREPARATION_ISOLATED==='true'&&(body.type==='v1_reassess'||body.type==='v1_rematch'))return run();
  return withFeedWriteTurn(env,feedId,run,JSON.stringify(body));
 }
 /** Intake and intelligence share the same canonical snapshot fence.
@@ -52,10 +57,10 @@ export async function withFeedWriteTurn<T>(env:Env,feedId:string,run:()=>Promise
  const claiming=env.DB.prepare(`INSERT INTO connector_intelligence_turns(feed_id,token,lease_until)
  SELECT ?,?,? WHERE (SELECT work_id FROM connector_feed_turn_waiters WHERE feed_id=? AND expires_at>? ORDER BY queued_at,work_id LIMIT 1)=?
  ON CONFLICT(feed_id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until WHERE lease_until<=? RETURNING feed_id`).bind(feedId,token,at+LEASE_MS,feedId,at+WAITER_TTL_MS-READY_MS,workId,at);
- const claim=(await env.DB.batch([offered,claiming]))[1].results[0];
- if(!claim)throw new IntelligenceTurnBusy();
+ const claim=(await measureLatency('FEED_TURN_ADMISSION',()=>env.DB.batch([offered,claiming])))[1].results[0];
+ if(!claim){countLatency('feedTurnBusy');throw new IntelligenceTurnBusy();}
  let lost=false,renewing:Promise<void>|undefined;
  const timer=setInterval(()=>{if(lost||renewing)return;renewing=(async()=>{try{const row=await env.DB.prepare('UPDATE connector_intelligence_turns SET lease_until=? WHERE feed_id=? AND token=? AND lease_until>? RETURNING feed_id').bind(Date.now()+LEASE_MS,feedId,token,Date.now()).first();if(!row)lost=true;}catch{lost=true;}})().finally(()=>{renewing=undefined});},LEASE_MS/3);
- try{await env.DB.prepare('DELETE FROM connector_feed_turn_waiters WHERE feed_id=? AND (work_id=? OR expires_at<=?)').bind(feedId,workId,at).run();return await intelligenceTurns.run({db:env.DB,feedId,token},async()=>{const result=await run();if(renewing)await renewing;if(lost)throw new IntelligenceTurnLost();await assertIntelligenceTurn(env.DB,feedId);return result;});}
+ try{await env.DB.prepare('DELETE FROM connector_feed_turn_waiters WHERE feed_id=? AND (work_id=? OR expires_at<=?)').bind(feedId,workId,at).run();return await measureLatency('FEED_TURN_HELD',()=>intelligenceTurns.run({db:env.DB,feedId,token},async()=>{const result=await run();if(renewing)await renewing;if(lost)throw new IntelligenceTurnLost();await assertIntelligenceTurn(env.DB,feedId);return result;}));}
  finally{clearInterval(timer);if(renewing)await renewing;await env.DB.prepare('UPDATE connector_intelligence_turns SET lease_until=0 WHERE feed_id=? AND token=?').bind(feedId,token).run();}
 }
