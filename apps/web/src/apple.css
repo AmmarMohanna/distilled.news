@@ -1275,8 +1275,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
    never moves the search row or the button. */
 :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view .welcome-hero, .explore-view .experience-title) { min-height: 0; margin: 0; padding: 0; }
 :root.apple-ui.apple-ui .experience.product-refresh :is(.welcome-copy p, .experience-title p) { margin: 8px 0 0; }
-:root.apple-ui.apple-ui .experience.product-refresh :is(.explore-controls, .landing-controls) > :is(.home-add-feed, .landing-create) { min-height: 48px; padding: 0 16px; gap: 8px; font-size: 0.875rem; }
-:root.apple-ui.apple-ui .experience.product-refresh :is(.explore-controls, .landing-controls) > :is(.home-add-feed, .landing-create) svg { width: 18px; height: 18px; }
+:root.apple-ui.apple-ui .experience.product-refresh :is(.explore-controls, .landing-controls) > :is(.home-add-feed, .landing-create) { position: relative; min-height: 48px; padding: 0 10px 0 36px; gap: 0; font-size: 0.875rem; justify-content: center; }
+:root.apple-ui.apple-ui .experience.product-refresh :is(.explore-controls, .landing-controls) > :is(.home-add-feed, .landing-create) svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; }
 @media (max-width: 899px) and (max-height: 450px) and (orientation: landscape) {
   :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view) :is(.explore-controls, .landing-controls) { flex-wrap: nowrap; }
   :root.apple-ui.apple-ui .experience.product-refresh :is(.home-view, .explore-view) :is(.explore-controls, .landing-controls) > .explore-search { flex: 1 1 0; }
