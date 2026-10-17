@@ -638,6 +638,23 @@ export class D1Repository implements Repository {
     await this.db.prepare("DELETE FROM sources WHERE id = ?").bind(sourceId).run();
   }
 
+  /** A removed source leaves a permanent V1 tombstone under its id, which the
+   * database refuses to reopen. Re-adding the same source in the same feed gets
+   * a new generation id instead of failing enrollment with SCOPE_DENIED. */
+  private async availableSourceId(baseId: string): Promise<string> {
+    let candidate = baseId;
+    for (let generation = 2; generation < 100; generation++) {
+      if (await this.db.prepare("SELECT 1 FROM sources WHERE id = ?").bind(candidate).first()) return candidate;
+      let tombstoned = false;
+      try {
+        tombstoned = !!await this.db.prepare("SELECT 1 FROM v1_intake_scopes WHERE id = ? AND json_extract(json, '$.deletedAt') IS NOT NULL").bind(candidate).first();
+      } catch { /* Core-only deployments have no V1 tables and no tombstones. */ }
+      if (!tombstoned) return candidate;
+      candidate = `${baseId}~${generation}`;
+    }
+    throw new Error("SOURCE_GENERATION_EXHAUSTED");
+  }
+
   async upsertConfiguredSource(input: {
     briefingId: string;
     identityKey?: string;
@@ -653,10 +670,11 @@ export class D1Repository implements Repository {
     actorInput?: unknown;
     enabled?: boolean;
   }, now = new Date()): Promise<SourceRecord> {
-    const sourceId = scopedSourceId(
+    const baseSourceId = scopedSourceId(
       input.briefingId,
       stableSourceKey(input.provider, input.kind, input.identityKey ?? input.username ?? input.sourceUrl ?? input.input ?? input.title)
     );
+    const sourceId = await this.availableSourceId(baseSourceId);
     const timestamp = now.toISOString();
     await this.db
       .prepare(

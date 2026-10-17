@@ -158,3 +158,22 @@ it('a resent stored Telegram identity stays a Telegram source, never a news topi
   expect(plan.canonicalUrl).toBe('https://t.me/AjaNews');
   expect(prepareProductSourceInput('{"note":"not a channel"}').detected.kind).toBe('google_news');
 });
+
+it('a source removed and later added back to the same feed collects again',async()=>{
+ const ctx=await createIntakeDatabase({product:true});
+ try {
+  const repo=new D1Repository(ctx.db),owner=await repo.createAccount({email:'readd@example.com',username:'readd',role:'user',passwordHash:'unused',emailVerifiedAt:new Date().toISOString()});
+  const env={DB:ctx.db,ADMIN_SESSION_SECRET:'test-secret',PRODUCT_FEEDS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true'} as Env;
+  const app=createApp({repository:repo}),cookie=`dn_session=${await createSession(env.ADMIN_SESSION_SECRET!,owner)}`;
+  const input={id:'readd-feed',title:'Re-add',interestProfile:'News',sourceInputs:['https://example.com/a.xml','https://example.com/b.xml'],publicFeedEnabled:true,updateIntervalMinutes:30,briefingTimezone:'UTC',language:'en'};
+  const save=(body:unknown)=>app.request('/api/me/feeds',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify(body)},env);
+  expect((await save(input)).status).toBe(200);
+  const removed=(await repo.listSources(input.id)).find(s=>s.sourceUrl==='https://example.com/b.xml')!;
+  expect((await save({...input,sourceInputs:['https://example.com/a.xml']})).status).toBe(200);
+  expect(await ctx.db.prepare("SELECT json_extract(json,'$.deletedAt') IS NOT NULL AS gone FROM v1_intake_scopes WHERE id=?").bind(removed.id).first()).toEqual({gone:1});
+  expect((await save(input)).status).toBe(200);
+  const readded=(await repo.listSources(input.id)).find(s=>s.sourceUrl==='https://example.com/b.xml')!;
+  expect(readded.id).not.toBe(removed.id);
+  expect(await ctx.db.prepare("SELECT json_extract(json,'$.enabled') AS enabled FROM v1_intake_scopes WHERE id=?").bind(readded.id).first()).toEqual({enabled:1});
+ }finally{await ctx.dispose()}
+},60000);
