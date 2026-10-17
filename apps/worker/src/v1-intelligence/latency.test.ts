@@ -37,3 +37,15 @@ it('keeps concurrent feed measurements isolated and ignores nonfinite counts',as
   expect(records.find(r=>r.feedId==='b').counts).toEqual({items:2});
  }finally{log.mockRestore()}
 });
+it('joins nested model operations to their review while excluding another Feed context',async()=>{
+ const log=vi.spyOn(console,'info').mockImplementation(()=>{});
+ try{
+  await withLatency({feedId:'f',reviewId:'review-1',phase:'REVIEW'},async()=>{
+   await withLatency({feedId:'f',operationId:'op-1',phase:'MODEL'},async()=>undefined);
+   await withLatency({feedId:'other',operationId:'op-2',phase:'MODEL'},async()=>undefined);
+  });
+  const records=log.mock.calls.map(([raw])=>JSON.parse(raw));
+  expect(records.find(r=>r.operationId==='op-1')).toMatchObject({reviewId:'review-1'});
+  expect(records.find(r=>r.operationId==='op-2').reviewId).toBeUndefined();
+ }finally{log.mockRestore()}
+});
