@@ -4,6 +4,7 @@ import type { Env } from './types';
 import { prepareProductSourceInput, resolveProductSourceInput } from './product-feeds';
 import { sourceAvailability } from './connector-availability';
 import { WorkerPublicSourceFetch } from './public-source-fetch';
+import { PublicSourceFetchFailure, PublicSourcePolicyError } from '@distilled/agent-runtime';
 
 export interface SourceAssessment {
   input: string;
@@ -60,7 +61,16 @@ export async function assessSource(env: Env, context: { title: string; descripti
   let evidence: string;
   try {
     const page = await port.get(url);
-    if (page.status !== 200 || page.authenticationRequired) return result('unverified', 'Could not read public source content. It may require login or block access.', { kind });
+    if (page.status !== 200 || page.authenticationRequired) {
+      const reason = page.status === 404 || page.status === 410
+        ? `This source URL is no longer available (HTTP ${page.status}). Use an updated RSS/Atom feed URL.`
+        : page.status === 429
+          ? 'The publisher is rate limiting this server (HTTP 429). Try again later.'
+          : page.status === 401 || page.status === 402 || page.status === 403 || page.authenticationRequired
+            ? `The publisher restricts this server's access (HTTP ${page.status}). Use another public feed.`
+            : `The publisher returned HTTP ${page.status} instead of readable source content. Try again later or use another public feed.`;
+      return result('unverified', reason, { kind });
+    }
     if (kind === 'rss_feed' || kind === 'google_news' || /<(?:rss|feed)(?:\s|>)/i.test(page.body.slice(0, 1000))) {
       const items = normalizeRssSnapshot(page.body, url).filter(item => item.identityValid).slice(0, 5);
       evidence = items.map(item => [item.sourceTitle, item.title, plain(item.excerpt ?? item.body).slice(0, 600)].filter(Boolean).join(' — ')).join('\n');
@@ -71,7 +81,18 @@ export async function assessSource(env: Env, context: { title: string; descripti
       evidence = plain([...headings.slice(0, 12), ...articles.slice(0, 3)].join('\n')).slice(0, 7000);
     }
     if (evidence.trim().length < 80) return result('unverified', 'Not enough public headlines or posts were available to assess relevance.', { kind });
-  } catch { return result('unverified', 'Public evidence could not be retrieved safely. Redirects, blocked access, oversized responses, and invalid feeds cannot be verified.', { kind }); }
+  } catch (error) {
+    let reason = 'The source did not return a valid readable feed. Check its direct RSS/Atom URL.';
+    if (error instanceof PublicSourcePolicyError) reason = 'The source redirected or its destination was blocked by the public URL policy. Use the final public HTTPS feed URL.';
+    if (error instanceof PublicSourceFetchFailure) {
+      reason = error.category === 'BODY_BUDGET_EXCEEDED'
+        ? 'The source response exceeds the verification size limit. Try a smaller topic-specific RSS feed.'
+        : error.category === 'FETCH_TIMEOUT'
+          ? 'The source took too long to respond. Try again shortly.'
+          : 'The source connection failed before verification. Try again shortly or use another public feed URL.';
+    }
+    return result('unverified', reason, { kind });
+  }
   const model = env.DISTILLED_JEV_MODEL ?? 'typesafe/jev-1.13';
   const extra = { kind, evidenceUrl: url, model };
   try {

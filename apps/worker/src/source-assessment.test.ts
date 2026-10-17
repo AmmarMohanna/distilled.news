@@ -4,6 +4,12 @@ import type { Env } from './types';
 
 const env = { SOURCE_CONNECTORS_ENABLED: 'true', OPENROUTER_API_KEY: 'test' } as Env;
 const context = { title: 'Lebanon', description: 'Lebanese economy and public affairs' };
+it.each([404,410,402,403,429,503])('reports the actual publisher HTTP %s without running a model call',async status=>{
+ const fetch=vi.fn<typeof globalThis.fetch>(async()=>new Response('Unavailable',{status}));
+ const result=await assessSource(env,context,'news: pizza',fetch);
+ expect(result).toMatchObject({status:'unverified',reason:expect.stringContaining(`HTTP ${status}`)});
+ expect(fetch).toHaveBeenCalledTimes(1);
+});
 const rss = '<rss version="2.0"><channel><title>Lebanon News</title><item><guid>one</guid><title>Lebanon parliament discusses economic reforms and infrastructure investment</title><description>Reporting on the latest public policy and economic developments in Beirut and across Lebanon.</description><link>https://publisher.example/story</link></item></channel></rss>';
 const answer = (choice = 'YES', confidence = 0.95) => ({ type: 'choice', choice, confidence, probabilities: { YES: choice === 'YES' ? 0.96 : 0.02, NO: choice === 'NO' ? 0.96 : 0.02, UNKNOWN: choice === 'UNKNOWN' ? 0.96 : 0.02 } });
 const decision = (alignment = answer(), concern = answer('NO')) => ({ answers: { news: answer(), alignment, concern } });
@@ -29,8 +35,17 @@ it('rejects unsafe authorities before network or model access', async () => {
 
 it('does not follow redirects or run Jev without usable evidence', async () => {
   const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response(null, { status: 302, headers: { location: 'https://127.0.0.1/' } }));
-  expect(await assessSource(env, context, 'https://publisher.example/rss.xml', fetch)).toMatchObject({ status: 'unverified' });
+  expect(await assessSource(env, context, 'https://publisher.example/rss.xml', fetch)).toMatchObject({ status: 'unverified', reason: expect.stringContaining('redirected') });
   expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it('distinguishes oversized evidence from connection failures without exposing raw errors', async () => {
+  const oversized = vi.fn<typeof globalThis.fetch>(async () => new Response('x'.repeat(512_001)));
+  expect(await assessSource(env, context, 'https://publisher.example/rss.xml', oversized)).toMatchObject({ status: 'unverified', reason: expect.stringContaining('size limit') });
+  const failed = vi.fn<typeof globalThis.fetch>(async () => { throw new Error('private upstream diagnostic'); });
+  const assessment = await assessSource(env, context, 'https://publisher.example/rss.xml', failed);
+  expect(assessment.reason).toContain('connection failed');
+  expect(assessment.reason).not.toContain('private upstream');
 });
 
 it('distinguishes irrelevant sources, suspicious content, uncertainty and model failure', async () => {
