@@ -6,6 +6,9 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "Your account username": ["Votre nom d’utilisateur", "اسم المستخدم لحسابك"],
+  "Security": ["Sécurité", "الأمان"],
+  "Update your account password": ["Modifier le mot de passe de votre compte", "تحديث كلمة مرور حسابك"],
   "Feed pages": ["Pages des fils", "\u0635\u0641\u062d\u0627\u062a \u0627\u0644\u062e\u0644\u0627\u0635\u0627\u062a"],
   "Previous page": ["Page pr\u00e9c\u00e9dente", "\u0627\u0644\u0635\u0641\u062d\u0629 \u0627\u0644\u0633\u0627\u0628\u0642\u0629"],
   "Next page": ["Page suivante", "\u0627\u0644\u0635\u0641\u062d\u0629 \u0627\u0644\u062a\u0627\u0644\u064a\u0629"],

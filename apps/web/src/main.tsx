@@ -1140,16 +1140,14 @@ function AccountDialog(props: {
           }
         }}
       >
-        <label htmlFor="profile-username">
-          {t("Username")}
-        </label>
+        <div className="profile-card-heading"><span className="profile-card-icon" aria-hidden="true"><User size={28}/></span><div><label htmlFor="profile-username">{t("Username")}</label><p>{t("Your account username")}</p></div></div>
         <span className="profile-username-field"><input id="profile-username" aria-label={t("username")} ref={usernameFieldRef} readOnly={!editingUsername} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /><button type="button" className="profile-edit-button" aria-label={t("Edit username")} aria-pressed={editingUsername} disabled={busy !== null} onClick={() => { if (editingUsername) setUsername(props.account.username); setEditingUsername(value => !value); }}><Pencil size={19}/></button></span>
         <button hidden={!editingUsername} type="submit" className="profile-save-button" title="Save" disabled={busy === "username"}>
           {t("Save")}
         </button>
       </form>
 
-      <div className="profile-password-section"><button type="button" className="password-disclosure" aria-expanded={passwordOpen} aria-controls="change-password-form" onClick={() => setPasswordOpen(value => !value)}><span>{t("Change Password")}</span><ChevronRight size={20}/></button>
+      <div className="profile-password-section"><button type="button" className="password-disclosure" aria-expanded={passwordOpen} aria-controls="change-password-form" onClick={() => setPasswordOpen(value => !value)}><span className="profile-card-icon" aria-hidden="true"><LockKeyhole size={28}/></span><span className="profile-security-copy"><strong>{t("Security")}</strong><small>{t("Update your account password")}</small></span><ChevronRight size={24}/></button>
       <form id="change-password-form" hidden={!passwordOpen}
         className="account-form"
         onSubmit={async (event) => {
