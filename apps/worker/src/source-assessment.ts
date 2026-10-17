@@ -46,7 +46,16 @@ export async function assessSource(env: Env, context: { title: string; descripti
   let port: WorkerPublicSourceFetch;
   try { port = new WorkerPublicSourceFetch(url, fetcher); }
   catch { return result('rejected', 'The source URL failed technical safety checks.', { kind }); }
-  if (availability.state !== 'AVAILABLE') return result('unavailable', availability.reason === 'PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED' ? 'This source requires an authorized and configured collection provider.' : 'Collection for this source requires additional deployment setup.', { kind });
+  if (availability.state !== 'AVAILABLE') {
+    const reason = availability.reason === 'CONNECTORS_DISABLED'
+      ? 'Source collection is disabled on this deployment.'
+      : availability.reason === 'PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED'
+        ? 'Collection for this social source is not configured. Add an RSS feed or a news: topic instead.'
+        : family === 'website'
+          ? 'This website has no discoverable RSS feed, and website extraction is not configured. Add its direct RSS/Atom URL or a news: topic instead.'
+          : 'Telegram collection is not configured on this deployment. Add an RSS feed or a news: topic instead.';
+    return result('unavailable', reason, { kind });
+  }
   if (!env.OPENROUTER_API_KEY) return result('unverified', 'Source relevance checking is not configured.', { kind });
   let evidence: string;
   try {

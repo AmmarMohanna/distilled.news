@@ -45,8 +45,10 @@ on the owner feed page; public source availability and blocker messages remain
 provided by the imported backend. Generated artwork uses the existing image setup.
 Existing account data and feeds are not copied from other deployments.
 
-Source recommendations include supported websites, RSS/Atom, Google News searches,
-and public Telegram, X, and LinkedIn sources. With `SOURCE_ASSESSMENT_ENABLED=true`,
+Source recommendations use the deployment's available collectors. On Joud these
+are RSS/Atom and Google News searches. Suggested websites are retained only when
+they resolve to an advertised RSS feed; Telegram, X, LinkedIn, and websites without
+RSS remain unavailable until their collection services are configured. With `SOURCE_ASSESSMENT_ENABLED=true`,
 suggestions and manually entered sources must pass assessment before selection,
 and the server repeats assessment before saving or enabling a source. Technical
 checks use the existing public HTTPS fetch policy (no credentials, IP literals,

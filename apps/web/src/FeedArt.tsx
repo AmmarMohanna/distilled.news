@@ -1,6 +1,31 @@
 import { Atom, BookOpen, Building2, Cpu, Globe2, Landmark, Music, Newspaper, Palette, Plane, Scale, Sprout, Trees, Trophy, Utensils } from "lucide-react";
 import { useEffect, useState } from "react";
 import { transparentSketch } from "./sketchImage";
+import { readSavedSketch, saveSketch } from "./sketchCache";
+
+// Keep processed artwork across card remounts during Home/Explore navigation.
+// Store blobs rather than object URLs so each card still owns its URL lifecycle.
+const sketchCache = new Map<string, { blob: Blob; expires: number }>();
+const cacheLifetime = 10 * 60 * 1000;
+const cacheByteLimit = 16 * 1024 * 1024;
+function cachedSketch(key: string): Blob | undefined {
+  const entry = sketchCache.get(key);
+  if (!entry) return;
+  sketchCache.delete(key);
+  if (entry.expires <= Date.now()) return;
+  sketchCache.set(key, entry);
+  return entry.blob;
+}
+function rememberSketch(key: string, blob: Blob) {
+  sketchCache.delete(key);
+  sketchCache.set(key, { blob, expires: Date.now() + cacheLifetime });
+  let bytes = [...sketchCache.values()].reduce((total, entry) => total + entry.blob.size, 0);
+  for (const [oldest, entry] of sketchCache) {
+    if (sketchCache.size <= 32 && bytes <= cacheByteLimit) break;
+    sketchCache.delete(oldest);
+    bytes -= entry.blob.size;
+  }
+}
 
 const subjects = [
   { pattern: /politic|politique|election|élection|parliament|government|diplomac|سياس|انتخاب/i, icon: Landmark },
@@ -33,6 +58,13 @@ export function FeedArt({ kind, feed }: { kind?: string; feed?: { id?: string; t
     let retries = 0;
     let inFlight = false;
     let refreshPending = false;
+    let checkedStorage = false;
+    const sketchUrl = `/api/feed/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/sketch`;
+    const saved = cachedSketch(sketchUrl);
+    if (saved) {
+      objectUrl = URL.createObjectURL(saved);
+      setImage(objectUrl);
+    }
     const schedule = (delay: number) => {
       clearTimeout(timer);
       timer = setTimeout(() => { timer = undefined; void check(); }, delay);
@@ -43,13 +75,26 @@ export function FeedArt({ kind, feed }: { kind?: string; feed?: { id?: string; t
       clearTimeout(timer);
       inFlight = true;
       try {
-        const response = await fetch(`/api/feed/${encodeURIComponent(feed.ownerUsername!)}/${encodeURIComponent(feed.slug!)}/sketch`, { signal: controller.signal, cache: "no-store" });
+        if (!checkedStorage) {
+          checkedStorage = true;
+          const stored = await readSavedSketch(sketchUrl);
+          if (controller.signal.aborted) return;
+          if (stored) {
+            rememberSketch(sketchUrl, stored);
+            objectUrl = URL.createObjectURL(stored);
+            setImage(objectUrl);
+            return;
+          }
+        }
+        const response = await fetch(sketchUrl, { signal: controller.signal, cache: "no-store" });
         if (response.ok && response.headers.get("content-type")?.startsWith("image/")) {
           const blob = await transparentSketch(await response.blob());
           if (controller.signal.aborted) return;
+          rememberSketch(sketchUrl, blob);
           clearTimeout(timer);
           objectUrl = URL.createObjectURL(blob);
           setImage(objectUrl);
+          void saveSketch(sketchUrl, blob);
           return;
         }
         if (response.status === 404 && retries++ < 20 && !controller.signal.aborted) {

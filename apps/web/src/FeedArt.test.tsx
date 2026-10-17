@@ -57,3 +57,24 @@ it('preserves an update during a missing-image lookup as one follow-up check',as
  await act(async()=>initial.resolve({ok:false,status:404}));await act(async()=>vi.advanceTimersByTimeAsync(0));expect(fetcher).toHaveBeenCalledTimes(2);
 });
 
+it('reuses processed artwork across tab remounts and refreshes expired cache entries',async()=>{
+ vi.useFakeTimers();
+ const fetcher=vi.fn().mockResolvedValue(sketch());vi.stubGlobal('fetch',fetcher);
+ const create=vi.fn(()=> 'blob:cached-sketch'),revoke=vi.fn();
+ vi.stubGlobal('URL',Object.assign(class {},{createObjectURL:create,revokeObjectURL:revoke}));
+ const {host,root}=renderHost();
+ const card=<FeedArt feed={{id:'navigation',title:'Science',ownerUsername:'owner',slug:'navigation'}}/>;
+ await act(async()=>root.render(card));
+ const conversions=vi.mocked(transparentSketch).mock.calls.length;
+ await act(async()=>root.render(null));
+ expect(revoke).toHaveBeenCalledTimes(1);
+ await act(async()=>root.render(card));
+ expect(host.querySelector('img')).not.toBeNull();
+ expect(fetcher).toHaveBeenCalledTimes(1);
+ expect(transparentSketch).toHaveBeenCalledTimes(conversions);
+ await act(async()=>root.render(null));
+ await act(async()=>vi.advanceTimersByTimeAsync(10*60*1000));
+ await act(async()=>root.render(card));
+ expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
