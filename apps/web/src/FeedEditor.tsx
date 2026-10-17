@@ -108,7 +108,7 @@ export function FeedEditor(props: {
       <div className="feed-preference-row"><span className="feed-preference-label" id="feed-visibility-label"><Users aria-hidden="true"/>{t("Feed visibility")}</span><span className="feed-visibility-options" role="group" aria-labelledby="feed-visibility-label">{([true, false] as const).map(option=><label key={String(option)}><input type="radio" name="feed-visibility" checked={publicFeedEnabled===option} onChange={()=>setPublicFeedEnabled(option)}/><span>{t(option?"Public":"Private")}</span></label>)}</span></div>
       <label><span className="feed-preference-label"><Globe aria-hidden="true"/>{t("Briefing language")}</span><select value={feedLanguage} onChange={event=>setFeedLanguage(event.target.value as BriefingConfig["language"])}>{(["en", "fr", "ar"] as const).map(option=><option key={option} value={option}>{t(({en:"English",fr:"French",ar:"Arabic"} as const)[option])}</option>)}</select></label>
       </div>
-      {message && <p role="status">{message}</p>}
+      {message && <p className="error" role="alert">{message}</p>}
       <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || checkingSource || recommending || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>
       {advanced && props.feed && <div className="feed-editor-actions">
         <button type="button" disabled={busy} onClick={() => void run(async () => { await props.onPause?.(); props.onClose(); })}>{t(props.feed?.paused ? "Resume feed" : "Pause feed")}</button>

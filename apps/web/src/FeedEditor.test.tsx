@@ -9,6 +9,16 @@ vi.mock('./Dialog', () => ({Dialog:({children,className}:{children:React.ReactNo
 
 vi.mock('./api', () => ({getSources:vi.fn(async()=>[{enabled:true,sourceUrl:'https://example.com/feed.xml'}]),recommendSourceCandidates:vi.fn(async()=>({sources:['https://example.com/feed.xml']})),assessSourceInput:vi.fn(async(_title:string,_description:string,input:string)=>({input,status:'accepted',reason:'Relevant',checkedAt:new Date().toISOString()}))}));
 
+it('displays recommendation rate limits as errors',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ vi.mocked(recommendSourceCandidates).mockRejectedValueOnce(new Error('You can request AI source recommendations three times every five hours.'));
+ const host=document.createElement('div'),root=createRoot(host);
+ await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Food',interestProfile:'Pizza'}} onClose={()=>{}} onSave={async()=>{}}/>));
+ await act(async()=>host.querySelector<HTMLButtonElement>('.source-recommend-button')!.click());
+ expect(host.querySelector('.error[role="alert"]')?.textContent).toContain('three times every five hours');
+ await act(async()=>root.unmount());vi.unstubAllGlobals();
+});
+
 it('offers the final preferences, conditional daily time and inferred timezone without editorial controls', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const host = document.createElement('div'); document.body.append(host);
