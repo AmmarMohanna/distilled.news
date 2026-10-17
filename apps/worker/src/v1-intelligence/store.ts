@@ -41,6 +41,13 @@ export class V1FeedStore {
   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id`).bind(feedId).all<{item:string;revision:string}>();
   return rows.results.map(r=>({item:JSON.parse(r.item),revision:JSON.parse(r.revision)}));
  }
+ /** Authorization needs exact active identities, not retained article bodies.
+  * Keep the same scope/state/revision joins as currentEvidence; Feed/scope CAS
+  * still fences a source change between this read and canonical consumption. */
+ async activeEvidenceRevisionIds(feedId:string):Promise<Set<string>> {
+  const rows=await this.db.prepare(`SELECT r.id FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL`).bind(feedId).all<{id:string}>();
+  return new Set(rows.results.map(row=>row.id));
+ }
  async revision(feedId:string,id:string):Promise<EvidenceRevision|undefined> {
   const row=await this.db.prepare('SELECT r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE r.id=? AND s.feed_id=?').bind(id,feedId).first<{json:string}>();return row?JSON.parse(row.json):undefined;
  }

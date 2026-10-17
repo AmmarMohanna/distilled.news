@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
-import {createIntakeDatabase,seedIntakeScope,scopeFixture,testPolicy} from '../v1-intake/test-utils';
+import {createIntakeDatabase,seedIntakeScope,scopeFixture,testPolicy,seedCurrentEvidence} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,FeedTransaction,feedTransact} from './store';
 import type {FeedRecord} from './types';
@@ -7,6 +7,15 @@ let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 const now=testPolicy.now(),feed:FeedRecord={id:'feed-1',ownerId:'owner-1',title:'Feed',interests:[],geography:[],outputLanguage:'en',briefingFrequency:'DAILY',paused:false,revision:1,createdAt:now,updatedAt:now};
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feed)});
 afterEach(async()=>ctx.dispose());
+it('active revision identity checks preserve Feed/source/deletion visibility without returning bodies',async()=>{
+ const intake=new V1IntakeStore(ctx.db),{evidence,revision}=await seedCurrentEvidence(intake,'A retained article body.');
+ expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set((await store.currentEvidence(feed.id)).map(e=>e.revision.id)));
+ expect(await store.activeEvidenceRevisionIds('foreign-feed')).toEqual(new Set());
+ await intake.registerScope({...scopeFixture,enabled:false});expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set());
+ await intake.registerScope(scopeFixture);expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set([revision.id]));
+ await ctx.db.prepare('UPDATE v1_evidence SET json=? WHERE id=?').bind(JSON.stringify({...evidence,state:'DELETED',currentRevisionId:undefined}),evidence.id).run();
+ expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set());
+});
 it('captures epochs in one read and preloads different document kinds in one bounded batch',async()=>{
  const prepare=vi.fn((sql:string)=>ctx.db.prepare(sql)),batch=vi.fn((statements:D1PreparedStatement[])=>ctx.db.batch(statements));
  const measured=new V1FeedStore({prepare,batch} as unknown as D1Database);

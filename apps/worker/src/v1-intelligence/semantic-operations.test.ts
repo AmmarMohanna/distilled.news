@@ -1,4 +1,4 @@
-import {beforeEach,afterEach,expect,it} from 'vitest';
+import {beforeEach,afterEach,expect,it,vi} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore} from './store';
@@ -7,6 +7,13 @@ import {testDurableSemanticOperation as durableSemanticOperation} from './test-u
 import {boundedCompletion} from '../ai';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await seedIntelligence(store)});
+it('model authorization and result consumption validate active IDs without reloading article bodies',async()=>{
+ const evidenceRevisionIds=(await store.currentEvidence('feed-1')).map(e=>e.revision.id),read=vi.spyOn(store,'currentEvidence');
+ try{
+  const result=await durableSemanticOperation(store,{feedId:'feed-1',feedRevision:1,evidenceRevisionIds,kind:'RELATION',policyVersion:'ids-only',model:'fake',budgetKey:'id-authorization',state:{}},async()=>({value:{ok:true},usage:{calls:1,costUsd:.001,reported:true}}),'2026-10-03T12:00:00Z');
+  expect(result.status).toBe('SUCCEEDED');expect(read).not.toHaveBeenCalled();
+ }finally{read.mockRestore()}
+},15000);
 afterEach(async()=>ctx.dispose());
 it('durably binds provider headers to the paid operation without changing its reservation identity',async()=>{
  const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'RELATION',policyVersion:'receipt-test',model:'fake',budgetKey:'test',state:{}};

@@ -20,7 +20,7 @@ export interface SemanticOperationResult<T=unknown> {id:string;feedId:string;inp
 export class SemanticContentionError extends HandoffError {constructor(){super('TEMPORARY_UNAVAILABLE')}}
 async function assertInputs(tx:FeedTransaction,input:SemanticOperationInput):Promise<void> {
  if(tx.snapshot.feed.revision!==input.feedRevision)throw new HandoffError('SCOPE_DENIED');
- const active=new Set((await tx.store.currentEvidence(input.feedId)).map(e=>e.revision.id));
+ const active=await tx.store.activeEvidenceRevisionIds(input.feedId);
  if(!input.evidenceRevisionIds.length || input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');
 }
 /** Calls occur only after durable intent commit. Lost outcomes never reissue;
