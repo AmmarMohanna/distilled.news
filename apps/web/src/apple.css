@@ -1436,6 +1436,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (min-width: 900px) {
   :root.apple-ui.apple-ui .experience.product-refresh:not(.guest-landing) :is(.home-view .welcome-hero, .explore-view .experience-title) { justify-content: center; text-align: center; }
   :root.apple-ui.apple-ui .experience.product-refresh:not(.guest-landing) :is(.welcome-copy, .experience-title) { text-align: center; }
+  :root.apple-ui.apple-ui .experience.product-refresh:not(.guest-landing) :is(.welcome-copy, .experience-title) > :is(h1, p) { text-align: inherit; }
   :root.apple-ui.apple-ui .experience.product-refresh:not(.guest-landing) :is(.home-view, .explore-view) :is(.explore-controls, .landing-controls) { width: min(100%, 720px); margin-inline: auto !important; }
   :root.apple-ui.apple-ui .experience.product-refresh:not(.guest-landing) .explore-view .category-chips { justify-content: center; }
   :root.apple-ui.apple-ui .experience.product-refresh:not(.guest-landing) .home-view .experience-section-heading { justify-content: flex-start; text-align: left; }
