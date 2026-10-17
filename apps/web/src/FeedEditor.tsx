@@ -2,6 +2,7 @@ const rhythmLabels = { 30: "Every 30 min", 60: "Every hour", 120: "Every 2 hours
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Globe, Plus, Search, Settings, SquarePlus, X } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
+import type { SourceRecord } from "./types";
 import { preferredLanguage, useLanguage } from "./LanguageControl";
 import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
@@ -10,6 +11,13 @@ import { VoiceInput } from "./VoiceInput";
 import { SourceLogo } from "./SourceLogo";
 
 export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { id: string; sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
+// A verified Telegram source stores its resolved identity as JSON. Resend its
+// public link instead, or the server would read the JSON as a news topic.
+function editableSourceInput(s:SourceRecord):string {
+  if (s.kind === "telegram_channel") return s.sourceUrl || (s.username ? `https://t.me/${s.username}` : s.input || s.title);
+  return s.input || s.sourceUrl || s.url || s.title;
+}
+
 export function FeedEditor(props: {
   feed?: BriefingConfig; onClose: () => void; onSave: (input: FeedInput) => Promise<void>;
   onPause?: () => Promise<void>; onCopy?: () => Promise<void>; onDelete?: () => Promise<void>;
@@ -19,7 +27,7 @@ export function FeedEditor(props: {
   useEffect(() => {
     if (!props.feed) return;
     let active = true;
-    getSources(props.feed.id).then(items => { if (active) { setSources(items.filter(s=>s.enabled).map(s=>s.input || s.sourceUrl || s.url || s.title)); setSourcesReady(true); } }).catch(cause => { if (active) setMessage(String(cause)); });
+    getSources(props.feed.id).then(items => { if (active) { setSources(items.filter(s=>s.enabled).map(editableSourceInput)); setSourcesReady(true); } }).catch(cause => { if (active) setMessage(String(cause)); });
     return () => { active = false; };
   }, [props.feed?.id]);
   const [title, setTitle] = useState(props.feed?.title ?? "");

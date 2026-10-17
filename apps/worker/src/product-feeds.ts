@@ -51,7 +51,14 @@ export async function productRuntimeEnv(env:Env):Promise<Env> {
  return {...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:ids.join(',')};
 }
 
-export function prepareProductSourceInput(input:string) {
+/** Older editors resent a verified Telegram source's stored JSON identity.
+ * Treat it as that channel's public link, never as a news topic. */
+function storedTelegramInput(input:string):string|undefined {
+ if(!input.trim().startsWith('{'))return undefined;
+ try{const value=JSON.parse(input) as {username?:unknown;channelId?:unknown};return typeof value.username==='string'&&/^[A-Za-z0-9_]{4,32}$/.test(value.username)&&value.channelId!==undefined?`https://t.me/${value.username}`:undefined}catch{return undefined}
+}
+export function prepareProductSourceInput(rawInput:string) {
+ const input=storedTelegramInput(rawInput)??rawInput;
  const detected=detectSourceInput(input.trim());
  if(detected.kind==='google_news'&&new URL(detected.sourceUrl).searchParams.get('q')!.length>256)throw new Error('Google News query is too long.');
  if(detected.kind==='apify_actor')throw new Error('This source type is not available in the feed editor yet.');

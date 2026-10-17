@@ -151,3 +151,10 @@ it('resolves public Telegram usernames privately and keeps source identity stabl
   expect(requests).toEqual(['telegram_resolve','telegram_resolve']);
  }finally{await ctx.dispose()}
 },60000);
+
+it('a resent stored Telegram identity stays a Telegram source, never a news topic',()=>{
+  const plan=prepareProductSourceInput(JSON.stringify({channelId:'-1001006840823',username:'AjaNews',public:true}));
+  expect(plan.detected.kind).toBe('telegram_channel');
+  expect(plan.canonicalUrl).toBe('https://t.me/AjaNews');
+  expect(prepareProductSourceInput('{"note":"not a channel"}').detected.kind).toBe('google_news');
+});
