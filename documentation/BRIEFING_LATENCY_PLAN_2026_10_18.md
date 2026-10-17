@@ -84,3 +84,17 @@ Aggregate percentiles offline; do not write a D1 row per timing stage.
 - Ruling: do not invent a partial-publication timeout. Preserve current truthful
   pending/blocked/deferred semantics until schedule and live coverage evidence can
   support a compatible policy; assess this explicitly in the final report.
+- Implemented and focused-tested the phased runtime, exact dependency fences,
+  membership index, identity-only authorization and structured timing/reporting.
+- Source baseline is retained staging history plus deterministic paired fixtures.
+  A bounded predeploy tail had no completed transaction sample; no fresh review
+  p50/p95 is invented. Live paired D1 authorization-query samples are recorded.
+- Full local backup/restore and additive recovery-migration preservation checks
+  passed; staging migrations 0059–0061 applied with fresh pre/post retained counts.
+- Initial full Worker verification was interrupted after development continued
+  against cached modules. The frozen release run is authoritative, uses one test
+  worker with 30s default test/hook timeouts, and is still running. Runtime code
+  remains frozen during it; documentation-only updates do not affect the test graph.
+- Independent review findings fixed: receipt identity accounting, paid settlement
+  visibility after rejected consumption, queue correlation and integrated paid
+  response/sibling preparation races. No Critical graph-integrity issue was found.

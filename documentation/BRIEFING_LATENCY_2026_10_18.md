@@ -86,6 +86,14 @@ Without it, the queue's original feed-turn boundary remains in effect.
   decoding; p95 sample maxima include cold-cache/system effects and are not a remote
   performance claim. Reproduce with
   `python scripts/benchmark-active-evidence-ids.py <restored-staging.sqlite3>`.
+  A bounded **live staging D1 API** comparison then alternated full/ID read order
+  across seven paired samples on the same 2,137 active revisions. Exact ID sets
+  matched in every pair; D1 reported 4,285 rows read for either query (no billed-row
+  reduction claimed). Server SQL p50/p95: **27.47/31.69→8.20/8.56 ms**. API round-trip
+  p50/p95: **779/1,447→400/652 ms**. Returned value characters fell
+  **3,523,492→76,932**. p95 is the sample maximum at n=7. API round-trip includes
+  the authenticated API transport and is not Worker-binding or whole-review latency.
+  The benchmark made zero provider/model calls and emitted counts/timings only.
 
 There is no new schema migration in this implementation. Existing additive recovery
 migrations 0059–0061 are necessary because this staging deployment was still at 0058.
@@ -112,6 +120,13 @@ provider callbacks; receipt counters describe durable receipts, including replay
 Reported costs are deduplicated by **retained receipt ID**, which can differ from the
 requested operation ID after retry/day reuse. A settled paid response remains visible
 even if canonical result consumption subsequently fails.
+
+`outcome: SUCCEEDED` means the instrumented function returned normally. A normal
+return can include a durable resource deferral, quiet result or replay; it does not
+mean a semantic judgment was accepted or an edition was published. Use the durable
+semantic-result status, briefing-request result and actual edition/publication rows
+for success/deferred/failure counts. `publicationPublished` identifies observed new
+publication paths; HTTP 200 and aggregate function completion alone are insufficient.
 
 Publication performs at most one additional bounded metadata-only lineage query per
 newly published edition. Its failure cannot fail publication. Source-observed and
@@ -156,6 +171,16 @@ synthetic billed model ports; they are not actual provider benchmarks:
 Independent review found no Critical canonical-integrity issue. Findings corrected:
 receipt/request identity cost deduplication, settlement visibility after failed
 consumption, missing queue/window correlation, and missing integrated race coverage.
+Nested model records inherit their review/window correlation only within the same
+Feed; a dedicated isolation test covers cross-Feed context exclusion.
+
+The full run exposed an inherited read-cost fixture expecting `list('memberships')`
+to load historical article bodies implicitly (108 reads against a six-read bound).
+The file was unchanged from base `68ce2a76`; restoring that eager expansion would
+undo the source-recovery optimization. The fixture now explicitly requests all 104
+supports of the 100 current Event versions and prefetches them before inspection.
+Its exact-value assertions and six-read bound both pass. No canonical loading or
+historical-provenance behavior was weakened to satisfy the fixture.
 
 Repository-wide typechecks and frontend build passed. Script tests passed 27/27 before
 the final receipt-ID regression refinement; that refined test also passed. Full-suite
