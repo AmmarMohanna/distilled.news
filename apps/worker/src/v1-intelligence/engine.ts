@@ -148,7 +148,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
      candidates.push({id:event.id,version,evidenceRevisionIds:members.map(m=>m.evidenceRevisionId),newestAt:newest});
     }
    const storylineRoots=await tx.list<StorylineRecord>('storylines');
-   const matchInput={revision:target.revision,feedRevision:tx.snapshot.feed.revision,role:role.role,duplicateOfRevisionId:duplicate.duplicateOfRevisionId,candidates,storylineIds:storylineRoots.map(s=>s.id),storylineVersions:Object.fromEntries(storylineRoots.map(s=>[s.id,s.currentVersionId]))};
+   const matchInput={revision:target.revision,feedRevision:tx.snapshot.feed.revision,activeEvidenceRevisionIds:active.map(e=>e.revision.id),role:role.role,duplicateOfRevisionId:duplicate.duplicateOfRevisionId,candidates,storylineIds:storylineRoots.map(s=>s.id),storylineVersions:Object.fromEntries(storylineRoots.map(s=>[s.id,s.currentVersionId]))};
    const decision=validateEventMatch(matchers.event.match(matchInput),matchInput);
    receipt.semanticDeferred=decision.structuralRelation==='DEFER'&&decision.provenance.scorer!=='DETERMINISTIC';
    if(decision.structuralRelation==='SAME_EVENT')selected=events.find(e=>e.id===decision.eventId);

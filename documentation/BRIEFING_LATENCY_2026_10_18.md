@@ -249,6 +249,15 @@ records must remain. Old immutable assets are retained.
 
 ## Remaining priorities
 
+Final concurrency audit found and reproduced a supporting-evidence race: an Event's
+root version can remain unchanged between source-revision replacement and its pending
+reassessment. Prepared decisions now carry their complete evidence dependency IDs;
+canonical consumption checks these against the authorized active IDs in the current
+CAS snapshot. A retired dependency defers to durable rematching without repeating the
+settled paid call. The new real-D1 regression failed before this fence and passes after
+it; the five-file preparation/routing/operations/lease suite passes all 38 tests.
+Repository-wide typechecks also pass after this change.
+
 - Complete the live comparison only within existing spending authority. A successful
   HTTP response, deployment or unit suite is not proof of real-model publication.
 - Profile serial correction-ledger current-evidence lookups and the publication

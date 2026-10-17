@@ -9,6 +9,8 @@ export interface MatchProvenance {scorer:string;policyVersion:string;judgmentId?
 export interface EventMatchDecision {structuralRelation:StructuralRelation;eventId?:string;storylineId?:string;epistemicEffects:EpistemicEffect[];confidence:number;provenance:MatchProvenance}
 export interface EventMatchInput {
  feedRevision?:number;
+ /** Current authorized revisions in the consuming CAS snapshot. */
+ activeEvidenceRevisionIds?:string[];
  revision:EvidenceRevision;role:EvidenceRole;duplicateOfRevisionId?:string;
  candidates:{id:string;version:EventVersion;evidenceRevisionIds:string[];newestAt:string}[];
  storylineIds?:string[];

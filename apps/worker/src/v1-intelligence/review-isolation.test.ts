@@ -95,3 +95,30 @@ it('independent new-event preparations overlap while a stale sibling keeps a dur
  const revisions=new Set((await store.currentEvidence('feed-1')).map(e=>e.revision.id));
  expect(new Set((await store.list<any>('feed-1','memberships')).map(m=>m.evidenceRevisionId))).toEqual(revisions);
 },30000);
+
+it('revalidates candidate support replaced after preparation settled but before canonical consumption',async()=>{
+ await engine.processEvidenceIntelligence(store,job,testPolicy.now());
+ await acceptEvidence(store,2,'Officials confirmed the banking reform implementation.');
+ const secondJob=JSON.stringify(['REASSESS','observation-2','']);let calls=0;
+ const usage={calls:1,costUsd:.001,reported:true};
+ const strong={model:'support-gap-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{calls++;return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.events[0].id,storylineId:null,epistemicEffects:['CORROBORATES'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
+ const original=preparation.prepareSemanticMatch;
+ vi.spyOn(preparation,'prepareSemanticMatch').mockImplementation(async(held,optionsEnv,id,now)=>{
+  const prepared=await original(held,optionsEnv,id,now,{strong});
+  expect(prepared?.prepared.decision.structuralRelation).toBe('SAME_EVENT');
+  // Model settlement is durable. Change a different supporting item while its
+  // Event root still has the old version; its replacement review stays pending.
+  await withFeedWriteTurn(env,'feed-1',async()=>{
+   const intake=new V1IntakeStore(ctx.db),batch=batchFixture(3);batch.observations[0].sourceItemKey='item-1';batch.proposals[0].sourceItemKey='item-1';
+   const accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batch);
+   await acceptAcquiredContent(intake,{id:'support-replacement',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-3',body:'Officials corrected the banking reform report.',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);
+  },'support:replacement');
+  return prepared;
+ });
+ await processV1Reassessment(env,secondJob,testPolicy.now());
+ const receipt=await store.read<any>('feed-1','intelligence_receipts',secondJob);
+ expect(receipt.semanticDeferred).toBe(true);
+ expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
+ expect(await store.list('feed-1','semantic_settlements')).toHaveLength(1);expect(calls).toBe(1);
+ expect((await new V1IntakeStore(ctx.db).read<any>('jobs',JSON.stringify(['REASSESS','observation-3',''])))?.value.state).toBe('PENDING');
+},30000);
