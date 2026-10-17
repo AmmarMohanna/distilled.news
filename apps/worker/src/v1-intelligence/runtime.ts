@@ -51,7 +51,10 @@ async function approvedFeed(env:Env,feedId:string):Promise<void> {
  if(rows.results.some(s=>!v1SourceEnabled(env,s.id))) throw new HandoffError('SCOPE_DENIED');
  const product=await env.DB.prepare('SELECT 1 AS present FROM v1_product_bindings WHERE feed_id=? LIMIT 1').bind(feedId).first();
  if(product) {
-  const approved=await env.DB.prepare('SELECT id FROM sources WHERE briefing_id=? AND enabled=1').bind(feedId).all<{id:string}>();
+  // A source whose scope was permanently retired cannot collect or supply
+  // evidence (database fences). A stale product row left by a partial edit
+  // must not deny the whole Feed; every other approved source still must match.
+  const approved=await env.DB.prepare("SELECT s.id FROM sources s WHERE s.briefing_id=? AND s.enabled=1 AND NOT EXISTS(SELECT 1 FROM v1_intake_scopes v WHERE v.id=s.id AND json_extract(v.json,'$.deletedAt') IS NOT NULL)").bind(feedId).all<{id:string}>();
   if(approved.results.some(s=>!v1SourceEnabled(env,s.id) || !rows.results.some(r=>r.id===s.id))) throw new HandoffError('SCOPE_DENIED');
  }
 }
