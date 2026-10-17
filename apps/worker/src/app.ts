@@ -3,7 +3,7 @@ import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intell
 import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-trace';
 import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
-import {sourceRecommendations} from './source-recommendations';
+import {sourceRecommendations,verifiedSourceRecommendations} from './source-recommendations';
 import {assessSource,assessSources} from './source-assessment';
 import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
 import {connectorSourceHealth} from './connector-health';
@@ -887,10 +887,8 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: "You can request AI source recommendations three times every five hours. Please try again later, or add a source URL directly." }, 429);
     }
     try {
-      const candidates=await sourceRecommendations(c.env,input,fetcher);
-      if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({sources:candidates});
-      const checks=await assessSources(c.env,input,candidates,fetcher);
-      return c.json({sources:checks.filter(check=>check.status==='accepted').map(check=>check.input),checks});
+      if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({sources:await sourceRecommendations(c.env,input,fetcher)});
+      return c.json(await verifiedSourceRecommendations(c.env,input,fetcher));
     }
     catch(error) { return c.json({error:error instanceof Error?error.message:'Source recommendations unavailable'}, c.env.SOURCE_RECOMMENDATIONS_ENABLED==='true'?502:503); }
   });

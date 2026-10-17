@@ -1614,3 +1614,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
  :root.apple-ui.apple-ui .profile-dialog .profile-card-heading label, :root.apple-ui.apple-ui .profile-security-copy strong { font-size: 16px; }
  :root.apple-ui.apple-ui .profile-dialog .password-disclosure > svg { padding: 6px; }
 }
+
+/* Keep keyboard focus inside the microphone button instead of outside its field. */
+:root.apple-ui.apple-ui .voice-input > button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }

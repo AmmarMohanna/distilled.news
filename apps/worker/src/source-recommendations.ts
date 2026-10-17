@@ -3,6 +3,21 @@ import type {Env} from './types';
 import {prepareProductSourceInput,resolveProductSourceInput} from './product-feeds';
 import {sourceAvailability} from './connector-availability';
 import type {SourceFamily} from '@distilled/connectors';
+import {assessSources} from './source-assessment';
+
+/** One replacement pass when every suggestion fails; verification remains mandatory. */
+export async function verifiedSourceRecommendations(env:Env,input:{title:string;description:string},fetcher:typeof fetch=fetch){
+ const candidates=await sourceRecommendations(env,input,fetcher);
+ const checks=await assessSources(env,input,candidates,fetcher);
+ if(checks.some(check=>check.status==='accepted'))return {sources:checks.filter(check=>check.status==='accepted').map(check=>check.input),checks};
+ try{
+  const failures=checks.map(check=>({source:check.input,reason:check.reason}));
+  const replacements=await sourceRecommendations(env,{...input,description:input.description+'\nPrevious suggestions failed verification. Suggest different working feeds; do not repeat these URLs. Failure data: '+JSON.stringify(failures)},fetcher);
+  const fresh=replacements.filter(source=>!candidates.includes(source));
+  checks.push(...await assessSources(env,input,fresh,fetcher));
+ }catch{/* Preserve the original diagnostics if replacement discovery fails. */}
+ return {sources:checks.filter(check=>check.status==='accepted').map(check=>check.input),checks};
+}
 
 /** Suggestions only. One capped model call and bounded public RSS discovery;
  * never creates, approves, or invokes paid source collection. */

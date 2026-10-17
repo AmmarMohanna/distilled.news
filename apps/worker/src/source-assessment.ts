@@ -60,7 +60,9 @@ export async function assessSource(env: Env, context: { title: string; descripti
   if (!env.OPENROUTER_API_KEY) return result('unverified', 'Source relevance checking is not configured.', { kind });
   let evidence: string;
   try {
-    const page = await port.get(url);
+    let page = await port.get(url);
+    // One retry for a temporary upstream outage, never for blocked or dead feeds.
+    if ([502, 503, 504].includes(page.status)) page = await port.get(url);
     if (page.status !== 200 || page.authenticationRequired) {
       const reason = page.status === 404 || page.status === 410
         ? `This source URL is no longer available (HTTP ${page.status}). Use an updated RSS/Atom feed URL.`
