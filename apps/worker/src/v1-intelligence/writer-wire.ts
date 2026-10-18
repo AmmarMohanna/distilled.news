@@ -102,7 +102,7 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
    // Invalid semantic evidence is a durably settled negative verdict, not an
    // uncertain provider execution. Preserve its usage and precise repair reason.
    if(invalidWitness||(c.communicated&&!readerSpans.length))return {...c,factId,candidateId,communicated:false,readerSpans:[],reason:invalidWitness?'INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.':'MISSING_READER_WITNESS: no reader prose establishes coverage.'};
-   const story=stories.find(s=>s.requiredFactIds.includes(c.factId)),offered=Boolean(story?.newUnderstandingFactIds.includes(c.factId));let readerNovelty=c.readerNovelty;
+   const story=stories.find(s=>options.validationContract==='EVIDENCE_GROUNDED_V2'?s.facts.some(f=>f.id===c.factId):s.requiredFactIds.includes(c.factId)),offered=Boolean(story?.newUnderstandingFactIds.includes(c.factId));let readerNovelty=c.readerNovelty;
    if(options.requireReaderNovelty){
     if(!readerNovelty)readerNovelty={status:'UNRESOLVED',reason:'MISSING_READER_NOVELTY_VERDICT',previousFactTexts:[]};
     else if(readerNovelty.previousFactTexts.some(text=>!story?.previousLedgerFacts.includes(text))||readerNovelty.status==='ALREADY_COMMUNICATED'&&!readerNovelty.previousFactTexts.length)readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_HISTORY: no offered same-story prior fact establishes repetition.',previousFactTexts:[]};

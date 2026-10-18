@@ -8,6 +8,13 @@ it('v2 accepts exact same-story reader witnesses for optional facts actually com
  expect(verificationWire(claims,{validationContract:'EVIDENCE_GROUNDED_V2'}).decode(raw).semanticChecks[0]).toMatchObject({communicated:true,readerSpans:[{claimId:'c',text:fact.text}]});
  expect(verificationWire(claims).decode(raw).semanticChecks[0].communicated).toBe(false);
 });
+it.each(['NEW','ALREADY_COMMUNICATED'])('v2 retains %s novelty for optional offered propositions without promoting coverage',status=>{
+ const fact={id:'optional',text:'The company was founded in 2010.',evidenceRevisionIds:['r']};
+ const claims=[{id:'c',candidateId:'s',text:fact.text,support:[],context:[],requiredFacts:[],allowedFacts:[fact],newUnderstandingFacts:[fact],previousLedgerFacts:status==='ALREADY_COMMUNICATED'?[fact.text]:[]}];
+ const wire=verificationWire(claims,{validationContract:'EVIDENCE_GROUNDED_V2',requireReaderNovelty:true});
+ const result=wire.decode({supportedClaimIds:['claim_1'],preservedFactIds:[],semanticChecks:[{factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Actual optional prose.',readerSpans:[{claimId:'claim_1'}],readerNovelty:{status,reason:'Compared with same-story history.',previousFactTexts:status==='ALREADY_COMMUNICATED'?[fact.text]:[]}}]});
+ expect(result.semanticChecks[0].readerNovelty?.status).toBe(status);expect(wire.payload.stories[0].requiredFactIds).toEqual([]);
+});
 const input={feed:{id:'feed',revision:1,title:'Title',interests:[],outputLanguage:'en'},selectionId:'selection',stories:[{candidate:{id:'canonical',targetType:'EVENT',targetVersionId:'version'},plan:{mustIncludeFactIds:['a'],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[],treatment:'BRIEF'},approvedFacts:[{id:'a',text:'Officials reported a successful launch.',support:[{evidenceRevisionId:'revision',quote:'Officials reported a successful launch.'}]}],approvedSpans:[{evidenceRevisionId:'revision',quote:'Officials reported a successful launch.'}],evidence:[{id:'revision',body:'Officials reported a successful launch.',language:'en'}]}]} as unknown as SynthesisWriterInput;
 it('makes required facts explicit and maps only offered story-scoped exact support and fact IDs',()=>{
  const wire=writerWire(input);

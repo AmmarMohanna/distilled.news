@@ -42,3 +42,22 @@ it('a complete positive packet cannot fill an incomplete overlapping packet verd
 it('malformed truthy semantic fields cannot become approvals',()=>{
  for(const mutate of [(r:any)=>r.claimEntailment[0].fullyEntailed='true',(r:any)=>r.semanticChecks[0].attribution='true']){const r=result();mutate(r);expect(decidePublicationValidation(claims,r).status).toBe('UNRESOLVED');}
 });
+it.each(['missing','UNRESOLVED'])('offered novelty with %s judgment remains unresolved before repair admission',status=>{
+ const offered=structuredClone(claims);offered[0].newUnderstandingFacts=offered[0].requiredFacts;
+ const r=result();if(status!=='missing')r.semanticChecks[0].readerNovelty={status,reason:'Cannot decide novelty.',previousFactTexts:[]};
+ expect(decidePublicationValidation(offered,r).status).toBe('UNRESOLVED');
+});
+it('overlapping packets cannot erase contradictory novelty judgments',()=>{
+ const offered=structuredClone(claims);offered[0].newUnderstandingFacts=offered[0].requiredFacts;offered[0].previousLedgerFacts=[claims[0].requiredFacts[0].text];
+ const a=result(),b=result();a.semanticChecks[0].readerNovelty={status:'NEW',reason:'New.',previousFactTexts:[]};b.semanticChecks[0].readerNovelty={status:'ALREADY_COMMUNICATED',reason:'Known.',previousFactTexts:[claims[0].requiredFacts[0].text]};
+ expect(decidePublicationPackets(offered,[{claims:offered,result:a},{claims:offered,result:b}]).decision.status).toBe('UNRESOLVED');
+});
+it('omitted optional novelty does not require a verdict once actual required novelty is established',()=>{
+ const offered=structuredClone(claims);offered[0].newUnderstandingFacts=[...offered[0].requiredFacts,{id:'optional',text:'Optional background.',evidenceRevisionIds:['r']}];offered[0].allowedFacts=offered[0].newUnderstandingFacts;
+ const r=result();r.semanticChecks[0].readerNovelty={status:'NEW',reason:'Required new meaning is communicated.',previousFactTexts:[]};
+ expect(decidePublicationValidation(offered,r).status).toBe('ACCEPT');
+});
+it('missing optional novelty cannot authorize repair if no communicated novelty has been established',()=>{
+ const offered=structuredClone(claims);offered[0].newUnderstandingFacts=[{id:'optional',text:'Optional background.',evidenceRevisionIds:['r']}];offered[0].allowedFacts=[...offered[0].requiredFacts,...offered[0].newUnderstandingFacts];
+ expect(decidePublicationValidation(offered,result()).status).toBe('UNRESOLVED');
+});

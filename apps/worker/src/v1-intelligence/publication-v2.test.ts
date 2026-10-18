@@ -53,3 +53,12 @@ it('incomplete fact verification persists unresolved and cannot buy a repair',as
  expect(await store.list('feed-1','editions')).toHaveLength(0);expect(repairs).toBe(0);
  expect((await store.list<any>('feed-1','publication_validation_results')).some(r=>r.status==='UNRESOLVED'&&r.reasons.includes('INCOMPLETE_FACT_VERDICT'))).toBe(true);
 },30000);
+it.each(['missing','UNRESOLVED'])('v2 %s novelty verification cannot persist acceptance or buy a repair',async status=>{
+ const selection=await selected(),port=model(),verify=port.verify!;let repairs=0,calls=0;
+ port.verify=async(...args)=>{calls++;const result=await verify(...args);for(const check of result.semanticChecks??[])if(status==='missing')delete check.readerNovelty;else check.readerNovelty={status:'UNRESOLVED',reason:'Cannot determine novelty.',previousFactTexts:[]};return result;};
+ port.repair=async()=>{repairs++;throw Error('NO_REPAIR_FOR_UNRESOLVED_NOVELTY');};
+ const publish=()=>publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model:port,validationContract:'EVIDENCE_GROUNDED_V2'});
+ await expect(publish()).rejects.toThrow();await expect(publish()).rejects.toThrow();
+ expect(repairs).toBe(0);expect(calls).toBe(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ const proofs=await store.list<any>('feed-1','publication_validation_results');expect(proofs.some(r=>r.status==='ACCEPT')).toBe(false);expect(proofs.some(r=>r.status==='UNRESOLVED')).toBe(true);
+},30000);

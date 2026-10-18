@@ -22,6 +22,23 @@ export function decidePublicationValidation(claims:VerificationClaim[],result:Ve
  if(!result||!claims.length)return {status:'UNRESOLVED',reasons:['SEMANTIC_VERDICT_UNAVAILABLE'],readerSpans};
  if(new Set(claims.map(c=>c.id)).size!==claims.length)unresolved('DUPLICATE_CLAIM_ID');
  const entailment=result.claimEntailment??[],checks=result.semanticChecks??[];
+ // Novelty is a semantic decision too. Missing/uncertain judgment must not
+ // become a later NO_SUPPORTED_DELTA rejection that purchases a writer repair.
+ const novelty=new Map<string,{owner:string;factId:string}>();
+ for(const claim of claims)for(const fact of claim.newUnderstandingFacts??[]){const owner=claim.candidateId??claim.id;novelty.set(JSON.stringify([owner,fact.id]),{owner,factId:fact.id});}
+ for(const {owner,factId} of novelty.values()){
+  const matching=checks.filter(c=>c.candidateId===owner&&c.factId===factId),verdict=matching[0]?.readerNovelty;
+  const owned=claims.filter(c=>(c.candidateId??c.id)===owner),required=owned.some(c=>c.requiredFacts?.some(f=>f.id===factId));
+  // An omitted optional proposition needs no coverage verdict if this story
+  // already has affirmative novelty or correction delivery. It cannot stand
+  // in for the missing affirmative judgment needed to authorize publication.
+  if(!matching.length&&!required){
+   const deliveredNovelty=checks.some(c=>c.candidateId===owner&&c.readerNovelty?.status==='NEW'&&faithfulFact(c)&&owned.some(claim=>claim.newUnderstandingFacts?.some(f=>f.id===c.factId)));
+   const obligations=owned.flatMap(c=>c.correctionObligations??[]),deliveredCorrection=obligations.length>0&&obligations.every(o=>result.addressedCorrectionObligationIds?.includes(o.id));
+   if(deliveredNovelty||deliveredCorrection)continue;
+  }
+  if(matching.length!==1||!verdict||!['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED'].includes(verdict.status)||!verdict.reason?.trim()||!Array.isArray(verdict.previousFactTexts))unresolved('INCOMPLETE_NOVELTY_VERDICT');
+ }
  for(const check of checks)if(/^(?:INVALID|MISSING)_READER_WITNESS:/.test(check.reason))unresolved('INVALID_READER_WITNESS');
  if(new Set(entailment.map(c=>c.claimId)).size!==entailment.length||entailment.some(c=>!claims.some(v=>v.id===c.claimId)))unresolved('SEMANTIC_CLAIM_SCOPE');
  for(const c of claims){
@@ -65,5 +82,13 @@ export function decidePublicationPackets(claims:VerificationClaim[],packets:{cla
  const packetDecisions=packets.map(p=>decidePublicationValidation(p.claims,p.result)),merged=mergeVerification(packets,false),decision=decidePublicationValidation(claims,merged);
  const unresolved=packetDecisions.filter(d=>d.status==='UNRESOLVED');
  if(unresolved.length){decision.status='UNRESOLVED';decision.reasons=[...new Set([...decision.reasons,...unresolved.flatMap(d=>d.reasons)])];}
+ // A fact can appear in multiple context packets. None may silently override
+ // a different novelty decision from another authoritative paid response.
+ const noveltyStatuses=new Map<string,Set<string>>();
+ for(const packet of packets)for(const claim of packet.claims)for(const fact of claim.newUnderstandingFacts??[]){
+  const owner=claim.candidateId??claim.id,key=JSON.stringify([owner,fact.id]),status=packet.result.semanticChecks?.find(c=>c.candidateId===owner&&c.factId===fact.id)?.readerNovelty?.status;
+  const statuses=noveltyStatuses.get(key)??new Set<string>();if(status)statuses.add(status);noveltyStatuses.set(key,statuses);
+ }
+ if([...noveltyStatuses.values()].some(s=>s.size>1)){decision.status='UNRESOLVED';decision.reasons=[...new Set([...decision.reasons,'NOVELTY_VERDICT_CONFLICT'])];}
  return {merged,decision};
 }
