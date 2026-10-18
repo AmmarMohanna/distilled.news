@@ -6,7 +6,7 @@ import {createSession} from './auth';
 import {productRuntimeEnv,productPublicationState,publishedProductEditions} from './product-feeds';
 import {V1FeedStore} from './v1-intelligence/store';
 import {processV1Briefing,dispatchV1Intelligence,publicationWindow} from './v1-intelligence/runtime';
-import {livePublicationWindow} from './v1-intelligence/schedule';
+import {livePublicationWindow,nextLiveBriefingAt} from './v1-intelligence/schedule';
 import type {Env,DistilledQueueMessage} from './types';
 import type {BriefingConfig} from '@distilled/core';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env,repo:D1Repository,feed:BriefingConfig,cookie:string;
@@ -24,8 +24,12 @@ afterEach(async()=>{vi.restoreAllMocks();await ctx?.dispose()});
 
 it('holds model-required requests without consuming attempts and resumes dispatch after key installation',async()=>{
  env.V1_SYNTHESIS_MODEL_ENABLED='true';env.V1_REAL_MODEL_REQUIRED='true';env.DISTILLED_LLM_API_GATEWAY='openrouter';
- const at=new Date(Date.now()+1000),store=new V1FeedStore(ctx.db);
- const configured=(await store.getFeed(feed.id))!,window=configured.briefingSchedule?livePublicationWindow(configured.briefingSchedule,at):publicationWindow(configured.briefingFrequency,at);
+ const store=new V1FeedStore(ctx.db),configured=(await store.getFeed(feed.id))!;
+ // Exercise key installation at the first actual boundary after feed creation.
+ // The last closed daily window usually predates this newly created fixture.
+ const at=configured.briefingSchedule?new Date(nextLiveBriefingAt(configured.briefingSchedule,new Date())):new Date(Date.now()+86400000);
+ const window=configured.briefingSchedule?livePublicationWindow(configured.briefingSchedule,at):publicationWindow(configured.briefingFrequency,at);
+ expect(Date.parse(window.end)).toBeGreaterThan(Date.parse(configured.createdAt));
  await processV1Briefing(env,{type:'v1_briefing',feedId:feed.id,window},()=>at.toISOString());
  const request=(await store.list<{id:string;window:import('./v1-intelligence/scoring').PublicationWindow}>(feed.id,'briefing_requests'))[0];
  expect(sent.some(m=>m.type==='v1_briefing')).toBe(false);

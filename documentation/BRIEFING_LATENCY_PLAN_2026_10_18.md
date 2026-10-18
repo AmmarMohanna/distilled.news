@@ -37,20 +37,21 @@ Aggregate percentiles offline; do not write a D1 row per timing stage.
 
 - [x] Fetch the exact existing remote branch into an isolated worktree, preserving
   the dirty main checkout. Read project/recovery/runtime/deployment documentation.
-- [ ] Establish baseline: full Worker tests, deterministic retained-graph and
-  lock-contention probes; read live staging versions, configuration, migration
-  history, integrity, retained counts and available model-operation latency.
-- [ ] Add failing race tests for slow preparation, duplicate/sibling leases,
+- [x] Establish retained baseline, deterministic retained-graph and lock-contention
+  probes; read live staging versions/configuration, migration history, integrity,
+  retained counts and model latency. Initial full runs were interrupted during
+  development; the frozen release run below supplies full regression coverage.
+- [x] Add failing race tests for slow preparation, duplicate/sibling leases,
   canonical turn contention, source revocation and stale graph consumption.
   Implement the phased runtime and short write admission. Preserve legacy default.
-- [ ] Add failing membership-index tests covering historical/current versions,
+- [x] Add failing membership-index tests covering historical/current versions,
   staged writes, retries and foreign scope; benchmark before/after and implement.
-- [ ] Add stage instrumentation with schema/privacy tests; instrument admission,
+- [x] Add stage instrumentation with schema/privacy tests; instrument admission,
   review, model authorization/provider/settlement, transaction and publication.
   Add a reusable percentile summarizer for redacted structured logs.
 - [ ] Run focused and full regression suites, repository typechecks/builds,
   explicit staging dry run and independent final correctness review.
-- [ ] Verify live staging config/resources/rollback/assets. If migration becomes
+- [x] Verify live staging config/resources/rollback/assets. If migration becomes
   necessary, locally test it, export/verify staging backup and inspect ledger first.
   Preserve live bindings/secrets/assets and all existing financial authority.
 - [ ] Deploy staging only, verify new implementation/version, bounded real-model

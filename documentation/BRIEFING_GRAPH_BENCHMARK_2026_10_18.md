@@ -113,3 +113,19 @@ existing store regression tests and the selection-support test passed in the
 initial focused run. Thus all 29 distinct tests in these six files passed across
 the focused runs. This is not a claim about the full Worker suite or real staging
 briefing publication. `git diff --check` also passed after implementation.
+
+## Full-suite paired rerun
+
+The frozen Worker run re-executed all three benchmark fixtures successfully, with
+seven samples per path and exact support assertions unchanged. Host timings varied
+from the isolated run above, while the reduction in repeated metadata passes remained:
+
+| Fixture | Baseline p50 / p95 ms | Indexed p50 / p95 ms | p50 factor |
+| --- | ---: | ---: | ---: |
+| 100 current Events, 5,100 memberships | 595.53 / 659.42 | 169.50 / 195.72 | 3.51x |
+| 240 current Events, 12,240 memberships | 3,217.09 / 3,350.49 | 472.12 / 574.78 | 6.81x |
+
+Both paths still used one SQL membership list read per sample and zero provider
+calls. The benchmark file passed all three tests in 35.88 seconds. These remain
+local lookup measurements, not real-model or whole-review latency. The full suite's
+other failures/reruns are recorded separately in the main rollout report.

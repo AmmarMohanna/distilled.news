@@ -207,9 +207,33 @@ supports of the 100 current Event versions and prefetches them before inspection
 Its exact-value assertions and six-read bound both pass. No canonical loading or
 historical-provenance behavior was weakened to satisfy the fixture.
 
-Repository-wide typechecks and frontend build passed. Script tests passed 27/27 before
-the final receipt-ID regression refinement; that refined test also passed. Full-suite
-results are recorded with the deployment verification below when execution ends.
+The full run also exposed an unchanged model-availability fixture creating a Feed
+now and expecting dispatch of its already-closed daily window. Source-recovery's
+existing `feedExistedInWindow` gate correctly rejects a window preceding creation;
+neither this test nor that dispatch gate had changed from base. The fixture now uses
+the first actual `nextLiveBriefingAt` boundary after creation, asserts that ordering,
+and retains all model-setup, zero-attempt and resumed-dispatch assertions. The product
+gate is preserved; the corrected file is rerun separately from the full-run record.
+
+Final repository-wide typechecks, all five library/package builds, frontend build,
+and explicit staging Worker dry run passed. Script tests pass **28/28**.
+
+The complete serial Worker command finished in 4,006.92 seconds: **222 files passed,
+three failed, three skipped; 1,597 tests passed, four failed, 11 skipped** (228 files,
+1,612 tests). The four failures were the inherited model-availability fixture above,
+one explicit 15-second quiet-corroboration timeout, and two explicit 25-second
+semantic-coverage timeouts. The original complete log/JSON result is retained.
+All three affected files were then rerun serially: **35/35 passed**, retaining their
+original assertion limits. No runtime code changed during full regression execution;
+only the already-executed inherited scheduling fixture was corrected for its rerun.
+All 1,601 non-skipped Worker cases therefore pass across the complete run and rerun;
+the original full command itself was not green and is not represented as such.
+
+Other workspace coverage: core 43/43, contracts 44/44, connectors 256/256, web 34/34.
+Agent runtime's full run passed 266, skipped two and timed out one browser lease-abort
+case; its isolated rerun passed. Browser bridge initially had four startup/cleanup
+failures in parallel; its full serial rerun passed 82/82. These original failures
+are retained, not counted as passing runs. No unrelated browser implementation changed.
 
 ## Publication latency policy
 
@@ -299,6 +323,11 @@ Repository-wide typechecks also pass after this change.
 - Profile serial correction-ledger current-evidence lookups and the publication
   intervals now exposed by stage instrumentation. Do not attribute unmeasured waits
   wholesale to the database.
+- Publication retains its legacy outer feed turn, including paid writing. This
+  change isolates review preparation, not every expensive publication operation.
+  Outer publication admission is visible in queue duration/busy outcomes rather
+  than a separate inner PUBLICATION timer. Exact legacy job-creation-to-dispatch
+  waits remain unavailable where old jobs lack a creation timestamp.
 - Evaluate construction binding rejection rates on the new branch with identical
   saved inputs and a separately authorized benchmark budget. Preserve source-span,
   material-mention and correction checks.
