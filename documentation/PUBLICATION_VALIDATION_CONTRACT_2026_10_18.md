@@ -1,5 +1,11 @@
 # Publication validation contract v2 - implementation and offline evaluation
 
+Historical implementation record through `c389419`. The subsequent separately
+authorized [real-model evaluation](PUBLICATION_VALIDATION_REAL_MODEL_2026_10_19.md)
+records twelve paid control calls, the approved $53 staging cap, and measured
+verifier conflicts. The zero-spend and missing-verdict figures below describe
+the earlier offline investigation, not that later evaluation.
+
 18?19 October 2026. Branch: `backend-validation-contract`. The user explicitly authorized this implementation and offline evaluation after review. **Disabled by default; no inference spending, remote mutation, deployment, activation or push.** This report supersedes earlier refinement-only status for local execution, not the independent holdout or live acceptance gates.
 
 ## Confirmed problem and resulting behavior
