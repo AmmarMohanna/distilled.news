@@ -237,6 +237,17 @@ alternative-route credential; equivalent Cloudflare-hosted/routed/Clef inference
 not be benchmarked. Low remaining spending authority also precludes an honest paid
 multi-provider benchmark. No hidden fallback or new financial authorization was added.
 
+A subsequent **read-only catalog/schema check** against the authorized staging
+account's `/ai/models/search` and `/ai/models/schema` endpoints found
+`@cf/cloudflare/clef`, `clef-omni` and `clef-flash`; searches for `jev` and `gpt-4.1`
+returned no catalog matches. This does not rule out third-party AI Gateway routes.
+Clef-flash's schema supports typed `noul`/choice/score questions (up to 64 questions,
+255 choices), but explicitly states that long state text is truncated. Its output
+reports input/output tokens, not an actual dollar-cost receipt. It is therefore a
+plausible separately authorized structured-decision candidate, not a proven drop-in
+replacement: context coverage, wire translation, exact billing settlement and decision
+quality require validation. No inference or paid request was made by these GETs.
+
 ## Staging deployment and end-to-end verification
 
 Pre-change Worker/rollback version: `82451fc7-b513-4bf0-8bb6-c9da1cfe6156`.
