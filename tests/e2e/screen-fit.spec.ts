@@ -116,6 +116,12 @@ for (const size of [{ width: 320, height: 568 }, { width: 390, height: 664 }, { 
     await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: Array.from({ length: 20 }, (_, i) => ({ id: `feed-${i}`, ownerUsername: "test", slug: `feed-${i}`, title: `Feed ${i + 1}` })) } }));
     await page.goto("/");
     await expect(page.locator('.personal-feed-grid .topic-card')).toHaveCount(20);
+    const firstCard = page.locator('.personal-feed-grid .topic-card').first();
+    await expect.poll(() => firstCard.evaluate(node => {
+      const grid = node.closest<HTMLElement>('.adaptive-feed-grid')!;
+      const expected = grid.dataset.layout === 'large' ? 252 : 84;
+      return Math.abs(node.getBoundingClientRect().height - expected) < 1;
+    })).toBe(true);
     await expect.poll(() => page.evaluate(() => {
       const nav = document.querySelector('.bottom-navigation')?.getBoundingClientRect();
       const bottom = innerWidth < 900 ? nav?.top ?? innerHeight : innerHeight;

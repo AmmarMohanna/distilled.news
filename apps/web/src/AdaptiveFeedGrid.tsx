@@ -19,15 +19,19 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       const columns = Math.min(count, roomy ? 2 : window.innerWidth >= 900 ? Math.max(1, Math.floor((width + 16) / 296)) : width >= 600 ? 2 : 1);
       const gap = window.innerWidth >= 900 ? 16 : 10;
       // Fit complete rows to the visible area; overflow remains on the full page.
-      const minimumRowHeight = roomy ? 260 : 84;
+      const minimumRowHeight = roomy ? 252 : 84;
       const totalRows = Math.ceil(count / columns);
       const visibleRows = Math.floor((available + gap) / (minimumRowHeight + gap));
-      const rowHeight = visibleRows > 0 && totalRows > visibleRows
-        ? (available - gap * (visibleRows - 1)) / visibleRows
-        : minimumRowHeight;
+      const rowHeight = minimumRowHeight;
+      // Reserve the viewport remainder after the last complete row, outside cards.
+      const rows = Array.from({ length: totalRows }, () => rowHeight);
+      if (visibleRows > 0 && totalRows > visibleRows) {
+        rows[visibleRows - 1] += available - (visibleRows * rowHeight + gap * (visibleRows - 1));
+      }
       grid.dataset.layout = roomy ? 'large' : 'compact';
       grid.style.setProperty('--feed-columns', String(columns));
       grid.style.setProperty('--feed-row-height', `${rowHeight}px`);
+      grid.style.setProperty('--feed-grid-rows', rows.map(height => `${height}px`).join(' '));
       grid.style.setProperty('--feed-grid-gap', `${gap}px`);
       grid.style.setProperty('--feed-image-height', `${Math.max(56, rowHeight - 152)}px`);
     };

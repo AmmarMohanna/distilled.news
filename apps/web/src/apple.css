@@ -1475,12 +1475,12 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid {
   grid-template-columns: repeat(var(--feed-columns, 1), minmax(0, 1fr)) !important;
-  grid-auto-rows: var(--feed-row-height, auto); height: auto;
+  grid-auto-rows: var(--feed-row-height, auto); grid-template-rows: var(--feed-grid-rows, none); height: auto; align-items: start;
   gap: var(--feed-grid-gap, 16px) !important; max-width: none !important; padding: 0 !important;
   overflow: visible; align-content: start;
 }
 :root.apple-ui.apple-ui .app-pages > .screen-page-viewport { scrollbar-width: auto; scrollbar-gutter: stable; }
-:root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card { min-height: 0; box-sizing: border-box; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card { height: var(--feed-row-height, auto); min-height: 0; box-sizing: border-box; }
 /* Keep cards steady when hovered or pressed. */
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card:is(:hover, :active) { transform: none; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] > .topic-card {
