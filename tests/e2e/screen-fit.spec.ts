@@ -111,7 +111,7 @@ test("long feed lists scroll with the last card clear of navigation", async ({ p
 });
 
 for (const size of [{ width: 320, height: 568 }, { width: 390, height: 664 }, { width: 390, height: 844 }, { width: 667, height: 375 }, { width: 1280, height: 720 }, { width: 1440, height: 1000 }]) {
-  test(`initial feed rows are complete at ${size.width}x${size.height}`, async ({ page }) => {
+  test(`feed rows stay compact and evenly spaced at ${size.width}x${size.height}`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: Array.from({ length: 20 }, (_, i) => ({ id: `feed-${i}`, ownerUsername: "test", slug: `feed-${i}`, title: `Feed ${i + 1}` })) } }));
     await page.goto("/");
@@ -119,16 +119,16 @@ for (const size of [{ width: 320, height: 568 }, { width: 390, height: 664 }, { 
     const firstCard = page.locator('.personal-feed-grid .topic-card').first();
     await expect.poll(() => firstCard.evaluate(node => {
       const grid = node.closest<HTMLElement>('.adaptive-feed-grid')!;
-      const expected = grid.dataset.layout === 'large' ? 252 : 84;
+      const expected = grid.dataset.layout === 'large' ? 208 : 84;
       return Math.abs(node.getBoundingClientRect().height - expected) < 1;
     })).toBe(true);
     await expect.poll(() => page.evaluate(() => {
-      const nav = document.querySelector('.bottom-navigation')?.getBoundingClientRect();
-      const bottom = innerWidth < 900 ? nav?.top ?? innerHeight : innerHeight;
       const cards = [...document.querySelectorAll('.personal-feed-grid .topic-card')].map(node => node.getBoundingClientRect());
-      return cards.some(card => card.top >= 0 && card.bottom <= bottom + 1)
-        && !cards.some(card => card.top < bottom - 1 && card.bottom > bottom + 1);
+      const rows = cards.filter((card, index) => !index || Math.abs(card.top - cards[index - 1].top) > 1);
+      const gap = innerWidth >= 900 ? 16 : 10;
+      return rows.slice(1).every((row, index) => Math.abs(row.top - rows[index].bottom - gap) < 1);
     })).toBe(true);
+    await expect(page.locator('.personal-feed-grid')).toHaveCSS('margin-top', '8px');
   });
 }
 
