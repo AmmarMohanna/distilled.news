@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import { PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, HealthStatus, PublicBriefing } from "./types";
@@ -138,6 +139,7 @@ export function accountInitials(username: string) {
 function FeedCardActions({ feed, owner, onError, hideStar = false, children }: { feed: Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled">; owner: boolean; onError: (message: string) => void; hideStar?: boolean; children?: React.ReactNode }) {
   const { t } = useLanguage();
   const menu = useRef<HTMLDetailsElement>(null);
+  useVisibleFeedMenu(menu);
   useEffect(() => {
     const close = (event: PointerEvent) => { if (!menu.current?.contains(event.target as Node) && menu.current) menu.current.open = false; };
     document.addEventListener("pointerdown", close);

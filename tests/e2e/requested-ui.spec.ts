@@ -15,6 +15,33 @@ async function mock(page: import("@playwright/test").Page, authenticated = true)
   return route.fulfill({ json: body });
  });
 }
+
+test("feed menus stay visible at viewport edges and escape card clipping", async ({ page }) => {
+ await mock(page);
+ await page.setViewportSize({ width: 390, height: 500 });
+ await page.goto("/");
+ const menu = page.locator(".personal-feed-grid .feed-options").first();
+ await expect(menu).toBeVisible();
+ for (const top of [12, 440]) {
+  await menu.evaluate((node, y) => {
+   node.style.position = "fixed";
+   node.style.top = `${y}px`;
+   node.style.right = "12px";
+   node.closest<HTMLElement>(".topic-card")!.style.overflow = "hidden";
+  }, top);
+  await menu.locator("summary").focus();
+  await menu.locator("summary").press("Enter");
+  const panel = menu.locator(".feed-options-popover");
+  await expect(panel).toBeVisible();
+  await expect.poll(() => panel.evaluate(node => {
+   const rect = node.getBoundingClientRect();
+   const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+   return rect.top >= 12 && rect.bottom <= innerHeight - 12 && rect.left >= 12 && rect.right <= innerWidth - 12 && node.contains(hit);
+  })).toBe(true);
+  await menu.locator("summary").press("Escape");
+  await expect(panel).toBeHidden();
+ }
+});
 test("feed cards have rounded artwork, plain controls, and real update times", async ({ page }) => {
  await page.clock.install({ time: new Date("2026-10-02T14:00:00Z") });
  await mock(page);

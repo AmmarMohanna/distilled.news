@@ -2,6 +2,7 @@ import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./
 import React, { useEffect, useId, useRef, useState } from "react";
 import { FeedNotice, FeedPublicationNotice, FeedProcessingProgress } from "./FeedNotice";
 import { createRoot } from "react-dom/client";
+import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import {
   Activity,
   Ban,
@@ -2031,6 +2032,7 @@ function FeedBackLink({ language }: { language: "en" | "ar" | "fr" }) {
 
 function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {
   const ref = useRef<HTMLDetailsElement>(null);
+  useVisibleFeedMenu(ref);
   const close = () => { if (ref.current) ref.current.open = false; };
   useEffect(() => {
     const down = (event: PointerEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) close(); };
