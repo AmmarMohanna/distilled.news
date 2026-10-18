@@ -668,7 +668,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   background: transparent;
   border-color: transparent;
   color: var(--accent-ink);
-  text-decoration: underline;
+  text-decoration: none;
 }
 :root.apple-ui.apple-ui .auth-dialog .login { gap: 8px; padding: 40px 20px 16px; }
 :root.apple-ui.apple-ui .auth-dialog .auth-copy { gap: 2px; margin: 0; }
