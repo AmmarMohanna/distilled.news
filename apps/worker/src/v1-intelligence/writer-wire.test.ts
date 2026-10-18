@@ -1,6 +1,13 @@
 import {it,expect} from 'vitest';
 import {writerWire,verificationWire} from './writer-wire';
 import type {SynthesisWriterInput} from './publication';
+it('v2 accepts exact same-story reader witnesses for optional facts actually communicated',()=>{
+ const fact={id:'optional',text:'The company was founded in 2010.',evidenceRevisionIds:['r']};
+ const claims=[{id:'c',candidateId:'s',text:fact.text,support:[],context:[],requiredFacts:[],allowedFacts:[fact]}];
+ const raw={supportedClaimIds:['claim_1'],preservedFactIds:[],semanticChecks:[{factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Optional background is supported and written.',readerSpans:[{claimId:'claim_1'}]}]};
+ expect(verificationWire(claims,{validationContract:'EVIDENCE_GROUNDED_V2'}).decode(raw).semanticChecks[0]).toMatchObject({communicated:true,readerSpans:[{claimId:'c',text:fact.text}]});
+ expect(verificationWire(claims).decode(raw).semanticChecks[0].communicated).toBe(false);
+});
 const input={feed:{id:'feed',revision:1,title:'Title',interests:[],outputLanguage:'en'},selectionId:'selection',stories:[{candidate:{id:'canonical',targetType:'EVENT',targetVersionId:'version'},plan:{mustIncludeFactIds:['a'],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[],treatment:'BRIEF'},approvedFacts:[{id:'a',text:'Officials reported a successful launch.',support:[{evidenceRevisionId:'revision',quote:'Officials reported a successful launch.'}]}],approvedSpans:[{evidenceRevisionId:'revision',quote:'Officials reported a successful launch.'}],evidence:[{id:'revision',body:'Officials reported a successful launch.',language:'en'}]}]} as unknown as SynthesisWriterInput;
 it('makes required facts explicit and maps only offered story-scoped exact support and fact IDs',()=>{
  const wire=writerWire(input);

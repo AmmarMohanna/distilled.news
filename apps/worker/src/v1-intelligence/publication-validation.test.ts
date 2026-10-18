@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {decidePublicationValidation,verificationCompatibility,type VerificationManifest} from './publication-validation';
+import {decidePublicationValidation,decidePublicationPackets,verificationCompatibility,type VerificationManifest} from './publication-validation';
 const manifest:VerificationManifest={contract:'EVIDENCE_GROUNDED_V2',feedId:'feed',feedRevision:1,evidenceHash:'e',selectionHash:'s',draftHash:'d',questionHash:'q',promptVersion:'p',packetSchemaVersion:'v2',semanticPolicy:'semantic-publication-v2',editorialContractVersion:'editorial-requirements-v2',model:'model',provider:'provider',providerRoute:'route',outputLanguage:'en'};
 const paid={operationId:'op',receiptOperationId:'op',reservationId:'semantic_intents:op',intentToken:'t',settlementToken:'t',resultHash:'hash'};
 const claims:any=[{id:'c',candidateId:'story',text:'Officials reported 12 injuries.',support:[],context:[],requiredFacts:[{id:'f',text:'Officials reported 12 injuries.',evidenceRevisionIds:['r']}]}];
@@ -30,4 +30,15 @@ it('a negative facet on an optional fact actually written cannot be ignored',()=
  const written=structuredClone(claims);written[0].allowedFacts=[...written[0].requiredFacts,{id:'optional',text:'Officials reported injuries.',evidenceRevisionIds:['r']}];
  const r=result();r.semanticChecks.push({...r.semanticChecks[0],factId:'optional',attribution:false});
  expect(decidePublicationValidation(written,r).status).toBe('UNRESOLVED');
+});
+it('a decoder-reported invalid reader witness is unresolved, not a factual rejection',()=>{
+ const r=result();r.semanticChecks[0]={...r.semanticChecks[0],communicated:false,readerSpans:[],reason:'INVALID_READER_WITNESS: coverage cited source-only prose.'};
+ expect(decidePublicationValidation(claims,r).status).toBe('UNRESOLVED');
+});
+it('a complete positive packet cannot fill an incomplete overlapping packet verdict',()=>{
+ const incomplete=result();incomplete.semanticChecks=[];
+ expect(decidePublicationPackets(claims,[{claims,result:result()},{claims,result:incomplete}]).decision.status).toBe('UNRESOLVED');
+});
+it('malformed truthy semantic fields cannot become approvals',()=>{
+ for(const mutate of [(r:any)=>r.claimEntailment[0].fullyEntailed='true',(r:any)=>r.semanticChecks[0].attribution='true']){const r=result();mutate(r);expect(decidePublicationValidation(claims,r).status).toBe('UNRESOLVED');}
 });

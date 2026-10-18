@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {canonicalJson} from '../v1-intake/canonical';
 import {faithfulFact} from './fidelity';
 import type {VerificationClaim} from './publication';
-import type {VerificationOutcome} from './verification-packets';
+import {mergeVerification,type VerificationOutcome} from './verification-packets';
 const str=z.string().min(1);
 const manifestSchema=z.object({contract:z.literal('EVIDENCE_GROUNDED_V2'),feedId:str,feedRevision:z.number().int().nonnegative(),evidenceHash:str,selectionHash:str,draftHash:str,questionHash:str,promptVersion:str,packetSchemaVersion:str,semanticPolicy:z.literal('semantic-publication-v2'),editorialContractVersion:z.literal('editorial-requirements-v2'),model:str,provider:str,providerRoute:str,outputLanguage:str}).strict();
 export type VerificationManifest=z.infer<typeof manifestSchema>;
@@ -22,10 +22,11 @@ export function decidePublicationValidation(claims:VerificationClaim[],result:Ve
  if(!result||!claims.length)return {status:'UNRESOLVED',reasons:['SEMANTIC_VERDICT_UNAVAILABLE'],readerSpans};
  if(new Set(claims.map(c=>c.id)).size!==claims.length)unresolved('DUPLICATE_CLAIM_ID');
  const entailment=result.claimEntailment??[],checks=result.semanticChecks??[];
+ for(const check of checks)if(/^(?:INVALID|MISSING)_READER_WITNESS:/.test(check.reason))unresolved('INVALID_READER_WITNESS');
  if(new Set(entailment.map(c=>c.claimId)).size!==entailment.length||entailment.some(c=>!claims.some(v=>v.id===c.claimId)))unresolved('SEMANTIC_CLAIM_SCOPE');
  for(const c of claims){
   const whole=entailment.find(v=>v.claimId===c.id);
-  if(!whole||!Array.isArray(whole.unsupportedMeaning)){unresolved('INCOMPLETE_CLAIM_VERDICT');continue;}
+  if(!whole||typeof whole.fullyEntailed!=='boolean'||!Array.isArray(whole.unsupportedMeaning)){unresolved('INCOMPLETE_CLAIM_VERDICT');continue;}
   if(!whole.fullyEntailed||whole.unsupportedMeaning.length){negative=true;reasons.add('CLAIM_NOT_ENTAILED');}
   else if(!result.supportedClaimIds.includes(c.id))unresolved('CLAIM_VERDICT_CONFLICT');
  }
@@ -35,6 +36,7 @@ export function decidePublicationValidation(claims:VerificationClaim[],result:Ve
   const matching=checks.filter(c=>c.candidateId===owner&&c.factId===factId);
   if(matching.length!==1){unresolved('INCOMPLETE_FACT_VERDICT');continue;}
   const check=matching[0],spans=check.readerSpans??[],owned=claims.filter(c=>(c.candidateId??c.id)===owner);
+  if([check.communicated,check.attribution,check.certainty,check.temporal,check.qualifiers].some(v=>typeof v!=='boolean')){unresolved('INVALID_FACT_VERDICT');continue;}
   const witnesses=spans.length>0&&spans.every(w=>w.text.length>0&&owned.some(c=>c.id===w.claimId&&c.text.includes(w.text)));
   if(check.communicated&&!witnesses){unresolved('INVALID_READER_WITNESS');continue;}
   const positive=faithfulFact(check);
@@ -56,4 +58,12 @@ export function decidePublicationValidation(claims:VerificationClaim[],result:Ve
  }
  if(checks.some(c=>!claims.some(claim=>(claim.candidateId??claim.id)===c.candidateId&&[...(claim.requiredFacts??[]),...(claim.allowedFacts??[])].some(f=>f.id===c.factId))))unresolved('SEMANTIC_FACT_SCOPE');
  return {status:conflict||unknown?'UNRESOLVED':negative?'REJECT':'ACCEPT',reasons:[...reasons],readerSpans};
+}
+/** Every packet must be complete independently. Overlapping positive packets
+ * cannot fill holes or erase a conflict in another paid response. */
+export function decidePublicationPackets(claims:VerificationClaim[],packets:{claims:VerificationClaim[];result:VerificationOutcome}[]){
+ const packetDecisions=packets.map(p=>decidePublicationValidation(p.claims,p.result)),merged=mergeVerification(packets,false),decision=decidePublicationValidation(claims,merged);
+ const unresolved=packetDecisions.filter(d=>d.status==='UNRESOLVED');
+ if(unresolved.length){decision.status='UNRESOLVED';decision.reasons=[...new Set([...decision.reasons,...unresolved.flatMap(d=>d.reasons)])];}
+ return {merged,decision};
 }

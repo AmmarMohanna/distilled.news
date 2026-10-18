@@ -1,7 +1,7 @@
 import {resolvePropositionWork,type PropositionWork} from './editorial-proposition-work';
 import {editorialContract,projectEditorialPropositions,type EditorialContract} from './editorial-requirements';
 import {assessWriterDraft} from './publication-prechecks';
-import {decidePublicationValidation,verificationCompatibility,type VerificationManifest} from './publication-validation';
+import {decidePublicationPackets,verificationCompatibility,type VerificationManifest} from './publication-validation';
 import {countLatency,measureLatency} from './latency';
 import {windowIntakeCoverage} from './window-coverage';
 import {ASYNC_MODEL_CALL_MS,ASYNC_OPERATION_LEASE_MS,ASYNC_PROCESSING_SLICE_MS} from './operation-timing';
@@ -435,7 +435,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     });
     await rejectDraft(draftKey,problems);
    }
-  if(v2){
+  if(v2){try{
    if(storedDraft.provider==='NONE'||storedDraft.promptVersion!==options.model?.promptVersion)throw new ModelSpendingWait('V2_DRAFT_INCOMPATIBLE');
    const claims:VerificationClaim[]=[];
    for(const story of input.stories){const offered=storedDraft.draft.stories.find(s=>s.candidateId===story.candidate.id);if(!offered?.claims.length)throw new ModelSpendingWait('V2_STORY_MISSING');
@@ -458,13 +458,20 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     if(canonicalJson(core(result))!==canonicalJson(core(receiptResult)))throw new ModelSpendingWait('V2_VERIFICATION_RESULT_MISMATCH');
     results.push({claims:packet,result});
    }
-   const merged=mergeVerification(results,true),decision=decidePublicationValidation(claims,merged);
+   const {merged,decision}=decidePublicationPackets(claims,results);
    const id=JSON.stringify([draftKey,'publication-validation-v2']);
    await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);if(!await tx.read('publication_validation_results',id))await tx.write('publication_validation_results',id,{id,feedId,editionId,draftKey,contract,...decision,createdAt:options.now()});});
    if(decision.status==='UNRESOLVED')throw new ModelSpendingWait(decision.reasons[0]??'V2_SEMANTIC_UNRESOLVED');
    if(decision.status==='REJECT')await rejectDraft(draftKey,decision.reasons.map(code=>({code})));
    await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await persistModelResult(tx,'GROUNDING',draftKey,merged);});
-  }
+  }catch(error){
+   if(error instanceof DraftVerificationError)throw error;
+   if(error instanceof HandoffError&&!(error instanceof ModelSpendingWait)&&!(error instanceof PublicationOperationFailure))throw error;
+   const reason=error instanceof ModelSpendingWait?error.reason:error instanceof PublicationOperationFailure?'V2_KNOWN_VERIFIER_FAILURE':'V2_VERIFICATION_UNRESOLVED';
+   await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);if(!await tx.read('publication_validation_results',JSON.stringify([draftKey,'publication-validation-v2']))){const id=JSON.stringify([draftKey,'validation-unresolved-v2',reason]);if(!await tx.read('publication_validation_results',id))await tx.write('publication_validation_results',id,{id,feedId,editionId,draftKey,contract,status:'UNRESOLVED',reasons:[reason],readerSpans:[],createdAt:options.now()});}});
+   if(error instanceof ModelSpendingWait)throw error;
+   throw new ModelSpendingWait(reason);
+  }}
   let grounding=await store.read<GroundingResult>(feedId,'grounding_results',draftKey);
   if(!grounding) {
    const candidates=new Map(input.stories.map(s=>[s.candidate.id,s])),proposals:{candidateId:string;claim:GroundedClaim;exact:boolean}[]=[];let rejected=0;const issues:WriterIssue[]=[];

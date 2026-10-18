@@ -46,3 +46,10 @@ it('default legacy mode cannot reinterpret a retained v2 selection or purchase i
  await expect(publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model:port})).rejects.toThrow();
  expect(syntheses).toBe(0);expect(await store.list('feed-1','editions')).toHaveLength(0);
 },30000);
+it('incomplete fact verification persists unresolved and cannot buy a repair',async()=>{
+ const selection=await selected(),port=model(),verify=port.verify!;let repairs=0;
+ port.verify=async(...args)=>({...await verify(...args),semanticChecks:[]});port.repair=async()=>{repairs++;throw Error('NO_REPAIR_FOR_INCOMPLETE_VERIFICATION');};
+ await expect(publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model:port,validationContract:'EVIDENCE_GROUNDED_V2'})).rejects.toThrow();
+ expect(await store.list('feed-1','editions')).toHaveLength(0);expect(repairs).toBe(0);
+ expect((await store.list<any>('feed-1','publication_validation_results')).some(r=>r.status==='UNRESOLVED'&&r.reasons.includes('INCOMPLETE_FACT_VERDICT'))).toBe(true);
+},30000);
