@@ -69,3 +69,18 @@ The [specification](../docs/superpowers/specs/2026-10-18-publication-validation-
 - Unchanged exact security/provenance gates, protected corrections, whole-claim plus fact-level verification, conservative conflict/unavailable-verifier handling, immutable operation identity, accounting and CAS/lease fencing.
 
 The full AI-assisted label file still needs import checks. Independent human specification/plan approval, a representative independently labeled holdout, actual compatible semantic verdicts including positive ACCEPT examples, and a separately budget-authorized controlled staging test remain separate gates. Current semantic accuracy, false acceptance/rejection rates, new packet counts/cost and lock-time impact are **UNMEASURED**. No new replay or publication success is claimed. Refinement does not authorize execution.
+
+## Recovery handoff addendum - 18 October 2026
+
+The subsequent user handoff reports recovery of the original complete label JSON in the analysis workspace, preserved unchanged, plus a separate revision-3-aware answer file. This is new reviewer-reported evidence, not reconstruction from the outcome counts or excerpts:
+
+| Reported answer file | Supplied SHA256 | Local access/import |
+|---|---|---|
+| PUBLICATION_VALIDATION_LABELS_R2_AI_ASSISTED.json | `6bdcef75bc6960906f80c373ebd48d8faabdfc92e488fc7443003395e0cebe5a` | Not available in this repository workspace; hash not locally checked. |
+| PUBLICATION_VALIDATION_LABELS_R3_AI_ASSISTED.json | `4e097092cae0ce8cf32c68cce4ada96fb44c9e1bf8de5a095aacc933a9c1db78` | Not available in this repository workspace; hash not locally checked. |
+
+Reported R2 technical checks: **235 exact witness occurrences, 113 scope-hash occurrences, zero mismatches**, with LF-normalized Unicode code-point offsets. This explicitly corrects the earlier report of 237 exact witnesses. These are field occurrences including repeated witnesses, not independent evidence counts. Reported R3 adds four REQUIRED + COMMUNICATED proposition records (S03/S05, two drafts each), retaining optional omissions and adding eight exact-witness occurrences, for an **expected 243**. No complete-file count or R2/R3 structural diff has yet been reproduced here.
+
+The newly pasted T24 fragment was locally checked: REVIEW.md byte hash matches, `[23986,24025)` is the declared exact source line within T24 under the LF/code-point profile, and the supplied complete-control-reader hash matches UTF-8 of the reader sentence without the `Reader:` prefix or trailing newline. The source says 12 injuries; the reader says 40. The case remains negative for a quantity distortion. A related failure to communicate the correct required count is overlapping coverage evidence, not a second independent factual error. Full-label import must retain the claim-level distortion and deduplicate the root error rather than count the requirement record alone as a separate failure.
+
+The label files remain AI-assisted, unblinded and previously exposed to the audit. Their reported recovery does not provide independent gold, compatible provider verdicts, edition certification or execution approval. Original evidence and revision-3 delivery remain unchanged. Local search covered the repository and its review worktree; it does not disprove availability in a separate analysis workspace. Complete file attachments or accessible local paths are needed to reproduce hashes, counts, section ownership, scope serialization and the exact R2-to-R3 additions. No application code, inference, deployment, queue or financial state changed during this check.
