@@ -123,4 +123,5 @@ calls; normal provider receipt sinks retained generation/usage identity; reporte
 cost was settled only with matching receipts. These control verdicts cannot be
 reused as a real edition's paid verification receipt. No old hold was released,
 uncertain operation retried, source permission changed, credential rotated, or
-production/sources-QA resource accessed. No staging Worker version changed.
+production/sources-QA resource accessed. This evaluation did not deploy or change
+the staging Worker version.

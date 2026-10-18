@@ -11,6 +11,7 @@ from pathlib import Path
 import platform
 import shutil
 import subprocess
+import sys
 import time
 import uuid
 
@@ -30,6 +31,12 @@ def classify_result(exit_code, report, assertion, log_text):
     if 'Hook timed out in' in log_text:
         return 'failed', 'HOOK_TIMEOUT'
     return 'failed', 'RUNNER_OR_SUITE_FAILURE' if assertion['status'] == 'passed' else 'OTHER_FAILURE'
+
+def validate_report_path(path):
+    # Node can emit a long-path report that this Windows Python filesystem API
+    # cannot reopen. Reject before running a test, preserving prior evidence.
+    if sys.platform == 'win32' and len(str(path)) >= 260:
+        raise ValueError('Windows report path is too long; choose a short output directory such as .local-reports/timing')
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -70,6 +77,7 @@ def main():
                 attempt = name + '-' + uuid.uuid4().hex
                 report = output / (attempt + '.json')
                 log_path = output / (attempt + '.log')
+                validate_report_path(report)
                 assert not report.exists() and not log_path.exists()
                 pattern = '^' + ''.join('\\' + c if c in r'\^$.*+?()[]{}|' else c for c in title) + '$'
                 command = [corepack, 'pnpm', '--filter', '@distilled/worker', 'exec', 'vitest', 'run', file, '--maxWorkers=1', '-t', pattern, '--reporter=default', '--reporter=json', '--outputFile=' + str(report)]
