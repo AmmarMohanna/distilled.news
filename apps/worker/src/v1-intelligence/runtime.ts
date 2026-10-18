@@ -1,3 +1,6 @@
+import {prepareV2Shortlist} from './shortlist-v2';
+import {editorialContract} from './editorial-requirements';
+import {prepareV2EditorialPlan} from './editorial-plan-v2';
 import {windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from '../connector-intelligence-turn';
 import {withLatency,measureLatency,countLatency} from './latency';
@@ -164,10 +167,12 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   const legacyPlan=historicalPlans.find(p=>p.policyVersion=== 'comparative-editorial-plan-v21');
   const budget=legacyPlan?DEFAULT_BRIEFING_BUDGET:ADAPTIVE_BRIEFING_PROCESSING;
   const frozen=legacyPlan?await store.read<import('./shortlist').ShortlistRecord>(feedId,'shortlists',legacyPlan.shortlistId):undefined;
-  const shortlist=frozenSelection?undefined:frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await measureLatency('SEMANTIC_SHORTLIST',()=>prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher)):undefined);
+  const contract=editorialContract(env.V1_PUBLICATION_VALIDATION_CONTRACT);
+  let shortlist=frozenSelection?undefined:frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await measureLatency('SEMANTIC_SHORTLIST',()=>prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher)):undefined);
+  if(shortlist&&contract==='EVIDENCE_GROUNDED_V2')shortlist=await prepareV2Shortlist(store,shortlist);
   if(shortlist)await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),semanticCoverage=shortlist.unresolvedTargets?.length?{unresolvedTargets:shortlist.unresolvedTargets}:undefined;if(current&&canonicalJson(current.semanticCoverage)!==canonicalJson(semanticCoverage))await tx.write('briefing_requests',id,{...current,semanticCoverage})});
   failureStage='EDITORIAL_PLAN';
-  const plan=shortlist?await measureLatency('EDITORIAL_PLAN',()=>legacyPlan?prepareEditorialPlan(store,shortlist,budget,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):prepareAdaptiveEditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'))):undefined;
+  const plan=shortlist?await measureLatency('EDITORIAL_PLAN',()=>contract==='EVIDENCE_GROUNDED_V2'?prepareV2EditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):legacyPlan?prepareEditorialPlan(store,shortlist,budget,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):prepareAdaptiveEditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'))):undefined;
   if(plan&&plan.route!=='GPT'&&plan.modelOperationIds?.length){
    const operations=await store.readMany<import('./semantic-operations').SemanticOperationResult>(feedId,'semantic_results',plan.modelOperationIds);
    if([...operations.values()].some(operation=>operation.usage.calls>0&&!operation.usage.reported))throw new ModelSpendingWait('SEMANTIC_OUTCOME_UNKNOWN');
@@ -178,9 +183,10 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   const selection=frozenSelection??await measureLatency('RANKING_SELECTION',()=>scoreAndSelect(store,feedId,window,budget,now(),salienceScorer??(plan?.route==='GPT'?undefined:createSemanticSalienceScorer(env)),plan));
   // Protected work that cannot be delivered yet is a durable, truthful BLOCKED state tied to reassessment progress, not a failure retried
   // identically until the attempt budget is spent. The obligation stays OPEN and nothing is reported as delivered.
+  if(!selection.selectedCandidateIds.length&&plan?.validationContract==='EVIDENCE_GROUNDED_V2'&&plan.stories.some(s=>s.decision==='DEFER'||s.validation?.dispositions.some(d=>d.disposition==='DEFERRED'))){await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current)await tx.write('briefing_requests',id,{...current,state:'DONE',result:'DEFERRED',reason:'V2_EDITORIAL_PROPOSITIONS_PENDING',completedAt:now()});});return undefined;}
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length && shortlist){await recordBlockedWindow(store,feedId,id,shortlist,selection,now());return undefined}
   failureStage='SYNTHESIS_PUBLICATION';
-  const edition=selection.selectedCandidateIds.length?await measureLatency('SYNTHESIS_VERIFICATION_PUBLICATION',()=>publishSelection(store,feedId,selection.id,{now,model:writer,requireModel:required})):undefined;
+  const edition=selection.selectedCandidateIds.length?await measureLatency('SYNTHESIS_VERIFICATION_PUBLICATION',()=>publishSelection(store,feedId,selection.id,{now,model:writer,requireModel:required,validationContract:contract})):undefined;
   countLatency(edition?'publicationPublished':'publicationDeferred');
   if(edition)countLatency('windowCloseToPublicationMs',Math.max(0,Date.parse(edition.createdAt)-Date.parse(window.end)));
   if(edition)try{
