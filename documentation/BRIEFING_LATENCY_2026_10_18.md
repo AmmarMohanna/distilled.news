@@ -147,6 +147,31 @@ node scripts/summarize-briefing-latency.mjs <redacted-tail.jsonl>
 The summarizer uses nearest-rank p50/p95/p99, emits sample counts and separates
 execution phases. Do not mix deterministic fixture reports with real provider samples.
 
+### Fresh predeployment observation
+
+At 2026-10-17 23:56 UTC the old Worker still had 82 editions (latest
+2026-10-16 13:21:25.910 UTC). Since 23:00 UTC, queue outcomes recorded 517
+`DELIVERY_EXHAUSTED / FEED_TURN_BUSY`, plus one temporary-unavailable exhaustion.
+Pending publication reasons included 80 awaiting reassessment, 57 incomplete intake,
+28 account-resource waits, six unknown paid outcomes and two protected-work blocks.
+These are all retained requests, including historical feeds, not unique active windows.
+
+A passive 80.6-second tail captured 41 old-version invocations with zero exceptions:
+21 intelligence queue invocations (wall p50/p95 37,976/56,488 ms), five acquisition
+(31,619/56,996 ms), 13 collection (1,515/36,156 ms), and two Cron. These are consumer
+invocation durations, including admission waits, not completed review latency.
+There were no new-stage completion records in this old Worker sample.
+
+Read-only queue metrics just before 2026-10-18 00:00 UTC showed main backlogs
+processing/collection/acquisition/intelligence = 0/0/3/30; their DLQs already contained
+310/111/254/682 messages. Counts are approximate distributed metrics; oldest DLQ
+timestamps were unavailable (zero). No message was pulled, purged or replayed.
+Empty transport queues do not imply no canonical pending work.
+
+The offline summarizer accepts UTF-8 and Windows UTF-16LE redirected logs, JSONL,
+and consecutive pretty-printed Wrangler events. Its fixture covers escaped braces
+in unrelated legacy messages without admitting them to the numeric report.
+
 ## Correctness and benchmark verification
 
 [Graph benchmark details and reproduction commands](BRIEFING_GRAPH_BENCHMARK_2026_10_18.md)
