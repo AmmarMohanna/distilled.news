@@ -4,7 +4,7 @@ import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
 import {targets,publisherIdentity,type PublicationWindow} from './scoring';
 import {assessSelfContainment,type FactContext,type SelfContainment} from './self-contained';
 import {provenMaterialDelta,alignedSlotDelta} from './material-delta';
-import {communicationFingerprint,evaluateEditorialDelta,noveltyClass,type NoveltyClass,mergeEquivalentFacts,supportedSentences,type EditorialDecision,equivalentFact} from './editorial';
+import {communicationFingerprint,evaluateEditorialDelta,noveltyClass,type NoveltyClass,mergeEquivalentFacts,supportedSentences,type EditorialDecision,createFactEquivalence} from './editorial';
 import {refreshSourceCorrectionObligations,type LedgerEntry,type CorrectionObligation} from './ledger';
 import type {EventSemanticState,Proposition} from './semantic-state';
 import {factTiming,type FactTiming} from './freshness';
@@ -35,6 +35,7 @@ export function boundShortlist<T extends {targetVersionId:string;priority:number
 }
 export async function shortlistInTransaction(tx:FeedTransaction,window:PublicationWindow,now:string,ordinaryLimit:number|undefined=undefined,options:{collectOnly?:boolean;rankings?:Map<string,EditorialRanking>}={}):Promise<ShortlistRecord> {
  const adaptive=ordinaryLimit===undefined;
+ const equivalent=createFactEquivalence();
  // Preserve the same retained semantic facts while shortening the CAS window.
  const currentRoots=await tx.list<import('./types').EventRecord>('events');
  const publishedVersions=(await tx.list<import('./publication').BriefingEditionRecord>('editions')).filter(e=>Date.parse(e.windowEnd)<Date.parse(window.end)).flatMap(e=>e.eventVersionIds);
@@ -118,7 +119,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   let structuredDelta=false;
   for(const versionId of currentSlots.length?priorVersionIds:[]){const version=await tx.read<import('@distilled/contracts').EventVersion>('event_versions',versionId);if(!version||!editorial.previouslyCommunicated.some(p=>p.targetVersionId===versionId))continue;
    const old=await tx.read<EventSemanticState>('event_semantic_states',versionId);for(const id of old?.stateSlotIds??[]){const slot=await tx.read<import('./semantic-state').StateSlot>('state_slots',id),proposition=slot?await tx.read<Proposition>('propositions',slot.propositionId):undefined;
-    if(!slot?.entityId||!proposition||!known.some(text=>equivalentFact(text,proposition.text)))continue;
+    if(!slot?.entityId||!proposition||!known.some(text=>equivalent(text,proposition.text)))continue;
     const priorEntity=await tx.read<import('./semantic-state').Entity>('entities',slot.entityId),currentEntities=await Promise.all(currentSlots.map(s=>s.entityId?tx.read<import('./semantic-state').Entity>('entities',s.entityId):undefined));
     structuredDelta ||= alignedSlotDelta(slot,currentSlots.filter((s,i)=>Boolean(priorEntity&&currentEntities[i]?.entityId===priorEntity.entityId)&&s.attribute===slot.attribute&&s.asOf===slot.asOf));
    }
@@ -126,12 +127,12 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   if(structuredDelta||editorial.newUnderstanding.some(f=>known.some(previous=>provenMaterialDelta(previous,f.text))))protectedReasons.push('MATERIAL_QUALIFIER_DELTA');
   // Even a historical semantic effect cannot protect an exactly witnessed
   // repeated fact. Explicit open obligations still require resolution.
-  const repeatedProtectedEffect=protectedReasons.length>0&&!related.length&&facts.every(f=>known.some(text=>equivalentFact(text,f.text)));
+  const repeatedProtectedEffect=protectedReasons.length>0&&!related.length&&facts.every(f=>known.some(text=>equivalent(text,f.text)));
   if(repeatedProtectedEffect)protectedReasons.splice(0);
   const titleExtractionPending=target.evidence.some(e=>e.title&&!nonFactRole(e.title)&&!sourceDocuments.some(d=>d.evidenceRevisionId===e.id&&d.extractorVersion===CLAIM_EXTRACTOR));
-  const identityAffectsHistory=states.some(s=>s.provisional)&&facts.some(f=>ledger.some(e=>e.claimFacts.some(old=>equivalentFact(old,f.text)||provenMaterialDelta(old,f.text))));
+  const identityAffectsHistory=states.some(s=>s.provisional)&&facts.some(f=>ledger.some(e=>e.claimFacts.some(old=>equivalent(old,f.text)||provenMaterialDelta(old,f.text))));
   const flags=[...(repeatedProtectedEffect?['SETTLED_REPEATED_EFFECT']:[]),...(titleExtractionPending?['TITLE_EXTRACTION_PENDING']:[]),...(editorial.decision==='SUPPRESS'?['POSSIBLE_REPEAT']:[]),...(editorial.reasonCodes.includes('OLD_RECAP')?['OLD_RECAP']:[]),...(states.some(s=>s.provisional)?['PROVISIONAL']:[]),...(states.some(s=>s.provisional)&&awaitingBudget(target.evidence.map(e=>e.id))?['SEMANTIC_PENDING_BUDGET']:[]),...(states.some(s=>s.provisional)&&(protectedReasons.length||editorial.previouslyCommunicated.some(p=>!p.withdrawn&&!p.sourceOnly&&p.facts.length)||identityAffectsHistory)?['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE']:[]),...(facts.some(f=>f.certainty?.hedges.length)?['QUALIFIED']:[]),...(facts.some(f=>f.selfContained==='UNRESOLVED')?['NON_SELF_CONTAINED']:[])];
-  const seenFacts=facts.filter(f=>known.some(k=>equivalentFact(k,f.text))).length;
+  const seenFacts=facts.filter(f=>known.some(k=>equivalent(k,f.text))).length;
   const classifiedNovelty=noveltyClass(editorial.reasonCodes[0],effects),readerNovelty=classifiedNovelty==='OLD_RECAP'&&seenFacts<facts.length?(known.length?'NEW_FACT':'NEW_EVENT'):classifiedNovelty;
   if(contextChanged.has(target.id))flags.push('EDITORIAL_CONTEXT_CHANGED');
   const candidate:ShortlistCandidate={readerState:seenFacts===0?'UNSEEN':seenFacts===facts.length?'SEEN':'PARTIALLY_SEEN',publisherIds:[...new Set(await Promise.all(target.evidence.map(e=>publisherIdentity(tx,e))))].sort(),sourceTitles:[...new Set(target.evidence.map(e=>e.title).filter((s):s is string=>Boolean(s)))],novelty:readerNovelty,targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,eventVersionIds:target.eventVersionIds,evidenceRevisionIds:target.evidence.map(e=>e.id),facts,stateSlotIds:[...new Set(states.flatMap(s=>s.stateSlotIds))],effects,flags,protectedReasons:[...new Set(protectedReasons)],correctionObligationIds:related.map(o=>o.id),priority:protectedReasons.length?1:editorial.reasonCodes.includes('OLD_RECAP')?.3:editorial.newUnderstanding.length?.6:.2,fallbackEditorial:editorial};

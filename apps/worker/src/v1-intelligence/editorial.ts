@@ -46,27 +46,49 @@ export function supportedSentences(text:string):string[] {
 /** Conservative deterministic equivalence, not entailment. Critical qualifiers
  * and ordered quantities must match before lexical paraphrases can be collapsed. */
 export function equivalentFact(a:string,b:string):boolean {
- const normalized=(s:string)=>s.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
- if(normalized(a)===normalized(b)) return true;
- const quantities=(s:string)=>JSON.stringify(normalized(s).match(/\b\d+(?:[.,]\d+)*%?\b/g)??[]);
- const qualifiers=(s:string)=>JSON.stringify([...new Set((normalized(s).match(/\b(?:not|no|never|without|may|might|could|possibly|expected|alleged|allegedly|reportedly|unconfirmed|unresolved|estimated|more than|less than|at least|up to)\b/g)??[]).map(q=>modalClass[q]??q))].sort());
- if(quantities(a)!==quantities(b) || qualifiers(a)!==qualifiers(b)) return false;
- const words=(s:string)=>(normalized(s).match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map(w=>modalClass[w]?'<'+modalClass[w]+'>':aliases[w]??w).filter(w=>!droppable.has(w));
+ return a===b||sameFactSignature(factSignature(a),factSignature(b));
+}
+interface FactSignature {normalized:string;quantities?:string;qualifiers?:string;words?:string}
+const factSignature=(text:string):FactSignature=>({normalized:text.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()});
+function sameFactSignature(a:FactSignature,b:FactSignature):boolean {
+ if(a.normalized===b.normalized)return true;
+ const quantities=(s:FactSignature)=>s.quantities??=JSON.stringify(s.normalized.match(/\b\d+(?:[.,]\d+)*%?\b/g)??[]);
+ const qualifiers=(s:FactSignature)=>s.qualifiers??=JSON.stringify([...new Set((s.normalized.match(/\b(?:not|no|never|without|may|might|could|possibly|expected|alleged|allegedly|reportedly|unconfirmed|unresolved|estimated|more than|less than|at least|up to)\b/g)??[]).map(q=>modalClass[q]??q))].sort());
+ if(quantities(a)!==quantities(b)||qualifiers(a)!==qualifiers(b))return false;
  // Preserve argument order and attribution. A shared bag of words does not
  // establish that the same actor performed the same action on the same object.
  // Retain punctuation in its position: signs/units attach to quantities and
  // quotation/parenthetical punctuation can change attribution.
- const strip=(w:string[])=>w.filter(x=>!/^[.!?]$/.test(x));
- return JSON.stringify(strip(words(a)))===JSON.stringify(strip(words(b)));
+ const words=(s:FactSignature)=>s.words??=JSON.stringify((s.normalized.match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map(w=>modalClass[w]?'<'+modalClass[w]+'>':aliases[w]??w).filter(w=>!droppable.has(w)&&!/^[.!?]$/.test(w)));
+ return words(a)===words(b);
+}
+/** Immutable lexical preprocessing only; no identity/novelty judgment is cached.
+ * Own one comparator per operation. FIFO eviction bounds retained input to
+ * 262,144 UTF-16 characters/2,048 entries and only causes exact recomputation.
+ * Oversized facts remain fully compared; nothing is truncated or suppressed. */
+export function createFactEquivalence():(a:string,b:string)=>boolean {
+ const cache=new Map<string,FactSignature>();let characters=0;
+ const read=(text:string)=>{
+  const prior=cache.get(text);if(prior)return prior;
+  const value=factSignature(text);
+  if(text.length<=262144){
+   while(cache.size&&(cache.size>=2048||characters+text.length>262144)){
+    const oldest=cache.keys().next().value!;characters-=oldest.length;cache.delete(oldest);
+   }
+   cache.set(text,value);characters+=text.length;
+  }
+  return value;
+ };
+ return (a,b)=>a===b||sameFactSignature(read(a),read(b));
 }
 /** Collapse equivalent reader-facing facts into one entry. Every support
  * reference of the collapsed entries is retained on the survivor, so citations
  * are never lost. Equivalence stays conservative: changed values, certainty or
  * attribution never merge. The first (stable-order) entry survives. */
 export function mergeEquivalentFacts<T extends {text:string;evidenceRevisionIds:string[]}>(facts:T[],merge:(survivor:T,duplicate:T)=>void=()=>{},compatible:(a:T,b:T)=>boolean=()=>true):T[] {
- const out:T[]=[];
+ const out:T[]=[],equivalent=createFactEquivalence();
  for(const fact of facts){
-  const same=out.find(f=>compatible(f,fact)&&equivalentFact(f.text,fact.text));
+  const same=out.find(f=>compatible(f,fact)&&equivalent(f.text,fact.text));
   if(!same){out.push(fact);continue}
   same.evidenceRevisionIds=[...new Set([...same.evidenceRevisionIds,...fact.evidenceRevisionIds])];merge(same,fact);
  }
@@ -136,15 +158,15 @@ export async function communicatedState(tx:FeedTransaction,target:EditorialTarge
  return result;
 }
 export async function evaluateEditorialDelta(tx:FeedTransaction,target:EditorialTarget,windowEnd:string,windowStart?:string,ownedFacts?:EditorialFact[]):Promise<EditorialDecision> {
- const previous=await communicatedState(tx,target,windowEnd),facts:EditorialFact[]=[];
+ const previous=await communicatedState(tx,target,windowEnd),facts:EditorialFact[]=[],equivalent=createFactEquivalence();
  // Sharing an article is support provenance, not ownership of every development
  // in it. Semantic shortlists supply the complete facts assigned to this target.
  const supported=ownedFacts??target.evidence.flatMap(evidence=>[evidence.title,evidence.body].flatMap(value=>supportedSentences(value??'')).filter(text=>!nonFactRole(text)).map(text=>({text,evidenceRevisionIds:[evidence.id]})));
  for(const {text,evidenceRevisionIds} of supported) {
-  const same=facts.find(f=>equivalentFact(f.text,text));
+  const same=facts.find(f=>equivalent(f.text,text));
   if(same) same.evidenceRevisionIds=[...new Set([...same.evidenceRevisionIds,...evidenceRevisionIds])];else facts.push({text,evidenceRevisionIds:[...evidenceRevisionIds]});
  }
- const known=previous.filter(p=>!p.withdrawn).flatMap(p=>p.facts),newUnderstanding=facts.filter(f=>!known.some(old=>equivalentFact(old,f.text)));
+ const known=previous.filter(p=>!p.withdrawn).flatMap(p=>p.facts),newUnderstanding=facts.filter(f=>!known.some(old=>equivalent(old,f.text)));
  const repeatedFactCount=facts.length-newUnderstanding.length,repeatPenalty=facts.length?repeatedFactCount/facts.length:1;
  const priorPhases=new Set(known.map(t=>features(t).development));
  const changedPhase=previous.length>0 && newUnderstanding.some(f=>{
