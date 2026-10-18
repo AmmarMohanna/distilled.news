@@ -28,8 +28,10 @@ test("phone header aligns the symbol and controls with an icon-only create butto
  await expect(brand.locator('.distilled-logo-wordmark')).toBeHidden();
  await expect(brand.locator('.distilled-logo-symbol')).toBeVisible();
  const symbol = await brand.locator('.distilled-logo-symbol').boundingBox();
- const language = await page.locator('.experience-header .language-cycle').boundingBox();
- expect(Math.abs(symbol!.y + symbol!.height / 2 - language!.y - language!.height / 2)).toBeLessThan(2);
+ await expect(page.locator('.experience-header .language-cycle')).toBeHidden();
+ await expect(page.locator('.experience-header .theme-toggle')).toBeHidden();
+ const settings = await page.locator('.experience-header .mobile-appearance-settings').boundingBox();
+ expect(Math.abs(symbol!.y + symbol!.height / 2 - settings!.y - settings!.height / 2)).toBeLessThan(2);
  await create.click();
  await expect(page.getByRole('dialog')).toBeVisible();
 });

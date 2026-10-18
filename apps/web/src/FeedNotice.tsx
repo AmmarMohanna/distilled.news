@@ -1,5 +1,6 @@
 import type {PublicationProgress} from './types';
 import React from 'react';
+import { TriangleAlert } from 'lucide-react';
 type Language='en'|'ar'|'fr';
 const text={
  en:{unavailable:'feed unavailable',correction:'Correction pending',delayed:'Briefing delayed',pending:'A correction to an earlier briefing is pending.',available:'Published briefings remain available.',failed:'The latest briefing could not be completed.'},
@@ -9,7 +10,7 @@ const text={
 export function FeedNotice(props:{message:string;language:Language;heading?:string;severity?:'error'|'warning'}){
  const warning=props.severity==='warning';
  return <section className="section notice" role={warning?'status':'alert'} data-severity={warning?'warning':'error'}>
-  <h2>{props.heading??text[props.language].unavailable}</h2><p>{props.message}</p>
+  <span className="feed-notice-icon" aria-hidden="true"><TriangleAlert size={28}/></span><div><h2>{props.heading??text[props.language].unavailable}</h2><p>{props.message}</p></div>
  </section>;
 }
 export function FeedPublicationNotice(props:{publicationState?:string;hasPublishedEditions:boolean;language:Language}){

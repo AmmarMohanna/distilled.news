@@ -39,13 +39,44 @@ test("guest feed header never overlaps or leaves the screen at 320px or with dou
   expect(await headerItems(page)).toEqual({ overlaps: [], offscreen: 0, horizontalScroll: false });
 });
 
-test("guests on phones reach Language and Dark mode from the feed's More menu", async ({ page }) => {
+test("guests on phones reach Language and Dark mode in Settings", async ({ page }) => {
   await mock(page, false);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/joud/lebanon/");
-  await page.locator(".feed-more > summary").click();
-  await page.getByRole("button", { name: /^Dark mode/ }).click();
+  await expect(page.locator('.experience-header .language-cycle')).toBeHidden();
+  await expect(page.locator('.experience-header .theme-toggle')).toBeHidden();
+  await page.locator('.mobile-appearance-settings').click();
+  const settings = page.getByRole('dialog', { name: 'Settings' });
+  await expect(settings.getByRole('group', { name: 'Language' })).toBeVisible();
+  await settings.getByRole("switch", { name: "Dark mode" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+
+test("empty public feed uses the reference dashboard layout", async ({ page }) => {
+  await mock(page, false);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.route('**/api/feed/joud/lebanon', route => route.fulfill({ json: { briefing: feed, editions: [], viewerHasStarred: false, publicationState: 'failed' } }));
+  await page.goto('/joud/lebanon/');
+  await expect(page.getByText('Briefing delayed', { exact: true })).toBeVisible();
+  await expect(page.locator('.feed-empty-state')).toBeVisible();
+  await expect(page.locator('.feed-filter')).toBeHidden();
+  const search = await page.locator('.feed-tools .search').boundingBox();
+  const empty = await page.locator('.feed-empty-state').boundingBox();
+  expect(search!.width).toBeGreaterThan(1000);
+  expect(Math.abs(search!.width - empty!.width)).toBeLessThan(2);
+  const notice = await page.locator('.notice').boundingBox();
+  expect(Math.abs(search!.width - notice!.width)).toBeLessThan(2);
+  expect(empty!.height).toBeGreaterThanOrEqual(260);
+  await page.screenshot({ path: test.info().outputPath('feed-dashboard.png'), fullPage: true });
+});
+
+test("profile identity has no gradient backdrop", async ({ page }) => {
+  await mock(page, true);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Account profile' }).click();
+  const identity = page.locator('.profile-dialog .profile-identity');
+  await expect(identity).toBeVisible();
+  expect(await identity.evaluate(node => getComputedStyle(node, '::before').backgroundImage)).toBe('none');
 });
 
 test("appearance follows the system until the person chooses", async ({ browser }) => {

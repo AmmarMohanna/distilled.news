@@ -1629,10 +1629,7 @@ function FeedPage(props: { username: string; slug: string }) {
         {close => <>
           <button type="button" onClick={() => { close(); void refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))); }}><RefreshCw size={16} aria-hidden />{refreshControlLabel(language)}</button>
           {ownedFeed ? <button type="button" onClick={() => { close(); setEditorOpen(true); }}><Settings size={16} aria-hidden />{t("Edit feed settings")}</button> : null}
-          {account ? null : <>
-            <button type="button" className="menu-narrow-only" onClick={() => { close(); setWebsiteLanguage(nextLanguage); }}><Globe size={16} aria-hidden />{t("Language")}: {languageNames[nextLanguage]}</button>
-            <button type="button" className="menu-narrow-only" onClick={() => { close(); setTheme(theme === "dark" ? "light" : "dark"); }}><Moon size={16} aria-hidden />{t("Dark mode")}: {theme === "dark" ? "On" : "Off"}</button>
-          </>}
+
         </>}
       </FeedMoreMenu>
     </div>
@@ -1660,7 +1657,7 @@ function FeedPage(props: { username: string; slug: string }) {
         if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
-      <div className="feed-tools" dir={pageDir}>
+      <div className={`feed-tools${payload?.editions.length ? "" : " is-empty-feed"}`} dir={pageDir}>
         <div className="feed-filter" role="group" aria-label={filterLabel(language)}>
           {(["all", "unread"] as const).map(option => (
             <button key={option} type="button" aria-pressed={filter === option} onClick={() => { setFilter(option); setVisibleUnreadCount(FEED_BATCH_SIZE); }}>
