@@ -654,7 +654,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .auth-dialog .auth-modal-content,
 :root.apple-ui.apple-ui .auth-dialog .login { background: transparent; border-radius: 0; }
 :root.apple-ui.apple-ui .guest-landing .experience-header-actions .language-cycle { width: 68px; min-width: 68px; flex: 0 0 68px; justify-content: center; }
-:root.apple-ui.apple-ui .guest-landing .experience-header-actions .button-link { width: auto; min-width: 44px; padding-inline: 12px; justify-content: center; white-space: nowrap; }
+:root.apple-ui.apple-ui .guest-landing .experience-header { direction: ltr; }
+:root.apple-ui.apple-ui .guest-landing .experience-header-actions { direction: ltr; }
+:root.apple-ui.apple-ui .guest-landing .experience-header-actions .language-cycle span { width: 2.5ch; text-align: center; }
+:root.apple-ui.apple-ui .guest-landing .experience-header-actions .button-link { width: 120px; min-width: 120px; flex: 0 0 120px; padding-inline: 12px; justify-content: flex-start; white-space: nowrap; }
 :root.apple-ui.apple-ui .experience-header-actions .button-link[href="/login"] {
   background: transparent;
   border-color: transparent;
@@ -750,7 +753,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .profile-dialog-content { padding: 40px 20px 16px; }
 }
 @media (max-width: 600px) {
-  :root.apple-ui.apple-ui .guest-landing .experience-header-actions .button-link { width: auto; min-width: 48px; padding-inline: 6px; font-size: 12px; }
+  :root.apple-ui.apple-ui .guest-landing .experience-header-actions .button-link { width: 96px; min-width: 96px; flex-basis: 96px; padding-inline: 6px; font-size: 12px; }
   :root.apple-ui.apple-ui .guest-landing .experience-header-actions .language-cycle { width: 52px; min-width: 52px; flex-basis: 52px; padding-inline: 4px; }
   :root.apple-ui.apple-ui .guest-landing .experience-header .distilled-logo-wordmark { font-size: 22px; }
 }
