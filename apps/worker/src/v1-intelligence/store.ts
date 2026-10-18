@@ -14,6 +14,7 @@ import {claimMentionSchema,assertClaimSpan,type SourceDocument} from './claims';
 export type DocumentKind='manual_briefing_requests'|'browser_push_receipts'|'roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'publication_work'|'drafts'|'grounding_results'|'verification_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts'|'entities'|'propositions'|'state_slots'|'event_semantic_states'|'storyline_memories'|'source_origins'|'shortlists'|'editorial_processing_work'|'editorial_processing_progress'|'editorial_proposals'|'editorial_processing_waits'|'editorial_plans'|'editorial_deferred_work'|'editorial_work_resolutions'|'ledger_fact_bindings'|'fidelity_results'|'verification_feedback'|'publication_reconciliations'|'schedule_observations'|'semantic_resource_waits'|'semantic_settlements'|'semantic_work_leases'|'semantic_work_releases'|'semantic_construction_work'|'semantic_construction_progress'|'model_spending_reconciliations';
 interface DocumentWrite {kind:DocumentKind;id:string;value:unknown}
 interface Snapshot {feed:FeedRecord;epoch:number;scopes:{id:string;epoch:number}[]}
+type TransientSemanticKind='semantic_results'|'semantic_settlements';
 const mutable=new Set<DocumentKind>(['manual_briefing_requests','events','storylines','publication_status','delivery_jobs','synthesis_jobs','briefing_requests']);
 const feedSchema=z.object({id:z.string().min(1),ownerId:z.string().min(1),title:z.string(),interests:z.array(z.string()),geography:z.array(z.string()),outputLanguage:z.string().min(1),briefingFrequency:z.enum(['30M','HOURLY','DAILY','WEEKLY']),briefingSchedule:liveScheduleSchema.optional(),paused:z.boolean(),revision:z.number().int().positive(),createdAt:z.string().datetime(),updatedAt:z.string().datetime(),deletedAt:z.string().datetime().optional()}).strict();
 export class V1FeedStore {
@@ -105,6 +106,42 @@ export class FeedTransaction {
  async read<T>(kind:DocumentKind,id:string):Promise<T|undefined> {
   const key=JSON.stringify([kind,id]),staged=this.writes.get(key);if(staged) return staged.value as T;
   if(!this.reads.has(key)){this.metrics.documentReads++;this.reads.set(key,this.store.read(this.snapshot.feed.id,kind,id))}return this.reads.get(key) as Promise<T|undefined>;
+ }
+ /** Inspect all uncached receipt owners before an early reuse return, just as
+  * eager preload did. Only metadata is retained; cached absence/staged values
+  * keep their existing precedence. Sizes plan incremental payload pages. */
+ async transientReadSizes(kind:TransientSemanticKind,ids:string[]):Promise<Map<string,number>> {
+  if(kind!=='semantic_results'&&kind!=='semantic_settlements')throw new HandoffError('SCOPE_DENIED');
+  const missing=[...new Set(ids)].filter(id=>!this.reads.has(JSON.stringify([kind,id]))&&!this.writes.has(JSON.stringify([kind,id]))),sizes=new Map<string,number>();
+  for(let offset=0;offset<missing.length;offset+=90){
+   const chunk=missing.slice(offset,offset+90);this.metrics.preloadQueries++;
+   const rows=await this.store.db.prepare(`SELECT id,feed_id,length(CAST(json AS BLOB)) AS bytes FROM v1_feed_documents WHERE kind=? AND id IN (${chunk.map(()=>'?').join(',')})`).bind(kind,...chunk).all<{id:string;feed_id:string;bytes:number}>();
+   if(rows.results.some(row=>row.feed_id!==this.snapshot.feed.id))throw new HandoffError('SCOPE_DENIED');
+   for(const row of rows.results)sizes.set(row.id,row.bytes);
+   // Preserve eager preload's negative snapshot without retaining graph bodies.
+   const found=new Set(rows.results.map(row=>row.id));
+   for(const id of chunk)if(!found.has(id))this.reads.set(JSON.stringify([kind,id]),Promise.resolve(undefined));
+  }
+  return sizes;
+ }
+ /** Historical semantic receipts are immutable but can contain complete graph
+  * snapshots. Read at most four at a time without retaining them in `reads`.
+  * Clone cached/staged values too, so transient callers cannot poison either. */
+ async readTransientMany<T>(kind:TransientSemanticKind,ids:string[]):Promise<Map<string,T|undefined>> {
+  if(kind!=='semantic_results'&&kind!=='semantic_settlements')throw new HandoffError('SCOPE_DENIED');
+  const values=new Map<string,T|undefined>(),missing:string[]=[];
+  for(const id of new Set(ids)){
+   const key=JSON.stringify([kind,id]),staged=this.writes.get(key);
+   if(staged)values.set(id,structuredClone(staged.value as T));
+   else if(this.reads.has(key))values.set(id,structuredClone(await this.reads.get(key) as T|undefined));
+   else missing.push(id);
+  }
+  for(let offset=0;offset<missing.length;offset+=4){
+   const chunk=missing.slice(offset,offset+4);this.metrics.preloadQueries++;
+   const rows=await this.store.readMany<T>(this.snapshot.feed.id,kind,chunk);
+   for(const id of chunk)values.set(id,structuredClone(rows.get(id)));
+  }
+  return values;
  }
  /** Populate immutable lookup cache in bounded batches while checking global ID scope. */
  async preload(kind:DocumentKind,ids:string[]):Promise<void> {

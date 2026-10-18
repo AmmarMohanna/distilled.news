@@ -11,11 +11,30 @@ export function semanticQuestion(input:SemanticOperationInput):unknown {
  return {...identity,state};
 }
 export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOperationInput,compatibilityHash?:string):Promise<SemanticOperationResult<T>|undefined>{
- const rows=await tx.store.db.prepare("SELECT d.json FROM v1_feed_documents d WHERE d.feed_id=? AND d.kind='semantic_intents' AND EXISTS(SELECT 1 FROM json_each(d.json,'$.input.evidenceRevisionIds') e WHERE e.value=?) AND json_extract(d.json,'$.input.kind')=?").bind(input.feedId,input.evidenceRevisionIds[0],input.kind).all<{json:string}>();
- const intents=rows.results.map(row=>JSON.parse(row.json) as SemanticIntent);
- await tx.preload('semantic_results',intents.map(intent=>intent.id));await tx.preload('semantic_settlements',intents.map(intent=>intent.id));
- for(const intent of intents){
-  const saved=await tx.read<SemanticOperationResult<T>>('semantic_results',intent.id),settled=await tx.read<SemanticOperationResult<T>&{token:string}>('semantic_settlements',intent.id);
+ // Preserve the complete predicate and returned order, while retaining only
+ // identities/sizes across pages instead of every historical graph snapshot.
+ tx.metrics.preloadQueries++;
+ const rows=await tx.store.db.prepare("SELECT d.id,json_extract(d.json,'$.id') AS document_id,length(CAST(d.json AS BLOB)) AS bytes FROM v1_feed_documents d WHERE d.feed_id=? AND d.kind='semantic_intents' AND EXISTS(SELECT 1 FROM json_each(d.json,'$.input.evidenceRevisionIds') e WHERE e.value=?) AND json_extract(d.json,'$.input.kind')=?").bind(input.feedId,input.evidenceRevisionIds[0],input.kind).all<{id:string;document_id:string;bytes:number}>();
+ if(rows.results.some(row=>typeof row.document_id!=='string'||row.id!==row.document_id))throw new HandoffError('SCOPE_DENIED');
+ const ids=rows.results.map(row=>row.id);
+ // Eager preload rejected foreign receipts anywhere in the candidate universe,
+ // even after a reusable first answer. Keep that fail-closed ownership check.
+ const resultSizes=await tx.transientReadSizes('semantic_results',ids),settlementSizes=await tx.transientReadSizes('semantic_settlements',ids);
+ for(let offset=0;offset<rows.results.length;){
+  const page:string[]=[];let bytes=0;
+  while(offset<rows.results.length&&page.length<4){
+   const row=rows.results[offset],size=row.bytes+(resultSizes.get(row.id)??0)+(settlementSizes.get(row.id)??0);
+   if(page.length&&bytes+size>2*1024*1024)break;
+   page.push(row.id);bytes+=size;offset++;
+  }
+  // Persisted intents deliberately bypass transaction staged/cache values, as
+  // the old direct JSON scan did. An oversized candidate is processed alone.
+  tx.metrics.preloadQueries++;
+  const intents=await tx.store.readMany<SemanticIntent>(tx.snapshot.feed.id,'semantic_intents',page);
+  const savedResults=await tx.readTransientMany<SemanticOperationResult<T>>('semantic_results',page),settlements=await tx.readTransientMany<SemanticOperationResult<T>&{token:string}>('semantic_settlements',page);
+  for(const id of page){
+  const intent=intents.get(id);if(!intent||intent.id!==id)throw new HandoffError('SCOPE_DENIED');
+  const saved=savedResults.get(id),settled=settlements.get(id);
   const result=saved??(settled?.usage.reported&&settled.token===intent.token?settled:undefined);
   // An unreported/expired paid operation is not permission to bill again.
   // Legacy records without compatibility metadata retain a conservative fence.
@@ -37,6 +56,7 @@ export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOper
   // A reported construction failure is reusable evidence for targeted repair or
   // capacity continuation, never a reason to rebill the same root question.
   if(input.kind==='SEMANTIC_CONSTRUCTION'&&result?.usage.reported&&result.usage.calls===1&&['SEMANTIC_CONSTRUCTION_REJECTED','SEMANTIC_MODEL_OUTPUT_CONTINUATION_REQUIRED'].includes(result.failure??'')&&compatibilityHash&&intent.compatibilityHash===compatibilityHash)return result;
+  }
  }
  return undefined;
 }
