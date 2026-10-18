@@ -68,6 +68,13 @@ export function validateLabels(labels,manifest){
    if(!record.artifact)continue;
    check(()=>{
     const text=artifact(record),scope=section(text,record.section);
+    if(sub.includes('/readerWitnesses/')){
+     if(record.artifact==='REVIEW.md'){
+      require(record.kind==='CONTROL_READER','READER_WITNESS_SOURCE_ONLY');
+      const prefix=Array.from(text).slice(0,record.start).join('').split('\n').at(-1)??'';
+      require((prefix+record.quote).startsWith('Reader:')&&!record.quote.includes('\n'),'READER_WITNESS_SOURCE_ONLY');
+     }else require(record.artifact==='drafts.md'&&/^D\d+S\d+$/.test(record.section),'READER_WITNESS_SOURCE_ONLY');
+    }
     if('start'in record||'end'in record){
      require(Number.isInteger(record.start)&&Number.isInteger(record.end)&&record.start>=scope.start&&record.end>record.start&&record.end<=scope.end,'WITNESS_BOUNDS');
      require(Array.from(text).slice(record.start,record.end).join('')===record.quote,'EXACT_WITNESS');exactWitnessOccurrences++;
