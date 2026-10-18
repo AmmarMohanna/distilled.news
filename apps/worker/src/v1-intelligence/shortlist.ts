@@ -49,13 +49,13 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
  if(adaptive){
   await tx.preload('editorial_plans',omitted.flatMap(w=>w.planId?[w.planId]:[]));
   const plans=await Promise.all(omitted.map(w=>w.planId?tx.read<import('./editorial-plan').EditorialPlanRecord>('editorial_plans',w.planId):undefined));
-  await tx.preload('shortlists',plans.flatMap(p=>p?.shortlistId?[p.shortlistId]:[]));
+  const policies=await tx.shortlistPolicyVersions(plans.flatMap(p=>p?.shortlistId?[p.shortlistId]:[]));
   for(const [i,work] of omitted.entries()){
-   const plan=plans[i],priorScope=plan?.shortlistId?await tx.read<ShortlistRecord>('shortlists',plan.shortlistId):undefined;
+   const plan=plans[i],priorPolicy=plan?.shortlistId?policies.get(plan.shortlistId):undefined;
    // An omission is reusable only under compatible interests and reader-state
    // reasoning. Historical decisions remain immutable; changed context earns
    // fresh comparison, never automatic selection or rewritten communication.
-   if(plan?.feedRevision===tx.snapshot.feed.revision&&priorScope?.policyVersion===SHORTLIST_POLICY)retiredVersions.add(work.targetVersionId);
+   if(plan?.feedRevision===tx.snapshot.feed.revision&&priorPolicy===SHORTLIST_POLICY)retiredVersions.add(work.targetVersionId);
    else contextChanged.add(work.targetVersionId);
   }
  }else for(const work of omitted)retiredVersions.add(work.targetVersionId);
@@ -94,7 +94,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   // may fall back to exact source support; sharing an article grants no facts.
   for(const versionId of target.eventVersionIds.filter(id=>!states.some(s=>s.eventVersionId===id))){
    const before=rawFacts.length;
-   const version=await tx.read<import('@distilled/contracts').EventVersion>('event_versions',versionId),memberIds=new Set((await tx.list<import('@distilled/contracts').EventMembership>('memberships')).filter(m=>m.eventVersionId===versionId).map(m=>m.evidenceRevisionId));
+   const version=await tx.read<import('@distilled/contracts').EventVersion>('event_versions',versionId),memberIds=new Set((await tx.membershipsForVersions([versionId])).map(m=>m.evidenceRevisionId));
    for(const text of supportedSentences(version?.state??'').filter(text=>!nonFactRole(text)))for(const evidence of target.evidence.filter(e=>memberIds.has(e.id)))if([evidence.body,evidence.title].some(field=>field?.includes(text)))rawFacts.push({id:await sha256(canonicalJson({feedId:tx.snapshot.feed.id,evidenceId:evidence.id,text,policy:SHORTLIST_POLICY})),text,evidenceRevisionIds:[evidence.id],claimMentionIds:[]});
    if(rawFacts.length===before)unresolvedLegacyVersions.push(versionId);
   }

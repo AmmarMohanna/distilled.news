@@ -128,6 +128,21 @@ export class FeedTransaction {
    }
   }
  }
+ /** Omission reuse needs only the immutable policy, not historical candidate
+  * payloads. Do not populate the full-document cache with a projection. Global
+  * identity/Feed ownership and staged writes match preload/read semantics. */
+ async shortlistPolicyVersions(ids:string[]):Promise<Map<string,string|undefined>> {
+  const unique=[...new Set(ids)],policies=new Map<string,string|undefined>();
+  const missing:string[]=[];
+  for(const id of unique){const staged=this.writes.get(JSON.stringify(['shortlists',id]));policies.set(id,(staged?.value as {policyVersion?:string}|undefined)?.policyVersion);if(!staged)missing.push(id)}
+  for(let offset=0;offset<missing.length;offset+=90){
+   const chunk=missing.slice(offset,offset+90);this.metrics.preloadQueries++;
+   const rows=await this.store.db.prepare(`SELECT id,feed_id,json_extract(json,'$.policyVersion') AS policy_version FROM v1_feed_documents WHERE kind='shortlists' AND id IN (${chunk.map(()=>'?').join(',')})`).bind(...chunk).all<{id:string;feed_id:string;policy_version:string|null}>();
+   if(rows.results.some(row=>row.feed_id!==this.snapshot.feed.id))throw new HandoffError('SCOPE_DENIED');
+   for(const row of rows.results)policies.set(row.id,row.policy_version??undefined);
+  }
+  return policies;
+ }
  /** Cache only immutable semantic references owned by the offered Event versions. */
  async preloadSemanticReferences(versionIds:string[]):Promise<void>{
   const ids=[...new Set(versionIds)];await this.preload('event_semantic_states',ids);

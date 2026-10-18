@@ -3,6 +3,7 @@ import {equivalentFact} from './editorial';
 import type {EditorialWork} from './editorial-work';
 import {provenMaterialDelta} from './material-delta';
 import {revisionChangesMeaning,changedCommunicatedSpans} from './correction-materiality';
+import {measureLatency,countLatency} from './latency';
 import {HandoffError,sha256,type BriefingCandidate,type EventVersion} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import {V1FeedStore,type FeedTransaction,type DocumentKind} from './store';
@@ -134,12 +135,26 @@ export async function recordCorrectionObligation(tx:FeedTransaction,entry:Ledger
 /** Absence is never deletion. Only durable source tombstones create deletion
  * obligations; a changed current revision creates a distinct revision obligation. */
 export async function refreshSourceCorrectionObligations(tx:FeedTransaction,now:string):Promise<void> {
- for(const entry of await tx.list<LedgerEntry>('ledger_entries'))for(const id of entry.evidenceRevisionIds){
-  const revision=await tx.revision(id);if(!revision)continue;
-  const row=await tx.store.db.prepare("SELECT e.json FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id WHERE s.feed_id=? AND json_extract(e.json,'$.id')=?").bind(tx.snapshot.feed.id,revision.evidenceId).first<{json:string}>();if(!row)continue;
-  const current=JSON.parse(row.json);
+ return measureLatency('SOURCE_CORRECTION_REFRESH',()=>refreshSourceCorrections(tx,now));
+}
+async function refreshSourceCorrections(tx:FeedTransaction,now:string):Promise<void> {
+ const entries=await tx.list<LedgerEntry>('ledger_entries'),ids=[...new Set(entries.flatMap(entry=>entry.evidenceRevisionIds))];
+ countLatency('ledgerEntriesInspected',entries.length);countLatency('ledgerSupportIdentities',ids.length);
+ const currentByRevision=new Map<string,import('@distilled/contracts').NormalizedEvidenceItem>();
+ // Inspect indexed identities in bounded batches before reading historical
+ // article bodies. Disabled/deleted scopes remain ownership roots for retained
+ // corrections. This cache belongs only to this invocation/CAS attempt; source
+ // and Feed epochs still fence the eventual commit.
+ for(let offset=0;offset<ids.length;offset+=90){
+  const chunk=ids.slice(offset,offset+90);tx.metrics.preloadQueries++;
+  const rows=await tx.store.db.prepare(`SELECT r.id AS revision_id,e.json AS current_json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id JOIN v1_evidence e ON e.id=json_extract(r.json,'$.evidenceId') AND e.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(tx.snapshot.feed.id,...chunk).all<{revision_id:string;current_json:string}>();
+  for(const row of rows.results)currentByRevision.set(row.revision_id,JSON.parse(row.current_json));
+ }
+ for(const entry of entries)for(const id of entry.evidenceRevisionIds){
+  const current=currentByRevision.get(id);if(!current)continue;
   if(current.state==='DELETED')await recordCorrectionObligation(tx,entry,'SOURCE_DELETED',current.currentObservationId,now);
   else if(current.currentRevisionId && current.currentRevisionId!==id){
+   const revision=await tx.revision(id);if(!revision)continue;
    const next=await tx.revision(current.currentRevisionId);
    if(!next||await sourceChangesReaderMeaning(tx.store,tx.snapshot.feed.id,entry,revision,next,tx))await recordCorrectionObligation(tx,entry,'SOURCE_REVISED',current.currentRevisionId,now);
    else for(const obligation of (await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>o.ledgerEntryId===entry.id&&o.kind==='SOURCE_REVISED')){
