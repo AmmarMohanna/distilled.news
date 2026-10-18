@@ -23,6 +23,6 @@ for(const path of [...new Set(paths)].slice(0,6)){
  if(hash(remote.body)!==hash(local))throw Error('STAGING_ASSET_DIFFERS_FROM_BUILD');
  assets.push(remote.metadata);
 }
-const session=await get('/api/session');
+const session=await get('/api/auth/session');
 const value=JSON.parse(session.body.toString('utf8'));
 console.log(JSON.stringify({observedAt:new Date().toISOString(),origin,index:root.metadata,assets,session:{...session.metadata,sha256:undefined,keys:Object.keys(value).sort()},publicationVerified:false},null,2));
