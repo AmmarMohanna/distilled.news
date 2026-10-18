@@ -46,7 +46,7 @@ export function supportedSentences(text:string):string[] {
 /** Conservative deterministic equivalence, not entailment. Critical qualifiers
  * and ordered quantities must match before lexical paraphrases can be collapsed. */
 export function equivalentFact(a:string,b:string):boolean {
- return a===b||sameFactSignature(factSignature(a),factSignature(b));
+ return (typeof a==='string'&&a===b)||sameFactSignature(factSignature(a),factSignature(b));
 }
 interface FactSignature {normalized:string;quantities?:string;qualifiers?:string;words?:string}
 const factSignature=(text:string):FactSignature=>({normalized:text.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()});
@@ -79,7 +79,7 @@ export function createFactEquivalence():(a:string,b:string)=>boolean {
   }
   return value;
  };
- return (a,b)=>a===b||sameFactSignature(read(a),read(b));
+ return (a,b)=>(typeof a==='string'&&a===b)||sameFactSignature(read(a),read(b));
 }
 /** Collapse equivalent reader-facing facts into one entry. Every support
  * reference of the collapsed entries is retained on the survivor, so citations

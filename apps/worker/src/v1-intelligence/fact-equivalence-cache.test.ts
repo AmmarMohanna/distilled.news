@@ -3,15 +3,16 @@ import {equivalentFact,createFactEquivalence} from './editorial';
 
 // Frozen pre-optimization semantics. This is a differential oracle, not another
 // production implementation or a relaxed lexical/semantic quality policy.
+const retainedAliases:Record<string,string>={ads:'advertisement',advertisements:'advertisement',laws:'law'};
+const retainedModal:Record<string,string>={may:'possible',might:'possible',could:'possible',possibly:'possible',reportedly:'reported',allegedly:'alleged',alleged:'alleged'};
+const retainedDrop=new Set(['the','a','an']);
 function retainedEquivalent(a:string,b:string):boolean {
- const aliases:Record<string,string>={ads:'advertisement',advertisements:'advertisement',laws:'law'};
- const modal:Record<string,string>={may:'possible',might:'possible',could:'possible',possibly:'possible',reportedly:'reported',allegedly:'alleged',alleged:'alleged'};
- const drop=new Set(['the','a','an']),normalized=(s:string)=>s.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
+ const normalized=(s:string)=>s.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
  if(normalized(a)===normalized(b))return true;
  const quantities=(s:string)=>JSON.stringify(normalized(s).match(/\b\d+(?:[.,]\d+)*%?\b/g)??[]);
- const qualifiers=(s:string)=>JSON.stringify([...new Set((normalized(s).match(/\b(?:not|no|never|without|may|might|could|possibly|expected|alleged|allegedly|reportedly|unconfirmed|unresolved|estimated|more than|less than|at least|up to)\b/g)??[]).map(q=>modal[q]??q))].sort());
+ const qualifiers=(s:string)=>JSON.stringify([...new Set((normalized(s).match(/\b(?:not|no|never|without|may|might|could|possibly|expected|alleged|allegedly|reportedly|unconfirmed|unresolved|estimated|more than|less than|at least|up to)\b/g)??[]).map(q=>retainedModal[q]??q))].sort());
  if(quantities(a)!==quantities(b)||qualifiers(a)!==qualifiers(b))return false;
- const words=(s:string)=>(normalized(s).match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map(w=>modal[w]?'<'+modal[w]+'>':aliases[w]??w).filter(w=>!drop.has(w));
+ const words=(s:string)=>(normalized(s).match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map(w=>retainedModal[w]?'<'+retainedModal[w]+'>':retainedAliases[w]??w).filter(w=>!retainedDrop.has(w));
  return JSON.stringify(words(a).filter(x=>!/^[.!?]$/.test(x)))===JSON.stringify(words(b).filter(x=>!/^[.!?]$/.test(x)));
 }
 afterEach(()=>vi.restoreAllMocks());
@@ -24,6 +25,14 @@ it('normalizes each immutable input once within an operation rather than on ever
  const facts=Array.from({length:30},(_,i)=>'Official'+String.fromCharCode(65+i)+' reported the same kind of development affecting 100 people.');
  for(const a of facts)for(const b of facts)cached(a,b);
  expect(normalize).toHaveBeenCalledTimes(facts.length);
+});
+it('retains fail-closed behavior for identical malformed non-string facts',()=>{
+ for(const invalid of [undefined,null,0,false,{},[]]){
+  const value=invalid as unknown as string;
+  expect(()=>retainedEquivalent(value,value)).toThrow();
+  expect(()=>equivalentFact(value,value)).toThrow();
+  expect(()=>createFactEquivalence()(value,value)).toThrow();
+ }
 });
 it('fresh operations and changed text never inherit an earlier comparison result',()=>{
  const a='Officials approved a reform.',b='Officials approved the reform.',changed='Officials rejected the reform.';
