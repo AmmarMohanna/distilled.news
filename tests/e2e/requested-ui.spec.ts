@@ -16,6 +16,24 @@ async function mock(page: import("@playwright/test").Page, authenticated = true)
  });
 }
 
+test("phone header aligns the symbol and controls with an icon-only create button", async ({ page }) => {
+ await mock(page, false);
+ await page.setViewportSize({ width: 390, height: 844 });
+ await page.goto("/");
+ const create = page.getByRole("button", { name: "Create feed", exact: true });
+ await expect(create).toBeVisible();
+ await expect(create.locator('.create-feed-label')).toBeHidden();
+ await expect(create).toHaveCSS('width', '48px');
+ const brand = page.locator('.experience-header .experience-brand');
+ await expect(brand.locator('.distilled-logo-wordmark')).toBeHidden();
+ await expect(brand.locator('.distilled-logo-symbol')).toBeVisible();
+ const symbol = await brand.locator('.distilled-logo-symbol').boundingBox();
+ const language = await page.locator('.experience-header .language-cycle').boundingBox();
+ expect(Math.abs(symbol!.y + symbol!.height / 2 - language!.y - language!.height / 2)).toBeLessThan(2);
+ await create.click();
+ await expect(page.getByRole('dialog')).toBeVisible();
+});
+
 test("feed menus stay visible at viewport edges and escape card clipping", async ({ page }) => {
  await mock(page);
  await page.setViewportSize({ width: 390, height: 500 });

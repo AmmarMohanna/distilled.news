@@ -1632,3 +1632,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 /* Keep keyboard focus inside the microphone button instead of outside its field. */
 :root.apple-ui.apple-ui .voice-input > button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+
+@media (max-width: 600px) {
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.explore-controls, .landing-controls) { grid-template-columns: minmax(0, 1fr) 48px !important; }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.explore-controls, .landing-controls) > :is(.home-add-feed, .landing-create) { width: 48px; height: 48px; padding: 0; display: grid; place-items: center; }
+  :root.apple-ui.apple-ui :is(.home-add-feed, .landing-create) .create-feed-label { display: none; }
+  :root.apple-ui.apple-ui .experience.product-refresh :is(.explore-controls, .landing-controls) > :is(.home-add-feed, .landing-create) svg { position: static; transform: none; width: 22px; height: 22px; }
+  :root.apple-ui.apple-ui .experience .experience-header > .experience-brand { position: static; top: auto; left: auto; transform: none; padding: 0; display: flex; align-items: center; align-self: center; }
+  :root.apple-ui.apple-ui .experience-header .experience-brand > .distilled-logo { display: inline-flex; align-items: center; }
+  :root.apple-ui.apple-ui .experience-header .distilled-logo-wordmark { display: none; }
+  :root.apple-ui.apple-ui .experience-header .distilled-logo-symbol { display: block; width: 44px; }
+}
