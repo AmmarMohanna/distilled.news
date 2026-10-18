@@ -93,7 +93,9 @@ tests passed**, including that race and complete processing of an oversized winn
 candidate. The final pair of memory/exposure files had 14 passes and one fixture
 error in exposure timestamp validation; after correcting that fixture, all 19
 exposure/existing-spending/concurrency tests passed. No runtime assertion was
-relaxed. Live memory-limit recovery remains unverified until staging deployment.
+relaxed. The final full Worker CI also passes 1,633 tests, with 11 skips. Live
+version-tagged outcomes are recorded in the final rollout report; absence of a
+memory-limit event in a bounded sample is not proof that all memory pressure is fixed.
 
 The regression was written and run before runtime changes. With the eager
 implementation, the late reusable answer was correct but a later ordinary read
@@ -111,11 +113,18 @@ and malformed persisted identity rejection.
 
 Private logs: `semantic-reuse-memory-red.log` and
 `semantic-reuse-memory-green.log`. A subsequent test-only refinement makes the
-winning candidate itself exceed the planned byte budget; final focused regression
-verification is pending the root operator's serial CPU slot. The full Worker
-suite and live version-tagged verification remain separate release gates.
+winning candidate itself exceed the planned byte budget; the final nine-case
+regression and full Worker CI include that refinement and pass. The implementation
+was deployed in staging version `81de8398-b6b3-4a20-8ea1-260c02540563`.
 
 No deployment, paid request, migration, financial amendment, commit or push was
 performed by this memory implementation task. Only `store.ts`,
 `semantic-settlement.ts`, the new focused test, and this report changed within
 its implementation scope.
+
+Subsequent root rollout: the final version-tagged trace has 634 invocation records,
+633 `ok` and one D1 network exception, with zero observed memory/CPU-limit outcomes.
+This does not measure peak heap. A remaining replay span took 264,384 ms and 1,096
+preloads before CAS contention. Bounded transient bodies remove the confirmed
+retention regression while leaving substantial round-trip overhead to optimize
+with the same complete-candidate and late-result safety guarantees.

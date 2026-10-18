@@ -26,7 +26,9 @@ with durable rematches; uncertain paid outcomes never authorize another call.
 Optimize repeated retained-membership scans with a transaction-local version
 index that incorporates staged memberships. Preserve complete candidate recall;
 do not prune by age or remove historical provenance. Cache feature computation
-within one preparation only. No migration is anticipated.
+within one preparation only. These optimizations need no migration. A subsequent
+explicitly owner-approved $50-to-$51 append-only financial amendment required
+additive migration 0062; it was separately tested/backed up and applied only to staging.
 
 Use one aggregate structured timing record per review/publication execution and
 one per model operation. Stage totals, counts, CAS conflicts and admission waits
@@ -78,6 +80,17 @@ Aggregate percentiles offline; do not write a D1 row per timing stage.
    incomplete coverage is converted to QUIET or silently represented as complete.
 
 ## Execution notes
+
+Final continuation: cache/replay/exposure code `f7fcfa1` and the subsequently
+measured recovery-query fix `8a451ae` were pushed and deployed only to staging.
+The final Worker is `45f475b8-0d2a-4da3-9b44-bffc113ffdcb`. Full final Worker CI
+passes 1,635 cases (11 skipped), typechecks/build pass, and eight pre-existing
+browser E2E failures remain. The approved append-only $51 cap is active after
+verified backup and migration 0062; all 44 original unknown holds remain intact.
+Actual synthesis and repair ran, but factual prechecks rejected both drafts.
+**End-to-end publication acceptance is BLOCKED, not complete.** See the
+[final validation record](BRIEFING_FINAL_VALIDATION_2026_10_18.md) for exact stage
+times, actual costs, evidence checks, backlog/DLQ counts and remaining priorities.
 
 - Workspace: `.review-tmp/backend-briefing-review`; base `68ce2a76c36adc1060ef908bd5fd6f9c61074bd1`.
 - Locked install succeeded (230 packages); no dependency changes requested.

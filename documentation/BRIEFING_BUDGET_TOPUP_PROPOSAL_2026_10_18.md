@@ -1,8 +1,10 @@
 # Bounded staging model-budget top-up proposal
 
 The owner authorized a budget increase if needed on 2026-10-18 and explicitly
-approved this append-only $50-to-$51 design in the same session. No
-grant, hold, reservation, source budget or credential has been changed.
+approved this append-only $50-to-$51 design in the same session. The single
+approved amendment was appended at **2026-10-18T13:05:14.275Z** after the backup,
+retained-history tests, rollout and migration checks described below. The immutable
+original grant, all unknown holds, source budgets and credentials are preserved.
 
 The current grant has a $50 maximum, $45.640232468 reported in its original period,
 and $4.345092702 held across 44 unknown operations. Headroom is $0.014674830; a
@@ -45,6 +47,19 @@ allowed models and pre-migration fallback. One timestamp fixture initially selec
 future-date validation instead of the intended outside-period check; the fixture
 was corrected to a past date outside the grant.
 
-Remote backup verification, representative-history migration validation, deployment
-and the actual single $51 amendment remain required. Until those occur, live
-real-model publication remains financially BLOCKED; approval alone is not headroom.
+Execution: the fresh 3,960,719,371-byte SQL export passed full decompression/hash
+verification. Local representative financial history retained all five old-table
+counts and original authority/reservation/settlement values, with integrity `ok`
+and zero foreign-key violations. Migration 0062 was the sole pending migration and
+was applied once to staging; migration history is now 68 entries. The amendment
+table was verified empty before the one guarded INSERT. That INSERT matched the
+exact staging account, original authorization ID, original period, base cap $50
+and absent parent amendment. It returned sequence 1 / previous $50 / effective $51.
+The original row still reports $50 and the same October 12-19 period. All 44
+unknown holds still total $4.345092702. No grant was renewed or replaced.
+
+At 13:11 UTC three new real GPT operations had fully reported costs of $0.219032,
+with no additional unknown exposure. The cap is not permission to repeat unknown
+operations, bypass reference checks, or declare publication successful. See the
+[final validation report](BRIEFING_FINAL_VALIDATION_2026_10_18.md) for the bounded
+live outcome and remaining headroom. There is no automatic further increase.

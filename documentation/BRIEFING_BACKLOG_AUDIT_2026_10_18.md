@@ -216,3 +216,28 @@ admission/delivery rates over a fixed interval, plus the post-CPU release tail.
 The existing insufficient headroom for new required GPT work cannot be bypassed
 to manufacture a successful publication, and unknown holds cannot be released
 without settlement evidence.
+
+## Subsequent bounded continuation
+
+The read-only 13:07:57 UTC snapshot found 963 old accepted X reassessments
+(983 at 11:29:17), plus one newly accepted RSS reassessment on another feed.
+The 20-job net decrease over 98 minutes 40 seconds is approximately 12.16 old
+jobs/hour, with no bulk replay or canonical-job reset. The oldest observation
+remained October 15 at 19:10 UTC, almost 66 hours old: progress did not remove
+the oldest-work problem. Authoritative rechecks increased from 291 to 308;
+238 observations predate the first rollout and 70 follow it, all still pending
+with zero canonical attempts and `QUARANTINE_REVISION_CONFLICT`. No item was
+silently discarded because it had an old revision.
+
+The 13:17 native DLQ snapshot had 1,575 retained messages: processing 310,
+collection 213, acquisition 291 and V1 761. Relative to the first audit's 1,532,
+that is a net increase of 43 (0/21/10/12). Per-message age/cause cannot be inferred
+from zero-valued oldest timestamps or canonical outcome rows; no DLQ message was
+pulled, acknowledged, purged or replayed to pretend otherwise.
+
+The owner-approved single $51 exposure amendment subsequently admitted three
+real GPT editorial calls with reported costs, while retaining all 44 unknown holds.
+That resolved the immediate cap shortage, not the coverage/recheck obligations.
+Database-specific analytics then identified the recovery selector itself repeatedly
+using the D1 CPU limit. See [the query measurements and equivalent fix](BRIEFING_RECOVERY_QUERY_2026_10_18.md)
+and [the final application acceptance record](BRIEFING_FINAL_VALIDATION_2026_10_18.md).

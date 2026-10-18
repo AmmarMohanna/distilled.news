@@ -4,7 +4,8 @@ This follows [the first live profile and metadata release](BRIEFING_PUBLICATION_
 The metadata changes reduced reads but did not eliminate publication's CPU-limit
 failure. The CPU optimization passed the differential and retained replay checks
 below. Its frozen full Worker run and targeted reruns are recorded separately;
-deployment and live comparison remain pending at this checkpoint.
+deployment and live comparison were subsequently performed; see the
+[final rollout and acceptance report](BRIEFING_FINAL_VALIDATION_2026_10_18.md).
 
 ## Confirmed bottleneck
 
@@ -209,6 +210,19 @@ failed the separate browser E2E step. That is evidence about `082b65e`, not a fr
 CI result for the cache or forthcoming memory fix.
 
 ## Operational limits and live evidence
+
+Final verification supersedes the earlier pending notes below. Every one of the
+15 local full-run timeouts passed targeted reruns at its original case limit.
+The final three were also run against the actual pre-cache implementation and
+the cache implementation: both passed all three (87.04 and 85.31 seconds total).
+This does not make the original failed full command green. It establishes no
+repeatable cache-specific timeout regression under the constrained Windows host.
+Final commit `f7fcfa1` CI ran the complete Worker suite successfully: 1,633 passed,
+11 skipped, 230 files passed and three skipped, 398.44 seconds. Workspace tests,
+typechecks and build also passed. The separate browser suite failed eight existing
+layout/navigation cases with 373 passes; the same eight fail on pre-cache `082b65e`
+and its frontend/E2E files are unchanged. The rollout report records live D1
+overload failures separately from Worker memory/CPU outcomes.
 
 During the final frozen Worker run, the Windows host had about 396 MB free RAM
 of 16 GB and about 1 GB free disk. Several cases exceeded their existing limits.

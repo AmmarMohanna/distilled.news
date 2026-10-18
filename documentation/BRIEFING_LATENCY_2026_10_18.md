@@ -5,6 +5,11 @@ Branch: `backend-briefing-review`, based on
 `distilled-news-staging` with `apps/worker/wrangler.staging.toml`.
 Production and sources QA are outside this work's deployment/data scope.
 
+Latest execution record: [final validation and acceptance status](BRIEFING_FINAL_VALIDATION_2026_10_18.md).
+It supersedes earlier checkpoint statements about pending deployment and the
+unchanged $50 cap. The owner approved a single append-only $51 cap; migration 0062
+and that amendment were applied only to staging with all unknown holds retained.
+
 ## Baseline diagnosis
 
 See [staging baseline](BRIEFING_STAGING_BASELINE_2026_10_18.md) for exact snapshot

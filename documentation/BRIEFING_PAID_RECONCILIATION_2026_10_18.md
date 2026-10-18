@@ -152,3 +152,15 @@ queries use bounded outputs and exact kind/feed/ID joins. The initial multiline
 CLI invocation returned only its first timestamp statement; financial assertions
 come from the subsequent individually executed statements, not that invocation.
 The existing authenticated CLI succeeded without login/credential changes.
+
+## Subsequent operator action (outside this read-only audit)
+
+The owner explicitly approved the separately documented append-only $50-to-$51
+cap design. After implementation, retained-history tests and verified backup,
+staging migration 0062 and one sequence-1 amendment were applied. This audit
+did not settle or release any of its 44 unknown operations. The original grant
+period, all reported costs and $4.345092702 held exposure remain in admission.
+At 13:11 UTC three newly authorized GPT operations had reported charges of
+$0.219032 with no new unknown hold; two editorial results succeeded and one
+deferred on invalid context references. See [the approved amendment record](BRIEFING_BUDGET_TOPUP_PROPOSAL_2026_10_18.md)
+and [final validation](BRIEFING_FINAL_VALIDATION_2026_10_18.md) for later checkpoints.
