@@ -110,6 +110,22 @@ test("long feed lists scroll with the last card clear of navigation", async ({ p
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(664);
 });
 
+for (const size of [{ width: 320, height: 568 }, { width: 390, height: 664 }, { width: 390, height: 844 }, { width: 667, height: 375 }, { width: 1280, height: 720 }, { width: 1440, height: 1000 }]) {
+  test(`initial feed rows are complete at ${size.width}x${size.height}`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: Array.from({ length: 20 }, (_, i) => ({ id: `feed-${i}`, ownerUsername: "test", slug: `feed-${i}`, title: `Feed ${i + 1}` })) } }));
+    await page.goto("/");
+    await expect(page.locator('.personal-feed-grid .topic-card')).toHaveCount(20);
+    await expect.poll(() => page.evaluate(() => {
+      const nav = document.querySelector('.bottom-navigation')?.getBoundingClientRect();
+      const bottom = innerWidth < 900 ? nav?.top ?? innerHeight : innerHeight;
+      const cards = [...document.querySelectorAll('.personal-feed-grid .topic-card')].map(node => node.getBoundingClientRect());
+      return cards.some(card => card.top >= 0 && card.bottom <= bottom + 1)
+        && !cards.some(card => card.top < bottom - 1 && card.bottom > bottom + 1);
+    })).toBe(true);
+  });
+}
+
 test("microphone denial keeps typed input and explains recovery", async ({ page }) => {
   await page.addInitScript(() => {
     (window as any).SpeechRecognition = class {
