@@ -1,3 +1,4 @@
+import {storyRequirementsSchema,validateEditorialRequirements,type EditorialContract,type StoryRequirements} from './editorial-requirements';
 import {readerHistoryMatches} from './reader-history';
 import {editorialContextFacts,editorialFactReferencesValid} from './editorial-context';
 import {shareSchemaEnums} from '../provider-schema';
@@ -22,20 +23,21 @@ export const EDITORIAL_NORMALIZATION_POLICY='selected-new-facts-required-v1';
 export interface EditorialNormalization {policyVersion:string;added:{targetVersionId:string;factIds:string[]}[];contextBindings?:{targetVersionId:string;sourceTargetVersionId:string;factId:string;evidenceRevisionIds:string[];role:'CONTEXT'|'DISAGREEMENT'}[]}
 const ids=z.array(z.string().min(1));
 export const planStorySchema=z.object({targetType:z.enum(['EVENT','STORYLINE']),targetVersionId:z.string().min(1),decision:z.enum(['SELECT','SUPPRESS','DEFER']),order:z.number().int().nonnegative(),treatment:z.enum(['OMIT','BRIEF','STANDARD','DETAILED']),deltaType:z.enum(['NEW','STATE_CHANGE','CERTAINTY_CHANGE','CONTRADICTION','CORRECTION','RETRACTION','DETAIL','REPEAT','UNRESOLVED']),newUnderstandingFactIds:ids,contextFactIds:ids,mustIncludeFactIds:ids,attributionFactIds:ids,certaintyFactIds:ids,disagreementFactIds:ids,openQuestionFactIds:ids,correctionObligationIds:ids,previousLedgerEntryIds:ids,rationale:z.string().min(1),relevanceRationale:z.string().min(1),feedFit:z.enum(['DIRECT','CONTEXTUAL','UNCERTAIN','OUT_OF_SCOPE']).optional(),editorialImportance:z.number().min(0).max(1).optional()}).strict();
-export type PlanStory=z.infer<typeof planStorySchema>;
+export type PlanStory=z.infer<typeof planStorySchema> & {validation?:StoryRequirements};
 const obligationSchema=z.object({obligationId:z.string(),handling:z.enum(['ADDRESS','DEFER']),targetVersionId:z.string().nullable(),reason:z.string().min(1)}).strict();
 export const planBodySchema=z.object({stories:z.array(planStorySchema),obligations:z.array(obligationSchema)}).strict();
-export type EditorialPlanBody=z.infer<typeof planBodySchema>;
-export interface EditorialPlanRecord extends EditorialPlanBody {id:string;feedId:string;feedRevision:number;shortlistId:string;window:ShortlistRecord['window'];communicationFingerprint:string;route:'GPT'|'DETERMINISTIC_FALLBACK';plannerSource?:'REAL_COMPARATIVE_MODEL'|'DETERMINISTIC_FALLBACK';capacityAdjustments?:{targetVersionId:string;reason:string}[];/** Stated reasons that the supplied data does not support; informational, never blocking. */reasoningAudit?:import('./shortlist-audit').ReasoningFinding[];modelOperationIds?:string[];inputCoverage?:{policyVersion:string;inputBytes:number;offeredTargetVersionIds:string[];notComparativelyReviewedTargetVersionIds:string[];globalContextOperationIds?:string[]};operationId?:string;fallbackReason?:string;normalization?:EditorialNormalization;recoveredFromPlanId?:string;evidenceRevisionIds:string[];policyVersion:string;createdAt:string}
+export const planBodyV2Schema=planBodySchema.extend({stories:z.array(planStorySchema.extend({validation:storyRequirementsSchema}).strict())}).strict();
+export type EditorialPlanBody={stories:PlanStory[];obligations:z.infer<typeof planBodySchema>['obligations']};
+export interface EditorialPlanRecord extends EditorialPlanBody {validationContract?:EditorialContract;id:string;feedId:string;feedRevision:number;shortlistId:string;window:ShortlistRecord['window'];communicationFingerprint:string;route:'GPT'|'DETERMINISTIC_FALLBACK';plannerSource?:'REAL_COMPARATIVE_MODEL'|'DETERMINISTIC_FALLBACK';capacityAdjustments?:{targetVersionId:string;reason:string}[];/** Stated reasons that the supplied data does not support; informational, never blocking. */reasoningAudit?:import('./shortlist-audit').ReasoningFinding[];modelOperationIds?:string[];inputCoverage?:{policyVersion:string;inputBytes:number;offeredTargetVersionIds:string[];notComparativelyReviewedTargetVersionIds:string[];globalContextOperationIds?:string[]};operationId?:string;fallbackReason?:string;normalization?:EditorialNormalization;recoveredFromPlanId?:string;evidenceRevisionIds:string[];policyVersion:string;createdAt:string}
 const allRefs=(s:PlanStory)=>[...s.newUnderstandingFactIds,...s.contextFactIds,...s.mustIncludeFactIds,...s.attributionFactIds,...s.certaintyFactIds,...s.disagreementFactIds,...s.openQuestionFactIds];
 function knownFacts(c:ShortlistCandidate,shortlist:ShortlistRecord):string[]{return shortlist.ledger.filter(e=>readerHistoryMatches(c,e)).flatMap(e=>e.claimFacts)}
 function suppressionAllowed(c:ShortlistCandidate,state:ShortlistRecord):boolean{return !c.protectedReasons.length||!c.correctionObligationIds.length&&c.facts.every(f=>knownFacts(c,state).some(text=>equivalentFact(text,f.text)))}
 export function publicationCorrectionReady(c:Pick<ShortlistCandidate,'facts'|'correctionObligationIds'> & {flags?:string[]},obligations:ShortlistRecord['obligations']):boolean {
  return !c.flags?.some(f=>['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE','TITLE_EXTRACTION_PENDING'].includes(f))&&c.facts.length>0&&c.facts.every(f=>f.selfContained==='YES'||f.selfContained==='RESOLVED_BY_CONTEXT')&&c.correctionObligationIds.length>0&&c.correctionObligationIds.every(id=>obligations.some(o=>o.id===id&&o.publicationWithdrawal));
 }
-export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistRecord,options:{requirePublicationCorrection?:boolean;correctionCapacity?:number;requireFeedFit?:boolean;requireImportance?:boolean}={}):EditorialPlanBody {
+export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistRecord,options:{contract?:EditorialContract;requirePublicationCorrection?:boolean;correctionCapacity?:number;requireFeedFit?:boolean;requireImportance?:boolean}={}):EditorialPlanBody {
  const readyTargets=shortlist.candidates.filter(c=>publicationCorrectionReady(c,shortlist.obligations)),correctionCapacity=options.correctionCapacity??Infinity;
- const plan=planBodySchema.parse(raw),targets=new Set(plan.stories.map(s=>s.targetVersionId));
+ const plan=(options.contract==='EVIDENCE_GROUNDED_V2'?planBodyV2Schema:planBodySchema).parse(raw),targets=new Set(plan.stories.map(s=>s.targetVersionId));
  if(targets.size!==plan.stories.length||targets.size!==shortlist.candidates.length||shortlist.candidates.some(c=>!targets.has(c.targetVersionId)))throw new HandoffError('SCOPE_DENIED');
  const orders=plan.stories.filter(s=>s.decision==='SELECT').map(s=>s.order);if(new Set(orders).size!==orders.length)throw new HandoffError('SCOPE_DENIED');
  for(const s of plan.stories){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;if(s.targetType!==c.targetType || !editorialFactReferencesValid(s,c,shortlist)||s.previousLedgerEntryIds.some(id=>!shortlist.ledger.some(e=>e.id===id))||s.correctionObligationIds.some(id=>!c.correctionObligationIds.includes(id)))throw new HandoffError('SCOPE_DENIED');
@@ -47,11 +49,12 @@ export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistR
   if(s.decision==='SELECT'&&s.feedFit==='OUT_OF_SCOPE'&&!c.correctionObligationIds.length)throw Error('EDITORIAL_OUT_OF_SCOPE_SELECTION');
   if(s.decision==='SELECT'&&(c.flags.includes('IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE')||c.flags.includes('TITLE_EXTRACTION_PENDING')))throw new HandoffError('SCOPE_DENIED');
   if(s.decision==='SELECT' && (s.treatment==='OMIT'||!s.mustIncludeFactIds.length)||s.decision!=='SELECT' && s.treatment!=='OMIT')throw new HandoffError('SCOPE_DENIED');
-  if(s.decision==='SELECT' && s.newUnderstandingFactIds.some(id=>!s.mustIncludeFactIds.includes(id)))throw new HandoffError('SCOPE_DENIED');
+  if(options.contract!=='EVIDENCE_GROUNDED_V2' && s.decision==='SELECT' && s.newUnderstandingFactIds.some(id=>!s.mustIncludeFactIds.includes(id)))throw new HandoffError('SCOPE_DENIED');
   if(s.deltaType==='REPEAT'&&!c.facts.every(f=>knownFacts(c,shortlist).some(text=>equivalentFact(text,f.text))))throw new HandoffError('SCOPE_DENIED');
   // A source refresh cannot manufacture reader novelty or a correction. Only a
   // persisted publication withdrawal permits corrective supported restatement.
   if(s.decision==='SELECT'){const known=knownFacts(c,shortlist),withdrawal=c.correctionObligationIds.some(id=>shortlist.obligations.some(o=>o.id===id&&o.publicationWithdrawal));if(known.length&&!withdrawal&&!s.newUnderstandingFactIds.some(id=>c.facts.some(f=>f.id===id&&!known.some(text=>equivalentFact(text,f.text)))))throw new HandoffError('SCOPE_DENIED')}
+  if(options.contract==='EVIDENCE_GROUNDED_V2'){const v=validateEditorialRequirements((s as PlanStory).validation,c,s.decision==='SELECT'),required=new Set(v.dispositions.filter(d=>d.disposition==='REQUIRED').map(d=>v.propositions.find(p=>p.id===d.propositionId)!.parentFactId));if(required.size!==new Set(s.mustIncludeFactIds).size||s.mustIncludeFactIds.some(id=>!required.has(id)))throw Error('REQUIRED_PARENT_PROJECTION_MISMATCH');}
   if(s.decision==='SELECT' && c.protectedReasons.length){const known=knownFacts(c,shortlist);for(const f of c.facts)if(!known.some(k=>equivalentFact(k,f.text)) && !s.mustIncludeFactIds.includes(f.id))throw new HandoffError('SCOPE_DENIED')}
   if(s.decision==='SUPPRESS' && !suppressionAllowed(c,shortlist))throw new HandoffError('SCOPE_DENIED');
  }
@@ -76,6 +79,7 @@ export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistR
 /** Only closes a structural omission in the editor's own declared selection.
  * Ownership is checked before promotion; all remaining validation stays authoritative. */
 export function normalizeEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistRecord,options:Parameters<typeof validateEditorialPlan>[2]={}) {
+ if(options.contract==='EVIDENCE_GROUNDED_V2')return {value:validateEditorialPlan(raw,shortlist,options),normalization:{policyVersion:'explicit-propositions-v2',added:[]} as EditorialNormalization};
  const body=planBodySchema.parse(raw),normalization:EditorialNormalization={policyVersion:EDITORIAL_NORMALIZATION_POLICY,added:[]};
  for(const story of body.stories.filter(s=>s.decision==='SELECT')){
   const candidate=shortlist.candidates.find(c=>c.targetVersionId===story.targetVersionId);
