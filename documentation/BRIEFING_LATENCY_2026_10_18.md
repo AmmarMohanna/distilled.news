@@ -40,7 +40,42 @@ retained staging records, not a newly run controlled provider benchmark.
    cannot all be attributed to D1 without stage instrumentation. Closure-to-selection
    for that window was 45m54.565s. Actual new-stage measurements are reported below.
 
+6. **Repeated fact preprocessing is a confirmed CPU bottleneck.** A retained-input
+   V8 profile identified repeated normalization/tokenization in editorial fact
+   equivalence. A staging publication delivery on the metadata release exhausted
+   its 32,500-ms CPU allowance despite zero historical revision-body reads. The
+   bounded operation-local signature cache preserves exact comparison semantics;
+   see [CPU profile and reproduction](BRIEFING_CPU_PROFILE_2026_10_18.md). Local
+   replay gains must not be interpreted as a completed live-publication improvement.
+
 ## Architecture and changes
+
+The dependency chain remains durable collection windows/provider attempts ->
+immutable observations -> isolated full-article acquisition/R2 evidence -> accepted
+revisions/intake receipts -> semantic review and canonical graph CAS -> closed-window
+readiness -> semantic shortlist/editorial plan -> ranking/selection -> synthesis ->
+grounding/factual verification -> edition/publication status, ledger and delivery.
+Recovery prioritizes closed windows without discarding their accepted dependencies.
+
+```mermaid
+flowchart LR
+  C[Collection windows] --> A[Isolated acquisition]
+  A --> E[Accepted immutable evidence]
+  E --> S[Authorized snapshot]
+  S --> I[Durable model intent and spending CAS]
+  I --> M[Semantic preparation outside feed turn]
+  M --> R[Short feed turn and dependency revalidation]
+  R --> G[Atomic graph CAS]
+  R --> D[Durable continuation for stale decisions]
+  G --> W[Closed-window readiness]
+  W --> P[Shortlist and editorial planning]
+  P --> V[Synthesis and factual verification]
+  V --> B[Publication and communication ledger]
+```
+
+The diagram's isolated paid preparation is the review path. Publication still has
+its existing outer feed turn; its deterministic CPU/read reductions are measured
+separately rather than implying that all paid writing has been isolated.
 
 `V1_REVIEW_PREPARATION_ISOLATED=true` is enabled only in staging configuration.
 Without it, the queue's original feed-turn boundary remains in effect.
@@ -290,8 +325,27 @@ tables, and again passed integrity and foreign-key checks. Original SQL is uncha
 Remote D1 rejected `PRAGMA integrity_check`; local full-export verification supplies
 the integrity evidence, not a fabricated remote PRAGMA result.
 
-Remote migration/deployment and full-suite results are still being recorded. This
-section is an execution record, not a claim of completed rollout or publication.
+The first implementation deployed successfully at 2026-10-18 01:08:31.139 UTC:
+commit `52bdd0b68bd6c66c34b98a349d555c663ae651f5`, Worker version
+`2d8f4495-3233-4841-9f5b-5918be2023ec`. API metadata confirmed the release tag,
+staging-only bindings, isolation flag, unchanged financial configuration and all
+14 existing secret bindings. Root HTML, referenced JS/CSS and `/api/auth/session`
+passed a read-only Windows HTTP smoke; asset hashes exactly match the tested build.
+
+Six hours of live stage measurements exposed further publication metadata waste.
+See [publication profile and follow-up](BRIEFING_PUBLICATION_PROFILE_2026_10_18.md)
+for per-stage distributions, paired measurements, the CPU-limit observation,
+actual acquisition/review trace and remaining financial admission blocker.
+No new real-model briefing has been published at that checkpoint; deployment and
+HTTP success are not represented as end-to-end success.
+
+The measured metadata follow-up subsequently deployed at 2026-10-18 08:11:29.232 UTC:
+code commit `082b65e7d3e73e7c5d2bdd357cedea2c4475c2ad`, version
+`7ec08976-c164-461d-886f-9b29d48d4688`, 100% of staging traffic. Its bindings are
+identical to the first release and its new correction-refresh stage is visible in
+live execution logs. The follow-up report records the final tests, live measurements,
+resource/financial checks and immediate rollback command. No further migration was
+needed. The complete live publication success criterion remains unmet.
 
 Migrations 0059, 0060 and 0061 were applied to staging at 2026-10-17 23:18:12–13 UTC.
 The fresh remote pre/post comparison found no changes to any recorded retained-record,
@@ -320,9 +374,10 @@ Repository-wide typechecks also pass after this change.
 
 - Complete the live comparison only within existing spending authority. A successful
   HTTP response, deployment or unit suite is not proof of real-model publication.
-- Profile serial correction-ledger current-evidence lookups and the publication
-  intervals now exposed by stage instrumentation. Do not attribute unmeasured waits
-  wholesale to the database.
+- The measured metadata follow-up batches correction support checks and projects
+  historical shortlist policies instead of reading complete historical candidates.
+  Compare its live stages with the first release; retain the distinction between
+  faster reads/attempts and a verified published edition.
 - Publication retains its legacy outer feed turn, including paid writing. This
   change isolates review preparation, not every expensive publication operation.
   Outer publication admission is visible in queue duration/busy outcomes rather

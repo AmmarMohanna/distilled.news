@@ -49,15 +49,18 @@ Aggregate percentiles offline; do not write a D1 row per timing stage.
 - [x] Add stage instrumentation with schema/privacy tests; instrument admission,
   review, model authorization/provider/settlement, transaction and publication.
   Add a reusable percentile summarizer for redacted structured logs.
-- [ ] Run focused and full regression suites, repository typechecks/builds,
+- [x] Run focused and full regression suites, repository typechecks/builds,
   explicit staging dry run and independent final correctness review.
 - [x] Verify live staging config/resources/rollback/assets. If migration becomes
   necessary, locally test it, export/verify staging backup and inspect ledger first.
   Preserve live bindings/secrets/assets and all existing financial authority.
-- [ ] Deploy staging only, verify new implementation/version, bounded real-model
-  acquisition/review/publication, queues/accounting/integrity and compare baseline.
+- [x] Deploy staging only, verify implementation/version/assets, run bounded live
+  acquisition/review/publication attempts and inspect queues/accounting/integrity.
   Roll back application for serious regression; never erase financial/history data.
-- [ ] Record measured versus expected improvements, quality/coverage, actual
+- [ ] Successfully publish a complete new real-model briefing and measure its
+  end-to-end latency. Blocked by current financial authorization, accepted review
+  backlog and unresolved coverage/unknown-outcome dependencies; do not claim success.
+- [x] Record measured versus expected improvements, quality/coverage, actual
   costs, blocked provider comparisons, deployment/rollback IDs, and remaining work.
   Make small logical commits and push only backend-briefing-review.
 
@@ -94,8 +97,18 @@ Aggregate percentiles offline; do not write a D1 row per timing stage.
   passed; staging migrations 0059–0061 applied with fresh pre/post retained counts.
 - Initial full Worker verification was interrupted after development continued
   against cached modules. The frozen release run is authoritative, uses one test
-  worker with 30s default test/hook timeouts, and is still running. Runtime code
-  remains frozen during it; documentation-only updates do not affect the test graph.
+  worker with 30s default test/hook timeouts, and completed. Runtime code remained
+  frozen during it. Original failures and successful reruns are recorded rather
+  than relabeling the initial command green. The later metadata optimization has
+  separate complete affected-file coverage and fresh typechecks/staging dry run.
 - Independent review findings fixed: receipt identity accounting, paid settlement
   visibility after rejected consumption, queue correlation and integrated paid
   response/sibling preparation races. No Critical graph-integrity issue was found.
+- First staging deployment: `52bdd0b` / `2d8f4495-3233-4841-9f5b-5918be2023ec`.
+  Six hours of live profiling confirmed publication shortlist/database work remained
+  substantial and current GPT authorization could not admit new calls.
+- Metadata follow-up: `082b65e` / `7ec08976-c164-461d-886f-9b29d48d4688`.
+  Batch correction identities and project historical shortlist policy metadata;
+  preserve staged writes, foreign-scope rejection, complete caches and CAS fences.
+  All 133 affected cases pass across documented runs/reruns; deployment bindings
+  are unchanged. See the linked publication profile for measurements and limits.
