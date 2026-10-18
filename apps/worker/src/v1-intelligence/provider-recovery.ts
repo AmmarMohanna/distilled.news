@@ -35,14 +35,32 @@ export async function recoverProviderGeneration(db:D1Database,reservationId:stri
 }
 /** Bounded fair metadata polling; absent legacy handles are never guessed.
  * Backoff is observable and indefinite, not a semantic attempt or paid call. */
+export async function pendingProviderGenerationCandidates(db:D1Database,now:Date){
+ // The correlated history scans consumed the D1 CPU limit before recovery could
+ // start. Materialize each metadata set once, retaining the complete global
+ // reservation-identity backoff and the same oldest-attempt admission order.
+ return db.prepare(`WITH pending AS MATERIALIZED (
+ SELECT r.id,r.feed_id,r.created_at FROM v1_model_spending_reservations r
+ LEFT JOIN v1_model_spending_settlements s ON s.id=r.id
+ WHERE COALESCE(s.reported,0)=0 AND r.lease_until<=?),
+ receipts AS MATERIALIZED (
+ SELECT DISTINCT d.feed_id,json_extract(d.json,'$.reservationId') AS reservation_id
+ FROM v1_feed_documents d WHERE d.kind='model_provider_receipts'
+ AND json_extract(d.json,'$.provider')='OPENROUTER' AND json_extract(d.json,'$.generationId') IS NOT NULL),
+ history AS MATERIALIZED (
+ SELECT json_extract(a.json,'$.reservationId') AS reservation_id,
+ MAX(json_extract(a.json,'$.createdAt')) AS last_attempt,
+ MAX(CASE WHEN json_extract(a.json,'$.nextAttemptAt')>? THEN 1 ELSE 0 END) AS waiting
+ FROM v1_feed_documents a WHERE a.kind='model_provider_recovery_attempts'
+ GROUP BY json_extract(a.json,'$.reservationId'))
+ SELECT r.id,r.feed_id,h.last_attempt FROM pending r
+ JOIN receipts d ON d.feed_id=r.feed_id AND d.reservation_id=r.id
+ LEFT JOIN history h ON h.reservation_id=r.id WHERE COALESCE(h.waiting,0)=0
+ ORDER BY h.last_attempt,r.created_at LIMIT 3`).bind(now.getTime(),now.toISOString()).all<{id:string;feed_id:string;last_attempt:string|null}>();
+}
 export async function recoverPendingProviderGenerations(db:D1Database,apiKey:string,now=new Date(),fetcher:typeof fetch=fetch):Promise<void>{
  if(!apiKey)return;
- const rows=await db.prepare(`SELECT DISTINCT r.id,r.feed_id,(SELECT MAX(json_extract(a.json,'$.createdAt')) FROM v1_feed_documents a WHERE a.kind='model_provider_recovery_attempts' AND json_extract(a.json,'$.reservationId')=r.id) AS last_attempt FROM v1_model_spending_reservations r
- JOIN v1_feed_documents d ON d.kind='model_provider_receipts' AND d.feed_id=r.feed_id AND json_extract(d.json,'$.reservationId')=r.id
- LEFT JOIN v1_model_spending_settlements s ON s.id=r.id
- WHERE COALESCE(s.reported,0)=0 AND r.lease_until<=? AND json_extract(d.json,'$.provider')='OPENROUTER' AND json_extract(d.json,'$.generationId') IS NOT NULL
- AND NOT EXISTS(SELECT 1 FROM v1_feed_documents a WHERE a.kind='model_provider_recovery_attempts' AND json_extract(a.json,'$.reservationId')=r.id AND json_extract(a.json,'$.nextAttemptAt')>?)
- ORDER BY last_attempt,r.created_at LIMIT 3`).bind(now.getTime(),now.toISOString()).all<{id:string;feed_id:string}>();
+ const rows=await pendingProviderGenerationCandidates(db,now);
  for(const row of rows.results){
   const history=await db.prepare("SELECT COUNT(*) n FROM v1_feed_documents WHERE kind='model_provider_recovery_attempts' AND json_extract(json,'$.reservationId')=?").bind(row.id).first<{n:number}>();
   let result:Recovery;try{result=await recoverProviderGeneration(db,row.id,apiKey,fetcher)}catch{result={state:'WAITING',reason:'RECOVERY_COMMIT_FAILED'}}
