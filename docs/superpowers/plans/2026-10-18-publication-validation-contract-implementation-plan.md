@@ -1,4 +1,4 @@
-# Publication Validation Contract — IMPLEMENTATION PLAN, revision 2
+# Publication Validation Contract — IMPLEMENTATION PLAN, revision 3
 
 > **For agentic workers:** use `superpowers:executing-plans` to implement this plan inline, task by task, after review. Do not delegate without user authorization. Steps use checkbox tracking.
 
@@ -8,9 +8,9 @@
 
 **Tech Stack:** TypeScript, Zod, existing Workers/D1 document transactions, Vitest; no new provider or package.
 
-**Spec:** [actual design specification](../specs/2026-10-18-publication-validation-contract-specification.md), including [label contract revision 2](../specs/publication-validation-label-contract-v2.md).
+**Spec:** [actual design specification](../specs/2026-10-18-publication-validation-contract-specification.md), including [label contract revision 3](../specs/publication-validation-label-contract-v2.md).
 
-**Status: approved for refinement only, NOT for execution.** The received review is AI-assisted, not independent human gold, and did not inspect saved-case source/draft appendices or the actual specification. No application code has changed. Complete specification/plan approval and genuine evidence-level review are prerequisites. No inference or deployment is authorized by this plan.
+**Status: approved for refinement only, NOT for execution.** The later revision-2 review reports full appendices/specification inspection but remains AI-assisted, case-specific, and not independent human gold or human execution approval. The complete witness-label JSON is not locally available; only the supplied hashes and visible S01 witnesses have been checked. See the [review receipt](../../../documentation/PUBLICATION_VALIDATION_R2_REVIEW_RECEIPT_2026_10_18.md). No application code has changed. Complete specification/plan approval and genuine evidence-level review are prerequisites. No inference or deployment is authorized by this plan.
 
 ## Global constraints
 
@@ -36,7 +36,8 @@
 
 **Interfaces:** per-case `reviewState`, per-reader-claim support/errors, per-proposition materiality and independent `COMMUNICATED | OMITTED | UNRESOLVED`, exact witnesses and full-scope omission witnesses. Preserve three error kinds: unsupported addition, distorted fact, missing mandatory coverage. Manifest pins immutable source/draft/control hashes; completed labels get a separate digest. `validateLabels(labels, manifest)` returns completeness/provenance diagnostics and derived case outcomes without creating labels or semantic verdicts.
 
-- [ ] Obtain the actual referenced T-batch JSON files if supplied; retain them as AI-assisted v1 review, not independent gold. Do not reconstruct 24 labels from the 12/12 totals. Leave all S-case labels null until actual evidence-level review.
+- [ ] Obtain the complete referenced revision-2 witness-label JSON; validate against immutable appendices with explicit coordinate/scope serialization. Keep the reported 49 outcome summaries separate from imported labels; do not reconstruct missing claims, requirements or 237 witnesses from prose. Preserve the earlier partial review separately.
+- [ ] Derive draft-specific and proposition-specific outcomes before the declared any-version-negative regression summary. Test case-positive versus edition certification, repaired S12 coverage, and generic scope notes versus actual omission evidence. Record T09 as a versioned label disagreement; do not change the frozen investigator fixture. Any future "report" fixture receives a new identity/hash.
 - [ ] Obtain genuine review of the full saved appendices and self-contained controls using v2 fields. Record exposure/assistance; keep AI-assisted, investigator, assisted-human and independent-human strata separate.
 - [ ] Write failing tests for missing/duplicate/unknown IDs, null unreviewed versus reviewed unresolved, blank reasons, missing witnesses, changed source hashes, and falsely claimed independence. T08 must have supported surviving prose plus missing required bridge coverage; optional omission is not an unsupported reader claim.
 - [ ] Implement validation of supplied labels and a provenance-separated evaluation manifest; never overwrite an existing completed label file.
@@ -46,11 +47,12 @@
 
 **Files:** `apps/worker/src/v1-intelligence/editorial-plan.ts`, `editorial-transport.ts`, `editorial-context.ts`, `editorial-work.ts`, `claims.ts`; new `editorial-requirements.ts`, `news-proposition-eligibility.ts` and tests; existing editorial/claim-extraction tests.
 
-**Interfaces:** `EditorialContract = 'LEGACY' | 'EVIDENCE_GROUNDED_V2'`; `MandatoryFactRequirement = {factId,reasonCode,justification,obligationIds}`. Apply the spec's materiality table and complete dispositions `REQUIRED | OPTIONAL_CONTEXT | DEFERRED | NOT_NEWS`. `validateEditorialRequirements(plan, shortlist, contract)` validates references/reasons and protected obligations. Deferred records/resolutions identify exact fact/work IDs. `classifyNewsPropositionEligibility(revision, regions)` returns source-bound versioned eligible/navigation/uncertain spans without altering raw evidence. Legacy normalization stays callable unchanged.
+**Interfaces:** `EditorialContract = 'LEGACY' | 'EVIDENCE_GROUNDED_V2'`; `MandatoryFactRequirement = {propositionId,parentFactId,reasonCode,justification,obligationIds}` with versioned parent revision/span mappings; do not rewrite legacy fact identities. Apply the spec's materiality table and complete dispositions `REQUIRED | OPTIONAL_CONTEXT | DEFERRED | NOT_NEWS`. `validateEditorialRequirements(plan, shortlist, contract)` validates references/reasons and protected obligations. Deferred records/resolutions identify exact fact/work IDs. `classifyNewsPropositionEligibility(revision, regions)` returns source-bound versioned eligible/navigation/uncertain spans without altering raw evidence. Legacy normalization stays callable unchanged.
 
 - [ ] Write failing tests: novelty IDs do not expand requirements; missing justifications/reason codes and foreign/duplicate references reject; protected obligations cannot become optional/deferred-as-done; independent S16 remains pending. Evaluate semantic adequacy of materiality reasons against reviewed fixtures, not a new generic-keyword hard gate.
+- [ ] Test mixed-source-sentence decomposition: S03 Bee price communicated with optional competitor comparison omitted; S05 dollar estimate/uncertainty communicated with optional GBP omitted. Verify shared provenance, stable parent IDs, protected qualifier preservation and separate communication/disposition judgments. No full-sentence omission inference or blind lexical splitting.
 - [ ] Write ingestion-projection tests for navigation regions and exact offsets, genuine article assertions containing dates/“Published”, ambiguous flattened fragments, unchanged raw content hashes, and protected corrections. Do not add a broad number/date deletion heuristic.
-- [ ] Add versioned schema, wire aliases, immutable plan fields and exact reference validation. Ensure `mustIncludeFactIds` mirrors justified v2 requirements. No implicit promotion through attribution/certainty annotations.
+- [ ] Add versioned schema, wire aliases, immutable plan fields and exact reference validation. Ensure v2 proposition references and their parent fact projection mirror justified requirements without re-promoting all sibling propositions. Include those mappings in operation compatibility. No implicit promotion through attribution/certainty annotations.
 - [ ] Persist/reconcile fact-scoped deferred material: another target, sibling story, partial same-target coverage, window closure or age cannot resolve S16. Require compatible edition reader witnesses for delivered resolution and explicit evidence for supersession. Preserve protected legacy checks and raw records.
 - [ ] Run focused requirements/editorial/context/work tests with `vitest run --maxWorkers=1`. Confirm legacy snapshots and original normalization tests still pass in legacy mode. Commit.
 

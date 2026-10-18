@@ -1,14 +1,14 @@
-# Validation-contract review — revision 2
+# Validation-contract review - revision 3
 
 **Status: refinement only; specification and execution NOT approved.** Branch: `backend-validation-contract`, based on audit commit `de902aa07b9af523631434c6090a973fa718b3c8`. No application code, inference, deployment, budget or remote data has changed.
 
-The supplied review is explicitly AI-assisted, unblinded and based on incomplete attachments. It reports 24 T-case aggregate labels (12 SUPPORTED / 12 ERROR); all 25 S-case final judgments remain null. Its S-case table is provisional triage, not evidence-level adjudication. The referenced partial/batch JSON files were not found in the available workspace; no per-case labels were reconstructed or imported from counts. The previous five owner-confirmed pairs remain a separate assisted subset.
+The first review was AI-assisted, unblinded and based on incomplete attachments (24 aggregate controls; saved cases unreviewed). The later revision-2 review reports full bundle inspection and case-specific saved outcomes of **17 positive / 4 negative / 4 unresolved**, with controls **11 positive / 12 negative / 1 unresolved**. It remains AI-assisted, not independent human gold or execution approval. The [review receipt](PUBLICATION_VALIDATION_R2_REVIEW_RECEIPT_2026_10_18.md) records the supplied outcomes and exact local checks. The complete witness-label JSON is unavailable locally; the pasted S01 fragment is truncated. No missing claim/requirement records or semantic verdicts were reconstructed. Previous owner-confirmed pairs remain a separate assisted subset.
 
 **Delivery correction:** the specification and plan previously shared the same basename in different directories. Local content was distinct, but that naming made an attachment mix-up possible. Revision 2 gives them unique filenames and packages all required files together.
 
 Read the [49-case packet](../.local-reports/briefing-latency/validation-contract-review/REVIEW.md). It contains 25 saved rejection groups and 24 controlled cases without proposed labels, with [four full drafts](../.local-reports/briefing-latency/validation-contract-review/drafts.md) and [13 retained source revisions](../.local-reports/briefing-latency/validation-contract-review/sources.md). These private files stay local; public repository clones do not contain article bodies.
 
-The original packet and blank template are preserved unchanged. Use [label contract revision 2](../docs/superpowers/specs/publication-validation-label-contract-v2.md) for new answers:
+The original packet and blank template are preserved unchanged. Use [label contract revision 3](../docs/superpowers/specs/publication-validation-label-contract-v2.md) for new answers:
 
 1. Per actual reader claim: `SUPPORTED`, `ERROR`, or `UNRESOLVED`, exact source/reader witnesses and any error kind/facets.
 2. Per source proposition: `REQUIRED`, `OPTIONAL`, `NOT_NEWS`, or `UNRESOLVED`, plus independent `COMMUNICATED`, `OMITTED`, or `UNRESOLVED` and the exact proposition at issue.
@@ -16,9 +16,9 @@ The original packet and blank template are preserved unchanged. Use [label contr
 
 The new blank v2 template is supplied in the complete revision-2 bundle. Keep unreviewed judgments null, with `reviewState=UNREVIEWED`; do not convert them to evidence-level uncertainty. Record actual assistance/exposure and files inspected. Do not mechanically translate T08's old aggregate `ERROR` into an unsupported road-reopening claim: the error is missing required bridge coverage. Optional omission alone is not factual error.
 
-The three inferred calendar dates and `320+` boundary remain unsettled on the saved evidence. The prior five owner-reviewed pairs remain a separate assisted subset. Existing investigator labels will not be renamed as human labels.
+The three inferred calendar dates and `320+` boundary remain unsettled on the saved evidence. T09 is additionally unresolved for an unsupported newspaper identification; keep its earlier positive fixture and the new disagreement separate. Case-specific positives do not certify entire stories or editions; preserve draft-specific failures before regression aggregation. S03 and S05 require separate essential and optional propositions within their shared source spans. The prior five owner-reviewed pairs remain a separate assisted subset. Existing investigator labels will not be renamed as human labels.
 
-The actual [SPECIFICATION](../docs/superpowers/specs/2026-10-18-publication-validation-contract-specification.md), separate [IMPLEMENTATION PLAN](../docs/superpowers/plans/2026-10-18-publication-validation-contract-implementation-plan.md) and [LABEL CONTRACT](../docs/superpowers/specs/publication-validation-label-contract-v2.md) now address all nine review requests:
+The actual [SPECIFICATION](../docs/superpowers/specs/2026-10-18-publication-validation-contract-specification.md), separate [IMPLEMENTATION PLAN](../docs/superpowers/plans/2026-10-18-publication-validation-contract-implementation-plan.md) and [LABEL CONTRACT](../docs/superpowers/specs/publication-validation-label-contract-v2.md) address the original nine review requests and the later refinements:
 
 | Request | Refinement |
 |---|---|
@@ -32,4 +32,4 @@ The actual [SPECIFICATION](../docs/superpowers/specs/2026-10-18-publication-vali
 | Acceptance evidence | Separate provenance strata and gold-plus-compatible-verdict scoring; representative human holdout and separately budget-authorized staging test before rollout. |
 | Cost/lock exposure | Packet/call upper bounds and proposed reservation/usage/time counters; no new concurrency or exclusive-turn work. Actual v2 cost remains unmeasured. |
 
-Only documentation and review artifacts are refined. Implementation remains gated on genuine evidence-level review and explicit specification/plan approval. No final 49-case labels, independent corpus, successful publication or model-accuracy claim is made.
+Only documentation and review artifacts are refined. Implementation remains gated on genuine evidence-level review and explicit specification/plan approval. No full witness-label import, independent corpus, successful publication or model-accuracy claim is made. Revision 2 delivery is preserved; revision 3 refines scope, proposition granularity and witness coordinates without executing the plan.
