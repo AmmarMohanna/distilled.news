@@ -92,8 +92,15 @@ test("long feed lists scroll with the last card clear of navigation", async ({ p
   await expect(page.locator('.screen-page-controls')).toHaveCount(0);
   await expect(page.locator('.personal-feed-grid .topic-card')).toHaveCount(20);
   const viewport = page.locator('.app-pages > .screen-page-viewport');
+  const grid = page.locator('.personal-feed-grid');
+  await expect(grid).toHaveCSS('overflow-y', 'visible');
+  await expect(viewport).toHaveCSS('scrollbar-width', 'auto');
+  expect(await grid.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
   await expect.poll(() => viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
   await expect.poll(() => page.locator('.app-pages .screen-page-content').evaluate(node => Number(getComputedStyle(node).zoom))).toBeGreaterThanOrEqual(0.85);
+  await page.mouse.move(100, 180);
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => viewport.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
   await viewport.evaluate(node => { node.scrollTop = node.scrollHeight; });
   const last = page.locator('.personal-feed-grid .topic-card').last();
   const card = await last.boundingBox();

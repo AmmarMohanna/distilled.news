@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
-/** Keep card interiors consistent; use remaining space to choose complete rows. */
+/** Keep card interiors consistent while the full feed list flows with the page. */
 export function AdaptiveFeedGrid({ children, className, count }: { children: ReactNode; className: string; count: number }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -20,12 +20,9 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       const gap = window.innerWidth >= 900 ? 16 : 10;
       // Consistent padding/text controls determine card size, never leftover height.
       const rowHeight = roomy ? 260 : 84;
-      const totalRows = Math.ceil(count / columns);
-      const visibleRows = Math.max(1, Math.min(totalRows, Math.floor((available + gap) / (rowHeight + gap))));
       grid.dataset.layout = roomy ? 'large' : 'compact';
       grid.style.setProperty('--feed-columns', String(columns));
       grid.style.setProperty('--feed-row-height', `${rowHeight}px`);
-      grid.style.setProperty('--feed-grid-height', `${visibleRows * rowHeight + gap * (visibleRows - 1)}px`);
       grid.style.setProperty('--feed-grid-gap', `${gap}px`);
       grid.style.setProperty('--feed-image-height', `${Math.max(56, rowHeight - 152)}px`);
     };

@@ -1470,18 +1470,18 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 .language-code { display: none; }
 :root.apple-ui.apple-ui .experience:has(.adaptive-feed-grid) { padding-bottom: 24px !important; }
+@media (max-width: 899px) {
+  :root.apple-ui.apple-ui .experience:has(.adaptive-feed-grid) { padding-bottom: calc(104px + env(safe-area-inset-bottom)) !important; }
+}
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid {
   grid-template-columns: repeat(var(--feed-columns, 1), minmax(0, 1fr)) !important;
-  grid-auto-rows: var(--feed-row-height, auto); height: var(--feed-grid-height, auto);
+  grid-auto-rows: var(--feed-row-height, auto); height: auto;
   gap: var(--feed-grid-gap, 16px) !important; max-width: none !important; padding: 0 !important;
-  overflow-y: auto; overflow-x: hidden; scroll-snap-type: y mandatory; scroll-padding: 0;
-  scrollbar-width: none; align-content: start;
+  overflow: visible; align-content: start;
 }
-:root.apple-ui.apple-ui .adaptive-feed-grid::-webkit-scrollbar,
-:root.apple-ui.apple-ui .app-pages > .screen-page-viewport::-webkit-scrollbar { display: none; width: 0; height: 0; }
-:root.apple-ui.apple-ui .app-pages > .screen-page-viewport { scrollbar-width: none; scrollbar-gutter: auto; }
-:root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card { scroll-snap-align: start; scroll-snap-stop: always; min-height: 0; box-sizing: border-box; }
-/* Keep the outline inside the scrolling grid when a card is hovered or pressed. */
+:root.apple-ui.apple-ui .app-pages > .screen-page-viewport { scrollbar-width: auto; scrollbar-gutter: stable; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card { min-height: 0; box-sizing: border-box; }
+/* Keep cards steady when hovered or pressed. */
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card:is(:hover, :active) { transform: none; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] > .topic-card {
   display: grid; grid-template-columns: 64px min-content minmax(0, 1fr) auto !important;
