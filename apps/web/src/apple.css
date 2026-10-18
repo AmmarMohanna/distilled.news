@@ -655,6 +655,18 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .auth-dialog .login { background: transparent; border-radius: 0; }
 :root.apple-ui.apple-ui .guest-landing .experience-header-actions .language-cycle { width: 68px; min-width: 68px; flex: 0 0 68px; justify-content: center; }
 :root.apple-ui.apple-ui .guest-landing .experience-header-actions .button-link { width: 120px; min-width: 120px; justify-content: center; white-space: nowrap; }
+:root.apple-ui.apple-ui .experience-header-actions .button-link[href="/login"] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent-ink);
+  box-shadow: none;
+}
+:root.apple-ui.apple-ui .experience-header-actions .button-link[href="/login"]:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
 :root.apple-ui.apple-ui .auth-dialog .login { gap: 8px; padding: 40px 20px 16px; }
 :root.apple-ui.apple-ui .auth-dialog .auth-copy { gap: 2px; margin: 0; }
 :root.apple-ui.apple-ui .auth-dialog .auth-copy h2 { font-size: 24px; line-height: 1.15; }
