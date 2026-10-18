@@ -2,6 +2,8 @@
 
 **Status: design refinement only. No implementation, paid inference, deployment, or remote mutation authorized or performed.** Work remains on `backend-validation-contract`. This receipt records the supplied review; it does not certify any edition or model accuracy.
 
+**Latest status:** both complete answer files were subsequently supplied by exact Downloads paths and locally verified. The earlier unavailable-file paragraphs below are historical. See [completed local verification](#completed-local-verification-from-the-supplied-downloads-paths).
+
 ## Evidence received and locally checked
 
 The later review reports complete inspection of REVIEW, sources, drafts, specification, implementation plan and label contract. Its provenance is **AI_ASSISTED**, unblinded, with prior audit exposure. It supersedes the earlier incomplete review only as a separate, stronger reviewer account; it does not become independent human gold.
@@ -84,3 +86,25 @@ Reported R2 technical checks: **235 exact witness occurrences, 113 scope-hash oc
 The newly pasted T24 fragment was locally checked: REVIEW.md byte hash matches, `[23986,24025)` is the declared exact source line within T24 under the LF/code-point profile, and the supplied complete-control-reader hash matches UTF-8 of the reader sentence without the `Reader:` prefix or trailing newline. The source says 12 injuries; the reader says 40. The case remains negative for a quantity distortion. A related failure to communicate the correct required count is overlapping coverage evidence, not a second independent factual error. Full-label import must retain the claim-level distortion and deduplicate the root error rather than count the requirement record alone as a separate failure.
 
 The label files remain AI-assisted, unblinded and previously exposed to the audit. Their reported recovery does not provide independent gold, compatible provider verdicts, edition certification or execution approval. Original evidence and revision-3 delivery remain unchanged. Local search covered the repository and its review worktree; it does not disprove availability in a separate analysis workspace. Complete file attachments or accessible local paths are needed to reproduce hashes, counts, section ownership, scope serialization and the exact R2-to-R3 additions. No application code, inference, deployment, queue or financial state changed during this check.
+
+## Completed local verification from the supplied Downloads paths
+
+Both complete files are now accessible at the user-supplied `C:/Users/HP/Downloads/` paths. They were read directly and preserved as byte-identical private copies; no label was reconstructed, relabeled or edited. Their full SHA256 values match those in the recovery handoff table above. The full-file availability/import limitation is resolved.
+
+| Check | R2 | R3 |
+|---|---:|---:|
+| Reviewed case IDs, unique and complete | 49 | 49 |
+| Evidence-inspection artifact hashes matched | 6 | 9 |
+| Exact witness field occurrences validated | 235 | 243 |
+| Scope-hash field occurrences validated | 113 | 113 |
+| Hash/span/declared-section mismatches | 0 | 0 |
+
+Witness checks compare raw artifact SHA256, LF-normalized Unicode code-point substrings, half-open bounds and declared section ownership. Story scopes retain the full body after the heading newline to the next heading. Control scopes hash the reader sentence without the prefix or trailing newline. Basic label-structure checks cover case/claim/proposition IDs, review state, support/error enums, requirement dispositions and required witness presence. This is artifact/structure verification, not a new independent semantic adjudication.
+
+R3's additional specification, label-contract and plan hashes resolve to the frozen revision-3-final bundle, while the six original artifact hashes resolve to revision 2. All original reader-claim reviews are unchanged. Four new REQUIRED + COMMUNICATED requirements cover the Bee price and qualified dollar estimate in each of two drafts, adding eight witness occurrences. The optional comparator/GBP requirements retain all fields except four explicit proposition-ID renames from the original ID to its `-optional-detail` suffix. R3 also appends explanatory text to S03/S05, updates the reviewer description and adds three evidence-inspection entries. Thus the revision is not a strictly append-only JSON diff; these mapped metadata/ID changes are documented rather than hidden. No other case fields changed.
+
+Derived case-specific outcomes reproduce identically for both files: saved **17 positive / 4 negative / 4 unresolved**; controls **11 positive / 12 negative / 1 unresolved**. Counts are not error rates or whole-edition certification. Repeated witness occurrences are not independent evidence. The original 237-witness statement is definitively corrected to 235 for R2.
+
+Reproducible private checker: `.local-reports/briefing-latency/verify-recovered-validation-labels.py`. Private byte-identical copies and machine report: `.local-reports/briefing-latency/validation-labels-recovered-2026-10-18/VERIFICATION.json`. The checker can rerun read-only against existing copies/report and refuses to replace mismatching artifacts. Source-bearing label files remain outside tracked public documents. Frozen earlier review bundles are unchanged and predate this verification addendum.
+
+**Remaining gates are unchanged:** AI-assisted/unblinded labels are not independent human gold or compatible provider verdicts. Explicit design/plan authorization, independent holdout review, actual semantic-verdict evaluation, cost/lock observation and separately authorized staged acceptance are still outstanding. No product implementation, paid inference, deployment, queue operation or financial change was performed. No worker regression or model-quality result is claimed by these artifact checks.

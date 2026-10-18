@@ -6,7 +6,7 @@
 
 Each review records `reviewer`, `reviewedAt`, `provenance`, `previouslyReadAudit`, `modelAssistanceUsed`, `evidenceInspected`, `sourceManifestSha256` and `cases`. Provenance is one of `INDEPENDENT_HUMAN`, `HUMAN_ASSISTED`, `AI_ASSISTED`, `INVESTIGATOR`, `CONTROLLED_FIXTURE`. Human forwarding of AI-generated judgments does not make them independent human labels.
 
-`evidenceInspected` identifies the actual files/digests and scope: self-contained controls, complete saved source/draft appendices, or incomplete materials. The first AI-assisted review lacked appendices; the revision-2 review reports inspection of the full bundle. Keep those reviews distinct. The latter supplies 49 case-specific outcomes in prose, but its complete witness-label JSON is not available locally. A reported review is not an imported, validated answer dataset. See the [review receipt](../../../documentation/PUBLICATION_VALIDATION_R2_REVIEW_RECEIPT_2026_10_18.md).
+`evidenceInspected` identifies the actual files/digests and scope: self-contained controls, complete saved source/draft appendices, or incomplete materials. The first AI-assisted review lacked appendices; the revision-2 review reports inspection of the full bundle. Keep those reviews distinct. The latter supplies 49 case-specific outcomes. Both complete answer files have since passed local hash/span/scope/structure verification against frozen artifacts (R2: 235 exact witnesses/113 scopes; R3: 243/113). This validates artifact integrity, not independent human labeling or semantic-model accuracy. See the [review receipt](../../../documentation/PUBLICATION_VALIDATION_R2_REVIEW_RECEIPT_2026_10_18.md).
 
 A case starts with:
 
@@ -93,6 +93,6 @@ Keep label disagreements versioned: T09 in the later AI-assisted review is UNRES
 
 ## Semantic verdicts and measurements are separate
 
-This file defines gold/review labels, not provider verdicts. Keep actual model operation IDs, compatible-input manifests and result receipts in a separate evaluation record. Controlled-port responses are test fixtures, never provider evidence. The reported AI-assisted 49-case summary is not independent gold; the incomplete pasted JSON is not an importable full witness-label file. Reviewer judgments are not saved semantic verifier outputs.
+This file defines gold/review labels, not provider verdicts. Keep actual model operation IDs, compatible-input manifests and result receipts in a separate evaluation record. Controlled-port responses are test fixtures, never provider evidence. The reported AI-assisted 49-case summary is not independent gold; the subsequently supplied complete JSON files are now locally verified review artifacts. Reviewer judgments are not saved semantic verifier outputs.
 
 For each label stratum, report reviewed/partial/unreviewed and source availability. For independently reviewed positives/negatives, report the intersection with actual compatible semantic verdicts and all `ACCEPT/REJECT/UNRESOLVED` decisions. Count false acceptance only for `ACCEPT` on a gold negative, false rejection only for `REJECT` on a gold positive, and unresolved outcomes separately. Missing compatible verdicts are unverified coverage, not safe approvals or zero error rates.
