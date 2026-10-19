@@ -12,7 +12,7 @@ async function fixture(candidate:boolean){
  return constructionTransport(mentions,input,{constructionOwnershipVersion:MINIMAL_CONSTRUCTION_VERSION});
 }
 function audit(schema:any){
- const resolve=(v:any):any=>v.$ref?v.$ref.slice(2).split('/').reduce((node:any,key:string)=>node[key.replace(/~1/g,'/').replace(/~0/g,'~')],schema):v;
+ const resolve=(v:any):any=>v.$ref?resolve(v.$ref.slice(2).split('/').reduce((node:any,key:string)=>node[key.replace(/~1/g,'/').replace(/~0/g,'~')],schema)):v;
  const walk=(v:any)=>{if(!v||typeof v!=='object')return;if(Array.isArray(v)){v.forEach(walk);return}if(v.$ref){expect(Object.keys(v)).toEqual(['$ref']);expect(resolve(v)).toBeDefined()}if(v.properties){expect(v.additionalProperties).toBe(false);expect([...v.required].sort()).toEqual(Object.keys(v.properties).sort())}Object.values(v).forEach(walk)};walk(schema);
  expect(inspectProviderSchema('openai/gpt-4.1-mini',schema)).toMatchObject({fits:true,violations:[]});return resolve;
 }
@@ -50,3 +50,14 @@ it.each(['writer','repair','verifier'] as const)('serialized V2 %s schemas pass 
  await run.catch(()=>undefined);expect(calls).toBe(1);audit(captured);
  }
 });
+
+import {readFileSync} from 'node:fs';
+import {shareSchemaEnums} from '../provider-schema';
+it.each([{name:'laplace',stage:'INITIAL',before:2452,after:168},{name:'laplace',stage:'RECONCILIATION',before:2452,after:168},{name:'replit',stage:'INITIAL',before:1197,after:126},{name:'replit',stage:'RECONCILIATION',before:1197,after:126}])('saved blocked $name $stage serialized schema preserves exact choices and constraints',async({name,stage,before,after})=>{
+ const baseline=JSON.parse(readFileSync(new URL('../../../../benchmarks/blocked-schema-'+name+'.json',import.meta.url),'utf8')),compact=shareSchemaEnums(baseline);
+ expect(inspectProviderSchema('openai/gpt-4.1-mini',baseline)).toMatchObject({fits:false,enumValues:before,violations:['ENUM_COUNT']});
+ const expand=(root:any)=>{const walk=(v:any):any=>{if(Array.isArray(v))return v.map(walk);if(!v||typeof v!=='object')return v;if(v.$ref){expect(Object.keys(v)).toEqual(['$ref']);return walk(v.$ref.slice(2).split('/').reduce((o:any,k:string)=>o[k],root));}return Object.fromEntries(Object.entries(v).filter(([k])=>k!=='$defs').map(([k,x])=>[k,walk(x)]));};return walk(root);};
+ let captured:any;const model=createStrongSemanticModel(env,(async(_url,init)=>{captured=JSON.parse(init!.body as string).response_format.json_schema.schema;return Response.json({choices:[{message:{content:'{}'}}],usage:{prompt_tokens:0,completion_tokens:0,cost:0}})}) as typeof fetch)!;
+ await model.complete('offline-saved-schema',stage==='INITIAL'?'SEMANTIC_CONSTRUCTION':'SEMANTIC_RECONCILIATION',{},compact);audit(captured);expect(inspectProviderSchema('openai/gpt-4.1-mini',captured).enumValues).toBe(after);expect(expand(captured)).toEqual(expand(baseline));
+});
+it('final transport shares dynamically injected destinations on a long article',async()=>{const body=Array.from({length:48},(_,i)=>`Company ${i} announced a fund committing 5% of shares.`).join('\n'),revision:any={id:'long',feedId:'feed',body,acceptedAt:'2026-10-19T12:00:00Z',contentHash:'long'}, {mentions}=await extractClaimMentions(revision);expect(mentions.length).toBeGreaterThan(31);const wire=constructionTransport(mentions,{revision,candidates:[],storylineIds:[]} as any,{constructionOwnershipVersion:MINIMAL_CONSTRUCTION_VERSION});audit(JSON.parse(JSON.stringify(wire.schema)));expect(inspectProviderSchema('openai/gpt-4.1-mini',wire.schema).enumValues).toBeLessThan(1000);});
