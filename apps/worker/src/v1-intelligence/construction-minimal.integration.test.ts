@@ -62,3 +62,23 @@ it('published exact corroboration is not selected as new news without entity or 
  const selected=await scoreAndSelect(store,'feed-1',next,DEFAULT_BRIEFING_BUDGET,testPolicy.now());expect(selected.selectedCandidateIds).toHaveLength(0);
 });
 });
+
+describe('five independent sources of one known but unpublished occurrence',()=>{
+ const body='Lebanon Parliament approved banking reform legislation.';let eventId:string;
+ beforeEach(async()=>{await construct(1,body);eventId=(await store.list<any>('feed-1','events'))[0].id});
+ beforeEach(async()=>{await construct(2,body,{eventId,effects:['CORROBORATES']});await construct(3,'Lebanon Parliament passed banking reform legislation.',{eventId,effects:['CORROBORATES']})});
+ beforeEach(async()=>{await construct(4,body,{eventId,effects:['CORROBORATES']});await construct(5,'Banking reform legislation was approved by Lebanon Parliament.',{eventId,effects:['CORROBORATES']})});
+ it('keeps one identity and all provenance, but does not mistake ingestion for reader communication',async()=>{
+  expect(await store.list('feed-1','events')).toHaveLength(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
+  const shortlist=await prepareSemanticShortlist(store,'feed-1',window,testPolicy.now());expect(shortlist.ledger).toHaveLength(0);expect(shortlist.candidates).toHaveLength(1);expect(shortlist.candidates[0].readerState).toBe('UNSEEN');expect(new Set(shortlist.candidates[0].facts.flatMap(f=>f.evidenceRevisionIds)).size).toBe(5);expect(shortlist.candidates[0].facts.some(f=>f.text.includes('passed'))).toBe(true);
+ });
+});
+describe('material detail about an already published event',()=>{
+ let eventId:string;
+ beforeEach(async()=>{await construct(1,'Lebanon Parliament approved banking reform legislation.');eventId=(await store.list<any>('feed-1','events'))[0].id;await publishFixture()});
+ beforeEach(async()=>{await construct(2,'Lebanon Parliament approved banking reform legislation. The reform guarantees compensation of $5000 per depositor.',{eventId,effects:['ADDS_DETAIL']})});
+ it('keeps the canonical identity but preserves new reader understanding without repeating the whole event',async()=>{
+  const next={...window,start:'2026-10-04T00:00:00Z',end:'2026-10-05T00:00:00Z'},shortlist=await prepareSemanticShortlist(store,'feed-1',next,testPolicy.now());
+  expect(await store.list('feed-1','events')).toHaveLength(1);expect(shortlist.candidates).toHaveLength(1);const candidate=shortlist.candidates[0];expect(candidate.readerState).toBe('PARTIALLY_SEEN');expect(candidate.fallbackEditorial.newUnderstanding.some(f=>f.text.includes('$5000'))).toBe(true);expect(candidate.fallbackEditorial.newUnderstanding.some(f=>f.text==='Lebanon Parliament approved banking reform legislation.')).toBe(false);
+ });
+});

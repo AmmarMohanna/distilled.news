@@ -31,3 +31,11 @@ it('allows more than three distinct groups and consolidates overlap through offe
  const raw:any={confidence:1,groups:mentions.map((_,i)=>group('G'+i)),dispositionByUnitId:Object.fromEntries(mentions.map((_,i)=>['C'+i,'G'+i]))};Object.assign(raw.groups[0],{eventId:'E0',storylineId:'L0',structuralRelation:'SAME_EVENT'});
  const result=parseConstruction(wire.decode(raw),mentions,input,{scorer:'FIXTURE',policyVersion:version});expect(result.groups).toHaveLength(4);expect(result.groups[0].eventId).toBe('existing-school');expect(result.groups[0].storylineId).toBe('school-story');
 });
+
+it('defines article-first identity separately from supporting facts, future uncertainty and routing placeholders',async()=>{
+ const {mentions,input}=await fixture();const wire=constructionTransport(mentions,input,{constructionOwnershipVersion:version,prior:{structuralRelation:'DEFER',confidence:0,provenance:{fallbackReason:'NO_ACCEPTED_JUDGMENT'}}});
+ expect(wire.state.instruction).toContain('principal news occurrence');expect(wire.state.instruction).toContain('DEFER means unresolved occurrence identity');
+ expect(wire.state.prior).toBeUndefined();expect(wire.state.instruction).toContain('published');
+ const branch=(wire.schema as any).properties.groups.items.anyOf[0];expect(branch.properties.structuralRelation.description).toContain('future outcome');
+ const groundedPrior={structuralRelation:'SAME_EVENT',eventId:'existing',confidence:.9,provenance:{scorer:'JEV',judgmentId:'settled'}};expect(constructionTransport(mentions,input,{constructionOwnershipVersion:version,prior:groundedPrior}).state.prior).toMatchObject({structuralRelation:'SAME_EVENT',provenance:{judgmentId:'settled'}});
+});
