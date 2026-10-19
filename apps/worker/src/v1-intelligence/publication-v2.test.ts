@@ -1,3 +1,4 @@
+import {withLatency} from './latency';
 import {afterEach,beforeEach,expect,it} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope,testPolicy} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
@@ -24,11 +25,11 @@ function model(conflict=false):BriefingModelPort{
  const usage={tokensIn:100,tokensOut:30,cost:.001,confirmed:true};
  return {model:'test-v2',provider:'TEST',promptVersion:'approved-propositions-v2',validationContract:'EVIDENCE_GROUNDED_V2',requiresFullEntailment:true,maxCallCostUsd:.02,admission:syntheticModelAdmission,
  synthesize:async input=>({draft:{language:'en',stories:input.stories.map(s=>({candidateId:s.candidate.id,claims:[{text:reader,support:s.approvedSpans!}]}))},usage}),
- verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>f.id)),novelFactIds:claims.flatMap(c=>(c.newUnderstandingFacts??[]).map(f=>f.id)),claimEntailment:claims.map(c=>({claimId:c.id,fullyEntailed:true,unsupportedMeaning:[],reason:'Controlled fixture, not provider evidence.'})),semanticChecks:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>({candidateId:c.candidateId,factId:f.id,communicated:true,attribution:!conflict,certainty:true,temporal:true,qualifiers:true,readerNovelty:{status:'NEW' as const,reason:'New supported meaning.',previousFactTexts:[]},readerSpans:[{claimId:c.id,text:c.text}],reason:'Controlled fixture.'}))),usage})};
+ verify:async claims=>({supportedClaimIds:claims.map(c=>c.id),preservedFactIds:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>f.id)),novelFactIds:claims.flatMap(c=>(c.newUnderstandingFacts??[]).map(f=>f.id)),claimEntailment:claims.map(c=>({claimId:c.id,fullyEntailed:true,unsupportedMeaning:[],reason:'Controlled fixture, not provider evidence.'})),semanticChecks:claims.flatMap(c=>(c.requiredFacts??[]).map(f=>({candidateId:c.candidateId,factId:f.id,communicated:true,sourceSupported:true,readerEntailsProposition:true,attribution:!conflict,certainty:true,temporal:true,qualifiers:true,readerNovelty:{status:'NEW' as const,reason:'New supported meaning.',previousFactTexts:[]},readerSpans:[{claimId:c.id,text:c.text,start:0,end:c.text.length}],reason:'Controlled fixture.'}))),usage})};
 }
 it('v2 publishes the valid duration through complementary verification and durable receipt fencing',async()=>{
  const selection=await selected(),port=model();let calls=0;const verify=port.verify!;port.verify=async(...args)=>{calls++;return verify(...args);};
- const edition=await publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model:port,requireModel:true,validationContract:'EVIDENCE_GROUNDED_V2'});
+ const edition=await withLatency({feedId:'feed-1',phase:'PUBLICATION',windowId:'controlled-v2'},()=>publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model:port,requireModel:true,validationContract:'EVIDENCE_GROUNDED_V2'}));
  expect(edition.stories[0].claims[0].text).toBe(reader);expect(calls).toBe(1);
  expect((await store.list<any>('feed-1','publication_validation_results')).some(r=>r.status==='ACCEPT')).toBe(true);
  await publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model:port,requireModel:true,validationContract:'EVIDENCE_GROUNDED_V2'});expect(calls).toBe(1);

@@ -3,7 +3,7 @@ import {decidePublicationValidation,decidePublicationPackets,verificationCompati
 const manifest:VerificationManifest={contract:'EVIDENCE_GROUNDED_V2',feedId:'feed',feedRevision:1,evidenceHash:'e',selectionHash:'s',draftHash:'d',questionHash:'q',promptVersion:'p',packetSchemaVersion:'v2',semanticPolicy:'semantic-publication-v2',editorialContractVersion:'editorial-requirements-v2',model:'model',provider:'provider',providerRoute:'route',outputLanguage:'en'};
 const paid={operationId:'op',receiptOperationId:'op',reservationId:'semantic_intents:op',intentToken:'t',settlementToken:'t',resultHash:'hash'};
 const claims:any=[{id:'c',candidateId:'story',text:'Officials reported 12 injuries.',support:[],context:[],requiredFacts:[{id:'f',text:'Officials reported 12 injuries.',evidenceRevisionIds:['r']}]}];
-const result=():any=>({supportedClaimIds:['c'],preservedFactIds:['f'],claimEntailment:[{claimId:'c',fullyEntailed:true,unsupportedMeaning:[],reason:'Supported.'}],semanticChecks:[{candidateId:'story',factId:'f',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,nonRepetitive:true,readerSpans:[{claimId:'c',text:'Officials reported 12 injuries.'}],reason:'Coverage.'}]});
+const result=():any=>({supportedClaimIds:['c'],preservedFactIds:['f'],claimEntailment:[{claimId:'c',fullyEntailed:true,unsupportedMeaning:[],reason:'Supported.'}],semanticChecks:[{candidateId:'story',factId:'f',communicated:true,sourceSupported:true,readerEntailsProposition:true,attribution:true,certainty:true,temporal:true,qualifiers:true,nonRepetitive:true,readerSpans:[{claimId:'c',text:'Officials reported 12 injuries.',start:0,end:claims[0].text.length}],reason:'Coverage.'}]});
 it('requires complete exact compatibility including paid token linkage',()=>{
  expect(verificationCompatibility({manifest,paid},manifest,'hash')).toBe(true);
  for(const key of Object.keys(manifest)){const changed:any={...manifest,[key]:key==='feedRevision'?2:'different'};expect(verificationCompatibility({manifest,paid},changed,'hash')).toBe(false);}
@@ -21,7 +21,7 @@ it('does not use a true surviving road claim to approve missing required bridge 
  expect(decidePublicationValidation(claims,r).status).toBe('REJECT');
 });
 it('rejects consistent negatives; missing, foreign or source-only witnesses stay unresolved',()=>{
- const r=result();r.claimEntailment[0].fullyEntailed=false;r.supportedClaimIds=[];r.semanticChecks[0].communicated=false;r.semanticChecks[0].readerSpans=[];
+ const r=result();r.claimEntailment[0].fullyEntailed=false;r.supportedClaimIds=[];r.preservedFactIds=[];r.semanticChecks[0].communicated=false;r.semanticChecks[0].readerSpans=[];
  expect(decidePublicationValidation(claims,r).status).toBe('REJECT');
  for(const mutate of [(x:any)=>x.semanticChecks=[],(x:any)=>x.semanticChecks[0].readerSpans[0].claimId='source-only',(x:any)=>x.semanticChecks[0].candidateId='foreign']){const x=result();mutate(x);expect(decidePublicationValidation(claims,x).status).toBe('UNRESOLVED');}
  expect(decidePublicationValidation(claims,undefined).status).toBe('UNRESOLVED');

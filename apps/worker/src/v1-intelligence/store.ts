@@ -52,6 +52,18 @@ export class V1FeedStore {
  async revision(feedId:string,id:string):Promise<EvidenceRevision|undefined> {
   const row=await this.db.prepare('SELECT r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE r.id=? AND s.feed_id=?').bind(id,feedId).first<{json:string}>();return row?JSON.parse(row.json):undefined;
  }
+ /** Publication history matching needs article identity, not historical bodies.
+  * Same immutable revision/scope join as revision(); no cross-request cache. */
+ async revisionEvidenceIds(feedId:string,ids:string[]):Promise<Map<string,string>> {
+  const unique=[...new Set(ids)],values=new Map<string,string>();
+  for(let offset=0;offset<unique.length;offset+=90){
+   const chunk=unique.slice(offset,offset+90);countLatency('publicationHistoryIdentityQueries');
+   const rows=await this.db.prepare(`SELECT r.id,json_extract(r.json,'$.evidenceId') AS evidence_id FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(feedId,...chunk).all<{id:string;evidence_id:string}>();
+   countLatency('publicationHistoryIdentityRows',rows.results.length);
+   for(const row of rows.results)values.set(row.id,row.evidence_id);
+  }
+  return values;
+ }
  async snapshot(id:string):Promise<Snapshot> {
   const guard=intelligenceTurnGuard(this.db,id),lease=this.semanticLease;
   if(lease&&lease.feedId!==id)throw new SemanticLeaseError();

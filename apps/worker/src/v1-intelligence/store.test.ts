@@ -7,6 +7,13 @@ let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 const now=testPolicy.now(),feed:FeedRecord={id:'feed-1',ownerId:'owner-1',title:'Feed',interests:[],geography:[],outputLanguage:'en',briefingFrequency:'DAILY',paused:false,revision:1,createdAt:now,updatedAt:now};
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feed)});
 afterEach(async()=>ctx.dispose());
+it('publication history identity projection equals revision loading without body payload or cross-feed access',async()=>{
+ const intake=new V1IntakeStore(ctx.db),{revision}=await seedCurrentEvidence(intake,'Historical full article, retained unchanged.');
+ const identities=await store.revisionEvidenceIds(feed.id,[revision.id,revision.id,'missing']);
+ expect(identities).toEqual(new Map([[revision.id,(await store.revision(feed.id,revision.id))!.evidenceId]]));
+ expect(await store.revisionEvidenceIds('foreign',[revision.id])).toEqual(new Map());
+ expect(await store.revisionEvidenceIds(feed.id,[])).toEqual(new Map());
+});
 it('active revision identity checks preserve Feed/source/deletion visibility without returning bodies',async()=>{
  const intake=new V1IntakeStore(ctx.db),{evidence,revision}=await seedCurrentEvidence(intake,'A retained article body.');
  expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set((await store.currentEvidence(feed.id)).map(e=>e.revision.id)));
