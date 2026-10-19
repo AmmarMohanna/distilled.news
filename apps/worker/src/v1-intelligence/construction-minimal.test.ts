@@ -39,3 +39,7 @@ it('defines article-first identity separately from supporting facts, future unce
  const branch=(wire.schema as any).properties.groups.items.anyOf[0];expect(Object.keys(branch.properties.structuralRelation)).toEqual(['$ref']);expect(wire.state.instruction).toContain('future outcome');
  const groundedPrior={structuralRelation:'SAME_EVENT',eventId:'existing',confidence:.9,provenance:{scorer:'JEV',judgmentId:'settled'}};expect(constructionTransport(mentions,input,{constructionOwnershipVersion:version,prior:groundedPrior}).state.prior).toMatchObject({structuralRelation:'SAME_EVENT',provenance:{judgmentId:'settled'}});
 });
+
+it('separates omission and possible uses from contradiction without rewriting genuine model effects',async()=>{
+ const {wire}=await fixture();expect(wire.state.instruction).toContain('omission from a prior summary are not contradictions');expect(wire.state.instruction).toContain('factory');const raw={confidence:1,groups:[{...group('G0'),epistemicEffects:['CONTRADICTS']}],dispositionByUnitId:{C0:'G0',C1:'G0',C2:'G0'}};expect(wire.decode(raw).groups[0].epistemicEffects).toEqual(['CONTRADICTS']);
+});

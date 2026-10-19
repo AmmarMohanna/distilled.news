@@ -40,3 +40,13 @@ it.each([false,true])('V2 editorial serialized provider schema has unique comple
  await model.complete('feed','COMPARATIVE_EDITORIAL_PLAN',request.state,request.schema);expect(calls).toBe(1);
  for(const branch of request.schema.properties.stories.items.anyOf){expect(branch.required.filter(k=>k==='validation')).toHaveLength(1);expect(branch.required.filter(k=>k==='editorialImportance')).toHaveLength(1);}
 });
+
+import {createStoredEvidenceModel} from './model';
+it.each(['writer','repair','verifier'] as const)('serialized V2 %s schemas pass complete offline audit with optional context/correction variants',async phase=>{
+ for(const rich of [false,true]){
+ let calls=0,captured:any;const model=createStoredEvidenceModel({...env,V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',DISTILLED_LIVE_OPENROUTER_MODEL:'openai/gpt-4.1-mini',V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,(async(_url,init)=>{calls++;captured=JSON.parse(init!.body as string).response_format.json_schema.schema;throw Error('OFFLINE_CAPTURE_STOP')}) as typeof fetch)!;
+ const text='The council announced a fund committing 5% of its shares.',fact={id:'fact',text,evidenceRevisionIds:['revision'],support:[{evidenceRevisionId:'revision',quote:text}],...(rich?{attribution:'Council',certainty:{kind:'POSSIBLE',hedges:['may']},timing:{framingRequired:true,reportTime:'2026-10-18T00:00:00Z'}}:{})},input:any={feed:{id:'feed',revision:1,title:'Feed',interests:[],outputLanguage:'en'},selectionId:'selection',stories:[{candidate:{id:'candidate',targetType:'EVENT',targetVersionId:'version'},approvedFacts:[fact],plan:{validation:{},mustIncludeFactIds:['fact'],newUnderstandingFactIds:['fact'],facts:[fact],previousLedgerEntries:[],correctionObligations:rich?[{id:'correction',kind:'CORRECTED',previousReaderClaims:['Prior claim.']}]:[]},evidence:[{id:'revision',body:text,language:'en',canonicalUrl:'https://example.com/news'}]}]},limits={maxOutputTokens:8192,signal:new AbortController().signal};
+ const run=phase==='writer'?model.synthesize(input,limits):phase==='repair'?model.repair!(input,{language:'en',stories:[]},{id:'feedback',feedId:'feed',selectionId:'selection',draftId:'draft',issues:[],missingFactIds:['fact'],createdAt:'2026-10-19T00:00:00Z'},limits):model.verify!([{id:'claim',candidateId:'candidate',text,support:fact.support,context:[{evidenceRevisionId:'revision',text,truncated:false}],requiredFacts:[fact],allowedFacts:[fact]}] as any,limits);
+ await run.catch(()=>undefined);expect(calls).toBe(1);audit(captured);
+ }
+});
