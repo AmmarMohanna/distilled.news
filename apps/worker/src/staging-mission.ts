@@ -1,5 +1,5 @@
 import type {Env} from './types';
-import {STAGING_GROUPING_RUN_POLICY,STAGING_DISPOSITION_ATTEMPT_ID,STAGING_GROUPING_CEILING_USD,STAGING_GROUPING_CALL_LIMITS,STAGING_GROUPING_CAPABILITIES_JSON} from './staging-grouping-run-policy';
+import {STAGING_GROUPING_RUN_POLICY,STAGING_DISPOSITION_ATTEMPT_ID,STAGING_GROUPING_CEILING_USD,STAGING_GROUPING_CALL_LIMITS,STAGING_GROUPING_CAPABILITIES_JSON,freshStagingRematch} from './staging-grouping-run-policy';
 import {stagingMissionDb} from './staging-mission-budget';
 import {fetchRssCandidates,BoundedFeedHttp,HttpSourceExecution} from '@distilled/connectors';
 import {readPublicArticle} from './v1-intake/public-article-http';
@@ -8,7 +8,7 @@ import {enrollV1Source} from './v1-intelligence/product';
 import {prepareRssHandoff,rssLanguageHint} from './v1-intake/rss-handoff';
 import {acceptV1Handoff,processV1Acquisition} from './v1-downstream-runtime';
 import {processV1Reassessment,processV1Rematch,processV1Briefing} from './v1-intelligence/runtime';
-import {V1FeedStore} from './v1-intelligence/store';
+import {V1FeedStore,feedTransact} from './v1-intelligence/store';
 import {windowIntakeCoverage} from './v1-intelligence/window-coverage';
 import {withFeedWriteTurn} from './connector-intelligence-turn';
 import {withLatency,measureLatency} from './v1-intelligence/latency';
@@ -79,13 +79,14 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
    const prepared=await read('prepared');if(!prepared)throw Error('PREPARE_REQUIRED');
    if(await read(scope+'-start'))throw Error('CONTRACT_REVIEW_ALREADY_STARTED_NO_RETRY');
    const totals=await db.prepare('SELECT COUNT(*) n,SUM(CASE WHEN s.reported=1 THEN 0 ELSE 1 END) unknown FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.feed_id=?').bind(feedId).first<{n:number;unknown:number}>();
-   if(totals?.n!==(disposition?7:2)||totals.unknown)throw Error('EXPECTED_SETTLED_BASELINE_REQUIRED');
-   const store=new V1FeedStore(db),requests=await store.list<{id:string;evidenceRevisionId:string}>(feedId,'rematch_requests');
+   if(totals?.n!==(disposition?10:2)||totals.unknown)throw Error('EXPECTED_SETTLED_BASELINE_REQUIRED');
+   const store=new V1FeedStore(db),requests=await store.list<import('./v1-intelligence/rematch').RematchRequest>(feedId,'rematch_requests');
    if(requests.length!==1)throw Error('EXACT_REMATCH_REQUIRED');
-   const attemptAt=now();await save(scope+'-start',{at:attemptAt,attemptId:scope,baseCommit:disposition?'b8dc841':undefined,policy:STAGING_GROUPING_RUN_POLICY,ceilingUsd:STAGING_GROUPING_CEILING_USD,baselineOperations:totals.n,rematchRequestId:requests[0].id});
-   await processV1Rematch(scoped,feedId,requests[0].id);
+   const attemptAt=now(),runRequest=disposition?await freshStagingRematch(requests[0],scope,attemptAt):requests[0];await save(scope+'-start',{at:attemptAt,attemptId:scope,baseCommit:disposition?'38f1a9d':undefined,policy:STAGING_GROUPING_RUN_POLICY,ceilingUsd:STAGING_GROUPING_CEILING_USD,baselineOperations:totals.n,rematchRequestId:runRequest.id,previousRequestId:requests[0].id});
+   if(disposition)await feedTransact(store,feedId,async tx=>{if(await tx.read('rematch_requests',runRequest.id))throw Error('FRESH_REMATCH_ALREADY_EXISTS');await tx.write('rematch_requests',runRequest.id,runRequest)});
+   await processV1Rematch(scoped,feedId,runRequest.id);
    const attempts=await store.list<{requestId:string;state:string}>(feedId,'rematch_attempts');
-   if(!attempts.some(a=>a.requestId===requests[0].id&&a.state==='SUCCEEDED'&&(!disposition||(a as any).createdAt>=attemptAt)))throw Error('SEMANTIC_REMATCH_NOT_SUCCEEDED');
+   if(!attempts.some(a=>a.requestId===runRequest.id&&a.state==='SUCCEEDED'&&(!disposition||(a as any).createdAt>=attemptAt)))throw Error('SEMANTIC_REMATCH_NOT_SUCCEEDED');
    const coverage=await windowIntakeCoverage(db,feedId,now());if(coverage.state!=='COMPLETE')throw Error('INTAKE_NOT_COMPLETE');
    await save(disposition?scope+'-reviewed':'reviewed',{at:now(),attemptId:scope,review:'CONTRACT_REMATCH_SUCCEEDED',coverage,policy:STAGING_GROUPING_RUN_POLICY,wallMs:performance.now()-started});
   }
