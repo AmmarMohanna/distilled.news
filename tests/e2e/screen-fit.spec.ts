@@ -108,8 +108,9 @@ for (const size of [{ width: 320, height: 568 }, { width: 390, height: 664 }, { 
     const firstCard = page.locator('.personal-feed-grid .topic-card').first();
     await expect.poll(() => firstCard.evaluate(node => {
       const grid = node.closest<HTMLElement>('.adaptive-feed-grid')!;
-      const expected = grid.dataset.layout === 'large' ? 208 : 84;
-      return Math.abs(node.getBoundingClientRect().height - expected) < 1;
+      const minimum = grid.dataset.layout === 'large' ? 160 : 64;
+      const height = node.getBoundingClientRect().height;
+      return height >= minimum - 1 && height <= 240 && node.scrollHeight <= node.clientHeight + 1;
     })).toBe(true);
     await expect.poll(() => page.evaluate(() => {
       const cards = [...document.querySelectorAll('.personal-feed-grid .topic-card')].map(node => node.getBoundingClientRect());
@@ -118,6 +119,14 @@ for (const size of [{ width: 320, height: 568 }, { width: 390, height: 664 }, { 
       return rows.slice(1).every((row, index) => Math.abs(row.top - rows[index].bottom - gap) < 1);
     })).toBe(true);
     await expect(page.locator('.personal-feed-grid')).toHaveCSS('margin-top', '8px');
+    await expect.poll(() => page.evaluate(() => {
+      const navigation = document.querySelector('.bottom-navigation')?.getBoundingClientRect();
+      const bottom = innerWidth < 900 ? navigation?.top ?? innerHeight : innerHeight;
+      return [...document.querySelectorAll('.personal-feed-grid .topic-card')].every(node => {
+        const card = node.getBoundingClientRect();
+        return card.top >= bottom - 1 || card.bottom <= bottom + 1;
+      });
+    })).toBe(true);
 
 
   });

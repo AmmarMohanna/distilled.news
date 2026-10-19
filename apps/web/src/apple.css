@@ -1484,22 +1484,26 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Keep cards steady when hovered or pressed. */
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card:is(:hover, :active) { transform: none; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] > .topic-card {
-  display: grid; grid-template-columns: 64px min-content minmax(0, 1fr) auto !important;
+  display: grid; grid-template-columns: var(--feed-art-size, 64px) min-content minmax(0, 1fr) auto !important;
   grid-template-areas: "art name name actions" "art status updated actions" !important;
-  grid-template-rows: auto auto !important; align-content: center; padding: 8px 10px !important; column-gap: 10px; row-gap: 0;
+  grid-template-rows: auto auto !important; align-content: center; padding: 6px 10px !important; column-gap: 10px; row-gap: 0;
 }
-:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] > .topic-card .topic-art { width: 64px !important; height: 64px !important; max-height: 64px !important; margin: 0 !important; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] .feed-card-identity { grid-template-rows: 18px 14px !important; gap: 2px !important; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] .feed-card-identity strong { font-size: 14px; line-height: 18px; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] .feed-card-identity small { font-size: 12px; line-height: 14px; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] .feed-card-status { font-size: 12px; line-height: 14px; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] > .topic-card .topic-art { width: var(--feed-art-size, 64px) !important; height: var(--feed-art-size, 64px) !important; max-height: none !important; margin: 0 !important; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid .topic-art.pencil-art > img { inset: 0; width: 100%; height: 100%; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="compact"] > .topic-card .feed-card-actions { margin: 0 !important; padding: 0 !important; border: 0 !important; align-self: center !important; flex-direction: row !important; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] > .topic-card {
-  position: relative; display: grid; grid-template-columns: 112px minmax(0, 1fr) !important;
+  position: relative; display: grid; grid-template-columns: var(--feed-art-size, 112px) minmax(0, 1fr) !important;
   grid-template-areas: "art name" "art status" "updated updated" "actions actions" !important;
-  grid-template-rows: 72px 40px 12px 48px !important; padding: 16px !important; column-gap: 16px; row-gap: 0;
+  grid-template-rows: minmax(44px, 1fr) 24px 12px 44px !important; padding: 12px !important; column-gap: 16px; row-gap: 0;
 }
-:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] > .topic-card .topic-art { width: 112px !important; height: 112px !important; min-height: 0 !important; max-height: none !important; margin: 0 !important; }
-:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] > .topic-card .topic-name { align-self: end; padding-inline-end: 28px; font-size: 22px !important; }
-:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] .feed-card-identity { grid-template-rows: 28px 22px !important; gap: 6px !important; }
-:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] .feed-card-identity small { font-size: 16px !important; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] > .topic-card .topic-art { width: var(--feed-art-size, 112px) !important; height: var(--feed-art-size, 112px) !important; min-height: 0 !important; max-height: none !important; margin: 0 !important; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] > .topic-card .topic-name { align-self: end; padding-inline-end: 28px; font-size: 18px !important; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] .feed-card-identity { grid-template-rows: 22px 18px !important; gap: 4px !important; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] .feed-card-identity small { font-size: 14px !important; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] > .topic-card .feed-card-status { font-size: 16px !important; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="large"] > .topic-card .feed-card-status { align-self: center; }
 :root.apple-ui.apple-ui .feed-card-actions .feed-card-open { display: none; }

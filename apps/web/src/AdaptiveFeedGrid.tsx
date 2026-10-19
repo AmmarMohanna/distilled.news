@@ -15,16 +15,27 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       const top = rect.top + (viewport?.scrollTop ?? 0) * scale;
       const available = Math.max(0, (bottom - top) / scale);
       const width = grid.clientWidth;
-      const roomy = window.innerWidth >= 900 && width >= 640 && available >= 380;
+      let roomy = window.innerWidth >= 900 && width >= 640 && available >= 320;
       const columns = Math.min(count, roomy ? 2 : window.innerWidth >= 900 ? Math.max(1, Math.floor((width + 16) / 296)) : width >= 600 ? 2 : 1);
       const gap = window.innerWidth >= 900 ? 16 : 10;
-      // Content-sized cards and a uniform gap; overflow stays on the full page.
-      const rowHeight = roomy ? 208 : 84;
+      const totalRows = Math.ceil(count / columns);
+      const fitRows = (preferred: number, minimum: number) => {
+        if (totalRows * preferred + (totalRows - 1) * gap <= available) return preferred;
+        let rows = Math.max(1, Math.ceil((available + gap) / (preferred + gap)));
+        let height = (available - (rows - 1) * gap) / rows;
+        if (height < minimum) {
+          rows = Math.max(1, Math.floor((available + gap) / (minimum + gap)));
+          height = (available - (rows - 1) * gap) / rows;
+        }
+        return Math.max(minimum, height);
+      };
+      if (roomy && fitRows(208, 160) > 240) roomy = false;
+      const rowHeight = roomy ? fitRows(208, 160) : fitRows(84, 64);
       grid.dataset.layout = roomy ? 'large' : 'compact';
       grid.style.setProperty('--feed-columns', String(columns));
       grid.style.setProperty('--feed-row-height', `${rowHeight}px`);
       grid.style.setProperty('--feed-grid-gap', `${gap}px`);
-      grid.style.setProperty('--feed-image-height', `${Math.max(56, rowHeight - 152)}px`);
+      grid.style.setProperty('--feed-art-size', `${roomy ? Math.min(112, rowHeight - 86) : Math.min(64, rowHeight - 18)}px`);
     };
     measure();
     const observer = new ResizeObserver(measure);
