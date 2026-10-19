@@ -90,6 +90,22 @@ test("feed reserves a loading layout before showing compact content", async ({ p
   await expect(page.locator('.feed-tools input')).toHaveCSS('font-size', '16px');
 });
 
+test("feed refreshes automatically without a manual refresh control", async ({ page }) => {
+  await page.clock.install();
+  await mock(page, false);
+  let reads = 0;
+  await page.route('**/api/feed/joud/lebanon', route => route.fulfill({ json: { briefing: { ...feed, title: `Update ${++reads}` }, editions: [], viewerHasStarred: false } }));
+  await page.goto('/joud/lebanon/');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Update 1');
+  await expect(page.getByRole('button', { name: /refresh/i })).toHaveCount(0);
+  await page.clock.fastForward(60_000);
+  await expect.poll(() => reads).toBeGreaterThan(1);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Update ${reads}`);
+  const previous = reads;
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(() => reads).toBeGreaterThan(previous);
+});
+
 test("profile identity has no gradient backdrop", async ({ page }) => {
   await mock(page, true);
   await page.goto('/');

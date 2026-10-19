@@ -1484,8 +1484,8 @@ function FeedPage(props: { username: string; slug: string }) {
       try { await refresh(true); } finally { pending = false; }
     };
     const interval = window.setInterval(() => void update(), 60_000);
-    document.addEventListener("visibilitychange", update); window.addEventListener("focus", update);
-    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", update); window.removeEventListener("focus", update); };
+    document.addEventListener("visibilitychange", update); window.addEventListener("focus", update); window.addEventListener("online", update);
+    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", update); window.removeEventListener("focus", update); window.removeEventListener("online", update); };
   }, [props.username, props.slug]);
 
   useEffect(() => {
@@ -1625,13 +1625,12 @@ function FeedPage(props: { username: string; slug: string }) {
         <span className="action-count">{payload?.briefing.stars ?? 0}</span>
       </button>
       {payload?.briefing.publicFeedEnabled ? <button type="button" title={t("Share")} aria-label={t("Share")} onClick={() => void shareFeed()}><Share size={20} aria-hidden /></button> : null}
-      <FeedMoreMenu label={t("More options")}>
+      {ownedFeed ? <FeedMoreMenu label={t("More options")}>
         {close => <>
-          <button type="button" onClick={() => { close(); void refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))); }}><RefreshCw size={16} aria-hidden />{refreshControlLabel(language)}</button>
           {ownedFeed ? <button type="button" onClick={() => { close(); setEditorOpen(true); }}><Settings size={16} aria-hidden />{t("Edit feed settings")}</button> : null}
 
         </>}
-      </FeedMoreMenu>
+      </FeedMoreMenu> : null}
     </div>
   );
 
