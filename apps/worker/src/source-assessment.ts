@@ -15,6 +15,7 @@ export interface SourceAssessment {
   evidenceUrl?: string;
   model?: string;
   upstreamStatus?: number;
+  failureCode?: 'PUBLIC_URL_POLICY_DENIED';
 }
 const choice = z.object({ type: z.literal('choice'), choice: z.enum(['YES', 'NO', 'UNKNOWN']), confidence: z.number().min(0).max(1), probabilities: z.object({ YES: z.number().min(0).max(1), NO: z.number().min(0).max(1), UNKNOWN: z.number().min(0).max(1) }).strict() });
 function plain(value: string): string {
@@ -96,7 +97,7 @@ export async function assessSource(env: Env, context: { title: string; descripti
           ? 'The source took too long to respond. Try again shortly.'
           : 'The source connection failed before verification. Try again shortly or use another public feed URL.';
     }
-    return result('unverified', reason, { kind });
+    return result('unverified', reason, { kind, ...(error instanceof PublicSourcePolicyError ? { failureCode: 'PUBLIC_URL_POLICY_DENIED' as const } : {}) });
   }
   const model = env.DISTILLED_JEV_MODEL ?? 'typesafe/jev-1.13';
   const extra = { kind, evidenceUrl: url, model };

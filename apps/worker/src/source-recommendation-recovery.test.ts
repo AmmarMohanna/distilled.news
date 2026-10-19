@@ -30,3 +30,17 @@ it('avoids the failing Google News provider during replacement discovery without
  expect(prompt).toContain('can collect only these source families: rss.');
  expect(result.checks[0]).toEqual(failed);
 });
+
+it('recovers a dead RSS path from the publisher homepage and verifies the advertised replacement',async()=>{
+ const failed={input:'https://publisher.example/rss/news.xml',kind:'rss_feed',status:'unverified' as const,reason:'HTTP 404',upstreamStatus:404,checkedAt:new Date().toISOString()};
+ const accepted={input:'rss: https://publisher.example/rss.xml/',kind:'rss_feed',status:'accepted' as const,reason:'Relevant',checkedAt:failed.checkedAt};
+ vi.mocked(assessSources).mockReset().mockResolvedValueOnce([failed]).mockResolvedValueOnce([accepted]);
+ const feed='<rss><channel><title>Farming</title><item><guid>one</guid><title>Australian coconut growing</title><link>https://publisher.example/story</link></item></channel></rss>';
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:[failed.input]})}}]}):String(input).endsWith('/rss.xml/')?new Response(feed,{headers:{'content-type':'application/rss+xml'}}):new Response('<a href="/rss.xml/">RSS</a>',{headers:{'content-type':'text/html'}}));
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env;
+ const context={title:'Coconuts',description:'Australian coconut farming'};
+ const result=await verifiedSourceRecommendations(env,context,fetcher);
+ expect(result.sources).toEqual([accepted.input]);
+ expect(assessSources).toHaveBeenLastCalledWith(env,context,[accepted.input],fetcher);
+ expect(fetcher.mock.calls.filter(([url])=>String(url).includes('openrouter.ai'))).toHaveLength(1);
+});

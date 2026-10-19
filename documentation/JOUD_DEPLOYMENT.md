@@ -34,6 +34,11 @@ a server error, access restriction, or rate limit, the replacement pass excludes
 provider rather than suggesting more queries against the same failing endpoint.
 Recommendations prioritize topic-specific feeds; every replacement still requires
 readable, relevant evidence before it can be selected.
+Discovery accepts publisher-advertised same-origin HTTPS RSS anchors as well as
+RSS/Atom alternate links. When an RSS URL is dead or blocked by redirect policy,
+recommendations may inspect up to two publisher homepages for a working advertised
+feed, which must then pass assessment. Redirect and cross-origin fetch restrictions
+remain unchanged; this does not bypass publisher access blocks or relevance checks.
 each user can request AI source recommendations three times per rolling five-hour window. Each click makes one
 OpenRouter request with at most 400 output tokens per recommendation call. These direct recommendation
 calls are separate from the one-time briefing model allowance described below. Website source rows use

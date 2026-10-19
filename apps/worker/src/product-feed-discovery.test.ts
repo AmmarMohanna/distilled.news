@@ -24,3 +24,20 @@ it('does not probe another origin or a site-wide feed for a section',async()=>{
  expect(await discoverPublicRssFeed('https://example.com/category/ai/',fetcher)).toBeUndefined();
  expect(seen).toEqual(['https://example.com/category/ai/']);
 });
+
+it('discovers an RSS feed advertised as an ordinary same-origin anchor',async()=>{
+ const seen:string[]=[];
+ const fetcher=(async(input:RequestInfo|URL)=>{
+  const url=String(input);seen.push(url);
+  return url.endsWith('/rss.xml/')?new Response(feed,{headers:{'content-type':'application/rss+xml'}}):new Response('<a href="https://example.com/rss.xml/" target="_blank">RSS</a>',{headers:{'content-type':'text/html'}});
+ }) as typeof fetch;
+ expect(await discoverPublicRssFeed('https://example.com/',fetcher)).toBe('https://example.com/rss.xml/');
+ expect(seen).toEqual(['https://example.com/','https://example.com/rss.xml/']);
+});
+
+it('ignores cross-origin, private and non-HTTPS RSS anchor links',async()=>{
+ const seen:string[]=[];
+ const fetcher=(async(input:RequestInfo|URL)=>{seen.push(String(input));return new Response('<a href="https://other.example/rss.xml/">RSS</a><a href="https://127.0.0.1/rss.xml">RSS</a><a href="http://example.com/rss.xml/">RSS</a>',{headers:{'content-type':'text/html'}})}) as typeof fetch;
+ expect(await discoverPublicRssFeed('https://example.com/',fetcher)).toBeUndefined();
+ expect(seen.every(url=>url.startsWith('https://example.com/'))).toBe(true);
+});

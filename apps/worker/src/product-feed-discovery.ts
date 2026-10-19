@@ -15,9 +15,11 @@ export async function discoverPublicRssFeed(pageUrl:string,fetcher:typeof fetch=
   try{normalizeRssSnapshot(document.body,page.href);return page.href}catch{return undefined}
  }
  const candidates:string[]=[];
- for(const tag of document.body.match(/<link\b[^>]*>/gi)??[]){
+ for(const tag of document.body.match(/<(?:link|a)\b[^>]*>/gi)??[]){
   const attributes=Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*(["'])(.*?)\2/g)].map(m=>[m[1].toLowerCase(),m[3]]));
-  if(!/\balternate\b/i.test(attributes.rel??'')||!/application\/(?:rss|atom)\+xml/i.test(attributes.type??''))continue;
+  const alternate=/^<link\b/i.test(tag)&&/\balternate\b/i.test(attributes.rel??'')&&/application\/(?:rss|atom)\+xml/i.test(attributes.type??'');
+  const feedLink=/^<a\b/i.test(tag)&&/(?:\/(?:rss|atom|feed)(?:\.xml)?\/?(?:\?|$)|\.(?:rss|atom|xml)\/?(?:\?|$))/i.test(attributes.href??'');
+  if(!alternate&&!feedLink)continue;
   if(!attributes.href)continue;
   try{
    const candidate=new URL(attributes.href,page);
