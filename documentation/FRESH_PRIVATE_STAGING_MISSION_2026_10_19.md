@@ -23,3 +23,37 @@ Full-article acquisition stopped after 24.4s before creating any model reservati
 A narrowly scoped WordPress extractor now uses the already-installed `parse5` dependency. It requires an unambiguous article type, valid report timestamp, exact canonical identity, one h1 and one full WordPress post-content container; it does not truncate the content or treat the excerpt as full evidence. Other formats still use existing acquisition/fallback behavior. The saved actual page yielded all five post paragraphs (1,185 characters), including the optional extra allocation and pending governance details, in about 89ms locally. This local extraction timing is not a live publication speedup. Seven parser cases and all 32 acquisition cases passed, including the new full-article/qualifier/helper-avoidance regression. Repository-wide typecheck and explicit staging dry-run passed. Production/sources-QA are not deployed.
 
 One unpaid recovery is available only while the fresh feed has zero model reservations. It uses the existing expired acquisition lease and attempt limit. It does not reissue an uncertain model operation or authorize a second publication attempt. Marker history remains append-only.
+
+## Actual outcome — blocked before publication
+
+Final application code commit **af0173d**, deployed Worker **98bac4ac-cae8-458e-82fa-ebdcef5c6421**, fresh private feed **staging-fresh-20261019-run1**. The later result-document commit does not change deployed application code. Global V2 remains absent/off; only this authenticated invocation overrides it. Cloudflare ASSETS reported no changed frontend assets. Repository-wide typecheck, frontend build, staging dry-run and the focused checks above passed. Anonymous mission requests receive 404. Staging `PRAGMA quick_check` returned **ok**, with zero writes (57.2s SQL duration; this diagnostic is not publication processing time). No migration or history reset occurred.
+
+The recovered full article was accepted as revision **478b532d-62cc-41d0-bf16-3010a8fd98f2**, `FULL_ARTICLE` / `COMPLETE`, 1,185 characters, exactly five source post paragraphs. Original observation **ff5958eb9260e657a76c040ca8cea43222457318d967da5fd178208c9dd1aa42** and canonical URL are preserved. Bounded source coverage remains a one-article partial sample, not exhaustive source coverage.
+
+Semantic construction made **two** GPT-4.1-mini calls: initial **$0.0010924**, existing single repair **$0.0024960**, total **$0.0035884** reported and settled. Fresh-feed unknown paid operations **0**. No paid source provider was invoked. Worker/D1/R2 invoice cost is not measured as provider inference cost. Original account liabilities remain intact; the $10 cap increase is additional spending authorization, not a $10 provider charge or credit purchase.
+
+Both actual paid responses violate **STORYLINE_CLAIM_OWNERSHIP** at `groups[0].storylineState.openQuestionMentionIds`: they reference claim `c0e64b59dad5d787ffbf98e8e75276db237805af66e07f32fdd2673215007569` without owning it in that group's `claimMentionIds`. The source witness is body offsets **1001–1185**, the final paragraph about future structure/governance information. The initial response assigns it to background while referencing it from the storyline; the repair still references it outside the group and omits it from background, duplicating a different background ID. These are confirmed inconsistent structural decisions, not a demonstrated false rejection of reader prose. Validation stops at the first invariant; additional background/coverage checks have not all passed. No edition-level factual verdict or successful semantic-construction verdict is claimed.
+
+Initial operation `c282e1d919c6b11a08640b2688e22d644b2de7831f2458f4215dbac21d5a859a`, repair `745fba01d7e4c722ee2e2dc0ccfab67f10f8e612b62189d0ec921687a1de68c1`. Both original responses/diagnostics and their receipts remain unchanged. A provisional graph receipt may say the processing function completed, but **semanticDeferred=true** and the pending rematch remain authoritative. The runner correctly refused to call this evidence ready. A function-level `SUCCEEDED` latency record does not mean semantic approval.
+
+| Measured stage | Wall / cost |
+| --- | --- |
+| Successful bounded RSS collection | Stored collection span 664ms; client action 1,511ms; $0 provider cost |
+| Initial failed acquisition invocation | 23,814ms Worker wall / 239ms CPU; no paid calls |
+| Recovery acquisition + review invocation | 12,644ms Worker wall / 502ms CPU; 13,362ms client wall |
+| Semantic review | 11,170ms, includes nested stages below |
+| Semantic preparation | 9,908ms |
+| Initial model request | 2,507ms / $0.0010924 |
+| Existing repair model request | 5,369ms / $0.0024960 |
+| Canonical review | 1,083ms |
+| Database, recovery invocation | 219 queries, 244ms D1 SQL execution, 4,887ms observed RPC wall, 80,691 response bytes |
+| CAS | 6 attempts across review/model scopes, no observed conflicts |
+| Planning / writing / publication verification / edition persistence | **Not reached** |
+
+Nested timings overlap and are not an additive decomposition. The `sqlCpuMs` metric is D1-reported SQL execution duration, not separately profiled SQL CPU. Exclusive publication turn was **not entered**; its duration is unmeasured, not zero. No new memory-limit error observed in these invocations; this is not a large-feed memory test.
+
+Private-state reconciliation confirms `public_feed_enabled=0`, **0 editions, 0 delivery jobs, 0 push receipts**. No public publication, notification or second paid attempt was triggered. The initial semantic attempt and its one repair are retained as unsuccessful work; cost per successful briefing is undefined because there are no successes. Neither successful-briefing cost nor under-60-second publication nor p95 is demonstrated. Collection/manual fix/deployment delay is not hidden inside a favorable model-only metric.
+
+**Mission acceptance remains BLOCKED at semantic construction**, despite successful budget increase, fresh isolation, complete acquisition and low actual inference spend. The pending rematch must not be deleted or marked resolved, and the rejected model responses cannot be edited into compatible successes. No automatic additional construction/repair purchase is authorized by this result. The next concrete work is a separately bounded continuation with clearer group/reference ownership instructions and preserved one-repair/operation identities, or an explicitly reviewed correction of a proven implementation defect. No safeguard removal, manual graph approval, model switch or extra repair loop is justified by this failure.
+
+Machine-readable evidence and safe trace summaries: `benchmarks/fresh-private-staging-mission-results.json`. Full source, responses and credential-redacted tail remain in ignored `.local-reports/single-feed-preflight/`; they are not public evaluation gold or final factual certification.
