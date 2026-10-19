@@ -1,0 +1,376 @@
+{
+  "schemaVersion": "rematch-recovery-preflight-v1",
+  "snapshotAt": "2026-10-19T19:29:17.335Z",
+  "requests": [
+    {
+      "requestId": "fc45e8c475aeb6f5e05c216fd44a97cbd5ca39479344d97485d169ffa4b70508",
+      "title": "Laplace Intelligence red-teams robots and self-driving cars before they hit the real world",
+      "evidenceRevisionId": "1e466ebb-1191-49fb-99f5-a482add9e302",
+      "plannedRootOperationId": "dc92b023d7c4071890a528d4be3c17cb79132364dd39cd7db14be1e72eccb68e",
+      "savedSucceededOperations": [
+        {
+          "id": "5dc688cc5bb5a8631c0197f0a5af35e92176d7b402c5b98ceaba346614d79f36",
+          "kind": "SEMANTIC_CONSTRUCTION",
+          "policy": "semantic-relations-v3:continuation-v1:SEMANTIC_CONSTRUCTION"
+        },
+        {
+          "id": "9885d226c2ecc95a5e181c5365895460a65f3f81d9588ec2a740632a671b7706",
+          "kind": "SEMANTIC_CONSTRUCTION",
+          "policy": "semantic-relations-v3:continuation-v1:SEMANTIC_CONSTRUCTION"
+        }
+      ],
+      "savedSuccessfulProgress": [
+        {
+          "operationId": "5dc688cc5bb5a8631c0197f0a5af35e92176d7b402c5b98ceaba346614d79f36",
+          "stage": "SEMANTIC_CONSTRUCTION",
+          "index": 0
+        },
+        {
+          "operationId": "9885d226c2ecc95a5e181c5365895460a65f3f81d9588ec2a740632a671b7706",
+          "stage": "SEMANTIC_CONSTRUCTION",
+          "index": 1
+        }
+      ],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:23:03.685Z",
+      "nextAttemptAt": "2026-10-19T19:34:09.908Z",
+      "rootReservationUsd": 0.136968,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "1ec2455b9ce756a6546e2f504d213342dd0e7441bef8d1a53832b3bee6bd87ee",
+      "title": "Replit makes OpenAI its default over Anthropic, CEO says",
+      "evidenceRevisionId": "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+      "plannedRootOperationId": "b80bb19731fc475eb41255152d8ed6a14d6255f36b615a99ce421124ce15fbc3",
+      "savedSucceededOperations": [
+        {
+          "id": "be4d56fa98eebbdf12f69bedc57ee3ed058cfcaf3cef4c5f771685e1b9fae419",
+          "kind": "RELATION",
+          "policy": "semantic-relations-v3"
+        },
+        {
+          "id": "37f5fe2cd6dd99edf3ae467797811d3f5eec887fdc3120f39b89b2ee5d1557b6",
+          "kind": "RELATION_EFFECT",
+          "policy": "semantic-relations-v3"
+        },
+        {
+          "id": "7e3cb0ea7e5dcd978e807f81a995eb1394570b97d5bf2107e92f4fdee5eee005",
+          "kind": "SEMANTIC_CONSTRUCTION",
+          "policy": "semantic-relations-v3:continuation-v1:SEMANTIC_CONSTRUCTION"
+        },
+        {
+          "id": "91d935fd89f3705341ab01c8aa948e5ab1b7b491d19a431802d9dcf07e1d28e7",
+          "kind": "SEMANTIC_CONSTRUCTION",
+          "policy": "semantic-relations-v3:continuation-v1:SEMANTIC_CONSTRUCTION"
+        },
+        {
+          "id": "f3e07abfb4529cfa034e641b902346a4d35de99cdc04a0192532c97bf4addb4b",
+          "kind": "RELATION",
+          "policy": "semantic-relations-v3"
+        },
+        {
+          "id": "4a42c0c1395333dd78d20d4836dde7f3ceda2800e209f3f31db84f1f5682b29b",
+          "kind": "SEMANTIC_CONSTRUCTION",
+          "policy": "semantic-relations-v3:continuation-v1:SEMANTIC_CONSTRUCTION"
+        }
+      ],
+      "savedSuccessfulProgress": [
+        {
+          "operationId": "7e3cb0ea7e5dcd978e807f81a995eb1394570b97d5bf2107e92f4fdee5eee005",
+          "stage": "SEMANTIC_CONSTRUCTION",
+          "index": 0
+        },
+        {
+          "operationId": "91d935fd89f3705341ab01c8aa948e5ab1b7b491d19a431802d9dcf07e1d28e7",
+          "stage": "SEMANTIC_CONSTRUCTION",
+          "index": 1
+        },
+        {
+          "operationId": "4a42c0c1395333dd78d20d4836dde7f3ceda2800e209f3f31db84f1f5682b29b",
+          "stage": "SEMANTIC_CONSTRUCTION",
+          "index": 0
+        }
+      ],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:23:30.793Z",
+      "nextAttemptAt": "2026-10-19T19:33:46.181Z",
+      "rootReservationUsd": 0.139586,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "71583ce15772dbd469103fcc394bad7ef2c80e45a66aef7bb4af167ed779489f",
+      "title": "People are using AI to make their smart TVs dumb again",
+      "evidenceRevisionId": "e46b4683-1a63-4fdb-aff4-8074f5662115",
+      "plannedRootOperationId": "b4088733c76b7e825f375216cc009e516a6376cbbbec10f72220245d9dd802f8",
+      "savedSucceededOperations": [
+        {
+          "id": "2567ecd2f0ec3374c4a410320e5b24f07e863fc443af4a08e82f93d538fe96d5",
+          "kind": "RELATION",
+          "policy": "semantic-relations-v3"
+        }
+      ],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:23:58.311Z",
+      "nextAttemptAt": "2026-10-19T19:34:02.168Z",
+      "rootReservationUsd": 0.1363312,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "d6e064f8046b3d5a0645c0147ff64db5719cbd7fa6e799ee2a40335f06496d2d",
+      "title": "Physical AI is more than robots, says the Nvidia veteran now investing in it",
+      "evidenceRevisionId": "99685719-e69c-4b79-96ba-b7fda15d43d8",
+      "plannedRootOperationId": "35468389dbb1d4a2d6073b41a2d46eac2316b4bfdb30e44809153f8f44e2d981",
+      "savedSucceededOperations": [
+        {
+          "id": "5767d62eb6a3ad355e59e3a4f6bb6dcd328730463b0bea98ace3e6a1990269b7",
+          "kind": "RELATION",
+          "policy": "semantic-relations-v3"
+        }
+      ],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:25:20.406Z",
+      "nextAttemptAt": "2026-10-19T19:35:36.524Z",
+      "rootReservationUsd": 0.1295128,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "23573cdd7ad2a7525eb2869c2c925d36185919f3fa248568c1b62f56ba696975",
+      "title": "Anthropic is letting METR researchers look under the hood with employee-level access",
+      "evidenceRevisionId": "0359898a-8a49-4010-a01c-2ae68c0aa311",
+      "plannedRootOperationId": "0696af250507591290c505847d971c939152506dec6186526d8ecb7a740007d1",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:26:12.507Z",
+      "nextAttemptAt": "2026-10-19T19:37:25.843Z",
+      "rootReservationUsd": 0.1319008,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "79a56c4379e8588e0eea2cce4203bb3363583781ac93be0abecedd27918d0c8e",
+      "title": "Elorian\u2019s first AI model wants to reason with images, not just about them",
+      "evidenceRevisionId": "cbd1e055-ba58-4115-9f12-dcebc068dbb4",
+      "plannedRootOperationId": "c148b519ae8acefbe9d520344be630ffd9d08d05e7cc063ea38860db2dd8d940",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:25:51.468Z",
+      "nextAttemptAt": "2026-10-19T19:36:06.739Z",
+      "rootReservationUsd": 0.133028,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "dd6a0a896e3a5e90d06ac019a1c65b4ea3b9bbc19f2604a6f9ed6832615d9671",
+      "title": "When it came to Cal AI\u2019s viral success, a small army of influencers paid off",
+      "evidenceRevisionId": "b520544a-7d61-4871-ac08-d8b136b4e208",
+      "plannedRootOperationId": "ffbb8a947bf286f5f8cd2eb447f58f1f61dcea47a480efd336d307d0078995c6",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:26:59.034Z",
+      "nextAttemptAt": "2026-10-19T19:38:57.053Z",
+      "rootReservationUsd": 0.1331344,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "8769de3cde7c6b7a509707303d9e508894fdd0d3e22abf9c0b80ebcb8a0ec011",
+      "title": "Jev is Vercel\u2019s fastest-adopted AI model ever",
+      "evidenceRevisionId": "597efd4c-22b5-4341-be0d-84c7147175af",
+      "plannedRootOperationId": "083e0adb078598005130079d91af622725d35d9d1d44ae9c3a07e47aadf38fc7",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:27:21.460Z",
+      "nextAttemptAt": "2026-10-19T19:39:21.166Z",
+      "rootReservationUsd": 0.130824,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "212de3a507429120c37b28af30f193a7e5fafd1b6544607ce19f00f24c453a01",
+      "title": "An Nvidia insider-turned-VC on why robotics hasn\u2019t hit its ChatGPT moment, yet | TechCrunch",
+      "evidenceRevisionId": "2ff6743a-5afa-4f25-9a09-acbd472b837e",
+      "plannedRootOperationId": "a1d8442ae3f9ed7f6d3c49b04c33ebb09a7229340c80e30e9ef1ee1c773aa08e",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:27:42.219Z",
+      "nextAttemptAt": "2026-10-19T19:39:23.034Z",
+      "rootReservationUsd": 0.128312,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "6b0f7d2ce21614243e20aecb25cb7b5a4f0ad7b312410e2ede174ecc44166ebe",
+      "title": "Veritas expands its anti-counterfeit chip to jewelry, trophies, and fragrance bottles",
+      "evidenceRevisionId": "e6d8dbb0-1cfd-4c22-ba89-94c62094b1b4",
+      "plannedRootOperationId": "2de9ffddbe594366ebb2c57cac888876ff7b9581da73531262f18294ede4c43b",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:22:05.602Z",
+      "nextAttemptAt": "2026-10-19T19:33:43.713Z",
+      "rootReservationUsd": 0.1333444,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "eb55f66d0b3db62e9df7650f9749eac0c9ae625e380b9b951d59817b4c44c148",
+      "title": "Amazon devices chief Panos Panay sees a future where AI devices replace the need to use apps",
+      "evidenceRevisionId": "9c15191d-0991-46e3-9b39-5ffc9ccd6077",
+      "plannedRootOperationId": "90df63a49a09eafc7a1a77edbc644caa253585bf8e085ee8b539b4fa32b140bb",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:22:38.946Z",
+      "nextAttemptAt": "2026-10-19T19:34:25.186Z",
+      "rootReservationUsd": 0.134734,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "e7c7d008b9bf910e03ccc4d9b979e1f0420dec9170226f2aaf5716da71e762d0",
+      "title": "Mark Wahlberg on using AI in film \u2018the right way\u2019 and being open to an AI clone carrying on his legacy",
+      "evidenceRevisionId": "b69b2d5f-94ac-4bb8-a942-1176ad145069",
+      "plannedRootOperationId": "43f63796938d38b04d3d78cdafd302dcb45e1851b3a210e639da354f831d43ce",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:28:29.849Z",
+      "nextAttemptAt": "2026-10-19T19:39:13.584Z",
+      "rootReservationUsd": 0.1320692,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "f2ef52d2b194cc9ac6202e1d0b7335272c6e32001a13fcc7658101e682a9c4e1",
+      "title": "Replit\u2019s CEO says the future of work is the \u2018self-driving company\u2019",
+      "evidenceRevisionId": "41dbfc11-0d79-4a4f-a6e2-4fb25907d49b",
+      "plannedRootOperationId": "52be74900a8ca2e0b0e592664df210cf5167d860624accb71bd30dd101652c6d",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:28:51.628Z",
+      "nextAttemptAt": "2026-10-19T19:40:19.293Z",
+      "rootReservationUsd": 0.1329012,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "f2061096db7527263474071197693c9d96ffcdc789f7edfb2fa13eb453999068",
+      "title": "Meta launches an open-weight AI model that runs on Macs",
+      "evidenceRevisionId": "04f817ba-f8a9-4a38-a8e5-3677930546b4",
+      "plannedRootOperationId": "cfdb92ed5cbdb73cfce3af11274b72babc510ca445c94f9cae575366bc2832ee",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:21:21.483Z",
+      "nextAttemptAt": "2026-10-19T19:27:35.613Z",
+      "rootReservationUsd": 0.1308312,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "d4ca036b39abd1a786da210c373718576a2f127152a9ae9e02089a1200d7ea02",
+      "title": "India becomes the latest country to report rogue AI agent activity",
+      "evidenceRevisionId": "03dac140-7a1f-4a13-a7cb-67b1c274cdb8",
+      "plannedRootOperationId": "2a62e1745305c4de19cc060a19be0cc0f85ee2449aa002946af960dcf09928ce",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:21:53.359Z",
+      "nextAttemptAt": "2026-10-19T19:28:05.911Z",
+      "rootReservationUsd": 0.1313964,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    },
+    {
+      "requestId": "af6ac647120ca8a2c3ddeb402a649528ca312c33625f5c615de4dbc4d2449870",
+      "title": "Tenstorrent hits $6.2B valuation to scale open-weight AI chips",
+      "evidenceRevisionId": "03f9239f-7889-44d8-bfc2-97b9f0cf4683",
+      "plannedRootOperationId": "18efb5abea9bb6b41cec0812839d225ca7650e22d8c5e0790f7d0b2e5572b2ce",
+      "savedSucceededOperations": [],
+      "savedSuccessfulProgress": [],
+      "state": "WAITING_BUDGET",
+      "reason": "ACCOUNT_AUTHORIZATION_REQUIRED",
+      "lastAttemptAt": "2026-10-19T19:22:26.999Z",
+      "nextAttemptAt": "2026-10-19T19:27:47.719Z",
+      "rootReservationUsd": 0.1301372,
+      "schemaFits": true,
+      "exactCompatibleRootResults": 0
+    }
+  ],
+  "account": {
+    "settledOperations": 4428,
+    "reservations": 4478,
+    "unsettled": 50,
+    "quarantined": 25,
+    "admissionCounted": 25,
+    "concurrencyLimit": 25,
+    "settledCostUsd": 59.459620206,
+    "heldUsd": 5.4059126939999995,
+    "totalExposureUsd": 64.8655329,
+    "grantExpiredAt": "2026-10-19T19:15:55.700Z"
+  },
+  "editorialHold": {
+    "at": "2026-10-19T19:29:33.164Z",
+    "httpStatus": 200,
+    "id": "gen-1792436007-Ks6hvCkQAy1Fpje6Lvo4",
+    "model": "openai/gpt-4.1-mini-2025-04-14",
+    "totalCost": 0.0419284,
+    "finishReason": null,
+    "nativeFinishReason": null,
+    "tokensPrompt": 50537,
+    "tokensCompletion": 13571,
+    "apiErrorCode": null
+  },
+  "metadataCapacityInspection": {
+    "handles": 23,
+    "terminalHandles": 1,
+    "noTerminalProof": 22,
+    "otherActiveWithoutHandles": 2
+  },
+  "costs": {
+    "currentRootReservationSumUsd": 2.1250108,
+    "maxPerRepairCallUsd": 0.458352,
+    "rootsPlus16MaximumRepairsUsd": 9.4586428,
+    "actualNewInferenceCostUsd": 0
+  },
+  "verification": {
+    "offlinePreflight": "PASS:16 current article ClaimMention sets equal saved operation input; all final serialized construction schemas admitted; no model calls",
+    "savedSuccessfulSemanticResults": 10,
+    "savedSuccessfulPacketProgress": 5,
+    "currentExactCompatibleRootSuccesses": 0
+  },
+  "evidenceHashes": {
+    "recovery-approval-preflight-current.json": "a684f76646895a0a1061dcf884ce6f389d0661fbf1648d2c2dd39014ebd9b76a",
+    "recovery-approval-provider-metadata.json": "ae89fa618835e8f99fe5658bf51d75e3f86ebb1cc0476b829a03616918a3188e",
+    "recovery-approval-provider-capacity-metadata.json": "1f264eef508933b11ab57d46b6a37a4e190787fac6a0d7d88ef1dcc1db6a4e57",
+    "recovery-approval-model-binding.json": "ab2867108147e7b7257dc3fa9729de6dbb120c448c6b7a58c81f455c660cd3a9",
+    "recovery-approval-offline-bounds.json": "7b7d2c11e96113dd52e24d49a8dd40b4e3a8b3b280c1ea05a11900b71a4cd61d"
+  }
+}
