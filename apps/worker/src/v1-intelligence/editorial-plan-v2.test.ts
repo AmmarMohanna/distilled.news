@@ -47,3 +47,11 @@ it.each(['foreign','altered','ambiguous','omitted-qualifier'])('does not accept 
  if(kind==='omitted-qualifier')p.text='The fund may commit 5%';
  expect(()=>decodeV2EditorialResponse({value:f.body},f.shortlist,V2_SOURCE_ANCHOR_POLICY)).toThrow('SEMANTIC_EDITORIAL_REJECTED');
 });
+
+it('constrains exactly one decision per offered candidate without force-selecting missing context',()=>{
+ const f=anchorFixture(),request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]});
+ expect(request.schema.properties.stories).toMatchObject({minItems:1,maxItems:1});
+ f.shortlist.candidates.push({...f.shortlist.candidates[0],targetVersionId:'second'});
+ try{decodeV2EditorialResponse({value:f.body},f.shortlist,V2_SOURCE_ANCHOR_POLICY);throw Error('UNSAFE_ACCEPTANCE')}catch(error){expect((error as any).diagnostic.rejection).toMatchObject({code:'EDITORIAL_CANDIDATE_COVERAGE',issues:[{code:'MISSING_CANDIDATES',missing:['second']},{code:'UNKNOWN_OR_DUPLICATE_CANDIDATES'}]})}
+ expect(f.body.stories).toHaveLength(1);
+});

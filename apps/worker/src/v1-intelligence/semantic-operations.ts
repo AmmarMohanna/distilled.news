@@ -12,7 +12,7 @@ import type {ExperimentUsage} from './salience';
 import {isSemanticProcessing,type SemanticWorkClass} from './semantic-admission';
 import {modelSpendingAccount,ModelSpendingWait,modelSettlementStatement} from './model-spending';
 export interface SemanticOperationInput {feedId:string;feedRevision:number;evidenceRevisionIds:string[];kind:string;policyVersion:string;model:string;budgetKey:string;state:unknown}
-export interface SemanticValidationDiagnostic {stage:'OUTPUT_SCHEMA'|'CONSTRUCTION_BINDING'|'EDITORIAL_BINDING';response:Record<string,unknown>;rawResponse?:string;responseOmitted?:boolean;rejection:{name:string;code?:string;mechanicalIssues?:import('./construction-diagnostics').ConstructionIssue[];binding?:{invariant:string;path:(string|number)[]};issues?:{code:string;path:(string|number)[]}[]}}
+export interface SemanticValidationDiagnostic {stage:'OUTPUT_SCHEMA'|'CONSTRUCTION_BINDING'|'EDITORIAL_BINDING';response:Record<string,unknown>;rawResponse?:string;responseOmitted?:boolean;rejection:{name:string;code?:string;mechanicalIssues?:import('./construction-diagnostics').ConstructionIssue[];binding?:{invariant:string;path:(string|number)[]};issues?:{code:string;path:(string|number)[];missing?:string[];unknown?:string[];duplicates?:string[]}[]}}
 /** Unvalidated output is retained for audit only, never accepted as semantic state. */
 export class SemanticValidationError extends Error {constructor(readonly diagnostic:SemanticValidationDiagnostic,code:'SEMANTIC_CONSTRUCTION_REJECTED'|'SEMANTIC_EDITORIAL_REJECTED'='SEMANTIC_CONSTRUCTION_REJECTED'){super(code)}}
 export interface SemanticIntent {id:string;feedId:string;input:SemanticOperationInput;token:string;leaseUntil:number;reservedCostUsd:number;createdAt:string;compatibilityHash?:string}
