@@ -31,3 +31,47 @@ Staging-only target: account `e32b564514d4f9b9e383b7dd30dbb026`, Worker `distill
 Six scope/budget tests passed before the final instrumentation change. One five-second budget test timed out when run concurrently with compilation; an isolated rerun passed all six in 11.06 seconds without changing assertions/timeouts. Worker typecheck and explicit staging dry-run passed. Core `dd5fb9c` verification remains recorded separately.
 
 The client records one immutable intent, invokes fresh review once and invokes publication only if review succeeds, with no retry. Both invocation times and the complete client wall clock are retained. Any rejection or uncertain result stops further paid work. Actual outcome is recorded after execution.
+
+## Executed outcome: NOT PUBLISHED
+
+Pushed `dd5fb9c` and scope setup `7c6f2ec` to `backend-validation-contract`. Deployed `7c6f2ec` only to staging as Worker **79b9188b-26e5-41f6-a4e4-f478390ec7e6**. The live trace confirms this exact version handled the request. No migration, account grant, production resource or source permission was changed.
+
+The single fresh review began at 2026-10-19T14:45:52.505Z. Construction and its one repair were rejected. The client stopped and did not invoke publication. There is **no briefing draft or edition**, and no final factual-verification result to present. The retained source remains:
+
+https://techcrunch.com/2026/10/18/anthropic-says-its-committing-5-of-its-shares-to-a-public-benefit-fund/
+
+### Exact model behavior and blockers
+
+Both responses provided a complete nine-key disposition object, each unit assigned exactly once, with no background/group contradiction. The representational correction worked for this sample. Neither complete construction passed all integrity checks:
+
+1. Initial response assigned C8 to G3 but referenced it from G0's `storylineState.openQuestionMentionIds[0]`. New diagnostics reported `FOREIGN_GROUP_REFERENCE`, pointer `/groups/0/storylineState/openQuestionMentionIds/0`, allowed C0–C4.
+2. Repair removed that reference and added C4 to G0's entity support. Canonical validation then rejected **SLOT_ENTITY_OWNERSHIP** at `groups[0].slots[0].entityLabel`. The slots named `Anthropic shares` and `Anthropic commitment`, while the group's declared entity label was only `Anthropic`. We did not rewrite these labels, drop the slots or treat the response as accepted.
+
+This also exposes an implementation limitation: transport mechanical diagnostics did not include the downstream slot-to-entity mismatch in the first repair packet. Canonical validation stopped at its first violation, so further validity is not established. This is a concrete offline follow-up, not authorization for another paid repair.
+
+The model proposed four groups: fund terms/uses plus historical study context; remarks about bolder approaches; public trust context; promised governance details. Context still appears fragmented into purported developments. That is an investigator concern, not a measured false-split rate: independently reviewed boundary labels remain unavailable. Group count alone does not certify quality. No new graph construction was accepted and no source unit was silently reassigned.
+
+### Actual spending and latency
+
+| Stage | New calls | Reported cost | Model callback duration |
+| --- | ---: | ---: | ---: |
+| Construction | 1 GPT | $0.0026536 | 7.641 s |
+| Single construction repair | 1 GPT | $0.0031432 | 7.010 s |
+| Jev, editorial planning, writing, final verification, publication | 0 | $0 | Not reached |
+| New failed-attempt total | 2 | **$0.0057968** | 14.651 s combined |
+| All prior failed spending | 4 | $0.0090332 | Recorded in prior reports |
+| Cumulative provider total | 6 | **$0.0148300** | No successful editions |
+
+All six calls have authoritative reported settlements; **zero unknown outcomes for this feed**. Input/output tokens for the two new calls: 9,452 / 1,260. Initial/repair reservations were $0.0197884 / $0.0218908, below their admitted bounds. No new acquisition or other paid provider operation occurred. Infrastructure invoice allocation is unavailable; provider total must not be represented as a complete hosting invoice or cost per successful edition.
+
+Whole failed client invocation: **21.485 s**; HTTP stage 21.484 s; Worker runner 20.882 s; tail wall time 20.914 s; Worker CPU **279 ms**. Rematch trace 20.186 s; preparation 19.204 s; context loading 705 ms; semantic lease admission 355 ms. Model-operation wall times including bookkeeping were 9.645 s and 8.594 s. Across those calls, spending reservations took 1.974 s, settlements 650 ms, and result commits 758 ms. These measurements overlap aggregate timers and must not be summed as disjoint stages.
+
+DB wrapper: **130 statements**, **94,704 rows read**, **102 rows written**, **210.2378 ms SQL CPU**, **6.934 s DB wall time**, **226,902 response bytes**. Four model-operation CAS attempts and two rematch CAS attempts were observed; no CAS conflict/rejection was recorded. The publication exclusive turn was never entered. No exception or memory-limit failure occurred in the captured request.
+
+The complete persisted-edition latency target is **not demonstrated**, even though the stopped invocation lasted less than 60 seconds. No p95 is claimed. Final factual support and mandatory reader coverage were not evaluated because writing was never reached. No speedup is claimed from this failed attempt.
+
+### Final state and preserved evidence
+
+Read-only verification at 2026-10-19T14:47:03.543Z confirmed private visibility, active original revision, zero editions, zero delivery jobs and zero push receipts. Unauthenticated operator status returned 404. Global V2 remains off; the private runner's scoped V2 policy remains deployed but its fresh immutable review marker is consumed. Publication lacks a successful review marker and cannot start. Production is unchanged.
+
+Original inputs, exact raw model responses, diagnostics, provider receipts, client timing and credential-scrubbed logs remain in ignored local reports. Machine-readable summary: `benchmarks/claim-disposition-staging-attempt-results.json`, including evidence/raw-response hashes. No historical receipt was edited or uncertain hold released. Further paid operations stopped as requested.
