@@ -16,6 +16,7 @@ export function FeedNotice(props:{message:string;language:Language;heading?:stri
 export function FeedPublicationNotice(props:{publicationState?:string;hasPublishedEditions:boolean;language:Language}){
  const labels=text[props.language];
  if(props.publicationState!=='correction_pending'&&props.publicationState!=='failed')return null;
+ if(props.publicationState==='failed')return <p className="feed-publication-status" role="status"><TriangleAlert size={16} aria-hidden="true"/><span>{labels.delayed}{props.hasPublishedEditions?`. ${labels.available}`:''}</span></p>;
  const correction=props.publicationState==='correction_pending';
  // Pending correction is not proof of withdrawal. Availability refers only to
  // editions actually returned by the publication read API.

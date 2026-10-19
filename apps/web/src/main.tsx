@@ -1744,7 +1744,7 @@ function FeedPage(props: { username: string; slug: string }) {
         ) : null}
         {payload && !initialLoading && !searchLoading && filteredEditions.length === 0 && !error ? (
           <div className="empty-state feed-empty-state">
-            {archivedReadEditions.length === 0 && <Newspaper className="feed-empty-icon" size={42} strokeWidth={1.5} aria-hidden/>}
+            {archivedReadEditions.length === 0 && <span className="feed-empty-icon" aria-hidden="true"><Newspaper size={32} strokeWidth={1.5}/></span>}
             <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>
             <p className="muted">
               {emptyFeedMessage(archivedReadEditions.length, language)}

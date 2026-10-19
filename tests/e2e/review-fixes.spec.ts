@@ -67,12 +67,31 @@ test("empty public feed uses the reference dashboard layout", async ({ page }) =
   const empty = await page.locator('.feed-empty-state').boundingBox();
   expect(search!.width).toBeGreaterThan(1000);
   expect(Math.abs(search!.width - empty!.width)).toBeLessThan(2);
-  const notice = await page.locator('.notice').boundingBox();
-  expect(Math.abs(search!.width - notice!.width)).toBeLessThan(2);
-  expect(empty!.height).toBeGreaterThanOrEqual(180);
+  await expect(page.locator('.notice')).toHaveCount(0);
+  await expect(page.locator('.feed-publication-status')).toBeVisible();
+  expect(empty!.height).toBeGreaterThanOrEqual(140);
   await expect(page.locator('.feed-shell h1')).toHaveCSS('font-size', '40px');
   await page.screenshot({ path: test.info().outputPath('feed-dashboard.png'), fullPage: true });
 });
+
+for (const size of [{width: 1280, height: 640}, {width: 390, height: 664}]) {
+  test(`empty feed fits without extra scroll and renders a complete icon at ${size.width}px`, async ({ page }) => {
+    await mock(page, false);
+    await page.setViewportSize(size);
+    await page.route('**/api/feed/joud/lebanon', route => route.fulfill({ json: { briefing: {...feed, nextBriefingAt: new Date(Date.now() + 1_200_000).toISOString()}, editions: [], viewerHasStarred: false, publicationState: 'failed' } }));
+    await page.goto('/joud/lebanon/');
+    await expect(page.locator('.feed-empty-state')).toBeVisible();
+    const viewport = page.locator('.app-pages > .screen-page-viewport');
+    await expect.poll(() => viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+    const circle = await page.locator('.feed-empty-icon').boundingBox();
+    const icon = await page.locator('.feed-empty-icon svg').boundingBox();
+    expect(icon!.x).toBeGreaterThan(circle!.x);
+    expect(icon!.y).toBeGreaterThan(circle!.y);
+    expect(icon!.x + icon!.width).toBeLessThan(circle!.x + circle!.width);
+    expect(icon!.y + icon!.height).toBeLessThan(circle!.y + circle!.height);
+    await expect(page.locator('.feed-tools .search')).toHaveCSS('height', '44px');
+  });
+}
 
 test("feed reserves a loading layout before showing compact content", async ({ page }) => {
   await mock(page, false);

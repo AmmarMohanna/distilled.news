@@ -16,7 +16,7 @@ it('does not assert available editions when the API returned none',async()=>{
  await render(<FeedPublicationNotice publicationState="correction_pending" hasPublishedEditions={false} language="en"/>,host=>expect(host.textContent).toBe('Correction pendingA correction to an earlier briefing is pending.'));
 });
 it('failed window does not label readable Feed unavailable',async()=>{
- await render(<FeedPublicationNotice publicationState="failed" hasPublishedEditions language="en"/>,host=>{expect(host.querySelector('h2')?.textContent).toBe('Briefing delayed');expect(host.textContent).toContain('Published briefings remain available.')});
+ await render(<FeedPublicationNotice publicationState="failed" hasPublishedEditions language="en"/>,host=>{expect(host.querySelector('.feed-publication-status')?.textContent).toContain('Briefing delayed');expect(host.querySelector('h2')).toBeNull();expect(host.textContent).toContain('Published briefings remain available.')});
 });
 it('actual read error retains unavailable heading and alert severity',async()=>{
  await render(<FeedNotice message="Feed could not be loaded." language="en"/>,host=>{expect(host.querySelector('h2')?.textContent).toBe('feed unavailable');expect(host.querySelector('[role="alert"]')).not.toBeNull()});
