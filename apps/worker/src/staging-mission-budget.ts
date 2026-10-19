@@ -1,6 +1,6 @@
 /** Staging operator wrapper. Adds an atomic per-feed mission ceiling to the
  * existing financial admission transaction; never replaces account admission. */
-export function stagingMissionDb(db:D1Database,feedId:string,ceilingUsd:number,metrics={queries:0,sqlCpuMs:0,responseBytes:0,wallMs:0}):D1Database {
+export function stagingMissionDb(db:D1Database,feedId:string,ceilingUsd:number,metrics={queries:0,sqlCpuMs:0,responseBytes:0,wallMs:0},maxOperationsByModel?:Record<string,number>):D1Database {
  if(!feedId.startsWith('staging-fresh-')||!Number.isFinite(ceilingUsd)||ceilingUsd<=0||ceilingUsd>10)throw Error('INVALID_STAGING_MISSION_BUDGET');
  const record=(rows:D1Result[])=>{metrics.queries+=rows.length;for(const r of rows){metrics.sqlCpuMs+=Number((r.meta as any)?.timings?.sql_duration_ms??r.meta?.duration??0);metrics.responseBytes+=new TextEncoder().encode(JSON.stringify(r.results??[])).length;}};
  const unwrap=new WeakMap<object,{statement:D1PreparedStatement;sql:string;params:unknown[]}>();
@@ -21,8 +21,10 @@ export function stagingMissionDb(db:D1Database,feedId:string,ceilingUsd:number,m
    if(reservations.length!==1)throw Error('MISSION_REQUIRES_SINGLE_RESERVATION');
    const params=reservations[0].params;
    if(params[5]!==feedId||typeof params[6]!=='number'||params[6]<0)throw Error('MISSION_RESERVATION_SCOPE_MISMATCH');
+   const operationLimit=maxOperationsByModel?.[String(params[4])];
+   if(maxOperationsByModel&&(!Number.isSafeInteger(operationLimit)||(operationLimit as number)<1))throw Error('MISSION_MODEL_OPERATION_LIMIT_INVALID');
    const guard='staging-mission:'+crypto.randomUUID();
-   const check=db.prepare(`INSERT INTO v1_model_spending_guards(id,valid) SELECT ?,CASE WHEN (SELECT COALESCE(SUM(CASE WHEN s.reported=1 THEN s.cost_usd ELSE MAX(r.reserved_cost_usd,COALESCE(s.cost_usd,0)) END),0) FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.feed_id=?)+?<=? THEN 1 ELSE 0 END`).bind(guard,feedId,params[6],ceilingUsd);
+   const check=db.prepare(`INSERT INTO v1_model_spending_guards(id,valid) SELECT ?,CASE WHEN (SELECT COALESCE(SUM(CASE WHEN s.reported=1 THEN s.cost_usd ELSE MAX(r.reserved_cost_usd,COALESCE(s.cost_usd,0)) END),0) FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.feed_id=?)+?<=? AND (? IS NULL OR (SELECT COUNT(*) FROM v1_model_spending_reservations WHERE feed_id=? AND model=?)<?) THEN 1 ELSE 0 END`).bind(guard,feedId,params[6],ceilingUsd,operationLimit??null,feedId,String(params[4]),operationLimit??0);
    const at=performance.now();let results:D1Result[];try{results=await db.batch([check,...entries.map(s=>s.statement),db.prepare('DELETE FROM v1_model_spending_guards WHERE id=?').bind(guard)]);record(results);}finally{metrics.wallMs+=performance.now()-at}
    return results.slice(1,-1);
   };

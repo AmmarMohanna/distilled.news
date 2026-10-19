@@ -77,6 +77,7 @@ export interface Env extends Cloudflare.Env {
   SOURCE_POLL_TICK_BUDGET_MS?: string;
   STAGING_ASSETS_PREFIX?: string;
   STAGING_MISSION_FEED_ID?: string;
+  STAGING_GROUPING_RUN_POLICY?: string;
   STAGING_MISSION_TOKEN?: string;
   SOURCE_LEGACY_POLLING_ENABLED?: string;
   SOURCE_OPERATION_CEILINGS_JSON?: string;
