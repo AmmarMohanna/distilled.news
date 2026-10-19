@@ -1,4 +1,4 @@
-﻿import {it,expect} from 'vitest';
+import {it,expect} from 'vitest';
 import {constructionTransport,MINIMAL_CONSTRUCTION_VERSION} from './construction-transport';
 import {extractClaimMentions} from './claims';
 import {createStrongSemanticModel} from './semantic-model';
@@ -31,4 +31,12 @@ it.each(['description','type','enum'])('rejects a %s sibling on a reference befo
  const wire=await fixture(true),schema:any=structuredClone(wire.schema);schema.properties.groups.items.anyOf[0].properties.structuralRelation[keyword]=keyword==='enum'?['NEW_STORYLINE']:keyword==='type'?'string':'Identity guidance';let calls=0;
  expect(inspectProviderSchema('openai/gpt-4.1-mini',schema).violations).toContain('UNSUPPORTED_REF_SIBLINGS');
  const model=createStrongSemanticModel(env,(async()=>{calls++;throw Error('NO_PROVIDER_CALL')}) as typeof fetch)!;await expect(model.complete('feed','SEMANTIC_CONSTRUCTION',wire.state,schema)).rejects.toThrow('SEMANTIC_MODEL_SCHEMA_CONTINUATION_REQUIRED');expect(calls).toBe(0);
+});
+
+import {v2EditorialRequest} from './editorial-plan-v2';
+it.each([false,true])('V2 editorial serialized provider schema has unique complete required fields; candidate=%s',async candidate=>{
+ const request=v2EditorialRequest({id:'shortlist',feedId:'feed',feedRevision:1,window:{start:'2026-10-19T00:00:00Z',end:'2026-10-19T01:00:00Z'},candidates:candidate?[{targetVersionId:'event-version',facts:[{id:'fact',text:'The fund commits 5% of shares.'}]}]:[],ledger:[],obligations:[]} as any,{title:'Fund briefing',interests:['AI']});let calls=0;
+ const model=createStrongSemanticModel(env,(async(_url,init)=>{calls++;const body=JSON.parse(init!.body as string);audit(body.response_format.json_schema.schema);return Response.json({choices:[{message:{content:'{}'}}],usage:{prompt_tokens:0,completion_tokens:0,cost:0}})}) as typeof fetch)!;
+ await model.complete('feed','COMPARATIVE_EDITORIAL_PLAN',request.state,request.schema);expect(calls).toBe(1);
+ for(const branch of request.schema.properties.stories.items.anyOf){expect(branch.required.filter(k=>k==='validation')).toHaveLength(1);expect(branch.required.filter(k=>k==='editorialImportance')).toHaveLength(1);}
 });
