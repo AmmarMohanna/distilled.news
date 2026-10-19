@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
-import { AppearanceSettings } from "./AppearanceSettings";
 import { PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, HealthStatus, PublicBriefing } from "./types";
@@ -26,7 +25,7 @@ const feedUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">) => `/${en
 export function BrandMark() { return <span className="distilled-logo" aria-hidden="true"><span className="distilled-logo-symbol"/><span className="distilled-logo-wordmark">Distilled<span className="distilled-logo-dot">.</span>News</span></span>; }
 export function AppHeader({ account, onAccount, leading, actions, contextual }: { account: AccountRecord | null; onAccount: () => void; leading?: React.ReactNode; actions?: React.ReactNode; contextual?: boolean }) {
   const { t } = useLanguage();
-  return <header className={`experience-header${account ? " has-account" : ""}${contextual && account ? " is-contextual" : ""}`}>{leading ? <div className="experience-leading">{leading}</div> : <div className="experience-brand" aria-label="Distilled.news"><BrandMark/></div>}<div className="experience-header-actions">{actions}<AppearanceSettings/>{contextual && account ? null : <><LanguageControl/><ThemeToggle/></>}{account ? contextual ? null : <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><span aria-hidden="true">{accountInitials(account.username)}</span></button> : <a className="button-link" href="/login">{t("Log in")}</a>}</div></header>;
+  return <header className={`experience-header${account ? " has-account" : ""}${contextual && account ? " is-contextual" : ""}`}>{leading ? <div className="experience-leading">{leading}</div> : <div className="experience-brand" aria-label="Distilled.news"><BrandMark/></div>}<div className="experience-header-actions">{actions}{contextual && account ? null : <><LanguageControl/><ThemeToggle/></>}{account ? contextual ? null : <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><span aria-hidden="true">{accountInitials(account.username)}</span></button> : <a className="button-link" href="/login">{t("Log in")}</a>}</div></header>;
 }
 
 export function AppExperience(props: {

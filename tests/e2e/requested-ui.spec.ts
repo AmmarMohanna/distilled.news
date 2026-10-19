@@ -30,8 +30,10 @@ test("phone header aligns the symbol and controls with an icon-only create butto
  const symbol = await brand.locator('.distilled-logo-symbol').boundingBox();
  await expect(page.locator('.experience-header .language-cycle')).toBeHidden();
  await expect(page.locator('.experience-header .theme-toggle')).toBeHidden();
- const settings = await page.locator('.experience-header .mobile-appearance-settings').boundingBox();
- expect(Math.abs(symbol!.y + symbol!.height / 2 - settings!.y - settings!.height / 2)).toBeLessThan(2);
+ await expect(page.locator('.experience-header .mobile-appearance-settings')).toHaveCount(0);
+ await expect(page.getByRole('navigation', { name: 'Main navigation' })).toHaveCount(0);
+ const login = await page.getByRole('link', { name: 'Log in', exact: true }).boundingBox();
+ expect(Math.abs(symbol!.y + symbol!.height / 2 - login!.y - login!.height / 2)).toBeLessThan(2);
  await create.click();
  await expect(page.getByRole('dialog')).toBeVisible();
 });

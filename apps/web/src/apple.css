@@ -1668,13 +1668,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-shell .feed-empty-state strong { font-size: 26px; font-weight: 750; letter-spacing: -0.025em; }
 :root.apple-ui.apple-ui .feed-shell .feed-empty-state p { font-size: 18px; }
 :root.apple-ui.apple-ui .profile-dialog .profile-identity::before { content: none; background: none; }
-.mobile-appearance-settings { display: none; }
-.appearance-settings-dialog .dialog-inner { padding: 32px 24px; }
-.appearance-settings-dialog .setting-language { flex-wrap: wrap; }
-.appearance-settings-dialog .language-segments { margin-inline-start: auto; }
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .experience-header :is(.language-cycle, .theme-toggle) { display: none; }
-  :root.apple-ui.apple-ui .experience-header .mobile-appearance-settings { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-width: 44px; padding: 0; border: 0; background: transparent; color: var(--text); box-shadow: none; }
 }
 @media (max-width: 600px) {
   :root.apple-ui.apple-ui .feed-shell > .page-heading { margin-block: 20px; }

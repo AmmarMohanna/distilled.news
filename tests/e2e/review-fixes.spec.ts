@@ -39,14 +39,17 @@ test("guest feed header never overlaps or leaves the screen at 320px or with dou
   expect(await headerItems(page)).toEqual({ overlaps: [], offscreen: 0, horizontalScroll: false });
 });
 
-test("guests on phones reach Language and Dark mode in Settings", async ({ page }) => {
-  await mock(page, false);
+test("signed-in users on phones reach Language and Dark mode in the bottom Settings tab", async ({ page }) => {
+  await mock(page, true);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/joud/lebanon/");
+  await page.goto("/");
   await expect(page.locator('.experience-header .language-cycle')).toBeHidden();
   await expect(page.locator('.experience-header .theme-toggle')).toBeHidden();
-  await page.locator('.mobile-appearance-settings').click();
-  const settings = page.getByRole('dialog', { name: 'Settings' });
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.locator('.settings-view');
+  await expect(settings).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Home', exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Explore', exact: true })).toBeVisible();
   await expect(settings.getByRole('group', { name: 'Language' })).toBeVisible();
   await settings.getByRole("switch", { name: "Dark mode" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
