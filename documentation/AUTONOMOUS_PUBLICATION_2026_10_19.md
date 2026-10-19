@@ -1,4 +1,4 @@
-﻿# Autonomous private publication mission — 19 October 2026
+# Autonomous private publication mission — 19 October 2026
 
 Standing authorization: up to four fresh controlled attempts; cumulative provider ceiling $0.20 including prior $0.019806432. Production/public reads/notifications remain prohibited. No grant/cap changes. Every new attempt follows a verified correction or justified successful-stage continuation. Stop all paid experiments after the first verified private edition.
 
@@ -9,3 +9,10 @@ Retained seven-group response: no source proposition contradicts the fund's poss
 Attempt 1 scope: autonomous-20261019-1. Prior twelve settled operations / $0.019806432, zero unknown feed outcomes. Conservative cumulative provider bound $0.188433632 (seven prospective GPT plus three Jev). Actual atomic admission checks each request plus settled/uncertain exposure <=$0.20 and existing account grant. The operator also limits the mission to four immutable start markers. Existing original and operator review histories remain intact; fresh requests link the original canonical job/evidence. No normal scheduled allowlist includes this manual feed.
 
 Actual live outcome, costs and traces will be appended after execution. No mocked timing or verdict is real-model evidence.
+
+
+Attempt 1 executed on Worker 59c42c03-adbf-4ad0-80f9-05aaad0f57c2. Review succeeded, but construction still made seven groups; the false-looking CONTRADICTS effect did not recur. Publication stopped at MODEL_CONTEXT_CONTINUATION_REQUIRED before paying the planner. New cost $0.003310996 (relation $0.000097902, construction $0.0031288, ranking $0.000084294); cumulative $0.023117428, all settled. Exact responses/traces retained locally. No writer or edition.
+
+Confirmed new-input redundancy: V2 planner sent full fallbackEditorial repeated fact prose, ranking audit strings and graph-audit relationships in addition to approved facts. New projection retains every fact, full fact provenance/qualifications/timing/context, meaningful ranking hints, canonical target/storyline, history and protected obligations; omits only repeated fallback/audit payload and candidate evidence union already present on individual facts. Canonical shortlist/graph documents remain unchanged. Started paid V2 frames resume their original payload/schema; the projection cannot buy around an old intent/UNKNOWN outcome. Saved actual feed+shortlist request drops 34,139 to 24,033 bytes and fits the unchanged 32,768/8,192 staging envelope. This is request size/admission evidence, not measured complete-path latency improvement.
+
+Article policy v3 additionally states the candidate catalog is not an authoritative partition to mirror; source occurrence boundaries come first. No output is force-merged, and prior semantic receipts remain immutable. Attempt 2 is justified by this context fix plus boundary clarification, scope autonomous-20261019-2. Full prospective provider bound $0.191744628 including prior $0.023117428. Two new regressions cover preserved semantic fields and exact reuse of an already-paid input frame; 21 focused admission/wire tests and Worker typecheck passed. Original repository-wide other package checks remain passed. No caps/grants changed.
