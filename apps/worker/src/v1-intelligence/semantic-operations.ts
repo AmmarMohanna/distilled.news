@@ -1,3 +1,4 @@
+import {recoveryBinding} from './model-spending-recovery';
 import {ASYNC_MODEL_CALL_MS,ASYNC_OPERATION_LEASE_MS} from './operation-timing';
 import {withLatency,measureLatency,countLatency,recordModelReceipt} from './latency';
 import {settledEditorialBlockerResolved} from './editorial-blocker-successor';
@@ -79,8 +80,8 @@ async function runSemanticOperation<T>(store:V1FeedStore,input:SemanticOperation
    }
   }
   if(reservation===undefined){const result=deferred('SEMANTIC_COST_ESTIMATE_REQUIRED',{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...result,id:waitId,operationId:id,category:'ACCOUNT_AUTHORIZATION'});return {result}}
-  const accountId=await modelSpendingAccount(store.db,input.model,now,store.spendingAccountId);
-  const value:SemanticIntent={id,feedId:input.feedId,input,token,leaseUntil:Date.now()+ASYNC_OPERATION_LEASE_MS,reservedCostUsd:reservation,createdAt:now,...(compatibilityHash?{compatibilityHash}:{})};tx.modelReservations.push({id:'semantic_intents:'+id,accountId,model:input.model,feedId:input.feedId,token,reservedCostUsd:reservation,leaseUntil:value.leaseUntil,createdAt:now});await tx.write('semantic_intents',id,value);return {intent:value};
+  const accountId=await modelSpendingAccount(store.db,input.model,now,store.spendingAccountId),recovery=recoveryBinding(input,store.semanticLease?.workId);
+  const value:SemanticIntent={id,feedId:input.feedId,input,token,leaseUntil:Date.now()+ASYNC_OPERATION_LEASE_MS,reservedCostUsd:reservation,createdAt:now,...(compatibilityHash?{compatibilityHash}:{})};tx.modelReservations.push({id:'semantic_intents:'+id,accountId,model:input.model,feedId:input.feedId,token,reservedCostUsd:reservation,leaseUntil:value.leaseUntil,createdAt:now,...(recovery?{recovery}:{})});await tx.write('semantic_intents',id,value);return {intent:value};
  }).catch(async error=>{
   if(!(error instanceof ModelSpendingWait))throw error;
   const result:SemanticOperationResult<T>={id,feedId:input.feedId,input,status:'DEFERRED',failure:error.reason,usage:{calls:0,costUsd:0,reported:true},latencyMs:0,createdAt:now};

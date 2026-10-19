@@ -1,9 +1,10 @@
+import {validateRecoveryScope,assertRecoveryScopeAvailable,type ModelRecoveryScope,type RecoveryReservationBinding} from './model-spending-recovery';
 import {effectiveModelConcurrency} from './model-spending-amendments';
 import {effectiveModelExposure} from './model-spending-exposure-amendments';
 import type {ProviderDiagnostic} from '../provider-outcome';
 import {canonicalJson} from '../v1-intake/canonical';
-export interface ModelSpendingAuthorization {id:string;accountId:string;modelIds:string[];validFrom:string;validUntil:string;maxExposureUsd:number;maxConcurrentOperations:number}
-export interface ModelSpendingReservation {id:string;accountId:string;model:string;feedId:string;token:string;reservedCostUsd:number;leaseUntil:number;createdAt:string}
+export interface ModelSpendingAuthorization {id:string;accountId:string;modelIds:string[];validFrom:string;validUntil:string;maxExposureUsd:number;maxConcurrentOperations:number;recoveryScope?:ModelRecoveryScope}
+export interface ModelSpendingReservation {id:string;accountId:string;model:string;feedId:string;token:string;reservedCostUsd:number;leaseUntil:number;createdAt:string;recovery?:RecoveryReservationBinding}
 export class ModelSpendingWait extends Error {constructor(readonly reason:string){super(reason)}}
 const instant=(value:string)=>new Date(value).toISOString();
 const legacyMissing=`SELECT COUNT(*) AS n FROM v1_feed_documents d WHERE d.kind IN ('semantic_intents','salience_intents','model_intents') AND NOT EXISTS(SELECT 1 FROM v1_model_spending_reservations r WHERE r.id=d.kind||':'||d.id)`;
@@ -11,6 +12,8 @@ const legacyMissing=`SELECT COUNT(*) AS n FROM v1_feed_documents d WHERE d.kind 
  * paid liabilities require explicit account mapping/reconciliation before activation. */
 export async function authorizeModelSpending(db:D1Database,grant:ModelSpendingAuthorization):Promise<void>{
  if(!grant.id||!grant.accountId||!grant.modelIds.length||grant.modelIds.some(m=>!m)||!Number.isFinite(grant.maxExposureUsd)||grant.maxExposureUsd<=0||!Number.isSafeInteger(grant.maxConcurrentOperations)||grant.maxConcurrentOperations<1||!Number.isFinite(Date.parse(grant.validFrom))||!Number.isFinite(Date.parse(grant.validUntil))||Date.parse(grant.validFrom)>=Date.parse(grant.validUntil))throw Error('INVALID_ACCOUNT_AUTHORIZATION');
+ validateRecoveryScope(grant);
+ if(grant.recoveryScope&&!await db.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='v1_model_spending_recovery_scope'").first())throw Error('RECOVERY_SCOPE_MIGRATION_REQUIRED');
  const prior=await db.prepare('SELECT json FROM v1_model_spending_authorizations WHERE id=?').bind(grant.id).first<{json:string}>();if(prior){if(canonicalJson(JSON.parse(prior.json))!==canonicalJson(grant))throw Error('ACCOUNT_AUTHORITY_IDENTITY_CONFLICT');return}
  const unreconciled=await db.prepare(legacyMissing).first<{n:number}>();if(unreconciled?.n)throw new ModelSpendingWait('LEGACY_LIABILITIES_UNRECONCILED');
  const overlap=await db.prepare('SELECT id FROM v1_model_spending_authorizations WHERE account_id=? AND valid_from<? AND valid_until>?').bind(grant.accountId,instant(grant.validUntil),instant(grant.validFrom)).first();if(overlap)throw Error('ACCOUNT_AUTHORIZATION_OVERLAP');
@@ -33,6 +36,7 @@ export async function modelSpendingStatements(db:D1Database,r:ModelSpendingReser
  if(await db.prepare("SELECT id FROM v1_feed_documents WHERE kind='model_execution_retirements' AND id=? AND feed_id=?").bind(r.feedId,r.feedId).first())throw new ModelSpendingWait('FEED_EXECUTION_RETIRED');
  const existing=await db.prepare('SELECT json FROM v1_model_spending_reservations WHERE id=?').bind(r.id).first<{json:string}>();if(existing){if(canonicalJson(JSON.parse(existing.json))!==canonicalJson(r))throw new ModelSpendingWait('RESERVATION_IDENTITY_CONFLICT');return []}
  const g=await spendingAuthorization(db,r),guard=crypto.randomUUID();
+ try{await assertRecoveryScopeAvailable(db,g,r)}catch(error){if(error instanceof Error&&error.message==='RECOVERY_SCOPE_DENIED')throw new ModelSpendingWait(r.feedId===g.recoveryScope?.feedId?'ACCOUNT_RECOVERY_SCOPE_DENIED':'ACCOUNT_AUTHORIZATION_REQUIRED');throw error}
  const exposure=`SELECT COALESCE(SUM(CASE WHEN s.reported=1 AND p.created_at>=? AND p.created_at<? THEN s.cost_usd WHEN COALESCE(s.reported,0)=0 THEN MAX(p.reserved_cost_usd,COALESCE(s.cost_usd,0)) ELSE 0 END),0) FROM v1_model_spending_reservations p LEFT JOIN v1_model_spending_settlements s ON s.id=p.id WHERE p.account_id=?`;
  const concurrency=`SELECT COUNT(*) FROM v1_model_spending_reservations p LEFT JOIN v1_model_spending_settlements s ON s.id=p.id WHERE p.account_id=? AND COALESCE(s.reported,0)=0 AND NOT EXISTS(SELECT 1 FROM v1_feed_documents q WHERE q.kind='model_execution_quarantines' AND q.id=p.id AND q.feed_id=p.feed_id AND json_extract(q.json,'$.accountId')=p.account_id AND json_extract(q.json,'$.reservationToken')=p.token)`;
  const amendmentGuard=g.concurrencySchemaAvailable?' AND COALESCE((SELECT MAX(sequence) FROM v1_model_spending_concurrency_amendments WHERE authorization_id=?),0)=?':'';
