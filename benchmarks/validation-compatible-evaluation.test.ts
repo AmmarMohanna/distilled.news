@@ -3,7 +3,8 @@ import {readFileSync,writeFileSync,existsSync,mkdirSync,openSync,fsyncSync,close
 import {createHash,randomUUID} from 'node:crypto';
 import {join} from 'node:path';
 import old from './validation-contract-real-model-results.json';
-import {createStoredEvidenceModel} from '../apps/worker/src/v1-intelligence/model';
+// @ts-expect-error immutable prior evaluation; never buy again under new inputs
+import {createStoredEvidenceModel} from 'virtual:witness-v3-model';
 import {admitModelOperation,modelCapability} from '../apps/worker/src/v1-intelligence/model-capacity';
 import {boundedCompletion,structuredCompletionBody} from '../apps/worker/src/ai';
 import {reserveModelSpending,settleModelSpending} from '../apps/worker/src/v1-intelligence/model-spending';

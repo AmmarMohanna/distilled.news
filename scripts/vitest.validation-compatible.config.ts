@@ -1,2 +1,5 @@
 import {defineConfig} from 'vitest/config';
-export default defineConfig({test:{include:['benchmarks/validation-compatible-evaluation.test.ts','benchmarks/validation-compatible-replay.test.ts'],environment:'node',pool:'forks',maxWorkers:1}});
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const root=fileURLToPath(new URL('../',import.meta.url)).replaceAll('\\','/').replace(/\/$/,'');
+export default defineConfig({plugins:[{name:'frozen-reader-witness-v3-replay',enforce:'pre',resolveId(id){if(id==='virtual:witness-v3-model')return root+'/apps/worker/src/v1-intelligence/model.ts?historical-witness-v3';if(id==='virtual:witness-v3-wire')return root+'/apps/worker/src/v1-intelligence/writer-wire.ts?historical-witness-v3';},load(id){if(!id.endsWith('?historical-witness-v3'))return;const path=id.split('?')[0].slice(root.length+1);let source=execFileSync('git',['-c','safe.directory='+root,'show','dd88f5c:'+path],{encoding:'utf8',cwd:root});if(path.endsWith('/model.ts'))source=source.replace("from './writer-wire'","from 'virtual:witness-v3-wire'");return source;}}],test:{include:['benchmarks/validation-compatible-evaluation.test.ts','benchmarks/validation-compatible-replay.test.ts'],environment:'node',pool:'forks',maxWorkers:1}});
