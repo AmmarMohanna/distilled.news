@@ -1644,7 +1644,7 @@ function FeedPage(props: { username: string; slug: string }) {
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
     >
-      {initialLoading ? <p className="feed-loading-message" role="status">{loadingFeedLabel(language)}</p> : <>
+      {initialLoading ? <div className="feed-loading-skeleton" aria-hidden="true"><div/><div/></div> : <>
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
         onLogout={async () => { await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); }}
         onSaved={async (nextAccount, nextBriefings) => {

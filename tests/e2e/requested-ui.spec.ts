@@ -16,7 +16,7 @@ async function mock(page: import("@playwright/test").Page, authenticated = true)
  });
 }
 
-test("phone header aligns the symbol and controls with an icon-only create button", async ({ page }) => {
+test("phone header aligns the full logo and controls with an icon-only create button", async ({ page }) => {
  await mock(page, false);
  await page.setViewportSize({ width: 390, height: 844 });
  await page.goto("/");
@@ -25,7 +25,7 @@ test("phone header aligns the symbol and controls with an icon-only create butto
  await expect(create.locator('.create-feed-label')).toBeHidden();
  await expect(create).toHaveCSS('width', '48px');
  const brand = page.locator('.experience-header .experience-brand');
- await expect(brand.locator('.distilled-logo-wordmark')).toBeHidden();
+ await expect(brand.locator('.distilled-logo-wordmark')).toBeVisible();
  await expect(brand.locator('.distilled-logo-symbol')).toBeVisible();
  const symbol = await brand.locator('.distilled-logo-symbol').boundingBox();
  await expect(page.locator('.experience-header .language-cycle')).toBeHidden();
@@ -34,6 +34,10 @@ test("phone header aligns the symbol and controls with an icon-only create butto
  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toHaveCount(0);
  const login = await page.getByRole('link', { name: 'Log in', exact: true }).boundingBox();
  expect(Math.abs(symbol!.y + symbol!.height / 2 - login!.y - login!.height / 2)).toBeLessThan(2);
+ await page.setViewportSize({ width: 320, height: 568 });
+ const wordmark = await brand.locator('.distilled-logo-wordmark').boundingBox();
+ const narrowLogin = await page.getByRole('link', { name: 'Log in', exact: true }).boundingBox();
+ expect(wordmark!.x + wordmark!.width).toBeLessThanOrEqual(narrowLogin!.x);
  await create.click();
  await expect(page.getByRole('dialog')).toBeVisible();
 });

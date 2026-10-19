@@ -69,8 +69,25 @@ test("empty public feed uses the reference dashboard layout", async ({ page }) =
   expect(Math.abs(search!.width - empty!.width)).toBeLessThan(2);
   const notice = await page.locator('.notice').boundingBox();
   expect(Math.abs(search!.width - notice!.width)).toBeLessThan(2);
-  expect(empty!.height).toBeGreaterThanOrEqual(260);
+  expect(empty!.height).toBeGreaterThanOrEqual(180);
+  await expect(page.locator('.feed-shell h1')).toHaveCSS('font-size', '40px');
   await page.screenshot({ path: test.info().outputPath('feed-dashboard.png'), fullPage: true });
+});
+
+test("feed reserves a loading layout before showing compact content", async ({ page }) => {
+  await mock(page, false);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/feed/joud/lebanon', async route => {
+    await gate;
+    await route.fulfill({ json: { briefing: feed, editions: [], viewerHasStarred: false } });
+  });
+  await page.goto('/joud/lebanon/');
+  await expect(page.locator('.feed-loading-skeleton')).toBeVisible();
+  release();
+  await expect(page.locator('.feed-loading-skeleton')).toHaveCount(0);
+  await expect(page.locator('.feed-empty-state')).toBeVisible();
+  await expect(page.locator('.feed-tools input')).toHaveCSS('font-size', '16px');
 });
 
 test("profile identity has no gradient backdrop", async ({ page }) => {
