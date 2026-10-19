@@ -75,3 +75,12 @@ Final offline code correction: **a8a837c**, not deployed. Final verification: 29
 ## Renewed single-attempt authorization
 
 User approved one additional controlled attempt after the four-attempt report. Scope autonomous-20261019-5; settled baseline 21 operations/$0.045801734, no unknown feed outcomes. The only configuration changes are the fresh immutable scope, baseline, five-scope maximum and per-model 14+5 GPT / 7+1 Jev operation allowances. Hard cumulative $0.20 and unchanged account-grant admission remain authoritative. Reuse successful scope-2 intelligence; deploy a8a837c planner correction plus this scope configuration only to existing private staging. Conservative cumulative bound $0.163177734; read-only headroom $0.415669512, sufficient at preflight. No second new attempt is authorized. Five scope tests and staging dry-run passed; prior final code typecheck and 29-path tests remain applicable.
+
+
+## Attempt 5 and renewed two-attempt authorization
+
+Scope 5 deployed f7f5eb5 (includes a8a837c) as d96cc926-0612-4d87-8652-fdcc593cdc44. Both candidate decisions returned; main announcement selected, context deferred. Rejected REQUIREMENT_JUSTIFICATION: all six non-required propositions had non-null NECESSARY_CONTEXT, contrary to validator contract. No writer/verifier/edition. New planner cost $0.007002; cumulative $0.052803734; 22 settled, no unknown feed outcomes. Client reuse 1.8146s and publication 43.7981s; provider planner 32.510s, exclusive held 42.595s, shortlist 6.010s. All raw response/diagnostics retained.
+
+Narrow correction makes disposition/reason branches structural: REQUIRED has a non-null approved requirement reason; OPTIONAL_CONTEXT/DEFERRED/NOT_NEWS require null and keep their free-text justification. No model decision rewritten, no requirement demoted. Exact original remains rejected; explicitly controlled null-reason replay passes all editorial gates while keeping nine propositions and SELECT/DEFER. Three saved-case replays and 28 focused scope/editorial/provider-bound schema tests passed, final Worker typecheck and staging dry-run passed.
+
+User subsequently authorized up to two additional attempts (scopes 6 and 7), unchanged cumulative $0.20. Scope 6 baseline 22 settled/$0.052803734,15 GPT/7 Jev. Max five new GPT/one Jev, prospective cumulative bound $0.170179734, read-only account headroom $0.220991468. Scope 7 may execute only after a justified diagnosed/verified correction or continuation, fresh preflight and fresh immutable scope. No cap/grant changes.

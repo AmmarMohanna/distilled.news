@@ -55,3 +55,5 @@ it('constrains exactly one decision per offered candidate without force-selectin
  try{decodeV2EditorialResponse({value:f.body},f.shortlist,V2_SOURCE_ANCHOR_POLICY);throw Error('UNSAFE_ACCEPTANCE')}catch(error){expect((error as any).diagnostic.rejection).toMatchObject({code:'EDITORIAL_CANDIDATE_COVERAGE',issues:[{code:'MISSING_CANDIDATES',missing:['second']},{code:'UNKNOWN_OR_DUPLICATE_CANDIDATES'}]})}
  expect(f.body.stories).toHaveLength(1);
 });
+
+it('constrains requirement reason codes separately from optional/deferred justifications',()=>{const request=v2EditorialRequest(shortlist,{title:'Feed',interests:[]});const validation:any=(request.schema.properties.stories.items.anyOf[0].properties as any).validation;const branches=validation.properties.dispositions.items.anyOf;expect(branches[0].properties.disposition.enum).toEqual(['REQUIRED']);expect(branches[0].properties.reasonCode.type).toBe('string');expect(branches[1].properties.disposition.enum).toEqual(['OPTIONAL_CONTEXT','DEFERRED','NOT_NEWS']);expect(branches[1].properties.reasonCode).toEqual({type:'null'});expect(branches[1].required).toContain('justification');});
