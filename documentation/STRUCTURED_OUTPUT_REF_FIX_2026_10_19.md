@@ -1,0 +1,9 @@
+﻿# Structured-output reference compatibility correction — 19 October 2026
+
+Root cause: article-first construction added a description beside structuralRelation's enum $ref after enum sharing. OpenRouter/OpenAI rejected the serialized response schema before GPT execution. The prior admission checker validated the reference target but did not reject sibling keywords.
+
+Correction: remove only that description from construction schema generation. Article-first semantic instructions remain byte-for-byte unchanged. The enum target, all branches, reference capabilities, required-key ClaimMention disposition and provenance/ownership gates remain unchanged. Admission now rejects unsupported $ref siblings before provider transport; definitions containers remain permitted alongside root references.
+
+Five new tests capture and inspect the actual JSON body emitted by createStrongSemanticModel / boundedCompletion. Both empty-candidate and candidate-bearing requests are recursively audited: references resolve and have no siblings, objects are closed with complete unique required fields, E/L/G/C capabilities and relation branches are intact, and optional enrichment stays absent. Description, type and enum sibling injections are blocked with zero transport calls. Tests first failed before the correction, then passed. Complete serialized schema inspection found no other incompatibility in these construction cases. This is offline compatibility evidence, not a provider execution result.
+
+38 focused tests passed, including existing provider schema limits and historical failed-response replay. Repository-wide typechecks and explicit staging dry-run passed. No prompt, model, matching, publication memory, financial rule, inference stage or repair limit changed. The user subsequently authorized pushing/deploying and one fresh private attempt; its outcome is recorded separately.

@@ -13,6 +13,7 @@ export function inspectProviderSchema(model:string,schema:object):SchemaAdmissio
   if(v.required!==undefined&&(!Array.isArray(v.required)||v.required.some((k:unknown)=>typeof k!=='string')||new Set(v.required).size!==v.required.length))issue('INVALID_REQUIRED');
   if(v.anyOf!==undefined&&(!Array.isArray(v.anyOf)||!v.anyOf.length))issue('INVALID_ANYOF');
   if(v.items!==undefined&&(!v.items||typeof v.items!=='object'||Array.isArray(v.items)))issue('INVALID_ARRAY_ITEMS');
+  if(v.$ref&&Object.keys(v).some(k=>!['$ref','$defs','definitions'].includes(k)))issue('UNSUPPORTED_REF_SIBLINGS');
   if(v.$ref&&(typeof v.$ref!=='string'||!reference(v.$ref)))issue('INVALID_REFERENCE');
   for(const k of Object.keys(v))if(unsupported.has(k))issue('UNSUPPORTED_'+k);
   if(v.enum){if(!Array.isArray(v.enum)||!v.enum.length)issue('INVALID_ENUM');else{result.enumValues+=v.enum.length;const chars=v.enum.reduce((n:number,s:unknown)=>n+(typeof s==='string'?s.length:0),0);result.schemaStringCharacters+=chars;if(v.enum.length>250&&chars>15000)issue('ENUM_STRING_SIZE')}}

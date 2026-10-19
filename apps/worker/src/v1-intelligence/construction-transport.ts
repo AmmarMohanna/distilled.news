@@ -35,7 +35,6 @@ export function constructionTransport(mentions:ClaimMention[],input:EventMatchIn
   const branches=((schema.properties.groups as any).items as any).anyOf;
   for(const branch of branches){const p=branch.properties;
    p.groupId={type:'string',enum:groups};p.occurrence={type:'string',minLength:1,maxLength:240};
-   if(minimal)p.structuralRelation={...p.structuralRelation,description:'Choose occurrence identity, not fact type or certainty of a future outcome. SAME_EVENT reuses an offered occurrence; NEW_EVENT_EXISTING_STORYLINE is a distinct stage; NEW_STORYLINE is a clearly identified unmatched occurrence; DEFER is genuinely unresolved identity/meaning.'};
    if(minimal)for(const key of ['entities','slots','storylineState']){delete p[key];branch.required=branch.required.filter((k:string)=>k!==key)}
    delete p.claimMentionIds;branch.required=branch.required.filter((k:string)=>k!=='claimMentionIds');branch.required.push('groupId','occurrence');
   }

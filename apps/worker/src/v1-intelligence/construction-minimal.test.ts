@@ -36,6 +36,6 @@ it('defines article-first identity separately from supporting facts, future unce
  const {mentions,input}=await fixture();const wire=constructionTransport(mentions,input,{constructionOwnershipVersion:version,prior:{structuralRelation:'DEFER',confidence:0,provenance:{fallbackReason:'NO_ACCEPTED_JUDGMENT'}}});
  expect(wire.state.instruction).toContain('principal news occurrence');expect(wire.state.instruction).toContain('DEFER means unresolved occurrence identity');
  expect(wire.state.prior).toBeUndefined();expect(wire.state.instruction).toContain('published');
- const branch=(wire.schema as any).properties.groups.items.anyOf[0];expect(branch.properties.structuralRelation.description).toContain('future outcome');
+ const branch=(wire.schema as any).properties.groups.items.anyOf[0];expect(Object.keys(branch.properties.structuralRelation)).toEqual(['$ref']);expect(wire.state.instruction).toContain('future outcome');
  const groundedPrior={structuralRelation:'SAME_EVENT',eventId:'existing',confidence:.9,provenance:{scorer:'JEV',judgmentId:'settled'}};expect(constructionTransport(mentions,input,{constructionOwnershipVersion:version,prior:groundedPrior}).state.prior).toMatchObject({structuralRelation:'SAME_EVENT',provenance:{judgmentId:'settled'}});
 });
