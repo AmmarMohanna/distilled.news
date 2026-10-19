@@ -79,9 +79,9 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
    const prepared=await read('prepared');if(!prepared)throw Error('PREPARE_REQUIRED');
    if(await read(scope+'-start'))throw Error('CONTRACT_REVIEW_ALREADY_STARTED_NO_RETRY');
    const totals=await db.prepare('SELECT COUNT(*) n,SUM(CASE WHEN s.reported=1 THEN 0 ELSE 1 END) unknown FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.feed_id=?').bind(feedId).first<{n:number;unknown:number}>();
-   if(totals?.n!==(disposition?20:2)||totals.unknown)throw Error('EXPECTED_SETTLED_BASELINE_REQUIRED');
+   if(totals?.n!==(disposition?21:2)||totals.unknown)throw Error('EXPECTED_SETTLED_BASELINE_REQUIRED');
    const store=new V1FeedStore(db),requests=(await store.list<import('./v1-intelligence/rematch').RematchRequest & {operatorAttemptScope?:string}>(feedId,'rematch_requests')).filter(r=>!r.operatorAttemptScope);
-   if(disposition){const markers=await db.prepare("SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind='staging_mission'").bind(feedId).all<{json:string}>();if(markers.results.map(m=>JSON.parse(m.json)).filter(m=>m.attemptId?.startsWith('autonomous-20261019-')&&m.rematchRequestId).length>=4)throw Error('AUTONOMOUS_ATTEMPT_LIMIT');}
+   if(disposition){const markers=await db.prepare("SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind='staging_mission'").bind(feedId).all<{json:string}>();if(markers.results.map(m=>JSON.parse(m.json)).filter(m=>m.attemptId?.startsWith('autonomous-20261019-')&&m.rematchRequestId).length>=5)throw Error('AUTONOMOUS_ATTEMPT_LIMIT');}
    if(requests.length!==1)throw Error('EXACT_REMATCH_REQUIRED');
    if(disposition&&STAGING_REUSE_REVIEW_SCOPE){
     const previous=await read(STAGING_REUSE_REVIEW_SCOPE+'-reviewed'),previousStart=await read(STAGING_REUSE_REVIEW_SCOPE+'-start');
