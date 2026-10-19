@@ -6,13 +6,13 @@ import {admitModelOperation,modelCapability,type ModelAdmission} from './model-c
 import {boundedCompletion} from '../ai';
 import type {Env} from '../types';
 import type {ExperimentUsage} from './salience';
-export interface StrongSemanticModel {model:string;admission?(state:unknown,schema:object,phase?:string):ModelAdmission;complete(feedId:string,phase:string,state:unknown,schema:object):Promise<{value:Record<string,unknown>;usage:ExperimentUsage;rawResponse?:string}>;usage():ExperimentUsage}
+export interface StrongSemanticModel {model:string;fork?():StrongSemanticModel;admission?(state:unknown,schema:object,phase?:string):ModelAdmission;complete(feedId:string,phase:string,state:unknown,schema:object):Promise<{value:Record<string,unknown>;usage:ExperimentUsage;rawResponse?:string}>;usage():ExperimentUsage}
 /** Existing bounded structured transport; no tools, search or source discovery. */
 export function createStrongSemanticModel(env:Env,fetcher:typeof fetch=fetch,purpose:'EVENT'|'EDITORIAL'='EVENT'):StrongSemanticModel|undefined {
  if(!env.OPENROUTER_API_KEY || (purpose==='EVENT'?env.V1_SEMANTIC_POLICY==='DETERMINISTIC':env.V1_EDITORIAL_MODEL_POLICY==='DETERMINISTIC'))return undefined;
  const model=env.V1_SEMANTIC_STRONG_MODEL??'openai/gpt-4.1',capability=modelCapability(model,env.V1_MODEL_CAPABILITIES_JSON);let usage:ExperimentUsage={calls:0,costUsd:0,reported:true};
  const admission=(state:unknown,schema:object,_phase?:string)=>admitModelOperation(model,state,schema,capability?.transport==='DECISIONS'?undefined:capability);
- return {model,admission,usage:()=>({...usage}),complete:async(feedId,phase,state,schema)=>{
+ return {model,fork:()=>createStrongSemanticModel(env,fetcher,purpose)!,admission,usage:()=>({...usage}),complete:async(feedId,phase,state,schema)=>{
   usage={calls:0,costUsd:0,reported:true};
   const envelope=admission(state,schema,phase);
   if(!envelope.fits)throw Error(`SEMANTIC_${envelope.reason}`);

@@ -15,7 +15,13 @@ export async function acquireSemanticWorkLease(store:V1FeedStore,feedId:string,w
 /** Append a new lease in the same owner chain; older runtimes also see its
  * active expiry. Historical lease rows are never updated. Renew only live ownership. An expired/released token can never resurrect
  * itself; provider settlement remains independent from canonical ownership. */
+const renewals=new WeakMap<SemanticWorkLease,Promise<void>>();
 export async function renewSemanticWorkLease(store:V1FeedStore,lease:SemanticWorkLease):Promise<void>{
+ const previous=renewals.get(lease)??Promise.resolve();
+ const next=previous.then(()=>renewOwnedLease(store,lease));renewals.set(lease,next);
+ try{await next}finally{if(renewals.get(lease)===next)renewals.delete(lease)}
+}
+async function renewOwnedLease(store:V1FeedStore,lease:SemanticWorkLease):Promise<void>{
  const time=Date.now(),until=time+SEMANTIC_WORK_LEASE_MS;
  const id=crypto.randomUUID(),value={id,feedId:lease.feedId,parentLeaseId:lease.id,token:lease.token,leaseUntil:until,createdAt:new Date(time).toISOString(),...(lease.workId===undefined?{}:{workId:lease.workId})};
  const row=await store.db.prepare(`INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT 'semantic_work_leases',?,?,? WHERE EXISTS(SELECT 1 FROM v1_feed_documents l WHERE l.kind='semantic_work_leases' AND l.id=? AND l.feed_id=? AND json_extract(l.json,'$.token')=? AND json_extract(l.json,'$.leaseUntil')>? AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='semantic_work_releases' AND r.id=l.id AND json_extract(r.json,'$.token')=json_extract(l.json,'$.token'))) RETURNING id`).bind(id,lease.feedId,JSON.stringify(value),lease.id,lease.feedId,lease.token,time).first();

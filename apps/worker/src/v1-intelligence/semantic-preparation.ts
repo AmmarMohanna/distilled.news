@@ -1,3 +1,4 @@
+import {inferenceConcurrency} from './parallel-inference';
 import {ASYNC_JUDGMENT_CALL_MS} from './operation-timing';
 import {constructionTransport,MINIMAL_CONSTRUCTION_VERSION,ARTICLE_FIRST_POLICY,MINIMAL_CONSTRUCTION_INSTRUCTION,isDispositionVersion} from './construction-transport';
 import {repairSemanticConstruction} from './semantic-construction-repair';
@@ -124,7 +125,7 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
 
   },()=>strong.usage(),strong.admission?.(transport.state,transport.schema,'SEMANTIC_CONSTRUCTION'));
   if(saved.failure==='SEMANTIC_CONSTRUCTION_REJECTED')saved=await repairSemanticConstruction(store,{...operation,kind:'SEMANTIC_CONSTRUCTION',model:strong.model},saved,mentions,input,strong,constructionState,now,{lane,reuseContext});
-  if(saved.failure==='SEMANTIC_MODEL_SCHEMA_CONTINUATION_REQUIRED'||saved.failure==='SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED'||saved.failure==='SEMANTIC_MODEL_OUTPUT_CONTINUATION_REQUIRED'&&saved.usage.reported)saved=await continueSemanticConstruction(store,{...operation,kind:'SEMANTIC_CONSTRUCTION',model:strong.model,state:{...constructionState,attempt:attemptNo}},mentions,input,strong,constructionState,now,{lane,reuseContext});
+  if(saved.failure==='SEMANTIC_MODEL_SCHEMA_CONTINUATION_REQUIRED'||saved.failure==='SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED'||saved.failure==='SEMANTIC_MODEL_OUTPUT_CONTINUATION_REQUIRED'&&saved.usage.reported)saved=await continueSemanticConstruction(store,{...operation,kind:'SEMANTIC_CONSTRUCTION',model:strong.model,state:{...constructionState,attempt:attemptNo}},mentions,input,strong,constructionState,now,{lane,reuseContext,concurrency:inferenceConcurrency(env.V1_INFERENCE_CONCURRENCY)});
   if(saved.status==='SUCCEEDED'&&saved.value && saved.value.confidence>=.6){construction={...saved.value.construction,provenance:{...saved.value.construction.provenance,judgmentId:saved.id}};const first=construction.groups[0];decision={structuralRelation:first.structuralRelation,eventId:first.eventId??undefined,storylineId:first.storylineId??undefined,epistemicEffects:[...new Set(construction.groups.flatMap(g=>g.epistemicEffects))],confidence:saved.value.confidence,provenance:construction.provenance}}
   else decision={structuralRelation:'DEFER',epistemicEffects:decision.epistemicEffects,confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:saved.failure??'SEMANTIC_REASONING_UNCERTAIN'}};
  }else if(reasons.length)decision={structuralRelation:'DEFER',epistemicEffects:decision.epistemicEffects,confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'STRONG_MODEL_UNAVAILABLE'}};

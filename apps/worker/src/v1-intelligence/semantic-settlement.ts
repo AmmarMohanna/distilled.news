@@ -1,3 +1,4 @@
+import {serializeFeedBookkeeping} from './store';
 import {settleModelSpending} from './model-spending';
 import {HandoffError} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -65,6 +66,9 @@ export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOper
  * Epoch advancement and receipt insertion are atomic, so concurrent admission
  * cannot commit against an accounting snapshot predating the settlement. */
 export async function settleSemanticOperation<T>(store:V1FeedStore,intent:SemanticIntent,result:SemanticOperationResult<T>):Promise<void>{
+ return serializeFeedBookkeeping(store,()=>settleOwnedOperation(store,intent,result));
+}
+async function settleOwnedOperation<T>(store:V1FeedStore,intent:SemanticIntent,result:SemanticOperationResult<T>):Promise<void>{
  const authorization="EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='semantic_intents' AND id=? AND feed_id=? AND json_extract(json,'$.token')=?)";
  const args=[intent.id,intent.feedId,intent.token];
  const accountReceipt=await store.db.prepare('SELECT id FROM v1_model_spending_reservations WHERE id=?').bind('semantic_intents:'+intent.id).first();

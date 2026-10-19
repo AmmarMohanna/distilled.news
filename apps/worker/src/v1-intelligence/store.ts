@@ -18,6 +18,8 @@ type TransientSemanticKind='semantic_results'|'semantic_settlements';
 const mutable=new Set<DocumentKind>(['manual_briefing_requests','events','storylines','publication_status','delivery_jobs','synthesis_jobs','briefing_requests']);
 const feedSchema=z.object({id:z.string().min(1),ownerId:z.string().min(1),title:z.string(),interests:z.array(z.string()),geography:z.array(z.string()),outputLanguage:z.string().min(1),briefingFrequency:z.enum(['30M','HOURLY','DAILY','WEEKLY']),briefingSchedule:liveScheduleSchema.optional(),paused:z.boolean(),revision:z.number().int().positive(),createdAt:z.string().datetime(),updatedAt:z.string().datetime(),deletedAt:z.string().datetime().optional()}).strict();
 export class V1FeedStore {
+ /** Optional local coordination for parallel inference bookkeeping only. */
+ transactionQueue?:{tail:Promise<void>};
  constructor(readonly db:D1Database,readonly semanticLease?:SemanticWorkLease,readonly spendingAccountId?:string){}
  async registerFeed(raw:FeedRecord) {
   const feed=feedSchema.parse(raw);
@@ -343,6 +345,14 @@ export class FeedTransaction {
  }
 }
 export async function feedTransact<T>(store:V1FeedStore,id:string,run:(tx:FeedTransaction)=>Promise<T>):Promise<T> {
+ return serializeFeedBookkeeping(store,()=>feedTransactNow(store,id,run));
+}
+export async function serializeFeedBookkeeping<T>(store:V1FeedStore,run:()=>Promise<T>):Promise<T>{
+ const queue=store.transactionQueue;if(!queue)return run();
+ const previous=queue.tail;let release!:()=>void;queue.tail=new Promise<void>(resolve=>{release=resolve});
+ await previous;try{return await run()}finally{release()}
+}
+async function feedTransactNow<T>(store:V1FeedStore,id:string,run:(tx:FeedTransaction)=>Promise<T>):Promise<T> {
  const started=Date.now();let firstEpoch:number|undefined,lastEpoch:number|undefined,lastWrites=0;
  for(let attempt=0;attempt<12;attempt++) {
   const tx=new FeedTransaction(store,await measureLatency('DB_SNAPSHOT',()=>store.snapshot(id))),computationStarted=Date.now();firstEpoch??=tx.snapshot.epoch;lastEpoch=tx.snapshot.epoch;
