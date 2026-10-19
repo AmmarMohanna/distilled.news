@@ -1,8 +1,8 @@
 /** Staging operator wrapper. Adds an atomic per-feed mission ceiling to the
  * existing financial admission transaction; never replaces account admission. */
-export function stagingMissionDb(db:D1Database,feedId:string,ceilingUsd:number,metrics={queries:0,sqlCpuMs:0,responseBytes:0,wallMs:0},maxOperationsByModel?:Record<string,number>):D1Database {
+export function stagingMissionDb(db:D1Database,feedId:string,ceilingUsd:number,metrics:{queries:number;sqlCpuMs:number;responseBytes:number;wallMs:number;rowsRead?:number;rowsWritten?:number}={queries:0,sqlCpuMs:0,responseBytes:0,wallMs:0},maxOperationsByModel?:Record<string,number>):D1Database {
  if(!feedId.startsWith('staging-fresh-')||!Number.isFinite(ceilingUsd)||ceilingUsd<=0||ceilingUsd>10)throw Error('INVALID_STAGING_MISSION_BUDGET');
- const record=(rows:D1Result[])=>{metrics.queries+=rows.length;for(const r of rows){metrics.sqlCpuMs+=Number((r.meta as any)?.timings?.sql_duration_ms??r.meta?.duration??0);metrics.responseBytes+=new TextEncoder().encode(JSON.stringify(r.results??[])).length;}};
+ const record=(rows:D1Result[])=>{metrics.queries+=rows.length;for(const r of rows){metrics.sqlCpuMs+=Number((r.meta as any)?.timings?.sql_duration_ms??r.meta?.duration??0);metrics.rowsRead=(metrics.rowsRead??0)+Number(r.meta?.rows_read??0);metrics.rowsWritten=(metrics.rowsWritten??0)+Number(r.meta?.rows_written??0);metrics.responseBytes+=new TextEncoder().encode(JSON.stringify(r.results??[])).length;}};
  const unwrap=new WeakMap<object,{statement:D1PreparedStatement;sql:string;params:unknown[]}>();
  const prepare=(sql:string,params:unknown[]=[]):D1PreparedStatement=>{
   const native=db.prepare(sql).bind(...params),wrapped=new Proxy(native,{get(target,key){
