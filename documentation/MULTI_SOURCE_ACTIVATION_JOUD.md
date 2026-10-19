@@ -7,10 +7,10 @@ RSS/Atom, Google News, Telegram, X, LinkedIn, and public websites.
 | Source | Existing implementation | Current Joud blocker | Activation evidence required |
 | --- | --- | --- | --- |
 | RSS/Atom | Native HTTP feed provider, discovery, assessment | Publisher availability and topical evidence vary | A readable feed, accepted relevance assessment, and an ingested item |
-| Google News | Google RSS plus Apify fallback adapter | Cloudflare RSS requests receive Google's automation block; Apify token is empty and budgets are zero | Approved capped Apify trial, matching results, verification integration, then separately authorized recurring collection |
-| Telegram | Telethon/public provider and verified channel identity | No private execution service binding/configuration or local Telegram credentials | Execution service, authorized Telegram session, channel resolution and collected messages |
-| X | TwitterAPI.io and Apify adapters | No provider credentials; both provider budgets are zero | An authorized provider, explicit budget, account/search evidence, and ingested items |
-| LinkedIn | Apify company/profile adapters | No Apify credential; LinkedIn budget is zero | An authorized provider and budget, supported company/profile evidence, and ingested items |
+| Google News | Google RSS plus Apify fallback adapter | Cloudflare RSS requests receive Google's automation block; Apify is not configured in production and budgets are zero | Approved capped Apify trial, matching results, verification integration, then separately authorized recurring collection |
+| Telegram | Telethon/public provider and verified channel identity | No private execution service binding/configuration or authorized Telegram session | Execution service, authorized Telegram session, channel resolution and collected messages |
+| X | TwitterAPI.io and Apify adapters | No production provider credentials; both provider budgets are zero | An authorized provider, explicit budget, account/search evidence, and ingested items |
+| LinkedIn | Apify company/profile adapters | No production Apify credential; LinkedIn budget is zero | An authorized provider and budget, supported company/profile evidence, and ingested items |
 | Public websites | HTTP/browser extraction, optional Zyte | No private execution service; optional paid provider unconfigured | Service binding and authentication, bounded extraction, relevance and successful ingestion |
 
 ## Common implementation requirement
