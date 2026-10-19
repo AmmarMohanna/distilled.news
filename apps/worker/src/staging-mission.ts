@@ -1,6 +1,7 @@
 import type {Env} from './types';
 import {stagingMissionDb} from './staging-mission-budget';
-import {fetchRssCandidates} from '@distilled/connectors';
+import {fetchRssCandidates,BoundedFeedHttp} from '@distilled/connectors';
+import {readPublicArticle} from './v1-intake/public-article-http';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {enrollV1Source} from './v1-intelligence/product';
 import {prepareRssHandoff,rssLanguageHint} from './v1-intake/rss-handoff';
@@ -22,7 +23,7 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
  const hashes=await Promise.all([supplied,'Bearer '+secret].map(s=>crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))));
  if(new Uint8Array(hashes[0]).reduce((a,b,i)=>a|(b^new Uint8Array(hashes[1])[i]),0)!==0)return reply({error:'NOT_FOUND'},404);
  const action=new URL(request.url).pathname.split('/').at(-1)!;
- if(!['prepare','review','publish','status'].includes(action)||request.method!==(action==='status'?'GET':'POST'))return reply({error:'INVALID_ACTION'},400);
+ if(!['prepare','collect','review','publish','status'].includes(action)||request.method!==(action==='status'?'GET':'POST'))return reply({error:'INVALID_ACTION'},400);
  const databaseMetrics={queries:0,sqlCpuMs:0,responseBytes:0,wallMs:0};
  const db=stagingMissionDb(env.DB,feedId,10,databaseMetrics),sourceId=feedId+'-rss';
  const scoped={...env,DB:db,SOURCE_QUEUE_SCHEDULING_ENABLED:'false',V1_DOWNSTREAM_FEED_SOURCE_IDS:sourceId,V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2',V1_PROCESSING_QUEUE:undefined,V1_ACQUISITION_QUEUE:undefined,PROCESSING_QUEUE:new Proxy(env.PROCESSING_QUEUE,{get(){throw Error('MISSION_QUEUE_SEND_FORBIDDEN')}}),SOURCE_COLLECTION_QUEUE:undefined} as Env;
@@ -38,8 +39,15 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
    await db.prepare("INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,public_feed_enabled,language,created_at,updated_at) VALUES(?,?,?,'Fresh staging AI briefing','Important AI product and industry developments',0,'en',?,?)").bind(feedId,owner.owner_account_id,feedId,at,at).run();
    await db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES(?,?,'TechCrunch AI','channel','rss','rss_feed',?,1,'legacy',?,?,?)").bind(sourceId,feedId,url,at,at,at).run();
    const source=await enrollV1Source(db,sourceId,owner.owner_account_id,at);await save('prepare-start',{at,ceilingUsd:10,maxDevelopments:3,sourceUrl:url,feedRevision:source.feed.revision});
-   let raw='';const batch=await fetchRssCandidates({url,resourceId:sourceId,checkpoint:{version:'0'},maxItems:1},{get:async()=>{const r=await new WorkerPublicSourceFetch(url).get(url);raw=r.body;return {status:r.status,body:r.body,headers:{}};}});
-   if(batch.retry.kind!=='none'||batch.observations.length!==1)throw Error('FRESH_COLLECTION_NOT_READY');
+  }
+  if(action==='prepare'||action==='collect'){
+   const preparedStart=await read('prepare-start');if(!preparedStart)throw Error('PREPARE_REQUIRED');if(await read('prepared'))throw Error('ALREADY_COLLECTED');
+   if(action==='collect'){if(await read('collection-resume-start'))throw Error('COLLECTION_RESUME_ALREADY_STARTED');await save('collection-resume-start',{at:now(),reason:'SAME_ORIGIN_REDIRECT_TRANSPORT_FIX_NO_PAID_RETRY'});}
+   const at=preparedStart.at,url=preparedStart.sourceUrl;
+   const owner=await db.prepare('SELECT owner_account_id FROM briefings WHERE id=?').bind(feedId).first<{owner_account_id:string}>();if(!owner)throw Error('OWNER_REQUIRED');
+   const source=await enrollV1Source(db,sourceId,owner.owner_account_id,now());
+   let raw='';const batch=await fetchRssCandidates({url,resourceId:sourceId,checkpoint:{version:'0'},maxItems:1},{get:async()=>{const http=new BoundedFeedHttp(async(value,init)=>fetch(value,{...init,redirect:'manual'}),{maxBytes:512000});const r=await readPublicArticle(http,url);raw=r.body;return {status:r.status,body:r.body,headers:{}};}});
+   if(batch.retry.kind!=='none'||batch.observations.length!==1){await save('collection-failure:'+action,{at:now(),retry:batch.retry,observations:batch.observations.length,telemetry:batch.telemetry});throw Error('FRESH_COLLECTION_NOT_READY');}
    const coverage={id:feedId+':coverage',feedId,feedSourceId:sourceId,fetchRunId:feedId+':run',fetchStartSequence:1,requestedBounds:{},observedBounds:{startTime:at,endTime:now()},status:'PARTIAL' as const,continuationState:'NONE' as const,createdAt:now()};
    const handoff=await prepareRssHandoff(batch,{scope:source.scope,coverage,languageHint:rssLanguageHint(raw)},env.RAW_ARCHIVE);
    const acceptance=await acceptV1Handoff(scoped,handoff);await save('prepared',{at:now(),start:at,observationId:handoff.observations[0].id,sourceUrl:url,articleUrl:batch.observations[0].url,coverage:'BOUNDED_ONE_ARTICLE_PARTIAL_SOURCE_COVERAGE',collectionWallMs:performance.now()-started,acceptance});
