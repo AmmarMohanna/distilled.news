@@ -1650,8 +1650,32 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 /* Public briefing dashboard. */
 .feed-loading-skeleton { display: grid; gap: 20px; width: 100%; grid-column: 1 / -1; }
-.feed-loading-skeleton > div { height: 48px; border-radius: 16px; background: var(--surface-quiet); }
-.feed-loading-skeleton > div + div { height: 180px; border: 1px solid var(--line); background: var(--surface); }
+.feed-skeleton-search { height: 48px; border-radius: 16px; background: var(--surface-quiet); border: 1px solid var(--line); }
+.feed-skeleton-panel { padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
+.feed-skeleton-rows { display: grid; gap: 12px; }
+.feed-skeleton-row { display: flex; align-items: flex-start; gap: 18px; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
+.feed-skeleton-thumbnail { flex: 0 0 72px; height: 72px; border-radius: 12px; }
+.feed-skeleton-copy { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.feed-skeleton-copy span { display: block; height: 10px; border-radius: 999px; }
+.feed-skeleton-copy span:first-child { width: 68%; height: 18px; }
+.feed-skeleton-copy span:nth-child(2) { width: 48%; height: 14px; }
+.feed-skeleton-copy span:nth-child(3) { width: 94%; }
+.feed-skeleton-copy span:last-child { width: 42%; }
+.feed-skeleton-tags { display: flex; gap: 6px; padding-top: 4px; }
+.feed-skeleton-tags span { width: 40px; height: 12px; border-radius: 999px; }
+.feed-skeleton-title { display: block; width: min(360px, 70vw); height: 1em; border-radius: 10px; }
+.feed-skeleton-byline { display: block; width: 100px; height: 16px; border-radius: 999px; }
+.feed-skeleton-thumbnail, .feed-skeleton-copy span, .feed-skeleton-tags span, .feed-skeleton-title, .feed-skeleton-byline { background: color-mix(in srgb, var(--muted) 14%, var(--surface)); }
+.feed-skeleton-label { display: flex; align-items: center; justify-content: center; gap: 10px; padding-top: 18px; color: var(--muted); font-size: 14px; }
+.feed-skeleton-spinner { width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: feed-skeleton-spin 1s linear infinite; }
+@keyframes feed-skeleton-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .feed-skeleton-spinner { animation: none; } }
+@media (max-width: 600px) {
+  .feed-skeleton-panel { padding: 12px; }
+  .feed-skeleton-row { gap: 12px; padding: 10px; }
+  .feed-skeleton-thumbnail { flex-basis: 48px; height: 56px; }
+  .feed-skeleton-tags { display: none; }
+}
 :root.apple-ui.apple-ui .feed-shell :is(p, input) { font-family: Arial, sans-serif; }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell.feed-shell { max-width: 1440px; padding-inline: clamp(20px, 5vw, 72px); }
 :root.apple-ui.apple-ui .feed-shell > .page-heading { margin: 20px 0; padding-top: 0; min-height: 86px; box-sizing: border-box; }

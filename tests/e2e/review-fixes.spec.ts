@@ -84,6 +84,11 @@ test("feed reserves a loading layout before showing compact content", async ({ p
   });
   await page.goto('/joud/lebanon/');
   await expect(page.locator('.feed-loading-skeleton')).toBeVisible();
+  await expect(page.locator('.feed-skeleton-row')).toHaveCount(3);
+  await expect(page.getByRole('status')).toHaveCount(1);
+  await expect(page.locator('h1')).not.toContainText(/loading/i);
+  await expect(page.locator('.page-heading > p')).not.toContainText(/loading/i);
+  await page.screenshot({ path: test.info().outputPath('feed-loading-skeleton.png'), fullPage: true });
   release();
   await expect(page.locator('.feed-loading-skeleton')).toHaveCount(0);
   await expect(page.locator('.feed-empty-state')).toBeVisible();

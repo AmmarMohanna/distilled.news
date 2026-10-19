@@ -1,6 +1,7 @@
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { FeedNotice, FeedPublicationNotice, FeedProcessingProgress } from "./FeedNotice";
+import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
 import { createRoot } from "react-dom/client";
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import {
@@ -1550,7 +1551,7 @@ function FeedPage(props: { username: string; slug: string }) {
     <span className="feed-page-title">
       <span>{payload.briefing.title}</span>
     </span>
-  ) : initialLoading ? loadingFeedLabel(language) : "briefing";
+  ) : initialLoading ? <span className="feed-skeleton-title" aria-hidden="true"/> : "briefing";
 
   async function shareFeed() {
     const url = window.location.origin + window.location.pathname;
@@ -1639,11 +1640,11 @@ function FeedPage(props: { username: string; slug: string }) {
       header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions} contextual/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
-      meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : initialLoading ? <span className="feed-loading-message" role="status">{loadingFeedLabel(language)}</span> : undefined}
+      meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : initialLoading ? <span className="feed-skeleton-byline" aria-hidden="true"/> : undefined}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
     >
-      {initialLoading ? <div className="feed-loading-skeleton" aria-hidden="true"><div/><div/></div> : <>
+      {initialLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
         onLogout={async () => { await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); }}
         onSaved={async (nextAccount, nextBriefings) => {
@@ -1712,7 +1713,7 @@ function FeedPage(props: { username: string; slug: string }) {
           <bdi dir={pageDir}>{feedStatusMessage}</bdi>
         </p>
       ) : null}
-      {searchLoading && !error && currentEditions.length === 0 ? <p className="muted feed-loading-message" role="status">{loadingFeedLabel(language)}</p> : null}
+      {searchLoading && !error && currentEditions.length === 0 ? <FeedLoadingSkeleton label={loadingFeedLabel(language)}/> : null}
       <div className="news-line">
         {groupEditionsByDay(visibleUnreadEditions, language, clock).map(group => (
           <section className="news-day-group" key={group.key}>
