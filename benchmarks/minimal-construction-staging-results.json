@@ -1,0 +1,334 @@
+{
+  "schemaVersion": "minimal-construction-staging-evaluation-v1",
+  "scope": "minimal-construction-20261019-1",
+  "implementationCommit": "f89b355fb0b0455454fdfccb9df78d0e6e5b4a27",
+  "scopeCommit": "cadf124",
+  "workerVersion": "bf873d83-d8b5-4eda-9d86-d804345f4889",
+  "rollbackWorkerVersion": "79b9188b-26e5-41f6-a4e4-f478390ec7e6",
+  "published": false,
+  "priorCostUsd": 0.01483,
+  "newCostUsd": 0.0021916,
+  "cumulativeCostUsd": 0.0170216,
+  "unknownOperations": 0,
+  "providerUpperUsd": 0.1834572,
+  "ceilingUsd": 0.2,
+  "newProviderCalls": 1,
+  "repairs": 0,
+  "clientElapsedMs": 11187.6814,
+  "editionPersistenceLatencyMs": null,
+  "workerWallMs": 10182,
+  "constructionCallbackMs": 4717,
+  "usage": {
+    "calls": 1,
+    "tokensIn": 3491,
+    "tokensOut": 497,
+    "costUsd": 0.0021916,
+    "reported": true
+  },
+  "groupCount": 7,
+  "deferredGroupCount": 6,
+  "groups": [
+    {
+      "groupId": "G0",
+      "occurrence": "Anthropic is creating a public benefit fund to support societal good projects.",
+      "structuralRelation": "NEW_STORYLINE",
+      "units": [
+        "C1"
+      ]
+    },
+    {
+      "groupId": "G1",
+      "occurrence": "Anthropic commits 5% of its shares to the fund, with an option to add 2% more for every 50% increase in company value.",
+      "structuralRelation": "DEFER",
+      "units": [
+        "C0",
+        "C2"
+      ]
+    },
+    {
+      "groupId": "G2",
+      "occurrence": "The fund may be used for large donations to nonprofits or direct distributions to specific populations.",
+      "structuralRelation": "DEFER",
+      "units": [
+        "C3"
+      ]
+    },
+    {
+      "groupId": "G3",
+      "occurrence": "Anthropic has committed $200 million to study AI's impact on the job market.",
+      "structuralRelation": "DEFER",
+      "units": [
+        "C4"
+      ]
+    },
+    {
+      "groupId": "G4",
+      "occurrence": "Anthropic states bolder approaches may be needed given AI progress, and the fund will have versatility to pursue them.",
+      "structuralRelation": "DEFER",
+      "units": [
+        "C5",
+        "C6"
+      ]
+    },
+    {
+      "groupId": "G5",
+      "occurrence": "Anthropic's announcement occurs amid negative public sentiment about AI, described as a crisis of trust by CEO Dario Amodei.",
+      "structuralRelation": "DEFER",
+      "units": [
+        "C7"
+      ]
+    },
+    {
+      "groupId": "G6",
+      "occurrence": "Anthropic will share more information about the fund's structure and governance in coming months.",
+      "structuralRelation": "DEFER",
+      "units": [
+        "C8"
+      ]
+    }
+  ],
+  "structuralValidation": "PASSED_FIRST_RESPONSE",
+  "rematch": "DEFERRED",
+  "reason": "SEMANTIC_CONSTRUCTION_UNRESOLVED",
+  "writerReached": false,
+  "factualVerification": "NOT_REACHED",
+  "briefing": null,
+  "sourceUrl": "https://techcrunch.com/2026/10/18/anthropic-says-its-committing-5-of-its-shares-to-a-public-benefit-fund/",
+  "databaseMetrics": {
+    "queries": 232,
+    "sqlCpuMs": 303.88279999999975,
+    "responseBytes": 332250,
+    "wallMs": 5689,
+    "rowsRead": 90456,
+    "rowsWritten": 257
+  },
+  "trace": {
+    "requests": [
+      {
+        "cpuTime": 382,
+        "wallTime": 10307,
+        "outcome": "ok",
+        "scriptVersion": {
+          "id": "bf873d83-d8b5-4eda-9d86-d804345f4889"
+        },
+        "exceptions": []
+      }
+    ],
+    "traces": [
+      {
+        "type": "V1_SEMANTIC_PREPARATION_CONTEXT",
+        "feedId": "staging-fresh-20261019-run1",
+        "jobId": "[\"REASSESS\",\"ff5958eb9260e657a76c040ca8cea43222457318d967da5fd178208c9dd1aa42\",\"\"]",
+        "durationMs": 341,
+        "eventRoots": 1,
+        "storylineRoots": 1,
+        "offeredEvents": 0,
+        "offeredStorylines": 0,
+        "contextBatchQueries": 4,
+        "leaseRemainingMs": 239503
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "MODEL",
+        "reviewId": "1c260f1c95c2599b030ddada1ca61e39739e2b9ad0def407d757ff792697c71f",
+        "operationId": "3cac4df425ea3732ca86adf0149472c21d02f308114b9d2ae6c327d3a5f0fdcc",
+        "outcome": "SUCCEEDED",
+        "durationMs": 6240,
+        "counts": {
+          "casAttempts": 2,
+          "documentReads": 5,
+          "listReads": 0,
+          "revisionReads": 0,
+          "preloadQueries": 9,
+          "validationMs": 0,
+          "documentWrites": 2,
+          "jobWrites": 0,
+          "newProviderCalls": 1,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0.0021916,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 4717
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 2,
+            "durationMs": 52
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 2,
+            "durationMs": 914
+          },
+          "GRAPH_VALIDATION": {
+            "count": 2,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 2,
+            "durationMs": 341
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 1143
+          },
+          "SEMANTIC_CONSTRUCTION": {
+            "count": 1,
+            "durationMs": 4717
+          },
+          "SPENDING_SETTLEMENT": {
+            "count": 1,
+            "durationMs": 141
+          },
+          "RESULT_COMMIT": {
+            "count": 1,
+            "durationMs": 164
+          }
+        },
+        "receiptOperationId": "3cac4df425ea3732ca86adf0149472c21d02f308114b9d2ae6c327d3a5f0fdcc"
+      },
+      {
+        "type": "V1_FEED_TRANSACTION_TIMING",
+        "feedId": "staging-fresh-20261019-run1",
+        "attempts": 1,
+        "durationMs": 2613,
+        "computationMs": 2515,
+        "writes": 56,
+        "jobs": 1,
+        "queries": {
+          "documentReads": 51,
+          "listReads": 6,
+          "revisionReads": 0,
+          "preloadQueries": 14,
+          "validationMs": 0
+        }
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "REMATCH",
+        "reviewId": "1c260f1c95c2599b030ddada1ca61e39739e2b9ad0def407d757ff792697c71f",
+        "outcome": "SUCCEEDED",
+        "durationMs": 9948,
+        "counts": {
+          "casAttempts": 3,
+          "documentReads": 53,
+          "listReads": 6,
+          "revisionReads": 0,
+          "preloadQueries": 14,
+          "validationMs": 0,
+          "documentWrites": 58,
+          "jobWrites": 1,
+          "activeEvidence": 1,
+          "claimMentions": 9,
+          "acceptedToReviewMs": 10517698,
+          "eventVersionsUpdated": 8,
+          "storylineVersionsUpdated": 8,
+          "ledgerEntriesInspected": 0,
+          "ledgerSupportIdentities": 0
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 3,
+            "durationMs": 88
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 3,
+            "durationMs": 2581
+          },
+          "GRAPH_VALIDATION": {
+            "count": 3,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 3,
+            "durationMs": 181
+          },
+          "SEMANTIC_LEASE_ADMISSION": {
+            "count": 1,
+            "durationMs": 144
+          },
+          "EVIDENCE_LOAD": {
+            "count": 2,
+            "durationMs": 48
+          },
+          "CLAIM_EXTRACTION": {
+            "count": 1,
+            "durationMs": 0
+          },
+          "MODEL_OPERATION": {
+            "count": 1,
+            "durationMs": 6240
+          },
+          "SEMANTIC_PREPARATION": {
+            "count": 1,
+            "durationMs": 6744
+          },
+          "GRAPH_LOAD": {
+            "count": 1,
+            "durationMs": 314
+          },
+          "CLAIM_PREPROCESSING": {
+            "count": 1,
+            "durationMs": 21
+          },
+          "STORYLINE_UPDATES": {
+            "count": 1,
+            "durationMs": 811
+          },
+          "SOURCE_CORRECTION_REFRESH": {
+            "count": 1,
+            "durationMs": 30
+          },
+          "CORRECTION_LEDGER": {
+            "count": 1,
+            "durationMs": 30
+          },
+          "CANONICAL_REVIEW": {
+            "count": 1,
+            "durationMs": 2647
+          }
+        }
+      },
+      {
+        "type": "STAGING_MISSION_DB_METRICS",
+        "feedId": "staging-fresh-20261019-run1",
+        "action": "review-disposition-v1",
+        "queries": 232,
+        "sqlCpuMs": 303.88279999999975,
+        "responseBytes": 332250,
+        "wallMs": 5689,
+        "rowsRead": 90456,
+        "rowsWritten": 257
+      }
+    ]
+  },
+  "isolation": [
+    {
+      "surface": "operator",
+      "status": 404
+    },
+    {
+      "surface": "publicFeed",
+      "status": 404
+    },
+    {
+      "surface": "publicDevelopments",
+      "status": 404
+    }
+  ],
+  "privateEvidenceSha256": {
+    "minimal-construction-20261019-1-evidence.json": "5ab6292d932da7f6da8eb3aaaec699e26808fc185c9e013b0fcaf7c13f03aa9f",
+    "minimal-construction-20261019-1-traces.json": "547899badfe74a50b879bda764e9e05f31ac9e0648fd5591627aed024a482634",
+    "minimal-construction-20261019-1-client-intent.json": "a86c5e026b17c2ebf9d0283314cc01ebad1a9a460c8fe660382a4cecf367d719",
+    "minimal-construction-20261019-1-client-timing.json": "a966982eca817eb26db8dabfe02aad355d5b4c16c9bc8f9c1e33ae24ffb5f8fd",
+    "disposition-run-readonly-minimal-before.json": "d873e1ae2b4ab061381a2a0038783d4ec24327d3fe51329fa8ea6f7108589ce6",
+    "disposition-run-readonly-minimal-after.json": "412afe951d5d166416827c39d7985c1ff3f768d82ee65bdf7258c10178dd72d2",
+    "minimal-run-preflight.json": "01622711af7ffbeafbac676ac5139f0252b9a3407d99d1ec8616334a099c6488",
+    "minimal-isolation-smoke.json": "6a41bc114c142005b8c83bea72b919e8e6b7e37a4c8257cbbb4c795ccec33a23"
+  },
+  "limitations": [
+    "Provider reported cost excludes unavailable per-request Cloudflare invoice allocation.",
+    "Stopped review latency is not persisted-edition latency.",
+    "Structural acceptance is not grouping-quality or factual-verification acceptance."
+  ]
+}
