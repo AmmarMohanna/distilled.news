@@ -50,3 +50,31 @@ it('settles invalid source-only coverage as a negative verdict with confirmed us
  expect(result.preservedFactIds).toEqual([]);expect(result.semanticChecks?.[0].communicated).toBe(false);
  expect(result.usage).toEqual({tokensIn:100,tokensOut:50,cost:.001,confirmed:true});
 });
+
+it('offers overlapping sources as one development and keeps a separate update with story-owned citations',async()=>{
+ let requests=0,foreignSupport=false,request:any;
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2',DISTILLED_LLM_API_GATEWAY:'openrouter',DISTILLED_LIVE_OPENROUTER_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'synthetic'} as Env,async(_,init)=>{
+  requests++;request=JSON.parse(String(init?.body));
+  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({language:'en',stories:[
+   {storyId:'story_1',claims:[{text:'Acme announced its model, available today.',supportIds:['span_1_1','span_1_2'],communicatedFactIds:['fact_1_1','fact_1_2']}]},
+   {storyId:'story_2',claims:[{text:'Acme separately withdrew its older model after a security report.',supportIds:[foreignSupport?'span_1_1':'span_2_1'],communicatedFactIds:['fact_2_1']}]}
+  ]})}}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}}));
+ })!;
+ const makeStory=(id:string,revision:string,facts:{id:string;text:string;support:{evidenceRevisionId:string;quote:string}[]}[],evidence:any[])=>({candidate:{id,targetType:'EVENT',targetVersionId:revision},plan:{mustIncludeFactIds:facts.map(f=>f.id),validation:{},previousLedgerEntries:[],correctionObligations:[]},approvedFacts:facts,evidence});
+ const input:any={feed:{id:'f',revision:1,title:'Feed',interests:[],outputLanguage:'en'},selectionId:'selected',stories:[
+  makeStory('announcement','event-launch',[{id:'launch',text:'Acme announced its model.',support:[{evidenceRevisionId:'article-a',quote:'Acme announced its model.'}]},{id:'availability',text:'The model is available today.',support:[{evidenceRevisionId:'article-b',quote:'The model is available today.'}]}],[{id:'article-a',body:'Acme announced its model.',publisherId:'publisher-a'},{id:'article-b',body:'Acme announced its model. The model is available today.',publisherId:'publisher-b'}]),
+  makeStory('withdrawal','event-security',[{id:'withdrawal',text:'Acme separately withdrew its older model after a security report.',support:[{evidenceRevisionId:'article-c',quote:'Acme separately withdrew its older model after a security report.'}]}],[{id:'article-c',body:'Acme separately withdrew its older model after a security report.',publisherId:'publisher-c'}])
+ ]};
+ const limits={maxOutputTokens:400,signal:new AbortController().signal};
+ const result=await model.synthesize(input,limits),payload=JSON.parse(request.messages[1].content);
+ expect(requests).toBe(1);expect(payload.instruction).toContain('each selected story is one development, not one article');
+ expect(payload.instruction).toContain('Keep separate selected developments separate');expect(payload.input.stories).toHaveLength(2);
+ expect(payload.input.stories[0].supportSpans.map((s:any)=>s.publisherId)).toEqual(['publisher-a','publisher-b']);
+ expect(payload.input.stories[0].approvedFacts.every((f:any)=>f.mustInclude)).toBe(true);
+ expect(result.draft.stories.map(s=>s.candidateId)).toEqual(['announcement','withdrawal']);
+ expect(result.draft.stories[0].claims[0].support.map(s=>s.evidenceRevisionId)).toEqual(['article-a','article-b']);
+ expect(result.draft.stories[0].claims[0].communicatedFactIds).toEqual(['launch','availability']);
+ const repair:any=model.repairPayload!(input,result.draft,{issues:[],missingFactIds:[]} as any);
+ expect(repair.payload.instruction).toContain('each selected story is one development, not one article');
+ foreignSupport=true;await expect(model.synthesize(input,limits)).rejects.toThrow('UNRECOGNIZED_SUPPORT_ID');
+});
