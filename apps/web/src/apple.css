@@ -1645,9 +1645,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 
 /* Public briefing dashboard. */
-.feed-pagination { display: flex; align-items: center; justify-content: center; gap: 16px; min-height: 44px; margin-top: 12px; grid-column: 1 / -1; }
-.feed-pagination button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; padding: 6px 10px; }
-.feed-pagination span { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .feed-loading-skeleton { display: grid; gap: 20px; width: 100%; grid-column: 1 / -1; }
 .feed-loading-skeleton > div { height: 48px; border-radius: 16px; background: var(--surface-quiet); }
 .feed-loading-skeleton > div + div { height: 180px; border: 1px solid var(--line); background: var(--surface); }

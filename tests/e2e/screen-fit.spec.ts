@@ -84,25 +84,19 @@ test("voice controls keep feed name separate from description", async ({ page })
   await expect(page.getByLabel("What would you like to follow?", { exact: true })).toHaveValue("Marine archaeology discoveries");
 });
 
-test("long feed lists page through complete cards above navigation", async ({ page }) => {
+test("all feed cards scroll with the page without paging controls", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 664 });
   await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: Array.from({ length: 20 }, (_, i) => ({ id: `feed-${i}`, ownerUsername: "test", slug: `feed-${i}`, title: `Feed ${i + 1}` })) } }));
   await page.goto("/");
-  const paging = page.getByRole('navigation', { name: 'Feed pages' });
-  await expect(paging).toBeVisible();
-  const next = paging.getByRole('button', { name: 'Next' });
-  const visited = new Set<string>();
-  for (let i = 0; i < 20; i++) {
-    for (const title of await page.locator('.personal-feed-grid .feed-card-identity strong').allTextContents()) visited.add(title);
-    if (!await next.isEnabled()) break;
-    await next.click();
-  }
-  expect(visited.size).toBe(20);
-  await expect(next).toBeDisabled();
+  await expect(page.locator('.personal-feed-grid .topic-card')).toHaveCount(20);
+  await expect(page.locator('.feed-pagination')).toHaveCount(0);
+  await expect(page.locator('.personal-feed-grid')).toHaveCSS('overflow-y', 'visible');
+  const viewport = page.locator('.app-pages > .screen-page-viewport');
+  await expect.poll(() => viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+  await viewport.evaluate(node => { node.scrollTop = node.scrollHeight; });
   const card = await page.locator('.personal-feed-grid .topic-card').last().boundingBox();
   const navigation = await page.locator('.bottom-navigation').boundingBox();
   expect(card!.y + card!.height).toBeLessThanOrEqual(navigation!.y);
-  await expect(paging.getByRole('button', { name: 'Previous' })).toBeEnabled();
 });
 
 for (const size of [{ width: 320, height: 568 }, { width: 390, height: 664 }, { width: 390, height: 844 }, { width: 667, height: 375 }, { width: 1280, height: 720 }, { width: 1440, height: 1000 }]) {
@@ -124,12 +118,7 @@ for (const size of [{ width: 320, height: 568 }, { width: 390, height: 664 }, { 
       return rows.slice(1).every((row, index) => Math.abs(row.top - rows[index].bottom - gap) < 1);
     })).toBe(true);
     await expect(page.locator('.personal-feed-grid')).toHaveCSS('margin-top', '8px');
-    await expect.poll(async () => {
-      const last = await page.locator('.personal-feed-grid .topic-card').last().boundingBox();
-      const navigation = await page.locator('.bottom-navigation').boundingBox();
-      const bottom = size.width < 900 ? navigation?.y ?? size.height : size.height;
-      return last !== null && last.y + last.height <= bottom + 1;
-    }).toBe(true);
+
 
   });
 }

@@ -1,15 +1,8 @@
-import { Children, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useLanguage } from './LanguageControl';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
 /** Keep card interiors consistent while the full feed list flows with the page. */
 export function AdaptiveFeedGrid({ children, className, count }: { children: ReactNode; className: string; count: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [capacity, setCapacity] = useState(count || 1);
-  const [page, setPage] = useState(0);
-  const { language } = useLanguage();
-  const labels = language === 'fr' ? { previous: 'Précédent', next: 'Suivant', pages: 'Pages de fils' } : language === 'ar' ? { previous: 'السابق', next: 'التالي', pages: 'صفحات الخلاصات' } : { previous: 'Previous', next: 'Next', pages: 'Feed pages' };
-  useEffect(() => setPage(0), [children]);
   useLayoutEffect(() => {
     const grid = ref.current;
     if (!grid || !count) return;
@@ -27,10 +20,6 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       const gap = window.innerWidth >= 900 ? 16 : 10;
       // Content-sized cards and a uniform gap; overflow stays on the full page.
       const rowHeight = roomy ? 208 : 84;
-      const allRows = Math.ceil(count / columns);
-      const needsPaging = allRows * rowHeight + (allRows - 1) * gap > available;
-      const rows = Math.max(1, Math.floor((available - (needsPaging ? 60 : 0) + gap) / (rowHeight + gap)));
-      setCapacity(Math.max(columns, Math.min(count, rows * columns)));
       grid.dataset.layout = roomy ? 'large' : 'compact';
       grid.style.setProperty('--feed-columns', String(columns));
       grid.style.setProperty('--feed-row-height', `${rowHeight}px`);
@@ -45,13 +34,5 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
     window.addEventListener('resize', measure);
     return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
   }, [count]);
-  const pages = Math.max(1, Math.ceil(count / capacity));
-  const current = Math.min(page, pages - 1);
-  return <><div className={`adaptive-feed-grid ${className}`} ref={ref}>{Children.toArray(children).slice(current * capacity, (current + 1) * capacity)}</div>
-    {pages > 1 && <nav className="feed-pagination" aria-label={labels.pages}>
-      <button type="button" disabled={current === 0} onClick={() => setPage(current - 1)}><ChevronLeft size={18}/>{labels.previous}</button>
-      <span aria-live="polite">{current * capacity + 1}–{Math.min(count, (current + 1) * capacity)} / {count}</span>
-      <button type="button" disabled={current === pages - 1} onClick={() => setPage(current + 1)}>{labels.next}<ChevronRight size={18}/></button>
-    </nav>}
-  </>;
+  return <div className={`adaptive-feed-grid ${className}`} ref={ref}>{children}</div>;
 }
