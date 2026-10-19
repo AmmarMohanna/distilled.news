@@ -1,0 +1,1273 @@
+{
+  "schemaVersion": "autonomous-private-publication-results-v1",
+  "feedId": "staging-fresh-20261019-run1",
+  "deployedCommit": "9452639",
+  "workerVersion": "701af09b-e88f-4383-86e0-bb721c205452",
+  "rollbackVersion": "2c55b1ca-81ec-4735-a90d-2f98523ce249",
+  "published": false,
+  "editions": 0,
+  "publicFeedEnabled": false,
+  "pushReceipts": 0,
+  "deliveryJobs": 0,
+  "cumulativeProviderCeilingUsd": 0.2,
+  "priorProviderCostUsd": 0.019806432,
+  "newProviderCostUsd": 0.025995302,
+  "totalProviderCostUsd": 0.045801734,
+  "settledOperations": 21,
+  "unknownFeedOutcomes": 0,
+  "attemptLimit": 4,
+  "attemptsConsumed": 4,
+  "successfulEditionCostUsd": null,
+  "publicationLatencyMs": null,
+  "factualVerification": "NOT_REACHED",
+  "stageCostsThisMissionUsd": {
+    "relation": 0.000195342,
+    "construction": 0.0057164,
+    "ranking": 0.00013356,
+    "editorialPlanning": 0.01995,
+    "writing": 0,
+    "verification": 0,
+    "repairs": 0
+  },
+  "infrastructureCost": "Not allocated per-request on shared staging; measured SQL CPU/rows and Worker CPU are separate from provider charges.",
+  "attempts": [
+    {
+      "scope": "autonomous-20261019-1",
+      "published": false,
+      "newProviderCostUsd": 0.003310996,
+      "cumulativeProviderCostUsd": 0.023117428,
+      "clientTiming": {
+        "at": "2026-10-19T16:56:00.536Z",
+        "scope": "autonomous-20261019-1",
+        "wallMs": 35709.4823,
+        "requests": [
+          {
+            "action": "review-disposition-v1",
+            "httpStatus": 200,
+            "clientWallMs": 23167.7903,
+            "workerWallMs": 22353,
+            "databaseMetrics": {
+              "queries": 253,
+              "sqlCpuMs": 674.9213000000005,
+              "responseBytes": 569539,
+              "wallMs": 13753,
+              "rowsRead": 136513,
+              "rowsWritten": 236
+            }
+          },
+          {
+            "action": "publish-disposition-v1",
+            "httpStatus": 200,
+            "clientWallMs": 12523.370400000003,
+            "workerWallMs": 12154,
+            "databaseMetrics": {
+              "queries": 179,
+              "sqlCpuMs": 659.4513000000003,
+              "responseBytes": 280021,
+              "wallMs": 11951,
+              "rowsRead": 224015,
+              "rowsWritten": 87
+            }
+          }
+        ]
+      },
+      "evidenceSha256": "e0ca2ddf1b75a50c0424850f9933cfdd7e5367e59c723199c0216195b8977282"
+    },
+    {
+      "scope": "autonomous-20261019-2",
+      "published": false,
+      "newProviderCostUsd": 0.010635506,
+      "cumulativeProviderCostUsd": 0.033752934,
+      "clientTiming": {
+        "at": "2026-10-19T17:08:31.040Z",
+        "scope": "autonomous-20261019-2",
+        "wallMs": 62885.8306,
+        "requests": [
+          {
+            "action": "review-disposition-v1",
+            "httpStatus": 200,
+            "clientWallMs": 16231.1406,
+            "workerWallMs": 15399,
+            "databaseMetrics": {
+              "queries": 237,
+              "sqlCpuMs": 560.7569000000003,
+              "responseBytes": 659436,
+              "wallMs": 11245,
+              "rowsRead": 138581,
+              "rowsWritten": 206
+            }
+          },
+          {
+            "action": "publish-disposition-v1",
+            "httpStatus": 200,
+            "clientWallMs": 46650.22,
+            "workerWallMs": 46424,
+            "databaseMetrics": {
+              "queries": 236,
+              "sqlCpuMs": 717.2278999999997,
+              "responseBytes": 509372,
+              "wallMs": 14672,
+              "rowsRead": 266196,
+              "rowsWritten": 123
+            }
+          }
+        ]
+      },
+      "evidenceSha256": "52d68a2d57ef055364c63d833b02fd325d98a07f558f977ce71e4a78242eacb2",
+      "trace": {
+        "requests": [
+          {
+            "cpuTime": 220,
+            "wallTime": 15604,
+            "outcome": "ok",
+            "scriptVersion": {
+              "id": "d09a8c38-bebf-4660-a85c-001d43c183d8"
+            },
+            "exceptions": []
+          },
+          {
+            "cpuTime": 612,
+            "wallTime": 46613,
+            "outcome": "ok",
+            "scriptVersion": {
+              "id": "d09a8c38-bebf-4660-a85c-001d43c183d8"
+            },
+            "exceptions": []
+          }
+        ],
+        "traces": [
+          {
+            "type": "V1_SEMANTIC_PREPARATION_CONTEXT",
+            "feedId": "staging-fresh-20261019-run1",
+            "jobId": "[\"REASSESS\",\"ff5958eb9260e657a76c040ca8cea43222457318d967da5fd178208c9dd1aa42\",\"\"]",
+            "durationMs": 636,
+            "eventRoots": 16,
+            "storylineRoots": 8,
+            "offeredEvents": 7,
+            "offeredStorylines": 1,
+            "contextBatchQueries": 4,
+            "leaseRemainingMs": 239095
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "MODEL",
+            "reviewId": "22e1a4984f35ee7415bab4fa9c45d398787366b5d7a8995b2d2e19ee740e06d6",
+            "operationId": "380fae463e71ab4ece3fc7e43a241919a7a6206f212c8e199237709d905443d9",
+            "outcome": "SUCCEEDED",
+            "durationMs": 3906,
+            "counts": {
+              "casAttempts": 2,
+              "documentReads": 5,
+              "listReads": 0,
+              "revisionReads": 0,
+              "preloadQueries": 6,
+              "validationMs": 0,
+              "documentWrites": 2,
+              "jobWrites": 0,
+              "newProviderCalls": 1,
+              "receiptProviderCalls": 1,
+              "receiptReportedCostUsd": 9.744e-05,
+              "reportedUsage": 1,
+              "receiptProviderLatencyMs": 1965
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 2,
+                "durationMs": 124
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 2,
+                "durationMs": 888
+              },
+              "GRAPH_VALIDATION": {
+                "count": 2,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 2,
+                "durationMs": 462
+              },
+              "SPENDING_RESERVATION": {
+                "count": 1,
+                "durationMs": 1186
+              },
+              "RELATION": {
+                "count": 1,
+                "durationMs": 1965
+              },
+              "SPENDING_SETTLEMENT": {
+                "count": 1,
+                "durationMs": 310
+              },
+              "RESULT_COMMIT": {
+                "count": 1,
+                "durationMs": 288
+              }
+            },
+            "receiptOperationId": "380fae463e71ab4ece3fc7e43a241919a7a6206f212c8e199237709d905443d9"
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "MODEL",
+            "reviewId": "22e1a4984f35ee7415bab4fa9c45d398787366b5d7a8995b2d2e19ee740e06d6",
+            "operationId": "1512b6fc2522efeb8a1c294ea4ebc86eac516a64aa495af73e8b7cec2afd756a",
+            "outcome": "SUCCEEDED",
+            "durationMs": 5374,
+            "counts": {
+              "casAttempts": 2,
+              "documentReads": 5,
+              "listReads": 0,
+              "revisionReads": 0,
+              "preloadQueries": 12,
+              "validationMs": 0,
+              "documentWrites": 2,
+              "jobWrites": 0,
+              "newProviderCalls": 1,
+              "receiptProviderCalls": 1,
+              "receiptReportedCostUsd": 0.0025876,
+              "reportedUsage": 1,
+              "receiptProviderLatencyMs": 3017
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 2,
+                "durationMs": 109
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 2,
+                "durationMs": 1279
+              },
+              "GRAPH_VALIDATION": {
+                "count": 2,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 2,
+                "durationMs": 495
+              },
+              "SPENDING_RESERVATION": {
+                "count": 1,
+                "durationMs": 1571
+              },
+              "SEMANTIC_CONSTRUCTION": {
+                "count": 1,
+                "durationMs": 3017
+              },
+              "SPENDING_SETTLEMENT": {
+                "count": 1,
+                "durationMs": 350
+              },
+              "RESULT_COMMIT": {
+                "count": 1,
+                "durationMs": 312
+              }
+            },
+            "receiptOperationId": "1512b6fc2522efeb8a1c294ea4ebc86eac516a64aa495af73e8b7cec2afd756a"
+          },
+          {
+            "type": "V1_FEED_TRANSACTION_TIMING",
+            "feedId": "staging-fresh-20261019-run1",
+            "attempts": 1,
+            "durationMs": 3061,
+            "computationMs": 2907,
+            "writes": 30,
+            "jobs": 1,
+            "queries": {
+              "documentReads": 23,
+              "listReads": 6,
+              "revisionReads": 0,
+              "preloadQueries": 9,
+              "validationMs": 0
+            }
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "REMATCH",
+            "reviewId": "22e1a4984f35ee7415bab4fa9c45d398787366b5d7a8995b2d2e19ee740e06d6",
+            "outcome": "SUCCEEDED",
+            "durationMs": 14156,
+            "counts": {
+              "casAttempts": 3,
+              "documentReads": 25,
+              "listReads": 6,
+              "revisionReads": 0,
+              "preloadQueries": 9,
+              "validationMs": 0,
+              "documentWrites": 32,
+              "jobWrites": 1,
+              "activeEvidence": 1,
+              "claimMentions": 9,
+              "acceptedToReviewMs": 15753925,
+              "eventVersionsUpdated": 8,
+              "storylineVersionsUpdated": 1,
+              "ledgerEntriesInspected": 0,
+              "ledgerSupportIdentities": 0
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 3,
+                "durationMs": 166
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 3,
+                "durationMs": 3073
+              },
+              "GRAPH_VALIDATION": {
+                "count": 3,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 3,
+                "durationMs": 247
+              },
+              "SEMANTIC_LEASE_ADMISSION": {
+                "count": 1,
+                "durationMs": 237
+              },
+              "EVIDENCE_LOAD": {
+                "count": 2,
+                "durationMs": 129
+              },
+              "CLAIM_EXTRACTION": {
+                "count": 1,
+                "durationMs": 0
+              },
+              "MODEL_OPERATION": {
+                "count": 2,
+                "durationMs": 9280
+              },
+              "SEMANTIC_PREPARATION": {
+                "count": 1,
+                "durationMs": 10166
+              },
+              "GRAPH_LOAD": {
+                "count": 1,
+                "durationMs": 634
+              },
+              "CLAIM_PREPROCESSING": {
+                "count": 1,
+                "durationMs": 60
+              },
+              "STORYLINE_UPDATES": {
+                "count": 1,
+                "durationMs": 249
+              },
+              "SOURCE_CORRECTION_REFRESH": {
+                "count": 1,
+                "durationMs": 56
+              },
+              "CORRECTION_LEDGER": {
+                "count": 1,
+                "durationMs": 56
+              },
+              "CANONICAL_REVIEW": {
+                "count": 1,
+                "durationMs": 3119
+              }
+            }
+          },
+          {
+            "type": "STAGING_MISSION_DB_METRICS",
+            "feedId": "staging-fresh-20261019-run1",
+            "action": "review-disposition-v1",
+            "queries": 234,
+            "sqlCpuMs": 556.3032000000003,
+            "responseBytes": 658372,
+            "wallMs": 11075,
+            "rowsRead": 137672,
+            "rowsWritten": 206
+          },
+          {
+            "type": "V1_FEED_TRANSACTION_TIMING",
+            "feedId": "staging-fresh-20261019-run1",
+            "attempts": 1,
+            "durationMs": 2822,
+            "computationMs": 2698,
+            "writes": 0,
+            "jobs": 0,
+            "queries": {
+              "documentReads": 16,
+              "listReads": 15,
+              "revisionReads": 0,
+              "preloadQueries": 4,
+              "validationMs": 0
+            }
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "MODEL",
+            "windowId": "845c80942774f1f22477e37bb6c58969e49a88ac1b39b742f71341d0a66f164b",
+            "operationId": "3161acbedd2c6d89f9e5c56ecb1826f343c05c534b4c18cbd57a56260019b0ef",
+            "outcome": "SUCCEEDED",
+            "durationMs": 2304,
+            "counts": {
+              "casAttempts": 2,
+              "documentReads": 5,
+              "listReads": 0,
+              "revisionReads": 0,
+              "preloadQueries": 6,
+              "validationMs": 0,
+              "documentWrites": 2,
+              "jobWrites": 0,
+              "newProviderCalls": 1,
+              "receiptProviderCalls": 1,
+              "receiptReportedCostUsd": 4.9266e-05,
+              "reportedUsage": 1,
+              "receiptProviderLatencyMs": 593
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 2,
+                "durationMs": 108
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 2,
+                "durationMs": 805
+              },
+              "GRAPH_VALIDATION": {
+                "count": 2,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 2,
+                "durationMs": 444
+              },
+              "SPENDING_RESERVATION": {
+                "count": 1,
+                "durationMs": 1066
+              },
+              "EDITORIAL_RELEVANCE": {
+                "count": 1,
+                "durationMs": 593
+              },
+              "SPENDING_SETTLEMENT": {
+                "count": 1,
+                "durationMs": 297
+              },
+              "RESULT_COMMIT": {
+                "count": 1,
+                "durationMs": 291
+              }
+            },
+            "receiptOperationId": "3161acbedd2c6d89f9e5c56ecb1826f343c05c534b4c18cbd57a56260019b0ef"
+          },
+          {
+            "type": "V1_FEED_TRANSACTION_TIMING",
+            "feedId": "staging-fresh-20261019-run1",
+            "attempts": 1,
+            "durationMs": 3110,
+            "computationMs": 2977,
+            "writes": 1,
+            "jobs": 0,
+            "queries": {
+              "documentReads": 16,
+              "listReads": 15,
+              "revisionReads": 0,
+              "preloadQueries": 4,
+              "validationMs": 0
+            }
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "MODEL",
+            "windowId": "845c80942774f1f22477e37bb6c58969e49a88ac1b39b742f71341d0a66f164b",
+            "operationId": "420556eeb1679f5b42e6f49a5dad59a0c98b8dac58e1ab07b703b26b4c4e560d",
+            "outcome": "SUCCEEDED",
+            "durationMs": 33698,
+            "counts": {
+              "casAttempts": 2,
+              "documentReads": 5,
+              "listReads": 0,
+              "revisionReads": 0,
+              "preloadQueries": 1,
+              "validationMs": 0,
+              "documentWrites": 2,
+              "jobWrites": 0,
+              "newProviderCalls": 1,
+              "receiptProviderCalls": 1,
+              "receiptReportedCostUsd": 0.0079012,
+              "reportedUsage": 1,
+              "receiptProviderLatencyMs": 31902
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 2,
+                "durationMs": 115
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 2,
+                "durationMs": 525
+              },
+              "GRAPH_VALIDATION": {
+                "count": 2,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 2,
+                "durationMs": 494
+              },
+              "SPENDING_RESERVATION": {
+                "count": 1,
+                "durationMs": 814
+              },
+              "COMPARATIVE_EDITORIAL_PLAN": {
+                "count": 1,
+                "durationMs": 31902
+              },
+              "SPENDING_SETTLEMENT": {
+                "count": 1,
+                "durationMs": 602
+              },
+              "RESULT_COMMIT": {
+                "count": 1,
+                "durationMs": 320
+              }
+            },
+            "receiptOperationId": "420556eeb1679f5b42e6f49a5dad59a0c98b8dac58e1ab07b703b26b4c4e560d"
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "PUBLICATION",
+            "windowId": "845c80942774f1f22477e37bb6c58969e49a88ac1b39b742f71341d0a66f164b",
+            "outcome": "SUCCEEDED",
+            "durationMs": 45438,
+            "counts": {
+              "windowClosedAgeMs": 1134,
+              "casAttempts": 8,
+              "documentReads": 38,
+              "listReads": 30,
+              "revisionReads": 0,
+              "preloadQueries": 8,
+              "validationMs": 0,
+              "documentWrites": 5,
+              "jobWrites": 0,
+              "pendingJobs": 0,
+              "failedJobs": 0,
+              "ledgerEntriesInspected": 0,
+              "ledgerSupportIdentities": 0
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 8,
+                "durationMs": 674
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 8,
+                "durationMs": 6066
+              },
+              "GRAPH_VALIDATION": {
+                "count": 8,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 8,
+                "durationMs": 1631
+              },
+              "WINDOW_READINESS": {
+                "count": 1,
+                "durationMs": 573
+              },
+              "SOURCE_CORRECTION_REFRESH": {
+                "count": 2,
+                "durationMs": 111
+              },
+              "MODEL_OPERATION": {
+                "count": 2,
+                "durationMs": 36002
+              },
+              "SEMANTIC_SHORTLIST": {
+                "count": 1,
+                "durationMs": 8295
+              },
+              "EDITORIAL_PLAN": {
+                "count": 1,
+                "durationMs": 34188
+              }
+            }
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "PUBLICATION_TURN",
+            "outcome": "SUCCEEDED",
+            "durationMs": 45877,
+            "counts": {},
+            "stages": {
+              "FEED_TURN_ADMISSION": {
+                "count": 1,
+                "durationMs": 71
+              },
+              "FEED_TURN_HELD": {
+                "count": 1,
+                "durationMs": 45672
+              },
+              "PUBLICATION_EXCLUSIVE_TURN": {
+                "count": 1,
+                "durationMs": 45877
+              }
+            }
+          },
+          {
+            "type": "STAGING_MISSION_DB_METRICS",
+            "feedId": "staging-fresh-20261019-run1",
+            "action": "publish-disposition-v1",
+            "queries": 233,
+            "sqlCpuMs": 713.1493999999997,
+            "responseBytes": 507788,
+            "wallMs": 14504,
+            "rowsRead": 265286,
+            "rowsWritten": 123
+          }
+        ]
+      },
+      "traceSha256": "7331d87db9fb435a57e4efabb03004ec0af948e59985ee9ae99f50da31c38323"
+    },
+    {
+      "scope": "autonomous-20261019-3",
+      "published": false,
+      "newProviderCostUsd": 0.007922,
+      "cumulativeProviderCostUsd": 0.041674934,
+      "clientTiming": {
+        "at": "2026-10-19T17:20:08.904Z",
+        "scope": "autonomous-20261019-3",
+        "wallMs": 54897.924100000004,
+        "requests": [
+          {
+            "action": "review-disposition-v1",
+            "httpStatus": 200,
+            "clientWallMs": 1929.8304999999998,
+            "workerWallMs": 1080,
+            "databaseMetrics": {
+              "queries": 20,
+              "sqlCpuMs": 47.256200000000014,
+              "responseBytes": 30965,
+              "wallMs": 1311,
+              "rowsRead": 24291,
+              "rowsWritten": 6
+            }
+          },
+          {
+            "action": "publish-disposition-v1",
+            "httpStatus": 200,
+            "clientWallMs": 52962.1394,
+            "workerWallMs": 52627,
+            "databaseMetrics": {
+              "queries": 207,
+              "sqlCpuMs": 667.0995,
+              "responseBytes": 581523,
+              "wallMs": 11702,
+              "rowsRead": 231726,
+              "rowsWritten": 98
+            }
+          }
+        ]
+      },
+      "evidenceSha256": "80706d6834275f044765877c7664cb0d8c8e33658f18aaae3f5802fc7a3e85bd",
+      "trace": {
+        "requests": [
+          {
+            "cpuTime": 16,
+            "wallTime": 1344,
+            "outcome": "ok",
+            "scriptVersion": {
+              "id": "2c55b1ca-81ec-4735-a90d-2f98523ce249"
+            },
+            "exceptions": []
+          },
+          {
+            "cpuTime": 611,
+            "wallTime": 52834,
+            "outcome": "ok",
+            "scriptVersion": {
+              "id": "2c55b1ca-81ec-4735-a90d-2f98523ce249"
+            },
+            "exceptions": []
+          }
+        ],
+        "traces": [
+          {
+            "type": "STAGING_MISSION_DB_METRICS",
+            "feedId": "staging-fresh-20261019-run1",
+            "action": "review-disposition-v1",
+            "queries": 17,
+            "sqlCpuMs": 42.79300000000001,
+            "responseBytes": 29381,
+            "wallMs": 1080,
+            "rowsRead": 23381,
+            "rowsWritten": 6
+          },
+          {
+            "type": "V1_FEED_TRANSACTION_TIMING",
+            "feedId": "staging-fresh-20261019-run1",
+            "attempts": 1,
+            "durationMs": 2656,
+            "computationMs": 2532,
+            "writes": 0,
+            "jobs": 0,
+            "queries": {
+              "documentReads": 16,
+              "listReads": 15,
+              "revisionReads": 0,
+              "preloadQueries": 4,
+              "validationMs": 0
+            }
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "MODEL",
+            "windowId": "c3e19eae60e4832e40eda345700fd633aaa6757bd03e272f775a069f35b938e0",
+            "operationId": "3161acbedd2c6d89f9e5c56ecb1826f343c05c534b4c18cbd57a56260019b0ef",
+            "outcome": "SUCCEEDED",
+            "durationMs": 309,
+            "counts": {
+              "casAttempts": 1,
+              "documentReads": 1,
+              "listReads": 0,
+              "revisionReads": 0,
+              "preloadQueries": 0,
+              "validationMs": 0,
+              "documentWrites": 0,
+              "jobWrites": 0,
+              "receiptProviderCalls": 1,
+              "receiptReportedCostUsd": 4.9266e-05,
+              "reportedUsage": 1,
+              "receiptProviderLatencyMs": 593
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 1,
+                "durationMs": 55
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 1,
+                "durationMs": 120
+              },
+              "GRAPH_VALIDATION": {
+                "count": 1,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 1,
+                "durationMs": 71
+              },
+              "SPENDING_RESERVATION": {
+                "count": 1,
+                "durationMs": 246
+              }
+            },
+            "receiptOperationId": "3161acbedd2c6d89f9e5c56ecb1826f343c05c534b4c18cbd57a56260019b0ef"
+          },
+          {
+            "type": "V1_FEED_TRANSACTION_TIMING",
+            "feedId": "staging-fresh-20261019-run1",
+            "attempts": 1,
+            "durationMs": 2854,
+            "computationMs": 2723,
+            "writes": 1,
+            "jobs": 0,
+            "queries": {
+              "documentReads": 16,
+              "listReads": 15,
+              "revisionReads": 0,
+              "preloadQueries": 4,
+              "validationMs": 0
+            }
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "MODEL",
+            "windowId": "c3e19eae60e4832e40eda345700fd633aaa6757bd03e272f775a069f35b938e0",
+            "operationId": "4f5438b327fc4b96f37d401ec17edf33baaea6bcb681e019d84824952bcd8fa4",
+            "outcome": "SUCCEEDED",
+            "durationMs": 43423,
+            "counts": {
+              "casAttempts": 3,
+              "documentReads": 6,
+              "listReads": 0,
+              "revisionReads": 0,
+              "preloadQueries": 6,
+              "validationMs": 0,
+              "documentWrites": 3,
+              "jobWrites": 0,
+              "newProviderCalls": 1,
+              "receiptProviderCalls": 1,
+              "receiptReportedCostUsd": 0.007922,
+              "reportedUsage": 1,
+              "receiptProviderLatencyMs": 41595
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 3,
+                "durationMs": 167
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 3,
+                "durationMs": 893
+              },
+              "GRAPH_VALIDATION": {
+                "count": 3,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 3,
+                "durationMs": 569
+              },
+              "SPENDING_RESERVATION": {
+                "count": 1,
+                "durationMs": 1112
+              },
+              "COMPARATIVE_EDITORIAL_PLAN": {
+                "count": 1,
+                "durationMs": 41595
+              },
+              "SPENDING_SETTLEMENT": {
+                "count": 1,
+                "durationMs": 335
+              },
+              "RESULT_COMMIT": {
+                "count": 1,
+                "durationMs": 326
+              }
+            },
+            "receiptOperationId": "4f5438b327fc4b96f37d401ec17edf33baaea6bcb681e019d84824952bcd8fa4"
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "PUBLICATION",
+            "windowId": "c3e19eae60e4832e40eda345700fd633aaa6757bd03e272f775a069f35b938e0",
+            "outcome": "SUCCEEDED",
+            "durationMs": 51639,
+            "counts": {
+              "windowClosedAgeMs": 1208,
+              "casAttempts": 8,
+              "documentReads": 38,
+              "listReads": 30,
+              "revisionReads": 0,
+              "preloadQueries": 8,
+              "validationMs": 0,
+              "documentWrites": 5,
+              "jobWrites": 0,
+              "pendingJobs": 0,
+              "failedJobs": 0,
+              "ledgerEntriesInspected": 0,
+              "ledgerSupportIdentities": 0
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 8,
+                "durationMs": 465
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 8,
+                "durationMs": 5973
+              },
+              "GRAPH_VALIDATION": {
+                "count": 8,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 8,
+                "durationMs": 576
+              },
+              "WINDOW_READINESS": {
+                "count": 1,
+                "durationMs": 245
+              },
+              "SOURCE_CORRECTION_REFRESH": {
+                "count": 2,
+                "durationMs": 118
+              },
+              "MODEL_OPERATION": {
+                "count": 2,
+                "durationMs": 43732
+              },
+              "SEMANTIC_SHORTLIST": {
+                "count": 1,
+                "durationMs": 5873
+              },
+              "EDITORIAL_PLAN": {
+                "count": 1,
+                "durationMs": 43829
+              }
+            }
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "PUBLICATION_TURN",
+            "outcome": "SUCCEEDED",
+            "durationMs": 52086,
+            "counts": {},
+            "stages": {
+              "FEED_TURN_ADMISSION": {
+                "count": 1,
+                "durationMs": 69
+              },
+              "FEED_TURN_HELD": {
+                "count": 1,
+                "durationMs": 51869
+              },
+              "PUBLICATION_EXCLUSIVE_TURN": {
+                "count": 1,
+                "durationMs": 52086
+              }
+            }
+          },
+          {
+            "type": "STAGING_MISSION_DB_METRICS",
+            "feedId": "staging-fresh-20261019-run1",
+            "action": "publish-disposition-v1",
+            "queries": 204,
+            "sqlCpuMs": 663.0084,
+            "responseBytes": 579417,
+            "wallMs": 11532,
+            "rowsRead": 230815,
+            "rowsWritten": 98
+          }
+        ]
+      },
+      "traceSha256": "f348a8fe43f783cc5efe755cf51ed82a8704ab66612a5cedf9fe1707f34061e0"
+    },
+    {
+      "scope": "autonomous-20261019-4",
+      "published": false,
+      "newProviderCostUsd": 0.0041268,
+      "cumulativeProviderCostUsd": 0.045801734,
+      "clientTiming": {
+        "at": "2026-10-19T17:29:20.246Z",
+        "scope": "autonomous-20261019-4",
+        "wallMs": 24609.0472,
+        "requests": [
+          {
+            "action": "review-disposition-v1",
+            "httpStatus": 200,
+            "clientWallMs": 2064.8387,
+            "workerWallMs": 1588,
+            "databaseMetrics": {
+              "queries": 20,
+              "sqlCpuMs": 44.389900000000004,
+              "responseBytes": 33987,
+              "wallMs": 1780,
+              "rowsRead": 24963,
+              "rowsWritten": 6
+            }
+          },
+          {
+            "action": "publish-disposition-v1",
+            "httpStatus": 200,
+            "clientWallMs": 22540.732,
+            "workerWallMs": 22290,
+            "databaseMetrics": {
+              "queries": 206,
+              "sqlCpuMs": 564.4539000000004,
+              "responseBytes": 687362,
+              "wallMs": 11725,
+              "rowsRead": 232519,
+              "rowsWritten": 97
+            }
+          }
+        ]
+      },
+      "evidenceSha256": "8d6794b9e6da6fc703c4d2d6c5982422c9ce2e87b460606d568363f0f3b31cbd",
+      "trace": {
+        "requests": [
+          {
+            "cpuTime": 14,
+            "wallTime": 1799,
+            "outcome": "ok",
+            "scriptVersion": {
+              "id": "701af09b-e88f-4383-86e0-bb721c205452"
+            },
+            "exceptions": []
+          },
+          {
+            "cpuTime": 330,
+            "wallTime": 22498,
+            "outcome": "ok",
+            "scriptVersion": {
+              "id": "701af09b-e88f-4383-86e0-bb721c205452"
+            },
+            "exceptions": []
+          }
+        ],
+        "traces": [
+          {
+            "type": "STAGING_MISSION_DB_METRICS",
+            "feedId": "staging-fresh-20261019-run1",
+            "action": "review-disposition-v1",
+            "queries": 17,
+            "sqlCpuMs": 40.10690000000001,
+            "responseBytes": 31881,
+            "wallMs": 1588,
+            "rowsRead": 24052,
+            "rowsWritten": 6
+          },
+          {
+            "type": "V1_FEED_TRANSACTION_TIMING",
+            "feedId": "staging-fresh-20261019-run1",
+            "attempts": 1,
+            "durationMs": 3005,
+            "computationMs": 2832,
+            "writes": 0,
+            "jobs": 0,
+            "queries": {
+              "documentReads": 16,
+              "listReads": 15,
+              "revisionReads": 0,
+              "preloadQueries": 4,
+              "validationMs": 0
+            }
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "MODEL",
+            "windowId": "f9cc335ee047e10efaca9b0a3379696583fc75506f2dc2bfafb5ea4646ce3223",
+            "operationId": "3161acbedd2c6d89f9e5c56ecb1826f343c05c534b4c18cbd57a56260019b0ef",
+            "outcome": "SUCCEEDED",
+            "durationMs": 299,
+            "counts": {
+              "casAttempts": 1,
+              "documentReads": 1,
+              "listReads": 0,
+              "revisionReads": 0,
+              "preloadQueries": 0,
+              "validationMs": 0,
+              "documentWrites": 0,
+              "jobWrites": 0,
+              "receiptProviderCalls": 1,
+              "receiptReportedCostUsd": 4.9266e-05,
+              "reportedUsage": 1,
+              "receiptProviderLatencyMs": 593
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 1,
+                "durationMs": 61
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 1,
+                "durationMs": 113
+              },
+              "GRAPH_VALIDATION": {
+                "count": 1,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 1,
+                "durationMs": 70
+              },
+              "SPENDING_RESERVATION": {
+                "count": 1,
+                "durationMs": 244
+              }
+            },
+            "receiptOperationId": "3161acbedd2c6d89f9e5c56ecb1826f343c05c534b4c18cbd57a56260019b0ef"
+          },
+          {
+            "type": "V1_FEED_TRANSACTION_TIMING",
+            "feedId": "staging-fresh-20261019-run1",
+            "attempts": 1,
+            "durationMs": 2595,
+            "computationMs": 2464,
+            "writes": 1,
+            "jobs": 0,
+            "queries": {
+              "documentReads": 16,
+              "listReads": 15,
+              "revisionReads": 0,
+              "preloadQueries": 4,
+              "validationMs": 0
+            }
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "MODEL",
+            "windowId": "f9cc335ee047e10efaca9b0a3379696583fc75506f2dc2bfafb5ea4646ce3223",
+            "operationId": "098b08935199106f505ae4512ec5d63aa3da999e7391a5f70198338e00b29f0f",
+            "outcome": "SUCCEEDED",
+            "durationMs": 13317,
+            "counts": {
+              "casAttempts": 3,
+              "documentReads": 6,
+              "listReads": 0,
+              "revisionReads": 0,
+              "preloadQueries": 6,
+              "validationMs": 0,
+              "documentWrites": 3,
+              "jobWrites": 0,
+              "newProviderCalls": 1,
+              "receiptProviderCalls": 1,
+              "receiptReportedCostUsd": 0.0041268,
+              "reportedUsage": 1,
+              "receiptProviderLatencyMs": 11170
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 3,
+                "durationMs": 165
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 3,
+                "durationMs": 910
+              },
+              "GRAPH_VALIDATION": {
+                "count": 3,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 3,
+                "durationMs": 886
+              },
+              "SPENDING_RESERVATION": {
+                "count": 1,
+                "durationMs": 1458
+              },
+              "COMPARATIVE_EDITORIAL_PLAN": {
+                "count": 1,
+                "durationMs": 11170
+              },
+              "SPENDING_SETTLEMENT": {
+                "count": 1,
+                "durationMs": 314
+              },
+              "RESULT_COMMIT": {
+                "count": 1,
+                "durationMs": 320
+              }
+            },
+            "receiptOperationId": "098b08935199106f505ae4512ec5d63aa3da999e7391a5f70198338e00b29f0f"
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "PUBLICATION",
+            "windowId": "f9cc335ee047e10efaca9b0a3379696583fc75506f2dc2bfafb5ea4646ce3223",
+            "outcome": "SUCCEEDED",
+            "durationMs": 21277,
+            "counts": {
+              "windowClosedAgeMs": 1572,
+              "casAttempts": 8,
+              "documentReads": 38,
+              "listReads": 30,
+              "revisionReads": 0,
+              "preloadQueries": 8,
+              "validationMs": 0,
+              "documentWrites": 5,
+              "jobWrites": 0,
+              "pendingJobs": 0,
+              "failedJobs": 0,
+              "ledgerEntriesInspected": 0,
+              "ledgerSupportIdentities": 0
+            },
+            "stages": {
+              "DB_SNAPSHOT": {
+                "count": 8,
+                "durationMs": 449
+              },
+              "TRANSACTION_COMPUTATION": {
+                "count": 8,
+                "durationMs": 5722
+              },
+              "GRAPH_VALIDATION": {
+                "count": 8,
+                "durationMs": 0
+              },
+              "CAS_COMMIT": {
+                "count": 8,
+                "durationMs": 699
+              },
+              "WINDOW_READINESS": {
+                "count": 1,
+                "durationMs": 250
+              },
+              "SOURCE_CORRECTION_REFRESH": {
+                "count": 2,
+                "durationMs": 110
+              },
+              "MODEL_OPERATION": {
+                "count": 2,
+                "durationMs": 13616
+              },
+              "SEMANTIC_SHORTLIST": {
+                "count": 1,
+                "durationMs": 5957
+              },
+              "EDITORIAL_PLAN": {
+                "count": 1,
+                "durationMs": 13585
+              }
+            }
+          },
+          {
+            "type": "V1_PIPELINE_LATENCY",
+            "feedId": "staging-fresh-20261019-run1",
+            "phase": "PUBLICATION_TURN",
+            "outcome": "SUCCEEDED",
+            "durationMs": 21739,
+            "counts": {},
+            "stages": {
+              "FEED_TURN_ADMISSION": {
+                "count": 1,
+                "durationMs": 73
+              },
+              "FEED_TURN_HELD": {
+                "count": 1,
+                "durationMs": 21524
+              },
+              "PUBLICATION_EXCLUSIVE_TURN": {
+                "count": 1,
+                "durationMs": 21739
+              }
+            }
+          },
+          {
+            "type": "STAGING_MISSION_DB_METRICS",
+            "feedId": "staging-fresh-20261019-run1",
+            "action": "publish-disposition-v1",
+            "queries": 203,
+            "sqlCpuMs": 560.1929000000005,
+            "responseBytes": 684734,
+            "wallMs": 11554,
+            "rowsRead": 231607,
+            "rowsWritten": 97
+          }
+        ]
+      },
+      "traceSha256": "f5dd94b85293159ac3f60c7530dafff87e8d07c403ccac455c87947d2a99b030"
+    }
+  ],
+  "limitations": [
+    "No valid end-to-end real edition; no successful latency or cost target demonstrated.",
+    "Latency aggregates overlap and must not be added.",
+    "Trace SUCCEEDED denotes returned function, not published edition.",
+    "Two-group result still separates supporting/contextual material; not independently certified event boundaries.",
+    "No independent holdout or live final-verifier acceptance in these attempts."
+  ],
+  "offlineCorrectionCommit": "a8a837c",
+  "offlineCorrectionDeployed": false,
+  "tests": {
+    "focusedWorkerTestsPassed": 41,
+    "exactSavedResponseReplaysPassed": 2,
+    "finalTargetedRun": {
+      "files": 3,
+      "passed": 29,
+      "durationSeconds": 109.06
+    },
+    "repositoryTypechecksBeforeDeployment": "PASSED",
+    "finalWorkerTypecheck": "PASSED",
+    "stagingDryRun": "PASSED",
+    "fullWorkerSuite": "NOT_REPEATED",
+    "independentHumanGoldOrLiveVerifierAcceptance": "NOT_DEMONSTRATED"
+  }
+}
