@@ -14,6 +14,7 @@ export interface SourceAssessment {
   kind?: string;
   evidenceUrl?: string;
   model?: string;
+  upstreamStatus?: number;
 }
 const choice = z.object({ type: z.literal('choice'), choice: z.enum(['YES', 'NO', 'UNKNOWN']), confidence: z.number().min(0).max(1), probabilities: z.object({ YES: z.number().min(0).max(1), NO: z.number().min(0).max(1), UNKNOWN: z.number().min(0).max(1) }).strict() });
 function plain(value: string): string {
@@ -71,7 +72,9 @@ export async function assessSource(env: Env, context: { title: string; descripti
           : page.status === 401 || page.status === 402 || page.status === 403 || page.authenticationRequired
             ? `The publisher restricts this server's access (HTTP ${page.status}). Use another public feed.`
             : `The publisher returned HTTP ${page.status} instead of readable source content. Try again later or use another public feed.`;
-      return result('unverified', reason, { kind });
+      return result('unverified', kind === 'google_news' && page.status >= 500
+        ? `Google News search is unavailable from this server (HTTP ${page.status}). Try a topic-specific publisher RSS feed or retry later.`
+        : reason, { kind, upstreamStatus: page.status });
     }
     if (kind === 'rss_feed' || kind === 'google_news' || /<(?:rss|feed)(?:\s|>)/i.test(page.body.slice(0, 1000))) {
       const items = normalizeRssSnapshot(page.body, url).filter(item => item.identityValid).slice(0, 5);

@@ -8,6 +8,7 @@ it.each([404,410,402,403,429,503])('reports the actual publisher HTTP %s without
  const fetch=vi.fn<typeof globalThis.fetch>(async()=>new Response('Unavailable',{status}));
  const result=await assessSource(env,context,'news: pizza',fetch);
  expect(result).toMatchObject({status:'unverified',reason:expect.stringContaining(`HTTP ${status}`)});
+ expect(result.upstreamStatus).toBe(status);
  expect(fetch).toHaveBeenCalledTimes(status===503?2:1);
 });
 const rss = '<rss version="2.0"><channel><title>Lebanon News</title><item><guid>one</guid><title>Lebanon parliament discusses economic reforms and infrastructure investment</title><description>Reporting on the latest public policy and economic developments in Beirut and across Lebanon.</description><link>https://publisher.example/story</link></item></channel></rss>';

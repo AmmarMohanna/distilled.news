@@ -41,3 +41,9 @@ it('retains social and website suggestions when their collectors are configured'
  expect(await sourceRecommendations(configured,{title:'World',description:'News'},fetcher)).toEqual(candidates);
  expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+it('does not pad recommendations with multiple queries to the same Google News provider',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async()=>Response.json({choices:[{message:{content:JSON.stringify({sources:['news: coconut Australia','news: coconut farming Australia','news: Australian coconut market','https://publisher.example/coconut/rss.xml']})}}]}));
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env;
+ expect(await sourceRecommendations(env,{title:'Coconuts',description:'Coconut farming in Australia'},fetcher)).toEqual(['news: coconut Australia','https://publisher.example/coconut/rss.xml']);
+});

@@ -29,6 +29,11 @@ secret. The key is also stored in the ignored `.dev.vars.joud` file. Recommendat
 make one capped model call per click, with up to five public source suggestions;
 if all fail verification, one replacement call proposes different sources and
 verifies them independently. No more than two recommendation calls run per click.
+Each pass suggests at most one Google News query. If Google News verification returns
+a server error, access restriction, or rate limit, the replacement pass excludes that
+provider rather than suggesting more queries against the same failing endpoint.
+Recommendations prioritize topic-specific feeds; every replacement still requires
+readable, relevant evidence before it can be selected.
 each user can request AI source recommendations three times per rolling five-hour window. Each click makes one
 OpenRouter request with at most 400 output tokens per recommendation call. These direct recommendation
 calls are separate from the one-time briefing model allowance described below. Website source rows use
