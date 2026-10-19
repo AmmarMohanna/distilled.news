@@ -129,12 +129,12 @@ it('V2 binds group-owned passages on the initial call and reuses the paid result
  await acceptEvidence(store,1,'The council approved a water fund. Governance details remain uncertain.');
  const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,usage={calls:1,costUsd:.001,reported:true};let calls=0;
  const strong={model:'owned-initial-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{
-  calls++;expect(state.claimOwnership.version).toBe('claim-disposition-v1');expect(state.claimMentions.every((m:any)=>m.evidenceRevisionId&&m.span)).toBe(true);
-  return {value:{confidence:.99,dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'G0'])),groups:[{groupId:'G0',occurrence:'Council approves a fund',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[],storylineState:{lifecycle:'WATCHING',openQuestionMentionIds:state.claimMentions.filter((m:any)=>m.text.includes('uncertain')).map((m:any)=>m.id),expectedNextDate:null}}]},usage};
+  calls++;expect(state.claimOwnership.version).toBe('minimal-claim-disposition-v1');expect(state.claimMentions.every((m:any)=>m.evidenceRevisionId&&m.span)).toBe(true);
+  return {value:{confidence:.99,dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'G0'])),groups:[{groupId:'G0',occurrence:'Council approves a fund',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[]}]},usage};
  }};
  const job=JSON.stringify(['REASSESS','observation-1','']);
  const first=await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(first?.prepared.decision.provenance.scorer).toBe('GPT');
- expect(first?.matchers.construction?.(first.input)?.groups[0].storylineState?.openQuestionMentionIds).toHaveLength(1);
+ expect(first?.matchers.construction?.(first.input)?.groups[0]).toMatchObject({entities:[],slots:[]});expect(first?.matchers.construction?.(first.input)?.groups[0].storylineState).toBeUndefined();
  await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(calls).toBe(1);
 });
 it('V2 repair gets exact ownership diagnostics and the same constrained aliases, with one repair maximum',async()=>{
@@ -142,7 +142,7 @@ it('V2 repair gets exact ownership diagnostics and the same constrained aliases,
  const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,usage={calls:1,costUsd:.001,reported:true};let calls=0;
  const strong={model:'owned-repair-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,phase:string,state:any)=>{
   calls++;const ids=state.claimMentions.map((m:any)=>m.id);
-  if(calls===2){expect(phase).toBe('SEMANTIC_CONSTRUCTION_REPAIR');expect(state.repair.policy).toBe('construction-targeted-repair-v3-disposition');expect(state.repair.ownership.groups[0].offendingReferences).toContainEqual({field:'storylineState.openQuestionMentionIds',claimMentionId:ids.at(-1)});expect(state.repair.ownership.allowedClaimMentionIds).toEqual(ids);}
+  if(calls===2){expect(phase).toBe('SEMANTIC_CONSTRUCTION_REPAIR');expect(state.repair.policy).toBe('construction-targeted-repair-v4-minimal');expect(state.repair.ownership.groups[0].offendingReferences).toContainEqual({field:'storylineState.openQuestionMentionIds',claimMentionId:ids.at(-1)});expect(state.repair.ownership.allowedClaimMentionIds).toEqual(ids);}
   return {value:{confidence:1,backgroundMentionIds:ids.slice(1),groups:[{claimMentionIds:ids.slice(0,1),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[],storylineState:{lifecycle:'ACTIVE',openQuestionMentionIds:[ids.at(-1)],expectedNextDate:null}}]},usage};
  }};
  const job=JSON.stringify(['REASSESS','observation-1','']);
@@ -158,7 +158,7 @@ it('V2 accepts a single explicit ownership repair and preserves the rejected rec
   calls++;const ids=state.claimMentions.map((m:any)=>m.id);
   if(calls===1)return {value:{confidence:1,backgroundMentionIds:ids.slice(1),groups:[{claimMentionIds:ids.slice(0,1),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[],storylineState:{lifecycle:'ACTIVE',openQuestionMentionIds:[ids.at(-1)],expectedNextDate:null}}]},usage};
   expect(phase).toBe('SEMANTIC_CONSTRUCTION_REPAIR');expect(state.repair.ownership.groups[0].proposedClaimMentionIds).toEqual([ids[0]]);
-  return {value:{confidence:1,dispositionByUnitId:Object.fromEntries(ids.map((id:string)=>[id,'G0'])),groups:[{groupId:'G0',occurrence:'Council approves a fund',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[],storylineState:{lifecycle:'WATCHING',openQuestionMentionIds:[ids.at(-1)],expectedNextDate:null}}]},usage};
+  return {value:{confidence:1,dispositionByUnitId:Object.fromEntries(ids.map((id:string)=>[id,'G0'])),groups:[{groupId:'G0',occurrence:'Council approves a fund',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[]}]},usage};
  }};
  const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,job=JSON.stringify(['REASSESS','observation-1','']);
  const result=await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(result?.prepared.decision.provenance.scorer).toBe('GPT');
@@ -168,7 +168,7 @@ it('V2 accepts a single explicit ownership repair and preserves the rejected rec
 
 it('hands a valid disposition construction through canonical graph, editorial selection and simulated writing',async()=>{
  const body='Lebanon Parliament approved banking reform legislation.';await acceptEvidence(store,1,body);
- const usage={calls:1,costUsd:.001,reported:true},strong={model:'disposition-pipeline-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{confidence:1,dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'G0'])),groups:[{groupId:'G0',occurrence:'Parliament approves banking reform',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:['CHANGES_STATE'],entities:[],slots:[],storylineState:{lifecycle:'ACTIVE',openQuestionMentionIds:[],expectedNextDate:null}}]},usage})};
+ const usage={calls:1,costUsd:.001,reported:true},strong={model:'disposition-pipeline-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{confidence:1,dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'G0'])),groups:[{groupId:'G0',occurrence:'Parliament approves banking reform',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:['CHANGES_STATE']}]},usage})};
  const job=JSON.stringify(['REASSESS','observation-1','']),prepared=await prepareSemanticMatch(store,{V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,job,testPolicy.now(),{strong});
  expect(prepared?.matchers.construction?.(prepared.input)?.groups).toHaveLength(1);await processEvidenceIntelligence(store,job,testPolicy.now(),prepared!.matchers);
  expect(await store.list('feed-1','events')).toHaveLength(1);
@@ -179,6 +179,6 @@ it('hands a valid disposition construction through canonical graph, editorial se
  const model:import('./publication').BriefingModelPort={model:'simulated-writer',provider:'SYNTHETIC',maxCallCostUsd:.01,verify:async()=>{throw Error('NO_COMPATIBLE_PROVIDER_VERDICT')},synthesize:async input=>{writingCalls++;simulatedDraft={language:'en',stories:input.stories.map(story=>({candidateId:story.candidate.id,claims:[{text:body,support:[{evidenceRevisionId:story.evidence[0].id,quote:body}]}]}))};throw Error('SIMULATED_WRITING_COMPLETE_NO_PROVIDER_VERDICT')}};
  const stopped=await publishSelection(store,'feed-1',selection.id,{now:testPolicy.now,model,requireModel:true}).catch(e=>e);expect(stopped).toBeInstanceOf(Error);expect(writingCalls).toBe(1);expect(simulatedDraft!.stories[0].claims[0].text).toBe(body);expect(await store.list('feed-1','editions')).toHaveLength(0);
  // Deliberate stop after simulated writing: no invented compatible verification or real-model success.
- const results=await store.list<any>('feed-1','semantic_results'),construction=results.find(r=>r.value?.schemaVersion==='claim-disposition-v1'),mentions=await store.list<any>('feed-1','claim_mentions');expect(Object.keys(construction.value.dispositionByClaimMentionId)).toEqual(mentions.map(m=>m.id));
+ const results=await store.list<any>('feed-1','semantic_results'),construction=results.find(r=>r.value?.schemaVersion==='minimal-claim-disposition-v1'),mentions=await store.list<any>('feed-1','claim_mentions');expect(Object.keys(construction.value.dispositionByClaimMentionId)).toEqual(mentions.map(m=>m.id));
 
 },20000);
