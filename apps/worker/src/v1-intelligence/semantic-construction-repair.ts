@@ -1,3 +1,4 @@
+import {constructionTransport,GROUP_OWNERSHIP_VERSION} from './construction-transport';
 import {canonicalJson} from '../v1-intake/canonical';
 import {semanticQuestion} from './semantic-settlement';
 import {constructionSchema,parseConstruction,scopedConstructionWireSchema} from './semantic-construction';
@@ -19,6 +20,15 @@ export function constructionFailureClass(failed:SemanticOperationResult<Construc
  if(mentions.some(m=>!references.includes(m.id)))return 'INCOMPLETE_MENTION_COVERAGE';
  return 'INVALID_SOURCE_OR_IDENTITY_BINDING';
 }
+/** Rejected proposals are diagnostics, never an authoritative historical partition. */
+export function constructionRepairOwnership(response:Record<string,any>,mentions:ClaimMention[]){
+ const normalize=(id:string)=>mentions.some(m=>m.id===id)?id:/^C\d+$/.test(id)?mentions[Number(id.slice(1))]?.id??id:id;
+ return {allowedIncomingPassageIds:mentions.map(m=>m.id),groups:(Array.isArray(response.groups)?response.groups:[]).map((g:any,index:number)=>{
+  const ids=(g.claimMentionIds??g.ownedPassages?.map((p:any)=>p.passageId)??[]).map(normalize),allowed=new Set(ids);
+  const refs=[...(g.storylineState?.openQuestionMentionIds??[]).map((id:string)=>({field:'storylineState.openQuestionMentionIds',passageId:normalize(id)})),...(g.storylineState?.expectedNextDate?[{field:'storylineState.expectedNextDate',passageId:normalize(g.storylineState.expectedNextDate.claimMentionId)}]:[]),...(g.entities??[]).flatMap((e:any)=>(e.claimMentionIds??[]).map((id:string)=>({field:'entities.claimMentionIds',passageId:normalize(id)}))),...(g.slots??[]).map((s:any)=>({field:'slots.claimMentionId',passageId:normalize(s.claimMentionId)}))];
+  return {groupId:g.groupId??'G'+index,storylineId:g.storylineId??null,proposedOwnedPassageIds:ids,offendingReferences:refs.filter((r:any)=>!allowed.has(r.passageId))};
+ })};
+}
 /** A known invalid result is not evidence that the article needs partitioning.
  * Repair the complete question once, retaining the original paid result. The
  * root receipt binds the repair identity across dates, attempts and restarts. */
@@ -26,12 +36,12 @@ export async function repairSemanticConstruction(store:V1FeedStore,base:Semantic
  if(failed.failure!=='SEMANTIC_CONSTRUCTION_REJECTED'||!failed.usage.reported||failed.usage.calls!==1||!failed.validationDiagnostic)return failed;
  if(canonicalJson(semanticQuestion(failed.input))!==canonicalJson(semanticQuestion({...base,kind:'SEMANTIC_CONSTRUCTION',state})))throw Error('SEMANTIC_REPAIR_SCOPE_CHANGED');
  const {attempt:_,...completeState}=state;
- const diagnostic=failed.validationDiagnostic;
- const repairState={...completeState,repair:{policy:'construction-targeted-repair-v1',originalOperationId:failed.id,failureClass:constructionFailureClass(failed,mentions,input),rejectedResponse:diagnostic.response,rejection:diagnostic.rejection,instruction:'Correct only the diagnosed invalid structure or source/identity binding. Reconsider the complete article and all supplied factual mentions together. Preserve attribution, uncertainty and contradictions. Every mention must be accounted for. Do not invent missing identities, discard facts, or treat this repair as permission to split unrelated or related developments mechanically. Use DEFER for genuinely unresolved semantic identity.'}};
- const schema=scopedConstructionWireSchema(mentions,input),op={...base,kind:'SEMANTIC_CONSTRUCTION',budgetKey:'construction-repair:'+failed.id,policyVersion:base.policyVersion+':targeted-repair-v1',state:repairState};
+ const diagnostic=failed.validationDiagnostic,owned=state.constructionOwnershipVersion===GROUP_OWNERSHIP_VERSION,repairVersion=owned?'construction-targeted-repair-v2-group-owned':'construction-targeted-repair-v1';
+ const repairState={...completeState,repair:{policy:repairVersion,...(owned?{ownership:constructionRepairOwnership(diagnostic.response,mentions),ownershipInstruction:'For each offending reference, the listed group owns only proposedOwnedPassageIds. Do not echo the foreign reference or silently add its ID during decoding. Use the unchanged source passage catalog to explicitly select ownedPassages, retaining valid parts and keeping independent developments separate. The rejected proposal is not a canonical partition. Open-question status and optional exact date belong on their owned passage, not storylineState; background must be eligible and cannot also be group-owned. DEFER semantic identity if genuinely uncertain.'}:{}),originalOperationId:failed.id,failureClass:constructionFailureClass(failed,mentions,input),rejectedResponse:diagnostic.response,rejection:diagnostic.rejection,instruction:'Correct only the diagnosed invalid structure or source/identity binding. Reconsider the complete article and all supplied factual mentions together. Preserve attribution, uncertainty and contradictions. Every mention must be accounted for. Do not invent missing identities, discard facts, or treat this repair as permission to split unrelated or related developments mechanically. Use DEFER for genuinely unresolved semantic identity.'}};
+ const transport=owned?constructionTransport(mentions,input,repairState):undefined,schema=transport?.schema??scopedConstructionWireSchema(mentions,input),wireState=transport?.state??repairState,op={...base,kind:'SEMANTIC_CONSTRUCTION',budgetKey:'construction-repair:'+failed.id,policyVersion:base.policyVersion+(owned?':targeted-repair-v2-group-owned':':targeted-repair-v1'),state:repairState};
  return durableSemanticOperation<ConstructionOutcome>(store,op,async()=>{
-  const response=await strong.complete(base.feedId,'SEMANTIC_CONSTRUCTION_REPAIR',repairState,schema);let stage:'OUTPUT_SCHEMA'|'CONSTRUCTION_BINDING'='OUTPUT_SCHEMA';
-  try{const parsed=constructionSchema.parse(response.value);stage='CONSTRUCTION_BINDING';return {value:{construction:parseConstruction(response.value,mentions,input,{scorer:'GPT',policyVersion:op.policyVersion}),confidence:parsed.confidence},usage:response.usage}}
-  catch(error){throw new SemanticValidationError({stage,response:response.value,rejection:{name:error instanceof Error?error.name:'UNKNOWN',...(error instanceof Error&&'binding' in error?{binding:error.binding as {invariant:string;path:(string|number)[]}}:{}),...(error instanceof Error&&'code' in error?{code:String(error.code)}:{})}})}
- },now,()=>strong.usage(),{...options,operationAdmission:strong.admission?.(repairState,schema,'SEMANTIC_CONSTRUCTION_REPAIR')});
+  const response=await strong.complete(base.feedId,'SEMANTIC_CONSTRUCTION_REPAIR',wireState,schema);let stage:'OUTPUT_SCHEMA'|'CONSTRUCTION_BINDING'='OUTPUT_SCHEMA',diagnosticResponse=response.value;
+  try{if(!transport)constructionSchema.parse(response.value);stage='CONSTRUCTION_BINDING';diagnosticResponse=transport?transport.decode(response.value):response.value;const parsed=constructionSchema.parse(diagnosticResponse);return {value:{construction:parseConstruction(diagnosticResponse,mentions,input,{scorer:'GPT',policyVersion:op.policyVersion}),confidence:parsed.confidence},usage:response.usage}}
+  catch(error){throw new SemanticValidationError({stage,response:diagnosticResponse,rejection:{name:error instanceof Error?error.name:'UNKNOWN',...(error instanceof Error&&'binding' in error?{binding:error.binding as {invariant:string;path:(string|number)[]}}:{}),...(error instanceof Error&&'code' in error?{code:String(error.code)}:{})}})}
+ },now,()=>strong.usage(),{...options,operationAdmission:strong.admission?.(wireState,schema,'SEMANTIC_CONSTRUCTION_REPAIR')});
 }
