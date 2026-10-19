@@ -256,7 +256,12 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
     const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts'),publishers=new Map((await store.currentEvidence(id)).map(e=>[e.revision.id,e.item.feedSourceId]));
     const protectedIds=await protectedRematchRevisionIds(store,id);
     if(now.getUTCMinutes()%15===0)console.info(JSON.stringify({type:'V1_SEMANTIC_BACKPRESSURE',feedId:id,...semanticBacklogMetrics(rematches,attempts,protectedIds,now.toISOString(),feed.briefingSchedule?.durationMinutes??(feed.briefingFrequency==='30M'?30:feed.briefingFrequency==='HOURLY'?60:1440))}));
-    for(const request of prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString(),{costAdmission:true})),protectedIds,attempts,publishers).slice(0,2)){if(await enqueueV1(env,'v1_rematch',request.id,{type:'v1_rematch',feedId:id,requestId:request.id},now))sent++}
+    // Bound accepted sends, not candidates inspected. Reserved/declined transports
+    // must not repeatedly hide otherwise eligible requests later in this order.
+    const eligible=prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString(),{costAdmission:true})),protectedIds,attempts,publishers);
+    let accepted=0,considered=0;
+    for(const request of eligible){if(accepted>=2)break;considered++;if(await enqueueV1(env,'v1_rematch',request.id,{type:'v1_rematch',feedId:id,requestId:request.id},now)){sent++;accepted++;}}
+    if(eligible.length)console.info(JSON.stringify({type:'V1_REMATCH_DISPATCH',feedId:id,eligible:eligible.length,considered,enqueued:accepted}));
   });
   // Reassessment must finish first; the next bounded relay publishes its result.
   const pending={n:await jobsHoldingWindow(env.DB,id,windowEndOf(feed,now))};

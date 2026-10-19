@@ -230,15 +230,20 @@ export async function completeConnectorDownstream(env:Env,body:DistilledQueueMes
  const completed=await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=? AND token=? AND available_ms>0 RETURNING id').bind(body.type,await sha256(JSON.stringify(body)),dispatchToken).first();
  if(!completed)return;
  await releaseConnectorWork(env,dispatchToken);
+ let feedId:string|undefined;
  if('jobId' in body){
-  const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();
-  if(row){
-   await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),row.feed_id).run();
-   // Completion opens a consumer slot. Refill the bounded per-feed relay now;
-   // Cron remains crash recovery rather than the speed limit of backlog drain.
-   // The durable relay fence coalesces simultaneous completions for this feed.
-   if(env.V1_ACQUISITION_QUEUE)await coalescedProcessingQueue(env).send({type:'connector_relay',feedId:row.feed_id});
-  }
+  const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();feedId=row?.feed_id;
+ }else if(body.type==='v1_rematch'){
+  // The completed transport is fenced above. Resolve the saved request as well;
+  // arbitrary message fields cannot wake or rebind another Feed's work.
+  const row=await env.DB.prepare("SELECT feed_id FROM v1_feed_documents WHERE kind='rematch_requests' AND id=? AND feed_id=?").bind(body.requestId,body.feedId).first<{feed_id:string}>();feedId=row?.feed_id;
+ }
+ if(feedId){
+  await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),feedId).run();
+  // Completion opens a consumer slot, including a durably rescheduled resource
+  // wait. Wake other eligible work; nextRematch still enforces this request's due
+  // time. A failed relay send leaves the persisted due wake for Cron recovery.
+  if(env.V1_ACQUISITION_QUEUE)await coalescedProcessingQueue(env).send({type:'connector_relay',feedId});
  }
 }
 

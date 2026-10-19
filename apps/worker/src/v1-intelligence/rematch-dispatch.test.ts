@@ -1,0 +1,15 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+import {createIntakeDatabase,seedIntakeScope,testPolicy} from '../v1-intake/test-utils';
+import {V1IntakeStore} from '../v1-intake/store';
+import {V1FeedStore,feedTransact} from './store';
+import {feedFixture,seedIntelligence} from './test-utils';
+import {dispatchV1Intelligence,processV1Rematch} from './runtime';
+import * as preparation from './semantic-preparation';
+import type {Env,DistilledQueueMessage} from '../types';
+let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env,sent:DistilledQueueMessage[];
+const now=new Date('2026-10-03T13:00:00Z');
+beforeEach(async()=>{ctx=await createIntakeDatabase({product:true});await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});await seedIntelligence(store);sent=[];env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as any;});
+afterEach(async()=>{vi.restoreAllMocks();await ctx.dispose();});
+async function request(id:string){const evidence=(await store.currentEvidence('feed-1'))[0];const r={id,feedId:'feed-1',jobId:JSON.stringify(['REASSESS','observation-1','']),evidenceRevisionId:evidence.revision.id,policyVersion:'semantic-rematch-continuation-v2',createdAt:'2026-10-03T12:00:00Z'};await feedTransact(store,'feed-1',tx=>tx.write('rematch_requests',id,r));return r;}
+it('does not let two reserved transports hide later eligible rematches',async()=>{for(const id of ['a','b','c','d'])await request(id);for(const id of ['a','b'])await ctx.db.prepare('INSERT INTO v1_queue_dispatches(kind,id,token,lease_until) VALUES(?,?,?,?)').bind('v1_rematch',id,'already-queued',now.getTime()+120000).run();await dispatchV1Intelligence(env,now);expect(sent.filter(m=>m.type==='v1_rematch').map(m=>(m as any).requestId)).toEqual(['c','d']);});
+it('account waits remain durable, preserve retry eligibility and rotate to other work',async()=>{const first=await request('a'),second=await request('b');const prepare=vi.spyOn(preparation,'prepareSemanticMatch').mockResolvedValue({prepared:{decision:{structuralRelation:'DEFER',provenance:{fallbackReason:'ACCOUNT_RESOURCE_WAIT'}}}} as any);await processV1Rematch(env,'feed-1',first.id,now.toISOString());const attempts=await store.list<any>('feed-1','rematch_attempts');expect(attempts).toMatchObject([{requestId:'a',state:'WAITING_BUDGET',reason:'ACCOUNT_RESOURCE_WAIT'}]);expect(Date.parse(attempts[0].nextAttemptAt)).toBeGreaterThan(now.getTime());await dispatchV1Intelligence(env,new Date(now.getTime()+1));expect(sent.filter(m=>m.type==='v1_rematch').map(m=>(m as any).requestId)).toEqual([second.id]);await processV1Rematch(env,'feed-1',first.id,new Date(now.getTime()+1).toISOString());expect(prepare).toHaveBeenCalledTimes(1);expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first())!.n).toBe(0);});

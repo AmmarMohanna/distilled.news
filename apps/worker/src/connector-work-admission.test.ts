@@ -62,3 +62,15 @@ it('a declined send leaves no phantom two-minute canonical dispatch reservation'
  expect(await enqueueV1(scoped,next.type,next.jobId,next)).toBe(true);
  expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_jobs WHERE id='job-1'").first<{json:string}>())!.json).attempts).toBe(0);
 });
+
+it('ready publication gets only its initial priority turn, not repeated precedence after a failed planner',async()=>{
+ await ctx.db.prepare("INSERT INTO v1_feeds(id,json) VALUES('feed',?)").bind(JSON.stringify({id:'feed',ownerId:'owner',revision:1})).run();
+ const at=new Date('2026-10-16T13:30:00Z'),request={id:'planner-stopped',state:'PENDING',reason:'SEMANTIC_MODEL_TIMEOUT',window:{start:'2026-10-16T11:30:00.000Z',end:'2026-10-16T12:00:00.000Z',kind:'30M'}};
+ await ctx.db.prepare("UPDATE v1_jobs SET json=json_set(json,'$.state','DONE')").run();
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests',?,'feed',?)").bind(request.id,JSON.stringify(request)).run();
+ await ctx.db.prepare("INSERT INTO v1_queue_dispatches(kind,id,token,lease_until,send_count) VALUES('v1_briefing',?,'completed-transport',0,1)").bind(request.id).run();
+ const scoped={...env,V1_DOWNSTREAM_ENABLED:'true',PROCESSING_QUEUE:coalescedProcessingQueue(env)};
+ expect(await dispatchReadyConnectorBriefing(scoped,'feed',at)).toBe(false);
+ expect(await enqueueV1(scoped,'v1_rematch','eligible',{type:'v1_rematch',feedId:'feed',requestId:'eligible'},at)).toBe(true);
+ expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='briefing_requests' AND id=?").bind(request.id).first<{json:string}>())!.json)).toEqual(request);
+});

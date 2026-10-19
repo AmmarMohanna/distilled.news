@@ -76,3 +76,17 @@ it('saved collection intake waits wake at their due time without changing attemp
  await ctx.db.prepare("UPDATE connector_rss_poll_jobs SET dispatch_until=0,last_error='RATE_LIMIT' WHERE job_id='intake-wakeup'").run();
  expect(await continueConnectorIntake({...env,SOURCE_COLLECTION_QUEUE:queue},'delivery-feed','intake-wakeup','rss',now)).toBe(false);
 });
+
+it('rematch completion durably wakes the feed relay exactly once without inference or changing the saved request',async()=>{
+ await ctx.db.prepare("INSERT INTO v1_feeds(id,json) VALUES('delivery-feed',?)").bind(JSON.stringify({id:'delivery-feed',ownerId:'delivery-owner',revision:1})).run();
+ const body={type:'v1_rematch' as const,feedId:'delivery-feed',requestId:'rematch-wakeup'},request={id:'rematch-wakeup',feedId:'delivery-feed',evidenceRevisionId:'revision',policyVersion:'semantic-rematch-continuation-v2'};
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('rematch_requests',?,?,?)").bind(request.id,body.feedId,JSON.stringify(request)).run();
+ await ctx.db.prepare('UPDATE connector_feed_schedule SET due_ms=? WHERE feed_id=?').bind(Date.now()+3600000,body.feedId).run();
+ await coalescedProcessingQueue(env).send(body);const wire=deliveries.at(-1)!,before=deliveries.length;
+ await completeConnectorDownstream(env,body,wire._connectorDispatchToken);
+ expect(deliveries).toHaveLength(before+1);expect(decodeConnectorDelivery(deliveries.at(-1)!).body).toEqual({type:'connector_relay',feedId:body.feedId});
+ expect((await ctx.db.prepare('SELECT due_ms FROM connector_feed_schedule WHERE feed_id=?').bind(body.feedId).first<{due_ms:number}>())!.due_ms).toBeLessThanOrEqual(Date.now());
+ await completeConnectorDownstream(env,body,wire._connectorDispatchToken);expect(deliveries).toHaveLength(before+1);
+ expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='rematch_requests' AND id=?").bind(request.id).first<{json:string}>())!.json)).toEqual(request);
+ expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first<{n:number}>())!.n).toBe(0);
+});
