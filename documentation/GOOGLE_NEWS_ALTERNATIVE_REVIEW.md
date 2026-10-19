@@ -1,7 +1,8 @@
 # Google News alternative collector: Joud review
 
-Prepared 2026-10-19. Review only: no paid run, secret upload, budget grant,
-production provider switch, or recurring collection is authorized by this document.
+Prepared 2026-10-19. The user subsequently approved one trial with a $0.10 maximum
+run charge. That trial is blocked on the empty local Apify token. No secret upload,
+production provider switch, budget grant, or recurring collection was authorized.
 
 ## Confirmed failure
 
@@ -18,7 +19,7 @@ parser. A different query or immediate retry is not a demonstrated fix.
 - Target application: `distilled-news-joud`, config `apps/worker/wrangler.joud.jsonc`.
 - Provider: existing `google_apify` adapter, Actor `groupoject/google-news-scraper`.
 - One query, Australian English results, at most 10 articles over the past 30 days.
-- Proposed trial authorization: **one run, maximum $0.10**, not a recurring allowance.
+- Approved trial authorization: **one run, maximum $0.10**, not a recurring allowance.
 - Actor timeout: 120 seconds. A client timeout must be reconciled against the run
   record before retrying; never blindly submit another billable run.
 - Trial input: [google-news-trial.input.json](google-news-trial.input.json).
@@ -27,8 +28,11 @@ parser. A different query or immediate retry is not a demonstrated fix.
 - Authenticate using a server-side `APIFY_API_TOKEN`, never a browser token or URL
   query parameter. Joud's deployed secret-name list currently has no Apify token.
 - Starting the Actor is billable work. No request to this endpoint has been made.
-- A token is present in the ignored local `.env`; its validity and account balance
-  have not been tested. No secret value was printed or deployed.
+- The local `.env` contains an **empty placeholder**, not a usable token. This was
+  confirmed with the dotenv parser after the first presence-only check gave a
+  false positive. The approved trial stopped before creating a run journal or
+  sending any paid request. Populate `APIFY_API_TOKEN` to proceed; no secret value
+  has been printed or deployed.
 
 Prepared operator script: `scripts/probe-google-news-apify.mjs`. Running it without
 flags prints the trial request without reading credentials or making requests.
