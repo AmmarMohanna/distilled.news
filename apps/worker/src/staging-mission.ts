@@ -1,6 +1,6 @@
 import type {Env} from './types';
 import {stagingMissionDb} from './staging-mission-budget';
-import {fetchRssCandidates,BoundedFeedHttp} from '@distilled/connectors';
+import {fetchRssCandidates,BoundedFeedHttp,HttpSourceExecution} from '@distilled/connectors';
 import {readPublicArticle} from './v1-intake/public-article-http';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {enrollV1Source} from './v1-intelligence/product';
@@ -23,7 +23,7 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
  const hashes=await Promise.all([supplied,'Bearer '+secret].map(s=>crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))));
  if(new Uint8Array(hashes[0]).reduce((a,b,i)=>a|(b^new Uint8Array(hashes[1])[i]),0)!==0)return reply({error:'NOT_FOUND'},404);
  const action=new URL(request.url).pathname.split('/').at(-1)!;
- if(!['prepare','collect','review','publish','status'].includes(action)||request.method!==(action==='status'?'GET':'POST'))return reply({error:'INVALID_ACTION'},400);
+ if(!['prepare','collect','diagnose','review','review-resume','publish','status'].includes(action)||request.method!==(action==='status'?'GET':'POST'))return reply({error:'INVALID_ACTION'},400);
  const databaseMetrics={queries:0,sqlCpuMs:0,responseBytes:0,wallMs:0};
  const db=stagingMissionDb(env.DB,feedId,10,databaseMetrics),sourceId=feedId+'-rss';
  const scoped={...env,DB:db,SOURCE_QUEUE_SCHEDULING_ENABLED:'false',V1_DOWNSTREAM_FEED_SOURCE_IDS:sourceId,V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2',V1_PROCESSING_QUEUE:undefined,V1_ACQUISITION_QUEUE:undefined,PROCESSING_QUEUE:new Proxy(env.PROCESSING_QUEUE,{get(){throw Error('MISSION_QUEUE_SEND_FORBIDDEN')}}),SOURCE_COLLECTION_QUEUE:undefined} as Env;
@@ -52,9 +52,17 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
    const handoff=await prepareRssHandoff(batch,{scope:source.scope,coverage,languageHint:rssLanguageHint(raw)},env.RAW_ARCHIVE);
    const acceptance=await acceptV1Handoff(scoped,handoff);await save('prepared',{at:now(),start:at,observationId:handoff.observations[0].id,sourceUrl:url,articleUrl:batch.observations[0].url,coverage:'BOUNDED_ONE_ARTICLE_PARTIAL_SOURCE_COVERAGE',collectionWallMs:performance.now()-started,acceptance});
   }
-  if(action==='review'){
-   const prepared=await read('prepared');if(!prepared)throw Error('PREPARE_REQUIRED');if(await read('review-start'))return reply({error:'REVIEW_ALREADY_STARTED_NO_AUTOMATIC_RETRY'},409);
-   await save('review-start',{at:now()});const acquisition=await processV1Acquisition(scoped,JSON.stringify(['ACQUIRE',prepared.observationId,'']));
+  if(action==='diagnose'){
+   const p=await read('prepared');if(!p)throw Error('PREPARE_REQUIRED');
+   const http=new BoundedFeedHttp(async(value,init)=>fetch(value,{...init,redirect:'manual'}),{maxBytes:512000}),page=await readPublicArticle(http,p.articleUrl);
+   const executor=new HttpSourceExecution(env.SOURCE_EXECUTION_URL!,env.SOURCE_EXECUTION_TOKEN!,env.SOURCE_EXECUTION_SERVICE!.fetch.bind(env.SOURCE_EXECUTION_SERVICE),true,25000);
+   let extraction:unknown;try{const r=await executor.execute('extract',{url:p.articleUrl,html:page.body}) as any;extraction={error:r?.error,pageKind:r?.pageKind,bodyCharacters:r?.body?.length,hasPublishedAt:!!r?.publishedAt};}catch(e){extraction={error:e instanceof Error?e.message:'UNKNOWN'}}
+   return reply({feedId,articleHttpStatus:page.status,htmlBytes:new TextEncoder().encode(page.body).length,extraction});
+  }
+  if(action==='review'||action==='review-resume'){
+   const prepared=await read('prepared');if(!prepared)throw Error('PREPARE_REQUIRED');if(action==='review'&&await read('review-start'))return reply({error:'REVIEW_ALREADY_STARTED_NO_AUTOMATIC_RETRY'},409);
+   if(action==='review-resume'){const paid=await db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations WHERE feed_id=?').bind(feedId).first<number>('n');if(paid||await read('review-resume-start'))throw Error('PAID_OR_REPEATED_REVIEW_RESUME_FORBIDDEN');}
+   await save(action==='review'?'review-start':'review-resume-start',{at:now(),reason:action==='review'?'INITIAL':'UNPAID_ACQUISITION_RECOVERY_ONLY'});const acquisition=await processV1Acquisition(scoped,JSON.stringify(['ACQUIRE',prepared.observationId,'']));
    const review=await processV1Reassessment(scoped,JSON.stringify(['REASSESS',prepared.observationId,'']));
    const coverage=await windowIntakeCoverage(db,feedId,now());if(coverage.state!=='COMPLETE')throw Error('INTAKE_NOT_COMPLETE');
    const pending=await db.prepare("SELECT COUNT(*) n FROM v1_feed_documents WHERE feed_id=? AND kind='intelligence_receipts' AND json_extract(json,'$.semanticDeferred')=1").bind(feedId).first<number>('n');if(pending)throw Error('SEMANTIC_REVIEW_DEFERRED');
