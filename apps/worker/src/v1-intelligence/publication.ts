@@ -326,7 +326,12 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   const operationId=await sha256(canonicalJson(operation));
   const retained=await store.read(feedId,'semantic_results',operationId)??await store.read(feedId,'semantic_settlements',operationId);
   if(!retained&&Date.now()+ASYNC_MODEL_CALL_MS>started+Math.max(ASYNC_PROCESSING_SLICE_MS,selection.budget.maxWallClockMs))throw new ModelSpendingWait('PUBLICATION_EXECUTION_YIELD');
-  await feedTransact(store,feedId,async tx=>{await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());await tx.write('synthesis_jobs',editionId,{...job,leaseUntil:new Date(Date.parse(options.now())+ASYNC_OPERATION_LEASE_MS).toISOString()})});
+  // Lease maintenance is not evidence consumption or paid execution. Keep its
+  // ownership/revision fence, but do not rebuild the full authorized writer
+  // input here and immediately again below. Durable intent admission checks
+  // active source evidence; the provider callback and result commit both still
+  // revalidate the complete selection against their own canonical snapshots.
+  await feedTransact(store,feedId,async tx=>{const job=await requireJob(tx,editionId,token,options.now());if(tx.snapshot.feed.revision!==selection.feedRevision)throw new HandoffError('SCOPE_DENIED');await tx.write('synthesis_jobs',editionId,{...job,leaseUntil:new Date(Date.parse(options.now())+ASYNC_OPERATION_LEASE_MS).toISOString()})});
   const saved=await durableSemanticOperation<T>(store,operation,async()=>{
    // This callback runs only after intent and financial reservation commit.
    // An admission/DB failure before it must not masquerade as a paid UNKNOWN.
@@ -464,7 +469,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    for(const [index,packet]of packets.entries()){
     const key=JSON.stringify([draftKey,'verification-packet-v2',index]),payload=options.model!.verificationPayload?.(packet)??packet;
     countLatency('validationRequestBytes',new TextEncoder().encode(JSON.stringify(payload)).byteLength);
-    const manifest:VerificationManifest={contract:'EVIDENCE_GROUNDED_V2',feedId,feedRevision:selection.feedRevision,evidenceHash:await sha256(canonicalJson(input.stories.map(s=>s.evidence))),selectionHash:await sha256(canonicalJson({selection,input})),draftHash:await sha256(JSON.stringify(storedDraft.draft)),questionHash:await sha256(canonicalJson({packet,payload,requestHash:options.model!.verificationRequestHash?await options.model!.verificationRequestHash(packet,options.model!.admission!(payload).maxOutputTokens):await sha256(JSON.stringify(payload))})),promptVersion:options.model!.promptVersion!,packetSchemaVersion:'verification-reader-witness-v3',semanticPolicy:'semantic-publication-v2',editorialContractVersion:'editorial-requirements-v2',model:options.model!.model,provider:options.model!.provider,providerRoute:options.model!.providerRoute??options.model!.provider,outputLanguage:input.feed.outputLanguage};
+    const manifest:VerificationManifest={contract:'EVIDENCE_GROUNDED_V2',feedId,feedRevision:selection.feedRevision,evidenceHash:await sha256(canonicalJson(input.stories.map(s=>s.evidence))),selectionHash:await sha256(canonicalJson({selection,input})),draftHash:await sha256(JSON.stringify(storedDraft.draft)),questionHash:await sha256(canonicalJson({packet,payload,requestHash:options.model!.verificationRequestHash?await options.model!.verificationRequestHash(packet,options.model!.admission!(payload).maxOutputTokens):await sha256(JSON.stringify(payload))})),promptVersion:options.model!.promptVersion!,packetSchemaVersion:'verification-reader-anchor-v5',semanticPolicy:'semantic-publication-v2',editorialContractVersion:'editorial-requirements-v2',model:options.model!.model,provider:options.model!.provider,providerRoute:options.model!.providerRoute??options.model!.provider,outputLanguage:input.feed.outputLanguage};
     verificationContexts.set(key,manifest);
     let result=await store.read<VerificationOutcome>(feedId,'verification_results',key);
     if(!result){const admission=options.model!.admission!(payload);countLatency('validationReservationCeilingUsd',admission.reservationCostUsd);await measureLatency('V2_SEMANTIC_VERIFICATION',()=>callModel('GROUNDING',payload,limits=>options.model!.verify!(packet,limits),key,{contract,manifest}));result=await store.read<VerificationOutcome>(feedId,'verification_results',key);}else countLatency('validationCachedPackets');

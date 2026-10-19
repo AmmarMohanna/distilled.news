@@ -4,6 +4,7 @@ const fact={id:'f',text:'The service gained about a thousand users over the cour
 const input:any={feed:{outputLanguage:'en'},stories:[{candidate:{id:'c'},plan:{facts:[fact],mustIncludeFactIds:['f'],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[]},evidence:[{id:'r',body:fact.text,language:'en'}]}]};
 const draft=(text:string):any=>({language:'en',stories:[{candidateId:'c',claims:[{text,support:[{evidenceRevisionId:'r',quote:fact.text}]}]}]});
 const spans=()=>[{evidenceRevisionId:'r',quote:fact.text}];
+it('v2 runs no legacy factual wording scan; semantic judgments must decide numbers and coverage',()=>{const r=assessWriterDraft(input,draft('The service gained 40 users.'),spans,'EVIDENCE_GROUNDED_V2',true);expect(r.factualWarnings).toEqual([]);expect(r.decision).toBe('NEEDS_SEMANTIC');expect(r.blockingIssues).toEqual([]);});
 it('routes an ambiguous valid duration to semantic verification without declaring approval',()=>{
  const r=assessWriterDraft(input,draft('The service gained about a thousand users over two days.'),spans,'EVIDENCE_GROUNDED_V2',true);
  expect(r.blockingIssues).toEqual([]);expect(r.requiresSemantic).toBe(true);expect(r.decision).toBe('NEEDS_SEMANTIC');

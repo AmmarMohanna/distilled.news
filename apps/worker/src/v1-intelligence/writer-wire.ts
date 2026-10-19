@@ -85,7 +85,7 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
  const semanticSchema=schema.properties.semanticChecks as {items:{properties:{readerSpans:Record<string,unknown>}}};
  semanticSchema.items.properties.readerSpans.items=obj({claimId:{type:'string',enum:[...claimIds.keys()]}});
  if(options.validationContract==='EVIDENCE_GROUNDED_V2'){
-  semanticSchema.items.properties.readerSpans.items=obj({claimId:{type:'string',enum:[...claimIds.keys()]},start:{type:'integer',minimum:0},end:{type:'integer',minimum:1},text:{type:'string',minLength:1}});
+  semanticSchema.items.properties.readerSpans.items=obj({claimId:{type:'string',enum:[...claimIds.keys()]},text:{type:'string',minLength:1}});
   const item=semanticSchema.items as unknown as {properties:Record<string,unknown>;required:string[]};
   for(const key of ['sourceSupported','readerEntailsProposition']){item.properties[key]={type:'boolean'};item.required.push(key)}
  }
@@ -102,17 +102,34 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
   const supported=options.validationContract==='EVIDENCE_GROUNDED_V2'?declared:declared.filter(id=>!options.requireFullEntailment||claimEntailment.some(c=>claimIds.get(c.claimId)===id&&c.fullyEntailed&&!c.unsupportedMeaning.length));
   const offered=z.array(z.record(z.string(),z.unknown())).parse((raw as Record<string,unknown>).semanticChecks??[]).map(c=>{const value={...c};for(const [old,name] of Object.entries(preservedNames))if(name in value){if(old in value)throw new Error('AMBIGUOUS_VERIFIER_FACET');value[old]=value[name];delete value[name];}return value;});
   if(options.validationContract!=='EVIDENCE_GROUNDED_V2'&&offered.some(c=>'sourceSupported' in c||'readerEntailsProposition' in c||Array.isArray(c.readerSpans)&&c.readerSpans.some((s:unknown)=>s&&typeof s==='object'&&('start' in s||'end' in s))))throw Error('UNRECOGNIZED_VERIFIER_FIELD');
+  if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&offered.some(c=>Array.isArray(c.readerSpans)&&c.readerSpans.some((s:unknown)=>s&&typeof s==='object'&&('start' in s||'end' in s))))throw Error('INCOMPATIBLE_READER_COORDINATE_CONTRACT');
   const semanticChecks=z.array(check).parse(offered).map(c=>{const factId=factIds.get(c.factId);if(!factId||seen.has(c.factId))throw new Error('UNRECOGNIZED_VERIFIER_ID');seen.add(c.factId);const candidateId=factOwners.get(c.factId)!,summary=options.validationContract==='EVIDENCE_GROUNDED_V2'?{preservedInSummary:preservedAliases.has(c.factId)}:{};
    let invalidWitness=false;
-   const readerSpans=c.readerSpans.flatMap(span=>{const claimId=claimIds.get(span.claimId),claim=claims.find(x=>x.id===claimId);const storyFacts=claim?groups.get(claim.candidateId??claim.id)?.flatMap(c=>options.validationContract==='EVIDENCE_GROUNDED_V2'?[...(c.requiredFacts??[]),...(c.allowedFacts??[])]:c.requiredFacts??[]):undefined,text=options.validationContract==='EVIDENCE_GROUNDED_V2'?span.text:span.text??claim?.text;if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&!exactReaderWitness({...span,claimId:claimId??'',text:text??''},claims)){invalidWitness=true;return [];}if(!claim||(claim.candidateId??claim.id)!==candidateId||!text||!claim.text.includes(text)||!storyFacts?.some(f=>f.id===factId)||(options.validationContract!=='EVIDENCE_GROUNDED_V2'&&!supported.includes(claim.id))){invalidWitness=true;return [];}return [{claimId:claim.id,text,...(options.validationContract==='EVIDENCE_GROUNDED_V2'?{start:span.start,end:span.end}:{})}];});
+   const readerSpans=c.readerSpans.flatMap(span=>{
+    const claimId=claimIds.get(span.claimId),claim=claims.find(x=>x.id===claimId);
+    const storyFacts=claim?groups.get(claim.candidateId??claim.id)?.flatMap(c=>options.validationContract==='EVIDENCE_GROUNDED_V2'?[...(c.requiredFacts??[]),...(c.allowedFacts??[])]:c.requiredFacts??[]):undefined;
+    let text=options.validationContract==='EVIDENCE_GROUNDED_V2'?span.text:span.text??claim?.text,start=claim&&text?claim.text.indexOf(text):-1;
+    let ambiguous=Boolean(claim&&text&&start>=0&&claim.text.indexOf(text,start+1)>=0);
+    if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&claim&&text&&start<0){
+     // ASCII presentation case preserves UTF-16 length. No whitespace, quote,
+     // punctuation, source text, paraphrase or semantic substitution is allowed.
+     const fold=(s:string)=>s.replace(/[A-Z]/g,c=>c.toLowerCase()),reader=fold(claim.text),anchor=fold(text);
+     start=reader.indexOf(anchor);ambiguous=start>=0&&reader.indexOf(anchor,start+1)>=0;
+     if(start>=0)text=claim.text.slice(start,start+text.length);
+    }
+    const end=start+(text?.length??0);
+    if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&(!text||start<0||ambiguous||!exactReaderWitness({claimId:claimId??'',text,start,end},claims))){invalidWitness=true;return [];}
+    if(!claim||(claim.candidateId??claim.id)!==candidateId||!text||!claim.text.includes(text)||!storyFacts?.some(f=>f.id===factId)||(options.validationContract!=='EVIDENCE_GROUNDED_V2'&&!supported.includes(claim.id))){invalidWitness=true;return [];}
+    return [{claimId:claim.id,text,...(options.validationContract==='EVIDENCE_GROUNDED_V2'?{start,end}:{})}];
+   });
    // Invalid semantic evidence is a durably settled negative verdict, not an
    // uncertain provider execution. Preserve its usage and precise repair reason.
    if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&(typeof c.sourceSupported!=='boolean'||typeof c.readerEntailsProposition!=='boolean'))return {...c,...summary,factId,candidateId,communicated:false,readerSpans:[],reason:'MISSING_READER_WITNESS: incompatible source/reader verdict.'};
-   if(invalidWitness||(c.communicated&&!readerSpans.length))return {...c,...summary,factId,candidateId,communicated:false,readerSpans:[],reason:invalidWitness?'INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.':'MISSING_READER_WITNESS: no reader prose establishes coverage.'};
+   if((invalidWitness&&(options.validationContract!=='EVIDENCE_GROUNDED_V2'||c.communicated))||(c.communicated&&!readerSpans.length))return {...c,...summary,factId,candidateId,communicated:false,readerSpans:[],reason:invalidWitness?'INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.':'MISSING_READER_WITNESS: no reader prose establishes coverage.'};
    const story=stories.find(s=>options.validationContract==='EVIDENCE_GROUNDED_V2'?s.facts.some(f=>f.id===c.factId):s.requiredFactIds.includes(c.factId)),offered=Boolean(story?.newUnderstandingFactIds.includes(c.factId));let readerNovelty=c.readerNovelty;
    if(options.requireReaderNovelty){
     if(!readerNovelty)readerNovelty={status:'UNRESOLVED',reason:'MISSING_READER_NOVELTY_VERDICT',previousFactTexts:[]};
-    else if(readerNovelty.previousFactTexts.some(text=>!story?.previousLedgerFacts.includes(text))||readerNovelty.status==='ALREADY_COMMUNICATED'&&!readerNovelty.previousFactTexts.length)readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_HISTORY: no offered same-story prior fact establishes repetition.',previousFactTexts:[]};
+    else if(((options.validationContract!=='EVIDENCE_GROUNDED_V2'||readerNovelty.status!=='NOT_COMMUNICATED')&&readerNovelty.previousFactTexts.some(text=>!story?.previousLedgerFacts.includes(text)))||readerNovelty.status==='ALREADY_COMMUNICATED'&&!readerNovelty.previousFactTexts.length)readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_HISTORY: no offered same-story prior fact establishes repetition.',previousFactTexts:[]};
     else if((readerNovelty.status==='NEW'&&(!offered||!faithfulFact({...c,readerSpans})))||(offered&&readerNovelty.status==='NOT_APPLICABLE'))readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.',previousFactTexts:[]};
    }
    return {...c,...summary,factId,candidateId,readerSpans,...(readerNovelty?{readerNovelty}:{})};});

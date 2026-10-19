@@ -23,14 +23,13 @@ export function compareDirectQuotations(text:string,approvedSpans:string[]):{sta
  const missing=reader.fragments.filter(r=>!sources.some(s=>s.fragments.some(q=>q===r||presentation(q)===presentation(r))));
  return {status:missing.length?(sources.some(s=>s.ambiguous)?'UNRESOLVED':'MISMATCH'):'MATCH',values:missing};
 }
-const lexicalWarnings=new Set(['UNSUPPORTED_QUANTITY','LOST_QUANTITY','UNSUPPORTED_DATE','LOST_MODALITY','LOST_NEGATION','LOST_BOUND','LOST_ATTRIBUTION','TEMPORAL_FRAMING_REQUIRED','MISSING_REQUIRED_FACT']);
 /** A route to existing reservation-gated verification, never factual approval.
  * semanticPathAvailable means a compatible saved result or the existing
  * reservation-required verifier path, NOT a balance snapshot or model name. */
 export function assessWriterDraft(input:SynthesisInput,draft:BriefingDraft,allowedSpans:Parameters<typeof inspectWriterDraft>[2],contract:EditorialContract,semanticPathAvailable:boolean){
- const legacy=inspectWriterDraft(input,draft,allowedSpans,contract==='EVIDENCE_GROUNDED_V2'||semanticPathAvailable);
+ const legacy=inspectWriterDraft(input,draft,allowedSpans,contract==='EVIDENCE_GROUNDED_V2'||semanticPathAvailable,contract==='EVIDENCE_GROUNDED_V2');
  if(contract==='LEGACY')return {blockingIssues:legacy,factualWarnings:[] as WriterIssue[],requiresSemantic:false,decision:legacy.length?'HARD_REJECT' as const:'LEGACY' as const};
- const factualWarnings=legacy.filter(i=>lexicalWarnings.has(i.code)),blockingIssues=legacy.filter(i=>!lexicalWarnings.has(i.code)&&i.code!=='INVALID_DIRECT_QUOTE');let ambiguous=false;
+ const factualWarnings:WriterIssue[]=[],blockingIssues=legacy;let ambiguous=false;
  for(const offered of draft.stories){const story=input.stories.find(s=>s.candidate.id===offered.candidateId);if(!story)continue;
   for(const [index,claim]of offered.claims.entries()){const compared=compareDirectQuotations(claim.text,allowedSpans(story).map(s=>s.quote));
    if(compared.status!=='MATCH'){ambiguous||=compared.status==='UNRESOLVED';blockingIssues.push({code:compared.status==='UNRESOLVED'?'UNRESOLVED_DIRECT_QUOTE':'INVALID_DIRECT_QUOTE',candidateId:offered.candidateId,claimId:`claim_${index+1}`,value:compared.values[0]});}

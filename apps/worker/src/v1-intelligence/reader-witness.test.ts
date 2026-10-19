@@ -5,7 +5,7 @@ import saved from '../../../../benchmarks/validation-contract-real-model-results
 const text='The road has reopened.';
 const claims:any=[{id:'c',candidateId:'story',text,support:[],context:[],requiredFacts:[{id:'road',text:'Officials reopened the road.',evidenceRevisionIds:['r']},{id:'bridge',text:'The bridge remains closed.',evidenceRevisionIds:['r']}]}];
 const whole={claimId:'claim_1',fullyEntailed:true,unsupportedMeaning:[] as string[],reason:'Road statement is supported; assess bridge coverage separately.'};
-const check=(factId:string,extra:any={})=>({factId,communicated:true,sourceSupported:true,readerEntailsProposition:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Same proposition in reader prose.',readerSpans:[{claimId:'claim_1',start:0,end:text.length,text}],...extra});
+const check=(factId:string,extra:any={})=>({factId,communicated:true,sourceSupported:true,readerEntailsProposition:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Same proposition in reader prose.',readerSpans:[{claimId:'claim_1',text}],...extra});
 const wire=()=>verificationWire(claims,{validationContract:'EVIDENCE_GROUNDED_V2',requireFullEntailment:true});
 const raw=(checks:any[])=>({supportedClaimIds:['claim_1'],preservedFactIds:checks.filter(c=>c.communicated&&c.sourceSupported!==false&&c.readerEntailsProposition!==false).map(c=>c.factId),claimEntailment:[whole],semanticChecks:checks});
 it('reproduces the bare-ID false communication without new response fields',()=>{
@@ -25,12 +25,12 @@ it('accepts a semantically attested paraphrase and rejects separately missing ma
  expect(decidePublicationValidation(onlyRoad,result as any).status).toBe('ACCEPT');
 });
 it.each(['source','coordinates','text','foreign'])('rejects %s witnesses against the authoritative reader bytes',kind=>{
- const span:any={claimId:'claim_1',start:0,end:text.length,text};
+ const span:any={claimId:'claim_1',text};
  if(kind==='source')span.text='The bridge remains closed.';
  if(kind==='coordinates')span.start=1;
  if(kind==='text')span.text=text+' ';
  if(kind==='foreign')span.claimId='source_1';
- expect(wire().decode(raw([check('fact_1'),check('fact_2',{readerSpans:[span]})])).semanticChecks[1].communicated).toBe(false);
+ if(kind==='coordinates'){expect(()=>wire().decode(raw([check('fact_1'),check('fact_2',{readerSpans:[span]})]))).toThrow();}else expect(wire().decode(raw([check('fact_1'),check('fact_2',{readerSpans:[span]})])).semanticChecks[1].communicated).toBe(false);
 });
 it('text presence cannot override an adverse proposition-entailment judgment',()=>{
  const result=wire().decode(raw([check('fact_1'),check('fact_2',{readerEntailsProposition:false})]));
