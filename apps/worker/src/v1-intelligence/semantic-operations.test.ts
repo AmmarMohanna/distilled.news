@@ -5,6 +5,7 @@ import {V1FeedStore} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
 import {testDurableSemanticOperation as durableSemanticOperation} from './test-utils';
 import {boundedCompletion} from '../ai';
+import {SemanticValidationError} from './semantic-operations';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await seedIntelligence(store)});
 it('model authorization and result consumption validate active IDs without reloading article bodies',async()=>{
@@ -15,6 +16,14 @@ it('model authorization and result consumption validate active IDs without reloa
  }finally{read.mockRestore()}
 },15000);
 afterEach(async()=>ctx.dispose());
+it('retains exact raw failed construction beyond compact diagnostics and never purchases it again',async()=>{
+ const rawResponse=JSON.stringify({dispositionByUnitId:{C0:'G0'},unexpected:'x'.repeat(20000)}),usage={calls:1,costUsd:.001,reported:true};let calls=0;
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'SEMANTIC_CONSTRUCTION',policyVersion:'claim-disposition-v1',model:'fake',budgetKey:'raw-retention',state:{constructionOwnershipVersion:'claim-disposition-v1'}};
+ const run=async()=>{calls++;throw new SemanticValidationError({stage:'OUTPUT_SCHEMA',response:JSON.parse(rawResponse),rawResponse,rejection:{name:'ConstructionContractError',mechanicalIssues:[{code:'INVALID_OUTPUT_SHAPE',pointer:'/unexpected',observed:'unexpected',invariant:'Only contracted fields allowed.'}]}})};
+ const first=await durableSemanticOperation(store,input,run,'2026-10-03T12:00:00Z',()=>usage);
+ expect(first.status).toBe('DEFERRED');expect(first.validationDiagnostic).toMatchObject({rawResponse,responseOmitted:true});expect(first.usage).toEqual(usage);
+ const second=await durableSemanticOperation(store,input,run,'2026-10-03T12:01:00Z',()=>usage);expect(second.id).toBe(first.id);expect(calls).toBe(1);expect(second.validationDiagnostic?.rawResponse).toBe(rawResponse);
+});
 it('durably binds provider headers to the paid operation without changing its reservation identity',async()=>{
  const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'RELATION',policyVersion:'receipt-test',model:'fake',budgetKey:'test',state:{}};
  const first=await durableSemanticOperation(store,input,async()=>{

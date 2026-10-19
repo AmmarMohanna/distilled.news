@@ -1,0 +1,20 @@
+import {it,expect} from 'vitest';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {constructionTransport,GROUP_OWNERSHIP_VERSION} from '../apps/worker/src/v1-intelligence/construction-transport';
+import {admitModelOperation,modelCapability} from '../apps/worker/src/v1-intelligence/model-capacity';
+import {STAGING_GROUPING_CAPABILITIES_JSON,STAGING_GROUPING_CALL_LIMITS} from '../apps/worker/src/staging-grouping-run-policy';
+import original from './fresh-private-staging-mission-results.json';
+import latest from './group-ownership-live-attempt-results.json';
+it('exports the actual required-key schema and preflights input without purchasing or overwriting history',()=>{
+ const root='.local-reports/single-feed-preflight/',load=(name:string)=>{const b=readFileSync(root+name);expect(createHash('sha256').update(b).digest('hex')).toBe((original.privateEvidenceSha256 as Record<string,string>)[name]);return JSON.parse(b.toString())};
+ const result=load('fresh-semantic-review-state.json').result[0].results.find((r:any)=>r.kind==='semantic_results'),state=JSON.parse(result.json).input.state,revision=JSON.parse(load('fresh-evidence-after-recovery.json').result[0].results[0].json),mentions=load('fresh-final-readonly.json').retained.result[0].results.map((r:any)=>JSON.parse(r.json));
+ const wire=constructionTransport(mentions,{revision,candidates:[],storylineIds:[],role:'REPORTED_DEVELOPMENT'},{...state,constructionOwnershipVersion:GROUP_OWNERSHIP_VERSION}),cap=modelCapability('openai/gpt-4.1-mini',STAGING_GROUPING_CAPABILITIES_JSON)!;
+ const admission=admitModelOperation('openai/gpt-4.1-mini',wire.state,wire.schema,cap);expect(admission.fits).toBe(true);
+ const required=(wire.schema.properties as any).dispositionByUnitId.required;expect(required).toEqual(mentions.map((_:unknown,i:number)=>'C'+i));
+ writeFileSync('benchmarks/claim-disposition-schema.json',JSON.stringify(wire.schema,null,2)+'\n');
+ const perGpt=(cap.contextTokens-cap.maxOutputTokens)*cap.inputUsdPerToken+cap.maxOutputTokens*cap.outputUsdPerToken,jev=modelCapability('typesafe/jev-1.13',STAGING_GROUPING_CAPABILITIES_JSON)!,upper=latest.totalCostUsd+7*perGpt+3*jev.contextTokens*jev.inputUsdPerToken;
+ expect(upper).toBeLessThan(.20);
+ const report={schemaVersion:GROUP_OWNERSHIP_VERSION,mode:'OFFLINE_ONLY',networkCalls:0,paidCostUsd:0,initialAdmission:admission,priorFailedCostUsd:latest.totalCostUsd,sevenNewGptThreeJevProviderUpperUsd:upper,ceilingUsd:.20,currentHistoricalGptOperations:4,currentGptOperationLimit:STAGING_GROUPING_CALL_LIMITS['openai/gpt-4.1-mini'],currentRemainingGptSlots:STAGING_GROUPING_CALL_LIMITS['openai/gpt-4.1-mini']-4,status:'NOT_AUTHORIZED_OR_EXECUTABLE_AS_A_NEW_ATTEMPT',remainingGates:['Renewed staging deployment and spending authorization','New explicit immutable attempt scope: existing review marker is already consumed','Reviewed per-attempt call envelope: current remaining five GPT slots do not cover seven-call repair worst case','Recheck grant validity, available headroom, feed privacy and eligible evidence before purchase','Actual future planner/writer/verifier payloads must fit admission; upper bound is not successful publication','Human-reviewed grouping expectations and real compatible verifier results remain absent'],metrics:{firstResponseStructuralAcceptance:{newContractRealCalls:0,rate:null},repairSuccess:{newContractRealCalls:0,rate:null},falseSplits:null,falseMerges:null,backgroundClassificationErrors:null,evidenceCoverage:'All offered ClaimMentions required structurally; semantic quality unmeasured'},requestHash:createHash('sha256').update(JSON.stringify({state:wire.state,schema:wire.schema})).digest('hex')};
+ writeFileSync('benchmarks/claim-disposition-offline-preflight.json',JSON.stringify(report,null,2)+'\n');console.info(JSON.stringify({inputBytes:admission.requestBytes,reservationUsd:admission.reservationCostUsd,providerUpperUsd:upper,networkCalls:0}));
+});

@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {ConstructionContractError,legacyDispositionIssues,pointer,type ConstructionIssue} from './construction-diagnostics';
 import {assertClaimSpan} from './claims';
 import {semanticGroupSchema} from './semantic-state';
 import {constructionSchema} from './semantic-construction';
@@ -6,8 +7,11 @@ import {HandoffError} from '@distilled/contracts';
 import {scopedConstructionWireSchema} from './semantic-construction';
 import type {ClaimMention} from './claims';
 import type {EventMatchInput} from './matchers';
-export const GROUP_OWNERSHIP_VERSION='group-owned-passages-v1';
-const ownedResponseSchema=constructionSchema.extend({groups:z.array(semanticGroupSchema.omit({claimMentionIds:true}).extend({groupId:z.string(),ownedPassages:z.array(z.object({passageId:z.string(),openQuestion:z.boolean(),expectedNextDateText:z.string().min(1).nullable()}).strict()).min(1),storylineState:z.object({lifecycle:z.enum(['ACTIVE','WATCHING','DORMANT','CLOSED'])}).strict()}).strict()).min(1)}).strict();
+export const GROUP_OWNERSHIP_VERSION='claim-disposition-v1';
+const dispositionResponseSchema=constructionSchema.omit({backgroundMentionIds:true}).extend({
+ groups:z.array(semanticGroupSchema.omit({claimMentionIds:true}).extend({groupId:z.string(),occurrence:z.string().min(1).max(240),storylineState:z.object({lifecycle:z.enum(['ACTIVE','WATCHING','DORMANT','CLOSED']),openQuestionMentionIds:z.array(z.string()),expectedNextDate:z.object({claimMentionId:z.string(),text:z.string().min(1)}).strict().nullable()}).strict()}).strict()).min(1),
+ dispositionByUnitId:z.record(z.string(),z.string())
+}).strict();
 /** Operation-local aliases change identities on the wire, never source wording.
  * They make exact reference schemas economical without truncating any fact. */
 export function constructionTransport(mentions:ClaimMention[],input:EventMatchInput,state:Record<string,any>){
@@ -16,7 +20,7 @@ export function constructionTransport(mentions:ClaimMention[],input:EventMatchIn
  const forward=new Map<string,string>(),reverse=new Map<string,string>();
  const add=(id:string,alias:string)=>{if(forward.has(id)||reverse.has(alias))throw new HandoffError('SCOPE_DENIED');forward.set(id,alias);reverse.set(alias,id)};
  mentions.forEach((m,i)=>add(m.id,'C'+i));input.candidates.forEach((c,i)=>add(c.id,'E'+i));input.storylineIds?.forEach((id,i)=>add(id,'L'+i));
- const keys=new Set(['id','eventId','storylineId','claimMentionId','claimMentionIds','backgroundMentionIds','openQuestionMentionIds','passageId','unassignedIncomingPassageIds','backgroundEligiblePassageIds','allowedIncomingPassageIds','proposedOwnedPassageIds']);
+ const keys=new Set(['id','eventId','storylineId','claimMentionId','claimMentionIds','backgroundMentionIds','openQuestionMentionIds','passageId','unassignedClaimMentionIds','backgroundEligibleClaimMentionIds','allowedClaimMentionIds','proposedClaimMentionIds','unitIds']);
  const encode=(value:any,key=''):any=>Array.isArray(value)?value.map(v=>encode(v,key)):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([k,v])=>[k,encode(v,k)])):typeof value==='string'&&keys.has(key)?forward.get(value)??value:value;
  const scoped={...input,candidates:input.candidates.map(c=>({...c,id:forward.get(c.id)!})),storylineIds:input.storylineIds?.map(id=>forward.get(id)!)};
  const schema=scopedConstructionWireSchema(mentions.map(m=>({...m,id:forward.get(m.id)!})),scoped);
@@ -24,34 +28,69 @@ export function constructionTransport(mentions:ClaimMention[],input:EventMatchIn
  if(owned){
   const branches=((schema.properties.groups as any).items as any).anyOf;
   for(const branch of branches){const p=branch.properties;
-   p.groupId={type:'string',enum:groups};
-   p.ownedPassages={type:'array',minItems:1,maxItems:mentions.length,items:{type:'object',additionalProperties:false,required:['passageId','openQuestion','expectedNextDateText'],properties:{passageId:p.claimMentionIds.items,openQuestion:{type:'boolean'},expectedNextDateText:{type:['string','null']}}}};
-   delete p.claimMentionIds;branch.required=branch.required.filter((k:string)=>k!=='claimMentionIds');branch.required.push('groupId','ownedPassages');
-   delete p.storylineState.properties.openQuestionMentionIds;delete p.storylineState.properties.expectedNextDate;p.storylineState.required=['lifecycle'];
+   p.groupId={type:'string',enum:groups};p.occurrence={type:'string',minLength:1,maxLength:240};
+   delete p.claimMentionIds;branch.required=branch.required.filter((k:string)=>k!=='claimMentionIds');branch.required.push('groupId','occurrence');
   }
   (schema.properties.groups as any).maxItems=mentions.length;
-  schema.properties.backgroundMentionIds=background.length?{type:'array',items:{type:'string',enum:background}}:{type:'array',maxItems:0,items:{type:'string'}};
+  delete (schema.properties as any).backgroundMentionIds;
+  (schema as any).required=(schema as any).required.filter((k:string)=>k!=='backgroundMentionIds');
+  (schema as any).required.push('dispositionByUnitId');
+  (schema.properties as any).dispositionByUnitId={type:'object',additionalProperties:false,required:mentions.map(m=>forward.get(m.id)!),properties:Object.fromEntries(mentions.map(m=>[forward.get(m.id)!,{type:'string',enum:[...groups,...(background.includes(forward.get(m.id)!)?['BACKGROUND']:[])]}]))};
  }
  const decode=(original:any):any=>{
   let raw=original;
   if(owned){
-   const parsed=ownedResponseSchema.parse(original),seenGroups=new Set<string>();
-   raw={...parsed,groups:parsed.groups.map(g=>{
-    if(!groups.includes(g.groupId)||seenGroups.has(g.groupId))throw new HandoffError('SCOPE_DENIED');seenGroups.add(g.groupId);
-    const ids=g.ownedPassages.map(p=>p.passageId),dates=g.ownedPassages.filter(p=>p.expectedNextDateText!==null);
-    if(new Set(ids).size!==ids.length||ids.some(id=>!/^C\d+$/.test(id)||!reverse.has(id))||dates.length>1)throw new HandoffError('SCOPE_DENIED');
-    const {groupId:_,ownedPassages,...base}=g;
-    return {...base,claimMentionIds:ids,storylineState:{lifecycle:g.storylineState.lifecycle,openQuestionMentionIds:ownedPassages.filter(p=>p.openQuestion).map(p=>p.passageId),expectedNextDate:dates.length?{claimMentionId:dates[0].passageId,text:dates[0].expectedNextDateText}:null}};
+   const issues:ConstructionIssue[]=legacyDispositionIssues(original??{}),unitIds=mentions.map(m=>forward.get(m.id)!);
+   const rawDisposition=original?.dispositionByUnitId;
+   if(rawDisposition&&typeof rawDisposition==='object'&&!Array.isArray(rawDisposition))for(const id of Object.keys(rawDisposition))if(!unitIds.includes(id))issues.push({code:'UNKNOWN_UNIT',pointer:'/dispositionByUnitId/'+pointer(id),unitId:id,observed:rawDisposition[id],invariant:'Only offered ClaimMentions are assignable.',allowed:unitIds});
+   const parsedResult=dispositionResponseSchema.safeParse(original);
+   if(!parsedResult.success){
+    issues.push(...parsedResult.error.issues.map(i=>({code:'INVALID_OUTPUT_SHAPE',pointer:i.path.length?'/'+i.path.map(v=>pointer(String(v))).join('/'):'',observed:i.path.reduce((v:any,k)=>v?.[k],original)??null,invariant:i.message})));
+    throw new ConstructionContractError(issues);
+   }
+   const parsed=parsedResult.data,declared=new Set<string>();
+   for(const [i,g] of parsed.groups.entries()){
+    if(!groups.includes(g.groupId)||declared.has(g.groupId))issues.push({code:'INVALID_GROUP_ID',pointer:`/groups/${i}/groupId`,groupId:g.groupId,observed:g.groupId,invariant:'Group IDs are offered, local and unique.',allowed:groups});
+    declared.add(g.groupId);
+    if(g.eventId!==null&&!scoped.candidates.some(c=>c.id===g.eventId))issues.push({code:'UNKNOWN_EVENT_REFERENCE',pointer:`/groups/${i}/eventId`,groupId:g.groupId,observed:g.eventId,invariant:'Only offered canonical events may be referenced.',allowed:scoped.candidates.map(c=>c.id)});
+    if(g.storylineId!==null&&!scoped.storylineIds?.includes(g.storylineId))issues.push({code:'UNKNOWN_STORYLINE_REFERENCE',pointer:`/groups/${i}/storylineId`,groupId:g.groupId,observed:g.storylineId,invariant:'Only offered canonical storylines may be referenced.',allowed:scoped.storylineIds??[]});
+    if(g.structuralRelation==='SAME_EVENT'&&g.eventId===null||g.structuralRelation!=='SAME_EVENT'&&g.eventId!==null)issues.push({code:'INVALID_EVENT_RELATION',pointer:`/groups/${i}/eventId`,groupId:g.groupId,observed:g.eventId,invariant:'SAME_EVENT requires an offered event; other relations require eventId=null.'});
+    if(g.structuralRelation==='NEW_EVENT_EXISTING_STORYLINE'&&g.storylineId===null||['NEW_STORYLINE','DEFER'].includes(g.structuralRelation)&&g.storylineId!==null)issues.push({code:'INVALID_STORYLINE_RELATION',pointer:`/groups/${i}/storylineId`,groupId:g.groupId,observed:g.storylineId,invariant:'Storyline identity must match the declared structural relation.'});
+   }
+   for(const id of unitIds){
+    const destination=parsed.dispositionByUnitId[id],path='/dispositionByUnitId/'+id;
+    if(destination===undefined)issues.push({code:'MISSING_UNIT',pointer:path,unitId:id,observed:null,invariant:'Every offered ClaimMention requires a disposition.',allowed:[...declared,...(background.includes(id)?['BACKGROUND']:[])]});
+    else if(destination==='BACKGROUND'&&!background.includes(id))issues.push({code:'INELIGIBLE_BACKGROUND',pointer:path,unitId:id,observed:destination,invariant:'Material quantities, attribution, uncertainty and qualifiers cannot be background.',allowed:[...declared]});
+    else if(destination!=='BACKGROUND'&&!declared.has(destination))issues.push({code:'UNKNOWN_GROUP',pointer:path,unitId:id,observed:destination,invariant:'Destination must name a declared group.',allowed:[...declared,...(background.includes(id)?['BACKGROUND']:[])]});
+   }
+   for(const [i,g] of parsed.groups.entries()){
+    const ids=unitIds.filter(id=>parsed.dispositionByUnitId[id]===g.groupId);
+    if(!ids.length)issues.push({code:'EMPTY_GROUP',pointer:`/groups/${i}`,groupId:g.groupId,observed:[],invariant:'Every declared group owns at least one ClaimMention.'});
+    const references=[...g.entities.flatMap((e,j)=>e.claimMentionIds.map((id,k)=>({id,path:`entities/${j}/claimMentionIds/${k}`}))),...g.slots.map((v,j)=>({id:v.claimMentionId,path:`slots/${j}/claimMentionId`})),...g.storylineState.openQuestionMentionIds.map((id,j)=>({id,path:`storylineState/openQuestionMentionIds/${j}`})),...(g.storylineState.expectedNextDate?[{id:g.storylineState.expectedNextDate.claimMentionId,path:'storylineState/expectedNextDate/claimMentionId'}]:[])];
+    for(const ref of references)if(!ids.includes(ref.id))issues.push({code:'FOREIGN_GROUP_REFERENCE',pointer:`/groups/${i}/${ref.path}`,unitId:ref.id,groupId:g.groupId,observed:ref.id,invariant:'Group-local references must use units assigned to this group.',allowed:ids});
+   }
+   if(issues.length)throw new ConstructionContractError(issues);
+   const {dispositionByUnitId,...base}=parsed;
+   raw={...base,backgroundMentionIds:unitIds.filter(id=>dispositionByUnitId[id]==='BACKGROUND'),groups:parsed.groups.map(g=>{
+    const {groupId,occurrence,...rest}=g;
+    return {...rest,claimMentionIds:unitIds.filter(id=>dispositionByUnitId[id]===groupId)};
    })};
-   if(raw.backgroundMentionIds.some((id:string)=>!background.includes(id)||raw.groups.some((g:any)=>g.claimMentionIds.includes(id))))throw new HandoffError('SCOPE_DENIED');
   }
   const ref=(id:unknown)=>{if(typeof id!=='string'||!reverse.has(id))throw new HandoffError('SCOPE_DENIED');return reverse.get(id)!};
   if(!raw||!Array.isArray(raw.groups)||!Array.isArray(raw.backgroundMentionIds))throw new HandoffError('SCOPE_DENIED');
   return {...raw,backgroundMentionIds:raw.backgroundMentionIds.map(ref),groups:raw.groups.map((g:any)=>({...g,claimMentionIds:g.claimMentionIds?.map(ref),eventId:g.eventId===null?null:ref(g.eventId),storylineId:g.storylineId===null?null:ref(g.storylineId),entities:g.entities?.map((e:any)=>({...e,claimMentionIds:e.claimMentionIds?.map(ref)})),slots:g.slots?.map((s:any)=>({...s,claimMentionId:ref(s.claimMentionId)})),...(g.storylineState?{storylineState:{...g.storylineState,openQuestionMentionIds:g.storylineState.openQuestionMentionIds?.map(ref),expectedNextDate:g.storylineState.expectedNextDate?{...g.storylineState.expectedNextDate,claimMentionId:ref(g.storylineState.expectedNextDate.claimMentionId)}:null}}:{})}))};
  };
- const enriched=owned?{...state,claimMentions:mentions.map(m=>({id:m.id,text:m.sourceText,sourceField:m.span.field,span:m.span,evidenceRevisionId:m.evidenceRevisionId,sourceDocumentId:m.sourceDocumentId,reportTime:m.reportTime,eventTime:m.eventTime,certainty:m.certainty,attribution:m.attribution,reportingRoleHint:m.reportingRole})),passageOwnership:{version:GROUP_OWNERSHIP_VERSION,sourceRevisionId:input.revision.id,canonicalUrl:input.revision.canonicalUrl,evidenceId:input.revision.evidenceId,sourceObservationId:input.revision.sourceObservationId,acquiredContentId:input.revision.acquiredContentId,contentHash:input.revision.contentHash,representation:input.revision.representation,contentCompleteness:input.revision.contentCompleteness,unassignedIncomingPassageIds:mentions.map(m=>m.id),outputGroupIds:groups,backgroundEligiblePassageIds:mentions.filter(backgroundEligible).map(m=>m.id),existingStorylines:(state.memory??[]).map((m:any)=>({storylineId:m.id,versionId:m.versionId??m.version?.id,allowedPassageIdsRef:'passageOwnership.unassignedIncomingPassageIds',existingEventVersionIds:input.candidates.filter(c=>m.version?.eventVersionIds?.includes(c.version.id)).map(c=>c.version.id)})),instruction:'Incoming passages are authorized source evidence, NOT an already-approved partition. Choose explicit ownedPassages for each G group from the incoming passage catalog using meaning. G IDs are local output handles, not canonical Event/Storyline IDs. Each owned passage carries its own openQuestion flag and optional exact expectedNextDateText; no separate passage references are allowed in storylineState. Never copy source text, move an ID during decoding, or infer ownership from a shared entity/topic. Preserve independent developments/stages, contradictions and corrections. Consolidate overlapping accounts of the same development; ownership is not a requirement to publish every context fact. Existing L/E identities retain their supplied history/version ownership; the new source does not rewrite historical passage ownership. Material quantities, attribution, hedges and qualifiers cannot be discarded as background. Every incoming passage must remain explicitly owned or eligible background. Keep otherwise valid assignments during repair; rejected proposals are NOT authoritative canonical assignments. Any regrouping must be an explicit model-ownedPassages decision justified by source meaning, never an automatic repair of foreign references.'}}:state;
- return {state:{...encode(enriched),referenceEncoding:'C references are scoped ClaimMentions, E references are offered Events, L references are offered Storylines. Text and meaning are unchanged; return only offered references.'},schema,decode};
+ const enriched=owned?{...state,connectedContext:connectedClaimContext(mentions,input),claimMentions:mentions.map(m=>({id:m.id,text:m.sourceText,sourceField:m.span.field,span:m.span,evidenceRevisionId:m.evidenceRevisionId,sourceDocumentId:m.sourceDocumentId,reportTime:m.reportTime,eventTime:m.eventTime,certainty:m.certainty,attribution:m.attribution,reportingRoleHint:m.reportingRole})),claimOwnership:{version:GROUP_OWNERSHIP_VERSION,sourceRevisionId:input.revision.id,canonicalUrl:input.revision.canonicalUrl,evidenceId:input.revision.evidenceId,sourceObservationId:input.revision.sourceObservationId,acquiredContentId:input.revision.acquiredContentId,contentHash:input.revision.contentHash,representation:input.revision.representation,contentCompleteness:input.revision.contentCompleteness,unassignedClaimMentionIds:mentions.map(m=>m.id),outputGroupIds:groups,backgroundEligibleClaimMentionIds:mentions.filter(backgroundEligible).map(m=>m.id),existingStorylines:(state.memory??[]).map((m:any)=>({storylineId:m.id,versionId:m.versionId??m.version?.id,allowedClaimMentionIdsRef:'claimOwnership.unassignedClaimMentionIds',existingEventVersionIds:input.candidates.filter(c=>m.version?.eventVersionIds?.includes(c.version.id)).map(c=>c.version.id)})),instruction:'Incoming passages are authorized source evidence, NOT an already-approved partition. Assignable units are ClaimMentions, identified by C aliases. Set dispositionByUnitId for EVERY offered C ID to exactly one declared G ID or eligible BACKGROUND. Do not return ownedPassages, claimMentionIds on groups, or backgroundMentionIds. They are derived mechanically from this map. G IDs are local output handles, not canonical Event/Storyline IDs. storylineState references must belong to the same group according to dispositionByUnitId. Give each group a short occurrence description, not a rationale. A development is a distinct news occurrence or material update, not a topic or paragraph. Funding, uses, conditions and promised governance may be facets of one announcement; historical commitments, explanations and reactions are not automatically new developments. New actions, new studies, corrections, contradictions and distinct stages remain distinguishable. There is no three-group construction limit. Never copy source text, move an ID during decoding, or infer ownership from a shared entity/topic. Preserve independent developments/stages, contradictions and corrections. Consolidate overlapping accounts of the same development; ownership is not a requirement to publish every context fact. Existing L/E identities retain their supplied history/version ownership; the new source does not rewrite historical passage ownership. Material quantities, attribution, hedges and qualifiers cannot be discarded as background. Every incoming passage must remain explicitly owned or eligible background. Keep otherwise valid assignments during repair; rejected proposals are NOT authoritative canonical assignments. Any regrouping must be an explicit model dispositionByUnitId decision justified by source meaning, never an automatic repair of foreign references.'}}:state;
+ return {state:{...encode(enriched),referenceEncoding:'C references are scoped ClaimMentions, E references are offered Events, L references are offered Storylines. Text and meaning are unchanged; return only offered references.'},schema,decode,audit:(raw:any)=>({schemaVersion:GROUP_OWNERSHIP_VERSION,dispositionByClaimMentionId:Object.fromEntries(mentions.map(m=>[m.id,raw.dispositionByUnitId[forward.get(m.id)!]]))})};
 }
 
 /** Mirrors the existing canonical MATERIAL_BACKGROUND gate; no new factual rule. */
 export function backgroundEligible(m:ClaimMention){return !m.quantities.length&&!m.certainty.hedges.length&&!m.qualifiers.length&&!m.attribution;}
+
+/** Presentation only: immutable paragraph context does not create assignable units or force grouping. */
+export function connectedClaimContext(mentions:ClaimMention[],input:EventMatchInput){
+ const blocks=new Map<string,{field:string;start:number;end:number;text:string;unitIds:string[]}>();
+ for(const m of mentions){const source=input.revision[m.span.field]??'',start=source.lastIndexOf('\n',m.span.start-1)+1,next=source.indexOf('\n',m.span.end),end=next<0?source.length:next,key=m.span.field+':'+start+':'+end;
+ const block=blocks.get(key)??{field:m.span.field,start,end,text:source.slice(start,end),unitIds:[]};block.unitIds.push(m.id);blocks.set(key,block)}
+ return [...blocks.values()].filter(b=>b.unitIds.length>1).map(b=>({...b,assignable:false,instruction:'Original paragraph context only; IDs remain the original ClaimMentions. Adjacency does not imply shared ownership.'}));
+}

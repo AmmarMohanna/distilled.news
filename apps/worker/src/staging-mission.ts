@@ -89,8 +89,7 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
   if(action==='publish'){
    const prepared=await read('prepared'),reviewed=await read('reviewed');if(!prepared||!reviewed)throw Error('REVIEW_REQUIRED');if(await read('publication-start'))return reply({error:'PUBLICATION_ALREADY_STARTED_NO_AUTOMATIC_RETRY'},409);
    const window={start:prepared.start,end:reviewed.at,kind:'HOURLY' as const};await save('publication-start',{at:now(),window,ceilingUsd:groupingRun?STAGING_GROUPING_CEILING_USD:10});
-   const events=await new V1FeedStore(db).list(feedId,'events');if(events.length>3)throw Error('MORE_THAN_THREE_DEVELOPMENTS_REQUIRES_REVIEW');
-   const edition=await withLatency({feedId,phase:'PUBLICATION_TURN'},()=>measureLatency('PUBLICATION_EXCLUSIVE_TURN',()=>withFeedWriteTurn({...scoped,SOURCE_QUEUE_SCHEDULING_ENABLED:'true'},feedId,()=>processV1Briefing(scoped,{type:'v1_briefing',feedId,window},now,undefined,fetch,{requireModel:true}),'fresh-staging-publication')));
+   const edition=await withLatency({feedId,phase:'PUBLICATION_TURN'},()=>measureLatency('PUBLICATION_EXCLUSIVE_TURN',()=>withFeedWriteTurn({...scoped,SOURCE_QUEUE_SCHEDULING_ENABLED:'true'},feedId,()=>processV1Briefing(scoped,{type:'v1_briefing',feedId,window},now,undefined,fetch,{requireModel:true,maxSelectedDevelopments:3}),'fresh-staging-publication')));
    await save('publication-outcome',{at:now(),editionId:edition?.id??null,wallMs:performance.now()-started,status:edition?'PUBLISHED':'DEFERRED'});
   }
   const privacy=await db.prepare('SELECT public_feed_enabled FROM briefings WHERE id=?').bind(feedId).first<{public_feed_enabled:number}>();if(!privacy||privacy.public_feed_enabled!==0)throw Error('PRIVATE_FEED_REQUIRED');

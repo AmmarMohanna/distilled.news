@@ -235,3 +235,9 @@ it('resuming a committed selection still rejects revoked source support before p
  const intake=new V1IntakeStore(ctx.db),scope=(await intake.getScope('feed-source-1'))!;await intake.registerScope({...scope,enabled:false});
  await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end)).rejects.toMatchObject({code:'SCOPE_DENIED'});expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','ledger_entries')).toHaveLength(0);
 },30000);
+
+it('applies the staging development limit to selected publication work without deleting graph events',async()=>{
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const},before=await store.list('feed-1','events');
+ const selection=vi.spyOn(await import('./scoring'),'scoreAndSelect').mockResolvedValue({selectedCandidateIds:['a','b','c','d']} as any),writer=vi.spyOn(publicationModule,'publishSelection');
+ try{await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetch,{maxSelectedDevelopments:3})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});expect(writer).not.toHaveBeenCalled();expect(await store.list('feed-1','events')).toEqual(before)}finally{selection.mockRestore();writer.mockRestore()}
+});

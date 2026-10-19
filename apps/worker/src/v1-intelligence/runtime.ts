@@ -108,7 +108,7 @@ export async function processV1Rematch(env:Env,feedId:string,requestId:string,no
  },env.V1_REVIEW_PREPARATION_ISOLATED==='true'?`rematch:${requestId}`:undefined);
  });
 }
-export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch,publicationOptions?:{requireModel?:boolean}) {
+export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch,publicationOptions?:{requireModel?:boolean;maxSelectedDevelopments?:number}) {
  const parsed=messageSchema.safeParse(raw);if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  const {feedId,window}=parsed.data;
  if(Date.parse(window.end)>Date.parse(now()) || Date.parse(window.start)>=Date.parse(window.end) || Date.parse(window.end)-Date.parse(window.start)>7*86400000) throw new HandoffError('INVALID_REQUEST');
@@ -185,6 +185,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   // identically until the attempt budget is spent. The obligation stays OPEN and nothing is reported as delivered.
   if(!selection.selectedCandidateIds.length&&plan?.validationContract==='EVIDENCE_GROUNDED_V2'&&plan.stories.some(s=>s.decision==='DEFER'||s.validation?.dispositions.some(d=>d.disposition==='DEFERRED'))){await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current)await tx.write('briefing_requests',id,{...current,state:'DONE',result:'DEFERRED',reason:'V2_EDITORIAL_PROPOSITIONS_PENDING',completedAt:now()});});return undefined;}
   if(!selection.selectedCandidateIds.length && selection.deferredProtectedTargetIds?.length && shortlist){await recordBlockedWindow(store,feedId,id,shortlist,selection,now());return undefined}
+  if(publicationOptions?.maxSelectedDevelopments!==undefined&&(!Number.isInteger(publicationOptions.maxSelectedDevelopments)||publicationOptions.maxSelectedDevelopments<1||selection.selectedCandidateIds.length>publicationOptions.maxSelectedDevelopments))throw Error('SELECTED_DEVELOPMENT_LIMIT');
   failureStage='SYNTHESIS_PUBLICATION';
   const edition=selection.selectedCandidateIds.length?await measureLatency('SYNTHESIS_VERIFICATION_PUBLICATION',()=>publishSelection(store,feedId,selection.id,{now,model:writer,requireModel:required,validationContract:contract})):undefined;
   countLatency(edition?'publicationPublished':'publicationDeferred');

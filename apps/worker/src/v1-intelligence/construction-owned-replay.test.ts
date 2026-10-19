@@ -21,10 +21,20 @@ it.skipIf(!available).each([0,1])('keeps saved rejected provider response %i rej
 it.skipIf(!available)('accepts an explicitly owned governance passage while preserving the separate historical-study fact',()=>{
  const {mentions,input}=saved(),wire=constructionTransport(mentions,input,{constructionOwnershipVersion:GROUP_OWNERSHIP_VERSION});
  // Controlled structural positive, NOT a provider verdict or independently labeled semantic gold.
- const group=(groupId:string,indexes:number[])=>({groupId,ownedPassages:indexes.map(i=>({passageId:'C'+i,openQuestion:i===8,expectedNextDateText:null})),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[],storylineState:{lifecycle:'ACTIVE'}});
- const raw={confidence:1,backgroundMentionIds:[],groups:[group('G0',[0,1,2,3,5,6,7,8]),group('G1',[4])]},decoded=wire.decode(raw);
+ const group=(groupId:string,indexes:number[])=>({groupId,occurrence:'Controlled structural fixture',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[],storylineState:{lifecycle:'ACTIVE',openQuestionMentionIds:indexes.includes(8)?['C8']:[],expectedNextDate:null}});
+ const raw={confidence:1,dispositionByUnitId:Object.fromEntries(mentions.map((_:any,i:number)=>['C'+i,i===4?'G1':'G0'])),groups:[group('G0',[0,1,2,3,5,6,7,8]),group('G1',[4])]},decoded=wire.decode(raw);
  const value=parseConstruction(decoded,mentions,input,{scorer:'CONTROLLED_OFFLINE',policyVersion:GROUP_OWNERSHIP_VERSION});
  expect(value.groups[0].storylineState?.openQuestionMentionIds).toEqual([mentions[8].id]);expect(value.groups[1].claimMentionIds).toEqual([mentions[4].id]);
  expect(new Set(value.groups.flatMap(g=>g.claimMentionIds))).toEqual(new Set(mentions.map((m:any)=>m.id)));
  expect(wire.state.claimMentions[8]).toMatchObject({evidenceRevisionId:input.revision.id,text:mentions[8].sourceText,span:{field:'body',start:1001,end:1185}});
+});
+
+import latestRecorded from '../../../../benchmarks/group-ownership-live-attempt-results.json';
+it.skipIf(!existsSync(new URL('group-ownership-attempt-evidence.json',root)))('replays both exact contradictory staging responses with all conflicts diagnosed',()=>{
+ const bytes=readFileSync(new URL('group-ownership-attempt-evidence.json',root));expect(createHash('sha256').update(bytes).digest('hex')).toBe(latestRecorded.privateEvidenceSha256);
+ const {mentions,input}=saved(),wire=constructionTransport(mentions,input,{constructionOwnershipVersion:GROUP_OWNERSHIP_VERSION});
+ const records=JSON.parse(bytes.toString()).docs.result[0].results.filter((r:any)=>r.kind==='semantic_results'&&['237998','39a47b'].some(id=>r.id.startsWith(id)));
+ expect(records).toHaveLength(2);
+ for(const record of records){const raw=JSON.parse(record.json).validationDiagnostic.response,before=JSON.stringify(raw);try{wire.decode(raw);throw Error('UNSAFE_ACCEPTANCE')}catch(e){expect((e as any).mechanicalIssues).toEqual(expect.arrayContaining([expect.objectContaining({code:'CONFLICTING_DISPOSITIONS',unitId:'C6',observed:['G2','BACKGROUND']}),expect.objectContaining({code:'CONFLICTING_DISPOSITIONS',unitId:'C7',observed:['G3','BACKGROUND']})]))}expect(JSON.stringify(raw)).toBe(before)}
+ expect(wire.state.connectedContext.some((b:any)=>b.unitIds.includes('C5')&&b.unitIds.includes('C6')&&b.text.includes('bolder approaches may be needed')&&b.text.includes('pursue them'))).toBe(true);
 });
