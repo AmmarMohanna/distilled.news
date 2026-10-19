@@ -31,10 +31,17 @@ needs the same reservation and uncertain-submission safeguards as paid ingestion
 ## Immediate authorized work
 
 The user approved **one Apify Google News trial with a $0.10 maximum run charge**.
-The prepared script refuses to start until a non-empty `APIFY_API_TOKEN` is set.
-No journal was created and no paid request was sent by the failed attempt.
-The existing approval can be used once the credential is available; do not ask
-for the same trial approval again. See `GOOGLE_NEWS_ALTERNATIVE_REVIEW.md`.
+After supplying the credential, that run succeeded with ten records and reported
+`usageTotalUsd: 0.00005`. The one-run approval has been used; do not submit another
+billable run under it. See `GOOGLE_NEWS_ALTERNATIVE_REVIEW.md` for the run ID,
+relevance limitations, and preserved local journal/dataset.
+
+The local `.env` now has non-empty Apify, Zyte, official X bearer, and Telegram
+application ID/hash values. Only Apify was exercised by the approved trial. Other
+credential validity is untested, and production secret/binding configuration has
+not been changed. An official X bearer token is not a TwitterAPI.io key; the
+existing adapters do not use it. Telegram still needs an authorized session and
+the private execution service.
 
 That approval does not fund ongoing Google collection, X, LinkedIn, proxy use, or
 other paid services. Keep all Joud production provider grants at zero until a

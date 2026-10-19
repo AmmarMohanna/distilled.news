@@ -1,8 +1,26 @@
 # Google News alternative collector: Joud review
 
-Prepared 2026-10-19. The user subsequently approved one trial with a $0.10 maximum
-run charge. That trial is blocked on the empty local Apify token. No secret upload,
-production provider switch, budget grant, or recurring collection was authorized.
+Prepared 2026-10-19. The user approved one trial with a $0.10 maximum run charge
+and supplied the local credential. The trial succeeded; results are below. No
+production secret upload, provider switch, budget grant, or recurring collection
+was authorized.
+
+## Trial result
+
+- Run ID: `pIkK3vnlCvm7ULcgt`; status `SUCCEEDED`.
+- One query, `coconut Australia`, AU/en, 30-day window, ten returned records.
+- Apify's run inspection reported `usageTotalUsd: 0.00005`; this is the provider's
+  reported usage field, not a claim about the final account invoice.
+- Local run identity and dataset are retained under the ignored
+  `.review-tmp/google-news-apify-trial/` directory. Do not delete its journal and
+  start another run under the same one-run approval.
+- Evidence confirms that this Actor can retrieve results from its network while
+  the direct Cloudflare Google RSS path is blocked. It does not prove the app's
+  approval or recurring ingestion path is integrated.
+- Results include coconut milk/product stories, but also Coconut Cartel crime,
+  travel, and other off-topic stories. Source/query relevance must be assessed;
+  do not treat all ten returned records as accepted food/agriculture evidence.
+- Recurring collection and Joud paid-provider budgets remain disabled.
 
 ## Confirmed failure
 
@@ -27,12 +45,10 @@ parser. A different query or immediate retry is not a demonstrated fix.
   `POST https://api.apify.com/v2/actors/groupoject~google-news-scraper/runs?maxTotalChargeUsd=0.10&timeout=120&waitForFinish=1`.
 - Authenticate using a server-side `APIFY_API_TOKEN`, never a browser token or URL
   query parameter. Joud's deployed secret-name list currently has no Apify token.
-- Starting the Actor is billable work. No request to this endpoint has been made.
-- The local `.env` contains an **empty placeholder**, not a usable token. This was
-  confirmed with the dotenv parser after the first presence-only check gave a
-  false positive. The approved trial stopped before creating a run journal or
-  sending any paid request. Populate `APIFY_API_TOKEN` to proceed; no secret value
-  has been printed or deployed.
+- Starting the Actor is billable work. Exactly one approved trial was submitted.
+- An initial attempt stopped at an empty local token before any request or run
+  journal. The user then populated the credential and the approved trial ran.
+  No secret value was printed or deployed.
 
 Prepared operator script: `scripts/probe-google-news-apify.mjs`. Running it without
 flags prints the trial request without reading credentials or making requests.
