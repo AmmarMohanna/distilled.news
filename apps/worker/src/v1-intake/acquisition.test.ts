@@ -225,3 +225,11 @@ it('URL-only discovery never authorizes a weaker acquired representation to repl
  const receipts=await store.list<any>('evidence_receipts','feed-source-1');
  expect(receipts.find(r=>r.sourceObservationId===o.id)?.decision).toBe('QUARANTINED_REVISION_CONFLICT');
 });
+
+it('acquires a complete WordPress post without calling an unavailable helper and retains final qualifiers',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,o=claim.input.observation;
+ o.canonicalUrl='https://example.com/news/post/';
+ const text='The company allocated 5 percent of shares. '.repeat(6),last='An additional contribution remains optional, not promised.';
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(`<link rel="canonical" href="${o.canonicalUrl}"><meta property="og:type" content="article"><meta property="article:published_time" content="2026-10-03T10:00:00Z"><h1>Fund announcement</h1><div class="entry-content wp-block-post-content"><p>${text}</p><div><p>${last}</p></div></div>`),extractHtml:async()=>{throw Error('UNAVAILABLE_HELPER_MUST_NOT_BE_CALLED')}});
+ const acquired=await router(claim);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',canonicalUrl:o.canonicalUrl,acquisitionMethod:'direct_http'});expect(acquired.body).toContain(last);expect(acquired.body).toContain('5 percent');
+});

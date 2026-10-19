@@ -8,7 +8,7 @@ import { acquiredSchema } from './evidence';
 import type { AcceptedAcquiredContent } from './types';
 import type {LanguageResolution} from '../v1-intelligence/language';
 import {resolvePublicationDate} from './publication-date';
-import {discoverWebsiteArticles,isWebsiteListingUrl} from '@distilled/connectors';
+import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle} from '@distilled/connectors';
 
 export interface SuppliedPayload {title?:string;body:string;language?:string;languageResolution?:LanguageResolution;publishedAt?:string}
 export interface CandidateAcquisitionOptions {
@@ -76,7 +76,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(document.status>=400) throw new AcquisitionFailure('UNSUPPORTED',false);
    if(discoverWebsiteArticles(document.body,document.url))throw new AcquisitionFailure('UNSUPPORTED',false);
    // Existing extractor requires an article body and publication metadata, rather than treating 200 as extraction success.
-   let item=parseStructuredHtmlArticle(document.body,document.url,o.canonicalUrl!);
+   let item=parseStructuredHtmlArticle(document.body,document.url,o.canonicalUrl!)??extractWordpressArticle(document.body,document.url,o.canonicalUrl!);
    if(!item&&options.extractHtml){
     const extracted=await options.extractHtml(document.url,document.body);
     if(extracted&&typeof extracted==='object'&&!Array.isArray(extracted)){

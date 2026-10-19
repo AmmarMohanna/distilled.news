@@ -55,9 +55,10 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
   if(action==='diagnose'){
    const p=await read('prepared');if(!p)throw Error('PREPARE_REQUIRED');
    const http=new BoundedFeedHttp(async(value,init)=>fetch(value,{...init,redirect:'manual'}),{maxBytes:512000}),page=await readPublicArticle(http,p.articleUrl);
-   const executor=new HttpSourceExecution(env.SOURCE_EXECUTION_URL!,env.SOURCE_EXECUTION_TOKEN!,env.SOURCE_EXECUTION_SERVICE!.fetch.bind(env.SOURCE_EXECUTION_SERVICE),true,25000);
+   let helperHttpStatus:number|undefined;
+   const executor=new HttpSourceExecution(env.SOURCE_EXECUTION_URL!,env.SOURCE_EXECUTION_TOKEN!,async(value,init)=>{const r=await env.SOURCE_EXECUTION_SERVICE!.fetch(value,init);helperHttpStatus=r.status;return r;},true,25000);
    let extraction:unknown;try{const r=await executor.execute('extract',{url:p.articleUrl,html:page.body}) as any;extraction={error:r?.error,pageKind:r?.pageKind,bodyCharacters:r?.body?.length,hasPublishedAt:!!r?.publishedAt};}catch(e){extraction={error:e instanceof Error?e.message:'UNKNOWN'}}
-   return reply({feedId,articleHttpStatus:page.status,htmlBytes:new TextEncoder().encode(page.body).length,extraction});
+   return reply({feedId,helperHttpStatus,articleHttpStatus:page.status,htmlBytes:new TextEncoder().encode(page.body).length,extraction});
   }
   if(action==='review'||action==='review-resume'){
    const prepared=await read('prepared');if(!prepared)throw Error('PREPARE_REQUIRED');if(action==='review'&&await read('review-start'))return reply({error:'REVIEW_ALREADY_STARTED_NO_AUTOMATIC_RETRY'},409);

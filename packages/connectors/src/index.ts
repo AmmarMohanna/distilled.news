@@ -24,3 +24,5 @@ export {SourceHandoffWait} from './source-runtime/handoff-wait';
 export {discoverWebsiteArticles,isWebsiteListingUrl} from './source-runtime/website-discovery';
 export type { SourceScope, SourceRepository, ImmutablePayloadStore, FeedHttpPort, RssRequest, StoredRssBatch, FetchRun, RssCheckpoint } from "./source-runtime/ports";
 export type { CandidateProposal as ConnectorCandidateProposal, ConnectorBatch, ConnectorScope, Coverage as ConnectorCoverage, Checkpoint as ConnectorCheckpoint, PayloadStore, CandidateIntakePort, IntakeReceipt, CheckpointStore, HttpPort } from "./acquisition/contracts";
+
+export {extractWordpressArticle} from './source-runtime/wordpress-article';
