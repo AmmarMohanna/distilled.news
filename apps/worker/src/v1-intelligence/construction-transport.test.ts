@@ -26,7 +26,7 @@ it('requires exactly one scalar disposition per offered ClaimMention and derives
  expect(decoded.groups[0].claimMentionIds).toEqual([mentions[0].id,mentions[1].id]);expect(decoded.groups[0].storylineState.openQuestionMentionIds).toEqual([mentions[1].id]);expect(decoded.backgroundMentionIds).toEqual([]);expect(JSON.stringify(raw)).toBe(before);
  const schema:any=wire.schema,props=schema.properties;
  expect(props.backgroundMentionIds).toBeUndefined();expect(props.groups.items.anyOf[0].properties.ownedPassages).toBeUndefined();expect(props.groups.items.anyOf[0].properties.claimMentionIds).toBeUndefined();
- expect(props.dispositionByUnitId).toMatchObject({additionalProperties:false,required:['C0','C1','C2']});expect(props.dispositionByUnitId.properties.C0.type).toBe('string');
+ expect(props.dispositionByUnitId).toMatchObject({additionalProperties:false,required:['C0','C1','C2']});const resolve=(v:any):any=>v.$ref?resolve(v.$ref.slice(2).split('/').reduce((o:any,k:string)=>o[k],schema)):v;expect(resolve(props.dispositionByUnitId.properties.C0).type).toBe('string');
  expect(wire.state.claimMentions[1]).toMatchObject({id:'C1',text:mentions[1].sourceText,evidenceRevisionId:input.revision.id,span:mentions[1].span});
 });
 it('collects missing, unknown, foreign, duplicate and empty group errors without rewriting',async()=>{
