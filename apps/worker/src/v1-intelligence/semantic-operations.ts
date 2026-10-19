@@ -12,9 +12,9 @@ import type {ExperimentUsage} from './salience';
 import {isSemanticProcessing,type SemanticWorkClass} from './semantic-admission';
 import {modelSpendingAccount,ModelSpendingWait,modelSettlementStatement} from './model-spending';
 export interface SemanticOperationInput {feedId:string;feedRevision:number;evidenceRevisionIds:string[];kind:string;policyVersion:string;model:string;budgetKey:string;state:unknown}
-export interface SemanticValidationDiagnostic {stage:'OUTPUT_SCHEMA'|'CONSTRUCTION_BINDING';response:Record<string,unknown>;rawResponse?:string;responseOmitted?:boolean;rejection:{name:string;code?:string;mechanicalIssues?:import('./construction-diagnostics').ConstructionIssue[];binding?:{invariant:string;path:(string|number)[]};issues?:{code:string;path:(string|number)[]}[]}}
+export interface SemanticValidationDiagnostic {stage:'OUTPUT_SCHEMA'|'CONSTRUCTION_BINDING'|'EDITORIAL_BINDING';response:Record<string,unknown>;rawResponse?:string;responseOmitted?:boolean;rejection:{name:string;code?:string;mechanicalIssues?:import('./construction-diagnostics').ConstructionIssue[];binding?:{invariant:string;path:(string|number)[]};issues?:{code:string;path:(string|number)[]}[]}}
 /** Unvalidated output is retained for audit only, never accepted as semantic state. */
-export class SemanticValidationError extends Error {constructor(readonly diagnostic:SemanticValidationDiagnostic){super('SEMANTIC_CONSTRUCTION_REJECTED')}}
+export class SemanticValidationError extends Error {constructor(readonly diagnostic:SemanticValidationDiagnostic,code:'SEMANTIC_CONSTRUCTION_REJECTED'|'SEMANTIC_EDITORIAL_REJECTED'='SEMANTIC_CONSTRUCTION_REJECTED'){super(code)}}
 export interface SemanticIntent {id:string;feedId:string;input:SemanticOperationInput;token:string;leaseUntil:number;reservedCostUsd:number;createdAt:string;compatibilityHash?:string}
 export interface SemanticOperationResult<T=unknown> {id:string;feedId:string;input:SemanticOperationInput;status:'SUCCEEDED'|'DEFERRED';value?:T;failure?:string;validationDiagnostic?:SemanticValidationDiagnostic;providerDiagnostic?:ProviderDiagnostic;usage:ExperimentUsage;latencyMs:number;createdAt:string}
 export class SemanticContentionError extends HandoffError {constructor(){super('TEMPORARY_UNAVAILABLE')}}

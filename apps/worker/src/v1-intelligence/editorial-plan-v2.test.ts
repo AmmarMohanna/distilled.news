@@ -1,5 +1,5 @@
 import {expect,it,vi} from 'vitest';
-import {v2EditorialRequest,prepareV2EditorialPlan} from './editorial-plan-v2';
+import {v2EditorialRequest,prepareV2EditorialPlan,decodeV2EditorialResponse} from './editorial-plan-v2';
 const shortlist:any={id:'s',feedId:'f',feedRevision:1,window:{start:'2026-10-18T00:00:00Z',end:'2026-10-18T01:00:00Z'},candidates:[],obligations:[],ledger:[],evidenceRevisionIds:['r'],communicationFingerprint:'fp'};
 it('binds explicit proposition requirements into a different versioned model input',()=>{
  const request=v2EditorialRequest(shortlist,{title:'Feed',interests:'AI'} as any);
@@ -18,4 +18,9 @@ it('omits only repeated fallback prose and ranking audit metadata, retaining fac
 it('retains an already-started paid V2 frame instead of buying a changed projection',async()=>{
  const oldState={window:shortlist.window,outputSchema:{type:'object'},instruction:'frozen paid input'},admission=vi.fn(()=>({fits:false,reason:'MODEL_CONTEXT_CONTINUATION_REQUIRED'}));const store:any={getFeed:async()=>({id:'f',revision:1}),read:async()=>undefined,list:async()=>[{input:{kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'evidence-grounded-editorial-plan-v2',model:'model',feedRevision:1,state:oldState}}]};
  await expect(prepareV2EditorialPlan(store,shortlist,'2026-10-18T02:00:00Z',{model:'model',complete:vi.fn(),usage:()=>({calls:0,costUsd:0,reported:true}),admission} as any)).rejects.toThrow();expect(admission.mock.calls[0]).toEqual([{window:shortlist.window,instruction:'frozen paid input'},{type:'object'},'COMPARATIVE_EDITORIAL_PLAN']);
+});
+
+it('retains exact rejected model output and distinguishes local editorial validation from provider failure',()=>{
+ const raw={stories:'invalid',obligations:[]},rawResponse=JSON.stringify(raw),before=JSON.stringify(raw);
+ try{decodeV2EditorialResponse({value:raw,rawResponse},shortlist);throw Error('UNSAFE_ACCEPTANCE')}catch(error){expect((error as Error).message).toBe('SEMANTIC_EDITORIAL_REJECTED');expect((error as any).diagnostic).toMatchObject({stage:'EDITORIAL_BINDING',response:raw,rawResponse,rejection:{code:'EDITORIAL_OUTPUT_INVALID'}})}expect(JSON.stringify(raw)).toBe(before);
 });

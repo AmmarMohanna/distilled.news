@@ -1,5 +1,5 @@
 import type {Env} from './types';
-import {STAGING_GROUPING_RUN_POLICY,STAGING_DISPOSITION_ATTEMPT_ID,STAGING_GROUPING_CEILING_USD,STAGING_GROUPING_CALL_LIMITS,STAGING_GROUPING_CAPABILITIES_JSON,freshStagingRematch} from './staging-grouping-run-policy';
+import {STAGING_GROUPING_RUN_POLICY,STAGING_DISPOSITION_ATTEMPT_ID,STAGING_GROUPING_CEILING_USD,STAGING_GROUPING_CALL_LIMITS,STAGING_GROUPING_CAPABILITIES_JSON,freshStagingRematch,STAGING_REUSE_REVIEW_SCOPE} from './staging-grouping-run-policy';
 import {stagingMissionDb} from './staging-mission-budget';
 import {fetchRssCandidates,BoundedFeedHttp,HttpSourceExecution} from '@distilled/connectors';
 import {readPublicArticle} from './v1-intake/public-article-http';
@@ -79,10 +79,18 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
    const prepared=await read('prepared');if(!prepared)throw Error('PREPARE_REQUIRED');
    if(await read(scope+'-start'))throw Error('CONTRACT_REVIEW_ALREADY_STARTED_NO_RETRY');
    const totals=await db.prepare('SELECT COUNT(*) n,SUM(CASE WHEN s.reported=1 THEN 0 ELSE 1 END) unknown FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.feed_id=?').bind(feedId).first<{n:number;unknown:number}>();
-   if(totals?.n!==(disposition?15:2)||totals.unknown)throw Error('EXPECTED_SETTLED_BASELINE_REQUIRED');
+   if(totals?.n!==(disposition?19:2)||totals.unknown)throw Error('EXPECTED_SETTLED_BASELINE_REQUIRED');
    const store=new V1FeedStore(db),requests=(await store.list<import('./v1-intelligence/rematch').RematchRequest & {operatorAttemptScope?:string}>(feedId,'rematch_requests')).filter(r=>!r.operatorAttemptScope);
    if(disposition){const markers=await db.prepare("SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind='staging_mission'").bind(feedId).all<{json:string}>();if(markers.results.map(m=>JSON.parse(m.json)).filter(m=>m.attemptId?.startsWith('autonomous-20261019-')&&m.rematchRequestId).length>=4)throw Error('AUTONOMOUS_ATTEMPT_LIMIT');}
    if(requests.length!==1)throw Error('EXACT_REMATCH_REQUIRED');
+   if(disposition&&STAGING_REUSE_REVIEW_SCOPE){
+    const previous=await read(STAGING_REUSE_REVIEW_SCOPE+'-reviewed'),previousStart=await read(STAGING_REUSE_REVIEW_SCOPE+'-start');
+    const oldRequest=previousStart?await store.read<import('./v1-intelligence/rematch').RematchRequest>(feedId,'rematch_requests',previousStart.rematchRequestId):undefined;
+    const attempts=await store.list<{requestId:string;state:string}>(feedId,'rematch_attempts'),active=await store.currentEvidence(feedId),coverage=await windowIntakeCoverage(db,feedId,now());
+    if(!previous||!oldRequest||!attempts.some(a=>a.requestId===oldRequest.id&&a.state==='SUCCEEDED')||active.length!==1||active[0].revision.id!==oldRequest.evidenceRevisionId||coverage.state!=='COMPLETE')throw Error('PRIOR_REVIEW_REUSE_NOT_AUTHORIZED');
+    await save(scope+'-start',{at:now(),attemptId:scope,baseCommit:'48a7903',policy:STAGING_GROUPING_RUN_POLICY,ceilingUsd:STAGING_GROUPING_CEILING_USD,baselineOperations:totals.n,rematchRequestId:oldRequest.id,reusedReviewScope:STAGING_REUSE_REVIEW_SCOPE});
+    await save(scope+'-reviewed',{at:now(),attemptId:scope,review:'REUSED_SUCCEEDED_REMATCH',reusedReviewScope:STAGING_REUSE_REVIEW_SCOPE,coverage,policy:STAGING_GROUPING_RUN_POLICY});
+   }else{
    const attemptAt=now(),runRequest=disposition?await freshStagingRematch(requests[0],scope,attemptAt):requests[0];await save(scope+'-start',{at:attemptAt,attemptId:scope,baseCommit:disposition?'48a7903':undefined,policy:STAGING_GROUPING_RUN_POLICY,ceilingUsd:STAGING_GROUPING_CEILING_USD,baselineOperations:totals.n,rematchRequestId:runRequest.id,previousRequestId:requests[0].id});
    if(disposition)await feedTransact(store,feedId,async tx=>{if(await tx.read('rematch_requests',runRequest.id))throw Error('FRESH_REMATCH_ALREADY_EXISTS');await tx.write('rematch_requests',runRequest.id,runRequest)});
    await processV1Rematch(scoped,feedId,runRequest.id);
@@ -90,6 +98,7 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
    if(!attempts.some(a=>a.requestId===runRequest.id&&a.state==='SUCCEEDED'&&(!disposition||(a as any).createdAt>=attemptAt)))throw Error('SEMANTIC_REMATCH_NOT_SUCCEEDED');
    const coverage=await windowIntakeCoverage(db,feedId,now());if(coverage.state!=='COMPLETE')throw Error('INTAKE_NOT_COMPLETE');
    await save(disposition?scope+'-reviewed':'reviewed',{at:now(),attemptId:scope,review:'CONTRACT_REMATCH_SUCCEEDED',coverage,policy:STAGING_GROUPING_RUN_POLICY,wallMs:performance.now()-started});
+   }
   }
   if(action==='publish'||action==='publish-disposition-v1'){
    const disposition=action==='publish-disposition-v1',scope=disposition?STAGING_DISPOSITION_ATTEMPT_ID:'publication';

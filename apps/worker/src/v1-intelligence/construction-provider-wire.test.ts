@@ -37,7 +37,7 @@ import {v2EditorialRequest} from './editorial-plan-v2';
 it.each([false,true])('V2 editorial serialized provider schema has unique complete required fields; candidate=%s',async candidate=>{
  const request=v2EditorialRequest({id:'shortlist',feedId:'feed',feedRevision:1,window:{start:'2026-10-19T00:00:00Z',end:'2026-10-19T01:00:00Z'},candidates:candidate?[{targetVersionId:'event-version',facts:[{id:'fact',text:'The fund commits 5% of shares.'}]}]:[],ledger:[],obligations:[]} as any,{title:'Fund briefing',interests:['AI']});let calls=0;
  const model=createStrongSemanticModel(env,(async(_url,init)=>{calls++;const body=JSON.parse(init!.body as string);audit(body.response_format.json_schema.schema);return Response.json({choices:[{message:{content:'{}'}}],usage:{prompt_tokens:0,completion_tokens:0,cost:0}})}) as typeof fetch)!;
- await model.complete('feed','COMPARATIVE_EDITORIAL_PLAN',request.state,request.schema);expect(calls).toBe(1);
+ const completed=await model.complete('feed','COMPARATIVE_EDITORIAL_PLAN',request.state,request.schema);expect(completed.rawResponse).toBe('{}');expect(calls).toBe(1);
  for(const branch of request.schema.properties.stories.items.anyOf){expect(branch.required.filter(k=>k==='validation')).toHaveLength(1);expect(branch.required.filter(k=>k==='editorialImportance')).toHaveLength(1);}
 });
 
