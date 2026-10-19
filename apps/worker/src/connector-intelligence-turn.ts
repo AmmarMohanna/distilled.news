@@ -1,7 +1,8 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
-import {HandoffError} from '@distilled/contracts';
+import {HandoffError,sha256} from '@distilled/contracts';
+import {canonicalJson} from './v1-intake/canonical';
 import type {Env,DistilledQueueMessage} from './types';
-import {countLatency,measureLatency} from './v1-intelligence/latency';
+import {countLatency,measureLatency,withLatency} from './v1-intelligence/latency';
 const LEASE_MS=120000;
 const WAITER_TTL_MS=300000,READY_MS=1000;
 export class IntelligenceTurnBusy extends Error {constructor(){super('INTELLIGENCE_TURN_BUSY')}}
@@ -38,6 +39,16 @@ export async function withIntelligenceTurn<T>(env:Env,body:DistilledQueueMessage
  // Runtime reacquires this turn for deterministic consumption. Legacy default
  // retains the original ownership boundary until explicitly rolled out.
  if(env.V1_REVIEW_PREPARATION_ISOLATED==='true'&&(body.type==='v1_reassess'||body.type==='v1_rematch'))return run();
+ // The runtime PUBLICATION measurement starts inside this turn, so it cannot
+ // observe admission/hold time. A separate bounded outer record includes the
+ // full exclusive callback without changing admission, renewal or fencing.
+ if(body.type==='v1_briefing'){
+  // Match runtime.windowIdentity for equivalent valid ISO representations;
+  // malformed dates still follow the existing runtime validation path.
+  const instant=(value:string)=>Number.isFinite(Date.parse(value))?new Date(value).toISOString():value;
+  const windowId=await sha256(canonicalJson({feedId,start:instant(body.window.start),end:instant(body.window.end)}));
+  return withLatency({feedId,windowId,phase:'PUBLICATION_TURN'},()=>withFeedWriteTurn(env,feedId!,run,JSON.stringify(body)));
+ }
  return withFeedWriteTurn(env,feedId,run,JSON.stringify(body));
 }
 /** Intake and intelligence share the same canonical snapshot fence.

@@ -1,7 +1,7 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 
 export interface LatencyCorrelation {
- feedId:string;phase:'REVIEW'|'REMATCH'|'PUBLICATION'|'MODEL';
+ feedId:string;phase:'REVIEW'|'REMATCH'|'PUBLICATION'|'PUBLICATION_TURN'|'MODEL';
  reviewId?:string;windowId?:string;operationId?:string;
 }
 interface Measurement {correlation:LatencyCorrelation;counts:Record<string,number>;stages:Record<string,{count:number;durationMs:number}>;receiptOperationId?:string}
