@@ -60,6 +60,12 @@ it('assesses Google News topic searches using actual returned headlines', async 
   expect(await assessSource(env, context, 'news: Lebanon economy', fetcher())).toMatchObject({ status: 'accepted', kind: 'google_news' });
 });
 
+it('identifies Google automated-traffic blocks without repeating the blocked request',async()=>{
+ const fetch=vi.fn<typeof globalThis.fetch>(async()=>new Response('<html><title>Sorry...</title>Your computer or network may be sending automated queries.</html>',{status:503}));
+ expect(await assessSource(env,context,'news: coconut Australia',fetch)).toMatchObject({status:'unverified',failureCode:'UPSTREAM_AUTOMATION_BLOCKED',upstreamStatus:503,reason:expect.stringContaining('blocking automated requests')});
+ expect(fetch).toHaveBeenCalledTimes(1);
+});
+
 it('does not spend provider money or approve a social source that is not configured', async () => {
   const fetch = fetcher();
   expect(await assessSource(env, context, 'https://x.com/BBCWorld', fetch)).toMatchObject({ status: 'unavailable' });

@@ -2,9 +2,22 @@ import {z} from 'zod';
 import type {Env} from './types';
 import {prepareProductSourceInput,resolveProductSourceInput} from './product-feeds';
 import {sourceAvailability} from './connector-availability';
-import type {SourceFamily} from '@distilled/connectors';
+import {normalizeRssSnapshot,type SourceFamily} from '@distilled/connectors';
 import {assessSources} from './source-assessment';
 import {discoverPublicRssFeed} from './product-feed-discovery';
+import {WorkerPublicSourceFetch} from './public-source-fetch';
+
+/** A model-proposed RSS path is not a source until it returns actual feed items. */
+async function readableRssRecommendation(value:string,fetcher:typeof fetch):Promise<string|undefined>{
+ const plan=prepareProductSourceInput(value);
+ const url=plan.sourceUrl!;
+ try{
+  const response=await new WorkerPublicSourceFetch(url,fetcher).get(url);
+  if(response.status===200&&!response.authenticationRequired&&normalizeRssSnapshot(response.body,url).some(item=>item.identityValid))return value;
+ }catch{/* Discovery can only inspect the same already-admitted publisher. */}
+ const found=await discoverPublicRssFeed(new URL(url).origin+'/',fetcher);
+ return found?`rss: ${found}`:undefined;
+}
 
 /** One replacement pass when every suggestion fails; verification remains mandatory. */
 export async function verifiedSourceRecommendations(env:Env,input:{title:string;description:string},fetcher:typeof fetch=fetch){
@@ -59,6 +72,13 @@ export async function sourceRecommendations(env:Env,input:{title:string;descript
   try{
    let plan=prepareProductSourceInput(value);
    const originalKind=plan.detected.kind;
+   if(originalKind==='rss_feed'){
+    const readable=await readableRssRecommendation(value,fetcher);
+    if(!readable)continue;
+    plan=prepareProductSourceInput(readable);
+    if(available.includes('rss')&&!sources.includes(readable))sources.push(readable);
+    continue;
+   }
    if(plan.detected.kind==='web_page'&&!available.includes('website')){
     // A website is usable here only when its own advertised RSS feed resolves.
     plan=await resolveProductSourceInput(value,fetcher);

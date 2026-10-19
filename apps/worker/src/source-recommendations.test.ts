@@ -1,6 +1,8 @@
 import {expect,it,vi} from 'vitest';
 import {sourceRecommendations} from './source-recommendations';
 import type {Env} from './types';
+const rss='<rss><channel><title>News</title><item><guid>one</guid><title>Topic news</title><link>https://publisher.example/story</link></item></channel></rss>';
+
 
 it('makes no provider call while recommendations are disabled',async()=>{
  const fetcher=vi.fn();
@@ -9,10 +11,10 @@ it('makes no provider call while recommendations are disabled',async()=>{
 });
 
 it('bounds the call and excludes unsafe suggestions without subscribing anything',async()=>{
- const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:JSON.stringify({sources:['https://feeds.bbci.co.uk/news/world/rss.xml','https://127.0.0.1/feed.xml','http://example.com/feed.xml']})}}]}));
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:['https://feeds.bbci.co.uk/news/world/rss.xml','https://127.0.0.1/feed.xml','http://example.com/feed.xml']})}}]}):new Response(rss,{headers:{'content-type':'application/rss+xml'}}));
  const sources=await sourceRecommendations({SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env,{title:'World',description:'News'},fetcher);
  expect(sources).toEqual(['https://feeds.bbci.co.uk/news/world/rss.xml']);
- expect(fetcher).toHaveBeenCalledTimes(1);
+ expect(fetcher).toHaveBeenCalledTimes(2);
  const options=fetcher.mock.calls[0] as unknown as [string,RequestInit];
  expect(JSON.parse(options[1].body as string)).toMatchObject({max_tokens:400,temperature:0});
 });
@@ -43,7 +45,13 @@ it('retains social and website suggestions when their collectors are configured'
 });
 
 it('does not pad recommendations with multiple queries to the same Google News provider',async()=>{
- const fetcher=vi.fn<typeof fetch>(async()=>Response.json({choices:[{message:{content:JSON.stringify({sources:['news: coconut Australia','news: coconut farming Australia','news: Australian coconut market','https://publisher.example/coconut/rss.xml']})}}]}));
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:['news: coconut Australia','news: coconut farming Australia','news: Australian coconut market','https://publisher.example/coconut/rss.xml']})}}]}):new Response(rss,{headers:{'content-type':'application/rss+xml'}}));
  const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env;
  expect(await sourceRecommendations(env,{title:'Coconuts',description:'Coconut farming in Australia'},fetcher)).toEqual(['news: coconut Australia','https://publisher.example/coconut/rss.xml']);
+});
+
+it('does not return guessed RSS paths that fail both feed preflight and publisher discovery',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:['news: coconut Australia','https://publisher.example/invented/rss.xml']})}}]}):new Response('<html>No RSS feed here.</html>',{headers:{'content-type':'text/html'}}));
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env;
+ expect(await sourceRecommendations(env,{title:'Coconuts',description:'Australian farming'},fetcher)).toEqual(['news: coconut Australia']);
 });

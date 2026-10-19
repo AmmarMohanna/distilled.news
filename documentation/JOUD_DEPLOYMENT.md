@@ -39,6 +39,12 @@ RSS/Atom alternate links. When an RSS URL is dead or blocked by redirect policy,
 recommendations may inspect up to two publisher homepages for a working advertised
 feed, which must then pass assessment. Redirect and cross-origin fetch restrictions
 remain unchanged; this does not bypass publisher access blocks or relevance checks.
+Model-proposed direct RSS paths now undergo bounded fetch/parse preflight before
+recommendation results are assessed; invalid paths are omitted or resolved from
+publisher-advertised feeds. Confirmed Google automated-traffic blocks are reported
+explicitly without an immediate retry. The unpaid Cloudflare diagnostic and a
+proposed one-run Apify alternative are documented in
+`GOOGLE_NEWS_ALTERNATIVE_REVIEW.md`; that proposal does not enable paid collection.
 each user can request AI source recommendations three times per rolling five-hour window. Each click makes one
 OpenRouter request with at most 400 output tokens per recommendation call. These direct recommendation
 calls are separate from the one-time briefing model allowance described below. Website source rows use

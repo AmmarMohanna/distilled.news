@@ -15,7 +15,7 @@ export interface SourceAssessment {
   evidenceUrl?: string;
   model?: string;
   upstreamStatus?: number;
-  failureCode?: 'PUBLIC_URL_POLICY_DENIED';
+  failureCode?: 'PUBLIC_URL_POLICY_DENIED' | 'UPSTREAM_AUTOMATION_BLOCKED';
 }
 const choice = z.object({ type: z.literal('choice'), choice: z.enum(['YES', 'NO', 'UNKNOWN']), confidence: z.number().min(0).max(1), probabilities: z.object({ YES: z.number().min(0).max(1), NO: z.number().min(0).max(1), UNKNOWN: z.number().min(0).max(1) }).strict() });
 function plain(value: string): string {
@@ -63,9 +63,11 @@ export async function assessSource(env: Env, context: { title: string; descripti
   let evidence: string;
   try {
     let page = await port.get(url);
+    const automationBlocked = () => kind === 'google_news' && page.status === 503 && /automated queries|unusual traffic/i.test(page.body);
     // One retry for a temporary upstream outage, never for blocked or dead feeds.
-    if ([502, 503, 504].includes(page.status)) page = await port.get(url);
+    if ([502, 503, 504].includes(page.status) && !automationBlocked()) page = await port.get(url);
     if (page.status !== 200 || page.authenticationRequired) {
+      if(automationBlocked())return result('unverified', 'Google News is blocking automated requests from this deployment. Retrying a different query will not fix this. Use a publisher RSS feed or configure another collector.', {kind,upstreamStatus:page.status,failureCode:'UPSTREAM_AUTOMATION_BLOCKED'});
       const reason = page.status === 404 || page.status === 410
         ? `This source URL is no longer available (HTTP ${page.status}). Use an updated RSS/Atom feed URL.`
         : page.status === 429
