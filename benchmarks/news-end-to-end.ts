@@ -61,7 +61,7 @@ export function briefingReviewSheet(edition:any){
 /** Shared real production path. The caller owns isolated acquisition, leases,
  * durable paid authorization/accounting and provider transports; this runner
  * creates no grant and changes no deployment or task qualification. */
-export async function processNewsToBriefing(options:{store:V1FeedStore;env:Env;feedId:string;jobIds:string[];acquire?:()=>Promise<string[]>;window:PublicationWindow;editorialWholeParentReferences?:boolean;editorialCompleteParentDecisions?:boolean;now:string|(()=>string);semantic:StrongSemanticModel;editorial:StrongSemanticModel;writer:BriefingModelPort;checkpoint:(stage:string,value:unknown)=>Promise<void>}){
+export async function processNewsToBriefing(options:{store:V1FeedStore;env:Env;feedId:string;jobIds:string[];acquire?:()=>Promise<string[]>;window:PublicationWindow;editorialWholeParentReferences?:boolean;editorialCompleteParentDecisions?:boolean;reviewedDraftId?:string;now:string|(()=>string);semantic:StrongSemanticModel;editorial:StrongSemanticModel;writer:BriefingModelPort;checkpoint:(stage:string,value:unknown)=>Promise<void>}){
  const {store,env,feedId,window,checkpoint}=options,now=()=>typeof options.now==='function'?options.now():options.now,coordinatedEnv={...env,DB:store.db};
  if(env.V1_PUBLICATION_VALIDATION_CONTRACT!=='EVIDENCE_GROUNDED_V2'||options.writer.validationContract!=='EVIDENCE_GROUNDED_V2')throw Error('EVALUATION_REQUIRES_V2');
  let editionReused=false;
@@ -88,7 +88,7 @@ export async function processNewsToBriefing(options:{store:V1FeedStore;env:Env;f
   const plan=await stage('EDITORIAL_SELECTION',()=>prepareV2EditorialPlan(store,shortlist,now(),options.editorial,{wholeParentReferences:options.editorialWholeParentReferences,completeParentDecisions:options.editorialCompleteParentDecisions}));await checkpoint('EDITORIAL_SELECTION',plan);
   const selection=await stage('SCORING',()=>scoreAndSelect(store,feedId,window,ADAPTIVE_BRIEFING_PROCESSING,now(),undefined,plan));await checkpoint('SCORING',selection);
   const instrumented:BriefingModelPort={...options.writer,synthesize:async(...args)=>stage('WRITING',()=>options.writer.synthesize(...args)),...(options.writer.verify?{verify:async(...args:Parameters<NonNullable<BriefingModelPort['verify']>>)=>stage('FACTUAL_VERIFICATION',()=>options.writer.verify!(...args))}:{}),...(options.writer.repair?{repair:async(...args:Parameters<NonNullable<BriefingModelPort['repair']>>)=>stage('WRITER_REPAIR',()=>options.writer.repair!(...args))}:{})};
-  const edition=await stage('WRITE_VERIFY_LOCAL_COMMIT',()=>publishSelection(store,feedId,selection.id,{now,model:instrumented,requireModel:true,validationContract:'EVIDENCE_GROUNDED_V2'}));
+  const edition=await stage('WRITE_VERIFY_LOCAL_COMMIT',()=>publishSelection(store,feedId,selection.id,{now,model:instrumented,requireModel:true,validationContract:'EVIDENCE_GROUNDED_V2',reviewedDraftId:options.reviewedDraftId}));
   await checkpoint('LOCAL_EDITION',edition);return edition;
   },'evaluation-briefing:'+hash(window))));
  });

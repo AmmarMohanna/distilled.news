@@ -1,5 +1,5 @@
 // Read-only evaluation-ledger audit. Never modifies grants or settlements.
-import {readFileSync,writeFileSync} from 'node:fs';
+import {readFileSync,writeFileSync,existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {evaluationD1} from './validation-evaluation-d1.mjs';
@@ -14,8 +14,11 @@ const grants=(await db.prepare('SELECT id,json FROM v1_model_spending_authorizat
 const rows=(await db.prepare('SELECT r.id,r.json,r.feed_id,r.token,r.reserved_cost_usd,s.cost_usd,s.reported FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.account_id=?').bind(account).all()).results;
 const oldGrantsUnchanged=baseline.grants.every(old=>grants.find(g=>g.id===old.id)?.json===old.json);
 const oldHoldsUnchanged=baseline.holds.every(old=>{const r=rows.find(r=>r.id===old.id);return r&&r.json===old.json&&r.cost_usd===old.cost_usd&&r.reported===old.reported});
-const pending=rows.filter(r=>r.reported!==1),workflow=rows.filter(r=>r.feed_id===feed),sum=(values,fn)=>values.reduce((n,r)=>n+fn(r),0);
-const workflowGrants=grants.filter(g=>JSON.parse(g.json).evaluationScope?.feedId===feed);
+const continuation=correctness&&existsSync(root+'continuation-approval.json')?load(root+'continuation-approval.json'):undefined;
+const finalVerification=correctness&&existsSync(root+'final-verification-approval.json')?load(root+'final-verification-approval.json'):undefined;
+const isWorkflow=id=>id===feed||Boolean(continuation&&id===feed+':publication-continuation')||Boolean(finalVerification&&id===feed+':reader-reference-final');
+const pending=rows.filter(r=>r.reported!==1),workflow=rows.filter(r=>isWorkflow(r.feed_id)),sum=(values,fn)=>values.reduce((n,r)=>n+fn(r),0);
+const workflowGrants=grants.filter(g=>isWorkflow(JSON.parse(g.json).evaluationScope?.feedId));
 const ceilingUnchanged=workflowGrants.every(g=>{const j=JSON.parse(g.json);return j.maxExposureUsd===73&&j.evaluationScope.maxLifetimeExposureUsd===73});
 const proof={at:new Date().toISOString(),oldGrantsUnchanged,oldHoldsUnchanged,originalHoldCount:baseline.holds.length,
  originalHeldUsd:sum(baseline.holds,r=>Math.max(JSON.parse(r.json).reservedCostUsd,r.cost_usd??0)),
@@ -23,8 +26,10 @@ const proof={at:new Date().toISOString(),oldGrantsUnchanged,oldHoldsUnchanged,or
  workflowCalls:workflow.length,workflowActualCostUsd:sum(workflow,r=>r.reported===1?r.cost_usd:0),
  workflowConservativeReservationsUsd:sum(workflow,r=>Math.max(r.reserved_cost_usd,r.cost_usd??0)),
  lifetimeActualAndHeldUsd:sum(rows,r=>r.reported===1?r.cost_usd:Math.max(r.reserved_cost_usd,r.cost_usd??0)),
- ceilingUsd:73,ceilingUnchanged,maxWorkflowCalls:correctness?12:24,maxWorkflowReservationsUsd:correctness?1.5:2.5};
+ ceilingUsd:73,ceilingUnchanged,maxWorkflowCalls:correctness?12+(finalVerification?.maxCalls??0):24,maxWorkflowReservationsUsd:correctness?1.5+(continuation?.maxReservationsUsd??0)+(finalVerification?.maxReservationsUsd??0):2.5,
+ scopes:[{feedId:feed,maxCalls:correctness?12:24,maxReservationsUsd:correctness?1.5:2.5},...(continuation?[{feedId:feed+':publication-continuation',maxCalls:4,maxReservationsUsd:1}]:[]),...(finalVerification?[{feedId:feed+':reader-reference-final',maxCalls:1,maxReservationsUsd:.25}]:[])].map(scope=>({...scope,calls:workflow.filter(r=>r.feed_id===scope.feedId).length,reservationsUsd:sum(workflow.filter(r=>r.feed_id===scope.feedId),r=>Math.max(r.reserved_cost_usd,r.cost_usd??0))}))};
 writeFileSync(root+'financial-postflight.json',JSON.stringify(proof,null,2)+'\n');
+if(proof.scopes.some(s=>s.calls>s.maxCalls||s.reservationsUsd>s.maxReservationsUsd))throw Error('EVALUATION_SCOPE_POSTFLIGHT_FAILED');
 if(!oldGrantsUnchanged||!oldHoldsUnchanged||!ceilingUnchanged||proof.currentUnconfirmedCount!==50||proof.workflowUnconfirmedCount||proof.workflowCalls>proof.maxWorkflowCalls||proof.workflowConservativeReservationsUsd>proof.maxWorkflowReservationsUsd||proof.lifetimeActualAndHeldUsd>73)throw Error('EVALUATION_ACCOUNTING_POSTFLIGHT_FAILED');
 writeFileSync(correctness?'benchmarks/news-correctness-accounting.json':'benchmarks/news-end-to-end-accounting.json',JSON.stringify(proof,null,2)+'\n');
 console.log(JSON.stringify(proof,null,2));

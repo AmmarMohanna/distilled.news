@@ -24,7 +24,7 @@ it.skipIf(process.env.DISTILLED_NEWS_CORRECTNESS_PAID!=='USER_AUTHORIZED_12_CALL
  const transport=newsEvaluationTransport(baseEnv,{correctnessOnly:true}),reports:any[]=[];
  const providers=['openrouter'] as const;
  try{for(const provider of providers){
-  const mf=await persistentEvaluationDatabase(join(process.cwd(),newsRoot,'d1-correctness-final-'+provider));
+  const mf=await persistentEvaluationDatabase(join(process.cwd(),newsRoot,'d1-real-publication-'+provider));
   saveNews(newsRoot+'/'+provider+'-persistence.json',{path:mf.persistedPath,scope:'LOCAL_ONLY'});
   try{
    const db=mf.db;
@@ -40,14 +40,14 @@ it.skipIf(process.env.DISTILLED_NEWS_CORRECTNESS_PAID!=='USER_AUTHORIZED_12_CALL
    const strong=(task:'construction'|'editorial'):StrongSemanticModel=>{
     let latest={calls:0,costUsd:0,reported:true};const route=llmRoute(env,task);
     return {model:route.identity,fork:()=>strong(task),forPhase:phase=>strong(phaseTask(phase)==='editorial'?'editorial':'construction'),admission:(state,schema)=>transport.admission(route,state,schema),usage:()=>latest,complete:async(feedId,phase,payload,schema)=>{
-     const envelope=transport.admission(route,payload,schema);latest={calls:1,costUsd:envelope.reservationCostUsd,reported:false};const result=await transport.complete({route,feedId,phase,payload,schema,limits:{maxOutputTokens:envelope.maxOutputTokens,signal:AbortSignal.timeout(180000)}});latest={calls:1,costUsd:result.usage.cost,reported:result.usage.confirmed};return {value:result.result,usage:{...latest,tokensIn:result.usage.tokensIn,tokensOut:result.usage.tokensOut}};
+     const envelope=transport.admission(route,payload,schema);latest={calls:1,costUsd:envelope.reservationCostUsd,reported:false};let result;try{result=await transport.complete({route,feedId,phase,payload,schema,limits:{maxOutputTokens:envelope.maxOutputTokens,signal:AbortSignal.timeout(180000)}})}catch(e){const paid=(e as any).paidUsage;if(paid?.confirmed)latest={calls:1,costUsd:paid.cost,reported:true};throw Error('SEMANTIC_'+(e instanceof Error?e.message:'PROVIDER_FAILURE'))}latest={calls:1,costUsd:result.usage.cost,reported:result.usage.confirmed};return {value:result.result,usage:{...latest,tokensIn:result.usage.tokensIn,tokensOut:result.usage.tokensOut}};
     }};
    };
    const contextFile=newsRoot+'/'+provider+'-context.json',context=existsSync(contextFile)?loadNews(contextFile):{importedAt:new Date().toISOString(),window:{start:'2026-10-17T00:00:00Z',end:new Date().toISOString(),kind:'DAILY' as const}};if(!existsSync(contextFile))saveNews(contextFile,context);
    const store=new V1FeedStore(profile.db,undefined,'local-news-mirror'),now=context.importedAt,window=replayNewsWindow(context.importedAt,context.window);
    if(hash(window)!==hash(context.window))saveNews(newsRoot+'/'+provider+'-window-correction.json',{original:context.window,corrected:window,reason:'Strict admission-before-cutoff; immutable import receipts retained'});
    const workflowStart=performance.now(),attempts:Awaited<ReturnType<typeof processNewsToBriefing>>[]=[];
-   const runOptions:Parameters<typeof processNewsToBriefing>[0]={editorialCompleteParentDecisions:true,store,env,feedId:'feed-1',jobIds:[],window,now:()=>new Date().toISOString(),semantic:strong('construction'),editorial:strong('editorial'),writer:createEvaluationEvidenceModel(env,transport)!,acquire:async()=>{
+   const runOptions:Parameters<typeof processNewsToBriefing>[0]={editorialCompleteParentDecisions:true,reviewedDraftId:existsSync(newsRoot+'/openrouter-qualified-draft.json')?loadNews(newsRoot+'/openrouter-qualified-draft.json').draftId:undefined,store,env,feedId:'feed-1',jobIds:[],window,now:()=>new Date().toISOString(),semantic:strong('construction'),editorial:strong('editorial'),writer:createEvaluationEvidenceModel(env,transport)!,acquire:async()=>{
     const lineage=[];
     for(const [index,source] of corpus.entries()){
      const sequence=index+1,observationId='observation-'+sequence,metadata=manifest.cases.find((c:any)=>c.id===source.id);let existing=(await store.currentEvidence('feed-1')).find(e=>e.revision.sourceObservationId===observationId);
@@ -62,7 +62,7 @@ it.skipIf(process.env.DISTILLED_NEWS_CORRECTNESS_PAID!=='USER_AUTHORIZED_12_CALL
    const documents=await db.prepare('SELECT kind,id,json FROM v1_feed_documents ORDER BY kind,id').all();saveNews(newsRoot+'/'+provider+'-local-state.json',documents.results);
    const reportPath=newsRoot+'/'+provider+'-report.json',previous=existsSync(reportPath)?loadNews(reportPath):undefined;
    if(previous)saveNews(newsRoot+'/'+provider+'-prior-report-'+hash(previous).slice(0,12)+'.json',previous);
-   const operatorAssisted=existsSync(newsRoot+'/'+provider+'-editorial-recovery.json');
+   const operatorAssisted=existsSync(newsRoot+'/'+provider+'-editorial-recovery.json')||existsSync(newsRoot+'/'+provider+'-admission-recovery.json');
    const cumulative={...measured,operatorAssisted,unattendedSuccess:report.status==='SUCCEEDED'&&!operatorAssisted,editorialVariant:'COMPLETE_PARENT_DECISIONS',cumulativeActiveWallMs:(previous?.cumulativeActiveWallMs??previous?.wallMs??0)+measured.wallMs,harnessFailuresRetained:previous?true:false};
    saveNews(reportPath,cumulative);reports.push({provider,...cumulative});saveNews(newsRoot+'/reports.json',reports);
    console.info(JSON.stringify({type:'NEWS_END_TO_END_RESULT',provider,status:report.status,error:report.error,wallMs:report.wallMs,timeToUsefulBriefingMs:report.timeToUsefulBriefingMs,stories:report.value?.stories?.length??0}));

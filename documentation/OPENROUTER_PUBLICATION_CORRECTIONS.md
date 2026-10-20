@@ -1,6 +1,6 @@
 # OpenRouter publication correctness checkpoint
 
-Provider comparisons and performance optimization are stopped. The existing OpenRouter route is selected in the branch configuration; inference concurrency is one. No deployment or merge was performed. This checkpoint does **not** meet the user's success criterion: no new real briefing exists yet.
+Provider comparisons and performance optimization are stopped. The existing OpenRouter route is selected in the branch configuration; inference concurrency is one. No deployment or merge was performed. A real three-story briefing is now persisted in isolated private D1 and has passed independent AI-assisted source review and persisted readback. This run was operator-assisted and does not prove unattended end-to-end reliability.
 
 ## Verified diagnosis from retained outputs
 
@@ -34,3 +34,20 @@ Private source bodies, model streams, full drafts, local database paths and read
 The saved-artifact and budget unit run passed 10 tests. The focused local semantic preparation/fidelity run passed 38 tests; the added UNKNOWN-review test first reproduced duplicate review calls, then passed with only the original two calls across retry/day changes. The controlled publication integration passed all four outcomes, including keyed COMPLETE_SUCCESS and persisted-edition reuse. Worker and benchmark TypeScript checks passed. Initial local database hooks timed out under a 10-second setup limit; rerunning with a 60-second hook limit passed. Read-only code review found the initial qualifier guard and UNKNOWN admission defects, both fixed with regression tests; final review reported no new material findings. None of these results substitutes for the blocked real-model briefing.
 
 A later combined seven-file publication regression run stalled without a final Vitest result and was stopped after its offline process tree was verified. It is **incomplete**, not a passing suite. The two normalized-fact publication cases passed when isolated (2 passed, 26 skipped); the final keyed-editorial/identity/storyline unit run passed 36 tests. No full-worker-suite success is claimed. This local test-run limitation is separate from the confirmed remote D1 capacity blocker.
+
+## Capacity recovery authorized by the user
+
+The user subsequently authorized deleting evaluation database content. Storage inspection identified 10,066 `semantic_resource_waits` documents containing 5,416,685,534 payload bytes. All had zero paid calls; they are diagnostic wait records, not authoritative paid receipts or source evidence. Deletion was restricted to that exact document kind, in batches of at most 200. Database size fell from 9,999,998,976 to 4,568,223,744 bytes, with zero diagnostic rows remaining. No financial table, source-evidence record, recovery-work record or publication record was deleted. Read-only postflight again matched the original five grants and 50 holds and the unchanged $73 ceiling. No deployment occurred. The capacity blocker is resolved and the still-authorized bounded OpenRouter run resumed; subsequent run results supersede the earlier blocked checkpoint without erasing it.
+
+
+## Real publication result ? 21 October checkpoint
+
+Edition `76fef1ee37c0648eff3da81fb52dc9cd923fbbe1031207acf27bae0c8e661dc6` is PUBLISHED in isolated persistent local D1, private, with three separate stories, three source revisions and 29 accepted reader witnesses. Readback matched the independently reviewed draft exactly, checked paid V2 verification links and source ownership, and proved that edition replay invokes no models. No deployment or external notification occurred.
+
+The complete workflow used 13 real OpenRouter GPT-4.1 calls costing $0.828278. The final resumed publication turn took 82.144 seconds; this reused earlier stages and is not a cold end-to-end latency claim. Original construction and editorial failures remain in the denominator. This result required explicit local operator recoveries, source-review feedback and removal of one unsupported qualifier in a new immutable draft. It is not an unattended success. Historical UNKNOWN execution documents remain unchanged, so edition `generation.usageConfirmed` remains false even though the retained provider accounting files are settled; report this limitation rather than overwriting history.
+
+The decisive verification-contract correction replaces model-retyped reader quotations with explicit claim references. The application binds the complete actual reader text and exact coordinates; source ownership and independent semantic source-support, entailment, attribution, certainty, timing and qualifier decisions remain mandatory. A separate verification protocol version prevents reuse of old text-anchor verdicts. The final real check passed this contract.
+
+Independent AI-assisted review passed the exact published text. It confirmed separate developments, developmental agents, balanced Replit partnership uncertainty, and conditional/future Anthropic commitments. Minor limitations are Liu's surname-only introduction and excessive Laplace naming background. Commercial pilot details and the Replit 2027 forecast were omitted without contradictory substitutes. The text is exported privately as `.local-reports/news-correctness-openrouter/published-briefing.md`.
+
+Focused unit checks passed 99 tests, controlled production integration passed four outcomes, and actual persisted readback passed. Worker and benchmark typechecks are recorded separately. A fresh real corpus is still required to establish automatic reliability; no such run is claimed.

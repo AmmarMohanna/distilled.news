@@ -1,78 +1,65 @@
 {
   "scope": "OPENROUTER_ONLY_TARGETED_CORRECTNESS",
-  "status": "BLOCKED_BEFORE_INFERENCE",
-  "successfulRealBriefing": false,
-  "independentBriefingReview": "NOT_AVAILABLE_NO_BRIEFING",
+  "status": "PERSISTED_OPERATOR_ASSISTED",
+  "successfulRealBriefing": true,
+  "unattendedSuccess": false,
+  "independentBriefingReview": "INDEPENDENT_AI_ASSISTED_SOURCE_CONTENT_PASS_WITH_MINOR_EDITORIAL_LIMITATIONS",
   "providerComparisonsStopped": true,
   "architectureOptimizationFrozen": true,
-  "confirmedSavedFailures": [
-    {
-      "source": "Anthropic benefit fund",
-      "modelChoice": "SAME_EVENT E0",
-      "target": "Replit default-model event",
-      "causeEvidence": "SAVED_INITIAL_CONSTRUCTION_RESPONSE"
-    },
-    {
-      "source": "Replit default-model change",
-      "modelChoice": "NEW_EVENT_EXISTING_STORYLINE L0",
-      "target": "Laplace storyline",
-      "causeEvidence": "SAVED_INITIAL_CONSTRUCTION_RESPONSE"
-    }
-  ],
-  "implemented": [
-    "SOURCE_GROUNDED_INDEPENDENT_CROSS_EVENT_REVIEW",
-    "NO_LEXICAL_CROSS_EVENT_STORYLINE_FALLBACK",
-    "KEYED_REQUIRED_PARENT_EDITORIAL_DECISIONS",
-    "APPLICATION_CONSTRUCTED_PROPOSITIONS_AND_REQUIRED_PROJECTION",
-    "DEVELOPMENTAL_STATE_FALSE_ACCEPT_REGRESSION",
-    "UNKNOWN_REVIEW_RETRY_FENCE"
-  ],
-  "offlineReplay": "ACTUAL_SAVED_OPENROUTER_RESPONSES_AND_DRAFT; NO_NEW_MODEL_CALLS",
-  "blocker": {
-    "service": "EVALUATION_D1_RESERVATION_LEDGER",
-    "code": 7500,
-    "message": "Exceeded maximum DB size",
-    "reportedBytes": 9999998976,
-    "providerRequestSent": false
+  "edition": {
+    "editionId": "76fef1ee37c0648eff3da81fb52dc9cd923fbbe1031207acf27bae0c8e661dc6",
+    "status": "PUBLISHED",
+    "private": true,
+    "scope": "ISOLATED_LOCAL_D1_NOT_EXTERNAL_DEPLOYMENT",
+    "stories": 3,
+    "evidenceRevisions": 3,
+    "readerWitnesses": 29,
+    "verifiedProtocol": "verification-reader-claim-reference-v6",
+    "exactReviewedText": true,
+    "zeroCallReplay": true,
+    "generationUsageConfirmed": false,
+    "editionHash": "9f2760b7082946fcc69b804bf314da1ee7d797a5951c658e4b11a2b4d67b64c4",
+    "at": "2026-10-20T21:43:17.320Z"
   },
-  "accounting": {
-    "at": "2026-10-20T19:41:03.560Z",
-    "oldGrantsUnchanged": true,
-    "oldHoldsUnchanged": true,
-    "originalHoldCount": 50,
-    "originalHeldUsd": 5.344152489299998,
-    "currentUnconfirmedCount": 50,
-    "workflowUnconfirmedCount": 0,
-    "workflowCalls": 0,
-    "workflowActualCostUsd": 0,
-    "workflowConservativeReservationsUsd": 0,
-    "lifetimeActualAndHeldUsd": 65.62071709529988,
-    "ceilingUsd": 73,
-    "ceilingUnchanged": true,
-    "maxWorkflowCalls": 12,
-    "maxWorkflowReservationsUsd": 1.5
+  "paidCalls": 13,
+  "actualCostUsd": 0.828278,
+  "finalResumeWallMs": 82143.621,
+  "latencyLimitation": "Final resume reused construction, editorial and writer results; 82 seconds is not cold end-to-end processing time. Recovery and engineering interruptions occurred.",
+  "operatorAssistance": [
+    "Pre-dispatch local bookkeeping recovery",
+    "Exact saved provider response recovery with confirmed financial receipts",
+    "Independent source review prompted a paid writer repair",
+    "Deleted only the unsupported word previous in a new immutable draft; full new verification followed"
+  ],
+  "quality": {
+    "distinctStories": [
+      "Laplace physical-AI simulation",
+      "Replit default-model change and revenue context",
+      "Anthropic public benefit fund"
+    ],
+    "requiredReaderWitnesses": 29,
+    "preserved": [
+      "Developmental state",
+      "Disputed partnership status and later clarification",
+      "Conditional contributions and future governance",
+      "Exact source ownership"
+    ],
+    "minorLimitations": [
+      "Liu introduced only by surname",
+      "Laplace naming history over-weighted relative to commercial details",
+      "Different-corpus automatic reliability not established"
+    ]
   },
-  "qualification": "NOT_ESTABLISHED_BY_OFFLINE_TESTS",
   "verification": {
-    "savedReplayAndBudgetUnit": {
-      "passed": 10
-    },
-    "editorialIdentityStorylineUnit": {
-      "passed": 36
-    },
-    "controlledPublicationIntegration": {
-      "passed": 4,
-      "realModel": false
-    },
-    "unknownIdentityRetryRegression": "PASSED_AFTER_REPRODUCED_DUPLICATE_CALL",
-    "normalizedFactPublicationRegression": {
-      "passed": 2,
-      "skipped": 26
-    },
-    "workerTypecheck": "PASSED",
-    "benchmarkTypecheck": "PASSED",
-    "combinedPublicationRun": "INCOMPLETE_STALLED_AND_STOPPED",
-    "fullWorkerSuite": "NOT_CLAIMED",
-    "codeReview": "NO_REMAINING_MATERIAL_FINDINGS"
-  }
+    "focusedUnitsPassed": 99,
+    "controlledIntegrationPassed": 4,
+    "persistedReadbackPassed": 1,
+    "zeroCallReplay": true,
+    "fullWorkerSuiteClaimed": false
+  },
+  "remaining": [
+    "Fresh independent corpus requires separately scoped paid authorization",
+    "Historical UNKNOWN execution metadata causes generation.usageConfirmed=false although saved provider operations are accounted; original immutable metadata retained",
+    "No shared staging or production deployment"
+  ]
 }

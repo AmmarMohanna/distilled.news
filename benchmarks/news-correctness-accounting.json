@@ -1,17 +1,40 @@
 {
-  "at": "2026-10-20T19:41:03.560Z",
+  "at": "2026-10-20T21:43:55.357Z",
   "oldGrantsUnchanged": true,
   "oldHoldsUnchanged": true,
   "originalHoldCount": 50,
   "originalHeldUsd": 5.344152489299998,
   "currentUnconfirmedCount": 50,
   "workflowUnconfirmedCount": 0,
-  "workflowCalls": 0,
-  "workflowActualCostUsd": 0,
-  "workflowConservativeReservationsUsd": 0,
-  "lifetimeActualAndHeldUsd": 65.62071709529988,
+  "workflowCalls": 13,
+  "workflowActualCostUsd": 0.8282780000000001,
+  "workflowConservativeReservationsUsd": 2.404684,
+  "lifetimeActualAndHeldUsd": 66.44899509529989,
   "ceilingUsd": 73,
   "ceilingUnchanged": true,
-  "maxWorkflowCalls": 12,
-  "maxWorkflowReservationsUsd": 1.5
+  "maxWorkflowCalls": 13,
+  "maxWorkflowReservationsUsd": 2.75,
+  "scopes": [
+    {
+      "feedId": "news-correctness:d8651e44c878a0738b3b",
+      "maxCalls": 12,
+      "maxReservationsUsd": 1.5,
+      "calls": 8,
+      "reservationsUsd": 1.322286
+    },
+    {
+      "feedId": "news-correctness:d8651e44c878a0738b3b:publication-continuation",
+      "maxCalls": 4,
+      "maxReservationsUsd": 1,
+      "calls": 4,
+      "reservationsUsd": 0.8443479999999999
+    },
+    {
+      "feedId": "news-correctness:d8651e44c878a0738b3b:reader-reference-final",
+      "maxCalls": 1,
+      "maxReservationsUsd": 0.25,
+      "calls": 1,
+      "reservationsUsd": 0.23804999999999998
+    }
+  ]
 }
