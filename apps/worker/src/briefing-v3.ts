@@ -303,6 +303,6 @@ export async function publishV3Window(input: {
     if (give.length) abandoned.push({ at: input.now.toISOString(), headline: drop.headline, reason: drop.reason.slice(0, 300), articleIds: give });
   }
   await repo.setSetting(stateKey(briefing.id), JSON.stringify({ cursor: end, pending, abandoned: abandoned.slice(-MAX_ABANDONED_KEPT) } satisfies V3State), input.now);
-  console.info("v3_briefing", JSON.stringify({ briefingId: briefing.id, status: result.status, items: result.items.length, dropped: result.dropped.length, carried: Object.keys(pending).length, abandoned: abandoned.length, usage: result.usage, timings: result.timings }));
+  console.info("v3_briefing", JSON.stringify({ briefingId: briefing.id, status: result.status, items: result.items.length, dropped: result.dropped.length, omitted: result.omitted.slice(0, 20).map((o) => ({ stage: o.stage, headline: o.headline, reason: o.reason, articles: o.sourceIds.length })), carried: Object.keys(pending).length, abandoned: abandoned.length, usage: result.usage, timings: result.timings }));
   return result.status;
 }

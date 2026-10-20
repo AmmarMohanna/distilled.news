@@ -37,7 +37,7 @@ function fakeRepo(all: NormalizedMessage[], editions: BriefingEdition[] = []) {
 const item = (sourceIds: string[], headline = "Robot recall") => ({ headline, body: "Northwind recalls 12,000 robots.", relation: "new" as const, importance: 1 as const, sourceIds });
 const drop = (sourceIds: string[], carry = true, headline = "Dropped") => ({ headline, reason: "unsupported", carry, sourceIds });
 const result = (status: BriefingResult["status"], over: Partial<BriefingResult> = {}): BriefingResult => ({
-  status, items: status === "published" ? [item(["m1"])] : [], skipped: [], dropped: [],
+  status, items: status === "published" ? [item(["m1"])] : [], skipped: [], dropped: [], omitted: [],
   usage: { calls: 2, inputTokens: 10, outputTokens: 5 }, timings: { totalMs: 1, stages: {} }, ...over
 });
 
