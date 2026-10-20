@@ -30,3 +30,17 @@ it('retains correction links and corresponding canonical effects',()=>{
  const result=reconstructDevelopments(raw,packets,mentions,input,{scorer:'GPT',policyVersion:'test'});
  expect(result.developmentRelations).toEqual([{fromGroup:1,toGroup:0,relationship:'CORRECTION'}]);expect(result.groups[1].epistemicEffects).toContain('CORRECTS');
 });
+
+it('rejects same-occurrence links outside merged membership rather than silently discarding them',()=>{
+ const raw:any={confidence:.9,groups:[{...output().groups[0],developmentIds:['p0d0'],relatedDevelopmentIds:['p1d0']},{...output().groups[0],developmentIds:['p1d0'],relatedDevelopmentIds:[]}]};
+ expect(()=>reconstructDevelopments(raw,packets,mentions,input,{scorer:'GPT',policyVersion:'test'})).toThrow('SEMANTIC_DEVELOPMENT_AMBIGUOUS_RELATION');
+});
+
+it('merges explicitly identified fragments of one correction while retaining its antecedent link',()=>{
+ const m:any=[...mentions,{...mentions[1],id:'m3',sourceText:'The correction changes Monday to Tuesday.'}];
+ const p:any=[...packets,{...packets[1],groups:[g(['m3'],['CORRECTS'])]}];
+ const raw:any={confidence:.9,groups:[{...output().groups[0],developmentIds:['p0d0'],epistemicEffects:[],relationship:'INDEPENDENT',relatedDevelopmentIds:[]},{...output().groups[0],developmentIds:['p1d0','p2d0'],mergeSameOccurrence:true,epistemicEffects:[],relationship:'CORRECTION',relatedDevelopmentIds:['p0d0']}]};
+ const result=reconstructDevelopments(raw,p,m,input,{scorer:'GPT',policyVersion:'test'});
+ expect(result.groups.map(g=>g.claimMentionIds)).toEqual([['m1'],['m2','m3']]);expect(result.developmentRelations).toEqual([{fromGroup:1,toGroup:0,relationship:'CORRECTION'}]);
+ delete raw.groups[1].mergeSameOccurrence;expect(()=>reconstructDevelopments(raw,p,m,input,{scorer:'GPT',policyVersion:'test'})).toThrow('SEMANTIC_DEVELOPMENT_AMBIGUOUS_MERGE');
+});
