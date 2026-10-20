@@ -19,7 +19,7 @@ const AI_GATEWAY_REQUEST_TIMEOUT_MS = 4_000;
 
 type LlmUsagePurpose = "summary" | "importance_review" | "event_review";
 type LlmUsageRecorder = (input: {
-  provider?:string;phase?:string;outcome?:string;latencyMs?:number;reportedCostUsd?:number;
+  provider?:string;phase?:string;outcome?:string;latencyMs?:number;reportedCostUsd?:number;reportedBillingUnits?:import('./provider-receipt').ProviderBillingUnits;
   briefingId: string;
   model: string;
   purpose: LlmUsagePurpose;
@@ -261,7 +261,7 @@ export function structuredCompletionBody(model:string,prompt:string,schema:objec
 }
 export async function boundedCompletion(options:ModelOptions,briefingId:string,purpose:LlmUsagePurpose,phase:string,prompt:string,schema:object,limits?:{maxOutputTokens:number;signal:AbortSignal;uniqueJsonKeys?:boolean;onRawContent?:(content:string)=>void}):Promise<Record<string,unknown>>{
   if(!inspectProviderSchema(options.model,schema).fits)throw Error('MODEL_SCHEMA_CONTINUATION_REQUIRED');
-  const started=Date.now();let received=false,outcome="SUCCESS",usage:{prompt_tokens?:number;completion_tokens?:number;cost?:number}|undefined;
+  const started=Date.now();let received=false,outcome="SUCCESS",usage:{prompt_tokens?:number;completion_tokens?:number;cost?:number;neurons?:number}|undefined;
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),options.timeoutMs??25000);
   const abort=()=>controller.abort();limits?.signal.addEventListener('abort',abort,{once:true});if(limits?.signal.aborted) controller.abort();
   try{
@@ -286,10 +286,11 @@ export async function boundedCompletion(options:ModelOptions,briefingId:string,p
     const payload=JSON.parse(new TextDecoder().decode(bytes)),bodyReceipt=providerBodyReceipt(header,payload.id);usage=payload.usage;
     if(bodyReceipt.generationId&&!header.generationId)await capture({...bodyReceipt,stage:'GENERATION'});
     if(typeof usage?.cost==='number'&&Number.isFinite(usage.cost)&&usage.cost>=0)await capture({...bodyReceipt,stage:'USAGE',reportedCostUsd:usage.cost,inputTokens:usage.prompt_tokens,outputTokens:usage.completion_tokens,finishReason:payload.choices?.[0]?.finish_reason});
+    else if(options.provider==='WORKERS_AI'&&typeof usage?.neurons==='number'&&Number.isFinite(usage.neurons)&&usage.neurons>=0)await capture({...bodyReceipt,stage:'USAGE',reportedBillingUnits:{unit:'NEURON',quantity:usage.neurons},inputTokens:usage.prompt_tokens,outputTokens:usage.completion_tokens,finishReason:payload.choices?.[0]?.finish_reason});
     if(payload.choices?.[0]?.finish_reason==="length")throw Error("MODEL_OUTPUT_CONTINUATION_REQUIRED");
     const content=payload.choices?.[0]?.message?.content??"null";limits?.onRawContent?.(content);const result=(limits?.uniqueJsonKeys||options.provider==='WORKERS_AI')?parseUniqueModelJson(content):JSON.parse(content);
     if(!result||typeof result!=="object"||Array.isArray(result))throw Error("MODEL_SCHEMA_INVALID");
     return result;
   }catch(error){if(outcome==="SUCCESS")outcome=error instanceof Error&&error.name==="AbortError"?"MODEL_TIMEOUT":error instanceof Error&&/^MODEL_(RESPONSE_STORAGE|OUTPUT)_CONTINUATION_REQUIRED$/.test(error.message)?error.message:received?"MODEL_RESPONSE_INVALID":"MODEL_TRANSPORT_FAILED";if(error instanceof ProviderRequestError||error instanceof DuplicateModelKeyError)throw error;throw Error(outcome)}
-  finally{clearTimeout(timer);limits?.signal.removeEventListener('abort',abort);await options.usageRecorder?.({briefingId,model:options.model,purpose,phase,provider:options.provider??"OPENAI_GATEWAY",outcome,latencyMs:Date.now()-started,inputTokens:usage?.prompt_tokens??0,outputTokens:usage?.completion_tokens??0,reportedCostUsd:typeof usage?.cost==="number"&&Number.isFinite(usage.cost)&&usage.cost>=0?usage.cost:undefined,estimatedCostUsd:options.provider==="OPENROUTER"?0:estimateOpenAiCostUsd({inputTokens:usage?.prompt_tokens??0,outputTokens:usage?.completion_tokens??0,env:options.env})}).catch(()=>{})}
+  finally{clearTimeout(timer);limits?.signal.removeEventListener('abort',abort);await options.usageRecorder?.({briefingId,model:options.model,purpose,phase,provider:options.provider??"OPENAI_GATEWAY",outcome,latencyMs:Date.now()-started,inputTokens:usage?.prompt_tokens??0,outputTokens:usage?.completion_tokens??0,...(options.provider==='WORKERS_AI'&&typeof usage?.neurons==='number'&&Number.isFinite(usage.neurons)&&usage.neurons>=0?{reportedBillingUnits:{unit:'NEURON' as const,quantity:usage.neurons}}:{}),reportedCostUsd:typeof usage?.cost==="number"&&Number.isFinite(usage.cost)&&usage.cost>=0?usage.cost:undefined,estimatedCostUsd:options.provider==='WORKERS_AI'?(typeof usage?.neurons==='number'&&Number.isFinite(usage.neurons)&&usage.neurons>=0?usage.neurons*.000011:0):options.provider==="OPENROUTER"?0:estimateOpenAiCostUsd({inputTokens:usage?.prompt_tokens??0,outputTokens:usage?.completion_tokens??0,env:options.env})}).catch(()=>{})}
 }

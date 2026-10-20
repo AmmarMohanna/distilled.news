@@ -1,5 +1,6 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
-export interface ProviderReceipt {provider:string;model:string;stage:'HEADERS'|'GENERATION'|'USAGE';httpStatus:number;generationId?:string;requestId?:string;reportedCostUsd?:number;inputTokens?:number;outputTokens?:number;finishReason?:string}
+export interface ProviderBillingUnits {unit:'NEURON';quantity:number}
+export interface ProviderReceipt {reportedBillingUnits?:ProviderBillingUnits;provider:string;model:string;stage:'HEADERS'|'GENERATION'|'USAGE';httpStatus:number;generationId?:string;requestId?:string;reportedCostUsd?:number;inputTokens?:number;outputTokens?:number;finishReason?:string}
 const sinks=new AsyncLocalStorage<(receipt:ProviderReceipt)=>Promise<void>>();
 export const withProviderReceiptSink=<T>(sink:(receipt:ProviderReceipt)=>Promise<void>,run:()=>Promise<T>):Promise<T>=>sinks.run(sink,run);
 export async function captureProviderReceipt(receipt:ProviderReceipt):Promise<void>{await sinks.getStore()?.(receipt)}

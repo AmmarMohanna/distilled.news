@@ -1,29 +1,44 @@
 {
-  "mode": "OFFLINE_ADAPTER_AND_CONTRACT_TESTS",
-  "paidProviderCalls": 0,
-  "actualProviderCostUsd": 0,
+  "mode": "OFFLINE_AND_PARTIAL_REAL_PHASE_A",
+  "paidProviderCalls": 3,
+  "actualProviderCostUsd": null,
   "workersAi": {
     "model": "@cf/qwen/qwen3-30b-a3b-fp8",
     "transport": "NATIVE_AI_BINDING",
     "mockTransportTested": true,
-    "realCompatibilityTested": false,
+    "realCompatibilityTested": true,
     "qualifiedTasks": [],
     "blockers": [
-      "Real native model access and task-specific schema compatibility",
+      "Task-specific schemas beyond the tested short construction request and deployed binding parity",
       "Complete evidence grouping quality and false merge/split labels",
       "Factual verification invalid ACCEPT rate and mandatory coverage",
       "Actual output limits, latency, repair frequency and account quotas",
       "Authoritative per-request dollar settlement and unknown-outcome recovery"
-    ]
+    ],
+    "realTestedTasks": [
+      "one short construction request"
+    ],
+    "realTransport": "NATIVE_WORKERS_AI_REST_THROUGH_SHARED_ADAPTER"
   },
   "openrouter": {
     "selectable": true,
     "historicalModelIdentitiesPreserved": true,
     "mockedModelAndV2ContractRegressionTests": 11,
-    "realReevaluationRun": false
+    "realReevaluationRun": true,
+    "realReevaluatedTasks": [
+      "short construction",
+      "negative factual verification"
+    ]
   },
   "claimExtraction": {
     "provider": "DETERMINISTIC",
     "paidCalls": 0
-  }
+  },
+  "historicalOfflineSnapshot": {
+    "mode": "OFFLINE_ADAPTER_AND_CONTRACT_TESTS",
+    "paidProviderCalls": 0,
+    "actualProviderCostUsd": 0
+  },
+  "confirmedProviderCostUsd": 0.0043056,
+  "latestRealReport": "cloudflare-real-evaluation-results.json"
 }

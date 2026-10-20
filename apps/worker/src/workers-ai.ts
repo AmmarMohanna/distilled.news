@@ -13,11 +13,12 @@ export async function workersAiCompletion(binding:WorkersAiBinding,model:string,
   const choice=raw.choices?.[0];
   if(choice?.finish_reason==='length')throw Error('MODEL_OUTPUT_CONTINUATION_REQUIRED');
   if(choice&&choice.finish_reason!=='stop')throw Error('MODEL_COMPLETION_UNPROVEN');
-  const content=choice?.message?.content??raw.response;
+  const native=choice?.message?.content??raw.response;
+  const content=typeof native==='object'&&native!==null&&!Array.isArray(native)&&!choice?JSON.stringify(native):native;
   if(typeof content!=='string')throw Error('MODEL_RESPONSE_INVALID');
   if(new TextEncoder().encode(content).length>1800000)throw Error('MODEL_RESPONSE_STORAGE_CONTINUATION_REQUIRED');
   const u=raw.usage;const valid=(v:unknown)=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0;
   // Token counts price estimates, not provider-reported dollar settlements.
-  return {...(typeof raw.id==='string'&&/^[a-zA-Z0-9_.:-]{1,128}$/.test(raw.id)&&! /^(sk-|sk_or_|eyJ)/.test(raw.id)?{id:raw.id}:{}),choices:[{message:{content},finish_reason:'stop'}],usage:{...(valid(u?.prompt_tokens)?{prompt_tokens:u.prompt_tokens}:{}),...(valid(u?.completion_tokens)?{completion_tokens:u.completion_tokens}:{})}};
+  return {...(typeof raw.id==='string'&&/^[a-zA-Z0-9_.:-]{1,128}$/.test(raw.id)&&! /^(sk-|sk_or_|eyJ)/.test(raw.id)?{id:raw.id}:{}),choices:[{message:{content},finish_reason:'stop'}],usage:{...(typeof u?.neurons==='number'&&Number.isFinite(u.neurons)&&u.neurons>=0?{neurons:u.neurons}:{}),...(valid(u?.prompt_tokens)?{prompt_tokens:u.prompt_tokens}:{}),...(valid(u?.completion_tokens)?{completion_tokens:u.completion_tokens}:{})}};
  }finally{signal.removeEventListener('abort',abort)}
 }

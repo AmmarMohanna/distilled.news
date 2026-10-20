@@ -1,10 +1,10 @@
-# Controlled real-provider evaluation ? prepared, not authorized
+# Controlled real-provider evaluation
 
-No paid request has been made for this feature. Mock responses and local D1 replay establish transport and integrity behavior, not model compatibility or quality.
+Update 2026-10-20: the user approved the bounded $3 / 24-call evaluation and one additional execution slot. Three real requests ran in the four-call compatibility phase; the run stopped on unconfirmed Cloudflare dollar accounting. See CLOUDFLARE_REAL_EVALUATION.md and benchmarks/cloudflare-real-evaluation-results.json. The boundaries below remain the approved maximum, not a statement that all cases ran.
 
 ## Exact proposed boundary
 
-At most 24 generative calls total: 12 Workers AI and 12 explicitly selected OpenRouter baseline calls, with a maximum total reservation of $3 and at most $0.125 per call. No automatic retries, fallback, unlisted repair, notification or publication. Existing account ceiling ($73), grants, holds, queue capacity and recovery records remain unchanged. Valid separately approved spending scope, credentials and available account capacity are prerequisites. Insufficient capacity or an expired grant stops admission; this plan is not authorization to amend them.
+At most 24 generative calls total: 12 Workers AI and 12 explicitly selected OpenRouter baseline calls, with a maximum total reservation of $3 and at most $0.125 per call. No automatic retries, fallback, unlisted repair, notification or publication. Existing account ceiling ($73), grants, holds, queue capacity and recovery records remain unchanged. The first-phase evaluation-only grant is now recorded with frozen request hashes; valid spending scope, credentials and available account capacity remain prerequisites for every operation. Insufficient capacity or an expired grant stops admission; the user separately approved the new evaluation-only grant; historical grants remain unchanged.
 
 Each call must use the existing durable spending/intent/receipt contract in an isolated, nonpublishing evaluation scope. Use no more than 28,672 conservative input-byte-token units and 4,096 output tokens per call. Recompute actual provider-specific reservation descriptors and reject any over-limit input without truncating authoritative evidence. Recheck model pricing, native output limits, account access and quotas immediately before requesting authorization. The $3 amount is a hard proposed cap, not a promise of actual cost.
 

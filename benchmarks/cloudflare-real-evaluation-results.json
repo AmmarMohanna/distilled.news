@@ -1,0 +1,116 @@
+{
+  "mode": "REAL_PROVIDER_PHASE_A_PARTIAL_STOPPED_SAFELY",
+  "recordedAt": "2026-10-20T04:56:26.105Z",
+  "manifestHash": "bb6d62707bfa41aa0c76da48b9392604f94f28e26a93623590b8eeb74bc6c516",
+  "featureBase": "a573320",
+  "approval": {
+    "userApproved": true,
+    "maxCalls": 24,
+    "maxUsd": 3,
+    "maxNewExecutionSlots": 1,
+    "maxLifetimeExposureUsd": 73,
+    "phaseARequestCount": 4,
+    "phaseAGrantId": "provider-evaluation:bb6d62707bfa41aa0c76",
+    "phaseAExpiresAt": "2026-10-20T08:49:53.079Z"
+  },
+  "actualCalls": 3,
+  "automaticRetries": 0,
+  "repairs": 0,
+  "confirmedDollarChargesUsd": 0.0043056,
+  "unsettledReservedUsd": 0.0017445953000000001,
+  "rows": [
+    {
+      "provider": "OPENROUTER",
+      "model": "openai/gpt-4.1",
+      "task": "construction",
+      "requestHash": "ac892e6dbc5eb43aa414d526e820064ebbd1e605b5cc4a44f5a7482552f254fc",
+      "wallMs": 1413.9748,
+      "inputTokens": 1438,
+      "outputTokens": 73,
+      "validation": {
+        "valid": true,
+        "groups": 1,
+        "coveredMentions": 1
+      },
+      "confirmedDollarChargeUsd": 0.00346,
+      "settled": true
+    },
+    {
+      "provider": "OPENROUTER",
+      "model": "openai/gpt-4.1-mini",
+      "task": "verification",
+      "requestHash": "32c36ee0cb1e7f16725a00f89c14e13c8d97e8273a42b8d4379721c0fabb4888",
+      "wallMs": 2644.2596000000012,
+      "inputTokens": 1174,
+      "outputTokens": 235,
+      "validation": {
+        "valid": true,
+        "decision": {
+          "status": "REJECT",
+          "reasons": [
+            "CLAIM_NOT_ENTAILED",
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": []
+        },
+        "invalidAccept": false
+      },
+      "confirmedDollarChargeUsd": 0.0008456,
+      "settled": true
+    },
+    {
+      "provider": "WORKERS_AI",
+      "model": "workers_ai:@cf/qwen/qwen3-30b-a3b-fp8",
+      "task": "construction",
+      "requestHash": "6a8b926909231448e49a6e321b4c6cc6e554c26bdf8f5bcca348e7a7d20fc5c9",
+      "wallMs": 4510.073700000001,
+      "inputTokens": 1094,
+      "outputTokens": 555,
+      "validation": {
+        "valid": true,
+        "groups": 1,
+        "coveredMentions": 1
+      },
+      "confirmedDollarChargeUsd": null,
+      "settled": false
+    }
+  ],
+  "workersAiReportedBillingUnits": {
+    "unit": "NEURON",
+    "quantity": 21.972789764404297
+  },
+  "workersAiGrossUsageUsdBeforeAllowances": 0.00024170068740844727,
+  "workersAiGrossPricingSource": "https://developers.cloudflare.com/workers-ai/platform/pricing/",
+  "workersAiActualDollarChargeUsd": null,
+  "stopReason": "UNCONFIRMED_ACCOUNTING",
+  "unrun": [
+    "Workers AI negative factual verification",
+    "All 20 Phase B requests including Laplace/Replit and long reconciliation"
+  ],
+  "qualifiedTasks": [],
+  "safeguards": {
+    "priorGrantsUnchanged": true,
+    "originalUnresolvedCount": 49,
+    "currentLifetimeExposureUsd": 64.8379690953,
+    "maxLifetimeExposureUsd": 73,
+    "noApplicationDeployment": true,
+    "noPublication": true,
+    "noRematchExecution": true,
+    "noUncertainHoldRelease": true
+  },
+  "limitations": [
+    "Single short source from the frozen controlled T01 regression cohort; not independent human quality labels.",
+    "Native Workers AI REST inference exercised through the shared native adapter; deployed Worker binding has not been exercised.",
+    "Native schema construction passed for this exact request only; no broad schema, quality or long-article qualification.",
+    "Native reported Neurons establish usage, not the post-allowance account dollar charge.",
+    "Initial live generic estimatedCostUsd used legacy OpenAI pricing; excluded here and fixed with offline real-response replay. Historical raw records remain unchanged."
+  ],
+  "verification": {
+    "accountingProviderAndV2TestsPassed": 47,
+    "failed": 0,
+    "workerTypecheck": "PASS",
+    "savedNativeReplay": "PASS; zero additional paid calls",
+    "independentReview": "No concrete blockers in scope, atomic budget/slot guards, no-reissue behavior or billing-unit receipts",
+    "fixtureFix": "Recovery test grant had expired at 2026-10-20 midnight. Only local test validity/createdAt were made relative to current time; assertions and real grants unchanged."
+  }
+}

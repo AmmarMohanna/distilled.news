@@ -28,3 +28,9 @@ it('binds writer and verification durable identities to the actual per-task rout
  expect(model.phaseIdentity!('SYNTHESIS').model).toBe('openai/gpt-4.1-mini');expect(model.phaseIdentity!('GROUNDING').model).toBe('openai/gpt-4.1');
  expect(model.admission!({payload:{},schema:{}},'GROUNDING').reservationCostUsd).toBeGreaterThan(model.admission!({payload:{},schema:{}},'SYNTHESIS').reservationCostUsd);
 });
+
+it('accepts native JSON-mode object responses without inventing billed dollars',async()=>{const raw=await workersAiCompletion({run:async()=>({response:{ok:true},usage:{prompt_tokens:8,completion_tokens:2}})},'m','s',{},32,new AbortController().signal);expect(JSON.parse(raw.choices[0].message.content)).toEqual({ok:true});expect(raw.usage.cost).toBeUndefined()});
+
+import {boundedCompletion} from '../ai';
+import {withProviderReceiptSink} from '../provider-receipt';
+it('retains reported Neurons without converting gross usage into confirmed dollar settlement',async()=>{const receipts:any[]=[];let usage:any;await withProviderReceiptSink(async r=>{receipts.push(r)},()=>boundedCompletion({accountId:'',gatewayId:'',apiKey:'',provider:'WORKERS_AI',model:'workers_ai:@cf/qwen/qwen3-30b-a3b-fp8',env:{AI:{run:async()=>({id:'chatcmpl-native',response:'{"ok":true}',usage:{prompt_tokens:1094,completion_tokens:555,neurons:21.972789764404297}})}},usageRecorder:async u=>{usage=u}},'isolated','event_review','TEST','evidence',{}, {maxOutputTokens:32,signal:new AbortController().signal}));expect(receipts.find(r=>r.stage==='USAGE')?.reportedBillingUnits).toEqual({unit:'NEURON',quantity:21.972789764404297});expect(usage.reportedCostUsd).toBeUndefined();expect(usage.reportedBillingUnits?.unit).toBe('NEURON');expect(usage.estimatedCostUsd).toBeCloseTo(.0002417006874,12)});

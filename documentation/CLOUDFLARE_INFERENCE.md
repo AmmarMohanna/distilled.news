@@ -1,6 +1,6 @@
 # Cloudflare-first inference on the feature branch
 
-Base: c813a27. No deployment or paid evaluation has been performed.
+Base: c813a27. No application deployment has occurred. A bounded real-provider Phase A ran on 2026-10-20; see CLOUDFLARE_REAL_EVALUATION.md.
 
 ## Configuration
 
@@ -43,6 +43,8 @@ Native token counts can support price estimates; they are not a provider-reporte
 
 ## Evaluation status
 
-Offline adapter, task routing, request identity and OpenRouter regression tests verify code behavior only. See benchmarks/provider-compatibility-results.json. No real Workers AI compatibility, quality, latency or paid cost measurement is claimed. The controlled evaluation plan is in PARALLEL_INTELLIGENCE_EVALUATION.md and requires separate spending authorization.
+Offline adapter, task routing, request identity and OpenRouter regression tests verify code behavior only. See benchmarks/provider-compatibility-results.json. One real short construction request passed application checks; the negative verification and broad task quality remain untested on Workers AI. Its account dollar charge remains unconfirmed. The controlled evaluation plan is in PARALLEL_INTELLIGENCE_EVALUATION.md and requires separate spending authorization.
 
 Acquisition audit: deterministic connectors, acquisition verification and exact claim extraction add no model calls. Generative browser/X discovery, native Jev acquisition choices and source recommendations remain OpenRouter-specific and require explicit OpenRouter selection; Workers AI reports these as unqualified/unsupported. Legacy summary/review factories cannot silently fall through to OpenAI Gateway when the Cloudflare default is selected. They retain their existing non-model fallback until a task-qualified V1 adapter handles the source. Canonical graph updates stay inside existing write turns. Independent article queue execution already separates inference preparation from the canonical turn; this branch adds packet parallelism rather than increasing queue/account capacity.
+
+Reported Neurons now persist in typed provider receipts. Gross tariff-based usage remains an estimate before allowances and cannot settle an uncertain dollar charge. The evaluator financial guard in migration 0065 is separate from provider admission and does not authorize publication.
