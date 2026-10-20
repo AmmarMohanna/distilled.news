@@ -86,7 +86,7 @@ function preservationFacts(story:SynthesisInput['stories'][number]):Preservation
 async function assertCommunicationCurrent(tx:FeedTransaction,selection:SelectionRecord):Promise<void> {
  if(selection.communicationFingerprint && selection.communicationFingerprint!==await communicationFingerprint(tx,selection.window.end)) throw new HandoffError('TEMPORARY_UNAVAILABLE');
 }
-async function selectionInput(tx:FeedTransaction,selection:SelectionRecord,adaptiveExecution=selection.budget.mode==='ADAPTIVE'):Promise<SynthesisInput> {
+export async function selectionInput(tx:FeedTransaction,selection:SelectionRecord,adaptiveExecution=selection.budget.mode==='ADAPTIVE'):Promise<SynthesisInput> {
  countLatency('publicationInputLoads');
  return measureLatency('PUBLICATION_INPUT_LOAD',()=>loadSelectionInput(tx,selection,adaptiveExecution));
 }

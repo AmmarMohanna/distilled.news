@@ -1,0 +1,11 @@
+import {it} from 'vitest';
+import {join} from 'node:path';
+import {persistentEvaluationDatabase} from '../apps/worker/src/v1-intake/evaluation-test-utils';
+import {V1FeedStore,feedTransact} from '../apps/worker/src/v1-intelligence/store';
+import {selectionInput,approvedWriterFacts,approvedSupportSpans} from '../apps/worker/src/v1-intelligence/publication';
+import {loadNews,saveNews,newsRoot} from './news-evaluation-transport';
+it.skipIf(process.env.DISTILLED_NEWS_SPAN_DIAGNOSTIC!=='LOCAL_ONLY')('inspects exact saved writer support boundaries without inference',async()=>{
+ const mf=await persistentEvaluationDatabase(join(process.cwd(),newsRoot,'d1-openrouter'));try{const store=new V1FeedStore(mf.db,undefined,'local-news-mirror'),selection=(await store.list<any>('feed-1','selections')).at(-1);const input=await feedTransact(store,'feed-1',tx=>selectionInput(tx,selection,true));saveNews(newsRoot+'/openrouter-synthesis-input.json',input);const findings=[];
+ for(const story of input.stories){for(const fact of approvedWriterFacts(story))if(!fact.support.length)findings.push({reason:'MISSING_SUPPORT',fact});try{approvedSupportSpans(story)}catch(error){findings.push({reason:'SUPPORT_SPAN_REJECTION',candidateId:story.candidate.id,error:String(error),facts:approvedWriterFacts(story)});const facts=approvedWriterFacts(story);for(const fact of facts)for(const support of fact.support){const evidence=story.evidence.find(e=>e.id===support.evidenceRevisionId)!,body=evidence.body??'';if(support.quote===evidence.title||!body.includes(support.quote))continue;const start=body.indexOf(support.quote),end=start+support.quote.length,segments=[...new Intl.Segmenter('und',{granularity:'sentence'}).segment(body)],starts=new Set(segments.map(s=>s.index+s.segment.length-s.segment.trimStart().length)),ends=new Set(segments.map(s=>s.index+s.segment.trimEnd().length));if(!starts.has(start)||!ends.has(end))findings.push({factId:fact.id,source:support.evidenceRevisionId,quote:support.quote,start,end,prefix:body.slice(Math.max(0,start-70),start),suffix:body.slice(end,end+70),sentenceStart:starts.has(start),sentenceEnd:ends.has(end)})}}}
+ saveNews(newsRoot+'/writer-span-findings.json',findings);console.log(JSON.stringify(findings));}finally{await mf.dispose()}
+},60000);
