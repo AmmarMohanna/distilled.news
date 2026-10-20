@@ -11,6 +11,20 @@ import {structuredCompletionBody,cloudflareCompletionBody} from '../apps/worker/
 import {workersAiRequest} from '../apps/worker/src/workers-ai';
 export const evidenceHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const STRONG_ROUTES=['cloudflare','openrouter','workers_ai'] as const;
+export function assertCloudflareComparisonReady(s:{validFrom:string;validUntil:string;gatewayStatus:number;billingStatus:number;balance:unknown;byokOnly:boolean},now=Date.now()){
+ if(!(Date.parse(s.validFrom)<=now&&now<Date.parse(s.validUntil)))throw Error('COMPARISON_AUTHORIZATION_WINDOW');
+ if(s.gatewayStatus!==200)throw Error('COMPARISON_GATEWAY_UNAVAILABLE');
+ if(s.byokOnly)throw Error('COMPARISON_UNIFIED_BILLING_DISABLED');
+ if(s.billingStatus!==200||typeof s.balance!=='number'||!Number.isFinite(s.balance)||s.balance<=0)throw Error('COMPARISON_CREDITS_UNAVAILABLE');
+}
+export function prepareGpt41Scope(packets:Awaited<ReturnType<typeof prepareStrongComparison>>['packets'],cached:{model:string;requestHash:string}[],prior:{calls:number;reservedUsd:number;heldSlots:number;lifetimeExposureUsd:number}){
+ if(!Number.isSafeInteger(prior.calls)||prior.calls<0||!Number.isSafeInteger(prior.heldSlots)||prior.heldSlots<0||![prior.reservedUsd,prior.lifetimeExposureUsd].every(v=>Number.isFinite(v)&&v>=0))throw Error('INVALID_PRIOR_EVALUATION_STATE');
+ const operations=packets.filter(p=>p.route!=='workers_ai'&&!cached.some(r=>r.model===p.model&&r.requestHash===p.requestHash));
+ const maxNewSpendingUsd=Math.ceil(operations.reduce((n,p)=>n+p.admission.reservationCostUsd,0)*1e6)/1e6;
+ if(prior.calls+operations.length>24||prior.reservedUsd+maxNewSpendingUsd>3)throw Error('COMBINED_EVALUATION_APPROVAL_LIMIT');
+ if(prior.lifetimeExposureUsd+maxNewSpendingUsd>73)throw Error('LIFETIME_EXPOSURE_LIMIT');
+ return {operations,maxNewSpendingUsd,maxConcurrentOperations:prior.heldSlots+1};
+}
 export interface ComparisonRow {route:string;caseId:string;wallMs:number;settled:boolean;costUsd?:number;validation?:{valid:boolean};qualityReview:'PENDING'|'HUMAN_ACCEPTED';errorCode?:string}
 export function compareStrongRoutes(rows:ComparisonRow[],caseIds:string[],routes:readonly string[]){
  const ranking=routes.map(route=>{const r=rows.filter(r=>r.route===route),reasons:string[]=[];

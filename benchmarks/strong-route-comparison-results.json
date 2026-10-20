@@ -1,5 +1,5 @@
 {
-  "mode": "MATCHED_COMPARISON_PREPARED_NOT_EXECUTED",
+  "mode": "GPT41_TWO_ROUTE_COMPARISON_BLOCKED_BEFORE_INFERENCE",
   "manifestHash": "2b495b561f83fd3c4b90fe1914f45731e0997279a3f2bf6ba20a958d073f0e19",
   "newPaidCalls": 0,
   "cases": [
@@ -67,18 +67,6 @@
         "totalConfirmedUsd": 0.00346
       },
       {
-        "route": "workers_ai",
-        "eligible": false,
-        "reasons": [
-          "INCOMPLETE_MATCHED_CASES",
-          "UNCONFIRMED_COST",
-          "QUALITY_REVIEW_PENDING"
-        ],
-        "completedCases": 1,
-        "medianMs": 4510.073700000001,
-        "totalConfirmedUsd": 0
-      },
-      {
         "route": "cloudflare",
         "eligible": false,
         "reasons": [
@@ -127,9 +115,33 @@
     }
   ],
   "blockers": [
-    "GATEWAY_AND_BILLING_READ_FORBIDDEN",
-    "EXISTING_IMMUTABLE_GRANT_DOES_NOT_ADMIT_MATCHED_REQUESTS",
-    "PRIOR_QWEN_DOLLAR_HOLD_STILL_OCCUPIES_APPROVED_EVALUATION_SLOT"
+    "CONFIGURED_GATEWAY_DOES_NOT_EXIST",
+    "PREPAID_CREDITS_UNAVAILABLE",
+    "PRIOR_IMMUTABLE_GRANT_WINDOW_STILL_ACTIVE"
   ],
-  "productionQualified": false
+  "productionQualified": false,
+  "currentGpt41Comparison": {
+    "routes": [
+      "cloudflare",
+      "openrouter"
+    ],
+    "newCalls": 11,
+    "newReservationUpperBoundUsd": 0.542196,
+    "accessCheckedAt": "2026-10-20T07:17:20.289Z",
+    "gatewayReadStatus": 200,
+    "gatewayCount": 0,
+    "creditReadStatus": 200,
+    "creditBalance": 0,
+    "scopeInstallation": {
+      "at": "2026-10-20T07:13:45.377Z",
+      "grantId": "gpt41-comparison:2b495b561f83fd3c4b90",
+      "priorGrantsUnchanged": true,
+      "unresolvedHoldsUnchanged": true,
+      "newPaidCalls": 0,
+      "validFrom": "2026-10-20T08:49:53.079Z",
+      "newCallLimit": 11,
+      "newReservationCapUsd": 0.542196,
+      "accountCeilingUsd": 73
+    }
+  }
 }

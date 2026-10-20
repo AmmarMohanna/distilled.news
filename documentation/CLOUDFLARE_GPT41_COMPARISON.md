@@ -2,6 +2,20 @@
 
 The earlier implementation interpreted Cloudflare-first as native Workers AI inference, as the original specification requested. Qwen3 was a hosted candidate chosen from availability, context and cost metadata, without comparative quality evidence. The newer instruction explicitly adds GPT-4.1 through Cloudflare's unified API. The implementation now separates route selection from model choice.
 
+## Current live readiness: October 20 follow-up
+
+The permission issue is resolved using the official Cloudflare CLI OAuth client with only Workers AI Read (`ai:read`) and AI Gateway Read (`aig:read`), plus account/user metadata. The previous Wrangler credential is retained separately for the evaluation ledger; no additional AI Write or D1 Write grant was necessary. The documented billing endpoint is `/ai-gateway/billing/credit-balance`, not `/ai-gateway/billing`.
+
+Authenticated inventory and billing GETs returned HTTP 200: zero gateways and zero prepaid credits. The user subsequently reported adding credits; the repeat API read still returned zero, so a completed purchase or a different account must be checked rather than assuming funding succeeded. Auto-top-up amount and threshold remain zero. The requested `default` gateway does not exist. Adding AI Gateway Write solely to create it was rejected by automatic approval review pending explicit user authorization. No gateway, payment setting, stored provider key or deployment was changed.
+
+The user explicitly requested arranging the comparison within the existing $3 approval while retaining the unresolved Qwen hold. A new exact GPT-4.1-only scope was installed as `gpt41-comparison:2b495b561f83fd3c4b90`. It admits 11 new calls across Cloudflare and OpenRouter, reusing the prior exact OpenRouter short-construction result. Further Qwen calls are omitted. Maximum new cumulative reservations are $0.542196; adding the earlier $0.0583901953 gives a combined conservative reservation bound of $0.6005861953, below $3, with 14 total calls below 24.
+
+The immutable prior grant ends at 2026-10-20T08:49:53.079Z. The successor starts exactly then and ends at 12:49:53.079Z; it does not overlap, renew or modify the old grant. Its account concurrency limit is 51: all 50 unresolved liabilities remain counted, plus one new execution slot. Its own scope permits only one unresolved new operation. The $73 account and lifetime ceilings remain enforced. Installation verified all historical grant JSON and unresolved hold rows unchanged. Preflight lifetime exposure was $64.8379690953, including $5.3441524893 in unresolved holds.
+
+The real executor was invoked with that exact durable scope and read-only Cloudflare credential. Metadata GETs succeeded, but `COMPARISON_AUTHORIZATION_WINDOW` stopped it before paid intent creation, reservation or inference. Zero new paid calls were issued. It also refuses a missing gateway, BYOK-only gateway, failed billing read or nonpositive credit balance before reservation. Raw provider responses are retained locally for receipt recovery; missing dollar confirmation still stops execution and preserves liability.
+
+The remaining requirements are an API-visible positive prepaid balance, the explicitly authorized `default` gateway, and the installed authorization window opening. No real Cloudflare GPT-4.1 quality, latency or cost result exists yet. Scope and readiness tests passed; these are not model-quality evidence.
+
 ## Implemented configuration
 
 The feature branch defaults to DISTILLED_LLM_API_GATEWAY=cloudflare. Construction, relation/novelty judgments within construction, reconciliation, editorial review, factual verification and construction repairs map to cloudflare:openai/gpt-4.1. Writing defaults to cloudflare:openai/gpt-4.1-mini; writer repair inherits the writer model but has separate task qualification. V1_LLM_ROUTES_JSON selects explicit task overrides. V1_SEMANTIC_STRONG_MODEL remains the strong-model override.
@@ -38,13 +52,13 @@ The runner requires a matching durable authorization and cannot create grants, b
 
 Run offline preparation/tests with node_modules/.bin/vitest run --config benchmarks/strong-route-comparison.vitest.config.ts. The paid executor additionally requires DISTILLED_RUN_STRONG_COMPARISON=AUTHORIZED_MATCHED_EXISTING_3_USD_CAP, DISTILLED_STRONG_COMPARISON_GRANT_FILE and server-side credentials. Setting these variables does not bypass the durable grant or financial guards. Never delete intent files to retry.
 
-## Exact live blockers
+## Historical initial blockers before the October 20 follow-up
 
 - After session refresh, gateway and billing metadata reads returned HTTP 403 / code 10000. Workers AI execution permission alone does not provide this metadata access; verified gateway credential precedence, billing readiness, credits and recovery access remain unavailable. A server-side token with appropriate Workers AI and AI Gateway/billing read permissions is needed. No credit balance is inferred from the denial.
 - The existing immutable grant pins four earlier operation/model/request hashes; it does not authorize these matched requests or cloudflare:openai/gpt-4.1.
 - The prior Qwen charge remains unconfirmed and its $0.0017445953 reservation still consumes the approved evaluation slot. It has not been released, converted to a confirmed charge, retried or replaced. A successor frozen scope needs explicit admission/capacity authorization while retaining that liability, or authoritative reconciliation of it. The current grant also remains subject to its existing nonoverlap/expiry rules.
 
-A new spending allowance is not needed to increase the $3 budget: the prepared work fits inside it. Credentials and safe, scope-specific admission are the blockers. No existing hold, historical receipt, account ceiling, grant or deployment was altered in this extension. The original 16 rematches remain untouched.
+A larger spending allowance was not needed: the prepared work fit inside $3. No existing hold, historical receipt, account ceiling, historical grant or deployment was altered. The original 16 rematches remain untouched. The current state and newly installed successor evaluation scope are recorded above.
 
 ## Engineering verification
 
