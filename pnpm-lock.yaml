@@ -60,18 +60,18 @@ importers:
 
   apps/worker:
     dependencies:
-      '@hono/zod-validator':
-        specifier: ^0.7.0
-        version: 0.7.6(hono@4.12.25)(zod@3.25.76)
       '@distilled/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
       '@distilled/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@hono/zod-validator':
+        specifier: ^0.7.0
+        version: 0.7.6(hono@4.13.11)(zod@3.25.76)
       hono:
-        specifier: ^4.8.2
-        version: 4.12.25
+        specifier: ^4.13.11
+        version: 4.13.11
       zod:
         specifier: ^3.25.67
         version: 3.25.76
@@ -230,6 +230,7 @@ packages:
 
   '@cloudflare/vitest-pool-workers@0.8.71':
     resolution: {integrity: sha512-keu2HCLQfRNwbmLBCDXJgCFpANTaYnQpE01fBOo4CNwiWHUT7SZGN7w64RKiSWRHyYppStXBuE5Ng7F42+flpg==}
+    deprecated: '@cloudflare/vitest-pool-workers has been renamed to @cloudflare/vitest-plugin. This package will not receive future updates.'
     peerDependencies:
       '@vitest/runner': 2.0.x - 3.2.x
       '@vitest/snapshot': 2.0.x - 3.2.x
@@ -1459,8 +1460,8 @@ packages:
   glob-to-regexp@0.4.1:
     resolution: {integrity: sha512-lkX1HJXwyMcprw/5YUZc2s7DrpAiHB21/V+E1rHUrVNokkvB6bqMzT0VfV6/86ZNabt1k14YOIaT7nDvOX3Iiw==}
 
-  hono@4.12.25:
-    resolution: {integrity: sha512-2NFaIyNVgJmBs/ecmtGzlmluTFs5cHEWGTdu0t1HBwYzoGXOL5nUQBRMXsXWla5i4KkG//QMzVP88m1+I3fdAQ==}
+  hono@4.13.11:
+    resolution: {integrity: sha512-/SMX/RQNJn7oNmFwH6DtwDqcrzZU2otm1FD6OJe2cWF6cfy/F8hq0XVBv7xW3FTJshRQwuBnXHDq2kNsdZnshg==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@4.0.0:
@@ -2387,9 +2388,9 @@ snapshots:
   '@esbuild/win32-x64@0.27.3':
     optional: true
 
-  '@hono/zod-validator@0.7.6(hono@4.12.25)(zod@3.25.76)':
+  '@hono/zod-validator@0.7.6(hono@4.13.11)(zod@3.25.76)':
     dependencies:
-      hono: 4.12.25
+      hono: 4.13.11
       zod: 3.25.76
 
   '@img/colour@1.1.0': {}
@@ -2984,7 +2985,7 @@ snapshots:
 
   glob-to-regexp@0.4.1: {}
 
-  hono@4.12.25: {}
+  hono@4.13.11: {}
 
   html-encoding-sniffer@4.0.0:
     dependencies:
