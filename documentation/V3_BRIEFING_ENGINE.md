@@ -79,7 +79,13 @@ That is a judgment call I would want a human editor to review on live runs.
   Oct 8 daily report in `results/` predates it and shows the longer style.
 - A deployed worker run with real D1 data. Adapter behaviour is covered by unit tests with a fake
   repository only.
-- Full worker test suite result (see the commit message / session notes for its status).
+- A complete run of the full worker test suite. It did not finish within 25 minutes in this sandbox
+  and was stopped. What did run: all 27 engine tests, the 6 adapter tests, all core tests (43), and
+  the worker tests that exercise the edited legacy edition path (`app.test.ts`,
+  `development-pipeline.test.ts`; 59 of 60 pass). The one failure,
+  `development-pipeline.test.ts > retains documents...`, fails identically on the untouched baseline
+  commit 51d7a4e (the test splits migration SQL on `;` and trips on a multi-statement migration), so
+  it is pre-existing, not caused by V3.
 
 ## Running it live
 
