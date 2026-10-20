@@ -52,5 +52,27 @@
     "maxWorkflowCalls": 12,
     "maxWorkflowReservationsUsd": 1.5
   },
-  "qualification": "NOT_ESTABLISHED_BY_OFFLINE_TESTS"
+  "qualification": "NOT_ESTABLISHED_BY_OFFLINE_TESTS",
+  "verification": {
+    "savedReplayAndBudgetUnit": {
+      "passed": 10
+    },
+    "editorialIdentityStorylineUnit": {
+      "passed": 36
+    },
+    "controlledPublicationIntegration": {
+      "passed": 4,
+      "realModel": false
+    },
+    "unknownIdentityRetryRegression": "PASSED_AFTER_REPRODUCED_DUPLICATE_CALL",
+    "normalizedFactPublicationRegression": {
+      "passed": 2,
+      "skipped": 26
+    },
+    "workerTypecheck": "PASSED",
+    "benchmarkTypecheck": "PASSED",
+    "combinedPublicationRun": "INCOMPLETE_STALLED_AND_STOPPED",
+    "fullWorkerSuite": "NOT_CLAIMED",
+    "codeReview": "NO_REMAINING_MATERIAL_FINDINGS"
+  }
 }
