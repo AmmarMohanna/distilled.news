@@ -11,7 +11,7 @@ import {
   verifyUser
 } from "./prompts";
 import { significantNumbers } from "./text";
-import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, PriorItem } from "./types";
+import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem } from "./types";
 
 export interface EngineOptions {
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
@@ -78,6 +78,18 @@ function parseDrafts(raw: unknown, known: Set<string>, priorIds: Set<string>): D
   return drafts;
 }
 
+function parseLeftOut(raw: unknown, known: Set<string>, idsOf: Map<string, string[]>): OmittedStory[] {
+  const list = (raw as { left_out?: unknown })?.left_out;
+  if (!Array.isArray(list)) return [];
+  const out: OmittedStory[] = [];
+  for (const entry of list) {
+    const row = entry as Record<string, unknown>;
+    const refs = (Array.isArray(row?.sources) ? row.sources : []).map((r) => text(r).toUpperCase()).filter((r) => known.has(r));
+    if (refs.length) out.push({ stage: "editor", reason: text(row.why) || "no reason given", sourceIds: [...new Set(refs.flatMap((r) => idsOf.get(r) ?? []))] });
+  }
+  return out;
+}
+
 function scriptProblem(draft: { headline: string; body: string }, language: FeedSpec["language"]): string | undefined {
   const sample = `${draft.headline} ${draft.body}`;
   if (language === "ar" && !/[؀-ۿ]/.test(sample)) return "item is not written in Arabic";
@@ -105,9 +117,10 @@ async function edit(
   articles: PreparedArticle[],
   prior: PriorItem[],
   partial = false
-): Promise<Draft[]> {
+): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
+  const idsOf = new Map(articles.map((a) => [a.ref, [a.id, ...a.alsoIds]]));
   return callJson(
     port,
     meter,
@@ -117,7 +130,10 @@ async function edit(
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial }),
       maxTokens: 4000
     },
-    (raw) => parseDrafts(raw, known, priorIds)
+    (raw) => ({
+      drafts: parseDrafts(raw, known, priorIds),
+      omitted: parseLeftOut(raw, known, idsOf)
+    })
   );
 }
 
@@ -127,8 +143,9 @@ async function consolidate(
   models: BriefingModels,
   input: BriefingInput,
   drafts: Draft[],
-  prior: PriorItem[]
-): Promise<Draft[]> {
+  prior: PriorItem[],
+  idsOfRefs: (refs: string[]) => string[]
+): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
   return callJson(
     port,
@@ -147,6 +164,7 @@ async function consolidate(
       const list = (raw as { items?: unknown })?.items;
       if (!Array.isArray(list)) throw new Error('missing "items" array');
       const out: Draft[] = [];
+      const used = new Set<number>();
       for (const entry of list) {
         const item = entry as Record<string, unknown>;
         const from = (Array.isArray(item?.from) ? item.from : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < drafts.length);
@@ -164,8 +182,28 @@ async function consolidate(
           refs,
           updatesId: priorIds.has(updates) ? updates : drafts[from[0]].updatesId
         });
+        for (const n of from) used.add(n);
       }
-      return out;
+      const omitted: OmittedStory[] = [];
+      const cutIndexes = new Set<number>();
+      const cuts = Array.isArray((raw as { cut?: unknown })?.cut) ? ((raw as { cut: unknown[] }).cut) : [];
+      for (const entry of cuts) {
+        const row = entry as Record<string, unknown>;
+        const from = (Array.isArray(row?.from) ? row.from : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < drafts.length && !used.has(n));
+        for (const n of from) {
+          if (drafts[n].importance === 1) continue; // lead stories cannot be cut; restored below
+          cutIndexes.add(n);
+          omitted.push({ stage: "consolidation", reason: text(row.why) || "cut for reading budget", headline: drafts[n].headline, sourceIds: idsOfRefs(drafts[n].refs) });
+        }
+      }
+      const restored: Draft[] = [];
+      drafts.forEach((draft, n) => {
+        if (used.has(n) || cutIndexes.has(n)) return;
+        // A lead story is never lost to the cut; anything else the model silently dropped is recorded as such.
+        if (draft.importance === 1) restored.push(draft);
+        else omitted.push({ stage: "consolidation", reason: "dropped by consolidation without a reason", headline: draft.headline, sourceIds: idsOfRefs(draft.refs) });
+      });
+      return { drafts: [...restored, ...out], omitted };
     }
   );
 }
@@ -335,8 +373,10 @@ export async function generateBriefing(
       stages[name] = (stages[name] ?? 0) + Date.now() - t;
     }
   };
+  const omittedStories: OmittedStory[] = [];
   const finish = (partial: Pick<BriefingResult, "status" | "items" | "skipped" | "dropped">): BriefingResult => ({
     ...partial,
+    omitted: omittedStories,
     usage: meter.usage,
     timings: { totalMs: Date.now() - started, stages }
   });
@@ -352,18 +392,32 @@ export async function generateBriefing(
   // 1. Edit: choose and write.
   const chunks = chunkArticles(prepared, options.maxEditorChars);
   let drafts: Draft[];
+  const omitted: OmittedStory[] = [];
   if (chunks.length === 1) {
-    drafts = await timed("edit", () => edit(port, meter, models, input, prepared, prior));
+    const edited = await timed("edit", () => edit(port, meter, models, input, prepared, prior));
+    drafts = edited.drafts;
+    omitted.push(...edited.omitted);
   } else {
     const parts = await timed("edit", () => Promise.all(chunks.map((chunk) => edit(port, meter, models, input, chunk, prior, true))));
-    const merged = parts.flat();
-    drafts = merged.length > 1 ? await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior)) : merged;
+    const merged = parts.flatMap((part) => part.drafts);
+    omitted.push(...parts.flatMap((part) => part.omitted));
+    if (merged.length > 1) {
+      const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs));
+      drafts = consolidated.drafts;
+      omitted.push(...consolidated.omitted);
+    } else {
+      drafts = merged;
+    }
   }
+  omittedStories.push(...omitted);
   drafts = drafts
     .map((d, order) => ({ d, order }))
     .sort((a, b) => a.d.importance - b.d.importance || a.order - b.order)
-    .slice(0, options.maxItems)
     .map(({ d }) => d);
+  for (const d of drafts.slice(options.maxItems)) {
+    omittedStories.push({ stage: "safety_cap", reason: `over the safety limit of ${options.maxItems} items`, headline: d.headline, sourceIds: sourceIdsOfRefs(d.refs) });
+  }
+  drafts = drafts.slice(0, options.maxItems);
   if (!drafts.length) return finish({ status: "empty", items: [], skipped, dropped: [] });
 
   // 2. Verify, repair what is repairable once, drop what is not.

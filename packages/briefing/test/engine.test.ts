@@ -206,3 +206,45 @@ describe("dropped items say whether their articles are worth another attempt", (
     ]);
   });
 });
+
+describe("omissions are auditable and lead stories are protected", () => {
+  const a1 = article("a1", FUND);
+  const a2 = article("a2", GENESIS, { publishedAt: "2026-10-18T10:02:00Z" });
+  const a3 = article("a3", "Harbour dredging approval for the northern channel was granted on Monday, officials said, raising cargo capacity later next year.", { publishedAt: "2026-10-18T10:03:00Z" });
+  const draft = (headline: string, ref: string, importance: number) => ({ headline, body: `${headline} body.`, sources: [ref], relation: "new", updates: null, importance });
+  const okAll = (r: { user: string }) => ({ results: [...r.user.matchAll(/^#(\d+) \[/gm)].map((m) => ({ i: Number(m[1]), verdict: "ok", issues: [] })) });
+
+  it("records the editor's left_out reasons with the articles behind them", async () => {
+    const { port } = scripted({
+      edit: [{ items: [fund()], left_out: [{ sources: ["S2"], why: "routine programme news" }, { sources: ["S99"], why: "bogus" }] }],
+      verify: [okAll]
+    });
+    const result = await generateBriefing({ ...base, articles: [a1, a2] }, port, MODELS);
+    expect(result.omitted).toEqual([{ stage: "editor", reason: "routine programme news", sourceIds: ["a2"] }]);
+  });
+
+  it("restores a lead story the consolidation pass tried to cut, and records real cuts and silent drops", async () => {
+    const { port } = scripted({
+      // maxEditorChars below makes each article its own chunk: three editor calls, then consolidation.
+      edit: [{ items: [draft("Lead", "S1", 1)] }, { items: [draft("Routine", "S2", 3)] }, { items: [draft("Quiet drop", "S3", 2)] }],
+      consolidate: [{ items: [], cut: [{ from: [0], why: "trying to cut the lead" }, { from: [1], why: "routine" }] }],
+      verify: [okAll]
+    });
+    const result = await generateBriefing({ ...base, articles: [a1, a2, a3] }, port, MODELS, { maxEditorChars: 300 });
+    expect(result.items.map((i) => i.headline)).toEqual(["Lead"]);
+    expect(result.omitted).toEqual([
+      { stage: "consolidation", reason: "routine", headline: "Routine", sourceIds: ["a2"] },
+      { stage: "consolidation", reason: "dropped by consolidation without a reason", headline: "Quiet drop", sourceIds: ["a3"] }
+    ]);
+  });
+
+  it("records drafts beyond the safety limit instead of silently losing them", async () => {
+    const { port } = scripted({
+      edit: [{ items: [draft("One", "S1", 1), draft("Two", "S2", 2)] }],
+      verify: [okAll]
+    });
+    const result = await generateBriefing({ ...base, articles: [a1, a2] }, port, MODELS, { maxItems: 1 });
+    expect(result.items).toHaveLength(1);
+    expect(result.omitted).toMatchObject([{ stage: "safety_cap", headline: "Two", sourceIds: ["a2"] }]);
+  });
+});

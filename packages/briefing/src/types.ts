@@ -64,6 +64,15 @@ export interface DroppedItem {
   carry: boolean;
 }
 
+/** Something the editor read but did not publish, with the reason it gave, so omissions can be audited. */
+export interface OmittedStory {
+  stage: "editor" | "consolidation" | "safety_cap";
+  reason: string;
+  headline?: string;
+  /** Article ids behind the omitted story. */
+  sourceIds: string[];
+}
+
 export interface BriefingResult {
   /**
    * published: at least one verified item.
@@ -75,6 +84,8 @@ export interface BriefingResult {
   items: BriefingItem[];
   skipped: Array<{ id: string; reason: string }>;
   dropped: DroppedItem[];
+  /** Stories left out by editorial choice (not by failed verification). */
+  omitted: OmittedStory[];
   usage: Usage;
   timings: { totalMs: number; stages: Record<string, number> };
 }

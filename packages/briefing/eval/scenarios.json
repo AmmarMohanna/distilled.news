@@ -100,6 +100,30 @@
      ]
     }
    ]
+  },
+  {
+   "id": "real-moderate",
+   "corpus": "anthropic-news",
+   "feed": {
+    "interest": "Anthropic company news: products, safety, policy, partnerships and funding",
+    "language": "en",
+    "windowMinutes": 1440
+   },
+   "windows": [
+    {
+     "start": "2026-10-01T00:00:00Z",
+     "end": "2026-10-13T00:00:00Z",
+     "articles": [
+      "barclays-scales-claude",
+      "claude-frontier-academy",
+      "cyber-verification-program",
+      "2026-usage-policy-update",
+      "anthropic-cyber-mission",
+      "genesis-mission-commitment",
+      "distillation-defenses"
+     ]
+    }
+   ]
   }
  ]
 }

@@ -120,3 +120,9 @@ lines.push(`\nTOTAL: ${calls} model calls${cost === undefined ? "" : `, $${cost.
 const text = lines.join("\n");
 console.log(text);
 if (args.get("out")) writeFileSync(args.get("out")!, text + "\n");
+if (args.get("json")) {
+  writeFileSync(
+    args.get("json")!,
+    JSON.stringify({ scenario: scenario.id, models, windows: report.map(({ window, articles, result }) => ({ window, articles, result })) }, null, 1)
+  );
+}
