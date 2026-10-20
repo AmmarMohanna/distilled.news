@@ -1,50 +1,27 @@
-# Cloudflare-first inference on the feature branch
+# Cloudflare-first inference configuration
 
-Base: c813a27. No application deployment has occurred. A bounded real-provider Phase A ran on 2026-10-20; see CLOUDFLARE_REAL_EVALUATION.md.
+The current feature default is the Cloudflare unified API with GPT-4.1 as the strong-model candidate. See [configuration, mappings, verified metadata, actual measurements and blockers](CLOUDFLARE_GPT41_COMPARISON.md). This supersedes the earlier native-Qwen default, following the user's newer instruction.
 
-## Configuration
+## Selecting routes
 
-The default is native Cloudflare Workers AI. Set DISTILLED_LLM_API_GATEWAY=workers_ai and bind AI through [ai] in Wrangler. Native AI.run executes the Cloudflare-hosted model; AI Gateway is not an inference provider and is not added to this path. Gateway would currently add another routing/billing boundary without resolving model qualification or per-request dollar settlement.
+Set DISTILLED_LLM_API_GATEWAY=cloudflare with CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_AI_GATEWAY_ID and server-side CLOUDFLARE_AI_GATEWAY_TOKEN. Construction/reconciliation/editorial/verification/construction repair default to openai/gpt-4.1, and writer/writer repair to openai/gpt-4.1-mini. Native Jev probabilities remain an explicit OpenRouter-only capability; exact-span claim extraction stays deterministic. Cloudflare relation/novelty judgments use construction's existing typed semantic decisions without introducing a new probability API.
 
-Set DISTILLED_LLM_API_GATEWAY=openrouter to select the existing transport explicitly. OPENROUTER_API_KEY stays a server-side secret. Existing V1_SEMANTIC_STRONG_MODEL, V1_JEV_SALIENCE_MODEL and DISTILLED_LIVE_OPENROUTER_MODEL settings remain effective. wrangler.staging.toml and wrangler.sources-qa.toml remain unchanged, explicit historical OpenRouter baselines; they are not the feature default and must not be deployed without permission.
+Set DISTILLED_LLM_API_GATEWAY=openrouter to retain the established transport and OPENROUTER_API_KEY. Existing V1_SEMANTIC_STRONG_MODEL, V1_JEV_SALIENCE_MODEL and DISTILLED_LIVE_OPENROUTER_MODEL settings keep their OpenRouter behavior. Historical staging/source-QA configuration is unchanged.
 
-Optional V1_LLM_ROUTES_JSON maps construction, reconciliation, editorial, writer, verification, relation, novelty and repair to {provider,model}. Unknown task/provider values fail closed. Example: {"verification":{"provider":"openrouter","model":"openai/gpt-4.1"}}. Writer and verifier may use different routes: durable operations, exact verification request hashes, manifests and model-execution receipts bind the actual phase route. A configured route is never an automatic fallback.
+Optional native Qwen: set DISTILLED_LLM_API_GATEWAY=workers_ai with binding AI, or select it for a particular task through V1_LLM_ROUTES_JSON. Example: {"construction":{"provider":"workers_ai","model":"@cf/qwen/qwen3-30b-a3b-fp8"},"verification":{"provider":"cloudflare","model":"openai/gpt-4.1"}}. Model/provider changes are explicit configuration, never automatic fallback. A qualified=true setting cannot promote a model.
 
-## Task mappings
+Task keys are relation, novelty, construction, reconciliation, editorial, writer, verification and repair. Unknown mappings fail closed. New Cloudflare unified and native task qualifications remain empty; MODEL_UNQUALIFIED prevents unattended spending/publication until real evidence supports each task. OpenRouter stays explicitly selectable as the known regression baseline. New provider identities cannot reuse historical verdicts from another route.
 
-| Task | Workers AI candidate | OpenRouter baseline | Qualification |
-| --- | --- | --- | --- |
-| Claim extraction | deterministic exact-span extractor, no model | same | existing extraction contracts |
-| Relation / novelty | @cf/qwen/qwen3-30b-a3b-fp8 | typesafe/jev-1.13 native Decisions | Workers AI unqualified; no claimed equivalence to Jev probabilities. Authoritative structural relations also remain part of construction. Native Jev preliminary calls run only on explicitly selected Decisions-capable OpenRouter routes. |
-| Semantic construction | @cf/qwen/qwen3-30b-a3b-fp8 | openai/gpt-4.1, or V1_SEMANTIC_STRONG_MODEL | Workers AI unqualified |
-| Development reconciliation | same Cloudflare candidate | same strong-model setting | Workers AI unqualified |
-| Editorial selection | same Cloudflare candidate | same strong-model setting | Workers AI unqualified; legacy salience Jev route is disabled on workers_ai |
-| Briefing writing | same Cloudflare candidate | openai/gpt-4.1-mini, or DISTILLED_LIVE_OPENROUTER_MODEL | Workers AI unqualified |
-| Factual verification | same Cloudflare candidate | same writer default, explicit task override supported | Workers AI unqualified |
-| Repairs | same Cloudflare candidate | construction uses strong-model default; writer repair inherits writer route unless repair explicitly configured | Workers AI unqualified |
+## Capacity, accounting and recovery
 
-The production qualification registry is intentionally empty. MODEL_UNQUALIFIED is recorded before any financial reservation/provider call. A configuration boolean cannot qualify a model. Missing bindings, capability metadata and schema/context capacity remain separate admission failures. Unqualified models are resource/setup waits, not exhausted semantic failures.
+V1_INFERENCE_CONCURRENCY=2 controls bounded packet work (range 1-3). V1_PROVIDER_MAX_CONCURRENCY=3 and V1_PROVIDER_REQUESTS_PER_MINUTE=20 default conservatively; native/unified Cloudflare routes share API capacity, separately from OpenRouter. Per-account grants, reservations and scope guards still apply. Raise no account or provider limits without the relevant authorization and measurements.
 
-## Verified metadata and limitations
+Migration 0064 adds atomic provider admission. Migration 0065 adds frozen evaluation scopes, including exact request identities, one evaluation slot, cumulative reservations and the unchanged $73 lifetime ceiling. Neither is permission to deploy or buy inference. Migration 0065 was installed only as the previously approved evaluation-authorization guard; this extension applies no remote migration.
 
-Cloudflare's [model documentation](https://developers.cloudflare.com/workers-ai/models/qwen3-30b-a3b-fp8/) lists the candidate as Cloudflare-hosted, with a 32,768-token context window, JSON response_format, and prices of $0.0509 per million input tokens / $0.335 per million output tokens (read 2026-10-19). The branch uses a conservative 4,096-token configured output cap; this is not a verified model maximum. The model parameter reference advertises response_format, but the JSON-mode supported-model list does not explicitly list Qwen. Actual JSON-schema support, account/model access and output limits are qualification blockers; no equivalence to strict GPT output is assumed.
+Durable identities: cloudflare:openai/gpt-4.1 for the unified route, workers_ai:@cf/... for native inference, and unchanged OpenRouter model names. Receipts, publication manifests and request hashes bind the selected phase route. Uncertain operations fence switching providers/models. Native reported Neurons persist as billing-unit evidence; tariff-based gross usage is not a confirmed account charge and cannot release a hold. Cloudflare receipt handles are never sent to OpenRouter recovery.
 
-Cloudflare [JSON mode](https://developers.cloudflare.com/workers-ai/features/json-mode/) does not guarantee schema compliance. Native requests use its schema dialect. Duplicate JSON keys, schema validity, source ownership, complete membership, factual support and V2 publication verification retain application-side validation. Native binding responses must match the requested model when a model identity is returned; incomplete completion indicators are rejected. A native timeout cannot prove remote nonexecution.
+The unified adapter requests one attempt and no cache, validates the resolved model and completed output, and checks Unified billing-source metadata. Native schema translation and all application-level validation remain in force. Gateway price estimates, token-derived costs, credit fees and confirmed provider charges must not be conflated. Account-specific billing/recovery and real quality remain qualification blockers.
 
-Cloudflare [rate limits](https://developers.cloudflare.com/workers-ai/platform/limits/) vary by task/model/account. This branch defaults to at most three unresolved provider operations across accounts and 20 reserved requests per rolling minute, plus two local packet inferences. These are conservative application limits, not a claim of entitlement to a provider quota. Lower them to the actual account limit. Raising the maximum beyond three requires another benchmark/code review.
+Acquisition audit: deterministic ingestion/verification is unchanged. Generative browser/X discovery, native Jev acquisition choices and source recommendations remain OpenRouter-specific and require explicit selection. Legacy summary/review factories cannot silently use an old OpenAI Gateway path when the new Cloudflare route is selected. These limitations remain explicit instead of weakening source or factual validation.
 
-## Accounting and recovery
-
-Workers AI paid identities are prefixed workers_ai:; OpenRouter identities remain unchanged for historical compatibility. Verdicts cannot reuse a success from another model/provider. An uncertain same-source operation fences a provider/model switch, even with a different compatibility hash. Repair can only follow conclusively reported prior execution. No uncertain operation is retried on another provider.
-
-Apply migration 0064_model_provider_admission.sql to the target D1 only after deployment authorization. Provider guards execute atomically inside the spending reservation batch, alongside existing grant/exposure/concurrency checks. Missing migration blocks new routed paid operations. Existing account authority, the $73 ceiling, historical receipts and uncertain holds are unchanged. Provider controls are V1_PROVIDER_MAX_CONCURRENCY (1?3, default 3) and V1_PROVIDER_REQUESTS_PER_MINUTE (default 20). Historical uncertain reservations count conservatively, even after local lease expiry.
-
-Native token counts can support price estimates; they are not a provider-reported dollar settlement. The adapter does not invent usage.cost, release a hold from lease expiry, or send Workers AI receipt handles to OpenRouter recovery endpoints. Native correlation handles are retained when available, but authoritative per-request Cloudflare dollar settlement and post-timeout recovery remain qualification blockers. No Workers AI task may be promoted until these accounting issues and real quality checks are resolved with evidence.
-
-## Evaluation status
-
-Offline adapter, task routing, request identity and OpenRouter regression tests verify code behavior only. See benchmarks/provider-compatibility-results.json. One real short construction request passed application checks; the negative verification and broad task quality remain untested on Workers AI. Its account dollar charge remains unconfirmed. The controlled evaluation plan is in PARALLEL_INTELLIGENCE_EVALUATION.md and requires separate spending authorization.
-
-Acquisition audit: deterministic connectors, acquisition verification and exact claim extraction add no model calls. Generative browser/X discovery, native Jev acquisition choices and source recommendations remain OpenRouter-specific and require explicit OpenRouter selection; Workers AI reports these as unqualified/unsupported. Legacy summary/review factories cannot silently fall through to OpenAI Gateway when the Cloudflare default is selected. They retain their existing non-model fallback until a task-qualified V1 adapter handles the source. Canonical graph updates stay inside existing write turns. Independent article queue execution already separates inference preparation from the canonical turn; this branch adds packet parallelism rather than increasing queue/account capacity.
-
-Reported Neurons now persist in typed provider receipts. Gross tariff-based usage remains an estimate before allowances and cannot settle an uncertain dollar charge. The evaluator financial guard in migration 0065 is separate from provider admission and does not authorize publication.
+Historical results: [initial native comparison](CLOUDFLARE_REAL_EVALUATION.md), [offline architecture benchmark](PARALLEL_INTELLIGENCE_RESULTS.md), and [original bounded evaluation boundary](PARALLEL_INTELLIGENCE_EVALUATION.md).

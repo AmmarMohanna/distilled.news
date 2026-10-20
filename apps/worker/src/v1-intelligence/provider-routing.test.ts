@@ -3,7 +3,7 @@ import {it,expect} from 'vitest';
 import {llmRoute,routeAdmission,TASKS} from './provider-routing';
 import {workersAiCompletion} from '../workers-ai';
 it('defaults every generative task to qualified-gated Cloudflare with distinct durable identities',()=>{
- for(const task of TASKS){const route=llmRoute({} as any,task);expect(route.provider).toBe('workers_ai');expect(route.identity).toMatch(/^workers_ai:@cf\//);expect(routeAdmission({} as any,route,{},{}).fits).toBe(false);}
+ for(const task of TASKS){const route=llmRoute({} as any,task);expect(route.provider).toBe('cloudflare');expect(route.identity).toMatch(/^cloudflare:openai\//);expect(routeAdmission({} as any,route,{},{}).fits).toBe(false);}
  const old=llmRoute({DISTILLED_LLM_API_GATEWAY:'openrouter'} as any,'construction');expect(old.identity).toBe('openai/gpt-4.1');
  expect(()=>llmRoute({DISTILLED_LLM_API_GATEWAY:'typo'} as any,'writer')).toThrow();
 });

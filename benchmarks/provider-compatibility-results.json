@@ -40,5 +40,21 @@
     "actualProviderCostUsd": 0
   },
   "confirmedProviderCostUsd": 0.0043056,
-  "latestRealReport": "cloudflare-real-evaluation-results.json"
+  "latestRealReport": "cloudflare-real-evaluation-results.json",
+  "configuredDefaultProvider": "cloudflare",
+  "configuredStrongCandidate": "cloudflare:openai/gpt-4.1",
+  "cloudflareUnified": {
+    "model": "openai/gpt-4.1",
+    "transport": "ACCOUNT_AI_V1_CHAT_COMPLETIONS",
+    "adapterTestedOffline": true,
+    "realCompatibilityTested": false,
+    "qualifiedTasks": [],
+    "comparisonReport": "strong-route-comparison-results.json",
+    "blockers": [
+      "Refreshed gateway/billing metadata access returned403",
+      "Frozen earlier grant does not admit new matched requests",
+      "Prior native Qwen unconfirmed dollar hold retains the approved evaluation slot",
+      "Real matched quality, latency and confirmed costs are unmeasured"
+    ]
+  }
 }

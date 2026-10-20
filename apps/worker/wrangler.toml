@@ -52,7 +52,7 @@ DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE = "false"
 DISTILLED_LIVE_OPENROUTER_MODEL = "openai/gpt-4.1-mini"
 DISTILLED_LIVE_OPENROUTER_PROVIDER = "openai"
 DISTILLED_LLM_MODE = "api"
-DISTILLED_LLM_API_GATEWAY = "workers_ai"
+DISTILLED_LLM_API_GATEWAY = "cloudflare"
 V1_INFERENCE_CONCURRENCY = "2"
 V1_PROVIDER_MAX_CONCURRENCY = "3"
 V1_PROVIDER_REQUESTS_PER_MINUTE = "20"
@@ -114,6 +114,7 @@ head_sampling_rate = 1
 [triggers]
 crons = ["* * * * *"]
 
-# Native inference; unqualified task models are blocked before spending.
+# Optional native inference; Cloudflare unified GPT routes use the account API.
+# Unqualified task models are blocked before spending.
 [ai]
 binding = "AI"

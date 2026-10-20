@@ -1,10 +1,10 @@
 import {workersAiRequest} from '../workers-ai';
-import {llmRoute,routeAdmission} from './provider-routing';
+import {llmRoute,routeAdmission,modelOptionsForRoute} from './provider-routing';
 import {canonicalJson} from '../v1-intake/canonical';
 import {editorialContract} from './editorial-requirements';
 import {ASYNC_MODEL_CALL_MS} from './operation-timing';
 import {admitModelOperation,modelCapability} from './model-capacity';
-import {boundedCompletion,structuredCompletionBody,type ModelOptions} from '../ai';
+import {boundedCompletion,structuredCompletionBody,cloudflareCompletionBody,type ModelOptions} from '../ai';
 import {sha256} from '@distilled/contracts';
 import type {Env} from '../types';
 import type {BriefingDraft,BriefingModelPort,ModelUsage,SynthesisWriterInput} from './publication';
@@ -15,11 +15,11 @@ export const APPROVED_FACT_PROMPT_VERSION='approved-fact-spans-editorial-v28';
 /** Uses the existing provider transport; no discovery tools or external source capabilities. */
 export function createStoredEvidenceModel(env:Env,fetcher:typeof fetch=fetch):BriefingModelPort|undefined {
  if(env.V1_SYNTHESIS_MODEL_ENABLED!=='true') return undefined;
- const writerRoute=llmRoute(env,'writer'),verifyRoute=llmRoute(env,'verification'),repairRoute=env.V1_LLM_ROUTES_JSON&&JSON.parse(env.V1_LLM_ROUTES_JSON).repair?llmRoute(env,'repair'):writerRoute;
+ const writerRoute=llmRoute(env,'writer'),verifyRoute=llmRoute(env,'verification'),repairRoute=env.V1_LLM_ROUTES_JSON&&JSON.parse(env.V1_LLM_ROUTES_JSON).repair?llmRoute(env,'repair'):{...writerRoute,task:'repair' as const};
  const routes={SYNTHESIS:writerRoute,GROUNDING:verifyRoute,REPAIR:repairRoute};
- const phaseIdentity=(phase:string)=>{const route=routes[phase as keyof typeof routes]??writerRoute;const provider=route.provider==='workers_ai'?'WORKERS_AI':'OPENROUTER';return {model:route.identity,provider,providerRoute:canonicalJson({provider,accountId:'',gatewayId:''})}};
+ const phaseIdentity=(phase:string)=>{const route=routes[phase as keyof typeof routes]??writerRoute;const options=modelOptionsForRoute(env,route);return {model:route.identity,provider:options.provider!,providerRoute:canonicalJson({provider:options.provider,accountId:options.accountId,gatewayId:options.gatewayId})}};
  const modelIdentity=writerRoute.identity;
- const options:ModelOptions={accountId:'',gatewayId:'',apiKey:env.OPENROUTER_API_KEY??'',provider:writerRoute.provider==='workers_ai'?'WORKERS_AI':'OPENROUTER',model:modelIdentity,env,fetcher,timeoutMs:ASYNC_MODEL_CALL_MS};
+ const options:ModelOptions={...modelOptionsForRoute(env,writerRoute,fetcher),timeoutMs:ASYNC_MODEL_CALL_MS};
  const contract=editorialContract(env.V1_PUBLICATION_VALIDATION_CONTRACT);
  let latestUsage:ModelUsage={tokensIn:0,tokensOut:0,cost:0,confirmed:true};
 
@@ -29,7 +29,7 @@ export function createStoredEvidenceModel(env:Env,fetcher:typeof fetch=fetch):Br
   const envelope=routeAdmission(env,route,payload,schema,limits.maxOutputTokens);
   if(!envelope.fits)throw Error(envelope.reason);
   let usage:ModelUsage=latestUsage={tokensIn:0,tokensOut:0,cost:envelope.reservationCostUsd,confirmed:false};
-  const result=await boundedCompletion({...options,model:route.identity,provider:route.provider==='workers_ai'?'WORKERS_AI':'OPENROUTER',usageRecorder:async record=>{
+  const result=await boundedCompletion({...options,...modelOptionsForRoute(env,route,fetcher),usageRecorder:async record=>{
    // Estimates never masquerade as provider-reported charges. Unknown usage
    // retains the durable reservation and prevents further calls that exceed it.
    latestUsage=usage={tokensIn:record.inputTokens,tokensOut:record.outputTokens,cost:record.reportedCostUsd??envelope.reservationCostUsd,confirmed:record.reportedCostUsd!==undefined};
@@ -56,7 +56,7 @@ export function createStoredEvidenceModel(env:Env,fetcher:typeof fetch=fetch):Br
   repairPayload:(input,draft,feedback)=>{const {payload,schema}=writeRequest(input,{draft,feedback});return {payload,schema};},
   repair:(input,draft,feedback,limits)=>write(input,limits,{draft,feedback}),
   verificationPayload:claims=>{const {payload,schema}=verifyRequest(claims);return {payload,schema};},
-  ...(contract==='EVIDENCE_GROUNDED_V2'?{verificationRequestHash:async(claims:Parameters<typeof verifyRequest>[0],maxOutputTokens:number)=>{const {payload,schema}=verifyRequest(claims);return sha256(JSON.stringify(verifyRoute.provider==='workers_ai'?{model:verifyRoute.model,input:workersAiRequest(JSON.stringify(payload),schema,maxOutputTokens)}:structuredCompletionBody(verifyRoute.identity,JSON.stringify(payload),schema,maxOutputTokens)));}}:{}),
+  ...(contract==='EVIDENCE_GROUNDED_V2'?{verificationRequestHash:async(claims:Parameters<typeof verifyRequest>[0],maxOutputTokens:number)=>{const {payload,schema}=verifyRequest(claims);return sha256(JSON.stringify(verifyRoute.provider==='workers_ai'?{model:verifyRoute.model,input:workersAiRequest(JSON.stringify(payload),schema,maxOutputTokens)}:verifyRoute.provider==='cloudflare'?cloudflareCompletionBody(verifyRoute.identity,JSON.stringify(payload),schema,maxOutputTokens):structuredCompletionBody(verifyRoute.identity,JSON.stringify(payload),schema,maxOutputTokens)));}}:{}),
   verify:async(claims,limits)=>{
    const {wire,payload,schema}=verifyRequest(claims);
    const {result,usage}=await complete('stored-claim-verification','GROUNDING',payload,schema,limits);

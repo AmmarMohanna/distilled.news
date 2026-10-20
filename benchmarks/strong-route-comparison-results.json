@@ -1,0 +1,135 @@
+{
+  "mode": "MATCHED_COMPARISON_PREPARED_NOT_EXECUTED",
+  "manifestHash": "2b495b561f83fd3c4b90fe1914f45731e0997279a3f2bf6ba20a958d073f0e19",
+  "newPaidCalls": 0,
+  "cases": [
+    {
+      "id": "SHORT_T01",
+      "kind": "CONSTRUCTION",
+      "labelSource": "Existing frozen controlled T01",
+      "evidenceHash": "0b93c6e0ec01d685a764b638f2268c13da586003b3fe3a3ffcb3c45344644193"
+    },
+    {
+      "id": "MULTI_DEVELOPMENT",
+      "kind": "CONSTRUCTION",
+      "labelSource": "Hand-authored bridge/hospital grouping oracle",
+      "evidenceHash": "7bd30d4e5fb3e5a3a5f770e83e516b47fc5b7dadc1581253888b2748673d4853"
+    },
+    {
+      "id": "VERIFY_T01",
+      "kind": "VERIFICATION",
+      "labelSource": "Frozen controlled T01; not independent human gold",
+      "evidenceHash": "4bd135284aa898f0e38ae06838e67dbc7381f0873070c081b392d21a130fa9c0"
+    },
+    {
+      "id": "VERIFY_T04",
+      "kind": "VERIFICATION",
+      "labelSource": "Frozen controlled T04; not independent human gold",
+      "evidenceHash": "e20744d246e452ca1a6c898759775188ca453bee182d2a9d0f74a392aec754e7"
+    },
+    {
+      "id": "VERIFY_T06",
+      "kind": "VERIFICATION",
+      "labelSource": "Frozen controlled T06; not independent human gold",
+      "evidenceHash": "369a6e03418acda4bc9ae153bb172ae91746240f53f82154f43f842abc15be71"
+    },
+    {
+      "id": "VERIFY_T08",
+      "kind": "VERIFICATION",
+      "labelSource": "Frozen controlled T08; not independent human gold",
+      "evidenceHash": "2bcf4b736a6472c8bb9670e275568b65c5e417691399f922d7fb4dd6fe6a393f"
+    }
+  ],
+  "routes": [
+    "cloudflare",
+    "openrouter",
+    "workers_ai"
+  ],
+  "plannedMeasurements": 18,
+  "exactPriorRealResultsReused": 2,
+  "plannedNewCalls": 16,
+  "plannedNewReservationUpperBoundUsd": 0.5510127869999999,
+  "totalApprovedUsd": 3,
+  "previousReservedUsd": 0.05839019529999999,
+  "previousActualCalls": 3,
+  "comparison": {
+    "bestRoute": null,
+    "ranking": [
+      {
+        "route": "openrouter",
+        "eligible": false,
+        "reasons": [
+          "INCOMPLETE_MATCHED_CASES",
+          "QUALITY_REVIEW_PENDING"
+        ],
+        "completedCases": 1,
+        "medianMs": 1413.9748,
+        "totalConfirmedUsd": 0.00346
+      },
+      {
+        "route": "workers_ai",
+        "eligible": false,
+        "reasons": [
+          "INCOMPLETE_MATCHED_CASES",
+          "UNCONFIRMED_COST",
+          "QUALITY_REVIEW_PENDING"
+        ],
+        "completedCases": 1,
+        "medianMs": 4510.073700000001,
+        "totalConfirmedUsd": 0
+      },
+      {
+        "route": "cloudflare",
+        "eligible": false,
+        "reasons": [
+          "INCOMPLETE_MATCHED_CASES"
+        ],
+        "completedCases": 0,
+        "medianMs": null,
+        "totalConfirmedUsd": 0
+      }
+    ],
+    "productionQualificationChanged": false
+  },
+  "cachedResults": [
+    {
+      "route": "openrouter",
+      "caseId": "SHORT_T01",
+      "requestHash": "ac892e6dbc5eb43aa414d526e820064ebbd1e605b5cc4a44f5a7482552f254fc",
+      "model": "openai/gpt-4.1",
+      "wallMs": 1413.9748,
+      "settled": true,
+      "costUsd": 0.00346,
+      "validation": {
+        "valid": true,
+        "groups": 1,
+        "coveredMentions": 1
+      },
+      "qualityReview": "PENDING",
+      "source": "PRIOR_REAL_EXACT_REQUEST",
+      "priorOperationId": "provider-evaluation:bb6d62707bfa41aa0c76:OPENROUTER:construction"
+    },
+    {
+      "route": "workers_ai",
+      "caseId": "SHORT_T01",
+      "requestHash": "6a8b926909231448e49a6e321b4c6cc6e554c26bdf8f5bcca348e7a7d20fc5c9",
+      "model": "workers_ai:@cf/qwen/qwen3-30b-a3b-fp8",
+      "wallMs": 4510.073700000001,
+      "settled": false,
+      "validation": {
+        "valid": true,
+        "groups": 1,
+        "coveredMentions": 1
+      },
+      "qualityReview": "PENDING",
+      "source": "PRIOR_REAL_EXACT_REQUEST",
+      "priorOperationId": "provider-evaluation:bb6d62707bfa41aa0c76:WORKERS_AI:construction"
+    }
+  ],
+  "blockers": [
+    "GATEWAY_AND_BILLING_READ_FORBIDDEN",
+    "EXISTING_IMMUTABLE_GRANT_DOES_NOT_ADMIT_MATCHED_REQUESTS",
+    "PRIOR_QWEN_DOLLAR_HOLD_STILL_OCCUPIES_APPROVED_EVALUATION_SLOT"
+  ],
+  "productionQualified": false
+}

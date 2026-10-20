@@ -7,10 +7,10 @@ export async function captureProviderReceipt(receipt:ProviderReceipt):Promise<vo
 /** Correlation only: a generation handle proves neither billing nor termination. */
 export function providerResponseReceipt(response:Response,provider:string,model:string):ProviderReceipt {
  const id=(value:string|null,pattern:RegExp)=>value&&!/^(sk-|sk_or_|eyJ)/.test(value)&&pattern.test(value)?value:undefined;
- return {provider,model,stage:'HEADERS',httpStatus:response.status,generationId:id(response.headers.get('x-generation-id'),/^gen-[a-zA-Z0-9-]{1,124}$/),requestId:id(response.headers.get('x-request-id')??response.headers.get('request-id'),/^[a-zA-Z0-9_.:-]{1,96}$/)};
+ return {provider,model,stage:'HEADERS',httpStatus:response.status,generationId:id(response.headers.get('x-generation-id'),/^gen-[a-zA-Z0-9-]{1,124}$/),requestId:id(response.headers.get('x-request-id')??response.headers.get('request-id')??(provider==='CLOUDFLARE'?response.headers.get('cf-aig-log-id')??response.headers.get('cf-ray'):null),/^[a-zA-Z0-9_.:-]{1,96}$/)};
 }
 export function providerBodyReceipt(header:ProviderReceipt,id:unknown):ProviderReceipt {
- if(header.provider==='WORKERS_AI'){if(typeof id==='string'&&/^[a-zA-Z0-9_.:-]{1,128}$/.test(id)&&!/^(sk-|sk_or_|eyJ)/.test(id))return {...header,generationId:id};return header;}
+ if(header.provider==='WORKERS_AI'||header.provider==='CLOUDFLARE'){if(typeof id==='string'&&/^[a-zA-Z0-9_.:-]{1,128}$/.test(id)&&!/^(sk-|sk_or_|eyJ)/.test(id))return {...header,generationId:id};return header;}
  if(typeof id!=='string'||!/^gen-[a-zA-Z0-9-]{1,124}$/.test(id))return header;
  if(header.generationId&&header.generationId!==id)throw Error('MODEL_RESPONSE_IDENTITY_MISMATCH');
  return {...header,generationId:id};

@@ -23,7 +23,8 @@
     "openrouter:diagnostic:trigger": "node scripts/trigger-openrouter-model-diagnostic.mjs",
     "setup": "node scripts/setup.mjs",
     "bootstrap:x:manual": "node scripts/bootstrap-authenticated-profile-manual.mjs",
-    "benchmark:parallel": "vitest run --config benchmarks/parallel-intelligence.vitest.config.ts"
+    "benchmark:parallel": "vitest run --config benchmarks/parallel-intelligence.vitest.config.ts",
+    "evaluate:strong:prepare": "vitest run --config benchmarks/strong-route-comparison.vitest.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.0",

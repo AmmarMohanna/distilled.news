@@ -1,5 +1,7 @@
 # Parallel intelligence implementation and measured results
 
+Latest routing update: [Cloudflare unified GPT-4.1 comparison](CLOUDFLARE_GPT41_COMPARISON.md) supersedes the native-Qwen default; its matched real comparison remains blocked on credentials and scoped capacity.
+
 Update 2026-10-20: the initial real-provider comparison is recorded in [Cloudflare real evaluation](CLOUDFLARE_REAL_EVALUATION.md). The measurements below remain the original offline implementation report.
 
 Branch: feat/parallel-cloudflare-event-reconciliation. Exact base: c813a27, fetched from backend-validation-contract. The original branch was not modified. Baseline schema compaction (0e069a2) and scheduling fixes (33c5a7d) are reused.

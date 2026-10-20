@@ -1,0 +1,51 @@
+# Strong-model routing: Cloudflare GPT-4.1 comparison
+
+The earlier implementation interpreted Cloudflare-first as native Workers AI inference, as the original specification requested. Qwen3 was a hosted candidate chosen from availability, context and cost metadata, without comparative quality evidence. The newer instruction explicitly adds GPT-4.1 through Cloudflare's unified API. The implementation now separates route selection from model choice.
+
+## Implemented configuration
+
+The feature branch defaults to DISTILLED_LLM_API_GATEWAY=cloudflare. Construction, relation/novelty judgments within construction, reconciliation, editorial review, factual verification and construction repairs map to cloudflare:openai/gpt-4.1. Writing defaults to cloudflare:openai/gpt-4.1-mini; writer repair inherits the writer model but has separate task qualification. V1_LLM_ROUTES_JSON selects explicit task overrides. V1_SEMANTIC_STRONG_MODEL remains the strong-model override.
+
+Set DISTILLED_LLM_API_GATEWAY=openrouter for the existing OpenRouter baseline, or use provider workers_ai with @cf/qwen/qwen3-30b-a3b-fp8 for optional native Qwen tasks. Native Qwen keeps its existing workers_ai: identity. Historical OpenRouter model identities and request bodies remain unchanged. Unified Cloudflare models have a distinct cloudflare: identity and CLOUDFLARE provider receipts; they cannot reuse another provider's verdict or silently replace an uncertain operation.
+
+The Cloudflare transport uses the current account /ai/v1/chat/completions endpoint, with server-side CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_AI_GATEWAY_ID and CLOUDFLARE_AI_GATEWAY_TOKEN. It reuses the strict application schema, parsing, span ownership, semantic and V2 publication validators. It requests a single attempt, disables cache use, validates the resolved model and completed finish status, and requires gatewayMetadata.keySource=Unified. An unexpected BYOK billing source is rejected, never silently accepted as Cloudflare-managed billing. Native and unified routes share the conservative Cloudflare API admission pool; OpenRouter has a separate pool. Existing account-level limits remain authoritative.
+
+All new Cloudflare tasks remain unqualified for unattended publication. A configured default is a candidate, not a claim of measured superiority. No deployed configuration was changed.
+
+## Verified service metadata
+
+Cloudflare's [GPT-4.1 catalog entry](https://developers.cloudflare.com/ai/models/openai/gpt-4.1/) lists a third-party OpenAI model with a 1,047,576-token context, chat-completions support and $2/$8 per million input/output tokens. Its [mini entry](https://developers.cloudflare.com/ai/models/openai/gpt-4.1-mini/) lists $0.40/$1.60. The branch uses a conservative configured 4,096-output-token cap, not a verified service maximum. Structured-output compatibility and account-specific limits still need real checks.
+
+The [current REST API](https://developers.cloudflare.com/ai-gateway/usage/rest-api/) accepts openai/gpt-4.1 directly. This is third-party inference through Cloudflare, not a claim that GPT-4.1 weights are hosted on native Workers AI. [Unified Billing](https://developers.cloudflare.com/ai-gateway/features/unified-billing/) passes through inference prices and applies a 5% fee when purchasing credits. Reservations include that fee conservatively; inference charges, gross estimates and credit-acquisition fees must remain distinguishable. Existing stored provider keys can take precedence, which is why actual billing-source identity is checked. No credits were purchased or billing settings changed.
+
+## Actual evidence so far
+
+| Route | Exact short construction | Latency | Confirmed inference charge |
+| --- | --- | ---: | ---: |
+| OpenRouter GPT-4.1 | Passed exact coverage and one occurrence | 1.414 s | $0.003460 |
+| Native Workers AI Qwen3 | Passed exact coverage and one occurrence | 4.510 s | Unknown; reported 21.9727897644 Neurons |
+| Cloudflare unified GPT-4.1 | Not executed | Unmeasured | Unmeasured |
+
+These are prior single real samples, not representative quality or latency estimates. OpenRouter GPT-4.1-mini also correctly rejected the frozen T04 unsupported reader claim in 2.644 seconds at $0.0008456, but it is not counted as a GPT-4.1 strong-model result. No cross-provider quality equivalence is assumed from matching model names.
+
+## Matched comparison prepared
+
+The frozen comparison contains two construction cases (the exact prior T01 source and a controlled two-occurrence bridge/hospital article) and four V2 verification cases: supported reader meaning, negation reversal, unsupported causation and missing mandatory coverage. All routes receive identical evidence, source identities and output validators. Strong GPT-4.1 is used for both OpenRouter and Cloudflare verification; Qwen remains the optional third arm. Existing controlled and hand-authored labels are identified honestly; they are not independent human gold. Saved long-article and editorial/writer qualification remain separate requirements.
+
+The matrix has 18 measurements. Exact provider/model/request hashes reuse two prior real results, so only 16 new calls are planned, bounded by $0.551012787 in reservations. Earlier cumulative reservations were $0.058390195; the combined bound stays below $3, and total calls stay below 24. No new paid call was made for this extension. The local frozen scope is .local-reports/cloudflare-gpt41/proposed-scope.json; its status is PROPOSED_NOT_AUTHORIZED_OR_INSTALLED. Manifest hash: 2b495b561f83fd3c4b90fe1914f45731e0997279a3f2bf6ba20a958d073f0e19.
+
+The runner requires a matching durable authorization and cannot create grants, buy credits or deploy anything. It prevents paid reissuance even when local artifacts are missing by checking saved model/request identities in the ledger. Failures and unconfirmed accounting stop new work. The report selector requires complete matched cases, validated quality, successful reviewed outcomes and confirmed costs, then compares latency before cost. It only recommends a route; it never edits production qualification or silently fails over. Current bestRoute is null because the required evidence does not exist.
+
+Run offline preparation/tests with node_modules/.bin/vitest run --config benchmarks/strong-route-comparison.vitest.config.ts. The paid executor additionally requires DISTILLED_RUN_STRONG_COMPARISON=AUTHORIZED_MATCHED_EXISTING_3_USD_CAP, DISTILLED_STRONG_COMPARISON_GRANT_FILE and server-side credentials. Setting these variables does not bypass the durable grant or financial guards. Never delete intent files to retry.
+
+## Exact live blockers
+
+- After session refresh, gateway and billing metadata reads returned HTTP 403 / code 10000. Workers AI execution permission alone does not provide this metadata access; verified gateway credential precedence, billing readiness, credits and recovery access remain unavailable. A server-side token with appropriate Workers AI and AI Gateway/billing read permissions is needed. No credit balance is inferred from the denial.
+- The existing immutable grant pins four earlier operation/model/request hashes; it does not authorize these matched requests or cloudflare:openai/gpt-4.1.
+- The prior Qwen charge remains unconfirmed and its $0.0017445953 reservation still consumes the approved evaluation slot. It has not been released, converted to a confirmed charge, retried or replaced. A successor frozen scope needs explicit admission/capacity authorization while retaining that liability, or authoritative reconciliation of it. The current grant also remains subject to its existing nonoverlap/expiry rules.
+
+A new spending allowance is not needed to increase the $3 budget: the prepared work fits inside it. Credentials and safe, scope-specific admission are the blockers. No existing hold, historical receipt, account ceiling, grant or deployment was altered in this extension. The original 16 rematches remain untouched.
+
+## Engineering verification
+
+The routing/accounting/V2/recovery regression batch passed 42 tests. A final overlapping 23-test focused rerun passed after preserving Cloudflare-specific failure codes. The matched-comparison suite passed five offline tests and skipped its explicitly gated live executor. Worker and benchmark TypeScript checks passed. Review identified and fixed premature winner selection when competing routes lacked complete measurements; a regression test covers it. These checks establish implementation behavior, not real Cloudflare GPT-4.1 compatibility or quality. Machine-readable results are in benchmarks/cloudflare-gpt41-verification-results.json.
