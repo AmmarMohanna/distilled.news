@@ -122,3 +122,17 @@ it('Oct. and October share exact dates while report metadata cannot license an e
  expect(checkReaderFidelity(['The event begins on October 13.'],[],[reporting],true).passed).toBe(false);
  expect(checkReaderFidelity(['A report dated October 13 describes the event.'],[reporting],[reporting],true).passed).toBe(true);
 });
+
+it('rejects developing-to-operational capability strengthening despite a permissive semantic verdict',()=>{
+ const f=fact('The unique selling point is the AI agents the startup is developing to automatically design corner cases.');
+ const draft='Its AI agents automatically create challenging, rare scenarios known as corner cases.';
+ expect(checkReaderFidelity([draft],[f],[f],true,{checks:positiveChecks([f])}).failures.some(f=>f.code==='UNSUPPORTED_ACTION_STRENGTH')).toBe(true);
+ expect(checkReaderFidelity(['The startup is developing AI agents to automatically design corner cases.'],[f],[f],true,{checks:positiveChecks([f])}).passed).toBe(true);
+});
+
+it('does not let an unrelated existing capability license the developing capability',()=>{
+ const f=fact('The AI agents the startup is developing to automatically design corner cases.');
+ const logs={...fact('AI agents generate logs.'),id:'logs'};
+ expect(checkReaderFidelity(['AI agents automatically design corner cases.'],[f],[f,logs],true,{checks:positiveChecks([f,logs])}).passed).toBe(false);
+ expect(checkReaderFidelity(['The startup is developing AI agents that automatically design corner cases.'],[f],[f,logs],true,{checks:positiveChecks([f,logs])}).passed).toBe(true);
+});

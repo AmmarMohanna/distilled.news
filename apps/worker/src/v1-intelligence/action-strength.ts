@@ -58,5 +58,20 @@ export function provenActionStrengthViolations(texts:string[],facts:{id:string;t
    || !s.negative&&!reader.negative&&strengthens(s.action,reader.action));
   if(contradicted)failures.push({factId:contradicted.factId,value:`${contradicted.action}${contradicted.negative?' NEGATED':''}${contradicted.uncertain?' UNCERTAIN':''} -> ${reader.action}${reader.negative?' NEGATED':''}${reader.uncertain?' UNCERTAIN':''}: ${reader.object}`});
  }
+
+ // This negative proof binds the explicit capability object as well as the
+ // agent noun. It does not infer support from unrelated operational abilities.
+ const escape=(value:string)=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+ for(const fact of facts){
+  const source=normalize(fact.text);
+  const developing=/\b((?:ai |software |autonomous )?(?:agents|robots|tools|systems))\s+(?:[a-z]+\s+){0,4}?(?:is|are)\s+(?:being\s+)?develop(?:ing|ed)\s+to\s+(?:automatically\s+)?(?:design|create|generate|perform)\s+([a-z]+(?:\s+[a-z]+){0,3}?)(?=\s*[(,.;]|$)/g;
+  for(const m of source.matchAll(developing)){
+   const noun=m[1],object=m[2];
+   const present=new RegExp('\\b'+escape(noun)+'\\s+(?:that\\s+)?(?:automatically\\s+)?(?:design|create|generate|perform)(?:s)?\\b[^.!?;]*\\b'+escape(object)+'\\b');
+   const qualified=(text:string)=>new RegExp('\\b(?:developing|plans? to develop|aims? to develop)\\s+(?:[a-z]+\\s+){0,3}'+escape(noun)+'\\b|\\b'+escape(noun)+'\\b[^,;.!?]{0,100}\\b(?:being developed|under development)\\b').test(text);
+   const alternative=facts.some(f=>f.id!==fact.id&&normalize(f.text).split(/[.!?;]+/).some(clause=>present.test(clause)&&!qualified(clause)));
+   if(!alternative&&texts.some(t=>normalize(t).split(/[.!?;]+/).some(clause=>present.test(clause)&&!qualified(clause))))failures.push({factId:fact.id,value:'IN_DEVELOPMENT -> OPERATIONAL_CAPABILITY: '+noun+' / '+object});
+  }
+ }
  return failures;
 }
