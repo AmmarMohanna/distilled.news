@@ -84,3 +84,18 @@ it('constrains exactly one decision per offered candidate without force-selectin
 });
 
 it('constrains requirement reason codes separately from optional/deferred justifications',()=>{const request=v2EditorialRequest(shortlist,{title:'Feed',interests:[]});const validation:any=(request.schema.properties.stories.items.anyOf[0].properties as any).validation;const branches=validation.properties.dispositions.items.anyOf;expect(branches[0].properties.disposition.enum).toEqual(['REQUIRED']);expect(branches[0].properties.reasonCode.type).toBe('string');expect(branches[1].properties.disposition.enum).toEqual(['OPTIONAL_CONTEXT','DEFERRED','NOT_NEWS']);expect(branches[1].properties.reasonCode).toEqual({type:'null'});expect(branches[1].required).toContain('justification');});
+
+it('requires one keyed decision for every parent and mechanically reconstructs complete requirements',()=>{
+ const f=anchorFixture(),request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]},'COMPLETE');
+ const stories:any=request.schema.properties.stories;
+ expect(stories.type).toBe('object');expect(stories.required).toEqual(['candidate_1']);
+ const branch=stories.properties.candidate_1.anyOf[0];
+ expect(branch.properties.validation.properties.factDecisions.required).toEqual(['fact_1']);
+ const story=f.body.stories[0];delete story.validation;delete story.mustIncludeFactIds;
+ const body={stories:{candidate_1:{...story,validation:{factDecisions:{fact_1:{disposition:'REQUIRED',reasonCode:'CORE_DEVELOPMENT',justification:'Core announcement and conditions',obligationIds:[]}}}}},obligations:[]};
+ const decoded=decodeV2EditorialResponse({value:body},f.shortlist,request.state.sourceAnchorPolicy);
+ expect(decoded.stories[0].mustIncludeFactIds).toEqual(['fact']);
+ expect(decoded.stories[0].validation!.propositions[0].text).toBe(f.shortlist.candidates[0].facts[0].text);
+ delete (body.stories.candidate_1.validation.factDecisions as any).fact_1;
+ expect(()=>decodeV2EditorialResponse({value:body},f.shortlist,request.state.sourceAnchorPolicy)).toThrow('SEMANTIC_EDITORIAL_REJECTED');
+});
