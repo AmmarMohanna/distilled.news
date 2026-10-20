@@ -4,7 +4,8 @@ import {prepareV2EditorialPlan} from './editorial-plan-v2';
 import {windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from '../connector-intelligence-turn';
 import {withLatency,measureLatency,countLatency} from './latency';
-import {ModelSpendingWait} from './model-spending';
+import {ModelSpendingWait,modelSpendingAccount} from './model-spending';
+import {llmRoute} from './provider-routing';
 import {recoverPendingProviderGenerations} from './provider-recovery';
 import {prepareAdaptiveEditorialPlan} from './editorial-continuation';
 import {enqueueV1,pendingV1Jobs} from '../v1-queue-dispatch';
@@ -89,10 +90,13 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
  }
  });
 }
+async function resolvedRematchDependencies(db:D1Database,attempts:RematchAttempt[]):Promise<ReadonlySet<string>>{
+ const reasons=new Set<string>();if(attempts.some(a=>a.reason==='PROVIDER_LIMIT_MIGRATION_REQUIRED')&&await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='v1_model_provider_guards'").first())reasons.add('PROVIDER_LIMIT_MIGRATION_REQUIRED');return reasons;
+}
 export async function processV1Rematch(env:Env,feedId:string,requestId:string,now=new Date().toISOString()):Promise<void> {
  return withLatency({feedId,reviewId:requestId,phase:'REMATCH'},async()=>{
  await approvedFeed(env,feedId);return withSemanticWorkLease(env.DB,feedId,async store=>{const request=await store.read<RematchRequest>(feedId,'rematch_requests',requestId);if(!request)return;
- const allAttempts=await store.list<RematchAttempt>(feedId,'rematch_attempts'),attempt=nextRematch(request,allAttempts,now,{costAdmission:true}),history=allAttempts.filter(a=>a.requestId===requestId);if(!attempt)return;
+ const allAttempts=await store.list<RematchAttempt>(feedId,'rematch_attempts'),attempt=nextRematch(request,allAttempts,now,{costAdmission:true,resolvedWaitReasons:await resolvedRematchDependencies(env.DB,allAttempts)}),history=allAttempts.filter(a=>a.requestId===requestId);if(!attempt)return;
  const prepared=await measureLatency('SEMANTIC_PREPARATION',()=>prepareSemanticMatch(store,env,request.jobId,now,{attempt}));
  return withFeedWriteTurn(env,feedId,async()=>{
  const active=(await store.currentEvidence(feedId)).some(e=>e.revision.id===request.evidenceRevisionId);
@@ -258,7 +262,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
     if(now.getUTCMinutes()%15===0)console.info(JSON.stringify({type:'V1_SEMANTIC_BACKPRESSURE',feedId:id,...semanticBacklogMetrics(rematches,attempts,protectedIds,now.toISOString(),feed.briefingSchedule?.durationMinutes??(feed.briefingFrequency==='30M'?30:feed.briefingFrequency==='HOURLY'?60:1440))}));
     // Bound accepted sends, not candidates inspected. Reserved/declined transports
     // must not repeatedly hide otherwise eligible requests later in this order.
-    const eligible=prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString(),{costAdmission:true})),protectedIds,attempts,publishers);
+    const resolvedWaitReasons=await resolvedRematchDependencies(env.DB,attempts);
+    const eligible=prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString(),{costAdmission:true,resolvedWaitReasons})),protectedIds,attempts,publishers);
     let accepted=0,considered=0;
     for(const request of eligible){if(accepted>=2)break;considered++;if(await enqueueV1(env,'v1_rematch',request.id,{type:'v1_rematch',feedId:id,requestId:request.id},now)){sent++;accepted++;}}
     if(eligible.length)console.info(JSON.stringify({type:'V1_REMATCH_DISPATCH',feedId:id,eligible:eligible.length,considered,enqueued:accepted}));
@@ -297,6 +302,10 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   const requests=await store.list<BriefingRequest>(id,'briefing_requests');
   let briefingSends=0;
   for(const request of requests.filter(r=>r.state==='PENDING' && (!r.nextAttemptAt || Date.parse(r.nextAttemptAt)<=now.getTime()))) {
+   if(request.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){
+    try{await modelSpendingAccount(env.DB,llmRoute(env,'editorial').identity,now.toISOString());await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING'&&current.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){const {reason:_,...rest}=current;await tx.write('briefing_requests',request.id,rest)}})}catch(error){if(!(error instanceof ModelSpendingWait))throw error}
+   }
+
    // Each window is held only by jobs for evidence that existed when it closed.
    if(await jobsHoldingWindow(env.DB,id,request.window.end))continue;
    if((request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!createStoredEvidenceModel(env)){
