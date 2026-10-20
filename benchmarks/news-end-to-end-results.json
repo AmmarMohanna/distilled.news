@@ -1,0 +1,270 @@
+{
+  "mode": "REAL_PAID_LOCAL_SOURCE_TO_BRIEFING_CASE_STUDY",
+  "corpusHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+  "sourceArticles": 3,
+  "sourceClaimMentions": 89,
+  "routes": [
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4.1",
+      "editorialVariant": "WHOLE_PARENT_REFERENCES",
+      "status": "FAILED",
+      "error": "EXTRACTIVE_CAPACITY_UNSUPPORTED",
+      "operatorAssisted": true,
+      "unattendedSuccess": false,
+      "editorialRecoveryIds": [
+        "5cc1ed0d123b3b32beeda7131a63f874581acd161e14cf0727ca582f361f504f",
+        "[\"5cc1ed0d123b3b32beeda7131a63f874581acd161e14cf0727ca582f361f504f\",\"3c5ee28a149640773869899f69ae307068ecf77dbae1320b608932148a962141\"]"
+      ],
+      "baselineStatus": "FAILED",
+      "baselineError": "SEMANTIC_EDITORIAL_REJECTED",
+      "sourceIntegrity": {
+        "claimMentions": 89,
+        "exactOwnedSourceSpans": 89,
+        "sourceArticles": 3
+      },
+      "usefulBriefing": false,
+      "timeToUsefulBriefingMs": null,
+      "cumulativeActiveWallMs": 270778.4412,
+      "elapsedSinceSnapshotImportMs": 2935875,
+      "calls": 5,
+      "costUsd": 0.253618,
+      "conservativeReservationsUsd": 0.7702959999999999,
+      "inputTokens": 69469,
+      "outputTokens": 14335,
+      "medianResponseAndValidationMs": 8170.398399999998,
+      "billingConfirmationMs": 0,
+      "evaluationScopeWaitMs": 84019.679,
+      "database": {
+        "reads": 552,
+        "writes": 433
+      },
+      "exclusiveTurnHeldMs": 117359.60759999999,
+      "casConflicts": 0,
+      "rejected": [
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "code": "UNDISPOSED_PARENT_FACT"
+        }
+      ],
+      "phases": [
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "calls": 2,
+          "costUsd": 0.178152,
+          "responseAndValidationMs": 85476.2127,
+          "billingConfirmationMs": 0
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "calls": 3,
+          "costUsd": 0.075466,
+          "responseAndValidationMs": 21213.361999999972,
+          "billingConfirmationMs": 0
+        }
+      ],
+      "reachedStages": [
+        "EXISTING_EDITION_LOOKUP",
+        "ACQUISITION_IMPORT",
+        "SHORTLIST",
+        "EDITORIAL_SELECTION",
+        "BRIEFING_EXCLUSIVE_TURN",
+        "ARTICLE_SEMANTIC",
+        "CANONICAL_COMMIT",
+        "ARTICLE_LEASE",
+        "SCORING",
+        "WRITE_VERIFY_LOCAL_COMMIT"
+      ],
+      "qualification": "UNQUALIFIED",
+      "qualityReview": "AI_ASSISTED_PRELIMINARY_NOT_INDEPENDENT_HUMAN_GOLD"
+    },
+    {
+      "provider": "cloudflare",
+      "model": "openai/gpt-4.1",
+      "editorialVariant": "WHOLE_PARENT_REFERENCES",
+      "status": "FAILED",
+      "error": "SEMANTIC_EDITORIAL_REJECTED",
+      "operatorAssisted": false,
+      "unattendedSuccess": false,
+      "editorialRecoveryIds": [],
+      "baselineStatus": "FAILED",
+      "baselineError": "SEMANTIC_EDITORIAL_REJECTED",
+      "sourceIntegrity": {
+        "claimMentions": 89,
+        "exactOwnedSourceSpans": 89,
+        "sourceArticles": 3
+      },
+      "usefulBriefing": false,
+      "timeToUsefulBriefingMs": null,
+      "cumulativeActiveWallMs": 1240111.0077,
+      "elapsedSinceSnapshotImportMs": 2423003,
+      "calls": 6,
+      "costUsd": 0.363158,
+      "conservativeReservationsUsd": 1.0014815999999997,
+      "inputTokens": 91215,
+      "outputTokens": 22591,
+      "medianResponseAndValidationMs": 9644.036000000007,
+      "billingConfirmationMs": 964362.4739999999,
+      "evaluationScopeWaitMs": 41015.18109999999,
+      "database": {
+        "reads": 509,
+        "writes": 462
+      },
+      "exclusiveTurnHeldMs": 535929.4171,
+      "casConflicts": 0,
+      "rejected": [
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "code": "UNDISPOSED_PARENT_FACT"
+        },
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "code": "UNDISPOSED_PARENT_FACT"
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "code": "CONSTRUCTION_CONTRACT_INVALID"
+        }
+      ],
+      "phases": [
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "calls": 2,
+          "costUsd": 0.24926399999999999,
+          "responseAndValidationMs": 134846.83159999998,
+          "billingConfirmationMs": 359336.5444
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "calls": 3,
+          "costUsd": 0.082094,
+          "responseAndValidationMs": 26344.769900000043,
+          "billingConfirmationMs": 444694.7652000001
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION_REPAIR",
+          "calls": 1,
+          "costUsd": 0.0318,
+          "responseAndValidationMs": 6335.165700000012,
+          "billingConfirmationMs": 160331.1644
+        }
+      ],
+      "reachedStages": [
+        "EXISTING_EDITION_LOOKUP",
+        "ACQUISITION_IMPORT",
+        "ARTICLE_SEMANTIC",
+        "CANONICAL_COMMIT",
+        "ARTICLE_LEASE",
+        "SHORTLIST",
+        "EDITORIAL_SELECTION",
+        "BRIEFING_EXCLUSIVE_TURN"
+      ],
+      "qualification": "UNQUALIFIED",
+      "qualityReview": "AI_ASSISTED_PRELIMINARY_NOT_INDEPENDENT_HUMAN_GOLD"
+    }
+  ],
+  "downstreamControls": [
+    {
+      "scope": "AI_CURATED_SHARED_INPUT_NOT_END_TO_END_OR_HUMAN_GOLD",
+      "provider": "openrouter",
+      "inputHash": "90a85b638f55b04fccf631ee1700aae55567636bd3809582d60d8bc3bf8bbe15",
+      "status": "ACCEPT",
+      "decision": {
+        "status": "ACCEPT",
+        "reasons": [],
+        "readerSpanCount": 12
+      },
+      "operatorAssisted": true,
+      "unattendedSuccess": false,
+      "latestAttemptWallMs": 736.3163,
+      "cumulativeActiveWallMs": 118642.1634,
+      "firstAttemptWallMs": 117905.8471,
+      "priorAttempts": [
+        {
+          "status": "ACCEPT",
+          "wallMs": 117905.8471
+        }
+      ],
+      "stages": [
+        {
+          "phase": "WRITING",
+          "wallMs": 404.14350000000013
+        },
+        {
+          "phase": "FACTUAL_VERIFICATION",
+          "wallMs": 325.2028
+        }
+      ],
+      "calls": 2,
+      "costUsd": 0.057159999999999996,
+      "responseAndValidationMs": 26761.0291,
+      "billingConfirmationMs": 0,
+      "evaluationScopeWaitMs": 2888.8217000000004,
+      "timingRecoveryMissing": []
+    },
+    {
+      "scope": "AI_CURATED_SHARED_INPUT_NOT_END_TO_END_OR_HUMAN_GOLD",
+      "provider": "cloudflare",
+      "inputHash": "90a85b638f55b04fccf631ee1700aae55567636bd3809582d60d8bc3bf8bbe15",
+      "status": "ACCEPT",
+      "decision": {
+        "status": "ACCEPT",
+        "reasons": [],
+        "readerSpanCount": 12
+      },
+      "operatorAssisted": true,
+      "unattendedSuccess": false,
+      "latestAttemptWallMs": 186544.0343,
+      "cumulativeActiveWallMs": 347158.6347,
+      "firstAttemptWallMs": 160614.6004,
+      "priorAttempts": [
+        {
+          "status": "FAILED",
+          "error": "BILLING_READ_UNAVAILABLE",
+          "wallMs": 160614.6004
+        }
+      ],
+      "stages": [
+        {
+          "phase": "WRITING",
+          "wallMs": 248.03449999999998
+        },
+        {
+          "phase": "FACTUAL_VERIFICATION",
+          "wallMs": 186292.7266
+        }
+      ],
+      "calls": 2,
+      "costUsd": 0.053947999999999996,
+      "responseAndValidationMs": 44477.79310000001,
+      "billingConfirmationMs": 149359.6256,
+      "evaluationScopeWaitMs": 0,
+      "timingRecoveryMissing": [
+        {
+          "operationId": "news-e2e:d8651e44c878a0738b3b:cloudflare:7f728f564357d0300437930cdc3e2f293af0ff69a1aa5602276b03bc5bac8f96",
+          "field": "billingMs"
+        },
+        {
+          "operationId": "news-e2e:d8651e44c878a0738b3b:cloudflare:7f728f564357d0300437930cdc3e2f293af0ff69a1aa5602276b03bc5bac8f96",
+          "field": "scopeWaitMs"
+        }
+      ]
+    }
+  ],
+  "accounting": {
+    "calls": 15,
+    "actualCostUsd": 0.7278840000000001,
+    "conservativeReservationsUsd": 2.2068431,
+    "unsettledNewOperations": 0,
+    "maxCalls": 24,
+    "maxReservationsUsd": 2.5
+  },
+  "limitations": [
+    "Three saved sources, one cohort per route; no statistical equivalence or production throughput claim.",
+    "Article graphs and downstream questions depend on each route; only acquired source evidence and configured model are matched.",
+    "Harness recovery and serial billing confirmation are included and reported separately; no latency to a useful briefing exists for failed runs.",
+    "Natural compacted schemas admitted direct construction. This run does not qualify real parallel packet reconciliation.",
+    "An orchestration test passing means results were captured, not that a briefing passed publication or quality checks.",
+    "Full source bodies, provider responses and any local editions remain private local artifacts."
+  ]
+}

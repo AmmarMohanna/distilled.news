@@ -1,7 +1,7 @@
 {
-  "mode": "OFFLINE_AND_PARTIAL_REAL_PHASE_A",
-  "paidProviderCalls": 3,
-  "actualProviderCostUsd": null,
+  "mode": "REAL_NEWS_PRIMARY_FAILURES_AND_SEPARATE_DOWNSTREAM_CONTROLS",
+  "paidProviderCalls": 15,
+  "actualProviderCostUsd": 0.727884,
   "workersAi": {
     "model": "@cf/qwen/qwen3-30b-a3b-fp8",
     "transport": "NATIVE_AI_BINDING",
@@ -27,7 +27,10 @@
     "realReevaluationRun": true,
     "realReevaluatedTasks": [
       "short construction",
-      "negative factual verification"
+      "negative factual verification",
+      "three-article canonical construction (grouping concerns)",
+      "original editorial selection (rejected) and saved compact editorial result (operator-assisted recovery)",
+      "AI-curated shared-input writing and V2 verification (ACCEPT with source-review concerns)"
     ]
   },
   "claimExtraction": {
@@ -39,22 +42,28 @@
     "paidProviderCalls": 0,
     "actualProviderCostUsd": 0
   },
-  "confirmedProviderCostUsd": 0.0043056,
-  "latestRealReport": "cloudflare-real-evaluation-results.json",
+  "confirmedProviderCostUsd": 0.727884,
+  "latestRealReport": "news-end-to-end-results.json",
   "configuredDefaultProvider": "cloudflare",
   "configuredStrongCandidate": "cloudflare:openai/gpt-4.1",
   "cloudflareUnified": {
     "model": "openai/gpt-4.1",
     "transport": "ACCOUNT_AI_V1_CHAT_COMPLETIONS",
     "adapterTestedOffline": true,
-    "realCompatibilityTested": false,
+    "realCompatibilityTested": true,
     "qualifiedTasks": [],
-    "comparisonReport": "strong-route-comparison-results.json",
+    "comparisonReport": "news-end-to-end-results.json",
     "blockers": [
-      "Refreshed gateway/billing metadata access returned403",
-      "Frozen earlier grant does not admit new matched requests",
-      "Prior native Qwen unconfirmed dollar hold retains the approved evaluation slot",
-      "Real matched quality, latency and confirmed costs are unmeasured"
+      "Occurrence grouping quality: unrelated storyline links and oversplitting context/update notices",
+      "Complete editorial parent-fact dispositions failed on the real corpus, including the compact variant",
+      "Writer qualifier preservation and factual verifier ACCEPT concerns require independent review",
+      "Real packet reconciliation and parallel/concurrent actual-dollar settlement remain unqualified",
+      "Isolated evaluation REST transport does not establish deployed binding parity or production throughput"
+    ],
+    "realTestedTasks": [
+      "three real article constructions and one targeted construction repair",
+      "original and whole-parent comparative editorial selection (both rejected)",
+      "AI-curated shared-input writing and V2 verification (ACCEPT with source-review concerns)"
     ]
   },
   "latestStrongRouteComparison": {
@@ -69,5 +78,37 @@
       "Untested task mappings and long-article cases",
       "Generic live dollar settlement not qualified"
     ]
+  },
+  "historicalPhaseASummary": {
+    "mode": "OFFLINE_AND_PARTIAL_REAL_PHASE_A",
+    "paidProviderCalls": 3,
+    "actualProviderCostUsd": null,
+    "confirmedProviderCostUsd": 0.0043056,
+    "latestRealReport": "cloudflare-real-evaluation-results.json"
+  },
+  "historicalCloudflareUnifiedPreparation": {
+    "model": "openai/gpt-4.1",
+    "transport": "ACCOUNT_AI_V1_CHAT_COMPLETIONS",
+    "adapterTestedOffline": true,
+    "realCompatibilityTested": false,
+    "qualifiedTasks": [],
+    "comparisonReport": "strong-route-comparison-results.json",
+    "blockers": [
+      "Refreshed gateway/billing metadata access returned403",
+      "Frozen earlier grant does not admit new matched requests",
+      "Prior native Qwen unconfirmed dollar hold retains the approved evaluation slot",
+      "Real matched quality, latency and confirmed costs are unmeasured"
+    ]
+  },
+  "accountingScope": "LATEST_NEWS_EVALUATION_ONLY_NOT_LIFETIME_TOTAL",
+  "latestRealNewsEvaluation": {
+    "report": "news-end-to-end-results.json",
+    "qualityReport": "news-end-to-end-quality.json",
+    "accountingReport": "news-end-to-end-accounting.json",
+    "sourceArticles": 3,
+    "claimMentions": 89,
+    "primaryPublishableBriefings": 0,
+    "newQualifiedTasks": [],
+    "historicalKnownGoodOpenRouterConfigurationUnchanged": true
   }
 }

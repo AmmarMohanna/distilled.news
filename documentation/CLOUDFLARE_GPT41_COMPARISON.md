@@ -1,6 +1,6 @@
 # Real GPT-4.1 route comparison ? 2026-10-20
 
-OpenRouter is the provisional operational choice from this run: six of six expected outcomes versus Cloudflare five of six. Cloudflare remains the feature branch's configured candidate default, gated from unattended publication. No production configuration or qualification changed.
+In this six-case run OpenRouter achieved six expected outcomes versus Cloudflare five; the operational preference was provisional. The subsequent [real-news evaluation](REAL_NEWS_END_TO_END_EVALUATION.md) found blocking grouping/editorial failures and writer/verifier quality concerns, so these small tests do not establish a qualified new publication configuration. Cloudflare remains the feature branch's configured candidate default, gated from unattended publication. The last known-good OpenRouter configuration remains available; no production configuration or qualification changed.
 
 | Case | Route | Client response + validation seconds | Confirmed inference USD | Outcome |
 |---|---|---:|---:|---|
