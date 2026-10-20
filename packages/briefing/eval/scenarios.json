@@ -1,0 +1,105 @@
+{
+ "scenarios": [
+  {
+   "id": "real-daily-oct08",
+   "corpus": "anthropic-news",
+   "feed": {
+    "interest": "Anthropic company news: products, safety, policy, partnerships and funding",
+    "language": "en",
+    "windowMinutes": 1440
+   },
+   "windows": [
+    {
+     "start": "2026-10-08T00:00:00Z",
+     "end": "2026-10-09T00:00:00Z",
+     "articles": [
+      "2026-usage-policy-update",
+      "anthropic-cyber-mission",
+      "genesis-mission-commitment"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "real-continuity",
+   "corpus": "anthropic-news",
+   "feed": {
+    "interest": "Anthropic company news: products, safety, policy, partnerships and funding",
+    "language": "en",
+    "windowMinutes": 1440
+   },
+   "windows": [
+    {
+     "start": "2026-10-14T00:00:00Z",
+     "end": "2026-10-15T00:00:00Z",
+     "articles": [
+      "2026-us-midterms",
+      "singapore-office-opening"
+     ]
+    },
+    {
+     "start": "2026-10-15T00:00:00Z",
+     "end": "2026-10-16T00:00:00Z",
+     "articles": [
+      "an-update-on-independent-evaluators"
+     ]
+    },
+    {
+     "start": "2026-10-18T00:00:00Z",
+     "end": "2026-10-19T00:00:00Z",
+     "articles": [
+      "public-benefit-fund"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "real-volume",
+   "corpus": "anthropic-news",
+   "feed": {
+    "interest": "Anthropic company news: products, safety, policy, partnerships and funding",
+    "language": "en",
+    "windowMinutes": 1440
+   },
+   "windows": [
+    {
+     "start": "2026-08-14T00:00:00Z",
+     "end": "2026-10-19T00:00:00Z",
+     "articles": [
+      "*"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "synthetic-continuity",
+   "corpus": "synthetic-northwind",
+   "feed": {
+    "interest": "Warehouse automation and robotics industry news",
+    "language": "en",
+    "windowMinutes": 60
+   },
+   "windows": [
+    {
+     "start": "2026-10-19T09:00:00Z",
+     "end": "2026-10-19T10:00:00Z",
+     "articles": [
+      "nw-recall-a",
+      "nw-recall-b",
+      "nw-plant",
+      "celeb-noise"
+     ]
+    },
+    {
+     "start": "2026-10-20T11:00:00Z",
+     "end": "2026-10-20T12:00:00Z",
+     "articles": [
+      "nw-update",
+      "nw-recap",
+      "nw-rumor"
+     ]
+    }
+   ]
+  }
+ ]
+}
