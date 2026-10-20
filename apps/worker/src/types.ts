@@ -158,6 +158,11 @@ export interface Env extends Cloudflare.Env {
   DISTILLED_SELF_HOSTED_BASE_URL?: string;
   DISTILLED_SELF_HOSTED_API_KEY?: string;
   OPENROUTER_API_KEY?: string;
+  /** "v3" switches scheduled editions to the V3 briefing engine; anything else keeps the legacy path. */
+  BRIEFING_ENGINE?: string;
+  BRIEFING_EDITOR_MODEL?: string;
+  BRIEFING_VERIFIER_MODEL?: string;
+  ANTHROPIC_API_KEY?: string;
   DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE?: string;
   DISTILLED_LIVE_PUBLIC_CANDIDATE_URL?: string;
   DISTILLED_LIVE_OPENROUTER_MODEL?: string;

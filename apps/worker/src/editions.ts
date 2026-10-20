@@ -10,6 +10,7 @@ import {
   type BriefingEdition,
   type SummaryAdapter
 } from "@distilled/core";
+import { publishV3Window, type V3Runtime } from "./briefing-v3";
 import type { Repository } from "./types";
 
 const MAX_WINDOW_MESSAGES = 500;
@@ -21,6 +22,8 @@ export async function publishDueBriefingEditions(input: {
   briefings: BriefingConfig[];
   now?: Date;
   summaryAdapter?: SummaryAdapter | null;
+  /** When set, editions come from the V3 engine instead of the legacy cluster-and-summarize path. */
+  v3?: V3Runtime | null;
 }): Promise<number> {
   const now = input.now ?? new Date();
   let published = 0;
@@ -42,6 +45,14 @@ export async function publishDueBriefingEditions(input: {
           MAX_WINDOW_MESSAGES
         )
       : [];
+    if (input.v3) {
+      const windowStart = contentWindow?.windowStart ?? window.windowEnd;
+      const windowEnd = contentWindow?.windowEnd ?? window.windowEnd;
+      const outcome = await publishV3Window({ repo: input.repo, v3: input.v3, briefing, windowStart, windowEnd, messages, now });
+      if (outcome === "published") published += 1;
+      await input.repo.upsertBriefing({ ...briefing, nextBriefingAt: window.nextBriefingAt }, now);
+      continue;
+    }
     const edition = await localizeEdition(
       buildBriefingEdition({
         briefing,

@@ -72,6 +72,9 @@ importers:
       '@distilled/agent-runtime':
         specifier: workspace:*
         version: link:../../packages/agent-runtime
+      '@distilled/briefing':
+        specifier: workspace:*
+        version: link:../../packages/briefing
       '@distilled/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
