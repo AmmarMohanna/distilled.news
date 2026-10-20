@@ -1,0 +1,297 @@
+{
+  "mode": "OFFLINE_LOCAL_D1_WITH_SYNTHETIC_MODEL_LATENCY",
+  "baseCommit": "c813a27",
+  "source": "hand-authored synthetic two-development fixture",
+  "modelLatencyFloorMs": 1500,
+  "paidProviderCalls": 0,
+  "actualProviderCostUsd": 0,
+  "labels": "Deterministic synthetic oracle; not real model compatibility or quality evidence",
+  "results": [
+    {
+      "reconciliation": "CLAIMS",
+      "concurrency": 1,
+      "sourceMentions": 6,
+      "articleProcessingWallMs": 9659.931799999998,
+      "constructionMs": 8674.478899999998,
+      "canonicalMutationMs": 985.4506000000001,
+      "articlesPerMinute": 6.211223975722065,
+      "peakInference": 1,
+      "inferenceCallCount": 4,
+      "syntheticTokensIn": 400,
+      "syntheticTokensOut": 80,
+      "syntheticCostUsd": 0.004,
+      "actualProviderCostUsd": 0,
+      "databaseReads": 152,
+      "databaseWrites": 133,
+      "casConflicts": 0,
+      "recoveryExtraCalls": 0,
+      "eventIds": [
+        "079f2739-4924-4e0c-aeae-895c7db39f0d",
+        "ffe84a65-b57e-43bf-8e91-9e7998819f0e"
+      ],
+      "identityRetainedAfterReplay": true,
+      "graphEvidenceSignature": [
+        [
+          "Doctors confirmed that the Valley hospital added beds.",
+          "The Valley hospital hired nurses.",
+          "The Valley hospital opened a ward."
+        ],
+        [
+          "Engineers approved repairs to the Harbor bridge.",
+          "The Harbor bridge reopened on Monday.",
+          "The city confirmed that the Harbor bridge passed inspection."
+        ]
+      ],
+      "completeEvidence": true,
+      "syntheticFalseMerges": 0,
+      "syntheticFalseSplits": 0,
+      "firstResponseConstructionSuccess": true,
+      "completeIntelligenceReviewSuccess": true,
+      "individualModelCalls": [
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1512.6028999999999,
+          "inputBytes": 1475,
+          "outputBytes": 205
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1502.3811999999998,
+          "inputBytes": 1486,
+          "outputBytes": 345
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1505.140800000001,
+          "inputBytes": 1482,
+          "outputBytes": 205
+        },
+        {
+          "phase": "SEMANTIC_RECONCILIATION",
+          "latencyMs": 1514.833999999999,
+          "inputBytes": 2663,
+          "outputBytes": 365
+        }
+      ],
+      "exclusiveTurnDurationMs": null,
+      "liveSemanticAccuracy": null,
+      "liveProviderLatencyMs": null
+    },
+    {
+      "reconciliation": "CLAIMS",
+      "concurrency": 2,
+      "sourceMentions": 6,
+      "articleProcessingWallMs": 7644.418099999999,
+      "constructionMs": 6653.030200000001,
+      "canonicalMutationMs": 991.3845000000001,
+      "articlesPerMinute": 7.848864258222612,
+      "peakInference": 2,
+      "inferenceCallCount": 4,
+      "syntheticTokensIn": 400,
+      "syntheticTokensOut": 80,
+      "syntheticCostUsd": 0.004,
+      "actualProviderCostUsd": 0,
+      "databaseReads": 152,
+      "databaseWrites": 133,
+      "casConflicts": 0,
+      "recoveryExtraCalls": 0,
+      "eventIds": [
+        "e015154c-74ba-437f-acff-254e101173f5",
+        "f5bf351b-dc09-4cfb-8814-01550b4aab24"
+      ],
+      "identityRetainedAfterReplay": true,
+      "graphEvidenceSignature": [
+        [
+          "Doctors confirmed that the Valley hospital added beds.",
+          "The Valley hospital hired nurses.",
+          "The Valley hospital opened a ward."
+        ],
+        [
+          "Engineers approved repairs to the Harbor bridge.",
+          "The Harbor bridge reopened on Monday.",
+          "The city confirmed that the Harbor bridge passed inspection."
+        ]
+      ],
+      "completeEvidence": true,
+      "syntheticFalseMerges": 0,
+      "syntheticFalseSplits": 0,
+      "firstResponseConstructionSuccess": true,
+      "completeIntelligenceReviewSuccess": true,
+      "individualModelCalls": [
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1507.2627000000011,
+          "inputBytes": 1475,
+          "outputBytes": 205
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1502.7713000000003,
+          "inputBytes": 1486,
+          "outputBytes": 345
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1509.6774000000005,
+          "inputBytes": 1482,
+          "outputBytes": 205
+        },
+        {
+          "phase": "SEMANTIC_RECONCILIATION",
+          "latencyMs": 1500.9651999999987,
+          "inputBytes": 2663,
+          "outputBytes": 365
+        }
+      ],
+      "exclusiveTurnDurationMs": null,
+      "liveSemanticAccuracy": null,
+      "liveProviderLatencyMs": null
+    },
+    {
+      "reconciliation": "DEVELOPMENTS",
+      "concurrency": 1,
+      "sourceMentions": 6,
+      "articleProcessingWallMs": 9861.603299999999,
+      "constructionMs": 8345.349599999998,
+      "canonicalMutationMs": 1516.2505999999994,
+      "articlesPerMinute": 6.084203366809533,
+      "peakInference": 1,
+      "inferenceCallCount": 4,
+      "syntheticTokensIn": 400,
+      "syntheticTokensOut": 80,
+      "syntheticCostUsd": 0.004,
+      "actualProviderCostUsd": 0,
+      "databaseReads": 148,
+      "databaseWrites": 127,
+      "casConflicts": 0,
+      "recoveryExtraCalls": 0,
+      "eventIds": [
+        "08464e28-49b4-4f36-be58-e95eb912c4a0",
+        "9672d7d4-e453-4604-96b1-53ad1586199a"
+      ],
+      "identityRetainedAfterReplay": true,
+      "graphEvidenceSignature": [
+        [
+          "Doctors confirmed that the Valley hospital added beds.",
+          "The Valley hospital hired nurses.",
+          "The Valley hospital opened a ward."
+        ],
+        [
+          "Engineers approved repairs to the Harbor bridge.",
+          "The Harbor bridge reopened on Monday.",
+          "The city confirmed that the Harbor bridge passed inspection."
+        ]
+      ],
+      "completeEvidence": true,
+      "syntheticFalseMerges": 0,
+      "syntheticFalseSplits": 0,
+      "firstResponseConstructionSuccess": true,
+      "completeIntelligenceReviewSuccess": true,
+      "individualModelCalls": [
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1508.9854999999989,
+          "inputBytes": 1475,
+          "outputBytes": 205
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1507.252199999999,
+          "inputBytes": 1486,
+          "outputBytes": 345
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1506.8752999999997,
+          "inputBytes": 1482,
+          "outputBytes": 205
+        },
+        {
+          "phase": "SEMANTIC_DEVELOPMENT_RECONCILIATION",
+          "latencyMs": 1500.7777000000024,
+          "inputBytes": 4200,
+          "outputBytes": 405
+        }
+      ],
+      "exclusiveTurnDurationMs": null,
+      "liveSemanticAccuracy": null,
+      "liveProviderLatencyMs": null
+    },
+    {
+      "reconciliation": "DEVELOPMENTS",
+      "concurrency": 2,
+      "sourceMentions": 6,
+      "articleProcessingWallMs": 8648.110200000003,
+      "constructionMs": 7654.969499999999,
+      "canonicalMutationMs": 993.1387000000032,
+      "articlesPerMinute": 6.9379319426341235,
+      "peakInference": 2,
+      "inferenceCallCount": 4,
+      "syntheticTokensIn": 400,
+      "syntheticTokensOut": 80,
+      "syntheticCostUsd": 0.004,
+      "actualProviderCostUsd": 0,
+      "databaseReads": 148,
+      "databaseWrites": 127,
+      "casConflicts": 0,
+      "recoveryExtraCalls": 0,
+      "eventIds": [
+        "04569cc4-73c1-424f-9894-6926322d2e2d",
+        "3431434c-b271-4b58-9f02-13952d02ccdb"
+      ],
+      "identityRetainedAfterReplay": true,
+      "graphEvidenceSignature": [
+        [
+          "Doctors confirmed that the Valley hospital added beds.",
+          "The Valley hospital hired nurses.",
+          "The Valley hospital opened a ward."
+        ],
+        [
+          "Engineers approved repairs to the Harbor bridge.",
+          "The Harbor bridge reopened on Monday.",
+          "The city confirmed that the Harbor bridge passed inspection."
+        ]
+      ],
+      "completeEvidence": true,
+      "syntheticFalseMerges": 0,
+      "syntheticFalseSplits": 0,
+      "firstResponseConstructionSuccess": true,
+      "completeIntelligenceReviewSuccess": true,
+      "individualModelCalls": [
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1509.6326000000045,
+          "inputBytes": 1475,
+          "outputBytes": 205
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1517.1826999999976,
+          "inputBytes": 1486,
+          "outputBytes": 345
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "latencyMs": 1501.8539999999994,
+          "inputBytes": 1482,
+          "outputBytes": 205
+        },
+        {
+          "phase": "SEMANTIC_DEVELOPMENT_RECONCILIATION",
+          "latencyMs": 1503.4460000000036,
+          "inputBytes": 4200,
+          "outputBytes": 405
+        }
+      ],
+      "exclusiveTurnDurationMs": null,
+      "liveSemanticAccuracy": null,
+      "liveProviderLatencyMs": null
+    }
+  ],
+  "limitations": [
+    "Acquisition network latency and actual feed-turn lease duration are not measured.",
+    "Tokens and dollar receipts are synthetic. Real model output reliability, false merges/splits, invalid ACCEPT rate, repair frequency and costs require separately authorized evaluation.",
+    "Read/write totals include replay and duplicate graph-delivery checks.",
+    "Shared publication safeguards are covered by separate regression tests; this benchmark stops after canonical intelligence."
+  ]
+}

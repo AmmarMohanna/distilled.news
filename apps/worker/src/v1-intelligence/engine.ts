@@ -177,6 +177,11 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
      if(selectedEvents.some(e=>e.id===root.id))throw new HandoffError('SCOPE_DENIED');selectedEvents.push(root);bindings.set(root.id,{group:structuredClone(group),provenance:construction.provenance});
      if(d.storylineId)preferredStorylines.set(root.id,d.storylineId);
     }
+    for(const link of construction.developmentRelations??[]){
+     const from=selectedEvents[link.fromGroup],to=selectedEvents[link.toGroup];
+     if(!Number.isSafeInteger(link.fromGroup)||!Number.isSafeInteger(link.toGroup)||!from||!to||from.id===to.id||!['INDEPENDENT','MATERIAL_UPDATE','CONTRADICTION','CORRECTION','DEFER'].includes(link.relationship))throw new HandoffError('SCOPE_DENIED');
+     const id=JSON.stringify([target.revision.id,from.id,to.id,link.relationship]);await tx.write('development_relationships',id,{id,feedId:o.feedId,evidenceRevisionId:target.revision.id,fromEventId:from.id,toEventId:to.id,relationship:link.relationship,provenance:construction.provenance,policyVersion:'development-reconciliation-v1'});
+    }
    }else if(selected){selectedEvents.push(selected);if(decision.provenance.scorer!=='DETERMINISTIC')bindings.set(selected.id,{group:{claimMentionIds:(await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id).map(m=>m.id),structuralRelation:decision.structuralRelation,eventId:decision.eventId??null,storylineId:decision.storylineId??null,epistemicEffects:decision.epistemicEffects,entities:[],slots:[]},provenance:decision.provenance})}
   }
   // Replace old support from this stable evidence identity, including reassignment/withdrawal.
