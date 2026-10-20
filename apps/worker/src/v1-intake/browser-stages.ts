@@ -18,6 +18,7 @@ export function createV1BrowserStages(env:Env,claim:AcquisitionClaim):Omit<Sourc
   if(!feed || feed.deletedAt || feed.paused) return {stage,status:'POLICY_DENIED'};
   const model=env.DISTILLED_LIVE_OPENROUTER_MODEL,provider=env.DISTILLED_LIVE_OPENROUTER_PROVIDER;
   const inputRate=Number(env.OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS),outputRate=Number(env.OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS);
+  if(enabled&&env.DISTILLED_LLM_API_GATEWAY!=='openrouter')return {stage,status:'UNSUPPORTED',reason:'WORKERS_AI_ACQUISITION_UNQUALIFIED'};
   if(enabled && (!model || !provider || !env.OPENROUTER_API_KEY || !Number.isFinite(inputRate) || inputRate<=0 || !Number.isFinite(outputRate) || outputRate<=0)) return {stage,status:'UNSUPPORTED',reason:'bounded model pricing/configuration unavailable'};
   if(env.DISTILLED_BROWSER_PROVIDER!=='cloudflare_container' || !env.AUTHENTICATED_BROWSER_CONTAINER) return {stage,status:'UNSUPPORTED',reason:'existing browser executor unavailable'};
   const id=await resourceId,origin=new URL(url).origin;

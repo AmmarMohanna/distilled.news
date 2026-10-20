@@ -1,3 +1,4 @@
+import {llmRoute,configuredProviderLimits} from './provider-routing';
 import {HandoffError} from '@distilled/contracts';
 import {modelCapability} from './model-capacity';
 import {durableSemanticOperation} from './semantic-operations';
@@ -33,13 +34,13 @@ async function authorized(env:Env,input:SalienceInput):Promise<boolean>{
  * providers; consumers depend only on the scorer port and assessment contract. */
 export function createSemanticSalienceScorer(env:Env,fetcher:typeof fetch=fetch):EventSalienceScorer|undefined {
  if(env.V1_SALIENCE_POLICY==='DETERMINISTIC')return undefined;
- if(!env.OPENROUTER_API_KEY)return new SemanticSalienceRouter({});
+ if(llmRoute(env,'editorial').provider!=='openrouter'||!env.OPENROUTER_API_KEY)return new SemanticSalienceRouter({});
  const port=(kind:'JEV'|'GPT',model:string):EventSalienceScorer=>({model,durablyAccounted:true,score:async input=>{
   const baseline=new DeterministicSalienceScorer().score(input);
   if(!await authorized(env,input))return {...baseline,fallback:'SALIENCE_SCOPE_REVOKED'};
   const store=new V1FeedStore(env.DB),versionIds=input.targetType==='EVENT'?[input.targetVersionId]:(await store.read<StorylineVersion>(input.feedId,'storyline_versions',input.targetVersionId))!.eventVersionIds;
   const evidenceRevisionIds=[...new Set((await store.list<EventMembership>(input.feedId,'memberships')).filter(m=>versionIds.includes(m.eventVersionId)).map(m=>m.evidenceRevisionId))];
-  const client=new OpenRouterJudgmentClient({kind,model,apiKey:env.OPENROUTER_API_KEY!,durable:true,capability:modelCapability(model,env.V1_MODEL_CAPABILITIES_JSON),timeoutMs:10000,fetcher});
+  const client=new OpenRouterJudgmentClient({kind,model,apiKey:env.OPENROUTER_API_KEY!,durable:true,providerLimits:configuredProviderLimits(env,'openrouter'),capability:modelCapability(model,env.V1_MODEL_CAPABILITIES_JSON),timeoutMs:10000,fetcher});
   const scorer=kind==='JEV'?new JevSalienceScorer(client):new GptSalienceScorer(client),questions={judgment:{kind:'CHOICE' as const,instructions:salienceInstructions(input),criteria:SALIENCE_CRITERIA}};
   try{const saved=await durableSemanticOperation(store,{feedId:input.feedId,feedRevision:input.feedRevision,evidenceRevisionIds,kind:'SALIENCE',policyVersion:'durable-account-salience-v1',model,budgetKey:'salience:'+input.targetVersionId,state:input},async()=>{const result=await scorer.score(input);return {value:result,usage:result.usage}},new Date().toISOString(),()=>client.usage(),{operationAdmission:client.admission(input,questions)});
   return saved.status==='SUCCEEDED'&&saved.value?saved.value:{...baseline,usage:saved.usage,fallback:saved.failure??'SALIENCE_PROCESSING_PENDING'};

@@ -1,0 +1,29 @@
+{
+  "mode": "OFFLINE_ADAPTER_AND_CONTRACT_TESTS",
+  "paidProviderCalls": 0,
+  "actualProviderCostUsd": 0,
+  "workersAi": {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "transport": "NATIVE_AI_BINDING",
+    "mockTransportTested": true,
+    "realCompatibilityTested": false,
+    "qualifiedTasks": [],
+    "blockers": [
+      "Real native model access and task-specific schema compatibility",
+      "Complete evidence grouping quality and false merge/split labels",
+      "Factual verification invalid ACCEPT rate and mandatory coverage",
+      "Actual output limits, latency, repair frequency and account quotas",
+      "Authoritative per-request dollar settlement and unknown-outcome recovery"
+    ]
+  },
+  "openrouter": {
+    "selectable": true,
+    "historicalModelIdentitiesPreserved": true,
+    "mockedModelAndV2ContractRegressionTests": 11,
+    "realReevaluationRun": false
+  },
+  "claimExtraction": {
+    "provider": "DETERMINISTIC",
+    "paidCalls": 0
+  }
+}

@@ -1,0 +1,13 @@
+# Feature defaults. No task is qualified for real Workers AI publication yet.
+DISTILLED_LLM_API_GATEWAY=workers_ai
+V1_INFERENCE_CONCURRENCY=2
+V1_PROVIDER_MAX_CONCURRENCY=3
+V1_PROVIDER_REQUESTS_PER_MINUTE=20
+V1_RECONCILIATION_MODE=DEVELOPMENTS
+# Explicit historical alternative:
+# DISTILLED_LLM_API_GATEWAY=openrouter
+# V1_SEMANTIC_STRONG_MODEL=openai/gpt-4.1-mini
+# DISTILLED_LIVE_OPENROUTER_MODEL=openai/gpt-4.1-mini
+# OPENROUTER_API_KEY=<server-side-secret>
+# V1_LLM_ROUTES_JSON={"verification":{"provider":"openrouter","model":"openai/gpt-4.1"}}
+# Apply migration 0064 only after deployment permission. Valid spending authority remains required.

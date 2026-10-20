@@ -1,3 +1,4 @@
+import {workersAiCompletion} from './workers-ai';
 import {parseUniqueModelJson,DuplicateModelKeyError} from './strict-model-json';
 import {ProviderRequestError,readProviderRejection} from './provider-outcome';
 import {inspectProviderSchema} from './provider-schema';
@@ -164,6 +165,7 @@ export class OpenAIGatewayEventReviewAdapter implements EventReviewAdapter {
 }
 
 export function createSummaryAdapterFromEnv(env: Env, repo?: Repository): OpenAIGatewaySummaryAdapter | null {
+  if(!env.DISTILLED_LLM_API_GATEWAY||env.DISTILLED_LLM_API_GATEWAY==='workers_ai'||env.DISTILLED_LLM_API_GATEWAY==='openrouter'&&!env.OPENROUTER_API_KEY)return null;
   if(env.DISTILLED_LLM_API_GATEWAY==="openrouter"&&env.OPENROUTER_API_KEY)return new OpenAIGatewaySummaryAdapter({accountId:"",gatewayId:"",provider:"OPENROUTER",apiKey:env.OPENROUTER_API_KEY,model:env.DISTILLED_LIVE_OPENROUTER_MODEL??"openai/gpt-4.1-mini",timeoutMs:25000,usageRecorder:repo?(input)=>repo.recordLlmUsage(input):undefined,env});
   if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_AI_GATEWAY_ID || !env.OPENAI_API_KEY) return null;
   return new OpenAIGatewaySummaryAdapter({
@@ -178,6 +180,7 @@ export function createSummaryAdapterFromEnv(env: Env, repo?: Repository): OpenAI
 }
 
 export function createEventReviewAdapterFromEnv(env: Env, repo?: Repository): OpenAIGatewayEventReviewAdapter | null {
+  if(!env.DISTILLED_LLM_API_GATEWAY||env.DISTILLED_LLM_API_GATEWAY==='workers_ai'||env.DISTILLED_LLM_API_GATEWAY==='openrouter'&&!env.OPENROUTER_API_KEY)return null;
   if(env.DISTILLED_LLM_API_GATEWAY==="openrouter"&&env.OPENROUTER_API_KEY)return new OpenAIGatewayEventReviewAdapter({accountId:"",gatewayId:"",provider:"OPENROUTER",apiKey:env.OPENROUTER_API_KEY,model:env.DISTILLED_LIVE_OPENROUTER_MODEL??"openai/gpt-4.1-mini",timeoutMs:20000,usageRecorder:repo?(input)=>repo.recordLlmUsage(input):undefined,env});
   if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_AI_GATEWAY_ID || !env.OPENAI_API_KEY) return null;
   return new OpenAIGatewayEventReviewAdapter({
@@ -250,7 +253,7 @@ function formatEvidence(evidence: EventEquivalenceInput["left"]): string {
     .join("\n");
 }
 
-export type ModelOptions={accountId:string;gatewayId:string;apiKey:string;model:string;provider?:"OPENROUTER";gatewayAuthToken?:string;timeoutMs?:number;fetcher?:typeof fetch;usageRecorder?:LlmUsageRecorder;onProviderReceipt?:(receipt:import('./provider-receipt').ProviderReceipt)=>Promise<void>;env?:Partial<Env>};
+export type ModelOptions={accountId:string;gatewayId:string;apiKey:string;model:string;provider?:"OPENROUTER"|"WORKERS_AI";gatewayAuthToken?:string;timeoutMs?:number;fetcher?:typeof fetch;usageRecorder?:LlmUsageRecorder;onProviderReceipt?:(receipt:import('./provider-receipt').ProviderReceipt)=>Promise<void>;env?:Partial<Env>};
 function modelEndpoint(options:ModelOptions){return options.provider==="OPENROUTER"?"https://openrouter.ai/api/v1/chat/completions":`https://gateway.ai.cloudflare.com/v1/${options.accountId}/${options.gatewayId}/openai/chat/completions`}
 /** Shared exact wire body for transport and pre-reservation context accounting. */
 export function structuredCompletionBody(model:string,prompt:string,schema:object,maxOutputTokens:number){
@@ -262,7 +265,7 @@ export async function boundedCompletion(options:ModelOptions,briefingId:string,p
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),options.timeoutMs??25000);
   const abort=()=>controller.abort();limits?.signal.addEventListener('abort',abort,{once:true});if(limits?.signal.aborted) controller.abort();
   try{
-    const response=await (options.fetcher??fetch)(modelEndpoint(options),{method:"POST",signal:controller.signal,redirect:"manual",headers:{authorization:`Bearer ${options.apiKey}`,"content-type":"application/json",...(options.gatewayAuthToken?{"cf-aig-authorization":`Bearer ${options.gatewayAuthToken}`}:{})},body:JSON.stringify(structuredCompletionBody(options.model,prompt,schema,limits?.maxOutputTokens??1800))});
+    const response=options.provider==='WORKERS_AI'?Response.json(await workersAiCompletion(options.env?.AI??{run:async()=>{throw Error('MODEL_BINDING_UNAVAILABLE')}},options.model.replace(/^workers_ai:/,''),prompt,schema,limits?.maxOutputTokens??1800,controller.signal)):await (options.fetcher??fetch)(modelEndpoint(options),{method:"POST",signal:controller.signal,redirect:"manual",headers:{authorization:`Bearer ${options.apiKey}`,"content-type":"application/json",...(options.gatewayAuthToken?{"cf-aig-authorization":`Bearer ${options.gatewayAuthToken}`}:{})},body:JSON.stringify(structuredCompletionBody(options.model,prompt,schema,limits?.maxOutputTokens??1800))});
       received=true;
     const {providerResponseReceipt,providerBodyReceipt,captureProviderReceipt}=await import('./provider-receipt'),header=providerResponseReceipt(response,options.provider??'OPENAI_GATEWAY',options.model);
     const capture=async(receipt:import('./provider-receipt').ProviderReceipt)=>{await captureProviderReceipt(receipt);await options.onProviderReceipt?.(receipt)};
@@ -273,7 +276,7 @@ export async function boundedCompletion(options:ModelOptions,briefingId:string,p
      const payload=await readStructuredStream(response,id=>capture({...header,stage:'GENERATION',generationId:id}),header.generationId);usage=payload.usage;
      if(typeof usage?.cost==='number'&&Number.isFinite(usage.cost)&&usage.cost>=0)await capture({...header,stage:'USAGE',generationId:header.generationId??(/^gen-[a-zA-Z0-9-]{1,124}$/.test(payload.id??'')?payload.id:undefined),reportedCostUsd:usage.cost,inputTokens:usage.prompt_tokens,outputTokens:usage.completion_tokens,finishReason:payload.choices[0].finish_reason});
      if(payload.choices[0].finish_reason==='length')throw Error('MODEL_OUTPUT_CONTINUATION_REQUIRED');
-     const content=payload.choices[0].message.content;limits?.onRawContent?.(content);const result=limits?.uniqueJsonKeys?parseUniqueModelJson(content):JSON.parse(content);if(!result||typeof result!=='object'||Array.isArray(result))throw Error('MODEL_SCHEMA_INVALID');return result;
+     const content=payload.choices[0].message.content;limits?.onRawContent?.(content);const result=(limits?.uniqueJsonKeys||options.provider==='WORKERS_AI')?parseUniqueModelJson(content):JSON.parse(content);if(!result||typeof result!=='object'||Array.isArray(result))throw Error('MODEL_SCHEMA_INVALID');return result;
     }
     const reader=response.body?.getReader();if(!reader)throw Error("MODEL_EMPTY_RESPONSE");
     // A raw response must fit a D1 value; larger work needs output packets, not a total news quota.
@@ -284,7 +287,7 @@ export async function boundedCompletion(options:ModelOptions,briefingId:string,p
     if(bodyReceipt.generationId&&!header.generationId)await capture({...bodyReceipt,stage:'GENERATION'});
     if(typeof usage?.cost==='number'&&Number.isFinite(usage.cost)&&usage.cost>=0)await capture({...bodyReceipt,stage:'USAGE',reportedCostUsd:usage.cost,inputTokens:usage.prompt_tokens,outputTokens:usage.completion_tokens,finishReason:payload.choices?.[0]?.finish_reason});
     if(payload.choices?.[0]?.finish_reason==="length")throw Error("MODEL_OUTPUT_CONTINUATION_REQUIRED");
-    const content=payload.choices?.[0]?.message?.content??"null";limits?.onRawContent?.(content);const result=limits?.uniqueJsonKeys?parseUniqueModelJson(content):JSON.parse(content);
+    const content=payload.choices?.[0]?.message?.content??"null";limits?.onRawContent?.(content);const result=(limits?.uniqueJsonKeys||options.provider==='WORKERS_AI')?parseUniqueModelJson(content):JSON.parse(content);
     if(!result||typeof result!=="object"||Array.isArray(result))throw Error("MODEL_SCHEMA_INVALID");
     return result;
   }catch(error){if(outcome==="SUCCESS")outcome=error instanceof Error&&error.name==="AbortError"?"MODEL_TIMEOUT":error instanceof Error&&/^MODEL_(RESPONSE_STORAGE|OUTPUT)_CONTINUATION_REQUIRED$/.test(error.message)?error.message:received?"MODEL_RESPONSE_INVALID":"MODEL_TRANSPORT_FAILED";if(error instanceof ProviderRequestError||error instanceof DuplicateModelKeyError)throw error;throw Error(outcome)}

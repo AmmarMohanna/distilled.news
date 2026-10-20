@@ -58,6 +58,7 @@ export async function discoverPublicSourceBrowserPlan(
 export async function discoverBrowserUseSourcePlan(env: Env, input: { request: SourceAcquisitionRequest; tenantId: string; ownerId: string; resourceId: string; runId: string }, ports?: { agent: Pick<ContainerSourceBrowserPort, "open" | "close" | "discoverWithBrowserUse">; verifier: SourceBrowserWorkflowPort }, maxSteps = 6): Promise<PublicSourceDiscoveryResult | undefined> {
   const sourceUrl = input.request.source.canonicalSourceUrl ?? input.request.source.resourceLocator;
   const model = env.DISTILLED_LIVE_OPENROUTER_MODEL?.trim();
+  if(env.DISTILLED_LLM_API_GATEWAY!=='openrouter')return undefined;
   if (!sourceUrl || !model || !env.OPENROUTER_API_KEY) return undefined;
   const origin = new URL(sourceUrl).origin;
   const telemetry = new D1BrowserUseRunTelemetry(env.DB);
@@ -144,6 +145,7 @@ export async function discoverAndPromotePublicSourceWorkflow(
   }
   const model = env.DISTILLED_LIVE_OPENROUTER_MODEL?.trim();
   const provider = env.DISTILLED_LIVE_OPENROUTER_PROVIDER?.trim();
+  if(env.DISTILLED_LLM_API_GATEWAY!=='openrouter')return {stage:'WEB_OPERATOR',status:'UNSUPPORTED',reason:'WORKERS_AI_ACQUISITION_UNQUALIFIED'};
   if (!model || !provider || !env.OPENROUTER_API_KEY) return { stage: "WEB_OPERATOR", status: "TRANSIENT_FAILURE", reason: "discovery model configuration unavailable" };
   const sourceUrl = input.request.source.canonicalSourceUrl ?? input.request.source.resourceLocator!;
   const origin = new URL(sourceUrl).origin;

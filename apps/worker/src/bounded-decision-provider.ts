@@ -57,6 +57,7 @@ export class OpenRouterJevDecisionProvider implements BoundedDecisionProvider {
 
 export async function handleBoundedDecision(request:Request,env:Env):Promise<Response>{
   if(!env.WEB_OPERATOR_RUNTIME_TOKEN||request.headers.get("authorization")!==`Bearer ${env.WEB_OPERATOR_RUNTIME_TOKEN}`)return Response.json({error:"unauthorized"},{status:401});
+  if(env.DISTILLED_LLM_API_GATEWAY!=='openrouter')return Response.json({fallback:true,reason:'WORKERS_AI_ACQUISITION_UNQUALIFIED'});
   if(env.DISTILLED_DISCOVERY_DECISION_MODE!=="JEV_HYBRID"||!env.OPENROUTER_API_KEY)return Response.json({fallback:true});
   const body=await request.text();if(body.length>8192)return Response.json({error:"invalid_request"},{status:400});
   let input:BoundedDecisionRequest;

@@ -52,7 +52,10 @@ DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE = "false"
 DISTILLED_LIVE_OPENROUTER_MODEL = "openai/gpt-4.1-mini"
 DISTILLED_LIVE_OPENROUTER_PROVIDER = "openai"
 DISTILLED_LLM_MODE = "api"
-DISTILLED_LLM_API_GATEWAY = "openrouter"
+DISTILLED_LLM_API_GATEWAY = "workers_ai"
+V1_INFERENCE_CONCURRENCY = "2"
+V1_PROVIDER_MAX_CONCURRENCY = "3"
+V1_PROVIDER_REQUESTS_PER_MINUTE = "20"
 DISTILLED_MODEL_CALL_TIMEOUT_MS = "45000"
 DISTILLED_RUN_SETTLEMENT_RESERVE_MS = "5000"
 WEB_OPERATOR_RUNTIME_URL = "https://lownoise-news.distilled-news-dev.workers.dev"
@@ -109,3 +112,7 @@ head_sampling_rate = 1
 
 [triggers]
 crons = ["* * * * *"]
+
+# Native inference; unqualified task models are blocked before spending.
+[ai]
+binding = "AI"

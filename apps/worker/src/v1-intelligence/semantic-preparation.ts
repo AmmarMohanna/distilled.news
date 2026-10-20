@@ -1,3 +1,4 @@
+import {llmRoute,configuredProviderLimits} from './provider-routing';
 import {inferenceConcurrency} from './parallel-inference';
 import {ASYNC_JUDGMENT_CALL_MS} from './operation-timing';
 import {constructionTransport,MINIMAL_CONSTRUCTION_VERSION,ARTICLE_FIRST_POLICY,MINIMAL_CONSTRUCTION_INSTRUCTION,isDispositionVersion} from './construction-transport';
@@ -34,7 +35,7 @@ export interface SemanticPreparation {input:EventMatchInput;prepared:PreparedSem
  * Lexical overlap is retrieval priority only, never the semantic relation. */
 export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:string,now:string,options:{fetcher?:typeof fetch;strong?:StrongSemanticModel;attempt?:number}={}):Promise<SemanticPreparation|undefined> {
  const preparationStarted=Date.now();
- if(env.V1_SEMANTIC_POLICY==='DETERMINISTIC'||!env.OPENROUTER_API_KEY && !options.strong)return undefined;
+ if(env.V1_SEMANTIC_POLICY==='DETERMINISTIC')return undefined;
  const job=(await new V1IntakeStore(store.db).read<DownstreamJob>('jobs',jobId))?.value;if(!job)return undefined;
  const snapshot=await store.snapshot(job.feedId),feed=snapshot.feed,active=await measureLatency('EVIDENCE_LOAD',()=>store.currentEvidence(job.feedId)),revision=active.find(e=>e.revision.sourceObservationId===job.observationId)?.revision;if(!revision)return undefined;
  // Teasers, promotions and calls to action contain nothing to relate or construct: spend no semantic call on them.
@@ -84,8 +85,8 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
   return durableSemanticOperation(store,build(attemptNo),run,now,usage,{lane,reuseContext,operationAdmission});
  };
  let decision:EventMatchDecision={structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'NO_ACCEPTED_JUDGMENT'}},reasons=['CONSTRUCTION'];
- if(shortlist.length && shortlist.length+storylines.length+2<=255 && env.OPENROUTER_API_KEY){
-  const client=new OpenRouterJudgmentClient({kind:'JEV',model:env.V1_JEV_SALIENCE_MODEL??'typesafe/jev-1.13',apiKey:env.OPENROUTER_API_KEY,durable:true,capability:modelCapability(env.V1_JEV_SALIENCE_MODEL??'typesafe/jev-1.13',env.V1_MODEL_CAPABILITIES_JSON),timeoutMs:ASYNC_JUDGMENT_CALL_MS,fetcher:options.fetcher});
+ if(shortlist.length && shortlist.length+storylines.length+2<=255 && env.OPENROUTER_API_KEY&&llmRoute(env,'relation').provider==='openrouter'&&llmRoute(env,'novelty').provider==='openrouter'&&modelCapability(llmRoute(env,'relation').model,env.V1_MODEL_CAPABILITIES_JSON)?.transport==='DECISIONS'&&modelCapability(llmRoute(env,'novelty').model,env.V1_MODEL_CAPABILITIES_JSON)?.transport==='DECISIONS'){
+  const client=new OpenRouterJudgmentClient({kind:'JEV',model:llmRoute(env,'relation').model,apiKey:env.OPENROUTER_API_KEY,durable:true,providerLimits:configuredProviderLimits(env,'openrouter'),capability:modelCapability(llmRoute(env,'relation').model,env.V1_MODEL_CAPABILITIES_JSON),timeoutMs:ASYNC_JUDGMENT_CALL_MS,fetcher:options.fetcher});
   const criteria=Object.fromEntries([...shortlist.map((c,i)=>[`EVENT_${i}`,`Same bounded development as supplied Event ${c.id}`]),...storylines.map((s,i)=>[`STORY_${i}`,`Distinct new development in supplied Storyline ${s.id}`]),['NEW','New Storyline'],['DEFER','Uncertain relation']]);
   // Stage 1 decides structure only. Epistemic effect and entailment are meaningful only relative to the Event actually chosen.
   const saved=await staged(a=>({...operation,kind:'RELATION',model:client.model,state:{...state,attempt:a}}),async()=>{const result=await client.decide(state,{structure:{kind:'CHOICE',instructions:'Choose structural relation. Similar topic does not imply same development.',criteria}});return {value:result.answers,usage:result.usage}},()=>client.usage(),client.admission(state,{structure:{kind:'CHOICE',instructions:'Choose structural relation. Similar topic does not imply same development.',criteria}}));
@@ -96,7 +97,7 @@ export async function prepareSemanticMatch(store:V1FeedStore,env:Env,jobId:strin
    decision={structuralRelation:eventIndex?'SAME_EVENT':storyIndex?'NEW_EVENT_EXISTING_STORYLINE':chosen==='NEW'?'NEW_STORYLINE':'DEFER',eventId:target?.id,storylineId:storyIndex?storylines[Number(storyIndex[1])].id:undefined,epistemicEffects:[],confidence:structure.confidence,provenance:{scorer:'JEV',policyVersion:SEMANTIC_POLICY,judgmentId:saved.id}};
    if(target){
     // Stage 2 (cheap): effect, bilateral entailment and material novelty against the chosen Event only.
-    const effectState={source:state.source,event:{id:target.id,versionId:target.version.id,state:target.version.state},instruction:state.instruction},effectClient=new OpenRouterJudgmentClient({kind:'JEV',model:client.model,apiKey:env.OPENROUTER_API_KEY,durable:true,capability:modelCapability(env.V1_JEV_SALIENCE_MODEL??'typesafe/jev-1.13',env.V1_MODEL_CAPABILITIES_JSON),timeoutMs:ASYNC_JUDGMENT_CALL_MS,fetcher:options.fetcher});
+    const effectState={source:state.source,event:{id:target.id,versionId:target.version.id,state:target.version.state},instruction:state.instruction},effectClient=new OpenRouterJudgmentClient({kind:'JEV',model:llmRoute(env,'novelty').model,apiKey:env.OPENROUTER_API_KEY,durable:true,providerLimits:configuredProviderLimits(env,'openrouter'),capability:modelCapability(llmRoute(env,'novelty').model,env.V1_MODEL_CAPABILITIES_JSON),timeoutMs:ASYNC_JUDGMENT_CALL_MS,fetcher:options.fetcher});
     const effectQuestions:Record<string,import('./semantic-provider').SemanticQuestion>={effect:{kind:'CHOICE',instructions:'Choose the most consequential epistemic effect of the source relative to the supplied Event.',criteria:Object.fromEntries(effects.map(e=>[e,e]))},forward:{kind:'BOOLEAN',instructions:'Does the supplied Event entail every factual detail and qualifier of source?'},reverse:{kind:'BOOLEAN',instructions:'Does source entail every factual detail and qualifier of the supplied Event?'},novelty:{kind:'SCORE',instructions:'Material new information, not wording novelty',levels:['none','small detail','material change','major consequence']}};
     const second=await staged(a=>({...operation,kind:'RELATION_EFFECT',model:effectClient.model,state:{...effectState,attempt:a,structureJudgment:saved.id}}),async()=>{const result=await effectClient.decide(effectState,effectQuestions);return {value:result.answers,usage:result.usage}},()=>effectClient.usage(),effectClient.admission(effectState,effectQuestions));
     const a=second.value;

@@ -62,7 +62,7 @@ describe("bounded decision provider",()=>{
   });
   it("records safe native OpenRouter metadata and never provider error text",async()=>{
     const persisted:unknown[][]=[];
-    const env={WEB_OPERATOR_RUNTIME_TOKEN:"runtime_test",DISTILLED_DISCOVERY_DECISION_MODE:"JEV_HYBRID",OPENROUTER_API_KEY:"test-only",DB:{prepare:()=>({bind:(...args:unknown[])=>({run:async()=>{persisted.push(args)}})})}} as unknown as Env;
+    const env={WEB_OPERATOR_RUNTIME_TOKEN:"runtime_test",DISTILLED_DISCOVERY_DECISION_MODE:"JEV_HYBRID",DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:"test-only",DB:{prepare:()=>({bind:(...args:unknown[])=>({run:async()=>{persisted.push(args)}})})}} as unknown as Env;
     const original=globalThis.fetch;globalThis.fetch=async()=>new Response("SECRET_MARKER",{status:402});
     try{
       const response=await handleBoundedDecision(new Request("https://worker.test/v1/bounded-decisions",{method:"POST",headers:{authorization:"Bearer runtime_test"},body:JSON.stringify(request)}),env);
@@ -73,7 +73,7 @@ describe("bounded decision provider",()=>{
   });
   it("ranks equivalent targets in runtime and retains paid low-confidence metadata without executing",async()=>{
     const rows:unknown[][]=[];
-    const env={WEB_OPERATOR_RUNTIME_TOKEN:"runtime_test",DISTILLED_DISCOVERY_DECISION_MODE:"JEV_HYBRID",OPENROUTER_API_KEY:"test-only",DB:{prepare:()=>({bind:(...args:unknown[])=>({run:async()=>{rows.push(args)}})})}} as unknown as Env;
+    const env={WEB_OPERATOR_RUNTIME_TOKEN:"runtime_test",DISTILLED_DISCOVERY_DECISION_MODE:"JEV_HYBRID",DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:"test-only",DB:{prepare:()=>({bind:(...args:unknown[])=>({run:async()=>{rows.push(args)}})})}} as unknown as Env;
     const original=globalThis.fetch;globalThis.fetch=async(_url,options)=>{
       const payload=JSON.parse(String(options?.body));expect(Object.keys(payload.questions.action.criteria)).toEqual(["choice_0","choice_1"]);
       return Response.json({answers:{action:{type:"choice",choice:"choice_1",confidence:0.55,probabilities:{choice_0:0.3,choice_1:0.7}}},usage:{input_tokens:300,cost:0.0000126}});

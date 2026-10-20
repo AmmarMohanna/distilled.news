@@ -9,6 +9,7 @@ export function providerResponseReceipt(response:Response,provider:string,model:
  return {provider,model,stage:'HEADERS',httpStatus:response.status,generationId:id(response.headers.get('x-generation-id'),/^gen-[a-zA-Z0-9-]{1,124}$/),requestId:id(response.headers.get('x-request-id')??response.headers.get('request-id'),/^[a-zA-Z0-9_.:-]{1,96}$/)};
 }
 export function providerBodyReceipt(header:ProviderReceipt,id:unknown):ProviderReceipt {
+ if(header.provider==='WORKERS_AI'){if(typeof id==='string'&&/^[a-zA-Z0-9_.:-]{1,128}$/.test(id)&&!/^(sk-|sk_or_|eyJ)/.test(id))return {...header,generationId:id};return header;}
  if(typeof id!=='string'||!/^gen-[a-zA-Z0-9-]{1,124}$/.test(id))return header;
  if(header.generationId&&header.generationId!==id)throw Error('MODEL_RESPONSE_IDENTITY_MISMATCH');
  return {...header,generationId:id};

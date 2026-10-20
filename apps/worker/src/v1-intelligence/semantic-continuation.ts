@@ -34,13 +34,13 @@ export async function continueSemanticConstruction(store:V1FeedStore,base:Semant
  const operationIds:string[]=[],packetGroups:SemanticConstruction['groups']=[],backgroundMentionIds:string[]=[];
  let minimumConfidence=1;
  const execute=async(scope:ClaimMention[],wire:Record<string,any>,phase:string,index:number)=>{
-  const model=strong.fork?.()??strong;
-  const transport=constructionTransport(scope,input,Object.fromEntries(Object.entries(wire).filter(([key])=>key!=='attempt'))),schema=transport.schema,op={...base,kind:'SEMANTIC_CONSTRUCTION',budgetKey:'construction:'+workId,policyVersion:base.policyVersion+':continuation-v1:'+phase,state:transport.state};
+  const model=strong.forPhase?.(phase)??strong.fork?.()??strong;
+  const transport=constructionTransport(scope,input,Object.fromEntries(Object.entries(wire).filter(([key])=>key!=='attempt'))),schema=transport.schema,op={...base,kind:'SEMANTIC_CONSTRUCTION',model:model.model,budgetKey:'construction:'+workId,policyVersion:base.policyVersion+':continuation-v1:'+phase,state:transport.state};
   const result=await durableSemanticOperation<ConstructionOutcome>(store,op,async()=>{
    const outcome=await model.complete(base.feedId,phase,transport.state,schema);let stage:'OUTPUT_SCHEMA'|'CONSTRUCTION_BINDING'='OUTPUT_SCHEMA';
    try{if(!isDispositionVersion(state.constructionOwnershipVersion))constructionSchema.parse(outcome.value);stage='CONSTRUCTION_BINDING';const decoded=transport.decode(outcome.value),parsed=constructionSchema.parse(decoded);return {value:{construction:parseConstruction(decoded,scope,input,{scorer:'GPT',policyVersion:op.policyVersion}),confidence:parsed.confidence,...(isDispositionVersion(state.constructionOwnershipVersion)?{...transport.audit(outcome.value),rawResponse:outcome.rawResponse}: {})},usage:outcome.usage}}
    catch(error){throw new SemanticValidationError({stage,response:outcome.value,...(outcome.rawResponse?{rawResponse:outcome.rawResponse}:{}),rejection:{name:error instanceof Error?error.name:'UNKNOWN',...(error instanceof Error&&'mechanicalIssues' in error?{mechanicalIssues:error.mechanicalIssues as import('./construction-diagnostics').ConstructionIssue[]}:{}),...(error instanceof Error&&'binding' in error?{binding:error.binding as {invariant:string;path:(string|number)[]}}:{}),...(error instanceof Error&&'code' in error?{code:String(error.code)}:{})}})}
-  },now,()=>model.usage(),{...options,operationAdmission:strong.admission?.(transport.state,schema,phase)});
+  },now,()=>model.usage(),{...options,operationAdmission:model.admission?.(transport.state,schema,phase)});
   const progressId=JSON.stringify([workId,phase,index,result.id,result.status,result.failure??null]);await feedTransact(store,base.feedId,async tx=>{if(!await tx.read('semantic_construction_progress',progressId))await tx.write('semantic_construction_progress',progressId,{id:progressId,feedId:base.feedId,workId,stage:phase,index,operationId:result.id,claimMentionIds:scope.map(m=>m.id),status:result.status,reason:result.failure,createdAt:now})});return result;
  };
  let halt:SemanticOperationResult<ConstructionOutcome>|undefined;

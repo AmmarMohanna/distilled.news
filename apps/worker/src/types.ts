@@ -103,6 +103,10 @@ export interface Env extends Cloudflare.Env {
   V1_SEMANTIC_STRONG_MODEL?: string;
   V1_MODEL_CAPABILITIES_JSON?: string;
   V1_INFERENCE_CONCURRENCY?: string;
+  V1_LLM_ROUTES_JSON?: string;
+  V1_PROVIDER_MAX_CONCURRENCY?: string;
+  V1_PROVIDER_REQUESTS_PER_MINUTE?: string;
+  AI?: import("./workers-ai").WorkersAiBinding;
   V1_JEV_SALIENCE_MODEL?: string;
   V1_GPT_SALIENCE_MODEL?: string;
   V1_BROWSER_ACQUISITION_ENABLED?: string;

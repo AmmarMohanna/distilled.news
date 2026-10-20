@@ -10,7 +10,7 @@ it('makes no provider call while recommendations are disabled',async()=>{
 
 it('bounds the call and excludes unsafe suggestions without subscribing anything',async()=>{
  const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:JSON.stringify({sources:['https://feeds.bbci.co.uk/news/world/rss.xml','https://127.0.0.1/feed.xml','http://example.com/feed.xml']})}}]}));
- const sources=await sourceRecommendations({SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env,{title:'World',description:'News'},fetcher);
+ const sources=await sourceRecommendations({SOURCE_RECOMMENDATIONS_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test'} as Env,{title:'World',description:'News'},fetcher);
  expect(sources).toEqual(['https://feeds.bbci.co.uk/news/world/rss.xml']);
  expect(fetcher).toHaveBeenCalledTimes(1);
  const options=fetcher.mock.calls[0] as unknown as [string,RequestInit];

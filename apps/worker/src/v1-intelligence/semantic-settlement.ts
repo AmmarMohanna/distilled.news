@@ -47,8 +47,9 @@ export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOper
    const mentionScope=(state:any)=>Array.isArray(state?.claimMentions)?state.claimMentions.map((m:any)=>[m.id,m.text]).sort():null;
    const sameConstruction=mentionScope(intent.input.state)!==null&&canonicalJson(mentionScope(intent.input.state))===canonicalJson(mentionScope(input.state))&&input.kind==='SEMANTIC_CONSTRUCTION'&&intent.input.model===input.model&&intent.input.feedRevision===input.feedRevision&&intent.input.policyVersion===input.policyVersion&&canonicalJson(versions(intent.input.state))===canonicalJson(versions(input.state));
    const samePublication=input.kind.startsWith('PUBLICATION_')&&(input.state as any)?.publicationScope&&canonicalJson((input.state as any).publicationScope)===canonicalJson((intent.input.state as any)?.publicationScope)&&intent.input.model===input.model&&intent.input.feedRevision===input.feedRevision;
-   if(!result&&intent.leaseUntil>Date.now()){if(sameQuestion||sameConstruction||samePublication||compatibilityHash&&intent.compatibilityHash===compatibilityHash)throw new SemanticContentionError();continue}
-   if(!intent.compatibilityHash||sameQuestion||sameConstruction||samePublication||intent.compatibilityHash===compatibilityHash){
+   const crossRouteUnknown=intent.input.model!==input.model&&intent.input.feedRevision===input.feedRevision&&intent.input.kind===input.kind&&intent.input.evidenceRevisionIds[0]===input.evidenceRevisionIds[0];
+   if(!result&&intent.leaseUntil>Date.now()){if(crossRouteUnknown||sameQuestion||sameConstruction||samePublication||compatibilityHash&&intent.compatibilityHash===compatibilityHash)throw new SemanticContentionError();continue}
+   if(crossRouteUnknown||!intent.compatibilityHash||sameQuestion||sameConstruction||samePublication||intent.compatibilityHash===compatibilityHash){
     const fenced:SemanticOperationResult<T>={...(result??{id:intent.id,feedId:input.feedId,input:intent.input,status:'DEFERRED' as const,usage:{calls:1,costUsd:intent.reservedCostUsd,reported:false},latencyMs:0,createdAt:intent.createdAt}),status:'DEFERRED',failure:'SEMANTIC_OUTCOME_UNKNOWN'};
     if(!result)await tx.write('semantic_results',intent.id,fenced);return fenced;
    }

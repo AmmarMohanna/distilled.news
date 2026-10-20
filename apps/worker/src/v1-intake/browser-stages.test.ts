@@ -8,7 +8,7 @@ vi.mock('../web-operator-runtime',()=>({createWorkerContainerPublicWebOperatorLi
 import {createV1BrowserStages} from './browser-stages';
 const url='https://publisher.example/article';
 const claim={input:{observation:{id:'observation',feedId:'feed',feedSourceId:'approved-source',sourceItemKey:'item',canonicalUrl:url,sourceId:'publisher'}},candidate:{id:'candidate'},job:{id:'job'},token:'lease'} as AcquisitionClaim;
-const env={DB:{},V1_BROWSER_ACQUISITION_ENABLED:'true',DISTILLED_BROWSER_PROVIDER:'cloudflare_container',AUTHENTICATED_BROWSER_CONTAINER:{},DISTILLED_LIVE_OPENROUTER_MODEL:'model',DISTILLED_LIVE_OPENROUTER_PROVIDER:'provider',OPENROUTER_API_KEY:'test-key',OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS:'1',OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS:'2'} as unknown as Env;
+const env={DB:{},V1_BROWSER_ACQUISITION_ENABLED:'true',DISTILLED_BROWSER_PROVIDER:'cloudflare_container',AUTHENTICATED_BROWSER_CONTAINER:{},DISTILLED_LIVE_OPENROUTER_MODEL:'model',DISTILLED_LIVE_OPENROUTER_PROVIDER:'provider',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test-key',OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS:'1',OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS:'2'} as unknown as Env;
 beforeEach(()=>{vi.resetAllMocks();mocks.feed.mockResolvedValue({ownerId:'owner',paused:false});mocks.lifecycle.mockReturnValue({acquire:mocks.acquire})});
 it('keeps the optional browser adapter disabled by default',()=>{
  expect(createV1BrowserStages({...env,V1_BROWSER_ACQUISITION_ENABLED:undefined},claim)).toEqual({});expect(mocks.lifecycle).not.toHaveBeenCalled();

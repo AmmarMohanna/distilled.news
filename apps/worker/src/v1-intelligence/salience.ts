@@ -35,12 +35,15 @@ export class OpenRouterJudgmentClient implements JudgmentClient {
  private ledger:ExperimentUsage={calls:0,tokensIn:0,tokensOut:0,costUsd:0,reported:true};
  private inFlight=false;
  private unknownOutcome=false;private costOverrun=false;
- constructor(private readonly options:{kind:'JEV'|'GPT';model:string;apiKey:string;maxCalls?:number;maxCostUsd?:number;maxCallCostUsd?:number;durable?:boolean;capability?:ModelCapability;timeoutMs?:number;fetcher?:typeof fetch}) {
+ constructor(private readonly options:{kind:'JEV'|'GPT';model:string;apiKey:string;maxCalls?:number;maxCostUsd?:number;maxCallCostUsd?:number;durable?:boolean;providerLimits?:import('./provider-limits').ProviderLimits;capability?:ModelCapability;timeoutMs?:number;fetcher?:typeof fetch}) {
   this.kind=options.kind;this.model=options.model;
   if(!options.apiKey.trim()||!options.model||!options.durable&&(!Number.isSafeInteger(options.maxCalls)||options.maxCalls!<1||!Number.isFinite(options.maxCostUsd)||options.maxCostUsd!<=0||!Number.isFinite(options.maxCallCostUsd)||options.maxCallCostUsd!<=0||options.maxCallCostUsd!>options.maxCostUsd!))throw Error('INVALID_EXPERIMENT_CONFIG');
   if(options.timeoutMs!==undefined&&(!Number.isSafeInteger(options.timeoutMs)||options.timeoutMs<1))throw Error('INVALID_EXPERIMENT_CONFIG');
  }
  admission(state:unknown,questions:Record<string,SemanticQuestion>):ModelAdmission{
+  return {...this.capacityAdmission(state,questions),...(this.options.providerLimits?{providerLimits:this.options.providerLimits}:{})};
+ }
+ private capacityAdmission(state:unknown,questions:Record<string,SemanticQuestion>):ModelAdmission{
   const c=this.options.capability;if(!c)return {fits:false,reason:'MODEL_CAPABILITY_UNAVAILABLE',requestBytes:0,inputTokenUpperBound:0,maxOutputTokens:0,reservationCostUsd:0};
   const question=Object.values(questions)[0];
   if(this.kind==='GPT'&&(Object.keys(questions).length!==1||question.kind!=='CHOICE'))throw Error('INVALID_JUDGMENT_ADMISSION');
