@@ -1,9 +1,9 @@
 import {workersAiRequest} from '../workers-ai';
-import {llmRoute,routeAdmission,modelOptionsForRoute} from './provider-routing';
+import {llmRoute,routeAdmission,modelOptionsForRoute,type LlmRoute} from './provider-routing';
 import {canonicalJson} from '../v1-intake/canonical';
 import {editorialContract} from './editorial-requirements';
 import {ASYNC_MODEL_CALL_MS} from './operation-timing';
-import {admitModelOperation,modelCapability} from './model-capacity';
+import {admitModelOperation,modelCapability,type ModelAdmission} from './model-capacity';
 import {boundedCompletion,structuredCompletionBody,cloudflareCompletionBody,type ModelOptions} from '../ai';
 import {sha256} from '@distilled/contracts';
 import type {Env} from '../types';
@@ -12,8 +12,23 @@ import {writerWire,verificationWire} from './writer-wire';
 import type {WriterFeedback} from './writer-feedback';
 export const APPROVED_FACT_PROMPT_VERSION='approved-fact-spans-editorial-v28';
 
+export interface EvaluationEvidenceTransport {
+ admission(route:LlmRoute,payload:unknown,schema:object,output?:number):ModelAdmission;
+ complete(request:{route:LlmRoute;feedId:string;phase:string;payload:unknown;schema:object;limits:{maxOutputTokens:number;signal:AbortSignal}}):Promise<{result:Record<string,unknown>;usage:ModelUsage}>;
+}
+/** Operator-only dependency injection, never selected through Env/configuration.
+ * Shares prompts, response decoding and every publication validator. The caller
+ * must supply isolated storage and separately authorized durable paid transport.
+ * This creates no live qualification and is not used by the deployed runtime. */
+export function createEvaluationEvidenceModel(env:Env,transport:EvaluationEvidenceTransport):BriefingModelPort|undefined {
+ return storedEvidenceModel(env,()=>{throw Error('EVALUATION_TRANSPORT_REQUIRED')},transport);
+}
+
 /** Uses the existing provider transport; no discovery tools or external source capabilities. */
 export function createStoredEvidenceModel(env:Env,fetcher:typeof fetch=fetch):BriefingModelPort|undefined {
+ return storedEvidenceModel(env,fetcher);
+}
+function storedEvidenceModel(env:Env,fetcher:typeof fetch,transport?:EvaluationEvidenceTransport):BriefingModelPort|undefined {
  if(env.V1_SYNTHESIS_MODEL_ENABLED!=='true') return undefined;
  const writerRoute=llmRoute(env,'writer'),verifyRoute=llmRoute(env,'verification'),repairRoute=env.V1_LLM_ROUTES_JSON&&JSON.parse(env.V1_LLM_ROUTES_JSON).repair?llmRoute(env,'repair'):{...writerRoute,task:'repair' as const};
  const routes={SYNTHESIS:writerRoute,GROUNDING:verifyRoute,REPAIR:repairRoute};
@@ -22,12 +37,14 @@ export function createStoredEvidenceModel(env:Env,fetcher:typeof fetch=fetch):Br
  const options:ModelOptions={...modelOptionsForRoute(env,writerRoute,fetcher),timeoutMs:ASYNC_MODEL_CALL_MS};
  const contract=editorialContract(env.V1_PUBLICATION_VALIDATION_CONTRACT);
  let latestUsage:ModelUsage={tokensIn:0,tokensOut:0,cost:0,confirmed:true};
+ const admit=(route:LlmRoute,payload:unknown,schema:object,output?:number)=>transport?transport.admission(route,payload,schema,output):routeAdmission(env,route,payload,schema,output);
 
- const admission=(wire:unknown,phase='SYNTHESIS')=>{const value=wire as {payload:unknown;schema:object},route=routes[phase as keyof typeof routes]??writerRoute;if(!value||!value.schema)return admitModelOperation(route.identity,wire,{},undefined);return routeAdmission(env,route,value.payload,value.schema)};
+ const admission=(wire:unknown,phase='SYNTHESIS')=>{const value=wire as {payload:unknown;schema:object},route=routes[phase as keyof typeof routes]??writerRoute;if(!value||!value.schema)return admitModelOperation(route.identity,wire,{},undefined);return admit(route,value.payload,value.schema)};
  const complete=async(feedId:string,phase:string,payload:unknown,schema:object,limits:{maxOutputTokens:number;signal:AbortSignal})=>{
   const route=routes[phase as keyof typeof routes]??writerRoute;
-  const envelope=routeAdmission(env,route,payload,schema,limits.maxOutputTokens);
+  const envelope=admit(route,payload,schema,limits.maxOutputTokens);
   if(!envelope.fits)throw Error(envelope.reason);
+  if(transport){latestUsage={tokensIn:0,tokensOut:0,cost:envelope.reservationCostUsd,confirmed:false};const completed=await transport.complete({route,feedId,phase,payload,schema,limits});latestUsage=completed.usage;return completed}
   let usage:ModelUsage=latestUsage={tokensIn:0,tokensOut:0,cost:envelope.reservationCostUsd,confirmed:false};
   const result=await boundedCompletion({...options,...modelOptionsForRoute(env,route,fetcher),usageRecorder:async record=>{
    // Estimates never masquerade as provider-reported charges. Unknown usage
