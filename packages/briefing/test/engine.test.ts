@@ -60,7 +60,7 @@ describe("generateBriefing", () => {
       ],
       repair: [{ items: [{ i: 1, headline: "Genesis", body: "Anthropic committed $150 million.", drop: false }] }]
     });
-    const result = await generateBriefing({ ...base, articles: [article("a1", FUND), article("a2", GENESIS)] }, port, MODELS);
+    const result = await generateBriefing({ ...base, articles: [article("a1", FUND), article("a2", GENESIS)] }, port, MODELS, { maxRepairs: 1 });
     expect(result.status).toBe("published");
     expect(result.items.map((i) => i.headline)).toEqual([fund().headline]);
     expect(result.dropped).toHaveLength(1);
@@ -246,5 +246,44 @@ describe("omissions are auditable and lead stories are protected", () => {
     const result = await generateBriefing({ ...base, articles: [a1, a2] }, port, MODELS, { maxItems: 1 });
     expect(result.items).toHaveLength(1);
     expect(result.omitted).toMatchObject([{ stage: "safety_cap", headline: "Two", sourceIds: ["a2"] }]);
+  });
+});
+
+describe("repair policy", () => {
+  it("gives a flagged item a second repair, so one bad rewrite does not lose a lead story", async () => {
+    const { port, calls } = scripted({
+      edit: [{ items: [fund({ body: "Anthropic has committed 5% of shares." })] }],
+      verify: [
+        { results: [{ i: 0, verdict: "fix", issues: ["drops approval condition"] }] },
+        { results: [{ i: 0, verdict: "fix", issues: ["repair added an unsupported claim"] }] },
+        { results: [{ i: 0, verdict: "ok", issues: [] }] }
+      ],
+      repair: [
+        { items: [{ i: 0, headline: "Fund", body: "Subject to stockholder approval, 5% of shares, plus a claim the source never made.", drop: false }] },
+        { items: [{ i: 0, headline: "Fund", body: "Subject to stockholder approval, 5% of shares will be committed.", drop: false }] }
+      ]
+    });
+    const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, MODELS);
+    expect(result.status).toBe("published");
+    expect(result.items[0].body).toBe("Subject to stockholder approval, 5% of shares will be committed.");
+    expect(calls.map((c) => c.stage)).toEqual(["edit", "verify", "repair", "verify", "repair", "verify"]);
+    expect(calls[4].request.user).toContain("repair added an unsupported claim"); // second repair sees the latest problem
+  });
+
+  it("still gives up after the repair limit, so cost per window stays bounded", async () => {
+    const stuck = { results: [{ i: 0, verdict: "fix", issues: ["still wrong"] }] };
+    const rewrite = { items: [{ i: 0, headline: "Fund", body: "Still wrong.", drop: false }] };
+    const { port, calls } = scripted({ edit: [{ items: [fund()] }], verify: [stuck, stuck, stuck], repair: [rewrite, rewrite] });
+    const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, MODELS);
+    expect(result.status).toBe("rejected");
+    expect(calls.filter((c) => c.stage === "repair")).toHaveLength(2);
+    expect(result.dropped[0]).toMatchObject({ carry: true, sourceIds: ["a1"] });
+  });
+
+  it("tells the editor headlines must carry the body's hedges, and tells the repairer to delete rather than add", async () => {
+    const { EDITOR_SYSTEM, REPAIR_SYSTEM } = await import("../src/prompts");
+    expect(EDITOR_SYSTEM).toContain("The headline is held to the same standard as the body");
+    expect(REPAIR_SYSTEM).toContain("SMALLEST edit");
+    expect(REPAIR_SYSTEM).toContain("Do NOT add sentences or facts");
   });
 });

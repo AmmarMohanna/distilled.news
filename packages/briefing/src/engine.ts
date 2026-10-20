@@ -20,6 +20,8 @@ export interface EngineOptions {
   maxVerifyChars: number;
   /** Safety valve, not an editorial quota. */
   maxItems: number;
+  /** Repair attempts per item before it is dropped; each costs one repair and one re-check call, only when needed. */
+  maxRepairs: number;
   prepare: Partial<PrepareOptions>;
   now: () => Date;
 }
@@ -28,6 +30,7 @@ export const DEFAULT_ENGINE: EngineOptions = {
   maxEditorChars: 90_000,
   maxVerifyChars: 80_000,
   maxItems: 30,
+  maxRepairs: 2,
   prepare: {},
   now: () => new Date()
 };
@@ -424,7 +427,7 @@ export async function generateBriefing(
   const dropped: DroppedItem[] = [];
   const accepted = new Set<number>();
   let todo = drafts.map((_, i) => i);
-  for (let round = 0; round < 2 && todo.length; round += 1) {
+  for (let round = 0; round <= options.maxRepairs && todo.length; round += 1) {
     const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, prior, options.maxVerifyChars));
     const flagged = new Map<number, string[]>();
     const unchecked: number[] = [];
@@ -434,11 +437,11 @@ export async function generateBriefing(
       else if (verdict.verdict === "ok") accepted.add(index);
       else if (verdict.verdict === "redundant") dropped.push({ headline: drafts[index].headline, reason: verdict.issues.join(" | ") || "repeats what the reader was already told", carry: false, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
       else if (verdict.verdict === "drop") dropped.push({ headline: drafts[index].headline, reason: verdict.issues.join(" | ") || "judged unsupported", carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
-      else if (round === 0) flagged.set(index, verdict.issues.length ? verdict.issues : ["verifier flagged this item"]);
+      else if (round < options.maxRepairs) flagged.set(index, verdict.issues.length ? verdict.issues : ["verifier flagged this item"]);
       else dropped.push({ headline: drafts[index].headline, reason: `still flagged after repair: ${verdict.issues.join(" | ")}`, carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
     }
     todo = unchecked; // a verifier that skipped an item has not approved it; ask again
-    if (flagged.size && round === 0) {
+    if (flagged.size && round < options.maxRepairs) {
       const fixes = await timed("repair", () => repair(port, meter, models, drafts, flagged, byRef));
       for (const index of flagged.keys()) {
         const fixed = fixes.get(index);

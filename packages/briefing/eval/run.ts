@@ -69,7 +69,7 @@ const models = { editor: args.get("editor") ?? "claude-sonnet-5-5", verifier: ar
 const port = backend();
 
 const prior: PriorItem[] = [];
-const report: Array<{ window: { start: string; end: string }; articles: number; result?: BriefingResult }> = [];
+const report: Array<{ window: { start: string; end: string }; articles: number; articleIds: string[]; result?: BriefingResult }> = [];
 let complete = true;
 for (const window of scenario.windows) {
   const ids = window.articles.includes("*") ? corpus.map((a) => a.id) : window.articles;
@@ -81,7 +81,7 @@ for (const window of scenario.windows) {
       models,
       { now: () => new Date(window.end), ...(args.get("max-editor-chars") ? { maxEditorChars: Number(args.get("max-editor-chars")) } : {}) }
     );
-    report.push({ window: { start: window.start, end: window.end }, articles: articles.length, result });
+    report.push({ window: { start: window.start, end: window.end }, articles: articles.length, articleIds: ids, result });
     for (const [i, item] of result.items.entries()) {
       prior.push({ id: `p${prior.length + 1}`, at: window.end, headline: item.headline, body: item.body });
       void i;
@@ -89,7 +89,7 @@ for (const window of scenario.windows) {
   } catch (error) {
     if (error instanceof Pending || (error as { cause?: unknown })?.cause instanceof Pending) {
       complete = false;
-      report.push({ window: { start: window.start, end: window.end }, articles: articles.length });
+      report.push({ window: { start: window.start, end: window.end }, articles: articles.length, articleIds: ids });
       break;
     }
     throw error;
@@ -123,6 +123,6 @@ if (args.get("out")) writeFileSync(args.get("out")!, text + "\n");
 if (args.get("json")) {
   writeFileSync(
     args.get("json")!,
-    JSON.stringify({ scenario: scenario.id, models, windows: report.map(({ window, articles, result }) => ({ window, articles, result })) }, null, 1)
+    JSON.stringify({ scenario: scenario.id, models, windows: report.map(({ window, articles, articleIds, result }) => ({ window, articles, articleIds, result })) }, null, 1)
   );
 }
