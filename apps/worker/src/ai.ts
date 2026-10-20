@@ -1,4 +1,5 @@
 import {workersAiCompletion} from './workers-ai';
+import {validateCloudflareLog} from './cloudflare-log';
 import {parseUniqueModelJson,DuplicateModelKeyError} from './strict-model-json';
 import {ProviderRequestError,readProviderRejection} from './provider-outcome';
 import {inspectProviderSchema} from './provider-schema';
@@ -292,7 +293,14 @@ export async function boundedCompletion(options:ModelOptions,briefingId:string,p
     if(options.provider==='CLOUDFLARE'){
      const requested=options.model.replace(/^cloudflare:/,'').replace(/^openai\//,''),allowed=[requested,'openai/'+requested,requested+'-2025-04-14'];
      if(!allowed.includes(payload.model))throw Error('MODEL_RESPONSE_IDENTITY_MISMATCH');
-     if(payload.gatewayMetadata?.keySource!=='Unified')throw Error('MODEL_BILLING_ROUTE_UNPROVEN');
+     if(payload.gatewayMetadata?.keySource!=='Unified'){
+      const logId=response.headers.get('cf-aig-log-id');
+      if(payload.gatewayMetadata?.keySource!==undefined||!logId||!/^[a-f0-9-]{36}$/i.test(logId))throw Error('MODEL_BILLING_ROUTE_UNPROVEN');
+      const logResponse=await (options.fetcher??fetch)('https://api.cloudflare.com/client/v4/accounts/'+options.accountId+'/ai-gateway/gateways/'+options.gatewayId+'/logs/'+logId,{method:'GET',headers:{authorization:'Bearer '+options.apiKey},signal:controller.signal,redirect:'manual'});
+      if(!logResponse.ok)throw Error('MODEL_BILLING_ROUTE_UNPROVEN');
+      const envelope=await logResponse.json() as any;if(envelope.success!==true)throw Error('MODEL_BILLING_ROUTE_UNPROVEN');
+      validateCloudflareLog(envelope.result,logId,options.model,payload);
+     }
      if(payload.choices?.length!==1||payload.choices[0].finish_reason!=='stop')throw Error(payload.choices?.[0]?.finish_reason==='length'?'MODEL_OUTPUT_CONTINUATION_REQUIRED':'MODEL_COMPLETION_UNPROVEN');
     }
     usage=payload.usage;

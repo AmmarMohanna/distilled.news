@@ -1,0 +1,12 @@
+import {it,expect} from 'vitest';
+import {confirmedEvaluationCharge} from './cloudflare-evaluation-billing';
+const proof={billing:{success:true,result:{history:[{aggregated_value:.003422}]}},inventory:{success:true,result:[{id:'current',cost:.003422}],result_info:{total_count:1}},inventoryComplete:true,gatewayIds:['default'],current:{id:'current',estimatedCostUsd:.003422,reservationUsd:.05,bucketStartMs:0},prior:[]};
+it('uses the unique actual billed delta, never the estimated gateway metric alone',()=>{expect(confirmedEvaluationCharge(proof)).toBe(.003422);expect(()=>confirmedEvaluationCharge({...proof,billing:{success:true,result:{history:[]}}})).toThrow('BILLING_DELTA_UNCONFIRMED')});
+it('rejects unknown traffic, incomplete inventories, foreign gateways and conflicting charges',()=>{for(const p of [{...proof,gatewayIds:['default','other']},{...proof,inventoryComplete:false},{...proof,inventory:{...proof.inventory,result:[{id:'other',cost:.003422}]}},{...proof,billing:{success:true,result:{history:[{aggregated_value:.01}]}}}])expect(()=>confirmedEvaluationCharge(p)).toThrow()});
+it('requires an independently exhausted inventory instead of trusting inconsistent provider pagination counters',()=>{expect(confirmedEvaluationCharge({...proof,inventory:{...proof.inventory,result_info:{total_count:0}}})).toBe(.003422)});
+it('attributes only the actual delta after the immutable prior settled charge and rejects lagging billing',()=>{
+ const p={...proof,billing:{success:true,result:{history:[{aggregated_value:.009522}]}},inventory:{success:true,result:[{id:'previous',cost:.003422},{id:'current',cost:.0061}],result_info:{total_count:1}},current:{id:'current',estimatedCostUsd:.0061,reservationUsd:.06,bucketStartMs:0},prior:[{id:'previous',costUsd:.003422,bucketStartMs:0}]};
+ expect(confirmedEvaluationCharge(p)).toBe(.0061);expect(()=>confirmedEvaluationCharge({...p,billing:{success:true,result:{history:[{aggregated_value:.003422}]}}})).toThrow('BILLING_DELTA_UNCONFIRMED');expect(p.prior[0].costUsd).toBe(.003422);
+});
+
+it('does not subtract a previous-hour charge from the current-hour billed delta',()=>{const p={...proof,billing:{success:true,result:{history:[{aggregated_value:.0061}]}},inventory:{success:true,result:[{id:'previous',cost:.003422},{id:'current',cost:.0061}]},current:{id:'current',estimatedCostUsd:.0061,reservationUsd:.06,bucketStartMs:3600000},prior:[{id:'previous',costUsd:.003422,bucketStartMs:0}]};expect(confirmedEvaluationCharge(p)).toBe(.0061)});

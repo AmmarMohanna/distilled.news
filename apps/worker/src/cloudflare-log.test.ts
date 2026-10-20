@@ -1,0 +1,7 @@
+import {it,expect} from 'vitest';
+import {validateCloudflareLog} from './cloudflare-log';
+const payload={id:'chatcmpl-example',model:'gpt-4.1-2025-04-14',usage:{prompt_tokens:12,completion_tokens:4}};
+const log={id:'log-id',provider:'openai',model:'openai/gpt-4.1',success:true,status_code:200,cached:false,wholesale:true,byok:null,tokens_in:12,tokens_out:4,response_head_complete:true,response_head:JSON.stringify({state:'Completed',result:payload}),cost:.000056,custom_cost:false};
+it('binds Unified billing source to the exact completed response without turning estimated log cost into settlement',()=>{expect(validateCloudflareLog(log,'log-id','cloudflare:openai/gpt-4.1',payload)).toEqual({billingSource:'UNIFIED',estimatedCostUsd:.000056});});
+it('accepts authenticated header-bound completed metadata while optional log body storage is not yet available',()=>{expect(validateCloudflareLog({...log,response_head:null},'log-id','cloudflare:openai/gpt-4.1',payload).billingSource).toBe('UNIFIED')});
+it('rejects foreign logs, BYOK, partial records and mismatched completed responses',()=>{for(const change of [{id:'other'},{wholesale:false},{byok:'key'},{cached:true},{success:false},{response_head_complete:false},{tokens_in:13},{response_head:JSON.stringify({state:'Completed',result:{...payload,id:'other'}})}])expect(()=>validateCloudflareLog({...log,...change},'log-id','cloudflare:openai/gpt-4.1',payload)).toThrow('MODEL_BILLING_ROUTE_UNPROVEN')});
