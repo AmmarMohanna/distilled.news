@@ -10,6 +10,12 @@ export interface ModelSpendingReservation {providerLimits?:ProviderLimits;id:str
 export class ModelSpendingWait extends Error {constructor(readonly reason:string){super(reason)}}
 const instant=(value:string)=>new Date(value).toISOString();
 const legacyMissing=`SELECT COUNT(*) AS n FROM v1_feed_documents d WHERE d.kind IN ('semantic_intents','salience_intents','model_intents') AND NOT EXISTS(SELECT 1 FROM v1_model_spending_reservations r WHERE r.id=d.kind||':'||d.id)`;
+/** Operator-selected accounting mode. This removes financial admission only;
+ * immutable operation ownership and provider resource coordination still apply. */
+async function trackingAccounts(db:D1Database,model:string,accountId?:string):Promise<{accountId:string;enabledAt:string}[]>{
+ let rows;try{rows=await db.prepare("SELECT key,value FROM settings WHERE key LIKE 'model-spending:tracking-only:%'").all<{key:string;value:string}>()}catch(error){if(String(error).includes('no such table'))return [];throw error}
+ return rows.results.flatMap(row=>{const value=JSON.parse(row.value),id=row.key.slice('model-spending:tracking-only:'.length);if(value.mode!=='TRACK_ONLY')return [];if(!id||!Array.isArray(value.modelIds)||value.modelIds.some((m:unknown)=>typeof m!=='string'||!m)||!Number.isFinite(Date.parse(value.enabledAt)))throw Error('INVALID_SPENDING_TRACKING_CONFIGURATION');return (!accountId||id===accountId)&&(value.modelIds.includes(model)||value.modelIds.includes('*'))?[{accountId:id,enabledAt:instant(value.enabledAt)}]:[]});
+}
 /** Operator-only primitive; no public route and no implicit/default grant. Existing
  * paid liabilities require explicit account mapping/reconciliation before activation. */
 export async function authorizeModelSpending(db:D1Database,grant:ModelSpendingAuthorization):Promise<void>{
@@ -38,6 +44,12 @@ export async function modelSpendingStatements(db:D1Database,r:ModelSpendingReser
  if(!r.id||!r.accountId||!r.token||!r.model||!r.feedId||!Number.isFinite(r.reservedCostUsd)||r.reservedCostUsd<0||!Number.isFinite(r.leaseUntil)||!Number.isFinite(Date.parse(r.createdAt)))throw Error('INVALID_MODEL_RESERVATION');
  if(await db.prepare("SELECT id FROM v1_feed_documents WHERE kind='model_execution_retirements' AND id=? AND feed_id=?").bind(r.feedId,r.feedId).first())throw new ModelSpendingWait('FEED_EXECUTION_RETIRED');
  const existing=await db.prepare('SELECT json FROM v1_model_spending_reservations WHERE id=?').bind(r.id).first<{json:string}>();if(existing){if(canonicalJson(JSON.parse(existing.json))!==canonicalJson(r))throw new ModelSpendingWait('RESERVATION_IDENTITY_CONFLICT');return []}
+ const tracking=await trackingAccounts(db,r.model,r.accountId);
+ if(tracking.length>1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');
+ if(tracking.length===1){
+  const guards=await providerLimitStatements(db,r,{accountingSince:tracking[0].enabledAt});
+  return [...guards,db.prepare('INSERT INTO v1_model_spending_reservations VALUES(?,?,NULL,?,?,?,?,?,?,?)').bind(r.id,r.accountId,r.token,r.model,r.feedId,r.reservedCostUsd,r.leaseUntil,instant(r.createdAt),JSON.stringify(r))];
+ }
  const g=await spendingAuthorization(db,r),guard=crypto.randomUUID();
  await assertEvaluationScopeAvailable(db,g,r);
  try{await assertRecoveryScopeAvailable(db,g,r)}catch(error){if(error instanceof Error&&error.message==='RECOVERY_SCOPE_DENIED')throw new ModelSpendingWait(r.feedId===g.recoveryScope?.feedId?'ACCOUNT_RECOVERY_SCOPE_DENIED':'ACCOUNT_AUTHORIZATION_REQUIRED');throw error}
@@ -59,8 +71,10 @@ export async function settleModelSpending(db:D1Database,id:string,token:string,u
  * Callers may bind an account explicitly when several provider accounts coexist. */
 export async function modelSpendingAccount(db:D1Database,model:string,at:string,accountId?:string):Promise<string>{
  let rows:D1Result<{json:string}>;try{rows=await db.prepare('SELECT json FROM v1_model_spending_authorizations WHERE valid_from<=? AND valid_until>?').bind(instant(at),instant(at)).all<{json:string}>()}catch(error){if(String(error).includes('no such table'))throw new ModelSpendingWait('ACCOUNT_LEDGER_MIGRATION_REQUIRED');throw error}
+ const tracking=await trackingAccounts(db,model,accountId);
  const matching=rows.results.map(r=>JSON.parse(r.json) as ModelSpendingAuthorization).filter(g=>(!accountId||g.accountId===accountId)&&(g.modelIds.includes(model)||g.modelIds.includes('*')));
- if(matching.length!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return matching[0].accountId;
+ if(!tracking.length&&matching.length!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');
+ const accounts=[...new Set([...tracking.map(r=>r.accountId),...matching.map(g=>g.accountId)])];if(accounts.length!==1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');return accounts[0];
 }
 /** Explicit operator account mapping of immutable historical intent. Never
  * infer provider account from Feed, date, model name or missing metadata. */

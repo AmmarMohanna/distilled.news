@@ -14,6 +14,7 @@ export function FeedNotice(props:{message:string;language:Language;heading?:stri
 }
 export function FeedPublicationNotice(props:{publicationState?:string;hasPublishedEditions:boolean;language:Language}){
  const labels=text[props.language];
+ if(props.publicationState==='service_blocked'){const messages={en:['Briefing paused','The service operator needs to resolve an AI service configuration issue. Your collected articles are saved.'],fr:['Brief en pause',"Le responsable du service doit r?soudre un probl?me de configuration du service IA. Vos articles collect?s sont conserv?s."],ar:['?????? ????? ??????','????? ????? ?????? ??? ?? ????? ?? ????? ???? ?????? ?????????. ???????? ???????? ??????.']};const [heading,message]=messages[props.language];return <FeedNotice heading={heading} message={message+(props.hasPublishedEditions?' '+labels.available:'')} language={props.language} severity="warning"/>;}
  if(props.publicationState!=='correction_pending'&&props.publicationState!=='failed')return null;
  const correction=props.publicationState==='correction_pending';
  // Pending correction is not proof of withdrawal. Availability refers only to

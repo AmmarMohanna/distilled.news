@@ -36,3 +36,7 @@ it.each(['en','ar','fr'] as const)('completed reviews still show the source coll
  });
 });
 it.each(['en','ar','fr'] as const)('publishing displays its stage without stale review counters (%s)',async language=>{await render(<FeedProcessingProgress progress={{stage:'PUBLISHING',acquisition:{completed:1,total:1,failed:0},review:{completed:1,total:1,failed:0},pending:0}} language={language}/>,host=>{expect(host.querySelector('[role="status"]')).not.toBeNull();expect(host.textContent).not.toContain('1 / 1');expect(host.textContent?.length).toBeGreaterThan(5);});});
+
+it('shows an operator configuration blocker without an indefinite preparation spinner',async()=>{
+ await render(<FeedPublicationNotice publicationState="service_blocked" hasPublishedEditions={false} language="en"/>,host=>{expect(host.textContent).toContain('Briefing paused');expect(host.textContent).toContain('service operator');expect(host.textContent).not.toContain('Preparing');expect(host.textContent).not.toContain('ACCOUNT_')});
+});
