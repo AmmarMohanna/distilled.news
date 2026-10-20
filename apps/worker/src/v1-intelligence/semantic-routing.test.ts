@@ -15,3 +15,11 @@ it('escalates uncertainty, asymmetric entailment, protected epistemic effects an
  for(const effect of ['CHANGES_STATE','CHANGES_CERTAINTY','CONTRADICTS','CORRECTS','RETRACTS'] as const)expect(escalationReasons({...base,epistemicEffects:[effect]},{})).toContain('HIGH_CONSEQUENCE');
  expect(escalationReasons({...base,structuralRelation:'NEW_STORYLINE',eventId:undefined},{})).toContain('CONSTRUCTION');
 });
+
+it('never assigns a new semantic event to a storyline using vocabulary overlap',()=>{
+ const matcher=preparedMatchers({revisionId:'r',candidateVersions:{},decision:{structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:'test'}}});
+ const event:any={eventId:'fund',type:'ACTIVE',state:'AI software company launched a fund',entities:['AI'],title:'AI software fund'};
+ const related:any={...event,eventId:'coding',state:'AI software company launched a coding product'};
+ expect(matcher.storyline.match({event,candidates:[{id:'coding-story',events:[related]}]}).relation).toBe('NEW');
+ expect(matcher.storyline.match({event,candidates:[{id:'same-root',events:[event]}]}).storylineId).toBe('same-root');
+});

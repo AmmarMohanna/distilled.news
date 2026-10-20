@@ -183,3 +183,29 @@ it('hands a valid disposition construction through canonical graph, editorial se
  const results=await store.list<any>('feed-1','semantic_results'),construction=results.find(r=>r.value?.schemaVersion==='minimal-claim-disposition-v1'),mentions=await store.list<any>('feed-1','claim_mentions');expect(Object.keys(construction.value.dispositionByClaimMentionId)).toEqual(mentions.map(m=>m.id));
 
 },20000);
+
+it('independently challenges a false cross-event construction before canonical mutation and reuses the settled review',async()=>{
+ await seedIntelligence(store,1,'Replit changed its default coding model.');
+ await acceptEvidence(store,2,'Anthropic announced a public benefit fund.');
+ const usage={calls:1,costUsd:.001,reported:true};let calls=0;
+ const strong:any={model:'identity-challenge-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,phase:string,state:any)=>{
+  calls++;
+  if(phase==='SEMANTIC_CONSTRUCTION')return {value:{confidence:.98,groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.events[0].id,storylineId:null,epistemicEffects:['ADDS_DETAIL'],entities:[],slots:[]}],backgroundMentionIds:[]},usage};
+  expect(phase).toBe('SEMANTIC_EVENT_IDENTITY_REVIEW');expect(state.events[0].evidence[0].body).toContain('Replit');
+  return {value:{groups:{group_1:{structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:[],sourceWitness:null,targetWitness:null,reason:'Creating a fund is a distinct occurrence from a coding-model switch.'}}},usage};
+ }};
+ const job=JSON.stringify(['REASSESS','observation-2','']);const prepared=await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});
+ expect(prepared!.prepared.decision.structuralRelation).toBe('NEW_STORYLINE');expect(calls).toBe(2);
+ await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(calls).toBe(2);
+ await processEvidenceIntelligence(store,job,testPolicy.now(),prepared!.matchers);
+ expect(await store.list('feed-1','events')).toHaveLength(2);
+ const review=(await store.list<any>('feed-1','semantic_results')).find(r=>r.input.kind==='SEMANTIC_EVENT_IDENTITY_REVIEW');expect(review.value.reviews.groups.group_1.reason).toContain('distinct occurrence');
+},25000);
+
+it('fences an unknown identity review across retry numbers and days',async()=>{
+ await seedIntelligence(store,1,'Replit changed its default coding model.');await acceptEvidence(store,2,'Anthropic announced a public benefit fund.');
+ let calls=0;let current={calls:1,costUsd:.001,reported:true};
+ const strong:any={model:'unknown-review-fixture',admission:syntheticModelAdmission,usage:()=>current,complete:async(_f:string,phase:string,state:any)=>{calls++;if(phase==='SEMANTIC_CONSTRUCTION')return {value:{confidence:.99,groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.events[0].id,storylineId:null,epistemicEffects:[],entities:[],slots:[]}],backgroundMentionIds:[]},usage:current};current={calls:1,costUsd:.02,reported:false};throw Error('SEMANTIC_PROVIDER_FAILURE')}};
+ const job=JSON.stringify(['REASSESS','observation-2','']);await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(calls).toBe(2);
+ await prepareSemanticMatch(store,{} as Env,job,'2026-10-04T12:00:00Z',{strong,attempt:1});expect(calls).toBe(2);
+},25000);
