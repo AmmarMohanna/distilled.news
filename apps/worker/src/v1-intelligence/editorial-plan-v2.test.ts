@@ -1,5 +1,5 @@
 import {expect,it,vi} from 'vitest';
-import {v2EditorialRequest,prepareV2EditorialPlan,decodeV2EditorialResponse,V2_SOURCE_ANCHOR_POLICY} from './editorial-plan-v2';
+import {v2EditorialRequest,prepareV2EditorialPlan,decodeV2EditorialResponse,V2_SOURCE_ANCHOR_POLICY,V2_WHOLE_PARENT_POLICY,canSupersedeRejectedEditorial} from './editorial-plan-v2';
 const shortlist:any={id:'s',feedId:'f',feedRevision:1,window:{start:'2026-10-18T00:00:00Z',end:'2026-10-18T01:00:00Z'},candidates:[],obligations:[],ledger:[],evidenceRevisionIds:['r'],communicationFingerprint:'fp'};
 it('binds explicit proposition requirements into a different versioned model input',()=>{
  const request=v2EditorialRequest(shortlist,{title:'Feed',interests:'AI'} as any);
@@ -31,6 +31,33 @@ const anchorFixture=()=>{
  const story={targetType:'EVENT',targetVersionId:'event',decision:'SELECT',order:1,treatment:'STANDARD',deltaType:'NEW',newUnderstandingFactIds:['fact'],contextFactIds:[],mustIncludeFactIds:['fact'],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[],correctionObligationIds:[],previousLedgerEntryIds:[],rationale:'New fund',relevanceRationale:'Fund news',feedFit:'DIRECT',editorialImportance:.8,validation:{policyVersion:'editorial-requirements-v2',propositions:[{id:'p',parentFactId:'fact',text:fact.text}],dispositions:[{propositionId:'p',disposition:'REQUIRED',reasonCode:'CORE_DEVELOPMENT',justification:'Main announcement with conditions',obligationIds:[]}]}};
  return {shortlist:{...shortlist,candidates:[candidate]} as any,body:{stories:[story],obligations:[]} as any};
 };
+it('offers opt-in whole-parent references without duplicating authoritative source text in output',()=>{
+ const f=anchorFixture(),request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]},true);
+ expect(request.state.sourceAnchorPolicy).toBe(V2_WHOLE_PARENT_POLICY);
+ const validation:any=(request.schema.properties.stories.items.anyOf[0].properties as any).validation;
+ expect(validation.properties.propositions.items.properties.text).toBeUndefined();
+ expect(request.state.candidates[0].facts).toEqual(f.shortlist.candidates[0].facts);
+});
+it('reconstructs every qualifier mechanically for a whole-parent reference and rejects omitted parents',()=>{
+ const f=anchorFixture(),p=f.body.stories[0].validation.propositions[0];delete p.text;
+ const result=decodeV2EditorialResponse({value:f.body},f.shortlist,V2_WHOLE_PARENT_POLICY);
+ expect(result.stories[0].validation!.propositions[0]).toMatchObject({text:'The fund may commit 5% if approved.',start:0,end:'The fund may commit 5% if approved.'.length});
+ f.shortlist.candidates[0].facts.push({id:'second',text:'A second fact.'});
+ expect(()=>decodeV2EditorialResponse({value:f.body},f.shortlist,V2_WHOLE_PARENT_POLICY)).toThrow('SEMANTIC_EDITORIAL_REJECTED');
+});
+it.each(['known-rejected','unknown','unreported','successful','wrong-token','different-input','financial-unknown'])('only permits a conclusively settled rejection as a contract successor: %s',async mode=>{
+ const input:any={feedId:'f',kind:'COMPARATIVE_EDITORIAL_PLAN',state:{question:'old'}},intent={input,token:'token'};
+ const result:any={input,status:'DEFERRED',failure:'SEMANTIC_EDITORIAL_REJECTED',usage:{calls:1,reported:true,costUsd:.01}};
+ if(mode==='unreported')result.usage.reported=false;if(mode==='successful')result.status='SUCCEEDED';if(mode==='different-input')result.input={...input,state:{question:'other'}};
+ const store:any={read:async(_f:string,kind:string)=>kind==='semantic_intents'?intent:mode==='unknown'?undefined:result,db:{prepare:()=>({bind:()=>({first:async()=>({token:mode==='wrong-token'?'other':'token',reported:mode==='financial-unknown'?0:1,cost_usd:.01})})})}};
+ expect(await canSupersedeRejectedEditorial(store,input)).toBe(mode==='known-rejected');
+});
+it.each(['foreign','injected-text','duplicate'])('rejects %s whole-parent references',kind=>{
+ const f=anchorFixture(),p=f.body.stories[0].validation.propositions[0];delete p.text;
+ if(kind==='foreign')p.parentFactId='foreign';if(kind==='injected-text')p.text='An invented replacement.';
+ if(kind==='duplicate')f.body.stories[0].validation.propositions.push({...p,id:'second'});
+ expect(()=>decodeV2EditorialResponse({value:f.body},f.shortlist,V2_WHOLE_PARENT_POLICY)).toThrow('SEMANTIC_EDITORIAL_REJECTED');
+});
 it('derives canonical source coordinates from a unique exact same-story anchor without changing raw output',()=>{
  const f=anchorFixture(),before=JSON.stringify(f.body),result=decodeV2EditorialResponse({value:f.body},f.shortlist,V2_SOURCE_ANCHOR_POLICY);
  expect(result.stories[0].validation!.propositions[0]).toMatchObject({start:0,end:f.shortlist.candidates[0].facts[0].text.length});expect(JSON.stringify(f.body)).toBe(before);
