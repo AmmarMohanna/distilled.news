@@ -161,3 +161,31 @@ describe("generateBriefing", () => {
     expect(result.items).toHaveLength(2);
   });
 });
+
+describe("reader attention budget", () => {
+  it("tells single-pass editors the budget and chunk editors that a later pass trims", async () => {
+    const articles = [article("a1", FUND), article("a2", GENESIS, { publishedAt: "2026-10-18T10:02:00Z" })];
+    const ok = (r: { user: string }) => ({ results: [...r.user.matchAll(/^#(\d+) \[/gm)].map((m) => ({ i: Number(m[1]), verdict: "ok", issues: [] })) });
+
+    const single = scripted({ edit: [{ items: [fund()] }], verify: [ok] });
+    await generateBriefing({ ...base, feed: { ...FEED, windowMinutes: 1440 }, articles }, single.port, MODELS);
+    expect(single.calls[0].request.user).toMatch(/READING BUDGET: about 3 minutes of reading/);
+
+    const chunked = scripted({
+      edit: [{ items: [fund()] }, { items: [{ headline: "Genesis", body: "Anthropic commits $150 million.", sources: ["S2"], relation: "new", updates: null, importance: 3 }] }],
+      consolidate: [{ items: [{ from: [0], headline: fund().headline, body: fund().body, relation: "new", importance: 1 }] }],
+      verify: [ok]
+    });
+    await generateBriefing({ ...base, articles }, chunked.port, MODELS, { maxEditorChars: 300 });
+    expect(chunked.calls[0].request.user).toContain("You are seeing only part of the window");
+    const consolidation = chunked.calls.find((c) => c.stage === "consolidate")!;
+    expect(consolidation.request.user).toContain("READING BUDGET");
+    expect(consolidation.request.system).toContain("cut the least consequential");
+  });
+
+  it("scales with the window and stays short for short windows", async () => {
+    const { readingBudget } = await import("../src/prompts");
+    expect(readingBudget(30)).toMatch(/33 seconds of reading, roughly 110 words/);
+    expect(readingBudget(1440)).toMatch(/3 minutes of reading, roughly 580 words/);
+  });
+});

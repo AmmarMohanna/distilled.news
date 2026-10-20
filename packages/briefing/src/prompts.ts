@@ -7,6 +7,7 @@ export const EDITOR_SYSTEM = `You are the editor of a personal news briefing. A 
 
 SELECTING
 - Include a development only if someone following this topic would want to know it. Skip promotion, generic commentary, trivia, and anything off-topic. Importance, not volume, decides. A short window may have one item or none; a long window may have many. Never pad, never invent news to fill space.
+- Rank what remains by consequence for this reader: how many people or how much money is affected, whether something was decided or only discussed, whether it is genuinely new, and whether the reader may need to act. Routine items (a customer case study, a training programme, a small grant, an office opening, a minor feature) rank below decisions, launches with real reach, safety or legal developments, and large commitments. The user message gives a READING BUDGET for this window. Treat it as a guide to how much a busy reader can absorb: fill it with the most consequential items and leave out the rest, even when they are on-topic and well sourced. Go beyond it only when the window truly contains that many major developments.
 - Several articles about the same event become ONE item that cites all of them. Different events stay separate items even when the same company or person is involved. Use the "similar wording" hints only as a hint; judge by what actually happened.
 - The reader has already been told the "ALREADY TOLD" items. Never repeat them. If an article only restates them, skip it. If it adds something that materially changes the picture (new figure, decision, consequence, status change), write an item with relation "update" that states only what changed plus the minimum context needed to understand it, and set "updates" to the earlier item's id. If an article contradicts or corrects what the reader was told, use relation "correction", say plainly what was reported before and what is established now, and set "updates".
 - Returning no items is a correct answer when nothing is worth the reader's time.
@@ -40,12 +41,21 @@ export function describeArticles(articles: PreparedArticle[]): string {
     .join("\n\n---\n\n");
 }
 
+/** Reader attention for one briefing: a guide to selectivity that grows with the window, never a quota. */
+export function readingBudget(windowMinutes: number): string {
+  const seconds = Math.min(420, 30 + windowMinutes * 0.1);
+  const words = Math.round(((seconds / 60) * 200) / 10) * 10;
+  return `about ${seconds < 90 ? Math.round(seconds) + " seconds" : Math.round(seconds / 30) / 2 + " minutes"} of reading, roughly ${words} words in total across all items`;
+}
+
 export function editorUser(input: {
   feed: FeedSpec;
   windowStart: string;
   windowEnd: string;
   prior: PriorItem[];
   articles: PreparedArticle[];
+  /** True when this call sees only part of the window; a later pass trims across all parts. */
+  partial?: boolean;
 }): string {
   const { feed } = input;
   return [
@@ -53,6 +63,9 @@ export function editorUser(input: {
     `WRITE IN: ${LANGUAGE_NAME[feed.language]}`,
     feed.style ? `STYLE PREFERENCE: ${feed.style}` : "",
     `WINDOW: ${input.windowStart} to ${input.windowEnd} (${feed.windowMinutes} minutes)`,
+    input.partial
+      ? `READING BUDGET FOR THE WHOLE WINDOW: ${readingBudget(feed.windowMinutes)}. You are seeing only part of the window's articles; a later editor will trim across all parts, so propose the items this part deserves, rank them honestly with importance, and do not pad.`
+      : `READING BUDGET: ${readingBudget(feed.windowMinutes)}`,
     `\nALREADY TOLD TO THE READER:\n${describePrior(input.prior)}`,
     `\nNEW ARTICLES (${input.articles.length}):\n${describeArticles(input.articles)}`
   ]
@@ -63,7 +76,8 @@ export function editorUser(input: {
 export const CONSOLIDATE_SYSTEM = `You are the senior editor merging drafts. The drafts below were written independently from different parts of the same news window, so the same event may appear twice, and some drafts may repeat what the reader was already told.
 - Merge drafts that describe the same event into one item. Write the merged body only from the drafts' own text; add no fact that is not in them. Keep every distinct, material fact, attribution and hedge.
 - Drop drafts that only repeat the ALREADY TOLD items.
-- Keep every other draft unchanged.
+- You are the only editor who sees every draft of the window. Rank them by consequence for the reader (scale, decisions over discussion, genuine novelty, need to act, safety or legal weight) and cut the least consequential until the briefing fits the READING BUDGET. Routine items (case studies, training programmes, small grants, office openings, minor features) go first. Keep more than the budget only when the window truly holds that many major developments. A cut story is not delivered, so cut deliberately and never cut a decision, a safety or legal development, or a large commitment to make room for routine news.
+- Keep every surviving draft's facts unchanged.
 - Order by importance, most important first.
 OUTPUT: one JSON object, nothing else:
 {"items":[{"from":[0,3],"headline":"...","body":"...","relation":"new|update|correction","updates":"id or null","importance":1}]}
@@ -73,6 +87,8 @@ export function consolidateUser(input: { feed: FeedSpec; prior: PriorItem[]; dra
   return [
     `READER INTEREST: ${input.feed.interest}`,
     `WRITE IN: ${LANGUAGE_NAME[input.feed.language]}`,
+    `WINDOW LENGTH: ${input.feed.windowMinutes} minutes`,
+    `READING BUDGET: ${readingBudget(input.feed.windowMinutes)}`,
     `\nALREADY TOLD TO THE READER:\n${describePrior(input.prior)}`,
     `\nDRAFTS:\n${input.drafts
       .map((d, i) => `#${i} [${d.relation}${d.updates ? ` of ${d.updates}` : ""}, importance ${d.importance}] ${d.headline}: ${d.body}`)

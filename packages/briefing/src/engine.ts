@@ -103,7 +103,8 @@ async function edit(
   models: BriefingModels,
   input: BriefingInput,
   articles: PreparedArticle[],
-  prior: PriorItem[]
+  prior: PriorItem[],
+  partial = false
 ): Promise<Draft[]> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -113,7 +114,7 @@ async function edit(
     {
       model: models.editor,
       system: EDITOR_SYSTEM,
-      user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles }),
+      user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial }),
       maxTokens: 4000
     },
     (raw) => parseDrafts(raw, known, priorIds)
@@ -353,7 +354,7 @@ export async function generateBriefing(
   if (chunks.length === 1) {
     drafts = await timed("edit", () => edit(port, meter, models, input, prepared, prior));
   } else {
-    const parts = await timed("edit", () => Promise.all(chunks.map((chunk) => edit(port, meter, models, input, chunk, prior))));
+    const parts = await timed("edit", () => Promise.all(chunks.map((chunk) => edit(port, meter, models, input, chunk, prior, true))));
     const merged = parts.flat();
     drafts = merged.length > 1 ? await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior)) : merged;
   }
