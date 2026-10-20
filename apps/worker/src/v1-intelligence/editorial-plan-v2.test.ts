@@ -45,12 +45,12 @@ it('reconstructs every qualifier mechanically for a whole-parent reference and r
  f.shortlist.candidates[0].facts.push({id:'second',text:'A second fact.'});
  expect(()=>decodeV2EditorialResponse({value:f.body},f.shortlist,V2_WHOLE_PARENT_POLICY)).toThrow('SEMANTIC_EDITORIAL_REJECTED');
 });
-it.each(['known-rejected','unknown','unreported','successful','wrong-token','different-input','financial-unknown'])('only permits a conclusively settled rejection as a contract successor: %s',async mode=>{
+it.each(['known-rejected','known-length','unknown','unreported','successful','wrong-token','different-input','financial-unknown'])('only permits a conclusively settled rejection as a contract successor: %s',async mode=>{
  const input:any={feedId:'f',kind:'COMPARATIVE_EDITORIAL_PLAN',state:{question:'old'}},intent={input,token:'token'};
  const result:any={input,status:'DEFERRED',failure:'SEMANTIC_EDITORIAL_REJECTED',usage:{calls:1,reported:true,costUsd:.01}};
- if(mode==='unreported')result.usage.reported=false;if(mode==='successful')result.status='SUCCEEDED';if(mode==='different-input')result.input={...input,state:{question:'other'}};
+ if(mode==='known-length')result.failure='SEMANTIC_MODEL_OUTPUT_CONTINUATION_REQUIRED';if(mode==='unreported')result.usage.reported=false;if(mode==='successful')result.status='SUCCEEDED';if(mode==='different-input')result.input={...input,state:{question:'other'}};
  const store:any={read:async(_f:string,kind:string)=>kind==='semantic_intents'?intent:mode==='unknown'?undefined:result,db:{prepare:()=>({bind:()=>({first:async()=>({token:mode==='wrong-token'?'other':'token',reported:mode==='financial-unknown'?0:1,cost_usd:.01})})})}};
- expect(await canSupersedeRejectedEditorial(store,input)).toBe(mode==='known-rejected');
+ expect(await canSupersedeRejectedEditorial(store,input)).toBe(mode==='known-rejected'||mode==='known-length');
 });
 it.each(['foreign','injected-text','duplicate'])('rejects %s whole-parent references',kind=>{
  const f=anchorFixture(),p=f.body.stories[0].validation.propositions[0];delete p.text;
@@ -98,4 +98,22 @@ it('requires one keyed decision for every parent and mechanically reconstructs c
  expect(decoded.stories[0].validation!.propositions[0].text).toBe(f.shortlist.candidates[0].facts[0].text);
  delete (body.stories.candidate_1.validation.factDecisions as any).fact_1;
  expect(()=>decodeV2EditorialResponse({value:body},f.shortlist,request.state.sourceAnchorPolicy)).toThrow('SEMANTIC_EDITORIAL_REJECTED');
+});
+
+it('shares complete-parent decision definitions while requiring every parent slot',()=>{
+ const f=anchorFixture();f.shortlist.candidates[0].facts=Array.from({length:80},(_,i)=>({id:'fact-'+i,text:'A supported fact with its original qualifier.'}));
+ const request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]},'COMPLETE');
+ expect(JSON.stringify(request.schema).length).toBeLessThan(30000);
+ const decisions:any=(request.schema.properties.stories as any).properties.candidate_1.anyOf[0].properties.validation.properties.factDecisions;
+ expect(decisions.required).toHaveLength(80);
+});
+
+it('uses existing compact references for complete-parent semantic decisions without changing source text',()=>{
+ const f=anchorFixture(),request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]},'COMPLETE_COMPACT');
+ expect(request.state.candidates[0].facts[0].id).not.toBe('fact');expect(request.state.candidates[0].facts[0].text).toBe(f.shortlist.candidates[0].facts[0].text);
+ const target=request.state.candidates[0].targetVersionId,id=request.state.candidates[0].facts[0].id;
+ const story=f.body.stories[0];delete story.validation;delete story.mustIncludeFactIds;story.targetVersionId=target;story.newUnderstandingFactIds=[id];
+ const raw:any={stories:{candidate_1:{...story,validation:{factDecisions:{fact_1:{disposition:'REQUIRED',reasonCode:'CORE_DEVELOPMENT',justification:'Core announcement and conditions',obligationIds:[]}}}}},obligations:[]};
+ expect(decodeV2EditorialResponse({value:raw},f.shortlist,request.state.sourceAnchorPolicy).stories[0].mustIncludeFactIds).toEqual(['fact']);
+ raw.stories.candidate_1.newUnderstandingFactIds=['foreign'];expect(()=>decodeV2EditorialResponse({value:raw},f.shortlist,request.state.sourceAnchorPolicy)).toThrow();
 });

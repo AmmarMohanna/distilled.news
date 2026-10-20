@@ -47,7 +47,7 @@ export function writerWire(input:SynthesisWriterInput){
  return {payload,schema,decode,repair};
 }
 /** One fact inventory and source context per story, not per claim. */
-export function verificationWire(claims:VerificationClaim[],options:{requireReaderNovelty?:boolean;requireFullEntailment?:boolean;validationContract?:import('./editorial-requirements').EditorialContract}={}){
+export function verificationWire(claims:VerificationClaim[],options:{requireReaderNovelty?:boolean;requireFullEntailment?:boolean;readerClaimReferences?:boolean;validationContract?:import('./editorial-requirements').EditorialContract}={}){
  const factIds=new Map<string,string>(),claimIds=new Map<string,string>(),obligationIds=new Map<string,string>(),historyIds=new Map<string,string>();
  const alias=(map:Map<string,string>,id:string,prefix:string)=>{let key=[...map].find(([,original])=>original===id)?.[0];if(!key){key=`${prefix}_${map.size+1}`;map.set(key,id);}return key;};
  const factOwners=new Map<string,string>(),occurrences=new Map<string,string>();
@@ -85,7 +85,7 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
  const semanticSchema=schema.properties.semanticChecks as {items:{properties:{readerSpans:Record<string,unknown>}}};
  semanticSchema.items.properties.readerSpans.items=obj({claimId:{type:'string',enum:[...claimIds.keys()]}});
  if(options.validationContract==='EVIDENCE_GROUNDED_V2'){
-  semanticSchema.items.properties.readerSpans.items=obj({claimId:{type:'string',enum:[...claimIds.keys()]},text:{type:'string',minLength:1}});
+  if(!options.readerClaimReferences)semanticSchema.items.properties.readerSpans.items=obj({claimId:{type:'string',enum:[...claimIds.keys()]},text:{type:'string',minLength:1}});
   const item=semanticSchema.items as unknown as {properties:Record<string,unknown>;required:string[]};
   for(const key of ['sourceSupported','readerEntailsProposition']){item.properties[key]={type:'boolean'};item.required.push(key)}
  }
@@ -103,12 +103,13 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
   const offered=z.array(z.record(z.string(),z.unknown())).parse((raw as Record<string,unknown>).semanticChecks??[]).map(c=>{const value={...c};for(const [old,name] of Object.entries(preservedNames))if(name in value){if(old in value)throw new Error('AMBIGUOUS_VERIFIER_FACET');value[old]=value[name];delete value[name];}return value;});
   if(options.validationContract!=='EVIDENCE_GROUNDED_V2'&&offered.some(c=>'sourceSupported' in c||'readerEntailsProposition' in c||Array.isArray(c.readerSpans)&&c.readerSpans.some((s:unknown)=>s&&typeof s==='object'&&('start' in s||'end' in s))))throw Error('UNRECOGNIZED_VERIFIER_FIELD');
   if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&offered.some(c=>Array.isArray(c.readerSpans)&&c.readerSpans.some((s:unknown)=>s&&typeof s==='object'&&('start' in s||'end' in s))))throw Error('INCOMPATIBLE_READER_COORDINATE_CONTRACT');
+  if(options.readerClaimReferences&&offered.some(c=>Array.isArray(c.readerSpans)&&c.readerSpans.some((s:any)=>s&&Object.keys(s).some(k=>k!=='claimId'))))throw Error('INCOMPATIBLE_READER_REFERENCE_CONTRACT');
   const semanticChecks=z.array(check).parse(offered).map(c=>{const factId=factIds.get(c.factId);if(!factId||seen.has(c.factId))throw new Error('UNRECOGNIZED_VERIFIER_ID');seen.add(c.factId);const candidateId=factOwners.get(c.factId)!,summary=options.validationContract==='EVIDENCE_GROUNDED_V2'?{preservedInSummary:preservedAliases.has(c.factId)}:{};
    let invalidWitness=false;
    const readerSpans=c.readerSpans.flatMap(span=>{
     const claimId=claimIds.get(span.claimId),claim=claims.find(x=>x.id===claimId);
     const storyFacts=claim?groups.get(claim.candidateId??claim.id)?.flatMap(c=>options.validationContract==='EVIDENCE_GROUNDED_V2'?[...(c.requiredFacts??[]),...(c.allowedFacts??[])]:c.requiredFacts??[]):undefined;
-    let text=options.validationContract==='EVIDENCE_GROUNDED_V2'?span.text:span.text??claim?.text,start=claim&&text?claim.text.indexOf(text):-1;
+    let text=options.readerClaimReferences?claim?.text:options.validationContract==='EVIDENCE_GROUNDED_V2'?span.text:span.text??claim?.text,start=claim&&text?claim.text.indexOf(text):-1;
     let ambiguous=Boolean(claim&&text&&start>=0&&claim.text.indexOf(text,start+1)>=0);
     if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&claim&&text&&start<0){
      // ASCII presentation case preserves UTF-16 length. No whitespace, quote,

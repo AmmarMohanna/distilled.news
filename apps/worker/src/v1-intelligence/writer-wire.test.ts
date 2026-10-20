@@ -1,6 +1,17 @@
 import {it,expect} from 'vitest';
 import {writerWire,verificationWire} from './writer-wire';
 import type {SynthesisWriterInput} from './publication';
+it('binds V2 reference witnesses to actual reader bytes while preserving independent semantic decisions',()=>{
+ const fact={id:'f',text:'The company is developing agents.',evidenceRevisionIds:['source']},text='The company is developing agents to design rare test cases.';
+ const claims=[{id:'reader',candidateId:'story',text,support:[],context:[],requiredFacts:[fact],allowedFacts:[fact]}];
+ const wire=verificationWire(claims,{validationContract:'EVIDENCE_GROUNDED_V2',readerClaimReferences:true});
+ const raw:any={supportedClaimIds:['claim_1'],preservedFactIds:['fact_1'],semanticChecks:[{factId:'fact_1',communicated:true,sourceSupported:true,readerEntailsProposition:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'The actual reader claim retains development state.',readerSpans:[{claimId:'claim_1'}]}]};
+ expect(wire.decode(raw).semanticChecks[0]).toMatchObject({communicated:true,readerSpans:[{claimId:'reader',text,start:0,end:text.length}]});
+ const negative=structuredClone(raw);negative.semanticChecks[0].readerEntailsProposition=false;expect(wire.decode(negative).semanticChecks[0].readerEntailsProposition).toBe(false);
+ const sourceCopy=structuredClone(raw);sourceCopy.semanticChecks[0].readerSpans[0].text=fact.text;expect(()=>wire.decode(sourceCopy)).toThrow('INCOMPATIBLE_READER_REFERENCE_CONTRACT');
+ const foreign=structuredClone(raw);foreign.semanticChecks[0].readerSpans[0].claimId='claim_999';expect(wire.decode(foreign).semanticChecks[0].communicated).toBe(false);
+ const absent=structuredClone(raw);absent.semanticChecks[0].readerSpans=[];expect(wire.decode(absent).semanticChecks[0].communicated).toBe(false);
+});
 it('v2 accepts exact same-story reader witnesses for optional facts actually communicated',()=>{
  const fact={id:'optional',text:'The company was founded in 2010.',evidenceRevisionIds:['r']};
  const claims=[{id:'c',candidateId:'s',text:fact.text,support:[],context:[],requiredFacts:[],allowedFacts:[fact]}];

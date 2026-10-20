@@ -1,3 +1,4 @@
+import {recoveredPublicationResponse} from './publication-response-recovery';
 import {recoveryBinding} from './model-spending-recovery';
 import {ASYNC_MODEL_CALL_MS,ASYNC_OPERATION_LEASE_MS} from './operation-timing';
 import {withLatency,measureLatency,countLatency,recordModelReceipt} from './latency';
@@ -55,7 +56,7 @@ async function runSemanticOperation<T>(store:V1FeedStore,input:SemanticOperation
  const acquired=await measureLatency('SPENDING_RESERVATION',()=>feedTransact(store,input.feedId,async tx=>{
   await assertInputs(tx,input);
   if(recoverDenied&&await tx.read('semantic_intents',originalId))throw new HandoffError('SCOPE_DENIED');
-  const prior=await tx.read<SemanticOperationResult<T>>('semantic_results',id);if(prior)return {result:prior};
+  const prior=await tx.read<SemanticOperationResult<T>>('semantic_results',id);if(prior)return {result:await recoveredPublicationResponse(store,prior)};
   const settlement=await tx.read<SemanticOperationResult<T>&{token:string}>('semantic_settlements',id),settledIntent=settlement?await tx.read<SemanticIntent>('semantic_intents',id):undefined;
   if(settlement?.usage.reported&&settlement.token===settledIntent?.token){const {token:_,...result}=settlement;await tx.write('semantic_results',id,result);return {result}}
   if(isSemanticProcessing(input)){const reuse=await findSemanticReuse<T>(tx,input,compatibilityHash);if(reuse)return {result:reuse}}

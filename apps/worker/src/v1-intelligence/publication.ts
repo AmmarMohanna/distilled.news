@@ -1,3 +1,4 @@
+import {recoveredPublicationResponse} from './publication-response-recovery';
 import {resolvePropositionWork,type PropositionWork} from './editorial-proposition-work';
 import {editorialContract,projectEditorialPropositions,type EditorialContract} from './editorial-requirements';
 import {assessWriterDraft} from './publication-prechecks';
@@ -43,7 +44,7 @@ export type WriterFact=Omit<ApprovedWriterFact,'claimMentionIds'|'evidenceRevisi
 export interface SynthesisWriterInput {feed:SynthesisInput['feed'];selectionId:string;window?:SynthesisInput['window'];editorialPlan?:SynthesisInput['editorialPlan'];stories:{candidate:Pick<BriefingCandidate,'id'|'targetType'|'targetVersionId'>;plan?:Omit<SelectedPlanStory,'facts'>;editorial?:EditorialDecision;approvedFacts?:WriterFact[];approvedSpans?:ClaimSupport[];evidence:{id:string;body?:string;language?:string;publisherId?:string}[]}[]}
 export interface VerificationClaim {id:string;candidateId?:string;text:string;support:ClaimSupport[];context:{evidenceRevisionId:string;title?:string;text:string;truncated:boolean;publisherId?:string}[];requiredFacts?:PreservationFact[];allowedFacts?:PreservationFact[];previousLedgerFacts?:string[];previousReaderClaims?:ShortlistRecord['ledger'];newUnderstandingFacts?:PreservationFact[];correctionObligations?:ShortlistRecord['obligations']}
 export interface BriefingModelPort {
- model:string;provider:string;providerRoute?:string;validationContract?:EditorialContract;maxCallCostUsd:number;usage?():ModelUsage;admission?(payload:unknown,phase?:string):ModelAdmission;phaseIdentity?(phase:string):{model:string;provider:string;providerRoute?:string};promptVersion?:string;requiresFullEntailment?:boolean;
+ model:string;provider:string;providerRoute?:string;verificationProtocolVersion?:string;validationContract?:EditorialContract;maxCallCostUsd:number;usage?():ModelUsage;admission?(payload:unknown,phase?:string):ModelAdmission;phaseIdentity?(phase:string):{model:string;provider:string;providerRoute?:string};promptVersion?:string;requiresFullEntailment?:boolean;
  synthesize(input:SynthesisWriterInput,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
  synthesisPayload?(input:SynthesisWriterInput):unknown;
  repair?(input:SynthesisWriterInput,draft:BriefingDraft,feedback:WriterFeedback,limits:{maxOutputTokens:number;signal:AbortSignal}):Promise<{draft:BriefingDraft;usage:ModelUsage}>;
@@ -246,7 +247,7 @@ async function requireJob(tx:FeedTransaction,id:string,token:string,now:string):
  if(!job || job.state!=='RUNNING' || job.token!==token || Date.parse(job.leaseUntil)<=Date.parse(now)) throw new HandoffError('TEMPORARY_UNAVAILABLE');return job;
 }
 /** The port gets selected stored objects only. Durable call intents consume budget before any provider call. */
-export async function publishSelection(store:V1FeedStore,feedId:string,selectionId:string,options:{now():string;model?:BriefingModelPort;requireModel?:boolean;validationContract?:EditorialContract}):Promise<BriefingEditionRecord> {
+export async function publishSelection(store:V1FeedStore,feedId:string,selectionId:string,options:{now():string;model?:BriefingModelPort;requireModel?:boolean;validationContract?:EditorialContract;reviewedDraftId?:string}):Promise<BriefingEditionRecord> {
  const contract=editorialContract(options.validationContract),v2=contract==='EVIDENCE_GROUNDED_V2';
  if(v2&&(!options.model?.verify||!options.model.admission||options.model.validationContract!==contract))throw new ModelSpendingWait('V2_VERIFIER_UNAVAILABLE');
  const selection=await store.read<SelectionRecord>(feedId,'selections',selectionId);if(!selection) throw new HandoffError('INVALID_REQUEST');
@@ -350,7 +351,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    const job=await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);
    const prior=await tx.read('model_executions',saved.id);
    await persistModelResult(tx,phase,resultKey,result);
-   if(v2&&phase==='GROUNDING'){const manifest=verificationContexts.get(resultKey),intent=await tx.read<any>('semantic_intents',saved.id),settlement=await tx.read<any>('semantic_settlements',saved.id);if(!manifest||!intent?.token||settlement?.token!==intent.token||settlement.status!=='SUCCEEDED')throw new ModelSpendingWait('V2_VERIFICATION_RECEIPT_INCOMPATIBLE');await tx.write('verification_manifests',resultKey,{id:resultKey,feedId,manifest,paid:{operationId:saved.id,receiptOperationId:saved.id,reservationId:'semantic_intents:'+saved.id,intentToken:intent.token,settlementToken:settlement.token,resultHash:await sha256(canonicalJson(result))}});}
+   if(v2&&phase==='GROUNDING'){const manifest=verificationContexts.get(resultKey),intent=await tx.read<any>('semantic_intents',saved.id),rawSettlement=await tx.read<any>('semantic_settlements',saved.id),settlement=rawSettlement?await recoveredPublicationResponse(store,rawSettlement):undefined;if(!manifest||!intent?.token||settlement?.token!==intent.token||settlement.status!=='SUCCEEDED')throw new ModelSpendingWait('V2_VERIFICATION_RECEIPT_INCOMPATIBLE');await tx.write('verification_manifests',resultKey,{id:resultKey,feedId,manifest,paid:{operationId:saved.id,receiptOperationId:saved.id,reservationId:'semantic_intents:'+saved.id,intentToken:intent.token,settlementToken:settlement.token,resultHash:await sha256(canonicalJson(result))}});}
    if(!prior)await tx.write('model_executions',saved.id,{id:saved.id,feedId,editionId,phase,model:model.model,provider:model.provider,status:'SUCCEEDED',...usage,latencyMs:saved.latencyMs,createdAt:options.now()});
    await tx.write('synthesis_jobs',editionId,{...job,pendingCall:undefined,callsUsed:job.callsUsed+(prior?0:1),cost:job.cost+(prior?0:usage.cost),tokensIn:job.tokensIn+(prior?0:usage.tokensIn),tokensOut:job.tokensOut+(prior?0:usage.tokensOut)});
   });return result;
@@ -443,6 +444,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    if(!prior)await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await assertCommunicationCurrent(tx,selection);await tx.write('verification_feedback',id,feedback)});
    throw new DraftVerificationError(feedback);
   };
+  const validationRecordKey=(draftKey:string)=>JSON.stringify([draftKey,'publication-validation-v2',...(options.model?.verificationProtocolVersion?[options.model.verificationProtocolVersion]:[])]);
   const verifyDraft=async(storedDraft:StoredDraft,draftKey:string):Promise<GroundingResult>=>{
    const assessment=await measureLatency('PUBLICATION_PRECHECKS',async()=>assessWriterDraft(input,storedDraft.draft,s=>s.plan?approvedSupportSpans(s):s.evidence.map(e=>({evidenceRevisionId:e.id,quote:e.body??''})),contract,storedDraft.provider!=='NONE'&&Boolean(options.model?.verify)));
    const problems=assessment.blockingIssues;
@@ -468,13 +470,13 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    const packets=partitionVerification(claims,packet=>options.model!.admission!(options.model!.verificationPayload?.(packet)??packet,'GROUNDING').fits),results:{claims:VerificationClaim[];result:VerificationOutcome}[]=[];
    countLatency('validationPacketsPlanned',packets.length);
    for(const [index,packet]of packets.entries()){
-    const key=JSON.stringify([draftKey,'verification-packet-v2',index]),payload=options.model!.verificationPayload?.(packet)??packet;
+    const key=JSON.stringify([draftKey,'verification-packet-v2',...(options.model?.verificationProtocolVersion?[options.model.verificationProtocolVersion]:[]),index]),payload=options.model!.verificationPayload?.(packet)??packet;
     countLatency('validationRequestBytes',new TextEncoder().encode(JSON.stringify(payload)).byteLength);
-    const manifest:VerificationManifest={contract:'EVIDENCE_GROUNDED_V2',feedId,feedRevision:selection.feedRevision,evidenceHash:await sha256(canonicalJson(input.stories.map(s=>s.evidence))),selectionHash:await sha256(canonicalJson({selection,input})),draftHash:await sha256(JSON.stringify(storedDraft.draft)),questionHash:await sha256(canonicalJson({packet,payload,requestHash:options.model!.verificationRequestHash?await options.model!.verificationRequestHash(packet,options.model!.admission!(payload,'GROUNDING').maxOutputTokens):await sha256(JSON.stringify(payload))})),promptVersion:options.model!.promptVersion!,packetSchemaVersion:'verification-reader-anchor-v5',semanticPolicy:'semantic-publication-v2',editorialContractVersion:'editorial-requirements-v2',model:options.model!.phaseIdentity?.('GROUNDING').model??options.model!.model,provider:options.model!.phaseIdentity?.('GROUNDING').provider??options.model!.provider,providerRoute:options.model!.phaseIdentity?.('GROUNDING').providerRoute??options.model!.providerRoute??options.model!.provider,outputLanguage:input.feed.outputLanguage};
+    const manifest:VerificationManifest={contract:'EVIDENCE_GROUNDED_V2',feedId,feedRevision:selection.feedRevision,evidenceHash:await sha256(canonicalJson(input.stories.map(s=>s.evidence))),selectionHash:await sha256(canonicalJson({selection,input})),draftHash:await sha256(JSON.stringify(storedDraft.draft)),questionHash:await sha256(canonicalJson({packet,payload,requestHash:options.model!.verificationRequestHash?await options.model!.verificationRequestHash(packet,options.model!.admission!(payload,'GROUNDING').maxOutputTokens):await sha256(JSON.stringify(payload))})),promptVersion:options.model!.promptVersion!,packetSchemaVersion:options.model!.verificationProtocolVersion??'verification-reader-anchor-v5',semanticPolicy:'semantic-publication-v2',editorialContractVersion:'editorial-requirements-v2',model:options.model!.phaseIdentity?.('GROUNDING').model??options.model!.model,provider:options.model!.phaseIdentity?.('GROUNDING').provider??options.model!.provider,providerRoute:options.model!.phaseIdentity?.('GROUNDING').providerRoute??options.model!.providerRoute??options.model!.provider,outputLanguage:input.feed.outputLanguage};
     verificationContexts.set(key,manifest);
     let result=await store.read<VerificationOutcome>(feedId,'verification_results',key);
     if(!result){const admission=options.model!.admission!(payload,'GROUNDING');countLatency('validationReservationCeilingUsd',admission.reservationCostUsd);await measureLatency('V2_SEMANTIC_VERIFICATION',()=>callModel('GROUNDING',payload,limits=>options.model!.verify!(packet,limits),key,{contract,manifest}));result=await store.read<VerificationOutcome>(feedId,'verification_results',key);}else countLatency('validationCachedPackets');
-    const link=await store.read<any>(feedId,'verification_manifests',key),receipt=link?.paid?await store.read<any>(feedId,'semantic_settlements',link.paid.operationId):undefined,intent=link?.paid?await store.read<any>(feedId,'semantic_intents',link.paid.operationId):undefined;
+    const link=await store.read<any>(feedId,'verification_manifests',key),rawReceipt=link?.paid?await store.read<any>(feedId,'semantic_settlements',link.paid.operationId):undefined,receipt=rawReceipt?await recoveredPublicationResponse(store,rawReceipt):undefined,intent=link?.paid?await store.read<any>(feedId,'semantic_intents',link.paid.operationId):undefined;
     if(!result||!receipt?.value||!intent?.token||receipt.token!==intent.token||receipt.status!=='SUCCEEDED'||canonicalJson(receipt.input?.state?.publicationScope?.manifest)!==canonicalJson(manifest)||receipt.input?.model!==(options.model!.phaseIdentity?.('GROUNDING').model??options.model!.model)||!verificationCompatibility(link?{manifest:link.manifest,paid:link.paid}:undefined,manifest,await sha256(canonicalJson(receipt.value))))throw new ModelSpendingWait('V2_VERIFICATION_RECEIPT_INCOMPATIBLE');
     // Persisted reduced projection is checked against the authoritative receipt,
     // rather than allowing an edited projection to acquire the old approval.
@@ -484,7 +486,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
     results.push({claims:packet,result});
    }
    const {merged,decision}=await measureLatency('V2_VERDICT_REDUCTION',async()=>decidePublicationPackets(claims,results));
-   const id=JSON.stringify([draftKey,'publication-validation-v2']);
+   const id=validationRecordKey(draftKey);
    await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);if(!await tx.read('publication_validation_results',id))await tx.write('publication_validation_results',id,{id,feedId,editionId,draftKey,contract,...decision,createdAt:options.now()});});
    if(decision.status==='UNRESOLVED')throw new ModelSpendingWait(decision.reasons[0]??'V2_SEMANTIC_UNRESOLVED');
    if(decision.status==='REJECT')await rejectDraft(draftKey,decision.reasons.map(code=>({code})));
@@ -493,7 +495,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    if(error instanceof DraftVerificationError)throw error;
    if(error instanceof HandoffError&&!(error instanceof ModelSpendingWait)&&!(error instanceof PublicationOperationFailure))throw error;
    const reason=error instanceof ModelSpendingWait?error.reason:error instanceof PublicationOperationFailure?'V2_KNOWN_VERIFIER_FAILURE':'V2_VERIFICATION_UNRESOLVED';
-   await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);if(!await tx.read('publication_validation_results',JSON.stringify([draftKey,'publication-validation-v2']))){const id=JSON.stringify([draftKey,'validation-unresolved-v2',reason]);if(!await tx.read('publication_validation_results',id))await tx.write('publication_validation_results',id,{id,feedId,editionId,draftKey,contract,status:'UNRESOLVED',reasons:[reason],readerSpans:[],createdAt:options.now()});}});
+   await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await selectionInput(tx,selection,adaptiveExecution);if(!await tx.read('publication_validation_results',validationRecordKey(draftKey))){const id=JSON.stringify([draftKey,'validation-unresolved-v2',reason]);if(!await tx.read('publication_validation_results',id))await tx.write('publication_validation_results',id,{id,feedId,editionId,draftKey,contract,status:'UNRESOLVED',reasons:[reason],readerSpans:[],createdAt:options.now()});}});
    if(error instanceof ModelSpendingWait)throw error;
    throw new ModelSpendingWait(reason);
   }}
@@ -611,11 +613,16 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
   let draftKey=selectionId,grounding:GroundingResult|undefined;
   const repaired=await store.read<StoredDraft>(feedId,'drafts',repairKey);
   if(repaired){storedDraft=repaired;draftKey=repairKey;}
+  if(options.reviewedDraftId){
+   const reviewed=await store.read<StoredDraft>(feedId,'drafts',options.reviewedDraftId),audit=await store.read<any>(feedId,'publication_response_recoveries',options.reviewedDraftId);
+   if(store.spendingAccountId!=='local-news-mirror'||!reviewed||reviewed.sourceDraftId!==storedDraft.id||audit?.scope!=='INDEPENDENT_REVIEW_UNSUPPORTED_QUALIFIER_REMOVAL'||audit.originalHash!==await sha256(canonicalJson(storedDraft))||audit.correctedHash!==await sha256(canonicalJson(reviewed)))throw new HandoffError('SCOPE_DENIED');
+   storedDraft=reviewed;draftKey=reviewed.id;
+  }
   for(let attempt=0;attempt<2;attempt++){
    try {grounding=await verifyDraft(storedDraft,draftKey);break;}
    catch(error){
     if(!(error instanceof DraftVerificationError)||storedDraft.provider==='NONE'||!input.editorialPlan)throw error;
-    if(draftKey===repairKey){
+    if(draftKey===repairKey||options.reviewedDraftId){
      if(v2||!adaptiveExecution||!options.model?.verify)throw error;
      // Only deterministic, candidate-owned precheck failures can isolate an
      // independent sibling. Semantic rejection and ambiguous ownership stay closed.
@@ -664,10 +671,10 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    }
    if(!adaptiveExecution&&(job.tokensIn>selection.budget.maxInputTokens || job.tokensOut>selection.budget.maxOutputTokens || job.cost>selection.budget.maxCostUsd || Date.now()-started>selection.budget.maxWallClockMs)) throw new HandoffError('INVALID_REQUEST');
    const edition:BriefingEditionRecord={provisionalSemanticStates,id:editionId,feedId,feedRevision:selection.feedRevision,windowStart:selection.window.start,windowEnd:selection.window.end,language:input.feed.outputLanguage,selectionId,selectedCandidateIds:usedCandidates,eventVersionIds,storylineVersionIds,evidenceRevisionIds,stories:finalGrounding.stories,generation:{model:finalDraft.model,provider:finalDraft.provider,promptVersion:finalDraft.promptVersion??'selected-evidence-v1',routerVersion:'stored-evidence-only-v1',tokensIn:job.tokensIn,tokensOut:job.tokensOut,cost:job.cost,latencyMs:Date.now()-started,repairCount:draftKey===repairKey||finalDraft.sourceDraftId===repairKey?1:0,draftId:draftKey,verificationId:draftKey,usageConfirmed:(await tx.list<{id:string;editionId:string;confirmed:boolean}>('model_executions')).filter(e=>e.editionId===editionId).every(e=>e.confirmed)},selectionPolicyVersion:selection.policyVersion,groundingPolicyVersion:finalGrounding.policyVersion,createdAt:options.now()};
-   if(v2){const decision=await tx.read<any>('publication_validation_results',JSON.stringify([draftKey,'publication-validation-v2']));if(decision?.status!=='ACCEPT'||decision.editionId!==editionId)throw new ModelSpendingWait('V2_ACCEPTANCE_MISSING');}
+   if(v2){const decision=await tx.read<any>('publication_validation_results',validationRecordKey(draftKey));if(decision?.status!=='ACCEPT'||decision.editionId!==editionId)throw new ModelSpendingWait('V2_ACCEPTANCE_MISSING');}
    await tx.write('editions',editionId,edition);await tx.write('publication_status',editionId,{id:editionId,feedId,status:'PUBLISHED',publishedAt:edition.createdAt});
    if(v2){
-    const accepted=await tx.read<any>('publication_validation_results',JSON.stringify([draftKey,'publication-validation-v2']));
+    const accepted=await tx.read<any>('publication_validation_results',validationRecordKey(draftKey));
     const pending=(await tx.list<PropositionWork>('editorial_deferred_work')).filter(w=>w.validationContract==='EVIDENCE_GROUNDED_V2');
     for(const story of input.stories){const readerSpans=accepted.readerSpans.filter((s:any)=>s.candidateId===story.candidate.id),proofId=JSON.stringify([draftKey,'candidate-propositions-v2',story.candidate.id]);
      if(!await tx.read('publication_validation_results',proofId))await tx.write('publication_validation_results',proofId,{id:proofId,feedId,editionId,contract,status:'ACCEPT',candidateId:story.candidate.id,targetVersionId:story.candidate.targetVersionId,propositionIds:[...new Set(readerSpans.map((s:any)=>s.propositionId))],readerSpans});

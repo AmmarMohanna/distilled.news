@@ -35,7 +35,7 @@ export function compactEditorialInput<T extends Pick<ShortlistRecord,'candidates
  // Compile source capabilities outside the paid input; references keep their
  // original registration order and retained wire frames remain byte-identical.
  const contextFactCapabilities=Object.fromEntries(state.candidates.map((c,i)=>[candidateIds[i],editorialContextFacts(c,state).map(f=>forward.get(f.id)!)]));
- return {state:{...value,...(inputCompaction?{inputCompaction}:{})},contextFactCapabilities,encode,decode,encodeKeyed,decodeKeyed};
+ return {state:{...value,...(inputCompaction?{inputCompaction}:{})},contextFactCapabilities,encode,decode,encodeKeyed,decodeKeyed,encodeReference:(id:string)=>forward.get(id),decodeReference:(id:string)=>reverse.get(id)};
 }
 /** Exact duplicated history prose may be elided only from new oversized wire
  * inputs, never from retained ledger records or an existing call identity. */

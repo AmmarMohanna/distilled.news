@@ -1,7 +1,7 @@
 import {structuredCompletionBody,cloudflareCompletionBody} from '../ai';
 import {inspectProviderSchema,type SchemaAdmission} from '../provider-schema';
 export interface ModelCapability {contextTokens:number;maxOutputTokens:number;inputUsdPerToken:number;outputUsdPerToken:number;source:string;transport?:'STRUCTURED_COMPLETION'|'DECISIONS'}
-export interface ModelAdmission {providerLimits?:import('./provider-limits').ProviderLimits;fits:boolean;reason?:'MODEL_UNQUALIFIED'|'MODEL_BINDING_UNAVAILABLE'|'MODEL_CAPABILITY_UNAVAILABLE'|'MODEL_CONTEXT_CONTINUATION_REQUIRED'|'MODEL_SCHEMA_CONTINUATION_REQUIRED';schemaAdmission?:SchemaAdmission;requestBytes:number;inputTokenUpperBound:number;maxOutputTokens:number;reservationCostUsd:number;capability?:ModelCapability}
+export interface ModelAdmission {providerLimits?:import('./provider-limits').ProviderLimits;fits:boolean;reason?:'MODEL_OPERATION_COST_CAPACITY'|'MODEL_UNQUALIFIED'|'MODEL_BINDING_UNAVAILABLE'|'MODEL_CAPABILITY_UNAVAILABLE'|'MODEL_CONTEXT_CONTINUATION_REQUIRED'|'MODEL_SCHEMA_CONTINUATION_REQUIRED';schemaAdmission?:SchemaAdmission;requestBytes:number;inputTokenUpperBound:number;maxOutputTokens:number;reservationCostUsd:number;capability?:ModelCapability}
 /** Capability evidence, not spend permission. https://openrouter.ai/api/v1/models,
  * checked 2026-10-12. Unknown routes require an operator-verified descriptor.
  * The override can reflect a narrower selected provider context. */

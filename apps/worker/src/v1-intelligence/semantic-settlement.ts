@@ -1,3 +1,4 @@
+import {confirmedEditorialOutcome} from './editorial-paid-outcome';
 import {serializeFeedBookkeeping} from './store';
 import {settleModelSpending} from './model-spending';
 import {HandoffError} from '@distilled/contracts';
@@ -36,7 +37,8 @@ export async function findSemanticReuse<T>(tx:FeedTransaction,input:SemanticOper
   for(const id of page){
   const intent=intents.get(id);if(!intent||intent.id!==id)throw new HandoffError('SCOPE_DENIED');
   const saved=savedResults.get(id),settled=settlements.get(id);
-  const result=saved??(settled?.usage.reported&&settled.token===intent.token?settled:undefined);
+  let result=saved??(settled?.usage.reported&&settled.token===intent.token?settled:undefined);
+  if(result&&input.kind==='COMPARATIVE_EDITORIAL_PLAN')result=await confirmedEditorialOutcome(tx.store,intent.input,result);
   // An unreported/expired paid operation is not permission to bill again.
   // Legacy records without compatibility metadata retain a conservative fence.
   if(!result?.usage.reported){
