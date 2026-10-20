@@ -189,3 +189,20 @@ describe("reader attention budget", () => {
     expect(readingBudget(1440)).toMatch(/3 minutes of reading, roughly 580 words/);
   });
 });
+
+describe("dropped items say whether their articles are worth another attempt", () => {
+  it("marks unsupported items as carryable with their source ids, and redundant ones as not", async () => {
+    const second = { headline: "Genesis", body: "Anthropic committed $150 million.", sources: ["S2"], relation: "new", updates: null, importance: 2 };
+    const third = { headline: "Fund again", body: "Anthropic fund again.", sources: ["S3"], relation: "new", updates: null, importance: 3 };
+    const { port } = scripted({
+      edit: [{ items: [fund(), second, third] }],
+      verify: [{ results: [{ i: 0, verdict: "ok", issues: [] }, { i: 1, verdict: "drop", issues: ["not supported"] }, { i: 2, verdict: "redundant", issues: ["already told"] }] }]
+    });
+    const result = await generateBriefing({ ...base, articles: [article("a1", FUND), article("a2", GENESIS), article("a3", "Completely different harbour dredging approval news with enough words to stay distinct from the others.")] }, port, MODELS);
+    expect(result.status).toBe("published");
+    expect(result.dropped).toEqual([
+      { headline: "Genesis", reason: "not supported", carry: true, sourceIds: ["a2"] },
+      { headline: "Fund again", reason: "already told", carry: false, sourceIds: expect.any(Array) }
+    ]);
+  });
+});

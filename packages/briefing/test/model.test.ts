@@ -22,6 +22,18 @@ describe("openAiCompatibleModel", () => {
     expect(res).toMatchObject({ text: "{}", inputTokens: 10, outputTokens: 4, costUsd: 0.0123 });
   });
 
+  it("never auto-retries an outcome that may have been billed: other 5xx, timeouts and dropped connections are uncertain", async () => {
+    for (const fetcher of [async () => json({}, 500), async () => { throw new Error("socket hang up"); }]) {
+      let calls = 0;
+      const port = openAiCompatibleModel({ url: "https://x", apiKey: "k", sleep: noSleep, fetcher: async (...a) => (calls++, (fetcher as never as typeof fetch)(...a)) });
+      const error = await port.complete({ model: "m", system: "", user: "", maxTokens: 1 }).catch((e) => e);
+      expect(calls).toBe(1);
+      expect(error).toMatchObject({ name: "BriefingModelError", uncertain: true });
+    }
+    const refused = await openAiCompatibleModel({ url: "https://x", apiKey: "k", retries: 0, sleep: noSleep, fetcher: async () => json({}, 429) }).complete({ model: "m", system: "", user: "", maxTokens: 1 }).catch((e) => e);
+    expect(refused).toMatchObject({ retryable: true, uncertain: false });
+  });
+
   it("does not retry a 4xx and prices known models from the table when no cost is reported", async () => {
     let calls = 0;
     const bad = openAiCompatibleModel({ url: "https://x", apiKey: "k", sleep: noSleep, fetcher: async () => (calls++, json({ error: "bad" }, 400)) });

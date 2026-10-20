@@ -58,6 +58,10 @@ export interface BriefingInput {
 export interface DroppedItem {
   headline: string;
   reason: string;
+  /** Articles that backed the dropped item; callers may carry them to the next window. */
+  sourceIds: string[];
+  /** False when the item was dropped as redundant: retrying its articles would only repeat old news. */
+  carry: boolean;
 }
 
 export interface BriefingResult {
@@ -80,9 +84,22 @@ export interface BriefingModels {
   verifier: string;
 }
 
+/**
+ * `uncertain` means the provider may have processed (and billed) the request: a timeout, a dropped
+ * connection, or a 5xx other than 503. Callers must never blindly retry an uncertain failure and
+ * must keep counting its worst-case cost. A 429/503 or other HTTP rejection is certain.
+ */
 export class BriefingModelError extends Error {
-  constructor(message: string, readonly retryable: boolean) {
+  constructor(message: string, readonly retryable: boolean, readonly uncertain = false) {
     super(message);
     this.name = "BriefingModelError";
+  }
+}
+
+/** Thrown before any provider call when spending is not admitted. Nothing was sent or billed. */
+export class BriefingBudgetError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BriefingBudgetError";
   }
 }

@@ -171,7 +171,7 @@ async function consolidate(
 }
 
 interface Verdict {
-  verdict: "ok" | "fix" | "drop";
+  verdict: "ok" | "fix" | "drop" | "redundant";
   issues: string[];
 }
 
@@ -248,7 +248,7 @@ async function verify(
             const row = entry as Record<string, unknown>;
             const i = Number(row?.i);
             const verdict = text(row?.verdict).toLowerCase();
-            if (!batch.includes(i) || !["ok", "fix", "drop"].includes(verdict)) continue;
+            if (!batch.includes(i) || !["ok", "fix", "drop", "redundant"].includes(verdict)) continue;
             const issues = (Array.isArray(row.issues) ? row.issues : []).map(text).filter(Boolean);
             out.set(i, { verdict: verdict as Verdict["verdict"], issues });
           }
@@ -347,6 +347,7 @@ export async function generateBriefing(
   const byRef = new Map(prepared.map((a) => [a.ref, a]));
   const prior = selectPrior(input.prior ?? [], prepared, options.now());
   const priorIds = new Set(prior.map((p) => p.id));
+  const sourceIdsOfRefs = (refs: string[]) => [...new Set(refs.flatMap((ref) => [byRef.get(ref)!.id, ...byRef.get(ref)!.alsoIds]))];
 
   // 1. Edit: choose and write.
   const chunks = chunkArticles(prepared, options.maxEditorChars);
@@ -377,9 +378,10 @@ export async function generateBriefing(
       const verdict = verdicts.get(index);
       if (!verdict) unchecked.push(index);
       else if (verdict.verdict === "ok") accepted.add(index);
-      else if (verdict.verdict === "drop") dropped.push({ headline: drafts[index].headline, reason: verdict.issues.join(" | ") || "judged unsupported or repeated" });
+      else if (verdict.verdict === "redundant") dropped.push({ headline: drafts[index].headline, reason: verdict.issues.join(" | ") || "repeats what the reader was already told", carry: false, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
+      else if (verdict.verdict === "drop") dropped.push({ headline: drafts[index].headline, reason: verdict.issues.join(" | ") || "judged unsupported", carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
       else if (round === 0) flagged.set(index, verdict.issues.length ? verdict.issues : ["verifier flagged this item"]);
-      else dropped.push({ headline: drafts[index].headline, reason: `still flagged after repair: ${verdict.issues.join(" | ")}` });
+      else dropped.push({ headline: drafts[index].headline, reason: `still flagged after repair: ${verdict.issues.join(" | ")}`, carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
     }
     todo = unchecked; // a verifier that skipped an item has not approved it; ask again
     if (flagged.size && round === 0) {
@@ -387,7 +389,7 @@ export async function generateBriefing(
       for (const index of flagged.keys()) {
         const fixed = fixes.get(index);
         if (!fixed) {
-          dropped.push({ headline: drafts[index].headline, reason: `could not be repaired: ${flagged.get(index)!.join(" | ")}` });
+          dropped.push({ headline: drafts[index].headline, reason: `could not be repaired: ${flagged.get(index)!.join(" | ")}`, carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
           continue;
         }
         drafts[index] = { ...drafts[index], ...fixed };
@@ -395,7 +397,7 @@ export async function generateBriefing(
       }
     }
   }
-  for (const index of todo) dropped.push({ headline: drafts[index].headline, reason: "never confirmed by the verifier" });
+  for (const index of todo) dropped.push({ headline: drafts[index].headline, reason: "never confirmed by the verifier", carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
 
   const items: BriefingItem[] = [...accepted]
     .sort((a, b) => a - b)

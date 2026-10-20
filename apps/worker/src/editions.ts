@@ -37,6 +37,21 @@ export async function publishDueBriefingEditions(input: {
     const pending=await input.repo.listProcessingJobs({briefingId:briefing.id,states:["queued","failed"],limit:500});
     if((await Promise.all(pending.map(job=>input.repo.getRawMessage(job.rawMessageId)))).some(message=>message?.news))continue;
 
+    if (input.v3) {
+      // V3 reads from its own cursor, so a window skipped earlier is not lost.
+      const outcome = await publishV3Window({
+        repo: input.repo,
+        v3: input.v3,
+        briefing,
+        fallbackStart: contentWindow?.windowStart ?? window.windowStart,
+        windowEnd: window.windowEnd,
+        now
+      });
+      if (outcome === "published") published += 1;
+      await input.repo.upsertBriefing({ ...briefing, nextBriefingAt: window.nextBriefingAt }, now);
+      continue;
+    }
+
     const messages = contentWindow
       ? await input.repo.listRawMessagesForWindow(
           briefing.id,
@@ -45,14 +60,6 @@ export async function publishDueBriefingEditions(input: {
           MAX_WINDOW_MESSAGES
         )
       : [];
-    if (input.v3) {
-      const windowStart = contentWindow?.windowStart ?? window.windowEnd;
-      const windowEnd = contentWindow?.windowEnd ?? window.windowEnd;
-      const outcome = await publishV3Window({ repo: input.repo, v3: input.v3, briefing, windowStart, windowEnd, messages, now });
-      if (outcome === "published") published += 1;
-      await input.repo.upsertBriefing({ ...briefing, nextBriefingAt: window.nextBriefingAt }, now);
-      continue;
-    }
     const edition = await localizeEdition(
       buildBriefingEdition({
         briefing,

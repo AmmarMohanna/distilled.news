@@ -71,13 +71,16 @@ async function post(
       });
       if (response.ok) return await response.json();
       const detail = (await response.text().catch(() => "")).slice(0, 300);
-      const retryable = response.status === 429 || response.status >= 500;
-      lastError = new BriefingModelError(`provider HTTP ${response.status}: ${detail}`, retryable);
-      if (!retryable) throw lastError;
+      // 429/503 are refusals before processing; other 5xx may have been processed and billed.
+      const refused = response.status === 429 || response.status === 503 || response.status < 500;
+      lastError = new BriefingModelError(`provider HTTP ${response.status}: ${detail}`, response.status === 429 || response.status === 503, !refused);
+      if (!(lastError as BriefingModelError).retryable) throw lastError;
     } catch (error) {
       if (error instanceof BriefingModelError && !error.retryable) throw error;
-      if (signal?.aborted) throw new BriefingModelError("aborted", false);
-      lastError = error instanceof BriefingModelError ? error : new BriefingModelError(`provider unreachable: ${String(error)}`, true);
+      if (signal?.aborted) throw new BriefingModelError("aborted", false, true);
+      // A thrown fetch (timeout, reset) after the request left may still have been billed: never auto-retry it.
+      if (!(error instanceof BriefingModelError)) throw new BriefingModelError(`provider unreachable: ${String(error)}`, false, true);
+      lastError = error;
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
@@ -119,7 +122,7 @@ export function openAiCompatibleModel(config: {
       };
       const choice = payload.choices?.[0];
       const text = choice?.message?.content;
-      if (typeof text !== "string" || !text.trim()) throw new BriefingModelError("empty model reply", true);
+      if (typeof text !== "string" || !text.trim()) throw new BriefingModelError("empty model reply", false, true);
       const input = payload.usage?.prompt_tokens ?? 0;
       const output = payload.usage?.completion_tokens ?? 0;
       return {
@@ -154,7 +157,7 @@ export function anthropicModel(config: { apiKey: string; baseUrl?: string } & Tr
         usage?: { input_tokens?: number; output_tokens?: number };
       };
       const text = (payload.content ?? []).map((part) => (part.type === "text" ? part.text ?? "" : "")).join("");
-      if (!text.trim()) throw new BriefingModelError("empty model reply", true);
+      if (!text.trim()) throw new BriefingModelError("empty model reply", false, true);
       const input = payload.usage?.input_tokens ?? 0;
       const output = payload.usage?.output_tokens ?? 0;
       return {
