@@ -11,10 +11,10 @@
       "reconciliation": "CLAIMS",
       "concurrency": 1,
       "sourceMentions": 6,
-      "articleProcessingWallMs": 9659.931799999998,
-      "constructionMs": 8674.478899999998,
-      "canonicalMutationMs": 985.4506000000001,
-      "articlesPerMinute": 6.211223975722065,
+      "articleProcessingWallMs": 13370.8279,
+      "constructionMs": 11326.440900000001,
+      "canonicalMutationMs": 2044.3809,
+      "articlesPerMinute": 4.4873810693502385,
       "peakInference": 1,
       "inferenceCallCount": 4,
       "syntheticTokensIn": 400,
@@ -26,8 +26,8 @@
       "casConflicts": 0,
       "recoveryExtraCalls": 0,
       "eventIds": [
-        "079f2739-4924-4e0c-aeae-895c7db39f0d",
-        "ffe84a65-b57e-43bf-8e91-9e7998819f0e"
+        "6ecdc586-1171-4f3e-a2f5-445953e36aba",
+        "b8d15e9c-17e9-400f-b5da-337732b82ebf"
       ],
       "identityRetainedAfterReplay": true,
       "graphEvidenceSignature": [
@@ -50,25 +50,25 @@
       "individualModelCalls": [
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1512.6028999999999,
+          "latencyMs": 1502.885699999999,
           "inputBytes": 1475,
           "outputBytes": 205
         },
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1502.3811999999998,
+          "latencyMs": 1512.0995999999996,
           "inputBytes": 1486,
           "outputBytes": 345
         },
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1505.140800000001,
+          "latencyMs": 1504.0921999999991,
           "inputBytes": 1482,
           "outputBytes": 205
         },
         {
           "phase": "SEMANTIC_RECONCILIATION",
-          "latencyMs": 1514.833999999999,
+          "latencyMs": 1514.1484,
           "inputBytes": 2663,
           "outputBytes": 365
         }
@@ -81,10 +81,10 @@
       "reconciliation": "CLAIMS",
       "concurrency": 2,
       "sourceMentions": 6,
-      "articleProcessingWallMs": 7644.418099999999,
-      "constructionMs": 6653.030200000001,
-      "canonicalMutationMs": 991.3845000000001,
-      "articlesPerMinute": 7.848864258222612,
+      "articleProcessingWallMs": 9703.910099999997,
+      "constructionMs": 8097.341099999998,
+      "canonicalMutationMs": 1606.5645000000004,
+      "articlesPerMinute": 6.183074593817601,
       "peakInference": 2,
       "inferenceCallCount": 4,
       "syntheticTokensIn": 400,
@@ -96,8 +96,8 @@
       "casConflicts": 0,
       "recoveryExtraCalls": 0,
       "eventIds": [
-        "e015154c-74ba-437f-acff-254e101173f5",
-        "f5bf351b-dc09-4cfb-8814-01550b4aab24"
+        "cbb0e3fb-35d0-48a4-b40b-9bc2d7cfdc14",
+        "e53f57a7-44ea-40d0-a422-57ebe7eb76c7"
       ],
       "identityRetainedAfterReplay": true,
       "graphEvidenceSignature": [
@@ -120,25 +120,25 @@
       "individualModelCalls": [
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1507.2627000000011,
+          "latencyMs": 1504.5104000000028,
           "inputBytes": 1475,
           "outputBytes": 205
         },
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1502.7713000000003,
+          "latencyMs": 1527.4529999999977,
           "inputBytes": 1486,
           "outputBytes": 345
         },
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1509.6774000000005,
+          "latencyMs": 1503.8830000000016,
           "inputBytes": 1482,
           "outputBytes": 205
         },
         {
           "phase": "SEMANTIC_RECONCILIATION",
-          "latencyMs": 1500.9651999999987,
+          "latencyMs": 1501.0907000000007,
           "inputBytes": 2663,
           "outputBytes": 365
         }
@@ -151,10 +151,10 @@
       "reconciliation": "DEVELOPMENTS",
       "concurrency": 1,
       "sourceMentions": 6,
-      "articleProcessingWallMs": 9861.603299999999,
-      "constructionMs": 8345.349599999998,
-      "canonicalMutationMs": 1516.2505999999994,
-      "articlesPerMinute": 6.084203366809533,
+      "articleProcessingWallMs": 11430.032499999994,
+      "constructionMs": 9991.171899999994,
+      "canonicalMutationMs": 1438.8542000000016,
+      "articlesPerMinute": 5.249328906107663,
       "peakInference": 1,
       "inferenceCallCount": 4,
       "syntheticTokensIn": 400,
@@ -166,8 +166,8 @@
       "casConflicts": 0,
       "recoveryExtraCalls": 0,
       "eventIds": [
-        "08464e28-49b4-4f36-be58-e95eb912c4a0",
-        "9672d7d4-e453-4604-96b1-53ad1586199a"
+        "8671f53c-32c7-49ac-b610-a2f4806a3a8b",
+        "dfe22ef9-64e5-4e98-9ca6-524ea8ad981c"
       ],
       "identityRetainedAfterReplay": true,
       "graphEvidenceSignature": [
@@ -190,27 +190,27 @@
       "individualModelCalls": [
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1508.9854999999989,
+          "latencyMs": 1510.940999999999,
           "inputBytes": 1475,
           "outputBytes": 205
         },
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1507.252199999999,
+          "latencyMs": 1508.650099999999,
           "inputBytes": 1486,
           "outputBytes": 345
         },
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1506.8752999999997,
+          "latencyMs": 1508.3409000000029,
           "inputBytes": 1482,
           "outputBytes": 205
         },
         {
           "phase": "SEMANTIC_DEVELOPMENT_RECONCILIATION",
-          "latencyMs": 1500.7777000000024,
-          "inputBytes": 4200,
-          "outputBytes": 405
+          "latencyMs": 1509.25,
+          "inputBytes": 4695,
+          "outputBytes": 459
         }
       ],
       "exclusiveTurnDurationMs": null,
@@ -221,10 +221,10 @@
       "reconciliation": "DEVELOPMENTS",
       "concurrency": 2,
       "sourceMentions": 6,
-      "articleProcessingWallMs": 8648.110200000003,
-      "constructionMs": 7654.969499999999,
-      "canonicalMutationMs": 993.1387000000032,
-      "articlesPerMinute": 6.9379319426341235,
+      "articleProcessingWallMs": 10050.472399999999,
+      "constructionMs": 8161.0158999999985,
+      "canonicalMutationMs": 1889.452999999994,
+      "articlesPerMinute": 5.969868640204416,
       "peakInference": 2,
       "inferenceCallCount": 4,
       "syntheticTokensIn": 400,
@@ -236,8 +236,8 @@
       "casConflicts": 0,
       "recoveryExtraCalls": 0,
       "eventIds": [
-        "04569cc4-73c1-424f-9894-6926322d2e2d",
-        "3431434c-b271-4b58-9f02-13952d02ccdb"
+        "138995cb-7499-493c-b469-461555956331",
+        "71fc02e6-cdcf-495e-95cd-e14d6b8e8f6e"
       ],
       "identityRetainedAfterReplay": true,
       "graphEvidenceSignature": [
@@ -260,27 +260,27 @@
       "individualModelCalls": [
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1509.6326000000045,
+          "latencyMs": 1512.5299999999988,
           "inputBytes": 1475,
           "outputBytes": 205
         },
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1517.1826999999976,
+          "latencyMs": 1528.085699999996,
           "inputBytes": 1486,
           "outputBytes": 345
         },
         {
           "phase": "SEMANTIC_CONSTRUCTION",
-          "latencyMs": 1501.8539999999994,
+          "latencyMs": 1505.2630999999965,
           "inputBytes": 1482,
           "outputBytes": 205
         },
         {
           "phase": "SEMANTIC_DEVELOPMENT_RECONCILIATION",
-          "latencyMs": 1503.4460000000036,
-          "inputBytes": 4200,
-          "outputBytes": 405
+          "latencyMs": 1514.377800000002,
+          "inputBytes": 4695,
+          "outputBytes": 459
         }
       ],
       "exclusiveTurnDurationMs": null,

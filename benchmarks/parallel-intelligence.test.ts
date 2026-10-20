@@ -26,7 +26,7 @@ it('compares four equivalent real local D1 paths with deterministic synthetic mo
    let calls=0,active=0,peak=0;const individual:any[]=[];const snapshot=records.length;
    const model={model:'offline-benchmark-stand-in',usage:()=>({calls:1,costUsd:.001,reported:true}),admission:(state:any,_schema:object,phase?:string)=>({...syntheticModelAdmission(),fits:phase?.includes('RECONCILIATION')||state.claimMentions.length<=2}),complete:async(_feed:string,phase:string,state:any)=>{
     calls++;active++;peak=Math.max(peak,active);const tick=performance.now();await new Promise(r=>setTimeout(r,1500));active--;
-    let value:any;if(phase==='SEMANTIC_DEVELOPMENT_RECONCILIATION')value={confidence:.9,groups:buckets<any>(state.developments,d=>label(d.evidence[0].sourceText)).map(ds=>({developmentIds:ds.map(d=>d.id),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],relationship:'SAME_OCCURRENCE',relatedDevelopmentIds:[]}))};
+    let value:any;if(phase==='SEMANTIC_DEVELOPMENT_RECONCILIATION')value={confidence:.9,groups:buckets<any>(state.developments,d=>label(d.evidence[0].sourceText)).map(ds=>({developmentIds:ds.map(d=>d.id),mergeSameOccurrence:ds.length>1,eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],relationship:'SAME_OCCURRENCE',relatedDevelopmentIds:[]}))};
     else value={confidence:.9,groups:buckets<any>(state.claimMentions,m=>label(m.text)).map(ms=>group(ms.map(m=>m.id))),backgroundMentionIds:[]};
     individual.push({phase,latencyMs:performance.now()-tick,inputBytes:new TextEncoder().encode(JSON.stringify(state)).length,outputBytes:new TextEncoder().encode(JSON.stringify(value)).length});return {value,usage:{calls:1,tokensIn:100,tokensOut:20,costUsd:.001,reported:true}};
    }};
