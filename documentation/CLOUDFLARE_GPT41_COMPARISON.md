@@ -1,3 +1,38 @@
+# Real GPT-4.1 route comparison ? 2026-10-20
+
+OpenRouter is the provisional operational choice from this run: six of six expected outcomes versus Cloudflare five of six. Cloudflare remains the feature branch's configured candidate default, gated from unattended publication. No production configuration or qualification changed.
+
+| Case | Route | Client response + validation seconds | Confirmed inference USD | Outcome |
+|---|---|---:|---:|---|
+| SHORT_T01 | openrouter | 1.414 | $0.003460 | PASS |
+| SHORT_T01 | cloudflare | 4.398 | $0.003422 | PASS |
+| MULTI_DEVELOPMENT | cloudflare | 3.538 | $0.006100 | PASS |
+| VERIFY_T01 | cloudflare | 3.880 | $0.004608 | ACCEPT |
+| VERIFY_T04 | cloudflare | 3.860 | $0.004198 | REJECT |
+| VERIFY_T06 | cloudflare | 5.343 | $0.004382 | UNRESOLVED |
+| VERIFY_T08 | cloudflare | 10.323 | $0.005390 | REJECT |
+| MULTI_DEVELOPMENT | openrouter | 4.327 | $0.006098 | PASS |
+| VERIFY_T01 | openrouter | 3.659 | $0.004942 | ACCEPT |
+| VERIFY_T04 | openrouter | 4.082 | $0.004692 | REJECT |
+| VERIFY_T06 | openrouter | 4.458 | $0.004884 | REJECT |
+| VERIFY_T08 | openrouter | 3.496 | $0.006148 | REJECT |
+
+Cloudflare cost $0.028100; OpenRouter $0.030224 (Cloudflare 7.0% lower before funding fees). Conventional medians: cloudflare 4.139s; openrouter 3.871s. The machine comparator uses upper-middle observations instead: 4.398s versus 4.082s. One sample per case cannot establish latency or accuracy equivalence. The routes used identical saved evidence and application schemas with provider-specific transport.
+
+Both routes constructed the two controlled occurrence groups with complete membership and no observed false merge/split. Both rejected negation and missing mandatory coverage. Cloudflare's T06 response recognized unsupported causation but fabricated an exact reader quotation; the unchanged validator returned UNRESOLVED (INVALID_READER_WITNESS), rather than the expected REJECT. OpenRouter returned REJECT. Neither route produced an invalid ACCEPT. Structured JSON transport succeeded on all six cases per route; application-level quality did not. Labels are fixture expectations, not independent human certification; all reviews remain PENDING. No paid repairs were attempted.
+
+Eleven new paid calls cost $0.054864, plus $0.003460 for the reused historical OpenRouter call: $0.058324 matched total. All new operations settled, with no duplicate execution. The earlier Qwen dollar hold remains unresolved. All 50 original holds retain $5.3441524893; lifetime actual charges plus unresolved liabilities are $64.8928330953 under the unchanged $73 ceiling. The expired grant was not extended: the user separately authorized six remaining frozen calls, reservation cap $0.289629, in a two-hour successor. Old grants remain unchanged.
+
+Cloudflare permissions and funding now work. The explicitly authorized default gateway was created with authentication, cache disabled and one attempt. Actual chat responses omit inline keySource; the adapter binds the TLS cf-aig-log-id to authenticated gateway metadata proving unified (not BYOK) inference and matching model/tokens. Gateway log cost is an estimate. Evaluation settlement additionally matches actual hourly USD billing deltas against complete isolated gateway inventory, including across hour boundaries. Billing confirmation took about 138?147 seconds on observed delayed cases, separate from response latency. This isolation-based evaluation proof does not qualify generic live billing recovery.
+
+Remaining qualification blockers: real extraction, relation/novelty, packet construction/reconciliation, editorial selection, writing and repairs; larger repeated quality trials, long saved articles, corrections and cross-packet context; independent review; production-safe per-operation dollar reconciliation. GPT-4.1-mini writing was not tested here. Qwen stays optional and unqualified. OpenRouter remains selectable with DISTILLED_LLM_API_GATEWAY=openrouter; Cloudflare uses cloudflare. No automatic fallback is enabled.
+
+See [machine-readable results](../benchmarks/strong-route-comparison-results.json). Provider charges exclude the Cloudflare credit-purchase fee and local execution overhead. No deployment, merge, account-cap change, notification or uncertain-hold release occurred.
+
+---
+
+## Historical preparation and access notes (superseded by real results above)
+
 # Strong-model routing: Cloudflare GPT-4.1 comparison
 
 The earlier implementation interpreted Cloudflare-first as native Workers AI inference, as the original specification requested. Qwen3 was a hosted candidate chosen from availability, context and cost metadata, without comparative quality evidence. The newer instruction explicitly adds GPT-4.1 through Cloudflare's unified API. The implementation now separates route selection from model choice.

@@ -1,147 +1,394 @@
 {
-  "mode": "GPT41_TWO_ROUTE_COMPARISON_BLOCKED_BEFORE_INFERENCE",
+  "mode": "REAL_MATCHED_GPT41_COMPARISON",
+  "date": "2026-10-20",
   "manifestHash": "2b495b561f83fd3c4b90fe1914f45731e0997279a3f2bf6ba20a958d073f0e19",
-  "newPaidCalls": 0,
-  "cases": [
+  "newPaidCalls": 11,
+  "exactHistoricalCallsReused": 1,
+  "controlledCases": 6,
+  "independentHumanQualityReview": false,
+  "summary": [
     {
-      "id": "SHORT_T01",
-      "kind": "CONSTRUCTION",
-      "labelSource": "Existing frozen controlled T01",
-      "evidenceHash": "0b93c6e0ec01d685a764b638f2268c13da586003b3fe3a3ffcb3c45344644193"
+      "route": "cloudflare",
+      "cases": 6,
+      "expectedOutcomePasses": 5,
+      "invalidAccepts": 0,
+      "confirmedCostUsd": 0.0281,
+      "medianClientWallMs": 4139.26965,
+      "upperMiddleClientWallMs": 4398.088500000001,
+      "totalClientWallMs": 31342.290000000008
     },
     {
-      "id": "MULTI_DEVELOPMENT",
-      "kind": "CONSTRUCTION",
-      "labelSource": "Hand-authored bridge/hospital grouping oracle",
-      "evidenceHash": "7bd30d4e5fb3e5a3a5f770e83e516b47fc5b7dadc1581253888b2748673d4853"
-    },
-    {
-      "id": "VERIFY_T01",
-      "kind": "VERIFICATION",
-      "labelSource": "Frozen controlled T01; not independent human gold",
-      "evidenceHash": "4bd135284aa898f0e38ae06838e67dbc7381f0873070c081b392d21a130fa9c0"
-    },
-    {
-      "id": "VERIFY_T04",
-      "kind": "VERIFICATION",
-      "labelSource": "Frozen controlled T04; not independent human gold",
-      "evidenceHash": "e20744d246e452ca1a6c898759775188ca453bee182d2a9d0f74a392aec754e7"
-    },
-    {
-      "id": "VERIFY_T06",
-      "kind": "VERIFICATION",
-      "labelSource": "Frozen controlled T06; not independent human gold",
-      "evidenceHash": "369a6e03418acda4bc9ae153bb172ae91746240f53f82154f43f842abc15be71"
-    },
-    {
-      "id": "VERIFY_T08",
-      "kind": "VERIFICATION",
-      "labelSource": "Frozen controlled T08; not independent human gold",
-      "evidenceHash": "2bcf4b736a6472c8bb9670e275568b65c5e417691399f922d7fb4dd6fe6a393f"
+      "route": "openrouter",
+      "cases": 6,
+      "expectedOutcomePasses": 6,
+      "invalidAccepts": 0,
+      "confirmedCostUsd": 0.030224,
+      "medianClientWallMs": 3870.771649999995,
+      "upperMiddleClientWallMs": 4082.154999999999,
+      "totalClientWallMs": 21435.8167
     }
   ],
-  "routes": [
-    "cloudflare",
-    "openrouter",
-    "workers_ai"
+  "rows": [
+    {
+      "route": "openrouter",
+      "caseId": "SHORT_T01",
+      "model": "openai/gpt-4.1",
+      "requestHash": "ac892e6dbc5eb43aa414d526e820064ebbd1e605b5cc4a44f5a7482552f254fc",
+      "wallMs": 1413.9748,
+      "billingObservationMs": null,
+      "confirmedCostUsd": 0.00346,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "groups": 1,
+        "coveredMentions": 1
+      },
+      "inputTokens": null,
+      "outputTokens": null,
+      "qualityReview": "PENDING",
+      "reused": true
+    },
+    {
+      "route": "cloudflare",
+      "caseId": "SHORT_T01",
+      "model": "cloudflare:openai/gpt-4.1",
+      "requestHash": "f7aa2130d70c661364cdcbe8884c9355bea7f797bdcac01234e59bb005308b57",
+      "wallMs": 4398.088500000001,
+      "billingObservationMs": null,
+      "confirmedCostUsd": 0.003422,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "groupCount": 1,
+        "expectedGroupCount": 1,
+        "exactEvidenceCoverage": true
+      },
+      "inputTokens": 1443,
+      "outputTokens": 67,
+      "qualityReview": "PENDING",
+      "reused": false
+    },
+    {
+      "route": "cloudflare",
+      "caseId": "MULTI_DEVELOPMENT",
+      "model": "cloudflare:openai/gpt-4.1",
+      "requestHash": "478938449dd4e53e67232260d1b42ef4200d8156da82604710cfb52e59c46919",
+      "wallMs": 3538.0612,
+      "billingObservationMs": null,
+      "confirmedCostUsd": 0.0061,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "groupCount": 2,
+        "expectedGroupCount": 2,
+        "exactEvidenceCoverage": true
+      },
+      "inputTokens": 2390,
+      "outputTokens": 165,
+      "qualityReview": "PENDING",
+      "reused": false
+    },
+    {
+      "route": "cloudflare",
+      "caseId": "VERIFY_T01",
+      "model": "cloudflare:openai/gpt-4.1",
+      "requestHash": "1bfd1d94f5aada87b3276fbf914e88a084ea036ef6962641b5ddcf25eac2b469",
+      "wallMs": 3880.4507999999987,
+      "billingObservationMs": null,
+      "confirmedCostUsd": 0.004608,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "decision": {
+          "status": "ACCEPT",
+          "reasons": [],
+          "readerSpans": [
+            {
+              "propositionId": "T01:fact:0",
+              "candidateId": "T01:story",
+              "claimId": "T01:claim:1",
+              "text": "the product launched.",
+              "start": 40,
+              "end": 61
+            }
+          ]
+        },
+        "invalidAccept": false
+      },
+      "inputTokens": 1208,
+      "outputTokens": 274,
+      "qualityReview": "PENDING",
+      "reused": false
+    },
+    {
+      "route": "cloudflare",
+      "caseId": "VERIFY_T04",
+      "model": "cloudflare:openai/gpt-4.1",
+      "requestHash": "67a1eaa7481ddd9c5c576145034c28009d4bed1be8c3a1cd3cf2d477a34673c3",
+      "wallMs": 3859.861,
+      "billingObservationMs": 147138.5169,
+      "confirmedCostUsd": 0.004198,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "decision": {
+          "status": "REJECT",
+          "reasons": [
+            "CLAIM_NOT_ENTAILED",
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": []
+        },
+        "invalidAccept": false
+      },
+      "inputTokens": 1179,
+      "outputTokens": 230,
+      "qualityReview": "PENDING",
+      "reused": false
+    },
+    {
+      "route": "cloudflare",
+      "caseId": "VERIFY_T06",
+      "model": "cloudflare:openai/gpt-4.1",
+      "requestHash": "0d651dcf1907eb8f2ed952b0709e5cb66b3bd5f3f8fbaa8453a3af205490478e",
+      "wallMs": 5342.691900000005,
+      "billingObservationMs": 0.0393999999796506,
+      "confirmedCostUsd": 0.004382,
+      "settled": true,
+      "validation": {
+        "valid": false,
+        "decision": {
+          "status": "UNRESOLVED",
+          "reasons": [
+            "INVALID_READER_WITNESS",
+            "CLAIM_NOT_ENTAILED",
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": []
+        },
+        "invalidAccept": false
+      },
+      "inputTokens": 1175,
+      "outputTokens": 254,
+      "qualityReview": "PENDING",
+      "reused": false
+    },
+    {
+      "route": "cloudflare",
+      "caseId": "VERIFY_T08",
+      "model": "cloudflare:openai/gpt-4.1",
+      "requestHash": "df9e7967baea5cfe50cfc662fb43cf80f98808e43f3a8385f6a50cea097f526b",
+      "wallMs": 10323.136600000002,
+      "billingObservationMs": 137601.3617,
+      "confirmedCostUsd": 0.00539,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "decision": {
+          "status": "REJECT",
+          "reasons": [
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": [
+            {
+              "propositionId": "T08:fact:0",
+              "candidateId": "T08:story",
+              "claimId": "T08:claim:1",
+              "text": "The road reopened.",
+              "start": 0,
+              "end": 18
+            }
+          ]
+        },
+        "invalidAccept": false
+      },
+      "inputTokens": 1239,
+      "outputTokens": 364,
+      "qualityReview": "PENDING",
+      "reused": false
+    },
+    {
+      "route": "openrouter",
+      "caseId": "MULTI_DEVELOPMENT",
+      "model": "openai/gpt-4.1",
+      "requestHash": "51ff05a52a5d2bcf171310c3ab5b312bfa1f84923cca968ba41eb0c3dea10310",
+      "wallMs": 4326.67790000001,
+      "billingObservationMs": 0.046999999991385266,
+      "confirmedCostUsd": 0.006098,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "groupCount": 2,
+        "expectedGroupCount": 2,
+        "exactEvidenceCoverage": true
+      },
+      "inputTokens": 2385,
+      "outputTokens": 166,
+      "qualityReview": "PENDING",
+      "reused": false
+    },
+    {
+      "route": "openrouter",
+      "caseId": "VERIFY_T01",
+      "model": "openai/gpt-4.1",
+      "requestHash": "e390cba0b8c6706a8853722cf8f8dc8be4d2430c8054d4f7cb20a03a87bf4970",
+      "wallMs": 3659.3882999999914,
+      "billingObservationMs": 0.03200000000651926,
+      "confirmedCostUsd": 0.004942,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "decision": {
+          "status": "ACCEPT",
+          "reasons": [],
+          "readerSpans": [
+            {
+              "propositionId": "T01:fact:0",
+              "candidateId": "T01:story",
+              "claimId": "T01:claim:1",
+              "text": "the product launched.",
+              "start": 40,
+              "end": 61
+            }
+          ]
+        },
+        "invalidAccept": false
+      },
+      "inputTokens": 1203,
+      "outputTokens": 317,
+      "qualityReview": "PENDING",
+      "reused": false
+    },
+    {
+      "route": "openrouter",
+      "caseId": "VERIFY_T04",
+      "model": "openai/gpt-4.1",
+      "requestHash": "4926d6f24d03897d70c67f28fd585e1d6e9f6dbb812780e6acc8422bb79b8763",
+      "wallMs": 4082.154999999999,
+      "billingObservationMs": 0.021000000007916242,
+      "confirmedCostUsd": 0.004692,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "decision": {
+          "status": "REJECT",
+          "reasons": [
+            "CLAIM_NOT_ENTAILED",
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": []
+        },
+        "invalidAccept": false
+      },
+      "inputTokens": 1174,
+      "outputTokens": 293,
+      "qualityReview": "PENDING",
+      "reused": false
+    },
+    {
+      "route": "openrouter",
+      "caseId": "VERIFY_T06",
+      "model": "openai/gpt-4.1",
+      "requestHash": "3a977751b3c93dacae872ec9cbe4d1edfd15373b67519893bed6ca00b96d98b6",
+      "wallMs": 4457.718599999993,
+      "billingObservationMs": 0.029799999989336357,
+      "confirmedCostUsd": 0.004884,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "decision": {
+          "status": "REJECT",
+          "reasons": [
+            "CLAIM_NOT_ENTAILED",
+            "FACT_FACET_FAILED"
+          ],
+          "readerSpans": []
+        },
+        "invalidAccept": false
+      },
+      "inputTokens": 1170,
+      "outputTokens": 318,
+      "qualityReview": "PENDING",
+      "reused": false
+    },
+    {
+      "route": "openrouter",
+      "caseId": "VERIFY_T08",
+      "model": "openai/gpt-4.1",
+      "requestHash": "65d482b6c64982852b51559e5266c37f7efaeeb5397886b60a0ee6f75e634144",
+      "wallMs": 3495.9021000000066,
+      "billingObservationMs": 0.044599999993806705,
+      "confirmedCostUsd": 0.006148,
+      "settled": true,
+      "validation": {
+        "valid": true,
+        "decision": {
+          "status": "REJECT",
+          "reasons": [
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": [
+            {
+              "propositionId": "T08:fact:0",
+              "candidateId": "T08:story",
+              "claimId": "T08:claim:1",
+              "text": "The road reopened.",
+              "start": 0,
+              "end": 18
+            }
+          ]
+        },
+        "invalidAccept": false
+      },
+      "inputTokens": 1234,
+      "outputTokens": 460,
+      "qualityReview": "PENDING",
+      "reused": false
+    }
   ],
-  "plannedMeasurements": 18,
-  "exactPriorRealResultsReused": 2,
-  "plannedNewCalls": 16,
-  "plannedNewReservationUpperBoundUsd": 0.5510127869999999,
-  "totalApprovedUsd": 3,
-  "previousReservedUsd": 0.05839019529999999,
-  "previousActualCalls": 3,
-  "comparison": {
+  "accounting": {
+    "at": "2026-10-20T13:12:03.812Z",
+    "originalUnconfirmedHolds": 50,
+    "heldUsd": 5.344152489299998,
+    "newCalls": 11,
+    "newCallsSettled": 11,
+    "newActualUsd": 0.054864,
+    "conservativeLifetimeExposureUsd": 64.8928330953,
+    "ceilingUsd": 73,
+    "grantsUnchanged": true
+  },
+  "qualification": {
     "bestRoute": null,
     "ranking": [
       {
         "route": "openrouter",
         "eligible": false,
         "reasons": [
-          "INCOMPLETE_MATCHED_CASES",
           "QUALITY_REVIEW_PENDING"
         ],
-        "completedCases": 1,
-        "medianMs": 1413.9748,
-        "totalConfirmedUsd": 0.00346
+        "completedCases": 6,
+        "medianMs": 4082.154999999999,
+        "totalConfirmedUsd": 0.030224
       },
       {
         "route": "cloudflare",
         "eligible": false,
         "reasons": [
-          "INCOMPLETE_MATCHED_CASES"
+          "QUALITY_OR_RELIABILITY_FAILURE",
+          "QUALITY_REVIEW_PENDING"
         ],
-        "completedCases": 0,
-        "medianMs": null,
-        "totalConfirmedUsd": 0
+        "completedCases": 6,
+        "medianMs": 4398.088500000001,
+        "totalConfirmedUsd": 0.0281
       }
     ],
     "productionQualificationChanged": false
   },
-  "cachedResults": [
-    {
-      "route": "openrouter",
-      "caseId": "SHORT_T01",
-      "requestHash": "ac892e6dbc5eb43aa414d526e820064ebbd1e605b5cc4a44f5a7482552f254fc",
-      "model": "openai/gpt-4.1",
-      "wallMs": 1413.9748,
-      "settled": true,
-      "costUsd": 0.00346,
-      "validation": {
-        "valid": true,
-        "groups": 1,
-        "coveredMentions": 1
-      },
-      "qualityReview": "PENDING",
-      "source": "PRIOR_REAL_EXACT_REQUEST",
-      "priorOperationId": "provider-evaluation:bb6d62707bfa41aa0c76:OPENROUTER:construction"
-    },
-    {
-      "route": "workers_ai",
-      "caseId": "SHORT_T01",
-      "requestHash": "6a8b926909231448e49a6e321b4c6cc6e554c26bdf8f5bcca348e7a7d20fc5c9",
-      "model": "workers_ai:@cf/qwen/qwen3-30b-a3b-fp8",
-      "wallMs": 4510.073700000001,
-      "settled": false,
-      "validation": {
-        "valid": true,
-        "groups": 1,
-        "coveredMentions": 1
-      },
-      "qualityReview": "PENDING",
-      "source": "PRIOR_REAL_EXACT_REQUEST",
-      "priorOperationId": "provider-evaluation:bb6d62707bfa41aa0c76:WORKERS_AI:construction"
-    }
-  ],
-  "blockers": [
-    "CONFIGURED_GATEWAY_DOES_NOT_EXIST",
-    "PREPAID_CREDITS_UNAVAILABLE",
-    "PRIOR_IMMUTABLE_GRANT_WINDOW_STILL_ACTIVE"
-  ],
-  "productionQualified": false,
-  "currentGpt41Comparison": {
-    "routes": [
-      "cloudflare",
-      "openrouter"
-    ],
-    "newCalls": 11,
-    "newReservationUpperBoundUsd": 0.542196,
-    "accessCheckedAt": "2026-10-20T07:21:39.949Z",
-    "gatewayReadStatus": 200,
-    "gatewayCount": 0,
-    "creditReadStatus": 200,
-    "creditBalance": 0,
-    "scopeInstallation": {
-      "at": "2026-10-20T07:13:45.377Z",
-      "grantId": "gpt41-comparison:2b495b561f83fd3c4b90",
-      "priorGrantsUnchanged": true,
-      "unresolvedHoldsUnchanged": true,
-      "newPaidCalls": 0,
-      "validFrom": "2026-10-20T08:49:53.079Z",
-      "newCallLimit": 11,
-      "newReservationCapUsd": 0.542196,
-      "accountCeilingUsd": 73
-    }
-  }
+  "limitations": [
+    "Six controlled cases, one observation per route/case; nonrandomized, no statistical equivalence claim.",
+    "Cloudflare short and multi-development application results recovered from exact saved responses; their replay usage latency is not live network latency. wallMs records original call.",
+    "Cloudflare aggregate billing confirmation requires isolated complete gateway inventory; not a general per-operation production settlement interface.",
+    "Historical OpenRouter short result reused; remaining cases run later. No repairs or provider fallbacks.",
+    "No real packet reconciliation, extraction, editorial, writing, repair or long-article model qualification in this matrix."
+  ]
 }

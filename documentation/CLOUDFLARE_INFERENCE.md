@@ -25,3 +25,7 @@ The unified adapter requests one attempt and no cache, validates the resolved mo
 Acquisition audit: deterministic ingestion/verification is unchanged. Generative browser/X discovery, native Jev acquisition choices and source recommendations remain OpenRouter-specific and require explicit selection. Legacy summary/review factories cannot silently use an old OpenAI Gateway path when the new Cloudflare route is selected. These limitations remain explicit instead of weakening source or factual validation.
 
 Historical results: [initial native comparison](CLOUDFLARE_REAL_EVALUATION.md), [offline architecture benchmark](PARALLEL_INTELLIGENCE_RESULTS.md), and [original bounded evaluation boundary](PARALLEL_INTELLIGENCE_EVALUATION.md).
+
+## Real unified GPT-4.1 evaluation
+
+The October 20 comparison is recorded in [the real results](CLOUDFLARE_GPT41_COMPARISON.md). Runtime credentials need Workers AI Read and AI Gateway Read; AI Gateway Write was separately authorized only to create the evaluation gateway. Responses without inline keySource require exact authenticated gateway-log proof. Log costs are estimates; evaluation-only actual hourly billing reconciliation requires complete isolated inventory and is not general live settlement. All new Cloudflare task qualifications remain blocked.

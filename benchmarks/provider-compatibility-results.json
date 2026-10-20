@@ -56,5 +56,18 @@
       "Prior native Qwen unconfirmed dollar hold retains the approved evaluation slot",
       "Real matched quality, latency and confirmed costs are unmeasured"
     ]
+  },
+  "latestStrongRouteComparison": {
+    "report": "strong-route-comparison-results.json",
+    "realCloudflareGpt41Tested": true,
+    "cases": 6,
+    "expectedOutcomes": 5,
+    "qualifiedTasks": [],
+    "blockers": [
+      "INVALID_READER_WITNESS on causal negative case",
+      "Independent quality review pending",
+      "Untested task mappings and long-article cases",
+      "Generic live dollar settlement not qualified"
+    ]
   }
 }
