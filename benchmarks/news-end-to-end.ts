@@ -32,12 +32,12 @@ export function profileNewsDatabase(db:D1Database){
  const proxy=new Proxy(db,{get(target,key){if(key==='prepare')return(sql:string)=>wrap(target.prepare(sql),sql);if(key==='batch')return(statements:any[])=>{const entries=statements.map(s=>wrapped.get(s)??{statement:s,sql:''});entries.forEach(e=>count(e.sql));return target.batch(entries.map(e=>e.statement))};const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value}});
  return {db:proxy,metrics};
 }
-export function assertNewsBudget(prior:{reservedUsd:number;settled:boolean;costUsd?:number}[],next:number){
+export function assertNewsBudget(prior:{reservedUsd:number;settled:boolean;costUsd?:number}[],next:number,limits={maxCalls:24,maxReservationsUsd:2.5}){
  if(!Number.isFinite(next)||next<0||next>.35)throw Error('NEWS_EVALUATION_PER_CALL_CAP');
  if(prior.some(r=>!r.settled))throw Error('UNCONFIRMED_PRIOR_NEWS_CALL');
- if(prior.length>=24)throw Error('NEWS_EVALUATION_CALL_CAP');
+ if(prior.length>=limits.maxCalls)throw Error('NEWS_EVALUATION_CALL_CAP');
  if(prior.some(r=>!Number.isFinite(r.reservedUsd)||r.reservedUsd<0||!Number.isFinite(r.costUsd)||r.costUsd!<0))throw Error('INVALID_NEWS_ACCOUNTING');
- if(prior.reduce((n,r)=>n+Math.max(r.reservedUsd,r.costUsd??0),0)+next>2.5+1e-9)throw Error('NEWS_EVALUATION_RESERVATION_CAP');
+ if(prior.reduce((n,r)=>n+Math.max(r.reservedUsd,r.costUsd??0),0)+next>limits.maxReservationsUsd+1e-9)throw Error('NEWS_EVALUATION_RESERVATION_CAP');
 }
 export function sourceCorpus(values:{id:string;title?:string;text:string}[]){
  const records=new Map<string,{id:string;title?:string;body:string;sourceHash:string}>();
@@ -61,7 +61,7 @@ export function briefingReviewSheet(edition:any){
 /** Shared real production path. The caller owns isolated acquisition, leases,
  * durable paid authorization/accounting and provider transports; this runner
  * creates no grant and changes no deployment or task qualification. */
-export async function processNewsToBriefing(options:{store:V1FeedStore;env:Env;feedId:string;jobIds:string[];acquire?:()=>Promise<string[]>;window:PublicationWindow;editorialWholeParentReferences?:boolean;now:string|(()=>string);semantic:StrongSemanticModel;editorial:StrongSemanticModel;writer:BriefingModelPort;checkpoint:(stage:string,value:unknown)=>Promise<void>}){
+export async function processNewsToBriefing(options:{store:V1FeedStore;env:Env;feedId:string;jobIds:string[];acquire?:()=>Promise<string[]>;window:PublicationWindow;editorialWholeParentReferences?:boolean;editorialCompleteParentDecisions?:boolean;now:string|(()=>string);semantic:StrongSemanticModel;editorial:StrongSemanticModel;writer:BriefingModelPort;checkpoint:(stage:string,value:unknown)=>Promise<void>}){
  const {store,env,feedId,window,checkpoint}=options,now=()=>typeof options.now==='function'?options.now():options.now,coordinatedEnv={...env,DB:store.db};
  if(env.V1_PUBLICATION_VALIDATION_CONTRACT!=='EVIDENCE_GROUNDED_V2'||options.writer.validationContract!=='EVIDENCE_GROUNDED_V2')throw Error('EVALUATION_REQUIRES_V2');
  let editionReused=false;
@@ -85,7 +85,7 @@ export async function processNewsToBriefing(options:{store:V1FeedStore;env:Env;f
   return withLatency({feedId,phase:'PUBLICATION_TURN'},()=>stage('BRIEFING_EXCLUSIVE_TURN',()=>withFeedWriteTurn(coordinatedEnv,feedId,async()=>{
   const shortlist=await stage('SHORTLIST',async()=>prepareV2Shortlist(store,await prepareSemanticShortlist(store,feedId,window,now())));
   await checkpoint('SHORTLIST',shortlist);
-  const plan=await stage('EDITORIAL_SELECTION',()=>prepareV2EditorialPlan(store,shortlist,now(),options.editorial,{wholeParentReferences:options.editorialWholeParentReferences}));await checkpoint('EDITORIAL_SELECTION',plan);
+  const plan=await stage('EDITORIAL_SELECTION',()=>prepareV2EditorialPlan(store,shortlist,now(),options.editorial,{wholeParentReferences:options.editorialWholeParentReferences,completeParentDecisions:options.editorialCompleteParentDecisions}));await checkpoint('EDITORIAL_SELECTION',plan);
   const selection=await stage('SCORING',()=>scoreAndSelect(store,feedId,window,ADAPTIVE_BRIEFING_PROCESSING,now(),undefined,plan));await checkpoint('SCORING',selection);
   const instrumented:BriefingModelPort={...options.writer,synthesize:async(...args)=>stage('WRITING',()=>options.writer.synthesize(...args)),...(options.writer.verify?{verify:async(...args:Parameters<NonNullable<BriefingModelPort['verify']>>)=>stage('FACTUAL_VERIFICATION',()=>options.writer.verify!(...args))}:{}),...(options.writer.repair?{repair:async(...args:Parameters<NonNullable<BriefingModelPort['repair']>>)=>stage('WRITER_REPAIR',()=>options.writer.repair!(...args))}:{})};
   const edition=await stage('WRITE_VERIFY_LOCAL_COMMIT',()=>publishSelection(store,feedId,selection.id,{now,model:instrumented,requireModel:true,validationContract:'EVIDENCE_GROUNDED_V2'}));

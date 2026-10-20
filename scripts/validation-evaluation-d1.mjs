@@ -5,7 +5,7 @@ export function evaluationD1(token,fetcher=fetch){
  const query=async body=>{
   const response=await fetcher(STAGING_EVALUATION_D1,{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(60000)});
   const data=await response.json();
-  if(!response.ok||!data.success||data.result?.some(r=>!r.success))throw Error('EVALUATION_D1_QUERY_FAILED:'+JSON.stringify((data.errors??[]).map(e=>e.code)));
+  if(!response.ok||!data.success||data.result?.some(r=>!r.success))throw Error('EVALUATION_D1_QUERY_FAILED:'+JSON.stringify((data.errors??[]).map(e=>({code:e.code,message:e.message}))));
   return data.result;
  };
  class Statement{

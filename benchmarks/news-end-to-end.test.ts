@@ -39,3 +39,8 @@ it('keeps conservative reservations and unknown calls inside the approved workfl
  expect(()=>assertNewsBudget([{reservedUsd:2.4,settled:true,costUsd:.01}],.2)).toThrow('NEWS_EVALUATION_RESERVATION_CAP');
  expect(()=>assertNewsBudget([],.351)).toThrow('NEWS_EVALUATION_PER_CALL_CAP');
 });
+
+it('enforces the separately approved correctness-run cap before a paid call',()=>{
+ expect(()=>assertNewsBudget([], .2,{maxCalls:12,maxReservationsUsd:.1})).toThrow('NEWS_EVALUATION_RESERVATION_CAP');
+ expect(()=>assertNewsBudget(Array.from({length:12},()=>({reservedUsd:.01,settled:true,costUsd:.005})), .01,{maxCalls:12,maxReservationsUsd:1.5})).toThrow('NEWS_EVALUATION_CALL_CAP');
+});

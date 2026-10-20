@@ -1,0 +1,56 @@
+{
+  "scope": "OPENROUTER_ONLY_TARGETED_CORRECTNESS",
+  "status": "BLOCKED_BEFORE_INFERENCE",
+  "successfulRealBriefing": false,
+  "independentBriefingReview": "NOT_AVAILABLE_NO_BRIEFING",
+  "providerComparisonsStopped": true,
+  "architectureOptimizationFrozen": true,
+  "confirmedSavedFailures": [
+    {
+      "source": "Anthropic benefit fund",
+      "modelChoice": "SAME_EVENT E0",
+      "target": "Replit default-model event",
+      "causeEvidence": "SAVED_INITIAL_CONSTRUCTION_RESPONSE"
+    },
+    {
+      "source": "Replit default-model change",
+      "modelChoice": "NEW_EVENT_EXISTING_STORYLINE L0",
+      "target": "Laplace storyline",
+      "causeEvidence": "SAVED_INITIAL_CONSTRUCTION_RESPONSE"
+    }
+  ],
+  "implemented": [
+    "SOURCE_GROUNDED_INDEPENDENT_CROSS_EVENT_REVIEW",
+    "NO_LEXICAL_CROSS_EVENT_STORYLINE_FALLBACK",
+    "KEYED_REQUIRED_PARENT_EDITORIAL_DECISIONS",
+    "APPLICATION_CONSTRUCTED_PROPOSITIONS_AND_REQUIRED_PROJECTION",
+    "DEVELOPMENTAL_STATE_FALSE_ACCEPT_REGRESSION",
+    "UNKNOWN_REVIEW_RETRY_FENCE"
+  ],
+  "offlineReplay": "ACTUAL_SAVED_OPENROUTER_RESPONSES_AND_DRAFT; NO_NEW_MODEL_CALLS",
+  "blocker": {
+    "service": "EVALUATION_D1_RESERVATION_LEDGER",
+    "code": 7500,
+    "message": "Exceeded maximum DB size",
+    "reportedBytes": 9999998976,
+    "providerRequestSent": false
+  },
+  "accounting": {
+    "at": "2026-10-20T19:41:03.560Z",
+    "oldGrantsUnchanged": true,
+    "oldHoldsUnchanged": true,
+    "originalHoldCount": 50,
+    "originalHeldUsd": 5.344152489299998,
+    "currentUnconfirmedCount": 50,
+    "workflowUnconfirmedCount": 0,
+    "workflowCalls": 0,
+    "workflowActualCostUsd": 0,
+    "workflowConservativeReservationsUsd": 0,
+    "lifetimeActualAndHeldUsd": 65.62071709529988,
+    "ceilingUsd": 73,
+    "ceilingUnchanged": true,
+    "maxWorkflowCalls": 12,
+    "maxWorkflowReservationsUsd": 1.5
+  },
+  "qualification": "NOT_ESTABLISHED_BY_OFFLINE_TESTS"
+}
