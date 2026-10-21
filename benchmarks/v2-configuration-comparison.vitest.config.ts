@@ -1,1 +1,1 @@
-﻿import {defineConfig} from 'vitest/config';export default defineConfig({test:{environment:'node',include:['benchmarks/v2-configuration-comparison.test.ts'],maxWorkers:1}});
+﻿import {defineConfig} from 'vitest/config';export default defineConfig({test:{environment:'node',include:['benchmarks/v2-configuration-comparison.test.ts','benchmarks/v2-comparison-transport.test.ts','benchmarks/v2-comparison-stages-offline.test.ts'],maxWorkers:1,testTimeout:30000}});
