@@ -139,3 +139,25 @@ actual admissions. Reservations, receipts, unknown billing exposure and operatio
 retry fences remain intact; this does not claim provider cancellation or zero cost.
 The reset does not require retiring the current feed. It creates no new spending
 authorization and does not alter settled financial records.
+
+### Freshness before paid intelligence
+
+V2 reassessment checks the source publication time before semantic construction
+or identity review. Initial articles published before feed creation are retained
+as acquired evidence with a `review_admissions` record (`BACKLOG_RETAINED`), and
+their intake job completes without claiming semantic processing. They create no
+new event, paid intent, or rematch. Existing backlog rematches are excluded from
+automatic dispatch; already queued deliveries repeat the same admission check.
+No historical results, operation identities or financial records are rewritten.
+
+News published since subscription remains eligible for early continuous review,
+including late discovery after its original window. Source revisions affecting
+existing graph evidence and publication-memory evidence still receive review.
+Missing publication dates are not replaced by acquisition timestamps; the
+existing editorial unknown-date rules continue to apply. Final window filtering,
+editorial judgment, correction handling and factual checks remain in place.
+
+AI News4 metadata replay: all 20 saved articles precede feed creation
+(2026-10-21 07:52:38.665Z) and are excluded before inference. The earlier live
+snapshot had 106 calls and no in-window articles. This replay establishes admission
+behavior, not a new real-model publication or measured provider savings.

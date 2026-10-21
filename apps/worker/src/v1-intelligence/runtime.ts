@@ -1,3 +1,4 @@
+import {retainBacklogReview,backlogRevisionIds} from './review-admission';
 import {prepareV2Shortlist} from './shortlist-v2';
 import {editorialContract} from './editorial-requirements';
 import {prepareV2EditorialPlan} from './editorial-plan-v2';
@@ -79,6 +80,7 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
  if(row.value.nextAttemptAt&&Date.parse(row.value.nextAttemptAt)>Date.parse(now))return 'WAITING_RETRY';
  await synchronizeV1ProductSource(env.DB,row.feedSourceId,now);
  const scope=await intake.snapshot(row.feedSourceId);await approvedFeed(env,scope.scope.feedId);
+ if(editorialContract(env.V1_PUBLICATION_VALIDATION_CONTRACT)==='EVIDENCE_GROUNDED_V2'&&await withFeedWriteTurn(env,scope.scope.feedId,()=>retainBacklogReview(new V1FeedStore(env.DB),id,now),`admission:${id}`))return 'BACKLOG_RETAINED';
  return withLatency({feedId:scope.scope.feedId,reviewId:id,phase:'REVIEW'},async()=>{
  try {return await withSemanticWorkLease(env.DB,scope.scope.feedId,async store=>{
   const prepared=await measureLatency('SEMANTIC_PREPARATION',()=>prepareSemanticMatch(store,env,id,now));
@@ -104,6 +106,7 @@ async function resolvedRematchDependencies(db:D1Database,attempts:RematchAttempt
 export async function processV1Rematch(env:Env,feedId:string,requestId:string,now=new Date().toISOString()):Promise<void> {
  return withLatency({feedId,reviewId:requestId,phase:'REMATCH'},async()=>{
  await approvedFeed(env,feedId);return withSemanticWorkLease(env.DB,feedId,async store=>{const request=await store.read<RematchRequest>(feedId,'rematch_requests',requestId);if(!request)return;
+ if(editorialContract(env.V1_PUBLICATION_VALIDATION_CONTRACT)==='EVIDENCE_GROUNDED_V2'&&await withFeedWriteTurn(env,feedId,()=>retainBacklogReview(store,request.jobId,now),`admission:${requestId}`))return;
  const allAttempts=await store.list<RematchAttempt>(feedId,'rematch_attempts'),attempt=nextRematch(request,allAttempts,now,{costAdmission:true,resolvedWaitReasons:await resolvedRematchDependencies(env.DB,allAttempts)}),history=allAttempts.filter(a=>a.requestId===requestId);if(!attempt)return;
  const prepared=await measureLatency('SEMANTIC_PREPARATION',()=>prepareSemanticMatch(store,env,request.jobId,now,{attempt}));
  return withFeedWriteTurn(env,feedId,async()=>{
@@ -294,7 +297,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
     // Bound accepted sends, not candidates inspected. Reserved/declined transports
     // must not repeatedly hide otherwise eligible requests later in this order.
     const resolvedWaitReasons=await resolvedRematchDependencies(env.DB,attempts);
-    const eligible=prioritizeRematches(rematches.filter(r=>nextRematch(r,attempts,now.toISOString(),{costAdmission:true,resolvedWaitReasons})),protectedIds,attempts,publishers);
+    const backlog=editorialContract(env.V1_PUBLICATION_VALIDATION_CONTRACT)==='EVIDENCE_GROUNDED_V2'?await feedTransact(store,id,tx=>backlogRevisionIds(store,tx)):new Set<string>();
+    const eligible=prioritizeRematches(rematches.filter(r=>!backlog.has(r.evidenceRevisionId)&&nextRematch(r,attempts,now.toISOString(),{costAdmission:true,resolvedWaitReasons})),protectedIds,attempts,publishers);
     let accepted=0,considered=0;
     for(const request of eligible){if(accepted>=2)break;considered++;if(await enqueueV1(env,'v1_rematch',request.id,{type:'v1_rematch',feedId:id,requestId:request.id},now)){sent++;accepted++;}}
     if(eligible.length)console.info(JSON.stringify({type:'V1_REMATCH_DISPATCH',feedId:id,eligible:eligible.length,considered,enqueued:accepted}));
