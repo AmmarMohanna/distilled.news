@@ -158,6 +158,17 @@ export interface Env extends Cloudflare.Env {
   DISTILLED_SELF_HOSTED_BASE_URL?: string;
   DISTILLED_SELF_HOSTED_API_KEY?: string;
   OPENROUTER_API_KEY?: string;
+  /** "v3" switches scheduled editions to the V3 briefing engine; anything else keeps the legacy path. */
+  BRIEFING_ENGINE?: string;
+  BRIEFING_EDITOR_MODEL?: string;
+  BRIEFING_VERIFIER_MODEL?: string;
+  /** Required for V3: rolling 24h dollar ceiling across all feeds. V3 does not run without it. */
+  BRIEFING_V3_DAILY_BUDGET_USD?: string;
+  /** Optional ceiling for one feed window (default $0.50, never above the daily cap). */
+  BRIEFING_V3_RUN_BUDGET_USD?: string;
+  /** Optional JSON {"model":{"input":usdPerMTok,"output":usdPerMTok}} for models not in the built-in table. */
+  BRIEFING_PRICES_JSON?: string;
+  ANTHROPIC_API_KEY?: string;
   DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE?: string;
   DISTILLED_LIVE_PUBLIC_CANDIDATE_URL?: string;
   DISTILLED_LIVE_OPENROUTER_MODEL?: string;

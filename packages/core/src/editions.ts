@@ -262,7 +262,7 @@ function editionHaystack(edition: BriefingEdition): string {
   ].join(" ").toLowerCase();
 }
 
-function editionId(briefingId: string, cadence: string, windowStart: string, windowEnd: string): string {
+export function editionId(briefingId: string, cadence: string, windowStart: string, windowEnd: string): string {
   return `edition_${stableHash(`${briefingId}:${cadence}:${windowStart}:${windowEnd}`)}`;
 }
 
@@ -274,7 +274,7 @@ function stableHash(input: string): string {
   return (hash >>> 0).toString(36);
 }
 
-function editionTitle(cadence: BriefingConfig["briefingCadence"], language: BriefingConfig["language"]): string {
+export function editionTitle(cadence: BriefingConfig["briefingCadence"], language: BriefingConfig["language"]): string {
   if (language === "ar") {
     if (cadence === "daily") return "الموجز اليومي";
     if (cadence === "weekly") return "الموجز الأسبوعي";

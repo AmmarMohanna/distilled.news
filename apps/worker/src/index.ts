@@ -18,6 +18,7 @@ import {HandoffError} from '@distilled/contracts';
 import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
 import { publishDueBriefingEditions } from "./editions";
+import { v3RuntimeFromEnv } from "./briefing-v3";
 import { processQueueMessage,ProcessingLeaseBusy } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
@@ -359,7 +360,8 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
       repo,
       briefings: await repo.listBriefings(),
       now,
-      summaryAdapter: createSummaryAdapterFromEnv(env, repo)
+      summaryAdapter: createSummaryAdapterFromEnv(env, repo),
+      v3: v3RuntimeFromEnv(env)
     });
   } catch (error) {
     console.error("Could not publish briefing editions", error);
