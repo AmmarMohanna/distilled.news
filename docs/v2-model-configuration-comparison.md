@@ -115,3 +115,21 @@ charge. Historical receipts remain intact.
 Catalog rates are not measured run costs. DeepSeek has revision/provider and
 peak/off-peak differences; Haiku and Luna have long-context pricing tiers. Reserve
 using the worst applicable selected endpoint tier and settle actual reported cost.
+
+## Implemented offline preparation
+
+`benchmarks/v2-configuration-comparison.ts` builds the requested A/B/C task maps
+and prepares evaluation requests from existing pipeline request bodies. It leaves
+source prompts and schemas intact, omits unsupported temperature, refuses unsupported
+effort, records canonical model identity, binds evidence/graph/publication-memory
+hashes into operation identity, disables provider fallback, and calculates conservative
+reservations including the highest advertised price tier. It makes no network calls
+and does not grant spending authority or production qualification.
+
+Run the six deterministic preparation tests with:
+
+    node apps/worker/node_modules/vitest/vitest.mjs run --config benchmarks/v2-configuration-comparison.vitest.config.ts
+
+The current staging TRACK_ONLY setting was re-read: it applies only to
+`openai/gpt-4.1-mini`. It does not authorize the candidate models. Fresh paid
+evaluation authorization is required; no historical approval is silently extended.
