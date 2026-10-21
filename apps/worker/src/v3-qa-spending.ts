@@ -5,7 +5,7 @@ import {modelCapability} from './v1-intelligence/model-capacity';
 /** QA transport only. The application still owns its normal durable operations.
  * This reuses the real provider account's ledger when QA data lives elsewhere. */
 export function qaAccountedFetch(db:D1Database,receipts:D1Database,scope:string,feedId:string,windowEnd:string,limitUsd:number,validUntil:string,fetcher:typeof fetch=fetch):typeof fetch{
- return async(url,init)=>{
+ const complete:typeof fetch=async(url,init)=>{
   if(String(url)!=='https://openrouter.ai/api/v1/chat/completions'||init?.method!=='POST'||typeof init.body!=='string')throw Error('QA_PROVIDER_REQUEST_DENIED');
   const body=JSON.parse(init.body),model=body.model;
   if(!['openai/gpt-4.1','openai/gpt-4.1-mini'].includes(model)||!scope.startsWith('v3-overnight-')||!Number.isFinite(limitUsd)||limitUsd<=0||limitUsd>19)throw Error('QA_SCOPE_DENIED');
@@ -26,4 +26,8 @@ export function qaAccountedFetch(db:D1Database,receipts:D1Database,scope:string,
   await settleModelSpending(db,id,reservation.token,{costUsd:data.usage.cost,reported:true});
   return new Response(raw,{status:response.status,headers:{'content-type':'application/json'}});
  };
+ // Keep this bounded evaluation scope serial: a failed account operation must
+ // stop subsequent sends, while the product engine retains its normal batching.
+ let tail=Promise.resolve();
+ return (url,init)=>{const result=tail.then(()=>complete(url,init));tail=result.then(()=>undefined,()=>undefined);return result};
 }
