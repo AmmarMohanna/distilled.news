@@ -159,8 +159,12 @@ it.each([true,false])('keeps settled crash recovery available only with the orig
 });
 
 it('constructs protected parent decision requirements in the schema instead of asking the model to remember them',()=>{
- const f=anchorFixture();f.shortlist.candidates[0].protectedReasons=['CONTRADICTION'];const request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]},'COMPLETE');const branches:any=(request.schema.properties.stories as any).properties.candidate_1.anyOf;
+ const f=anchorFixture();f.shortlist.candidates[0].protectedReasons=['CORRECTS'];const request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]},'COMPLETE');const branches:any=(request.schema.properties.stories as any).properties.candidate_1.anyOf;
  const resolve=(s:any):any=>s.$ref?(request.schema as any).$defs[s.$ref.split('/').at(-1)]:s;
  expect(branches[0].properties.validation.properties.factDecisions.properties.fact_1.$ref).toBe('#/$defs/EditorialRequiredParentDecision');expect(resolve(branches[1].properties.decision).enum).toEqual(['DEFER']);expect(branches[1].properties.validation.properties.factDecisions.properties.fact_1.$ref).toBe('#/$defs/EditorialDeferredParentDecision');
  expect(resolve((request.schema as any).$defs.EditorialRequiredParentDecision.properties.disposition).enum).toEqual(['REQUIRED']);expect(resolve((request.schema as any).$defs.EditorialDeferredParentDecision.properties.disposition).enum).toEqual(['DEFERRED']);
+});
+
+it('scopes every candidate fact reference before inference instead of allowing foreign article facts',()=>{
+ const f=anchorFixture();f.shortlist.candidates[0].evidenceRevisionIds=['r'];f.shortlist.candidates[0].facts[0].evidenceRevisionIds=['r'];const request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]},'COMPLETE'),branch:any=(request.schema.properties.stories as any).properties.candidate_1.anyOf[0];const resolve=(x:any):any=>x.$ref?(request.schema as any).$defs[x.$ref.split('/').at(-1)]:x;expect(resolve(branch.properties.newUnderstandingFactIds.items).enum).toEqual(['fact']);expect(resolve(branch.properties.attributionFactIds.items).enum).toEqual(['fact']);
 });

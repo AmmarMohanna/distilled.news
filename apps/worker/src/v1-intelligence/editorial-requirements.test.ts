@@ -33,3 +33,7 @@ it('deferring a protected target cannot demote its propositions to optional cont
  const v=validation();for(const d of v.dispositions){d.disposition='OPTIONAL_CONTEXT';d.reasonCode=null;}
  expect(()=>validateEditorialRequirements(v,{...candidate,protectedReasons:['CONTRADICTS']},false)).toThrow();
 });
+
+it('allows optional background within a disagreement but requires an explicit required disagreement',()=>{
+ const v:any=validation();v.dispositions[0].reasonCode='DISAGREEMENT';const c={...candidate,protectedReasons:['CONTRADICTS']};expect(validateEditorialRequirements(v,c).dispositions[1].disposition).toBe('OPTIONAL_CONTEXT');v.dispositions[1].disposition='DEFERRED';expect(()=>validateEditorialRequirements(v,c)).toThrow('DISAGREEMENT_EVIDENCE_REMOVAL');v.dispositions[1].disposition='OPTIONAL_CONTEXT';v.dispositions[0].reasonCode='CORE_DEVELOPMENT';expect(()=>validateEditorialRequirements(v,c)).toThrow('DISAGREEMENT_REQUIREMENT_MISSING');
+});
