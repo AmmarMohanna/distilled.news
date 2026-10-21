@@ -1,4 +1,4 @@
-import {SOURCE_PASSAGES} from './source-passages';
+import {isSourcePassageVersion} from './source-passages';
 import {shareSchemaEnums} from '../provider-schema';
 import {z} from 'zod';
 import {HandoffError} from '@distilled/contracts';
@@ -15,7 +15,7 @@ export function parseConstruction(raw:unknown,mentions:ClaimMention[],input:Even
  for(const [i,group] of value.groups.entries())try{validateEventMatch({structuralRelation:group.structuralRelation,eventId:group.eventId??undefined,storylineId:group.storylineId??undefined,epistemicEffects:group.epistemicEffects,confidence:1,provenance},input)}catch(error){if(error instanceof HandoffError)rejectConstruction('EVENT_RELATION_OWNERSHIP',['groups',i,'structuralRelation']);throw error}
  // Background is a reporting-role label, never authorization to drop an
  // attributed quantity, uncertainty or negated outcome from semantic grouping.
- for(const id of value.backgroundMentionIds){const m=mentions.find(m=>m.id===id)!;if(m.extractorVersion!==SOURCE_PASSAGES&&(m.quantities.length||m.certainty.hedges.length||m.qualifiers.length||m.attribution))rejectConstruction('MATERIAL_BACKGROUND',['backgroundMentionIds',value.backgroundMentionIds.indexOf(id)])}
+ for(const id of value.backgroundMentionIds){const m=mentions.find(m=>m.id===id)!;if(!isSourcePassageVersion(m.extractorVersion)&&(m.quantities.length||m.certainty.hedges.length||m.qualifiers.length||m.attribution))rejectConstruction('MATERIAL_BACKGROUND',['backgroundMentionIds',value.backgroundMentionIds.indexOf(id)])}
  return value;
 }
 

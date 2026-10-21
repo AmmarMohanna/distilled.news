@@ -1,3 +1,6 @@
+import {sha256} from '@distilled/contracts';
+import {canonicalJson} from '../v1-intake/canonical';
+import {COMPACT_COMPLETE_PARENT_POLICY} from './editorial-complete-parents';
 import {expect,it,vi} from 'vitest';
 import {v2EditorialRequest,prepareV2EditorialPlan,decodeV2EditorialResponse,V2_SOURCE_ANCHOR_POLICY,V2_WHOLE_PARENT_POLICY,canSupersedeRejectedEditorial} from './editorial-plan-v2';
 const shortlist:any={id:'s',feedId:'f',feedRevision:1,window:{start:'2026-10-18T00:00:00Z',end:'2026-10-18T01:00:00Z'},candidates:[],obligations:[],ledger:[],evidenceRevisionIds:['r'],communicationFingerprint:'fp'};
@@ -17,7 +20,7 @@ it('omits only repeated fallback prose and ranking audit metadata, retaining fac
 });
 it('retains an already-started paid V2 frame instead of buying a changed projection',async()=>{
  const oldState={window:shortlist.window,outputSchema:{type:'object'},instruction:'frozen paid input'},admission=vi.fn(()=>({fits:false,reason:'MODEL_CONTEXT_CONTINUATION_REQUIRED'}));const store:any={getFeed:async()=>({id:'f',revision:1}),read:async()=>undefined,list:async()=>[{input:{kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'evidence-grounded-editorial-plan-v2',model:'model',feedRevision:1,state:oldState}}]};
- await expect(prepareV2EditorialPlan(store,shortlist,'2026-10-18T02:00:00Z',{model:'model',complete:vi.fn(),usage:()=>({calls:0,costUsd:0,reported:true}),admission} as any)).rejects.toThrow();expect(admission.mock.calls[0]).toEqual([{window:shortlist.window,instruction:'frozen paid input'},{type:'object'},'COMPARATIVE_EDITORIAL_PLAN']);
+ await expect(prepareV2EditorialPlan(store,shortlist,'2026-10-18T02:00:00Z',{model:'model',complete:vi.fn(),usage:()=>({calls:0,costUsd:0,reported:true}),admission} as any)).rejects.toThrow();expect(admission).not.toHaveBeenCalled();
 });
 
 it('retains exact rejected model output and distinguishes local editorial validation from provider failure',()=>{
@@ -31,6 +34,12 @@ const anchorFixture=()=>{
  const story={targetType:'EVENT',targetVersionId:'event',decision:'SELECT',order:1,treatment:'STANDARD',deltaType:'NEW',newUnderstandingFactIds:['fact'],contextFactIds:[],mustIncludeFactIds:['fact'],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[],correctionObligationIds:[],previousLedgerEntryIds:[],rationale:'New fund',relevanceRationale:'Fund news',feedFit:'DIRECT',editorialImportance:.8,validation:{policyVersion:'editorial-requirements-v2',propositions:[{id:'p',parentFactId:'fact',text:fact.text}],dispositions:[{propositionId:'p',disposition:'REQUIRED',reasonCode:'CORE_DEVELOPMENT',justification:'Main announcement with conditions',obligationIds:[]}]}};
  return {shortlist:{...shortlist,candidates:[candidate]} as any,body:{stories:[story],obligations:[]} as any};
 };
+it.each([[true,false],[true,true],[false,false],[false,true]])('refreshes a resolved source-index blocker only after a settled rejection (known=%s,compact=%s)',async(known,compact)=>{
+ const f=anchorFixture(),oldState={window:f.shortlist.window,outputSchema:{type:'object'},instruction:'frozen question',sourceAnchorPolicy:compact?COMPACT_COMPLETE_PARENT_POLICY:undefined,canonicalCandidateReferences:compact?{R0:'event'}:undefined,candidates:[{targetVersionId:compact?'R0':'event',flags:['TITLE_EXTRACTION_PENDING']}]},input:any={feedId:'f',kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'evidence-grounded-editorial-plan-v2',model:'model',feedRevision:1,state:oldState},intent={input,token:'token'},result={input,status:'DEFERRED',failure:'SEMANTIC_EDITORIAL_REJECTED',usage:{calls:1,reported:true,costUsd:.01}};
+ const admission=vi.fn(()=>({fits:false,reason:'MODEL_CONTEXT_CAPACITY'})),complete=vi.fn(),store:any={getFeed:async()=>({id:'f',revision:1}),list:async()=>[intent],read:async(_f:string,kind:string)=>kind==='semantic_intents'?intent:kind==='semantic_results'&&known?result:undefined,db:{prepare:()=>({bind:()=>({first:async()=>({token:'token',reported:1,cost_usd:.01})})})}};
+ await expect(prepareV2EditorialPlan(store,f.shortlist,'2026-10-18T02:00:00Z',{model:'model',admission,complete,usage:()=>({calls:0,costUsd:0,reported:true})} as any)).rejects.toThrow();
+ if(known)expect((admission.mock.calls as any)[0][0].candidates[0].flags).toEqual([]);else expect(admission).not.toHaveBeenCalled();expect(complete).not.toHaveBeenCalled();expect(oldState.candidates[0].flags).toEqual(['TITLE_EXTRACTION_PENDING']);
+});
 it('offers opt-in whole-parent references without duplicating authoritative source text in output',()=>{
  const f=anchorFixture(),request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]},true);
  expect(request.state.sourceAnchorPolicy).toBe(V2_WHOLE_PARENT_POLICY);
@@ -116,4 +125,42 @@ it('uses existing compact references for complete-parent semantic decisions with
  const raw:any={stories:{candidate_1:{...story,validation:{factDecisions:{fact_1:{disposition:'REQUIRED',reasonCode:'CORE_DEVELOPMENT',justification:'Core announcement and conditions',obligationIds:[]}}}}},obligations:[]};
  expect(decodeV2EditorialResponse({value:raw},f.shortlist,request.state.sourceAnchorPolicy).stories[0].mustIncludeFactIds).toEqual(['fact']);
  raw.stories.candidate_1.newUnderstandingFactIds=['foreign'];expect(()=>decodeV2EditorialResponse({value:raw},f.shortlist,request.state.sourceAnchorPolicy)).toThrow();
+});
+
+it.each([false,true])('fences a newer unresolved frame despite an old settled rejection and changed shortlist (reverse=%s)',async reverse=>{
+ const f=anchorFixture(),base:any={feedId:'f',kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'evidence-grounded-editorial-plan-v2',model:'model',feedRevision:1,evidenceRevisionIds:['previous-evidence']};
+ f.shortlist.evidenceRevisionIds=['disjoint-current-evidence'];
+ const old={input:{...base,state:{window:f.shortlist.window,candidates:[{targetVersionId:'event',flags:['TITLE_EXTRACTION_PENDING']}]}},token:'old',createdAt:'2026-10-18T00:00:00Z'};
+ const pending={input:{...base,state:{window:f.shortlist.window,candidates:[{targetVersionId:'event',flags:[]}],outputSchema:{type:'object'},question:'new'}},token:'new',createdAt:'2026-10-18T01:00:00Z'};
+ const oldId=await sha256(canonicalJson(old.input)),pendingId=await sha256(canonicalJson(pending.input));
+ const admission=vi.fn(()=>({fits:true,reservationCostUsd:.01})),complete=vi.fn();
+ const store:any={getFeed:async()=>({id:'f',revision:1}),list:async()=>reverse?[pending,old]:[old,pending],read:async(_f:string,kind:string,id:string)=>kind==='semantic_intents'?(id===oldId?old:pending):kind==='semantic_results'&&id===oldId?{input:old.input,status:'DEFERRED',failure:'SEMANTIC_EDITORIAL_REJECTED',usage:{calls:1,reported:true,costUsd:.01}}:undefined};
+ await expect(prepareV2EditorialPlan(store,f.shortlist,'2026-10-18T02:00:00Z',{model:'model',admission,complete,usage:()=>({calls:0,costUsd:0,reported:true})} as any)).rejects.toThrow();
+ expect(admission).not.toHaveBeenCalled();expect(complete).not.toHaveBeenCalled();expect(pendingId).not.toBe(oldId);
+});
+it('records canonical ownership for request-local compact aliases',()=>{
+ const f=anchorFixture(),request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]},'COMPLETE_COMPACT');
+ expect((request.state as any).canonicalCandidateReferences[request.state.candidates[0].targetVersionId]).toBe('event');
+});
+
+it('does not equate compact R0 with a different canonical candidate after reordering',async()=>{
+ const f=anchorFixture(),state={window:f.shortlist.window,outputSchema:{type:'object'},sourceAnchorPolicy:COMPACT_COMPLETE_PARENT_POLICY,canonicalCandidateReferences:{R0:'other-original-event'},candidates:[{targetVersionId:'R0',flags:['TITLE_EXTRACTION_PENDING']}]},input:any={feedId:'f',kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'evidence-grounded-editorial-plan-v2',model:'model',feedRevision:1,state},intent={input,token:'t'};
+ const result={input,status:'DEFERRED',failure:'SEMANTIC_EDITORIAL_REJECTED',usage:{calls:1,reported:true,costUsd:.01}},admission=vi.fn(()=>({fits:false,reason:'STOP'})),complete=vi.fn();
+ const store:any={getFeed:async()=>({id:'f',revision:1}),list:async()=>[intent],read:async(_f:string,kind:string)=>kind==='semantic_results'?result:kind==='semantic_intents'?intent:undefined};
+ await expect(prepareV2EditorialPlan(store,f.shortlist,'2026-10-18T02:00:00Z',{model:'model',admission,complete,usage:()=>({calls:0,costUsd:0,reported:true})} as any)).rejects.toThrow();
+ expect((admission.mock.calls as any)[0][0].canonicalCandidateReferences.R0).toBe('other-original-event');expect((admission.mock.calls as any)[0][0].candidates[0].flags).toContain('TITLE_EXTRACTION_PENDING');expect(complete).not.toHaveBeenCalled();
+});
+
+it.each([true,false])('keeps settled crash recovery available only with the original intent token (matching=%s)',async matching=>{
+ const f=anchorFixture(),input:any={feedId:'f',kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'evidence-grounded-editorial-plan-v2',model:'model',feedRevision:1,state:{window:f.shortlist.window,outputSchema:{type:'object'},instruction:'original settled question'}},intent={input,token:'owned'},settlement={input,token:matching?'owned':'foreign',status:'SUCCEEDED',usage:{calls:1,reported:true,costUsd:.01}};
+ const admission=vi.fn(()=>({fits:false,reason:'STOP'})),complete=vi.fn(),store:any={getFeed:async()=>({id:'f',revision:1}),list:async()=>[intent],read:async(_f:string,kind:string)=>kind==='semantic_settlements'?settlement:undefined};
+ await expect(prepareV2EditorialPlan(store,f.shortlist,'2026-10-18T02:00:00Z',{model:'model',admission,complete,usage:()=>({calls:0,costUsd:0,reported:true})} as any)).rejects.toThrow();
+ expect(admission).toHaveBeenCalledTimes(matching?1:0);if(matching)expect((admission.mock.calls as any)[0][0].instruction).toBe('original settled question');expect(complete).not.toHaveBeenCalled();
+});
+
+it('constructs protected parent decision requirements in the schema instead of asking the model to remember them',()=>{
+ const f=anchorFixture();f.shortlist.candidates[0].protectedReasons=['CONTRADICTION'];const request=v2EditorialRequest(f.shortlist,{title:'Feed',interests:[]},'COMPLETE');const branches:any=(request.schema.properties.stories as any).properties.candidate_1.anyOf;
+ const resolve=(s:any):any=>s.$ref?(request.schema as any).$defs[s.$ref.split('/').at(-1)]:s;
+ expect(branches[0].properties.validation.properties.factDecisions.properties.fact_1.$ref).toBe('#/$defs/EditorialRequiredParentDecision');expect(resolve(branches[1].properties.decision).enum).toEqual(['DEFER']);expect(branches[1].properties.validation.properties.factDecisions.properties.fact_1.$ref).toBe('#/$defs/EditorialDeferredParentDecision');
+ expect(resolve((request.schema as any).$defs.EditorialRequiredParentDecision.properties.disposition).enum).toEqual(['REQUIRED']);expect(resolve((request.schema as any).$defs.EditorialDeferredParentDecision.properties.disposition).enum).toEqual(['DEFERRED']);
 });

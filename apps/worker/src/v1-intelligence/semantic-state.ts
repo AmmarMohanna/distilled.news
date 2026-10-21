@@ -1,4 +1,4 @@
-import {SOURCE_PASSAGES} from './source-passages';
+import {isSourcePassageVersion} from './source-passages';
 import {HandoffError,sha256,type EventVersion,type EventMembership} from '@distilled/contracts';
 import {z} from 'zod';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -21,7 +21,7 @@ export interface ConstructionBinding {invariant:string;path:(string|number)[]}
 export function rejectConstruction(invariant:string,path:(string|number)[]):never {throw Object.assign(new HandoffError('SCOPE_DENIED'),{binding:{invariant,path}})}
 export function validateConstruction(value:SemanticConstruction,mentions:ClaimMention[]):SemanticConstruction {
  const known=new Map(mentions.map(m=>[m.id,m])),covered=new Set(value.backgroundMentionIds);
- if(!value.groups.length&&!(mentions.length&&mentions.every(m=>m.extractorVersion===SOURCE_PASSAGES)))rejectConstruction('NO_DEVELOPMENT',['groups']);
+ if(!value.groups.length&&!(mentions.length&&mentions.every(m=>isSourcePassageVersion(m.extractorVersion))))rejectConstruction('NO_DEVELOPMENT',['groups']);
  if(value.backgroundMentionIds.some(id=>!known.has(id)))rejectConstruction('UNKNOWN_CLAIM_REFERENCE',['backgroundMentionIds']);
  for(const [i,raw] of value.groups.entries()){const {storylineState,...base}=raw,group=semanticGroupSchema.parse(base),path=['groups',i];
   for(const id of group.claimMentionIds){if(!known.has(id))rejectConstruction('UNKNOWN_CLAIM_REFERENCE',[...path,'claimMentionIds']);covered.add(id)}
@@ -48,7 +48,7 @@ export function validateConstruction(value:SemanticConstruction,mentions:ClaimMe
 export async function persistEventSemanticState(tx:FeedTransaction,event:EventVersion,now:string,binding?:{group:SemanticGroup;provenance:EventMatchDecision['provenance']}):Promise<EventSemanticState> {
  const members=(await tx.list<EventMembership>('memberships')).filter(m=>m.eventVersionId===event.id),support=new Set(members.map(m=>m.evidenceRevisionId));
  const all=(await tx.list<ClaimMention>('claim_mentions')).filter(m=>support.has(m.evidenceRevisionId));
- const mentions=(binding?all.filter(m=>binding.group.claimMentionIds.includes(m.id)):all).filter(m=>m.extractorVersion===SOURCE_PASSAGES||isNewsMention(m));
+ const mentions=(binding?all.filter(m=>binding.group.claimMentionIds.includes(m.id)):all).filter(m=>isSourcePassageVersion(m.extractorVersion)||isNewsMention(m));
  if(binding && binding.group.claimMentionIds.some(id=>!all.some(m=>m.id===id)))throw new HandoffError('SCOPE_DENIED');
  const propositionIds:string[]=[],stateSlotIds:string[]=[],entityIds:string[]=[],propositions=new Map<string,Proposition>();
  const mentionIds=new Map(await Promise.all(mentions.map(async mention=>[mention.id,await sha256(canonicalJson({feedId:tx.snapshot.feed.id,mentionId:mention.id,policy:STATE_POLICY}))] as const)));

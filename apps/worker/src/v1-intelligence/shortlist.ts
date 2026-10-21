@@ -1,3 +1,4 @@
+import {isSourcePassageVersion} from './source-passages';
 import {sha256,type TargetType} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import {feedTransact,V1FeedStore,type FeedTransaction} from './store';
@@ -15,7 +16,7 @@ import {CLAIM_EXTRACTOR,type SourceDocument,nonFactRole} from './claims';
 import {communicationCost,type CommunicationCost} from './planning-capacity';
 import type {Env} from '../types';
 import {newsWindowEligibility} from './window-delivery';
-export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v18-publication-windows';
+export const SHORTLIST_POLICY='high-recall-semantic-shortlist-v19-source-passages';
 export type {NoveltyClass};
 export interface ShortlistFact {newsEligibility?:{policyVersion:string;status:'ELIGIBLE'|'NOT_NEWS'|'UNRESOLVED'};id:string;timing?:FactTiming;selfContained?:SelfContainment;context?:FactContext;propositionId?:string;mergedPropositionIds?:string[];text:string;evidenceRevisionIds:string[];claimMentionIds:string[];certainty?:Proposition['certainty'];attribution?:string;reportTime?:string;eventTime?:string}
 export interface ShortlistCandidate {/** What the communication ledger shows about this target, independent of how old its source is. */readerState?:'UNSEEN'|'PARTIALLY_SEEN'|'SEEN';/** Deferred only by overflow: the planner has never compared it. */unreviewed?:boolean;/** When its earliest overflow deferral was recorded. */unreviewedSince?:string;publisherIds?:string[];sourceTitles?:string[];ranking?:EditorialRanking;communicationCost?:CommunicationCost;novelty?:NoveltyClass;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;eventVersionIds:string[];evidenceRevisionIds:string[];facts:ShortlistFact[];stateSlotIds:string[];effects:string[];flags:string[];protectedReasons:string[];correctionObligationIds:string[];priority:number;fallbackEditorial:EditorialDecision}
@@ -67,7 +68,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   const withdrawal=withdrawnStates.find(s=>s.id===o.triggerId&&s.editionId===o.editionId&&s.status==='WITHDRAWN');
   return withdrawal?{...o,publicationWithdrawal:{reason:withdrawal.reason}}:o;
  });
- const sourceDocuments=await tx.list<SourceDocument>('source_documents');
+ const sourceDocuments=await tx.list<SourceDocument>('source_documents'),semanticPassageIds=new Set(sourceDocuments.filter(d=>isSourcePassageVersion(d.extractorVersion)).flatMap(d=>d.claimMentionIds));
  const candidates:ShortlistCandidate[]=[],unresolvedTargets:NonNullable<ShortlistRecord['unresolvedTargets']>=[];
  const currentTargets=await targets(tx,window,true);
  const undeliveredWindows=options.reportingWindows?(await tx.list<import('./runtime').BriefingRequest>('briefing_requests')).filter(r=>Date.parse(r.window.start)>=Date.parse(tx.snapshot.feed.createdAt)&&Date.parse(r.window.end)<=Date.parse(window.start)&&(r.state!=='DONE'||r.result==='DEFERRED')):[];
@@ -98,7 +99,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   if(!adaptive&&Date.parse(target.updatedAt)<Date.parse(window.start) && !bootstrap && !related.length && !deferred.length)continue;
   const states=(await Promise.all(target.eventVersionIds.map(id=>tx.read<EventSemanticState>('event_semantic_states',id)))).filter((s):s is EventSemanticState=>Boolean(s)),rawFacts:ShortlistFact[]=[];
   const missingPropositionIds:string[]=[],unresolvedLegacyVersions:string[]=[];
-  for(const id of [...new Set(states.flatMap(s=>s.propositionIds))]){const p=await tx.read<Proposition>('propositions',id);if(!p){missingPropositionIds.push(id);continue;}if(!nonFactRole(p.text))rawFacts.push({id:p.id,propositionId:p.id,text:p.text,evidenceRevisionIds:p.evidenceRevisionIds,claimMentionIds:p.claimMentionIds,certainty:p.certainty,attribution:p.attribution,reportTime:p.reportTime,eventTime:p.eventTime})}
+  for(const id of [...new Set(states.flatMap(s=>s.propositionIds))]){const p=await tx.read<Proposition>('propositions',id);if(!p){missingPropositionIds.push(id);continue;}if(p.claimMentionIds.some(id=>semanticPassageIds.has(id))||!nonFactRole(p.text))rawFacts.push({id:p.id,propositionId:p.id,text:p.text,evidenceRevisionIds:p.evidenceRevisionIds,claimMentionIds:p.claimMentionIds,certainty:p.certainty,attribution:p.attribution,reportTime:p.reportTime,eventTime:p.eventTime})}
   // Legacy Events have no semantic state. Only their own retained state prose
   // may fall back to exact source support; sharing an article grants no facts.
   for(const versionId of target.eventVersionIds.filter(id=>!states.some(s=>s.eventVersionId===id))){
@@ -137,7 +138,7 @@ export async function shortlistInTransaction(tx:FeedTransaction,window:Publicati
   // repeated fact. Explicit open obligations still require resolution.
   const repeatedProtectedEffect=protectedReasons.length>0&&!related.length&&facts.every(f=>known.some(text=>equivalent(text,f.text)));
   if(repeatedProtectedEffect)protectedReasons.splice(0);
-  const titleExtractionPending=target.evidence.some(e=>e.title&&!nonFactRole(e.title)&&!sourceDocuments.some(d=>d.evidenceRevisionId===e.id&&d.extractorVersion===CLAIM_EXTRACTOR));
+  const titleExtractionPending=target.evidence.some(e=>e.title&&!nonFactRole(e.title)&&!sourceDocuments.some(d=>d.evidenceRevisionId===e.id&&(d.extractorVersion===CLAIM_EXTRACTOR||isSourcePassageVersion(d.extractorVersion))));
   const identityAffectsHistory=states.some(s=>s.provisional)&&facts.some(f=>ledger.some(e=>e.claimFacts.some(old=>equivalent(old,f.text)||provenMaterialDelta(old,f.text))));
   const flags=[...(repeatedProtectedEffect?['SETTLED_REPEATED_EFFECT']:[]),...(titleExtractionPending?['TITLE_EXTRACTION_PENDING']:[]),...(editorial.decision==='SUPPRESS'?['POSSIBLE_REPEAT']:[]),...(editorial.reasonCodes.includes('OLD_RECAP')?['OLD_RECAP']:[]),...(states.some(s=>s.provisional)?['PROVISIONAL']:[]),...(states.some(s=>s.provisional)&&awaitingBudget(target.evidence.map(e=>e.id))?['SEMANTIC_PENDING_BUDGET']:[]),...(states.some(s=>s.provisional)&&(protectedReasons.length||editorial.previouslyCommunicated.some(p=>!p.withdrawn&&!p.sourceOnly&&p.facts.length)||identityAffectsHistory)?['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE']:[]),...(facts.some(f=>f.certainty?.hedges.length)?['QUALIFIED']:[]),...(facts.some(f=>f.selfContained==='UNRESOLVED')?['NON_SELF_CONTAINED']:[])];
   const seenFacts=facts.filter(f=>known.some(k=>equivalent(k,f.text))).length;

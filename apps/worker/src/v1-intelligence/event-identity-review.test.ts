@@ -3,6 +3,14 @@ import {identityReviewRequest,applyIdentityReview} from './event-identity-review
 const construction:any={groups:[{claimMentionIds:['mention'],structuralRelation:'SAME_EVENT',eventId:'replit',storylineId:null,epistemicEffects:['ADDS_DETAIL'],entities:[],slots:[]}],backgroundMentionIds:[],provenance:{scorer:'GPT',policyVersion:'test'}};
 const input:any={revision:{id:'fund',title:'Anthropic fund',body:'Anthropic commits shares to a benefit fund.'},candidates:[{id:'replit',version:{id:'v1',state:'Replit changes its default coding model.'},evidenceRevisionIds:['replit-source']}],storylineIds:[]};
 const mentions:any=[{id:'mention',sourceText:input.revision.body}];
+it('constrains new-occurrence review answers to null canonical identities on the wire',()=>{
+ const r=identityReviewRequest(construction,mentions,input,[{revision:{id:'replit-source',body:'Replit changes its default coding model.'}}] as any),group:any=(r.schema as any).properties.groups.properties.group_1;
+ expect(group.anyOf).toBeTruthy();const fresh=group.anyOf[0];expect(fresh.properties.eventId).toEqual({type:'null'});expect(fresh.properties.storylineId).toEqual({type:'null'});
+});
+it('identifies a correct distinct-occurrence reason with non-null old IDs as a contract conflict, without normalizing it',()=>{
+ const raw:any={groups:{group_1:{structuralRelation:'NEW_STORYLINE',eventId:'replit',storylineId:null,epistemicEffects:[],reason:'The fund and model-switch announcement are distinct occurrences.',sourceWitness:null,targetWitness:null}}},before=JSON.stringify(raw);
+ expect(()=>applyIdentityReview(construction,raw,input,'op')).toThrow('IDENTITY_REVIEW_RELATION_ID_CONFLICT');expect(JSON.stringify(raw)).toBe(before);
+});
 it('reviews exact group evidence against full candidate evidence without offering the first match as an answer',()=>{
  const r=identityReviewRequest(construction,mentions,input,[{revision:{id:'replit-source',body:'Replit changes its default coding model.'}}] as any);
  expect(r.state.groups.group_1.claims[0].text).toContain('benefit fund');

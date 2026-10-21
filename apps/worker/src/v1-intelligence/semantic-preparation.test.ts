@@ -29,10 +29,10 @@ it('V2 source rematching replaces legacy ownership without reviving background c
 },20000);
 it('V2 source indexing exposes complete multi-sentence and multilingual evidence without semantic hints',async()=>{
  const body='Subscribe now. The company said it is developing agents. They might be released only after approval.\n\nقالت الشركة إنها لم تطلق المنتج.';
- await acceptEvidence(store,1,body,'publisher-1',testPolicy.now(),'ar','2026-10-03T10:00:00Z','What changed?');
+ await acceptEvidence(store,1,body,'publisher-1',testPolicy.now(),'ar','2026-10-03T10:00:00Z','Company outlines conditional agent development');
  let calls=0;const usage={calls:1,costUsd:.001,reported:true};
  const strong={model:'source-passages-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{
-  calls++;expect(state.source.text).toBe(body);expect(state.source.title).toBe('What changed?');expect(state.source.publishedAt).toBe('2026-10-03T10:00:00Z');expect(state.source.canonicalUrl).toBeTruthy();
+  calls++;expect(state.source.text).toBe(body);expect(state.source.title).toBe('Company outlines conditional agent development');expect(state.source.publishedAt).toBe('2026-10-03T10:00:00Z');expect(state.source.canonicalUrl).toBeTruthy();
   expect(state.claimMentions).toHaveLength(3);for(const m of state.claimMentions){expect(m.reportingRoleHint).toBeUndefined();expect(m.certainty).toBeUndefined();expect(m.attribution).toBeUndefined()}
   return {value:{confidence:1,groups:[{groupId:'G0',occurrence:'A reported conditional development',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[]}],dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'G0']))},usage};
  }};
@@ -40,6 +40,7 @@ it('V2 source indexing exposes complete multi-sentence and multilingual evidence
  await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(calls).toBe(1);
  await processEvidenceIntelligence(store,job,testPolicy.now(),prepared!.matchers);
  const props=await store.list<any>('feed-1','propositions');expect(props).toHaveLength(3);expect(props.some(p=>p.text.startsWith('Subscribe now.'))).toBe(true);expect(calls).toBe(1);
+ const shortlist=await (await import('./shortlist')).prepareSemanticShortlist(store,'feed-1',{start:'2026-10-03T00:00:00Z',end:'2026-10-04T00:00:00Z',kind:'DAILY'},testPolicy.now());expect(shortlist.candidates.length).toBeGreaterThan(0);expect(shortlist.candidates.every(c=>!c.flags.includes('TITLE_EXTRACTION_PENDING'))).toBe(true);expect(shortlist.candidates.some(c=>c.facts.some(f=>f.text.startsWith('Subscribe now.')))).toBe(true);
 },20000);
 it('V2 accepts a semantic no-development result and completes intake without an invented event or a retry',async()=>{
  await acceptEvidence(store,1,'Subscribe now. What would you like to read?');let calls=0;const usage={calls:1,costUsd:.001,reported:true};

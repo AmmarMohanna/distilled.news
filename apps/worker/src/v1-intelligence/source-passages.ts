@@ -3,7 +3,8 @@ import {canonicalJson} from '../v1-intake/canonical';
 import {assertClaimSpan,type ClaimMention,type SourceDocument} from './claims';
 import type {FeedTransaction} from './store';
 
-export const SOURCE_PASSAGES='exact-source-paragraphs-v1';
+export const SOURCE_PASSAGES='exact-source-paragraphs-v2';
+export const isSourcePassageVersion=(version:string)=>version===SOURCE_PASSAGES||version==='exact-source-paragraphs-v1';
 /** A source index, not claim extraction. Paragraphs are reference anchors, not
  * facts, occurrence boundaries or eligibility judgments. Retain connected prose
  * and every non-whitespace character in the title and body, in any language.
@@ -15,7 +16,7 @@ export async function indexSourcePassages(revision:EvidenceRevision):Promise<{do
  const mentions:ClaimMention[]=[];
  for(const field of ['title','body'] as const){
   const source=revision[field]??'';let start=0;
-  const ends=field==='body'?[...source.matchAll(/\r?\n[\t ]*\r?\n/g)].map(m=>({end:m.index!,next:m.index!+m[0].length})):[];
+  const ends=field==='body'?[...source.matchAll(/\r?\n(?:[\t ]*\r?\n)*/g)].map(m=>({end:m.index!,next:m.index!+m[0].length})):[];
   for(const {end,next} of [...ends,{end:source.length,next:source.length}]){
    const sourceText=source.slice(start,end),span={field,start,end};start=next;
    if(!sourceText.trim())continue;

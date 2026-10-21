@@ -26,3 +26,9 @@ it('accepts an explicit semantic no-development decision while retaining complet
  const raw={confidence:1,groups:[],dispositionByUnitId:Object.fromEntries(mentions.map((_,i)=>['C'+i,'BACKGROUND']))};
  expect(parseConstruction(wire.decode(raw),mentions,input,{scorer:'TEST',policyVersion:'article-passages'}).backgroundMentionIds).toEqual(mentions.map(m=>m.id));
 });
+
+it('indexes single-newline acquired paragraphs without splitting sentences or dropping source characters',async()=>{
+ const r={...revision,body:'The company is developing agents. They may act only after approval.\nThe next paragraph describes an independent fund.\n\nHistorical context remains available.'};
+ const {mentions}=await indexSourcePassages(r);expect(mentions.filter(m=>m.span.field==='body')).toHaveLength(3);expect(mentions[1].sourceText).toContain('They may act only after approval.');
+ for(const m of mentions)assertClaimSpan(m,r);for(let i=0;i<r.body.length;i++)if(!/\s/.test(r.body[i]))expect(mentions.some(m=>m.span.field==='body'&&m.span.start<=i&&m.span.end>i)).toBe(true);
+});
