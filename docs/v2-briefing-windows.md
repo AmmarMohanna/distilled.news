@@ -129,3 +129,13 @@ recovery check did not recognize that terminal response. The third had no saved
 generation handle. This is a capacity/accounting blocker, not evidence of timely
 publication. Financial settlement and any changes to existing holds require the
 operator's separate approval. The test was paused without releasing holds.
+
+### Operator reset of historical holds
+
+An explicitly approved hold reset archives the exact reservation identities as
+`model_execution_quarantines`. Provider concurrency ignores only markers bound to
+the same reservation ID, feed, account and token. Request rate limits still count
+actual admissions. Reservations, receipts, unknown billing exposure and operation
+retry fences remain intact; this does not claim provider cancellation or zero cost.
+The reset does not require retiring the current feed. It creates no new spending
+authorization and does not alter settled financial records.
