@@ -8,6 +8,20 @@ import {boundedCompletion} from '../ai';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await seedIntelligence(store)});
 afterEach(async()=>ctx.dispose());
+it('records unpaid capacity waits without duplicating model state and preserves retry identity',async()=>{
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'RELATION',policyVersion:'test',model:'fake',budgetKey:'wait',state:{text:'large context '.repeat(10000)}};
+ const run=async()=>{throw Error('must not call provider')};
+ const options={operationAdmission:{fits:false,reason:'CONTEXT_LIMIT',reservationCostUsd:.02}};
+ const first=await durableSemanticOperation(store,input,run,'2026-10-03T12:00:00Z',undefined,options);
+ const second=await durableSemanticOperation(store,input,run,'2026-10-03T12:00:00Z',undefined,options);
+ expect(second.id).toBe(first.id);expect(first.input.state).toEqual(input.state);
+ const waits=await store.list<any>('feed-1','semantic_resource_waits');
+ expect(waits).toHaveLength(1);expect(waits[0].operationId).toBe(first.id);
+ expect(waits[0].input.state).toBeUndefined();expect(waits[0].input.stateOmitted).toBe(true);
+ expect(waits[0].input.evidenceRevisionIds).toEqual(input.evidenceRevisionIds);
+ expect(JSON.stringify(waits[0]).length).toBeLessThan(2000);
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+},15000);
 it('durably binds provider headers to the paid operation without changing its reservation identity',async()=>{
  const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'RELATION',policyVersion:'receipt-test',model:'fake',budgetKey:'test',state:{}};
  const first=await durableSemanticOperation(store,input,async()=>{

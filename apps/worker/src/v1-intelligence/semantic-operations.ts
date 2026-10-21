@@ -1,3 +1,4 @@
+import {semanticWaitRecord} from './semantic-wait-record';
 import {ASYNC_MODEL_CALL_MS,ASYNC_OPERATION_LEASE_MS} from './operation-timing';
 import {settledEditorialBlockerResolved} from './editorial-blocker-successor';
 import {ProviderRequestError,type ProviderDiagnostic} from '../provider-outcome';
@@ -52,12 +53,12 @@ export async function durableSemanticOperation<T>(store:V1FeedStore,input:Semant
   if(intent){if(intent.leaseUntil>Date.now())throw new SemanticContentionError();const result=deferred('SEMANTIC_OUTCOME_UNKNOWN',{calls:1,costUsd:intent.reservedCostUsd,reported:false});await tx.write('semantic_results',id,result);return {result}}
   if(store.semanticLease?.executionDeadlineMs!==undefined&&Date.now()+ASYNC_MODEL_CALL_MS>store.semanticLease.executionDeadlineMs){
    const result=deferred('SEMANTIC_EXECUTION_YIELD',{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);
-   if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...result,id:waitId,operationId:id,category:'EXECUTION_CONTINUATION'});
+   if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...semanticWaitRecord(result),id:waitId,operationId:id,category:'EXECUTION_CONTINUATION'});
    return {result};
   }
   if(options.operationAdmission&&!options.operationAdmission.fits){
    const result=deferred(`SEMANTIC_${options.operationAdmission.reason??'MODEL_CAPABILITY_UNAVAILABLE'}`,{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);
-   if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...result,id:waitId,operationId:id,category:'MODEL_CAPACITY',admission:options.operationAdmission});
+   if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...semanticWaitRecord(result),id:waitId,operationId:id,category:'MODEL_CAPACITY',admission:options.operationAdmission});
    return {result};
   }
   if(options.preserveStartedEditorialScope){
@@ -67,13 +68,13 @@ export async function durableSemanticOperation<T>(store:V1FeedStore,input:Semant
     const transitionId=JSON.stringify(['SETTLED_BLOCKER_RESOLVED',p.id,id]);if(!await tx.read('editorial_processing_progress',transitionId))await tx.write('editorial_processing_progress',transitionId,{id:transitionId,feedId:input.feedId,sourceOperationId:p.id,operationId:id,reason:'SETTLED_BLOCKER_RESOLVED',createdAt:now});
    }
   }
-  if(reservation===undefined){const result=deferred('SEMANTIC_COST_ESTIMATE_REQUIRED',{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...result,id:waitId,operationId:id,category:'ACCOUNT_AUTHORIZATION'});return {result}}
+  if(reservation===undefined){const result=deferred('SEMANTIC_COST_ESTIMATE_REQUIRED',{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...semanticWaitRecord(result),id:waitId,operationId:id,category:'ACCOUNT_AUTHORIZATION'});return {result}}
   const accountId=await modelSpendingAccount(store.db,input.model,now,store.spendingAccountId);
   const value:SemanticIntent={id,feedId:input.feedId,input,token,leaseUntil:Date.now()+ASYNC_OPERATION_LEASE_MS,reservedCostUsd:reservation,createdAt:now,...(compatibilityHash?{compatibilityHash}:{})};tx.modelReservations.push({id:'semantic_intents:'+id,accountId,model:input.model,feedId:input.feedId,token,reservedCostUsd:reservation,leaseUntil:value.leaseUntil,createdAt:now});await tx.write('semantic_intents',id,value);return {intent:value};
  }).catch(async error=>{
   if(!(error instanceof ModelSpendingWait))throw error;
   const result:SemanticOperationResult<T>={id,feedId:input.feedId,input,status:'DEFERRED',failure:error.reason,usage:{calls:0,costUsd:0,reported:true},latencyMs:0,createdAt:now};
-  await feedTransact(store,input.feedId,async tx=>{const waitId=JSON.stringify([id,error.reason]);if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...result,id:waitId,operationId:id,category:'ACCOUNT_AUTHORIZATION'})});return {result};
+  await feedTransact(store,input.feedId,async tx=>{const waitId=JSON.stringify([id,error.reason]);if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...semanticWaitRecord(result),id:waitId,operationId:id,category:'ACCOUNT_AUTHORIZATION'})});return {result};
  });
  if(acquired.result){if(acquired.result.id!==id)console.info(JSON.stringify({type:acquired.result.status==='SUCCEEDED'?'V1_SEMANTIC_RESULT_REUSED':acquired.result.usage.reported?'V1_SEMANTIC_REJECTED_RESULT_REUSED':'V1_SEMANTIC_UNKNOWN_FENCE',feedId:input.feedId,stage:input.kind,operationId:id,retainedOperationId:acquired.result.id}));return acquired.result;}
  const started=Date.now();let value:T|undefined,failure:string|undefined,validationDiagnostic:SemanticValidationDiagnostic|undefined,providerDiagnostic:ProviderDiagnostic|undefined,usage:ExperimentUsage={calls:1,costUsd:acquired.intent!.reservedCostUsd,reported:false};
