@@ -4,6 +4,7 @@ import {prepareProductSourceInput,resolveProductSourceInput} from './product-fee
 import {sourceAvailability} from './connector-availability';
 import {normalizeRssSnapshot,type SourceFamily} from '@distilled/connectors';
 import {assessSources,type SourceAssessment} from './source-assessment';
+import type {SourceVerificationScope} from './source-verification-collector';
 import {discoverPublicRssFeed} from './product-feed-discovery';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {recommendationFetch} from './source-recommendation-fetch';
@@ -35,13 +36,14 @@ async function readableRssRecommendation(value:string,fetcher:typeof fetch,searc
 }
 
 /** One replacement pass when every suggestion fails; verification remains mandatory. */
-export async function verifiedSourceRecommendations(env:Env,input:{title:string;description:string},fetcher:typeof fetch=fetch){
+export async function verifiedSourceRecommendations(env:Env,input:{title:string;description:string},fetcher:typeof fetch=fetch,verification?:SourceVerificationScope){
+ const providerFetcher=fetcher;
  fetcher=recommendationFetch(fetcher);
  const checks:SourceAssessment[]=[],seen=new Set<string>();
  const verify=async(source:string)=>{
   if(seen.has(source))return;
   seen.add(source);
-  checks.push(...await assessSources(env,input,[source],fetcher));
+  checks.push(...await assessSources(env,input,[source],fetcher,verification?{...verification,providerFetcher}:undefined));
  };
  const accepted=()=>{
   const publishers=new Set<string>();
@@ -71,7 +73,7 @@ export async function verifiedSourceRecommendations(env:Env,input:{title:string;
   }catch{/* Keep the original verification failure when publisher discovery is unavailable. */}
  }
  if(recovered.length){
-  checks.push(...await assessSources(env,input,recovered,fetcher));
+  checks.push(...await assessSources(env,input,recovered,fetcher,verification?{...verification,providerFetcher}:undefined));
   if(accepted().length>=2)return {sources:accepted().map(check=>check.input),checks};
  }
  try{

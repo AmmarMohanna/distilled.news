@@ -10,9 +10,15 @@
   "assets": { "directory": "../web/dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": true },
   "vars": {
     "STORAGE_MAINTENANCE_ENABLED": "true",
+    "SOURCE_DAILY_BUDGET_USD": "5",
+    "SOURCE_BUDGET_TIME_ZONE": "Asia/Beirut",
+    "SOURCE_PAID_VERIFICATION_ENABLED": "true",
+    "SOURCE_NATIVE_EXECUTION_ENABLED": "true",
+    "SOURCE_EXECUTION_URL": "http://127.0.0.1:8791/v1/source-execution",
+    "SOURCE_LEGACY_POLLING_ENABLED": "false",
     "SOURCE_RECOMMENDATIONS_ENABLED": "true",
     "SOURCE_RECOMMENDATIONS_WEB_SEARCH": "true",
-    "SOURCE_RECOMMENDATIONS_GOOGLE_NEWS": "false",
+    "SOURCE_RECOMMENDATIONS_GOOGLE_NEWS": "true",
     "SOURCE_ASSESSMENT_ENABLED": "true",
     "SOURCE_ASSESSMENT_MODEL": "openai/gpt-4.1-mini",
     "DISTILLED_JEV_MODEL": "typesafe/jev-1.13",
@@ -36,11 +42,12 @@
     "V1_BROWSER_ACQUISITION_ENABLED": "false",
     "DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE": "false",
     "DISTILLED_NEWS_PIPELINE_EVALUATION": "false",
-    "SOURCE_OPERATION_CEILINGS_JSON": "{\"twitterApiIo\":0,\"apify\":0,\"zyte\":0}",
-    "SOURCE_PROVIDER_BUDGETS_JSON": "{\"x_twitterapi_io\":0,\"x_apify\":0,\"google_apify\":0,\"linkedin_apify\":0,\"zyte\":0}"
+    "SOURCE_OPERATION_CEILINGS_JSON": "{\"twitterApiIo\":0,\"apify\":0.05,\"zyte\":0}",
+    "SOURCE_PROVIDER_BUDGETS_JSON": "{\"x_twitterapi_io\":0,\"x_apify\":5,\"google_apify\":5,\"linkedin_apify\":5,\"zyte\":0}"
   },
   "d1_databases": [{ "binding": "DB", "database_name": "distilled-news-joud", "database_id": "85d1c3a5-1004-4cfc-9da1-dd5a87dab9a2", "migrations_dir": "migrations" }],
   "r2_buckets": [{ "binding": "RAW_ARCHIVE", "bucket_name": "distilled-news-joud-raw" }, { "binding": "AUTHENTICATED_SECRETS", "bucket_name": "distilled-news-joud-authenticated-secrets" }],
+  "vpc_services": [{ "binding": "SOURCE_EXECUTION_SERVICE", "service_id": "01a15fbb-d418-7871-a5ca-92f1be34925c" }],
   "send_email": [{ "name": "EMAIL" }],
   "queues": {
     "producers": [{ "binding": "PROCESSING_QUEUE", "queue": "distilled-news-joud-processing" }, { "binding": "IMAGE_QUEUE", "queue": "distilled-news-joud-images" }],

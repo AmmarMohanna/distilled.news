@@ -2,17 +2,23 @@ import { PublicSourceFetchFailure, PublicSourcePolicyError, type PublicSourceFet
 
 const MAX_BODY_BYTES = 512_000;
 
-/** Conservative one-origin, no-redirect HTTP capability for public source assessment. */
+/** Conservative one-origin HTTP capability. Redirects require explicit opt-in
+ * and remain bounded and confined to the original public HTTPS origin. */
 export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
   private readonly origin: string;
-  constructor(sourceUrl: string, private readonly fetcher: typeof fetch = fetch) {
+  constructor(sourceUrl: string, private readonly fetcher: typeof fetch = fetch,private readonly options:{followSameOriginRedirects?:boolean}={}) {
     const source = admittedUrl(sourceUrl);
     this.origin = source.origin;
   }
 
   async get(value: string): Promise<{ url: string; contentType: string; body: string; status: number; authenticationRequired?:boolean }> {
+    return this.read(value,new Set());
+  }
+  private async read(value:string,seen:Set<string>):Promise<{url:string;contentType:string;body:string;status:number;authenticationRequired?:boolean}>{
     const url = admittedUrl(value);
-    if (url.origin !== this.origin) throw new PublicSourcePolicyError();
+    url.hash='';
+    if (url.origin !== this.origin||seen.has(url.href)||seen.size>3) throw new PublicSourcePolicyError();
+    seen.add(url.href);
     let response: Response;
     const signal = AbortSignal.timeout(15_000);
     const fetcher=this.fetcher;
@@ -22,7 +28,11 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
       if (knownCloudflareSubrequestDenial(error)) throw new PublicSourcePolicyError();
       throw new PublicSourceFetchFailure(signal.aborted ? "FETCH_TIMEOUT" : "FETCH_REJECTED");
     }
-    if (response.status >= 300 && response.status < 400) throw new PublicSourcePolicyError();
+    if (response.status >= 300 && response.status < 400){
+      const location=response.headers.get('location');await response.body?.cancel();
+      if(!this.options.followSameOriginRedirects||![301,302,303,307,308].includes(response.status)||!location)throw new PublicSourcePolicyError();
+      return this.read(new URL(location,url).href,seen);
+    }
     if (Number(response.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw new PublicSourceFetchFailure("BODY_BUDGET_EXCEEDED");
     const reader = response.body?.getReader();
     if (!reader) return { url: url.href, contentType: response.headers.get("content-type") ?? "", body: "", status: response.status, ...(response.headers.has('www-authenticate')?{authenticationRequired:true}:{}) };

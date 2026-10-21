@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { WorkerPublicSourceFetch } from "./public-source-fetch";
 
 describe("public source HTTP admission", () => {
+  it('follows explicitly enabled publisher-local redirects and still rejects origin changes and loops',async()=>{
+    const calls:string[]=[];
+    const fetcher=(async(url:string)=>{calls.push(url);return url.endsWith('/old')?new Response(null,{status:301,headers:{location:'/new'}}):new Response('Actual article')}) as typeof fetch;
+    expect((await new WorkerPublicSourceFetch('https://news.example.com/old',fetcher,{followSameOriginRedirects:true}).get('https://news.example.com/old')).body).toBe('Actual article');
+    expect(calls).toHaveLength(2);
+    for(const location of ['https://other.example.com/new','https://127.0.0.1/private','http://news.example.com/new','/loop']){
+      const port=new WorkerPublicSourceFetch('https://news.example.com/loop',(async()=>new Response(null,{status:302,headers:{location}})) as typeof fetch,{followSameOriginRedirects:true});
+      await expect(port.get('https://news.example.com/loop')).rejects.toThrow('public source policy denied');
+    }
+  });
   it.each(["https://localhost/","https://127.1/","https://2130706433/","https://[::1]/","https://[fd00::1]/","https://169.254.169.254/","https://metadata.internal/","https://news.example.com:8443/"])("rejects non-public authority %s before fetch",url=>{
     expect(()=>new WorkerPublicSourceFetch(url)).toThrow("public source policy denied");
   });

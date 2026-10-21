@@ -8,6 +8,18 @@ async function server(t,execute){
   t.after(()=>new Promise(resolve=>{instance.closeAllConnections();instance.close(resolve);}));
   return `http://127.0.0.1:${instance.address().port}/v1/source-execution`;
 }
+
+test('bounded Telegram queue serializes concurrent recommendations without sharing the session',async t=>{
+ let active=0,peak=0;
+ const instance=createSourceExecutionServer({token,maxConcurrent:8,telegramQueueMs:1000,execution:{execute:async()=>{
+  active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,20));active--;return {channelId:'-100123456',username:'telegram'};
+ }}});
+ await new Promise(resolve=>instance.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>{instance.closeAllConnections();instance.close(resolve);}));
+ const responses=await Promise.all(Array.from({length:5},()=>fetch(`http://127.0.0.1:${instance.address().port}/v1/source-execution`,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'telegram_resolve',input:{username:'telegram'}})})));
+ assert.deepEqual(responses.map(response=>response.status),[200,200,200,200,200]);assert.equal(peak,1);
+ await Promise.all(responses.map(response=>response.body.cancel()));
+});
 test('rejects unauthenticated execution and unknown operations before spawning',async t=>{
   let calls=0;const url=await server(t,async()=>{calls++;});
   assert.equal((await fetch(url,{method:'POST',body:'{}'})).status,401);

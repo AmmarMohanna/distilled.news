@@ -8,6 +8,7 @@ import type {Env} from './types';
 import {productConnectorSource} from './connector-source';
 import {canonicalJson} from './v1-intake/canonical';
 import {hasUncertainSourcePayment} from './connector-paid-fence';
+import {sourceAvailability} from './connector-availability';
 
 /** Reads current approved product state; never enrolls or repairs stale queued work. */
 export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Promise<boolean> {
@@ -17,7 +18,7 @@ export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Pro
  const p=await env.DB.prepare(`SELECT s.source_url,s.provider,s.kind,s.input,s.actor_id,v.json AS scope_json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id JOIN v1_intake_scopes v ON v.id=s.id JOIN v1_feeds f ON f.id=b.id AND json_extract(f.json,'$.ownerId')=b.owner_account_id WHERE s.id=? AND s.briefing_id=? AND s.enabled=1 AND s.collection_owner='connector' AND b.paused=0 AND a.disabled_at IS NULL`).bind(r.scope.feedSourceId,r.scope.feedId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;scope_json:string}>();
  const scope=p?JSON.parse(p.scope_json) as IntakeScope:undefined;
  const approved=p?productConnectorSource(p):undefined;
- return !!approved && canonicalJson(approved.source)===canonicalJson(r.source) && !!scope?.enabled && !scope.deletedAt && scope.sourceId===r.scope.sourceId && scope.feedId===r.scope.feedId && scope.feedRevision===r.configurationRevision && (r.limit===approved.limit||(['rss','google_news'].includes(r.source.family)&&r.limit===30)||(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&r.source.family==='website'&&r.limit===30)) && Object.keys(r.requestedBounds).length===0 && (!['telegram','website'].includes(r.source.family)||!!env.SOURCE_EXECUTION_TOKEN&&!!env.SOURCE_EXECUTION_SERVICE);
+ return !!approved && canonicalJson(approved.source)===canonicalJson(r.source) && !!scope?.enabled && !scope.deletedAt && scope.sourceId===r.scope.sourceId && scope.feedId===r.scope.feedId && scope.feedRevision===r.configurationRevision && (r.limit===approved.limit||(['rss','google_news'].includes(r.source.family)&&r.limit===30)||(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&r.source.family==='website'&&r.limit===30)) && Object.keys(r.requestedBounds).length===0 && (!['telegram','website'].includes(r.source.family)||sourceAvailability(env,r.source.family).state==='AVAILABLE');
 }
 export function createConnectorRuntime(env:Env,fetcher?:typeof fetch) {
  const authorize=(r:SourceFetchRequest)=>authorizeConnectorSource(env,r);
@@ -117,7 +118,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
  if(!options.skipSchedule)for(const id of ids.length>1?ids:[]){
   const row=await env.DB.prepare(`SELECT s.provider,s.kind,s.source_url,s.input,s.actor_id,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND (?=0 OR s.collection_owner='connector')`).bind(id,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?1:0).first<{provider:string;kind:string;source_url:string;input:string|null;actor_id:string|null;owner_account_id:string}>();
   const approved=row&&productConnectorSource(row);if(!row||!approved)continue;
-  if(['telegram','website'].includes(approved.source.family)&&!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE))continue;
+  if(['telegram','website'].includes(approved.source.family)&&sourceAvailability(env,approved.source.family).state!=='AVAILABLE')continue;
   await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
  }
  const scheduled:{id:string;scheduler:string;sourceId:string}[]=[];
@@ -128,7 +129,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   // Do not transfer a source away from its working owner until the private
   // execution binding required by this connector is configured.
   if(['telegram','website'].includes(approved.source.family)&&
-    !(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE))continue;
+    sourceAvailability(env,approved.source.family).state!=='AVAILABLE')continue;
   // With no funded provider, skip new paid poll windows instead of accumulating
   // permanently blocked jobs. Existing saved jobs remain available for replay.
   const paidFamily=approved.source.family;
@@ -171,10 +172,16 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
  }
  if(options.scheduleOnly)return {scheduled,outcomes:[],durationMs:0};
  const started=Date.now();let rssIdle=false,providerIdle=false;
+ // Funded current windows must not wait behind years of unstarted polling
+ // jobs with an obsolete provider order. One minute in four keeps oldest-first
+ // service; continuation and paid identities remain owned by their frozen job.
+ const preferCurrent=env.SOURCE_DAILY_BUDGET_USD!==undefined&&now.getUTCMinutes()%4!==0;
+ const preferredRss=preferCurrent?scheduled.filter(job=>job.scheduler==='rss').map(job=>job.id):undefined;
+ const preferredProviders=preferCurrent?scheduled.filter(job=>job.scheduler==='provider').map(job=>job.id):undefined;
  const outcomes:{scheduler:string;state:string}[]=[];
  for(let index=0;index<maxJobs&&(index===0||Date.now()-started<budgetMs);index++){
-  if(!rssIdle){const state=await backend.rssScheduler.runOne();rssIdle=state==='IDLE';outcomes.push({scheduler:'rss',state});}
-  if(!providerIdle&&(index===0||Date.now()-started<budgetMs)){const state=await backend.scheduler.runOne();providerIdle=state==='IDLE';outcomes.push({scheduler:'provider',state});}
+  if(!rssIdle){const state=await backend.rssScheduler.runOne(120000,preferredRss);rssIdle=state==='IDLE';outcomes.push({scheduler:'rss',state});}
+  if(!providerIdle&&(index===0||Date.now()-started<budgetMs)){const state=await backend.scheduler.runOne(300000,preferredProviders);providerIdle=state==='IDLE';outcomes.push({scheduler:'provider',state});}
   if(rssIdle&&providerIdle)break;
  }
  return {scheduled,outcomes,durationMs:Date.now()-started};

@@ -4,7 +4,7 @@ import { receiptFixture,sha256, type CandidateIntakePort } from '@distilled/cont
 import { SOURCE_STORAGE_SCHEMA,R2SourcePayloadStore,type SqlDatabase,type SqlStatement,type ObjectBucket } from '../src/source-runtime/storage';
 import { PROVIDER_SOURCE_SCHEMA,D1ProviderSourceRepository } from '../src/source-runtime/provider-storage';
 import { FallbackSourceCollector } from '../src/source-runtime/provider-collector';
-import { DurableProviderHttp,PROVIDER_BUDGET_SCHEMA } from '../src/source-runtime/provider-http';
+import { DurableProviderHttp,PROVIDER_BUDGET_SCHEMA,collectorBudgetDay } from '../src/source-runtime/provider-http';
 import { DEFAULT_SOURCE_ORDER,SourceProviderError,type SourceProvider,type SourceFetchRequest,type ProviderPage } from '../src/source-runtime/provider-types';
 import { FeedSourceProvider,TelegramSourceProvider } from '../src/source-runtime/platform-providers';
 import { TwitterApiIoProvider,ApifySourceProvider } from '../src/source-runtime/social-providers';
@@ -26,6 +26,42 @@ const time='2026-10-04T10:00:00.000Z';
 const request:SourceFetchRequest={scope,runId:'run',source:{family:'x_profile',locator:'NASA'},requestedBounds:{},limit:2};
 const run={...scope,id:'run',sequence:1,startedAt:time,configurationKey:'configuration'};
 const encoder=new TextEncoder();
+it('retains Google actor guid and googleNewsUrl while preserving the original publisher identity',()=>{
+ const records=normalizeProviderRecords([{guid:'google-guid',googleNewsUrl:'https://news.google.com/rss/articles/article-id?oc=5',sourceUrl:'https://publisher.example',sourceDomain:'publisher.example',title:'A lunar mission launches',snippet:'A spacecraft is travelling to the Moon.',publishedAt:'2026-10-21T12:00:00Z'}],'google_news');
+ expect(records).toHaveLength(1);expect(records[0]).toMatchObject({upstreamId:'google-guid',url:'https://news.google.com/rss/articles/article-id?oc=5',publisherId:'publisher.example',identityValid:true,representation:'LISTING_RESULT',contentCompleteness:'UNKNOWN'});
+});
+it('calls the native fetch capability without binding it to a provider class instance',async()=>{
+ const s=setup([]);let receiver:unknown='not called';
+ const dispatch=function(this:unknown){receiver=this;return Promise.resolve(Response.json({ok:true}))};
+ const http=new DurableProviderHttp(s.db,s.payloads,dispatch);await http.configureLimit('x_apify',1);
+ await http.request(scope,'native-dispatch','x_apify',.05,'https://api.apify.com/v2/test',{});
+ expect(receiver).toBeUndefined();
+});
+it('shares one daily allowance across providers, rolls over at Beirut midnight, and preserves old request receipts',async()=>{
+ const s=setup([]),dispatch=vi.fn(async()=>Response.json({ok:true}));let now=new Date('2026-10-21T20:59:00Z');
+ const http=new DurableProviderHttp(s.db,s.payloads,dispatch,4000000,20000,undefined,{x_apify:5,linkedin_apify:5},{limitUsd:5,timeZone:'Asia/Beirut',now:()=>now});
+ await http.configureLimits({x_apify:5,linkedin_apify:5});
+ const url='https://api.apify.com/v2/test';
+ await http.request(scope,'x-1','x_apify',3,url,{});
+ await expect(http.request({...scope,feedSourceId:'linkedin'},'linkedin-1','linkedin_apify',3,url,{})).rejects.toThrow('BUDGET_EXCEEDED');
+ expect(dispatch).toHaveBeenCalledTimes(1);
+ now=new Date('2026-10-21T21:01:00Z');
+ expect(collectorBudgetDay(now,'Asia/Beirut')).toBe('2026-10-22');
+ await http.request({...scope,feedSourceId:'linkedin'},'linkedin-2','linkedin_apify',3,url,{});
+ await http.request(scope,'x-1','x_apify',3,url,{});
+ expect(dispatch).toHaveBeenCalledTimes(2);
+ expect(s.db.db.prepare('SELECT day,reserved_usd FROM connector_daily_provider_budgets ORDER BY day').all()).toEqual([{day:'2026-10-21',reserved_usd:3},{day:'2026-10-22',reserved_usd:3}]);
+});
+it('holds uncertain submissions against the daily limit and never rebills them after midnight',async()=>{
+ const s=setup([]),dispatch=vi.fn(async()=>{throw Error('lost response')});let now=new Date('2026-10-21T12:00:00Z');
+ const http=new DurableProviderHttp(s.db,s.payloads,dispatch,1000,1000,undefined,undefined,{limitUsd:5,timeZone:'Asia/Beirut',now:()=>now});
+ await http.configureLimit('x_apify',5);
+ await expect(http.request(scope,'unknown','x_apify',3,'https://api.apify.com/v2/test',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+ now=new Date('2026-10-22T12:00:00Z');
+ await expect(http.request(scope,'unknown','x_apify',3,'https://api.apify.com/v2/test',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+ await expect(http.request(scope,'different-run','x_apify',1,'https://api.apify.com/v2/test',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+ expect(dispatch).toHaveBeenCalledTimes(1);
+});
 function setup(providers:SourceProvider[]){
   const db=new Binding(),repository=new D1ProviderSourceRepository(db);
   const objects=new Map<string,Uint8Array>();

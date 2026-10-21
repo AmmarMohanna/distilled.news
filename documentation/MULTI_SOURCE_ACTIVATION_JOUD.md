@@ -1,5 +1,65 @@
 # Multi-source activation for Joud
 
+## October 21 activation update
+
+The user authorized **$5 per day total** across paid collectors, with the day
+resetting at midnight in `Asia/Beirut`. This supersedes the historical zero-budget
+restriction below. It does not authorize $5 per provider. Atomic D1 admission
+reserves a conservative maximum per operation across verification and ingestion;
+reservations are not an invoice of actual provider charges. Unknown paid outcomes
+remain fenced. Existing paid-operation identities and reservations are retained.
+
+Apify-backed Google News, X, and LinkedIn returned real records and passed live
+topic assessments. Website extraction also has a Worker-native public HTML path.
+Exact-topic relevance remains mandatory; related industry content is not enough.
+
+The project Telegram account was authorized locally, then its session and API
+credentials were explicitly approved for transfer to the project VPS. An isolated
+`distilled-source-joud.service` listens on `127.0.0.1:8791`, starts at boot, and
+restarts on failure. Its state/configuration live under
+`/home/distilled-bench/distilled-source-runtime-joud/`, separate from the existing
+collector. The existing egress firewall also permits this loopback port; private
+destination restrictions remain intact. The service reuses the installed Node
+and Python runtimes. Its private VPC service ID is
+`01a15fbb-d418-7871-a5ca-92f1be34925c` on the existing tunnel.
+
+The VPS live test resolved the official public `telegram` channel and read five
+posts in 1.82 seconds; unauthenticated execution returned HTTP 401. This proves
+the VPS session and execution path, not yet deployed app connectivity. Telegram
+assessment now resolves identity and reads up to twenty recent posts through the
+authenticated service before checking topic relevance. It never joins a channel
+or initiates login. Missing authorization, mismatched identities, unreadable posts,
+and rate limits cannot produce an accepted recommendation.
+
+The matching Worker secret and private binding were deployed on October 21. The
+live protected assessment endpoint accepted the official channel for Telegram
+product updates (4.54 s), rejected it for coconut farming in Australia (5.24 s),
+and left a nonexistent channel unverified (3.33 s). The accepted result cited a
+real collected post. No test channel was added to a public feed or published.
+Worker version: `d74fa844-b7f7-462f-960c-403a09efbf7d`.
+
+The runtime permits eight bounded requests, serializes Telegram session access,
+and waits at most fifteen seconds for a session slot before returning retryable
+backpressure. Ordinary public collection and downstream article extraction retain
+their native Worker path when enabled; background Google/website work cannot use
+the Telegram service just because it is configured. One hundred ninety-five
+targeted tests passed across the relevant suites (including the subsequent routing
+and concurrency regressions), and Worker type checking and deployment dry run passed.
+
+This validates channel assessment and deployed connectivity, not a new live
+published Telegram briefing. Existing collector integration tests cover durable
+intake and publication with fixtures. Telegram can still rate limit or revoke the
+account session; configured availability is not an unconditional health guarantee.
+The project session must not be used concurrently on the local PC after moving it to
+the VPS. Never commit sessions or runtime environment files. Useful local commands:
+`node scripts/telegram-source-login.mjs` for an operator-controlled login, and
+`node scripts/telegram-source-check.mjs` for a bounded public-channel check before
+moving the session to the VPS.
+
+Private service configuration follows the [Cloudflare VPC service documentation](https://developers.cloudflare.com/workers-vpc/configuration/vpc-services/).
+
+## Historical October 19 assessment (superseded where noted above)
+
 Checked 2026-10-19 against the repository configuration, deployed secret names,
 and parsed local credential presence. The intended product remains multi-source:
 RSS/Atom, Google News, Telegram, X, LinkedIn, and public websites.

@@ -19,6 +19,11 @@ it('missing private execution is reported instead of pretending Telegram or webs
  expect(sourceAvailability(env,'telegram').reason).toBe('PRIVATE_SERVICE_UNAVAILABLE');
  expect(sourceAvailability(env,'website').state).toBe('UNAVAILABLE');
 });
+it('native public extraction enables websites without pretending Telegram sessions or browsers exist',()=>{
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true'} as Env;
+ expect(sourceAvailability(env,'website')).toEqual({state:'AVAILABLE',providers:['website_http']});
+ expect(sourceAvailability(env,'telegram').state).toBe('UNAVAILABLE');
+});
 it('reports article failures and pending work without leaking stored diagnostics',async()=>{
  const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[{feed_source_id:'rss',state:'FAILED',failure:'AUTH_REQUIRED',count:2},{feed_source_id:'rss',state:'PENDING',failure:null,count:1}]:[{id:'rss',title:'News',provider:'rss',kind:'rss',source_url:'https://example.com/rss',input:null,actor_id:null}]}},async first(){return {state:'DONE',last_error:null,result:JSON.stringify({state:'FETCH_FAILED',attempts:[{failure:'TRANSIENT',secret:'never-public'}]})}}})};
  const result=await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true'} as unknown as Env,'feed');

@@ -15,6 +15,19 @@ it.each([404,410,402,403,429,503])('reports the actual publisher HTTP %s without
 const rss = '<rss version="2.0"><channel><title>Lebanon News</title><item><guid>one</guid><title>Lebanon parliament discusses economic reforms and infrastructure investment</title><description>Reporting on the latest public policy and economic developments in Beirut and across Lebanon.</description><link>https://publisher.example/story</link></item></channel></rss>';
 const answer = (choice = 'YES', confidence = 0.95) => ({ type: 'choice', choice, confidence, probabilities: { YES: choice === 'YES' ? 0.96 : 0.02, NO: choice === 'NO' ? 0.96 : 0.02, UNKNOWN: choice === 'UNKNOWN' ? 0.96 : 0.02 } });
 const decision = (alignment = answer(), concern = answer('NO')) => ({ answers: { news: answer(), alignment, concern } });
+it('checks Telegram relevance using authenticated recent posts, without fetching its public preview',async()=>{
+ const service=vi.fn(async(_input:unknown,init:RequestInit)=>{
+  const request=JSON.parse(init.body as string);
+  return Response.json(request.kind==='telegram_resolve'?{channelId:'-100123456',username:'telegram'}:{channelId:'-100123456',records:[{id:42,text:'Lebanon parliament discusses economic reform. Reporting on public policy and infrastructure investment across Lebanon.',publishedAt:new Date().toISOString()}]});
+ });
+ const dispatch=vi.fn<typeof fetch>(async()=>Response.json(decision()));
+ const configured={...env,SOURCE_EXECUTION_URL:'https://execution.example/v1/source-execution',SOURCE_EXECUTION_TOKEN:'test-only-token-'.repeat(3),SOURCE_EXECUTION_SERVICE:{fetch:service}} as unknown as Env;
+ expect(await assessSource(configured,context,'https://t.me/telegram',dispatch)).toMatchObject({status:'accepted'});
+ expect(service).toHaveBeenCalledTimes(2);
+ expect(dispatch).toHaveBeenCalledTimes(1);
+ expect(String(dispatch.mock.calls[0][0])).toContain('openrouter.ai');
+ expect(JSON.parse(dispatch.mock.calls[0][1]!.body as string).state.source.evidence).toContain('Lebanon parliament');
+});
 function fetcher(value: unknown = decision()) {
   return vi.fn<typeof fetch>(async input => String(input).includes('/api/alpha/decisions') ? Response.json(value) : new Response(rss, { headers: { 'content-type': 'application/rss+xml' } }));
 }

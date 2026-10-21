@@ -10,6 +10,9 @@ it('protects storage diagnostics, archives and cleanup from unauthenticated requ
   expect(result.status).toBe(401);
  }
  expect((await app.request('/api/admin/storage',{},env)).status).toBe(401);
+ expect((await app.request('/api/admin/collectors',{},env)).status).toBe(401);
+ expect((await app.request('/api/internal/collectors/status',{},env)).status).toBe(401);
+ expect((await app.request('/api/internal/collectors/check',{method:'POST'},env)).status).toBe(401);
 });
 it('rejects arbitrary archive paths even with a valid maintenance credential',async()=>{
  const app=createApp({repository:new InMemoryRepository()});

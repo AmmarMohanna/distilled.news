@@ -11,6 +11,18 @@ import { FallbackSourceCollector } from '../src/source-runtime/provider-collecto
 import type { SourceProvider } from '../src/source-runtime/provider-types';
 
 describe('multi-source runtime on local Cloudflare bindings',()=>{
+  it('atomically enforces one daily total across competing providers',async()=>{
+    const runtime=new Miniflare({modules:true,script:'export default {fetch(){return new Response("test")}}',d1Databases:['DB'],r2Buckets:['PAYLOADS']});
+    try{
+      const db=await runtime.getD1Database('DB');await db.exec(PROVIDER_BUDGET_SCHEMA.replace(/\n/g,' '));
+      const dispatch=vi.fn(async()=>Response.json({ok:true}));
+      const paid=new DurableProviderHttp(sourceSqlFromD1(db),new R2SourcePayloadStore(await runtime.getR2Bucket('PAYLOADS')),dispatch,4000000,20000,undefined,{x_apify:5,linkedin_apify:5},{limitUsd:5,timeZone:'Asia/Beirut'});
+      await paid.configureLimits({x_apify:5,linkedin_apify:5});
+      const results=await Promise.allSettled(Array.from({length:8},(_,i)=>paid.request({feedId:'feed',feedSourceId:'source-'+i,sourceId:'source-'+i},'operation-'+i,i%2?'x_apify':'linkedin_apify',2,'https://api.apify.com/v2/test',{})));
+      expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(2);expect(dispatch).toHaveBeenCalledTimes(2);
+      expect(await db.prepare('SELECT reserved_usd FROM connector_daily_provider_budgets').first()).toEqual({reserved_usd:4});
+    }finally{await runtime.dispose()}
+  });
   it('fences concurrent paid dispatch and durably replays a provider handoff after restart',async()=>{
     const directory=mkdtempSync(join(tmpdir(),'distilled-provider-'));
     const options={modules:true,script:'export default {fetch(){return new Response("test")}}',compatibilityDate:'2026-06-01',

@@ -1,4 +1,5 @@
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
+import {collectorBudgetStatus} from './collector-budget';
 import {readBriefingOutcome} from './v1-intelligence/briefing-outcome';
 import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intelligence/model-reconciliation';
 import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-trace';
@@ -820,7 +821,7 @@ export function createApp(options: AppOptions = {}) {
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
     if(c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
-      const checks=await assessSources(c.env,{title:input.title,description:input.interestProfile},input.sourceInputs,fetcher);
+      const checks=await assessSources(c.env,{title:input.title,description:input.interestProfile},input.sourceInputs,fetcher,{ownerAccountId:owner.id,providerFetcher:fetcher});
       const blocked=checks.find(check=>check.status!=='accepted');
       if(blocked)return c.json({error:blocked.reason,checks},422);
     }
@@ -875,7 +876,7 @@ export function createApp(options: AppOptions = {}) {
   app.post("/api/me/sources/assess", async c => {
     const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000),source:z.string().trim().min(1).max(500)}).strict().parse(await c.req.json());
     if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({assessment:{input:input.source,status:'unverified',reason:'Source assessment is not enabled on this deployment.',checkedAt:new Date().toISOString()}});
-    return c.json({assessment:await assessSource(c.env,input,input.source,fetcher)});
+    return c.json({assessment:await assessSource(c.env,input,input.source,fetcher,{ownerAccountId:c.get('account')!.id,providerFetcher:fetcher})});
   });
 
   app.post("/api/me/sources/recommend", async c => {
@@ -889,7 +890,7 @@ export function createApp(options: AppOptions = {}) {
     }
     try {
       if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({sources:await sourceRecommendations(c.env,input,fetcher)});
-      return c.json(await verifiedSourceRecommendations(c.env,input,fetcher));
+      return c.json(await verifiedSourceRecommendations(c.env,input,fetcher,{ownerAccountId:c.get('account')!.id}));
     }
     catch(error) { return c.json({error:error instanceof Error?error.message:'Source recommendations unavailable'}, c.env.SOURCE_RECOMMENDATIONS_ENABLED==='true'?502:503); }
   });
@@ -904,7 +905,7 @@ export function createApp(options: AppOptions = {}) {
 
     if ("url" in body || "input" in body) {
       if(c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
-        const assessment=await assessSource(c.env,{title:briefing.title,description:briefing.interestProfile},("input" in body?body.input:undefined)??("url" in body?body.url:""),fetcher);
+        const assessment=await assessSource(c.env,{title:briefing.title,description:briefing.interestProfile},("input" in body?body.input:undefined)??("url" in body?body.url:""),fetcher,{ownerAccountId:c.get('account')!.id,providerFetcher:fetcher});
         if(assessment.status!=='accepted')return c.json({error:assessment.reason,assessment},422);
       }
       let result;
@@ -931,7 +932,7 @@ export function createApp(options: AppOptions = {}) {
     const source = await repo.getSource(body.sourceId);
     if (!source || source.briefingId !== briefing.id) return c.json({ error: "source not found" }, 404);
     if(body.enabled&&c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
-      const assessment=await assessSource(c.env,{title:briefing.title,description:briefing.interestProfile},(source.kind==='telegram_channel'?(source.sourceUrl??source.url):source.input??source.sourceUrl??source.url)??'',fetcher);
+      const assessment=await assessSource(c.env,{title:briefing.title,description:briefing.interestProfile},(source.kind==='telegram_channel'?(source.sourceUrl??source.url):source.input??source.sourceUrl??source.url)??'',fetcher,{ownerAccountId:c.get('account')!.id,providerFetcher:fetcher});
       if(assessment.status!=='accepted')return c.json({error:assessment.reason,assessment},422);
     }
     await repo.setSourceEnabled(body.sourceId, body.enabled);
@@ -1016,6 +1017,10 @@ export function createApp(options: AppOptions = {}) {
   app.get('/api/admin/storage',async c=>{
     c.header('Cache-Control','private, no-store');
     return c.json({enabled:c.env.STORAGE_MAINTENANCE_ENABLED==='true',...await storageMaintenanceStatus(c.env)});
+  });
+  app.get('/api/admin/collectors',async c=>{
+    c.header('Cache-Control','private, no-store');
+    return c.json({budget:await collectorBudgetStatus(c.env)});
   });
 
   app.get("/api/admin/accounts", async (c) => {
@@ -1221,6 +1226,25 @@ export function createApp(options: AppOptions = {}) {
     });
   });
 
+  app.all('/api/internal/collectors/:action',async c=>{
+    if(!await internalMaintenanceAuthorized(c))return c.json({error:'unauthorized'},401);
+    c.header('Cache-Control','private, no-store');
+    if(c.req.param('action')==='status'&&c.req.method==='GET')return c.json({budget:await collectorBudgetStatus(c.env)});
+    if(c.req.param('action')==='transport'&&c.req.method==='GET'){
+      const legacy={dispatch:fetcher};let legacyResult='UNKNOWN',detachedStatus=0;
+      try{const response=await legacy.dispatch('https://example.com',{signal:AbortSignal.timeout(5000)});legacyResult=`HTTP_${response.status}`;await response.body?.cancel();}
+      catch(error){legacyResult=error instanceof Error&&/illegal invocation|incorrect.*this/i.test(error.message)?'NATIVE_FETCH_RECEIVER_REJECTED':'TRANSPORT_FAILED';}
+      try{const response=await fetcher('https://example.com',{signal:AbortSignal.timeout(5000)});detachedStatus=response.status;await response.body?.cancel();}catch{}
+      return c.json({legacyResult,detachedStatus});
+    }
+    if(c.req.param('action')==='check'&&c.req.method==='POST'){
+      const input=z.object({ownerAccountId:z.string().min(1).max(128),source:z.string().min(1).max(2048),title:z.string().min(1).max(120),description:z.string().min(1).max(4000)}).strict().parse(await c.req.json());
+      const owner=await repoFor(c).getAccountById(input.ownerAccountId);
+      if(!owner||owner.disabledAt)return c.json({error:'account not found'},404);
+      return c.json({assessment:await assessSource(c.env,{title:input.title,description:input.description},input.source,fetcher,{ownerAccountId:owner.id,providerFetcher:fetcher}),budget:await collectorBudgetStatus(c.env)});
+    }
+    return c.json({error:'not found'},404);
+  });
   app.all('/api/internal/storage/:action',async c=>{
     const secret=c.env.INTERNAL_MAINTENANCE_SECRET?.trim(),provided=c.req.header('x-distilled-internal')?.trim();
     if(!secret||!provided)return c.json({error:'unauthorized'},401);
@@ -1479,6 +1503,14 @@ function repoForContext(c: Context<{ Bindings: Env; Variables: Variables }>): Re
 function isRuntimeAuthorized(c: Context<{ Bindings: Env; Variables: Variables }>): boolean {
   const token = c.env.WEB_OPERATOR_RUNTIME_TOKEN?.trim();
   return Boolean(token) && c.req.header("authorization") === `Bearer ${token}`;
+}
+
+async function internalMaintenanceAuthorized(c:Context<{Bindings:Env;Variables:Variables}>):Promise<boolean>{
+ const expected=c.env.INTERNAL_MAINTENANCE_SECRET?.trim(),provided=c.req.header('x-distilled-internal')?.trim();
+ if(!expected||!provided)return false;
+ const digest=async(value:string)=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)));
+ const [a,b]=await Promise.all([digest(expected),digest(provided)]);let mismatch=0;
+ for(let i=0;i<a.length;i++)mismatch|=a[i]^b[i];return mismatch===0;
 }
 
 function requiredLiveSmokeEnv(env: Env, key: keyof Env): string {

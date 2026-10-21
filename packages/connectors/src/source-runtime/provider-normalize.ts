@@ -20,8 +20,8 @@ export function normalizeProviderRecords(rows:unknown[],family:SourceFamily):Pro
   const map=new Map<string,ProviderItem>();
   rows.forEach((raw,index)=>{
     const r=record(raw),author=record(r.author??r.user);
-    let upstreamId=string(r.id)??string(r.tweetId)??string(r.postId)??string(r.urn);
-    let url=articleUrl(r.publisherUrl??r.url??r.tweetUrl??r.postUrl??r.link);
+    let upstreamId=string(r.id)??string(r.tweetId)??string(r.postId)??string(r.urn)??(family==='google_news'?string(r.guid):undefined);
+    let url=articleUrl(r.publisherUrl??r.url??r.tweetUrl??r.postUrl??r.link??(family==='google_news'?r.googleNewsUrl:undefined));
     const body=string(r.text??r.fullText??r.full_text??r.content??r.commentary??r.description??r.snippet);
     const isX=family==='x_profile'||family==='x_search',isLinkedIn=family.startsWith('linkedin');
     if(isX){upstreamId=upstreamId&&/^\d+$/.test(upstreamId)?upstreamId:url?.match(/\/status\/(\d+)/)?.[1];url=upstreamId?`https://x.com/i/status/${upstreamId}`:undefined;}

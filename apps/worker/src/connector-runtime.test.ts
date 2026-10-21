@@ -364,7 +364,7 @@ it('continues a Google News snapshot across bounded scheduler ticks',async()=>{
  expect(fetcher).toHaveBeenCalledTimes(1);
  expect(await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_intake_receipts WHERE feed_source_id='google-paged'").first()).toEqual({n:35});
 },30000);
-it('hands off an approved website through direct HTTP and private text extraction',async()=>{
+it.each([false,true])('hands off an approved website while preserving the native execution preference: %s',async native=>{
  const now=new Date().toISOString(),url='https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html';
  await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('website-source','feed-1','Book page','channel','web','web_page',?,?,1,'connector',?,?,?)").bind(url,url,now,now,now).run();
  const enrolled=await enrollV1Source(ctx.db,'website-source','owner-1',now);
@@ -372,8 +372,8 @@ it('hands off an approved website through direct HTTP and private text extractio
   expect(JSON.parse(String(init.body))).toMatchObject({kind:'extract',input:{url}});
   return Response.json({title:'A Light in the Attic',body:'A long enough extracted page body. '.repeat(10)});
  });
- Object.assign(env,{V1_DOWNSTREAM_FEED_SOURCE_IDS:'website-source',SOURCE_EXECUTION_TOKEN:'local-fixture-token-01234567890123456789',SOURCE_EXECUTION_URL:'http://127.0.0.1:8790/v1/source-execution',SOURCE_EXECUTION_SERVICE:{fetch:privateFetch}});
- const publicFetch=vi.fn(async()=>new Response('<html><title>A Light in the Attic</title><body>Books to Scrape</body></html>',{status:200}));
+ Object.assign(env,{V1_DOWNSTREAM_FEED_SOURCE_IDS:'website-source',SOURCE_NATIVE_EXECUTION_ENABLED:native?'true':'false',SOURCE_EXECUTION_TOKEN:'local-fixture-token-01234567890123456789',SOURCE_EXECUTION_URL:'http://127.0.0.1:8790/v1/source-execution',SOURCE_EXECUTION_SERVICE:{fetch:privateFetch}});
+ const publicFetch=vi.fn(async()=>new Response('<html><title>A Light in the Attic</title><body><article><h1>A Light in the Attic</h1><p>'+ 'A long enough extracted page body. '.repeat(10)+'</p></article></body></html>',{status:200}));
  const r:SourceFetchRequest={scope:{feedId:'feed-1',feedSourceId:'website-source',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'website-run',source:{family:'website',locator:url},requestedBounds:{},limit:1};
  const backend=createConnectorRuntime(env,publicFetch as typeof fetch);
  expect(await authorizeConnectorSource(env,r)).toBe(true);
@@ -382,7 +382,7 @@ it('hands off an approved website through direct HTTP and private text extractio
  expect(result.request.proposals).toHaveLength(1);
  expect(result.request.observations[0]).toMatchObject({sourceItemKey:`url:${url}`,representation:'FULL_ARTICLE'});
  expect(await new V1IntakeStore(ctx.db).list('intake_receipts','website-source')).toHaveLength(1);
- expect(publicFetch).toHaveBeenCalledTimes(1);expect(privateFetch).toHaveBeenCalledTimes(1);
+ expect(publicFetch).toHaveBeenCalledTimes(1);expect(privateFetch).toHaveBeenCalledTimes(native?0:1);
 },30000);
 it('routes bounded approved Telegram through VPC, durable intake, evidence and publication without public fallback',async()=>{
  const now=new Date().toISOString(),input=JSON.stringify({username:'telegram',channelId:'-100123',public:true});

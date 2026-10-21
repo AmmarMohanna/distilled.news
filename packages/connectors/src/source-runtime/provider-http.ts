@@ -4,6 +4,7 @@ import type { ImmutablePayloadStore, SourceScope } from './ports';
 import { SourceProviderError } from './provider-types';
 
 export const PROVIDER_BUDGET_SCHEMA=`
+CREATE TABLE IF NOT EXISTS connector_daily_provider_budgets(day TEXT PRIMARY KEY,limit_usd REAL NOT NULL CHECK(limit_usd>=0),reserved_usd REAL NOT NULL DEFAULT 0 CHECK(reserved_usd>=0));
 CREATE TABLE IF NOT EXISTS connector_provider_budgets(provider_id TEXT PRIMARY KEY, limit_usd REAL NOT NULL, reserved_usd REAL NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS connector_provider_operations(
  provider_id TEXT NOT NULL, operation_id TEXT NOT NULL, request_hash TEXT NOT NULL, ceiling_usd REAL NOT NULL,
@@ -16,15 +17,23 @@ export interface ProviderHttpResult {status:number;headers:Record<string,string>
 export interface ProviderHttpPort {
   request(scope:SourceScope,operationId:string,providerId:string,ceilingUsd:number,url:string,init:RequestInit):Promise<ProviderHttpResult>;
 }
+export interface DailyCollectorBudget {limitUsd:number;timeZone:string;now?:()=>Date}
+export function collectorBudgetDay(date:Date,timeZone:string):string {
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+  const part=(kind:string)=>parts.find(p=>p.type===kind)!.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
 /** Paid requests are never blindly resubmitted. Reservations remain conservative bounds,
  * not reported actual costs. Caps are configured by deployment, not by source input. */
 export class DurableProviderHttp implements ProviderHttpPort {
   constructor(private readonly db:SqlDatabase,private readonly payloads:ImmutablePayloadStore,
     private readonly dispatch:(url:string,init:RequestInit)=>Promise<Response>,private readonly maxBytes=4_000_000,private readonly deadlineMs=20_000,
-    private readonly sourceProviderLimitUsd?:number,private readonly deploymentLimits?:Readonly<Record<string,number>>) {
+    private readonly sourceProviderLimitUsd?:number,private readonly deploymentLimits?:Readonly<Record<string,number>>,
+    private readonly dailyBudget?:DailyCollectorBudget) {
     if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>10_000_000||!Number.isSafeInteger(deadlineMs)||deadlineMs<1||deadlineMs>60_000)throw new Error('INVALID_PROVIDER_LIMITS');
     if(sourceProviderLimitUsd!==undefined&&(!Number.isFinite(sourceProviderLimitUsd)||sourceProviderLimitUsd<0))throw new Error('INVALID_SOURCE_PROVIDER_BUDGET');
     if(deploymentLimits!==undefined&&(!deploymentLimits||typeof deploymentLimits!=='object'||Array.isArray(deploymentLimits)||Object.values(deploymentLimits).some(v=>typeof v!=='number'||!Number.isFinite(v)||v<0)))throw new Error('INVALID_BUDGET');
+    if(dailyBudget){if(!Number.isFinite(dailyBudget.limitUsd)||dailyBudget.limitUsd<0)throw Error('INVALID_DAILY_BUDGET');collectorBudgetDay(new Date(),dailyBudget.timeZone);}
   }
   async configureLimit(providerId:string,limitUsd:number) {
     if(!Number.isFinite(limitUsd)||limitUsd<0)throw new Error('INVALID_BUDGET');
@@ -64,16 +73,21 @@ export class DurableProviderHttp implements ProviderHttpPort {
     const sourceBudget=this.sourceProviderLimitUsd===undefined?[]:[this.db.prepare(`INSERT INTO connector_source_provider_budgets(feed_id,feed_source_id,provider_id,reserved_usd)
       SELECT ?,?,?,COALESCE(SUM(ceiling_usd),0) FROM connector_provider_operations WHERE provider_id=? AND payload_ref>=? AND payload_ref<? ON CONFLICT DO NOTHING`).bind(scope.feedId,scope.feedSourceId,providerId,providerId,prefix,prefix+'\uffff')];
     const sourceGuard=this.sourceProviderLimitUsd===undefined?'':` AND EXISTS(SELECT 1 FROM connector_source_provider_budgets WHERE feed_id=? AND feed_source_id=? AND provider_id=? AND reserved_usd+?<=?)`;
-    const deploymentGuard=deploymentLimit===undefined?'':' AND reserved_usd+?<=?';
+    const deploymentGuard=deploymentLimit===undefined?'':this.dailyBudget?' AND ?<=?':' AND reserved_usd+?<=?';
+    const day=this.dailyBudget?collectorBudgetDay(this.dailyBudget.now?.()??new Date(),this.dailyBudget.timeZone):undefined;
+    const dailyGuard=this.dailyBudget?' AND EXISTS(SELECT 1 FROM connector_daily_provider_budgets WHERE day=? AND reserved_usd+?<=limit_usd)':'';
     // A later polling window or funded fallback cannot bypass an unresolved
     // submission for this FeedSource, even with no configured source cap.
     // Include both scoped and unattributed legacy fences in the reservation
     // transaction so two different run IDs cannot race past the read above.
     const unresolvedGuard=' AND NOT EXISTS(SELECT 1 FROM connector_provider_operations WHERE payload_ref IS NULL AND ((feed_id=? AND feed_source_id=?) OR (provider_id=? AND feed_source_id IS NULL)))';
-    await this.db.batch([...sourceBudget,
+    await this.db.batch([
+      ...(this.dailyBudget?[this.db.prepare('INSERT INTO connector_daily_provider_budgets(day,limit_usd,reserved_usd) VALUES(?,?,0) ON CONFLICT(day) DO UPDATE SET limit_usd=excluded.limit_usd').bind(day,this.dailyBudget.limitUsd)]:[]),
+      ...sourceBudget,
       this.db.prepare(`INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,feed_id,feed_source_id)
-        SELECT ?,?,?,?,?,? FROM connector_provider_budgets WHERE provider_id=? AND reserved_usd+?<=limit_usd${sourceGuard}${deploymentGuard}${unresolvedGuard} ON CONFLICT DO NOTHING`)
-        .bind(providerId,scoped,hash,ceilingUsd,scope.feedId,scope.feedSourceId,providerId,ceilingUsd,...(this.sourceProviderLimitUsd===undefined?[]:[scope.feedId,scope.feedSourceId,providerId,ceilingUsd,this.sourceProviderLimitUsd]),...(deploymentLimit===undefined?[]:[ceilingUsd,deploymentLimit]),scope.feedId,scope.feedSourceId,providerId),
+        SELECT ?,?,?,?,?,? FROM connector_provider_budgets WHERE provider_id=? AND ${this.dailyBudget?'?':'reserved_usd+?'}<=limit_usd${sourceGuard}${deploymentGuard}${dailyGuard}${unresolvedGuard} ON CONFLICT DO NOTHING`)
+        .bind(providerId,scoped,hash,ceilingUsd,scope.feedId,scope.feedSourceId,providerId,ceilingUsd,...(this.sourceProviderLimitUsd===undefined?[]:[scope.feedId,scope.feedSourceId,providerId,ceilingUsd,this.sourceProviderLimitUsd]),...(deploymentLimit===undefined?[]:[ceilingUsd,deploymentLimit]),...(this.dailyBudget?[day,ceilingUsd]:[]),scope.feedId,scope.feedSourceId,providerId),
+      ...(this.dailyBudget?[this.db.prepare(`UPDATE connector_daily_provider_budgets SET reserved_usd=reserved_usd+? WHERE day=? AND EXISTS(SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id=? AND status IS NULL AND payload_ref IS NULL)`).bind(ceilingUsd,day,providerId,scoped)]:[]),
       this.db.prepare(`UPDATE connector_provider_budgets SET reserved_usd=reserved_usd+? WHERE provider_id=? AND EXISTS
         (SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id=? AND status IS NULL AND payload_ref IS NULL)`)
         .bind(ceilingUsd,providerId,providerId,scoped),
@@ -96,7 +110,8 @@ export class DurableProviderHttp implements ProviderHttpPort {
     let timer:ReturnType<typeof setTimeout>;
     const timeout=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{abort.abort();reject(new SourceProviderError('UNCERTAIN_PAID_SUBMISSION'));},this.deadlineMs);});
     let response:Response;
-    try {response=await Promise.race([this.dispatch(url,{...init,redirect:'manual',signal:abort.signal}),timeout]);}
+    const dispatch=this.dispatch;
+    try {response=await Promise.race([dispatch(url,{...init,redirect:'manual',signal:abort.signal}),timeout]);}
     catch {clearTimeout(timer!);throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');}
     const reader=response.body?.getReader();const chunks:Uint8Array[]=[];let size=0;
     try {if(reader)while(true){const part=await Promise.race([reader.read(),timeout]);if(part.done)break;size+=part.value.length;if(size>this.maxBytes)throw new Error('TOO_LARGE');chunks.push(part.value);}}

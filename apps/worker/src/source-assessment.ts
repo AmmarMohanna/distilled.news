@@ -1,10 +1,12 @@
-import { normalizeRssSnapshot, type SourceFamily } from '@distilled/connectors';
+import { normalizeRssSnapshot,extractPublicHtml,discoverWebsiteArticles, type SourceFamily } from '@distilled/connectors';
 import { z } from 'zod';
 import type { Env } from './types';
 import { prepareProductSourceInput, resolveProductSourceInput } from './product-feeds';
 import { sourceAvailability } from './connector-availability';
 import { WorkerPublicSourceFetch } from './public-source-fetch';
 import { PublicSourceFetchFailure, PublicSourcePolicyError } from '@distilled/agent-runtime';
+import {collectVerificationEvidence,type SourceVerificationScope} from './source-verification-collector';
+import {telegramVerificationEvidence} from './telegram-verification';
 
 export interface SourceAssessment {
   input: string;
@@ -47,8 +49,8 @@ async function boundedJson(response: Response): Promise<unknown> {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-/** Fetched text is evidence, never instructions or network authority. No paid collection is triggered here. */
-export async function assessSource(env: Env, context: { title: string; description: string }, input: string, fetcher: typeof fetch = fetch): Promise<SourceAssessment> {
+/** Fetched text is evidence, never instructions or network authority. Paid checks use the shared budget. */
+export async function assessSource(env: Env, context: { title: string; description: string }, input: string, fetcher: typeof fetch = fetch, verification?:SourceVerificationScope): Promise<SourceAssessment> {
   const base = { input, checkedAt: new Date().toISOString() };
   const result = (status: SourceAssessment['status'], reason: string, extra: Partial<SourceAssessment> = {}): SourceAssessment => ({ ...base, ...extra, status, reason });
   let plan: ReturnType<typeof prepareProductSourceInput>;
@@ -61,7 +63,7 @@ export async function assessSource(env: Env, context: { title: string; descripti
   catch { return result('unavailable', 'Source collection configuration needs attention.', { kind }); }
   const url = plan.sourceUrl ?? plan.canonicalUrl;
   let port: WorkerPublicSourceFetch;
-  try { port = new WorkerPublicSourceFetch(url, fetcher); }
+  try { port = new WorkerPublicSourceFetch(url, fetcher,{followSameOriginRedirects:family==='website'&&env.SOURCE_NATIVE_EXECUTION_ENABLED==='true'}); }
   catch { return result('rejected', 'The source URL failed technical safety checks.', { kind }); }
   if (availability.state !== 'AVAILABLE') {
     const reason = availability.reason === 'CONNECTORS_DISABLED'
@@ -77,8 +79,14 @@ export async function assessSource(env: Env, context: { title: string; descripti
   let evidence: string;
   let articleEvidence = '';
   const passages = new Map<string,string>();
+  const paidVerification=env.SOURCE_PAID_VERIFICATION_ENABLED==='true'&&['google_news','x_profile','x_search','linkedin_company','linkedin_profile'].includes(family);
   try {
-    let page = await port.get(url);
+    const collected=family==='telegram'&&plan.detected.kind==='telegram_channel'
+      ?await telegramVerificationEvidence(env,plan.detected.username)
+      :paidVerification&&verification?await collectVerificationEvidence(env,input,verification):undefined;
+    if(paidVerification&&!verification)return result('unavailable','Authenticated collector verification is required for this source.',{kind});
+    if(collected&&!collected.length)return result('unverified','The collector returned no substantive posts or articles to verify.',{kind});
+    let page = collected?{status:200,body:'',contentType:'application/json',authenticationRequired:false}:await port.get(url);
     const automationBlocked = () => kind === 'google_news' && page.status === 503 && /automated queries|unusual traffic/i.test(page.body);
     // One retry for a temporary upstream outage, never for blocked or dead feeds.
     if ([502, 503, 504].includes(page.status) && !automationBlocked()) page = await port.get(url);
@@ -95,10 +103,10 @@ export async function assessSource(env: Env, context: { title: string; descripti
         ? `Google News search is unavailable from this server (HTTP ${page.status}). Try a topic-specific publisher RSS feed or retry later.`
         : reason, { kind, upstreamStatus: page.status });
     }
-    if (kind === 'rss_feed' || kind === 'google_news' || /<(?:rss|feed)(?:\s|>)/i.test(page.body.slice(0, 1000))) {
+    if (collected || kind === 'rss_feed' || kind === 'google_news' || /<(?:rss|feed)(?:\s|>)/i.test(page.body.slice(0, 1000))) {
       const terms=topicWords(context);
       const score=(title?:string)=>terms.reduce((total,term)=>total+(title?.toLocaleLowerCase().includes(term)?1:0),0);
-      const readable = normalizeRssSnapshot(page.body, url).filter(item => item.identityValid);
+      const readable = collected?collected.map(item=>({...item,excerpt:undefined})):normalizeRssSnapshot(page.body, url).filter(item => item.identityValid);
       const dated = readable.map(item=>Date.parse(item.publishedAt??'')).filter(Number.isFinite);
       if(dated.length&&Math.max(...dated)<Date.now()-365*86_400_000)return result('unverified','This feed has no dated articles from the past year. Use an active topic feed.',{kind});
       const items = readable.sort((a,b)=>score(b.title)-score(a.title)).slice(0,20);
@@ -112,11 +120,27 @@ export async function assessSource(env: Env, context: { title: string; descripti
       const headings = page.body.match(/<(?:title|h[1-3])\b[^>]*>[\s\S]*?<\/(?:title|h[1-3])>/gi) ?? [];
       const articles = page.body.match(/<article\b[^>]*>[\s\S]*?<\/article>/gi) ?? [];
       articles.slice(0,3).forEach((article,index)=>passages.set(`E${index+1}`,plain(article).slice(0,1800)));
+      if(env.SOURCE_NATIVE_EXECUTION_ENABLED==='true'&&family==='website'){
+        const extracted=extractPublicHtml(page.body,url);
+        if(extracted.pageKind==='article'&&extracted.body.length>=80)passages.set('E1',[extracted.title,topicExcerpt(extracted.body,context)].filter(Boolean).join(' - '));
+        const links=discoverWebsiteArticles(page.body,url)?.articles??[];
+        const terms=topicWords(context),score=(item:{url:string;title?:string})=>terms.filter(term=>(item.title??item.url).toLowerCase().includes(term)).length;
+        const section=url.replace(/\/$/,'')+'/';
+        const sampled=await Promise.all(links.sort((a,b)=>Number(b.url.startsWith(section))-Number(a.url.startsWith(section))||score(b)-score(a)).slice(0,3).map(async item=>{
+          try{const article=await port.get(item.url);if(article.status!==200||article.authenticationRequired)return undefined;const value=extractPublicHtml(article.body,item.url);return value.body.length>=80?[value.title,topicExcerpt(value.body,context)].filter(Boolean).join(' - '):undefined;}catch{return undefined;}
+        }));
+        for(const sample of sampled)if(sample)passages.set(`E${passages.size+1}`,sample);
+      }
       articleEvidence = [...passages].map(([id,text])=>`[${id}] ${text}`).join('\n');
       evidence = plain(headings.slice(0, 12).join(' ')).slice(0, 500) + '\n' + articleEvidence;
     }
     if (evidence.trim().length < 80) return result('unverified', 'Not enough public headlines or posts were available to assess relevance.', { kind });
   } catch (error) {
+    if(family==='telegram')return result('unverified','The signed-in Telegram collector could not verify this public channel or read its recent posts. Check the collector connection and account session; retry later if Telegram is rate limiting it.',{kind});
+    if(paidVerification){
+      const code=error instanceof Error?error.message:'';
+      return result('unverified',code==='BUDGET_EXCEEDED'?'The shared daily collector spending limit has been reached.':code==='COLLECTOR_STILL_RUNNING'?'The collector is still preparing this source. Retry shortly; the existing run will be reused.':code==='UNCERTAIN_PAID_SUBMISSION'?'The collector result could not be confirmed. A duplicate paid run will not be started.':'The configured collector could not verify this source. Try again later.',{kind});
+    }
     let reason = 'The source did not return a valid readable feed. Check its direct RSS/Atom URL.';
     if (error instanceof PublicSourcePolicyError) reason = 'The source redirected or its destination was blocked by the public URL policy. Use the final public HTTPS feed URL.';
     if (error instanceof PublicSourceFetchFailure) {
@@ -140,7 +164,8 @@ export async function assessSource(env: Env, context: { title: string; descripti
       }
     };
     const chat = Boolean(env.SOURCE_ASSESSMENT_MODEL);
-    const response = await fetcher(chat ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://openrouter.ai/api/alpha/decisions', {
+    const modelFetcher=paidVerification?(verification?.providerFetcher??fetcher):fetcher;
+    const response = await modelFetcher(chat ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://openrouter.ai/api/alpha/decisions', {
       method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(10_000),
       headers: { 'content-type': 'application/json', authorization: `Bearer ${env.OPENROUTER_API_KEY}` },
       body: JSON.stringify(chat ? {
@@ -184,9 +209,9 @@ export async function assessSource(env: Env, context: { title: string; descripti
   } catch { return result('unverified', 'The relevance check could not be completed reliably. Try again later.', extra); }
 }
 
-export async function assessSources(env: Env, context: { title: string; description: string }, inputs: string[], fetcher: typeof fetch = fetch): Promise<SourceAssessment[]> {
+export async function assessSources(env: Env, context: { title: string; description: string }, inputs: string[], fetcher: typeof fetch = fetch, verification?:SourceVerificationScope): Promise<SourceAssessment[]> {
   const results: SourceAssessment[] = [];
   // At most five concurrent checks for a recommendation batch.
-  for (let index = 0; index < inputs.length; index += 5) results.push(...await Promise.all(inputs.slice(index, index + 5).map(input => assessSource(env, context, input, fetcher))));
+  for (let index = 0; index < inputs.length; index += 5) results.push(...await Promise.all(inputs.slice(index, index + 5).map(input => assessSource(env, context, input, fetcher,verification))));
   return results;
 }
