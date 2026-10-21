@@ -11,13 +11,25 @@ import {processV1Briefing} from './runtime';
 import {projectEditionLedger,rebuildCommunicationLedger,recordCorrectionObligation,refreshSourceCorrectionObligations,type LedgerEntry} from './ledger';
 import {withdrawV1Edition} from './public-read';
 import {communicatedState} from './editorial';
-import {prepareSemanticShortlist} from './shortlist';
+import {prepareSemanticShortlist,shortlistInTransaction} from './shortlist';
 import type {Env} from '../types';
 import type {EventVersion} from '@distilled/contracts';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env;
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await seedIntelligence(store);env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1'} as Env});
 afterEach(async()=>ctx.dispose());
+it('a new orphaned source correction cannot reuse a cached empty shortlist',async()=>{
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end);
+ const intake=new V1IntakeStore(ctx.db),batch=batchFixture(2);
+ batch.observations[0]={...batch.observations[0],sourceItemKey:'item-1',operation:'DELETE',authoritativeCurrentState:true};batch.proposals=[];
+ await createCandidateIntakePort(intake,{...testPolicy,orderingFor:async()=>({...await testPolicy.orderingFor(batch.observations[0]),authoritativeReplacementAllowed:true})}).acceptBatch(batch);
+ const next={...window,start:window.end,end:'2026-10-03T14:00:00Z'};
+ const before=await feedTransact(store,'feed-1',async tx=>{const s=await shortlistInTransaction(tx,next,next.end,undefined,{collectOnly:true});await tx.write('shortlists',s.id,s);return s;});
+ expect(before.candidates).toHaveLength(0);expect(before.obligations).toHaveLength(0);
+ const after=await prepareSemanticShortlist(store,'feed-1',next,next.end);
+ expect(after.candidates).toHaveLength(0);expect(after.obligations).toMatchObject([{kind:'SOURCE_DELETED'}]);
+ expect(after.id).not.toBe(before.id);
+},30000);
 it('withdrawal retains seen claims and creates a replayable correction obligation',async()=>{
  const edition=(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end))!;
  const before=await store.list<LedgerEntry>('feed-1','ledger_entries');

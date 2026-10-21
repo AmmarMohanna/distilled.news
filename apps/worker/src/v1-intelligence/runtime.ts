@@ -27,7 +27,7 @@ import {createSemanticSalienceScorer} from './salience-runtime';
 import type {EventSalienceScorer} from './salience';
 import {SalienceContentionError} from './salience-persistence';
 import {SynthesisCompatibilityError} from './language';
-import {projectEditionLedger} from './ledger';
+import {projectEditionLedger,refreshSourceCorrectionObligations} from './ledger';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {scheduleExtractionUpgrades,hasUnscheduledExtractionUpgrade} from './extraction-upgrade';
 import {recordBlockedWindow} from './blocked-window';
@@ -35,12 +35,13 @@ import {nextRematch,rematchExhausted,REMATCH_CONTINUATION_POLICY,STALE_REASON,se
 import {semanticBacklogMetrics} from './semantic-observability';
 import {withSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import {SemanticContentionError} from './semantic-operations';
-import {prepareSemanticShortlist} from './shortlist';
+import {prepareSemanticShortlist,shortlistInTransaction} from './shortlist';
+import {orderedPendingWindows,editorialWindowAwaitingRecovery} from './window-delivery';
 import {prepareEditorialPlan} from './editorial-plan';
 import {createStrongSemanticModel} from './semantic-model';
 import type {FeedRecord} from './types';
 import {synchronizeV1ProductSource} from './product';
-import {publicationWindowSchema,livePublicationWindow} from './schedule';
+import {publicationWindowSchema,livePublicationWindow,preparingLiveWindow} from './schedule';
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
@@ -141,6 +142,16 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  });
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
+ // Queue delivery order is not guaranteed. Recheck the same durable pending
+ // requests at consumption, before admitting any editorial or writer operation.
+ for(const older of orderedPendingWindows(await store.list<BriefingRequest>(feedId,'briefing_requests'),now()).filter(r=>Date.parse(r.window.end)<Date.parse(window.end))){
+  if(await jobsHoldingWindow(env.DB,feedId,older.window.end)||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
+  const job=await store.read<{state:string;pendingCall?:string;leaseUntil:string}>(feedId,'synthesis_jobs',older.id);
+  if(job?.state==='FAILED')continue;
+  if(job?.state==='RUNNING'&&Date.parse(job.leaseUntil)>Date.parse(now()))return undefined;
+  if(job?.pendingCall){const result=await store.read<{status:string;usage?:{reported:boolean}}>(feedId,'semantic_results',job.pendingCall)??await store.read<{status:string;usage?:{reported:boolean}}>(feedId,'semantic_settlements',job.pendingCall);if(result?.status!=='SUCCEEDED'||!result.usage?.reported)continue;}
+  countLatency('olderWindowPending');return undefined;
+ }
  const initialCoverage=await measureLatency('WINDOW_READINESS',()=>feedTransact(store,feedId,async tx=>{
   const coverage=await windowIntakeCoverage(env.DB,feedId,window.end),current=await tx.read<BriefingRequest>('briefing_requests',id);
   if(current&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||coverage.pendingJobs&&current.reason!=='AWAITING_INTAKE_REASSESSMENT'))await tx.write('briefing_requests',id,{...current,coverage,...(coverage.pendingJobs?{reason:'AWAITING_INTAKE_REASSESSMENT',nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()}: {})});
@@ -175,6 +186,18 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   let shortlist=frozenSelection?undefined:frozen??(env.V1_EDITORIAL_PLAN_ENABLED==='true' || writer || env.V1_SEMANTIC_POLICY!=='DETERMINISTIC' && (env.OPENROUTER_API_KEY || env.V1_SEMANTIC_POLICY==='SEMANTIC')?await measureLatency('SEMANTIC_SHORTLIST',()=>prepareSemanticShortlist(store,feedId,window,now(),legacyPlan?20:undefined,env,fetcher)):undefined);
   if(shortlist&&contract==='EVIDENCE_GROUNDED_V2')shortlist=await prepareV2Shortlist(store,shortlist);
   if(shortlist)await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),semanticCoverage=shortlist.unresolvedTargets?.length?{unresolvedTargets:shortlist.unresolvedTargets}:undefined;if(current&&canonicalJson(current.semanticCoverage)!==canonicalJson(semanticCoverage))await tx.write('briefing_requests',id,{...current,semanticCoverage})});
+  if(contract==='EVIDENCE_GROUNDED_V2'&&shortlist&&!shortlist.candidates.length&&!shortlist.overflow.length&&!shortlist.obligations.length){
+   await feedTransact(store,feedId,async tx=>{
+    const current=await tx.read<BriefingRequest>('briefing_requests',id);if(!current||current.state!=='PENDING')return;
+    // Rebuild inside the final CAS snapshot: an arrival between the initial
+    // empty shortlist and this commit must not be acknowledged as quiet.
+    await refreshSourceCorrectionObligations(tx,now());
+    const latest=await shortlistInTransaction(tx,window,now(),undefined,{collectOnly:true,reportingWindows:true});
+    if(latest.candidates.length||latest.overflow.length||latest.obligations.length)return;
+    const coverage=await windowIntakeCoverage(env.DB,feedId,window.end),incomplete=coverage.state!=='COMPLETE'||Boolean(latest.unresolvedTargets?.length);
+    await tx.write('briefing_requests',id,{...current,coverage,semanticCoverage:latest.unresolvedTargets?.length?{unresolvedTargets:latest.unresolvedTargets}:undefined,state:'DONE',result:incomplete?'DEFERRED':'QUIET',reason:incomplete?'INCOMPLETE_WINDOW_EVIDENCE':'NO_IN_WINDOW_DEVELOPMENTS',completedAt:now()});
+   });return undefined;
+  }
   failureStage='EDITORIAL_PLAN';
   const plan=shortlist?await measureLatency('EDITORIAL_PLAN',()=>contract==='EVIDENCE_GROUNDED_V2'?prepareV2EditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'),{completeParentDecisions:true}):legacyPlan?prepareEditorialPlan(store,shortlist,budget,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL')):prepareAdaptiveEditorialPlan(store,shortlist,now(),createStrongSemanticModel(env,fetcher,'EDITORIAL'))):undefined;
   if(plan&&plan.route!=='GPT'&&plan.modelOperationIds?.length){
@@ -274,7 +297,18 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   // live scheduling option. Existing UTC schedules remain unchanged otherwise.
   if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
   const window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now),editionId=await windowIdentity(id,window);
-  if(!feedExistedInWindow(feed.createdAt,window.end))continue;
+  // Preparation is a read-through mechanical shortlist, not an early edition
+  // or a frozen paid editorial decision. Final arrivals are reloaded at close.
+  const preparing=feed.briefingSchedule?preparingLiveWindow(feed.briefingSchedule,now):undefined;
+  if(preparing&&Date.parse(feed.createdAt)<=Date.parse(preparing.start))await maintenance(id,'WINDOW_PREPARATION',async()=>{
+   const prepared=await feedTransact(store,id,async tx=>{
+    const draft=await shortlistInTransaction(tx,preparing,now.toISOString(),undefined,{collectOnly:true,reportingWindows:env.V1_PUBLICATION_VALIDATION_CONTRACT==='EVIDENCE_GROUNDED_V2'});
+    if(!await tx.read('shortlists',draft.id))await tx.write('shortlists',draft.id,draft);
+    return draft;
+   });
+   console.info(JSON.stringify({type:'BRIEFING_WINDOW_PREPARATION',feedId:id,window:preparing,candidates:prepared.candidates.length,evidenceRevisions:prepared.evidenceRevisionIds.length,preparedAt:now.toISOString()}));
+  });
+  if(!feedExistedInWindow(feed.createdAt,window.end)||Date.parse(feed.createdAt)>Date.parse(window.start))continue;
   // Record the observed boundary even while intake is busy. A gap is an
   // observation made NOW, not a fabricated historical request or quiet result.
   await maintenance(id,'SCHEDULE_OBSERVATION',async()=>{
@@ -300,8 +334,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   const coverageReason=waiting?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
   if(current?.state==='PENDING'&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;await tx.write('briefing_requests',editionId,{...request,coverage,...(coverageReason?{reason:coverageReason}:request.reason==='AWAITING_INTAKE_REASSESSMENT'?{reason:undefined}:{})})});
   const requests=await store.list<BriefingRequest>(id,'briefing_requests');
-  let briefingSends=0;
-  for(const request of requests.filter(r=>r.state==='PENDING' && (!r.nextAttemptAt || Date.parse(r.nextAttemptAt)<=now.getTime()))) {
+  for(const request of orderedPendingWindows(requests,now.toISOString())) {
+   if(await editorialWindowAwaitingRecovery(env.DB,id,request.window,request.reason))continue;
    if(request.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){
     try{await modelSpendingAccount(env.DB,llmRoute(env,'editorial').identity,now.toISOString());await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING'&&current.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){const {reason:_,...rest}=current;await tx.write('briefing_requests',request.id,rest)}})}catch(error){if(!(error instanceof ModelSpendingWait))throw error}
    }
@@ -316,9 +350,13 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    const job=await store.read<{state:string;leaseUntil:string;pendingCall?:string}>(id,'synthesis_jobs',request.id);
    const retained=job?.pendingCall?await store.read<{status:string;usage?:{reported:boolean}}>(id,'semantic_results',job.pendingCall)??await store.read<{status:string;usage?:{reported:boolean}}>(id,'semantic_settlements',job.pendingCall):undefined;
    const settledSuccess=retained?.status==='SUCCEEDED'&&retained.usage?.reported===true;
-   if(job?.state==='FAILED' || job?.pendingCall&&!settledSuccess || job?.state==='RUNNING' && Date.parse(job.leaseUntil)>now.getTime()) continue;
-   if(!await enqueueV1(env,'v1_briefing',request.id,{type:'v1_briefing',feedId:id,window:request.window} satisfies DistilledQueueMessage,now))continue;sent++;briefingSends++;
-   if(briefingSends===2) break;
+   if(job?.state==='FAILED')continue;
+   if(job?.state==='RUNNING' && Date.parse(job.leaseUntil)>now.getTime())break;
+   if(job?.pendingCall&&!settledSuccess)continue;
+   // A live dispatch lease means the oldest runnable window already owns this
+   // feed's publication turn. Do not enqueue the next window alongside it.
+   if(!await enqueueV1(env,'v1_briefing',request.id,{type:'v1_briefing',feedId:id,window:request.window} satisfies DistilledQueueMessage,now))break;sent++;
+   break;
   }
  }
  return sent;

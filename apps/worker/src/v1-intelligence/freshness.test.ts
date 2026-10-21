@@ -7,6 +7,7 @@ import {feedFixture,seedIntelligence} from './test-utils';
 import {scoreAndSelect,DEFAULT_BRIEFING_BUDGET} from './scoring';
 import {publishSelection} from './publication';
 import {prepareSemanticShortlist} from './shortlist';
+import {feedTransact} from './store';
 const win={start:'2026-10-06T11:00:00Z',end:'2026-10-06T12:00:00Z'};
 it('distinguishes source publication time from observation time',()=>{
  const old=assessFreshness([{publishedAt:'2026-10-02T09:00:00Z',acceptedAt:'2026-10-06T11:30:00Z'}],win);
@@ -20,6 +21,24 @@ const first={start:'2026-10-03T11:00:00Z',end:'2026-10-03T12:01:00Z',kind:'HOURL
 const later={start:'2026-10-06T11:00:00Z',end:'2026-10-06T12:00:00Z',kind:'HOURLY' as const};
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
 afterEach(async()=>ctx?.dispose());
+it('V2 retains pre-subscription backlog outside editorial input and frames a late discovery',async()=>{
+ const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as import('../types').Env;
+ await seedIntelligence(store,1,'Ukraine opened a new grain corridor on Monday.','publisher-1','2026-10-06T11:30:00Z','en','2026-10-02T09:00:00Z');
+ expect((await prepareSemanticShortlist(store,'feed-1',later,later.end,undefined,env)).candidates).toHaveLength(0);
+ expect(await store.currentEvidence('feed-1')).toHaveLength(1);
+ await seedIntelligence(store,2,'Lebanon Parliament approved banking reform legislation.','publisher-2','2026-10-06T11:40:00Z','en','2026-10-06T10:55:00Z');
+ const shortlist=await prepareSemanticShortlist(store,'feed-1',later,later.end,undefined,env);
+ expect(shortlist.candidates).toHaveLength(1);
+ expect(shortlist.candidates[0].facts.every(f=>f.timing?.sourcePublishedAt==='2026-10-06T10:55:00.000Z'&&f.timing.framingRequired)).toBe(true);
+},30000);
+it('V2 carries news from a failed earlier complete window with its original publication time',async()=>{
+ const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as import('../types').Env;
+ await seedIntelligence(store,1,'Lebanon Parliament approved banking reform legislation.','publisher-1','2026-10-06T11:28:00Z','en','2026-10-06T11:24:00Z');
+ await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests','failed-window',{id:'failed-window',feedId:'feed-1',state:'FAILED',attempts:5,createdAt:'2026-10-06T11:30:00Z',window:{start:'2026-10-06T11:00:00Z',end:'2026-10-06T11:30:00Z',kind:'30M'}}));
+ const shortlist=await prepareSemanticShortlist(store,'feed-1',{start:'2026-10-06T11:30:00Z',end:'2026-10-06T12:00:00Z',kind:'30M'},later.end,undefined,env);
+ expect(shortlist.candidates).toHaveLength(1);
+ expect(shortlist.candidates[0].facts[0].timing).toMatchObject({sourcePublishedAt:'2026-10-06T11:24:00.000Z',framingRequired:true});
+},30000);
 it('an old article newly ingested is labelled and demoted but never silently suppressed',async()=>{
  await seedIntelligence(store,1,'Lebanon Parliament approved banking reform legislation.');
  await publishSelection(store,'feed-1',(await scoreAndSelect(store,'feed-1',first,DEFAULT_BRIEFING_BUDGET,testPolicy.now())).id,{now:testPolicy.now});

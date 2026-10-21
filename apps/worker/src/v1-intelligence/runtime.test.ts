@@ -113,8 +113,17 @@ it('blocked synthesis requests cannot consume the bounded relay slots for eligib
    if(i<2) await tx.write('synthesis_jobs',id,{id,feedId:'feed-1',state:i===0?'FAILED':'RUNNING',pendingCall:i===1?'unsettled':undefined});
   }
  });
- expect(await dispatchV1Intelligence(env,now)).toBe(2);
+ expect(await dispatchV1Intelligence(env,now)).toBe(1);
  expect(sent.some(m=>m.type==='v1_briefing' && m.window.start==='2026-10-03T02:00:00Z')).toBe(true);
+});
+it('an older live synthesis lease keeps priority even while its paid call is pending',async()=>{
+ const now=new Date('2026-10-03T13:00:00Z'),window={start:'2026-10-03T11:00:00Z',end:'2026-10-03T12:00:00Z',kind:'HOURLY' as const};
+ await feedTransact(store,'feed-1',async tx=>{
+  await tx.write('briefing_requests','older-live',{id:'older-live',feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end});
+  await tx.write('synthesis_jobs','older-live',{id:'older-live',feedId:'feed-1',state:'RUNNING',pendingCall:'paid-pending',leaseUntil:'2026-10-03T13:02:00Z'});
+ });
+ expect(await dispatchV1Intelligence(env,now)).toBe(0);
+ expect(await dispatchV1Intelligence(env,new Date('2026-10-03T13:03:00Z'))).toBe(1);
 });
 it('publication windows are closed UTC intervals and weeks start Monday',()=>{
  expect(publicationWindow('30M',new Date('2026-10-03T13:17:00Z'))).toEqual({start:'2026-10-03T12:30:00.000Z',end:'2026-10-03T13:00:00.000Z',kind:'30M'});

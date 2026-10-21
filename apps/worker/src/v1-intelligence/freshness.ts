@@ -37,10 +37,10 @@ export interface FactTiming {
  observedAt:string;
  framingRequired:boolean;
 }
-export function factTiming(evidence:Pick<EvidenceRevision,'publishedAt'|'acceptedAt'>[],window:{start:string;end:string},fact:{reportTime?:string;eventTime?:string}={}):FactTiming {
+export function factTiming(evidence:Pick<EvidenceRevision,'publishedAt'|'acceptedAt'>[],window:{start:string;end:string},fact:{reportTime?:string;eventTime?:string}={},requireWindowFraming=false):FactTiming {
  const freshness=assessFreshness(evidence,window);
  // Foundation ClaimMentions retain acceptedAt as a historical reportTime
  // fallback. It is an observation timestamp, never proof of a report date.
  const reportTime=fact.reportTime&&evidence.some(e=>e.publishedAt&&Number.isFinite(Date.parse(e.publishedAt))&&Date.parse(e.publishedAt)===Date.parse(fact.reportTime!))?fact.reportTime:undefined;
- return {sourcePublishedAt:freshness.sourcePublishedAt,reportTime,eventTime:fact.eventTime,firstSeenByFeedAt:freshness.firstSeenByFeedAt,observedAt:freshness.observedAt,framingRequired:freshness.state==='STALE'};
+ return {sourcePublishedAt:freshness.sourcePublishedAt,reportTime,eventTime:fact.eventTime,firstSeenByFeedAt:freshness.firstSeenByFeedAt,observedAt:freshness.observedAt,framingRequired:freshness.state==='STALE'||requireWindowFraming&&(freshness.state==='UNKNOWN'||Boolean(freshness.staleByMs))};
 }

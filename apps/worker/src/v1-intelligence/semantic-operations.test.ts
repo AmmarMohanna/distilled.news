@@ -6,6 +6,7 @@ import {feedFixture,seedIntelligence} from './test-utils';
 import {testDurableSemanticOperation as durableSemanticOperation} from './test-utils';
 import {boundedCompletion} from '../ai';
 import {SemanticValidationError} from './semantic-operations';
+import {editorialWindowAwaitingRecovery} from './window-delivery';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await seedIntelligence(store)});
 it('model authorization and result consumption validate active IDs without reloading article bodies',async()=>{
@@ -16,6 +17,16 @@ it('model authorization and result consumption validate active IDs without reloa
  }finally{read.mockRestore()}
 },15000);
 afterEach(async()=>ctx.dispose());
+it('a cached editorial timeout blocks only its own window without retrying or changing spending',async()=>{
+ const window={start:'2026-10-03T11:00:00.000Z',end:'2026-10-03T12:00:00.000Z'};
+ const evidenceRevisionIds=(await store.currentEvidence('feed-1')).map(e=>e.revision.id);let calls=0;
+ await durableSemanticOperation(store,{feedId:'feed-1',feedRevision:1,evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'blocked-window-test',model:'fake',budgetKey:`editorial:${window.start}:${window.end}`,state:{window}},async()=>{calls++;throw Error('SEMANTIC_MODEL_TIMEOUT')},'2026-10-03T12:00:00Z',()=>({calls:1,costUsd:.001,reported:true}));
+ const before=await ctx.db.prepare('SELECT * FROM v1_model_spending_settlements').all();
+ expect(await editorialWindowAwaitingRecovery(ctx.db,'feed-1',window)).toBe(true);
+ expect(await editorialWindowAwaitingRecovery(ctx.db,'feed-1',{start:window.end,end:'2026-10-03T13:00:00.000Z'})).toBe(false);
+ expect((await ctx.db.prepare('SELECT * FROM v1_model_spending_settlements').all()).results).toEqual(before.results);
+ expect(calls).toBe(1);
+},15000);
 it('retains exact raw failed construction beyond compact diagnostics and never purchases it again',async()=>{
  const rawResponse=JSON.stringify({dispositionByUnitId:{C0:'G0'},unexpected:'x'.repeat(20000)}),usage={calls:1,costUsd:.001,reported:true};let calls=0;
  const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'SEMANTIC_CONSTRUCTION',policyVersion:'claim-disposition-v1',model:'fake',budgetKey:'raw-retention',state:{constructionOwnershipVersion:'claim-disposition-v1'}};
