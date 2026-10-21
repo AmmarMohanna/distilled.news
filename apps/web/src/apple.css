@@ -1671,6 +1671,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 .feed-skeleton-thumbnail, .feed-skeleton-copy span, .feed-skeleton-tags span, .feed-skeleton-title, .feed-skeleton-byline { background: color-mix(in srgb, var(--muted) 14%, var(--surface)); }
 .feed-skeleton-label { display: flex; align-items: center; justify-content: center; gap: 10px; padding-top: 18px; color: var(--muted); font-size: 14px; }
 .feed-skeleton-spinner { width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: feed-skeleton-spin 1s linear infinite; }
+.topic-art.pencil-art > .feed-art-loading { position: absolute; inset: 0; display: grid; place-items: center; }
+.feed-art-loading .feed-skeleton-spinner { width: 24px; height: 24px; }
 @keyframes feed-skeleton-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .feed-skeleton-spinner { animation: none; } }
 @media (max-width: 600px) {

@@ -1,4 +1,3 @@
-import { Atom, BookOpen, Building2, Cpu, Globe2, Landmark, Music, Newspaper, Palette, Plane, Scale, Sprout, Trees, Trophy, Utensils } from "lucide-react";
 import { useEffect, useState } from "react";
 import { transparentSketch } from "./sketchImage";
 import { readSavedSketch, saveSketch } from "./sketchCache";
@@ -27,31 +26,13 @@ function rememberSketch(key: string, blob: Blob) {
   }
 }
 
-const subjects = [
-  { pattern: /politic|politique|election|élection|parliament|government|diplomac|سياس|انتخاب/i, icon: Landmark },
-  { pattern: /football|soccer|sport|premier league|champions league|fifa|basketball|tennis|كرة القدم|رياضة/i, icon: Trophy },
-  { pattern: /plant|garden|jardin|botan|flower|agricultur|نبات|زراع/i, icon: Sprout },
-  { pattern: /econom|économ|financ|market|business|bank|اقتصاد|أسواق/i, icon: Building2 },
-  { pattern: /\bai\b|tech|software|comput|robot|artificial intelligence/i, icon: Cpu },
-  { pattern: /climate|environment|forest|nature|lebanon|beirut/i, icon: Trees },
-  { pattern: /science|physics|research|space/i, icon: Atom },
-  { pattern: /music|concert|song/i, icon: Music },
-  { pattern: /educat|book|literature|school/i, icon: BookOpen },
-  { pattern: /travel|touris|aviation/i, icon: Plane },
-  { pattern: /food|cook|restaurant/i, icon: Utensils },
-  { pattern: /\blaw\b|justice|court|legal/i, icon: Scale },
-  { pattern: /culture|media|art|film|cinema/i, icon: Palette },
-  { pattern: /world|global|international/i, icon: Globe2 }
-];
-
-export function FeedArt({ kind, feed }: { kind?: string; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string } }) {
+export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string } }) {
   const [image, setImage] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [failure, setFailure] = useState("");
-  const [missing, setMissing] = useState(false);
   useEffect(() => {
-    setImage(""); setLoaded(false); setFailure(""); setMissing(false);
-    if (!feed?.ownerUsername || !feed?.slug) { setMissing(true); return; }
+    setImage(""); setLoaded(false); setFailure("");
+    if (!feed?.ownerUsername || !feed?.slug) { return; }
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let objectUrl = "";
@@ -98,13 +79,10 @@ export function FeedArt({ kind, feed }: { kind?: string; feed?: { id?: string; t
           return;
         }
         if (response.status === 404 && retries++ < 20 && !controller.signal.aborted) {
-          setMissing(true);
           schedule(3000);
-        } else if (!controller.signal.aborted) {
-          setMissing(true);
         }
       } catch (error) {
-        if (!controller.signal.aborted) { setMissing(true); setFailure(error instanceof Error ? error.message : "Illustration unavailable."); }
+        if (!controller.signal.aborted) { setFailure(error instanceof Error ? error.message : "Illustration unavailable."); }
       } finally {
         inFlight = false;
         if (refreshPending && !objectUrl && !controller.signal.aborted) schedule(0);
@@ -116,13 +94,8 @@ export function FeedArt({ kind, feed }: { kind?: string; feed?: { id?: string; t
     void check();
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("feed-sketch-updated", refresh); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [feed?.ownerUsername, feed?.slug, feed?.id]);
-  // Resolve title first so incidental words in a longer profile don't replace
-  // the feed's main topic. Public cards need only the public title.
-  const match = subjects.find(item => item.pattern.test(feed?.title ?? ""))
-    ?? subjects.find(item => item.pattern.test(feed?.interestProfile ?? ""));
-  const Icon = match?.icon ?? ({ coast: Trees, world: Globe2, tech: Cpu, city: Building2, science: Atom, culture: Palette })[kind ?? ""] ?? Newspaper;
   return <span className="topic-art pencil-art" title={failure || undefined} aria-hidden="true">
-    {!loaded && missing && <span className="pencil-drawing"><Icon strokeWidth={0.95}/><Icon className="pencil-trace" strokeWidth={0.45}/></span>}
-    {image && <img src={image} alt="" style={{ visibility: loaded ? "visible" : "hidden" }} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); setMissing(true); }}/>}
+    {!loaded && <span className="feed-art-loading"><span className="feed-skeleton-spinner"/></span>}
+    {image && <img src={image} alt="" style={{ visibility: loaded ? "visible" : "hidden" }} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); }}/>}
   </span>;
 }
