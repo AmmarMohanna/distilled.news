@@ -29,7 +29,10 @@ secret. The key is also stored in the ignored `.dev.vars.joud` file. Recommendat
 make one capped model call per click, with up to five public source suggestions;
 if all fail verification, one replacement call proposes different sources and
 verifies them independently. No more than two recommendation calls run per click.
-Candidate discovery and assessment each check up to five sources concurrently.
+Candidate discovery and assessment check up to five sources concurrently.
+Each candidate starts assessment as soon as it resolves; a slow publisher does
+not hold up checks of ready feeds or Google News. Google connection failures and
+timeouts exclude Google from the replacement round, just like provider outages.
 Verification reuses bounded publisher responses within the request instead of
 fetching every feed twice. Recommendations have a 20-second total network budget
 and an 8-second per-call limit, including response bodies; timed-out or
@@ -84,7 +87,8 @@ chat completions API and the existing key. Recommendation and save-time checks
 use the same assessment implementation. Deployments without that setting retain
 the native OpenRouter Decisions API using `DISTILLED_JEV_MODEL`.
 Separate typed questions assess news content, topical alignment, and suspicious
-signals. Malformed, inconclusive, low-confidence, and unavailable-provider results
+signals, using up to 20 recent feed items within the existing evidence size cap.
+Malformed, inconclusive, low-confidence, and unavailable-provider results
 cannot approve a source. Thresholds are conservative policy settings, not a
 measured accuracy or publisher-trust guarantee. Sources needing unavailable
 collection services display a setup blocker; no paid source collection is started.

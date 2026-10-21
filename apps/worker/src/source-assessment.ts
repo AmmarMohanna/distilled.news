@@ -15,7 +15,7 @@ export interface SourceAssessment {
   evidenceUrl?: string;
   model?: string;
   upstreamStatus?: number;
-  failureCode?: 'PUBLIC_URL_POLICY_DENIED' | 'UPSTREAM_AUTOMATION_BLOCKED';
+  failureCode?: 'PUBLIC_URL_POLICY_DENIED' | 'UPSTREAM_AUTOMATION_BLOCKED' | 'SOURCE_CONNECTION_FAILED' | 'SOURCE_FETCH_TIMEOUT';
 }
 const choice = z.object({ type: z.literal('choice'), choice: z.enum(['YES', 'NO', 'UNKNOWN']), confidence: z.number().min(0).max(1), probabilities: z.object({ YES: z.number().min(0).max(1), NO: z.number().min(0).max(1), UNKNOWN: z.number().min(0).max(1) }).strict() });
 function plain(value: string): string {
@@ -80,8 +80,8 @@ export async function assessSource(env: Env, context: { title: string; descripti
         : reason, { kind, upstreamStatus: page.status });
     }
     if (kind === 'rss_feed' || kind === 'google_news' || /<(?:rss|feed)(?:\s|>)/i.test(page.body.slice(0, 1000))) {
-      const items = normalizeRssSnapshot(page.body, url).filter(item => item.identityValid).slice(0, 5);
-      evidence = items.map(item => [item.sourceTitle, item.title, plain(item.excerpt ?? item.body).slice(0, 600)].filter(Boolean).join(' — ')).join('\n');
+      const items = normalizeRssSnapshot(page.body, url).filter(item => item.identityValid).slice(0, 20);
+      evidence = items.map(item => [item.sourceTitle, item.title, plain(item.excerpt ?? item.body).slice(0, 250)].filter(Boolean).join(' — ')).join('\n');
     } else {
       if (!/text\/html|application\/xhtml\+xml/i.test(page.contentType)) return result('unverified', 'The source did not return readable news content.', { kind });
       const headings = page.body.match(/<(?:title|h[1-3])\b[^>]*>[\s\S]*?<\/(?:title|h[1-3])>/gi) ?? [];
@@ -99,7 +99,7 @@ export async function assessSource(env: Env, context: { title: string; descripti
           ? 'The source took too long to respond. Try again shortly.'
           : 'The source connection failed before verification. Try again shortly or use another public feed URL.';
     }
-    return result('unverified', reason, { kind, ...(error instanceof PublicSourcePolicyError ? { failureCode: 'PUBLIC_URL_POLICY_DENIED' as const } : {}) });
+    return result('unverified', reason, { kind, ...(error instanceof PublicSourcePolicyError ? { failureCode: 'PUBLIC_URL_POLICY_DENIED' as const } : error instanceof PublicSourceFetchFailure && error.category !== 'BODY_BUDGET_EXCEEDED' ? { failureCode: error.category === 'FETCH_TIMEOUT' ? 'SOURCE_FETCH_TIMEOUT' as const : 'SOURCE_CONNECTION_FAILED' as const } : {}) });
   }
   const model = env.SOURCE_ASSESSMENT_MODEL ?? env.DISTILLED_JEV_MODEL ?? 'typesafe/jev-1.13';
   const extra = { kind, evidenceUrl: url, model };

@@ -3,7 +3,7 @@ import type {Env} from './types';
 import {prepareProductSourceInput,resolveProductSourceInput} from './product-feeds';
 import {sourceAvailability} from './connector-availability';
 import {normalizeRssSnapshot,type SourceFamily} from '@distilled/connectors';
-import {assessSources} from './source-assessment';
+import {assessSources,type SourceAssessment} from './source-assessment';
 import {discoverPublicRssFeed} from './product-feed-discovery';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {recommendationFetch} from './source-recommendation-fetch';
@@ -23,8 +23,13 @@ async function readableRssRecommendation(value:string,fetcher:typeof fetch):Prom
 /** One replacement pass when every suggestion fails; verification remains mandatory. */
 export async function verifiedSourceRecommendations(env:Env,input:{title:string;description:string},fetcher:typeof fetch=fetch){
  fetcher=recommendationFetch(fetcher);
- const candidates=await sourceRecommendations(env,input,fetcher,{allowEmpty:true});
- const checks=await assessSources(env,input,candidates,fetcher);
+ const checks:SourceAssessment[]=[],seen=new Set<string>();
+ const verify=async(source:string)=>{
+  if(seen.has(source))return;
+  seen.add(source);
+  checks.push(...await assessSources(env,input,[source],fetcher));
+ };
+ const candidates=await sourceRecommendations(env,input,fetcher,{allowEmpty:true,onCandidate:verify});
  if(checks.some(check=>check.status==='accepted'))return {sources:checks.filter(check=>check.status==='accepted').map(check=>check.input),checks};
  // Recover up to two dead feed paths from links actually advertised by that publisher.
  // No redirects, other origins, or guessed feed paths become accepted evidence.
@@ -48,17 +53,15 @@ export async function verifiedSourceRecommendations(env:Env,input:{title:string;
  try{
   const failures=checks.map(check=>({source:check.input,reason:check.reason}));
   // Different queries still use the same Google RSS endpoint and cannot repair its outage.
-  const excludedFamilies:SourceFamily[]=checks.some(check=>check.kind==='google_news'&&check.status==='unverified'&&check.upstreamStatus!==undefined&&([403,406,429].includes(check.upstreamStatus)||check.upstreamStatus>=500))?['google_news']:[];
-  const replacements=await sourceRecommendations(env,{...input,description:input.description+'\nPrevious suggestions failed verification. Suggest different working feeds; do not repeat these URLs. Failure data: '+JSON.stringify(failures)},fetcher,{excludedFamilies});
-  const fresh=replacements.filter(source=>!candidates.includes(source));
-  checks.push(...await assessSources(env,input,fresh,fetcher));
+  const excludedFamilies:SourceFamily[]=checks.some(check=>check.kind==='google_news'&&check.status==='unverified'&&(check.failureCode==='SOURCE_CONNECTION_FAILED'||check.failureCode==='SOURCE_FETCH_TIMEOUT'||(check.upstreamStatus!==undefined&&([403,406,429].includes(check.upstreamStatus)||check.upstreamStatus>=500))))?['google_news']:[];
+  await sourceRecommendations(env,{...input,description:input.description+'\nPrevious suggestions failed verification. Suggest different working feeds; do not repeat these URLs. Failure data: '+JSON.stringify(failures)},fetcher,{excludedFamilies,allowEmpty:true,onCandidate:verify});
  }catch{/* Preserve the original diagnostics if replacement discovery fails. */}
  return {sources:checks.filter(check=>check.status==='accepted').map(check=>check.input),checks};
 }
 
 /** Suggestions only. One capped model call and bounded public RSS discovery;
  * never creates, approves, or invokes paid source collection. */
-export async function sourceRecommendations(env:Env,input:{title:string;description:string},fetcher:typeof fetch=fetch,options:{excludedFamilies?:SourceFamily[];allowEmpty?:boolean}={}):Promise<string[]> {
+export async function sourceRecommendations(env:Env,input:{title:string;description:string},fetcher:typeof fetch=fetch,options:{excludedFamilies?:SourceFamily[];allowEmpty?:boolean;onCandidate?:(source:string)=>Promise<void>}={}):Promise<string[]> {
  if(env.SOURCE_RECOMMENDATIONS_ENABLED!=='true'||!env.OPENROUTER_API_KEY)throw new Error('Source recommendations are not enabled on this deployment. Enter a public source URL or news topic.');
  const families:SourceFamily[]=['rss','google_news','website','telegram','x_profile','x_search','linkedin_company','linkedin_profile'];
  const available=families.filter(family=>!options.excludedFamilies?.includes(family)&&sourceAvailability(env,family).state==='AVAILABLE');
@@ -70,6 +73,14 @@ export async function sourceRecommendations(env:Env,input:{title:string;descript
  const parsed=z.object({sources:z.array(z.string().trim().min(1).max(500)).max(5)}).parse(JSON.parse(payload.choices?.[0]?.message?.content??'{}'));
  const sources:string[]=[];
  let googleNewsCount=0;
+ const admitted=new Set<string>();
+ const publish=async(value:string)=>{
+  if(admitted.has(value))return undefined;
+  if(prepareProductSourceInput(value).detected.kind==='google_news'&&googleNewsCount++>=1)return undefined;
+  admitted.add(value);
+  await options.onCandidate?.(value);
+  return value;
+ };
  const resolved=await Promise.all([...new Set(parsed.sources)].map(async value=>{
   try{
    let plan=prepareProductSourceInput(value);
@@ -78,7 +89,7 @@ export async function sourceRecommendations(env:Env,input:{title:string;descript
     const readable=await readableRssRecommendation(value,fetcher);
     if(!readable)return undefined;
     plan=prepareProductSourceInput(readable);
-    return available.includes('rss')?readable:undefined;
+    return available.includes('rss')?await publish(readable):undefined;
    }
    if(plan.detected.kind==='web_page'&&!available.includes('website')){
     // A website is usable here only when its own advertised RSS feed resolves.
@@ -86,13 +97,12 @@ export async function sourceRecommendations(env:Env,input:{title:string;descript
    }
    const kind=plan.detected.kind;
    const family:SourceFamily=kind==='rss_feed'?'rss':kind==='web_page'?'website':kind==='telegram_channel'?'telegram':kind as SourceFamily;
-   if(available.includes(family))return originalKind==='web_page'&&kind==='rss_feed'?`rss: ${plan.sourceUrl}`:value;
+   if(available.includes(family))return await publish(originalKind==='web_page'&&kind==='rss_feed'?`rss: ${plan.sourceUrl}`:value);
   }catch{/* Unsafe or unconfigured suggestions never reach the selection list. */}
   return undefined;
  }));
  for(const value of resolved){
   if(!value||sources.includes(value))continue;
-  if(prepareProductSourceInput(value).detected.kind==='google_news'&&googleNewsCount++>=1)continue;
   sources.push(value);
  }
  if(!sources.length&&!options.allowEmpty)throw new Error('No usable source suggestions were returned. Enter a public source URL or news topic.');

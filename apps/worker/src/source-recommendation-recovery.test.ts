@@ -18,8 +18,12 @@ it('replaces failed recommendations once and only returns independently accepted
  expect(assessSources).toHaveBeenLastCalledWith(env,{title:'Pizza',description:'Pizza news'},[accepted.input],expect.any(Function));
 });
 
-it('avoids the failing Google News provider during replacement discovery without bypassing verification',async()=>{
- const failed={input:'news: coconut Australia',kind:'google_news',status:'unverified' as const,reason:'HTTP 503',upstreamStatus:503,checkedAt:new Date().toISOString()};
+it.each([
+ {upstreamStatus:503},
+ {failureCode:'SOURCE_CONNECTION_FAILED' as const},
+ {failureCode:'SOURCE_FETCH_TIMEOUT' as const}
+])('avoids the failing Google News provider during replacement discovery: %j',async failure=>{
+ const failed={input:'news: coconut Australia',kind:'google_news',status:'unverified' as const,reason:'Provider unavailable',...failure,checkedAt:new Date().toISOString()};
  const accepted={input:'https://publisher.example/coconut/rss.xml',status:'accepted' as const,reason:'Relevant',checkedAt:failed.checkedAt};
  vi.mocked(assessSources).mockReset().mockResolvedValueOnce([failed]).mockResolvedValueOnce([accepted]);
  let pass=0; const fetcher=vi.fn<typeof fetch>(async url=>String(url).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:pass++===0?[failed.input]:['news: coconut farming Australia',accepted.input]})}}]}):new Response(rss));

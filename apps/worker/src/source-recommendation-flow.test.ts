@@ -42,6 +42,26 @@ it('fails closed on malformed standard model output', async () => {
   expect(result.checks[0].status).toBe('unverified');
 });
 
+it('verifies a ready feed before another publisher finishes discovery', async () => {
+  let release!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const events: string[] = [];
+  const fetcher = vi.fn<typeof fetch>(async (url, init) => {
+    if (String(url).includes('openrouter.ai')) {
+      const body = JSON.parse(init!.body as string);
+      if (body.messages[0].content.startsWith('Suggest')) return Response.json({ choices: [{ message: { content: JSON.stringify({ sources: ['https://publisher.example/fast.xml', 'https://publisher.example/slow.xml'] }) } }] });
+      events.push('assessed');
+      release();
+      return Response.json({ choices: [{ message: { content: JSON.stringify({ answers: { news: answer('YES'), alignment: answer('YES'), concern: answer('NO') } }) } }] });
+    }
+    if (String(url).includes('slow')) { await waiting; events.push('slow finished'); }
+    return new Response(feed('Solar energy technology and policy updates'));
+  });
+  const result = await verifiedSourceRecommendations(env, context, fetcher);
+  expect(result.sources).toHaveLength(2);
+  expect(events.indexOf('assessed')).toBeLessThan(events.indexOf('slow finished'));
+});
+
 it('can recover when the first proposal contains no usable URLs', async () => {
   let proposals = 0;
   const fetcher = vi.fn<typeof fetch>(async (url, init) => {

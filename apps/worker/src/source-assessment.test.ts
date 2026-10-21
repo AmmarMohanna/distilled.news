@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { assessSource } from './source-assessment';
 import type { Env } from './types';
+import { PublicSourceFetchFailure } from '@distilled/agent-runtime';
 
 const env = { SOURCE_CONNECTORS_ENABLED: 'true', OPENROUTER_API_KEY: 'test' } as Env;
 const context = { title: 'Lebanon', description: 'Lebanese economy and public affairs' };
@@ -64,6 +65,23 @@ it('identifies Google automated-traffic blocks without repeating the blocked req
  const fetch=vi.fn<typeof globalThis.fetch>(async()=>new Response('<html><title>Sorry...</title>Your computer or network may be sending automated queries.</html>',{status:503}));
  expect(await assessSource(env,context,'news: coconut Australia',fetch)).toMatchObject({status:'unverified',failureCode:'UPSTREAM_AUTOMATION_BLOCKED',upstreamStatus:503,reason:expect.stringContaining('blocking automated requests')});
  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+ ['FETCH_TIMEOUT', 'SOURCE_FETCH_TIMEOUT'],
+ ['FETCH_REJECTED', 'SOURCE_CONNECTION_FAILED']
+] as const)('preserves %s for provider-level replacement decisions',async(category,failureCode)=>{
+ const fetch=vi.fn<typeof globalThis.fetch>(async()=>{throw new PublicSourceFetchFailure(category)});
+ expect(await assessSource(env,context,'news: coconut Australia',fetch)).toMatchObject({status:'unverified',kind:'google_news',failureCode});
+ expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it('includes occasional niche coverage beyond the first five headlines',async()=>{
+ const items=Array.from({length:7},(_,i)=>`<item><guid>${i}</guid><title>${i===6?'Coconut farming in Australia expands':'Agricultural update number '+i}</title><description>Detailed reporting on regional agricultural policy and industry developments.</description><link>https://publisher.example/story/${i}</link></item>`).join('');
+ const fetch=vi.fn<typeof globalThis.fetch>(async url=>String(url).includes('/decisions')?Response.json(decision()):new Response(`<rss><channel><title>Agriculture</title>${items}</channel></rss>`));
+ await assessSource(env,context,'https://publisher.example/rss.xml',fetch);
+ const call=fetch.mock.calls.find(([url])=>String(url).includes('/decisions'))!;
+ expect(JSON.parse(call[1]!.body as string).state.source.evidence).toContain('Coconut farming in Australia expands');
 });
 
 it('does not spend provider money or approve a social source that is not configured', async () => {
