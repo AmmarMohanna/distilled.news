@@ -25,7 +25,9 @@ export interface PrepareOptions {
 
 export const DEFAULT_PREPARE: PrepareOptions = {
   minChars: 40,
-  maxArticleChars: 6000,
+  // Preserve the full retained corpus (largest observed document: 193,826 chars).
+  // Provider context admission and editor batching remain authoritative.
+  maxArticleChars: 250_000,
   nearDuplicate: 0.72,
   relatedHint: 0.32
 };

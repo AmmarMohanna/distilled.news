@@ -13,6 +13,7 @@ SELECTING
 - Returning no items is a correct answer when nothing is worth the reader's time.
 
 WRITING (this is where accuracy is won or lost)
+- Relative dates in source text belong to that source's publication date. Never copy "today" or "yesterday" from an older source into the briefing; use the source's explicit publication date or omit the relative wording.
 - Every statement must be supported by the cited articles. Do not add outside facts, background, causes, or opinions.
 - Keep who said or did what ("X said", "according to Y"). Keep hedges (may, plans to, expected to, reportedly), conditions ("subject to approval"), negations, and uncertainty. Do not turn a plan, proposal, prediction or pilot into an accomplished fact, and do not turn a claim into a certainty.
 - Keep numbers, units, currencies, dates and names exactly. If an article only says "today" or "last week", use the article's publication date to state the date only when it is unambiguous; otherwise keep the relative wording out or attribute it.
@@ -104,6 +105,7 @@ Mark an item "fix" when it can be repaired by rewording, because it:
 - states something the sources do not say, or says more strongly than they do (plan stated as done, claim stated as fact, possible stated as certain, unattributed opinion);
 - changes a number, unit, currency, date, name, quantity or condition, or drops a qualifier that changes meaning ("subject to approval", "reportedly", "may", "up to");
 - loses or flips attribution or negation, or blends two different events or actors into one statement;
+- copies "today" or "yesterday" from an older source without anchoring it to that source's publication date;
 - states a relative date ("today", "last week") as a specific date the source does not support;
 - as an "update" or "correction", does not actually describe what changed, or misstates what the reader was told before.
 Mark it "drop" when it is mostly unsupported or merges unrelated events. Mark it "redundant" when it only repeats what the reader was already told with nothing materially new.

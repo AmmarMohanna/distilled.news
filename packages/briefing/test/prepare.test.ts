@@ -5,6 +5,12 @@ import { article } from "./helpers";
 const para = (topic: string) => `${topic} announced a new initiative on Monday involving partners, funding and a timeline that runs through next year, officials said.`;
 
 describe("prepareArticles", () => {
+  it("preserves substantive middle passages in a long article by default", () => {
+    const text="Opening context. ".repeat(300)+"Material correction: the approval remains conditional. "+"More original evidence. ".repeat(300);
+    const {prepared}=prepareArticles([article("long-evidence",text)]);
+    expect(prepared[0].text).toContain("Material correction: the approval remains conditional.");
+    expect(prepared[0].text).not.toContain("[...]");
+  });
   it("drops tiny items, folds exact and URL duplicates, and keeps every id citable", () => {
     const a = article("a", para("Acme"), { url: "https://www.example.com/story?utm_source=x" });
     const b = article("b", para("Acme"), { publishedAt: "2026-10-18T10:05:00Z", url: "https://example.com/story/" });
