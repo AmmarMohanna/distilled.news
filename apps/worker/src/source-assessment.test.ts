@@ -84,6 +84,49 @@ it('includes occasional niche coverage beyond the first five headlines',async()=
  expect(JSON.parse(call[1]!.body as string).state.source.evidence).toContain('Coconut farming in Australia expands');
 });
 
+it.each([
+ {exactTopic:'YES',sameSector:'YES',realWorldInterest:'YES',status:'accepted',coverage:'direct'},
+ {exactTopic:'NO',sameSector:'YES',realWorldInterest:'YES',status:'rejected',coverage:undefined},
+ {exactTopic:'NO',sameSector:'NO',realWorldInterest:'YES',status:'rejected',coverage:undefined},
+ {exactTopic:'NO',sameSector:'YES',realWorldInterest:'NO',status:'rejected',coverage:undefined},
+ {exactTopic:'UNKNOWN',sameSector:'UNKNOWN',realWorldInterest:'YES',status:'unverified',coverage:undefined}
+])('keeps direct, related, unrelated and fictional evidence distinct: %j',async testCase=>{
+ const fetch=vi.fn<typeof globalThis.fetch>(async url=>String(url).includes('openrouter.ai')
+  ?Response.json({choices:[{message:{content:JSON.stringify({exactTopic:testCase.exactTopic,realWorldInterest:testCase.realWorldInterest,concern:'NO',reason:'Fetched feed reports on the requested topic.',evidenceId:'E1'})}}]})
+  :new Response(rss));
+ const result=await assessSource({...env,SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini'},context,'https://publisher.example/rss.xml',fetch);
+ expect(result.status).toBe(testCase.status);
+ expect(result.coverage).toBe(testCase.coverage);
+
+});
+
+it('does not accept a query echoed in the feed title as article evidence',async()=>{
+ const fetch=vi.fn<typeof globalThis.fetch>(async url=>String(url).includes('openrouter.ai')
+  ?Response.json({choices:[{message:{content:JSON.stringify({realWorldInterest:'YES',exactTopic:'YES',concern:'NO',reason:'Claims topic match',evidenceId:'FEED_TITLE'})}}]})
+  :new Response('<rss><channel><title>Coconut farming in Australia search results</title><item><guid>one</guid><title>Unrelated football scores</title><description>Detailed reporting on the latest football matches and league results around the world.</description><link>https://publisher.example/story</link></item></channel></rss>'));
+ const result=await assessSource({...env,SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini'},{title:'Coconut',description:'Coconut in Australia'},'rss: https://publisher.example/?s=coconut&feed=rss2',fetch);
+ expect(result).toMatchObject({status:'unverified',reason:expect.stringContaining('verifiable article passage')});
+});
+
+it('constrains model citations to the article IDs actually supplied',async()=>{
+ const fetch=vi.fn<typeof globalThis.fetch>(async url=>String(url).includes('openrouter.ai')
+  ?Response.json({choices:[{message:{content:JSON.stringify({realWorldInterest:'YES',exactTopic:'YES',concern:'NO',reason:'Direct Lebanese economic reporting',evidenceId:'E1'})}}]})
+  :new Response(rss));
+ expect(await assessSource({...env,SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini'},context,'https://publisher.example/rss.xml',fetch)).toMatchObject({status:'accepted',evidenceQuote:expect.stringContaining('Lebanon parliament')});
+ const call=fetch.mock.calls.find(([url])=>String(url).includes('openrouter.ai'))!;
+ const body=JSON.parse(call[1]!.body as string);
+ expect(body.provider.require_parameters).toBe(true);
+ expect(body.response_format.type).toBe('json_schema');
+ expect(body.response_format.json_schema.strict).toBe(true);
+ expect(body.response_format.json_schema.schema.properties.evidenceId.enum).toEqual(['','E1']);
+});
+
+it('does not recommend a dated feed that has stopped updating for over a year',async()=>{
+ const fetch=vi.fn<typeof globalThis.fetch>(async()=>new Response(rss.replace('<guid>one</guid>','<guid>one</guid><pubDate>Wed, 01 Jan 2020 00:00:00 GMT</pubDate>')));
+ expect(await assessSource(env,context,'https://publisher.example/rss.xml',fetch)).toMatchObject({status:'unverified',reason:expect.stringContaining('past year')});
+ expect(fetch).toHaveBeenCalledTimes(1);
+});
+
 it('does not spend provider money or approve a social source that is not configured', async () => {
   const fetch = fetcher();
   expect(await assessSource(env, context, 'https://x.com/BBCWorld', fetch)).toMatchObject({ status: 'unavailable' });

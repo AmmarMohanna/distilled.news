@@ -55,3 +55,35 @@ it('does not return guessed RSS paths that fail both feed preflight and publishe
  const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env;
  expect(await sourceRecommendations(env,{title:'Coconuts',description:'Australian farming'},fetcher)).toEqual(['news: coconut Australia']);
 });
+
+it('never suggests Google News when deployment access is disabled',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:['news: coconut Australia','https://publisher.example/feed.xml']})}}]}):new Response(rss));
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',SOURCE_RECOMMENDATIONS_GOOGLE_NEWS:'false',OPENROUTER_API_KEY:'test'} as Env;
+ expect(await sourceRecommendations(env,{title:'Coconut',description:'Australian coconut industry'},fetcher)).toEqual(['https://publisher.example/feed.xml']);
+ expect(fetcher.mock.calls.every(([url])=>!String(url).includes('news.google.com'))).toBe(true);
+});
+
+it('uses no search on the catalog pass and caps the fallback search',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:['https://publisher.example/feed.xml']})}}]}):new Response(rss));
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',OPENROUTER_API_KEY:'test'} as Env;
+ await sourceRecommendations(env,{title:'Solar',description:'Solar industry'},fetcher);
+ await sourceRecommendations(env,{title:'Solar',description:'Solar industry'},fetcher,{search:true});
+ const bodies=fetcher.mock.calls.filter(([url])=>String(url).includes('openrouter.ai')).map(([,init])=>JSON.parse(init!.body as string));
+ expect(bodies[0]).not.toHaveProperty('tools');
+ expect(bodies[1].tools).toEqual([{type:'openrouter:web_search',parameters:{engine:'exa',mode:'fast',max_uses:1,max_results:5,max_total_results:5,max_characters:1000}}]);
+});
+
+it('discovers the publisher feed when search returns an article URL',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:['https://publisher.example/news/story']})}}]}):String(url).endsWith('/feed.xml')?new Response(rss):new Response('<link rel="alternate" type="application/rss+xml" href="/feed.xml">'));
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env;
+ expect(await sourceRecommendations(env,{title:'Solar',description:'Solar industry'},fetcher)).toEqual(['rss: https://publisher.example/feed.xml']);
+ expect(fetcher.mock.calls.some(([url])=>String(url)==='https://publisher.example/')).toBe(true);
+});
+
+it('narrows an advertised WordPress feed to real topic-search results',async()=>{
+ const base=rss.replace('<channel>','<channel><generator>https://wordpress.org/?v=6</generator>');
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:['https://publisher.example/feed.xml'],searchTerms:'coconut Australia'})}}]}):new Response(base));
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env;
+ expect(await sourceRecommendations(env,{title:'Coconut',description:'Coconut in Australia'},fetcher)).toEqual(['rss: https://publisher.example/?s=coconut+Australia&feed=rss2']);
+ expect(fetcher.mock.calls.some(([url])=>String(url)==='https://publisher.example/?s=coconut+Australia&feed=rss2')).toBe(true);
+});

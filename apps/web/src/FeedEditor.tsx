@@ -50,7 +50,7 @@ export function FeedEditor(props: {
     try {
       const result=await recommendSourceCandidates(title.trim(), [prompt.trim(), sourceQuery.trim()].filter(Boolean).join("\n"));
       if(sourceContext.current!==context)return;
-      setRecommendations(result.sources); setSourceChecks(result.checks??[]); setRecommendationQuery(sourceQuery.trim());
+      setRecommendations(result.sources); setSourceChecks((result.checks??[]).filter(check=>!result.sources.length||result.sources.includes(check.input))); setRecommendationQuery(sourceQuery.trim());
       if(!result.sources.length)setMessage(t("No sources passed verification. Review the results below or try another source."));
     }
     catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); }
@@ -90,7 +90,7 @@ export function FeedEditor(props: {
           <label htmlFor="feed-source-search">{t("Sources")}</label>
           <div className="source-search-field"><Search size={21}/><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} placeholder={t("Search sources or paste a URL")} onChange={event => setSourceQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); if (sourceQuery.trim()) { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery("");}); } } }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => setSourceQuery("")}><X size={18}/></button>}</div>
           <small>{t("Paste a website, feed, Telegram, X or LinkedIn link, or enter a news topic.")}</small>
-          {matchingSources.length > 0 && <div className="source-search-results" aria-label={t("Suggested sources")}>{matchingSources.map(source => <button type="button" key={source} className={sources.includes(source) ? "selected" : ""} aria-pressed={sources.includes(source)} disabled={checkingSource} onClick={() => void addSource(source)}><SourceIdentity source={source}/></button>)}</div>}
+          {matchingSources.length > 0 && <div className="source-search-results" aria-label={t("Suggested sources")}>{matchingSources.map(source => <button type="button" key={source} className={sources.includes(source) ? "selected" : ""} aria-pressed={sources.includes(source)} disabled={checkingSource} onClick={() => void addSource(source)}><span className="source-recommendation-option"><span className="source-recommendation-identity"><SourceIdentity source={source}/></span>{sourceChecks.find(check=>check.input===source)?.evidenceQuote && <q className="source-recommendation-evidence">{sourceChecks.find(check=>check.input===source)?.evidenceQuote}</q>}</span></button>)}</div>}
           {sourceQuery.trim() && !sources.includes(sourceQuery.trim()) && <button className="add-source-button" type="button" disabled={checkingSource} onClick={() => { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery(""); sourceSearchRef.current?.focus();}); }}><Plus size={24}/>{t("Add source")}</button>}
           <button className="source-recommend-button" type="button" disabled={recommending || checkingSource || !title.trim() || !prompt.trim()} onClick={() => void findSources()}>{t(recommending ? "Finding sources..." : "Recommend sources with AI")}</button>
         </div>
@@ -122,9 +122,10 @@ export function FeedEditor(props: {
 
 function SourceIdentity({ source }: { source: string }) {
   let host = "";
-  let detail = source;
-  try { const url = new URL(source.includes("://") ? source : `https://${source}`); if (url.hostname.includes(".")) { host = url.hostname.replace(/^www\./, ""); detail = `${host}${url.pathname === "/" ? "" : url.pathname}`; } } catch { /* Source names are also supported. */ }
-  const platform = /(^|\.)(twitter\.com|x\.com)$/.test(host) ? "X" : host === "t.me" || host === "telegram.me" ? "Telegram" : /(^|\.)linkedin\.com$/.test(host) ? "LinkedIn" : host ? "Website" : "Source";
-  const title = platform === "Website" || platform === "Source" ? host || source : detail.split("/").filter(Boolean).slice(1).join("/") || source;
-  return <><span className={`source-platform-icon platform-${platform.toLowerCase()}`} aria-hidden="true">{platform === "X" ? "𝕏" : platform === "Telegram" ? "➤" : platform === "LinkedIn" ? "in" : <SourceLogo source={source}/>}</span><span className="source-identity"><strong>{title}</strong><small>{detail}</small></span><span className="source-platform-label">{platform}</span></>;
+  const value=source.replace(/^rss:\s*/i, "");
+  let detail = value;
+  try { const url = new URL(value.includes("://") ? value : `https://${value}`); if (url.hostname.includes(".")) { host = url.hostname.replace(/^www\./, ""); detail = `${host}${url.pathname === "/" ? "" : url.pathname}`; } } catch { /* Source names are also supported. */ }
+  const platform = /^rss:/i.test(source) ? "RSS" : /(^|\.)(twitter\.com|x\.com)$/.test(host) ? "X" : host === "t.me" || host === "telegram.me" ? "Telegram" : /(^|\.)linkedin\.com$/.test(host) ? "LinkedIn" : host ? "Website" : "Source";
+  const title = platform === "Website" || platform === "Source" || platform === "RSS" ? host || source : detail.split("/").filter(Boolean).slice(1).join("/") || source;
+  return <><span className={`source-platform-icon platform-${platform.toLowerCase()}`} aria-hidden="true">{platform === "X" ? "𝕏" : platform === "Telegram" ? "➤" : platform === "LinkedIn" ? "in" : <SourceLogo source={value}/>}</span><span className="source-identity"><strong>{title}</strong><small>{detail}</small></span><span className="source-platform-label">{platform}</span></>;
 }

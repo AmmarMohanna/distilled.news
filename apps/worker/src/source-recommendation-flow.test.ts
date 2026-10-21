@@ -6,7 +6,7 @@ import type { Env } from './types';
 const env = { SOURCE_CONNECTORS_ENABLED: 'true', SOURCE_RECOMMENDATIONS_ENABLED: 'true', OPENROUTER_API_KEY: 'test', SOURCE_ASSESSMENT_MODEL: 'openai/gpt-4.1-mini' } as Env;
 const context = { title: 'Solar', description: 'Solar energy policy and technology' };
 const feed = (title: string) => `<rss><channel><title>Updates</title><item><guid>one</guid><title>${title}</title><description>Detailed reporting, analysis and substantive updates about the latest developments.</description><link>https://publisher.example/story</link></item></channel></rss>`;
-const answer = (value: 'YES' | 'NO') => ({ type: 'choice', choice: value, confidence: 0.96, probabilities: { YES: value === 'YES' ? 0.96 : 0.02, NO: value === 'NO' ? 0.96 : 0.02, UNKNOWN: 0.02 } });
+const verdict = (match: 'DIRECT'|'RELATED'|'NONE' = 'DIRECT') => ({realWorldInterest:'YES',exactTopic:match==='DIRECT'?'YES':'NO',concern:'NO',reason:'Evidence of the requested topic in the supplied feed.',evidenceId:'E1'});
 
 it('returns only readable relevant sources, reuses evidence, and checks candidates concurrently', async () => {
   const started: string[] = [];
@@ -16,8 +16,8 @@ it('returns only readable relevant sources, reuses evidence, and checks candidat
     if (String(url).includes('openrouter.ai')) {
       const body = JSON.parse(init!.body as string);
       if (body.messages[0].content.startsWith('Suggest')) return Response.json({ choices: [{ message: { content: JSON.stringify({ sources: ['https://publisher.example/solar.xml', 'https://publisher.example/sport.xml', 'https://127.0.0.1/feed.xml'] }) } }] });
-      const evidence = JSON.parse(body.messages[1].content).state.source.evidence;
-      return Response.json({ choices: [{ message: { content: JSON.stringify({ answers: { news: answer('YES'), alignment: answer(evidence.includes('Solar') ? 'YES' : 'NO'), concern: answer('NO') } }) } }] });
+      const evidence = JSON.parse(body.messages[1].content).source.evidence;
+      return Response.json({ choices: [{ message: { content: JSON.stringify(verdict(evidence.includes('Solar') ? 'DIRECT' : 'NONE')) } }] });
     }
     started.push(String(url));
     if (started.length === 2) release();
@@ -28,7 +28,7 @@ it('returns only readable relevant sources, reuses evidence, and checks candidat
   expect(result.sources).toEqual(['https://publisher.example/solar.xml']);
   expect(result.checks.map(check => check.status)).toEqual(['accepted', 'rejected']);
   expect(started).toHaveLength(2); // no second publisher read during assessment
-  expect(fetcher.mock.calls.filter(([url]) => String(url).includes('openrouter.ai'))).toHaveLength(3);
+  expect(fetcher.mock.calls.filter(([url]) => String(url).includes('openrouter.ai'))).toHaveLength(4);
 });
 
 it('fails closed on malformed standard model output', async () => {
@@ -49,10 +49,10 @@ it('verifies a ready feed before another publisher finishes discovery', async ()
   const fetcher = vi.fn<typeof fetch>(async (url, init) => {
     if (String(url).includes('openrouter.ai')) {
       const body = JSON.parse(init!.body as string);
-      if (body.messages[0].content.startsWith('Suggest')) return Response.json({ choices: [{ message: { content: JSON.stringify({ sources: ['https://publisher.example/fast.xml', 'https://publisher.example/slow.xml'] }) } }] });
+      if (body.messages[0].content.startsWith('Suggest')) return Response.json({ choices: [{ message: { content: JSON.stringify({ sources: ['https://publisher.example/fast.xml', 'https://otherpublisher.example/slow.xml'] }) } }] });
       events.push('assessed');
       release();
-      return Response.json({ choices: [{ message: { content: JSON.stringify({ answers: { news: answer('YES'), alignment: answer('YES'), concern: answer('NO') } }) } }] });
+      return Response.json({ choices: [{ message: { content: JSON.stringify(verdict()) } }] });
     }
     if (String(url).includes('slow')) { await waiting; events.push('slow finished'); }
     return new Response(feed('Solar energy technology and policy updates'));
@@ -69,7 +69,7 @@ it('can recover when the first proposal contains no usable URLs', async () => {
     const body = JSON.parse(init!.body as string);
     const content = body.messages[0].content.startsWith('Suggest')
       ? { sources: proposals++ === 0 ? ['https://127.0.0.1/feed.xml'] : ['https://publisher.example/feed.xml'] }
-      : { answers: { news: answer('YES'), alignment: answer('YES'), concern: answer('NO') } };
+      : verdict();
     return Response.json({ choices: [{ message: { content: JSON.stringify(content) } }] });
   });
   expect((await verifiedSourceRecommendations(env, context, fetcher)).sources).toEqual(['https://publisher.example/feed.xml']);
@@ -80,6 +80,22 @@ it('enforces a total deadline even when the upstream ignores cancellation', asyn
   const fetcher = vi.fn<typeof fetch>(() => new Promise(() => undefined));
   const scoped = recommendationFetch(fetcher, 25);
   await expect(scoped('https://publisher.example/feed.xml')).rejects.toThrow();
+});
+
+it('does not count two feeds from one publisher as two distinct sources', async () => {
+  let proposals=0;
+  const fetcher=vi.fn<typeof fetch>(async(url,init)=>{
+    if(!String(url).includes('openrouter.ai'))return new Response(feed('Solar energy technology and policy news'));
+    const body=JSON.parse(init!.body as string);
+    const content=body.messages[0].content.startsWith('Suggest')
+      ? {sources:proposals++===0?['https://publisher.example/feed.xml','https://publisher.example/solar.xml']:['https://independent.example/feed.xml']}
+      : verdict();
+    return Response.json({choices:[{message:{content:JSON.stringify(content)}}]});
+  });
+  const result=await verifiedSourceRecommendations(env,context,fetcher);
+  expect(result.sources).toHaveLength(2);
+  expect(new Set(result.sources.map(source=>new URL(source).hostname)).size).toBe(2);
+  expect(proposals).toBe(2);
 });
 
 it('bounds cached response bodies and isolates evidence across requests', async () => {

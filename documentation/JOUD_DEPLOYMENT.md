@@ -27,8 +27,8 @@ Keep that file private. Use its `ADMIN_SETUP_TOKEN` for first administrator setu
 AI source recommendations are enabled using the server-side `OPENROUTER_API_KEY`
 secret. The key is also stored in the ignored `.dev.vars.joud` file. Recommendations
 make one capped model call per click, with up to five public source suggestions;
-if all fail verification, one replacement call proposes different sources and
-verifies them independently. No more than two recommendation calls run per click.
+if fewer than two distinct publishers pass verification, one fallback call
+looks for additional exact-topic sources and verifies them independently. No more than two recommendation calls run per click.
 Candidate discovery and assessment check up to five sources concurrently.
 Each candidate starts assessment as soon as it resolves; a slow publisher does
 not hold up checks of ready feeds or Google News. Google connection failures and
@@ -38,9 +38,20 @@ fetching every feed twice. Recommendations have a 20-second total network budget
 and an 8-second per-call limit, including response bodies; timed-out or
 inconclusive candidates are never returned as verified. These are limits, not
 measured production latency guarantees.
-Each pass suggests at most one Google News query. If Google News verification returns
-a server error, access restriction, or rate limit, the replacement pass excludes that
-provider rather than suggesting more queries against the same failing endpoint.
+Joud sets `SOURCE_RECOMMENDATIONS_GOOGLE_NEWS=false` because Google News
+blocks this deployment's automated requests. This excludes Google from discovery;
+it does not silently migrate or remove existing approved Google News sources.
+Other deployments retain the default Google suggestion behavior unless disabled.
+
+Discovery starts from a small publisher/feed capability catalog; every candidate
+still requires a real HTTP response and independent exact-topic verification.
+For narrow topics, publisher-provided WordPress search RSS feeds are used when
+supported. Their articles, not a query echoed in a feed title, must establish the
+actual requested topic and geography. Broader industry coverage is rejected.
+`SOURCE_RECOMMENDATIONS_WEB_SEARCH=true` permits one fallback OpenRouter web
+search, capped to one Exa fast search and five results per request. This uses the
+existing OpenRouter credits; it does not authorize paid Apify/Zyte collection.
+Model proposals and catalog entries are never source approval.
 Recommendations prioritize topic-specific feeds; every replacement still requires
 readable, relevant evidence before it can be selected.
 Discovery accepts publisher-advertised same-origin HTTPS RSS anchors as well as
@@ -73,7 +84,9 @@ provided by the imported backend. Generated artwork uses the existing image setu
 Existing account data and feeds are not copied from other deployments.
 
 Source recommendations use the deployment's available collectors. On Joud these
-are RSS/Atom and Google News searches. Suggested websites are retained only when
+are RSS/Atom. The Google News collector remains configured for existing sources,
+but its public endpoint is blocking this deployment and is excluded from new
+recommendations. Suggested websites are retained only when
 they resolve to an advertised RSS feed; Telegram, X, LinkedIn, and websites without
 RSS remain unavailable until their collection services are configured. With `SOURCE_ASSESSMENT_ENABLED=true`,
 suggestions and manually entered sources must pass assessment before selection,
@@ -86,9 +99,15 @@ an advertised same-origin feed. Joud configures `SOURCE_ASSESSMENT_MODEL` as
 chat completions API and the existing key. Recommendation and save-time checks
 use the same assessment implementation. Deployments without that setting retain
 the native OpenRouter Decisions API using `DISTILLED_JEV_MODEL`.
-Separate typed questions assess news content, topical alignment, and suspicious
-signals, using up to 20 recent feed items within the existing evidence size cap.
-Malformed, inconclusive, low-confidence, and unavailable-provider results
+The standard-model path uses strict structured outputs for real-world interest,
+exact-topic relevance and suspicious content. It can cite only IDs of actual
+fetched article passages. The server supplies the displayed excerpt from that
+article; the model cannot manufacture the quote. Up to 20 title-ranked feed items
+and targeted excerpts fit within the existing evidence size cap. Feed/channel
+metadata and reflected search queries cannot serve as article citations.
+Feeds with dated articles exclusively older than one year are not recommended
+as active news sources; missing publication dates are not invented.
+Malformed, inconclusive and unavailable-provider results
 cannot approve a source. Thresholds are conservative policy settings, not a
 measured accuracy or publisher-trust guarantee. Sources needing unavailable
 collection services display a setup blocker; no paid source collection is started.

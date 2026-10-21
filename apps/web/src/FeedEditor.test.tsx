@@ -9,6 +9,20 @@ vi.mock('./Dialog', () => ({Dialog:({children,className}:{children:React.ReactNo
 
 vi.mock('./api', () => ({getSources:vi.fn(async()=>[{enabled:true,sourceUrl:'https://example.com/feed.xml'}]),recommendSourceCandidates:vi.fn(async()=>({sources:['https://example.com/feed.xml']})),assessSourceInput:vi.fn(async(_title:string,_description:string,input:string)=>({input,status:'accepted',reason:'Relevant',checkedAt:new Date().toISOString()}))}));
 
+it('shows publisher identity and fetched article evidence for topic RSS suggestions',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ const source='rss: https://publisher.example/?s=coconut&feed=rss2';
+ vi.mocked(recommendSourceCandidates).mockResolvedValueOnce({sources:[source],checks:[{input:source,status:'accepted',reason:'Direct topic evidence',evidenceQuote:'Australian coconut water producer expands exports.',checkedAt:new Date().toISOString()}]});
+ const host=document.createElement('div'),root=createRoot(host);
+ await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Coconut',interestProfile:'Coconut in Australia'}} onClose={()=>{}} onSave={async()=>{}}/>));
+ await act(async()=>host.querySelector<HTMLButtonElement>('.source-recommend-button')!.click());
+ expect(host.querySelector('.source-search-results .source-identity strong')?.textContent).toBe('publisher.example');
+ expect(host.querySelector('.source-search-results .source-platform-label')?.textContent).toBe('RSS');
+ expect(host.querySelector('.source-recommendation-evidence')?.textContent).toContain('Australian coconut water');
+ expect(host.querySelector('.selected-sources')?.textContent).not.toContain('publisher.example');
+ await act(async()=>root.unmount());vi.unstubAllGlobals();
+});
+
 it('displays recommendation rate limits as errors',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
  vi.mocked(recommendSourceCandidates).mockRejectedValueOnce(new Error('You can request AI source recommendations three times every five hours.'));

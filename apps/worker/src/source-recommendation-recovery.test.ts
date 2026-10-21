@@ -48,5 +48,5 @@ it('recovers a dead RSS path from the publisher homepage and verifies the advert
  const result=await verifiedSourceRecommendations(env,context,fetcher);
  expect(result.sources).toEqual([accepted.input]);
  expect(assessSources).toHaveBeenLastCalledWith(env,context,[accepted.input],expect.any(Function));
- expect(fetcher.mock.calls.filter(([url])=>String(url).includes('openrouter.ai'))).toHaveLength(1);
+ expect(fetcher.mock.calls.filter(([url])=>String(url).includes('openrouter.ai'))).toHaveLength(2);
 });

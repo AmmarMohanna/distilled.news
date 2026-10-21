@@ -312,6 +312,7 @@ export async function recommendSources(title: string, description: string): Prom
 }
 
 export interface SourceAssessment {
+  evidenceQuote?: string;
   input: string;
   status: "accepted" | "rejected" | "unverified" | "unavailable";
   reason: string;
