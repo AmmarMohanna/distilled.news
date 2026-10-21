@@ -56,9 +56,9 @@ describe("generateBriefing", () => {
       edit: [{ items: [fund(), second] }],
       verify: [
         { results: [{ i: 0, verdict: "ok", issues: [] }, { i: 1, verdict: "fix", issues: ["omits three years"] }] },
-        { results: [{ i: 1, verdict: "fix", issues: ["still omits"] }] }
+        { results: [{ i: 0, verdict: "fix", issues: ["still omits"] }] }
       ],
-      repair: [{ items: [{ i: 1, headline: "Genesis", body: "Anthropic committed $150 million.", drop: false }] }]
+      repair: [{ items: [{ i: 0, headline: "Genesis", body: "Anthropic committed $150 million.", drop: false }] }]
     });
     const result = await generateBriefing({ ...base, articles: [article("a1", FUND), article("a2", GENESIS)] }, port, MODELS, { maxRepairs: 1 });
     expect(result.status).toBe("published");
@@ -286,4 +286,26 @@ describe("repair policy", () => {
     expect(REPAIR_SYSTEM).toContain("SMALLEST edit");
     expect(REPAIR_SYSTEM).toContain("Do NOT add sentences or facts");
   });
+});
+
+// Regression: staging returned repair indices 0/1 for the original flagged items 1/2.
+it("keeps subset repair numbering local without moving text between source owners", async () => {
+  const drafts = [
+    { ...fund(), headline: "Replit", body: "Replit keeps Anthropic available.", sources: ["S1"] },
+    { ...fund(), headline: "Anthropic", body: "Anthropic plans a public benefit fund.", sources: ["S2"] },
+    { ...fund(), headline: "Laplace", body: "Laplace develops physical AI tests.", sources: ["S3"] }
+  ];
+  const { port, calls } = scripted({
+    edit: [{ items: drafts }],
+    verify: [
+      { results: [{ i: 0, verdict: "ok", issues: [] }, { i: 1, verdict: "fix", issues: ["date"] }, { i: 2, verdict: "fix", issues: ["founding year"] }] },
+      { results: [{ i: 0, verdict: "ok", issues: [] }, { i: 1, verdict: "ok", issues: [] }] }
+    ],
+    repair: [{ items: [{ i: 0, headline: "Anthropic", body: "Anthropic plans a public benefit fund.", drop: false }, { i: 1, headline: "Laplace", body: "Laplace develops physical AI tests.", drop: false }] }]
+  });
+  const result = await generateBriefing({ ...base, articles: [article("a1", "Replit keeps Anthropic available. This is the original company report."), article("a2", FUND), article("a3", "Laplace develops physical AI tests for robots and autonomous vehicles.")] }, port, MODELS, { prepare: { nearDuplicate: 1.01 } });
+  expect(result.items.map(i => [i.headline, i.sourceIds])).toEqual([["Replit", ["a1"]], ["Anthropic", ["a2"]], ["Laplace", ["a3"]]]);
+  expect(result.dropped).toEqual([]);
+  expect(calls.find(c => c.stage === "repair")!.request.user).toContain("#0 [new] cites S2");
+  expect(calls.find(c => c.stage === "repair")!.request.user).toContain("#1 [new] cites S3");
 });

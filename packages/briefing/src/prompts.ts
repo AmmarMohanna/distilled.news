@@ -14,6 +14,7 @@ SELECTING
 
 WRITING (this is where accuracy is won or lost)
 - Relative dates in source text belong to that source's publication date. Never copy "today" or "yesterday" from an older source into the briefing; use the source's explicit publication date or omit the relative wording.
+- A publication or update date does not establish when a separately reported statement occurred. Do not turn a weekday into a calendar date unless the source makes that date unambiguous.
 - Every statement must be supported by the cited articles. Do not add outside facts, background, causes, or opinions.
 - Keep who said or did what ("X said", "according to Y"). Keep hedges (may, plans to, expected to, reportedly), conditions ("subject to approval"), negations, and uncertainty. Do not turn a plan, proposal, prediction or pilot into an accomplished fact, and do not turn a claim into a certainty.
 - Keep numbers, units, currencies, dates and names exactly. If an article only says "today" or "last week", use the article's publication date to state the date only when it is unambiguous; otherwise keep the relative wording out or attribute it.
@@ -105,7 +106,7 @@ Mark an item "fix" when it can be repaired by rewording, because it:
 - states something the sources do not say, or says more strongly than they do (plan stated as done, claim stated as fact, possible stated as certain, unattributed opinion);
 - changes a number, unit, currency, date, name, quantity or condition, or drops a qualifier that changes meaning ("subject to approval", "reportedly", "may", "up to");
 - loses or flips attribution or negation, or blends two different events or actors into one statement;
-- copies "today" or "yesterday" from an older source without anchoring it to that source's publication date;
+- copies "today" or "yesterday" from an older source without anchoring it to that source's publication date. When a source says "announced today", its supplied publication date supports that calendar date; do not demand that a correct anchored date be changed back to "today";
 - states a relative date ("today", "last week") as a specific date the source does not support;
 - as an "update" or "correction", does not actually describe what changed, or misstates what the reader was told before.
 Mark it "drop" when it is mostly unsupported or merges unrelated events. Mark it "redundant" when it only repeats what the reader was already told with nothing materially new.
@@ -136,6 +137,7 @@ export function verifyUser(input: {
 }
 
 export const REPAIR_SYSTEM = `You are fixing news briefing items that a fact-checker flagged. Rewrite each item so that every statement is fully supported by its cited SOURCES and the flagged problems are gone. Make the SMALLEST edit that fixes each problem: restore the exact hedge, number, date, attribution, condition or negation the sources use, or delete or soften the offending words. Do NOT add sentences or facts, including ones the problem notes mention, unless you can point to the exact supporting words in the sources; a repair that introduces new claims is worse than one that simply removes the flawed phrase. Keep everything that was already correct, keep it concise, and keep the original language.
+Keep source-relative dates anchored to the supplied publication date or omit them; never restore unanchored "today" from an older source.
 If an item cannot be made accurate, or nothing materially new remains after fixing, set "drop": true.
 OUTPUT: one JSON object, nothing else:
 {"items":[{"i":0,"headline":"...","body":"...","drop":false}]}

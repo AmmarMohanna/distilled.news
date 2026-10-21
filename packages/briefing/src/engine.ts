@@ -265,11 +265,11 @@ async function verify(
           user: verifyUser({
             prior,
             sources,
-            items: batch.map((index) => {
+            items: batch.map((index, localIndex) => {
               const d = drafts[index];
               const earlier = d.updatesId ? priorById.get(d.updatesId) : undefined;
               return {
-                index,
+                index: localIndex,
                 headline: d.headline,
                 body: d.body,
                 relation: d.relation,
@@ -289,9 +289,9 @@ async function verify(
             const row = entry as Record<string, unknown>;
             const i = Number(row?.i);
             const verdict = text(row?.verdict).toLowerCase();
-            if (!batch.includes(i) || !["ok", "fix", "drop", "redundant"].includes(verdict)) continue;
+            if (!Number.isInteger(i) || i < 0 || i >= batch.length || !["ok", "fix", "drop", "redundant"].includes(verdict)) continue;
             const issues = (Array.isArray(row.issues) ? row.issues : []).map(text).filter(Boolean);
-            out.set(i, { verdict: verdict as Verdict["verdict"], issues });
+            out.set(batch[i], { verdict: verdict as Verdict["verdict"], issues });
           }
           return out;
         }
@@ -310,6 +310,7 @@ async function repair(
   flagged: Map<number, string[]>,
   byRef: Map<string, PreparedArticle>
 ): Promise<Map<number, { headline: string; body: string } | null>> {
+  // Model-facing numbers are local to this subset; translate back mechanically.
   const indices = [...flagged.keys()];
   const refs = [...new Set(indices.flatMap((i) => drafts[i].refs))];
   const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
@@ -321,8 +322,8 @@ async function repair(
       system: REPAIR_SYSTEM,
       user: repairUser({
         sources,
-        items: indices.map((index) => ({
-          index,
+        items: indices.map((index, localIndex) => ({
+          index: localIndex,
           headline: drafts[index].headline,
           body: drafts[index].body,
           relation: drafts[index].relation,
@@ -339,10 +340,10 @@ async function repair(
       for (const entry of list) {
         const row = entry as Record<string, unknown>;
         const i = Number(row?.i);
-        if (!indices.includes(i)) continue;
+        if (!Number.isInteger(i) || i < 0 || i >= indices.length) continue;
         const headline = text(row.headline);
         const body = text(row.body);
-        out.set(i, row.drop === true || !headline || !body ? null : { headline, body });
+        out.set(indices[i], row.drop === true || !headline || !body ? null : { headline, body });
       }
       return out;
     }
