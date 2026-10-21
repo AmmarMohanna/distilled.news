@@ -15,7 +15,7 @@ it('replaces failed recommendations once and only returns independently accepted
  expect(result.sources).toEqual([accepted.input]);
  expect(result.checks).toHaveLength(2);
  expect(fetcher.mock.calls.filter(([url])=>String(url).includes('openrouter.ai'))).toHaveLength(2);
- expect(assessSources).toHaveBeenLastCalledWith(env,{title:'Pizza',description:'Pizza news'},[accepted.input],fetcher);
+ expect(assessSources).toHaveBeenLastCalledWith(env,{title:'Pizza',description:'Pizza news'},[accepted.input],expect.any(Function));
 });
 
 it('avoids the failing Google News provider during replacement discovery without bypassing verification',async()=>{
@@ -27,7 +27,7 @@ it('avoids the failing Google News provider during replacement discovery without
  const context={title:'Coconuts',description:'Australian coconut farming'};
  const result=await verifiedSourceRecommendations(env,context,fetcher);
  expect(result.sources).toEqual([accepted.input]);
- expect(assessSources).toHaveBeenLastCalledWith(env,context,[accepted.input],fetcher);
+ expect(assessSources).toHaveBeenLastCalledWith(env,context,[accepted.input],expect.any(Function));
  const prompt=JSON.parse(fetcher.mock.calls[1][1]!.body as string).messages[0].content;
  expect(prompt).toContain('can collect only these source families: rss.');
  expect(result.checks[0]).toEqual(failed);
@@ -43,6 +43,6 @@ it('recovers a dead RSS path from the publisher homepage and verifies the advert
  const context={title:'Coconuts',description:'Australian coconut farming'};
  const result=await verifiedSourceRecommendations(env,context,fetcher);
  expect(result.sources).toEqual([accepted.input]);
- expect(assessSources).toHaveBeenLastCalledWith(env,context,[accepted.input],fetcher);
+ expect(assessSources).toHaveBeenLastCalledWith(env,context,[accepted.input],expect.any(Function));
  expect(fetcher.mock.calls.filter(([url])=>String(url).includes('openrouter.ai'))).toHaveLength(1);
 });

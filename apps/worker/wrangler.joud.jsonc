@@ -11,6 +11,7 @@
   "vars": {
     "SOURCE_RECOMMENDATIONS_ENABLED": "true",
     "SOURCE_ASSESSMENT_ENABLED": "true",
+    "SOURCE_ASSESSMENT_MODEL": "openai/gpt-4.1-mini",
     "DISTILLED_JEV_MODEL": "typesafe/jev-1.13",
     "PRODUCT_FEEDS_ENABLED": "true",
     "SOURCE_CONNECTORS_ENABLED": "true",

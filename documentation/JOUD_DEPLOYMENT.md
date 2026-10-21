@@ -29,6 +29,12 @@ secret. The key is also stored in the ignored `.dev.vars.joud` file. Recommendat
 make one capped model call per click, with up to five public source suggestions;
 if all fail verification, one replacement call proposes different sources and
 verifies them independently. No more than two recommendation calls run per click.
+Candidate discovery and assessment each check up to five sources concurrently.
+Verification reuses bounded publisher responses within the request instead of
+fetching every feed twice. Recommendations have a 20-second total network budget
+and an 8-second per-call limit, including response bodies; timed-out or
+inconclusive candidates are never returned as verified. These are limits, not
+measured production latency guarantees.
 Each pass suggests at most one Google News query. If Google News verification returns
 a server error, access restriction, or rate limit, the replacement pass excludes that
 provider rather than suggesting more queries against the same failing endpoint.
@@ -72,15 +78,18 @@ and the server repeats assessment before saving or enabling a source. Technical
 checks use the existing public HTTPS fetch policy (no credentials, IP literals,
 custom ports, redirects, or oversized responses) and the deployment's
 `global_fetch_strictly_public` runtime protection. Website discovery may resolve
-an advertised same-origin feed. Only public text is sent to Jev, through the
-native OpenRouter Decisions API using `typesafe/jev-1.13` and the existing key.
+an advertised same-origin feed. Joud configures `SOURCE_ASSESSMENT_MODEL` as
+`openai/gpt-4.1-mini` to assess fetched public text using OpenRouter's standard
+chat completions API and the existing key. Recommendation and save-time checks
+use the same assessment implementation. Deployments without that setting retain
+the native OpenRouter Decisions API using `DISTILLED_JEV_MODEL`.
 Separate typed questions assess news content, topical alignment, and suspicious
 signals. Malformed, inconclusive, low-confidence, and unavailable-provider results
 cannot approve a source. Thresholds are conservative policy settings, not a
 measured accuracy or publisher-trust guarantee. Sources needing unavailable
 collection services display a setup blocker; no paid source collection is started.
 Existing feeds continue collecting without automatic source removal. Assessment
-Jev calls, like recommendation calls, are separate from the one-time briefing
+model calls, like recommendation calls, are separate from the one-time briefing
 allowance; manually checking or saving a source can incur a small OpenRouter cost.
 
 Source connector admission requires `SOURCE_CONNECTORS_ENABLED=true` in addition
