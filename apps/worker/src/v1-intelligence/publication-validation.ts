@@ -17,7 +17,7 @@ export interface ValidationDecision {status:'ACCEPT'|'REJECT'|'UNRESOLVED';reaso
 /** Semantic half of the v2 gate. Exact provenance, current authorization and
  * canonical CAS fencing remain separate mandatory publication gates. */
 export function decidePublicationValidation(claims:VerificationClaim[],result:VerificationOutcome|undefined):ValidationDecision{
- const reasons=new Set<string>(),readerSpans:ValidationDecision['readerSpans']=[];let negative=false,unknown=false,conflict=false;
+ const reasons=new Set<string>(),readerSpans:ValidationDecision['readerSpans']=[];let negative=false,unknown=false;
  const unresolved=(reason:string)=>{unknown=true;reasons.add(reason);};
  if(!result||!claims.length)return {status:'UNRESOLVED',reasons:['SEMANTIC_VERDICT_UNAVAILABLE'],readerSpans};
  if(new Set(claims.map(c=>c.id)).size!==claims.length)unresolved('DUPLICATE_CLAIM_ID');
@@ -77,8 +77,6 @@ export function decidePublicationValidation(claims:VerificationClaim[],result:Ve
   if(!positive){negative=true;reasons.add(check.communicated?'FACT_FACET_FAILED':'MISSING_MANDATORY_COVERAGE');}
   if(summarized(check)===undefined||positive!==summarized(check))unresolved('FACT_VERDICT_CONFLICT');
   for(const span of spans){
-   const whole=entailment.find(v=>v.claimId===span.claimId),wholePositive=whole?.fullyEntailed===true&&whole.unsupportedMeaning.length===0;
-   if(whole&&wholePositive!==positive){conflict=true;reasons.add('SEMANTIC_VERDICT_CONFLICT');}
    if(witnesses&&positive)readerSpans.push({propositionId:factId,candidateId:owner,...span});
   }
  }
@@ -90,10 +88,9 @@ export function decidePublicationValidation(claims:VerificationClaim[],result:Ve
   if(typeof check.sourceSupported!=='boolean'||typeof check.readerEntailsProposition!=='boolean'){unresolved('INVALID_FACT_VERDICT');continue;}
   const positive=faithfulFact(check)&&check.sourceSupported&&check.readerEntailsProposition;
   if(!positive){negative=true;reasons.add('OPTIONAL_FACT_FACET_FAILED');}
-  for(const span of spans){const whole=entailment.find(v=>v.claimId===span.claimId);if(whole&&(whole.fullyEntailed&&whole.unsupportedMeaning.length===0)!==positive){conflict=true;reasons.add('SEMANTIC_VERDICT_CONFLICT');}}
  }
  if(checks.some(c=>!claims.some(claim=>(claim.candidateId??claim.id)===c.candidateId&&[...(claim.requiredFacts??[]),...(claim.allowedFacts??[])].some(f=>f.id===c.factId))))unresolved('SEMANTIC_FACT_SCOPE');
- return {status:conflict||unknown?'UNRESOLVED':negative?'REJECT':'ACCEPT',reasons:[...reasons],readerSpans};
+ return {status:unknown?'UNRESOLVED':negative?'REJECT':'ACCEPT',reasons:[...reasons],readerSpans};
 }
 /** Every packet must be complete independently. Overlapping positive packets
  * cannot fill holes or erase a conflict in another paid response. */

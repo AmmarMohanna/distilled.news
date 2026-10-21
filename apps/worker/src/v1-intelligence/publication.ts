@@ -444,7 +444,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    if(!prior)await feedTransact(store,feedId,async tx=>{await requireJob(tx,editionId,token,options.now());await assertCommunicationCurrent(tx,selection);await tx.write('verification_feedback',id,feedback)});
    throw new DraftVerificationError(feedback);
   };
-  const validationRecordKey=(draftKey:string)=>JSON.stringify([draftKey,'publication-validation-v2',...(options.model?.verificationProtocolVersion?[options.model.verificationProtocolVersion]:[])]);
+  const validationRecordKey=(draftKey:string)=>JSON.stringify([draftKey,'publication-validation-v3-independent-coverage',...(options.model?.verificationProtocolVersion?[options.model.verificationProtocolVersion]:[])]);
   const verifyDraft=async(storedDraft:StoredDraft,draftKey:string):Promise<GroundingResult>=>{
    const assessment=await measureLatency('PUBLICATION_PRECHECKS',async()=>assessWriterDraft(input,storedDraft.draft,s=>s.plan?approvedSupportSpans(s):s.evidence.map(e=>({evidenceRevisionId:e.id,quote:e.body??''})),contract,storedDraft.provider!=='NONE'&&Boolean(options.model?.verify)));
    const problems=assessment.blockingIssues;
