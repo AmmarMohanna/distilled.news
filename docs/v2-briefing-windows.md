@@ -73,6 +73,12 @@ request, reservation, uncertain outcome and financial receipts remain intact.
 The existing inference layer still prohibits rebilling the same unchanged
 unknown semantic question in a later window.
 
+Only canonical reporting intervals enter automatic dispatch. The private staging
+run exposed older one-off evaluation requests with arbitrary deadline timestamps;
+these must not occupy scheduled publication turns. Both dispatch paths and queue
+consumption exclude them. Explicit one-off processing remains available for
+recovery; no historical request or receipt is deleted or rewritten.
+
 An empty V2 input completes without buying editorial inference. Before marking
 QUIET, its final CAS transaction refreshes source correction obligations and
 rebuilds eligibility. A racing arrival leaves the request pending; incomplete
@@ -114,3 +120,12 @@ edition persistence times; attach reservation/settlement IDs, model call counts,
 reported cost and any bypass reason. Review the persisted text against acquired
 sources. Do not report delivery improvement until this run is measured. Preserve
 all pre-existing holds and do not change account or provider configuration.
+
+The first private unattended activation acquired article bodies but admitted no
+new model calls: three earlier unresolved OpenRouter operations occupied all
+provider slots. Two had provider generation records marked cancelled; the
+requested model alias resolved to a dated canonical model, and the existing
+recovery check did not recognize that terminal response. The third had no saved
+generation handle. This is a capacity/accounting blocker, not evidence of timely
+publication. Financial settlement and any changes to existing holds require the
+operator's separate approval. The test was paused without releasing holds.

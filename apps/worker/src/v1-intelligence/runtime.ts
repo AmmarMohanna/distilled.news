@@ -66,6 +66,13 @@ export function publicationWindow(kind:FeedRecord['briefingFrequency'],now:Date)
  else {duration=kind==='30M'?1800000:kind==='HOURLY'?3600000:86400000;end=Math.floor(now.getTime()/duration)*duration}
  return {start:new Date(end-duration).toISOString(),end:new Date(end).toISOString(),kind};
 }
+/** Ad-hoc evaluation windows are recoverable calls, not scheduled deliveries. */
+export function isAutomaticReportingWindow(window:PublicationWindow):boolean {
+ if(window.kind==='WEEKLY')return false;
+ if(window.durationMinutes!==undefined)return publicationWindowSchema.safeParse(window).success;
+ const expected=publicationWindow(window.kind,new Date(window.end));
+ return Date.parse(expected.start)===Date.parse(window.start)&&Date.parse(expected.end)===Date.parse(window.end);
+}
 export async function processV1Reassessment(env:Env,id:string,now=new Date().toISOString()) {
  const intake=new V1IntakeStore(env.DB),row=await intake.read<DownstreamJob>('jobs',id);
  if(!row || row.value.kind!=='REASSESS' || row.value.state==='DONE' || row.value.exhausted || !v1SourceEnabled(env,row.feedSourceId)) return 'SKIPPED';
@@ -113,10 +120,11 @@ export async function processV1Rematch(env:Env,feedId:string,requestId:string,no
  },env.V1_REVIEW_PREPARATION_ISOLATED==='true'?`rematch:${requestId}`:undefined);
  });
 }
-export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch,publicationOptions?:{requireModel?:boolean;maxSelectedDevelopments?:number}) {
+export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>new Date().toISOString(),salienceScorer?:EventSalienceScorer,fetcher:typeof fetch=fetch,publicationOptions?:{requireModel?:boolean;maxSelectedDevelopments?:number;scheduledDelivery?:boolean}) {
  const parsed=messageSchema.safeParse(raw);if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  const {feedId,window}=parsed.data;
  if(Date.parse(window.end)>Date.parse(now()) || Date.parse(window.start)>=Date.parse(window.end) || Date.parse(window.end)-Date.parse(window.start)>7*86400000) throw new HandoffError('INVALID_REQUEST');
+ if(publicationOptions?.scheduledDelivery&&!isAutomaticReportingWindow(window))return undefined;
  await approvedFeed(env,feedId);const store=new V1FeedStore(env.DB),id=await windowIdentity(feedId,window);
  return withLatency({feedId,windowId:id,phase:'PUBLICATION'},async()=>{
  countLatency('windowClosedAgeMs',Math.max(0,Date.parse(now())-Date.parse(window.end)));
@@ -144,7 +152,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  if(request.state==='DONE') return undefined;
  // Queue delivery order is not guaranteed. Recheck the same durable pending
  // requests at consumption, before admitting any editorial or writer operation.
- for(const older of orderedPendingWindows(await store.list<BriefingRequest>(feedId,'briefing_requests'),now()).filter(r=>Date.parse(r.window.end)<Date.parse(window.end))){
+ for(const older of orderedPendingWindows(await store.list<BriefingRequest>(feedId,'briefing_requests'),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
   if(await jobsHoldingWindow(env.DB,feedId,older.window.end)||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
   const job=await store.read<{state:string;pendingCall?:string;leaseUntil:string}>(feedId,'synthesis_jobs',older.id);
   if(job?.state==='FAILED')continue;
@@ -334,7 +342,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   const coverageReason=waiting?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
   if(current?.state==='PENDING'&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;await tx.write('briefing_requests',editionId,{...request,coverage,...(coverageReason?{reason:coverageReason}:request.reason==='AWAITING_INTAKE_REASSESSMENT'?{reason:undefined}:{})})});
   const requests=await store.list<BriefingRequest>(id,'briefing_requests');
-  for(const request of orderedPendingWindows(requests,now.toISOString())) {
+  for(const request of orderedPendingWindows(requests,now.toISOString()).filter(r=>isAutomaticReportingWindow(r.window))) {
    if(await editorialWindowAwaitingRecovery(env.DB,id,request.window,request.reason))continue;
    if(request.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){
     try{await modelSpendingAccount(env.DB,llmRoute(env,'editorial').identity,now.toISOString());await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING'&&current.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){const {reason:_,...rest}=current;await tx.write('briefing_requests',request.id,rest)}})}catch(error){if(!(error instanceof ModelSpendingWait))throw error}

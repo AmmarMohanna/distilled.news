@@ -76,7 +76,7 @@ export default {
           if(body.type==='v1_acquisition' && typeof body.jobId==='string') await processV1Acquisition(downstreamEnv,body.jobId);
           else if(body.type==='v1_rematch' && typeof body.feedId==='string' && typeof body.requestId==='string') await processV1Rematch(downstreamEnv,body.feedId,body.requestId);
           else if(body.type==='v1_reassess' && typeof body.jobId==='string') await processV1Reassessment(downstreamEnv,body.jobId);
-          else if(body.type==='v1_briefing') await processV1Briefing(downstreamEnv,body as import('./v1-intelligence/runtime').V1BriefingMessage);
+          else if(body.type==='v1_briefing') await processV1Briefing(downstreamEnv,body as import('./v1-intelligence/runtime').V1BriefingMessage,undefined,undefined,undefined,{scheduledDelivery:true});
           else throw new HandoffError('INVALID_REQUEST');
         });
         else if (isWebOperatorRunMessage(body)) await processWebOperatorRunMessage(env,body);
