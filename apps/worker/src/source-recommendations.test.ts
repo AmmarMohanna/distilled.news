@@ -1,7 +1,15 @@
 import {expect,it,vi} from 'vitest';
-import {sourceRecommendations} from './source-recommendations';
+import {sourceRecommendations,verifiedSourceRecommendations} from './source-recommendations';
 import type {Env} from './types';
 const rss='<rss><channel><title>News</title><item><guid>one</guid><title>Topic news</title><link>https://publisher.example/story</link></item></channel></rss>';
+it('uses one bounded web search at initial discovery instead of waiting for unrelated guesses to fail',async()=>{
+ const dispatch=vi.fn<typeof fetch>(async()=>Response.json({choices:[{message:{content:JSON.stringify({sources:[]})}}]}));
+ await verifiedSourceRecommendations({SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',OPENROUTER_API_KEY:'test'} as Env,{title:'Historical figure',description:'Historical research'},dispatch);
+ const bodies=dispatch.mock.calls.map(([,init])=>JSON.parse(init!.body as string));
+ expect(bodies).toHaveLength(2);
+ expect(bodies[0].tools[0].parameters).toMatchObject({max_uses:1,max_results:5});
+ expect(bodies[1]).not.toHaveProperty('tools');
+});
 
 
 it('makes no provider call while recommendations are disabled',async()=>{

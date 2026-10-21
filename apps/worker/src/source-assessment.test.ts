@@ -15,6 +15,19 @@ it.each([404,410,402,403,429,503])('reports the actual publisher HTTP %s without
 const rss = '<rss version="2.0"><channel><title>Lebanon News</title><item><guid>one</guid><title>Lebanon parliament discusses economic reforms and infrastructure investment</title><description>Reporting on the latest public policy and economic developments in Beirut and across Lebanon.</description><link>https://publisher.example/story</link></item></channel></rss>';
 const answer = (choice = 'YES', confidence = 0.95) => ({ type: 'choice', choice, confidence, probabilities: { YES: choice === 'YES' ? 0.96 : 0.02, NO: choice === 'NO' ? 0.96 : 0.02, UNKNOWN: choice === 'UNKNOWN' ? 0.96 : 0.02 } });
 const decision = (alignment = answer(), concern = answer('NO')) => ({ answers: { news: answer(), alignment, concern } });
+it.each([
+ {historicalInterest:'YES',exactTopic:'YES',status:'accepted'},
+ {historicalInterest:'NO',exactTopic:'YES',status:'unverified'},
+ {historicalInterest:undefined,exactTopic:'YES',status:'unverified'},
+ {historicalInterest:'YES',exactTopic:'NO',status:'rejected'}
+])('keeps historical archive relevance separate from current-feed freshness: %j',async row=>{
+ const archived='<rss><channel><title>History archive</title><item><guid>history-one</guid><title>السلطان عبد الحميد الثاني وتاريخ الدولة العثمانية</title><description>مقال تاريخي عن السلطان عبد الحميد الثاني والسياسة في الدولة العثمانية ووثائق فترة حكمه.</description><pubDate>Mon, 01 Jan 2018 12:00:00 GMT</pubDate><link>https://publisher.example/history/abdulhamid</link></item></channel></rss>';
+ const dispatch=vi.fn<typeof fetch>(async url=>String(url).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({realWorldInterest:'YES',exactTopic:row.exactTopic,historicalInterest:row.historicalInterest,concern:'NO',reason:'Historical article directly discusses the requested subject.',evidenceId:row.exactTopic==='YES'?'E1':''})}}]}):new Response(archived));
+ const result=await assessSource({...env,SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini'},{title:'السلطان عبد الحميد الثاني',description:'تاريخ السلطان عبد الحميد الثاني'},'https://publisher.example/rss.xml',dispatch);
+ expect(result.status).toBe(row.status);
+ if(row.status==='accepted')expect(result).toMatchObject({freshness:'archive',coverage:'direct',evidenceQuote:expect.stringContaining('عبد الحميد')});
+ expect(dispatch).toHaveBeenCalledTimes(2);
+});
 it('checks Telegram relevance using authenticated recent posts, without fetching its public preview',async()=>{
  const service=vi.fn(async(_input:unknown,init:RequestInit)=>{
   const request=JSON.parse(init.body as string);

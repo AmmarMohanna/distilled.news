@@ -1237,7 +1237,13 @@ export function createApp(options: AppOptions = {}) {
       try{const response=await fetcher('https://example.com',{signal:AbortSignal.timeout(5000)});detachedStatus=response.status;await response.body?.cancel();}catch{}
       return c.json({legacyResult,detachedStatus});
     }
-    if(c.req.param('action')==='check'&&c.req.method==='POST'){
+      if(c.req.param('action')==='recommend'&&c.req.method==='POST'){
+        const input=z.object({ownerAccountId:z.string().min(1).max(128),title:z.string().min(1).max(120),description:z.string().min(1).max(4000)}).strict().parse(await c.req.json());
+        const owner=await repoFor(c).getAccountById(input.ownerAccountId);
+        if(!owner||owner.disabledAt)return c.json({error:'account not found'},404);
+        return c.json({...await verifiedSourceRecommendations(c.env,{title:input.title,description:input.description},fetcher,{ownerAccountId:owner.id}),budget:await collectorBudgetStatus(c.env)});
+      }
+      if(c.req.param('action')==='check'&&c.req.method==='POST'){
       const input=z.object({ownerAccountId:z.string().min(1).max(128),source:z.string().min(1).max(2048),title:z.string().min(1).max(120),description:z.string().min(1).max(4000)}).strict().parse(await c.req.json());
       const owner=await repoFor(c).getAccountById(input.ownerAccountId);
       if(!owner||owner.disabledAt)return c.json({error:'account not found'},404);

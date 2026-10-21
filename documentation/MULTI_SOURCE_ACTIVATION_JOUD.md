@@ -1,5 +1,31 @@
 # Multi-source activation for Joud
 
+## Historical-interest verification follow-up
+
+The October 21 user example `السلطان عبد الحميد الثاني` exposed an unconditional
+one-year freshness rejection. Chat assessment now classifies historical intent in
+the same structured relevance call. Older feed items may qualify only when the
+user interest is historical, actual article passages match, and the evaluator
+cites an existing evidence ID. They receive `freshness: archive` and an explicit
+age explanation. Stale current-news sources still fail; unclassified historical
+intent fails closed. The legacy decision endpoint retains the freshness guard.
+
+Verified discovery now uses its one bounded web search on the initial pass rather
+than first exhausting broad feed guesses. Replacement discovery does not issue a
+second search. Historical-source instructions prefer subject-specific archives,
+research collections and history publications. The authenticated maintenance-only
+`POST /api/internal/collectors/recommend` exercises the same recommendation flow
+under an existing owner scope, without creating feeds or publishing test content.
+
+Live verification of the Arabic example returned two directly matched references:
+the Daily Sabah Abdulhamid II anniversary article and the Islam.museum Abd al-Hamid
+II profile. The Google News query was rejected on actual evidence because its
+sample did not substantively cover the Sultan. Wikipedia was blocked and another
+candidate timed out; neither entered the accepted list. These historical pages
+are references, not proof of an actively updating daily topic feed. Forty-five
+targeted assessment, discovery and authorization tests passed, as did type checking.
+Deployed Worker version: `052fb5d6-d797-4f44-9331-eaa64009bda8`.
+
 ## October 21 activation update
 
 The user authorized **$5 per day total** across paid collectors, with the day
