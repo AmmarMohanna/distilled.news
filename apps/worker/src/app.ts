@@ -1,3 +1,4 @@
+import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
 import {readBriefingOutcome} from './v1-intelligence/briefing-outcome';
 import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intelligence/model-reconciliation';
 import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-trace';
@@ -1012,6 +1013,11 @@ export function createApp(options: AppOptions = {}) {
     catch(error){if(error instanceof HandoffError)return c.json({error:error.code},error.code==='SCOPE_DENIED'?404:400);throw error}
   });
 
+  app.get('/api/admin/storage',async c=>{
+    c.header('Cache-Control','private, no-store');
+    return c.json({enabled:c.env.STORAGE_MAINTENANCE_ENABLED==='true',...await storageMaintenanceStatus(c.env)});
+  });
+
   app.get("/api/admin/accounts", async (c) => {
     const repo = c.get("repo");
     return c.json({ accounts: await repo.listAccounts() });
@@ -1213,6 +1219,24 @@ export function createApp(options: AppOptions = {}) {
         "cache-control": "no-store"
       }
     });
+  });
+
+  app.all('/api/internal/storage/:action',async c=>{
+    const secret=c.env.INTERNAL_MAINTENANCE_SECRET?.trim(),provided=c.req.header('x-distilled-internal')?.trim();
+    if(!secret||!provided)return c.json({error:'unauthorized'},401);
+    const digest=async(value:string)=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)));
+    const [expected,actual]=await Promise.all([digest(secret),digest(provided)]);
+    let mismatch=0;for(let i=0;i<expected.length;i++)mismatch|=expected[i]^actual[i];
+    if(mismatch)return c.json({error:'unauthorized'},401);
+    c.header('Cache-Control','private, no-store');
+    if(c.req.param('action')==='archive'&&c.req.method==='GET'){
+      const hash=c.req.query('sha256');if(!hash||!/^[a-f0-9]{64}$/.test(hash))return c.json({error:'invalid archive hash'},400);
+      const object=await c.env.RAW_ARCHIVE.get(`operational-archives/semantic-waits/${hash}.json`);
+      return object?new Response(object.body,{headers:{'content-type':'application/json','cache-control':'private, no-store'}}):c.json({error:'archive not found or expired'},404);
+    }
+    if(c.req.param('action')==='status'&&c.req.method==='GET')return c.json(await storageMaintenanceStatus(c.env));
+    if(c.req.param('action')==='run'&&c.req.method==='POST'&&c.env.STORAGE_MAINTENANCE_ENABLED==='true')return c.json(await runStorageMaintenance(c.env));
+    return c.json({error:'not found'},404);
   });
 
   app.post("/api/internal/retention/run", async (c) => {

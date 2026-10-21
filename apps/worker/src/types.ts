@@ -111,6 +111,7 @@ export interface Env extends Cloudflare.Env {
   BROWSER: Cloudflare.Env["BROWSER"];
   AUTHENTICATED_BROWSER_CONTAINER: DurableObjectNamespace<AuthenticatedBrowserContainer>;
   PROCESSING_QUEUE: Queue<DistilledQueueMessage>;
+  IMAGE_QUEUE?: Queue<import('./feed-sketch-jobs').FeedSketchMessage>;
   V1_PROCESSING_QUEUE?: Queue<DistilledQueueMessage>;
   V1_ACQUISITION_QUEUE?: Queue<DistilledQueueMessage>;
   WEB_OPERATOR_QUEUE: Queue<WebOperatorQueueMessage>;
@@ -123,6 +124,7 @@ export interface Env extends Cloudflare.Env {
   ADMIN_SESSION_SECRET?: string;
   ADMIN_SETUP_TOKEN?: string;
   INTERNAL_MAINTENANCE_SECRET?: string;
+  STORAGE_MAINTENANCE_ENABLED?: string;
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_SITE_KEY?: string;
   VAPID_PUBLIC_KEY?: string;

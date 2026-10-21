@@ -15,13 +15,15 @@ export async function queueInitialFeedSketch(env: Env, feed: Subject): Promise<v
      VALUES (?, ?, ?, 'pending', 0, ?, ?, ?) ON CONFLICT(feed_id) DO NOTHING RETURNING feed_id`
   ).bind(feed.id, feed.title, feed.interestProfile, now.toISOString(),
     new Date(now.getTime() + LEASE_MS).toISOString(), now.toISOString()).first<{feed_id:string}>();
-  if (!inserted || !env.PROCESSING_QUEUE) return;
-  try { await env.PROCESSING_QUEUE.send({type:"generate_feed_sketch",feedId:feed.id}); }
+  const queue=env.IMAGE_QUEUE??env.PROCESSING_QUEUE;
+  if (!inserted || !queue) return;
+  try { await queue.send({type:"generate_feed_sketch",feedId:feed.id}); }
   catch { console.warn("Feed illustration will be redispatched",{feedId:feed.id}); }
 }
 
 export async function dispatchDueFeedSketches(env: Env, now = new Date()): Promise<number> {
-  if (!env.DB || !env.PROCESSING_QUEUE) return 0;
+  const queue=env.IMAGE_QUEUE??env.PROCESSING_QUEUE;
+  if (!env.DB || !queue) return 0;
   const current = now.toISOString(), until = new Date(now.getTime()+LEASE_MS).toISOString();
   const rows = await env.DB.prepare(
     `UPDATE feed_sketch_jobs SET dispatch_until=?
@@ -32,7 +34,7 @@ export async function dispatchDueFeedSketches(env: Env, now = new Date()): Promi
      RETURNING feed_id`
   ).bind(until,current,current,current).all<{feed_id:string}>();
   for (const row of rows.results) try {
-    await env.PROCESSING_QUEUE.send({type:"generate_feed_sketch",feedId:row.feed_id});
+    await queue.send({type:"generate_feed_sketch",feedId:row.feed_id});
   } catch { console.warn("Feed illustration redispatch deferred",{feedId:row.feed_id}); }
   return rows.results.length;
 }

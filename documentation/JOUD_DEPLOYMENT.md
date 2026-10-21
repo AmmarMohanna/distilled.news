@@ -137,6 +137,16 @@ through the existing `CLOUDFLARE_IMAGE_ACCOUNT_ID` and
 four-step inference process; no `steps` parameter is sent. Generation has a
 90-second timeout within the illustration job's two-minute lease.
 
+Automatic diagnostic storage maintenance is enabled and runs before source
+scheduling on each minute Cron. See [storage operations](STORAGE_OPERATIONS.md)
+for retention classes, archive verification, health routes, recovery and the
+remaining single-database scaling boundary. Published evidence and paid-call
+identities are not expired by diagnostic cleanup.
+Illustrations use the dedicated `distilled-news-joud-images` queue, capped at
+two concurrent consumers, so source-processing backlogs cannot starve images.
+The existing job lease and R2 existence checks fence duplicate deliveries;
+deployments without `IMAGE_QUEUE` keep their existing processing queue.
+
 The image prompt uses only the user's full interest profile (the “What would you
 like to follow” field), rather than the feed title. It requests a monochromatic
 `#5E5CE6` colored-pencil sketch with natural, slightly irregular strokes, fine

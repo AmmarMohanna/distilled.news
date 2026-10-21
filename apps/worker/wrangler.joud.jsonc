@@ -9,6 +9,7 @@
   "routes": [],
   "assets": { "directory": "../web/dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": true },
   "vars": {
+    "STORAGE_MAINTENANCE_ENABLED": "true",
     "SOURCE_RECOMMENDATIONS_ENABLED": "true",
     "SOURCE_RECOMMENDATIONS_WEB_SEARCH": "true",
     "SOURCE_RECOMMENDATIONS_GOOGLE_NEWS": "false",
@@ -42,8 +43,8 @@
   "r2_buckets": [{ "binding": "RAW_ARCHIVE", "bucket_name": "distilled-news-joud-raw" }, { "binding": "AUTHENTICATED_SECRETS", "bucket_name": "distilled-news-joud-authenticated-secrets" }],
   "send_email": [{ "name": "EMAIL" }],
   "queues": {
-    "producers": [{ "binding": "PROCESSING_QUEUE", "queue": "distilled-news-joud-processing" }],
-    "consumers": [{ "queue": "distilled-news-joud-processing", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 4, "dead_letter_queue": "distilled-news-joud-processing-dlq" }]
+    "producers": [{ "binding": "PROCESSING_QUEUE", "queue": "distilled-news-joud-processing" }, { "binding": "IMAGE_QUEUE", "queue": "distilled-news-joud-images" }],
+    "consumers": [{ "queue": "distilled-news-joud-processing", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 4, "dead_letter_queue": "distilled-news-joud-processing-dlq" }, { "queue": "distilled-news-joud-images", "max_batch_size": 1, "max_batch_timeout": 1, "max_concurrency": 2, "max_retries": 4, "dead_letter_queue": "distilled-news-joud-processing-dlq" }]
   },
   "triggers": { "crons": ["* * * * *"] },
   "observability": { "enabled": true }
