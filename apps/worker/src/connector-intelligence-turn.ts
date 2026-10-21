@@ -9,6 +9,15 @@ export class IntelligenceTurnBusy extends Error {constructor(){super('INTELLIGEN
 export class IntelligenceTurnLost extends HandoffError {constructor(){super('TEMPORARY_UNAVAILABLE')}}
 interface IntelligenceTurn {db:D1Database;feedId:string;token:string}
 const intelligenceTurns=new AsyncLocalStorage<IntelligenceTurn>();
+const computationTurns=new AsyncLocalStorage<{env:Env;feedId:string}>();
+/** Only the atomic store commit holds admission. Its original snapshot and
+ * every scope epoch are still checked by CAS after admission is acquired. */
+export function withCanonicalCommitTurn<T>(db:D1Database,feedId:string,run:()=>Promise<T>):Promise<T>{
+ const computation=computationTurns.getStore();
+ if(!computation)return run();
+ if(computation.env.DB!==db||computation.feedId!==feedId)throw new IntelligenceTurnLost();
+ return withFeedWriteTurn(computation.env,feedId,run,'publication-commit');
+}
 /** Canonical stores inherit admission through nested async work. Receipt/billing
  * settlement uses its immutable intent token and deliberately bypasses this guard. */
 export function intelligenceTurnGuard(db:D1Database,feedId:string):{sql:string;args:string[]} {
@@ -47,7 +56,9 @@ export async function withIntelligenceTurn<T>(env:Env,body:DistilledQueueMessage
   // malformed dates still follow the existing runtime validation path.
   const instant=(value:string)=>Number.isFinite(Date.parse(value))?new Date(value).toISOString():value;
   const windowId=await sha256(canonicalJson({feedId,start:instant(body.window.start),end:instant(body.window.end)}));
-  return withLatency({feedId,windowId,phase:'PUBLICATION_TURN'},()=>withFeedWriteTurn(env,feedId!,run,JSON.stringify(body)));
+  return withLatency({feedId,windowId,phase:'PUBLICATION_TURN'},()=>env.V1_PUBLICATION_PREPARATION_ISOLATED==='true'
+   ?computationTurns.run({env,feedId:feedId!},run)
+   :withFeedWriteTurn(env,feedId!,run,JSON.stringify(body)));
  }
  return withFeedWriteTurn(env,feedId,run,JSON.stringify(body));
 }

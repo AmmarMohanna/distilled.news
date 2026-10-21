@@ -9,6 +9,19 @@ let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 const now=testPolicy.now(),feed:FeedRecord={id:'feed-1',ownerId:'owner-1',title:'Feed',interests:[],geography:[],outputLanguage:'en',briefingFrequency:'DAILY',paused:false,revision:1,createdAt:now,updatedAt:now};
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feed)});
 afterEach(async()=>{vi.restoreAllMocks();await ctx.dispose()});
+it('root preloading batches owned reads while retaining staged writes and isolation',async()=>{
+ await store.registerFeed({...feed,id:'foreign-feed'});
+ const batch=vi.fn((statements:D1PreparedStatement[])=>ctx.db.batch(statements));
+ const measured=new V1FeedStore({prepare:(sql:string)=>ctx.db.prepare(sql),batch} as unknown as D1Database);
+ const tx=new FeedTransaction(measured,await measured.snapshot(feed.id));
+ await ctx.db.prepare('INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?)').bind('roles','foreign-role','foreign-feed',JSON.stringify({id:'foreign-role',feedId:'foreign-feed'})).run();
+ await tx.preloadLists(['roles','duplicates','roles']);
+ expect(batch).toHaveBeenCalledTimes(1);expect(batch.mock.calls[0][0]).toHaveLength(2);
+ await tx.write('roles','local-role',{id:'local-role',feedId:feed.id});
+ expect(await tx.list('roles')).toEqual([{id:'local-role',feedId:feed.id}]);
+ expect(await tx.list('duplicates')).toEqual([]);
+ await tx.preloadLists(['roles']);expect(batch).toHaveBeenCalledTimes(1);
+});
 async function seedDocuments(documents:{kind:string;id:string;value:unknown}[]){
  const statements:D1PreparedStatement[]=[];
  for(let i=0;i<documents.length;i+=500)statements.push(ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT json_extract(value,'$.kind'),json_extract(value,'$.id'),?,json_extract(value,'$.value') FROM json_each(?)").bind(feed.id,JSON.stringify(documents.slice(i,i+500))));

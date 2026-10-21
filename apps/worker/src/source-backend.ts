@@ -5,6 +5,7 @@ import {BoundedFeedHttp,createSourceCollector,D1ProviderSourceRepository,D1Provi
 import type {CandidateIntakePort} from '@distilled/contracts';
 import {sharedPublicHttp,PUBLIC_SOURCE_MAX_BYTES} from './connector-public-cache';
 import {rateLimitedPublicHttp} from './connector-rate-limit';
+import {admittedSourceExecution} from './source-execution-admission';
 
 export interface SourceBackendEnv {
   DB:D1Database;
@@ -56,7 +57,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     const executionDispatch:typeof fetch=async(value,init)=>{
       if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
       // Private execution has no public-fetch fallback when a VPC binding is configured.
-      return env.SOURCE_EXECUTION_SERVICE?env.SOURCE_EXECUTION_SERVICE.fetch(value,init):guardedDispatch(value,init);
+      return env.SOURCE_EXECUTION_SERVICE?admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init)):guardedDispatch(value,init);
     };
     const execution=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN?
       new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,executionDispatch,!!env.SOURCE_EXECUTION_SERVICE):

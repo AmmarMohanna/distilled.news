@@ -20,13 +20,17 @@ export class WebsiteSourceProvider implements SourceProvider {
     if(this.id==='website_http'){
       const response=await this.http.get(url,{});
       if(response.status===451)throw new SourceProviderError('POLICY_REFUSAL');
-      if(response.status===429)throw new SourceProviderError('RATE_LIMIT');
-      if(response.status!==200)throw new SourceProviderError(response.status>=500||response.status===0?'TRANSIENT':'CHALLENGE');
+      if(response.status===429){const h=response.headers['retry-after'],s=Number(h),at=h&&Number.isFinite(s)?Date.now()+Math.max(0,s)*1000:h?Date.parse(h):NaN;throw new SourceProviderError('RATE_LIMIT',Number.isFinite(at)?new Date(at).toISOString():undefined,{detail:'UPSTREAM_RATE_LIMIT',httpStatus:429});}
+      if(response.status===401)throw new SourceProviderError('AUTH_REQUIRED',undefined,{detail:'UPSTREAM_AUTHENTICATION',httpStatus:401});
+      if(response.status===404||response.status===410)throw new SourceProviderError('UNAVAILABLE',undefined,{detail:'HTTP_NOT_FOUND',httpStatus:response.status});
+      if(response.status!==200)throw new SourceProviderError(response.status>=500||response.status===0?'TRANSIENT':'CHALLENGE',undefined,{detail:response.status===403?'ACCESS_BLOCKED':response.status>=500||response.status===0?'UPSTREAM_TRANSPORT_FAILURE':'UPSTREAM_HTTP_ERROR',httpStatus:response.status});
       html=new TextDecoder().decode(response.bytes);requests=response.telemetry.requests;
     }else if(this.id==='website_playwright'){
       const result=record(await executeSource(this.execution,'playwright',{url}));
       if(result.status===451)throw new SourceProviderError('POLICY_REFUSAL');
-      if(result.error||result.status!==200||typeof result.html!=='string')throw new SourceProviderError('CHALLENGE');html=result.html;
+      if(result.error==='UNAVAILABLE'||result.error==='AUTH_REQUIRED')throw new SourceProviderError('UNAVAILABLE',undefined,{detail:'BROWSER_EXECUTOR_UNAVAILABLE'});
+      if(result.status===404||result.status===410)throw new SourceProviderError('UNAVAILABLE',undefined,{detail:'HTTP_NOT_FOUND',httpStatus:Number(result.status)});
+      if(result.error||result.status!==200||typeof result.html!=='string')throw new SourceProviderError('CHALLENGE',undefined,{detail:'BROWSER_PAGE_UNUSABLE',...(typeof result.status==='number'?{httpStatus:result.status}:{})});html=result.html;
       requests=Number.isSafeInteger(result.requests)&&result.requests>=1?result.requests:1;
     }else{
       const key=await this.secrets?.('zyte');if(!key||!this.paid)throw new SourceProviderError('UNAVAILABLE');
@@ -37,7 +41,7 @@ export class WebsiteSourceProvider implements SourceProvider {
       if(data.statusCode!==200||typeof data.httpResponseBody!=='string')throw new SourceProviderError('CHALLENGE');
       try{const bytes=Uint8Array.from(atob(data.httpResponseBody),(c)=>c.charCodeAt(0));html=new TextDecoder().decode(bytes);}catch{throw new SourceProviderError('MALFORMED');}
     }
-    if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))throw new SourceProviderError('CHALLENGE');
+    if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))throw new SourceProviderError('CHALLENGE',undefined,{detail:'ACCESS_CHALLENGE_PAGE'});
     const discovery=discoverWebsiteArticles(html,url);
     if(discovery){
       // Do not report a readable but unrecognized section layout as success.
@@ -64,7 +68,7 @@ export class WebsiteSourceProvider implements SourceProvider {
       return {items,raw:new TextEncoder().encode(html),complete:false,
         continuationToken:offset+input.limit<links.length?String(offset+input.limit):undefined,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
-    if(!string(result.body)||result.body.length<200)throw new SourceProviderError('CHALLENGE');
+    if(!string(result.body)||result.body.length<200)throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_EXTRACTABLE_ARTICLE'});
     // A homepage with no article inventory/date is not a complete news article.
     if(landing||result.pageKind==='listing')throw new SourceProviderError('MALFORMED');
     const canonical=articleUrl(string(result.canonicalUrl));

@@ -73,6 +73,7 @@ export interface Env extends Cloudflare.Env {
   SOURCE_PER_PROVIDER_BUDGET_USD?: string;
   SOURCE_COLLECTION_INTERVAL_MS?: string;
   SOURCE_COLLECTION_QUEUE?: Queue<import('./connector-scheduling').ConnectorQueueMessage>;
+  SOURCE_SCHEDULING_QUEUE?: Queue<import('./connector-scheduling').ConnectorQueueMessage>;
   SOURCE_POLL_MAX_JOBS_PER_TICK?: string;
   SOURCE_POLL_TICK_BUDGET_MS?: string;
   STAGING_ASSETS_PREFIX?: string;
@@ -94,6 +95,7 @@ export interface Env extends Cloudflare.Env {
   V1_EDITORIAL_PLAN_ENABLED?: string;
   /** Default LEGACY. No Wrangler environment enables v2. */
   V1_PUBLICATION_VALIDATION_CONTRACT?: 'LEGACY'|'EVIDENCE_GROUNDED_V2';
+  V1_PUBLICATION_PREPARATION_ISOLATED?:string;
     V1_EDITORIAL_MODEL_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
     V1_EDITORIAL_RANKING_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
     V1_REAL_MODEL_REQUIRED?: string;

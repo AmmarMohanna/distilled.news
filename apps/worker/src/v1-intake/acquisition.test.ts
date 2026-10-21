@@ -6,6 +6,7 @@ import { claimAcquisition, persistAcquisitionResult, completeAcquisition, runAcq
 import type { AcceptedAcquiredContent, DownstreamJob } from './types';
 import { createCandidateAcquisitionRouter } from './acquisition-router';
 import { hashContent } from '@distilled/contracts';
+import {SourceProviderError} from '@distilled/connectors';
 import {V1FeedStore,FeedTransaction} from '../v1-intelligence/store';
 import {feedFixture} from '../v1-intelligence/test-utils';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1IntakeStore;
@@ -13,6 +14,26 @@ const jobId=JSON.stringify(['ACQUIRE','observation-1','']);
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())});
 afterEach(async()=>ctx.dispose());
 const now='2026-10-03T12:00:00Z',later='2026-10-03T12:02:00Z';
+it('helper capacity waits preserve retry allowance and respect the provider deadline',async()=>{
+ await runAcquisitionJob(store,jobId,testPolicy,async()=>{throw new AcquisitionFailure('BACKPRESSURE',true,{detail:'HELPER_CAPACITY_WAIT',retryNotBefore:'2026-10-03T12:05:00Z'})});
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:0,resourceWaits:1,failureDetail:'HELPER_CAPACITY_WAIT',nextAttemptAt:'2026-10-03T12:05:00.000Z'});
+ expect(await store.list('revisions','feed-source-1')).toHaveLength(0);
+});
+it('private article helper backpressure survives routing without consuming a provider attempt',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,publicGet:async url=>({url,body:'Blocked',contentType:'text/html',status:403}),publicArticle:async()=>{throw new SourceProviderError('BACKPRESSURE','2026-10-03T12:05:00Z')}});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('RETRY');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:0,resourceWaits:1,failureCode:'BACKPRESSURE',failureDetail:'HELPER_CAPACITY_WAIT'});
+});
+it('missing articles retain their HTTP status and terminal reason',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,publicGet:async url=>({url,body:'Not found',contentType:'text/html',status:404})});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('FAILED');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({failureCode:'UNSUPPORTED',failureDetail:'HTTP_NOT_FOUND',httpStatus:404});
+});
+it('upstream Retry-After overrides the local acquisition retry backoff',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,publicGet:async url=>({url,body:'Wait',contentType:'text/html',status:429,retryAfter:'600'})});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('RETRY');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({failureCode:'RATE_LIMIT',httpStatus:429,nextAttemptAt:'2026-10-03T12:10:00.000Z'});
+});
 function content(candidateId:string):AcceptedAcquiredContent {return {id:'content-1',feedId:'feed-1',candidateId,sourceObservationId:'observation-1',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',body:'A development',acquiredAt:now,acquisitionMethod:'supplied_payload'}}
 it('claims and downloads use the observation lease while only evidence promotion takes Feed admission',async()=>{
  let admitted=false,phases=0;

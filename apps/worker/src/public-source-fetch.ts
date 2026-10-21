@@ -10,7 +10,7 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
     this.origin = source.origin;
   }
 
-  async get(value: string): Promise<{ url: string; contentType: string; body: string; status: number; authenticationRequired?:boolean }> {
+  async get(value: string): Promise<{ url: string; contentType: string; body: string; status: number; authenticationRequired?:boolean;retryAfter?:string }> {
     const url = admittedUrl(value);
     if (url.origin !== this.origin) throw new PublicSourcePolicyError();
     let response: Response;
@@ -24,7 +24,7 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
     if (response.status >= 300 && response.status < 400) throw new PublicSourcePolicyError();
     if (Number(response.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw new PublicSourceFetchFailure("BODY_BUDGET_EXCEEDED");
     const reader = response.body?.getReader();
-    if (!reader) return { url: url.href, contentType: response.headers.get("content-type") ?? "", body: "", status: response.status, ...(response.headers.has('www-authenticate')?{authenticationRequired:true}:{}) };
+    if (!reader) return { url: url.href, contentType: response.headers.get("content-type") ?? "", body: "", status: response.status, ...(response.headers.has('www-authenticate')?{authenticationRequired:true}:{}),...(response.headers.has('retry-after')?{retryAfter:response.headers.get('retry-after')!}:{}) };
     const chunks: Uint8Array[] = [];
     let size = 0;
     try {
@@ -42,7 +42,7 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
     const bytes = new Uint8Array(size);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return { url: url.href, contentType: response.headers.get("content-type") ?? "", body: new TextDecoder().decode(bytes), status: response.status, ...(response.headers.has('www-authenticate')?{authenticationRequired:true}:{}) };
+    return { url: url.href, contentType: response.headers.get("content-type") ?? "", body: new TextDecoder().decode(bytes), status: response.status, ...(response.headers.has('www-authenticate')?{authenticationRequired:true}:{}),...(response.headers.has('retry-after')?{retryAfter:response.headers.get('retry-after')!}:{}) };
   }
 }
 

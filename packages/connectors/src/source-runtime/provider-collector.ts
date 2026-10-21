@@ -103,10 +103,13 @@ export class FallbackSourceCollector {
       } catch(error) {
         if(await this.repository.loadSnapshot(request.scope,snapshotId))throw error;
         if(!(error instanceof SourceProviderError))throw error;
-        const a={providerId:id,runId:run.id,sequence:run.sequence,failure:error.code,retryNotBefore:error.retryNotBefore};
+        const a={providerId:id,runId:run.id,sequence:run.sequence,failure:error.code,retryNotBefore:error.retryNotBefore,...(error.diagnostic?{diagnostic:error.diagnostic}:{})};
         attempts.push(a);await this.repository.attempt(request.scope,a);
         await this.failureCoverage(request,run,error.code);
         if(['POLICY_REFUSAL','UNCERTAIN_PAID_SUBMISSION','BACKPRESSURE'].includes(error.code))throw error;
+        // A publisher's refusal applies to its URL, not just this transport.
+        // An alternate browser/paid route must not bypass its login or cooldown.
+        if(['HTTP_NOT_FOUND','UPSTREAM_AUTHENTICATION','UPSTREAM_RATE_LIMIT'].includes(error.diagnostic?.detail??''))break;
       }
     }
     if(attempts.every(a=>a.sequence===0)){

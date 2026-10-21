@@ -1,4 +1,4 @@
-import {assertIntelligenceTurn,intelligenceTurnGuard} from '../connector-intelligence-turn';
+import {assertIntelligenceTurn,intelligenceTurnGuard,withCanonicalCommitTurn} from '../connector-intelligence-turn';
 import {countLatency,measureLatency} from './latency';
 import {modelSpendingStatements,ModelSpendingWait,type ModelSpendingReservation} from './model-spending';
 import {SemanticLeaseError,type SemanticWorkLease} from './semantic-work-lease';
@@ -203,6 +203,18 @@ export class FeedTransaction {
   const slots=await Promise.all(slotIds.map(id=>this.read<import('./semantic-state').StateSlot>('state_slots',id)));
   await this.preload('entities',slots.flatMap(slot=>slot?.entityId?[slot.entityId]:[]));
  }
+ /** Independent Feed-owned graph roots share one bounded D1 round trip.
+  * Keep the same per-transaction list cache and staged-write overlay as list(). */
+ async preloadLists(kinds:DocumentKind[]):Promise<void>{
+  const missing=[...new Set(kinds)].filter(kind=>!this.lists.has(kind));
+  for(let offset=0;offset<missing.length;offset+=20){
+   const page=missing.slice(offset,offset+20);this.metrics.listReads+=page.length;
+   const results=this.store.db.batch(page.map(kind=>this.store.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(this.snapshot.feed.id,kind)));
+   // Publish pending reads before awaiting so another lookup joins this read.
+   const reads=page.map((kind,index)=>{const read=results.then(rows=>(rows[index] as D1Result<{json:string}>).results.map(row=>JSON.parse(row.json)));this.lists.set(kind,read);return read;});
+   await Promise.all(reads);
+  }
+ }
  async list<T extends {id:string}>(kind:DocumentKind):Promise<T[]> {
   if(!this.lists.has(kind)){this.metrics.listReads++;this.lists.set(kind,this.store.list(this.snapshot.feed.id,kind))}
   const listed=(await this.lists.get(kind)) as T[];for(const row of listed){const key=JSON.stringify([kind,row.id]);if(!this.reads.has(key))this.reads.set(key,Promise.resolve(structuredClone(row)))}
@@ -356,7 +368,7 @@ async function feedTransactNow<T>(store:V1FeedStore,id:string,run:(tx:FeedTransa
  const started=Date.now();let firstEpoch:number|undefined,lastEpoch:number|undefined,lastWrites=0;
  for(let attempt=0;attempt<12;attempt++) {
   const tx=new FeedTransaction(store,await measureLatency('DB_SNAPSHOT',()=>store.snapshot(id))),computationStarted=Date.now();firstEpoch??=tx.snapshot.epoch;lastEpoch=tx.snapshot.epoch;
-  const result=await measureLatency('TRANSACTION_COMPUTATION',()=>run(tx)),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;countLatency('casAttempts');const committed=await measureLatency('CAS_COMMIT',()=>store.commit(tx));
+  const result=await measureLatency('TRANSACTION_COMPUTATION',()=>run(tx)),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;countLatency('casAttempts');const committed=await measureLatency('CAS_COMMIT',()=>withCanonicalCommitTurn(store.db,id,()=>store.commit(tx)));
   for(const [name,amount] of Object.entries(tx.metrics))countLatency(name,amount);
   countLatency('documentWrites',tx.writes.size);countLatency('jobWrites',tx.jobs.size);
   if(committed){

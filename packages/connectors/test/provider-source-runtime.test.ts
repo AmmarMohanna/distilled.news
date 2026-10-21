@@ -42,6 +42,13 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it.each(['HTTP_NOT_FOUND','UPSTREAM_AUTHENTICATION','UPSTREAM_RATE_LIMIT'])('does not spend fallback capacity around publisher refusal %s',async detail=>{
+    const primary:SourceProvider={id:'website_http',families:['website'],fetch:vi.fn(async()=>{throw new SourceProviderError(detail==='UPSTREAM_RATE_LIMIT'?'RATE_LIMIT':detail==='UPSTREAM_AUTHENTICATION'?'AUTH_REQUIRED':'UNAVAILABLE',undefined,{detail})})};
+    const fallback:SourceProvider={id:'website_playwright',families:['website'],fetch:vi.fn(async()=>page())};
+    const s=setup([primary,fallback]);
+    const result=await s.collector.collect({...request,source:{family:'website',locator:'https://publisher.example/article'}},['website_http','website_playwright']);
+    expect(result.state).toBe('FETCH_FAILED');expect(fallback.fetch).not.toHaveBeenCalled();
+  });
   it('retires unbounded X without fetching an uncaptured historical page',async()=>{
     const p=provider('x_twitterapi_io'),s=setup([p]);
     const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(time),100,false,true);
@@ -619,6 +626,13 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
   it.each(['linkedin_company','linkedin_profile'] as const)('normalizes %s without inventing publication timestamps',family=>{
     const result=normalizeProviderRecords([{urn:'urn:li:activity:1',text:'Text',url:'https://www.linkedin.com/posts/example'}],family);
     expect(result[0].sourceItemKey).toBe('linkedin:urn:li:activity:1');expect(result[0].publishedAt).toBeUndefined();expect(result[0].contentCompleteness).toBe('UNKNOWN');
+  });
+  it.each([401,404,410,429])('retains precise website HTTP failures before invoking extraction (%s)',async status=>{
+    const execute=vi.fn(async()=>({body:'unused'}));
+    const http:FeedHttpPort={get:async()=>({status,headers:{'retry-after':'600'},bytes:encoder.encode('Unavailable'),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}})};
+    const p=new WebsiteSourceProvider('website_http',http,{execute});
+    await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/article'}},run)).rejects.toMatchObject({code:status===401?'AUTH_REQUIRED':status===429?'RATE_LIMIT':'UNAVAILABLE',diagnostic:{httpStatus:status,detail:status===401?'UPSTREAM_AUTHENTICATION':status===429?'UPSTREAM_RATE_LIMIT':'HTTP_NOT_FOUND'}});
+    expect(execute).not.toHaveBeenCalled();
   });
   it('website extraction has text and no model provenance',async()=>{
     const p=new WebsiteSourceProvider('website_http',feed('<article>Text</article>'),{execute:async()=>({body:'Text '.repeat(100),title:'Title',publishedAt:time})});

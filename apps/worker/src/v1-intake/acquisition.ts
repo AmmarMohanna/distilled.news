@@ -8,9 +8,9 @@ import type { AcceptedAcquiredContent, AcceptedInput, CandidateRecord, Downstrea
 
 const MAX_ATTEMPTS=5, LEASE_MS=90_000;
 export interface AcquisitionClaim {job:DownstreamJob;input:AcceptedInput;candidate:CandidateRecord;token:string}
-export type AcquisitionFailureCode='NETWORK'|'RATE_LIMIT'|'AUTH_REQUIRED'|'CHALLENGE_REQUIRED'|'POLICY_DENIED'|'UNSUPPORTED'|'EXTRACTION_FAILED'|'INVALID_RESULT'|'BUDGET_EXHAUSTED'|'BODY_BUDGET_EXCEEDED'|'APPROVAL_REVOKED'|'IDEMPOTENCY_CONFLICT';
+export type AcquisitionFailureCode='NETWORK'|'BACKPRESSURE'|'RATE_LIMIT'|'AUTH_REQUIRED'|'CHALLENGE_REQUIRED'|'POLICY_DENIED'|'UNSUPPORTED'|'EXTRACTION_FAILED'|'INVALID_RESULT'|'BUDGET_EXHAUSTED'|'BODY_BUDGET_EXCEEDED'|'APPROVAL_REVOKED'|'IDEMPOTENCY_CONFLICT';
 export class AcquisitionFailure extends Error {
- constructor(readonly code:AcquisitionFailureCode,readonly transient:boolean) {super(code)}
+ constructor(readonly code:AcquisitionFailureCode,readonly transient:boolean,readonly diagnostic?:{detail:string;httpStatus?:number;retryNotBefore?:string}) {super(code)}
 }
 export async function claimAcquisition(store:V1IntakeStore,id:string,rawNow:string):Promise<AcquisitionClaim|undefined> {
  const now=timestampSchema.parse(rawNow),row=await store.read<DownstreamJob>('jobs',id);
@@ -82,13 +82,15 @@ export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:Int
   const classified=failure;
   return transact(store,claim.job.feedSourceId,async tx=>{
    const job=await requireAcquisitionLease(tx,id,claim.token,policy.now());
-   if(classified.code==='BUDGET_EXHAUSTED'){
+   if(classified.code==='BUDGET_EXHAUSTED'||classified.code==='BACKPRESSURE'){
     const jitter=[...id].reduce((n,c)=>(n+c.charCodeAt(0))%120,0)*1000;
-    tx.write('jobs',id,{...job,state:'PENDING',attempts:Math.max(0,job.attempts-1),resourceWaits:(job.resourceWaits??0)+1,exhausted:false,failureCode:classified.code,leaseToken:undefined,leaseUntil:undefined,nextAttemptAt:new Date(Date.parse(policy.now())+300_000+jitter).toISOString()},claim.input.observation.sourceItemKey);
+    const wait=classified.code==='BACKPRESSURE'?5000:300000;
+    tx.write('jobs',id,{...job,state:'PENDING',attempts:Math.max(0,job.attempts-1),resourceWaits:(job.resourceWaits??0)+1,exhausted:false,failureCode:classified.code,failureDetail:classified.diagnostic?.detail,leaseToken:undefined,leaseUntil:undefined,nextAttemptAt:new Date(Math.max(Date.parse(policy.now())+wait+(classified.code==='BACKPRESSURE'?jitter%3000:jitter),Date.parse(classified.diagnostic?.retryNotBefore??'')||0)).toISOString()},claim.input.observation.sourceItemKey);
     return 'RETRY';
    }
    const retry=classified.transient && job.attempts<MAX_ATTEMPTS;
-   tx.write('jobs',id,{...job,state:retry?'PENDING':'FAILED',failureCode:classified.code,leaseToken:undefined,leaseUntil:undefined,exhausted:!retry,nextAttemptAt:retry?new Date(Date.parse(policy.now())+30_000*2**(job.attempts-1)).toISOString():undefined},claim.input.observation.sourceItemKey);
+   const jitter=[...id].reduce((n,c)=>(n+c.charCodeAt(0))%3000,0);
+   tx.write('jobs',id,{...job,state:retry?'PENDING':'FAILED',failureCode:classified.code,failureDetail:classified.diagnostic?.detail,httpStatus:classified.diagnostic?.httpStatus,leaseToken:undefined,leaseUntil:undefined,exhausted:!retry,nextAttemptAt:retry?new Date(Math.max(Date.parse(policy.now())+30_000*2**(job.attempts-1)+jitter,Date.parse(classified.diagnostic?.retryNotBefore??'')||0)).toISOString():undefined},claim.input.observation.sourceItemKey);
    return retry?'RETRY':'FAILED';
   });
  }

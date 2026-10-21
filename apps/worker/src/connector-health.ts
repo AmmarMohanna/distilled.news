@@ -45,9 +45,9 @@ export async function connectorSourceHealth(db:D1Database,feedId:string,sourceId
   db.prepare(`SELECT COUNT(*) AS count,
     COALESCE(SUM(CASE WHEN json_extract(data,'$.failure')='UNCERTAIN_PAID_SUBMISSION' THEN 1 ELSE 0 END),0) AS uncertainPaid
     FROM connector_provider_attempts WHERE feed_id=? AND feed_source_id=?`).bind(feedId,sourceId).first<{count:number;uncertainPaid:number}>(),
-  db.prepare(`SELECT json_extract(data,'$.providerId') AS provider,json_extract(data,'$.failure') AS failure,json_extract(data,'$.sequence') AS sequence
+  db.prepare(`SELECT json_extract(data,'$.providerId') AS provider,json_extract(data,'$.failure') AS failure,json_extract(data,'$.sequence') AS sequence,json_extract(data,'$.diagnostic.detail') AS detail,json_extract(data,'$.diagnostic.httpStatus') AS httpStatus
     FROM connector_provider_attempts WHERE feed_id=? AND feed_source_id=?
-    ORDER BY json_extract(data,'$.sequence') DESC LIMIT 1`).bind(feedId,sourceId).first<{provider:string;failure:string;sequence:number}>()
+    ORDER BY json_extract(data,'$.sequence') DESC LIMIT 1`).bind(feedId,sourceId).first<{provider:string;failure:string;sequence:number;detail:string|null;httpStatus:number|null}>()
  ]);
  const batch=providerBatch??rssBatch,job=providerJob??rssJob;
  let checkpoint:unknown=rssCheckpoint?.data;

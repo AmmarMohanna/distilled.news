@@ -37,7 +37,10 @@ export async function dispatchConnectorFeeds(env:Env,now=Date.now(),limit=FEED_D
  const rows=await env.DB.prepare(`UPDATE connector_feed_schedule SET due_ms=?,token=? WHERE feed_id IN
   (SELECT feed_id FROM connector_feed_schedule WHERE due_ms<=? AND processing_until<=? ORDER BY due_ms,feed_id LIMIT ?) RETURNING feed_id`).bind(now+DELIVERY_LEASE_MS,token,now,now,limit).all<{feed_id:string}>();
  if(!rows.results.length)return 0;
- try{await env.SOURCE_COLLECTION_QUEUE.sendBatch(rows.results.map(row=>({body:{type:'connector_feed',feedId:row.feed_id,token} as ConnectorQueueMessage})));sent=rows.results.length;}
+ // Optional control lane prevents long upstream downloads from occupying all
+ // consumers needed to enroll/wake other feeds. Polls stay on collection.
+ const control=env.SOURCE_SCHEDULING_QUEUE??env.SOURCE_COLLECTION_QUEUE;
+ try{await control.sendBatch(rows.results.map(row=>({body:{type:'connector_feed',feedId:row.feed_id,token} as ConnectorQueueMessage})));sent=rows.results.length;}
  catch(error){await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=?,last_error=? WHERE token=?').bind(now+30_000,'QUEUE_SEND_FAILED',token).run();throw error;}
  return sent;
 }
@@ -103,9 +106,10 @@ export async function connectorDownstreamEnv(env:Env,body:DistilledQueueMessage)
 
 /** Indexed per-feed pending-job discovery keeps a prolific feed from taking all
  * dispatch slots. Stable poll IDs retain paid submission/pagination identities. */
-export async function dispatchConnectorPolls(env:Env,feedId:string,now=Date.now(),perKind=4){
+export async function dispatchConnectorPolls(env:Env,feedId:string,now=Date.now(),perKind=1){
  requireConnectorQueues(env);
  if(!env.SOURCE_COLLECTION_QUEUE)throw Error('SOURCE_COLLECTION_QUEUE_REQUIRED');
+ if(!Number.isSafeInteger(perKind)||perKind<1||perKind>4)throw Error('INVALID_POLL_DISPATCH_LIMIT');
  const kinds=['rss','provider'] as const,token=crypto.randomUUID();
  const claims=kinds.map(kind=>{
   const table=tables[kind];

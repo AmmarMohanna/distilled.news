@@ -1,0 +1,13 @@
+{
+  "status": "Advanced examples only; excluded from feeds.json because the product feed endpoint rejects apify_actor. Parse validity is not proof of actor execution support.",
+  "examples": [
+    {
+      "feedId": "demo20_08_space",
+      "sourceInput": "apify: kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest {\"searchTerms\":[\"from:NASA\"],\"sort\":\"Latest\",\"maxItems\":20}"
+    },
+    {
+      "feedId": "demo20_21_open_source",
+      "sourceInput": "apify: harvestapi/linkedin-company-posts {\"targetUrls\":[\"https://www.linkedin.com/company/github/\"],\"maxPosts\":20,\"postedLimit\":\"24h\",\"includeQuotePosts\":true,\"includeReposts\":false,\"scrapeReactions\":false,\"scrapeComments\":false}"
+    }
+  ]
+}

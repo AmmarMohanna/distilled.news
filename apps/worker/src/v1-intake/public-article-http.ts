@@ -16,7 +16,7 @@ export async function readPublicArticle(http:FeedHttpPort,initial:string){
    if(hop===3||!r.headers.location)throw new AcquisitionFailure('POLICY_DENIED',false);
    const next=new URL(r.headers.location,url);next.hash='';url=next.href;continue;
   }
-  return {url,body:new TextDecoder().decode(r.bytes),contentType:r.headers['content-type']??'',status:r.status,...(Object.keys(r.headers).some(k=>k.toLowerCase()==='www-authenticate')?{authenticationRequired:true}:{})};
+  return {url,body:new TextDecoder().decode(r.bytes),contentType:r.headers['content-type']??'',status:r.status,...(Object.keys(r.headers).some(k=>k.toLowerCase()==='www-authenticate')?{authenticationRequired:true}:{}),...(r.headers['retry-after']?{retryAfter:r.headers['retry-after']}:{})};
  }
  throw new AcquisitionFailure('POLICY_DENIED',false);
 }

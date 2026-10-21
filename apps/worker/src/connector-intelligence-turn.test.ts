@@ -17,6 +17,23 @@ beforeEach(async()=>{
  await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind('turn-job','turn-source',JSON.stringify({id:'turn-job',kind:'REASSESS',state:'PENDING',attempts:0})).run();
 });
 afterEach(async()=>{vi.useRealTimers();vi.restoreAllMocks();await ctx.dispose()});
+it('isolated publication releases the Feed during preparation and fences only its commit',async()=>{
+ env.V1_PUBLICATION_PREPARATION_ISOLATED='true';
+ let resume!:()=>void,entered!:()=>void;
+ const ready=new Promise<void>(resolve=>{entered=resolve});
+ let computations=0;
+ const publication=withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},()=>feedTransact(new V1FeedStore(ctx.db),'turn-1',async tx=>{
+  computations++;
+  if(computations===1){entered();await new Promise<void>(resolve=>{resume=resolve});}
+  await tx.write('briefing_requests','isolated-window',{id:'isolated-window',feedId:'turn-1',state:'PENDING'});
+ }));
+ await ready;
+ await withFeedWriteTurn(env,'turn-1',async()=>{await ctx.db.prepare("UPDATE v1_feeds SET epoch=epoch+1 WHERE id='turn-1'").run();},'intake-during-planning');
+ resume();await publication;
+ expect(computations).toBe(2); // Original snapshot loses CAS; it is never committed blindly.
+ expect(await new V1FeedStore(ctx.db).read('turn-1','briefing_requests','isolated-window')).toMatchObject({state:'PENDING'});
+ expect(await ctx.db.prepare("SELECT lease_until FROM connector_intelligence_turns WHERE feed_id='turn-1'").first()).toEqual({lease_until:0});
+});
 it('isolated review preparation does not hold the canonical feed turn',async()=>{
  env.V1_REVIEW_PREPARATION_ISOLATED='true';
  let release!:()=>void,started!:()=>void;

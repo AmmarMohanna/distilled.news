@@ -63,6 +63,14 @@ it('dispatches 1,000 feeds in bounded indexed batches, with no repeated sends be
  expect(await dispatchConnectorFeeds(env,121001)).toBe(100); // Lost queue delivery recovery.
 },60_000);
 
+it('an optional scheduling lane keeps control work separate from upstream collection',async()=>{
+ await ctx.db.prepare("UPDATE connector_feed_schedule SET due_ms=0,processing_until=0 WHERE feed_id='scale-0001'").run();
+ const control:unknown[]=[];
+ const isolated={...env,SOURCE_SCHEDULING_QUEUE:{sendBatch:async(batch:unknown[])=>{control.push(...batch)}}} as unknown as Env;
+ messages.length=0;
+ expect(await dispatchConnectorFeeds(isolated,1000,1)).toBe(1);
+ expect(control).toMatchObject([{body:{type:'connector_feed',feedId:'scale-0001'}}]);expect(messages).toHaveLength(0);
+});
 it('failed sends release the durable dispatch for bounded retry',async()=>{
  await ctx.db.prepare("UPDATE connector_feed_schedule SET due_ms=0 WHERE feed_id='scale-1000'").run();
  const broken={...env,SOURCE_COLLECTION_QUEUE:{sendBatch:async()=>{throw Error('transport')}}} as unknown as Env;
@@ -100,9 +108,9 @@ it('per-feed dispatch gives a quiet feed slots even when another has a large bac
  const statements=[];
  for(let i=0;i<40;i++)for(const feed of ['scale-0001','scale-0002'])statements.push(ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at) VALUES(?,?,?,?,?)').bind(`${feed}-${i}`,JSON.stringify({scope:{feedId:feed}}),'hash','[]','1970-01-01T00:00:00.000Z'));
  await ctx.db.batch(statements);messages.length=0;
- expect(await dispatchConnectorPolls(env,'scale-0001',3000)).toBe(4);
- expect(await dispatchConnectorPolls(env,'scale-0002',3000)).toBe(4);
- expect(messages.map(m=>(m as {body:{feedId:string}}).body.feedId)).toEqual([...Array(4).fill('scale-0001'),...Array(4).fill('scale-0002')]);
+ expect(await dispatchConnectorPolls(env,'scale-0001',3000)).toBe(1);
+ expect(await dispatchConnectorPolls(env,'scale-0002',3000)).toBe(1);
+ expect(messages.map(m=>(m as {body:{feedId:string}}).body.feedId)).toEqual(['scale-0001','scale-0002']);
 });
 
 it('a failed mixed-family send releases both atomic claims for retry',async()=>{
