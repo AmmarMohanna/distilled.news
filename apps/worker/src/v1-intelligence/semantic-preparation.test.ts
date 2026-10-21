@@ -9,11 +9,44 @@ import {V1FeedStore} from './store';
 import {feedFixture,seedIntelligence,acceptEvidence} from './test-utils';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {processEvidenceIntelligence} from './engine';
+import {deterministicMatchers} from './matchers';
+import {indexSourcePassages} from './source-passages';
+import {constructionTransport,PACKET_CONSTRUCTION_VERSION} from './construction-transport';
+import {parseConstruction} from './semantic-construction';
 import {nextRematch} from './rematch';
 import type {Env} from '../types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
 afterEach(async()=>ctx.dispose());
+it('V2 source rematching replaces legacy ownership without reviving background claims',async()=>{
+ await seedIntelligence(store,1,'Parliament approved banking reform.\n\nThe debate took place last year.');
+ const root=(await store.list<any>('feed-1','events'))[0],old=await store.read<any>('feed-1','event_versions',root.currentVersionId),revision=(await store.currentEvidence('feed-1'))[0].revision,{mentions}=await indexSourcePassages(revision);
+ const input:any={revision,role:'REPORTED_DEVELOPMENT',candidates:[{id:root.id,version:old,evidenceRevisionIds:[revision.id],newestAt:old.createdAt}]},wire=constructionTransport(mentions,input,{constructionOwnershipVersion:PACKET_CONSTRUCTION_VERSION}),provenance={scorer:'OFFLINE_SEMANTIC_FIXTURE',policyVersion:'source-passages'};
+ const construction=parseConstruction(wire.decode({confidence:1,groups:[{groupId:'G0',occurrence:'Parliament approves reform',eventId:'E0',storylineId:null,structuralRelation:'SAME_EVENT',epistemicEffects:[]}],dispositionByUnitId:{C0:'G0',C1:'BACKGROUND'}}),mentions,input,provenance);
+ await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),{...deterministicMatchers,sourcePassages:true,event:{match:()=>({structuralRelation:'SAME_EVENT',eventId:root.id,epistemicEffects:[],confidence:1,provenance})},construction:()=>construction},'source-index-migration');
+ const current=(await store.list<any>('feed-1','events'))[0],state=await store.read<any>('feed-1','event_semantic_states',current.currentVersionId),props=await Promise.all(state.propositionIds.map((id:string)=>store.read<any>('feed-1','propositions',id)));
+ expect(props).toHaveLength(1);expect(props[0].claimMentionIds).toEqual([mentions[0].id]);expect(props[0].text).not.toContain('Subscribe');expect(await store.read('feed-1','event_versions',old.id)).toEqual(old);
+},20000);
+it('V2 source indexing exposes complete multi-sentence and multilingual evidence without semantic hints',async()=>{
+ const body='Subscribe now. The company said it is developing agents. They might be released only after approval.\n\nقالت الشركة إنها لم تطلق المنتج.';
+ await acceptEvidence(store,1,body,'publisher-1',testPolicy.now(),'ar','2026-10-03T10:00:00Z','What changed?');
+ let calls=0;const usage={calls:1,costUsd:.001,reported:true};
+ const strong={model:'source-passages-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{
+  calls++;expect(state.source.text).toBe(body);expect(state.source.title).toBe('What changed?');expect(state.source.publishedAt).toBe('2026-10-03T10:00:00Z');expect(state.source.canonicalUrl).toBeTruthy();
+  expect(state.claimMentions).toHaveLength(3);for(const m of state.claimMentions){expect(m.reportingRoleHint).toBeUndefined();expect(m.certainty).toBeUndefined();expect(m.attribution).toBeUndefined()}
+  return {value:{confidence:1,groups:[{groupId:'G0',occurrence:'A reported conditional development',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[]}],dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'G0']))},usage};
+ }};
+ const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,job=JSON.stringify(['REASSESS','observation-1','']),prepared=await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});
+ await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(calls).toBe(1);
+ await processEvidenceIntelligence(store,job,testPolicy.now(),prepared!.matchers);
+ const props=await store.list<any>('feed-1','propositions');expect(props).toHaveLength(3);expect(props.some(p=>p.text.startsWith('Subscribe now.'))).toBe(true);expect(calls).toBe(1);
+},20000);
+it('V2 accepts a semantic no-development result and completes intake without an invented event or a retry',async()=>{
+ await acceptEvidence(store,1,'Subscribe now. What would you like to read?');let calls=0;const usage={calls:1,costUsd:.001,reported:true};
+ const strong={model:'non-news-source-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{calls++;return {value:{confidence:1,groups:[],dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'BACKGROUND']))},usage}}};
+ const job=JSON.stringify(['REASSESS','observation-1','']),prepared=await prepareSemanticMatch(store,{V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,job,testPolicy.now(),{strong});
+ const result=await processEvidenceIntelligence(store,job,testPolicy.now(),prepared!.matchers);expect(result).toMatchObject({decision:'PROCESSED',eventVersionIds:[],storylineVersionIds:[]});expect(result.semanticDeferred).not.toBe(true);expect(await store.list('feed-1','events')).toHaveLength(0);expect(await store.list('feed-1','claim_mentions')).toHaveLength(1);expect(calls).toBe(1);
+},20000);
 it('rejects a graph/configuration change during context loading before a paid call',async()=>{
  await acceptEvidence(store,1,'Officials confirmed the banking reform passed.');
  const current=store.currentEvidence.bind(store);let changed=false;
@@ -126,10 +159,10 @@ it('ordinary construction receives the complete article with scoped wire referen
 },20000);
 
 it('V2 binds group-owned passages on the initial call and reuses the paid result without replay',async()=>{
- await acceptEvidence(store,1,'The council approved a water fund. Governance details remain uncertain.');
+ await acceptEvidence(store,1,'The council approved a water fund.\n\nGovernance details remain uncertain.');
  const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,usage={calls:1,costUsd:.001,reported:true};let calls=0;
  const strong={model:'owned-initial-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{
-  calls++;expect(state.claimOwnership.version).toBe('minimal-claim-disposition-v1');expect(state.claimMentions.every((m:any)=>m.evidenceRevisionId&&m.span)).toBe(true);
+  calls++;expect(state.claimOwnership.version).toBe('minimal-packet-disposition-v1');expect(state.claimMentions.every((m:any)=>m.evidenceRevisionId&&m.span)).toBe(true);
   return {value:{confidence:.99,dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'G0'])),groups:[{groupId:'G0',occurrence:'Council approves a fund',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[]}]},usage};
  }};
  const job=JSON.stringify(['REASSESS','observation-1','']);
@@ -138,7 +171,7 @@ it('V2 binds group-owned passages on the initial call and reuses the paid result
  await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(calls).toBe(1);
 });
 it('V2 repair gets exact ownership diagnostics and the same constrained aliases, with one repair maximum',async()=>{
- await acceptEvidence(store,1,'The council approved a water fund. Governance details remain uncertain.');
+ await acceptEvidence(store,1,'The council approved a water fund.\n\nGovernance details remain uncertain.');
  const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,usage={calls:1,costUsd:.001,reported:true};let calls=0;
  const strong={model:'owned-repair-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,phase:string,state:any)=>{
   calls++;const ids=state.claimMentions.map((m:any)=>m.id);
@@ -152,7 +185,7 @@ it('V2 repair gets exact ownership diagnostics and the same constrained aliases,
 });
 
 it('V2 accepts a single explicit ownership repair and preserves the rejected receipt',async()=>{
- await acceptEvidence(store,1,'The council approved a water fund. Governance details remain uncertain.');
+ await acceptEvidence(store,1,'The council approved a water fund.\n\nGovernance details remain uncertain.');
  const usage={calls:1,costUsd:.001,reported:true};let calls=0;
  const strong={model:'owned-repair-success',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,phase:string,state:any)=>{
   calls++;const ids=state.claimMentions.map((m:any)=>m.id);
@@ -180,7 +213,7 @@ it('hands a valid disposition construction through canonical graph, editorial se
  const stopped=await publishSelection(store,'feed-1',selection.id,{now:testPolicy.now,model,requireModel:true}).catch(e=>e);expect(stopped).toBeInstanceOf(Error);expect(writingCalls).toBe(1);expect(simulatedDraft!.stories[0].claims[0].text).toBe(body);expect(await store.list('feed-1','editions')).toHaveLength(0);
  expect(await store.list('feed-1','semantic_results')).toEqual(constructionReceiptsBefore);
  // Deliberate stop after simulated writing: no invented compatible verification or real-model success.
- const results=await store.list<any>('feed-1','semantic_results'),construction=results.find(r=>r.value?.schemaVersion==='minimal-claim-disposition-v1'),mentions=await store.list<any>('feed-1','claim_mentions');expect(Object.keys(construction.value.dispositionByClaimMentionId)).toEqual(mentions.map(m=>m.id));
+ const results=await store.list<any>('feed-1','semantic_results'),construction=results.find(r=>r.value?.schemaVersion==='minimal-packet-disposition-v1'),mentions=await store.list<any>('feed-1','claim_mentions');expect(Object.keys(construction.value.dispositionByClaimMentionId)).toEqual(mentions.map(m=>m.id));
 
 },20000);
 

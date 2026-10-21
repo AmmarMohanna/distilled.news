@@ -22,7 +22,7 @@ export interface StorylineMatchDecision {relation:'CONTINUES'|'NEW'|'DEFER';stor
  * never model/network operations, may be applied in a retryable transaction. */
 export interface EventMatcher {match(input:EventMatchInput):EventMatchDecision}
 export interface StorylineMatcher {match(input:StorylineMatchInput):StorylineMatchDecision}
-export interface IntelligenceMatchers {event:EventMatcher;storyline:StorylineMatcher;construction?(input:EventMatchInput):import('./semantic-state').SemanticConstruction|undefined}
+export interface IntelligenceMatchers {sourcePassages?:boolean;event:EventMatcher;storyline:StorylineMatcher;construction?(input:EventMatchInput):import('./semantic-state').SemanticConstruction|undefined}
 const provenance=z.object({scorer:z.string().min(1),policyVersion:z.string().min(1),judgmentId:z.string().optional(),fallbackReason:z.string().optional()}).strict();
 const confidence=z.number().finite().min(0).max(1),id=z.string().min(1);
 const eventDecision=z.object({structuralRelation:z.enum(['SAME_EVENT','NEW_EVENT_EXISTING_STORYLINE','NEW_STORYLINE','DEFER']),eventId:id.optional(),storylineId:id.optional(),epistemicEffects:z.array(z.enum(['CORROBORATES','ADDS_DETAIL','CHANGES_STATE','CHANGES_CERTAINTY','CONTRADICTS','CORRECTS','RETRACTS'])),confidence,provenance}).strict();

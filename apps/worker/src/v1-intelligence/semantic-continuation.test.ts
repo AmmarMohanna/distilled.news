@@ -5,9 +5,18 @@ import {V1FeedStore} from './store';
 import {feedFixture,acceptEvidence,syntheticModelAdmission} from './test-utils';
 import {extractClaimMentions,isNewsMention} from './claims';
 import {continueSemanticConstruction} from './semantic-continuation';
+import {indexSourcePassages} from './source-passages';
+import {PACKET_CONSTRUCTION_VERSION} from './construction-transport';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await acceptEvidence(store,1,'Parliament approved banking reform. The airport reopened. Officials confirmed a security incident. The minister resigned.');});afterEach(async()=>ctx.dispose());
 const group=(ids:string[])=>({claimMentionIds:ids,eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[]});
+it('completes and reuses an all-background source continuation without inventing a development',async()=>{
+ const revision=(await store.currentEvidence('feed-1'))[0].revision,{mentions}=await indexSourcePassages(revision),input={revision,role:'REPORTED_DEVELOPMENT' as const,candidates:[]};let calls=0;
+ const usage={calls:1,costUsd:.001,reported:true},strong={model:'background-continuation-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,phase:string,state:any)=>{calls++;return {value:phase==='SEMANTIC_DEVELOPMENT_RECONCILIATION'?{confidence:1,groups:[]}:{confidence:1,groups:[],dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'BACKGROUND']))},usage}}};
+ const base={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:[revision.id],kind:'SEMANTIC_CONSTRUCTION',policyVersion:'source-passages-continuation',model:strong.model,budgetKey:'semantic:2026-10-03',state:{}},state={source:{id:revision.id,text:revision.body},constructionOwnershipVersion:PACKET_CONSTRUCTION_VERSION};
+ const result=await continueSemanticConstruction(store,base,mentions,input,strong,state,testPolicy.now(),{reconciliation:'DEVELOPMENTS'});expect(result.status).toBe('SUCCEEDED');expect(result.value!.construction.groups).toEqual([]);expect(result.value!.construction.backgroundMentionIds).toEqual(mentions.map(m=>m.id));expect(calls).toBe(2);
+ await continueSemanticConstruction(store,base,mentions,input,strong,state,testPolicy.now(),{reconciliation:'DEVELOPMENTS'});expect(calls).toBe(2);
+},20000);
 it('preserves every mention across operation packets and reconciles meaning before canonical consumption',async()=>{const revision=(await store.currentEvidence('feed-1'))[0].revision,mentions=(await extractClaimMentions(revision)).mentions.filter(isNewsMention),input={revision,role:'REPORTED_DEVELOPMENT' as const,candidates:[]};let calls=0;
  const strong={model:'continuation-stand-in',usage:()=>({calls:1,costUsd:.001,reported:true}),admission:(state:any,_schema:object,phase?:string)=>({...syntheticModelAdmission(),fits:phase==='SEMANTIC_RECONCILIATION'||state.claimMentions.length<=2}),complete:async(_feed:string,phase:string,state:any)=>{calls++;return {value:{groups:phase==='SEMANTIC_RECONCILIATION'?state.packetGroups.map((g:any)=>group(g.claimMentionIds)):state.claimMentions.map((m:any)=>group([m.id])),backgroundMentionIds:[],confidence:.9},usage:{calls:1,costUsd:.001,reported:true}}}};
  const base={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:[revision.id],kind:'SEMANTIC_CONSTRUCTION',policyVersion:'unchanged-root-policy',model:strong.model,budgetKey:'semantic:2026-10-03',state:{}};
