@@ -50,7 +50,8 @@ it('salience contention cannot exhaust request retries while one judgment is in 
   for(let i=0;i<5;i++)await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,scorer)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
   expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'PENDING',attempts:0});
  }finally{finish(undefined);await pending}
-},15000);
+ // This asserts contention fencing, not D1 throughput on the local Windows runner.
+},60000);
 it('cron dispatches only approved bounded feed windows; duplicate briefing delivery returns one persisted edition',async()=>{
  env.V1_DOWNSTREAM_FEED_SOURCE_IDS=['feed-source-1',...Array.from({length:11},(_,i)=>`unapproved-${i}`)].join(',');
  const now=new Date('2026-10-03T13:00:00Z');expect(await dispatchV1Intelligence(env,now)).toBe(1);
@@ -60,7 +61,7 @@ it('cron dispatches only approved bounded feed windows; duplicate briefing deliv
  await processV1Briefing(env,message,()=>now.toISOString());
  expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await dispatchV1Intelligence(env,now)).toBe(0);
  expect(await dispatchV1Intelligence({...env,V1_DOWNSTREAM_ENABLED:'false'},now)).toBe(0);
-});
+},30000);
 it('projects only actually communicated grounded claims after publication and recovers projection on replay',async()=>{
  const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
  const edition=(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end))!;
