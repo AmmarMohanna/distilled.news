@@ -6,6 +6,7 @@
     "v2-configuration-live.test.ts",
     "../apps/worker/worker-configuration.d.ts",
     "v2-comparison-stages.test.ts",
-    "v2-comparison*.test.ts"
+    "v2-comparison*.test.ts",
+    "article-first-*.test.ts"
   ]
 }

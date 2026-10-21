@@ -159,3 +159,7 @@ the original comparison responses or promote old-model verdicts across contracts
 **Conclusion:** the semantic preprocessing limitation is removed in V2, with
 mechanical grounding retained. Better end-to-end briefing quality has not yet
 been demonstrated, so staging remains unchanged.
+
+## Real inference follow-up — 21 October 2026
+
+Real OpenRouter inference subsequently reached verification and private local persistence, but independent source review found repetition, omitted important terms and temporal errors. A fresh paragraph-indexed run also exposed a genuine Anthropic-to-Replit false identity decision in the independent reviewer, stopped by canonical commit. This does **not** establish better briefing quality or qualify deployment. See [the real evaluation and retained-response diagnosis](v2-article-first-real-evaluation.md).

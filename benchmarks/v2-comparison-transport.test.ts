@@ -9,6 +9,8 @@ it('atomically enforces the single shared budget, unknown-charge stop and call c
  const admit=async(next:number,until=new Date(Date.now()+60000).toISOString())=>{const g=comparisonBudgetGuard(db,'eval',next,until);await db.batch([g.statement,db.prepare('DELETE FROM v1_model_spending_guards WHERE id=?').bind(g.guard)])};
  await admit(.1);await db.exec("INSERT INTO v1_model_spending_reservations VALUES('a','eval',.1)");await expect(admit(.1)).rejects.toThrow();
  await db.exec("INSERT INTO v1_model_spending_settlements VALUES('a',.05,1)");await admit(.1);await expect(admit(3)).rejects.toThrow();await expect(admit(.1,'2020-01-01T00:00:00Z')).rejects.toThrow();
+ const bounded=async(next:number,settledActual:boolean)=>{const g=comparisonBudgetGuard(db,'eval',next,new Date(Date.now()+60000).toISOString(),{calls:12,usd:1,settledActual});await db.batch([g.statement,db.prepare('DELETE FROM v1_model_spending_guards WHERE id=?').bind(g.guard)])};
+ await bounded(.94,true);await expect(bounded(.94,false)).rejects.toThrow();await expect(bounded(.96,true)).rejects.toThrow();
  await db.exec("WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<59) INSERT INTO v1_model_spending_reservations SELECT 'n'||i,'eval',0 FROM n; INSERT INTO v1_model_spending_settlements SELECT id,0,1 FROM v1_model_spending_reservations WHERE id!='a';");await expect(admit(.01)).rejects.toThrow();
  }finally{await ctx.dispose()}
 },30000);

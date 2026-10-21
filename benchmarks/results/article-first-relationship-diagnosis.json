@@ -1,0 +1,24 @@
+{
+  "sourceHash": "8f87df1e2bb16189ce1099286a0877693161d37e81ac57c65964b2afcfa368a7",
+  "initial": {
+    "responseHash": "550fed52e0707236ef362f8ed465f31be1d416cf9e72c921c48f5b017967d446",
+    "formatFailure": "DUPLICATE_GROUP_ID",
+    "uniqueHandles": 1,
+    "groups": 4
+  },
+  "repair": {
+    "responseHash": "269103b92f6c68e98a1703b6ce3fefd36577e5664a3ef2a96ee7eb72ba374deb",
+    "uniqueHandles": 4,
+    "genuineFalseMergeProposed": true,
+    "source": "Replit model-selection and partnership reporting",
+    "selectedTarget": "Laplace physical-AI red-teaming"
+  },
+  "independentReview": {
+    "responseHash": "a7df568ca775f8ee49c7c03ebb44a445184837610653795f02d8446921bca0fc",
+    "semanticRelationship": "NEW_STORYLINE for every group; reasons explicitly distinguish Replit and Laplace",
+    "failure": "IDENTITY_REVIEW_RELATION_ID_CONFLICT",
+    "retainedForeignIds": true
+  },
+  "committedAcceptedFalseMerge": false,
+  "newPaidCalls": 0
+}
