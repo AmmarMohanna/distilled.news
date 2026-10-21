@@ -1,7 +1,8 @@
 ﻿# V2 model configuration comparison
 
-Status: preparation only; no candidate inference executed or qualified. Existing
-staging routes remain unchanged. Requested by the owner on 2026-10-21.
+Status: real bounded pilot executed on 2026-10-21: 32 settled calls, $0.199765629.
+No configuration qualified for promotion; existing staging routes remain unchanged.
+See [measured results and source-review findings](v2-model-comparison-results-2026-10-21.md).
 
 ## Matched configurations
 
@@ -96,10 +97,10 @@ then latency and cost. No winner before blind source review and settled receipts
 
 ## Execution boundary
 
-No paid call is authorized by this document. The existing historical frozen
-comparison approvals are not permissions for these new models/requests. Prepare
-the exact first-batch request inventory, conservative reservation total and scope
-from the saved evidence before seeking one bounded new evaluation authorization.
+This document does not itself authorize paid calls. The owner separately approved
+one $3/60-call/four-hour scope for this comparison. Its immutable local manifest
+records 11:55:54.796–15:55:54.796 UTC on 2026-10-21. Removing the manifest cannot
+renew the authorization. Historical scopes do not authorize new requests.
 No staging routing changes, public publication, notifications or deployment are
 needed for the comparison. Reuse durable identities and stop on an uncertain
 charge. Historical receipts remain intact.
@@ -126,10 +127,12 @@ hashes into operation identity, disables provider fallback, and calculates conse
 reservations including the highest advertised price tier. It makes no network calls
 and does not grant spending authority or production qualification.
 
-Run the six deterministic preparation tests with:
+Run the deterministic request, budget and saved-input tests with:
 
     node apps/worker/node_modules/vitest/vitest.mjs run --config benchmarks/v2-configuration-comparison.vitest.config.ts
 
-The current staging TRACK_ONLY setting was re-read: it applies only to
-`openai/gpt-4.1-mini`. It does not authorize the candidate models. Fresh paid
-evaluation authorization is required; no historical approval is silently extended.
+The staging TRACK_ONLY setting was re-read: it applies only to
+`openai/gpt-4.1-mini`. Candidate calls used the separately approved evaluation
+scope, remote atomic reservations and exact settlement, not staging's exemption.
+Paid runners require an explicit invocation and the approved unexpired manifest.
+No candidate routes were deployed.

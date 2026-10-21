@@ -1,0 +1,1560 @@
+{
+  "date": "2026-10-21",
+  "qualification": "NO_CONFIGURATION_QUALIFIED_FOR_PROMOTION",
+  "scope": "SAVED_REAL_EVIDENCE_LOCAL_END_TO_END_AND_MATCHED_STAGE_PILOT",
+  "sourceManifestHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+  "financial": {
+    "at": "2026-10-21T12:48:34.788Z",
+    "calls": 32,
+    "actualUsd": 0.199765629,
+    "reservedUsd": 0.8830160000000001,
+    "unsettled": 0
+  },
+  "groups": {
+    "A-low": {
+      "calls": 4,
+      "actualUsd": 0.014042325,
+      "providerAndSettlementMs": 82527.61500000002
+    },
+    "A-medium": {
+      "calls": 4,
+      "actualUsd": 0.013804825,
+      "providerAndSettlementMs": 182301.7026
+    },
+    "B-low": {
+      "calls": 1,
+      "actualUsd": 0.003826208,
+      "providerAndSettlementMs": 172266.65339999995
+    },
+    "B-medium": {
+      "calls": 1,
+      "actualUsd": 0.003625161,
+      "providerAndSettlementMs": 178046.5833
+    },
+    "B-thinking-disabled": {
+      "calls": 7,
+      "actualUsd": 0.034252231,
+      "providerAndSettlementMs": 244678.82930000004
+    },
+    "C": {
+      "calls": 3,
+      "actualUsd": 0.0227628,
+      "providerAndSettlementMs": 31521.731700000004
+    },
+    "stage-draft-verifier-anthropic_claude-haiku-5.5": {
+      "calls": 1,
+      "actualUsd": 0.004374175,
+      "providerAndSettlementMs": 59588.3284
+    },
+    "stage-draft-verifier-openai_gpt-4.1-mini": {
+      "calls": 1,
+      "actualUsd": 0.013626,
+      "providerAndSettlementMs": 29082.508499999996
+    },
+    "stage-draft-verifier-openai_gpt-6-luna": {
+      "calls": 1,
+      "actualUsd": 0.004638675,
+      "providerAndSettlementMs": 31124.0965
+    },
+    "stage-editorial-openai_gpt-4.1-mini": {
+      "calls": 1,
+      "actualUsd": 0.0166596,
+      "providerAndSettlementMs": 36565.2097
+    },
+    "stage-editorial-openai_gpt-6-luna": {
+      "calls": 1,
+      "actualUsd": 0.0051418,
+      "providerAndSettlementMs": 32246.805300000004
+    },
+    "stage-editorial-xiaomi_mimo-v2.6-pro": {
+      "calls": 1,
+      "actualUsd": 0.017945154,
+      "providerAndSettlementMs": 178570.1506
+    },
+    "stage-history-openai_gpt-4.1-mini-low": {
+      "calls": 1,
+      "actualUsd": 0.0178188,
+      "providerAndSettlementMs": 32180.694900000002
+    },
+    "stage-history-openai_gpt-6-luna-low": {
+      "calls": 1,
+      "actualUsd": 0.00716705,
+      "providerAndSettlementMs": 46846.6611
+    },
+    "stage-history-openai_gpt-6-luna-medium": {
+      "calls": 1,
+      "actualUsd": 0.00847805,
+      "providerAndSettlementMs": 83226.14719999998
+    },
+    "stage-writer-anthropic_claude-haiku-5.5": {
+      "calls": 1,
+      "actualUsd": 0.0029573,
+      "providerAndSettlementMs": 11279.0524
+    },
+    "stage-writer-openai_gpt-4.1-mini": {
+      "calls": 1,
+      "actualUsd": 0.0063888,
+      "providerAndSettlementMs": 8817.520300000004
+    },
+    "stage-writer-openai_gpt-6-luna": {
+      "calls": 1,
+      "actualUsd": 0.002256675,
+      "providerAndSettlementMs": 35012.5037
+    }
+  },
+  "models": [
+    {
+      "id": "anthropic/claude-haiku-5.5",
+      "canonical_slug": "anthropic/claude-haiku-5.5-20261007",
+      "context_length": 1000000,
+      "top_provider": {
+        "context_length": 1000000,
+        "max_completion_tokens": 128000,
+        "is_moderated": true
+      },
+      "pricing": {
+        "prompt": "0.0000001",
+        "completion": "0.0000005",
+        "web_search": "0.01",
+        "input_cache_read": "0.00000001",
+        "input_cache_write": "0.000000125",
+        "input_cache_write_1h": "0.0000002",
+        "overrides": [
+          {
+            "min_prompt_tokens": 100000,
+            "prompt": "0.0000005",
+            "completion": "0.0000025",
+            "input_cache_read": "0.00000005",
+            "input_cache_write": "0.000000625",
+            "input_cache_write_1h": "0.000001"
+          }
+        ]
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_completion_tokens",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "response_format",
+        "stop",
+        "structured_outputs",
+        "tool_choice",
+        "tools",
+        "verbosity"
+      ]
+    },
+    {
+      "id": "openai/gpt-6-luna",
+      "canonical_slug": "openai/gpt-6-luna-20260922",
+      "context_length": 1050000,
+      "top_provider": {
+        "context_length": 1050000,
+        "max_completion_tokens": 128000,
+        "is_moderated": true
+      },
+      "pricing": {
+        "prompt": "0.0000001",
+        "completion": "0.0000005",
+        "web_search": "0.01",
+        "input_cache_read": "0.00000001",
+        "input_cache_write": "0.000000125",
+        "overrides": [
+          {
+            "min_prompt_tokens": 272000,
+            "prompt": "0.0000002",
+            "completion": "0.00000075",
+            "input_cache_read": "0.00000002",
+            "input_cache_write": "0.00000025"
+          }
+        ]
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_completion_tokens",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "response_format",
+        "seed",
+        "structured_outputs",
+        "tool_choice",
+        "tools",
+        "verbosity"
+      ]
+    },
+    {
+      "id": "xiaomi/mimo-v2.6-pro",
+      "canonical_slug": "xiaomi/mimo-v2.6-pro-20260921",
+      "context_length": 1050000,
+      "top_provider": {
+        "context_length": 1048576,
+        "max_completion_tokens": 131072,
+        "is_moderated": false
+      },
+      "pricing": {
+        "prompt": "0.000000435",
+        "completion": "0.00000087",
+        "input_cache_read": "0.0000000036"
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logit_bias",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-v4.1-flash",
+      "canonical_slug": "deepseek/deepseek-v4.1-flash-20260910",
+      "context_length": 1048576,
+      "top_provider": {
+        "context_length": 1048576,
+        "max_completion_tokens": 943718,
+        "is_moderated": false
+      },
+      "pricing": {
+        "prompt": "0.000000049",
+        "completion": "0.000000375",
+        "input_cache_read": "0.000000001"
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logit_bias",
+        "logprobs",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ]
+    },
+    {
+      "id": "openai/gpt-4.1-mini",
+      "canonical_slug": "openai/gpt-4.1-mini-2025-04-14",
+      "context_length": 1047576,
+      "top_provider": {
+        "context_length": 1047576,
+        "max_completion_tokens": 32768,
+        "is_moderated": true
+      },
+      "pricing": {
+        "prompt": "0.0000004",
+        "completion": "0.0000016",
+        "web_search": "0.01",
+        "input_cache_read": "0.0000001"
+      },
+      "supported_parameters": [
+        "max_completion_tokens",
+        "max_tokens",
+        "response_format",
+        "seed",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "arm": "C",
+      "status": "FAILED",
+      "error": "ARTICLE_SEMANTICS_DEFERRED:SEMANTIC_CONSTRUCTION_REJECTED",
+      "wallMs": 46213.222299999994,
+      "persistedUsefulBriefing": false,
+      "performanceQualification": "PILOT_SINGLE_RUN",
+      "initial": {
+        "evidenceHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+        "publicationMemoryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "initialGraphHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "database": {
+        "reads": 255,
+        "writes": 343
+      },
+      "stages": [
+        {
+          "name": "EXISTING_EDITION_LOOKUP",
+          "wallMs": 37.72220000000016,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 11246.8026,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 4818.965,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 16329.5934,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 27359.7126,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 2061.8421000000017,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 29615.887600000002,
+          "status": "FAILED",
+          "error": "ARTICLE_SEMANTICS_DEFERRED:SEMANTIC_CONSTRUCTION_REJECTED"
+        }
+      ],
+      "validation": [],
+      "artifactSha256": "b8348024f33d81700a35522e7da9fa93dd5ffae3a03f28b3ed092a2896bb2100"
+    },
+    {
+      "arm": "A-medium",
+      "status": "FAILED",
+      "error": "ARTICLE_SEMANTICS_DEFERRED:SEMANTIC_PROVIDER_FAILURE",
+      "wallMs": 59943.3744,
+      "persistedUsefulBriefing": false,
+      "performanceQualification": "PILOT_SINGLE_RUN",
+      "initial": {
+        "evidenceHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+        "publicationMemoryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "initialGraphHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "database": {
+        "reads": 116,
+        "writes": 191
+      },
+      "stages": [
+        {
+          "name": "EXISTING_EDITION_LOOKUP",
+          "wallMs": 34.119800000000396,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 56351.0506,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 3173.2725000000064,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 59756.0106,
+          "status": "FAILED",
+          "error": "ARTICLE_SEMANTICS_DEFERRED:SEMANTIC_PROVIDER_FAILURE"
+        }
+      ],
+      "validation": [],
+      "artifactSha256": "eb9c8f1e15977eb59b9996b95cb26fae20cf9cb68ea6d2ca6408e671d02c45bd"
+    },
+    {
+      "arm": "A-medium-recovered",
+      "status": "FAILED",
+      "error": "SEMANTIC_EDITORIAL_REJECTED",
+      "wallMs": 148221.0636,
+      "persistedUsefulBriefing": false,
+      "performanceQualification": "NOT_COMPARABLE_OPERATOR_RECOVERY",
+      "initial": {
+        "evidenceHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+        "publicationMemoryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "initialGraphHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "database": {
+        "reads": 303,
+        "writes": 341
+      },
+      "stages": [
+        {
+          "name": "EXISTING_EDITION_LOOKUP",
+          "wallMs": 38.27939999999944,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 1706.0275000000001,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 2872,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 4764.690700000001,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 27153.997800000005,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 2707.900800000003,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 30028.1698,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 13981.349999999999,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 1353.7888999999996,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 15496.164499999999,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "SHORTLIST",
+          "wallMs": 1128.199999999997,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "EDITORIAL_SELECTION",
+          "wallMs": 96266.9682,
+          "status": "FAILED",
+          "error": "SEMANTIC_EDITORIAL_REJECTED"
+        },
+        {
+          "name": "BRIEFING_EXCLUSIVE_TURN",
+          "wallMs": 97485.9691,
+          "status": "FAILED",
+          "error": "SEMANTIC_EDITORIAL_REJECTED"
+        }
+      ],
+      "validation": [],
+      "artifactSha256": "1cc5442c3ec2415a37c4931d9021fa8d734d58488ff717883035a6df70d8b680"
+    },
+    {
+      "arm": "A-low",
+      "status": "FAILED",
+      "error": "SEMANTIC_EDITORIAL_REJECTED",
+      "wallMs": 108254.86449999997,
+      "persistedUsefulBriefing": false,
+      "performanceQualification": "PILOT_SINGLE_RUN",
+      "initial": {
+        "evidenceHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+        "publicationMemoryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "initialGraphHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "database": {
+        "reads": 398,
+        "writes": 454
+      },
+      "stages": [
+        {
+          "name": "EXISTING_EDITION_LOOKUP",
+          "wallMs": 39.32809999998426,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 15260.969900000026,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 3786.9476999999897,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 19261.252999999997,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 12545.072599999985,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 3301.9811000000045,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 16125.846899999975,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 11205.806699999986,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 3894.373899999977,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 15344.301199999987,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "SHORTLIST",
+          "wallMs": 1358.122800000012,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "EDITORIAL_SELECTION",
+          "wallMs": 55763.27739999999,
+          "status": "FAILED",
+          "error": "SEMANTIC_EDITORIAL_REJECTED"
+        },
+        {
+          "name": "BRIEFING_EXCLUSIVE_TURN",
+          "wallMs": 57227.1017,
+          "status": "FAILED",
+          "error": "SEMANTIC_EDITORIAL_REJECTED"
+        }
+      ],
+      "validation": [],
+      "artifactSha256": "c921cc70c313b031a3226b67afafc77e90714c6ce9be20f3b124557f6c3ee539"
+    },
+    {
+      "arm": "B-medium",
+      "status": "FAILED",
+      "error": "ARTICLE_SEMANTICS_DEFERRED:SEMANTIC_PROVIDER_FAILURE",
+      "wallMs": 184762.0527,
+      "persistedUsefulBriefing": false,
+      "performanceQualification": "PILOT_SINGLE_RUN",
+      "initial": {
+        "evidenceHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+        "publicationMemoryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "initialGraphHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "database": {
+        "reads": 115,
+        "writes": 189
+      },
+      "stages": [
+        {
+          "name": "EXISTING_EDITION_LOOKUP",
+          "wallMs": 25.926399999996647,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 181359.59490000003,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 3111.0131999999867,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 184649.08200000002,
+          "status": "FAILED",
+          "error": "ARTICLE_SEMANTICS_DEFERRED:SEMANTIC_PROVIDER_FAILURE"
+        }
+      ],
+      "validation": [],
+      "artifactSha256": "15299eef24111fe93e24e75124c709bdf8612e9c9e63f4caa2165141e79351e6"
+    },
+    {
+      "arm": "B-low",
+      "status": "FAILED",
+      "error": "ARTICLE_SEMANTICS_DEFERRED:SEMANTIC_PROVIDER_FAILURE",
+      "wallMs": 177053.26059999998,
+      "persistedUsefulBriefing": false,
+      "performanceQualification": "PILOT_SINGLE_RUN",
+      "initial": {
+        "evidenceHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+        "publicationMemoryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "initialGraphHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "database": {
+        "reads": 116,
+        "writes": 191
+      },
+      "stages": [
+        {
+          "name": "EXISTING_EDITION_LOOKUP",
+          "wallMs": 31.28279999998631,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 175340.67569999996,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 1407.662399999972,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 176950.37709999998,
+          "status": "FAILED",
+          "error": "ARTICLE_SEMANTICS_DEFERRED:SEMANTIC_PROVIDER_FAILURE"
+        }
+      ],
+      "validation": [],
+      "artifactSha256": "52507bff69415fc138543dcd9cac5cf72af59b75d037eac46b219cdfed50e908"
+    },
+    {
+      "arm": "B-thinking-disabled",
+      "status": "FAILED",
+      "error": "TEMPORARY_UNAVAILABLE",
+      "wallMs": 362410.85020000004,
+      "persistedUsefulBriefing": false,
+      "performanceQualification": "PILOT_SINGLE_RUN",
+      "initial": {
+        "evidenceHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+        "publicationMemoryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "initialGraphHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "database": {
+        "reads": 722,
+        "writes": 576
+      },
+      "stages": [
+        {
+          "name": "EXISTING_EDITION_LOOKUP",
+          "wallMs": 40.56469999999899,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 24745.9104,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 2712.0016000000032,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 27784.267,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 64280.657,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 3284.9523000000045,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 67856.0912,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 46584.3832,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 2629.36970000001,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 49498.61170000001,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "SHORTLIST",
+          "wallMs": 1319.2755999999936,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "EDITORIAL_SELECTION",
+          "wallMs": 129316.46120000002,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "SCORING",
+          "wallMs": 2015.045999999973,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "WRITING",
+          "wallMs": 14227.690000000002,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "FACTUAL_VERIFICATION",
+          "wallMs": 56841.3443,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "WRITE_VERIFY_LOCAL_COMMIT",
+          "wallMs": 83827.42009999999,
+          "status": "FAILED",
+          "error": "TEMPORARY_UNAVAILABLE"
+        },
+        {
+          "name": "BRIEFING_EXCLUSIVE_TURN",
+          "wallMs": 216617.97799999997,
+          "status": "FAILED",
+          "error": "TEMPORARY_UNAVAILABLE"
+        }
+      ],
+      "validation": [
+        {
+          "status": "UNRESOLVED",
+          "reasons": [
+            "INCOMPLETE_NOVELTY_VERDICT",
+            "MISSING_MANDATORY_COVERAGE"
+          ]
+        }
+      ],
+      "artifactSha256": "8e13fe374f9108b45265a9a8ebecca1a85f94ae82f88b196f5787eff158f83b5"
+    }
+  ],
+  "matchedStages": [
+    {
+      "name": "EDITORIAL:xiaomi/mimo-v2.6-pro",
+      "status": "FAILED",
+      "error": "COMPARISON_UNCERTAIN_CHARGE_STOP",
+      "wallMs": 180056.7001,
+      "noveltyCounts": {},
+      "wholeClaimRejections": 0
+    },
+    {
+      "name": "EDITORIAL:openai/gpt-6-luna",
+      "status": "FAILED",
+      "error": "SEMANTIC_EDITORIAL_REJECTED",
+      "wallMs": 33695.4813,
+      "noveltyCounts": {},
+      "wholeClaimRejections": 0
+    },
+    {
+      "name": "EDITORIAL:openai/gpt-4.1-mini",
+      "status": "SUCCEEDED",
+      "error": null,
+      "wallMs": 37477.371499999994,
+      "noveltyCounts": {},
+      "wholeClaimRejections": 0
+    },
+    {
+      "name": "WRITER:anthropic/claude-haiku-5.5",
+      "status": "SUCCEEDED",
+      "error": null,
+      "wallMs": 12611.954400000002,
+      "noveltyCounts": {},
+      "wholeClaimRejections": 0
+    },
+    {
+      "name": "WRITER:openai/gpt-6-luna",
+      "status": "SUCCEEDED",
+      "error": null,
+      "wallMs": 36653.5255,
+      "noveltyCounts": {},
+      "wholeClaimRejections": 0
+    },
+    {
+      "name": "WRITER:openai/gpt-4.1-mini",
+      "status": "SUCCEEDED",
+      "error": null,
+      "wallMs": 9640.5426,
+      "noveltyCounts": {},
+      "wholeClaimRejections": 0
+    },
+    {
+      "name": "HISTORY_VERIFICATION:openai/gpt-6-luna:medium",
+      "status": "SUCCEEDED",
+      "error": null,
+      "wallMs": 84745.1849,
+      "noveltyCounts": {
+        "ALREADY_COMMUNICATED": 29
+      },
+      "wholeClaimRejections": 0
+    },
+    {
+      "name": "HISTORY_VERIFICATION:openai/gpt-6-luna:low",
+      "status": "SUCCEEDED",
+      "error": null,
+      "wallMs": 48125.86729999998,
+      "noveltyCounts": {
+        "ALREADY_COMMUNICATED": 29
+      },
+      "wholeClaimRejections": 0
+    },
+    {
+      "name": "HISTORY_VERIFICATION:openai/gpt-4.1-mini:low",
+      "status": "SUCCEEDED",
+      "error": null,
+      "wallMs": 32948.98430000001,
+      "noveltyCounts": {
+        "NEW": 28,
+        "NOT_COMMUNICATED": 1
+      },
+      "wholeClaimRejections": 1
+    }
+  ],
+  "matchedDraftDecisions": [
+    {
+      "writer": "anthropic/claude-haiku-5.5",
+      "verifier": "openai/gpt-6-luna",
+      "applicationDecision": {
+        "status": "REJECT",
+        "reasons": [
+          "MISSING_MANDATORY_COVERAGE"
+        ]
+      },
+      "wholeClaimRejections": 0,
+      "requiredFactFailures": 1,
+      "recoveredWithoutNewCalls": true
+    },
+    {
+      "writer": "openai/gpt-6-luna",
+      "verifier": "openai/gpt-6-luna",
+      "applicationDecision": {
+        "status": "ACCEPT",
+        "reasons": []
+      },
+      "wholeClaimRejections": 0,
+      "requiredFactFailures": 0,
+      "recoveredWithoutNewCalls": true
+    },
+    {
+      "writer": "openai/gpt-4.1-mini",
+      "verifier": "openai/gpt-4.1-mini",
+      "applicationDecision": {
+        "status": "ACCEPT",
+        "reasons": []
+      },
+      "wholeClaimRejections": 0,
+      "requiredFactFailures": 0,
+      "recoveredWithoutNewCalls": true
+    }
+  ],
+  "calls": [
+    {
+      "profile": "A-low",
+      "model": "openai/gpt-6-luna",
+      "phase": "COMPARATIVE_EDITORIAL_PLAN",
+      "effort": "low",
+      "operationHash": "9047aa9d5c55d06997f4b966d2dddd5e455acaf764cf56a2d09c550881a1b92f",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 37154,
+        "tokensOut": 6322,
+        "cost": 0.007805175,
+        "confirmed": true
+      },
+      "wallMs": 52998.7886,
+      "reservedUsd": 0.036845,
+      "accountingRecovery": null,
+      "receiptSha256": "fcefdb0631c1986e855b087d73613863e22e4c12f6ab980a8adda43a03c2366a"
+    },
+    {
+      "profile": "A-low",
+      "model": "openai/gpt-6-luna",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "low",
+      "operationHash": "d33e73ed28e97d5e91a8573293dd554ed00a0886fb4dce18453e4fdd816cdff2",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 14427,
+        "tokensOut": 693,
+        "cost": 0.0021498,
+        "confirmed": true
+      },
+      "wallMs": 12120.308699999994,
+      "reservedUsd": 0.016649,
+      "accountingRecovery": null,
+      "receiptSha256": "afd2813979779de16e08a99ac0b1ef35c3e1275d571d626e749bbe4ce7fd396f"
+    },
+    {
+      "profile": "A-low",
+      "model": "openai/gpt-6-luna",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "low",
+      "operationHash": "dd2a66db57d50bff562e9be127324b4c9d8a84eb10e111d40b999fc0456eb242",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 14841,
+        "tokensOut": 922,
+        "cost": 0.00231605,
+        "confirmed": true
+      },
+      "wallMs": 9409.007000000012,
+      "reservedUsd": 0.017244,
+      "accountingRecovery": null,
+      "receiptSha256": "d15d871927de1e89e9df0c5fd5490039079e1cb819ff51043f544a85477db1d0"
+    },
+    {
+      "profile": "A-low",
+      "model": "openai/gpt-6-luna",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "low",
+      "operationHash": "de0b0632bf52870b22b38e9e2337fc3fc6aac7be00288101070f1f2539f5476f",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 12167,
+        "tokensOut": 501,
+        "cost": 0.0017713,
+        "confirmed": true
+      },
+      "wallMs": 7999.5107000000135,
+      "reservedUsd": 0.01534,
+      "accountingRecovery": null,
+      "receiptSha256": "b885d086a26799604a991a500259125e5525d4630731bbd895acf75d3c9a45f3"
+    },
+    {
+      "profile": "A-medium",
+      "model": "openai/gpt-6-luna",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "medium",
+      "operationHash": "7ab062a05d41e97c3448436432c431a4d2e8944135698c00a93042e0e7a4623a",
+      "servedModels": [],
+      "error": "COMPARISON_RESPONSE_MODEL_IDENTITY_MISMATCH",
+      "usage": {
+        "tokensIn": 14191,
+        "tokensOut": 2331,
+        "cost": 0.0029393,
+        "confirmed": true
+      },
+      "wallMs": 53337.912899999996,
+      "reservedUsd": 0.016649,
+      "accountingRecovery": null,
+      "receiptSha256": "739a59e8883f8ba6de16b0948fd244c69ad021ed358ea4152e3c90f1425a1d22"
+    },
+    {
+      "profile": "A-medium",
+      "model": "openai/gpt-6-luna",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "medium",
+      "operationHash": "7e4c46fd23101ee5bb5bd8735c2034d1d52a55b4889c86c3c4240d003d4dde67",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 13786,
+        "tokensOut": 2465,
+        "cost": 0.002955675,
+        "confirmed": true
+      },
+      "wallMs": 24244.406199999998,
+      "reservedUsd": 0.016468,
+      "accountingRecovery": null,
+      "receiptSha256": "4b8c97cd1407ee8e4bf2d57ce4b5362e551c6eb8de6320ee9d0a6759b3435338"
+    },
+    {
+      "profile": "A-medium",
+      "model": "openai/gpt-6-luna",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "medium",
+      "operationHash": "996718208d9071cc42747158ee7634e1ca99ea552b4d8aac0a7b140335aee033",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 10585,
+        "tokensOut": 1016,
+        "cost": 0.00183105,
+        "confirmed": true
+      },
+      "wallMs": 11287.217399999994,
+      "reservedUsd": 0.01414,
+      "accountingRecovery": null,
+      "receiptSha256": "99860fd9c963de0b27da30562a9cf5c179698d3954934537217e15c3e383d899"
+    },
+    {
+      "profile": "A-medium",
+      "model": "openai/gpt-6-luna",
+      "phase": "COMPARATIVE_EDITORIAL_PLAN",
+      "effort": "medium",
+      "operationHash": "c27f729d4a452af5de8d89406899e572f09cddf04f7a6fc6c756f237790483d7",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 27235,
+        "tokensOut": 5349,
+        "cost": 0.0060788,
+        "confirmed": true
+      },
+      "wallMs": 93432.1661,
+      "reservedUsd": 0.028692,
+      "accountingRecovery": null,
+      "receiptSha256": "bfa2a78b05abc90761e04ea9ddba557126f45bf5167bbc6c37aca2721d78941e"
+    },
+    {
+      "profile": "B-low",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "low",
+      "operationHash": "16d505dd1b59f162dea913451752e1c195f6e06a1bc6e3dda34281a2b23efef9",
+      "servedModels": [
+        "deepseek/deepseek-v4.1-flash"
+      ],
+      "error": "MODEL_OUTPUT_CONTINUATION_REQUIRED",
+      "usage": {
+        "tokensIn": 15392,
+        "tokensOut": 8192,
+        "cost": 0.003826208,
+        "confirmed": true
+      },
+      "wallMs": 172266.65339999995,
+      "reservedUsd": 0.005647,
+      "accountingRecovery": null,
+      "receiptSha256": "c22a62ae18f74a7eda0ae0a716cda22df78dbb7479b1c878f0dd436095b0ebb3"
+    },
+    {
+      "profile": "B-medium",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": null,
+      "operationHash": "57260dc39da4aa7147b214309f4165799ff6a00086df6e8622e5a5ed1cbf5cf0",
+      "servedModels": null,
+      "error": "MODEL_TIMEOUT",
+      "usage": {
+        "tokensIn": 11289,
+        "tokensOut": 9622,
+        "cost": 0.003625161,
+        "confirmed": true
+      },
+      "wallMs": 178046.5833,
+      "reservedUsd": 0.005648,
+      "accountingRecovery": true,
+      "receiptSha256": "c9f009f2f8e8883c263c6e5f1020234dcb6cd53f52914b39bdccca8244c73aa0"
+    },
+    {
+      "profile": "B-thinking-disabled",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "DISABLED",
+      "operationHash": "4efc0de04993d85bdc916f3ce0337ff0d6ccdc92fba9ad087374a432e8fe34ef",
+      "servedModels": [
+        "deepseek/deepseek-v4.1-flash"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 12567,
+        "tokensOut": 182,
+        "cost": 0.000684033,
+        "confirmed": true
+      },
+      "wallMs": 20433.272800000006,
+      "reservedUsd": 0.005268,
+      "accountingRecovery": null,
+      "receiptSha256": "811c1b5d3333a29a358b89e1fb10160430eedbe481776631564642024360e189"
+    },
+    {
+      "profile": "B-thinking-disabled",
+      "model": "xiaomi/mimo-v2.6-pro",
+      "phase": "COMPARATIVE_EDITORIAL_PLAN",
+      "effort": "DISABLED",
+      "operationHash": "a60ed552a085724b8fecc70ec9377f73bbeaaf74a2048a4623ca6b978335de8a",
+      "servedModels": [
+        "xiaomi/mimo-v2.6-pro"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 32869,
+        "tokensOut": 6931,
+        "cost": 0.018147276,
+        "confirmed": true
+      },
+      "wallMs": 100857.92750000002,
+      "reservedUsd": 0.055812,
+      "accountingRecovery": null,
+      "receiptSha256": "c1cdbc8a8f583d5bb0a9292e3d502fcf62d81283cfe3a65086b5cc45b64619cf"
+    },
+    {
+      "profile": "B-thinking-disabled",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "DISABLED",
+      "operationHash": "b4dee70e3aef5c89bcc5f3a4f39fa41f3ca306fa50616119ee9093d055debe78",
+      "servedModels": [
+        "deepseek/deepseek-v4.1-flash"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 14825,
+        "tokensOut": 583,
+        "cost": 0.00094505,
+        "confirmed": true
+      },
+      "wallMs": 21126.2267,
+      "reservedUsd": 0.005648,
+      "accountingRecovery": null,
+      "receiptSha256": "7247c55d282509104a87af1e7bae228be6475397ba519b48ebbada0450d2ab55"
+    },
+    {
+      "profile": "B-thinking-disabled",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "phase": "SEMANTIC_EVENT_IDENTITY_REVIEW",
+      "effort": "DISABLED",
+      "operationHash": "b5140dfad65f9774475dd23cb57a7d2598ccdea21e57ce4c03ccfba166141adc",
+      "servedModels": [
+        "deepseek/deepseek-v4.1-flash"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 8502,
+        "tokensOut": 110,
+        "cost": 0.000457848,
+        "confirmed": true
+      },
+      "wallMs": 8705.237900000007,
+      "reservedUsd": 0.00482,
+      "accountingRecovery": null,
+      "receiptSha256": "7c2640b3b40785c3e68706a08a23a42beccf4d9cde24be98a03a86df7dff2e55"
+    },
+    {
+      "profile": "B-thinking-disabled",
+      "model": "openai/gpt-6-luna",
+      "phase": "GROUNDING",
+      "effort": "low",
+      "operationHash": "b9e373df65122aff49fd4631df8fd7f38503d4b92e5e709adc0f1323accf5c58",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 42661,
+        "tokensOut": 6533,
+        "cost": 0.00859905,
+        "confirmed": true
+      },
+      "wallMs": 55356.058099999966,
+      "reservedUsd": 0.03752,
+      "accountingRecovery": null,
+      "receiptSha256": "94e9a039876613eb4c22a36b9ee7475c2baa4e752f86cc70d840e0047d32f2f8"
+    },
+    {
+      "profile": "B-thinking-disabled",
+      "model": "anthropic/claude-haiku-5.5",
+      "phase": "SYNTHESIS",
+      "effort": "low",
+      "operationHash": "bfe5ef394be854899aefc2bb9cf8c69fb032ea49f76600e7458a2e64f3586b27",
+      "servedModels": [
+        "anthropic/claude-haiku-5.5"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 32812,
+        "tokensOut": 2393,
+        "cost": 0.0044777,
+        "confirmed": true
+      },
+      "wallMs": 12297.35480000003,
+      "reservedUsd": 0.059127,
+      "accountingRecovery": null,
+      "receiptSha256": "0aa14241c81c6e5f4dc549e0d86802b3aeeb2bb90f6cd9c87c99093cbed29a54"
+    },
+    {
+      "profile": "B-thinking-disabled",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "DISABLED",
+      "operationHash": "f423bcd32f2768a0ddf5a7acfcef0a1fd10a737bd2ce97105513ad3cd3d80512",
+      "servedModels": [
+        "deepseek/deepseek-v4.1-flash"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 16026,
+        "tokensOut": 416,
+        "cost": 0.000941274,
+        "confirmed": true
+      },
+      "wallMs": 25902.751500000006,
+      "reservedUsd": 0.005772,
+      "accountingRecovery": null,
+      "receiptSha256": "0bd04b4f031e38c29dae121ff4d73d3c79da94f449708fa4057b3761b11c8656"
+    },
+    {
+      "profile": "C",
+      "model": "openai/gpt-4.1-mini",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "PROVIDER_DEFAULT",
+      "operationHash": "0610fdaa5915f8e0d2cc2c7ef3db6a7174387a22a530d4f0fc3b739817352cd2",
+      "servedModels": [
+        "openai/gpt-4.1-mini"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 13901,
+        "tokensOut": 772,
+        "cost": 0.0067956,
+        "confirmed": true
+      },
+      "wallMs": 8584.204,
+      "reservedUsd": 0.034114,
+      "accountingRecovery": null,
+      "receiptSha256": "6fe2696d200701c6fb2bdc17c1041c7a2d1a7b7583f3ed9cbcde5798063ef86f"
+    },
+    {
+      "profile": "C",
+      "model": "openai/gpt-4.1-mini",
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "effort": "PROVIDER_DEFAULT",
+      "operationHash": "0638124e9094b7e3c530fb703758b05f8b4bfa03c6c56c291093358ad440fa16",
+      "servedModels": [
+        "openai/gpt-4.1-mini"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 14674,
+        "tokensOut": 813,
+        "cost": 0.0071704,
+        "confirmed": true
+      },
+      "wallMs": 8341.530000000002,
+      "reservedUsd": 0.034893,
+      "accountingRecovery": null,
+      "receiptSha256": "60803e4dbe64f6e6ded019a80d6cdaad4b89d9d228b2b8f4164a3478689ee86b"
+    },
+    {
+      "profile": "C",
+      "model": "openai/gpt-4.1-mini",
+      "phase": "SEMANTIC_EVENT_IDENTITY_REVIEW",
+      "effort": "PROVIDER_DEFAULT",
+      "operationHash": "74244536b2460b86d119949b5c684d2244a52fb2cb29b213aaaef043fe238830",
+      "servedModels": [
+        "openai/gpt-4.1-mini"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 16788,
+        "tokensOut": 1301,
+        "cost": 0.0087968,
+        "confirmed": true
+      },
+      "wallMs": 14595.9977,
+      "reservedUsd": 0.043034,
+      "accountingRecovery": null,
+      "receiptSha256": "511b410ff81e36e7dce116ca704d40af119419d82e762ab19b15f76827b3069b"
+    },
+    {
+      "profile": "stage-draft-verifier-anthropic_claude-haiku-5.5",
+      "model": "openai/gpt-6-luna",
+      "phase": "GROUNDING",
+      "effort": "low",
+      "operationHash": "930f00bf3d3cb29da507cbfdaf03daf1882015065a00cf72ebe0444fe48ccbdc",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 19246,
+        "tokensOut": 3937,
+        "cost": 0.004374175,
+        "confirmed": true
+      },
+      "wallMs": 59588.3284,
+      "reservedUsd": 0.025539,
+      "accountingRecovery": null,
+      "receiptSha256": "83e9dd7616fc03a9d0c1bf0fdfa80f6877439c2013f8f1741889781824ebd420"
+    },
+    {
+      "profile": "stage-draft-verifier-openai_gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "phase": "GROUNDING",
+      "effort": "PROVIDER_DEFAULT",
+      "operationHash": "f1cbdcef0669dd164901da1417cd33df8b0bb2f28be8a385b5aef1f1ff882673",
+      "servedModels": [
+        "openai/gpt-4.1-mini"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 18597,
+        "tokensOut": 3867,
+        "cost": 0.013626,
+        "confirmed": true
+      },
+      "wallMs": 29082.508499999996,
+      "reservedUsd": 0.051084,
+      "accountingRecovery": null,
+      "receiptSha256": "4b426346fb27960ef795403085c6577e1b13186d96c05337b499c0e6bb7fdd5b"
+    },
+    {
+      "profile": "stage-draft-verifier-openai_gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "phase": "GROUNDING",
+      "effort": "low",
+      "operationHash": "7527c5d4a21fc325b9e25074da254ebc20b04c700c71e79e454a008b52e80172",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 19254,
+        "tokensOut": 4464,
+        "cost": 0.004638675,
+        "confirmed": true
+      },
+      "wallMs": 31124.0965,
+      "reservedUsd": 0.025544,
+      "accountingRecovery": null,
+      "receiptSha256": "7b82dfea955fab366e893d60f5b6fb9dd7db7e1d79a6ca56a5c6abd6c685d784"
+    },
+    {
+      "profile": "stage-editorial-openai_gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "phase": "COMPARATIVE_EDITORIAL_PLAN",
+      "effort": "PROVIDER_DEFAULT",
+      "operationHash": "d7a5389ab5ab4c0447bceb18792602bfa0ab2a0d7faf6d79f5c4127c62a1c240",
+      "servedModels": [
+        "openai/gpt-4.1-mini"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 22033,
+        "tokensOut": 4904,
+        "cost": 0.0166596,
+        "confirmed": true
+      },
+      "wallMs": 36565.2097,
+      "reservedUsd": 0.049456,
+      "accountingRecovery": null,
+      "receiptSha256": "374335c0aec8d413d78705c844543517bbeca657f1506f1996055548c615a7e8"
+    },
+    {
+      "profile": "stage-editorial-openai_gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "phase": "COMPARATIVE_EDITORIAL_PLAN",
+      "effort": "low",
+      "operationHash": "eaa322edcd84d8b8531bb0f40705c2f49aa9f899af6ba401dc96fbb276cc7e35",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 22031,
+        "tokensOut": 4776,
+        "cost": 0.0051418,
+        "confirmed": true
+      },
+      "wallMs": 32246.805300000004,
+      "reservedUsd": 0.024115,
+      "accountingRecovery": null,
+      "receiptSha256": "097427a83ed1a852dbc8b17d650514a22395bda597213e0855d896344f8ac95e"
+    },
+    {
+      "profile": "stage-editorial-xiaomi_mimo-v2.6-pro",
+      "model": "xiaomi/mimo-v2.6-pro",
+      "phase": "COMPARATIVE_EDITORIAL_PLAN",
+      "effort": null,
+      "operationHash": "191c214c8955174ba498884b1e761dfac834de8d416883bc9c19a03a89d9f9d3",
+      "servedModels": null,
+      "error": "MODEL_TIMEOUT",
+      "usage": {
+        "tokensIn": 11866,
+        "tokensOut": 10582,
+        "cost": 0.017945154,
+        "confirmed": true
+      },
+      "wallMs": 178570.1506,
+      "reservedUsd": 0.043094,
+      "accountingRecovery": true,
+      "receiptSha256": "cbef329f2a4e09e67324740f0c771fe927456cca2e26f8c0f9b4b916c9229767"
+    },
+    {
+      "profile": "stage-history-openai_gpt-4.1-mini-low",
+      "model": "openai/gpt-4.1-mini",
+      "phase": "GROUNDING",
+      "effort": "PROVIDER_DEFAULT",
+      "operationHash": "e2a4d9265fb068b824045cc487ca8ef11fdec90ffcbdfa36b7c9b83f63dfa5a7",
+      "servedModels": [
+        "openai/gpt-4.1-mini"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 26563,
+        "tokensOut": 4496,
+        "cost": 0.0178188,
+        "confirmed": true
+      },
+      "wallMs": 32180.694900000002,
+      "reservedUsd": 0.059507,
+      "accountingRecovery": null,
+      "receiptSha256": "b29f48ad006de1f2a0c3af15ccf3baae28b1d7a496e1b276c8081f69d7e20d68"
+    },
+    {
+      "profile": "stage-history-openai_gpt-6-luna-low",
+      "model": "openai/gpt-6-luna",
+      "phase": "GROUNDING",
+      "effort": "low",
+      "operationHash": "1888af6fbaf8b039b4f010866e4cebacd1cf24593120974677fb01369be5de85",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 26561,
+        "tokensOut": 7694,
+        "cost": 0.00716705,
+        "confirmed": true
+      },
+      "wallMs": 46846.6611,
+      "reservedUsd": 0.029141,
+      "accountingRecovery": null,
+      "receiptSha256": "d745e95de5a8e604a694dc0d0e43565ea32f0f76b85a5e21cad82f7d4c74934d"
+    },
+    {
+      "profile": "stage-history-openai_gpt-6-luna-medium",
+      "model": "openai/gpt-6-luna",
+      "phase": "GROUNDING",
+      "effort": "medium",
+      "operationHash": "b49a4e9f3a47e969bea100a91e83d400cb6f50d09ee3f490ea70d7a5be9d5134",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 26561,
+        "tokensOut": 10316,
+        "cost": 0.00847805,
+        "confirmed": true
+      },
+      "wallMs": 83226.14719999998,
+      "reservedUsd": 0.029141,
+      "accountingRecovery": null,
+      "receiptSha256": "1bc78871009ee2f6d505e2fa90ba590f74bb7b1c24e82637109c33730957814b"
+    },
+    {
+      "profile": "stage-writer-anthropic_claude-haiku-5.5",
+      "model": "anthropic/claude-haiku-5.5",
+      "phase": "SYNTHESIS",
+      "effort": "low",
+      "operationHash": "dae0148753618e31bb990d2f8b337379e33b0dfbe0a2394afbff6bd47d187811",
+      "servedModels": [
+        "anthropic/claude-haiku-5.5"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 18218,
+        "tokensOut": 2271,
+        "cost": 0.0029573,
+        "confirmed": true
+      },
+      "wallMs": 11279.0524,
+      "reservedUsd": 0.041999,
+      "accountingRecovery": null,
+      "receiptSha256": "ede77ae55e4dd6fb027c4179921f3c5133ea87b45e42b7474d51299e26c8ed0c"
+    },
+    {
+      "profile": "stage-writer-openai_gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "phase": "SYNTHESIS",
+      "effort": "PROVIDER_DEFAULT",
+      "operationHash": "3ed0e16470a36bebda92d4847f5912dd4888090fe799a8404e9abbc54a128e97",
+      "servedModels": [
+        "openai/gpt-4.1-mini"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 11848,
+        "tokensOut": 1031,
+        "cost": 0.0063888,
+        "confirmed": true
+      },
+      "wallMs": 8817.520300000004,
+      "reservedUsd": 0.030316,
+      "accountingRecovery": null,
+      "receiptSha256": "aaa0f244a28d7f1aac6dace2f0efa6d6a521ce6305137c8830c717d629a59874"
+    },
+    {
+      "profile": "stage-writer-openai_gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "phase": "SYNTHESIS",
+      "effort": "low",
+      "operationHash": "5d3e0857c0065544c437851eddf5672f38d28300957ddbe05c5df6295630306a",
+      "servedModels": [
+        "openai/gpt-6-luna"
+      ],
+      "error": null,
+      "usage": {
+        "tokensIn": 11846,
+        "tokensOut": 1552,
+        "cost": 0.002256675,
+        "confirmed": true
+      },
+      "wallMs": 35012.5037,
+      "reservedUsd": 0.01475,
+      "accountingRecovery": null,
+      "receiptSha256": "6eff740852b198797628fba0b9d066dd193d3c96715b9007131fed8aa10878ac"
+    }
+  ],
+  "limits": [
+    "One sample per main arm, not statistical reliability or P95.",
+    "Initial main-run graph and publication history were identical and empty; actual nonempty history tested separately on matched verification inputs.",
+    "Acquisition imports saved immutable articles, not live network acquisition or unattended delivery timing.",
+    "Review is AI-assisted source review, not independently certified human gold.",
+    "No candidate edition persisted, no public publication, deployment or routing change.",
+    "Full GPT-4.1 historical runs are not the current GPT-4.1-mini baseline.",
+    "No real multilingual corpus, separate later-update sequence, JEV or exhaustive packet-boundary qualification.",
+    "Reasoning comparisons include routing/cache/load variability; requests disable fallback but do not pin serving endpoints.",
+    "A-medium recovery reused the original settled result; its interrupted wall time is not directly comparable.",
+    "Timed-out canceled operations have stable provider-reported billing but no reusable completed semantic result."
+  ]
+}
