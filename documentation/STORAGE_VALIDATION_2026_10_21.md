@@ -25,9 +25,18 @@ Target: `distilled-news-joud`, database
 - The dedicated image queue's producer and consumer attachment was verified.
   Duplicate deliveries across old and new queues are covered by the lease test.
 
-No manual accelerated cleanup pass was run: automatic approval review rejected
-20 immediate passes pending explicit user approval. Scheduled maintenance was
-deployed and ran independently as the permanent policy.
+At initial deployment, automatic approval review rejected 20 immediate passes
+pending explicit user approval. Scheduled maintenance ran independently.
+
+The owner subsequently approved the 20 recovery requests. All 20 were
+attempted: 19 completed, and one returned HTTP 500 after checkpointing partial
+progress. The remaining requests resumed from that checkpoint and completed
+without another error. No extra recovery request beyond the approved 20 was
+issued. At 11:19:52 UTC the reported database allocation was 9,855,221,760
+bytes; capacity remained critical and scheduled cleanup continued. The public
+illustration was rechecked afterward: HTTP 200, image/jpeg, 749,006 valid JPEG
+bytes. Maintenance counters are best-effort under overlapping Cron/manual
+passes; database allocation comes directly from D1 query metadata.
 
 This verifies recovery and diagnostic lifecycle behavior, not unlimited storage
 or tenant database partitioning. The remaining scaling boundary is documented
