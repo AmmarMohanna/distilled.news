@@ -27,7 +27,7 @@ export function decodeCompleteParents(raw:Record<string,unknown>,shortlist:Short
 }
 
 export const COMPACT_COMPLETE_PARENT_POLICY='keyed-complete-parent-compact-references-v2';
-export const COMPACT_COMPLETE_EDITORIAL_POLICY='evidence-grounded-editorial-keyed-parents-v3-scoped-importance';
+export const COMPACT_COMPLETE_EDITORIAL_POLICY='evidence-grounded-editorial-keyed-parents-v4-independent-importance';
 /** Reuse the existing reference capabilities while retaining the complete V2
  * input projection, including source eligibility and every evidence value. */
 export function completeParentReferences(shortlist:ShortlistRecord){
