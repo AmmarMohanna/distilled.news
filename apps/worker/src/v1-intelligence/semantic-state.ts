@@ -1,3 +1,4 @@
+import {isSourcePassageVersion} from './source-passages';
 import {HandoffError,sha256,type EventVersion,type EventMembership} from '@distilled/contracts';
 import {z} from 'zod';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -10,7 +11,7 @@ export const slotKinds=['count','role_holder','role_status','process_status','de
 export const storylineDirectiveSchema=z.object({lifecycle:z.enum(['ACTIVE','WATCHING','DORMANT','CLOSED']),openQuestionMentionIds:z.array(z.string()),expectedNextDate:z.object({claimMentionId:z.string(),text:z.string().min(1)}).strict().nullable()}).strict();
 export const semanticGroupSchema=z.object({claimMentionIds:z.array(z.string()).min(1),eventId:z.string().nullable(),storylineId:z.string().nullable(),structuralRelation:z.enum(['SAME_EVENT','NEW_EVENT_EXISTING_STORYLINE','NEW_STORYLINE','DEFER']),epistemicEffects:z.array(z.enum(['CORROBORATES','ADDS_DETAIL','CHANGES_STATE','CHANGES_CERTAINTY','CONTRADICTS','CORRECTS','RETRACTS'])).max(7),entities:z.array(z.object({canonicalLabel:z.string().min(1),aliases:z.array(z.string().min(1)).min(1),claimMentionIds:z.array(z.string()).min(1)}).strict()),slots:z.array(z.object({kind:z.enum(slotKinds),claimMentionId:z.string(),entityLabel:z.string().nullable(),value:z.string().min(1),asOf:z.string().nullable()}).strict())}).strict();
 export type SemanticGroup=z.infer<typeof semanticGroupSchema>&{storylineState?:z.infer<typeof storylineDirectiveSchema>};
-export interface SemanticConstruction {groups:SemanticGroup[];backgroundMentionIds:string[];originDependencyLabel?:string|null;provenance:EventMatchDecision['provenance']}
+export interface SemanticConstruction {developmentRelations?:{fromGroup:number;toGroup:number;relationship:'INDEPENDENT'|'MATERIAL_UPDATE'|'CONTRADICTION'|'CORRECTION'|'DEFER'}[];groups:SemanticGroup[];backgroundMentionIds:string[];originDependencyLabel?:string|null;provenance:EventMatchDecision['provenance']}
 export interface Entity {id:string;entityId:string;feedId:string;canonicalLabel:string;aliases:string[];claimMentionIds:string[];externalId?:string;provenance:EventMatchDecision['provenance'];policyVersion:string}
 export interface Proposition {id:string;feedId:string;kind:'TEXT';text:string;claimMentionIds:string[];evidenceRevisionIds:string[];certainty:ClaimMention['certainty'];attribution?:string;reportingRole:ClaimMention['reportingRole'];eventTime?:string;reportTime:string;origin:ClaimMention['origin'];policyVersion:string}
 export interface StateSlot {id:string;feedId:string;entityId?:string;attribute:typeof slotKinds[number];value:string;asOf?:string;propositionId:string;claimMentionId:string;certainty:ClaimMention['certainty'];attribution?:string;policyVersion:string}
@@ -20,7 +21,7 @@ export interface ConstructionBinding {invariant:string;path:(string|number)[]}
 export function rejectConstruction(invariant:string,path:(string|number)[]):never {throw Object.assign(new HandoffError('SCOPE_DENIED'),{binding:{invariant,path}})}
 export function validateConstruction(value:SemanticConstruction,mentions:ClaimMention[]):SemanticConstruction {
  const known=new Map(mentions.map(m=>[m.id,m])),covered=new Set(value.backgroundMentionIds);
- if(!value.groups.length)rejectConstruction('NO_DEVELOPMENT',['groups']);
+ if(!value.groups.length&&!(mentions.length&&mentions.every(m=>isSourcePassageVersion(m.extractorVersion))))rejectConstruction('NO_DEVELOPMENT',['groups']);
  if(value.backgroundMentionIds.some(id=>!known.has(id)))rejectConstruction('UNKNOWN_CLAIM_REFERENCE',['backgroundMentionIds']);
  for(const [i,raw] of value.groups.entries()){const {storylineState,...base}=raw,group=semanticGroupSchema.parse(base),path=['groups',i];
   for(const id of group.claimMentionIds){if(!known.has(id))rejectConstruction('UNKNOWN_CLAIM_REFERENCE',[...path,'claimMentionIds']);covered.add(id)}
@@ -47,7 +48,7 @@ export function validateConstruction(value:SemanticConstruction,mentions:ClaimMe
 export async function persistEventSemanticState(tx:FeedTransaction,event:EventVersion,now:string,binding?:{group:SemanticGroup;provenance:EventMatchDecision['provenance']}):Promise<EventSemanticState> {
  const members=(await tx.list<EventMembership>('memberships')).filter(m=>m.eventVersionId===event.id),support=new Set(members.map(m=>m.evidenceRevisionId));
  const all=(await tx.list<ClaimMention>('claim_mentions')).filter(m=>support.has(m.evidenceRevisionId));
- const mentions=(binding?all.filter(m=>binding.group.claimMentionIds.includes(m.id)):all).filter(isNewsMention);
+ const mentions=(binding?all.filter(m=>binding.group.claimMentionIds.includes(m.id)):all).filter(m=>isSourcePassageVersion(m.extractorVersion)||isNewsMention(m));
  if(binding && binding.group.claimMentionIds.some(id=>!all.some(m=>m.id===id)))throw new HandoffError('SCOPE_DENIED');
  const propositionIds:string[]=[],stateSlotIds:string[]=[],entityIds:string[]=[],propositions=new Map<string,Proposition>();
  const mentionIds=new Map(await Promise.all(mentions.map(async mention=>[mention.id,await sha256(canonicalJson({feedId:tx.snapshot.feed.id,mentionId:mention.id,policy:STATE_POLICY}))] as const)));

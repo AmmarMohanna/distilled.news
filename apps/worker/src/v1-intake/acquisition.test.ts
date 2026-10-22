@@ -6,12 +6,53 @@ import { claimAcquisition, persistAcquisitionResult, completeAcquisition, runAcq
 import type { AcceptedAcquiredContent, DownstreamJob } from './types';
 import { createCandidateAcquisitionRouter } from './acquisition-router';
 import { hashContent } from '@distilled/contracts';
+import {SourceProviderError} from '@distilled/connectors';
+import {V1FeedStore,FeedTransaction} from '../v1-intelligence/store';
+import {feedFixture} from '../v1-intelligence/test-utils';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1IntakeStore;
 const jobId=JSON.stringify(['ACQUIRE','observation-1','']);
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())});
 afterEach(async()=>ctx.dispose());
 const now='2026-10-03T12:00:00Z',later='2026-10-03T12:02:00Z';
+it('helper capacity waits preserve retry allowance and respect the provider deadline',async()=>{
+ await runAcquisitionJob(store,jobId,testPolicy,async()=>{throw new AcquisitionFailure('BACKPRESSURE',true,{detail:'HELPER_CAPACITY_WAIT',retryNotBefore:'2026-10-03T12:05:00Z'})});
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:0,resourceWaits:1,failureDetail:'HELPER_CAPACITY_WAIT',nextAttemptAt:'2026-10-03T12:05:00.000Z'});
+ expect(await store.list('revisions','feed-source-1')).toHaveLength(0);
+});
+it('private article helper backpressure survives routing without consuming a provider attempt',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,publicGet:async url=>({url,body:'Blocked',contentType:'text/html',status:403}),publicArticle:async()=>{throw new SourceProviderError('BACKPRESSURE','2026-10-03T12:05:00Z')}});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('RETRY');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:0,resourceWaits:1,failureCode:'BACKPRESSURE',failureDetail:'HELPER_CAPACITY_WAIT'});
+});
+it('missing articles retain their HTTP status and terminal reason',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,publicGet:async url=>({url,body:'Not found',contentType:'text/html',status:404})});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('FAILED');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({failureCode:'UNSUPPORTED',failureDetail:'HTTP_NOT_FOUND',httpStatus:404});
+});
+it('upstream Retry-After overrides the local acquisition retry backoff',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,publicGet:async url=>({url,body:'Wait',contentType:'text/html',status:429,retryAfter:'600'})});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('RETRY');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({failureCode:'RATE_LIMIT',httpStatus:429,nextAttemptAt:'2026-10-03T12:10:00.000Z'});
+});
 function content(candidateId:string):AcceptedAcquiredContent {return {id:'content-1',feedId:'feed-1',candidateId,sourceObservationId:'observation-1',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',body:'A development',acquiredAt:now,acquisitionMethod:'supplied_payload'}}
+it('claims and downloads use the observation lease while only evidence promotion takes Feed admission',async()=>{
+ let admitted=false,phases=0;
+ const admission={run:async<T>(run:()=>Promise<T>):Promise<T>=>{expect(admitted).toBe(false);admitted=true;phases++;try{return await run()}finally{admitted=false}},isBusy:()=>false};
+ expect(await runAcquisitionJob(store,jobId,testPolicy,async claim=>{expect(admitted).toBe(false);return content(claim.candidate.id)},admission)).toBe('DONE');
+ expect(phases).toBe(1);expect(admitted).toBe(false);
+});
+it('repeated completion admission waits retain fetched bytes and consume no recovery attempts',async()=>{
+ const busy=new Error('capacity');let calls=0;
+ const execute=async(claim:Awaited<ReturnType<typeof claimAcquisition>>)=>{calls++;return content(claim!.candidate.id)};
+ const admission={run:async<T>(_run:()=>Promise<T>):Promise<T>=>{throw busy},isBusy:(error:unknown)=>error===busy};
+ for(let i=0;i<9;i++){
+  await expect(runAcquisitionJob(store,jobId,testPolicy,execute,admission)).rejects.toBe(busy);
+  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,resumeAttempts:0});
+ }
+ expect(calls).toBe(1);
+ expect(await runAcquisitionJob(store,jobId,testPolicy,execute,{run:complete=>complete(),isBusy:()=>false})).toBe('DONE');
+ expect(calls).toBe(1);expect(await store.list('revisions','feed-source-1')).toHaveLength(1);
+});
 it('concurrent duplicate deliveries claim one lease; crash before fetching resumes after expiry',async()=>{
  const claims=await Promise.all([claimAcquisition(store,jobId,now),claimAcquisition(new V1IntakeStore(ctx.db),jobId,now)]);
  expect(claims.filter(Boolean)).toHaveLength(1);
@@ -19,6 +60,36 @@ it('concurrent duplicate deliveries claim one lease; crash before fetching resum
  expect(restarted!.job.attempts).toBe(2);
  await expect(persistAcquisitionResult(store,claims.find(Boolean)!,content(restarted!.candidate.id),later)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
  expect(await store.list('acquisition_results','feed-source-1')).toHaveLength(0);
+});
+it('immutable fetched-result journaling preserves canonical scope epoch and still fences replaced acquisition leases',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!;
+ const epoch=(await store.snapshot(claim.job.feedSourceId)).epoch;
+ await persistAcquisitionResult(store,claim,content(claim.candidate.id),now);
+ expect((await store.snapshot(claim.job.feedSourceId)).epoch).toBe(epoch);
+ const replacement=(await claimAcquisition(store,jobId,later))!;
+ expect(replacement.token).not.toBe(claim.token);
+ await expect(persistAcquisitionResult(store,claim,content(claim.candidate.id),later)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+});
+it('acquisition claims and immutable result storage do not invalidate an unrelated Feed review snapshot',async()=>{
+ const feedStore=new V1FeedStore(ctx.db);await feedStore.registerFeed({...feedFixture,id:'feed-1'});
+ const snapshot=await feedStore.snapshot('feed-1'),claim=(await claimAcquisition(store,jobId,now))!;
+ await persistAcquisitionResult(store,claim,content(claim.candidate.id),now);
+ const tx=new FeedTransaction(feedStore,snapshot);await tx.write('intelligence_receipts','independent-review',{id:'independent-review',feedId:'feed-1'});
+ expect(await feedStore.commit(tx)).toBe(true);
+});
+it('a replacement claim between lease validation and result commit is fenced by job CAS even without an epoch bump',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,commit=store.commit.bind(store);let raced=false;
+ store.commit=async(snapshot,writes,guards)=>{
+  if(!raced&&writes.some(w=>w.table==='acquisition_results')){raced=true;expect(await claimAcquisition(store,jobId,later)).toBeDefined();}
+  return commit(snapshot,writes,guards);
+ };
+ await expect(persistAcquisitionResult(store,claim,content(claim.candidate.id),now)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ expect(await store.read('acquisition_results',jobId)).toBeUndefined();
+});
+it('terminal acquisition failure still changes the canonical coverage epoch',async()=>{
+ const before=(await store.snapshot('feed-source-1')).epoch;
+ expect(await runAcquisitionJob(store,jobId,testPolicy,async()=>{throw new AcquisitionFailure('UNSUPPORTED',false)})).toBe('FAILED');
+ expect((await store.snapshot('feed-source-1')).epoch).toBeGreaterThan(before);
 });
 it('restart after durable fetch resumes acceptance without another external fetch; acknowledgement replay is harmless',async()=>{
  const claim=(await claimAcquisition(store,jobId,now))!;
@@ -80,7 +151,7 @@ it('an anonymous private HTTP fallback retrieves an exact RSS article after a pu
  let privateCalls=0;
  const claim=(await claimAcquisition(store,jobId,now))!,url=claim.input.observation.canonicalUrl!;
  const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,fetcher:async()=>new Response('Forbidden',{status:403}),
-  publicArticle:async exact=>{privateCalls++;expect(exact).toBe(url);return {status:200,url:exact,pageKind:'article',body:'Publisher article text. '.repeat(25),title:'Decision',publishedAt:'2026-10-03T10:00:00Z'}}});
+  publicArticle:async exact=>{privateCalls++;expect(exact).toBe(url);return {status:200,url:exact,pageKind:'article',body:'Publisher article text. '.repeat(25),title:'Decision',publishedAt:'2026-10-03T10:00:00Z',dateMetadata:{publishedAt:'2026-10-03T10:00:00Z',publicationConflict:false,candidates:[{value:'2026-10-03T10:00:00Z',source:'html:article:published_time'}]}}}});
  const acquired=await router(claim);expect(privateCalls).toBe(1);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',canonicalUrl:url,publishedAt:'2026-10-03T10:00:00.000Z',acquisitionProvider:'private_public_http'});
 });
 it.each([401,429,451])('status %s never invokes the anonymous fallback',async status=>{
@@ -174,4 +245,12 @@ it('URL-only discovery never authorizes a weaker acquired representation to repl
  expect(await store.list('revisions','feed-source-1')).toEqual(before);
  const receipts=await store.list<any>('evidence_receipts','feed-source-1');
  expect(receipts.find(r=>r.sourceObservationId===o.id)?.decision).toBe('QUARANTINED_REVISION_CONFLICT');
+});
+
+it('acquires a complete WordPress post without calling an unavailable helper and retains final qualifiers',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,o=claim.input.observation;
+ o.canonicalUrl='https://example.com/news/post/';
+ const text='The company allocated 5 percent of shares. '.repeat(6),last='An additional contribution remains optional, not promised.';
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(`<link rel="canonical" href="${o.canonicalUrl}"><meta property="og:type" content="article"><meta property="article:published_time" content="2026-10-03T10:00:00Z"><h1>Fund announcement</h1><div class="entry-content wp-block-post-content"><p>${text}</p><div><p>${last}</p></div></div>`),extractHtml:async()=>{throw Error('UNAVAILABLE_HELPER_MUST_NOT_BE_CALLED')}});
+ const acquired=await router(claim);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',canonicalUrl:o.canonicalUrl,acquisitionMethod:'direct_http'});expect(acquired.body).toContain(last);expect(acquired.body).toContain('5 percent');
 });

@@ -72,6 +72,9 @@ importers:
       '@distilled/agent-runtime':
         specifier: workspace:*
         version: link:../../packages/agent-runtime
+      '@distilled/briefing':
+        specifier: workspace:*
+        version: link:../../packages/briefing
       '@distilled/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
@@ -128,6 +131,18 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.2
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@24.13.2)(jsdom@26.1.0)(tsx@4.23.13)
+
+  packages/briefing:
+    devDependencies:
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
       typescript:
         specifier: ^5.8.3
         version: 5.9.3

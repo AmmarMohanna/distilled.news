@@ -9,11 +9,57 @@ import {V1FeedStore} from './store';
 import {feedFixture,seedIntelligence,acceptEvidence} from './test-utils';
 import {prepareSemanticMatch} from './semantic-preparation';
 import {processEvidenceIntelligence} from './engine';
+import {deterministicMatchers} from './matchers';
+import {indexSourcePassages} from './source-passages';
+import {constructionTransport,PACKET_CONSTRUCTION_VERSION} from './construction-transport';
+import {parseConstruction} from './semantic-construction';
 import {nextRematch} from './rematch';
 import type {Env} from '../types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture)});
 afterEach(async()=>ctx.dispose());
+it('V2 source rematching replaces legacy ownership without reviving background claims',async()=>{
+ await seedIntelligence(store,1,'Parliament approved banking reform.\n\nThe debate took place last year.');
+ const root=(await store.list<any>('feed-1','events'))[0],old=await store.read<any>('feed-1','event_versions',root.currentVersionId),revision=(await store.currentEvidence('feed-1'))[0].revision,{mentions}=await indexSourcePassages(revision);
+ const input:any={revision,role:'REPORTED_DEVELOPMENT',candidates:[{id:root.id,version:old,evidenceRevisionIds:[revision.id],newestAt:old.createdAt}]},wire=constructionTransport(mentions,input,{constructionOwnershipVersion:PACKET_CONSTRUCTION_VERSION}),provenance={scorer:'OFFLINE_SEMANTIC_FIXTURE',policyVersion:'source-passages'};
+ const construction=parseConstruction(wire.decode({confidence:1,groups:[{groupId:'G0',occurrence:'Parliament approves reform',eventId:'E0',storylineId:null,structuralRelation:'SAME_EVENT',epistemicEffects:[]}],dispositionByUnitId:{C0:'G0',C1:'BACKGROUND'}}),mentions,input,provenance);
+ await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),{...deterministicMatchers,sourcePassages:true,event:{match:()=>({structuralRelation:'SAME_EVENT',eventId:root.id,epistemicEffects:[],confidence:1,provenance})},construction:()=>construction},'source-index-migration');
+ const current=(await store.list<any>('feed-1','events'))[0],state=await store.read<any>('feed-1','event_semantic_states',current.currentVersionId),props=await Promise.all(state.propositionIds.map((id:string)=>store.read<any>('feed-1','propositions',id)));
+ expect(props).toHaveLength(1);expect(props[0].claimMentionIds).toEqual([mentions[0].id]);expect(props[0].text).not.toContain('Subscribe');expect(await store.read('feed-1','event_versions',old.id)).toEqual(old);
+},20000);
+it('V2 source indexing exposes complete multi-sentence and multilingual evidence without semantic hints',async()=>{
+ const body='Subscribe now. The company said it is developing agents. They might be released only after approval.\n\nقالت الشركة إنها لم تطلق المنتج.';
+ await acceptEvidence(store,1,body,'publisher-1',testPolicy.now(),'ar','2026-10-03T10:00:00Z','Company outlines conditional agent development');
+ let calls=0;const usage={calls:1,costUsd:.001,reported:true};
+ const strong={model:'source-passages-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{
+  calls++;expect(state.source.text).toBe(body);expect(state.source.title).toBe('Company outlines conditional agent development');expect(state.source.publishedAt).toBe('2026-10-03T10:00:00Z');expect(state.source.canonicalUrl).toBeTruthy();
+  expect(state.claimMentions).toHaveLength(3);for(const m of state.claimMentions){expect(m.reportingRoleHint).toBeUndefined();expect(m.certainty).toBeUndefined();expect(m.attribution).toBeUndefined()}
+  return {value:{confidence:1,groups:[{groupId:'G0',occurrence:'A reported conditional development',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[]}],dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'G0']))},usage};
+ }};
+ const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,job=JSON.stringify(['REASSESS','observation-1','']),prepared=await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});
+ await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(calls).toBe(1);
+ await processEvidenceIntelligence(store,job,testPolicy.now(),prepared!.matchers);
+ const props=await store.list<any>('feed-1','propositions');expect(props).toHaveLength(3);expect(props.some(p=>p.text.startsWith('Subscribe now.'))).toBe(true);expect(calls).toBe(1);
+ const shortlist=await (await import('./shortlist')).prepareSemanticShortlist(store,'feed-1',{start:'2026-10-03T00:00:00Z',end:'2026-10-04T00:00:00Z',kind:'DAILY'},testPolicy.now());expect(shortlist.candidates.length).toBeGreaterThan(0);expect(shortlist.candidates.every(c=>!c.flags.includes('TITLE_EXTRACTION_PENDING'))).toBe(true);expect(shortlist.candidates.some(c=>c.facts.some(f=>f.text.startsWith('Subscribe now.')))).toBe(true);
+},20000);
+it('V2 accepts a semantic no-development result and completes intake without an invented event or a retry',async()=>{
+ await acceptEvidence(store,1,'Subscribe now. What would you like to read?');let calls=0;const usage={calls:1,costUsd:.001,reported:true};
+ const strong={model:'non-news-source-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{calls++;return {value:{confidence:1,groups:[],dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'BACKGROUND']))},usage}}};
+ const job=JSON.stringify(['REASSESS','observation-1','']),prepared=await prepareSemanticMatch(store,{V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,job,testPolicy.now(),{strong});
+ const result=await processEvidenceIntelligence(store,job,testPolicy.now(),prepared!.matchers);expect(result).toMatchObject({decision:'PROCESSED',eventVersionIds:[],storylineVersionIds:[]});expect(result.semanticDeferred).not.toBe(true);expect(await store.list('feed-1','events')).toHaveLength(0);expect(await store.list('feed-1','claim_mentions')).toHaveLength(1);expect(calls).toBe(1);
+},20000);
+it('rejects a graph/configuration change during context loading before a paid call',async()=>{
+ await acceptEvidence(store,1,'Officials confirmed the banking reform passed.');
+ const current=store.currentEvidence.bind(store);let changed=false;
+ vi.spyOn(store,'currentEvidence').mockImplementation(async feedId=>{
+  const result=await current(feedId);
+  if(!changed){changed=true;await store.registerFeed({...feedFixture,revision:2})}
+  return result;
+ });
+ let calls=0;const strong={model:'snapshot-fixture',admission:syntheticModelAdmission,usage:()=>({calls:0,costUsd:0,reported:true}),complete:async()=>{calls++;throw Error('must not call provider from mixed context')}};
+ await expect(prepareSemanticMatch(store,{} as Env,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),{strong})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ expect(calls).toBe(0);expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+},20000);
 it('prepares retained Event context without sequential per-Event document reads',async()=>{
  await seedIntelligence(store,1);
  await acceptEvidence(store,2,'Officials announced a new electricity reform.');
@@ -40,14 +86,14 @@ it('bounded rematches exhaust independently of publication work',()=>{
  expect(nextRematch(request,[{id:'a',feedId:'f',requestId:'r',attempt:3,state:'DEFERRED',createdAt:testPolicy.now()}],testPolicy.now())).toBeUndefined();
 });
 
-it('high-confidence multi-sentence corroboration avoids a strong construction call',async()=>{
+it.each([false,true])('high-confidence corroboration avoids construction and prices the selected novelty route (custom=%s)',async(customNovelty)=>{
  const body='Parliament approved the banking reform. Officials confirmed the legislation passed.';await seedIntelligence(store,1,body);
  const intake=new V1IntakeStore(ctx.db),batch=batchFixture(2);batch.observations[0].sourceItemKey='item-2';batch.proposals[0].sourceItemKey='item-2';const accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batch);
  await acceptAcquiredContent(intake,{id:'copy',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-2',body,representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);
  let calls=0;const usage={calls:1,costUsd:.001,reported:true},strong={model:'fake',admission:syntheticModelAdmission,usage:()=>usage,complete:async()=>{calls++;throw Error('Unexpected strong call')}};
  const fetcher:typeof fetch=async(_url,options)=>{const req=JSON.parse(String(options?.body)),answers:any={};for(const [key,q] of Object.entries(req.questions) as [string,any][]){if(q.type==='choice'){const chosen=key==='structure'?'EVENT_0':'CORROBORATES';answers[key]={type:'choice',choice:chosen,confidence:.99,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===chosen?1:0]))}}else if(q.type==='noul')answers[key]={type:'noul',noul:1};else answers[key]={type:'score',score:0,confidence:1,probabilities:Object.fromEntries(q.criteria.map((_:any,i:number)=>[String(i),i===0?1:0]))}}return new Response(JSON.stringify({answers,usage:{input_tokens:20,output_tokens:10,cost:.001}}))};
- const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test-only'} as Env,JSON.stringify(['REASSESS','observation-2','']),testPolicy.now(),{strong,fetcher});
- expect(prepared?.prepared.decision.structuralRelation).toBe('SAME_EVENT');expect(calls).toBe(0);
+ const prepared=await prepareSemanticMatch(store,{DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test-only',...(customNovelty?{V1_LLM_ROUTES_JSON:JSON.stringify({novelty:{provider:'openrouter',model:'fixture/novelty'}}),V1_MODEL_CAPABILITIES_JSON:JSON.stringify({'typesafe/jev-1.13':{contextTokens:64000,maxOutputTokens:0,transport:'DECISIONS',inputUsdPerToken:.000000042,outputUsdPerToken:0,source:'offline fixture'},'fixture/novelty':{contextTokens:64000,maxOutputTokens:0,transport:'DECISIONS',inputUsdPerToken:.000042,outputUsdPerToken:0,source:'offline fixture'}})}:{})} as Env,JSON.stringify(['REASSESS','observation-2','']),testPolicy.now(),{strong,fetcher});
+ expect(prepared?.prepared.decision.structuralRelation).toBe('SAME_EVENT');expect(calls).toBe(0);if(customNovelty){const reservation=await ctx.db.prepare("SELECT reserved_cost_usd FROM v1_model_spending_reservations WHERE model='fixture/novelty'").first<{reserved_cost_usd:number}>();expect(reservation!.reserved_cost_usd).toBeGreaterThan(.01);}
 },25000);
 
 it('multilingual construction beyond a verified model context waits without a call and preserves intake progress',async()=>{
@@ -55,7 +101,7 @@ it('multilingual construction beyond a verified model context waits without a ca
  await acceptAcquiredContent(intake,{id:'large',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-1',body,representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);
  let calls=0;const strong={model:'fake',admission:(state:unknown,schema:object)=>admitModelOperation('fake',state,schema,{contextTokens:1000,maxOutputTokens:100,inputUsdPerToken:0,outputUsdPerToken:0,source:'verified fixture model'}),usage:()=>({calls:0,costUsd:0,reported:true}),complete:async()=>{calls++;throw Error('Input exceeds verified context')}};
  const prepared=await prepareSemanticMatch(store,{} as Env,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),{strong});
- expect(prepared?.prepared.decision.structuralRelation).toBe('DEFER');expect(prepared?.prepared.decision.provenance.fallbackReason).toBe('SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED');expect(calls).toBe(0);expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);const waits=await store.list<any>('feed-1','semantic_resource_waits');expect(waits).toHaveLength(2);expect(waits.every(w=>w.failure==='SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED'&&w.usage.calls===0)).toBe(true);expect(await store.list('feed-1','semantic_construction_work')).toHaveLength(1);
+ expect(prepared?.prepared.decision.structuralRelation).toBe('DEFER');expect(prepared?.prepared.decision.provenance.fallbackReason).toBe('SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED');expect(calls).toBe(0);expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);const waits=await store.list<any>('feed-1','semantic_resource_waits');expect(waits).toHaveLength(3);expect(waits.every(w=>w.failure==='SEMANTIC_MODEL_CONTEXT_CONTINUATION_REQUIRED'&&w.usage.calls===0)).toBe(true);expect(await store.list('feed-1','semantic_construction_work')).toHaveLength(1);
  const receipt=await processEvidenceIntelligence(store,JSON.stringify(['REASSESS','observation-1','']),testPolicy.now(),prepared?.matchers);expect(receipt.semanticDeferred).toBe(true);expect((await intake.read<any>('jobs',JSON.stringify(['REASSESS','observation-1',''])))?.value.state).toBe('DONE');expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
 },25000);
 
@@ -81,7 +127,7 @@ it('a provisional Event supported only by this revision cannot resolve itself th
  await processEvidenceIntelligence(store,job,testPolicy.now(),{...deterministicMatchers,event:{match:()=>({structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:'test',fallbackReason:'RESOURCE_WAIT'}})}});
  let cheap=0,strongCalls=0;const usage={calls:1,costUsd:.001,reported:true},strong={model:'independent-construction',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{strongCalls++;return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
  const fetcher=(async(_url:any,init:any)=>{cheap++;const q=JSON.parse(init.body).questions;return Response.json({answers:Object.fromEntries(Object.entries(q).map(([key,value]:[string,any])=>[key,value.type==='choice'?{type:'choice',choice:'EVENT_0',confidence:1,probabilities:Object.fromEntries(Object.keys(value.criteria).map(k=>[k,k==='EVENT_0'?1:0]))}:value.type==='noul'?{type:'noul',noul:1}:{type:'score',score:0,confidence:1,probabilities:{'0':1,'1':0,'2':0,'3':0}}])),usage:{input_tokens:10,output_tokens:10,cost:.001}})}) as typeof fetch;
- const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'stand-in-only'} as Env,job,testPolicy.now(),{strong,fetcher});expect(cheap).toBe(0);expect(strongCalls).toBe(1);expect(prepared?.prepared.decision.provenance.scorer).toBe('GPT');
+ const prepared=await prepareSemanticMatch(store,{DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'stand-in-only'} as Env,job,testPolicy.now(),{strong,fetcher});expect(cheap).toBe(0);expect(strongCalls).toBe(1);expect(prepared?.prepared.decision.provenance.scorer).toBe('GPT');
 },25000);
 
 it('repairs missing mentions with the entire article and accepts only complete source-bound construction',async()=>{
@@ -112,3 +158,88 @@ it('ordinary construction receives the complete article with scoped wire referen
  const saved=(await store.list<any>('feed-1','semantic_results')).find(r=>r.input.kind==='SEMANTIC_CONSTRUCTION');expect(saved.input.state.claimMentions[0].id).not.toBe('C0');expect(saved.value.construction.groups[0].claimMentionIds).toEqual(saved.input.state.claimMentions.map((m:any)=>m.id));
  await prepareSemanticMatch(new V1FeedStore(ctx.db),{} as Env,id,testPolicy.now(),{strong});expect(calls).toBe(1);
 },20000);
+
+it('V2 binds group-owned passages on the initial call and reuses the paid result without replay',async()=>{
+ await acceptEvidence(store,1,'The council approved a water fund.\n\nGovernance details remain uncertain.');
+ const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,usage={calls:1,costUsd:.001,reported:true};let calls=0;
+ const strong={model:'owned-initial-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{
+  calls++;expect(state.claimOwnership.version).toBe('minimal-packet-disposition-v1');expect(state.claimMentions.every((m:any)=>m.evidenceRevisionId&&m.span)).toBe(true);
+  return {value:{confidence:.99,dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'G0'])),groups:[{groupId:'G0',occurrence:'Council approves a fund',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[]}]},usage};
+ }};
+ const job=JSON.stringify(['REASSESS','observation-1','']);
+ const first=await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(first?.prepared.decision.provenance.scorer).toBe('GPT');
+ expect(first?.matchers.construction?.(first.input)?.groups[0]).toMatchObject({entities:[],slots:[]});expect(first?.matchers.construction?.(first.input)?.groups[0].storylineState).toBeUndefined();
+ await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(calls).toBe(1);
+});
+it('V2 repair gets exact ownership diagnostics and the same constrained aliases, with one repair maximum',async()=>{
+ await acceptEvidence(store,1,'The council approved a water fund.\n\nGovernance details remain uncertain.');
+ const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,usage={calls:1,costUsd:.001,reported:true};let calls=0;
+ const strong={model:'owned-repair-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,phase:string,state:any)=>{
+  calls++;const ids=state.claimMentions.map((m:any)=>m.id);
+  if(calls===2){expect(phase).toBe('SEMANTIC_CONSTRUCTION_REPAIR');expect(state.repair.policy).toBe('construction-targeted-repair-v4-minimal');expect(state.repair.ownership.groups[0].offendingReferences).toContainEqual({field:'storylineState.openQuestionMentionIds',claimMentionId:ids.at(-1)});expect(state.repair.ownership.allowedClaimMentionIds).toEqual(ids);}
+  return {value:{confidence:1,backgroundMentionIds:ids.slice(1),groups:[{claimMentionIds:ids.slice(0,1),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[],storylineState:{lifecycle:'ACTIVE',openQuestionMentionIds:[ids.at(-1)],expectedNextDate:null}}]},usage};
+ }};
+ const job=JSON.stringify(['REASSESS','observation-1','']);
+ const result=await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(result?.prepared.decision.structuralRelation).toBe('DEFER');expect(calls).toBe(2);
+ await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(calls).toBe(2);
+ const results=await store.list<any>('feed-1','semantic_results');expect(results.filter(r=>r.usage.calls===1)).toHaveLength(2);expect(results.every(r=>r.status==='DEFERRED')).toBe(true);
+});
+
+it('V2 accepts a single explicit ownership repair and preserves the rejected receipt',async()=>{
+ await acceptEvidence(store,1,'The council approved a water fund.\n\nGovernance details remain uncertain.');
+ const usage={calls:1,costUsd:.001,reported:true};let calls=0;
+ const strong={model:'owned-repair-success',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,phase:string,state:any)=>{
+  calls++;const ids=state.claimMentions.map((m:any)=>m.id);
+  if(calls===1)return {value:{confidence:1,backgroundMentionIds:ids.slice(1),groups:[{claimMentionIds:ids.slice(0,1),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[],storylineState:{lifecycle:'ACTIVE',openQuestionMentionIds:[ids.at(-1)],expectedNextDate:null}}]},usage};
+  expect(phase).toBe('SEMANTIC_CONSTRUCTION_REPAIR');expect(state.repair.ownership.groups[0].proposedClaimMentionIds).toEqual([ids[0]]);
+  return {value:{confidence:1,dispositionByUnitId:Object.fromEntries(ids.map((id:string)=>[id,'G0'])),groups:[{groupId:'G0',occurrence:'Council approves a fund',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[]}]},usage};
+ }};
+ const env={V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,job=JSON.stringify(['REASSESS','observation-1','']);
+ const result=await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(result?.prepared.decision.provenance.scorer).toBe('GPT');
+ const results=await store.list<any>('feed-1','semantic_results');expect(results.map(r=>r.status).sort()).toEqual(['DEFERRED','SUCCEEDED']);
+ await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong});expect(calls).toBe(2);
+});
+
+it('hands a valid disposition construction through canonical graph, editorial selection and simulated writing',async()=>{
+ const body='Lebanon Parliament approved banking reform legislation.';await acceptEvidence(store,1,body);
+ const usage={calls:1,costUsd:.001,reported:true},strong={model:'disposition-pipeline-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{confidence:1,dispositionByUnitId:Object.fromEntries(state.claimMentions.map((m:any)=>[m.id,'G0'])),groups:[{groupId:'G0',occurrence:'Parliament approves banking reform',eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:['CHANGES_STATE']}]},usage})};
+ const job=JSON.stringify(['REASSESS','observation-1','']),prepared=await prepareSemanticMatch(store,{V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'} as Env,job,testPolicy.now(),{strong});
+ expect(prepared?.matchers.construction?.(prepared.input)?.groups).toHaveLength(1);await processEvidenceIntelligence(store,job,testPolicy.now(),prepared!.matchers);
+ expect(await store.list('feed-1','events')).toHaveLength(1);
+ const {prepareSemanticShortlist}=await import('./shortlist'),{prepareEditorialPlan,fallbackEditorialPlan}=await import('./editorial-plan'),{scoreAndSelect,DEFAULT_BRIEFING_BUDGET}=await import('./scoring'),{publishSelection}=await import('./publication');
+ const window={start:'2026-10-03T00:00:00Z',end:'2026-10-04T00:00:00Z',kind:'DAILY' as const},shortlist=await prepareSemanticShortlist(store,'feed-1',window,testPolicy.now()),plan=await prepareEditorialPlan(store,shortlist,DEFAULT_BRIEFING_BUDGET,testPolicy.now(),{model:'simulated-editor',admission:syntheticModelAdmission,usage:()=>usage,complete:async()=>({value:(await import('./editorial-transport')).compactEditorialInput(shortlist).encodeKeyed(fallbackEditorialPlan(shortlist)),usage})}),selection=await scoreAndSelect(store,'feed-1',window,DEFAULT_BRIEFING_BUDGET,testPolicy.now(),undefined,plan);
+ expect(selection.selectedCandidateIds).toHaveLength(1);const constructionReceiptsBefore=await store.list('feed-1','semantic_results');let writingCalls=0;
+ let simulatedDraft:import('./publication').BriefingDraft|undefined;
+ const model:import('./publication').BriefingModelPort={model:'simulated-writer',provider:'SYNTHETIC',maxCallCostUsd:.01,verify:async()=>{throw Error('NO_COMPATIBLE_PROVIDER_VERDICT')},synthesize:async input=>{writingCalls++;simulatedDraft={language:'en',stories:input.stories.map(story=>({candidateId:story.candidate.id,claims:[{text:body,support:[{evidenceRevisionId:story.evidence[0].id,quote:body}]}]}))};throw Error('SIMULATED_WRITING_COMPLETE_NO_PROVIDER_VERDICT')}};
+ const stopped=await publishSelection(store,'feed-1',selection.id,{now:testPolicy.now,model,requireModel:true}).catch(e=>e);expect(stopped).toBeInstanceOf(Error);expect(writingCalls).toBe(1);expect(simulatedDraft!.stories[0].claims[0].text).toBe(body);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect(await store.list('feed-1','semantic_results')).toEqual(constructionReceiptsBefore);
+ // Deliberate stop after simulated writing: no invented compatible verification or real-model success.
+ const results=await store.list<any>('feed-1','semantic_results'),construction=results.find(r=>r.value?.schemaVersion==='minimal-packet-disposition-v1'),mentions=await store.list<any>('feed-1','claim_mentions');expect(Object.keys(construction.value.dispositionByClaimMentionId)).toEqual(mentions.map(m=>m.id));
+
+},20000);
+
+it('independently challenges a false cross-event construction before canonical mutation and reuses the settled review',async()=>{
+ await seedIntelligence(store,1,'Replit changed its default coding model.');
+ await acceptEvidence(store,2,'Anthropic announced a public benefit fund.');
+ const usage={calls:1,costUsd:.001,reported:true};let calls=0;
+ const strong:any={model:'identity-challenge-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,phase:string,state:any)=>{
+  calls++;
+  if(phase==='SEMANTIC_CONSTRUCTION')return {value:{confidence:.98,groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.events[0].id,storylineId:null,epistemicEffects:['ADDS_DETAIL'],entities:[],slots:[]}],backgroundMentionIds:[]},usage};
+  expect(phase).toBe('SEMANTIC_EVENT_IDENTITY_REVIEW');expect(state.events[0].evidence[0].body).toContain('Replit');
+  return {value:{groups:{group_1:{structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:[],sourceWitness:null,targetWitness:null,reason:'Creating a fund is a distinct occurrence from a coding-model switch.'}}},usage};
+ }};
+ const job=JSON.stringify(['REASSESS','observation-2','']);const prepared=await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});
+ expect(prepared!.prepared.decision.structuralRelation).toBe('NEW_STORYLINE');expect(calls).toBe(2);
+ await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(calls).toBe(2);
+ await processEvidenceIntelligence(store,job,testPolicy.now(),prepared!.matchers);
+ expect(await store.list('feed-1','events')).toHaveLength(2);
+ const review=(await store.list<any>('feed-1','semantic_results')).find(r=>r.input.kind==='SEMANTIC_EVENT_IDENTITY_REVIEW');expect(review.value.reviews.groups.group_1.reason).toContain('distinct occurrence');
+},25000);
+
+it('fences an unknown identity review across retry numbers and days',async()=>{
+ await seedIntelligence(store,1,'Replit changed its default coding model.');await acceptEvidence(store,2,'Anthropic announced a public benefit fund.');
+ let calls=0;let current={calls:1,costUsd:.001,reported:true};
+ const strong:any={model:'unknown-review-fixture',admission:syntheticModelAdmission,usage:()=>current,complete:async(_f:string,phase:string,state:any)=>{calls++;if(phase==='SEMANTIC_CONSTRUCTION')return {value:{confidence:.99,groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.events[0].id,storylineId:null,epistemicEffects:[],entities:[],slots:[]}],backgroundMentionIds:[]},usage:current};current={calls:1,costUsd:.02,reported:false};throw Error('SEMANTIC_PROVIDER_FAILURE')}};
+ const job=JSON.stringify(['REASSESS','observation-2','']);await prepareSemanticMatch(store,{} as Env,job,testPolicy.now(),{strong});expect(calls).toBe(2);
+ await prepareSemanticMatch(store,{} as Env,job,'2026-10-04T12:00:00Z',{strong,attempt:1});expect(calls).toBe(2);
+},25000);

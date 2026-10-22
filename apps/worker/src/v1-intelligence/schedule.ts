@@ -58,6 +58,20 @@ export function nextLiveBriefingAt(raw:LiveSchedule, now:Date):string {
  return new Date(Math.min(end,anchor.epochMilliseconds)).toISOString();
 }
 
+/** First close whose entire interval follows feed creation. Equality at an
+ * opening boundary is eligible; creation inside an interval skips that one. */
+export function firstFullLiveBriefingAt(schedule:LiveSchedule,created:Date):string {
+ const next=nextLiveBriefingAt(schedule,created);
+ const window=livePublicationWindow(schedule,new Date(next));
+ return Date.parse(window.start)>=created.getTime()?next:nextLiveBriefingAt(schedule,new Date(next));
+}
+
+/** Warm mechanical planning only; final selection and writing await close. */
+export function preparingLiveWindow(schedule:LiveSchedule,now:Date):PublicationWindow|undefined {
+ const end=nextLiveBriefingAt(schedule,now),lead=Math.min(5,schedule.durationMinutes/6)*60000;
+ return Date.parse(end)-now.getTime()<=lead?livePublicationWindow(schedule,new Date(end)):undefined;
+}
+
 export const publicationWindowSchema=z.object({
  start:z.string().datetime(),end:z.string().datetime(),kind:z.enum(['30M','HOURLY','DAILY','WEEKLY']),
  durationMinutes:liveScheduleSchema.shape.durationMinutes.optional(),

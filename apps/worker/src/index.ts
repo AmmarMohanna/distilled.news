@@ -4,19 +4,23 @@ import {recordV1QueueOutcome} from './v1-queue-dispatch';
 import {continueFeedReview} from './connector-review-continuation';
 import {productRuntimeEnv} from './product-feeds';
 import { sendBriefingNotifications } from './push';
-import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
+import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,deferConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
 import {expireSharedPublicFetches} from './connector-public-cache';
 import {dispatchTelegramLane} from './connector-telegram-lane';
 import {withIntelligenceTurn,isIntelligenceTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
+import {SemanticLeaseError} from './v1-intelligence/semantic-work-lease';
+import {SemanticContentionError} from './v1-intelligence/semantic-operations';
+import {renewConnectorWork} from './connector-work-admission';
 import { createApp } from "./app";
 import { dispatchDueFeedSketches, processFeedSketchJob } from "./feed-sketch-jobs";
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
-import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch} from './v1-intelligence/runtime';
+import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch,windowIdentity} from './v1-intelligence/runtime';
 import {HandoffError} from '@distilled/contracts';
 import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
 import { publishDueBriefingEditions } from "./editions";
+import { v3RuntimeFromEnv } from "./briefing-v3";
 import { processQueueMessage,ProcessingLeaseBusy } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
@@ -62,9 +66,13 @@ export default {
       }
       const startedAt = Date.now();
       const bodyType = queueBodyType(body);
-      const bodyId = queueBodyId(body);
+      let bodyId = queueBodyId(body);
+      let latencyOutcome='SUCCEEDED';
       let completedProcessing=false;
+      let renewingWork:Promise<void>|undefined;
+      const workHeartbeat=delivery.token?setInterval(()=>{if(!renewingWork)renewingWork=renewConnectorWork(env,delivery.token!).catch(()=>{}).finally(()=>{renewingWork=undefined});},40000):undefined;
       try {
+        if(isRecord(body)&&body.type==='v1_briefing'&&typeof body.feedId==='string'&&isRecord(body.window)&&typeof body.window.start==='string'&&typeof body.window.end==='string'&&Number.isFinite(Date.parse(body.window.start))&&Number.isFinite(Date.parse(body.window.end)))bodyId=await windowIdentity(body.feedId,body.window as unknown as import('./v1-intelligence/scoring').PublicationWindow);
         const downstreamEnv=await connectorDownstreamEnv(env,body as DistilledQueueMessage);
         if(isRecord(body)&&body.type==='generate_feed_sketch'&&typeof body.feedId==='string') await processFeedSketchJob(env,body.feedId);
         else if(isRecord(body)&&body.type==='v1_manual_briefing'&&typeof body.feedId==='string'&&typeof body.requestId==='string') await retireManualBriefing(env,body.feedId,body.requestId);
@@ -72,7 +80,7 @@ export default {
           if(body.type==='v1_acquisition' && typeof body.jobId==='string') await processV1Acquisition(downstreamEnv,body.jobId);
           else if(body.type==='v1_rematch' && typeof body.feedId==='string' && typeof body.requestId==='string') await processV1Rematch(downstreamEnv,body.feedId,body.requestId);
           else if(body.type==='v1_reassess' && typeof body.jobId==='string') await processV1Reassessment(downstreamEnv,body.jobId);
-          else if(body.type==='v1_briefing') await processV1Briefing(downstreamEnv,body as import('./v1-intelligence/runtime').V1BriefingMessage);
+          else if(body.type==='v1_briefing') await processV1Briefing(downstreamEnv,body as import('./v1-intelligence/runtime').V1BriefingMessage,undefined,undefined,undefined,{scheduledDelivery:true});
           else throw new HandoffError('INVALID_REQUEST');
         });
         else if (isWebOperatorRunMessage(body)) await processWebOperatorRunMessage(env,body);
@@ -104,10 +112,12 @@ export default {
         }
         message.ack();
       } catch (error) {
-        if(error instanceof IntelligenceTurnBusy){
-          // Admission contention spends no canonical attempt and must not flood
-          // the DLQ. The durable job and expired dispatch remain Cron recovery.
-          if(message.attempts<MAX_QUEUE_ATTEMPTS)message.retry({delaySeconds:30});
+        latencyOutcome=error instanceof IntelligenceTurnBusy?'FEED_TURN_BUSY':error instanceof HandoffError?error.code:'FAILED';
+        if(error instanceof IntelligenceTurnBusy||env.V1_REVIEW_PREPARATION_ISOLATED==='true'&&(error instanceof SemanticLeaseError||error instanceof SemanticContentionError)){
+          // Capacity waits retain canonical identity and rotate only their
+          // transport generation. Cron is crash recovery, not the normal wakeup.
+          if(await deferConnectorDownstream(env,body as DistilledQueueMessage,delivery.token))message.ack();
+          else if(message.attempts<MAX_QUEUE_ATTEMPTS)message.retry({delaySeconds:1});
           else {if(isRecord(body))await recordV1QueueOutcome(env,message.id,body,message.attempts,'FEED_TURN_BUSY');message.ack();}
           continue;
         }
@@ -142,6 +152,9 @@ export default {
         } else {
           message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
         }
+      }finally{
+        if(isRecord(body)&&typeof body.type==='string'&&body.type.startsWith('v1_'))console.info(JSON.stringify({type:'V1_QUEUE_LATENCY',messageId:message.id,workType:bodyType,workId:bodyId,attempts:message.attempts,queueWaitMs:message.timestamp?Math.max(0,startedAt-message.timestamp.getTime()):undefined,durationMs:Date.now()-startedAt,outcome:latencyOutcome}));
+        if(workHeartbeat!==undefined)clearInterval(workHeartbeat);if(renewingWork)await renewingWork;
       }
     }
   }
@@ -274,6 +287,10 @@ function queueBodyType(body: unknown): string {
 }
 
 function queueBodyId(body: unknown): string | undefined {
+  if(isRecord(body)&&typeof body.type==='string'&&body.type.startsWith('v1_')){
+    if(typeof body.jobId==='string')return body.jobId;
+    if(typeof body.requestId==='string')return body.requestId;
+  }
   if (isProcessingJobMessage(body)) return body.jobId;
   if (isSourceRefreshJobMessage(body)) return body.sourceId;
   if (isWebOperatorRunMessage(body)) return body.runId;
@@ -350,7 +367,8 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
       repo,
       briefings: await repo.listBriefings(),
       now,
-      summaryAdapter: createSummaryAdapterFromEnv(env, repo)
+      summaryAdapter: createSummaryAdapterFromEnv(env, repo),
+      v3: v3RuntimeFromEnv(env)
     });
   } catch (error) {
     console.error("Could not publish briefing editions", error);

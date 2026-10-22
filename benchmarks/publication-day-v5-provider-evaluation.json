@@ -1,0 +1,1913 @@
+{
+  "scope": "Actual separately approved V5 one-batch control evaluation. AI-assisted labels, not independent gold or an edition.",
+  "manifest": {
+    "scope": "One mixed twelve-control semantic evaluation, NOT an edition or full briefing cost. Existing AI labels; no new independent holdout.",
+    "promptVersion": "approved-propositions-reader-anchor-v5",
+    "contract": "EVIDENCE_GROUNDED_V2",
+    "provider": "OPENROUTER",
+    "model": "openai/gpt-4.1-mini",
+    "maxCalls": 1,
+    "maxRetries": 0,
+    "maxRepairs": 0,
+    "admission": {
+      "fits": true,
+      "schemaAdmission": {
+        "fits": true,
+        "violations": [],
+        "enumValues": 69,
+        "schemaStringCharacters": 853,
+        "objectProperties": 26,
+        "nestingDepth": 5
+      },
+      "requestBytes": 14483,
+      "inputTokenUpperBound": 14483,
+      "maxOutputTokens": 32768,
+      "reservationCostUsd": 0.058221999999999996,
+      "capability": {
+        "contextTokens": 1047576,
+        "maxOutputTokens": 32768,
+        "inputUsdPerToken": 4e-07,
+        "outputUsdPerToken": 1.6e-06,
+        "source": "openrouter-catalog-2026-10-12"
+      }
+    },
+    "claims": [
+      {
+        "id": "T01:claim:1",
+        "candidateId": "T01:story",
+        "text": "According to an October 8, 2026 report, the product launched.",
+        "support": [
+          {
+            "evidenceRevisionId": "T01:source:1",
+            "quote": "The product launched."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T01:source:1",
+            "text": "The product launched.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T01:fact:0",
+            "text": "The product launched.",
+            "evidenceRevisionIds": [
+              "T01:source:1"
+            ],
+            "timing": {
+              "sourcePublishedAt": "2026-10-08T12:00:00Z",
+              "framingRequired": false
+            }
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T01:fact:0",
+            "text": "The product launched.",
+            "evidenceRevisionIds": [
+              "T01:source:1"
+            ],
+            "timing": {
+              "sourcePublishedAt": "2026-10-08T12:00:00Z",
+              "framingRequired": false
+            }
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T01:fact:0",
+            "text": "The product launched.",
+            "evidenceRevisionIds": [
+              "T01:source:1"
+            ],
+            "timing": {
+              "sourcePublishedAt": "2026-10-08T12:00:00Z",
+              "framingRequired": false
+            }
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T02:claim:1",
+        "candidateId": "T02:story",
+        "text": "The service gained approximately a thousand users over two days.",
+        "support": [
+          {
+            "evidenceRevisionId": "T02:source:1",
+            "quote": "The service gained approximately a thousand users over the course of two days."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T02:source:1",
+            "text": "The service gained approximately a thousand users over the course of two days.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T02:fact:0",
+            "text": "The service gained approximately a thousand users over the course of two days.",
+            "evidenceRevisionIds": [
+              "T02:source:1"
+            ]
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T02:fact:0",
+            "text": "The service gained approximately a thousand users over the course of two days.",
+            "evidenceRevisionIds": [
+              "T02:source:1"
+            ]
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T02:fact:0",
+            "text": "The service gained approximately a thousand users over the course of two days.",
+            "evidenceRevisionIds": [
+              "T02:source:1"
+            ]
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T05:claim:1",
+        "candidateId": "T05:story",
+        "text": "The cost is 12000000 dollars.",
+        "support": [
+          {
+            "evidenceRevisionId": "T05:source:1",
+            "quote": "The cost is 12 million dollars."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T05:source:1",
+            "text": "The cost is 12 million dollars.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T05:fact:0",
+            "text": "The cost is 12 million dollars.",
+            "evidenceRevisionIds": [
+              "T05:source:1"
+            ]
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T05:fact:0",
+            "text": "The cost is 12 million dollars.",
+            "evidenceRevisionIds": [
+              "T05:source:1"
+            ]
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T05:fact:0",
+            "text": "The cost is 12 million dollars.",
+            "evidenceRevisionIds": [
+              "T05:source:1"
+            ]
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T10:claim:1",
+        "candidateId": "T10:story",
+        "text": "The vote is on 2026-10-08.",
+        "support": [
+          {
+            "evidenceRevisionId": "T10:source:1",
+            "quote": "The vote is on October 8, 2026."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T10:source:1",
+            "text": "The vote is on October 8, 2026.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T10:fact:0",
+            "text": "The vote is on October 8, 2026.",
+            "evidenceRevisionIds": [
+              "T10:source:1"
+            ]
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T10:fact:0",
+            "text": "The vote is on October 8, 2026.",
+            "evidenceRevisionIds": [
+              "T10:source:1"
+            ]
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T10:fact:0",
+            "text": "The vote is on October 8, 2026.",
+            "evidenceRevisionIds": [
+              "T10:source:1"
+            ]
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T18:claim:1",
+        "candidateId": "T18:story",
+        "text": "Revenue rose 20 percent.",
+        "support": [
+          {
+            "evidenceRevisionId": "T18:source:1",
+            "quote": "Revenue rose 20%."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T18:source:1",
+            "text": "Revenue rose 20%.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T18:fact:0",
+            "text": "Revenue rose 20%.",
+            "evidenceRevisionIds": [
+              "T18:source:1"
+            ]
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T18:fact:0",
+            "text": "Revenue rose 20%.",
+            "evidenceRevisionIds": [
+              "T18:source:1"
+            ]
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T18:fact:0",
+            "text": "Revenue rose 20%.",
+            "evidenceRevisionIds": [
+              "T18:source:1"
+            ]
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T21:claim:1",
+        "candidateId": "T21:story",
+        "text": "Alice said \"the plan is ready.\"",
+        "support": [
+          {
+            "evidenceRevisionId": "T21:source:1",
+            "quote": "Alice said \"the plan is ready\"."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T21:source:1",
+            "text": "Alice said \"the plan is ready\".",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T21:fact:0",
+            "text": "Alice said \"the plan is ready\".",
+            "evidenceRevisionIds": [
+              "T21:source:1"
+            ]
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T21:fact:0",
+            "text": "Alice said \"the plan is ready\".",
+            "evidenceRevisionIds": [
+              "T21:source:1"
+            ]
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T21:fact:0",
+            "text": "Alice said \"the plan is ready\".",
+            "evidenceRevisionIds": [
+              "T21:source:1"
+            ]
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T03:claim:1",
+        "candidateId": "T03:story",
+        "text": "Bob welcomed the policy. Alice raised enforcement concerns.",
+        "support": [
+          {
+            "evidenceRevisionId": "T03:source:1",
+            "quote": "Alice welcomed the policy."
+          },
+          {
+            "evidenceRevisionId": "T03:source:1",
+            "quote": "Bob raised enforcement concerns."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T03:source:1",
+            "text": "Alice welcomed the policy.\nBob raised enforcement concerns.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T03:fact:0",
+            "text": "Alice welcomed the policy.",
+            "evidenceRevisionIds": [
+              "T03:source:1"
+            ]
+          },
+          {
+            "id": "T03:fact:1",
+            "text": "Bob raised enforcement concerns.",
+            "evidenceRevisionIds": [
+              "T03:source:1"
+            ]
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T03:fact:0",
+            "text": "Alice welcomed the policy.",
+            "evidenceRevisionIds": [
+              "T03:source:1"
+            ]
+          },
+          {
+            "id": "T03:fact:1",
+            "text": "Bob raised enforcement concerns.",
+            "evidenceRevisionIds": [
+              "T03:source:1"
+            ]
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T03:fact:0",
+            "text": "Alice welcomed the policy.",
+            "evidenceRevisionIds": [
+              "T03:source:1"
+            ]
+          },
+          {
+            "id": "T03:fact:1",
+            "text": "Bob raised enforcement concerns.",
+            "evidenceRevisionIds": [
+              "T03:source:1"
+            ]
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T04:claim:1",
+        "candidateId": "T04:story",
+        "text": "The court confirmed the decision.",
+        "support": [
+          {
+            "evidenceRevisionId": "T04:source:1",
+            "quote": "The court did not confirm the decision."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T04:source:1",
+            "text": "The court did not confirm the decision.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T04:fact:0",
+            "text": "The court did not confirm the decision.",
+            "evidenceRevisionIds": [
+              "T04:source:1"
+            ]
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T04:fact:0",
+            "text": "The court did not confirm the decision.",
+            "evidenceRevisionIds": [
+              "T04:source:1"
+            ]
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T04:fact:0",
+            "text": "The court did not confirm the decision.",
+            "evidenceRevisionIds": [
+              "T04:source:1"
+            ]
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T06:claim:1",
+        "candidateId": "T06:story",
+        "text": "The investigation caused the resignation.",
+        "support": [
+          {
+            "evidenceRevisionId": "T06:source:1",
+            "quote": "The resignation followed the investigation."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T06:source:1",
+            "text": "The resignation followed the investigation.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T06:fact:0",
+            "text": "The resignation followed the investigation.",
+            "evidenceRevisionIds": [
+              "T06:source:1"
+            ]
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T06:fact:0",
+            "text": "The resignation followed the investigation.",
+            "evidenceRevisionIds": [
+              "T06:source:1"
+            ]
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T06:fact:0",
+            "text": "The resignation followed the investigation.",
+            "evidenceRevisionIds": [
+              "T06:source:1"
+            ]
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T08:claim:1",
+        "candidateId": "T08:story",
+        "text": "The road reopened.",
+        "support": [
+          {
+            "evidenceRevisionId": "T08:source:1",
+            "quote": "The road reopened."
+          },
+          {
+            "evidenceRevisionId": "T08:source:1",
+            "quote": "The bridge remains closed."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T08:source:1",
+            "text": "The road reopened.\nThe bridge remains closed.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T08:fact:0",
+            "text": "The road reopened.",
+            "evidenceRevisionIds": [
+              "T08:source:1"
+            ]
+          },
+          {
+            "id": "T08:fact:1",
+            "text": "The bridge remains closed.",
+            "evidenceRevisionIds": [
+              "T08:source:1"
+            ]
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T08:fact:0",
+            "text": "The road reopened.",
+            "evidenceRevisionIds": [
+              "T08:source:1"
+            ]
+          },
+          {
+            "id": "T08:fact:1",
+            "text": "The bridge remains closed.",
+            "evidenceRevisionIds": [
+              "T08:source:1"
+            ]
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T08:fact:0",
+            "text": "The road reopened.",
+            "evidenceRevisionIds": [
+              "T08:source:1"
+            ]
+          },
+          {
+            "id": "T08:fact:1",
+            "text": "The bridge remains closed.",
+            "evidenceRevisionIds": [
+              "T08:source:1"
+            ]
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T16:claim:1",
+        "candidateId": "T16:story",
+        "text": "The product launched on October 8, 2026.",
+        "support": [
+          {
+            "evidenceRevisionId": "T16:source:1",
+            "quote": "The product launched."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T16:source:1",
+            "text": "The product launched.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T16:fact:0",
+            "text": "The product launched.",
+            "evidenceRevisionIds": [
+              "T16:source:1"
+            ],
+            "timing": {
+              "sourcePublishedAt": "2026-10-08T12:00:00Z",
+              "framingRequired": false
+            }
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T16:fact:0",
+            "text": "The product launched.",
+            "evidenceRevisionIds": [
+              "T16:source:1"
+            ],
+            "timing": {
+              "sourcePublishedAt": "2026-10-08T12:00:00Z",
+              "framingRequired": false
+            }
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T16:fact:0",
+            "text": "The product launched.",
+            "evidenceRevisionIds": [
+              "T16:source:1"
+            ],
+            "timing": {
+              "sourcePublishedAt": "2026-10-08T12:00:00Z",
+              "framingRequired": false
+            }
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      },
+      {
+        "id": "T24:claim:1",
+        "candidateId": "T24:story",
+        "text": "Officials reported 40 injuries.",
+        "support": [
+          {
+            "evidenceRevisionId": "T24:source:1",
+            "quote": "Officials reported 12 injuries."
+          }
+        ],
+        "context": [
+          {
+            "evidenceRevisionId": "T24:source:1",
+            "text": "Officials reported 12 injuries.",
+            "truncated": false
+          }
+        ],
+        "allowedFacts": [
+          {
+            "id": "T24:fact:0",
+            "text": "Officials reported 12 injuries.",
+            "evidenceRevisionIds": [
+              "T24:source:1"
+            ]
+          }
+        ],
+        "requiredFacts": [
+          {
+            "id": "T24:fact:0",
+            "text": "Officials reported 12 injuries.",
+            "evidenceRevisionIds": [
+              "T24:source:1"
+            ]
+          }
+        ],
+        "newUnderstandingFacts": [
+          {
+            "id": "T24:fact:0",
+            "text": "Officials reported 12 injuries.",
+            "evidenceRevisionIds": [
+              "T24:source:1"
+            ]
+          }
+        ],
+        "previousLedgerFacts": [],
+        "previousReaderClaims": [],
+        "correctionObligations": []
+      }
+    ],
+    "questionHash": "1dc3286170bb09bcab5309bdc92e3a5001dcf4d9eb11f96778f43c251cc790e4",
+    "wireHash": "7a9ad405eb50c4e778bd4aecf61460f1e4c4794b0a9ba5b7705d2a128a852dcf",
+    "requestHash": "1a590e3c1dfe4ec061935a345bc9bba2cf912672cdd89c834084c48bd5a0aabd",
+    "expected": [
+      {
+        "id": "T01",
+        "label": "POSITIVE"
+      },
+      {
+        "id": "T02",
+        "label": "POSITIVE"
+      },
+      {
+        "id": "T05",
+        "label": "POSITIVE"
+      },
+      {
+        "id": "T10",
+        "label": "POSITIVE"
+      },
+      {
+        "id": "T18",
+        "label": "POSITIVE"
+      },
+      {
+        "id": "T21",
+        "label": "POSITIVE"
+      },
+      {
+        "id": "T03",
+        "label": "NEGATIVE"
+      },
+      {
+        "id": "T04",
+        "label": "NEGATIVE"
+      },
+      {
+        "id": "T06",
+        "label": "NEGATIVE"
+      },
+      {
+        "id": "T08",
+        "label": "NEGATIVE"
+      },
+      {
+        "id": "T16",
+        "label": "NEGATIVE"
+      },
+      {
+        "id": "T24",
+        "label": "NEGATIVE"
+      }
+    ],
+    "rawResponseRetentionRequired": true
+  },
+  "result": {
+    "requestHash": "1a590e3c1dfe4ec061935a345bc9bba2cf912672cdd89c834084c48bd5a0aabd",
+    "promptVersion": "approved-propositions-reader-anchor-v5",
+    "result": {
+      "claimEntailment": [
+        {
+          "claimId": "T01:claim:1",
+          "fullyEntailed": true,
+          "reason": "Claim matches evidence and fact completely and correctly.",
+          "unsupportedMeaning": []
+        },
+        {
+          "claimId": "T02:claim:1",
+          "fullyEntailed": true,
+          "reason": "Claim matches evidence and fact completely and correctly.",
+          "unsupportedMeaning": []
+        },
+        {
+          "claimId": "T05:claim:1",
+          "fullyEntailed": true,
+          "reason": "Claim matches evidence and fact completely and correctly with numeric equivalence.",
+          "unsupportedMeaning": []
+        },
+        {
+          "claimId": "T10:claim:1",
+          "fullyEntailed": true,
+          "reason": "Claim matches evidence and fact completely and correctly with date format difference only.",
+          "unsupportedMeaning": []
+        },
+        {
+          "claimId": "T18:claim:1",
+          "fullyEntailed": true,
+          "reason": "Claim matches evidence and fact completely and correctly.",
+          "unsupportedMeaning": []
+        },
+        {
+          "claimId": "T21:claim:1",
+          "fullyEntailed": true,
+          "reason": "Claim matches evidence and fact completely and correctly.",
+          "unsupportedMeaning": []
+        },
+        {
+          "claimId": "T03:claim:1",
+          "fullyEntailed": false,
+          "reason": "Claim reverses subject attribution compared to evidence, misrepresenting who welcomed and who raised concerns.",
+          "unsupportedMeaning": [
+            "Misattribution of who welcomed the policy and who raised enforcement concerns."
+          ]
+        },
+        {
+          "claimId": "T04:claim:1",
+          "fullyEntailed": false,
+          "reason": "Claim contradicts negation in evidence; court did not confirm decision but claim says it did.",
+          "unsupportedMeaning": [
+            "Incorrect assertion that court confirmed the decision."
+          ]
+        },
+        {
+          "claimId": "T06:claim:1",
+          "fullyEntailed": false,
+          "reason": "Claim asserts causation unsupported by evidence which only shows sequence.",
+          "unsupportedMeaning": [
+            "Unsupported causation between investigation and resignation."
+          ]
+        },
+        {
+          "claimId": "T08:claim:1",
+          "fullyEntailed": true,
+          "reason": "Claim matches evidence and facts completely and correctly for both reopening and bridge closure.",
+          "unsupportedMeaning": []
+        },
+        {
+          "claimId": "T16:claim:1",
+          "fullyEntailed": false,
+          "reason": "Claim adds launch date not supported by evidence which only confirms launch without date.",
+          "unsupportedMeaning": [
+            "Unsupported addition of launch date October 8, 2026."
+          ]
+        },
+        {
+          "claimId": "T24:claim:1",
+          "fullyEntailed": false,
+          "reason": "Claim quantity of injuries contradicts evidence quantity.",
+          "unsupportedMeaning": [
+            "Incorrect number of injuries reported."
+          ]
+        }
+      ],
+      "supportedClaimIds": [
+        "T01:claim:1",
+        "T02:claim:1",
+        "T05:claim:1",
+        "T10:claim:1",
+        "T18:claim:1",
+        "T21:claim:1",
+        "T08:claim:1"
+      ],
+      "preservedFactIds": [
+        "T01:fact:0",
+        "T02:fact:0",
+        "T05:fact:0",
+        "T10:fact:0",
+        "T18:fact:0",
+        "T21:fact:0",
+        "T08:fact:0",
+        "T08:fact:1"
+      ],
+      "semanticChecks": [
+        {
+          "sourceSupported": true,
+          "readerEntailsProposition": true,
+          "readerNovelty": {
+            "status": "NEW",
+            "reason": "No prior equivalent fact in previousLedgerFacts.",
+            "previousFactTexts": []
+          },
+          "factId": "T01:fact:0",
+          "communicated": true,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim states 'According to an October 8, 2026 report, the product launched.' The fact 'The product launched.' is supported by evidence dated 2026-10-08, matching the claim's date reference. The claim communicates the fact completely and correctly with correct attribution and timing.",
+          "readerSpans": [
+            {
+              "claimId": "T01:claim:1",
+              "text": "the product launched.",
+              "start": 40,
+              "end": 61
+            }
+          ],
+          "preservedInSummary": true,
+          "candidateId": "T01:story"
+        },
+        {
+          "sourceSupported": true,
+          "readerEntailsProposition": true,
+          "readerNovelty": {
+            "status": "NEW",
+            "reason": "No prior equivalent fact.",
+            "previousFactTexts": []
+          },
+          "factId": "T02:fact:0",
+          "communicated": true,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim 'The service gained approximately a thousand users over two days.' matches the fact and evidence 'The service gained approximately a thousand users over the course of two days.' The approximation and time span are preserved.",
+          "readerSpans": [
+            {
+              "claimId": "T02:claim:1",
+              "text": "The service gained approximately a thousand users over two days.",
+              "start": 0,
+              "end": 64
+            }
+          ],
+          "preservedInSummary": true,
+          "candidateId": "T02:story"
+        },
+        {
+          "sourceSupported": true,
+          "readerEntailsProposition": true,
+          "readerNovelty": {
+            "status": "NEW",
+            "reason": "No prior equivalent fact.",
+            "previousFactTexts": []
+          },
+          "factId": "T05:fact:0",
+          "communicated": true,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim 'The cost is 12000000 dollars.' is a numeric equivalent of the fact 'The cost is 12 million dollars.' The numeric value and currency are preserved.",
+          "readerSpans": [
+            {
+              "claimId": "T05:claim:1",
+              "text": "The cost is 12000000 dollars.",
+              "start": 0,
+              "end": 29
+            }
+          ],
+          "preservedInSummary": true,
+          "candidateId": "T05:story"
+        },
+        {
+          "sourceSupported": true,
+          "readerEntailsProposition": true,
+          "readerNovelty": {
+            "status": "NEW",
+            "reason": "No prior equivalent fact.",
+            "previousFactTexts": []
+          },
+          "factId": "T10:fact:0",
+          "communicated": true,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim 'The vote is on 2026-10-08.' matches the fact 'The vote is on October 8, 2026.' The date format differs but the date is the same.",
+          "readerSpans": [
+            {
+              "claimId": "T10:claim:1",
+              "text": "The vote is on 2026-10-08.",
+              "start": 0,
+              "end": 26
+            }
+          ],
+          "preservedInSummary": true,
+          "candidateId": "T10:story"
+        },
+        {
+          "sourceSupported": true,
+          "readerEntailsProposition": true,
+          "readerNovelty": {
+            "status": "NEW",
+            "reason": "No prior equivalent fact.",
+            "previousFactTexts": []
+          },
+          "factId": "T18:fact:0",
+          "communicated": true,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim 'Revenue rose 20 percent.' matches the fact 'Revenue rose 20%.' The percentage and direction of change are preserved.",
+          "readerSpans": [
+            {
+              "claimId": "T18:claim:1",
+              "text": "Revenue rose 20 percent.",
+              "start": 0,
+              "end": 24
+            }
+          ],
+          "preservedInSummary": true,
+          "candidateId": "T18:story"
+        },
+        {
+          "sourceSupported": true,
+          "readerEntailsProposition": true,
+          "readerNovelty": {
+            "status": "NEW",
+            "reason": "No prior equivalent fact.",
+            "previousFactTexts": []
+          },
+          "factId": "T21:fact:0",
+          "communicated": true,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim 'Alice said \"the plan is ready.\"' matches the fact 'Alice said \"the plan is ready\".' The direct quote and speaker attribution are preserved.",
+          "readerSpans": [
+            {
+              "claimId": "T21:claim:1",
+              "text": "Alice said \"the plan is ready.\"",
+              "start": 0,
+              "end": 31
+            }
+          ],
+          "preservedInSummary": true,
+          "candidateId": "T21:story"
+        },
+        {
+          "sourceSupported": false,
+          "readerEntailsProposition": false,
+          "readerNovelty": {
+            "status": "NOT_COMMUNICATED",
+            "reason": "Claim reverses subject attribution compared to evidence.",
+            "previousFactTexts": [
+              "Alice welcomed the policy.",
+              "Bob raised enforcement concerns."
+            ]
+          },
+          "factId": "T03:fact:0",
+          "communicated": false,
+          "attribution": false,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim states 'Bob welcomed the policy. Alice raised enforcement concerns.' but the evidence shows 'Alice welcomed the policy.' and 'Bob raised enforcement concerns.' The subjects are swapped, so the claim misattributes who welcomed and who raised concerns.",
+          "readerSpans": [
+            {
+              "claimId": "T03:claim:1",
+              "text": "Bob welcomed the policy. Alice raised enforcement concerns.",
+              "start": 0,
+              "end": 59
+            }
+          ],
+          "preservedInSummary": false,
+          "candidateId": "T03:story"
+        },
+        {
+          "sourceSupported": false,
+          "readerEntailsProposition": false,
+          "readerNovelty": {
+            "status": "NOT_COMMUNICATED",
+            "reason": "Claim contradicts negation in evidence.",
+            "previousFactTexts": [
+              "The court did not confirm the decision."
+            ]
+          },
+          "factId": "T04:fact:0",
+          "communicated": false,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim 'The court confirmed the decision.' contradicts the fact 'The court did not confirm the decision.' The negation is reversed, so the claim is unsupported and not communicated correctly.",
+          "readerSpans": [
+            {
+              "claimId": "T04:claim:1",
+              "text": "The court confirmed the decision.",
+              "start": 0,
+              "end": 33
+            }
+          ],
+          "preservedInSummary": false,
+          "candidateId": "T04:story"
+        },
+        {
+          "sourceSupported": false,
+          "readerEntailsProposition": false,
+          "readerNovelty": {
+            "status": "NOT_COMMUNICATED",
+            "reason": "Claim adds causation not supported by evidence indicating only sequence.",
+            "previousFactTexts": [
+              "The resignation followed the investigation."
+            ]
+          },
+          "factId": "T06:fact:0",
+          "communicated": false,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim 'The investigation caused the resignation.' asserts causation. The fact states 'The resignation followed the investigation.' which indicates sequence but not causation. The claim adds unsupported causation.",
+          "readerSpans": [
+            {
+              "claimId": "T06:claim:1",
+              "text": "The investigation caused the resignation.",
+              "start": 0,
+              "end": 41
+            }
+          ],
+          "preservedInSummary": false,
+          "candidateId": "T06:story"
+        },
+        {
+          "sourceSupported": true,
+          "readerEntailsProposition": true,
+          "readerNovelty": {
+            "status": "NEW",
+            "reason": "No prior equivalent fact.",
+            "previousFactTexts": []
+          },
+          "factId": "T08:fact:0",
+          "communicated": true,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim 'The road reopened.' matches the fact 'The road reopened.' from evidence. The claim communicates this fact correctly.",
+          "readerSpans": [
+            {
+              "claimId": "T08:claim:1",
+              "text": "The road reopened.",
+              "start": 0,
+              "end": 18
+            }
+          ],
+          "preservedInSummary": true,
+          "candidateId": "T08:story"
+        },
+        {
+          "sourceSupported": true,
+          "readerEntailsProposition": true,
+          "readerNovelty": {
+            "status": "NEW",
+            "reason": "No prior equivalent fact.",
+            "previousFactTexts": []
+          },
+          "factId": "T08:fact:1",
+          "communicated": false,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.",
+          "readerSpans": [],
+          "preservedInSummary": true,
+          "candidateId": "T08:story"
+        },
+        {
+          "sourceSupported": false,
+          "readerEntailsProposition": false,
+          "readerNovelty": {
+            "status": "NOT_COMMUNICATED",
+            "reason": "Claim adds launch date not supported by evidence.",
+            "previousFactTexts": [
+              "The product launched."
+            ]
+          },
+          "factId": "T16:fact:0",
+          "communicated": false,
+          "attribution": true,
+          "certainty": true,
+          "temporal": false,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim 'The product launched on October 8, 2026.' adds a date to the fact 'The product launched.' The evidence does not specify the launch date, only the publication date. The claim adds unsupported timing detail.",
+          "readerSpans": [
+            {
+              "claimId": "T16:claim:1",
+              "text": "The product launched on October 8, 2026.",
+              "start": 0,
+              "end": 40
+            }
+          ],
+          "preservedInSummary": false,
+          "candidateId": "T16:story"
+        },
+        {
+          "sourceSupported": false,
+          "readerEntailsProposition": false,
+          "readerNovelty": {
+            "status": "NOT_COMMUNICATED",
+            "reason": "Claim quantity contradicts evidence.",
+            "previousFactTexts": [
+              "Officials reported 12 injuries."
+            ]
+          },
+          "factId": "T24:fact:0",
+          "communicated": false,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The claim 'Officials reported 40 injuries.' contradicts the fact 'Officials reported 12 injuries.' The quantity is unsupported and incorrect.",
+          "readerSpans": [
+            {
+              "claimId": "T24:claim:1",
+              "text": "Officials reported 40 injuries.",
+              "start": 0,
+              "end": 31
+            }
+          ],
+          "preservedInSummary": false,
+          "candidateId": "T24:story"
+        },
+        {
+          "sourceSupported": true,
+          "readerEntailsProposition": false,
+          "readerNovelty": {
+            "status": "NOT_COMMUNICATED",
+            "reason": "Claim misattributes this fact.",
+            "previousFactTexts": [
+              "Bob raised enforcement concerns."
+            ]
+          },
+          "factId": "T03:fact:1",
+          "communicated": false,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "MISSING_READER_WITNESS: no reader prose establishes coverage.",
+          "readerSpans": [],
+          "preservedInSummary": false,
+          "candidateId": "T03:story"
+        }
+      ],
+      "novelFactIds": [
+        "T01:fact:0",
+        "T02:fact:0",
+        "T05:fact:0",
+        "T10:fact:0",
+        "T18:fact:0",
+        "T21:fact:0",
+        "T08:fact:0"
+      ],
+      "addressedCorrectionObligationIds": [],
+      "usage": {
+        "tokensIn": 3111,
+        "tokensOut": 2597,
+        "cost": 0.0053996,
+        "confirmed": true
+      }
+    },
+    "wallMs": 16068.166700000002,
+    "headersMs": 1209.5222000000003,
+    "usage": {
+      "tokensIn": 3111,
+      "tokensOut": 2597,
+      "cost": 0.0053996,
+      "confirmed": true
+    },
+    "receipts": [
+      {
+        "provider": "OPENROUTER",
+        "model": "openai/gpt-4.1-mini",
+        "stage": "HEADERS",
+        "httpStatus": 200,
+        "generationId": "gen-1792405188-sFfvwKztweqmgHW5GcEP"
+      },
+      {
+        "provider": "OPENROUTER",
+        "model": "openai/gpt-4.1-mini",
+        "stage": "USAGE",
+        "httpStatus": 200,
+        "generationId": "gen-1792405188-sFfvwKztweqmgHW5GcEP",
+        "reportedCostUsd": 0.0053996,
+        "inputTokens": 3111,
+        "outputTokens": 2597,
+        "finishReason": "stop"
+      }
+    ],
+    "calls": 1,
+    "cases": [
+      {
+        "id": "T01",
+        "label": "POSITIVE",
+        "decision": {
+          "status": "ACCEPT",
+          "reasons": [],
+          "readerSpans": [
+            {
+              "propositionId": "T01:fact:0",
+              "candidateId": "T01:story",
+              "claimId": "T01:claim:1",
+              "text": "the product launched.",
+              "start": 40,
+              "end": 61
+            }
+          ]
+        }
+      },
+      {
+        "id": "T02",
+        "label": "POSITIVE",
+        "decision": {
+          "status": "ACCEPT",
+          "reasons": [],
+          "readerSpans": [
+            {
+              "propositionId": "T02:fact:0",
+              "candidateId": "T02:story",
+              "claimId": "T02:claim:1",
+              "text": "The service gained approximately a thousand users over two days.",
+              "start": 0,
+              "end": 64
+            }
+          ]
+        }
+      },
+      {
+        "id": "T05",
+        "label": "POSITIVE",
+        "decision": {
+          "status": "ACCEPT",
+          "reasons": [],
+          "readerSpans": [
+            {
+              "propositionId": "T05:fact:0",
+              "candidateId": "T05:story",
+              "claimId": "T05:claim:1",
+              "text": "The cost is 12000000 dollars.",
+              "start": 0,
+              "end": 29
+            }
+          ]
+        }
+      },
+      {
+        "id": "T10",
+        "label": "POSITIVE",
+        "decision": {
+          "status": "ACCEPT",
+          "reasons": [],
+          "readerSpans": [
+            {
+              "propositionId": "T10:fact:0",
+              "candidateId": "T10:story",
+              "claimId": "T10:claim:1",
+              "text": "The vote is on 2026-10-08.",
+              "start": 0,
+              "end": 26
+            }
+          ]
+        }
+      },
+      {
+        "id": "T18",
+        "label": "POSITIVE",
+        "decision": {
+          "status": "ACCEPT",
+          "reasons": [],
+          "readerSpans": [
+            {
+              "propositionId": "T18:fact:0",
+              "candidateId": "T18:story",
+              "claimId": "T18:claim:1",
+              "text": "Revenue rose 20 percent.",
+              "start": 0,
+              "end": 24
+            }
+          ]
+        }
+      },
+      {
+        "id": "T21",
+        "label": "POSITIVE",
+        "decision": {
+          "status": "ACCEPT",
+          "reasons": [],
+          "readerSpans": [
+            {
+              "propositionId": "T21:fact:0",
+              "candidateId": "T21:story",
+              "claimId": "T21:claim:1",
+              "text": "Alice said \"the plan is ready.\"",
+              "start": 0,
+              "end": 31
+            }
+          ]
+        }
+      },
+      {
+        "id": "T03",
+        "label": "NEGATIVE",
+        "decision": {
+          "status": "UNRESOLVED",
+          "reasons": [
+            "INVALID_READER_WITNESS",
+            "CLAIM_NOT_ENTAILED",
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": []
+        }
+      },
+      {
+        "id": "T04",
+        "label": "NEGATIVE",
+        "decision": {
+          "status": "REJECT",
+          "reasons": [
+            "CLAIM_NOT_ENTAILED",
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": []
+        }
+      },
+      {
+        "id": "T06",
+        "label": "NEGATIVE",
+        "decision": {
+          "status": "REJECT",
+          "reasons": [
+            "CLAIM_NOT_ENTAILED",
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": []
+        }
+      },
+      {
+        "id": "T08",
+        "label": "NEGATIVE",
+        "decision": {
+          "status": "UNRESOLVED",
+          "reasons": [
+            "FACT_VERDICT_CONFLICT",
+            "INVALID_READER_WITNESS",
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": [
+            {
+              "propositionId": "T08:fact:0",
+              "candidateId": "T08:story",
+              "claimId": "T08:claim:1",
+              "text": "The road reopened.",
+              "start": 0,
+              "end": 18
+            }
+          ]
+        }
+      },
+      {
+        "id": "T16",
+        "label": "NEGATIVE",
+        "decision": {
+          "status": "REJECT",
+          "reasons": [
+            "CLAIM_NOT_ENTAILED",
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": []
+        }
+      },
+      {
+        "id": "T24",
+        "label": "NEGATIVE",
+        "decision": {
+          "status": "REJECT",
+          "reasons": [
+            "CLAIM_NOT_ENTAILED",
+            "MISSING_MANDATORY_COVERAGE"
+          ],
+          "readerSpans": []
+        }
+      }
+    ],
+    "settled": true,
+    "scope": "MIXED_CONTROL_BATCH_NOT_A_PUBLISHED_EDITION",
+    "labels": "PRIOR_AI_ASSISTED_NOT_INDEPENDENT_HUMAN"
+  },
+  "rawVerdict": {
+    "semanticChecks": [
+      {
+        "factId": "fact_1",
+        "communicated": true,
+        "nonRepetitive": true,
+        "reason": "The claim states 'According to an October 8, 2026 report, the product launched.' The fact 'The product launched.' is supported by evidence dated 2026-10-08, matching the claim's date reference. The claim communicates the fact completely and correctly with correct attribution and timing.",
+        "readerSpans": [
+          {
+            "claimId": "claim_1",
+            "text": "The product launched."
+          }
+        ],
+        "sourceSupported": true,
+        "readerEntailsProposition": true,
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No prior equivalent fact in previousLedgerFacts.",
+          "previousFactTexts": []
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_2",
+        "communicated": true,
+        "nonRepetitive": true,
+        "reason": "The claim 'The service gained approximately a thousand users over two days.' matches the fact and evidence 'The service gained approximately a thousand users over the course of two days.' The approximation and time span are preserved.",
+        "readerSpans": [
+          {
+            "claimId": "claim_2",
+            "text": "The service gained approximately a thousand users over two days."
+          }
+        ],
+        "sourceSupported": true,
+        "readerEntailsProposition": true,
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No prior equivalent fact.",
+          "previousFactTexts": []
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_3",
+        "communicated": true,
+        "nonRepetitive": true,
+        "reason": "The claim 'The cost is 12000000 dollars.' is a numeric equivalent of the fact 'The cost is 12 million dollars.' The numeric value and currency are preserved.",
+        "readerSpans": [
+          {
+            "claimId": "claim_3",
+            "text": "The cost is 12000000 dollars."
+          }
+        ],
+        "sourceSupported": true,
+        "readerEntailsProposition": true,
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No prior equivalent fact.",
+          "previousFactTexts": []
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_4",
+        "communicated": true,
+        "nonRepetitive": true,
+        "reason": "The claim 'The vote is on 2026-10-08.' matches the fact 'The vote is on October 8, 2026.' The date format differs but the date is the same.",
+        "readerSpans": [
+          {
+            "claimId": "claim_4",
+            "text": "The vote is on 2026-10-08."
+          }
+        ],
+        "sourceSupported": true,
+        "readerEntailsProposition": true,
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No prior equivalent fact.",
+          "previousFactTexts": []
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_5",
+        "communicated": true,
+        "nonRepetitive": true,
+        "reason": "The claim 'Revenue rose 20 percent.' matches the fact 'Revenue rose 20%.' The percentage and direction of change are preserved.",
+        "readerSpans": [
+          {
+            "claimId": "claim_5",
+            "text": "Revenue rose 20 percent."
+          }
+        ],
+        "sourceSupported": true,
+        "readerEntailsProposition": true,
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No prior equivalent fact.",
+          "previousFactTexts": []
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_6",
+        "communicated": true,
+        "nonRepetitive": true,
+        "reason": "The claim 'Alice said \"the plan is ready.\"' matches the fact 'Alice said \"the plan is ready\".' The direct quote and speaker attribution are preserved.",
+        "readerSpans": [
+          {
+            "claimId": "claim_6",
+            "text": "Alice said \"the plan is ready.\""
+          }
+        ],
+        "sourceSupported": true,
+        "readerEntailsProposition": true,
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No prior equivalent fact.",
+          "previousFactTexts": []
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_7",
+        "communicated": false,
+        "nonRepetitive": true,
+        "reason": "The claim states 'Bob welcomed the policy. Alice raised enforcement concerns.' but the evidence shows 'Alice welcomed the policy.' and 'Bob raised enforcement concerns.' The subjects are swapped, so the claim misattributes who welcomed and who raised concerns.",
+        "readerSpans": [
+          {
+            "claimId": "claim_7",
+            "text": "Bob welcomed the policy. Alice raised enforcement concerns."
+          }
+        ],
+        "sourceSupported": false,
+        "readerEntailsProposition": false,
+        "readerNovelty": {
+          "status": "NOT_COMMUNICATED",
+          "reason": "Claim reverses subject attribution compared to evidence.",
+          "previousFactTexts": [
+            "Alice welcomed the policy.",
+            "Bob raised enforcement concerns."
+          ]
+        },
+        "attributionPreserved": false,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_9",
+        "communicated": false,
+        "nonRepetitive": true,
+        "reason": "The claim 'The court confirmed the decision.' contradicts the fact 'The court did not confirm the decision.' The negation is reversed, so the claim is unsupported and not communicated correctly.",
+        "readerSpans": [
+          {
+            "claimId": "claim_8",
+            "text": "The court confirmed the decision."
+          }
+        ],
+        "sourceSupported": false,
+        "readerEntailsProposition": false,
+        "readerNovelty": {
+          "status": "NOT_COMMUNICATED",
+          "reason": "Claim contradicts negation in evidence.",
+          "previousFactTexts": [
+            "The court did not confirm the decision."
+          ]
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_10",
+        "communicated": false,
+        "nonRepetitive": true,
+        "reason": "The claim 'The investigation caused the resignation.' asserts causation. The fact states 'The resignation followed the investigation.' which indicates sequence but not causation. The claim adds unsupported causation.",
+        "readerSpans": [
+          {
+            "claimId": "claim_9",
+            "text": "The investigation caused the resignation."
+          }
+        ],
+        "sourceSupported": false,
+        "readerEntailsProposition": false,
+        "readerNovelty": {
+          "status": "NOT_COMMUNICATED",
+          "reason": "Claim adds causation not supported by evidence indicating only sequence.",
+          "previousFactTexts": [
+            "The resignation followed the investigation."
+          ]
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_11",
+        "communicated": true,
+        "nonRepetitive": true,
+        "reason": "The claim 'The road reopened.' matches the fact 'The road reopened.' from evidence. The claim communicates this fact correctly.",
+        "readerSpans": [
+          {
+            "claimId": "claim_10",
+            "text": "The road reopened."
+          }
+        ],
+        "sourceSupported": true,
+        "readerEntailsProposition": true,
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No prior equivalent fact.",
+          "previousFactTexts": []
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_12",
+        "communicated": true,
+        "nonRepetitive": true,
+        "reason": "The claim includes 'The bridge remains closed.' which matches the fact and evidence exactly.",
+        "readerSpans": [
+          {
+            "claimId": "claim_10",
+            "text": "The bridge remains closed."
+          }
+        ],
+        "sourceSupported": true,
+        "readerEntailsProposition": true,
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No prior equivalent fact.",
+          "previousFactTexts": []
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_13",
+        "communicated": false,
+        "nonRepetitive": true,
+        "reason": "The claim 'The product launched on October 8, 2026.' adds a date to the fact 'The product launched.' The evidence does not specify the launch date, only the publication date. The claim adds unsupported timing detail.",
+        "readerSpans": [
+          {
+            "claimId": "claim_11",
+            "text": "The product launched on October 8, 2026."
+          }
+        ],
+        "sourceSupported": false,
+        "readerEntailsProposition": false,
+        "readerNovelty": {
+          "status": "NOT_COMMUNICATED",
+          "reason": "Claim adds launch date not supported by evidence.",
+          "previousFactTexts": [
+            "The product launched."
+          ]
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": false,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_14",
+        "communicated": false,
+        "nonRepetitive": true,
+        "reason": "The claim 'Officials reported 40 injuries.' contradicts the fact 'Officials reported 12 injuries.' The quantity is unsupported and incorrect.",
+        "readerSpans": [
+          {
+            "claimId": "claim_12",
+            "text": "Officials reported 40 injuries."
+          }
+        ],
+        "sourceSupported": false,
+        "readerEntailsProposition": false,
+        "readerNovelty": {
+          "status": "NOT_COMMUNICATED",
+          "reason": "Claim quantity contradicts evidence.",
+          "previousFactTexts": [
+            "Officials reported 12 injuries."
+          ]
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      },
+      {
+        "factId": "fact_8",
+        "communicated": true,
+        "nonRepetitive": true,
+        "reason": "The fact 'Bob raised enforcement concerns.' is supported by evidence and communicated correctly in the story context, but the claim misattributes it (see fact_7).",
+        "readerSpans": [],
+        "sourceSupported": true,
+        "readerEntailsProposition": false,
+        "readerNovelty": {
+          "status": "NOT_COMMUNICATED",
+          "reason": "Claim misattributes this fact.",
+          "previousFactTexts": [
+            "Bob raised enforcement concerns."
+          ]
+        },
+        "attributionPreserved": true,
+        "certaintyPreserved": true,
+        "temporalFaithful": true,
+        "qualifiersPreserved": true
+      }
+    ],
+    "supportedClaimIds": [
+      "claim_1",
+      "claim_2",
+      "claim_3",
+      "claim_4",
+      "claim_5",
+      "claim_6",
+      "claim_10"
+    ],
+    "preservedFactIds": [
+      "fact_1",
+      "fact_2",
+      "fact_3",
+      "fact_4",
+      "fact_5",
+      "fact_6",
+      "fact_11",
+      "fact_12"
+    ],
+    "addressedCorrectionObligationIds": [],
+    "claimEntailment": [
+      {
+        "claimId": "claim_1",
+        "fullyEntailed": true,
+        "reason": "Claim matches evidence and fact completely and correctly.",
+        "unsupportedMeaning": []
+      },
+      {
+        "claimId": "claim_2",
+        "fullyEntailed": true,
+        "reason": "Claim matches evidence and fact completely and correctly.",
+        "unsupportedMeaning": []
+      },
+      {
+        "claimId": "claim_3",
+        "fullyEntailed": true,
+        "reason": "Claim matches evidence and fact completely and correctly with numeric equivalence.",
+        "unsupportedMeaning": []
+      },
+      {
+        "claimId": "claim_4",
+        "fullyEntailed": true,
+        "reason": "Claim matches evidence and fact completely and correctly with date format difference only.",
+        "unsupportedMeaning": []
+      },
+      {
+        "claimId": "claim_5",
+        "fullyEntailed": true,
+        "reason": "Claim matches evidence and fact completely and correctly.",
+        "unsupportedMeaning": []
+      },
+      {
+        "claimId": "claim_6",
+        "fullyEntailed": true,
+        "reason": "Claim matches evidence and fact completely and correctly.",
+        "unsupportedMeaning": []
+      },
+      {
+        "claimId": "claim_7",
+        "fullyEntailed": false,
+        "reason": "Claim reverses subject attribution compared to evidence, misrepresenting who welcomed and who raised concerns.",
+        "unsupportedMeaning": [
+          "Misattribution of who welcomed the policy and who raised enforcement concerns."
+        ]
+      },
+      {
+        "claimId": "claim_8",
+        "fullyEntailed": false,
+        "reason": "Claim contradicts negation in evidence; court did not confirm decision but claim says it did.",
+        "unsupportedMeaning": [
+          "Incorrect assertion that court confirmed the decision."
+        ]
+      },
+      {
+        "claimId": "claim_9",
+        "fullyEntailed": false,
+        "reason": "Claim asserts causation unsupported by evidence which only shows sequence.",
+        "unsupportedMeaning": [
+          "Unsupported causation between investigation and resignation."
+        ]
+      },
+      {
+        "claimId": "claim_10",
+        "fullyEntailed": true,
+        "reason": "Claim matches evidence and facts completely and correctly for both reopening and bridge closure.",
+        "unsupportedMeaning": []
+      },
+      {
+        "claimId": "claim_11",
+        "fullyEntailed": false,
+        "reason": "Claim adds launch date not supported by evidence which only confirms launch without date.",
+        "unsupportedMeaning": [
+          "Unsupported addition of launch date October 8, 2026."
+        ]
+      },
+      {
+        "claimId": "claim_12",
+        "fullyEntailed": false,
+        "reason": "Claim quantity of injuries contradicts evidence quantity.",
+        "unsupportedMeaning": [
+          "Incorrect number of injuries reported."
+        ]
+      }
+    ]
+  },
+  "rawBodyHash": {
+    "requestHash": "1a590e3c1dfe4ec061935a345bc9bba2cf912672cdd89c834084c48bd5a0aabd",
+    "sha256": "24ba52347c1e182b44945db38f78b47df2a462bb481762e7939e64b3bb5028b8",
+    "bytes": 716509
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-20T17:50:06.243Z",
+  "oldGrantsUnchanged": true,
+  "oldHoldsUnchanged": true,
+  "originalHoldCount": 50,
+  "originalHeldUsd": 5.344152489299998,
+  "currentUnconfirmedCount": 50,
+  "workflowUnconfirmedCount": 0,
+  "workflowCalls": 15,
+  "workflowActualCostUsd": 0.727884,
+  "workflowConservativeReservationsUsd": 2.2068431000000004,
+  "lifetimeActualAndHeldUsd": 65.62071709529988,
+  "ceilingUsd": 73,
+  "ceilingUnchanged": true,
+  "maxWorkflowCalls": 24,
+  "maxWorkflowReservationsUsd": 2.5
+}

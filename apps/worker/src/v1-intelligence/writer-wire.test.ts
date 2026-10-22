@@ -1,6 +1,32 @@
 import {it,expect} from 'vitest';
 import {writerWire,verificationWire} from './writer-wire';
 import type {SynthesisWriterInput} from './publication';
+it('binds V2 reference witnesses to actual reader bytes while preserving independent semantic decisions',()=>{
+ const fact={id:'f',text:'The company is developing agents.',evidenceRevisionIds:['source']},text='The company is developing agents to design rare test cases.';
+ const claims=[{id:'reader',candidateId:'story',text,support:[],context:[],requiredFacts:[fact],allowedFacts:[fact]}];
+ const wire=verificationWire(claims,{validationContract:'EVIDENCE_GROUNDED_V2',readerClaimReferences:true});
+ const raw:any={supportedClaimIds:['claim_1'],preservedFactIds:['fact_1'],semanticChecks:[{factId:'fact_1',communicated:true,sourceSupported:true,readerEntailsProposition:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'The actual reader claim retains development state.',readerSpans:[{claimId:'claim_1'}]}]};
+ expect(wire.decode(raw).semanticChecks[0]).toMatchObject({communicated:true,readerSpans:[{claimId:'reader',text,start:0,end:text.length}]});
+ const negative=structuredClone(raw);negative.semanticChecks[0].readerEntailsProposition=false;expect(wire.decode(negative).semanticChecks[0].readerEntailsProposition).toBe(false);
+ const sourceCopy=structuredClone(raw);sourceCopy.semanticChecks[0].readerSpans[0].text=fact.text;expect(()=>wire.decode(sourceCopy)).toThrow('INCOMPATIBLE_READER_REFERENCE_CONTRACT');
+ const foreign=structuredClone(raw);foreign.semanticChecks[0].readerSpans[0].claimId='claim_999';expect(wire.decode(foreign).semanticChecks[0].communicated).toBe(false);
+ const absent=structuredClone(raw);absent.semanticChecks[0].readerSpans=[];expect(wire.decode(absent).semanticChecks[0].communicated).toBe(false);
+});
+it('v2 accepts exact same-story reader witnesses for optional facts actually communicated',()=>{
+ const fact={id:'optional',text:'The company was founded in 2010.',evidenceRevisionIds:['r']};
+ const claims=[{id:'c',candidateId:'s',text:fact.text,support:[],context:[],requiredFacts:[],allowedFacts:[fact]}];
+ const raw={supportedClaimIds:['claim_1'],preservedFactIds:[],semanticChecks:[{factId:'fact_1',communicated:true,sourceSupported:true,readerEntailsProposition:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Optional background is supported and written.',readerSpans:[{claimId:'claim_1',text:fact.text}]}]};
+ expect(verificationWire(claims,{validationContract:'EVIDENCE_GROUNDED_V2'}).decode(raw).semanticChecks[0]).toMatchObject({communicated:true,readerSpans:[{claimId:'c',text:fact.text}]});
+ const legacyRaw={...raw,semanticChecks:raw.semanticChecks.map(({sourceSupported,readerEntailsProposition,...c})=>({...c,readerSpans:c.readerSpans}))};
+ expect(verificationWire(claims).decode(legacyRaw).semanticChecks[0].communicated).toBe(false);
+});
+it.each(['NEW','ALREADY_COMMUNICATED'])('v2 retains %s novelty for optional offered propositions without promoting coverage',status=>{
+ const fact={id:'optional',text:'The company was founded in 2010.',evidenceRevisionIds:['r']};
+ const claims=[{id:'c',candidateId:'s',text:fact.text,support:[],context:[],requiredFacts:[],allowedFacts:[fact],newUnderstandingFacts:[fact],previousLedgerFacts:status==='ALREADY_COMMUNICATED'?[fact.text]:[]}];
+ const wire=verificationWire(claims,{validationContract:'EVIDENCE_GROUNDED_V2',requireReaderNovelty:true});
+ const result=wire.decode({supportedClaimIds:['claim_1'],preservedFactIds:[],semanticChecks:[{factId:'fact_1',communicated:true,sourceSupported:true,readerEntailsProposition:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Actual optional prose.',readerSpans:[{claimId:'claim_1'}],readerNovelty:{status,reason:'Compared with same-story history.',previousFactTexts:status==='ALREADY_COMMUNICATED'?[fact.text]:[]}}]});
+ expect(result.semanticChecks[0].readerNovelty?.status).toBe(status);expect(wire.payload.stories[0].requiredFactIds).toEqual([]);
+});
 const input={feed:{id:'feed',revision:1,title:'Title',interests:[],outputLanguage:'en'},selectionId:'selection',stories:[{candidate:{id:'canonical',targetType:'EVENT',targetVersionId:'version'},plan:{mustIncludeFactIds:['a'],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[],treatment:'BRIEF'},approvedFacts:[{id:'a',text:'Officials reported a successful launch.',support:[{evidenceRevisionId:'revision',quote:'Officials reported a successful launch.'}]}],approvedSpans:[{evidenceRevisionId:'revision',quote:'Officials reported a successful launch.'}],evidence:[{id:'revision',body:'Officials reported a successful launch.',language:'en'}]}]} as unknown as SynthesisWriterInput;
 it('makes required facts explicit and maps only offered story-scoped exact support and fact IDs',()=>{
  const wire=writerWire(input);
@@ -86,4 +112,12 @@ it('compacts provenance handles without losing separate supporting revisions',()
  expect(wire.payload.stories[0].claims[0].support[0].evidenceRevisionIds).toEqual(['evidence_1','evidence_2']);
  expect(wire.payload.stories[0].facts[0].evidenceRevisionIds).toEqual(['evidence_1','evidence_2']);
  expect(claim.support.map(s=>s.evidenceRevisionId)).toEqual(ids);
+});
+
+it('keeps novelty independent of fidelity while restricting verdicts to offered identities',()=>{
+ const fact={id:'new',text:'The company is developing agents.',evidenceRevisionIds:['r']},background={id:'old',text:'It was founded in 2010.',evidenceRevisionIds:['r']};
+ const wire=verificationWire([{id:'c',candidateId:'story',text:fact.text,support:[],context:[],requiredFacts:[fact],allowedFacts:[fact,background],newUnderstandingFacts:[fact]}],{validationContract:'EVIDENCE_GROUNDED_V2',readerClaimReferences:true,requireReaderNovelty:true,requireFullEntailment:true});
+ const branches:any=(wire.schema.properties.semanticChecks as any).items.anyOf;expect(branches).toHaveLength(4);const offered=branches[0].properties;expect(offered.qualifiersPreserved).not.toHaveProperty('enum');expect(offered.readerSpans.minItems).toBe(1);expect(branches[1].properties.readerSpans.minItems).toBeUndefined();expect(offered.readerNovelty.properties.status.enum).toEqual(['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED']);expect(branches[2].properties.factId.enum).toEqual(['fact_2']);expect(branches[2].properties.readerNovelty.properties.status.enum).toEqual(['NOT_APPLICABLE']);
+ const result=wire.decode({supportedClaimIds:[],preservedFactIds:[],claimEntailment:[{claimId:'claim_1',fullyEntailed:false,reason:'Stripped development qualifier.',unsupportedMeaning:['Available capability.']}],semanticChecks:[{factId:'fact_1',communicated:true,sourceSupported:true,readerEntailsProposition:false,attributionPreserved:true,certaintyPreserved:true,temporalFaithful:false,qualifiersPreserved:false,nonRepetitive:true,reason:'New information, but misrepresented.',readerSpans:[{claimId:'claim_1'}],readerNovelty:{status:'NEW',reason:'No previous reader history.',previousFactTexts:[]}}],addressedCorrectionObligationIds:[]});
+ expect(result.semanticChecks[0].readerNovelty?.status).toBe('NEW');expect(result.semanticChecks[0].qualifiers).toBe(false);expect(result.novelFactIds).toEqual([]);
 });

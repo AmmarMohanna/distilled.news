@@ -11,9 +11,12 @@ it("applies the complete migration chain to clean D1 with workflow and decision 
     const directory=new URL("../migrations/",import.meta.url);
     const names=readdirSync(directory).filter(name=>/^\d+.*\.sql$/.test(name)).sort();
     for(const name of names){
-      const sql=readFileSync(new URL(name,directory),"utf8");
-      const statements=sql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(value=>value.replace(/--[^\r\n]*/g,"").trim());
-      if(statements.length)await db.batch(statements.map(statement=>db.prepare(statement)));
+      // Preserve complete BEGIN/END trigger bodies. Splitting at a semicolon
+      // followed by a newline breaks the incoming spending-authority triggers.
+      // D1 exec accepts the complete SQL script on one line, as the intake
+      // integration harness does; strip standalone comments before flattening.
+      const sql=readFileSync(new URL(name,directory),"utf8").replace(/^\s*--[^\n]*$/gm,"").replace(/\r?\n/g," ").trim();
+      if(sql)try{await db.exec(sql)}catch(cause){throw new Error(`Migration ${name} failed`,{cause})}
     }
     expect((await db.prepare("PRAGMA foreign_key_check").all()).results).toEqual([]);
     const repo=new D1Repository(db as unknown as D1Database);

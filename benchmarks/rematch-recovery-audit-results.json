@@ -1,0 +1,282 @@
+{
+  "asOf": "2026-10-19T18:57:12.201Z",
+  "firstSnapshot": "2026-10-19T18:55:00.526Z",
+  "feedId": "briefing_288dd52a-15b9-4bee-95dd-8679a727212d",
+  "completed": 0,
+  "activelyProcessing": 0,
+  "waitingAccount": 4,
+  "queuedWithoutCompletedAttempt": 12,
+  "terminallyFailed": 0,
+  "newRematchAttempts": 0,
+  "newRematchSuccesses": 0,
+  "newReviewProviderOperations": 0,
+  "settledProviderCostUsd": 0.072671432,
+  "uncertainHeldUsd": 0.142206,
+  "editorialOutcome": "SEMANTIC_MODEL_TIMEOUT, 180000ms; not a rematch; no blind retry permitted",
+  "rows": [
+    {
+      "requestId": "fc45e8c475aeb6f5e05c216fd44a97cbd5ca39479344d97485d169ffa4b70508",
+      "title": "Laplace Intelligence red-teams robots and self-driving cars before they hit the real world",
+      "revisionId": "1e466ebb-1191-49fb-99f5-a482add9e302",
+      "status": "WAITING_ACCOUNT",
+      "blocker": "ACCOUNT_RESOURCE_WAIT",
+      "nextAttemptAt": "2026-10-19T18:52:37.890Z",
+      "continuation": "PERSISTED_NEXT_ATTEMPT",
+      "dispatchSendCount": 24,
+      "transportLeaseUntil": 1792435699140,
+      "history": [
+        {
+          "id": "[\"fc45e8c475aeb6f5e05c216fd44a97cbd5ca39479344d97485d169ffa4b70508\",1,\"2026-10-19T18:46:31.667Z\",\"semantic-cost-admission-v1\"]",
+          "feedId": "briefing_288dd52a-15b9-4bee-95dd-8679a727212d",
+          "requestId": "fc45e8c475aeb6f5e05c216fd44a97cbd5ca39479344d97485d169ffa4b70508",
+          "attempt": 1,
+          "resourcePolicy": "semantic-cost-admission-v1",
+          "state": "WAITING_BUDGET",
+          "nextAttemptAt": "2026-10-19T18:52:37.890Z",
+          "createdAt": "2026-10-19T18:46:31.667Z",
+          "reason": "ACCOUNT_RESOURCE_WAIT"
+        }
+      ]
+    },
+    {
+      "requestId": "1ec2455b9ce756a6546e2f504d213342dd0e7441bef8d1a53832b3bee6bd87ee",
+      "title": "Replit makes OpenAI its default over Anthropic, CEO says",
+      "revisionId": "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+      "status": "WAITING_ACCOUNT",
+      "blocker": "ACCOUNT_RESOURCE_WAIT",
+      "nextAttemptAt": "2026-10-19T18:53:29.419Z",
+      "continuation": "PERSISTED_NEXT_ATTEMPT",
+      "dispatchSendCount": 15,
+      "transportLeaseUntil": 1792435807154,
+      "history": [
+        {
+          "id": "[\"1ec2455b9ce756a6546e2f504d213342dd0e7441bef8d1a53832b3bee6bd87ee\",1,\"2026-10-19T18:35:33.380Z\",\"semantic-cost-admission-v1\"]",
+          "feedId": "briefing_288dd52a-15b9-4bee-95dd-8679a727212d",
+          "requestId": "1ec2455b9ce756a6546e2f504d213342dd0e7441bef8d1a53832b3bee6bd87ee",
+          "attempt": 1,
+          "state": "DEFERRED",
+          "nextAttemptAt": "2026-10-19T18:40:33.380Z",
+          "createdAt": "2026-10-19T18:35:33.380Z",
+          "reason": "SEMANTIC_CONSTRUCTION_REJECTED"
+        },
+        {
+          "id": "[\"1ec2455b9ce756a6546e2f504d213342dd0e7441bef8d1a53832b3bee6bd87ee\",2,\"2026-10-19T18:48:14.031Z\",\"semantic-cost-admission-v1\"]",
+          "feedId": "briefing_288dd52a-15b9-4bee-95dd-8679a727212d",
+          "requestId": "1ec2455b9ce756a6546e2f504d213342dd0e7441bef8d1a53832b3bee6bd87ee",
+          "attempt": 2,
+          "resourcePolicy": "semantic-cost-admission-v1",
+          "state": "WAITING_BUDGET",
+          "nextAttemptAt": "2026-10-19T18:53:29.419Z",
+          "createdAt": "2026-10-19T18:48:14.031Z",
+          "reason": "ACCOUNT_RESOURCE_WAIT"
+        }
+      ]
+    },
+    {
+      "requestId": "71583ce15772dbd469103fcc394bad7ef2c80e45a66aef7bb4af167ed779489f",
+      "title": "People are using AI to make their smart TVs dumb again",
+      "revisionId": "e46b4683-1a63-4fdb-aff4-8074f5662115",
+      "status": "WAITING_ACCOUNT",
+      "blocker": "ACCOUNT_RESOURCE_WAIT",
+      "nextAttemptAt": "2026-10-19T18:56:39.467Z",
+      "continuation": "PERSISTED_NEXT_ATTEMPT",
+      "dispatchSendCount": 10,
+      "transportLeaseUntil": 1792436008321,
+      "history": [
+        {
+          "id": "[\"71583ce15772dbd469103fcc394bad7ef2c80e45a66aef7bb4af167ed779489f\",1,\"2026-10-19T18:51:35.610Z\",\"semantic-cost-admission-v1\"]",
+          "feedId": "briefing_288dd52a-15b9-4bee-95dd-8679a727212d",
+          "requestId": "71583ce15772dbd469103fcc394bad7ef2c80e45a66aef7bb4af167ed779489f",
+          "attempt": 1,
+          "resourcePolicy": "semantic-cost-admission-v1",
+          "state": "WAITING_BUDGET",
+          "nextAttemptAt": "2026-10-19T18:56:39.467Z",
+          "createdAt": "2026-10-19T18:51:35.610Z",
+          "reason": "ACCOUNT_RESOURCE_WAIT"
+        }
+      ]
+    },
+    {
+      "requestId": "d6e064f8046b3d5a0645c0147ff64db5719cbd7fa6e799ee2a40335f06496d2d",
+      "title": "Physical AI is more than robots, says the Nvidia veteran now investing in it",
+      "revisionId": "99685719-e69c-4b79-96ba-b7fda15d43d8",
+      "status": "WAITING_ACCOUNT",
+      "blocker": "ACCOUNT_RESOURCE_WAIT",
+      "nextAttemptAt": "2026-10-19T18:57:24.827Z",
+      "continuation": "PERSISTED_NEXT_ATTEMPT",
+      "dispatchSendCount": 3,
+      "transportLeaseUntil": 1792436041921,
+      "history": [
+        {
+          "id": "[\"d6e064f8046b3d5a0645c0147ff64db5719cbd7fa6e799ee2a40335f06496d2d\",1,\"2026-10-19T18:52:08.709Z\",\"semantic-cost-admission-v1\"]",
+          "feedId": "briefing_288dd52a-15b9-4bee-95dd-8679a727212d",
+          "requestId": "d6e064f8046b3d5a0645c0147ff64db5719cbd7fa6e799ee2a40335f06496d2d",
+          "attempt": 1,
+          "resourcePolicy": "semantic-cost-admission-v1",
+          "state": "WAITING_BUDGET",
+          "nextAttemptAt": "2026-10-19T18:57:24.827Z",
+          "createdAt": "2026-10-19T18:52:08.709Z",
+          "reason": "ACCOUNT_RESOURCE_WAIT"
+        }
+      ]
+    },
+    {
+      "requestId": "23573cdd7ad2a7525eb2869c2c925d36185919f3fa248568c1b62f56ba696975",
+      "title": "Anthropic is letting METR researchers look under the hood with employee-level access",
+      "revisionId": "0359898a-8a49-4010-a01c-2ae68c0aa311",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 4,
+      "transportLeaseUntil": 0,
+      "history": []
+    },
+    {
+      "requestId": "79a56c4379e8588e0eea2cce4203bb3363583781ac93be0abecedd27918d0c8e",
+      "title": "Elorian\u2019s first AI model wants to reason with images, not just about them",
+      "revisionId": "cbd1e055-ba58-4115-9f12-dcebc068dbb4",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 3,
+      "transportLeaseUntil": 0,
+      "history": []
+    },
+    {
+      "requestId": "dd6a0a896e3a5e90d06ac019a1c65b4ea3b9bbc19f2604a6f9ed6832615d9671",
+      "title": "When it came to Cal AI\u2019s viral success, a small army of influencers paid off",
+      "revisionId": "b520544a-7d61-4871-ac08-d8b136b4e208",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 0,
+      "transportLeaseUntil": null,
+      "history": []
+    },
+    {
+      "requestId": "8769de3cde7c6b7a509707303d9e508894fdd0d3e22abf9c0b80ebcb8a0ec011",
+      "title": "Jev is Vercel\u2019s fastest-adopted AI model ever",
+      "revisionId": "597efd4c-22b5-4341-be0d-84c7147175af",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 0,
+      "transportLeaseUntil": null,
+      "history": []
+    },
+    {
+      "requestId": "212de3a507429120c37b28af30f193a7e5fafd1b6544607ce19f00f24c453a01",
+      "title": "An Nvidia insider-turned-VC on why robotics hasn\u2019t hit its ChatGPT moment, yet | TechCrunch",
+      "revisionId": "2ff6743a-5afa-4f25-9a09-acbd472b837e",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 0,
+      "transportLeaseUntil": null,
+      "history": []
+    },
+    {
+      "requestId": "6b0f7d2ce21614243e20aecb25cb7b5a4f0ad7b312410e2ede174ecc44166ebe",
+      "title": "Veritas expands its anti-counterfeit chip to jewelry, trophies, and fragrance bottles",
+      "revisionId": "e6d8dbb0-1cfd-4c22-ba89-94c62094b1b4",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 0,
+      "transportLeaseUntil": null,
+      "history": []
+    },
+    {
+      "requestId": "eb55f66d0b3db62e9df7650f9749eac0c9ae625e380b9b951d59817b4c44c148",
+      "title": "Amazon devices chief Panos Panay sees a future where AI devices replace the need to use apps",
+      "revisionId": "9c15191d-0991-46e3-9b39-5ffc9ccd6077",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 0,
+      "transportLeaseUntil": null,
+      "history": []
+    },
+    {
+      "requestId": "e7c7d008b9bf910e03ccc4d9b979e1f0420dec9170226f2aaf5716da71e762d0",
+      "title": "Mark Wahlberg on using AI in film \u2018the right way\u2019 and being open to an AI clone carrying on his legacy",
+      "revisionId": "b69b2d5f-94ac-4bb8-a942-1176ad145069",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 0,
+      "transportLeaseUntil": null,
+      "history": []
+    },
+    {
+      "requestId": "f2ef52d2b194cc9ac6202e1d0b7335272c6e32001a13fcc7658101e682a9c4e1",
+      "title": "Replit\u2019s CEO says the future of work is the \u2018self-driving company\u2019",
+      "revisionId": "41dbfc11-0d79-4a4f-a6e2-4fb25907d49b",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 0,
+      "transportLeaseUntil": null,
+      "history": []
+    },
+    {
+      "requestId": "f2061096db7527263474071197693c9d96ffcdc789f7edfb2fa13eb453999068",
+      "title": "Meta launches an open-weight AI model that runs on Macs",
+      "revisionId": "04f817ba-f8a9-4a38-a8e5-3677930546b4",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 0,
+      "transportLeaseUntil": null,
+      "history": []
+    },
+    {
+      "requestId": "d4ca036b39abd1a786da210c373718576a2f127152a9ae9e02089a1200d7ea02",
+      "title": "India becomes the latest country to report rogue AI agent activity",
+      "revisionId": "03dac140-7a1f-4a13-a7cb-67b1c274cdb8",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 0,
+      "transportLeaseUntil": null,
+      "history": []
+    },
+    {
+      "requestId": "af6ac647120ca8a2c3ddeb402a649528ca312c33625f5c615de4dbc4d2449870",
+      "title": "Tenstorrent hits $6.2B valuation to scale open-weight AI chips",
+      "revisionId": "03f9239f-7889-44d8-bfc2-97b9f0cf4683",
+      "status": "QUEUED_NOT_STARTED",
+      "blocker": "No completed rematch attempt; execution/admission blocker not recorded",
+      "nextAttemptAt": null,
+      "continuation": "DURABLE_REQUEST_ELIGIBLE_FOR_SCHEDULER_NO_PER_REQUEST_TIME",
+      "dispatchSendCount": 0,
+      "transportLeaseUntil": null,
+      "history": []
+    }
+  ],
+  "evidence": [
+    {
+      "artifact": "rematch-audit-first.json",
+      "sha256": "b115cae767ea0d9f74835281f38468ff1c3af1ecaf302e7e26b759e91b221a38"
+    },
+    {
+      "artifact": "rematch-audit-second.json",
+      "sha256": "0c9690b916c2c6e132532b2dda4d8bdcf7c18195ba5c3a74b4e498658d1168e9"
+    },
+    {
+      "artifact": "rematch-audit-final.json",
+      "sha256": "e027b08c4bf21bd322bf90391487dac535cc593a3e182040b8af71912a1e2347"
+    }
+  ]
+}

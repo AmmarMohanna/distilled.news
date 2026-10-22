@@ -12,7 +12,8 @@ import {synchronizeV1ProductSource} from './v1-intelligence/product';
 import {createV1BrowserStages} from './v1-intake/browser-stages';
 import {languageResolutionSchema} from './v1-intelligence/language';
 import {readConnectorPayload} from './connector-payload';
-import {HttpSourceExecution,BoundedFeedHttp} from '@distilled/connectors';
+import {HttpSourceExecution,BoundedFeedHttp,SourceHandoffWait} from '@distilled/connectors';
+import {admittedSourceExecution} from './source-execution-admission';
 import {verifyConnectorAuthority} from './connector-authority';
 import {sharedPublicHttp} from './connector-public-cache';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
@@ -60,14 +61,21 @@ export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:
  const parsed=connectorHandoffRequestSchema.safeParse(raw);
  if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  if(env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,parsed.data.coverage.feedSourceId)) throw new HandoffError('SCOPE_DENIED');
+ const policy=createV1RuntimePolicy(fetch,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
+ // Verify immutable scoped payloads before admission. Four concurrent R2
+ // reads avoid serial network waits inside the Feed turn. Mutable authority,
+ // restrictions and canonical ordering are still checked inside acceptance.
+ const retained=await new V1IntakeStore(env.DB).readMany(parsed.data.observations.map(o=>({table:'intake_receipts' as const,id:o.id})));
+ const supplied=parsed.data.observations.filter(o=>o.operation==='UPSERT'&&o.suppliedPayloadRef&&!retained.get(JSON.stringify(['intake_receipts',o.id])));
+ for(let offset=0;offset<supplied.length;offset+=4)await Promise.all(supplied.slice(offset,offset+4).map(o=>policy.verifySuppliedContent(o)));
  try{return await withFeedWriteTurn(env,parsed.data.coverage.feedId,async()=>{
   await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
-  return createCandidateIntakePort(new V1IntakeStore(env.DB),{...createV1RuntimePolicy(fetch,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined),expectedFeedRevision}).acceptBatch(parsed.data);
- });}catch(error){if(error instanceof IntelligenceTurnBusy)throw new HandoffError('TEMPORARY_UNAVAILABLE');throw error;}
+  return createCandidateIntakePort(new V1IntakeStore(env.DB),{...policy,expectedFeedRevision}).acceptBatch(parsed.data);
+ },'handoff:'+parsed.data.handoffId);}catch(error){if(error instanceof IntelligenceTurnBusy)throw new SourceHandoffWait();throw error;}
 }
 const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();
 export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetch=fetch) {
- const store=new V1IntakeStore(env.DB),job=await store.read<{feedSourceId:string}>('jobs',id);
+ const store=new V1IntakeStore(env.DB),job=await store.read<{feedSourceId:string;feedId:string}>('jobs',id);
  if(!job || env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,job.feedSourceId)) return 'SKIPPED' as const;
  await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
  const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
@@ -75,7 +83,7 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  const articleMaxBytes=512000;
  const articleHttp=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,new BoundedFeedHttp(async(url,init)=>{await authorizeArticle(url);return fetcher(url,{...init,redirect:'manual'})},{maxBytes:articleMaxBytes}),authorizeArticle,Date.now,articleMaxBytes):undefined;
  const execution=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE&&env.SOURCE_NATIVE_EXECUTION_ENABLED!=='true'?
-  new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return env.SOURCE_EXECUTION_SERVICE!.fetch(value,init)},true):env.SOURCE_NATIVE_EXECUTION_ENABLED==='true'?nativeSourceExecution(async(value,init)=>{await authorizeArticle(String(value));return fetcher(value,init)}):undefined;
+  new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):env.SOURCE_NATIVE_EXECUTION_ENABLED==='true'?nativeSourceExecution(async(value,init)=>{await authorizeArticle(String(value));return fetcher(value,init)}):undefined;
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
  publicGet:articleHttp?url=>readPublicArticle(articleHttp,url):undefined,
  publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:25000});await authorizeArticle(url);return result;}:undefined,
@@ -94,7 +102,10 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
   if(!payload.success || payload.data.sourceObservationId!==claim.job.observationId) throw new AcquisitionFailure('INVALID_RESULT',false);
   const {sourceObservationId:_,...content}=payload.data;return content;
  }});
- return runAcquisitionJob(store,id,policy,router);
+ return runAcquisitionJob(store,id,policy,router,{
+  run:complete=>withFeedWriteTurn(env,job.value.feedId,complete,JSON.stringify({type:'v1_acquisition',jobId:id})),
+  isBusy:error=>error instanceof IntelligenceTurnBusy
+ });
 }
 /** Existing queue transport; bounded relay recovers crashes, lost sends and delayed transient retries. */
 export async function dispatchV1Acquisitions(env:Env,now=new Date()):Promise<number> {

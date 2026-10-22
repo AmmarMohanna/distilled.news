@@ -1,0 +1,2382 @@
+{
+  "scope": "Syntax and configuration catalogue. Not provider approval or live collection evidence.",
+  "sources": [
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
+      "feedIds": [
+        "demo20_01_lebanon_levant",
+        "demo20_02_middle_east"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://rss.dw.com/xml/rss-ar-all",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://rss.dw.com/xml/rss-ar-all",
+      "feedIds": [
+        "demo20_01_lebanon_levant",
+        "demo20_28_mena_economy",
+        "demo20_31_public_governance"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: Lebanon Syria Jordan public services electricity",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=Lebanon+Syria+Jordan+public+services+electricity&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_01_lebanon_levant"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "t: bbcarabic",
+      "kind": "telegram_channel",
+      "parserProvider": "telegram",
+      "canonicalUrl": "https://t.me/bbcarabic",
+      "feedIds": [
+        "demo20_01_lebanon_levant",
+        "demo20_28_mena_economy",
+        "demo20_31_public_governance",
+        "demo20_39_football"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_URL",
+        "SOURCE_EXECUTION_TOKEN",
+        "Authorized Telegram helper session and channel-ID resolution during approval."
+      ]
+    },
+    {
+      "input": "https://today.lorientlejour.com/",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://today.lorientlejour.com/",
+      "feedIds": [
+        "demo20_01_lebanon_levant"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.france24.com/ar/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.france24.com/ar/rss",
+      "feedIds": [
+        "demo20_02_middle_east",
+        "demo20_03_humanitarian",
+        "demo20_19_sport",
+        "demo20_31_public_governance",
+        "demo20_39_football"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: Middle East diplomacy ceasefire sanctions",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=Middle+East+diplomacy+ceasefire+sanctions&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_02_middle_east"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: UN",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/UN",
+      "feedIds": [
+        "demo20_02_middle_east"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.aljazeera.com/middle-east/",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.aljazeera.com/middle-east/",
+      "feedIds": [
+        "demo20_02_middle_east"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/global-development/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/global-development/rss",
+      "feedIds": [
+        "demo20_03_humanitarian",
+        "demo20_14_africa",
+        "demo20_16_food_water",
+        "demo20_29_labour",
+        "demo20_33_latin_america",
+        "demo20_40_civil_society"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: humanitarian aid displacement refugee protection",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=humanitarian+aid+displacement+refugee+protection&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_03_humanitarian"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/unhcr/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/unhcr/",
+      "feedIds": [
+        "demo20_03_humanitarian"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "https://reliefweb.int/",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://reliefweb.int/",
+      "feedIds": [
+        "demo20_03_humanitarian"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/business/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/business/rss.xml",
+      "feedIds": [
+        "demo20_04_global_economy",
+        "demo20_23_transport",
+        "demo20_24_housing",
+        "demo20_28_mena_economy",
+        "demo20_29_labour",
+        "demo20_38_supply_chains"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://www.lemonde.fr/economie/rss_full.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.lemonde.fr/economie/rss_full.xml",
+      "feedIds": [
+        "demo20_04_global_economy",
+        "demo20_20_economie_francophone"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: global economy inflation central bank trade",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=global+economy+inflation+central+bank+trade&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_04_global_economy"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: IMFNews",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/IMFNews",
+      "feedIds": [
+        "demo20_04_global_economy"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/the-world-bank/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/the-world-bank/",
+      "feedIds": [
+        "demo20_04_global_economy"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "rss: https://news.mit.edu/rss/topic/artificial-intelligence2",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.mit.edu/rss/topic/artificial-intelligence2",
+      "feedIds": [
+        "demo20_05_artificial_intelligence"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.arstechnica.com/arstechnica/index",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.arstechnica.com/arstechnica/index",
+      "feedIds": [
+        "demo20_05_artificial_intelligence",
+        "demo20_06_cybersecurity",
+        "demo20_22_semiconductors"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: artificial intelligence research model evaluation regulation",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=artificial+intelligence+research+model+evaluation+regulation&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_05_artificial_intelligence"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: OpenAI",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/OpenAI",
+      "feedIds": [
+        "demo20_05_artificial_intelligence"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/microsoft/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/microsoft/",
+      "feedIds": [
+        "demo20_05_artificial_intelligence"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "rss: https://krebsonsecurity.com/feed/",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://krebsonsecurity.com/feed/",
+      "feedIds": [
+        "demo20_06_cybersecurity"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: actively exploited vulnerability ransomware data breach",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=actively+exploited+vulnerability+ransomware+data+breach&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_06_cybersecurity"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: CISACyber",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/CISACyber",
+      "feedIds": [
+        "demo20_06_cybersecurity"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.cisa.gov/news-events/cybersecurity-advisories",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.cisa.gov/news-events/cybersecurity-advisories",
+      "feedIds": [
+        "demo20_06_cybersecurity"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.eff.org/rss/updates.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.eff.org/rss/updates.xml",
+      "feedIds": [
+        "demo20_07_digital_rights",
+        "demo20_37_media"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/technology/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+      "feedIds": [
+        "demo20_07_digital_rights",
+        "demo20_22_semiconductors",
+        "demo20_30_accessibility"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: privacy encryption surveillance platform regulation",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=privacy+encryption+surveillance+platform+regulation&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_07_digital_rights"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "t: telegram",
+      "kind": "telegram_channel",
+      "parserProvider": "telegram",
+      "canonicalUrl": "https://t.me/telegram",
+      "feedIds": [
+        "demo20_07_digital_rights",
+        "demo20_21_open_source",
+        "demo20_37_media"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_URL",
+        "SOURCE_EXECUTION_TOKEN",
+        "Authorized Telegram helper session and channel-ID resolution during approval."
+      ]
+    },
+    {
+      "input": "https://www.eff.org/updates",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.eff.org/updates",
+      "feedIds": [
+        "demo20_07_digital_rights"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.nasa.gov/feed/",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.nasa.gov/feed/",
+      "feedIds": [
+        "demo20_08_space"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+      "feedIds": [
+        "demo20_08_space",
+        "demo20_25_oceans"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: space mission launch astronomy discovery",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=space+mission+launch+astronomy+discovery&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_08_space"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: NASA",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/NASA",
+      "feedIds": [
+        "demo20_08_space"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/nasa/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/nasa/",
+      "feedIds": [
+        "demo20_08_space"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "rss: https://www.carbonbrief.org/feed/",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.carbonbrief.org/feed/",
+      "feedIds": [
+        "demo20_09_climate"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/environment/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/environment/rss",
+      "feedIds": [
+        "demo20_09_climate",
+        "demo20_16_food_water",
+        "demo20_26_biodiversity"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: climate emissions adaptation environmental policy",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=climate+emissions+adaptation+environmental+policy&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_09_climate"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: WMO",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/WMO",
+      "feedIds": [
+        "demo20_09_climate"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.ipcc.ch/",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.ipcc.ch/",
+      "feedIds": [
+        "demo20_09_climate"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.eia.gov/rss/todayinenergy.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.eia.gov/rss/todayinenergy.xml",
+      "feedIds": [
+        "demo20_10_energy"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/business/energy-industry/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/business/energy-industry/rss",
+      "feedIds": [
+        "demo20_10_energy"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: electricity grid energy infrastructure storage",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=electricity+grid+energy+infrastructure+storage&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_10_energy"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/international-energy-agency/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/international-energy-agency/",
+      "feedIds": [
+        "demo20_10_energy"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "https://www.iea.org/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.iea.org/news",
+      "feedIds": [
+        "demo20_10_energy"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/health/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/health/rss.xml",
+      "feedIds": [
+        "demo20_11_public_health"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://www.sciencedaily.com/rss/top/science.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.sciencedaily.com/rss/top/science.xml",
+      "feedIds": [
+        "demo20_11_public_health"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: public health clinical trial disease outbreak",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=public+health+clinical+trial+disease+outbreak&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_11_public_health"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/in/billgates/",
+      "kind": "linkedin_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/in/billgates/",
+      "feedIds": [
+        "demo20_11_public_health",
+        "demo20_40_civil_society"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "x: WHO",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/WHO",
+      "feedIds": [
+        "demo20_11_public_health"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "rss: https://www.nature.com/nature.rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.nature.com/nature.rss",
+      "feedIds": [
+        "demo20_12_science"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/science/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/science/rss",
+      "feedIds": [
+        "demo20_12_science",
+        "demo20_35_archaeology"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: scientific discovery research replication materials physics",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=scientific+discovery+research+replication+materials+physics&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_12_science"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: Nature",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/Nature",
+      "feedIds": [
+        "demo20_12_science"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.nature.com/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.nature.com/news",
+      "feedIds": [
+        "demo20_12_science"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/world/europe/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/world/europe/rss.xml",
+      "feedIds": [
+        "demo20_13_europe"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://www.france24.com/fr/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.france24.com/fr/rss",
+      "feedIds": [
+        "demo20_13_europe",
+        "demo20_20_economie_francophone",
+        "demo20_34_justice",
+        "demo20_36_elections"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: European Union court regulation elections policy",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=European+Union+court+regulation+elections+policy&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_13_europe"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: EU_Commission",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/EU_Commission",
+      "feedIds": [
+        "demo20_13_europe"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.consilium.europa.eu/en/press/press-releases/",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.consilium.europa.eu/en/press/press-releases/",
+      "feedIds": [
+        "demo20_13_europe"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/world/africa/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/world/africa/rss.xml",
+      "feedIds": [
+        "demo20_14_africa"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: Africa governance infrastructure regional trade",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=Africa+governance+infrastructure+regional+trade&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_14_africa"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/african-development-bank/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/african-development-bank/",
+      "feedIds": [
+        "demo20_14_africa"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "https://www.afdb.org/en/news-and-events",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.afdb.org/en/news-and-events",
+      "feedIds": [
+        "demo20_14_africa"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/world/asia/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/world/asia/rss.xml",
+      "feedIds": [
+        "demo20_15_asia_pacific"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/world/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "feedIds": [
+        "demo20_15_asia_pacific",
+        "demo20_23_transport",
+        "demo20_27_natural_hazards",
+        "demo20_32_north_america",
+        "demo20_36_elections"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: Asia Pacific elections trade infrastructure security",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=Asia+Pacific+elections+trade+infrastructure+security&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_15_asia_pacific"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: Asia Pacific trade infrastructure lang:en",
+      "kind": "x_search",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/search?q=Asia%20Pacific%20trade%20infrastructure%20lang%3Aen",
+      "feedIds": [
+        "demo20_15_asia_pacific"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.adb.org/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.adb.org/news",
+      "feedIds": [
+        "demo20_15_asia_pacific"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "news: food security drought water agriculture",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=food+security+drought+water+agriculture&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_16_food_water"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/fao/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/fao/",
+      "feedIds": [
+        "demo20_16_food_water"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "https://www.fao.org/newsroom/en",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.fao.org/newsroom/en",
+      "feedIds": [
+        "demo20_16_food_water"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/education/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/education/rss.xml",
+      "feedIds": [
+        "demo20_17_education"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/education/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/education/rss",
+      "feedIds": [
+        "demo20_17_education"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: education school university funding learning policy",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=education+school+university+funding+learning+policy&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_17_education"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/unesco/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/unesco/",
+      "feedIds": [
+        "demo20_17_education",
+        "demo20_18_culture"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "https://www.unesco.org/en/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.unesco.org/en/news",
+      "feedIds": [
+        "demo20_17_education"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+      "feedIds": [
+        "demo20_18_culture"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/culture/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/culture/rss",
+      "feedIds": [
+        "demo20_18_culture"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: cultural heritage restitution museum policy",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=cultural+heritage+restitution+museum+policy&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_18_culture"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.unesco.org/en/culture",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.unesco.org/en/culture",
+      "feedIds": [
+        "demo20_18_culture"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/sport/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/sport/rss.xml",
+      "feedIds": [
+        "demo20_19_sport"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: sport tournament regulation sanctions results",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=sport+tournament+regulation+sanctions+results&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_19_sport"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: Olympics",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/Olympics",
+      "feedIds": [
+        "demo20_19_sport"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.olympics.com/ioc/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.olympics.com/ioc/news",
+      "feedIds": [
+        "demo20_19_sport"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "news: France francophone economy budget employment public services",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=France+francophone+economy+budget+employment+public+services&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_20_economie_francophone"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: economie budget emploi France lang:fr",
+      "kind": "x_search",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/search?q=economie%20budget%20emploi%20France%20lang%3Afr",
+      "feedIds": [
+        "demo20_20_economie_francophone"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.oecd.org/en/about/news.html",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.oecd.org/en/about/news.html",
+      "feedIds": [
+        "demo20_20_economie_francophone"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://github.blog/feed/",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://github.blog/feed/",
+      "feedIds": [
+        "demo20_21_open_source"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "rss: https://www.phoronix.com/rss.php",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.phoronix.com/rss.php",
+      "feedIds": [
+        "demo20_21_open_source"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: open source software release developer tools licensing",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=open+source+software+release+developer+tools+licensing&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_21_open_source"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/github/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/github/",
+      "feedIds": [
+        "demo20_21_open_source"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "news: semiconductor fabrication chip export controls",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=semiconductor+fabrication+chip+export+controls&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_22_semiconductors"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: semiconductor chip fabrication lang:en",
+      "kind": "x_search",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/search?q=semiconductor%20chip%20fabrication%20lang%3Aen",
+      "feedIds": [
+        "demo20_22_semiconductors"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/asml/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/asml/",
+      "feedIds": [
+        "demo20_22_semiconductors"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "news: rail aviation transport mobility infrastructure",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=rail+aviation+transport+mobility+infrastructure&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_23_transport"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: rail aviation transport disruption lang:en",
+      "kind": "x_search",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/search?q=rail%20aviation%20transport%20disruption%20lang%3Aen",
+      "feedIds": [
+        "demo20_23_transport"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.icao.int/Newsroom/Pages/default.aspx",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.icao.int/Newsroom/Pages/default.aspx",
+      "feedIds": [
+        "demo20_23_transport"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/society/housing/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/society/housing/rss",
+      "feedIds": [
+        "demo20_24_housing"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: housing rent homelessness urban planning",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=housing+rent+homelessness+urban+planning&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_24_housing"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/un-habitat/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/un-habitat/",
+      "feedIds": [
+        "demo20_24_housing"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "https://unhabitat.org/news-and-stories",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://unhabitat.org/news-and-stories",
+      "feedIds": [
+        "demo20_24_housing"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/environment/oceans/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/environment/oceans/rss",
+      "feedIds": [
+        "demo20_25_oceans"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: ocean marine pollution fisheries coastal protection",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=ocean+marine+pollution+fisheries+coastal+protection&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_25_oceans"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: NOAA",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/NOAA",
+      "feedIds": [
+        "demo20_25_oceans"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.noaa.gov/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.noaa.gov/news",
+      "feedIds": [
+        "demo20_25_oceans"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/environment/wildlife/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/environment/wildlife/rss",
+      "feedIds": [
+        "demo20_26_biodiversity"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: biodiversity wildlife habitat conservation",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=biodiversity+wildlife+habitat+conservation&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_26_biodiversity"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/iucn/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/iucn/",
+      "feedIds": [
+        "demo20_26_biodiversity"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "https://www.iucn.org/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.iucn.org/news",
+      "feedIds": [
+        "demo20_26_biodiversity"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom",
+      "feedIds": [
+        "demo20_27_natural_hazards"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: earthquake volcano natural hazard confirmed impact",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=earthquake+volcano+natural+hazard+confirmed+impact&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_27_natural_hazards"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: USGS",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/USGS",
+      "feedIds": [
+        "demo20_27_natural_hazards"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.usgs.gov/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.usgs.gov/news",
+      "feedIds": [
+        "demo20_27_natural_hazards"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "news: Middle East North Africa economy trade public finance",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=Middle+East+North+Africa+economy+trade+public+finance&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_28_mena_economy"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.worldbank.org/en/region/mena",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.worldbank.org/en/region/mena",
+      "feedIds": [
+        "demo20_28_mena_economy"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "news: labour wage employment worker rights strike",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=labour+wage+employment+worker+rights+strike&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_29_labour"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/international-labour-organization/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/international-labour-organization/",
+      "feedIds": [
+        "demo20_29_labour"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "https://www.ilo.org/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.ilo.org/news",
+      "feedIds": [
+        "demo20_29_labour"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/society/disability/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/society/disability/rss",
+      "feedIds": [
+        "demo20_30_accessibility"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: disability accessibility transport digital inclusion",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=disability+accessibility+transport+digital+inclusion&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_30_accessibility"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: disability accessibility policy lang:en",
+      "kind": "x_search",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/search?q=disability%20accessibility%20policy%20lang%3Aen",
+      "feedIds": [
+        "demo20_30_accessibility"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.w3.org/WAI/news/",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.w3.org/WAI/news/",
+      "feedIds": [
+        "demo20_30_accessibility"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "news: public procurement audit transparency corruption court",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=public+procurement+audit+transparency+corruption+court&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_31_public_governance"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.transparency.org/en/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.transparency.org/en/news",
+      "feedIds": [
+        "demo20_31_public_governance"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",
+      "feedIds": [
+        "demo20_32_north_america"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: United States Canada court public policy services",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=United+States+Canada+court+public+policy+services&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_32_north_america"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: United States Canada public policy court lang:en",
+      "kind": "x_search",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/search?q=United%20States%20Canada%20public%20policy%20court%20lang%3Aen",
+      "feedIds": [
+        "demo20_32_north_america"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.canada.ca/en/news.html",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.canada.ca/en/news.html",
+      "feedIds": [
+        "demo20_32_north_america"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/news/world/latin_america/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/news/world/latin_america/rss.xml",
+      "feedIds": [
+        "demo20_33_latin_america"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: Latin America Caribbean governance trade infrastructure",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=Latin+America+Caribbean+governance+trade+infrastructure&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_33_latin_america"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.linkedin.com/company/inter-american-development-bank/",
+      "kind": "linkedin_company",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://www.linkedin.com/company/inter-american-development-bank/",
+      "feedIds": [
+        "demo20_33_latin_america"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "APIFY_API_TOKEN",
+        "Authorized linkedin_apify budget and operation ceiling."
+      ]
+    },
+    {
+      "input": "https://www.iadb.org/en/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.iadb.org/en/news",
+      "feedIds": [
+        "demo20_33_latin_america"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/law/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/law/rss",
+      "feedIds": [
+        "demo20_34_justice"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: justice libertes publiques reforme decision tribunal",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=justice+libertes+publiques+reforme+decision+tribunal&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_34_justice"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: justice libertes tribunal reforme lang:fr",
+      "kind": "x_search",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/search?q=justice%20libertes%20tribunal%20reforme%20lang%3Afr",
+      "feedIds": [
+        "demo20_34_justice"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.echr.coe.int/",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.echr.coe.int/",
+      "feedIds": [
+        "demo20_34_justice"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/science/archaeology/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/science/archaeology/rss",
+      "feedIds": [
+        "demo20_35_archaeology"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: archaeology excavation dating heritage discovery",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=archaeology+excavation+dating+heritage+discovery&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_35_archaeology"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: archaeology excavation discovery lang:en",
+      "kind": "x_search",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/search?q=archaeology%20excavation%20discovery%20lang%3Aen",
+      "feedIds": [
+        "demo20_35_archaeology"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.archaeological.org/news/",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.archaeological.org/news/",
+      "feedIds": [
+        "demo20_35_archaeology"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "news: election certified results electoral court administration",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=election+certified+results+electoral+court+administration&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_36_elections"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: election certified results court lang:en",
+      "kind": "x_search",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/search?q=election%20certified%20results%20court%20lang%3Aen",
+      "feedIds": [
+        "demo20_36_elections"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://www.idea.int/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.idea.int/news",
+      "feedIds": [
+        "demo20_36_elections"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/media/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/media/rss",
+      "feedIds": [
+        "demo20_37_media"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: journalism media ownership information integrity",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=journalism+media+ownership+information+integrity&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_37_media"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://rsf.org/en/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://rsf.org/en/news",
+      "feedIds": [
+        "demo20_37_media"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/business/supply-chain-crisis/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/business/supply-chain-crisis/rss",
+      "feedIds": [
+        "demo20_38_supply_chains"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: shipping port freight supply chain disruption",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=shipping+port+freight+supply+chain+disruption&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_38_supply_chains"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: shipping port freight disruption lang:en",
+      "kind": "x_search",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/search?q=shipping%20port%20freight%20disruption%20lang%3Aen",
+      "feedIds": [
+        "demo20_38_supply_chains"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "https://unctad.org/news",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://unctad.org/news",
+      "feedIds": [
+        "demo20_38_supply_chains"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    },
+    {
+      "input": "rss: https://feeds.bbci.co.uk/sport/football/rss.xml",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://feeds.bbci.co.uk/sport/football/rss.xml",
+      "feedIds": [
+        "demo20_39_football"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: football federation disciplinary tournament confirmed result",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=football+federation+disciplinary+tournament+confirmed+result&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_39_football"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "x: FIFAcom",
+      "kind": "x_profile",
+      "parserProvider": "apify",
+      "canonicalUrl": "https://x.com/FIFAcom",
+      "feedIds": [
+        "demo20_39_football"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Configured APIFY_API_TOKEN and/or TWITTERAPI_IO_API_KEY route.",
+        "Authorized provider budget, operation ceiling and normal connector admission."
+      ]
+    },
+    {
+      "input": "rss: https://www.theguardian.com/society/charities/rss",
+      "kind": "rss_feed",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://www.theguardian.com/society/charities/rss",
+      "feedIds": [
+        "demo20_40_civil_society"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "non-empty RSS checked; see source-checks.json",
+      "requirements": [
+        "Normal source approval and connector enrollment. Optional article enrichment can need the private execution service."
+      ]
+    },
+    {
+      "input": "news: civil society charity regulation philanthropy outcomes",
+      "kind": "google_news",
+      "parserProvider": "rss",
+      "canonicalUrl": "https://news.google.com/rss/search?q=civil+society+charity+regulation+philanthropy+outcomes&hl=en-US&gl=US&ceid=US%3Aen",
+      "feedIds": [
+        "demo20_40_civil_society"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "Native RSS route; query defaults to English/US on this branch. Optional paid fallback requires APIFY_API_TOKEN and an authorized google_apify budget."
+      ]
+    },
+    {
+      "input": "https://www.gatesfoundation.org/ideas/media-center/press-releases",
+      "kind": "web_page",
+      "parserProvider": "web",
+      "canonicalUrl": "https://www.gatesfoundation.org/ideas/media-center/press-releases",
+      "feedIds": [
+        "demo20_40_civil_society"
+      ],
+      "syntaxValidation": "passed actual branch prepareProductSourceInput",
+      "availability": "candidate; provider accessibility, identity and current activity not verified",
+      "requirements": [
+        "SOURCE_EXECUTION_SERVICE",
+        "SOURCE_EXECUTION_TOKEN",
+        "Website approval may discover RSS and resolve to that feed instead. Optional Zyte fallback requires its own credentials and budget."
+      ]
+    }
+  ]
+}

@@ -56,3 +56,11 @@ it.each(['SEMANTIC_CONSTRUCTION','SEMANTIC_CONSTRUCTION_REPAIR','SEMANTIC_RECONC
  const response=model.complete('feed',phase,{completeArticle:'Source evidence'},groupsSchema);await vi.advanceTimersByTimeAsync(35000);expect((await response).value).toEqual({groups:[]});expect(model.usage().reported).toBe(true);
  }finally{vi.useRealTimers()}
 });
+
+it.each([false,true])('rejects duplicate construction keys at raw JSON boundary (stream=%s), retaining paid usage',async stream=>{
+ const content='{"groups":[],"dispositionByUnitId":{"C0":"G0","C0":"BACKGROUND"}}';
+ const response=stream?new Response('data: '+JSON.stringify({id:'gen-duplicate-test',choices:[{delta:{content},finish_reason:'stop'}],usage:{prompt_tokens:10,completion_tokens:20,cost:.001}})+'\n\ndata: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}}):Response.json({choices:[{message:{content}}],usage:{prompt_tokens:10,completion_tokens:20,cost:.001}});
+ const model=createStrongSemanticModel({OPENROUTER_API_KEY:'fixture-only'} as Env,async()=>response)!;
+ await expect(model.complete('feed','SEMANTIC_CONSTRUCTION',{},groupsSchema)).rejects.toMatchObject({diagnostic:{rawResponse:content,rejection:{code:'DUPLICATE_JSON_KEY',mechanicalIssues:[expect.objectContaining({pointer:'/dispositionByUnitId/C0'})]}}});
+ expect(model.usage()).toMatchObject({calls:1,costUsd:.001,reported:true});
+});

@@ -1,0 +1,363 @@
+{
+  "date": "2026-10-21",
+  "scope": "ISOLATED_LOCAL_SAVED_NEWS_REAL_OPENROUTER_INFERENCE",
+  "evidenceHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+  "externalPublication": false,
+  "stagingChanged": false,
+  "qualityQualification": "FAILED_NOT_READY_FOR_STAGING",
+  "review": "AI-assisted source review, not independent human gold",
+  "persistedExperiment": {
+    "editionId": "1e6720b9246b597de02eb86d45c2987407db051e201dcf41b0c5c4e97838b731",
+    "editionHash": "30fd16a5f2831c74a07fd2dd59eba6a598745f987b62c25571fe7c516b03ed67",
+    "persistedAt": "2026-10-21T16:36:01.709Z",
+    "stories": 6,
+    "sources": 3,
+    "private": true,
+    "verificationReceipt": "1682ace955366ffc75ec8bb247854bad24fb0ab8e3e75dee905fc4cf2daab45f",
+    "generationCostUsd": 0.09445,
+    "operatorAssistedRecovery": true,
+    "editorialQuality": "FAILED_INDEPENDENT_SOURCE_REVIEW",
+    "externalPublication": false,
+    "providerCalls": 0,
+    "routes": {
+      "construction": "deepseek/deepseek-v4.1-flash",
+      "reconciliation": "deepseek/deepseek-v4.1-flash",
+      "editorial": "openai/gpt-4.1",
+      "writer": "openai/gpt-4.1",
+      "verification": "openai/gpt-4.1",
+      "relation": "openai/gpt-6-luna",
+      "novelty": "deepseek/deepseek-v4.1-flash",
+      "repair": "deepseek/deepseek-v4.1-flash"
+    },
+    "finalResumeWallMs": 48599.9923,
+    "finalResumeNewCalls": 2,
+    "finalResumeActualUsd": 0.09445,
+    "allHTrialsPaidCalls": 11,
+    "allHTrialsActualUsd": 0.19039592248,
+    "timingLimitation": "Resume reuses acquired evidence, article intelligence and an accepted plan; 48.6 seconds is not a fresh end-to-end latency. Failed attempts and operator interruptions are excluded from it."
+  },
+  "freshParagraphExperiment": {
+    "status": "FAILED",
+    "error": "SCOPE_DENIED",
+    "wallMs": 202998.44,
+    "calls": 6,
+    "actualUsd": 0.150058,
+    "routes": {
+      "construction": "openai/gpt-4.1",
+      "reconciliation": "openai/gpt-4.1",
+      "editorial": "openai/gpt-4.1",
+      "writer": "openai/gpt-4.1",
+      "verification": "openai/gpt-4.1",
+      "relation": "openai/gpt-4.1",
+      "novelty": "openai/gpt-4.1",
+      "repair": "openai/gpt-4.1"
+    },
+    "stages": [
+      {
+        "name": "EXISTING_EDITION_LOOKUP",
+        "wallMs": 35.362199999999575,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+        "wallMs": 64532.070100000004,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+        "wallMs": 2638.762300000002,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+        "wallMs": 67408.9831,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-2\",\"\"]",
+        "wallMs": 76773.809,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-2\",\"\"]",
+        "wallMs": 2653.27959999998,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-2\",\"\"]",
+        "wallMs": 79670.2611,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-3\",\"\"]",
+        "wallMs": 54497.360799999995,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-3\",\"\"]",
+        "wallMs": 885.3288999999932,
+        "status": "FAILED",
+        "error": "SCOPE_DENIED"
+      },
+      {
+        "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-3\",\"\"]",
+        "wallMs": 55636.52220000001,
+        "status": "FAILED",
+        "error": "SCOPE_DENIED"
+      }
+    ],
+    "diagnosis": {
+      "sourceHash": "efe8a291ae36a9d2e77588ba8ddd9ced5f9aa9f95606063049e85d03bea47316",
+      "responseHash": "5b46c1e0ff4f2f019bae7e4e12b4e3efc6d2771efb59e8fe10e3342d32d4c35d",
+      "genuineFalseMergeProposed": true,
+      "structuralValidationPassed": true,
+      "source": "Anthropic public benefit fund",
+      "target": "Replit default model partnership",
+      "groups": 4,
+      "distinctSelectedEvents": 1,
+      "canonicalCommit": "SCOPE_DENIED",
+      "guard": "engine.ts rejects selecting the same canonical event twice in one construction",
+      "acceptedFalseMergeCommitted": false,
+      "newPaidCalls": 0
+    }
+  },
+  "allHAndJUniquePaidOperations": 17,
+  "allHAndJActualUsd": 0.34045392248,
+  "sourceIntegrity": {
+    "scope": "OFFLINE_SOURCE_INTEGRITY_NOT_MODEL_QUALITY",
+    "rows": [
+      {
+        "source": "1e466ebb-1191-49fb-99f5-a482add9e302",
+        "oldSentenceUnits": 48,
+        "oldPreFiltered": 0,
+        "newPassageUnits": 28,
+        "completeNonWhitespaceCoverage": true,
+        "oldMs": 155.01929999999993,
+        "indexMs": 10.508200000000215,
+        "enumOccurrences": 51,
+        "modelCalls": 0,
+        "providerCostUsd": 0
+      },
+      {
+        "source": "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+        "oldSentenceUnits": 32,
+        "oldPreFiltered": 0,
+        "newPassageUnits": 16,
+        "completeNonWhitespaceCoverage": true,
+        "oldMs": 20.00480000000016,
+        "indexMs": 3.6757000000002336,
+        "enumOccurrences": 39,
+        "modelCalls": 0,
+        "providerCostUsd": 0
+      },
+      {
+        "source": "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+        "oldSentenceUnits": 9,
+        "oldPreFiltered": 0,
+        "newPassageUnits": 6,
+        "completeNonWhitespaceCoverage": true,
+        "oldMs": 5.720800000000054,
+        "indexMs": 2.1368999999999687,
+        "enumOccurrences": 29,
+        "modelCalls": 0,
+        "providerCostUsd": 0
+      }
+    ]
+  },
+  "qualityFindings": [
+    {
+      "dimension": "EVENT_SEPARATION",
+      "verdict": "PARTIAL",
+      "finding": "H retained separate company event roots but over-split Laplace and Replit. Fresh paragraph-indexed J formed one Laplace and one Replit event; its Anthropic identity review falsely selected the Replit event."
+    },
+    {
+      "dimension": "REPETITION",
+      "verdict": "FAIL",
+      "finding": "H published two Laplace items and three overlapping Replit items. Two Replit summaries repeat substantially the same partnership, growth and safety material."
+    },
+    {
+      "dimension": "TEMPORAL_ACCURACY",
+      "verdict": "FAIL",
+      "finding": "H says Laplace is competing at Disrupt, while the retained body explicitly dates that conference October 13-15, before the evaluation window. The source also has internal weekday/date inconsistencies; the briefing must not resolve them by assuming present activity."
+    },
+    {
+      "dimension": "IMPORTANT_DETAILS",
+      "verdict": "FAIL",
+      "finding": "H omits the fund additional-2%-per-50%-valuation-rise option and wholly-owned structure. It omits Replit enterprise 2%-to-15% figures despite selecting overlapping growth-related material."
+    },
+    {
+      "dimension": "QUALIFIERS_AND_ATTRIBUTION",
+      "verdict": "PARTIAL",
+      "finding": "H correctly preserves that corner-case agents are being developed, the Replit CEO attribution and insiders disagreement, Anthropic models remaining available, and the 2027 revenue projection. This does not rescue repetition, omitted fund details or temporal framing."
+    },
+    {
+      "dimension": "CORRECTIONS",
+      "verdict": "UNPROVEN",
+      "finding": "No prior reader correction was exercised. Sources retain update notes; the evaluation does not establish correction-publication reliability."
+    },
+    {
+      "dimension": "VERIFICATION",
+      "verdict": "FAIL_AS_QUALITY_GATE",
+      "finding": "GPT-4.1 verification accepted the persisted H edition despite the independently identified repetition and temporal problems."
+    }
+  ],
+  "limitations": [
+    "No human gold review or statistical quality qualification.",
+    "No comparison establishes faster or cheaper successful end-to-end processing.",
+    "Saved evidence replay does not measure acquisition freshness or unattended scheduling.",
+    "Old deterministic extractor filtered zero units on these retained three articles; this corpus alone cannot prove that removing it improves important-fact recall.",
+    "Schema-valid meaning and even a separate semantic reviewer can be wrong; exact witness existence does not establish occurrence identity."
+  ],
+  "targetedFollowup": {
+    "status": "SUCCEEDED",
+    "error": null,
+    "routes": {
+      "construction": "openai/gpt-6-luna",
+      "reconciliation": "openai/gpt-6-luna",
+      "editorial": "openai/gpt-6-luna",
+      "writer": "openai/gpt-4.1",
+      "verification": "openai/gpt-4.1",
+      "relation": "openai/gpt-6-luna",
+      "novelty": "openai/gpt-6-luna",
+      "repair": "openai/gpt-6-luna"
+    },
+    "wallMs": 174984.0129,
+    "operatorAssistedRecovery": true,
+    "callsAcrossArm": 7,
+    "costAcrossArmUsd": 0.18881645,
+    "editionId": "1e6720b9246b597de02eb86d45c2987407db051e201dcf41b0c5c4e97838b731",
+    "stages": [
+      {
+        "name": "EXISTING_EDITION_LOOKUP",
+        "wallMs": 16.858299999999872,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "SHORTLIST",
+        "wallMs": 634.4411,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "EDITORIAL_SELECTION",
+        "wallMs": 63771.9427,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "SCORING",
+        "wallMs": 1193.4179000000004,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "WRITING",
+        "wallMs": 58905.354999999996,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "FACTUAL_VERIFICATION",
+        "wallMs": 44350.336099999986,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "WRITE_VERIFY_LOCAL_COMMIT",
+        "wallMs": 109084.14339999999,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "BRIEFING_EXCLUSIVE_TURN",
+        "wallMs": 174769.9092,
+        "status": "SUCCEEDED"
+      }
+    ],
+    "quality": "NOT_QUALIFIED",
+    "independentReview": {
+      "reviewer": "Separate AI-assisted review, not human gold",
+      "verdict": "NARROW_FAIL",
+      "findings": [
+        "Laplace true to scale strengthened to ensuring accuracy and scale.",
+        "Replit later qualification retroactively attributed to original statement.",
+        "Required prior partnership revenue-growth contribution appears omitted.",
+        "Enterprise figures and pilot information explicitly deferred; distinguish from accidental omission."
+      ]
+    }
+  },
+  "interruptedConfirmation": {
+    "status": "FAILED",
+    "error": "SEMANTIC_EDITORIAL_REJECTED",
+    "routes": {
+      "construction": "openai/gpt-6-luna",
+      "reconciliation": "openai/gpt-6-luna",
+      "editorial": "openai/gpt-6-luna",
+      "writer": "openai/gpt-4.1",
+      "verification": "openai/gpt-4.1",
+      "relation": "openai/gpt-6-luna",
+      "novelty": "openai/gpt-6-luna",
+      "repair": "openai/gpt-6-luna"
+    },
+    "wallMs": 43499.7165,
+    "operatorAssistedRecovery": true,
+    "callsAcrossArm": 4,
+    "costAcrossArmUsd": 0.007991874999999999,
+    "editionId": null,
+    "stages": [
+      {
+        "name": "EXISTING_EDITION_LOOKUP",
+        "wallMs": 18.39220000000023,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-2\",\"\"]",
+        "wallMs": 396.4362999999994,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-2\",\"\"]",
+        "wallMs": 981.7949000000008,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-2\",\"\"]",
+        "wallMs": 1480.7338,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-3\",\"\"]",
+        "wallMs": 6155.144299999999,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-3\",\"\"]",
+        "wallMs": 744.6571000000004,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-3\",\"\"]",
+        "wallMs": 6984.4582,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "SHORTLIST",
+        "wallMs": 540.8094000000001,
+        "status": "SUCCEEDED"
+      },
+      {
+        "name": "EDITORIAL_SELECTION",
+        "wallMs": 34280.2941,
+        "status": "FAILED",
+        "error": "SEMANTIC_EDITORIAL_REJECTED"
+      },
+      {
+        "name": "BRIEFING_EXCLUSIVE_TURN",
+        "wallMs": 34882.2573,
+        "status": "FAILED",
+        "error": "SEMANTIC_EDITORIAL_REJECTED"
+      }
+    ],
+    "quality": "NOT_QUALIFIED"
+  },
+  "completionScopeTotals": {
+    "distinctPaidCalls": 23,
+    "actualUsd": 0.526424925,
+    "ceilingUsd": 1,
+    "additionalInferenceForRecoveredResponse": 0
+  }
+}

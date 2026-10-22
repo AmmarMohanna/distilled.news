@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "claim-disposition-v1",
+  "mode": "OFFLINE_ONLY",
+  "networkCalls": 0,
+  "paidCostUsd": 0,
+  "initialAdmission": {
+    "fits": true,
+    "schemaAdmission": {
+      "fits": true,
+      "violations": [],
+      "enumValues": 124,
+      "schemaStringCharacters": 791,
+      "objectProperties": 35,
+      "nestingDepth": 6
+    },
+    "requestBytes": 16703,
+    "inputTokenUpperBound": 16703,
+    "maxOutputTokens": 8192,
+    "reservationCostUsd": 0.019788399999999998,
+    "capability": {
+      "contextTokens": 32768,
+      "maxOutputTokens": 8192,
+      "inputUsdPerToken": 4e-7,
+      "outputUsdPerToken": 0.0000016,
+      "source": "staging-operator-request-envelope-within-verified-openrouter-catalog-2026-10-12"
+    }
+  },
+  "priorFailedCostUsd": 0.0090332,
+  "sevenNewGptThreeJevProviderUpperUsd": 0.17766039999999997,
+  "ceilingUsd": 0.2,
+  "currentHistoricalGptOperations": 4,
+  "currentGptOperationLimit": 9,
+  "currentRemainingGptSlots": 5,
+  "status": "NOT_AUTHORIZED_OR_EXECUTABLE_AS_A_NEW_ATTEMPT",
+  "remainingGates": [
+    "Renewed staging deployment and spending authorization",
+    "New explicit immutable attempt scope: existing review marker is already consumed",
+    "Reviewed per-attempt call envelope: current remaining five GPT slots do not cover seven-call repair worst case",
+    "Recheck grant validity, available headroom, feed privacy and eligible evidence before purchase",
+    "Actual future planner/writer/verifier payloads must fit admission; upper bound is not successful publication",
+    "Human-reviewed grouping expectations and real compatible verifier results remain absent"
+  ],
+  "metrics": {
+    "firstResponseStructuralAcceptance": {
+      "newContractRealCalls": 0,
+      "rate": null
+    },
+    "repairSuccess": {
+      "newContractRealCalls": 0,
+      "rate": null
+    },
+    "falseSplits": null,
+    "falseMerges": null,
+    "backgroundClassificationErrors": null,
+    "evidenceCoverage": "All offered ClaimMentions required structurally; semantic quality unmeasured"
+  },
+  "requestHash": "7dc0a28af01126185617476d118b87f79c0d5773289a64786553cfdc60515ce2"
+}

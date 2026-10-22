@@ -1,7 +1,7 @@
 import type {BriefingDraft,ClaimSupport,SynthesisWriterInput,VerificationClaim} from './publication';
 import type {WriterFeedback} from './writer-feedback';
 import {z} from 'zod';
-import {faithfulFact,numbers} from './fidelity';
+import {exactReaderWitness,faithfulFact,numbers} from './fidelity';
 const wireDraft=z.object({language:z.string(),stories:z.array(z.object({storyId:z.string(),correctionAcknowledgment:z.string().nullable().optional(),claims:z.array(z.object({text:z.string(),supportIds:z.array(z.string()).min(1),communicatedFactIds:z.array(z.string())}).strict())}).strict())}).strict();
 const obj=(properties:Record<string,unknown>)=>({type:'object',additionalProperties:false,required:Object.keys(properties),properties});
 const strings=(values:string[],max=values.length)=>({type:'array',maxItems:max,items:values.length?{type:'string',enum:values}:{type:'string'}});
@@ -16,7 +16,7 @@ export function writerWire(input:SynthesisWriterInput){
   for(const span of spans)if(![...supports.values()].some(s=>s.evidenceRevisionId===span.evidenceRevisionId&&s.quote===span.quote))supports.set(`span_${i+1}_${supports.size+1}`,span);
   for(const f of s.approvedFacts??[])facts.set(`fact_${i+1}_${facts.size+1}`,f.id);
   identities.set(storyId,{candidateId:s.candidate.id,supports,facts});
-  const required=new Set(s.plan?[...s.plan.mustIncludeFactIds,...s.plan.attributionFactIds,...s.plan.certaintyFactIds,...s.plan.disagreementFactIds,...s.plan.openQuestionFactIds]:[]);
+  const required=new Set(s.plan?(s.plan.validation?s.plan.mustIncludeFactIds:[...s.plan.mustIncludeFactIds,...s.plan.attributionFactIds,...s.plan.certaintyFactIds,...s.plan.disagreementFactIds,...s.plan.openQuestionFactIds]):[]);
   return {storyId,temporalTask:s.approvedFacts?.some(f=>f.timing?.framingRequired)?'Explicitly frame this as older SOURCE REPORTING, such as an earlier source report shows. A prior Distilled briefing is reader history and does not communicate source-report age. Do not imply recent release; publication date does not date the incident.':undefined,treatment:s.plan?.treatment??'STANDARD',deltaType:s.plan?.deltaType,correctionTask:s.plan?.correctionObligations?.length?'Briefly acknowledge that a prior Distilled briefing was withdrawn, then communicate the supported facts ONCE. Do not restate the withdrawn prose or repeat the fact around the acknowledgment. Do not mention policy requirements or add a source-retraction caveat unless the prior claim actually asserted one. Ordinary news paraphrase alone is not corrective delivery.':undefined,approvedFacts:s.approvedFacts?.map(f=>({factId:[...facts].find(([,id])=>id===f.id)![0],text:f.text,numericValues:[...numbers(f.text)],mustInclude:required.has(f.id),attribution:f.attribution,certainty:f.certainty,reportTime:f.reportTime,eventTime:f.eventTime,timing:f.timing,context:f.context?{text:f.context.text,field:f.context.field}:undefined,selfContained:f.selfContained,supportIds:[...supports].filter(([,ref])=>f.support.some(s=>s.evidenceRevisionId===ref.evidenceRevisionId&&ref.quote.includes(s.quote))).map(([id])=>id)})),supportSpans:[...supports].map(([supportId,span])=>({supportId,...span,publisherId:s.evidence.find(e=>e.id===span.evidenceRevisionId)?.publisherId})),previousLedgerEntries:s.plan?.previousLedgerEntries?.filter(e=>!s.plan?.correctionObligations?.length||s.plan.correctionObligations.some(o=>o.ledgerEntryId===e.id)).map(e=>({claimText:e.claimText,claimFacts:s.plan?.correctionObligations?.length?undefined:e.claimFacts})),correctionObligations:s.plan?.correctionObligations?.map(o=>({kind:o.kind,publicationWithdrawal:o.publicationWithdrawal?true:undefined}))};
  });
  const storyIds=[...identities.keys()],supportIds=[...identities.values()].flatMap(x=>[...x.supports.keys()]),factIds=[...identities.values()].flatMap(x=>[...x.facts.keys()]);
@@ -47,7 +47,7 @@ export function writerWire(input:SynthesisWriterInput){
  return {payload,schema,decode,repair};
 }
 /** One fact inventory and source context per story, not per claim. */
-export function verificationWire(claims:VerificationClaim[],options:{requireReaderNovelty?:boolean;requireFullEntailment?:boolean}={}){
+export function verificationWire(claims:VerificationClaim[],options:{requireReaderNovelty?:boolean;requireFullEntailment?:boolean;readerClaimReferences?:boolean;validationContract?:import('./editorial-requirements').EditorialContract}={}){
  const factIds=new Map<string,string>(),claimIds=new Map<string,string>(),obligationIds=new Map<string,string>(),historyIds=new Map<string,string>();
  const alias=(map:Map<string,string>,id:string,prefix:string)=>{let key=[...map].find(([,original])=>original===id)?.[0];if(!key){key=`${prefix}_${map.size+1}`;map.set(key,id);}return key;};
  const factOwners=new Map<string,string>(),occurrences=new Map<string,string>();
@@ -77,40 +77,73 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
  };
  const payload={stories:compact(stories) as typeof stories},obligations=stories.flatMap(s=>s.correctionObligations);
  const novelty=z.object({status:z.enum(['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED','NOT_APPLICABLE']),reason:z.string().min(1),previousFactTexts:z.array(z.string())}).strict();
- const check=z.object({readerNovelty:novelty.optional(),factId:z.string(),communicated:z.boolean(),attribution:z.boolean(),certainty:z.boolean(),temporal:z.boolean(),qualifiers:z.boolean(),nonRepetitive:z.boolean().optional(),reason:z.string(),readerSpans:z.array(z.object({claimId:z.string(),text:z.string().min(1).optional()}).strict()).max(claims.length)}).strict();
+ const check=z.object({sourceSupported:z.boolean().optional(),readerEntailsProposition:z.boolean().optional(),readerNovelty:novelty.optional(),factId:z.string(),communicated:z.boolean(),attribution:z.boolean(),certainty:z.boolean(),temporal:z.boolean(),qualifiers:z.boolean(),nonRepetitive:z.boolean().optional(),reason:z.string(),readerSpans:z.array(z.object({claimId:z.string(),text:z.string().min(1).optional(),start:z.number().int().nonnegative().optional(),end:z.number().int().nonnegative().optional()}).strict()).max(claims.length)}).strict();
  const requiredIds=[...new Set(stories.flatMap(s=>s.requiredFactIds))];
  const schema=obj({semanticChecks:{type:'array',minItems:requiredIds.length,maxItems:factIds.size,items:obj({factId:{type:'string',...(factIds.size?{enum:[...factIds.keys()]}:{})},communicated:{type:'boolean'},nonRepetitive:{type:'boolean'},attribution:{type:'boolean'},certainty:{type:'boolean'},temporal:{type:'boolean'},qualifiers:{type:'boolean'},reason:{type:'string',maxLength:500},readerSpans:{type:'array',maxItems:claims.length,items:obj({claimId:{type:'string',enum:[...claimIds.keys()]},text:{type:'string',minLength:1}})}})},supportedClaimIds:strings([...claimIds.keys()],claims.length),preservedFactIds:strings([...factIds.keys()],factIds.size),novelFactIds:strings([...factIds.keys()],factIds.size),addressedCorrectionObligationIds:strings(obligations.map(o=>o.id),obligations.length)});
  // Reader witnesses identify actual prose without duplicating it in the schema
  // or asking the model to retype source quotes. Persist resolved exact text.
  const semanticSchema=schema.properties.semanticChecks as {items:{properties:{readerSpans:Record<string,unknown>}}};
  semanticSchema.items.properties.readerSpans.items=obj({claimId:{type:'string',enum:[...claimIds.keys()]}});
+ if(options.validationContract==='EVIDENCE_GROUNDED_V2'){
+  if(!options.readerClaimReferences)semanticSchema.items.properties.readerSpans.items=obj({claimId:{type:'string',enum:[...claimIds.keys()]},text:{type:'string',minLength:1}});
+  const item=semanticSchema.items as unknown as {properties:Record<string,unknown>;required:string[]};
+  for(const key of ['sourceSupported','readerEntailsProposition']){item.properties[key]={type:'boolean'};item.required.push(key)}
+ }
  if(options.requireReaderNovelty){const item=semanticSchema.items as unknown as {properties:Record<string,unknown>;required:string[]};item.properties.readerNovelty=obj({status:{type:'string',enum:['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED','NOT_APPLICABLE']},reason:{type:'string',minLength:1,maxLength:250},previousFactTexts:strings([...new Set(stories.flatMap(s=>s.previousLedgerFacts))],20)});item.required.push('readerNovelty');delete (schema.properties as Record<string,unknown>).novelFactIds;schema.required=schema.required.filter(k=>k!=='novelFactIds')}
  const checkProperties=semanticSchema.items.properties as Record<string,unknown>,preservedNames={attribution:'attributionPreserved',certainty:'certaintyPreserved',temporal:'temporalFaithful',qualifiers:'qualifiersPreserved'};
  for(const [old,name] of Object.entries(preservedNames)){checkProperties[name]=checkProperties[old];delete checkProperties[old];}
  (semanticSchema.items as unknown as {required:string[]}).required=(semanticSchema.items as unknown as {required:string[]}).required.map(k=>preservedNames[k as keyof typeof preservedNames]??k);
  if(options.requireFullEntailment){(schema.properties as Record<string,unknown>).claimEntailment={type:'array',minItems:claims.length,maxItems:claims.length,items:obj({claimId:{type:'string',enum:[...claimIds.keys()]},fullyEntailed:{type:'boolean'},reason:{type:'string',minLength:1,maxLength:500},unsupportedMeaning:{type:'array',items:{type:'string'},maxItems:8}})};schema.required.push('claimEntailment');}
+ // Compile known offered identities and verdict consistency; the model still
+ // decides meaning and can explicitly return UNRESOLVED. Never normalize a
+ // negative semantic verdict into NEW or publish around uncertainty.
+ if(options.requireReaderNovelty&&options.validationContract==='EVIDENCE_GROUNDED_V2'&&factIds.size){
+  const item=structuredClone(semanticSchema.items) as any,newIds=[...new Set(stories.flatMap(s=>s.newUnderstandingFactIds))],otherIds=[...factIds.keys()].filter(id=>!newIds.includes(id));
+  const branch=(offered:string[],statuses:string[],communicated:boolean)=>{const value=structuredClone(item);value.properties.factId={type:'string',enum:offered};value.properties.communicated={type:'boolean',enum:[communicated]};if(communicated)value.properties.readerSpans.minItems=1;value.properties.readerNovelty.properties.status={type:'string',enum:statuses};return value};
+  (schema.properties.semanticChecks as any).items={anyOf:[...(newIds.length?[...([true,false].map(c=>branch(newIds,['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED'],c)))]:[]),...(otherIds.length?[...([true,false].map(c=>branch(otherIds,['NOT_APPLICABLE'],c)))]:[])]};
+ }
  const ids=(raw:unknown,key:string,map:Map<string,string>)=>z.array(z.string()).parse((raw as Record<string,unknown>)[key]??[]).map(id=>{const original=map.get(id);if(!original)throw new Error('UNRECOGNIZED_VERIFIER_ID');return original;});
  const decode=(raw:unknown)=>{
-  const seen=new Set<string>(),declared=ids(raw,'supportedClaimIds',claimIds);
+  const seen=new Set<string>(),declared=ids(raw,'supportedClaimIds',claimIds),preservedAliases=new Set(z.array(z.string()).parse((raw as Record<string,unknown>).preservedFactIds??[]));
   const claimEntailment=options.requireFullEntailment?z.array(z.object({claimId:z.string(),fullyEntailed:z.boolean(),reason:z.string().min(1),unsupportedMeaning:z.array(z.string())}).strict()).parse((raw as any).claimEntailment??[]):[];
   if(new Set(claimEntailment.map(c=>c.claimId)).size!==claimEntailment.length||claimEntailment.some(c=>!claimIds.has(c.claimId)))throw Error('UNRECOGNIZED_VERIFIER_ID');
-  const supported=declared.filter(id=>!options.requireFullEntailment||claimEntailment.some(c=>claimIds.get(c.claimId)===id&&c.fullyEntailed&&!c.unsupportedMeaning.length));
+  const supported=options.validationContract==='EVIDENCE_GROUNDED_V2'?declared:declared.filter(id=>!options.requireFullEntailment||claimEntailment.some(c=>claimIds.get(c.claimId)===id&&c.fullyEntailed&&!c.unsupportedMeaning.length));
   const offered=z.array(z.record(z.string(),z.unknown())).parse((raw as Record<string,unknown>).semanticChecks??[]).map(c=>{const value={...c};for(const [old,name] of Object.entries(preservedNames))if(name in value){if(old in value)throw new Error('AMBIGUOUS_VERIFIER_FACET');value[old]=value[name];delete value[name];}return value;});
-  const semanticChecks=z.array(check).parse(offered).map(c=>{const factId=factIds.get(c.factId);if(!factId||seen.has(c.factId))throw new Error('UNRECOGNIZED_VERIFIER_ID');seen.add(c.factId);const candidateId=factOwners.get(c.factId)!;
+  if(options.validationContract!=='EVIDENCE_GROUNDED_V2'&&offered.some(c=>'sourceSupported' in c||'readerEntailsProposition' in c||Array.isArray(c.readerSpans)&&c.readerSpans.some((s:unknown)=>s&&typeof s==='object'&&('start' in s||'end' in s))))throw Error('UNRECOGNIZED_VERIFIER_FIELD');
+  if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&offered.some(c=>Array.isArray(c.readerSpans)&&c.readerSpans.some((s:unknown)=>s&&typeof s==='object'&&('start' in s||'end' in s))))throw Error('INCOMPATIBLE_READER_COORDINATE_CONTRACT');
+  if(options.readerClaimReferences&&offered.some(c=>Array.isArray(c.readerSpans)&&c.readerSpans.some((s:any)=>s&&Object.keys(s).some(k=>k!=='claimId'))))throw Error('INCOMPATIBLE_READER_REFERENCE_CONTRACT');
+  const semanticChecks=z.array(check).parse(offered).map(c=>{const factId=factIds.get(c.factId);if(!factId||seen.has(c.factId))throw new Error('UNRECOGNIZED_VERIFIER_ID');seen.add(c.factId);const candidateId=factOwners.get(c.factId)!,summary=options.validationContract==='EVIDENCE_GROUNDED_V2'?{preservedInSummary:preservedAliases.has(c.factId)}:{};
    let invalidWitness=false;
-   const readerSpans=c.readerSpans.flatMap(span=>{const claimId=claimIds.get(span.claimId),claim=claims.find(x=>x.id===claimId);const storyFacts=claim?groups.get(claim.candidateId??claim.id)?.flatMap(c=>c.requiredFacts??[]):undefined,text=span.text??claim?.text;if(!claim||(claim.candidateId??claim.id)!==candidateId||!text||!claim.text.includes(text)||!storyFacts?.some(f=>f.id===factId)||!supported.includes(claim.id)){invalidWitness=true;return [];}return [{claimId:claim.id,text}];});
+   const readerSpans=c.readerSpans.flatMap(span=>{
+    const claimId=claimIds.get(span.claimId),claim=claims.find(x=>x.id===claimId);
+    const storyFacts=claim?groups.get(claim.candidateId??claim.id)?.flatMap(c=>options.validationContract==='EVIDENCE_GROUNDED_V2'?[...(c.requiredFacts??[]),...(c.allowedFacts??[])]:c.requiredFacts??[]):undefined;
+    let text=options.readerClaimReferences?claim?.text:options.validationContract==='EVIDENCE_GROUNDED_V2'?span.text:span.text??claim?.text,start=claim&&text?claim.text.indexOf(text):-1;
+    let ambiguous=Boolean(claim&&text&&start>=0&&claim.text.indexOf(text,start+1)>=0);
+    if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&claim&&text&&start<0){
+     // ASCII presentation case preserves UTF-16 length. No whitespace, quote,
+     // punctuation, source text, paraphrase or semantic substitution is allowed.
+     const fold=(s:string)=>s.replace(/[A-Z]/g,c=>c.toLowerCase()),reader=fold(claim.text),anchor=fold(text);
+     start=reader.indexOf(anchor);ambiguous=start>=0&&reader.indexOf(anchor,start+1)>=0;
+     if(start>=0)text=claim.text.slice(start,start+text.length);
+    }
+    const end=start+(text?.length??0);
+    if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&(!text||start<0||ambiguous||!exactReaderWitness({claimId:claimId??'',text,start,end},claims))){invalidWitness=true;return [];}
+    if(!claim||(claim.candidateId??claim.id)!==candidateId||!text||!claim.text.includes(text)||!storyFacts?.some(f=>f.id===factId)||(options.validationContract!=='EVIDENCE_GROUNDED_V2'&&!supported.includes(claim.id))){invalidWitness=true;return [];}
+    return [{claimId:claim.id,text,...(options.validationContract==='EVIDENCE_GROUNDED_V2'?{start,end}:{})}];
+   });
    // Invalid semantic evidence is a durably settled negative verdict, not an
    // uncertain provider execution. Preserve its usage and precise repair reason.
-   if(invalidWitness||(c.communicated&&!readerSpans.length))return {...c,factId,candidateId,communicated:false,readerSpans:[],reason:invalidWitness?'INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.':'MISSING_READER_WITNESS: no reader prose establishes coverage.'};
-   const story=stories.find(s=>s.requiredFactIds.includes(c.factId)),offered=Boolean(story?.newUnderstandingFactIds.includes(c.factId));let readerNovelty=c.readerNovelty;
+   if(options.validationContract==='EVIDENCE_GROUNDED_V2'&&(typeof c.sourceSupported!=='boolean'||typeof c.readerEntailsProposition!=='boolean'))return {...c,...summary,factId,candidateId,communicated:false,readerSpans:[],reason:'MISSING_READER_WITNESS: incompatible source/reader verdict.'};
+   if((invalidWitness&&(options.validationContract!=='EVIDENCE_GROUNDED_V2'||c.communicated))||(c.communicated&&!readerSpans.length))return {...c,...summary,factId,candidateId,communicated:false,readerSpans:[],reason:invalidWitness?'INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.':'MISSING_READER_WITNESS: no reader prose establishes coverage.'};
+   const story=stories.find(s=>options.validationContract==='EVIDENCE_GROUNDED_V2'?s.facts.some(f=>f.id===c.factId):s.requiredFactIds.includes(c.factId)),offered=Boolean(story?.newUnderstandingFactIds.includes(c.factId));let readerNovelty=c.readerNovelty;
    if(options.requireReaderNovelty){
     if(!readerNovelty)readerNovelty={status:'UNRESOLVED',reason:'MISSING_READER_NOVELTY_VERDICT',previousFactTexts:[]};
-    else if(readerNovelty.previousFactTexts.some(text=>!story?.previousLedgerFacts.includes(text))||readerNovelty.status==='ALREADY_COMMUNICATED'&&!readerNovelty.previousFactTexts.length)readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_HISTORY: no offered same-story prior fact establishes repetition.',previousFactTexts:[]};
-    else if((readerNovelty.status==='NEW'&&(!offered||!faithfulFact({...c,readerSpans})))||(offered&&readerNovelty.status==='NOT_APPLICABLE'))readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.',previousFactTexts:[]};
+    else if(((options.validationContract!=='EVIDENCE_GROUNDED_V2'||readerNovelty.status!=='NOT_COMMUNICATED')&&readerNovelty.previousFactTexts.some(text=>!story?.previousLedgerFacts.includes(text)))||readerNovelty.status==='ALREADY_COMMUNICATED'&&!readerNovelty.previousFactTexts.length)readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_HISTORY: no offered same-story prior fact establishes repetition.',previousFactTexts:[]};
+    else if((readerNovelty.status==='NEW'&&(!offered||options.validationContract!=='EVIDENCE_GROUNDED_V2'&&!faithfulFact({...c,readerSpans})))||(offered&&readerNovelty.status==='NOT_APPLICABLE'))readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.',previousFactTexts:[]};
    }
-   return {...c,factId,candidateId,readerSpans,...(readerNovelty?{readerNovelty}:{})};});
-  if(requiredIds.some(id=>!seen.has(id)))throw new Error('INCOMPLETE_SEMANTIC_VERDICT');
-  return {claimEntailment:claimEntailment.map(c=>({...c,claimId:claimIds.get(c.claimId)!})),supportedClaimIds:supported,preservedFactIds:ids(raw,'preservedFactIds',factIds).filter(id=>semanticChecks.some(c=>c.factId===id&&faithfulFact(c))),semanticChecks,novelFactIds:options.requireReaderNovelty?semanticChecks.filter(c=>c.readerNovelty?.status==='NEW'&&faithfulFact(c)).map(c=>c.factId):ids(raw,'novelFactIds',factIds),addressedCorrectionObligationIds:ids(raw,'addressedCorrectionObligationIds',obligationIds)};
+   return {...c,...summary,factId,candidateId,readerSpans,...(readerNovelty?{readerNovelty}:{})};});
+  if(requiredIds.some(id=>!seen.has(id))||options.validationContract==='EVIDENCE_GROUNDED_V2'&&[...preservedAliases].some(id=>!seen.has(id)))throw new Error('INCOMPLETE_SEMANTIC_VERDICT');
+  return {claimEntailment:claimEntailment.map(c=>({...c,claimId:claimIds.get(c.claimId)!})),supportedClaimIds:supported,preservedFactIds:ids(raw,'preservedFactIds',factIds).filter(id=>options.validationContract==='EVIDENCE_GROUNDED_V2'||semanticChecks.some(c=>c.factId===id&&faithfulFact(c))),semanticChecks,novelFactIds:options.requireReaderNovelty?semanticChecks.filter(c=>c.readerNovelty?.status==='NEW'&&faithfulFact(c)).map(c=>c.factId):ids(raw,'novelFactIds',factIds),addressedCorrectionObligationIds:ids(raw,'addressedCorrectionObligationIds',obligationIds)};
  };
  return {payload,schema,decode};
 }

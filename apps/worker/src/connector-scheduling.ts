@@ -5,6 +5,9 @@ import {dispatchV1Acquisitions} from './v1-downstream-runtime';
 import {dispatchV1Intelligence} from './v1-intelligence/runtime';
 import {dispatchTelegramLane} from './connector-telegram-lane';
 import {requireConnectorQueues} from './connector-queue-config';
+import {reserveConnectorWork,releaseConnectorWork} from './connector-work-admission';
+import {pendingWindowCollections} from './connector-publication-coverage';
+import {dispatchReadyConnectorBriefing} from './connector-briefing-priority';
 
 export type ConnectorQueueMessage={type:'connector_feed';feedId:string;token:string}|{type:'connector_poll';feedId:string;jobId:string;table:'rss'|'provider';token:string}|{type:'connector_relay';feedId:string};
 const tables={rss:'connector_rss_poll_jobs',provider:'connector_provider_poll_jobs'} as const;
@@ -34,28 +37,36 @@ export async function dispatchConnectorFeeds(env:Env,now=Date.now(),limit=FEED_D
  const rows=await env.DB.prepare(`UPDATE connector_feed_schedule SET due_ms=?,token=? WHERE feed_id IN
   (SELECT feed_id FROM connector_feed_schedule WHERE due_ms<=? AND processing_until<=? ORDER BY due_ms,feed_id LIMIT ?) RETURNING feed_id`).bind(now+DELIVERY_LEASE_MS,token,now,now,limit).all<{feed_id:string}>();
  if(!rows.results.length)return 0;
- try{await env.SOURCE_COLLECTION_QUEUE.sendBatch(rows.results.map(row=>({body:{type:'connector_feed',feedId:row.feed_id,token} as ConnectorQueueMessage})));sent=rows.results.length;}
+ // Optional control lane prevents long upstream downloads from occupying all
+ // consumers needed to enroll/wake other feeds. Polls stay on collection.
+ const control=env.SOURCE_SCHEDULING_QUEUE??env.SOURCE_COLLECTION_QUEUE;
+ try{await control.sendBatch(rows.results.map(row=>({body:{type:'connector_feed',feedId:row.feed_id,token} as ConnectorQueueMessage})));sent=rows.results.length;}
  catch(error){await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=?,last_error=? WHERE token=?').bind(now+30_000,'QUEUE_SEND_FAILED',token).run();throw error;}
  return sent;
 }
 
 /** Existing canonical runners own processing. This proxy only coalesces queue
  * delivery, so the other owner's intelligence runtime needs no modification. */
-export function coalescedProcessingQueue(env:Env,now=Date.now()):Queue<DistilledQueueMessage>{
+export function coalescedProcessingQueue(env:Env,at?:number):Queue<DistilledQueueMessage>{
  requireConnectorQueues(env);
  const original=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?env.V1_PROCESSING_QUEUE!:env.V1_PROCESSING_QUEUE??env.PROCESSING_QUEUE;
  const send=async(raw:DistilledQueueMessage,options?:QueueSendOptions)=>{
+  const now=at??Date.now();
   const {body}=decodeConnectorDelivery(raw);
   if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay')return env.PROCESSING_QUEUE.send(body,options);
   const id=await sha256(JSON.stringify(body)),token=crypto.randomUUID();
-  if(body.type==='v1_briefing'&&!await collectionReadyForWindow(env,body.feedId,body.window.end,id,now))return;
+  if(body.type==='v1_briefing'&&!await collectionReadyForWindow(env,body.feedId,body.window.end,id,now))return false as never;
   const claimed=await env.DB.prepare(`INSERT INTO connector_queue_dispatch(kind,id,available_ms,token) VALUES(?,?,?,?)
    ON CONFLICT(kind,id) DO UPDATE SET available_ms=excluded.available_ms,token=excluded.token,sends=sends+1,last_error=NULL WHERE available_ms<=? RETURNING id`).bind(body.type,id,now+DELIVERY_LEASE_MS,token,now).first();
-  if(!claimed)return;
+  if(!claimed)return false as never;
+  if(!await reserveConnectorWork(env,body,token,now)){
+   await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=? AND token=?').bind(body.type,id,token).run();
+   return false as never;
+  }
   const acquisition=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?env.V1_ACQUISITION_QUEUE!:env.V1_ACQUISITION_QUEUE??original;
   const target=body.type==='v1_acquisition'||body.type==='connector_relay'?acquisition:original;
   const transport={...body,_connectorDispatchToken:token};
-  try{return await target.send(transport,options)}catch(error){await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=?,last_error=? WHERE kind=? AND id=? AND token=?').bind(now+30_000,'QUEUE_SEND_FAILED',body.type,id,token).run();throw error;}
+  try{return await target.send(transport,options)}catch(error){await releaseConnectorWork(env,token);await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=?,last_error=? WHERE kind=? AND id=? AND token=?').bind(now+30_000,'QUEUE_SEND_FAILED',body.type,id,token).run();throw error;}
  };
  // Canonical dispatchers ignore send metadata. A coalesced no-op returns no
  // fabricated queue statistics; native metrics remain directly available.
@@ -66,12 +77,7 @@ export function coalescedProcessingQueue(env:Env,now=Date.now()):Queue<Distilled
  * collection windows do not hold this boundary; blocked sources are reported
  * separately as unavailable and remain visible to operators/readers. */
 export async function collectionReadyForWindow(env:Env,feedId:string,end:string,id:string,now=Date.now()){
- let pending=0;
- for(const table of Object.values(tables)){
-  const row=await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table} j JOIN sources s ON s.id=json_extract(j.request,'$.scope.feedSourceId')
-   WHERE json_extract(j.request,'$.scope.feedId')=? AND j.state='PENDING' AND s.enabled=1 AND s.collection_owner='connector'
-   AND (j.scheduled_at='' OR j.scheduled_at<?)` ).bind(feedId,end).first<{n:number}>();pending+=row?.n??0;
- }
+ const {pending}=await pendingWindowCollections(env.DB,feedId,end);
  if(pending)await env.DB.prepare('INSERT INTO connector_publication_waits(request_id,feed_id,window_end,pending_collections,checked_at) VALUES(?,?,?,?,?) ON CONFLICT(request_id) DO UPDATE SET pending_collections=excluded.pending_collections,checked_at=excluded.checked_at WHERE pending_collections<>excluded.pending_collections').bind(id,feedId,end,pending,new Date(now).toISOString()).run();
  else await env.DB.prepare('DELETE FROM connector_publication_waits WHERE request_id=?').bind(id).run();
  return pending===0;
@@ -100,9 +106,10 @@ export async function connectorDownstreamEnv(env:Env,body:DistilledQueueMessage)
 
 /** Indexed per-feed pending-job discovery keeps a prolific feed from taking all
  * dispatch slots. Stable poll IDs retain paid submission/pagination identities. */
-export async function dispatchConnectorPolls(env:Env,feedId:string,now=Date.now(),perKind=4){
+export async function dispatchConnectorPolls(env:Env,feedId:string,now=Date.now(),perKind=1){
  requireConnectorQueues(env);
  if(!env.SOURCE_COLLECTION_QUEUE)throw Error('SOURCE_COLLECTION_QUEUE_REQUIRED');
+ if(!Number.isSafeInteger(perKind)||perKind<1||perKind>4)throw Error('INVALID_POLL_DISPATCH_LIMIT');
  const kinds=['rss','provider'] as const,token=crypto.randomUUID();
  const claims=kinds.map(kind=>{
   const table=tables[kind];
@@ -118,9 +125,23 @@ export async function dispatchConnectorPolls(env:Env,feedId:string,now=Date.now(
  catch(error){await env.DB.batch(kinds.map(kind=>env.DB.prepare(`UPDATE ${tables[kind]} SET dispatch_until=?,dispatch_token=NULL WHERE dispatch_token=?`).bind(now+30_000,token)));throw error;}
 }
 
+/** An already-fetched poll waiting on intake must wake at its persisted retry
+ * time, not the next minute-wide Feed scan. Claim a new transport generation;
+ * never change its fetch identity, attempts, checkpoint or paid operation. */
+export async function continueConnectorIntake(env:Env,feedId:string,jobId:string,kind:'rss'|'provider',now=Date.now()):Promise<boolean>{
+ if(!env.SOURCE_COLLECTION_QUEUE)return false;
+ const token=crypto.randomUUID(),table=tables[kind];
+ const row=await env.DB.prepare(`UPDATE ${table} SET dispatch_until=?,dispatch_token=? WHERE job_id=? AND json_extract(request,'$.scope.feedId')=?
+ AND state='PENDING' AND last_error='INTAKE_BUSY' AND dispatch_until<=? AND (lease_until IS NULL OR lease_until<=?) RETURNING due_at`).bind(now+POLL_DELIVERY_MS,token,jobId,feedId,now,new Date(now).toISOString()).first<{due_at:string}>();
+ if(!row)return false;
+ try{await env.SOURCE_COLLECTION_QUEUE.send({type:'connector_poll',feedId,jobId,table:kind,token},{delaySeconds:Math.min(43200,Math.max(1,Math.ceil((Date.parse(row.due_at)-now)/1000)))});return true;}
+ catch(error){await env.DB.prepare(`UPDATE ${table} SET dispatch_until=0,dispatch_token=NULL WHERE job_id=? AND dispatch_token=?`).bind(jobId,token).run();throw error;}
+}
+
 /** Coordination interface: feed-scoped environment + existing dispatchers.
  * Canonical intelligence/window policy stays owned by v1-intelligence/runtime. */
-export async function relayConnectorDownstream(env:Env){
+export async function relayConnectorDownstream(env:Env,feedId?:string){
+ if(feedId)await dispatchReadyConnectorBriefing(env,feedId);
  await dispatchV1Acquisitions(env);
  await dispatchV1Intelligence(env);
 }
@@ -137,7 +158,7 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
   let lost=false,renewing:Promise<void>|undefined;
   const timer=setInterval(()=>{if(renewing||lost)return;renewing=(async()=>{try{const r=await env.DB.prepare('UPDATE connector_feed_schedule SET relay_until=? WHERE feed_id=? AND relay_token=? AND relay_until>? RETURNING feed_id').bind(Date.now()+DELIVERY_LEASE_MS,body.feedId,token,Date.now()).first();if(!r)lost=true;}catch{lost=true;}})().finally(()=>{renewing=undefined;});},DELIVERY_LEASE_MS/3);
   try{
-   const scoped=await feedEnv(env,body.feedId);if(scoped)await relayConnectorDownstream(scoped);
+   const scoped=await feedEnv(env,body.feedId);if(scoped)await relayConnectorDownstream(scoped,body.feedId);
    if(renewing)await renewing;if(lost)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    await completeConnectorDownstream(env,body,completionToken);
   }finally{clearInterval(timer);if(renewing)await renewing;await env.DB.prepare('UPDATE connector_feed_schedule SET relay_until=0,relay_token=NULL WHERE feed_id=? AND relay_token=?').bind(body.feedId,token).run();}
@@ -183,6 +204,7 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
   // Persist continuation wakeup together with delivery release; relay failures
   // cannot strand a completed page or an eligible pending continuation.
   await env.DB.batch([release,env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),body.feedId)]);
+  await continueConnectorIntake(scoped,body.feedId,body.jobId,body.table);
   if(job.family==='telegram')await dispatchTelegramLane(env);
   await scoped.PROCESSING_QUEUE.send({type:'connector_relay',feedId:body.feedId});
   // Finish one page, then yield: other feeds run before this continuation.
@@ -194,27 +216,45 @@ export async function recordConnectorQueueFailure(env:Env,id:string,body:Connect
  .bind(id,body.type,body.feedId,body.type==='connector_poll'?body.jobId:null,attempts,'QUEUE_DELIVERY_FAILED',new Date().toISOString()).run();
 }
 
+/** A capacity wait is not a failed delivery. Rotate only the matching transport
+ * generation and send its stable work identity with a short delay, so native
+ * retry exhaustion cannot impose the two-minute crash-recovery timeout. */
+export async function deferConnectorDownstream(env:Env,body:DistilledQueueMessage,dispatchToken?:string):Promise<boolean>{
+ if(!dispatchToken||!body.type?.startsWith('v1_'))return false;
+ const row=await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=? AND token=? AND available_ms>0 RETURNING id').bind(body.type,await sha256(JSON.stringify(body)),dispatchToken).first();
+ if(row){await releaseConnectorWork(env,dispatchToken);await coalescedProcessingQueue(env).send(body,{delaySeconds:1});}
+ // A stale delivery has no authority to release or resend a replacement.
+ return true;
+}
+
 export async function completeConnectorDownstream(env:Env,body:DistilledQueueMessage,dispatchToken?:string){
  if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay'||!dispatchToken)return;
  // A successful old delivery or a legacy tokenless message cannot release a
  // replacement generation. Only the matching delivery can refill its lane.
  const completed=await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=? AND token=? AND available_ms>0 RETURNING id').bind(body.type,await sha256(JSON.stringify(body)),dispatchToken).first();
  if(!completed)return;
+ await releaseConnectorWork(env,dispatchToken);
+ let feedId:string|undefined;
  if('jobId' in body){
-  const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();
-  if(row){
-   await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),row.feed_id).run();
-   // Completion opens a consumer slot. Refill the bounded per-feed relay now;
-   // Cron remains crash recovery rather than the speed limit of backlog drain.
-   // The durable relay fence coalesces simultaneous completions for this feed.
-   if(env.V1_ACQUISITION_QUEUE)await coalescedProcessingQueue(env).send({type:'connector_relay',feedId:row.feed_id});
-  }
+  const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();feedId=row?.feed_id;
+ }else if(body.type==='v1_rematch'){
+  // The completed transport is fenced above. Resolve the saved request as well;
+  // arbitrary message fields cannot wake or rebind another Feed's work.
+  const row=await env.DB.prepare("SELECT feed_id FROM v1_feed_documents WHERE kind='rematch_requests' AND id=? AND feed_id=?").bind(body.requestId,body.feedId).first<{feed_id:string}>();feedId=row?.feed_id;
+ }
+ if(feedId){
+  await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),feedId).run();
+  // Completion opens a consumer slot, including a durably rescheduled resource
+  // wait. Wake other eligible work; nextRematch still enforces this request's due
+  // time. A failed relay send leaves the persisted due wake for Cron recovery.
+  if(env.V1_ACQUISITION_QUEUE)await coalescedProcessingQueue(env).send({type:'connector_relay',feedId});
  }
 }
 
 /** Delivery bookkeeping is disposable; canonical jobs and financial ledgers
  * remain the durable authority and are never deleted by this cleanup. */
 export async function expireConnectorDeliveries(env:Env,now=Date.now()){
+ await env.DB.prepare('DELETE FROM connector_feed_turn_waiters WHERE (feed_id,work_id) IN (SELECT feed_id,work_id FROM connector_feed_turn_waiters WHERE expires_at<=? ORDER BY expires_at LIMIT 1000)').bind(now).run();
  await env.DB.prepare('DELETE FROM connector_queue_dispatch WHERE (kind,id) IN (SELECT kind,id FROM connector_queue_dispatch WHERE available_ms<? ORDER BY available_ms LIMIT 1000)').bind(now-86400_000).run();
  await env.DB.prepare('DELETE FROM connector_queue_recovery WHERE id IN (SELECT id FROM connector_queue_recovery WHERE observed_at<? ORDER BY observed_at LIMIT 1000)').bind(new Date(now-30*86400_000).toISOString()).run();
 }

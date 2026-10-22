@@ -71,7 +71,7 @@ export async function independentSupportCount(tx:FeedTransaction,revisions:Evide
  };
  for(const group of [...groups.keys()].sort()) match(group,new Set());return assigned.size;
 }
-export async function targets(tx:FeedTransaction,window:PublicationWindow,includeOutsideWindow=false):Promise<Target[]> {
+export async function targets(tx:FeedTransaction,window:PublicationWindow,includeOutsideWindow=false,options:{preloadSemanticReferences?:boolean}={}):Promise<Target[]> {
  const active=new Map((await tx.store.currentEvidence(tx.snapshot.feed.id)).map(r=>[r.revision.id,r.revision]));
  const admissionRows=await tx.store.db.prepare("SELECT json_extract(r.json,'$.observationId') AS observation_id,MIN(json_extract(r.json,'$.decidedAt')) AS admitted_at FROM v1_intake_receipts r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND json_extract(r.json,'$.decision')='ACCEPTED' GROUP BY 1").bind(tx.snapshot.feed.id).all<{observation_id:string;admitted_at:string}>();
  const admissions=new Map(admissionRows.results.map(row=>[row.observation_id,Date.parse(row.admitted_at)]));
@@ -126,7 +126,9 @@ export async function targets(tx:FeedTransaction,window:PublicationWindow,includ
   const admittedAt=times.length?Math.max(...times):Date.parse(target.updatedAt);
   return admittedAt<Date.parse(window.end)&&(includeOutsideWindow||admittedAt>=Date.parse(window.start));
  });
- await tx.preloadSemanticReferences(eligible.flatMap(target=>target.eventVersionIds));
+ // Publication needs the complete cutoff catalog but consumes semantic bodies
+ // only for its selected versions. Other callers retain eager warmup.
+ if(options.preloadSemanticReferences!==false)await tx.preloadSemanticReferences(eligible.flatMap(target=>target.eventVersionIds));
  return eligible;
 }
 function deterministicPrefilter(editorial:EditorialDecision,interests:string[],geography:string[]):void {

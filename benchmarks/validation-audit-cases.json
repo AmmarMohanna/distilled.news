@@ -1,0 +1,36 @@
+{
+  "labelProvenance": "The 24 cases are investigator-adjudicated. Five separate humanReviewCases were confirmed by the owner answering agree to proposed A-D PASS/E FAIL labels, call_02f7858a9f2e40dc83a19b9363bac076, 2026-10-18. Review judges only the stated change; it was assisted and unblinded, not an independent population evaluation. Precheck passing is not publication acceptance.",
+  "humanReviewCases": [
+    {"id":"H-A","valid":true,"facts":["Possession could include an image stored on a phone."],"draft":"Possession could include images stored on devices."},
+    {"id":"H-B","valid":true,"facts":["10,000+ attendees gathered."],"draft":"Over 10,000 attendees gathered."},
+    {"id":"H-C","valid":true,"facts":["The service gained about a thousand users over the course of two days."],"draft":"The service gained about a thousand users over two days."},
+    {"id":"H-D","valid":true,"facts":["She described \"sexual violence\"."],"draft":"She described \"sexual violence.\""},
+    {"id":"H-E","valid":false,"facts":["Prof McGlynn raised platform-enforcement concerns."],"draft":"Baroness Bertin raised platform-enforcement concerns."}
+  ],
+  "cases": [
+    {"id":"P01","valid":true,"facts":["Officials reported 12 injuries."],"draft":"Officials reported twelve injuries."},
+    {"id":"P02","valid":true,"facts":["The cost is 12 million dollars."],"draft":"The cost is 12000000 dollars."},
+    {"id":"P03","valid":true,"facts":["The fee is $1bn."],"draft":"The fee is $1 billion."},
+    {"id":"P04","valid":true,"facts":["Revenue rose 20%."],"draft":"Revenue rose 20 percent."},
+    {"id":"P05","valid":true,"facts":["Parents of children under the age of eight qualify."],"draft":"Parents of children under eight qualify."},
+    {"id":"P06","valid":true,"facts":["The vote is on October 8, 2026."],"draft":"The vote is on 2026-10-08."},
+    {"id":"P07","valid":true,"facts":["The product launched."],"reportDate":"2026-10-08T12:00:00Z","draft":"According to an October 8, 2026 report, the product launched."},
+    {"id":"P08","valid":true,"facts":["The product launched."],"reportDate":"2026-10-08T12:00:00Z","draft":"On October 8, 2026, the newspaper reported that the product launched."},
+    {"id":"P09","valid":true,"facts":["Alice called it a “self-driving company,” describing automated routine work."],"draft":"Alice described a \"self-driving company\" with automated routine work."},
+    {"id":"P10","valid":true,"facts":["Alice said \"the plan is ready\"."],"draft":"Alice said \"the plan is ready.\""},
+    {"id":"P11","valid":true,"facts":["The service gained approximately a thousand users over the course of two days."],"draft":"The service gained approximately a thousand users over two days."},
+    {"id":"P12","valid":true,"facts":["The device starts at $75.","The device costs $74.99."],"required":[0],"draft":"The device costs $74.99.","note":"Headline rounding and supported body precision, rather than an invented price."},
+    {"id":"N01","valid":false,"facts":["Officials reported 12 injuries."],"draft":"Officials reported 40 injuries."},
+    {"id":"N02","valid":false,"facts":["The cost is 12 million dollars."],"draft":"The cost is 12 billion dollars."},
+    {"id":"N03","valid":false,"facts":["The vote is on October 8, 2026."],"draft":"The vote is on October 9, 2026."},
+    {"id":"N04","valid":false,"facts":["The product launched."],"reportDate":"2026-10-08T12:00:00Z","draft":"The product launched on October 8, 2026."},
+    {"id":"N05","valid":false,"facts":["Alice said \"we expect approval\"."],"draft":"Alice said \"we have approval\"."},
+    {"id":"N06","valid":false,"facts":["Officials reported 10 injuries and 20 deaths."],"draft":"Officials reported 20 injuries and 10 deaths."},
+    {"id":"N07","valid":false,"facts":["Alice welcomed the policy.","Bob raised enforcement concerns."],"draft":"Bob welcomed the policy. Alice raised enforcement concerns."},
+    {"id":"N08","valid":false,"facts":["The court did not confirm the decision."],"draft":"The court confirmed the decision."},
+    {"id":"N09","valid":false,"facts":["The board may approve the plan."],"draft":"The board approved the plan."},
+    {"id":"N10","valid":false,"facts":["The road reopened.","The bridge remains closed."],"draft":"The road reopened."},
+    {"id":"N11","valid":false,"facts":["The resignation followed the investigation."],"draft":"The investigation caused the resignation."},
+    {"id":"N12","valid":false,"facts":["Officials reported at least 40 injuries."],"draft":"Officials reported at most 40 injuries."}
+  ]
+}

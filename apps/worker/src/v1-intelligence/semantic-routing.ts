@@ -1,5 +1,5 @@
 import type {EventMatchDecision,IntelligenceMatchers,EventMatchInput} from './matchers';
-import {deterministicMatchers,validateEventMatch} from './matchers';
+import {validateEventMatch} from './matchers';
 export const SEMANTIC_POLICY='semantic-relations-v3';
 export const protectedEffects=new Set(['CHANGES_STATE','CHANGES_CERTAINTY','CONTRADICTS','CORRECTS','RETRACTS']);
 /** Concentration thresholds are engineering escalation guards, not measured
@@ -11,10 +11,14 @@ export function escalationReasons(decision:EventMatchDecision,checks:{forwardEnt
  if(decision.epistemicEffects.some(e=>protectedEffects.has(e)))reasons.push('HIGH_CONSEQUENCE');
  if(['NEW_STORYLINE','NEW_EVENT_EXISTING_STORYLINE'].includes(decision.structuralRelation))reasons.push('CONSTRUCTION');return reasons;
 }
-export interface PreparedSemanticMatch {/** Same non-withdrawn catalog as consumption, not just model-eligible targets. */knownEventIds?:string[];knownEventVersions?:Record<string,string>;revisionId:string;candidateVersions:Record<string,string>;storylineVersions?:Record<string,string>;decision:EventMatchDecision}
+export interface PreparedSemanticMatch {feedRevision?:number;evidenceRevisionIds?:string[];/** Same non-withdrawn catalog as consumption, not just model-eligible targets. */knownEventIds?:string[];knownEventVersions?:Record<string,string>;revisionId:string;candidateVersions:Record<string,string>;storylineVersions?:Record<string,string>;decision:EventMatchDecision}
 export function preparedMatchers(prepared:PreparedSemanticMatch):IntelligenceMatchers {
  return {event:{match:(input:EventMatchInput)=>{
-  if(input.revision.id!==prepared.revisionId || prepared.knownEventIds && input.candidates.some(c=>!prepared.knownEventIds!.includes(c.id)) || Object.entries({...prepared.knownEventVersions,...prepared.candidateVersions}).some(([id,version])=>!input.candidates.some(c=>c.id===id && c.version.id===version)) || Object.entries(prepared.storylineVersions??{}).some(([id,version])=>input.storylineVersions?.[id]!==version))return {structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'STALE_PREPARED_MEMORY'}};
+  // An accepted replacement/withdrawal can precede its Event reassessment.
+  // Unchanged root versions alone cannot prove the prepared support is current.
+  const active=new Set(input.activeEvidenceRevisionIds??[]);
+  if(prepared.evidenceRevisionIds?.some(id=>!active.has(id)))return {structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'STALE_PREPARED_MEMORY'}};
+  if(prepared.feedRevision!==undefined&&input.feedRevision!==prepared.feedRevision || input.revision.id!==prepared.revisionId || prepared.knownEventIds && input.candidates.some(c=>!prepared.knownEventIds!.includes(c.id)) || Object.entries({...prepared.knownEventVersions,...prepared.candidateVersions}).some(([id,version])=>!input.candidates.some(c=>c.id===id && c.version.id===version)) || Object.entries(prepared.storylineVersions??{}).some(([id,version])=>input.storylineVersions?.[id]!==version) || prepared.feedRevision!==undefined&&Object.keys(input.storylineVersions??{}).some(id=>!(id in (prepared.storylineVersions??{}))))return {structuralRelation:'DEFER',epistemicEffects:[],confidence:0,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'STALE_PREPARED_MEMORY'}};
   return validateEventMatch(prepared.decision,input);
- }},storyline:deterministicMatchers.storyline};
+ }},storyline:{match:input=>{const existing=input.candidates.find(c=>c.events.some(e=>e.eventId===input.event.eventId));return {relation:existing?'CONTINUES':input.event.type==='WITHDRAWN'?'DEFER':'NEW',...(existing?{storylineId:existing.id}:{}),confidence:1,provenance:{scorer:'SEMANTIC',policyVersion:SEMANTIC_POLICY,fallbackReason:'NO_CONFIRMED_CROSS_EVENT_RELATION'}}}}};
 }

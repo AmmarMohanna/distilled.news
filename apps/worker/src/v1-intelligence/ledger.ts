@@ -3,6 +3,7 @@ import {equivalentFact} from './editorial';
 import type {EditorialWork} from './editorial-work';
 import {provenMaterialDelta} from './material-delta';
 import {revisionChangesMeaning,changedCommunicatedSpans} from './correction-materiality';
+import {measureLatency,countLatency} from './latency';
 import {HandoffError,sha256,type BriefingCandidate,type EventVersion} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import {V1FeedStore,type FeedTransaction,type DocumentKind} from './store';
@@ -63,6 +64,8 @@ async function sourceChangesReaderMeaning(store:V1FeedStore,feedId:string,entry:
 export async function projectEditionLedger(store:V1FeedStore,feedId:string,editionId:string):Promise<LedgerProjection> {
  const edition=await store.read<BriefingEditionRecord>(feedId,'editions',editionId),status=await store.read<PublicationStatus>(feedId,'publication_status',editionId);
  if(!edition || !status || !await store.getFeed(feedId))throw new HandoffError('SCOPE_DENIED');
+ // V3 reader memory is the immutable published edition, without invented Event identities.
+ if(edition.engine==='v3')return {id:ledgerProjectionId(editionId),feedId,editionId,entryIds:[],policyVersion:'v3-fixed-window-editor-verifier-v1'};
  const projectionId=ledgerProjectionId(editionId),prior=await store.read<LedgerProjection>(feedId,'ledger_projections',projectionId);
  const writes:{kind:DocumentKind;id:string;value:any}[]=[],entries:LedgerEntry[]=[];
  if(prior){for(const id of prior.entryIds){const entry=await store.read<LedgerEntry>(feedId,'ledger_entries',id);if(!entry)throw new HandoffError('SCOPE_DENIED');entries.push(entry)}}
@@ -101,7 +104,7 @@ export async function projectEditionLedger(store:V1FeedStore,feedId:string,editi
    for(const fact of preserved){const id=JSON.stringify([editionId,story.candidateId,fact.id]);if(!await store.read(feedId,'ledger_fact_bindings',id))writes.push({kind:'ledger_fact_bindings',id,value:{id,feedId,editionId,candidateId:story.candidateId,factId:fact.id,propositionId:fact.propositionId,ledgerEntryIds:entries.filter(e=>e.candidateId===story.candidateId).map(e=>e.id),evidenceRevisionIds:fact.evidenceRevisionIds,policyVersion:LEDGER_POLICY}})}
    if(planned.mustIncludeFactIds.every(id=>preserved.some(f=>f.id===id))){
     for(const obligation of plan.obligations.filter(o=>o.handling==='ADDRESS'&&o.targetVersionId===scope.targetVersionId&&fidelity?.passed&&fidelity.checks.some(c=>c.candidateId===story.candidateId&&c.addressedCorrectionObligationIds?.includes(o.obligationId)))){const id=JSON.stringify([obligation.obligationId,editionId]);if(!await store.read(feedId,'correction_resolutions',id))writes.push({kind:'correction_resolutions',id,value:{id,feedId,obligationId:obligation.obligationId,editionId,planId:plan.id,createdAt:edition.createdAt}})}
-    if(planned.deltaType!=='REPEAT')for(const work of pending.filter(w=>w.stableTargetId===scope.stableTargetId&&Date.parse(w.createdAt)<=Date.parse(edition.createdAt)&&(!w.factTexts?.length||w.factTexts.every(text=>[...preserved.map(f=>f.text),...shortlist.ledger.flatMap(e=>e.claimFacts)].some(known=>equivalentFact(text,known)))))){const id=JSON.stringify([work.id,editionId]);if(!await store.read(feedId,'editorial_work_resolutions',id))writes.push({kind:'editorial_work_resolutions',id,value:{id,feedId,workId:work.id,editionId,planId:plan.id,createdAt:edition.createdAt}})}
+    if(planned.deltaType!=='REPEAT')for(const work of pending.filter(w=>w.validationContract!=='EVIDENCE_GROUNDED_V2'&&w.stableTargetId===scope.stableTargetId&&Date.parse(w.createdAt)<=Date.parse(edition.createdAt)&&(!w.factTexts?.length||w.factTexts.every(text=>[...preserved.map(f=>f.text),...shortlist.ledger.flatMap(e=>e.claimFacts)].some(known=>equivalentFact(text,known)))))){const id=JSON.stringify([work.id,editionId]);if(!await store.read(feedId,'editorial_work_resolutions',id))writes.push({kind:'editorial_work_resolutions',id,value:{id,feedId,workId:work.id,editionId,planId:plan.id,createdAt:edition.createdAt}})}
    }
   }
  }
@@ -134,12 +137,26 @@ export async function recordCorrectionObligation(tx:FeedTransaction,entry:Ledger
 /** Absence is never deletion. Only durable source tombstones create deletion
  * obligations; a changed current revision creates a distinct revision obligation. */
 export async function refreshSourceCorrectionObligations(tx:FeedTransaction,now:string):Promise<void> {
- for(const entry of await tx.list<LedgerEntry>('ledger_entries'))for(const id of entry.evidenceRevisionIds){
-  const revision=await tx.revision(id);if(!revision)continue;
-  const row=await tx.store.db.prepare("SELECT e.json FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id WHERE s.feed_id=? AND json_extract(e.json,'$.id')=?").bind(tx.snapshot.feed.id,revision.evidenceId).first<{json:string}>();if(!row)continue;
-  const current=JSON.parse(row.json);
+ return measureLatency('SOURCE_CORRECTION_REFRESH',()=>refreshSourceCorrections(tx,now));
+}
+async function refreshSourceCorrections(tx:FeedTransaction,now:string):Promise<void> {
+ const entries=await tx.list<LedgerEntry>('ledger_entries'),ids=[...new Set(entries.flatMap(entry=>entry.evidenceRevisionIds))];
+ countLatency('ledgerEntriesInspected',entries.length);countLatency('ledgerSupportIdentities',ids.length);
+ const currentByRevision=new Map<string,import('@distilled/contracts').NormalizedEvidenceItem>();
+ // Inspect indexed identities in bounded batches before reading historical
+ // article bodies. Disabled/deleted scopes remain ownership roots for retained
+ // corrections. This cache belongs only to this invocation/CAS attempt; source
+ // and Feed epochs still fence the eventual commit.
+ for(let offset=0;offset<ids.length;offset+=90){
+  const chunk=ids.slice(offset,offset+90);tx.metrics.preloadQueries++;
+  const rows=await tx.store.db.prepare(`SELECT r.id AS revision_id,e.json AS current_json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id JOIN v1_evidence e ON e.id=json_extract(r.json,'$.evidenceId') AND e.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(tx.snapshot.feed.id,...chunk).all<{revision_id:string;current_json:string}>();
+  for(const row of rows.results)currentByRevision.set(row.revision_id,JSON.parse(row.current_json));
+ }
+ for(const entry of entries)for(const id of entry.evidenceRevisionIds){
+  const current=currentByRevision.get(id);if(!current)continue;
   if(current.state==='DELETED')await recordCorrectionObligation(tx,entry,'SOURCE_DELETED',current.currentObservationId,now);
   else if(current.currentRevisionId && current.currentRevisionId!==id){
+   const revision=await tx.revision(id);if(!revision)continue;
    const next=await tx.revision(current.currentRevisionId);
    if(!next||await sourceChangesReaderMeaning(tx.store,tx.snapshot.feed.id,entry,revision,next,tx))await recordCorrectionObligation(tx,entry,'SOURCE_REVISED',current.currentRevisionId,now);
    else for(const obligation of (await tx.list<CorrectionObligation>('correction_obligations')).filter(o=>o.ledgerEntryId===entry.id&&o.kind==='SOURCE_REVISED')){

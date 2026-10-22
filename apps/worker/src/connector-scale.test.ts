@@ -5,7 +5,7 @@ import {sharedPublicHttp} from './connector-public-cache';
 import {DurableProviderHttp,sourceSqlFromD1} from '@distilled/connectors';
 import type {Env} from './types';
 import {processV1Acquisition} from './v1-downstream-runtime';
-import {processV1Reassessment} from './v1-intelligence/runtime';
+import {processV1Reassessment,processV1Briefing,type V1BriefingMessage} from './v1-intelligence/runtime';
 import {verifyConnectorAuthority} from './connector-authority';
 import {handoffFixture} from '@distilled/contracts';
 import {feedSourceAvailability} from './connector-availability';
@@ -63,6 +63,14 @@ it('dispatches 1,000 feeds in bounded indexed batches, with no repeated sends be
  expect(await dispatchConnectorFeeds(env,121001)).toBe(100); // Lost queue delivery recovery.
 },60_000);
 
+it('an optional scheduling lane keeps control work separate from upstream collection',async()=>{
+ await ctx.db.prepare("UPDATE connector_feed_schedule SET due_ms=0,processing_until=0 WHERE feed_id='scale-0001'").run();
+ const control:unknown[]=[];
+ const isolated={...env,SOURCE_SCHEDULING_QUEUE:{sendBatch:async(batch:unknown[])=>{control.push(...batch)}}} as unknown as Env;
+ messages.length=0;
+ expect(await dispatchConnectorFeeds(isolated,1000,1)).toBe(1);
+ expect(control).toMatchObject([{body:{type:'connector_feed',feedId:'scale-0001'}}]);expect(messages).toHaveLength(0);
+});
 it('failed sends release the durable dispatch for bounded retry',async()=>{
  await ctx.db.prepare("UPDATE connector_feed_schedule SET due_ms=0 WHERE feed_id='scale-1000'").run();
  const broken={...env,SOURCE_COLLECTION_QUEUE:{sendBatch:async()=>{throw Error('transport')}}} as unknown as Env;
@@ -100,9 +108,9 @@ it('per-feed dispatch gives a quiet feed slots even when another has a large bac
  const statements=[];
  for(let i=0;i<40;i++)for(const feed of ['scale-0001','scale-0002'])statements.push(ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at) VALUES(?,?,?,?,?)').bind(`${feed}-${i}`,JSON.stringify({scope:{feedId:feed}}),'hash','[]','1970-01-01T00:00:00.000Z'));
  await ctx.db.batch(statements);messages.length=0;
- expect(await dispatchConnectorPolls(env,'scale-0001',3000)).toBe(4);
- expect(await dispatchConnectorPolls(env,'scale-0002',3000)).toBe(4);
- expect(messages.map(m=>(m as {body:{feedId:string}}).body.feedId)).toEqual([...Array(4).fill('scale-0001'),...Array(4).fill('scale-0002')]);
+ expect(await dispatchConnectorPolls(env,'scale-0001',3000)).toBe(1);
+ expect(await dispatchConnectorPolls(env,'scale-0002',3000)).toBe(1);
+ expect(messages.map(m=>(m as {body:{feedId:string}}).body.feedId)).toEqual(['scale-0001','scale-0002']);
 });
 
 it('a failed mixed-family send releases both atomic claims for retry',async()=>{
@@ -243,6 +251,11 @@ it('the new queue path acquires a full article and reaches intelligence with a f
   await tick('initial');
   const poll=messages.find((m:any)=>m.body?.type==='connector_poll'&&m.body.feedId===feedId) as {body:Parameters<typeof processConnectorMessage>[1]};expect(poll).toBeDefined();
   await processConnectorMessage(runtime,poll.body);await tick('after-poll');
+  // The earlier closed window can be queued before these newly observed
+  // items. Consume it just as the real Worker does, releasing its lane before
+  // expecting delivery of the next review for this Feed.
+  const prior=messages.find((m:any)=>m.type==='v1_briefing'&&m.feedId===feedId) as V1BriefingMessage|undefined;
+  if(prior){const delivery=decodeConnectorDelivery(prior);await processV1Briefing(await connectorDownstreamEnv(runtime,delivery.body),delivery.body);await completeConnectorDownstream(runtime,delivery.body,delivery.token);}
   const acquired=messages.find((m:any)=>m.type==='v1_acquisition') as {type:'v1_acquisition';jobId:string};expect(acquired).toBeDefined();
   const scoped=await connectorDownstreamEnv(runtime,acquired);expect(scoped.V1_DOWNSTREAM_FEED_SOURCE_IDS).toBe(`${feedId}-rss`);
   expect(await processV1Acquisition(scoped,acquired.jobId,fixture as typeof globalThis.fetch)).toBe('DONE');const delivery=decodeConnectorDelivery(acquired);await completeConnectorDownstream(runtime,delivery.body,delivery.token);
@@ -260,8 +273,23 @@ it('unfinished source collection holds its publication window but later windows 
  await ctx.db.prepare('INSERT INTO connector_rss_poll_jobs(job_id,request,request_hash,due_at,scheduled_at) VALUES(?,?,?,?,?)').bind('window-poll',request,'hash','2026-10-13T12:05:00.000Z','2026-10-13T12:00:00.000Z').run();
  expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:01:00.000Z','window-request')).toBe(false);
  expect(await collectionReadyForWindow(env,feedId,'2026-10-13T11:59:00.000Z','earlier-request')).toBe(true);
+ await ctx.db.prepare("UPDATE connector_rss_poll_jobs SET last_error='RATE_LIMIT',result=? WHERE job_id='window-poll'").bind(JSON.stringify({checkpoint:'UNCHANGED',coverage:{failureReason:'RATE_LIMIT'}})).run();
+ expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:01:00.000Z','window-request')).toBe(true);
+ await ctx.db.prepare("UPDATE connector_rss_poll_jobs SET result=? WHERE job_id='window-poll'").bind(JSON.stringify({checkpoint:'BLOCKED',coverage:{failureReason:'RATE_LIMIT'}})).run();
+ expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:01:00.000Z','window-request')).toBe(false);
  await ctx.db.prepare("UPDATE connector_rss_poll_jobs SET state='DONE' WHERE job_id='window-poll'").run();
  expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:01:00.000Z','window-request')).toBe(true);
+});
+it('a later captured legacy X page does not enlarge an earlier closed observation window',async()=>{
+ const feedId='scale-0031',request=JSON.stringify({scope:{feedId,feedSourceId:`${feedId}-rss`},source:{family:'x_profile'},requestedBounds:{}});
+ await ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,scheduled_at,result,last_error) VALUES(?,?,?,?,?,?,?,?)')
+ .bind('later-legacy-x',request,'hash','[]','2026-10-13T13:12:00.000Z','2026-10-13T11:16:00.000Z',JSON.stringify({request:{coverage:{createdAt:'2026-10-13T13:10:00.000Z'}}}),'INTAKE_BUSY').run();
+ expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:00:00.000Z','closed-x-request')).toBe(true);
+ expect(await collectionReadyForWindow(env,feedId,'2026-10-13T13:30:00.000Z','current-x-request')).toBe(false);
+ // Missing evidence of a later capture must retain the collection barrier.
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET result=NULL WHERE job_id='later-legacy-x'").run();
+ expect(await collectionReadyForWindow(env,feedId,'2026-10-13T12:00:00.000Z','closed-x-request')).toBe(false);
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='CANCELLED' WHERE job_id='later-legacy-x'").run();
 });
 
 it('Telegram authority requires an explicit current-origin signal, not a missing message',async()=>{

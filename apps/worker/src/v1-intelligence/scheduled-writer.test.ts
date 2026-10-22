@@ -1,7 +1,9 @@
-import {afterEach,beforeEach,expect,it} from 'vitest';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+import * as shortlistProjection from './shortlist-v2';
+import {prepareSemanticShortlist} from './shortlist';
 import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
-import {V1FeedStore} from './store';
+import {V1FeedStore,feedTransact} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
 import {dispatchV1Intelligence,processV1Briefing} from './runtime';
 import {equivalentFact} from './editorial';
@@ -9,11 +11,76 @@ import type {BriefingEditionRecord} from './publication';
 import type {Env,DistilledQueueMessage} from '../types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env,sent:DistilledQueueMessage[];
 const now=new Date('2026-10-06T12:00:05Z');
-beforeEach(async()=>{
- ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});sent=[];
+beforeEach(async(context)=>{
+ ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY',...(context.task.name.includes('preparation')?{briefingSchedule:{durationMinutes:30 as const,timezone:'Asia/Beirut'}}:{}),...(context.task.name.includes('incomplete first')?{briefingSchedule:{durationMinutes:30 as const,timezone:'Asia/Beirut'},createdAt:'2026-10-06T11:35:00Z'}:{})});sent=[];
  env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',V1_SEMANTIC_POLICY:'DETERMINISTIC',V1_EDITORIAL_MODEL_POLICY:'DETERMINISTIC',V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test-key',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env;
 });
 afterEach(async()=>ctx.dispose());
+it('old one-off evaluation requests do not take scheduled publication turns',async()=>{
+ const window={start:'2026-10-02T17:29:22.206Z',end:'2026-10-03T17:29:22.206Z',kind:'DAILY' as const};
+ await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests','old-evaluation',{id:'old-evaluation',feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end}));
+ await dispatchV1Intelligence(env,now);
+ expect(sent.filter(m=>m.type==='v1_briefing').map((m:any)=>m.window.end)).toEqual(['2026-10-06T12:00:00.000Z']);
+ const {fetcher,calls}=providerDouble();
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>now.toISOString(),undefined,fetcher,{scheduledDelivery:true});
+ expect(calls).toEqual({writer:0,verifier:0});
+ expect(await store.read('feed-1','briefing_requests','old-evaluation')).toMatchObject({state:'PENDING'});
+ expect(await store.list('feed-1','briefing_requests')).toHaveLength(2);
+},30000);
+it('does not create an incomplete first window and dispatches oldest pending window alone',async()=>{
+ await dispatchV1Intelligence(env,now);
+ expect(await store.list('feed-1','briefing_requests')).toHaveLength(0);
+ expect(sent).toHaveLength(0);
+ await dispatchV1Intelligence(env,new Date('2026-10-06T12:30:05Z'));
+ expect((await store.list<any>('feed-1','briefing_requests')).map(r=>r.window.start)).toEqual(['2026-10-06T12:00:00.000Z']);
+ sent.length=0;
+ await store.db.prepare("DELETE FROM v1_queue_dispatches").run();
+ await dispatchV1Intelligence(env,new Date('2026-10-06T13:00:05Z'));
+ expect(sent.filter(m=>m.type==='v1_briefing').map((m:any)=>m.window.end)).toEqual(['2026-10-06T12:30:00.000Z']);
+},30000);
+it('an empty V2 reporting window completes quietly without paying an editorial model',async()=>{
+ env.V1_PUBLICATION_VALIDATION_CONTRACT='EVIDENCE_GROUNDED_V2';
+ const {fetcher,calls}=providerDouble();await scheduled(fetcher);
+ expect(calls).toEqual({writer:0,verifier:0});
+ expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'QUIET'});
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+},30000);
+it('a newer queue delivery cannot overtake an older runnable window',async()=>{
+ env.V1_PUBLICATION_VALIDATION_CONTRACT='EVIDENCE_GROUNDED_V2';
+ await dispatchV1Intelligence(env,now);
+ const {fetcher,calls}=providerDouble();
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:{start:'2026-10-06T12:00:00.000Z',end:'2026-10-06T13:00:00.000Z',kind:'HOURLY'}},()=> '2026-10-06T13:00:05Z',undefined,fetcher);
+ const requests=await store.list<any>('feed-1','briefing_requests');
+ expect(requests).toHaveLength(2);expect(requests.every(r=>r.state==='PENDING')).toBe(true);
+ expect(calls).toEqual({writer:0,verifier:0});
+},30000);
+it('preparation costs no model call and final arrivals change the prepared shortlist',async()=>{
+ env.V1_PUBLICATION_VALIDATION_CONTRACT='EVIDENCE_GROUNDED_V2';env.V1_EDITORIAL_RANKING_POLICY='SEMANTIC';
+ await seedIntelligence(store,1,'Lebanon Parliament approved banking reform legislation.','publisher-1','2026-10-06T11:40:00Z','en','2026-10-06T11:35:00Z');
+ await dispatchV1Intelligence(env,new Date('2026-10-06T11:55:00Z'));
+ const before=(await store.list<any>('feed-1','shortlists')).find(s=>s.window.end==='2026-10-06T12:00:00.000Z');
+ expect(before?.candidates).toHaveLength(1);
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+ expect(await store.list('feed-1','semantic_resource_waits')).toHaveLength(0);
+ expect(await store.list('feed-1','editorial_deferred_work')).toHaveLength(0);
+ await seedIntelligence(store,2,'Ukraine opened a new grain corridor on Monday.','publisher-2','2026-10-06T11:59:00Z','en','2026-10-06T11:58:00Z');
+ env.V1_EDITORIAL_RANKING_POLICY='DETERMINISTIC';
+ const final=await prepareSemanticShortlist(store,'feed-1',before.window,now.toISOString(),undefined,env);
+ expect(final.id).not.toBe(before.id);expect(final.candidates).toHaveLength(2);
+ expect(await store.list('feed-1','editions')).toHaveLength(0);
+},30000);
+it('does not mark a stale empty shortlist quiet after an in-window article commits',async()=>{
+ env.V1_PUBLICATION_VALIDATION_CONTRACT='EVIDENCE_GROUNDED_V2';
+ const original=shortlistProjection.prepareV2Shortlist;
+ const spy=vi.spyOn(shortlistProjection,'prepareV2Shortlist').mockImplementationOnce(async(...args)=>{
+  const empty=await original(...args);
+  await seedIntelligence(store,1,'Lebanon Parliament approved banking reform legislation.','publisher-1','2026-10-06T11:59:00Z','en','2026-10-06T11:58:00Z');
+  return empty;
+ });
+ try{const {fetcher,calls}=providerDouble();await scheduled(fetcher);expect(calls).toEqual({writer:0,verifier:0});}
+ finally{spy.mockRestore();}
+ expect((await store.list<any>('feed-1','briefing_requests'))[0].state).toBe('PENDING');
+},30000);
 /** A protocol-faithful OpenRouter stand-in: it answers the real writer/verifier wire schemas from the request payload alone. */
 function providerDouble(mode:'OK'|'DOWN'='OK'){
  const calls={writer:0,verifier:0};

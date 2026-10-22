@@ -26,7 +26,7 @@ export function invalidDirectQuotes(text:string,approvedSpans:string[]):string[]
  }
  return failures;
 }
-export function inspectWriterDraft(input:SynthesisInput,draft:BriefingDraft,allowedSpans:(story:SynthesisInput['stories'][number])=>{evidenceRevisionId:string;quote:string}[],semanticPending=false):WriterIssue[] {
+export function inspectWriterDraft(input:SynthesisInput,draft:BriefingDraft,allowedSpans:(story:SynthesisInput['stories'][number])=>{evidenceRevisionId:string;quote:string}[],semanticPending=false,structureOnly=false):WriterIssue[] {
  const issues:WriterIssue[]=[],seen=new Set<string>();
  for(const offered of draft.stories){
   const story=input.stories.find(s=>s.candidate.id===offered.candidateId);
@@ -36,7 +36,7 @@ export function inspectWriterDraft(input:SynthesisInput,draft:BriefingDraft,allo
   for(const [index,claim]of offered.claims.entries()){
    const claimId=`claim_${index+1}`;
    for(const ref of claim.support)if(!spans.some(s=>s.evidenceRevisionId===ref.evidenceRevisionId&&s.quote.includes(ref.quote)))issues.push({code:'INVALID_SUPPORT_QUOTE',candidateId:offered.candidateId,claimId,value:ref.quote});
-   for(const quote of invalidDirectQuotes(claim.text,spans.map(s=>s.quote)))issues.push({code:'INVALID_DIRECT_QUOTE',candidateId:offered.candidateId,claimId,value:quote});
+   if(!structureOnly)for(const quote of invalidDirectQuotes(claim.text,spans.map(s=>s.quote)))issues.push({code:'INVALID_DIRECT_QUOTE',candidateId:offered.candidateId,claimId,value:quote});
    const urls=(text:string)=>(text.match(/https?:\/\/[^\s<>"“”]+/gu)??[]).map(url=>url.replace(/[.,;!?)]*$/u,''));
    const approvedUrls=new Set(spans.flatMap(s=>urls(s.quote)));
    for(const url of urls(claim.text))if(!approvedUrls.has(url))issues.push({code:'UNAPPROVED_URL',candidateId:offered.candidateId,claimId,value:url});
@@ -44,7 +44,7 @@ export function inspectWriterDraft(input:SynthesisInput,draft:BriefingDraft,allo
   }
   // Missing declarations alone never establish an omitted proposition. The
   // semantic verifier judges reader prose, regardless of writer bookkeeping.
-  if(story.plan){const fidelity=checkReaderFidelity(offered.claims.map(c=>c.text),facts.filter(f=>requiredIds.has(f.id)),facts,normalizeLanguage(input.feed.outputLanguage)==='en'&&story.evidence.every(e=>normalizeLanguage(e.language)==='en'),semanticPending?{pending:true}:undefined);for(const failure of fidelity.failures){issues.push({...failure,candidateId:offered.candidateId});if(failure.code==='LOST_QUANTITY'&&failure.factId)issues.push({code:'MISSING_REQUIRED_FACT',candidateId:offered.candidateId,factId:failure.factId});}}
+  if(story.plan&&!structureOnly){const fidelity=checkReaderFidelity(offered.claims.map(c=>c.text),facts.filter(f=>requiredIds.has(f.id)),facts,normalizeLanguage(input.feed.outputLanguage)==='en'&&story.evidence.every(e=>normalizeLanguage(e.language)==='en'),semanticPending?{pending:true}:undefined);for(const failure of fidelity.failures){issues.push({...failure,candidateId:offered.candidateId});if(failure.code==='LOST_QUANTITY'&&failure.factId)issues.push({code:'MISSING_REQUIRED_FACT',candidateId:offered.candidateId,factId:failure.factId});}}
  }
  for(const story of input.stories)if(!seen.has(story.candidate.id))issues.push({code:'MISSING_STORY',candidateId:story.candidate.id});
  return issues;

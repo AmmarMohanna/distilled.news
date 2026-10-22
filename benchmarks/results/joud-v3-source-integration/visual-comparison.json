@@ -1,0 +1,330 @@
+{
+  "compiledAssetsIdentical": true,
+  "assets": {
+    "index-BeV-yYCP.js": "7dce27dda4a3f62ab67d6392bb49e25d516bf1fdc6bac4cef6d0e5f4e61d74c9",
+    "index-YPJmgY0L.css": "72dc80bcd928bb849855ded9d3e6ab18a6d24b59203e1f9b4115ef3e8d5c2969"
+  },
+  "results": [
+    {
+      "name": "home-390-en",
+      "width": 390,
+      "height": 844,
+      "language": "en",
+      "expanded": false,
+      "equal": false,
+      "differingPixels": 6,
+      "totalPixels": 329160,
+      "boundingBox": [
+        264,
+        371,
+        267,
+        375
+      ]
+    },
+    {
+      "name": "home-390-ar",
+      "width": 390,
+      "height": 844,
+      "language": "ar",
+      "expanded": false,
+      "equal": false,
+      "differingPixels": 57,
+      "totalPixels": 329160,
+      "boundingBox": [
+        98,
+        282,
+        111,
+        468
+      ]
+    },
+    {
+      "name": "home-667-en",
+      "width": 667,
+      "height": 375,
+      "language": "en",
+      "expanded": false,
+      "equal": false,
+      "differingPixels": 22,
+      "totalPixels": 250125,
+      "boundingBox": [
+        333,
+        68,
+        621,
+        219
+      ]
+    },
+    {
+      "name": "home-667-ar",
+      "width": 667,
+      "height": 375,
+      "language": "ar",
+      "expanded": false,
+      "equal": false,
+      "differingPixels": 20,
+      "totalPixels": 250125,
+      "boundingBox": [
+        31,
+        68,
+        143,
+        219
+      ]
+    },
+    {
+      "name": "home-1280-en",
+      "width": 1280,
+      "height": 800,
+      "language": "en",
+      "expanded": false,
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "home-1280-ar",
+      "width": 1280,
+      "height": 800,
+      "language": "ar",
+      "expanded": false,
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "home-1920-en",
+      "width": 1920,
+      "height": 1100,
+      "language": "en",
+      "expanded": true,
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 2112000,
+      "boundingBox": null
+    },
+    {
+      "name": "home-1920-ar",
+      "width": 1920,
+      "height": 1100,
+      "language": "ar",
+      "expanded": true,
+      "equal": false,
+      "differingPixels": 82,
+      "totalPixels": 2112000,
+      "boundingBox": [
+        451,
+        431,
+        1109,
+        925
+      ]
+    },
+    {
+      "name": "guest-en",
+      "width": 1280,
+      "height": 800,
+      "language": "en",
+      "state": "guest",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "explore-en",
+      "width": 1280,
+      "height": 800,
+      "language": "en",
+      "state": "explore",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "reader-en",
+      "width": 1280,
+      "height": 800,
+      "language": "en",
+      "state": "reader",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "empty-en",
+      "width": 1280,
+      "height": 800,
+      "language": "en",
+      "state": "empty",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "loading-en",
+      "width": 1280,
+      "height": 800,
+      "language": "en",
+      "state": "loading",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "error-en",
+      "width": 1280,
+      "height": 800,
+      "language": "en",
+      "state": "error",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "editor-en",
+      "width": 1280,
+      "height": 800,
+      "language": "en",
+      "state": "editor",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "profile-en",
+      "width": 1280,
+      "height": 800,
+      "language": "en",
+      "state": "profile",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "settings-en",
+      "width": 1280,
+      "height": 800,
+      "language": "en",
+      "state": "settings",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 1024000,
+      "boundingBox": null
+    },
+    {
+      "name": "guest-ar",
+      "width": 390,
+      "height": 844,
+      "language": "ar",
+      "state": "guest",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 329160,
+      "boundingBox": null
+    },
+    {
+      "name": "explore-ar",
+      "width": 390,
+      "height": 844,
+      "language": "ar",
+      "state": "explore",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 329160,
+      "boundingBox": null
+    },
+    {
+      "name": "reader-ar",
+      "width": 390,
+      "height": 844,
+      "language": "ar",
+      "state": "reader",
+      "equal": false,
+      "differingPixels": 5,
+      "totalPixels": 329160,
+      "boundingBox": [
+        184,
+        190,
+        186,
+        226
+      ]
+    },
+    {
+      "name": "empty-ar",
+      "width": 390,
+      "height": 844,
+      "language": "ar",
+      "state": "empty",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 329160,
+      "boundingBox": null
+    },
+    {
+      "name": "loading-ar",
+      "width": 390,
+      "height": 844,
+      "language": "ar",
+      "state": "loading",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 329160,
+      "boundingBox": null
+    },
+    {
+      "name": "error-ar",
+      "width": 390,
+      "height": 844,
+      "language": "ar",
+      "state": "error",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 329160,
+      "boundingBox": null
+    },
+    {
+      "name": "editor-ar",
+      "width": 390,
+      "height": 844,
+      "language": "ar",
+      "state": "editor",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 329160,
+      "boundingBox": null
+    },
+    {
+      "name": "profile-ar",
+      "width": 390,
+      "height": 844,
+      "language": "ar",
+      "state": "profile",
+      "equal": true,
+      "differingPixels": 0,
+      "totalPixels": 329160,
+      "boundingBox": null
+    },
+    {
+      "name": "settings-ar",
+      "width": 390,
+      "height": 844,
+      "language": "ar",
+      "state": "settings",
+      "equal": false,
+      "differingPixels": 13,
+      "totalPixels": 329160,
+      "boundingBox": [
+        259,
+        781,
+        262,
+        826
+      ]
+    }
+  ]
+}

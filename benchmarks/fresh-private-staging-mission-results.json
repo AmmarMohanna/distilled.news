@@ -1,0 +1,417 @@
+{
+  "schemaVersion": "fresh-private-staging-mission-result-v1",
+  "at": "2026-10-19T12:54:33.137Z",
+  "status": "BLOCKED_SEMANTIC_CONSTRUCTION",
+  "codeCommit": "af0173d",
+  "worker": "distilled-news-staging",
+  "workerVersion": "98bac4ac-cae8-458e-82fa-ebdcef5c6421",
+  "rollbackWorkerVersion": "45f475b8-0d2a-4da3-9b44-bffc113ffdcb",
+  "feedId": "staging-fresh-20261019-run1",
+  "private": true,
+  "globalV2Enabled": false,
+  "missionV2Scoped": true,
+  "accountCapUsd": 63,
+  "missionNewSpendCeilingUsd": 10,
+  "grantExpiresAt": "2026-10-19T19:15:55.700Z",
+  "evidence": {
+    "sourceUrl": "https://techcrunch.com/2026/10/18/anthropic-says-its-committing-5-of-its-shares-to-a-public-benefit-fund/",
+    "observationId": "ff5958eb9260e657a76c040ca8cea43222457318d967da5fd178208c9dd1aa42",
+    "revisionId": "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+    "representation": "FULL_ARTICLE",
+    "contentCompleteness": "COMPLETE",
+    "bodyCharacters": 1185,
+    "sourceCoverage": "PARTIAL_ONE_ARTICLE_SAMPLE"
+  },
+  "cost": {
+    "newReportedInferenceUsd": 0.0035884,
+    "newUnknownOperations": 0,
+    "paidCalls": 2,
+    "collectionProviderUsd": 0,
+    "historicalCostsReset": false,
+    "successfulBriefings": 0,
+    "costPerSuccessfulBriefingUsd": null,
+    "platformWorkerD1R2InvoiceCostUsd": null
+  },
+  "publication": {
+    "attemptStarted": false,
+    "editions": 0,
+    "writerCalls": 0,
+    "verificationCalls": 0,
+    "externalDeliveryJobs": 0,
+    "pushReceipts": 0,
+    "evidenceReadyTriggerToEditionMs": null,
+    "under60SecondsDemonstrated": false,
+    "underPoint20PerSuccessfulBriefingDemonstrated": false
+  },
+  "measurements": {
+    "reviewRecoveryClientMs": 13362.2739,
+    "reviewRecoveryWorkerMs": 12571,
+    "reviewRecoveryDb": {
+      "queries": 219,
+      "sqlCpuMs": 244.02810000000005,
+      "responseBytes": 80691,
+      "wallMs": 4887
+    },
+    "invocationCpuMs": 502,
+    "semanticReviewWallMs": 11170,
+    "semanticPreparationWallMs": 9908,
+    "canonicalReviewWallMs": 1083,
+    "casAttemptsAcrossReviewAndModelScopes": 6,
+    "casConflictsObserved": 0,
+    "initialProviderMs": 2507,
+    "repairProviderMs": 5369,
+    "localWordpressExtractionMs": 89.2267,
+    "notes": [
+      "Nested stage spans overlap; do not sum as exclusive wall time.",
+      "sqlCpuMs field records D1 SQL execution duration, not independently profiled CPU.",
+      "Worker CPU is invocation-level and not per-model CPU.",
+      "Initial failed acquisition and manual development/deployment intervals remain separate; no full-publication speedup or p95 is demonstrated."
+    ]
+  },
+  "rejectedOperations": [
+    {
+      "operationId": "c282e1d919c6b11a08640b2688e22d644b2de7831f2458f4215dbac21d5a859a",
+      "status": "DEFERRED",
+      "failure": "SEMANTIC_CONSTRUCTION_REJECTED",
+      "usage": {
+        "calls": 1,
+        "tokensIn": 1931,
+        "tokensOut": 200,
+        "costUsd": 0.0010924,
+        "reported": true
+      },
+      "modelLatencyMs": 2507,
+      "rejection": {
+        "name": "Error",
+        "binding": {
+          "invariant": "STORYLINE_CLAIM_OWNERSHIP",
+          "path": [
+            "groups",
+            0,
+            "storylineState",
+            "openQuestionMentionIds"
+          ]
+        },
+        "code": "SCOPE_DENIED"
+      },
+      "groupClaimIds": [
+        "0535a11766999994edc85d6901b64e3243fc6fc518aa8006a443e9043df58ea1",
+        "ff9cdd2585ddc81c4c92f2c55fd820c356121b59edeb83babb0b318c06cca9a9",
+        "7d0da02f060f2a48a1df2a619d255ca350478d023dd08623b97645948edb0a1c"
+      ],
+      "openQuestionIds": [
+        "c0e64b59dad5d787ffbf98e8e75276db237805af66e07f32fdd2673215007569"
+      ],
+      "backgroundIds": [
+        "882513f37bfaeb290faab0c754c59ac3d01ca507515afaff9848cfc7ad5130b2",
+        "b91d9fb4e283ddd915d21b7166a85351ae6456fa6a6fb4be2dfd90c18b059f30",
+        "64527dcadadf2373f95350c68d26e1adb3d3847d5150a5322d4a6f80c17e2990",
+        "0321a808c4edb624f6e82072f954f91df868c2c39580d2902e223e426f2de388",
+        "be2d8252edbc5854fbadc1622968f449f5505fd627ef00b0ec7473fc7cb5fbdb",
+        "c0e64b59dad5d787ffbf98e8e75276db237805af66e07f32fdd2673215007569"
+      ],
+      "allOpenQuestionIdsOwned": false
+    },
+    {
+      "operationId": "745fba01d7e4c722ee2e2dc0ccfab67f10f8e612b62189d0ec921687a1de68c1",
+      "status": "DEFERRED",
+      "failure": "SEMANTIC_CONSTRUCTION_REJECTED",
+      "usage": {
+        "calls": 1,
+        "tokensIn": 3404,
+        "tokensOut": 709,
+        "costUsd": 0.002496,
+        "reported": true
+      },
+      "modelLatencyMs": 5369,
+      "rejection": {
+        "name": "Error",
+        "binding": {
+          "invariant": "STORYLINE_CLAIM_OWNERSHIP",
+          "path": [
+            "groups",
+            0,
+            "storylineState",
+            "openQuestionMentionIds"
+          ]
+        },
+        "code": "SCOPE_DENIED"
+      },
+      "groupClaimIds": [
+        "0535a11766999994edc85d6901b64e3243fc6fc518aa8006a443e9043df58ea1",
+        "ff9cdd2585ddc81c4c92f2c55fd820c356121b59edeb83babb0b318c06cca9a9",
+        "7d0da02f060f2a48a1df2a619d255ca350478d023dd08623b97645948edb0a1c"
+      ],
+      "openQuestionIds": [
+        "c0e64b59dad5d787ffbf98e8e75276db237805af66e07f32fdd2673215007569"
+      ],
+      "backgroundIds": [
+        "882513f37bfaeb290faab0c754c59ac3d01ca507515afaff9848cfc7ad5130b2",
+        "b91d9fb4e283ddd915d21b7166a85351ae6456fa6a6fb4be2dfd90c18b059f30",
+        "64527dcadadf2373f95350c68d26e1adb3d3847d5150a5322d4a6f80c17e2990",
+        "0321a808c4edb624f6e82072f954f91df868c2c39580d2902e223e426f2de388",
+        "be2d8252edbc5854fbadc1622968f449f5505fd627ef00b0ec7473fc7cb5fbdb",
+        "be2d8252edbc5854fbadc1622968f449f5505fd627ef00b0ec7473fc7cb5fbdb"
+      ],
+      "allOpenQuestionIdsOwned": false
+    }
+  ],
+  "trace": [
+    {
+      "invocation": {
+        "wallMs": 12644,
+        "cpuMs": 502,
+        "workerVersion": "98bac4ac-cae8-458e-82fa-ebdcef5c6421",
+        "eventTimestamp": 1792413969677
+      },
+      "type": "V1_PIPELINE_LATENCY",
+      "feedId": "staging-fresh-20261019-run1",
+      "phase": "MODEL",
+      "reviewId": "[\"REASSESS\",\"ff5958eb9260e657a76c040ca8cea43222457318d967da5fd178208c9dd1aa42\",\"\"]",
+      "operationId": "c282e1d919c6b11a08640b2688e22d644b2de7831f2458f4215dbac21d5a859a",
+      "outcome": "SUCCEEDED",
+      "durationMs": 3303,
+      "counts": {
+        "casAttempts": 2,
+        "documentReads": 5,
+        "listReads": 0,
+        "revisionReads": 0,
+        "preloadQueries": 1,
+        "validationMs": 0,
+        "documentWrites": 2,
+        "jobWrites": 0,
+        "newProviderCalls": 1,
+        "receiptProviderCalls": 1,
+        "receiptReportedCostUsd": 0.0010924,
+        "reportedUsage": 1,
+        "receiptProviderLatencyMs": 2507
+      },
+      "stages": {
+        "DB_SNAPSHOT": {
+          "count": 2,
+          "durationMs": 46
+        },
+        "TRANSACTION_COMPUTATION": {
+          "count": 2,
+          "durationMs": 248
+        },
+        "GRAPH_VALIDATION": {
+          "count": 2,
+          "durationMs": 0
+        },
+        "CAS_COMMIT": {
+          "count": 2,
+          "durationMs": 273
+        },
+        "SPENDING_RESERVATION": {
+          "count": 1,
+          "durationMs": 424
+        },
+        "SEMANTIC_CONSTRUCTION": {
+          "count": 1,
+          "durationMs": 2507
+        },
+        "SPENDING_SETTLEMENT": {
+          "count": 1,
+          "durationMs": 162
+        },
+        "RESULT_COMMIT": {
+          "count": 1,
+          "durationMs": 143
+        }
+      },
+      "receiptOperationId": "c282e1d919c6b11a08640b2688e22d644b2de7831f2458f4215dbac21d5a859a"
+    },
+    {
+      "invocation": {
+        "wallMs": 12644,
+        "cpuMs": 502,
+        "workerVersion": "98bac4ac-cae8-458e-82fa-ebdcef5c6421",
+        "eventTimestamp": 1792413969677
+      },
+      "type": "V1_PIPELINE_LATENCY",
+      "feedId": "staging-fresh-20261019-run1",
+      "phase": "MODEL",
+      "reviewId": "[\"REASSESS\",\"ff5958eb9260e657a76c040ca8cea43222457318d967da5fd178208c9dd1aa42\",\"\"]",
+      "operationId": "745fba01d7e4c722ee2e2dc0ccfab67f10f8e612b62189d0ec921687a1de68c1",
+      "outcome": "SUCCEEDED",
+      "durationMs": 6074,
+      "counts": {
+        "casAttempts": 2,
+        "documentReads": 5,
+        "listReads": 0,
+        "revisionReads": 0,
+        "preloadQueries": 0,
+        "validationMs": 0,
+        "documentWrites": 2,
+        "jobWrites": 0,
+        "newProviderCalls": 1,
+        "receiptProviderCalls": 1,
+        "receiptReportedCostUsd": 0.002496,
+        "reportedUsage": 1,
+        "receiptProviderLatencyMs": 5369
+      },
+      "stages": {
+        "DB_SNAPSHOT": {
+          "count": 2,
+          "durationMs": 46
+        },
+        "TRANSACTION_COMPUTATION": {
+          "count": 2,
+          "durationMs": 204
+        },
+        "GRAPH_VALIDATION": {
+          "count": 2,
+          "durationMs": 0
+        },
+        "CAS_COMMIT": {
+          "count": 2,
+          "durationMs": 281
+        },
+        "SPENDING_RESERVATION": {
+          "count": 1,
+          "durationMs": 410
+        },
+        "SEMANTIC_CONSTRUCTION": {
+          "count": 1,
+          "durationMs": 5369
+        },
+        "SPENDING_SETTLEMENT": {
+          "count": 1,
+          "durationMs": 134
+        },
+        "RESULT_COMMIT": {
+          "count": 1,
+          "durationMs": 121
+        }
+      },
+      "receiptOperationId": "745fba01d7e4c722ee2e2dc0ccfab67f10f8e612b62189d0ec921687a1de68c1"
+    },
+    {
+      "invocation": {
+        "wallMs": 12644,
+        "cpuMs": 502,
+        "workerVersion": "98bac4ac-cae8-458e-82fa-ebdcef5c6421",
+        "eventTimestamp": 1792413969677
+      },
+      "type": "V1_PIPELINE_LATENCY",
+      "feedId": "staging-fresh-20261019-run1",
+      "phase": "REVIEW",
+      "reviewId": "[\"REASSESS\",\"ff5958eb9260e657a76c040ca8cea43222457318d967da5fd178208c9dd1aa42\",\"\"]",
+      "outcome": "SUCCEEDED",
+      "durationMs": 11170,
+      "counts": {
+        "casAttempts": 2,
+        "documentReads": 12,
+        "listReads": 6,
+        "revisionReads": 0,
+        "preloadQueries": 5,
+        "validationMs": 0,
+        "documentWrites": 31,
+        "jobWrites": 1,
+        "activeEvidence": 1,
+        "claimMentions": 9,
+        "acceptedToReviewMs": 10709,
+        "eventVersionsUpdated": 1,
+        "storylineVersionsUpdated": 1,
+        "ledgerEntriesInspected": 0,
+        "ledgerSupportIdentities": 0
+      },
+      "stages": {
+        "DB_SNAPSHOT": {
+          "count": 2,
+          "durationMs": 61
+        },
+        "TRANSACTION_COMPUTATION": {
+          "count": 2,
+          "durationMs": 1015
+        },
+        "GRAPH_VALIDATION": {
+          "count": 2,
+          "durationMs": 0
+        },
+        "CAS_COMMIT": {
+          "count": 2,
+          "durationMs": 119
+        },
+        "SEMANTIC_LEASE_ADMISSION": {
+          "count": 1,
+          "durationMs": 139
+        },
+        "EVIDENCE_LOAD": {
+          "count": 2,
+          "durationMs": 63
+        },
+        "CLAIM_EXTRACTION": {
+          "count": 1,
+          "durationMs": 0
+        },
+        "MODEL_OPERATION": {
+          "count": 2,
+          "durationMs": 9377
+        },
+        "SEMANTIC_PREPARATION": {
+          "count": 1,
+          "durationMs": 9908
+        },
+        "GRAPH_LOAD": {
+          "count": 1,
+          "durationMs": 154
+        },
+        "CLAIM_PREPROCESSING": {
+          "count": 1,
+          "durationMs": 59
+        },
+        "STORYLINE_UPDATES": {
+          "count": 1,
+          "durationMs": 126
+        },
+        "SOURCE_CORRECTION_REFRESH": {
+          "count": 1,
+          "durationMs": 28
+        },
+        "CORRECTION_LEDGER": {
+          "count": 1,
+          "durationMs": 28
+        },
+        "CANONICAL_REVIEW": {
+          "count": 1,
+          "durationMs": 1083
+        }
+      }
+    },
+    {
+      "invocation": {
+        "wallMs": 12644,
+        "cpuMs": 502,
+        "workerVersion": "98bac4ac-cae8-458e-82fa-ebdcef5c6421",
+        "eventTimestamp": 1792413969677
+      },
+      "type": "STAGING_MISSION_DB_METRICS",
+      "feedId": "staging-fresh-20261019-run1",
+      "action": "review-resume",
+      "queries": 219,
+      "sqlCpuMs": 244.02810000000005,
+      "responseBytes": 80691,
+      "wallMs": 4887
+    }
+  ],
+  "checks": {
+    "stagingDatabaseQuickCheck": "ok",
+    "initialFocusedTests": 36,
+    "wordpressParserTests": 7,
+    "fullAcquisitionTests": 32,
+    "repositoryTypecheck": "PASSED",
+    "webBuild": "PASSED",
+    "stagingDryRun": "PASSED",
+    "anonymousMissionEndpoint": 404,
+    "fullWorkerSuite": "NOT_RERUN"
+  },
+  "privateEvidenceSha256": {
+    "fresh-final-readonly.json": "b3e14f2f0c046155ee9ffc360af0a25fcdf89198d0880d56844c3277a8b3e0f0",
+    "fresh-semantic-review-state.json": "518c94e793b61f930abc2f0a45dc006aa138c2ca63b1798f3bcfee6850e002ed",
+    "fresh-evidence-after-recovery.json": "0413bae765e58db7dd348c63b0ef6091ac4b00d2f2607f6d0ef36e6e47dc577b",
+    "live-review-resume.json": "42c2348adb571085e288c616f3ccd8fccbf58307df1976e8dde9dbbc6c4efa5f",
+    "fresh-topup-before.json": "8ee8bc230d1c8d5d6db36fa1dabd9c71c52f43867b8ca65d6ad292f506213897"
+  }
+}

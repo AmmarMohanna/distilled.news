@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "group-ownership-preflight-v1",
+  "status": "AWAITING_SEPARATE_DEPLOYMENT_AND_SPENDING_APPROVAL",
+  "paidCallsMade": 0,
+  "remoteMutations": 0,
+  "feedId": "staging-fresh-20261019-run1",
+  "retainedEvidenceRevisionId": "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+  "priorFailedSpendUsd": 0.0035884,
+  "requestEnvelope": {
+    "maxInputByteUpperBound": 24576,
+    "maxOutputTokens": 8192,
+    "gptPerCallUpperUsd": 0.0229376,
+    "jevPerCallUpperUsd": 0.002688
+  },
+  "fixedRemainingCalls": {
+    "construction": 1,
+    "constructionRepair": 1,
+    "planning": 1,
+    "writer": 1,
+    "verification": 1,
+    "writerRepair": 1,
+    "reverification": 1,
+    "jevRelationEffectRanking": 3
+  },
+  "callLimitIncludesHistoricalFailures": {
+    "openai/gpt-4.1-mini": 9,
+    "typesafe/jev-1.13": 3
+  },
+  "completeAttemptProviderUpperUsd": 0.17221559999999997,
+  "enforcedCumulativeCeilingUsd": 0.2,
+  "initialAdmission": {
+    "fits": true,
+    "schemaAdmission": {
+      "fits": true,
+      "violations": [],
+      "enumValues": 43,
+      "schemaStringCharacters": 584,
+      "objectProperties": 25,
+      "nestingDepth": 6
+    },
+    "requestBytes": 14058,
+    "inputTokenUpperBound": 14058,
+    "maxOutputTokens": 8192,
+    "reservationCostUsd": 0.0187304,
+    "capability": {
+      "contextTokens": 32768,
+      "maxOutputTokens": 8192,
+      "inputUsdPerToken": 4e-7,
+      "outputUsdPerToken": 0.0000016,
+      "source": "staging-operator-request-envelope-within-verified-openrouter-catalog-2026-10-12"
+    }
+  },
+  "savedFailureShapeRepairAdmission": {
+    "fits": true,
+    "schemaAdmission": {
+      "fits": true,
+      "violations": [],
+      "enumValues": 43,
+      "schemaStringCharacters": 584,
+      "objectProperties": 25,
+      "nestingDepth": 6
+    },
+    "requestBytes": 15543,
+    "inputTokenUpperBound": 15543,
+    "maxOutputTokens": 8192,
+    "reservationCostUsd": 0.0193244,
+    "capability": {
+      "contextTokens": 32768,
+      "maxOutputTokens": 8192,
+      "inputUsdPerToken": 4e-7,
+      "outputUsdPerToken": 0.0000016,
+      "source": "staging-operator-request-envelope-within-verified-openrouter-catalog-2026-10-12"
+    }
+  },
+  "initialRequestHash": "ff4c7561f4b219487360ed8ef465a67a30ed4006333c2aa2ad665a55a33b7f3a",
+  "conditions": [
+    "Saved evidence still active and private feed still authorized",
+    "No grant or provider change; current grant must be valid at execution",
+    "Atomic .20 guard includes old failures and all unknown liabilities",
+    "Maximum seven new GPT operations and three Jev operations; no extra retry/packet",
+    "Actual planner/writer/verifier payloads depend on future output and must fit before purchase",
+    "Oversized/missing/uncertain/rejected outcomes stop; this bound does not guarantee publication",
+    "CPU/D1/R2 invoice costs unavailable; model-provider total is not total infrastructure invoice",
+    "Output truncation fails closed; 8192-token writer/planner quality not yet validated live",
+    "No new acquisition; old rejection receipts remain immutable"
+  ]
+}

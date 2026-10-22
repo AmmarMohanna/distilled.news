@@ -1,12 +1,21 @@
-import {beforeEach,afterEach,expect,it} from 'vitest';
+import {beforeEach,afterEach,expect,it,vi} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
 import {testDurableSemanticOperation as durableSemanticOperation} from './test-utils';
 import {boundedCompletion} from '../ai';
+import {SemanticValidationError} from './semantic-operations';
+import {editorialWindowAwaitingRecovery} from './window-delivery';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await seedIntelligence(store)});
+it('model authorization and result consumption validate active IDs without reloading article bodies',async()=>{
+ const evidenceRevisionIds=(await store.currentEvidence('feed-1')).map(e=>e.revision.id),read=vi.spyOn(store,'currentEvidence');
+ try{
+  const result=await durableSemanticOperation(store,{feedId:'feed-1',feedRevision:1,evidenceRevisionIds,kind:'RELATION',policyVersion:'ids-only',model:'fake',budgetKey:'id-authorization',state:{}},async()=>({value:{ok:true},usage:{calls:1,costUsd:.001,reported:true}}),'2026-10-03T12:00:00Z');
+  expect(result.status).toBe('SUCCEEDED');expect(read).not.toHaveBeenCalled();
+ }finally{read.mockRestore()}
+},15000);
 afterEach(async()=>ctx.dispose());
 it('records unpaid capacity waits without duplicating model state and preserves retry identity',async()=>{
  const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'RELATION',policyVersion:'test',model:'fake',budgetKey:'wait',state:{text:'large context '.repeat(10000)}};
@@ -22,6 +31,24 @@ it('records unpaid capacity waits without duplicating model state and preserves 
  expect(JSON.stringify(waits[0]).length).toBeLessThan(2000);
  expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
 },15000);
+it('a cached editorial timeout blocks only its own window without retrying or changing spending',async()=>{
+ const window={start:'2026-10-03T11:00:00.000Z',end:'2026-10-03T12:00:00.000Z'};
+ const evidenceRevisionIds=(await store.currentEvidence('feed-1')).map(e=>e.revision.id);let calls=0;
+ await durableSemanticOperation(store,{feedId:'feed-1',feedRevision:1,evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:'blocked-window-test',model:'fake',budgetKey:`editorial:${window.start}:${window.end}`,state:{window}},async()=>{calls++;throw Error('SEMANTIC_MODEL_TIMEOUT')},'2026-10-03T12:00:00Z',()=>({calls:1,costUsd:.001,reported:true}));
+ const before=await ctx.db.prepare('SELECT * FROM v1_model_spending_settlements').all();
+ expect(await editorialWindowAwaitingRecovery(ctx.db,'feed-1',window)).toBe(true);
+ expect(await editorialWindowAwaitingRecovery(ctx.db,'feed-1',{start:window.end,end:'2026-10-03T13:00:00.000Z'})).toBe(false);
+ expect((await ctx.db.prepare('SELECT * FROM v1_model_spending_settlements').all()).results).toEqual(before.results);
+ expect(calls).toBe(1);
+},15000);
+it('retains exact raw failed construction beyond compact diagnostics and never purchases it again',async()=>{
+ const rawResponse=JSON.stringify({dispositionByUnitId:{C0:'G0'},unexpected:'x'.repeat(20000)}),usage={calls:1,costUsd:.001,reported:true};let calls=0;
+ const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'SEMANTIC_CONSTRUCTION',policyVersion:'claim-disposition-v1',model:'fake',budgetKey:'raw-retention',state:{constructionOwnershipVersion:'claim-disposition-v1'}};
+ const run=async()=>{calls++;throw new SemanticValidationError({stage:'OUTPUT_SCHEMA',response:JSON.parse(rawResponse),rawResponse,rejection:{name:'ConstructionContractError',mechanicalIssues:[{code:'INVALID_OUTPUT_SHAPE',pointer:'/unexpected',observed:'unexpected',invariant:'Only contracted fields allowed.'}]}})};
+ const first=await durableSemanticOperation(store,input,run,'2026-10-03T12:00:00Z',()=>usage);
+ expect(first.status).toBe('DEFERRED');expect(first.validationDiagnostic).toMatchObject({rawResponse,responseOmitted:true});expect(first.usage).toEqual(usage);
+ const second=await durableSemanticOperation(store,input,run,'2026-10-03T12:01:00Z',()=>usage);expect(second.id).toBe(first.id);expect(calls).toBe(1);expect(second.validationDiagnostic?.rawResponse).toBe(rawResponse);
+});
 it('durably binds provider headers to the paid operation without changing its reservation identity',async()=>{
  const input={feedId:'feed-1',feedRevision:1,evidenceRevisionIds:(await store.currentEvidence('feed-1')).map(e=>e.revision.id),kind:'RELATION',policyVersion:'receipt-test',model:'fake',budgetKey:'test',state:{}};
  const first=await durableSemanticOperation(store,input,async()=>{

@@ -1,0 +1,52 @@
+{
+  "reviewType": "Independent AI-assisted offline review",
+  "rubric": "Material source errors and important development coverage; optional background and accepted spending paraphrases are not failures.",
+  "stageA": {
+    "functional": "Persisted reader edition exists; one story.",
+    "verdict": "FAIL_IMPORTANT_DEVELOPMENT_COVERAGE",
+    "selectedText": "Replit default/preferred-provider summary retains Anthropic availability, insider dispute, revenue forecast and attribution; no false partnership-ended assertion.",
+    "findings": [
+      {
+        "severity": "material",
+        "finding": "Entire Anthropic 5% public-benefit fund announcement absent despite broad AI interest and all three sources in window. This is an independent substantive development, not optional Replit background."
+      },
+      {
+        "severity": "coverage",
+        "finding": "Laplace product development absent. Both omissions matter more than reproducing its founder/implementation details."
+      },
+      {
+        "severity": "temporal_precision",
+        "finding": "Masad 'said on October16' is not established by the source's October16 original-publication note; onstage remarks are described as Thursday. Avoid deriving event date from publication date."
+      }
+    ],
+    "retainedPipelineEvidence": "v3_window_results dropped two entries both named Laplace; one founding-year repair failure and another Laplace-text/not-in-S2 mismatch. These are pipeline exclusions, not justified editorial deference. Raw repair/source alias lineage required for root cause."
+  },
+  "stageB": {
+    "functional": "Persisted three-story reader edition exists.",
+    "verdict": "PASS_WITH_SOURCE_PRECISION_CAVEATS",
+    "strengths": [
+      "Sanctions accounts combined into one development rather than duplicated.",
+      "60-day pause and economic rationale attributed to Rubio; sanctions described as several, not permanent lifting of every Russia sanction.",
+      "St Petersburg and Lutsk kept separate, with correct attacker/location distinction.",
+      "St Petersburg interception count attributed and damage uncertainty retained.",
+      "Lutsk reopening timeline unknown; separate Oct14 casualties not misassigned."
+    ],
+    "findings": [
+      {
+        "severity": "source_precision",
+        "finding": "St Petersburg Oil Terminal 'reportedly among targets' is not explicit in supplied article. Source claims port infrastructure/oil tankers/data center and separately describes terminal and July4 attack; do not promote that contextual linkage into a confirmed specific Oct18 target."
+      },
+      {
+        "severity": "minor",
+        "finding": "5,500 Lutsk employees was as of May2025, not verified current headcount."
+      },
+      {
+        "severity": "minor",
+        "finding": "Zelensky 'disregard for Ukraine' compresses his statement US would disregard sanctions; broad reaction meaning remains, not a verbatim quotation."
+      }
+    ],
+    "optional": "No requirement to reproduce all lawmakers, past attacks, terminal throughput, company customer brands or diplomatic background."
+  },
+  "paidCalls": 0,
+  "networkCalls": 0
+}

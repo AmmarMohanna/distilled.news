@@ -8,9 +8,9 @@ import type { AcceptedAcquiredContent, AcceptedInput, CandidateRecord, Downstrea
 
 const MAX_ATTEMPTS=5, LEASE_MS=90_000;
 export interface AcquisitionClaim {job:DownstreamJob;input:AcceptedInput;candidate:CandidateRecord;token:string}
-export type AcquisitionFailureCode='NETWORK'|'RATE_LIMIT'|'AUTH_REQUIRED'|'CHALLENGE_REQUIRED'|'POLICY_DENIED'|'UNSUPPORTED'|'EXTRACTION_FAILED'|'INVALID_RESULT'|'BUDGET_EXHAUSTED'|'BODY_BUDGET_EXCEEDED'|'APPROVAL_REVOKED'|'IDEMPOTENCY_CONFLICT';
+export type AcquisitionFailureCode='NETWORK'|'BACKPRESSURE'|'RATE_LIMIT'|'AUTH_REQUIRED'|'CHALLENGE_REQUIRED'|'POLICY_DENIED'|'UNSUPPORTED'|'EXTRACTION_FAILED'|'INVALID_RESULT'|'BUDGET_EXHAUSTED'|'BODY_BUDGET_EXCEEDED'|'APPROVAL_REVOKED'|'IDEMPOTENCY_CONFLICT';
 export class AcquisitionFailure extends Error {
- constructor(readonly code:AcquisitionFailureCode,readonly transient:boolean) {super(code)}
+ constructor(readonly code:AcquisitionFailureCode,readonly transient:boolean,readonly diagnostic?:{detail:string;httpStatus?:number;retryNotBefore?:string}) {super(code)}
 }
 export async function claimAcquisition(store:V1IntakeStore,id:string,rawNow:string):Promise<AcquisitionClaim|undefined> {
  const now=timestampSchema.parse(rawNow),row=await store.read<DownstreamJob>('jobs',id);
@@ -20,6 +20,7 @@ export async function claimAcquisition(store:V1IntakeStore,id:string,rawNow:stri
   if(!job || job.state==='DONE' || job.state==='FAILED' || job.exhausted) return undefined;
   if(job.state==='RUNNING' && job.leaseUntil && Date.parse(job.leaseUntil)>Date.parse(now)) return undefined;
   if(job.nextAttemptAt && Date.parse(job.nextAttemptAt)>Date.parse(now)) return undefined;
+  await tx.prefetch([{table:'inputs',id:job.observationId},{table:'intake_receipts',id:job.observationId},{table:'acquisition_results',id}]);
   const input=await tx.read<AcceptedInput>('inputs',job.observationId),receipt=await tx.read<IntakeReceipt>('intake_receipts',job.observationId);
   if(!input || receipt?.decision!=='ACCEPTED' || !receipt.candidateItemId || input.observation.operation!=='UPSERT') throw new HandoffError('INVALID_REQUEST');
   const candidate=await tx.read<CandidateRecord>('candidates',receipt.candidateItemId);
@@ -49,12 +50,31 @@ export async function completeAcquisition(store:V1IntakeStore,claim:AcquisitionC
  if(!row || row.feedSourceId!==claim.job.feedSourceId) throw new HandoffError('INVALID_REQUEST');
  return acceptAcquiredContent(store,row.value,policy,{jobId:claim.job.id,token:claim.token});
 }
-export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:IntakePolicy,execute:(claim:AcquisitionClaim)=>Promise<AcceptedAcquiredContent>):Promise<'DONE'|'SKIPPED'|'RETRY'|'FAILED'> {
+export interface AcquisitionCompletionAdmission {
+ run<T>(complete:()=>Promise<T>):Promise<T>;
+ isBusy(error:unknown):boolean;
+}
+export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:IntakePolicy,execute:(claim:AcquisitionClaim)=>Promise<AcceptedAcquiredContent>,admission?:AcquisitionCompletionAdmission):Promise<'DONE'|'SKIPPED'|'RETRY'|'FAILED'> {
+ // The observation lease/CAS owns acquisition claims. They need no Feed-wide
+ // admission; evidence promotion below is the shared canonical boundary.
  const claim=await claimAcquisition(store,id,policy.now());if(!claim) return 'SKIPPED';
+ const retained=!!await store.read('acquisition_results',id);
  try {
-  if(!await store.read('acquisition_results',id)) await persistAcquisitionResult(store,claim,await execute(claim),policy.now());
-  await completeAcquisition(store,claim,policy);return 'DONE';
+  if(!retained) await persistAcquisitionResult(store,claim,await execute(claim),policy.now());
+  const complete=()=>completeAcquisition(store,claim,policy);
+  if(admission)await admission.run(complete);else await complete();
+  return 'DONE';
  } catch(error) {
+  if(admission?.isBusy(error)){
+   // Result is already durable. Release only this acquisition claim, so the
+   // next delivery can promote it without waiting 90s or refetching. A busy
+   // Feed consumes neither a provider attempt nor a saved-result recovery.
+   await transact(store,claim.job.feedSourceId,async tx=>{
+    const job=await requireAcquisitionLease(tx,id,claim.token,policy.now());
+    tx.write('jobs',id,{...job,state:'PENDING',resumeAttempts:Math.max(0,(job.resumeAttempts??0)-(retained?1:0)),leaseToken:undefined,leaseUntil:undefined},claim.input.observation.sourceItemKey);
+   });
+   throw error;
+  }
   // Unexpected crashes/DB outages leave the lease recoverable. Only adapter-classified failures change retry policy.
   let failure=error instanceof AcquisitionFailure?error:undefined;
   if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') failure=new AcquisitionFailure(error.code==='SCOPE_DENIED'?'APPROVAL_REVOKED':error.code==='IDEMPOTENCY_CONFLICT'?'IDEMPOTENCY_CONFLICT':'INVALID_RESULT',false);
@@ -62,13 +82,15 @@ export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:Int
   const classified=failure;
   return transact(store,claim.job.feedSourceId,async tx=>{
    const job=await requireAcquisitionLease(tx,id,claim.token,policy.now());
-   if(classified.code==='BUDGET_EXHAUSTED'){
+   if(classified.code==='BUDGET_EXHAUSTED'||classified.code==='BACKPRESSURE'){
     const jitter=[...id].reduce((n,c)=>(n+c.charCodeAt(0))%120,0)*1000;
-    tx.write('jobs',id,{...job,state:'PENDING',attempts:Math.max(0,job.attempts-1),resourceWaits:(job.resourceWaits??0)+1,exhausted:false,failureCode:classified.code,leaseToken:undefined,leaseUntil:undefined,nextAttemptAt:new Date(Date.parse(policy.now())+300_000+jitter).toISOString()},claim.input.observation.sourceItemKey);
+    const wait=classified.code==='BACKPRESSURE'?5000:300000;
+    tx.write('jobs',id,{...job,state:'PENDING',attempts:Math.max(0,job.attempts-1),resourceWaits:(job.resourceWaits??0)+1,exhausted:false,failureCode:classified.code,failureDetail:classified.diagnostic?.detail,leaseToken:undefined,leaseUntil:undefined,nextAttemptAt:new Date(Math.max(Date.parse(policy.now())+wait+(classified.code==='BACKPRESSURE'?jitter%3000:jitter),Date.parse(classified.diagnostic?.retryNotBefore??'')||0)).toISOString()},claim.input.observation.sourceItemKey);
     return 'RETRY';
    }
    const retry=classified.transient && job.attempts<MAX_ATTEMPTS;
-   tx.write('jobs',id,{...job,state:retry?'PENDING':'FAILED',failureCode:classified.code,leaseToken:undefined,leaseUntil:undefined,exhausted:!retry,nextAttemptAt:retry?new Date(Date.parse(policy.now())+30_000*2**(job.attempts-1)).toISOString():undefined},claim.input.observation.sourceItemKey);
+   const jitter=[...id].reduce((n,c)=>(n+c.charCodeAt(0))%3000,0);
+   tx.write('jobs',id,{...job,state:retry?'PENDING':'FAILED',failureCode:classified.code,failureDetail:classified.diagnostic?.detail,httpStatus:classified.diagnostic?.httpStatus,leaseToken:undefined,leaseUntil:undefined,exhausted:!retry,nextAttemptAt:retry?new Date(Math.max(Date.parse(policy.now())+30_000*2**(job.attempts-1)+jitter,Date.parse(classified.diagnostic?.retryNotBefore??'')||0)).toISOString():undefined},claim.input.observation.sourceItemKey);
    return retry?'RETRY':'FAILED';
   });
  }

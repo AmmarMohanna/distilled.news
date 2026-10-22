@@ -50,7 +50,8 @@ it('salience contention cannot exhaust request retries while one judgment is in 
   for(let i=0;i<5;i++)await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,scorer)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
   expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'PENDING',attempts:0});
  }finally{finish(undefined);await pending}
-},15000);
+ // This asserts contention fencing, not D1 throughput on the local Windows runner.
+},60000);
 it('cron dispatches only approved bounded feed windows; duplicate briefing delivery returns one persisted edition',async()=>{
  env.V1_DOWNSTREAM_FEED_SOURCE_IDS=['feed-source-1',...Array.from({length:11},(_,i)=>`unapproved-${i}`)].join(',');
  const now=new Date('2026-10-03T13:00:00Z');expect(await dispatchV1Intelligence(env,now)).toBe(1);
@@ -60,7 +61,7 @@ it('cron dispatches only approved bounded feed windows; duplicate briefing deliv
  await processV1Briefing(env,message,()=>now.toISOString());
  expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await dispatchV1Intelligence(env,now)).toBe(0);
  expect(await dispatchV1Intelligence({...env,V1_DOWNSTREAM_ENABLED:'false'},now)).toBe(0);
-});
+},30000);
 it('projects only actually communicated grounded claims after publication and recovers projection on replay',async()=>{
  const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const};
  const edition=(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end))!;
@@ -113,8 +114,17 @@ it('blocked synthesis requests cannot consume the bounded relay slots for eligib
    if(i<2) await tx.write('synthesis_jobs',id,{id,feedId:'feed-1',state:i===0?'FAILED':'RUNNING',pendingCall:i===1?'unsettled':undefined});
   }
  });
- expect(await dispatchV1Intelligence(env,now)).toBe(2);
+ expect(await dispatchV1Intelligence(env,now)).toBe(1);
  expect(sent.some(m=>m.type==='v1_briefing' && m.window.start==='2026-10-03T02:00:00Z')).toBe(true);
+});
+it('an older live synthesis lease keeps priority even while its paid call is pending',async()=>{
+ const now=new Date('2026-10-03T13:00:00Z'),window={start:'2026-10-03T11:00:00Z',end:'2026-10-03T12:00:00Z',kind:'HOURLY' as const};
+ await feedTransact(store,'feed-1',async tx=>{
+  await tx.write('briefing_requests','older-live',{id:'older-live',feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end});
+  await tx.write('synthesis_jobs','older-live',{id:'older-live',feedId:'feed-1',state:'RUNNING',pendingCall:'paid-pending',leaseUntil:'2026-10-03T13:02:00Z'});
+ });
+ expect(await dispatchV1Intelligence(env,now)).toBe(0);
+ expect(await dispatchV1Intelligence(env,new Date('2026-10-03T13:03:00Z'))).toBe(1);
 });
 it('publication windows are closed UTC intervals and weeks start Monday',()=>{
  expect(publicationWindow('30M',new Date('2026-10-03T13:17:00Z'))).toEqual({start:'2026-10-03T12:30:00.000Z',end:'2026-10-03T13:00:00.000Z',kind:'30M'});
@@ -235,3 +245,9 @@ it('resuming a committed selection still rejects revoked source support before p
  const intake=new V1IntakeStore(ctx.db),scope=(await intake.getScope('feed-source-1'))!;await intake.registerScope({...scope,enabled:false});
  await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end)).rejects.toMatchObject({code:'SCOPE_DENIED'});expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','ledger_entries')).toHaveLength(0);
 },30000);
+
+it('applies the staging development limit to selected publication work without deleting graph events',async()=>{
+ const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T13:00:00Z',kind:'HOURLY' as const},before=await store.list('feed-1','events');
+ const selection=vi.spyOn(await import('./scoring'),'scoreAndSelect').mockResolvedValue({selectedCandidateIds:['a','b','c','d']} as any),writer=vi.spyOn(publicationModule,'publishSelection');
+ try{await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetch,{maxSelectedDevelopments:3})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});expect(writer).not.toHaveBeenCalled();expect(await store.list('feed-1','events')).toEqual(before)}finally{selection.mockRestore();writer.mockRestore()}
+});

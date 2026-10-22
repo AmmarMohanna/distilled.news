@@ -33,5 +33,11 @@ export function mergeVerification(results:{claims:VerificationClaim[];result:Ver
   for(const check of result.semanticChecks??[])add(checks,JSON.stringify([check.candidateId??null,check.factId]),check);for(const check of result.claimEntailment??[])add(entailment,check.claimId,check);
  }
  const positive=(m:Map<string,boolean[]>)=>[...m].filter(([,v])=>v.every(Boolean)).map(([id])=>id);
- return {supportedClaimIds:positive(supported),preservedFactIds:positive(preserved),novelFactIds:positive(novel),addressedCorrectionObligationIds:positive(addressed),semanticChecks:checks.size?[...checks.values()].map(values=>values.find(c=>!faithfulFact(c))??values[0]):undefined,claimEntailment:entailment.size?[...entailment.values()].map(values=>values.find(c=>!c.fullyEntailed||c.unsupportedMeaning.length>0)??values[0]):undefined,usage:{tokensIn:0,tokensOut:0,cost:0,confirmed:true}};
+ // Preserve summary aliases by story occurrence before projecting original IDs.
+ // A sibling packet omitting the same optional fact is not a contrary summary
+ // for the story which actually communicates it. Legacy scalar merging stays.
+ const mergedChecks=[...checks.values()].map(values=>{const chosen=values.find(c=>!faithfulFact(c))??values[0];return values.every(c=>typeof c.preservedInSummary==='boolean')?{...chosen,preservedInSummary:values.every(c=>c.preservedInSummary)}:chosen});
+ const scopedIds=new Set(mergedChecks.filter(c=>typeof c.preservedInSummary==='boolean').map(c=>c.factId));
+ const preservedIds=[...new Set([...positive(preserved).filter(id=>!scopedIds.has(id)),...mergedChecks.filter(c=>c.preservedInSummary).map(c=>c.factId)])];
+ return {supportedClaimIds:positive(supported),preservedFactIds:preservedIds,novelFactIds:positive(novel),addressedCorrectionObligationIds:positive(addressed),semanticChecks:checks.size?mergedChecks:undefined,claimEntailment:entailment.size?[...entailment.values()].map(values=>values.find(c=>!c.fullyEntailed||c.unsupportedMeaning.length>0)??values[0]):undefined,usage:{tokensIn:0,tokensOut:0,cost:0,confirmed:true}};
 }

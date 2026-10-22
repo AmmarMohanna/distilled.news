@@ -1,6 +1,6 @@
 import {afterEach,beforeEach,expect,it} from 'vitest';
 import {createIntakeDatabase} from '../v1-intake/test-utils';
-import {authorizeModelSpending,reserveModelSpending,settleModelSpending,spendingExposure,reconcileLegacyModelSpending} from './model-spending';
+import {authorizeModelSpending,reserveModelSpending,settleModelSpending,spendingExposure,reconcileLegacyModelSpending,modelSpendingAccount} from './model-spending';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
 beforeEach(async()=>ctx=await createIntakeDatabase({modelSpending:false}));afterEach(async()=>ctx.dispose());
 const grant={id:'owner-approved',accountId:'test-provider-account',modelIds:['test-model'],validFrom:'2026-10-12T00:00:00Z',validUntil:'2026-10-13T00:00:00Z',maxExposureUsd:3,maxConcurrentOperations:2};
@@ -14,3 +14,29 @@ it('known actual overrun is recorded completely instead of capped or changed int
 it('historical paid work needs explicit account reconciliation before approval',async()=>{await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('historical',JSON.stringify({revision:1})).run();await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('semantic_intents','old','historical',?)").bind(JSON.stringify({id:'old',reservedCostUsd:.02})).run();await expect(authorizeModelSpending(ctx.db,grant)).rejects.toMatchObject({reason:'LEGACY_LIABILITIES_UNRECONCILED'})});
 
 it('explicit historical account mapping imports UNKNOWN liability without rewriting its paid identity',async()=>{await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('historical',JSON.stringify({revision:1})).run();const intent={id:'old',input:{model:'test-model'},token:'legacy-owner',reservedCostUsd:.7,leaseUntil:0,createdAt:'2026-10-11T12:00:00Z'};await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('semantic_intents','old','historical',?)").bind(JSON.stringify(intent)).run();await reconcileLegacyModelSpending(ctx.db,'semantic_intents','old',grant.accountId);await reconcileLegacyModelSpending(ctx.db,'semantic_intents','old',grant.accountId);await authorizeModelSpending(ctx.db,grant);expect(await spendingExposure(ctx.db,grant.accountId,'2026-10-12T12:00:00Z')).toMatchObject({heldCostUsd:.7,unknown:1});expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='semantic_intents' AND id='old'").first<{json:string}>())!.json)).toEqual(intent)});
+
+it('explicit tracking-only mode admits above the old ceiling without grants and preserves settlement ownership',async()=>{
+ await ctx.db.exec('CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT,updated_at TEXT)');
+ await ctx.db.prepare('INSERT INTO settings VALUES(?,?,?)').bind('model-spending:tracking-only:'+grant.accountId,JSON.stringify({mode:'TRACK_ONLY',modelIds:['test-model'],enabledAt:'2026-10-12T00:00:00Z'}),'2026-10-12').run();
+ expect(await modelSpendingAccount(ctx.db,'test-model','2026-10-12T12:00:00Z')).toBe(grant.accountId);
+ const r=request('uncapped',100);await reserveModelSpending(ctx.db,r);await reserveModelSpending(ctx.db,r);
+ expect(await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first('n')).toBe(1);
+ expect(await ctx.db.prepare('SELECT authorization_id FROM v1_model_spending_reservations').first('authorization_id')).toBeNull();
+ await expect(settleModelSpending(ctx.db,r.id,'foreign',{costUsd:80,reported:true})).rejects.toMatchObject({reason:'RESERVATION_OWNER_MISMATCH'});
+ await settleModelSpending(ctx.db,r.id,r.token,{costUsd:80,reported:true});expect(await spendingExposure(ctx.db,grant.accountId,r.createdAt)).toMatchObject({heldCostUsd:0});
+ await expect(modelSpendingAccount(ctx.db,'other-model',r.createdAt)).rejects.toMatchObject({reason:'ACCOUNT_AUTHORIZATION_REQUIRED'});
+});
+
+it('tracking-only mode retains old uncertain money while coordinating new provider operations',async()=>{
+ await ctx.db.exec('CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT,updated_at TEXT)');
+ await authorizeModelSpending(ctx.db,grant);const old={...request('historical',2),leaseUntil:0};await reserveModelSpending(ctx.db,old);
+ const oldRow=await ctx.db.prepare('SELECT * FROM v1_model_spending_reservations WHERE id=?').bind(old.id).first();
+ await ctx.db.prepare('INSERT INTO settings VALUES(?,?,?)').bind('model-spending:tracking-only:'+grant.accountId,JSON.stringify({mode:'TRACK_ONLY',modelIds:['test-model'],enabledAt:'2026-10-12T12:01:00Z'}),'2026-10-12').run();
+ const current={...request('live',100),createdAt:'2026-10-12T12:02:00Z',providerLimits:{provider:'openrouter' as const,maxConcurrent:1,requestsPerMinute:100}};
+ await reserveModelSpending(ctx.db,current);
+ await expect(reserveModelSpending(ctx.db,{...current,id:'second',token:'second'})).rejects.toMatchObject({reason:'PROVIDER_RESOURCE_WAIT'});
+ expect(await ctx.db.prepare('SELECT * FROM v1_model_spending_reservations WHERE id=?').bind(old.id).first()).toEqual(oldRow);
+ expect(await spendingExposure(ctx.db,grant.accountId,current.createdAt)).toMatchObject({heldCostUsd:102});
+ await settleModelSpending(ctx.db,current.id,current.token,{costUsd:4,reported:true});await reserveModelSpending(ctx.db,{...current,id:'next',token:'next'});
+ expect(await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_authorizations').first('n')).toBe(1);
+});

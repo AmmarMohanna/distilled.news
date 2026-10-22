@@ -52,7 +52,9 @@ export async function feedSourceAvailability(env:Env,feedId:string){
    await hasUncertainSourcePayment(env.DB,feedId,row.id,source.source.family.startsWith('x_')?['x_twitterapi_io','x_apify']:['linkedin_apify'])){
    availability.state='UNAVAILABLE';availability.reason='PAID_OPERATION_UNCERTAIN';
   }
-  const latest=await env.DB.prepare(`SELECT state,last_error,result FROM ${table} WHERE json_extract(request,'$.scope.feedSourceId')=? ORDER BY scheduled_at DESC,job_id DESC LIMIT 1`).bind(row.id).first<{state:string;last_error:string|null;result:string|null}>();
+  // Scheduling another job is not recovery. Keep the most recent completed
+  // outcome visible until a later poll actually finishes or reports a failure.
+  const latest=await env.DB.prepare(`SELECT state,last_error,result FROM ${table} WHERE json_extract(request,'$.scope.feedSourceId')=? AND (state IN ('DONE','BLOCKED') OR last_error IS NOT NULL) ORDER BY CASE WHEN state IN ('DONE','BLOCKED') OR last_error NOT IN ('INTAKE_BUSY','BACKPRESSURE') THEN 0 ELSE 1 END,scheduled_at DESC,job_id DESC LIMIT 1`).bind(row.id).first<{state:string;last_error:string|null;result:string|null}>();
   if(latest?.state==='BLOCKED'&&availability.state==='AVAILABLE'){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
   const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),acquisition={completed:0,pending:0,failed:0};
   for(const job of jobs){if(job.state==='DONE')acquisition.completed+=job.count;else if(job.state==='FAILED')acquisition.failed+=job.count;else if(['PENDING','RUNNING'].includes(job.state))acquisition.pending+=job.count;}
@@ -60,9 +62,14 @@ export async function feedSourceAvailability(env:Env,feedId:string){
   const warning=acquisition.failed?failed.every(j=>j.failure==='AUTH_REQUIRED')?'ARTICLE_AUTH_REQUIRED':failed.every(j=>j.failure==='CHALLENGE_REQUIRED')?'ARTICLE_CHALLENGE_REQUIRED':'ARTICLE_ACQUISITION_FAILED':undefined;
   // Only typed errors are public. Never expose URLs, provider response text or
   // claim tokens retained in diagnostic storage.
-  let failure=latest?.last_error;
-  if(!failure&&latest?.result){try{const result=JSON.parse(latest.result);if(result?.state==='FETCH_FAILED')failure=result.attempts?.at(-1)?.failure}catch{/* Corrupt diagnostics are not public messages. */}}
-  const collectionError=failure&&['TRANSIENT','RATE_LIMIT','AUTH_REQUIRED','CHALLENGE','MALFORMED','UNCERTAIN_PAID_SUBMISSION'].includes(failure)?failure:undefined;
+  const collectionError=collectionFailureReason(latest);
   return {sourceId:row.id,title:row.title,...availability,acquisition,...(warning?{warning}:{}),...(collectionError?{collectionError}:{})};
  }));
+}
+/** Typed cause only. Never expose arbitrary provider errors or payload text. */
+export function collectionFailureReason(latest:{last_error:string|null;result:string|null}|null){
+ let failure=latest?.last_error?.split(':').at(-1);
+ if(latest?.result){try{const result=JSON.parse(latest.result);const saved=result?.coverage?.failureReason!=='NONE'?result?.coverage?.failureReason:undefined;const provider=result?.state==='FETCH_FAILED'?result.attempts?.at(-1)?.failure:undefined;if(!failure||['RETRY_LIMIT','BOUNDED_LIMIT'].includes(failure))failure=provider??saved??failure}catch{/* Diagnostics are not user instructions or public prose. */}}
+ if(failure==='TRANSIENT_PROVIDER_FAILURE')failure='TRANSIENT';
+ return failure&&['TRANSIENT','RATE_LIMIT','AUTH_REQUIRED','CHALLENGE','MALFORMED','UNCERTAIN_PAID_SUBMISSION','INTAKE_BUSY','BACKPRESSURE','RETRY_LIMIT','PAGE_LIMIT','UNBOUNDED_SCOPE_RETIRED','TEMPORARY_UNAVAILABLE','INTERNAL_FAILURE','FETCH_OUTCOME_UNKNOWN'].includes(failure)?failure:undefined;
 }

@@ -6,7 +6,8 @@ import type { DownstreamJob, IntakeScope } from './types';
 
 const scopeSchema = z.object({feedId:z.string().min(1),feedSourceId:z.string().min(1),sourceId:z.string().min(1),feedRevision:z.number().int().positive().max(Number.MAX_SAFE_INTEGER),enabled:z.boolean(),deletedAt:z.string().datetime().optional(),restrictions:z.object({startTime:z.string().datetime().optional(),endTime:z.string().datetime().optional(),publisherIds:z.array(z.string().min(1)).optional(),accountIds:z.array(z.string().min(1)).optional()}).strict()}).strict().refine(s=>!s.restrictions.startTime || !s.restrictions.endTime || Date.parse(s.restrictions.startTime)<Date.parse(s.restrictions.endTime));
 export type Table = 'handoffs'|'inputs'|'candidates'|'intake_receipts'|'jobs'|'evidence'|'revisions'|'tombstones'|'acquired'|'evidence_receipts'|'conflicts'|'acquisition_results';
-export interface Stored<T> { feedSourceId: string; value: T }
+export interface Stored<T> { feedSourceId: string; value: T; serialized?:string }
+export interface AcquisitionJobGuard {id:string;feedSourceId:string;serialized:string}
 export interface ScopeSnapshot { scope: IntakeScope; epoch: number }
 export interface Write { table: Table; id: string; itemKey?: string; value: unknown; immutable?: boolean }
 export interface ReadKey {table:Table;id:string}
@@ -34,7 +35,7 @@ export class V1IntakeStore {
   }
   async read<T>(table:Table,id:string):Promise<Stored<T>|undefined> {
     const row=await this.db.prepare(`SELECT feed_source_id,json FROM ${tableName(table)} WHERE id=?`).bind(id).first<{feed_source_id:string;json:string}>();
-    return row ? {feedSourceId:row.feed_source_id,value:JSON.parse(row.json) as T} : undefined;
+    return row ? {feedSourceId:row.feed_source_id,value:JSON.parse(row.json) as T,serialized:row.json} : undefined;
   }
   /** Bounded indexed reads in one D1 round trip. Commit still checks the same
    * scope epoch, so cached rows/misses cannot survive a concurrent mutation. */
@@ -48,7 +49,7 @@ export class V1IntakeStore {
     }
     if(!queries.length)return values;
     const results=await this.db.batch(queries.map(q=>q.statement));
-    results.forEach((result,index)=>{for(const row of result.results as {id:string;feed_source_id:string;json:string}[])values.set(JSON.stringify([queries[index].table,row.id]),{feedSourceId:row.feed_source_id,value:JSON.parse(row.json)});});
+    results.forEach((result,index)=>{for(const row of result.results as {id:string;feed_source_id:string;json:string}[])values.set(JSON.stringify([queries[index].table,row.id]),{feedSourceId:row.feed_source_id,value:JSON.parse(row.json),serialized:row.json});});
     return values;
   }
   async list<T>(table:Table,feedSourceId:string):Promise<T[]> {
@@ -58,17 +59,25 @@ export class V1IntakeStore {
   async listPendingJobs(id:string):Promise<DownstreamJob[]> { return (await this.list<DownstreamJob>('jobs',id)).filter(j=>j.state==='PENDING' && !j.exhausted) }
   /** Scope-wide epoch serializes decisions across item state and configuration changes.
    * The guard CHECK aborts the entire batch before any effects on a stale snapshot. */
-  async commit(snapshot:ScopeSnapshot,writes:Write[]):Promise<boolean> {
+  async commit(snapshot:ScopeSnapshot,writes:Write[],acquisitionGuards:AcquisitionJobGuard[]=[]):Promise<boolean> {
     if(!writes.length)return true;
     const nonce=crypto.randomUUID(),turnGuard=intelligenceTurnGuard(this.db,snapshot.scope.feedId);
-    const journalOnly=writes.every(w=>w.table==='handoffs'&&w.immutable);
-    // Evidence-free coverage is an append-only journal, not canonical intake.
+    const journalOnly=writes.every(w=>['handoffs','acquisition_results'].includes(w.table)&&w.immutable);
+    const guarded=new Set(acquisitionGuards.map(g=>g.id));
+    // Pending/running bookkeeping has an exact row CAS instead of changing
+    // every review's evidence epoch. Terminal outcomes still advance the epoch
+    // because they affect publication coverage and canonical availability.
+    const acquisitionOnly=writes.every(w=>w.table==='jobs'&&(w.value as DownstreamJob).kind==='ACQUIRE'&&['PENDING','RUNNING'].includes((w.value as DownstreamJob).state)&&guarded.has(w.id));
+    // Evidence-free coverage and immutable fetched-result journals do not
+    // change canonical evidence. Result persistence still checks the scope
+    // epoch (including acquisition lease changes) and immutable identity.
     // Keep scope authorization and conflicting identity checks atomic even when
     // concurrent journals no longer advance the evidence/configuration epoch.
-    const journalGuards=journalOnly?writes.map(()=>` AND NOT EXISTS(SELECT 1 FROM v1_handoffs WHERE id=? AND (feed_source_id!=? OR json!=?))`).join(''):'';
-    const statements=[this.db.prepare(`INSERT INTO v1_transaction_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=? AND json_extract(json,'$.enabled')=1 AND json_extract(json,'$.deletedAt') IS NULL) ${journalGuards}${turnGuard.sql} THEN 1 ELSE 0 END`).bind(nonce,snapshot.scope.feedSourceId,snapshot.epoch,...(journalOnly?writes.flatMap(w=>[w.id,snapshot.scope.feedSourceId,JSON.stringify(w.value)]):[]),...turnGuard.args)];
+    const journalGuards=journalOnly?writes.map(w=>` AND NOT EXISTS(SELECT 1 FROM ${tableName(w.table)} WHERE id=? AND (feed_source_id!=? OR json!=?))`).join(''):'';
+    const jobGuards=acquisitionGuards.map(()=>` AND EXISTS(SELECT 1 FROM v1_jobs WHERE id=? AND feed_source_id=? AND json=?)`).join('');
+    const statements=[this.db.prepare(`INSERT INTO v1_transaction_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=? AND json_extract(json,'$.enabled')=1 AND json_extract(json,'$.deletedAt') IS NULL) ${journalGuards}${jobGuards}${turnGuard.sql} THEN 1 ELSE 0 END`).bind(nonce,snapshot.scope.feedSourceId,snapshot.epoch,...(journalOnly?writes.flatMap(w=>[w.id,snapshot.scope.feedSourceId,JSON.stringify(w.value)]):[]),...acquisitionGuards.flatMap(g=>[g.id,g.feedSourceId,g.serialized]),...turnGuard.args)];
     for(const w of writes) statements.push(this.db.prepare(`INSERT INTO ${tableName(w.table)}(id,feed_source_id,item_key,json) VALUES(?,?,?,?) ${w.immutable?'ON CONFLICT(id) DO NOTHING':'ON CONFLICT(id) DO UPDATE SET json=excluded.json'}`).bind(w.id,snapshot.scope.feedSourceId,w.itemKey??null,JSON.stringify(w.value)));
-    if(!journalOnly)statements.push(this.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(snapshot.scope.feedSourceId));
+    if(!journalOnly&&!acquisitionOnly)statements.push(this.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(snapshot.scope.feedSourceId));
     statements.push(this.db.prepare('DELETE FROM v1_transaction_guards WHERE id=?').bind(nonce));
     try { await this.db.batch(statements); return true }
     catch(error) {

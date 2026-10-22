@@ -1,7 +1,14 @@
 import {provenActionStrengthViolations} from './action-strength';
 export interface FidelityFact {id:string;text:string;evidenceRevisionIds:string[];attribution?:string;timing?:import('./freshness').FactTiming;context?:{text:string}}
 export interface ReaderNoveltyVerdict {status:'NEW'|'ALREADY_COMMUNICATED'|'NOT_COMMUNICATED'|'UNRESOLVED'|'NOT_APPLICABLE';reason:string;previousFactTexts:string[]}
-export interface SemanticFactCheck {candidateId?:string;readerNovelty?:ReaderNoveltyVerdict;factId:string;communicated:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;nonRepetitive?:boolean;reason:string;readerSpans?:{claimId:string;text:string}[]}
+export interface ReaderSpan {claimId:string;text:string;start?:number;end?:number}
+export interface SemanticFactCheck {candidateId?:string;readerNovelty?:ReaderNoveltyVerdict;factId:string;communicated:boolean;sourceSupported?:boolean;readerEntailsProposition?:boolean;preservedInSummary?:boolean;attribution:boolean;certainty:boolean;temporal:boolean;qualifiers:boolean;nonRepetitive?:boolean;reason:string;readerSpans?:ReaderSpan[]}
+/** V2 coordinates are UTF-16 half-open offsets in authoritative claim text,
+ * never normalized text, a source body, or a model echo. Legacy stays unchanged. */
+export function exactReaderWitness(span:ReaderSpan,claims:{id:string;text:string}[]):boolean {
+ const claim=claims.find(c=>c.id===span.claimId);
+ return Boolean(claim&&span.text&&Number.isSafeInteger(span.start)&&Number.isSafeInteger(span.end)&&span.start!>=0&&span.end!>span.start!&&span.end!<=claim.text.length&&claim.text.slice(span.start,span.end)===span.text);
+}
 export const faithfulFact=(check:SemanticFactCheck)=>check.communicated&&check.attribution&&check.certainty&&check.temporal&&check.qualifiers&&check.nonRepetitive!==false;
 export function hasReaderWitness(check:SemanticFactCheck,claims:{id:string;text:string}[]):boolean {
  return !!check.readerSpans?.length&&check.readerSpans.every(span=>claims.some(c=>c.id===span.claimId&&c.text.includes(span.text)));

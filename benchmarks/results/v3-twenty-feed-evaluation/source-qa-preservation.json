@@ -1,0 +1,89 @@
+{
+  "at": "2026-10-22T08:09:19.630Z",
+  "sourceFeedUnchanged": true,
+  "sourceRevisionChecks": [
+    {
+      "id": "22230b5f-de57-42fb-9340-d92521921977",
+      "unchanged": true
+    },
+    {
+      "id": "c828d471-23bb-4810-8c88-fbd6324a5997",
+      "unchanged": true
+    },
+    {
+      "id": "279b9bd1-5d72-4e3b-b922-d10ca0ce040b",
+      "unchanged": true
+    },
+    {
+      "id": "70a64a4a-eefe-49b1-ad74-ce39d871fd83",
+      "unchanged": true
+    },
+    {
+      "id": "1710a6bb-c480-4634-9e79-45e574584acf",
+      "unchanged": true
+    },
+    {
+      "id": "203304e4-87e6-4303-ab13-70257b1b5614",
+      "unchanged": true
+    },
+    {
+      "id": "4353a6b0-f30e-4ae4-9f13-e06301025b55",
+      "unchanged": true
+    },
+    {
+      "id": "b5be2d5d-1f80-479e-9887-99a4bb908074",
+      "unchanged": true
+    },
+    {
+      "id": "3bb439ea-9048-4bdf-b3af-0ae789c89d2c",
+      "unchanged": true
+    },
+    {
+      "id": "eb22ece6-571e-43b4-965c-5898f71fbe72",
+      "unchanged": true
+    },
+    {
+      "id": "96d5bf23-f17c-48db-83a5-cdc4597868dd",
+      "unchanged": true
+    },
+    {
+      "id": "10255c9f-5663-4f23-be61-73c717cba800",
+      "unchanged": true
+    },
+    {
+      "id": "3cc5f30b-c316-400e-bc02-578e3ef24dbf",
+      "unchanged": true
+    },
+    {
+      "id": "752ac255-0c0b-4d73-a827-d30b5d8a5753",
+      "unchanged": true
+    },
+    {
+      "id": "4e798d2c-226e-4478-9041-d0431eec2207",
+      "unchanged": true
+    },
+    {
+      "id": "2480d6dc-9516-43da-a1fc-1985ebdeaa40",
+      "unchanged": true
+    },
+    {
+      "id": "dffb9da5-c1ae-4743-aa87-65bbafd3f3c9",
+      "unchanged": true
+    },
+    {
+      "id": "94983f4f-b127-45d3-aeaf-64372d9ad917",
+      "unchanged": true
+    },
+    {
+      "id": "ed6feaaf-8dde-40bd-83b1-bb91d1d4867b",
+      "unchanged": true
+    },
+    {
+      "id": "d8728d2b-4369-4cc5-a5a3-87a30fc70b26",
+      "unchanged": true
+    }
+  ],
+  "allSourceRevisionsUnchanged": true,
+  "operationsAgainstSourceDatabase": "SELECT only",
+  "r2Writes": 0
+}

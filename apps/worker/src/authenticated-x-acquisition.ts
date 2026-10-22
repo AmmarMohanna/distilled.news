@@ -39,6 +39,7 @@ async function executeXWorkflow(env:Env,context:Context,request:SourceAcquisitio
 
 async function discoverXWorkflow(env:Env,context:Context,request:SourceAcquisitionRequest,ports:Ports):Promise<WebOperatorDiscovery|AcquisitionStageOutcome>{
   const sourceUrl=request.source.canonicalSourceUrl??request.source.resourceLocator;
+  if(env.DISTILLED_LLM_API_GATEWAY!=='openrouter')return{stage:'WEB_OPERATOR',status:'UNSUPPORTED',reason:'WORKERS_AI_ACQUISITION_UNQUALIFIED'};
   const model=env.DISTILLED_LIVE_OPENROUTER_MODEL?.trim();
   if(!sourceUrl||!model||!env.OPENROUTER_API_KEY)return{stage:"WEB_OPERATOR",status:"TRANSIENT_FAILURE",reason:"authenticated discovery model unavailable"};
   const agentRunId=`${context.runId}_browser_use`;

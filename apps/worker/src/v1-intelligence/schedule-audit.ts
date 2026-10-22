@@ -11,7 +11,7 @@ export async function readScheduleAudit(db:D1Database,feedId:string,now=new Date
  if(feed.paused||feed.deletedAt)return {state:'SKIPPED_WITH_REASON',reason:feed.deletedAt?'DELETED':'PAUSED'};
  if(!feed.briefingSchedule&&feed.briefingFrequency==='WEEKLY')return {state:'SKIPPED_WITH_REASON',reason:'HISTORICAL_WEEKLY_NOT_LIVE'};
  const window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now),requestId=await sha256(canonicalJson({feedId,start:window.start,end:window.end}));
- if(Date.parse(window.end)<Date.parse(feed.createdAt))return {state:'NOT_DUE',window};
+ if(Date.parse(window.start)<Date.parse(feed.createdAt))return {state:'NOT_DUE',window};
  const request=await store.read<any>(feedId,'briefing_requests',requestId);
  if(!request)return {state:now.getTime()-Date.parse(window.end)>5*60000?'MISSING_SCHEDULED_BOUNDARY':'AWAITING_DISPATCH',feedId,window,requestId,reason:'NO_DURABLE_REQUEST',attempts:0};
  const edition=await store.read(feedId,'editions',requestId),delivery=edition?await readEditionDelivery(store,feedId,requestId):undefined;

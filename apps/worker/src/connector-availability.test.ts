@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {sourceAvailability,feedSourceAvailability} from './connector-availability';
+import {sourceAvailability,feedSourceAvailability,collectionFailureReason} from './connector-availability';
 import type {Env} from './types';
 it('zero budgets or missing credentials explicitly deny paid sources while free news remains available',()=>{
  const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:'{}',SOURCE_OPERATION_CEILINGS_JSON:'{}'} as Env;
@@ -33,4 +33,14 @@ it('reports article failures and pending work without leaking stored diagnostics
 it('does not describe a mixed failure count as entirely authentication failures',async()=>{
  const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[{feed_source_id:'rss',state:'FAILED',failure:'AUTH_REQUIRED',count:2},{feed_source_id:'rss',state:'FAILED',failure:'POLICY_DENIED',count:3}]:[{id:'rss',title:'News',provider:'rss',kind:'rss',source_url:'https://example.com/rss',input:null,actor_id:null}]}},async first(){return null}})};
  expect((await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true'} as unknown as Env,'feed'))[0]).toMatchObject({acquisition:{failed:5},warning:'ARTICLE_ACQUISITION_FAILED'});
+});
+it('retains the provider cause behind a retry-limit warning without exposing arbitrary errors',()=>{
+ expect(collectionFailureReason({last_error:'RETRY_LIMIT:RATE_LIMIT',result:null})).toBe('RATE_LIMIT');
+ expect(collectionFailureReason({last_error:'RETRY_LIMIT',result:JSON.stringify({coverage:{failureReason:'RATE_LIMIT'}})})).toBe('RATE_LIMIT');
+ expect(collectionFailureReason({last_error:'sensitive provider text',result:null})).toBeUndefined();
+});
+it('a newly pending poll does not erase the last blocked collection outcome',async()=>{
+ let query='';const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[]:[{id:'rss',title:'News',provider:'rss',kind:'rss_feed',source_url:'https://example.com/rss',input:null,actor_id:null}]}},async first(){query=sql;return {state:'BLOCKED',last_error:'RETRY_LIMIT:RATE_LIMIT',result:null}}})};
+ expect((await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true'} as unknown as Env,'feed'))[0]).toMatchObject({state:'UNAVAILABLE',reason:'COLLECTION_BLOCKED',collectionError:'RATE_LIMIT'});
+ expect(query).toContain("state IN ('DONE','BLOCKED')");
 });

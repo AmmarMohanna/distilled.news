@@ -1,0 +1,41 @@
+import {it,expect} from 'vitest';
+import {existsSync,readFileSync,readdirSync} from 'node:fs';
+import {join} from 'node:path';
+import {createEvaluationEvidenceModel} from '../apps/worker/src/v1-intelligence/model';
+import {assessWriterDraft} from '../apps/worker/src/v1-intelligence/publication-prechecks';
+import {decidePublicationPackets} from '../apps/worker/src/v1-intelligence/publication-validation';
+import {hash} from './news-end-to-end';
+import {newsRoot,loadNews,saveNews,newsEvaluationTransport} from './news-evaluation-transport';
+
+export function commonDownstreamControl(corpus:any[],manifest:any){
+ const source=(word:string)=>corpus.find(s=>s.title.includes(word)),laplace=source('Laplace'),replit=source('Replit'),anthropic=source('public benefit');
+ const paragraph=(s:any,start:string)=>{const p=s.body.split('\n').find((p:string)=>p.startsWith(start)||p.includes(start));if(!p)throw Error('CONTROL_SOURCE_PARAGRAPH_MISSING');return p.trim()};
+ const firstSentence=(p:string)=>[...new Intl.Segmenter('und',{granularity:'sentence'}).segment(p)][0].segment.trim();
+ const definitions=[{source:laplace,name:'Physical-AI stress testing',texts:['Ann Arbor-based Laplace','At the startup','While the simulated','Despite Sun','Laplace is also working'].map(start=>paragraph(laplace,start))},
+ {source:replit,name:'Default-model change and partnership clarification',texts:[firstSentence(paragraph(replit,'After Disrupt')),paragraph(replit,'However, Masad')]},
+ {source:replit,name:'Enterprise revenue and 2027 forecast',texts:[paragraph(replit,'not sharing ARR numbers just yet'),paragraph(replit,'Backstage, Masad')]},
+ {source:anthropic,name:'Share-funded public-benefit initiative',texts:['Anthropic announced','Anthropic said that','If you'].map(start=>paragraph(anthropic,start))}];
+ const stories=definitions.map((d,i)=>{const metadata=manifest.cases.find((c:any)=>c.id===d.source.id),id='AI_CURATED_CONTROL_'+i,facts=d.texts.map((text,j)=>({id:id+'_fact_'+j,text,evidenceRevisionIds:[d.source.id],claimMentionIds:[],support:[{evidenceRevisionId:d.source.id,quote:text}],certainty:{kind:'UNSPECIFIED',hedges:[]},reportTime:metadata.publishedAt}));
+  const evidence=[{id:d.source.id,evidenceId:d.source.id,title:d.source.title,body:d.source.body,language:'en',publisherId:'techcrunch.com',excerptTruncated:false}],plan={targetType:'EVENT',targetVersionId:id,decision:'SELECT',order:i,treatment:'STANDARD',deltaType:'NEW',facts,mustIncludeFactIds:facts.map(f=>f.id),newUnderstandingFactIds:facts.map(f=>f.id),contextFactIds:[],attributionFactIds:[],certaintyFactIds:[],disagreementFactIds:[],openQuestionFactIds:[],previousLedgerEntries:[],correctionObligations:[]};
+  return {candidate:{id,targetType:'EVENT',targetVersionId:id},plan,approvedFacts:facts,approvedSpans:facts.flatMap(f=>f.support),evidence};});
+ const input:any={feed:{id:'AI_CURATED_DOWNSTREAM_CONTROL',revision:1,title:'AI industry news',interests:['AI products','AI companies','AI safety'],outputLanguage:'en'},window:{start:'2026-10-17T00:00:00Z',end:'2026-10-20T16:38:13.211Z',kind:'DAILY'},selectionId:'AI_CURATED_DOWNSTREAM_CONTROL',stories};
+ for(const s of stories)for(const f of s.approvedFacts)if(!s.evidence[0].body.includes(f.text))throw Error('CONTROL_SOURCE_SPAN_CHANGED');return input;
+}
+it.skipIf(!existsSync(newsRoot+'/corpus.json'))('retains exact owned source spans in the explicitly AI-curated shared downstream control',()=>{const input=commonDownstreamControl(loadNews(newsRoot+'/corpus.json'),loadNews(newsRoot+'/manifest.json'));expect(input.stories).toHaveLength(4);expect(input.stories.flatMap((s:any)=>s.approvedFacts)).toHaveLength(12);for(const s of input.stories)for(const f of s.approvedFacts)expect(s.evidence.some((e:any)=>e.id===f.support[0].evidenceRevisionId&&e.body.includes(f.text))).toBe(true)});
+
+it.skipIf(process.env.DISTILLED_NEWS_DOWNSTREAM_PAID!=='WITHIN_EXISTING_24_CALLS_2_50')('compares actual writing and V2 verification on identical AI-curated source inputs without publishing',async()=>{
+ const input=commonDownstreamControl(loadNews(newsRoot+'/corpus.json'),loadNews(newsRoot+'/manifest.json')),cf=loadNews(join(process.env.APPDATA!,'xdg.config/cloudflare/config/default.json')),vars=readFileSync(process.env.DISTILLED_EVALUATION_VARS_FILE!,'utf8'),key=vars.match(/^\s*OPENROUTER_API_KEY\s*=\s*(.*?)\s*$/m)?.[1].trim().replace(/^(['"])(.*)\1$/,'$2');
+ const base:any={CLOUDFLARE_ACCOUNT_ID:'e32b564514d4f9b9e383b7dd30dbb026',CLOUDFLARE_AI_GATEWAY_ID:'default',CLOUDFLARE_AI_GATEWAY_TOKEN:cf.oauth_token,OPENROUTER_API_KEY:key,V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2',V1_SYNTHESIS_MODEL_ENABLED:'true'},transport=newsEvaluationTransport(base,{executionScope:'AI_CURATED_DOWNSTREAM_CONTROL'});
+ saveNews(newsRoot+'/downstream-control-input.json',{scope:'AI_CURATED_SHARED_INPUT_NOT_END_TO_END_OR_HUMAN_GOLD',inputHash:hash(input),input});
+ try{for(const provider of ['openrouter','cloudflare']){const reportPath=newsRoot+'/'+provider+'-downstream-control.json',previous=existsSync(reportPath)?loadNews(reportPath):undefined,beforeCalls=readdirSync(newsRoot).filter(n=>n.endsWith('-intent.json')).length;
+  if(previous)saveNews(newsRoot+'/'+provider+'-downstream-control-prior-'+hash(previous).slice(0,12)+'.json',previous);
+  const started=performance.now(),stages:any[]=[],report:any={scope:'AI_CURATED_SHARED_INPUT_NOT_END_TO_END_OR_HUMAN_GOLD',provider,operatorAssisted:true,unattendedSuccess:false,inputHash:hash(input)};
+  try{const env={...base,DISTILLED_LLM_API_GATEWAY:provider,V1_LLM_ROUTES_JSON:JSON.stringify(Object.fromEntries(['writer','verification','repair'].map(task=>[task,{provider,model:'openai/gpt-4.1'}])))},model=createEvaluationEvidenceModel(env,transport)!;
+   let tick=performance.now();const written=await model.synthesize(input,{maxOutputTokens:4096,signal:AbortSignal.timeout(180000)});stages.push({phase:'WRITING',wallMs:performance.now()-tick});report.draft=written.draft;
+   const precheck=assessWriterDraft(input,written.draft,(s:any)=>s.approvedSpans,'EVIDENCE_GROUNDED_V2',true);report.precheck=precheck;if(precheck.blockingIssues.length)throw Error('CONTROL_WRITER_PRECHECK_REJECTED');
+   const claims:any[]=[];for(const story of input.stories){const offered=written.draft.stories.find(s=>s.candidateId===story.candidate.id);if(!offered?.claims.length)throw Error('CONTROL_WRITER_STORY_MISSING');for(const [index,c]of offered.claims.entries())claims.push({...c,id:hash({candidate:story.candidate.id,claim:c}),candidateId:story.candidate.id,requiredFacts:index===0?story.approvedFacts:undefined,allowedFacts:story.approvedFacts,previousLedgerFacts:[],previousReaderClaims:[],newUnderstandingFacts:index===0?story.approvedFacts:undefined,correctionObligations:[],context:story.evidence.map((e:any)=>({evidenceRevisionId:e.id,title:e.title,text:e.body,truncated:false,publisherId:e.publisherId}))});}
+   tick=performance.now();const verified=await model.verify!(claims,{maxOutputTokens:8192,signal:AbortSignal.timeout(180000)});stages.push({phase:'FACTUAL_VERIFICATION',wallMs:performance.now()-tick});report.verification=verified;report.decision=decidePublicationPackets(claims,[{claims,result:verified}]).decision;report.status=report.decision.status;
+  }catch(error){report.status='FAILED';report.error=error instanceof Error?error.message:'UNKNOWN'}
+  report.wallMs=performance.now()-started;report.stages=stages;report.cumulativeActiveWallMs=(previous?.cumulativeActiveWallMs??previous?.wallMs??0)+report.wallMs;report.firstAttemptWallMs=previous?.firstAttemptWallMs??previous?.wallMs??report.wallMs;report.priorAttempts=[...(previous?.priorAttempts??[]),...(previous?[{status:previous.status,error:previous.error,wallMs:previous.wallMs}]:[])];report.newPaidCalls=readdirSync(newsRoot).filter(n=>n.endsWith('-intent.json')).length-beforeCalls;saveNews(newsRoot+'/'+provider+'-downstream-control.json',report);console.info(JSON.stringify({type:'NEWS_DOWNSTREAM_CONTROL',provider,status:report.status,error:report.error,wallMs:report.wallMs}));if(readdirSync(newsRoot).some(n=>n.endsWith('-intent.json')&&!existsSync(join(newsRoot,n.replace('-intent.json','-accounted.json')))))throw Error('CONTROL_UNCONFIRMED_PAID_OPERATION_STOP');
+ }}finally{await transport.close()}
+},3600000);

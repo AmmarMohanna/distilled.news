@@ -6,6 +6,13 @@ import { normalizeProviderRecords, record, string } from './provider-normalize';
 
 export type SecretResolver=(providerId:string)=>Promise<string|undefined>;
 const validateAccount=(value:string)=>{const v=value.replace(/^@/,'');if(!/^[A-Za-z0-9_]{1,32}$/.test(v))throw new Error('INVALID_ACCOUNT');return v;};
+function verifyXWindow(input:SourceFetchRequest,items:ProviderPage['items']){
+  const b=input.requestedBounds;if(!b.startTime||!b.endTime)return;
+  // The provider accepts second-resolution bounds. Preserve that small overlap;
+  // intake fingerprints deduplicate it. Never silently trim an ignored query.
+  const start=Math.floor(Date.parse(b.startTime)/1000)*1000,end=Math.ceil(Date.parse(b.endTime)/1000)*1000;
+  if(!Number.isFinite(start)||!Number.isFinite(end)||start>=end||items.some(item=>!item.publishedAt||!Number.isFinite(Date.parse(item.publishedAt))||Date.parse(item.publishedAt)<start||Date.parse(item.publishedAt)>=end))throw new SourceProviderError('MALFORMED');
+}
 
 export class TwitterApiIoProvider implements SourceProvider {
   readonly id='x_twitterapi_io';readonly families:SourceFamily[]=['x_profile','x_search'];
@@ -17,6 +24,7 @@ export class TwitterApiIoProvider implements SourceProvider {
     const profile=input.source.family==='x_profile'&&!input.requestedBounds.startTime&&!input.requestedBounds.endTime;
     const url=new URL(recheck?'https://api.twitterapi.io/twitter/tweets':profile?'https://api.twitterapi.io/twitter/user/last_tweets':'https://api.twitterapi.io/twitter/tweet/advanced_search');
     let query=input.source.family==='x_profile'?`from:${validateAccount(input.source.locator)}`:input.source.locator;
+    if(input.source.family==='x_search'&&(input.requestedBounds.startTime||input.requestedBounds.endTime))query=`(${query})`;
     if(input.requestedBounds.startTime)query+=` since_time:${Math.floor(Date.parse(input.requestedBounds.startTime)/1000)}`;
     if(input.requestedBounds.endTime)query+=` until_time:${Math.ceil(Date.parse(input.requestedBounds.endTime)/1000)}`;
     if(recheck)url.searchParams.set('tweet_ids',recheck.map(id=>id.slice(2)).join(','));
@@ -26,10 +34,11 @@ export class TwitterApiIoProvider implements SourceProvider {
     const response=await this.http.request(input.scope,run.id,this.id,this.ceilingUsd,url.href,{headers:{'X-API-Key':key}});
     requireProviderSuccess(response);const json=record(response.json);
     const tweets=Array.isArray(json.tweets)?json.tweets:record(json.data).tweets;
-    if(!Array.isArray(tweets)||(!recheck&&(typeof json.has_next_page!=='boolean'||(json.has_next_page&&!string(json.next_cursor)))))throw new SourceProviderError('MALFORMED');
+    if(!Array.isArray(tweets)||(!recheck&&(typeof json.has_next_page!=='boolean'||(json.has_next_page&&(!string(json.next_cursor)||json.next_cursor===input.continuation?.token)))))throw new SourceProviderError('MALFORMED');
     const items=normalizeProviderRecords(tweets,input.source.family);
     if(recheck&&items.some(item=>!recheck.includes(item.sourceItemKey)))throw new SourceProviderError('MALFORMED');
-    return {items,raw:response.bytes,
+    if(!recheck)verifyXWindow(input,items);
+    return {items,raw:response.bytes,complete:!!input.requestedBounds.startTime&&!!input.requestedBounds.endTime&&!recheck&&!json.has_next_page,
       continuationToken:json.has_next_page?json.next_cursor:undefined,requests:1,latencyMs:Date.now()-start,providerCostUsd:null};
   }
 }
@@ -78,7 +87,9 @@ export class ApifySourceProvider implements SourceProvider {
     if(!Array.isArray(response.json))throw new SourceProviderError('MALFORMED');
     offset+=response.json.length;
     // An extra bounded empty page may be required; dataset exhaustion is not source recall proof.
-    return {items:normalizeProviderRecords(response.json,input.source.family),raw:response.bytes,
+    const items=normalizeProviderRecords(response.json,input.source.family);
+    if(['x_profile','x_search'].includes(input.source.family))verifyXWindow(input,items);
+    return {items,raw:response.bytes,
       continuationToken:response.json.length===input.limit?next():undefined,requests,latencyMs:Date.now()-start,
       // Actor lifetime spend is not per-page cost; keep it in the raw status, not duplicated telemetry.
       providerCostUsd:null};
@@ -86,8 +97,14 @@ export class ApifySourceProvider implements SourceProvider {
   private actorInput(input:SourceFetchRequest):Record<string,unknown>{
     if(input.source.family==='google_news')return {queries:[input.source.locator],geo:input.source.region??'US',language:input.source.language??'en',maxItemsPerQuery:input.limit,maxQueries:1,dedupe:true,enableAnalysis:false,monitoringMode:false,
       publishedFrom:input.requestedBounds.startTime,publishedThrough:input.requestedBounds.endTime};
-    if(input.source.family==='x_profile')return {from:validateAccount(input.source.locator),maxItems:input.limit,queryType:'Latest'};
-    if(input.source.family==='x_search')return {twitterContent:input.source.locator,maxItems:input.limit,queryType:'Latest'};
+    if(['x_profile','x_search'].includes(input.source.family)){
+      if(input.source.family==='x_profile'&&!input.requestedBounds.startTime&&!input.requestedBounds.endTime)return {from:validateAccount(input.source.locator),maxItems:input.limit,queryType:'Latest'};
+      let query=input.source.family==='x_profile'?`from:${validateAccount(input.source.locator)}`:input.source.locator;
+      if(input.source.family==='x_search'&&(input.requestedBounds.startTime||input.requestedBounds.endTime))query=`(${query})`;
+      if(input.requestedBounds.startTime)query+=` since_time:${Math.floor(Date.parse(input.requestedBounds.startTime)/1000)}`;
+      if(input.requestedBounds.endTime)query+=` until_time:${Math.ceil(Date.parse(input.requestedBounds.endTime)/1000)}`;
+      return {twitterContent:query,maxItems:input.limit,queryType:'Latest'};
+    }
     // These actors expose a lower date bound, not an exact historical time window.
     // Keep overlap and let durable item fingerprints suppress unchanged posts.
     if(input.source.family.startsWith('linkedin'))return {targetUrls:[input.source.locator],maxPosts:input.limit,

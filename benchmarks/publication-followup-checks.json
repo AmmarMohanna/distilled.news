@@ -1,0 +1,28 @@
+{
+  "runtimeDiagnosticCommit": "4b498be",
+  "workerTests": {
+    "passed": 44,
+    "failed": 0
+  },
+  "compatibleOfflineChecks": {
+    "passed": 2,
+    "liveSkipped": 1
+  },
+  "realEvaluation": {
+    "judgeCalls": 1,
+    "verifierCalls": 12,
+    "settled": 13,
+    "unknown": 0,
+    "actualCostUsd": 0.0124704
+  },
+  "typecheck": "PASS repository-wide",
+  "workerBuild": "PASS explicit staging-config dry-run; no upload",
+  "fullWorkerSuite": "NOT_RERUN",
+  "frontendBuild": "NOT_RERUN_UNCHANGED",
+  "strictTimingOpen": [
+    "Durable publication restart current 1/2 vs baseline 2/2; prior older-code timeouts. Small regression not excluded."
+  ],
+  "noBudgetOrGrantChanges": true,
+  "noDeploymentOrPublication": true,
+  "noPush": true
+}

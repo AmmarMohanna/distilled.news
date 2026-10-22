@@ -12,6 +12,7 @@ import { WebsiteSourceProvider } from '../src/source-runtime/website-providers';
 import { D1ProviderPollScheduler,PROVIDER_POLL_SCHEMA } from '../src/source-runtime/provider-scheduler';
 import { normalizeProviderRecords } from '../src/source-runtime/provider-normalize';
 import type { FeedHttpPort, FeedResponse } from '../src/source-runtime/ports';
+import {SourceHandoffWait} from '../src/source-runtime/handoff-wait';
 
 const databases:DatabaseSync[]=[];
 afterEach(()=>{for(const db of databases.splice(0))db.close();});
@@ -77,6 +78,65 @@ function provider(id:string,fetch=vi.fn(async()=>page())):SourceProvider{return 
 const feed=(xml:string):FeedHttpPort=>({get:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(xml),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))});
 
 describe('fallback policy and durable handoff',()=>{
+  it.each(['HTTP_NOT_FOUND','UPSTREAM_AUTHENTICATION','UPSTREAM_RATE_LIMIT'])('does not spend fallback capacity around publisher refusal %s',async detail=>{
+    const primary:SourceProvider={id:'website_http',families:['website'],fetch:vi.fn(async()=>{throw new SourceProviderError(detail==='UPSTREAM_RATE_LIMIT'?'RATE_LIMIT':detail==='UPSTREAM_AUTHENTICATION'?'AUTH_REQUIRED':'UNAVAILABLE',undefined,{detail})})};
+    const fallback:SourceProvider={id:'website_playwright',families:['website'],fetch:vi.fn(async()=>page())};
+    const s=setup([primary,fallback]);
+    const result=await s.collector.collect({...request,source:{family:'website',locator:'https://publisher.example/article'}},['website_http','website_playwright']);
+    expect(result.state).toBe('FETCH_FAILED');expect(fallback.fetch).not.toHaveBeenCalled();
+  });
+  it('retires unbounded X without fetching an uncaptured historical page',async()=>{
+    const p=provider('x_twitterapi_io'),s=setup([p]);
+    const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(time),100,false,true);
+    await scheduler.schedule('old',request,time,['x_twitterapi_io']);
+    expect(await scheduler.runOne(120000,'old')).toBe('BLOCKED');expect(p.fetch).not.toHaveBeenCalled();
+    expect(s.db.db.prepare("SELECT last_error FROM connector_provider_poll_jobs WHERE job_id='old'").get()).toEqual({last_error:'UNBOUNDED_SCOPE_RETIRED'});
+  });
+  it('a started legacy run without a saved page stays blocked for recovery without a paid fallback',async()=>{
+    const p=provider('x_twitterapi_io'),s=setup([p]);
+    await s.repository.allocate(scope,await sha256(JSON.stringify([scope,request.runId,p.id])),'original-config',time);
+    const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(time),100,false,true);
+    await scheduler.schedule('started',request,time,[p.id]);expect(await scheduler.runOne(120000,'started')).toBe('BLOCKED');expect(p.fetch).not.toHaveBeenCalled();
+    expect(s.db.db.prepare("SELECT last_error FROM connector_provider_poll_jobs WHERE job_id='started'").get()).toEqual({last_error:'UNBOUNDED_RECOVERY_REQUIRED'});
+  });
+  it('drains every captured slice before retiring unbounded X and preserves paid reservations',async()=>{
+    const p=provider('x_twitterapi_io',vi.fn(async()=>({...page(['1','2','3']),continuationToken:'older'}))),s=setup([p]);let at=Date.parse(time),wait=true;
+    const accept=s.intake.acceptBatch;s.intake.acceptBatch=async b=>{if(wait)throw new SourceHandoffWait();return accept(b)};
+    const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at,100,false,true);
+    await scheduler.schedule('captured',request,time,['x_twitterapi_io']);
+    // Capture using the pre-transition runner, with handoff temporarily busy.
+    const old=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at);
+    expect(await old.runOne(120000,'captured')).toBe('RETRY');expect(p.fetch).toHaveBeenCalledTimes(1);
+    s.db.db.prepare("INSERT INTO connector_provider_budgets VALUES('x_twitterapi_io',15,0.02)").run();
+    wait=false;at+=6000;expect(await scheduler.runOne(120000,'captured')).toBe('RETRY');
+    expect(await scheduler.runOne(120000,'captured')).toBe('BLOCKED');expect(p.fetch).toHaveBeenCalledTimes(1);
+    const row=s.db.db.prepare("SELECT request,result,last_error FROM connector_provider_poll_jobs WHERE job_id='captured'").get() as any;
+    expect(JSON.parse(row.request)).toEqual(request);expect(row.last_error).toBe('UNBOUNDED_SCOPE_RETIRED');expect(JSON.parse(row.result).request.coverage.status).toBe('PARTIAL');
+    expect(s.db.db.prepare("SELECT reserved_usd FROM connector_provider_budgets").get()).toEqual({reserved_usd:0.02});
+  });
+  it('intake admission waits preserve the captured provider page and failure allowance',async()=>{
+    const adapter=provider('x_twitterapi_io'),s=setup([adapter]);let at=Date.parse(time),wait=true;
+    const accept=s.intake.acceptBatch;s.intake.acceptBatch=vi.fn(async b=>{if(wait)throw new SourceHandoffWait();return accept(b)});
+    const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at);
+    await scheduler.schedule('wait',request,time,['x_twitterapi_io']);
+    for(let i=0;i<12;i++){expect(await scheduler.runOne(120000,'wait')).toBe('RETRY');at+=6000;}
+    expect(s.db.db.prepare("SELECT attempts,last_error,pages FROM connector_provider_poll_jobs WHERE job_id='wait'").get()).toEqual({attempts:0,last_error:'INTAKE_BUSY',pages:0});
+    expect(adapter.fetch).toHaveBeenCalledTimes(1);wait=false;
+    expect(await scheduler.runOne(120000,'wait')).toBe('DONE');expect(adapter.fetch).toHaveBeenCalledTimes(1);
+  });
+  it('separates provider retry exhaustion from page exhaustion and retains the failure cause',async()=>{
+    const s=setup([]);let at=Date.parse(time);const result={state:'FETCH_FAILED',attempts:[{failure:'RATE_LIMIT'}]};
+    const scheduler=new D1ProviderPollScheduler(s.db,{collect:async()=>result} as any,async()=>true,()=>at);
+    await scheduler.schedule('limited',request,time,['x_twitterapi_io']);
+    for(let i=0;i<8;i++){expect(await scheduler.runOne(120000,'limited')).toBe('RETRY');at+=600000;}
+    expect(await scheduler.runOne(120000,'limited')).toBe('BLOCKED');
+    const row=s.db.db.prepare("SELECT last_error,result FROM connector_provider_poll_jobs WHERE job_id='limited'").get() as any;
+    expect(row.last_error).toBe('RETRY_LIMIT:RATE_LIMIT');expect(JSON.parse(row.result)).toEqual(result);
+    await scheduler.schedule('pages',{...request,runId:'pages'},new Date(at).toISOString(),['x_twitterapi_io']);
+    s.db.db.prepare("UPDATE connector_provider_poll_jobs SET pages=100 WHERE job_id='pages'").run();
+    expect(await scheduler.runOne(120000,'pages')).toBe('BLOCKED');
+    expect(s.db.db.prepare("SELECT last_error FROM connector_provider_poll_jobs WHERE job_id='pages'").get()).toEqual({last_error:'PAGE_LIMIT'});
+  });
   it.each([false,true])('a proven Apify read recovery resumes its saved continuation with missing failure journal=%s',async(missingJournal)=>{
     let calls=0;const adapter=provider('x_apify',vi.fn(async()=>{if(++calls===1)throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');return page();}));
     const s=setup([adapter]),r={...request,continuation:{providerId:'x_apify',token:'saved-actor-continuation'}};
@@ -530,6 +590,45 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const result=await p.fetch({...request,requestedBounds:{startTime:time,endTime:'2026-10-05T10:00:00.000Z'}},run);
     const url=new URL(http.request.mock.calls[0][4]);expect(url.searchParams.get('query')).toContain('from:NASA since_time:');expect(result.items[0].sourceItemKey).toBe('x:1');
   });
+  it('bounded X pages keep the identical time query and stop on a repeated provider cursor',async()=>{
+    const http={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{tweets:[],has_next_page:true,next_cursor:'cursor'}}))};
+    const p=new TwitterApiIoProvider(http,async()=> 'private-key',0.01);
+    const bounded={...request,requestedBounds:{startTime:time,endTime:'2026-10-04T11:00:00.000Z'}};
+    await p.fetch(bounded,run);
+    await expect(p.fetch({...bounded,continuation:{providerId:p.id,token:'cursor'}},run)).rejects.toMatchObject({code:'MALFORMED'});
+    const urls=http.request.mock.calls.map(c=>new URL(c[4]));expect(urls[0].pathname).toBe('/twitter/tweet/advanced_search');
+    expect(urls[0].searchParams.get('query')).toBe(urls[1].searchParams.get('query'));expect(urls[1].searchParams.get('cursor')).toBe('cursor');
+  });
+  it.each([undefined,'2026-10-03T10:00:00Z'])('does not certify a bounded X window when returned dates are missing or outside it (%s)',async createdAt=>{
+    const http={request:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{tweets:[{id:'1',text:'Post',createdAt}],has_next_page:false}}))};
+    await expect(new TwitterApiIoProvider(http,async()=> 'private-key',.01).fetch({...request,requestedBounds:{startTime:time,endTime:'2026-10-04T11:00:00.000Z'}},run)).rejects.toMatchObject({code:'MALFORMED'});
+  });
+  it('legacy Apify actor recovery is resumed rather than stranded by X scope retirement',async()=>{
+    const actor=provider('x_apify',vi.fn(async()=>({...page(['1']),continuationToken:'actor-cursor'}))),s=setup([actor]);let at=Date.parse(time),wait=true;
+    const accept=s.intake.acceptBatch;s.intake.acceptBatch=async b=>{if(wait)throw new SourceHandoffWait();return accept(b)};
+    const old=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at);
+    await old.schedule('actor',request,time,['x_apify']);expect(await old.runOne(120000,'actor')).toBe('RETRY');
+    wait=false;at+=6000;const updated=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at,100,false,true);
+    expect(await updated.runOne(120000,'actor')).toBe('RETRY');expect(actor.fetch).toHaveBeenCalledTimes(1);
+    const saved=JSON.parse((s.db.db.prepare("SELECT request FROM connector_provider_poll_jobs WHERE job_id='actor'").get() as any).request);
+    expect(saved.continuation).toEqual({providerId:'x_apify',token:'actor-cursor'});
+  });
+  it('the X fallback receives the same profile and frozen time restrictions as the primary',async()=>{
+    const http={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{data:{id:'run'}}}))};
+    const p=new ApifySourceProvider('x_apify',['x_profile'],http,async()=> 'private-token',0.1);
+    await p.fetch({...request,requestedBounds:{startTime:time,endTime:'2026-10-04T11:00:00.000Z'}},run);
+    const body=JSON.parse(http.request.mock.calls[0][5].body);
+    expect(body.twitterContent).toBe(`from:NASA since_time:${Date.parse(time)/1000} until_time:${Date.parse('2026-10-04T11:00:00.000Z')/1000}`);expect(body.from).toBeUndefined();
+  });
+  it('time bounds restrict the entire approved OR search on both X providers',async()=>{
+    const primary={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{tweets:[],has_next_page:false}}))};
+    const fallback={request:vi.fn(async(...args:any[])=>({status:200,headers:{},bytes:encoder.encode('{}'),json:{data:{id:'run'}}}))};
+    const bounded={...request,source:{family:'x_search' as const,locator:'AI OR robotics'},requestedBounds:{startTime:time,endTime:'2026-10-04T11:00:00.000Z'}};
+    await new TwitterApiIoProvider(primary,async()=> 'key',.01).fetch(bounded,run);
+    await new ApifySourceProvider('x_apify',['x_search'],fallback,async()=> 'token',.1).fetch(bounded,run);
+    const query=new URL(primary.request.mock.calls[0][4]).searchParams.get('query');
+    expect(query).toMatch(/^\(AI OR robotics\) since_time:\d+ until_time:\d+$/);expect(JSON.parse(fallback.request.mock.calls[0][5].body).twitterContent).toBe(query);
+  });
   it('accepts TwitterAPI.io posts inside the data envelope without losing pagination',async()=>{
     const json={status:'success',data:{tweets:[{id:'2',text:'NASA update',createdAt:time,author:{userName:'NASA'}}]},has_next_page:true,next_cursor:'next-page'};
     const http={request:vi.fn(async()=>({status:200,headers:{},bytes:encoder.encode(JSON.stringify(json)),json}))};
@@ -563,6 +662,13 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
   it.each(['linkedin_company','linkedin_profile'] as const)('normalizes %s without inventing publication timestamps',family=>{
     const result=normalizeProviderRecords([{urn:'urn:li:activity:1',text:'Text',url:'https://www.linkedin.com/posts/example'}],family);
     expect(result[0].sourceItemKey).toBe('linkedin:urn:li:activity:1');expect(result[0].publishedAt).toBeUndefined();expect(result[0].contentCompleteness).toBe('UNKNOWN');
+  });
+  it.each([401,404,410,429])('retains precise website HTTP failures before invoking extraction (%s)',async status=>{
+    const execute=vi.fn(async()=>({body:'unused'}));
+    const http:FeedHttpPort={get:async()=>({status,headers:{'retry-after':'600'},bytes:encoder.encode('Unavailable'),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}})};
+    const p=new WebsiteSourceProvider('website_http',http,{execute});
+    await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/article'}},run)).rejects.toMatchObject({code:status===401?'AUTH_REQUIRED':status===429?'RATE_LIMIT':'UNAVAILABLE',diagnostic:{httpStatus:status,detail:status===401?'UPSTREAM_AUTHENTICATION':status===429?'UPSTREAM_RATE_LIMIT':'HTTP_NOT_FOUND'}});
+    expect(execute).not.toHaveBeenCalled();
   });
   it('website extraction has text and no model provenance',async()=>{
     const p=new WebsiteSourceProvider('website_http',feed('<article>Text</article>'),{execute:async()=>({body:'Text '.repeat(100),title:'Title',publishedAt:time})});
@@ -703,4 +809,17 @@ it('hands discovered article URLs to durable acquisition instead of one mixed ho
  const repeat=await s.collector.collect({...r,runId:'next-poll'},['website_http']);expect(repeat.state==='HANDED_OFF'&&repeat.request.observations).toEqual([]);
  const recheck=await s.collector.collect({...r,runId:'article-recheck',recheckItemKeys:['url:https://publisher.example/articles/0']},['website_http']);
  expect(recheck.state==='HANDED_OFF'&&recheck.request.observations.map(o=>o.sourceItemKey)).toEqual(['url:https://publisher.example/articles/0']);
+});
+it('website collection preserves original publication and update dates instead of a heuristic extractor date',async()=>{
+ const html='<meta property="article:published_time" content="2026-08-31"><meta property="article:modified_time" content="2026-10-21"><article>Original article</article>';
+ const execution={execute:vi.fn(async()=>({body:'Readable scientific reporting. '.repeat(30),publishedAt:'2026-10-21',pageKind:'article'}))};
+ const provider=new WebsiteSourceProvider('website_http',feed(html),execution);
+ const result=await provider.fetch({...request,source:{family:'website',locator:'https://publisher.example/space/story'}},run);
+ expect(result.items[0]).toMatchObject({publishedAt:'2026-08-31T00:00:00.000Z',updatedAt:'2026-10-21T00:00:00.000Z',contentCompleteness:'UNKNOWN'});
+});
+it('website collection refuses encoded text even when a helper labels it a full article',async()=>{
+ const html='<article>Original article</article>',body='Readable opening paragraphs. '.repeat(15)+'QWxwaGEvYmV0YTEyMzQ1Njc4OTA='.repeat(80);
+ const execution={execute:vi.fn(async()=>({body,publishedAt:'2026-10-21',pageKind:'article',contentCompleteness:'COMPLETE'}))};
+ const provider=new WebsiteSourceProvider('website_http',feed(html),execution);
+ await expect(provider.fetch({...request,source:{family:'website',locator:'https://publisher.example/space/story'}},run)).rejects.toMatchObject({code:'MALFORMED',diagnostic:{detail:'ENCODED_ARTICLE_TEXT'}});
 });

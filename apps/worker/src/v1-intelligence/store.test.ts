@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
-import {createIntakeDatabase,seedIntakeScope,scopeFixture,testPolicy} from '../v1-intake/test-utils';
+import {createIntakeDatabase,seedIntakeScope,scopeFixture,testPolicy,seedCurrentEvidence} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
 import {V1FeedStore,FeedTransaction,feedTransact} from './store';
 import type {FeedRecord} from './types';
@@ -7,6 +7,33 @@ let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore;
 const now=testPolicy.now(),feed:FeedRecord={id:'feed-1',ownerId:'owner-1',title:'Feed',interests:[],geography:[],outputLanguage:'en',briefingFrequency:'DAILY',paused:false,revision:1,createdAt:now,updatedAt:now};
 beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed(feed)});
 afterEach(async()=>ctx.dispose());
+it('publication history identity projection equals revision loading without body payload or cross-feed access',async()=>{
+ const intake=new V1IntakeStore(ctx.db),{revision}=await seedCurrentEvidence(intake,'Historical full article, retained unchanged.');
+ const identities=await store.revisionEvidenceIds(feed.id,[revision.id,revision.id,'missing']);
+ expect(identities).toEqual(new Map([[revision.id,(await store.revision(feed.id,revision.id))!.evidenceId]]));
+ expect(await store.revisionEvidenceIds('foreign',[revision.id])).toEqual(new Map());
+ expect(await store.revisionEvidenceIds(feed.id,[])).toEqual(new Map());
+});
+it('active revision identity checks preserve Feed/source/deletion visibility without returning bodies',async()=>{
+ const intake=new V1IntakeStore(ctx.db),{evidence,revision}=await seedCurrentEvidence(intake,'A retained article body.');
+ expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set((await store.currentEvidence(feed.id)).map(e=>e.revision.id)));
+ expect(await store.activeEvidenceRevisionIds('foreign-feed')).toEqual(new Set());
+ await intake.registerScope({...scopeFixture,enabled:false});expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set());
+ await intake.registerScope(scopeFixture);expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set([revision.id]));
+ await ctx.db.prepare('UPDATE v1_evidence SET json=? WHERE id=?').bind(JSON.stringify({...evidence,state:'DELETED',currentRevisionId:undefined}),evidence.id).run();
+ expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set());
+});
+it('captures epochs in one read and preloads different document kinds in one bounded batch',async()=>{
+ const prepare=vi.fn((sql:string)=>ctx.db.prepare(sql)),batch=vi.fn((statements:D1PreparedStatement[])=>ctx.db.batch(statements));
+ const measured=new V1FeedStore({prepare,batch} as unknown as D1Database);
+ const snapshot=await measured.snapshot(feed.id);expect(prepare).toHaveBeenCalledTimes(1);
+ const tx=new FeedTransaction(measured,snapshot);
+ await tx.preloadMany([{kind:'roles',ids:['missing-role']},{kind:'duplicates',ids:['missing-duplicate']}]);
+ expect(batch).toHaveBeenCalledTimes(1);expect(batch.mock.calls[0][0]).toHaveLength(2);
+ expect(await tx.read('roles','missing-role')).toBeUndefined();
+ expect(await tx.read('duplicates','missing-duplicate')).toBeUndefined();
+ expect(tx.metrics.documentReads).toBe(0);
+});
 it('batches 227 immutable lookups without losing missing IDs or changing the Feed epoch',async()=>{
  const ids=Array.from({length:227},(_,i)=>`retained-${i}`);
  for(let offset=0;offset<ids.length;offset+=90)await ctx.db.batch(ids.slice(offset,offset+90).map(id=>ctx.db.prepare('INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?)').bind('intelligence_receipts',id,feed.id,JSON.stringify({id,feedId:feed.id}))));
