@@ -77,3 +77,24 @@ additional runtime/scheduled-writer/migration/product admission checks passed
 38/38. Worker and core TypeScript checks passed. All model responses in these
 checks are local test doubles; these results do not measure real model latency,
 actual publication delay or factual quality.
+
+## Staging deployment
+
+Separately authorized and deployed on October 22, 2026 at 17:44:51 UTC:
+
+- Code commit: `a2fb705`; branch: `feat/v3-post-integration`.
+- URL: https://distilled-news-staging.distillednews-platform.workers.dev
+- Worker version: `29cdd173-1c3a-4303-a25d-c47c931c08af`, serving 100%.
+- Applied only migration 0069; final remote check reports no pending migrations.
+- Aggregate read-back: all 28 existing feeds retain NULL origins and legacy
+  scheduling. No existing feed was opted in or backfilled.
+- All pre-deploy bindings, secret names and variables were preserved, including
+  current V3 routing and source/account configuration. Production was untouched.
+- Frontend, auth/session and Explore endpoints returned HTTP 200; HTML matched
+  the existing local frontend build. Frontend assets were unchanged.
+
+No new feed, paid inference trial or notification test was triggered. Normal
+staging Cron and queues remain enabled. These deployment checks establish schema,
+configuration and HTTP availability, not a measured new-feed publication run.
+Operational evidence is saved locally under
+`.local-reports/creation-relative-schedules/`.
