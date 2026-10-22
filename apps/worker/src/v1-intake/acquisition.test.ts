@@ -29,6 +29,22 @@ it('missing articles retain their HTTP status and terminal reason',async()=>{
  expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('FAILED');
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({failureCode:'UNSUPPORTED',failureDetail:'HTTP_NOT_FOUND',httpStatus:404});
 });
+it('a public 406 retains bounded retries and never invokes browser or model escalation',async()=>{
+ let calls=0;
+ const router=createCandidateAcquisitionRouter({now:()=>now,publicGet:async url=>({url,body:'Not acceptable',contentType:'text/html',status:406}),stages:{webOperator:async()=>{calls++;throw Error('Must not escalate a 406')}}});
+ for(let attempt=1;attempt<=5;attempt++){
+  const at=new Date(Date.parse(now)+attempt*3600000).toISOString();
+  expect(await runAcquisitionJob(store,jobId,{...testPolicy,now:()=>at},router)).toBe(attempt<5?'RETRY':'FAILED');
+  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:attempt<5?'PENDING':'FAILED',attempts:attempt,failureCode:'NETWORK',failureDetail:'UPSTREAM_NOT_ACCEPTABLE',httpStatus:406,exhausted:attempt===5});
+ }
+ expect(calls).toBe(0);expect(await store.list('revisions','feed-source-1')).toHaveLength(0);
+});
+it.each(['wrong-url','listing','private-denied'])('a public 406 never promotes an invalid fallback: %s',async kind=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,url=claim.input.observation.canonicalUrl!;
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('',{status:406}),publicArticle:async()=>kind==='private-denied'?{status:406}:{status:200,url:kind==='wrong-url'?url+'/other':url,pageKind:kind==='listing'?'listing':'article',body:'Article text. '.repeat(30)}});
+ await expect(router(claim)).rejects.toMatchObject({code:'NETWORK',transient:true,diagnostic:{httpStatus:406,detail:'UPSTREAM_NOT_ACCEPTABLE'}});
+ expect(await store.list('revisions','feed-source-1')).toHaveLength(0);
+});
 it('upstream Retry-After overrides the local acquisition retry backoff',async()=>{
  const router=createCandidateAcquisitionRouter({now:()=>now,publicGet:async url=>({url,body:'Wait',contentType:'text/html',status:429,retryAfter:'600'})});
  expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('RETRY');
@@ -147,10 +163,10 @@ it('retains RSS time precision and both date observations after full article ext
  const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,fetcher:async()=>new Response('<meta property="article:published_time" content="2026-10-03"><h1>Development</h1><article>'+ 'Full reporting. '.repeat(30)+'</article>')});
  expect(await router(claim)).toMatchObject({publishedAt:'2026-10-03T10:52:44.000Z',provenance:{publicationDate:{timestampSource:'connector_precision_same_article_date',articlePublishedAt:'2026-10-03T00:00:00.000Z',connectorPublishedAt:'2026-10-03T10:52:44.000Z'}}});
 });
-it('an anonymous private HTTP fallback retrieves an exact RSS article after a public 403',async()=>{
+it.each([403,406])('an anonymous private HTTP fallback retrieves an exact RSS article after a public %s',async status=>{
  let privateCalls=0;
  const claim=(await claimAcquisition(store,jobId,now))!,url=claim.input.observation.canonicalUrl!;
- const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,fetcher:async()=>new Response('Forbidden',{status:403}),
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,fetcher:async()=>new Response('Rejected',{status}),
   publicArticle:async exact=>{privateCalls++;expect(exact).toBe(url);return {status:200,url:exact,pageKind:'article',body:'Publisher article text. '.repeat(25),title:'Decision',publishedAt:'2026-10-03T10:00:00Z',dateMetadata:{publishedAt:'2026-10-03T10:00:00Z',publicationConflict:false,candidates:[{value:'2026-10-03T10:00:00Z',source:'html:article:published_time'}]}}}});
  const acquired=await router(claim);expect(privateCalls).toBe(1);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',canonicalUrl:url,publishedAt:'2026-10-03T10:00:00.000Z',acquisitionProvider:'private_public_http'});
 });
@@ -159,8 +175,8 @@ it.each([401,429,451])('status %s never invokes the anonymous fallback',async st
  const claim=(await claimAcquisition(store,jobId,now))!;
  await expect(router(claim)).rejects.toMatchObject({code:status===401?'AUTH_REQUIRED':status===429?'RATE_LIMIT':'POLICY_DENIED'});expect(calls).toBe(0);
 });
-it('a 403 carrying WWW-Authenticate remains an authentication requirement',async()=>{
- let calls=0;const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('Login',{status:403,headers:{'www-authenticate':'Basic realm="private"'}}),publicArticle:async()=>{calls++;throw Error('must not call')}});
+it.each([403,406])('a %s carrying WWW-Authenticate remains an authentication requirement',async status=>{
+ let calls=0;const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('Login',{status,headers:{'www-authenticate':'Basic realm="private"'}}),publicArticle:async()=>{calls++;throw Error('must not call')}});
  await expect(router((await claimAcquisition(store,jobId,now))!)).rejects.toMatchObject({code:'AUTH_REQUIRED'});expect(calls).toBe(0);
 });
 it.each(['listing','wrong-url','private-denied'])('private fallback never promotes %s as an exact full article',async kind=>{
