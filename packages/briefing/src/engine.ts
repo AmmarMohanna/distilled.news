@@ -102,7 +102,10 @@ function scriptProblem(draft: { headline: string; body: string }, language: Feed
 
 /** Mechanical flags handed to the verifier as hints; never a verdict on their own. */
 function hintsFor(draft: Draft, byRef: Map<string, PreparedArticle>, feed: FeedSpec): string[] {
-  const evidence = draft.refs.map((ref) => byRef.get(ref)?.text ?? "").join("\n");
+  const evidence = draft.refs.map((ref) => {
+    const source = byRef.get(ref);
+    return source ? `${source.title ?? ""} ${source.publishedAt} ${source.text}` : "";
+  }).join("\n");
   const evidenceNumbers = new Set(significantNumbers(evidence));
   const missing = significantNumbers(`${draft.headline} ${draft.body}`).filter((n) => !evidenceNumbers.has(n));
   const hints: string[] = [];
@@ -263,6 +266,7 @@ async function verify(
           model: models.verifier,
           system: VERIFY_SYSTEM,
           user: verifyUser({
+            windowEnd: input.windowEnd,
             prior,
             sources,
             items: batch.map((index, localIndex) => {
@@ -306,6 +310,7 @@ async function repair(
   port: ModelPort,
   meter: UsageMeter,
   models: BriefingModels,
+  input: BriefingInput,
   drafts: Draft[],
   flagged: Map<number, string[]>,
   byRef: Map<string, PreparedArticle>
@@ -321,6 +326,7 @@ async function repair(
       model: models.editor,
       system: REPAIR_SYSTEM,
       user: repairUser({
+        windowEnd: input.windowEnd,
         sources,
         items: indices.map((index, localIndex) => ({
           index: localIndex,
@@ -443,7 +449,7 @@ export async function generateBriefing(
     }
     todo = unchecked; // a verifier that skipped an item has not approved it; ask again
     if (flagged.size && round < options.maxRepairs) {
-      const fixes = await timed("repair", () => repair(port, meter, models, drafts, flagged, byRef));
+      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef));
       for (const index of flagged.keys()) {
         const fixed = fixes.get(index);
         if (!fixed) {

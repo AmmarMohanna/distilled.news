@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-22T03:17:18.840743+00:00",
+  "task": "V3 factual reliability focused followup",
+  "authorizationId": "v3-overnight-20261022",
+  "validUntil": "2026-10-22T09:47:21.603Z",
+  "priorActualUsd": 0.3587004,
+  "maximumAdditionalPaidCalls": 6,
+  "additionalActualChargeCeilingUsd": 0.2,
+  "cumulativeReservationAdmissionCeilingUsd": 0.5587004,
+  "models": [
+    "openai/gpt-4.1-mini",
+    "openai/gpt-4.1"
+  ],
+  "calls": [
+    "baseline verifier incorrect examples",
+    "baseline verifier correct controls",
+    "revised verifier incorrect examples",
+    "revised verifier correct controls",
+    "optional revised targeted repair",
+    "optional revised repair verification"
+  ],
+  "noDeployment": true,
+  "automaticRetries": 0,
+  "note": "Use original account ledger, existing task scope and expiry. No new grant or historical amendment. Stop uncertain charges; evaluate once without prompt tuning against outputs."
+}
