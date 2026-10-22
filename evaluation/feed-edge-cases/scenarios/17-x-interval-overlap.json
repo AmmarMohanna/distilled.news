@@ -1,0 +1,47 @@
+{
+  "id": "17-x-interval-overlap",
+  "title": "An X post timed exactly on the edge between two frozen scan intervals",
+  "cases": ["C11"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 2,
+  "run": {"tier1": {"xScans": [{"since": "W1", "until": "W2"}, {"since": "W2", "until": "W3"}], "note": "Provider date search is inclusive at both ends to the second, so edge-post is returned by both scans."}},
+  "notes": "Use the JSON listing with since/until to emulate the two bounded scans. edge-post must be stored once and appear in exactly one window.",
+  "sources": [
+    {"key": "x-selin-reporter", "type": "x", "publisher": "selin-reporter", "handle": "selin_reporter_test"}
+  ],
+  "items": [
+    {
+      "id": "before-edge",
+      "source": "x-selin-reporter",
+      "appearsAt": "W1+11m",
+      "guid": "1850000000000000101",
+      "url": "https://x.com/selin_reporter_test/status/1850000000000000101",
+      "title": "",
+      "body": "Labour Minister Teo Marsh just arrived at the port authority building. Talks with the dockworkers' union start at 3pm, his office says."
+    },
+    {
+      "id": "edge-post",
+      "source": "x-selin-reporter",
+      "appearsAt": "W2",
+      "guid": "1850000000000000102",
+      "url": "https://x.com/selin_reporter_test/status/1850000000000000102",
+      "title": "",
+      "body": "Talks have started. Union leader Ilse Brandt says the strike continues until there is a signed offer on the night-shift allowance."
+    },
+    {
+      "id": "after-edge",
+      "source": "x-selin-reporter",
+      "appearsAt": "W2+14m",
+      "guid": "1850000000000000103",
+      "url": "https://x.com/selin_reporter_test/status/1850000000000000103",
+      "title": "",
+      "body": "Talks adjourned until tomorrow 9am. No offer on the table yet, both sides say."
+    }
+  ],
+  "checks": [
+    {"type": "seenOnce", "item": "edge-post", "cases": ["C11"]},
+    {"type": "fingerprintSkip", "item": "edge-post", "scan": 2, "cases": ["C11"]},
+    {"type": "inWindow", "item": "edge-post", "window": 2, "exactlyOne": true, "cases": ["C11"]}
+  ]
+}

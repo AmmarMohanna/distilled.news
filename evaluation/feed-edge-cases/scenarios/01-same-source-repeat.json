@@ -1,0 +1,46 @@
+{
+  "id": "01-same-source-repeat",
+  "title": "One outlet repeats its own story in the next window",
+  "cases": ["A1", "A2", "A3", "C6"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 2,
+  "notes": "W1 publishes the strike story. In W2 the original is still listed (A1), the same text comes back under a new guid and URL (A2), and a reworded version with no new facts appears (A3). W2 has nothing new, so it should be quiet (C6).",
+  "sources": [
+    {"key": "herald", "type": "rss", "publisher": "herald"}
+  ],
+  "items": [
+    {
+      "id": "strike-1",
+      "source": "herald",
+      "appearsAt": "W1+6m",
+      "title": "Dockworkers walk out at Port Selin over night-shift pay",
+      "body": "Dockworkers at the Port of Selin stopped work on Thursday morning after talks over night-shift pay broke down, the Port Workers Union said.\n\nThe union is asking for a 12 percent increase in the night-shift allowance and for a cap of four night shifts a week. The port authority has offered 5 percent.\n\nUnion leader Ilse Brandt said the walkout would last 48 hours. \"Our members load ships through the night for a wage that has not moved since 2021,\" she told reporters outside the main gate.\n\nThe port authority said container operations had been reduced to one berth and that perishable cargo would be prioritised. Seven ships were waiting in the outer harbour by midday, according to the harbour master's office.\n\nLabour Minister Teo Marsh said the ministry was ready to host talks between both sides."
+    },
+    {
+      "id": "strike-1-reposted",
+      "source": "herald",
+      "appearsAt": "W2+4m",
+      "variantOf": "strike-1",
+      "change": "Identical title and text under a new guid and URL, as when a site re-publishes or moves an article.",
+      "guid": "strike-1-republished",
+      "url": "{base}/scenarios/01-same-source-repeat/articles/strike-1-reposted"
+    },
+    {
+      "id": "strike-1-rewrite",
+      "source": "herald",
+      "appearsAt": "W2+11m",
+      "variantOf": "strike-1",
+      "change": "Same facts reworded and reordered. No new fact, figure or quote.",
+      "title": "Port Selin dockers strike for 48 hours in night-pay dispute",
+      "body": "A 48-hour strike by dockworkers is under way at the Port of Selin after negotiations on night-shift pay collapsed on Thursday.\n\nThe Port Workers Union wants the night-shift allowance raised by 12 percent and no more than four night shifts per week, while the port authority has put 5 percent on the table.\n\nOnly one berth is handling containers, and perishable goods are being given priority, the port authority said. The harbour master's office counted seven vessels waiting outside the port at midday.\n\n\"Our members load ships through the night for a wage that has not moved since 2021,\" union leader Ilse Brandt said at the main gate.\n\nLabour Minister Teo Marsh has offered to host talks between the two sides."
+    }
+  ],
+  "checks": [
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["12 percent", "48"], "cases": ["A1"]},
+    {"type": "fingerprintSkip", "item": "strike-1", "window": 2, "cases": ["A1"]},
+    {"type": "duplicateOf", "item": "strike-1-reposted", "of": "strike-1", "cases": ["A2"]},
+    {"type": "notRetold", "item": "strike-1-rewrite", "window": 2, "cases": ["A3"]},
+    {"type": "edition", "window": 2, "outcome": "QUIET", "cases": ["C6"]}
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "id": "11-late-boundary-bad-dates",
+  "title": "Late arrival, an item exactly on the boundary, a future date and a broken date",
+  "cases": ["C1", "C2", "C5"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 2,
+  "notes": "late-arrival is dated 2 minutes before W1 closes but only appears in the feed 3 minutes after (C1). on-boundary is dated exactly at the W1/W2 boundary (C2). future-dated claims a date three days ahead; broken-date has an impossible pubDate string (C5).",
+  "sources": [
+    {"key": "selin-daily", "type": "rss", "publisher": "selin-daily"}
+  ],
+  "items": [
+    {
+      "id": "late-arrival",
+      "source": "selin-daily",
+      "publishedAt": "W1+28m",
+      "appearsAt": "W2+3m",
+      "title": "Port Selin council approves night bus network",
+      "body": "Port Selin city council on Tuesday approved six night bus routes that will run between midnight and 5 a.m. from February. The routes will link the Harbour district, the university and the main hospitals. The council said the service would cost 3.2 million calvers a year."
+    },
+    {
+      "id": "on-boundary",
+      "source": "selin-daily",
+      "publishedAt": "W2",
+      "appearsAt": "W2",
+      "title": "Ardena hospital opens new cancer wing",
+      "body": "Ardena General Hospital opened a cancer treatment wing with 60 beds and two radiotherapy machines on Tuesday. Patients from Kesh province have until now travelled to Port Selin for radiotherapy. The wing was paid for by the health ministry and a 14 million calver loan from the regional development bank."
+    },
+    {
+      "id": "future-dated",
+      "source": "selin-daily",
+      "publishedAt": "W1+3d",
+      "appearsAt": "W1+10m",
+      "title": "Kesh province opens applications for drought relief",
+      "body": "Farmers in Kesh province can apply for drought relief payments of up to 2,500 calvers from this week, the agriculture ministry said on Tuesday. Applications close at the end of November."
+    },
+    {
+      "id": "broken-date",
+      "source": "selin-daily",
+      "rawPubDate": "Thu, 31 Sep 2026 25:61:00 GMT",
+      "appearsAt": "W1+12m",
+      "title": "National library extends opening hours",
+      "body": "The National Library in Port Selin will stay open until 10 p.m. on weekdays from next month, after a petition signed by 8,000 students. Weekend hours do not change."
+    }
+  ],
+  "checks": [
+    {"type": "inWindow", "item": "late-arrival", "window": 2, "cases": ["C1"]},
+    {"type": "edition", "window": 2, "mustMention": ["night bus"], "cases": ["C1"]},
+    {"type": "inWindow", "item": "on-boundary", "window": 2, "exactlyOne": true, "cases": ["C2"]},
+    {"type": "dateNotTrusted", "item": "future-dated", "cases": ["C5"]},
+    {"type": "freshness", "item": "broken-date", "state": "UNKNOWN", "cases": ["C5"]},
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "cases": ["C5"]}
+  ]
+}

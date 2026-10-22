@@ -1,0 +1,58 @@
+{
+  "id": "20-relevance-and-paywall",
+  "title": "Promotional and off-topic items, plus a paywalled article with only an excerpt",
+  "cases": ["D8", "D9"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 1,
+  "notes": "The newsletter promo, the recipe and the football result are not politics or economy news (D8). The pension article is paywalled: the RSS item and the article page only show the opening, and the 14 percent figure sits in the hidden part, so it must never appear in the briefing (D9).",
+  "sources": [
+    {"key": "herald", "type": "rss", "publisher": "herald"}
+  ],
+  "items": [
+    {
+      "id": "promo",
+      "source": "herald",
+      "appearsAt": "W1+3m",
+      "title": "Get the Herald Morning newsletter: 50% off your first year",
+      "body": "Start every day with the Herald Morning, our editors' pick of the news that matters in Calvera. Subscribe this week and get 50% off your first year. Offer ends Sunday. Terms apply."
+    },
+    {
+      "id": "recipe",
+      "source": "herald",
+      "appearsAt": "W1+6m",
+      "title": "Recipe: Kesh-style lamb stew with apricots",
+      "body": "This slow-cooked stew from Kesh province is a winter favourite. Brown 800 g of lamb shoulder, add onions, cumin, cinnamon and a handful of dried apricots, cover with stock and cook gently for two hours. Serve with flatbread."
+    },
+    {
+      "id": "football",
+      "source": "herald",
+      "appearsAt": "W1+9m",
+      "title": "Port Selin United beat Ardena City 3-0",
+      "body": "Port Selin United beat Ardena City 3-0 on Sunday to move second in the league. Their striker scored twice in the first half."
+    },
+    {
+      "id": "pension-paywalled",
+      "source": "herald",
+      "appearsAt": "W1+12m",
+      "excerptOnly": true,
+      "paywalled": true,
+      "title": "Government plans to raise retirement age to 66",
+      "body": "The government plans to raise the retirement age from 64 to 66 over eight years, starting in 2027, Labour Minister Teo Marsh told the Herald in an interview on Monday. The change will be part of a pension bill to be sent to parliament in January, he said, and it would apply to both public and private sector workers.\n\nMarsh said that without the change the pension fund's deficit would grow by 14 percent a year by 2030. Unions have already said they will oppose the bill. The opposition Civic Alliance said it would propose its own plan based on higher contributions from employers."
+    },
+    {
+      "id": "budget-hearing",
+      "source": "herald",
+      "appearsAt": "W1+15m",
+      "title": "Parliament schedules budget vote for 14 November",
+      "body": "Parliament will vote on next year's budget on 14 November, the speaker's office said on Monday. Committee hearings with ministers start next week."
+    }
+  ],
+  "checks": [
+    {"type": "noStory", "item": "promo", "window": 1, "cases": ["D8"]},
+    {"type": "noStory", "item": "recipe", "window": 1, "cases": ["D8"]},
+    {"type": "noStory", "item": "football", "window": 1, "cases": ["D8"]},
+    {"type": "excerptOnly", "item": "pension-paywalled", "cases": ["D9"]},
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "mustMention": ["66", "14 November"], "mustNotMention": ["14 percent", "recipe", "50%"], "cases": ["D8", "D9"]}
+  ]
+}

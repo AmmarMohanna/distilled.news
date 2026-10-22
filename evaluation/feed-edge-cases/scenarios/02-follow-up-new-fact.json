@@ -1,0 +1,40 @@
+{
+  "id": "02-follow-up-new-fact",
+  "title": "Follow-up article repeats the background and adds one new figure",
+  "cases": ["A4"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 2,
+  "notes": "The W2 article is the W1 article with only the death toll and the headline changed. The W2 story should say the toll rose from 10 to 25 and not retell the rest.",
+  "sources": [
+    {"key": "selin-daily", "type": "rss", "publisher": "selin-daily"}
+  ],
+  "items": [
+    {
+      "id": "flood-1",
+      "source": "selin-daily",
+      "appearsAt": "W1+8m",
+      "title": "Flash floods in Kesh province kill 10",
+      "body": "At least 10 people were killed when flash floods swept through villages in Kesh province overnight, the Civil Protection Agency said on Friday.\n\nThe Vell river rose almost three metres in six hours after two days of heavy rain, flooding the towns of Orlan and Mere. Around 1,400 people have been moved to schools and sports halls in the provincial capital.\n\nThe road between Orlan and Ardena is closed after a section was washed away. Rescue teams are using boats to reach farms cut off by the water.\n\nThe national weather office has kept its red warning for Kesh province in place until Saturday evening."
+    },
+    {
+      "id": "flood-2",
+      "source": "selin-daily",
+      "appearsAt": "W2+9m",
+      "variantOf": "flood-1",
+      "change": "Death toll rises from 10 to 25. Everything else is identical.",
+      "guid": "flood-2",
+      "edits": [
+        {"field": "title", "find": "kill 10", "replace": "death toll rises to 25"},
+        {"find": "At least 10 people were killed", "replace": "At least 25 people were killed"}
+      ]
+    }
+  ],
+  "checks": [
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["10"], "cases": ["A4"]},
+    {"type": "notDuplicate", "item": "flood-2", "of": "flood-1", "cases": ["A4"]},
+    {"type": "sameStory", "items": ["flood-1", "flood-2"], "cases": ["A4"]},
+    {"type": "edition", "window": 2, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["25"], "cases": ["A4"]},
+    {"type": "notRetold", "item": "flood-2", "window": 2, "except": ["25"], "cases": ["A4"]}
+  ]
+}

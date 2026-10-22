@@ -1,0 +1,144 @@
+{
+  "id": "15-new-source-backlog",
+  "title": "A newly added source returns 110 old items and a few current ones on its first poll",
+  "cases": [
+    "C9"
+  ],
+  "feed": "football",
+  "schedule": {
+    "durationMinutes": 30,
+    "timezone": "Asia/Beirut"
+  },
+  "windows": 1,
+  "notes": "Selin Sports lists its last 113 items. 110 are between 49 hours and 10 days old. The first briefing must not wait for them, and none of them may be reported as news. The three current items should make the edition.",
+  "sources": [
+    {
+      "key": "selin-sports",
+      "type": "rss",
+      "publisher": "selin-sports",
+      "maxItems": 150
+    }
+  ],
+  "items": [
+    {
+      "generate": {
+        "count": 110,
+        "idPrefix": "archive-",
+        "source": "selin-sports",
+        "appearsAt": "W1+2m",
+        "publishedFrom": "W1-10d",
+        "publishedTo": "W1-49h",
+        "topics": [
+          {
+            "home": "Harbour Rovers",
+            "away": "Kesh Athletic",
+            "score": "1-0"
+          },
+          {
+            "home": "Ardena City",
+            "away": "Mere Wanderers",
+            "score": "2-2"
+          },
+          {
+            "home": "Orlan FC",
+            "away": "Vell Valley",
+            "score": "3-1"
+          },
+          {
+            "home": "Port Selin United",
+            "away": "Ardena City",
+            "score": "0-0"
+          },
+          {
+            "home": "Kesh Athletic",
+            "away": "Orlan FC",
+            "score": "2-1"
+          },
+          {
+            "home": "Mere Wanderers",
+            "away": "Harbour Rovers",
+            "score": "1-3"
+          },
+          {
+            "home": "Vell Valley",
+            "away": "Isla Mar SC",
+            "score": "4-2"
+          },
+          {
+            "home": "Isla Mar SC",
+            "away": "Port Selin United",
+            "score": "0-1"
+          },
+          {
+            "home": "Ardena City",
+            "away": "Harbour Rovers",
+            "score": "1-1"
+          },
+          {
+            "home": "Orlan FC",
+            "away": "Mere Wanderers",
+            "score": "2-0"
+          }
+        ],
+        "titleTemplate": "Match report {n}: {home} {score} {away}",
+        "bodyTemplate": "{home} and {away} played out a {score} result in round {n} of the Calveran league. The match report, ratings and the managers' comments from the press conference are below. Attendance was {n}00."
+      }
+    },
+    {
+      "id": "riel-contract",
+      "source": "selin-sports",
+      "appearsAt": "W1+2m",
+      "publishedAt": "W1-40m",
+      "title": "Port Selin United extend Jonas Riel's contract to 2029",
+      "body": "Port Selin United have extended head coach Jonas Riel's contract by three years to June 2029, the club said on Wednesday. Riel joined in 2024 and won the league cup last season. The club did not disclose the terms."
+    },
+    {
+      "id": "stadium-roof",
+      "source": "selin-sports",
+      "appearsAt": "W1+2m",
+      "publishedAt": "W1-25m",
+      "title": "Selin Arena roof works to force United away for two matches",
+      "body": "Port Selin United will play their next two home matches at Ardena City's ground while the Selin Arena roof is repaired, the league said on Wednesday. The repairs follow storm damage last month."
+    },
+    {
+      "id": "rovers-fine",
+      "source": "selin-sports",
+      "appearsAt": "W1+2m",
+      "publishedAt": "W1-15m",
+      "title": "Harbour Rovers fined 20,000 calvers over crowd trouble",
+      "body": "The league fined Harbour Rovers 20,000 calvers on Wednesday after flares were thrown onto the pitch during their derby against Port Selin United. Part of the Rovers home stand will be closed for one match."
+    }
+  ],
+  "checks": [
+    {
+      "type": "windowNotHeld",
+      "window": 1,
+      "by": [
+        "archive-*"
+      ],
+      "cases": [
+        "C9"
+      ]
+    },
+    {
+      "type": "edition",
+      "window": 1,
+      "outcome": "PUBLISHED",
+      "mustMention": [
+        "2029",
+        "20,000"
+      ],
+      "cases": [
+        "C9"
+      ]
+    },
+    {
+      "type": "noStory",
+      "item": "archive-*",
+      "window": 1,
+      "cases": [
+        "C9"
+      ]
+    }
+  ]
+}

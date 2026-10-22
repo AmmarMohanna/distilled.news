@@ -1,0 +1,46 @@
+{
+  "id": "06-wire-copy-and-corroboration",
+  "title": "Wire story printed word for word by two outlets, plus an independent report",
+  "cases": ["B1", "B3"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 1,
+  "notes": "The Herald and Selin Daily both print the same Calvera Press Agency text (B1). The Ardena Post writes its own report of the same opening with the same facts (B3). Expect one story, three publishers, two independent wordings.",
+  "sources": [
+    {"key": "herald", "type": "rss", "publisher": "herald"},
+    {"key": "selin-daily", "type": "rss", "publisher": "selin-daily"},
+    {"key": "ardena-post", "type": "rss", "publisher": "ardena-post"}
+  ],
+  "items": [
+    {
+      "id": "terminal-wire-herald",
+      "source": "herald",
+      "appearsAt": "W1+4m",
+      "title": "New terminal opens at Port Selin airport",
+      "body": "PORT SELIN (CPA) - A new passenger terminal opened at Port Selin International Airport on Thursday, doubling its capacity to 9 million passengers a year.\n\nThe terminal cost 410 million calvers and was built in four years by a consortium led by Arkon Construction. It has 18 gates, a rail link to the city centre and a new customs hall.\n\nTransport Minister Elian Sorr said three foreign airlines would start flights to Port Selin next spring. The old terminal will be used for cargo.\n\nThe opening was delayed by eight months because of problems with the baggage system."
+    },
+    {
+      "id": "terminal-wire-selin",
+      "source": "selin-daily",
+      "appearsAt": "W1+9m",
+      "variantOf": "terminal-wire-herald",
+      "change": "Same wire text printed by a second outlet under its own guid and URL.",
+      "guid": "terminal-wire-selin",
+      "url": "{base}/scenarios/06-wire-copy-and-corroboration/articles/terminal-wire-selin"
+    },
+    {
+      "id": "terminal-ardena",
+      "source": "ardena-post",
+      "appearsAt": "W1+17m",
+      "title": "Port Selin airport doubles capacity as 410m terminal opens",
+      "body": "Port Selin's airport can now handle 9 million passengers a year after its new terminal opened on Thursday, eight months later than planned.\n\nThe 410 million calver building, with 18 gates and a direct train to the city centre, was built by a group of firms led by Arkon Construction. Delays were caused by faults in the baggage system, airport officials said.\n\nThree foreign airlines will add Port Selin routes next spring, according to Transport Minister Elian Sorr. Cargo will move into the old terminal."
+    }
+  ],
+  "checks": [
+    {"type": "duplicateOf", "item": "terminal-wire-selin", "of": "terminal-wire-herald", "cases": ["B1"]},
+    {"type": "notDuplicate", "item": "terminal-ardena", "of": "terminal-wire-herald", "cases": ["B3"]},
+    {"type": "sameStory", "items": ["terminal-wire-herald", "terminal-wire-selin", "terminal-ardena"], "cases": ["B1", "B3"]},
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["9 million"], "cases": ["B1", "B3"]},
+    {"type": "corroboration", "window": 1, "publishers": 3, "independentGroups": 2, "cases": ["B1", "B3"]}
+  ]
+}

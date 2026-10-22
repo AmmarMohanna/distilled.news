@@ -1,0 +1,48 @@
+{
+  "id": "07-google-news-overlap",
+  "title": "A Google News query returns an article the feed also gets from the publisher's RSS",
+  "cases": ["B2", "D3"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 1,
+  "notes": "Google News links use the news.google.com/rss/articles form that the pipeline cannot resolve, so only the excerpt is available, and the title carries a ' - Calvera Herald' suffix (D3). The bridge story must come out once (B2). The second Google item has no RSS twin and should still make its own story from the excerpt.",
+  "sources": [
+    {"key": "herald", "type": "rss", "publisher": "herald"},
+    {"key": "google-calvera", "type": "google-news", "publisher": "google-news", "name": "Google News: Calvera infrastructure", "query": "Calvera bridge OR rail OR port"}
+  ],
+  "items": [
+    {
+      "id": "bridge-herald",
+      "source": "herald",
+      "appearsAt": "W1+5m",
+      "title": "Vell river bridge closed to lorries after cracks found",
+      "body": "The main road bridge over the Vell river at Ardena was closed to lorries over 7.5 tonnes on Monday after inspectors found cracks in two support beams, the roads agency said.\n\nCars and buses can still use the bridge, but with a speed limit of 30 km/h. Lorries are being diverted through Mere, adding about 40 minutes to the trip between Ardena and Port Selin.\n\nThe agency said repairs would take at least six weeks. The bridge, built in 1971, carries about 22,000 vehicles a day."
+    },
+    {
+      "id": "bridge-google",
+      "source": "google-calvera",
+      "publisher": "herald",
+      "appearsAt": "W1+12m",
+      "variantOf": "bridge-herald",
+      "change": "Same Herald article as Google News shows it: unresolvable news.google.com link, excerpt only, publisher suffix on the title.",
+      "guid": "CBMiVmh0dHBzOi8vaGVyYWxkLmNhbHZlcmEuZXhhbXBsZS9icmlkZ2Utdm",
+      "url": "https://news.google.com/rss/articles/CBMiVmh0dHBzOi8vaGVyYWxkLmNhbHZlcmEuZXhhbXBsZS9icmlkZ2Utdm?oc=5"
+    },
+    {
+      "id": "rail-google-only",
+      "source": "google-calvera",
+      "publisher": "selin-daily",
+      "appearsAt": "W1+15m",
+      "guid": "CBMiWWh0dHBzOi8vc2VsaW5kYWlseS5jYWx2ZXJhLmV4YW1wbGUvcmFpbC1mYXJl",
+      "url": "https://news.google.com/rss/articles/CBMiWWh0dHBzOi8vc2VsaW5kYWlseS5jYWx2ZXJhLmV4YW1wbGUvcmFpbC1mYXJl?oc=5",
+      "title": "Rail fares to rise 8 percent from January",
+      "body": "Calvera Rail will raise fares by an average of 8 percent from 1 January, the company said on Monday, blaming higher electricity prices. Season tickets for commuters into Port Selin will rise by 5 percent. Student discounts will not change."
+    }
+  ],
+  "checks": [
+    {"type": "duplicateOf", "item": "bridge-google", "of": "bridge-herald", "cases": ["B2", "D3"]},
+    {"type": "excerptOnly", "item": "bridge-google", "cases": ["B2"]},
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "stories": 2, "mustMention": ["7.5 tonnes", "8 percent"], "cases": ["B2"]},
+    {"type": "sameStory", "items": ["bridge-herald", "bridge-google"], "cases": ["B2", "D3"]}
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "id": "08-social-echo-and-thread",
+  "title": "Article, an X thread and a LinkedIn post all about the same data centre",
+  "cases": ["B6", "D7"],
+  "feed": "tech",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 1,
+  "notes": "A reporter splits the news into a four-post X thread (D7). The company's LinkedIn post quotes the article (B6). Expect one story.",
+  "sources": [
+    {"key": "tech-review", "type": "rss", "publisher": "tech-review"},
+    {"key": "x-selin-reporter", "type": "x", "publisher": "selin-reporter", "handle": "selin_reporter_test"},
+    {"key": "linkedin-lumen", "type": "linkedin", "publisher": "lumen-grid", "handle": "lumen-grid-test"}
+  ],
+  "items": [
+    {
+      "id": "dc-article",
+      "source": "tech-review",
+      "appearsAt": "W1+5m",
+      "title": "Lumen Grid to build 300 MW AI data centre near Ardena",
+      "body": "Lumen Grid will build a 300 megawatt data centre for AI workloads outside Ardena, the company said on Tuesday, its largest investment so far.\n\nThe site will cost about 1.2 billion calvers and should open in two phases, the first in late 2027. It will draw power from the planned Kesh solar park and a new substation, and use river water for cooling in a closed loop.\n\nChief executive Mara Okafor said the centre would create 450 permanent jobs. \"Calveran companies should not have to send their data abroad to train models,\" she said.\n\nEnvironmental groups have asked for the cooling plan to be published before permits are issued."
+    },
+    {
+      "id": "dc-thread-1",
+      "source": "x-selin-reporter",
+      "appearsAt": "W1+9m",
+      "guid": "1850000000000000001",
+      "url": "https://x.com/selin_reporter_test/status/1850000000000000001",
+      "title": "",
+      "body": "NEW: Lumen Grid confirms a 300 MW AI data centre near Ardena, about 1.2bn calvers. Biggest tech investment Calvera has seen. Thread 🧵 1/4"
+    },
+    {
+      "id": "dc-thread-2",
+      "source": "x-selin-reporter",
+      "appearsAt": "W1+9m",
+      "inReplyTo": "1850000000000000001",
+      "guid": "1850000000000000002",
+      "url": "https://x.com/selin_reporter_test/status/1850000000000000002",
+      "title": "",
+      "body": "2/4 Two phases, first one late 2027. Power from the planned Kesh solar park plus a new substation."
+    },
+    {
+      "id": "dc-thread-3",
+      "source": "x-selin-reporter",
+      "appearsAt": "W1+10m",
+      "inReplyTo": "1850000000000000002",
+      "guid": "1850000000000000003",
+      "url": "https://x.com/selin_reporter_test/status/1850000000000000003",
+      "title": "",
+      "body": "3/4 Okafor says 450 permanent jobs. Cooling uses river water in a closed loop, which is what environmental groups want to see on paper first."
+    },
+    {
+      "id": "dc-thread-4",
+      "source": "x-selin-reporter",
+      "appearsAt": "W1+10m",
+      "inReplyTo": "1850000000000000003",
+      "guid": "1850000000000000004",
+      "url": "https://x.com/selin_reporter_test/status/1850000000000000004",
+      "title": "",
+      "body": "4/4 Permits still pending. I'll be at the Ardena council meeting on Thursday when this comes up."
+    },
+    {
+      "id": "dc-linkedin",
+      "source": "linkedin-lumen",
+      "appearsAt": "W1+16m",
+      "guid": "urn:li:activity:7250000000000000001",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7250000000000000001",
+      "title": "",
+      "body": "Proud to share our biggest step yet. As Northshore Tech Review reports today: \"Lumen Grid will build a 300 megawatt data centre for AI workloads outside Ardena.\" 450 permanent jobs, first phase in late 2027. \"Calveran companies should not have to send their data abroad to train models.\" – Mara Okafor, CEO #AI #Calvera #DataCentre"
+    }
+  ],
+  "checks": [
+    {"type": "sameStory", "items": ["dc-thread-1", "dc-thread-2", "dc-thread-3", "dc-thread-4"], "cases": ["D7"]},
+    {"type": "sameStory", "items": ["dc-article", "dc-thread-1", "dc-linkedin"], "cases": ["B6"]},
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["300"], "cases": ["B6", "D7"]}
+  ]
+}

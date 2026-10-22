@@ -1,0 +1,59 @@
+{
+  "id": "03-corrections-and-edits",
+  "title": "Same article edited in place: one material correction, one typo fix",
+  "cases": ["A5", "A6"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 2,
+  "notes": "Both W2 items keep the guid and URL of the W1 item they edit (editOf), so the connector sees a changed fingerprint for an existing key. The rate story changes a published figure (A5). The deficit story only fixes spelling (A6).",
+  "sources": [
+    {"key": "herald", "type": "rss", "publisher": "herald"}
+  ],
+  "items": [
+    {
+      "id": "rate-1",
+      "source": "herald",
+      "appearsAt": "W1+5m",
+      "title": "Central bank raises its main rate by half a point to 6.25 percent",
+      "body": "The Central Bank of Calvera raised its main interest rate by 0.5 percentage points to 6.25 percent on Wednesday, its third increase this year.\n\nGovernor Piet Lund said inflation, which reached 7.8 percent in September, was \"still too high and too broad\". Food and rent prices rose fastest.\n\nThe decision was backed by five of the seven members of the monetary committee. Two members voted to keep the rate unchanged, citing slowing exports.\n\nThe bank will next meet on 4 December."
+    },
+    {
+      "id": "rate-1-corrected",
+      "source": "herald",
+      "appearsAt": "W2+7m",
+      "editOf": "rate-1",
+      "variantOf": "rate-1",
+      "change": "Correction: the increase was 0.25 points to 6 percent, not 0.5 points to 6.25 percent. A correction note is added.",
+      "edits": [
+        {"field": "title", "find": "by half a point to 6.25 percent", "replace": "by a quarter point to 6 percent"},
+        {"find": "by 0.5 percentage points to 6.25 percent", "replace": "by 0.25 percentage points to 6 percent"},
+        {"find": "The bank will next meet on 4 December.", "replace": "The bank will next meet on 4 December.\n\nCorrection: an earlier version of this article said the rate was raised by 0.5 points to 6.25 percent. It was raised by 0.25 points to 6 percent."}
+      ]
+    },
+    {
+      "id": "deficit-1",
+      "source": "herald",
+      "appearsAt": "W1+12m",
+      "title": "Finanse Minister forecasts deficit of 3.4 percent next year",
+      "body": "Finance Minister Daria Kovan told parliament on Wednesday that the budget deficit would narrow to 3.4 percent of GDP next year, from 4.1 percent this year.\n\nThe draft budget cuts spending on fuel subsidies by a fifth and raises the tax on tobacco. Kovan said public investment in ports and railways would be protected.\n\nOpposition members said the forecast relied on growth of 2.9 percent, which they called optimistc.\n\nParliament will vote on the budget in mid-November."
+    },
+    {
+      "id": "deficit-1-typo-fix",
+      "source": "herald",
+      "appearsAt": "W2+15m",
+      "editOf": "deficit-1",
+      "variantOf": "deficit-1",
+      "change": "Spelling only: Finanse to Finance, optimistc to optimistic.",
+      "edits": [
+        {"field": "title", "find": "Finanse", "replace": "Finance"},
+        {"find": "optimistc", "replace": "optimistic"}
+      ]
+    }
+  ],
+  "checks": [
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "stories": 2, "mustMention": ["6.25", "3.4"], "cases": ["A5", "A6"]},
+    {"type": "correction", "item": "rate-1-corrected", "window": 2, "mustMention": ["6 percent"], "mustNotMention": ["6.25 percent"], "cases": ["A5"]},
+    {"type": "noStory", "item": "deficit-1-typo-fix", "window": 2, "cases": ["A6"]},
+    {"type": "edition", "window": 2, "stories": {"max": 1}, "mustNotMention": ["3.4"], "cases": ["A6"]}
+  ]
+}

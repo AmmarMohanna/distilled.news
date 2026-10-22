@@ -1,0 +1,46 @@
+{
+  "version": "feed-edge-cases-v1",
+  "note": "decidedBy says which layer should catch the case: code (connector, dedupe, freshness, windows) can be checked in a free local replay; model needs the real selection and writer on QA.",
+  "cases": [
+    {"id": "A1", "group": "repeat-same-source", "priority": "P1", "decidedBy": "code", "title": "Exact re-poll", "expected": "Same guid and text still listed in the next window is skipped at the connector fingerprint. No new evidence, nothing new in that window."},
+    {"id": "A2", "group": "repeat-same-source", "priority": "P1", "decidedBy": "code", "title": "Re-published under a new id", "expected": "Same text under a new guid/URL is an exact duplicate of the earlier item. No story in the later window."},
+    {"id": "A3", "group": "repeat-same-source", "priority": "P1", "decidedBy": "model", "title": "Rewritten with nothing new", "expected": "Repeat penalty. No story in the later window, or the window is quiet."},
+    {"id": "A4", "group": "repeat-same-source", "priority": "P1", "decidedBy": "model", "title": "Follow-up with one new fact", "expected": "The later story reports only the change and refers back to the earlier edition. It does not retell the story."},
+    {"id": "A5", "group": "repeat-same-source", "priority": "P1", "decidedBy": "code", "title": "Material correction", "expected": "Same guid with a changed number arrives as an UPSERT and is treated as a correction. The old figure is not repeated as fact."},
+    {"id": "A6", "group": "repeat-same-source", "priority": "P2", "decidedBy": "code", "title": "Cosmetic edit", "expected": "Same guid with a typo fix arrives as an UPSERT but makes no new story and no correction."},
+    {"id": "A7", "group": "repeat-same-source", "priority": "P1", "decidedBy": "model", "title": "Storyline running over 3+ windows", "expected": "Each window reports its own turning point once. The last window is not a recap of the earlier ones."},
+    {"id": "A8", "group": "repeat-same-source", "priority": "P2", "decidedBy": "model", "title": "Repeated headline, different event", "expected": "Two separate events that happen to share a headline are not merged as a repeat."},
+
+    {"id": "B1", "group": "cross-source", "priority": "P1", "decidedBy": "code", "title": "Wire copy syndicated", "expected": "Word-for-word wire copy in two outlets forms one copy group. Two publishers, one story."},
+    {"id": "B2", "group": "cross-source", "priority": "P1", "decidedBy": "code", "title": "Google News points at an RSS article in the same feed", "expected": "One story. The Google link stays unresolved and its excerpt is used."},
+    {"id": "B3", "group": "cross-source", "priority": "P1", "decidedBy": "model", "title": "Independent reports of one event", "expected": "One story with stronger corroboration, not two stories."},
+    {"id": "B4", "group": "cross-source", "priority": "P1", "decidedBy": "code", "title": "Shared background, new phase", "expected": "Long shared background with a changed development phase is not a copy. Separate developments in one storyline."},
+    {"id": "B5", "group": "cross-source", "priority": "P1", "decidedBy": "model", "title": "Sources disagree", "expected": "Both figures are kept and attributed. Neither is stated as fact alone."},
+    {"id": "B6", "group": "cross-source", "priority": "P2", "decidedBy": "model", "title": "Social post echoes an article", "expected": "An X or LinkedIn post quoting an article in the feed joins that article's event. No duplicate story."},
+    {"id": "B7", "group": "cross-source", "priority": "P2", "decidedBy": "model", "title": "Same story in two languages", "expected": "Arabic and English versions make one story. Facts from both are kept."},
+    {"id": "B8", "group": "cross-source", "priority": "P2", "decidedBy": "model", "title": "Rumour then confirmation", "expected": "The first window keeps the hedge. The later window reports the confirmation as the change."},
+    {"id": "B9", "group": "cross-source", "priority": "P2", "decidedBy": "model", "title": "Denial and deleted item", "expected": "After a denial and a deleted source item, the claim is not re-published as true."},
+
+    {"id": "C1", "group": "timing", "priority": "P1", "decidedBy": "code", "title": "Late arrival", "expected": "Published just before a window closes but first seen after it closes. Goes into the next window and is not lost."},
+    {"id": "C2", "group": "timing", "priority": "P2", "decidedBy": "code", "title": "Exactly on the boundary", "expected": "An item published at the window end time lands in exactly one window."},
+    {"id": "C3", "group": "timing", "priority": "P1", "decidedBy": "code", "title": "Old article surfaces now", "expected": "Published 3 days earlier, first seen now. Does not hold the window. STALE, needs time framing if used."},
+    {"id": "C4", "group": "timing", "priority": "P1", "decidedBy": "code", "title": "No publication date", "expected": "UNKNOWN freshness, treated as current and still usable."},
+    {"id": "C5", "group": "timing", "priority": "P2", "decidedBy": "code", "title": "Wrong or future date", "expected": "A future or unparseable pubDate does not break window assignment and is not trusted as a report date."},
+    {"id": "C6", "group": "timing", "priority": "P1", "decidedBy": "code", "title": "Quiet window", "expected": "A window with only repeats settles DEFERRED with no edition and nothing marked delivered."},
+    {"id": "C7", "group": "timing", "priority": "P1", "decidedBy": "model", "title": "Only story rejected", "expected": "A window whose single story is rejected by the verifier settles DEFERRED and carries forward."},
+    {"id": "C8", "group": "timing", "priority": "P1", "decidedBy": "code", "title": "Backlog of windows", "expected": "Several windows past deadline fold into the newest one. One edition, no repeats."},
+    {"id": "C9", "group": "timing", "priority": "P1", "decidedBy": "code", "title": "New source with a big backlog", "expected": "First briefing is not blocked by items older than 48 h, and they are not reported as news."},
+    {"id": "C10", "group": "timing", "priority": "P1", "decidedBy": "code", "title": "Review not done at deadline", "expected": "Publishes on the deadline. Unfinished items join the next edition as deferred coverage."},
+    {"id": "C11", "group": "timing", "priority": "P2", "decidedBy": "code", "title": "X time-bound overlap", "expected": "A post on the edge of two frozen X intervals is returned by both scans and appears once."},
+
+    {"id": "D1", "group": "source-quirks", "priority": "P1", "decidedBy": "code", "title": "RSS guid changes on every fetch", "expected": "Every poll looks new to the connector. Feed-level dedupe catches it, like A2."},
+    {"id": "D2", "group": "source-quirks", "priority": "P2", "decidedBy": "code", "title": "Same link with tracking params", "expected": "A guid-less item whose link gains utm parameters stays one item."},
+    {"id": "D3", "group": "source-quirks", "priority": "P2", "decidedBy": "code", "title": "Google News title suffix", "expected": "\"Title - Publisher\" and the publisher's own title are the same article."},
+    {"id": "D4", "group": "source-quirks", "priority": "P1", "decidedBy": "code", "title": "Telegram forward", "expected": "The same message forwarded across two channels in the feed forms one copy group."},
+    {"id": "D5", "group": "source-quirks", "priority": "P2", "decidedBy": "code", "title": "Telegram edited message", "expected": "Handled like A5 (material edit) or A6 (cosmetic edit)."},
+    {"id": "D6", "group": "source-quirks", "priority": "P2", "decidedBy": "model", "title": "Media-only or very short post", "expected": "A photo post with one line and no fact does not become a story."},
+    {"id": "D7", "group": "source-quirks", "priority": "P2", "decidedBy": "model", "title": "X thread", "expected": "One report split across four posts is one event, not four."},
+    {"id": "D8", "group": "source-quirks", "priority": "P2", "decidedBy": "model", "title": "Off-topic or promotional item", "expected": "Ads, newsletter promos and off-topic items are filtered as not relevant."},
+    {"id": "D9", "group": "source-quirks", "priority": "P2", "decidedBy": "code", "title": "Paywall or excerpt only", "expected": "Uses the excerpt. Claims stay within what the excerpt supports."}
+  ]
+}

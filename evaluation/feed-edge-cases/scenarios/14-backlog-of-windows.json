@@ -1,0 +1,48 @@
+{
+  "id": "14-backlog-of-windows",
+  "title": "Four windows pile up past their deadline and must fold into one edition",
+  "cases": ["C8"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 4,
+  "run": {"holdBriefingsUntil": "W5+15m", "note": "Do not run briefings until W4 is past its 10-minute grace deadline, then release them all at once (on QA: pause the feed's briefing job, or start the replay with --start four windows in the past)."},
+  "notes": "Each window has one distinct development. Expect W1 to W3 settled DEFERRED with SUPERSEDED_BY_LATER_WINDOW and their content published once in the W4 edition.",
+  "sources": [
+    {"key": "cpa", "type": "rss", "publisher": "cpa"}
+  ],
+  "items": [
+    {
+      "id": "backlog-w1",
+      "source": "cpa",
+      "appearsAt": "W1+6m",
+      "title": "Minimum wage to rise to 720 calvers in January",
+      "body": "PORT SELIN (CPA) - The monthly minimum wage will rise from 650 to 720 calvers on 1 January, Labour Minister Teo Marsh said on Monday after talks with unions and employers. Employers' groups had proposed 690 calvers."
+    },
+    {
+      "id": "backlog-w2",
+      "source": "cpa",
+      "appearsAt": "W2+6m",
+      "title": "Calvera exports fall 4 percent in third quarter",
+      "body": "PORT SELIN (CPA) - Calvera's exports fell 4 percent in the third quarter compared with a year earlier, the statistics office said on Monday, mainly because of lower prices for copper and fish. Imports were flat."
+    },
+    {
+      "id": "backlog-w3",
+      "source": "cpa",
+      "appearsAt": "W3+6m",
+      "title": "Opposition files no-confidence motion over port contract",
+      "body": "PORT SELIN (CPA) - The opposition Civic Alliance filed a no-confidence motion against Transport Minister Elian Sorr on Monday over a 90 million calver port dredging contract awarded without a tender. A vote must be held within ten days."
+    },
+    {
+      "id": "backlog-w4",
+      "source": "cpa",
+      "appearsAt": "W4+6m",
+      "title": "Kesh province declares end of flood emergency",
+      "body": "PORT SELIN (CPA) - Kesh province ended its flood emergency on Monday after the Vell river fell back below warning level. Schools in Orlan and Mere will reopen on Wednesday."
+    }
+  ],
+  "checks": [
+    {"type": "supersededInto", "windows": [1, 2, 3], "into": 4, "reason": "SUPERSEDED_BY_LATER_WINDOW", "cases": ["C8"]},
+    {"type": "edition", "window": 4, "outcome": "PUBLISHED", "mustMention": ["720", "4 percent", "no-confidence", "flood emergency"], "cases": ["C8"]},
+    {"type": "editionCount", "windows": [1, 2, 3, 4], "count": 1, "cases": ["C8"]}
+  ]
+}

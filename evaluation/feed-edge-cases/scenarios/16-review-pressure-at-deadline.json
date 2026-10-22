@@ -1,0 +1,235 @@
+{
+  "id": "16-review-pressure-at-deadline",
+  "title": "Thirty items arrive in the last minutes before the window closes",
+  "cases": [
+    "C10"
+  ],
+  "feed": "tech",
+  "schedule": {
+    "durationMinutes": 30,
+    "timezone": "Asia/Beirut"
+  },
+  "windows": 2,
+  "notes": "Two normal items arrive early in W1. Then 30 distinct short items land at W1+27m, too many to review before the 10-minute grace deadline with one-at-a-time reviews. W1 must publish on its deadline with what is ready and report the rest as deferred coverage that joins W2.",
+  "sources": [
+    {
+      "key": "tech-review",
+      "type": "rss",
+      "publisher": "tech-review",
+      "maxItems": 50
+    }
+  ],
+  "items": [
+    {
+      "id": "early-1",
+      "source": "tech-review",
+      "appearsAt": "W1+4m",
+      "title": "Calvera passes law requiring disclosure of AI-generated political ads",
+      "body": "Parliament passed a law on Tuesday requiring political adverts made with AI to carry a visible label. Fines for breaches reach 50,000 calvers. The rules apply from the next local elections."
+    },
+    {
+      "id": "early-2",
+      "source": "tech-review",
+      "appearsAt": "W1+6m",
+      "title": "Data protection office opens inquiry into Selin Bank app outage",
+      "body": "Calvera's data protection office said on Tuesday it had opened an inquiry into a Selin Bank app outage last week during which some customers saw other people's balances. The bank said 214 customers were affected."
+    },
+    {
+      "generate": {
+        "count": 30,
+        "idPrefix": "burst-",
+        "source": "tech-review",
+        "appearsAt": "W1+27m",
+        "publishedFrom": "W1+20m",
+        "publishedTo": "W1+27m",
+        "topics": [
+          {
+            "company": "Lumen Grid",
+            "action": "opened a support office in Mere",
+            "figure": "40 staff"
+          },
+          {
+            "company": "Corvex Telecom",
+            "action": "switched on 5G in Orlan",
+            "figure": "12 masts"
+          },
+          {
+            "company": "Pellar Pay",
+            "action": "raised a seed round",
+            "figure": "8 million calvers"
+          },
+          {
+            "company": "Arkon Software",
+            "action": "won a tax-system contract",
+            "figure": "22 million calvers"
+          },
+          {
+            "company": "Nimbo Robotics",
+            "action": "started warehouse trials in Ardena",
+            "figure": "30 robots"
+          },
+          {
+            "company": "Selin Bank",
+            "action": "launched instant transfers",
+            "figure": "24/7 service"
+          },
+          {
+            "company": "Kesh Solar",
+            "action": "connected its first panels to the grid",
+            "figure": "15 MW"
+          },
+          {
+            "company": "Vell Labs",
+            "action": "released an open speech model for Calveran",
+            "figure": "1.1 billion parameters"
+          },
+          {
+            "company": "Isla Net",
+            "action": "laid a fibre cable to Isla Mar",
+            "figure": "140 km"
+          },
+          {
+            "company": "Mere Motors",
+            "action": "unveiled an electric delivery van",
+            "figure": "260 km range"
+          },
+          {
+            "company": "Calvera Post",
+            "action": "added parcel lockers",
+            "figure": "500 locations"
+          },
+          {
+            "company": "Harbour Data",
+            "action": "bought a backup site in Kesh",
+            "figure": "4 MW"
+          },
+          {
+            "company": "Orlan Games",
+            "action": "delayed its new title",
+            "figure": "to spring"
+          },
+          {
+            "company": "Port Selin University",
+            "action": "opened an AI master's course",
+            "figure": "60 places"
+          },
+          {
+            "company": "Brightline Health",
+            "action": "got approval for e-prescriptions",
+            "figure": "nationwide"
+          },
+          {
+            "company": "Tessel Chips",
+            "action": "signed a supply deal with Lumen Grid",
+            "figure": "3 years"
+          },
+          {
+            "company": "Ardena Water",
+            "action": "installed smart meters",
+            "figure": "18,000 homes"
+          },
+          {
+            "company": "CivicID",
+            "action": "started the digital ID pilot",
+            "figure": "5,000 users"
+          },
+          {
+            "company": "Rail Calvera",
+            "action": "added Wi-Fi to intercity trains",
+            "figure": "42 trains"
+          },
+          {
+            "company": "Nordlys Cloud",
+            "action": "cut storage prices",
+            "figure": "by 15 percent"
+          },
+          {
+            "company": "Pellar Pay",
+            "action": "hired a new compliance chief",
+            "figure": "from Selin Bank"
+          },
+          {
+            "company": "Kora Security",
+            "action": "reported a phishing wave on banks",
+            "figure": "3,000 emails a day"
+          },
+          {
+            "company": "Vellmark",
+            "action": "closed its Ardena call centre",
+            "figure": "120 jobs"
+          },
+          {
+            "company": "Selin Startups Fund",
+            "action": "picked its winter cohort",
+            "figure": "14 companies"
+          },
+          {
+            "company": "Calvera Telecom Authority",
+            "action": "auctioned spectrum",
+            "figure": "3.5 GHz band"
+          },
+          {
+            "company": "Mere Motors",
+            "action": "opened a charging hub",
+            "figure": "24 chargers"
+          },
+          {
+            "company": "Arkon Software",
+            "action": "moved its headquarters",
+            "figure": "to Harbour district"
+          },
+          {
+            "company": "Lumen Grid",
+            "action": "published its emissions report",
+            "figure": "down 9 percent"
+          },
+          {
+            "company": "Corvex Telecom",
+            "action": "raised home broadband prices",
+            "figure": "by 6 percent"
+          },
+          {
+            "company": "Nimbo Robotics",
+            "action": "partnered with Calvera Post",
+            "figure": "sorting centres"
+          }
+        ],
+        "titleTemplate": "{company} {action}",
+        "bodyTemplate": "{company} {action}, the company said on Tuesday ({figure}). It gave no further details."
+      }
+    }
+  ],
+  "checks": [
+    {
+      "type": "edition",
+      "window": 1,
+      "outcome": "PUBLISHED",
+      "mustMention": [
+        "50,000"
+      ],
+      "publishedByDeadline": true,
+      "cases": [
+        "C10"
+      ]
+    },
+    {
+      "type": "deferredCoverage",
+      "window": 1,
+      "carriedTo": 2,
+      "items": [
+        "burst-*"
+      ],
+      "cases": [
+        "C10"
+      ]
+    },
+    {
+      "type": "edition",
+      "window": 2,
+      "outcome": "PUBLISHED",
+      "cases": [
+        "C10"
+      ]
+    }
+  ]
+}
