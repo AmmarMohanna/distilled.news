@@ -94,6 +94,14 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
  for(const [old,name] of Object.entries(preservedNames)){checkProperties[name]=checkProperties[old];delete checkProperties[old];}
  (semanticSchema.items as unknown as {required:string[]}).required=(semanticSchema.items as unknown as {required:string[]}).required.map(k=>preservedNames[k as keyof typeof preservedNames]??k);
  if(options.requireFullEntailment){(schema.properties as Record<string,unknown>).claimEntailment={type:'array',minItems:claims.length,maxItems:claims.length,items:obj({claimId:{type:'string',enum:[...claimIds.keys()]},fullyEntailed:{type:'boolean'},reason:{type:'string',minLength:1,maxLength:500},unsupportedMeaning:{type:'array',items:{type:'string'},maxItems:8}})};schema.required.push('claimEntailment');}
+ // Compile known offered identities and verdict consistency; the model still
+ // decides meaning and can explicitly return UNRESOLVED. Never normalize a
+ // negative semantic verdict into NEW or publish around uncertainty.
+ if(options.requireReaderNovelty&&options.validationContract==='EVIDENCE_GROUNDED_V2'&&factIds.size){
+  const item=structuredClone(semanticSchema.items) as any,newIds=[...new Set(stories.flatMap(s=>s.newUnderstandingFactIds))],otherIds=[...factIds.keys()].filter(id=>!newIds.includes(id));
+  const branch=(offered:string[],statuses:string[],communicated:boolean)=>{const value=structuredClone(item);value.properties.factId={type:'string',enum:offered};value.properties.communicated={type:'boolean',enum:[communicated]};if(communicated)value.properties.readerSpans.minItems=1;value.properties.readerNovelty.properties.status={type:'string',enum:statuses};return value};
+  (schema.properties.semanticChecks as any).items={anyOf:[...(newIds.length?[...([true,false].map(c=>branch(newIds,['NEW','ALREADY_COMMUNICATED','NOT_COMMUNICATED','UNRESOLVED'],c)))]:[]),...(otherIds.length?[...([true,false].map(c=>branch(otherIds,['NOT_APPLICABLE'],c)))]:[])]};
+ }
  const ids=(raw:unknown,key:string,map:Map<string,string>)=>z.array(z.string()).parse((raw as Record<string,unknown>)[key]??[]).map(id=>{const original=map.get(id);if(!original)throw new Error('UNRECOGNIZED_VERIFIER_ID');return original;});
  const decode=(raw:unknown)=>{
   const seen=new Set<string>(),declared=ids(raw,'supportedClaimIds',claimIds),preservedAliases=new Set(z.array(z.string()).parse((raw as Record<string,unknown>).preservedFactIds??[]));
@@ -131,7 +139,7 @@ export function verificationWire(claims:VerificationClaim[],options:{requireRead
    if(options.requireReaderNovelty){
     if(!readerNovelty)readerNovelty={status:'UNRESOLVED',reason:'MISSING_READER_NOVELTY_VERDICT',previousFactTexts:[]};
     else if(((options.validationContract!=='EVIDENCE_GROUNDED_V2'||readerNovelty.status!=='NOT_COMMUNICATED')&&readerNovelty.previousFactTexts.some(text=>!story?.previousLedgerFacts.includes(text)))||readerNovelty.status==='ALREADY_COMMUNICATED'&&!readerNovelty.previousFactTexts.length)readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_HISTORY: no offered same-story prior fact establishes repetition.',previousFactTexts:[]};
-    else if((readerNovelty.status==='NEW'&&(!offered||!faithfulFact({...c,readerSpans})))||(offered&&readerNovelty.status==='NOT_APPLICABLE'))readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.',previousFactTexts:[]};
+    else if((readerNovelty.status==='NEW'&&(!offered||options.validationContract!=='EVIDENCE_GROUNDED_V2'&&!faithfulFact({...c,readerSpans})))||(offered&&readerNovelty.status==='NOT_APPLICABLE'))readerNovelty={status:'UNRESOLVED',reason:'INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.',previousFactTexts:[]};
    }
    return {...c,...summary,factId,candidateId,readerSpans,...(readerNovelty?{readerNovelty}:{})};});
   if(requiredIds.some(id=>!seen.has(id))||options.validationContract==='EVIDENCE_GROUNDED_V2'&&[...preservedAliases].some(id=>!seen.has(id)))throw new Error('INCOMPLETE_SEMANTIC_VERDICT');

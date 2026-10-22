@@ -1,0 +1,30 @@
+{
+  "sample": "100 most recently inserted QA revisions plus 40 longest QA revisions; not a random bucket-wide estimate",
+  "uniqueBodies": 130,
+  "over6000": 40,
+  "largestChars": 193826,
+  "totalOriginalChars": 1493766,
+  "totalRemovedAt6000": 1181490,
+  "decision": "Raise shared default to finite 250,000 characters, covering all observed retained bodies. Product path already preserves full text and enforces provider context admission. Keep existing article batching; no AI preprocessing.",
+  "history": {
+    "realRetainedEditions": 18,
+    "feeds": 10,
+    "itemsPerFeed": [
+      1,
+      1,
+      6,
+      9,
+      9,
+      2,
+      1,
+      2,
+      8,
+      7
+    ],
+    "selectionUnchanged": true,
+    "maxItems": 16,
+    "recentItems": 4,
+    "maxAgeDays": 21,
+    "limitation": "Observed per-feed histories are below 16 items; no claim of large-history semantic recall qualification."
+  }
+}

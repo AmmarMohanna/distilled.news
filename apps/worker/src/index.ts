@@ -18,6 +18,7 @@ import {HandoffError} from '@distilled/contracts';
 import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
 import { publishDueBriefingEditions } from "./editions";
+import { v3RuntimeFromEnv } from "./briefing-v3";
 import { processQueueMessage,ProcessingLeaseBusy } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
@@ -76,7 +77,7 @@ export default {
           if(body.type==='v1_acquisition' && typeof body.jobId==='string') await processV1Acquisition(downstreamEnv,body.jobId);
           else if(body.type==='v1_rematch' && typeof body.feedId==='string' && typeof body.requestId==='string') await processV1Rematch(downstreamEnv,body.feedId,body.requestId);
           else if(body.type==='v1_reassess' && typeof body.jobId==='string') await processV1Reassessment(downstreamEnv,body.jobId);
-          else if(body.type==='v1_briefing') await processV1Briefing(downstreamEnv,body as import('./v1-intelligence/runtime').V1BriefingMessage);
+          else if(body.type==='v1_briefing') await processV1Briefing(downstreamEnv,body as import('./v1-intelligence/runtime').V1BriefingMessage,undefined,undefined,undefined,{scheduledDelivery:true});
           else throw new HandoffError('INVALID_REQUEST');
         });
         else if (isWebOperatorRunMessage(body)) await processWebOperatorRunMessage(env,body);
@@ -359,7 +360,8 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
       repo,
       briefings: await repo.listBriefings(),
       now,
-      summaryAdapter: createSummaryAdapterFromEnv(env, repo)
+      summaryAdapter: createSummaryAdapterFromEnv(env, repo),
+      v3: v3RuntimeFromEnv(env)
     });
   } catch (error) {
     console.error("Could not publish briefing editions", error);

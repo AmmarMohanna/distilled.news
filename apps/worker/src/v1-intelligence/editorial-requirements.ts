@@ -19,7 +19,8 @@ export function validateEditorialRequirements(raw:unknown,candidate:Pick<Shortli
   if(d.disposition==='REQUIRED'&&!d.reasonCode||d.disposition!=='REQUIRED'&&d.reasonCode!==null||d.obligationIds.some(id=>!candidate.correctionObligationIds.includes(id)))throw Error('REQUIREMENT_JUSTIFICATION');
   if(['REQUIRED','OPTIONAL_CONTEXT'].includes(d.disposition)&&parent.newsEligibility&&parent.newsEligibility.status!=='ELIGIBLE')throw Error('NEWS_ELIGIBILITY_UNRESOLVED');
   if(d.disposition==='NOT_NEWS'&&(parent as ShortlistFact & {newsEligibility?:{status:string}}).newsEligibility?.status!=='NOT_NEWS')throw Error('NAVIGATION_PROVENANCE_REQUIRED');
-  if(selected&&candidate.protectedReasons.length&&(d.disposition!=='REQUIRED'||p.text!==parent.text))throw Error('PROTECTED_PROPOSITION_DEMOTION');
+  if(selected&&candidate.protectedReasons.includes('CONTRADICTS')&&!['REQUIRED','OPTIONAL_CONTEXT'].includes(d.disposition))throw Error('DISAGREEMENT_EVIDENCE_REMOVAL');
+  if(selected&&candidate.protectedReasons.some(r=>['CORRECTION','CORRECTS','RETRACTION','RETRACTS'].includes(r))&&(d.disposition!=='REQUIRED'||p.text!==parent.text))throw Error('PROTECTED_PROPOSITION_DEMOTION');
   if(!selected&&(candidate.protectedReasons.length||candidate.correctionObligationIds.length)&&(d.disposition!=='DEFERRED'||p.text!==parent.text))throw Error('PROTECTED_PROPOSITION_DEMOTION');
   if(!selected&&d.disposition==='REQUIRED')throw Error('UNDELIVERED_REQUIRED_PROPOSITION');
  }
@@ -31,6 +32,7 @@ export function validateEditorialRequirements(raw:unknown,candidate:Pick<Shortli
   const covered=new Uint8Array(parent.text.length);for(const p of props)covered.fill(1,p.start,p.end);
   if(Array.from({length:parent.text.length},(_,i)=>i).some(i=>!covered[i]&&!/[\s,;:.!?]/u.test(parent.text[i])))throw Error('UNCLASSIFIED_PARENT_TEXT');
  }
+ if(selected&&candidate.protectedReasons.includes('CONTRADICTS')&&!value.dispositions.some(d=>d.disposition==='REQUIRED'&&d.reasonCode==='DISAGREEMENT'))throw Error('DISAGREEMENT_REQUIREMENT_MISSING');
  if(selected&&!value.dispositions.some(d=>d.disposition==='REQUIRED'))throw Error('SELECTED_REQUIREMENT_MISSING');
  for(const id of candidate.correctionObligationIds)if(selected&&!value.dispositions.some(d=>d.disposition==='REQUIRED'&&d.obligationIds.includes(id)&&d.reasonCode==='CORRECTION'))throw Error('CORRECTION_REQUIREMENT_MISSING');
  return value;

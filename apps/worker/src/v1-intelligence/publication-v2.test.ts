@@ -43,7 +43,7 @@ it('v2 conflict stays unpublished without buying a repair',async()=>{
  const selection=await selected();const port=model(true);let verifies=0;const verify=port.verify!;port.verify=async(...args)=>{verifies++;return verify(...args);};let repairs=0;port.repair=async()=>{repairs++;throw Error('MUST_NOT_REPAIR_UNRESOLVED');};
  await expect(publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model:port,requireModel:true,validationContract:'EVIDENCE_GROUNDED_V2'})).rejects.toThrow();
  expect(await store.list('feed-1','editions')).toHaveLength(0);expect(repairs).toBe(0);
- expect((await store.list<any>('feed-1','publication_validation_results')).some(r=>r.status==='UNRESOLVED'&&r.reasons.includes('SEMANTIC_VERDICT_CONFLICT'))).toBe(true);
+ expect((await store.list<any>('feed-1','publication_validation_results')).some(r=>r.status==='UNRESOLVED'&&r.reasons.includes('FACT_VERDICT_CONFLICT'))).toBe(true);
  await expect(publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model:port,requireModel:true,validationContract:'EVIDENCE_GROUNDED_V2'})).rejects.toThrow();expect(verifies).toBe(1);expect(repairs).toBe(0);
  port.providerRoute='changed-route';await expect(publishSelection(store,'feed-1',selection.id,{now:()=>window.end,model:port,validationContract:'EVIDENCE_GROUNDED_V2'})).rejects.toThrow();expect(verifies).toBe(1);
 },30000);

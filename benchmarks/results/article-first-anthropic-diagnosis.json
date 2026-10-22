@@ -1,0 +1,14 @@
+{
+  "sourceHash": "efe8a291ae36a9d2e77588ba8ddd9ced5f9aa9f95606063049e85d03bea47316",
+  "responseHash": "5b46c1e0ff4f2f019bae7e4e12b4e3efc6d2771efb59e8fe10e3342d32d4c35d",
+  "genuineFalseMergeProposed": true,
+  "structuralValidationPassed": true,
+  "source": "Anthropic public benefit fund",
+  "target": "Replit default model partnership",
+  "groups": 4,
+  "distinctSelectedEvents": 1,
+  "canonicalCommit": "SCOPE_DENIED",
+  "guard": "engine.ts rejects selecting the same canonical event twice in one construction",
+  "acceptedFalseMergeCommitted": false,
+  "newPaidCalls": 0
+}

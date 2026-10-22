@@ -14,7 +14,7 @@ it('requires complete exact compatibility including paid token linkage',()=>{
 it('accepts complementary complete judgments on actual reader prose',()=>{expect(decidePublicationValidation(claims,result()).status).toBe('ACCEPT');});
 it.each(['whole','facet'])('a conflicting %s verdict is unresolved, never acceptance',side=>{
  const r=result();if(side==='whole')r.claimEntailment[0].fullyEntailed=false;else r.semanticChecks[0].attribution=false;
- expect(decidePublicationValidation(claims,r)).toMatchObject({status:'UNRESOLVED',reasons:expect.arrayContaining(['SEMANTIC_VERDICT_CONFLICT'])});
+ expect(decidePublicationValidation(claims,r)).toMatchObject({status:'UNRESOLVED',reasons:expect.arrayContaining([side==='whole'?'CLAIM_VERDICT_CONFLICT':'FACT_VERDICT_CONFLICT'])});
 });
 it('does not use a true surviving road claim to approve missing required bridge coverage',()=>{
  const r=result();r.semanticChecks[0].communicated=false;r.semanticChecks[0].readerSpans=[];r.preservedFactIds=[];
@@ -29,7 +29,7 @@ it('rejects consistent negatives; missing, foreign or source-only witnesses stay
 it('a negative facet on an optional fact actually written cannot be ignored',()=>{
  const written=structuredClone(claims);written[0].allowedFacts=[...written[0].requiredFacts,{id:'optional',text:'Officials reported injuries.',evidenceRevisionIds:['r']}];
  const r=result();r.semanticChecks.push({...r.semanticChecks[0],factId:'optional',attribution:false});
- expect(decidePublicationValidation(written,r).status).toBe('UNRESOLVED');
+ expect(decidePublicationValidation(written,r).status).toBe('REJECT');
 });
 it('a decoder-reported invalid reader witness is unresolved, not a factual rejection',()=>{
  const r=result();r.semanticChecks[0]={...r.semanticChecks[0],communicated:false,readerSpans:[],reason:'INVALID_READER_WITNESS: coverage cited source-only prose.'};
@@ -60,4 +60,13 @@ it('omitted optional novelty does not require a verdict once actual required nov
 it('missing optional novelty cannot authorize repair if no communicated novelty has been established',()=>{
  const offered=structuredClone(claims);offered[0].newUnderstandingFacts=[{id:'optional',text:'Optional background.',evidenceRevisionIds:['r']}];offered[0].allowedFacts=[...offered[0].requiredFacts,...offered[0].newUnderstandingFacts];
  expect(decidePublicationValidation(offered,result()).status).toBe('UNRESOLVED');
+});
+
+it('rejects an unsupported extra clause without treating supported facts in that paragraph as contradictory judgments',()=>{
+ const written=structuredClone(claims);written[0].text+=' Officials guaranteed full recovery.';const r=result();r.supportedClaimIds=[];r.claimEntailment[0]={claimId:'c',fullyEntailed:false,reason:'The injury count is supported, but guaranteed recovery is not.',unsupportedMeaning:['Guaranteed full recovery.']};r.semanticChecks[0].readerSpans=[{claimId:'c',text:written[0].text,start:0,end:written[0].text.length}];expect(decidePublicationValidation(written,r)).toMatchObject({status:'REJECT',reasons:['CLAIM_NOT_ENTAILED']});
+});
+it('novelty cannot override a negative fidelity judgment or turn it into uncertainty',()=>{
+ const offered=structuredClone(claims);offered[0].newUnderstandingFacts=offered[0].requiredFacts;
+ const r=result();r.supportedClaimIds=[];r.preservedFactIds=[];r.claimEntailment[0].fullyEntailed=false;r.claimEntailment[0].unsupportedMeaning=['Missing attribution.'];r.semanticChecks[0].attribution=false;r.semanticChecks[0].readerNovelty={status:'NEW',reason:'Not previously communicated.',previousFactTexts:[]};
+ expect(decidePublicationValidation(offered,r)).toMatchObject({status:'REJECT',reasons:expect.arrayContaining(['CLAIM_NOT_ENTAILED','FACT_FACET_FAILED'])});
 });

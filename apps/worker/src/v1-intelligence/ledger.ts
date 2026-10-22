@@ -64,6 +64,8 @@ async function sourceChangesReaderMeaning(store:V1FeedStore,feedId:string,entry:
 export async function projectEditionLedger(store:V1FeedStore,feedId:string,editionId:string):Promise<LedgerProjection> {
  const edition=await store.read<BriefingEditionRecord>(feedId,'editions',editionId),status=await store.read<PublicationStatus>(feedId,'publication_status',editionId);
  if(!edition || !status || !await store.getFeed(feedId))throw new HandoffError('SCOPE_DENIED');
+ // V3 reader memory is the immutable published edition, without invented Event identities.
+ if(edition.engine==='v3')return {id:ledgerProjectionId(editionId),feedId,editionId,entryIds:[],policyVersion:'v3-fixed-window-editor-verifier-v1'};
  const projectionId=ledgerProjectionId(editionId),prior=await store.read<LedgerProjection>(feedId,'ledger_projections',projectionId);
  const writes:{kind:DocumentKind;id:string;value:any}[]=[],entries:LedgerEntry[]=[];
  if(prior){for(const id of prior.entryIds){const entry=await store.read<LedgerEntry>(feedId,'ledger_entries',id);if(!entry)throw new HandoffError('SCOPE_DENIED');entries.push(entry)}}

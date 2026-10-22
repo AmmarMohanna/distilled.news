@@ -1,0 +1,18 @@
+{
+  "originalStatus": "UNRESOLVED",
+  "originalReasons": [
+    "CLAIM_NOT_ENTAILED",
+    "SEMANTIC_VERDICT_CONFLICT",
+    "FACT_FACET_FAILED",
+    "MISSING_MANDATORY_COVERAGE"
+  ],
+  "newStatus": "REJECT",
+  "newReasons": [
+    "CLAIM_NOT_ENTAILED",
+    "FACT_FACET_FAILED",
+    "MISSING_MANDATORY_COVERAGE"
+  ],
+  "promotedClaims": 0,
+  "newCalls": 0,
+  "immutableVerdictPreserved": true
+}

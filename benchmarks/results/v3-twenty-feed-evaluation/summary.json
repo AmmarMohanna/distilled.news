@@ -1,0 +1,89 @@
+{
+  "at": "2026-10-22T08:14:13.992243+00:00",
+  "v3CodeRevision": "f6bacb5353e4e651ca7501127b74ea7eda600369",
+  "datasetBranch": "codex/twenty-feed-dataset",
+  "datasetBranchRevision": "5b2dd90",
+  "sourceDatabase": "f34f4399-1e3b-4d4f-ba17-564e54e9f941",
+  "selectedFeed": "Space and Astronomy",
+  "sourceFeedId": "qads_20261021_08",
+  "preferredAiFeedAvailableCompleteArticles": 9,
+  "articlesImportedAndOffered": 20,
+  "originalTextChars": 81701,
+  "priorPublishedItems": 0,
+  "persistedEditionId": "029007b4e89be6e4392cd810775c10e826b7a020fc5b1a65bee70f5665ed2b28",
+  "items": 6,
+  "citations": 6,
+  "requestWallMs": 39933.72,
+  "publicationProcessingMs": 26203,
+  "engineTimings": {
+    "totalMs": 24159,
+    "stages": {
+      "edit": 11722,
+      "verify": 8565,
+      "repair": 3774
+    }
+  },
+  "totalThroughReadbackMs": 41107.7523,
+  "usage": {
+    "calls": 4,
+    "inputTokens": 43624,
+    "outputTokens": 1496,
+    "costUsd": 0.07238560000000001
+  },
+  "accounting": {
+    "at": "2026-10-22T08:04:32.004Z",
+    "priorTaskActualUsd": 0.38602999999999993,
+    "actualEvaluationUsd": 0.07238560000000005,
+    "paidCalls": 4,
+    "outstandingUsd": 0,
+    "cumulativeTaskActualUsd": 0.4584156,
+    "conservativeTaskExposureUsd": 1.4584156,
+    "receipts": [
+      {
+        "id": "v3-overnight-20261022:7dcd3320656fb3f111c4d634907c4951b7baa8111da0e768d72e83e09d68afc2",
+        "model": "openai/gpt-4.1",
+        "reserved_cost_usd": 0.22046,
+        "cost_usd": 0.055474,
+        "reported": 1
+      },
+      {
+        "id": "v3-overnight-20261022:396740b572290548e152745e0a14f222f9212067b29e456d0bbd8d74f6183d6a",
+        "model": "openai/gpt-4.1-mini",
+        "reserved_cost_usd": 0.021141599999999997,
+        "cost_usd": 0.0046684,
+        "reported": 1
+      },
+      {
+        "id": "v3-overnight-20261022:d90db6f252a31bb2c518174621922b2864ff78578596af4da8b22918d235ee7c",
+        "model": "openai/gpt-4.1",
+        "reserved_cost_usd": 0.041442,
+        "cost_usd": 0.010204,
+        "reported": 1
+      },
+      {
+        "id": "v3-overnight-20261022:cc0a56f282a89735baef2b579cfbf4dc8a4b2b2945a74ad8017f20bcfc72a7f5",
+        "model": "openai/gpt-4.1-mini",
+        "reserved_cost_usd": 0.0089032,
+        "cost_usd": 0.0020392,
+        "reported": 1
+      }
+    ]
+  },
+  "sourceIntegrityPassed": 20,
+  "sourceIntegrityTotal": 20,
+  "sourceQaPreserved": true,
+  "promptsChanged": false,
+  "v3CodeChanged": false,
+  "deploymentPerformed": false,
+  "notifications": false,
+  "rawCorpusLocalPath": ".local-reports/v3-twenty-feed-evaluation/corpus.json",
+  "executionPersistReadbackPass": true,
+  "cleanFactualQualityPass": false,
+  "reviewCaveats": [
+    "Source review by implementing assistant, not independent human review or external verification.",
+    "Source COMPLETE flags are not perfect: one Japanese article has largely encoded body.",
+    "Source freshness metadata conflicts with original Roman article date.",
+    "Calendar precision error in Uzbekistan signing date passed verification.",
+    "Five-day saved-source replay, not live collection or timed delivery; no prior-publication memory test."
+  ]
+}

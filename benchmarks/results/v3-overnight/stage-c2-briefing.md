@@ -1,0 +1,5 @@
+Large Ukrainian drone attack reported on St. Petersburg, fires and explosions observed
+Multiple monitoring channels and eyewitnesses reported a large-scale Ukrainian drone attack on St. Petersburg on October 18, with fires and explosions seen in the city. Leningrad Oblast governor Aleksandr Drozdenko said 57 drones were shot down, with debris damaging cars and a fire reported. The Kyiv Independent could not independently verify the targets or extent of damage.
+
+Russian officials claim nearly 200 Ukrainian drones intercepted near Moscow
+Moscow Mayor Sergei Sobyanin said Russian air defense destroyed 195 Ukrainian drones headed for Moscow on Saturday. Two Moscow airports suspended operations, according to Russia’s civil aviation authority. Romania reported shooting down two Russian drones over the Black Sea.

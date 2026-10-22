@@ -1,7 +1,12 @@
 import {expect,it} from 'vitest';
 import {Temporal} from '@js-temporal/polyfill';
 import {LIVE_INTERVALS,livePublicationWindow,liveScheduleSchema,publicationWindowSchema,nextLiveBriefingAt} from './schedule';
-import {publicationWindow} from './runtime';
+import {publicationWindow,isAutomaticReportingWindow} from './runtime';
+it('one-off evaluation windows remain callable but are not automatic reporting intervals',()=>{
+ expect(isAutomaticReportingWindow({start:'2026-10-18T17:29:22.206Z',end:'2026-10-19T17:29:22.206Z',kind:'DAILY'})).toBe(false);
+ expect(isAutomaticReportingWindow(publicationWindow('HOURLY',new Date('2026-10-21T07:30:00Z')))).toBe(true);
+ expect(isAutomaticReportingWindow(livePublicationWindow({durationMinutes:30,timezone:'Asia/Beirut'},new Date('2026-10-21T07:30:00Z')))).toBe(true);
+});
 it('calculates the next live boundary and daily delivery in the inferred local zone',()=>{
  expect(nextLiveBriefingAt({durationMinutes:120,timezone:'Asia/Beirut'},new Date('2026-10-04T12:20:00Z'))).toBe('2026-10-04T13:00:00.000Z');
  expect(nextLiveBriefingAt({durationMinutes:1440,timezone:'Asia/Beirut',deliveryAnchor:'08:00'},new Date('2026-10-04T05:00:00Z'))).toBe('2026-10-05T05:00:00.000Z');

@@ -50,12 +50,12 @@ export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistR
   if(s.decision==='SELECT'&&(c.flags.includes('IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE')||c.flags.includes('TITLE_EXTRACTION_PENDING')))throw new HandoffError('SCOPE_DENIED');
   if(s.decision==='SELECT' && (s.treatment==='OMIT'||!s.mustIncludeFactIds.length)||s.decision!=='SELECT' && s.treatment!=='OMIT')throw new HandoffError('SCOPE_DENIED');
   if(options.contract!=='EVIDENCE_GROUNDED_V2' && s.decision==='SELECT' && s.newUnderstandingFactIds.some(id=>!s.mustIncludeFactIds.includes(id)))throw new HandoffError('SCOPE_DENIED');
-  if(s.deltaType==='REPEAT'&&!c.facts.every(f=>knownFacts(c,shortlist).some(text=>equivalentFact(text,f.text))))throw new HandoffError('SCOPE_DENIED');
+  if(s.deltaType==='REPEAT'&&!(options.contract==='EVIDENCE_GROUNDED_V2'&&s.decision==='DEFER')&&!c.facts.every(f=>knownFacts(c,shortlist).some(text=>equivalentFact(text,f.text))))throw new HandoffError('SCOPE_DENIED');
   // A source refresh cannot manufacture reader novelty or a correction. Only a
   // persisted publication withdrawal permits corrective supported restatement.
   if(s.decision==='SELECT'){const known=knownFacts(c,shortlist),withdrawal=c.correctionObligationIds.some(id=>shortlist.obligations.some(o=>o.id===id&&o.publicationWithdrawal));if(known.length&&!withdrawal&&!s.newUnderstandingFactIds.some(id=>c.facts.some(f=>f.id===id&&!known.some(text=>equivalentFact(text,f.text)))))throw new HandoffError('SCOPE_DENIED')}
   if(options.contract==='EVIDENCE_GROUNDED_V2'){const v=validateEditorialRequirements((s as PlanStory).validation,c,s.decision==='SELECT'),required=new Set(v.dispositions.filter(d=>d.disposition==='REQUIRED').map(d=>v.propositions.find(p=>p.id===d.propositionId)!.parentFactId));if(required.size!==new Set(s.mustIncludeFactIds).size||s.mustIncludeFactIds.some(id=>!required.has(id)))throw Error('REQUIRED_PARENT_PROJECTION_MISMATCH');}
-  if(s.decision==='SELECT' && c.protectedReasons.length){const known=knownFacts(c,shortlist);for(const f of c.facts)if(!known.some(k=>equivalentFact(k,f.text)) && !s.mustIncludeFactIds.includes(f.id))throw new HandoffError('SCOPE_DENIED')}
+  if(options.contract!=='EVIDENCE_GROUNDED_V2'&&s.decision==='SELECT' && c.protectedReasons.length){const known=knownFacts(c,shortlist);for(const f of c.facts)if(!known.some(k=>equivalentFact(k,f.text)) && !s.mustIncludeFactIds.includes(f.id))throw new HandoffError('SCOPE_DENIED')}
   if(s.decision==='SUPPRESS' && !suppressionAllowed(c,shortlist))throw new HandoffError('SCOPE_DENIED');
  }
  if(options.requirePublicationCorrection&&readyTargets.length>correctionCapacity&&plan.stories.filter(s=>s.decision==='SELECT'&&readyTargets.some(c=>c.targetVersionId===s.targetVersionId)).length<correctionCapacity)throw new HandoffError('SCOPE_DENIED');

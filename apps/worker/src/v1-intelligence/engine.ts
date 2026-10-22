@@ -1,3 +1,4 @@
+import {persistSourcePassages} from './source-passages';
 import {HandoffError,type EventVersion,type EventMembership,type EvidenceRevision,type NormalizedEvidenceItem} from '@distilled/contracts';
 import {V1IntakeStore} from '../v1-intake/store';
 import type {AcceptedInput,DownstreamJob} from '../v1-intake/types';
@@ -21,8 +22,10 @@ async function versionEvent(tx:FeedTransaction,event:EventRecord,revisions:Evide
  const old=await tx.read<EventVersion>('event_versions',event.currentVersionId);
  const ordered=[...revisions].sort((a,b)=>(b.publishedAt??b.acceptedAt).localeCompare(a.publishedAt??a.acceptedAt)||a.id.localeCompare(b.id));
  if(old){
+  const replacedRevisions=new Set<string>();
+  for(const id of binding?.group.claimMentionIds??[]){const mention=await tx.read<ClaimMention>('claim_mentions',id);if(mention)replacedRevisions.add(mention.evidenceRevisionId)}
   const previous=await tx.read<EventSemanticState>('event_semantic_states',old.id),activeIds=new Set(revisions.map(r=>r.id)),surviving:string[]=[];
-  for(const id of previous?.propositionIds??[]){const p=await tx.read<Proposition>('propositions',id);if(p&&p.evidenceRevisionIds.every(id=>activeIds.has(id)))surviving.push(...p.claimMentionIds)}
+  for(const id of previous?.propositionIds??[]){const p=await tx.read<Proposition>('propositions',id);if(p&&p.evidenceRevisionIds.every(id=>activeIds.has(id)&&!replacedRevisions.has(id)))surviving.push(...p.claimMentionIds)}
   if(!binding&&previous&&previous.provenance.scorer!=='DETERMINISTIC_FOUNDATION')binding={group:{claimMentionIds:[...new Set(surviving)],eventId:previous.provisional?null:event.id,storylineId:null,structuralRelation:previous.provisional?'DEFER':'SAME_EVENT',epistemicEffects:[],entities:[],slots:[]},provenance:previous.provenance};
   if(binding){
    binding.group.claimMentionIds=[...new Set([...binding.group.claimMentionIds,...surviving])];const allowed=new Set(binding.group.claimMentionIds);
@@ -116,8 +119,9 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
   const selectedEvents:EventRecord[]=[],bindings=new Map<string,{group:SemanticGroup;provenance:import('./matchers').MatchProvenance}>();
   if(target) {
    countLatency('acceptedToReviewMs',Math.max(0,Date.now()-Date.parse(target.revision.acceptedAt)));
-   await measureLatency('CLAIM_PREPROCESSING',()=>persistClaimMentions(tx,target.revision));
-   const text=revisionText(target.revision),classification=classifyRole(text);
+   const articleFirst=matchers.sourcePassages===true;
+   const sourceMentions=await measureLatency('SOURCE_INDEX',()=>articleFirst?persistSourcePassages(tx,target.revision):persistClaimMentions(tx,target.revision));
+   const text=revisionText(target.revision),classification=articleFirst?{role:'REPORTED_DEVELOPMENT' as const,confidence:0}:classifyRole(text);
    const roleId=JSON.stringify([target.revision.id,INTELLIGENCE_POLICY]);
    const savedRole=await tx.read<RoleDecision>('roles',roleId);
    const role:RoleDecision=savedRole??{id:roleId,feedId:o.feedId,evidenceId:target.item.id,evidenceRevisionId:target.revision.id,...classification,policyVersion:INTELLIGENCE_POLICY,computedAt:now};
@@ -163,14 +167,14 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
    if(selected && decision.storylineId)preferredStorylines.set(selected.id,decision.storylineId);
    let construction=matchers.construction?.(matchInput);
    // Provisional (semantic construction unavailable): do not let one publisher's bundle of unrelated announcements become one Event.
-   if(!construction&&decision.structuralRelation==='DEFER'&&decision.provenance.scorer!=='DETERMINISTIC'){
+   if(!articleFirst&&!construction&&decision.structuralRelation==='DEFER'&&decision.provenance.scorer!=='DETERMINISTIC'){
     const split=partitionProvisionalMentions((await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id&&isNewsMention(m)));
     if(split)construction={groups:split.groups.map(claimMentionIds=>({claimMentionIds,eventId:null,storylineId:null,structuralRelation:'DEFER' as const,epistemicEffects:[],entities:[],slots:[]})),backgroundMentionIds:split.backgroundMentionIds,provenance:{...decision.provenance,fallbackReason:'COMPOSITE_PARTITION_PROVISIONAL'}};
    }
    if(construction){
     if(construction.groups.some(group=>group.structuralRelation==='DEFER')){receipt.semanticDeferred=true;await scheduleRematch(tx,jobId,target.revision.id,now)}
     if(construction.originDependencyLabel){const id=JSON.stringify([target.revision.id,construction.provenance.judgmentId??construction.provenance.policyVersion]);await tx.write('source_origins',id,{id,feedId:o.feedId,evidenceRevisionId:target.revision.id,dependencyLabel:construction.originDependencyLabel,provenance:construction.provenance,policyVersion:'information-origin-v1'})}
-    const mentions=(await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id);validateConstruction(construction,mentions.filter(isNewsMention));
+    validateConstruction(construction,articleFirst?sourceMentions:sourceMentions.filter(isNewsMention));
     for(const group of construction.groups){
      const d=validateEventMatch({structuralRelation:group.structuralRelation,eventId:group.eventId??undefined,storylineId:group.storylineId??undefined,epistemicEffects:group.epistemicEffects,confidence:decision.confidence,provenance:construction.provenance},matchInput);
      const root=d.structuralRelation==='SAME_EVENT'?events.find(e=>e.id===d.eventId)!:{id:crypto.randomUUID(),feedId:o.feedId,currentVersionId:'',createdAt:now};
@@ -182,7 +186,7 @@ export async function processEvidenceIntelligence(store:V1FeedStore,jobId:string
      if(!Number.isSafeInteger(link.fromGroup)||!Number.isSafeInteger(link.toGroup)||!from||!to||from.id===to.id||!['INDEPENDENT','MATERIAL_UPDATE','CONTRADICTION','CORRECTION','DEFER'].includes(link.relationship))throw new HandoffError('SCOPE_DENIED');
      const id=JSON.stringify([target.revision.id,from.id,to.id,link.relationship]);await tx.write('development_relationships',id,{id,feedId:o.feedId,evidenceRevisionId:target.revision.id,fromEventId:from.id,toEventId:to.id,relationship:link.relationship,provenance:construction.provenance,policyVersion:'development-reconciliation-v1'});
     }
-   }else if(selected){selectedEvents.push(selected);if(decision.provenance.scorer!=='DETERMINISTIC')bindings.set(selected.id,{group:{claimMentionIds:(await tx.list<ClaimMention>('claim_mentions')).filter(m=>m.evidenceRevisionId===target.revision.id).map(m=>m.id),structuralRelation:decision.structuralRelation,eventId:decision.eventId??null,storylineId:decision.storylineId??null,epistemicEffects:decision.epistemicEffects,entities:[],slots:[]},provenance:decision.provenance})}
+   }else if(selected){selectedEvents.push(selected);if(decision.provenance.scorer!=='DETERMINISTIC')bindings.set(selected.id,{group:{claimMentionIds:sourceMentions.map(m=>m.id),structuralRelation:decision.structuralRelation,eventId:decision.eventId??null,storylineId:decision.storylineId??null,epistemicEffects:decision.epistemicEffects,entities:[],slots:[]},provenance:decision.provenance})}
   }
   // Replace old support from this stable evidence identity, including reassignment/withdrawal.
   for(const event of events) {

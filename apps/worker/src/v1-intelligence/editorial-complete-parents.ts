@@ -1,12 +1,18 @@
+import {editorialContextFacts} from './editorial-context';
 import {compactEditorialInput} from './editorial-transport';
 import type {ShortlistRecord} from './shortlist';
 export const COMPLETE_PARENT_POLICY='keyed-complete-parent-decisions-v1';
 export const COMPLETE_EDITORIAL_POLICY='evidence-grounded-editorial-keyed-parents-v1';
 const obj=(properties:Record<string,unknown>)=>({type:'object',additionalProperties:false,properties,required:Object.keys(properties)});
 export const completeParentDefinitions={EditorialParentDecision:{anyOf:[obj({disposition:{type:'string',enum:['REQUIRED']},reasonCode:{type:'string',enum:['CORE_DEVELOPMENT','MATERIAL_CHANGE','CORRECTION','DISAGREEMENT','NECESSARY_CONTEXT']},justification:{type:'string',minLength:1},obligationIds:{type:'array',items:{type:'string'}}}),obj({disposition:{type:'string',enum:['OPTIONAL_CONTEXT','DEFERRED','NOT_NEWS']},reasonCode:{type:'null'},justification:{type:'string',minLength:1},obligationIds:{type:'array',items:{type:'string'}}})]}};
+Object.assign(completeParentDefinitions,{
+ EditorialDisagreementParentDecision:{anyOf:[completeParentDefinitions.EditorialParentDecision.anyOf[0],{...completeParentDefinitions.EditorialParentDecision.anyOf[1],properties:{...completeParentDefinitions.EditorialParentDecision.anyOf[1].properties,disposition:{type:'string',enum:['OPTIONAL_CONTEXT']}}}]},
+ EditorialRequiredParentDecision:completeParentDefinitions.EditorialParentDecision.anyOf[0],
+ EditorialDeferredParentDecision:{...completeParentDefinitions.EditorialParentDecision.anyOf[1],properties:{...completeParentDefinitions.EditorialParentDecision.anyOf[1].properties,disposition:{type:'string',enum:['DEFERRED']}}}
+});
 /** Required object slots establish coverage, not correctness of editorial judgment. */
 export function completeParentSchema(branches:any[],shortlist:ShortlistRecord){
- return obj(Object.fromEntries(shortlist.candidates.map((c,i)=>['candidate_'+(i+1),{anyOf:branches.map(original=>{const b=structuredClone(original);b.properties.targetVersionId={type:'string',enum:[c.targetVersionId]};delete b.properties.mustIncludeFactIds;b.properties.validation=obj({factDecisions:obj(Object.fromEntries(c.facts.map((_,j)=>['fact_'+(j+1),{$ref:'#/$defs/EditorialParentDecision'}])))});b.required=Object.keys(b.properties);return b})}])));
+ return obj(Object.fromEntries(shortlist.candidates.map((c,i)=>['candidate_'+(i+1),{anyOf:branches.map(original=>{const b=structuredClone(original);b.properties.targetVersionId={type:'string',enum:[c.targetVersionId]};delete b.properties.mustIncludeFactIds;for(const field of ['newUnderstandingFactIds','attributionFactIds','certaintyFactIds','openQuestionFactIds'])b.properties[field]={...b.properties[field],items:{type:'string',enum:c.facts.map(f=>f.id)}};for(const field of ['contextFactIds','disagreementFactIds'])b.properties[field]={...b.properties[field],items:{type:'string',enum:editorialContextFacts(c,shortlist).map(f=>f.id)}};const protectedCandidate=c.protectedReasons.length>0||c.correctionObligationIds.length>0,selected=b.properties.decision.enum.includes('SELECT');if(protectedCandidate&&!selected)b.properties.decision={type:'string',enum:['DEFER']};const fullProtection=c.protectedReasons.some(r=>['CORRECTION','CORRECTS','RETRACTION','RETRACTS'].includes(r));const decision=protectedCandidate&&!selected?'EditorialDeferredParentDecision':fullProtection&&selected?'EditorialRequiredParentDecision':selected&&c.protectedReasons.includes('CONTRADICTS')?'EditorialDisagreementParentDecision':'EditorialParentDecision';b.properties.validation=obj({factDecisions:obj(Object.fromEntries(c.facts.map((_,j)=>['fact_'+(j+1),{$ref:'#/$defs/'+decision}])))});b.required=Object.keys(b.properties);return b})}])));
 }
 function exactKeys(value:any,keys:string[]){if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==keys.length||keys.some(k=>!Object.hasOwn(value,k)))throw Error('EDITORIAL_PARENT_DECISION_COVERAGE');}
 export function decodeCompleteParents(raw:Record<string,unknown>,shortlist:ShortlistRecord):Record<string,unknown>{
@@ -21,7 +27,7 @@ export function decodeCompleteParents(raw:Record<string,unknown>,shortlist:Short
 }
 
 export const COMPACT_COMPLETE_PARENT_POLICY='keyed-complete-parent-compact-references-v2';
-export const COMPACT_COMPLETE_EDITORIAL_POLICY='evidence-grounded-editorial-keyed-parents-v2';
+export const COMPACT_COMPLETE_EDITORIAL_POLICY='evidence-grounded-editorial-keyed-parents-v4-independent-importance';
 /** Reuse the existing reference capabilities while retaining the complete V2
  * input projection, including source eligibility and every evidence value. */
 export function completeParentReferences(shortlist:ShortlistRecord){

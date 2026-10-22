@@ -10,6 +10,7 @@ import {batchFixture} from '../v1-intake/test-utils';
 import {processV1Reassessment} from './runtime';
 import * as preparation from './semantic-preparation';
 import * as engine from './engine';
+import {IDENTITY_REVIEW_POLICY} from './event-identity-review';
 import {withIntelligenceTurn,withFeedWriteTurn,intelligenceTurnGuard} from '../connector-intelligence-turn';
 import type {Env} from '../types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env;
@@ -101,7 +102,7 @@ it('revalidates candidate support replaced after preparation settled but before 
  await acceptEvidence(store,2,'Officials confirmed the banking reform implementation.');
  const secondJob=JSON.stringify(['REASSESS','observation-2','']);let calls=0;
  const usage={calls:1,costUsd:.001,reported:true};
- const strong={model:'support-gap-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{calls++;return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.events[0].id,storylineId:null,epistemicEffects:['CORROBORATES'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
+ const strong={model:'support-gap-fixture',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{calls++;if(state.policy===IDENTITY_REVIEW_POLICY)return {value:{groups:Object.fromEntries(Object.entries(state.groups).map(([key,g]:[string,any])=>[key,{structuralRelation:'SAME_EVENT',eventId:state.events[0].id,storylineId:null,epistemicEffects:['CORROBORATES'],reason:'Same bounded banking reform implementation.',sourceWitness:g.claims[0].text,targetWitness:state.events[0].state}]))},usage};return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.events[0].id,storylineId:null,epistemicEffects:['CORROBORATES'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
  const original=preparation.prepareSemanticMatch;
  vi.spyOn(preparation,'prepareSemanticMatch').mockImplementation(async(held,optionsEnv,id,now)=>{
   const prepared=await original(held,optionsEnv,id,now,{strong});
@@ -119,6 +120,47 @@ it('revalidates candidate support replaced after preparation settled but before 
  const receipt=await store.read<any>('feed-1','intelligence_receipts',secondJob);
  expect(receipt.semanticDeferred).toBe(true);
  expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
- expect(await store.list('feed-1','semantic_settlements')).toHaveLength(1);expect(calls).toBe(1);
+ expect(await store.list('feed-1','semantic_settlements')).toHaveLength(2);expect(calls).toBe(2);
  expect((await new V1IntakeStore(ctx.db).read<any>('jobs',JSON.stringify(['REASSESS','observation-3',''])))?.value.state).toBe('PENDING');
+},30000);
+
+it('V2 retains pre-subscription backlog before semantic preparation and canonical construction',async()=>{
+ env.V1_PUBLICATION_VALIDATION_CONTRACT='EVIDENCE_GROUNDED_V2';
+ const prepare=vi.spyOn(preparation,'prepareSemanticMatch').mockResolvedValue(undefined),consume=vi.spyOn(engine,'processEvidenceIntelligence');
+ expect(await processV1Reassessment(env,job,testPolicy.now())).toBe('BACKLOG_RETAINED');
+ expect(prepare).not.toHaveBeenCalled();expect(consume).not.toHaveBeenCalled();
+ expect(await store.currentEvidence('feed-1')).toHaveLength(1);
+ expect((await new V1IntakeStore(ctx.db).read<any>('jobs',job))?.value.state).toBe('DONE');
+ expect(await store.list<any>('feed-1','review_admissions')).toMatchObject([{disposition:'BACKLOG_RETAINED',reason:'PRE_SUBSCRIPTION_PUBLICATION'}]);
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+ expect(await store.list('feed-1','events')).toHaveLength(0);
+},30000);
+
+it('V2 prepares current news and late-discovered news published since subscription',async()=>{
+ env.V1_PUBLICATION_VALIDATION_CONTRACT='EVIDENCE_GROUNDED_V2';
+ await acceptEvidence(store,2,'Officials announced new banking reform.','publisher-1','2026-10-03T14:00:00Z','en','2026-10-03T12:15:00Z');
+ const prepare=vi.spyOn(preparation,'prepareSemanticMatch').mockResolvedValue(undefined);
+ expect(await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-2','']),'2026-10-03T15:00:00Z')).toBe('DONE');
+ expect(prepare).toHaveBeenCalledTimes(1);
+},30000);
+
+it('V2 blocks a queued backlog rematch before either inference or canonical consumption',async()=>{
+ env.V1_PUBLICATION_VALIDATION_CONTRACT='EVIDENCE_GROUNDED_V2';
+ const revision=(await store.currentEvidence('feed-1'))[0].revision;
+ const {feedTransact}=await import('./store');
+ await feedTransact(store,'feed-1',tx=>tx.write('rematch_requests','backlog-rematch',{id:'backlog-rematch',feedId:'feed-1',jobId:job,evidenceRevisionId:revision.id,createdAt:testPolicy.now(),policyVersion:'semantic-rematch-continuation-v2'}));
+ const prepare=vi.spyOn(preparation,'prepareSemanticMatch').mockResolvedValue(undefined),consume=vi.spyOn(engine,'processEvidenceIntelligence');
+ const {processV1Rematch}=await import('./runtime');await processV1Rematch(env,'feed-1','backlog-rematch',testPolicy.now());
+ expect(prepare).not.toHaveBeenCalled();expect(consume).not.toHaveBeenCalled();
+ expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
+ expect(await store.list('feed-1','rematch_attempts')).toHaveLength(0);
+},30000);
+
+it('V2 still reviews a correction to evidence already represented in the event graph',async()=>{
+ await engine.processEvidenceIntelligence(store,job,testPolicy.now());
+ const intake=new V1IntakeStore(ctx.db),batch=batchFixture(2);batch.observations[0].sourceItemKey='item-1';batch.proposals[0].sourceItemKey='item-1';
+ const accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batch);
+ await acceptAcquiredContent(intake,{id:'corrected',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-2',body:'Officials corrected the banking reform result.',publishedAt:'2026-10-03T10:00:00Z',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);
+ env.V1_PUBLICATION_VALIDATION_CONTRACT='EVIDENCE_GROUNDED_V2';const prepare=vi.spyOn(preparation,'prepareSemanticMatch').mockResolvedValue(undefined);
+ expect(await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-2','']),testPolicy.now())).toBe('DONE');expect(prepare).toHaveBeenCalledTimes(1);
 },30000);

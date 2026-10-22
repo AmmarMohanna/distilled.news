@@ -3,7 +3,7 @@ import * as shortlistProjection from './shortlist-v2';
 import {prepareSemanticShortlist} from './shortlist';
 import {createIntakeDatabase,seedIntakeScope} from '../v1-intake/test-utils';
 import {V1IntakeStore} from '../v1-intake/store';
-import {V1FeedStore} from './store';
+import {V1FeedStore,feedTransact} from './store';
 import {feedFixture,seedIntelligence} from './test-utils';
 import {dispatchV1Intelligence,processV1Briefing} from './runtime';
 import {equivalentFact} from './editorial';
@@ -16,6 +16,17 @@ beforeEach(async(context)=>{
  env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',V1_SEMANTIC_POLICY:'DETERMINISTIC',V1_EDITORIAL_MODEL_POLICY:'DETERMINISTIC',V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test-key',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env;
 });
 afterEach(async()=>ctx.dispose());
+it('old one-off evaluation requests do not take scheduled publication turns',async()=>{
+ const window={start:'2026-10-02T17:29:22.206Z',end:'2026-10-03T17:29:22.206Z',kind:'DAILY' as const};
+ await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests','old-evaluation',{id:'old-evaluation',feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end}));
+ await dispatchV1Intelligence(env,now);
+ expect(sent.filter(m=>m.type==='v1_briefing').map((m:any)=>m.window.end)).toEqual(['2026-10-06T12:00:00.000Z']);
+ const {fetcher,calls}=providerDouble();
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>now.toISOString(),undefined,fetcher,{scheduledDelivery:true});
+ expect(calls).toEqual({writer:0,verifier:0});
+ expect(await store.read('feed-1','briefing_requests','old-evaluation')).toMatchObject({state:'PENDING'});
+ expect(await store.list('feed-1','briefing_requests')).toHaveLength(2);
+},30000);
 it('does not create an incomplete first window and dispatches oldest pending window alone',async()=>{
  await dispatchV1Intelligence(env,now);
  expect(await store.list('feed-1','briefing_requests')).toHaveLength(0);

@@ -1,0 +1,157 @@
+{
+  "status": "published",
+  "items": [
+    {
+      "headline": "NASA's Roman Space Telescope launches to L2 to study dark energy and exoplanets",
+      "body": "NASA's Roman Space Telescope launched on August 31, 2026, aboard a SpaceX Falcon Heavy and is en route to the Sun-Earth L2 point, about one million miles from Earth. The observatory will map large regions of the sky at infrared wavelengths, aiming to investigate dark matter, dark energy, and exoplanets. Roman is expected to deliver its first images in early 2027 after a three-month commissioning period. Key systems, including solar panels and sun shade, have deployed successfully. The mission will transmit about 1.4 terabytes of data per day once operational.",
+      "relation": "new",
+      "importance": 1,
+      "sourceIds": [
+        "33bf3469-7921-4b1c-93eb-058f22ac756f"
+      ]
+    },
+    {
+      "headline": "Japan prepares to launch mission to return samples from Mars moon Phobos",
+      "body": "Japan is set to launch a spacecraft on a five-year mission to collect and return samples from Phobos, one of Mars' moons. If successful, this will be the first mission to bring back material from a Martian moon. Scientists hope the samples will provide insights into the origins of Phobos and Deimos and possibly the early solar system.",
+      "relation": "new",
+      "importance": 1,
+      "sourceIds": [
+        "e5b4e117-0902-48c8-a95f-07f4110d063f"
+      ]
+    },
+    {
+      "headline": "NASA provides update on Moon Base rover development and upcoming lunar missions",
+      "body": "NASA released a progress update on lunar terrain vehicles (LTVs) and robotic rovers for the Moon Base. The VIPER rover, fully built and undergoing final testing, is scheduled to launch to the lunar South Pole in 2027 to search for water and other resources. Astrolab and Lunar Outpost are developing crewed LTVs for delivery by 2028, with robotic precursors launching in late 2026 and early 2027. These vehicles will support Artemis astronauts and infrastructure for sustained lunar exploration.",
+      "relation": "new",
+      "importance": 1,
+      "sourceIds": [
+        "7ba46c8a-9d3f-48d2-9157-0324a27641a2"
+      ]
+    },
+    {
+      "headline": "NASA advances nuclear-powered SR-1 Freedom spacecraft for 2028 Mars mission",
+      "body": "NASA has advanced development of the SR-1 Freedom spacecraft, which will demonstrate nuclear electric propulsion beyond Earth's orbit. The nuclear power module, including a reactor and Brayton cycle power conversion system, is under contract and progressing toward integration. SR-1 Freedom is scheduled to launch in late 2028 to deliver the SkyFall mission—a trio of Mars helicopters—to Mars. The nuclear reactor will remain inactive until after leaving Earth orbit.",
+      "relation": "new",
+      "importance": 1,
+      "sourceIds": [
+        "b53cfdf1-f372-4275-8d2e-72e3442ff240"
+      ]
+    },
+    {
+      "headline": "NASA tests new Mars helicopter blade design for longer, safer flights",
+      "body": "NASA researchers have developed and wind-tunnel tested a new rotor blade design, roamx-0201, for future Mars helicopters. The thinner, asymmetrical airfoil could enable flights up to 18.7 km per sortie, compared to Ingenuity's 0.7 km, and offers improved performance and stall behavior. The technology is not yet flight-ready but is being refined for future Mars missions beyond the 2028 SkyFall mission.",
+      "relation": "new",
+      "importance": 2,
+      "sourceIds": [
+        "56f3ce1d-fe02-4433-afc5-d10f63aa53a8"
+      ]
+    },
+    {
+      "headline": "Uzbekistan becomes 77th signatory of Artemis Accords for lunar exploration",
+      "body": "Uzbekistan signed the Artemis Accords on October 20, 2026, becoming the 77th country to commit to principles for safe and transparent civil space exploration. The signing took place in Samarkand during a visit by U.S. Secretary of State Marco Rubio. Uzbekistan is developing its national space program and plans to launch its first CubeSat by 2028.",
+      "relation": "new",
+      "importance": 2,
+      "sourceIds": [
+        "0f8a9684-230f-422d-a997-389b74b29029"
+      ]
+    }
+  ],
+  "skipped": [],
+  "dropped": [],
+  "omitted": [
+    {
+      "stage": "editor",
+      "reason": "corporate merger discussion, not a space mission or astronomy milestone",
+      "sourceIds": [
+        "4bae73ae-c613-4a89-bea8-65dc906ede2c",
+        "9cd0b072-b5f5-42b3-99c4-9e6d0618c250"
+      ]
+    },
+    {
+      "stage": "editor",
+      "reason": "image-of-the-day, no substantive astronomy finding",
+      "sourceIds": [
+        "2f17f815-eb39-41fd-a25a-c4836961693a"
+      ]
+    },
+    {
+      "stage": "editor",
+      "reason": "astronomy image-of-the-day; new nebulae noted but no peer-reviewed confirmation or major finding",
+      "sourceIds": [
+        "9703429a-aa00-458f-abf0-d843cd3f539d"
+      ]
+    },
+    {
+      "stage": "editor",
+      "reason": "Earth science field campaign, not a space mission or astronomy milestone",
+      "sourceIds": [
+        "f3455c1d-bffd-4f91-aff7-f5b155c51732"
+      ]
+    },
+    {
+      "stage": "editor",
+      "reason": "Earth weather event, not a space mission or astronomy milestone",
+      "sourceIds": [
+        "bb34efce-39c1-4345-8148-fa94413a5678"
+      ]
+    },
+    {
+      "stage": "editor",
+      "reason": "off-topic, wildlife management",
+      "sourceIds": [
+        "fd9da245-d8f6-4376-9bd9-c02ef7749974"
+      ]
+    },
+    {
+      "stage": "editor",
+      "reason": "off-topic, agricultural funding",
+      "sourceIds": [
+        "2cebc4f7-6266-40eb-a74e-e0f2db14094c"
+      ]
+    },
+    {
+      "stage": "editor",
+      "reason": "Earth weather warnings, not a space mission or astronomy milestone",
+      "sourceIds": [
+        "f0b4978f-c609-4259-a71d-d9295e14f2c0",
+        "ea56e6dc-0429-4124-9971-9b00bce53604",
+        "52284b2e-6c16-46c6-9641-27f216a93dc8"
+      ]
+    },
+    {
+      "stage": "editor",
+      "reason": "celebrity astronaut video to school, not a mission milestone",
+      "sourceIds": [
+        "02002641-a6d5-4954-affc-8a66e3c87514"
+      ]
+    },
+    {
+      "stage": "editor",
+      "reason": "energy policy, not a space mission or astronomy milestone",
+      "sourceIds": [
+        "f56c5526-3c70-4c76-8a20-d4dbcda07ac8"
+      ]
+    },
+    {
+      "stage": "editor",
+      "reason": "Earth observation instrument technology, not a space mission or astronomy milestone",
+      "sourceIds": [
+        "d1e1db3e-794b-4404-b1ff-aa22d63b6c56"
+      ]
+    }
+  ],
+  "usage": {
+    "calls": 4,
+    "inputTokens": 43624,
+    "outputTokens": 1496,
+    "costUsd": 0.07238560000000001
+  },
+  "timings": {
+    "totalMs": 24159,
+    "stages": {
+      "edit": 11722,
+      "verify": 8565,
+      "repair": 3774
+    }
+  }
+}

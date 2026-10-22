@@ -16,3 +16,16 @@ it('atomically limits all accounts, retains uncertain slots and enforces the rol
 },30000);
 
 it('shares Cloudflare API capacity across native and unified routes without consuming OpenRouter slots',async()=>{const ctx=await createIntakeDatabase();try{const now=new Date().toISOString();for(const [i,provider,model] of [[0,'openrouter','openai/gpt-4.1'],[1,'workers_ai','workers_ai:@cf/qwen/qwen3-30b-a3b-fp8'],[2,'cloudflare','cloudflare:openai/gpt-4.1']] as const){await reserveModelSpending(ctx.db,{id:'route-'+i,accountId:'test-only-account',model,feedId:'f',token:'t'+i,reservedCostUsd:.01,leaseUntil:0,createdAt:now,providerLimits:{provider,maxConcurrent:provider==='openrouter'?1:2,requestsPerMinute:provider==='openrouter'?1:2}})}expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first<any>())!.n).toBe(3);await expect(reserveModelSpending(ctx.db,{id:'extra-cf',accountId:'test-only-account',model:'cloudflare:openai/gpt-4.1',feedId:'f',token:'extra',reservedCostUsd:.01,leaseUntil:0,createdAt:now,providerLimits:{provider:'cloudflare',maxConcurrent:2,requestsPerMinute:2}})).rejects.toThrow('PROVIDER_RESOURCE_WAIT')}finally{await ctx.dispose()}},30000);
+
+it('operator quarantine releases capacity but preserves accounting and retry fences',async()=>{const ctx=await createIntakeDatabase();try{
+ const now=new Date().toISOString(),r=(id:string)=>({id,accountId:'test-only-account',model:'openai/gpt-4.1',feedId:'f',token:id,reservedCostUsd:.01,leaseUntil:0,createdAt:now,providerLimits:{provider:'openrouter' as const,maxConcurrent:1,requestsPerMinute:20}});
+ await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('f',JSON.stringify({revision:1})).run();
+ await reserveModelSpending(ctx.db,r('old'));
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('model_execution_quarantines',?,?,?)").bind('old','f',JSON.stringify({accountId:'test-only-account',reservationToken:'old',approvalId:'operator-approved-reset'})).run();
+
+ await reserveModelSpending(ctx.db,r('new'));
+ expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first<any>())!.n).toBe(2);
+ await expect(reserveModelSpending(ctx.db,{...r('old'),token:'retry'})).rejects.toThrow('RESERVATION_IDENTITY_CONFLICT');
+ await expect(reserveModelSpending(ctx.db,r('extra'))).rejects.toThrow('PROVIDER_RESOURCE_WAIT');
+ }finally{await ctx.dispose()}
+},30000);
