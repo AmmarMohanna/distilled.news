@@ -96,12 +96,98 @@ class ArticleLinks(HTMLParser):
             self.depth = max(0, self.depth-1)
 
 
+class ArticleDates(HTMLParser):
+    """Explicit original/update metadata only; no dates guessed from body prose."""
+    def __init__(self, url):
+        super().__init__()
+        self.url, self.candidates, self.modified, self.articles = url, [], [], []
+        self.in_json, self.json_text = False, []
+
+    def add(self, value, source, modified=False):
+        if not isinstance(value, str) or not re.match(r'^\d{4}-\d{2}-\d{2}(?:T|$)', value):
+            return
+        try:
+            date = datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
+            if date.tzinfo is None:
+                date = date.replace(tzinfo=datetime.timezone.utc)
+            stamp = iso(date.astimezone(datetime.timezone.utc))
+        except ValueError:
+            return
+        if modified:
+            self.modified.append(stamp)
+        else:
+            self.candidates.append({'value': stamp, 'source': source})
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag in ('meta', 'time'):
+            name = (attrs.get('property') or attrs.get('name') or attrs.get('itemprop') or '').lower()
+            value = attrs.get('datetime' if tag == 'time' else 'content')
+            if name in ('article:published_time', 'datepublished', 'pubdate', 'publishdate', 'parsely-pub-date'):
+                self.add(value, 'html:' + name)
+            if name in ('article:modified_time', 'datemodified', 'lastmod'):
+                self.add(value, 'html:' + name, True)
+        if tag == 'script' and attrs.get('type', '').lower() == 'application/ld+json':
+            self.in_json, self.json_text = True, []
+
+    def handle_data(self, text):
+        if self.in_json:
+            self.json_text.append(text)
+
+    def collect_json(self, value):
+        if isinstance(value, list):
+            for item in value:
+                self.collect_json(item)
+        elif isinstance(value, dict):
+            kinds = value.get('@type', [])
+            if not isinstance(kinds, list):
+                kinds = [kinds]
+            if any(isinstance(k, str) and re.fullmatch(r'(?:https?://schema.org/)?(?:Article|NewsArticle|BlogPosting|ReportageNewsArticle)', k) for k in kinds):
+                self.articles.append(value)
+            for key in ('@graph', 'mainEntity'):
+                if key in value:
+                    self.collect_json(value[key])
+
+    def handle_endtag(self, tag):
+        if tag == 'script' and self.in_json:
+            try:
+                self.collect_json(json.loads(''.join(self.json_text)))
+            except (ValueError, TypeError):
+                pass
+            self.in_json, self.json_text = False, []
+
+    def result(self):
+        def same_page(value):
+            if isinstance(value, dict):
+                value = value.get('@id')
+            return isinstance(value, str) and urljoin(self.url, value).split('#')[0] == self.url.split('#')[0]
+        scoped = [a for a in self.articles if any(same_page(a.get(key)) for key in ('url', 'mainEntityOfPage', '@id'))]
+        relevant = scoped or (self.articles if len(self.articles) == 1 and not any(self.articles[0].get(k) for k in ('url', 'mainEntityOfPage', '@id')) else [])
+        for article in relevant:
+            self.add(article.get('datePublished'), 'jsonld:datePublished')
+            self.add(article.get('dateModified'), 'jsonld:dateModified', True)
+        def unique_date(values):
+            values = list(dict.fromkeys(values))
+            precise = [v for v in values if not v.endswith('T00:00:00Z')]
+            if len(values) == 1:
+                return values[0]
+            if values and all(v[:10] == values[0][:10] for v in values) and len(precise) == 1:
+                return precise[0]
+            return None
+        published = unique_date([c['value'] for c in self.candidates])
+        return {'publishedAt': published, 'updatedAt': unique_date(self.modified),
+                'publicationConflict': bool(self.candidates) and published is None, 'candidates': self.candidates}
+
+
 def extract(data):
     import trafilatura
     result = trafilatura.bare_extraction(data['html'], url=data['url'], include_comments=False,
                                         include_images=False, include_tables=True, with_metadata=True)
     links = ArticleLinks(data['url'])
     links.feed(data['html'])
+    dates = ArticleDates(data['url'])
+    dates.feed(data['html'])
+    date_metadata = dates.result()
     # A publisher landing page remains a listing even if the extractor finds a
     # date on its lead story. Conversely, links within a single article are
     # citations/related stories, not a recursively discoverable news inventory.
@@ -116,7 +202,9 @@ def extract(data):
     if not isinstance(result, dict):
         result = result.as_dict()
     return {'body': result.get('text', ''), 'title': result.get('title'),
-            'publishedAt': result.get('date'), 'language': result.get('language'),
+            'publishedAt': date_metadata['publishedAt'], 'updatedAt': date_metadata['updatedAt'],
+            'extractedDate': result.get('date'), 'dateMetadata': date_metadata,
+            'contentCompleteness': 'UNKNOWN', 'language': result.get('language'),
             'canonicalUrl': links.canonical, 'articleLinks': inventory,
             'pageKind': page_kind}
 

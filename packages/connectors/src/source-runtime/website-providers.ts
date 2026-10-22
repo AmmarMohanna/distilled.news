@@ -5,7 +5,8 @@ import type { SecretResolver } from './social-providers';
 import { requireProviderSuccess, type ProviderHttpPort } from './provider-http';
 import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type SourceFamily, type ProviderPage } from './provider-types';
 import {discoverWebsiteArticles} from './website-discovery';
-import { record, articleUrl, string, timestamp } from './provider-normalize';
+import { record, articleUrl, string } from './provider-normalize';
+import {readArticleDateMetadata,unreadableArticleReason} from './article-integrity';
 
 export class WebsiteSourceProvider implements SourceProvider {
   readonly families:SourceFamily[]=['website'];
@@ -69,6 +70,9 @@ export class WebsiteSourceProvider implements SourceProvider {
         continuationToken:offset+input.limit<links.length?String(offset+input.limit):undefined,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
     if(!string(result.body)||result.body.length<200)throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_EXTRACTABLE_ARTICLE'});
+    const unreadable=unreadableArticleReason(result.body);
+    if(unreadable)throw new SourceProviderError('MALFORMED',undefined,{detail:unreadable});
+    const dates=readArticleDateMetadata(html,url);
     // A homepage with no article inventory/date is not a complete news article.
     if(landing||result.pageKind==='listing')throw new SourceProviderError('MALFORMED');
     const canonical=articleUrl(string(result.canonicalUrl));
@@ -76,7 +80,7 @@ export class WebsiteSourceProvider implements SourceProvider {
     // the homepage. Cross-origin identities remain excluded as before.
     const article=canonical&&new URL(canonical).origin===new URL(url).origin&&new URL(canonical).pathname!=='/'?canonical:url;
     return {items:[{sourceItemKey:`url:${article}`,upstreamId:article,url:article,publisherId:new URL(article).hostname,title:string(result.title),body:result.body,
-      publishedAt:timestamp(result.publishedAt),language:string(result.language),representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
-      raw:new TextEncoder().encode(html),complete:Boolean(timestamp(result.publishedAt)),requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
+      publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,language:string(result.language),representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
+      raw:new TextEncoder().encode(html),complete:Boolean(dates.publishedAt),requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
   }
 }

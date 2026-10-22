@@ -774,3 +774,16 @@ it('hands discovered article URLs to durable acquisition instead of one mixed ho
  const recheck=await s.collector.collect({...r,runId:'article-recheck',recheckItemKeys:['url:https://publisher.example/articles/0']},['website_http']);
  expect(recheck.state==='HANDED_OFF'&&recheck.request.observations.map(o=>o.sourceItemKey)).toEqual(['url:https://publisher.example/articles/0']);
 });
+it('website collection preserves original publication and update dates instead of a heuristic extractor date',async()=>{
+ const html='<meta property="article:published_time" content="2026-08-31"><meta property="article:modified_time" content="2026-10-21"><article>Original article</article>';
+ const execution={execute:vi.fn(async()=>({body:'Readable scientific reporting. '.repeat(30),publishedAt:'2026-10-21',pageKind:'article'}))};
+ const provider=new WebsiteSourceProvider('website_http',feed(html),execution);
+ const result=await provider.fetch({...request,source:{family:'website',locator:'https://publisher.example/space/story'}},run);
+ expect(result.items[0]).toMatchObject({publishedAt:'2026-08-31T00:00:00.000Z',updatedAt:'2026-10-21T00:00:00.000Z',contentCompleteness:'UNKNOWN'});
+});
+it('website collection refuses encoded text even when a helper labels it a full article',async()=>{
+ const html='<article>Original article</article>',body='Readable opening paragraphs. '.repeat(15)+'QWxwaGEvYmV0YTEyMzQ1Njc4OTA='.repeat(80);
+ const execution={execute:vi.fn(async()=>({body,publishedAt:'2026-10-21',pageKind:'article',contentCompleteness:'COMPLETE'}))};
+ const provider=new WebsiteSourceProvider('website_http',feed(html),execution);
+ await expect(provider.fetch({...request,source:{family:'website',locator:'https://publisher.example/space/story'}},run)).rejects.toMatchObject({code:'MALFORMED',diagnostic:{detail:'ENCODED_ARTICLE_TEXT'}});
+});

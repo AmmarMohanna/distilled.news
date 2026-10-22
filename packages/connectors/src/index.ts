@@ -26,3 +26,5 @@ export type { SourceScope, SourceRepository, ImmutablePayloadStore, FeedHttpPort
 export type { CandidateProposal as ConnectorCandidateProposal, ConnectorBatch, ConnectorScope, Coverage as ConnectorCoverage, Checkpoint as ConnectorCheckpoint, PayloadStore, CandidateIntakePort, IntakeReceipt, CheckpointStore, HttpPort } from "./acquisition/contracts";
 
 export {extractWordpressArticle} from './source-runtime/wordpress-article';
+export {readArticleDateMetadata,unreadableArticleReason} from './source-runtime/article-integrity';
+export type {ArticleDateMetadata,ArticleDateCandidate} from './source-runtime/article-integrity';

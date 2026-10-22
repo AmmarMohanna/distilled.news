@@ -3,6 +3,7 @@ import asyncio
 import datetime
 import json
 import importlib.util
+import io
 import tempfile
 import types
 import unittest
@@ -74,6 +75,43 @@ class RuntimeTests(unittest.TestCase):
             result = runtime.extract({'url': 'https://publisher.example/', 'html': '<article><a href="/news/lead">Lead story</a></article>'})
         self.assertEqual(result['pageKind'], 'listing')
         self.assertEqual(result['articleLinks'], ['https://publisher.example/news/lead'])
+
+    def test_original_publication_wins_over_a_generic_extracted_update_date(self):
+        fake = types.SimpleNamespace(bare_extraction=lambda *args, **kwargs: {'text': 'Readable full article', 'date': '2026-10-21'})
+        page = '<meta property="article:modified_time" content="2026-10-21"><script type="application/ld+json">' + json.dumps({
+            '@type': 'NewsArticle', 'url': 'https://publisher.example/roman', 'datePublished': '2026-08-31', 'dateModified': '2026-10-21'
+        }) + '</script><article>Original reporting</article>'
+        with patch.dict('sys.modules', {'trafilatura': fake}):
+            result = runtime.extract({'url': 'https://publisher.example/roman', 'html': page})
+        self.assertEqual(result['publishedAt'], '2026-08-31T00:00:00Z')
+        self.assertEqual(result['updatedAt'], '2026-10-21T00:00:00Z')
+        self.assertEqual(result['extractedDate'], '2026-10-21')
+        self.assertFalse(result['dateMetadata']['publicationConflict'])
+        self.assertEqual(result['contentCompleteness'], 'UNKNOWN')
+
+    def test_modified_only_and_heuristic_dates_do_not_establish_publication(self):
+        fake = types.SimpleNamespace(bare_extraction=lambda *args, **kwargs: {'text': 'Readable article', 'date': '2026-10-21'})
+        with patch.dict('sys.modules', {'trafilatura': fake}):
+            result = runtime.extract({'url': 'https://publisher.example/story', 'html': '<meta itemprop="dateModified" content="2026-10-21"><article>Reporting</article>'})
+        self.assertIsNone(result['publishedAt'])
+        self.assertEqual(result['updatedAt'], '2026-10-21T00:00:00Z')
+        self.assertEqual(result['extractedDate'], '2026-10-21')
+
+    def test_conflicting_publication_metadata_stays_unresolved(self):
+        dates = runtime.ArticleDates('https://publisher.example/story')
+        dates.feed('<meta property="article:published_time" content="2026-10-21"><meta itemprop="datePublished" content="2026-08-31">')
+        result = dates.result()
+        self.assertIsNone(result['publishedAt'])
+        self.assertTrue(result['publicationConflict'])
+        self.assertEqual(len(result['candidates']), 2)
+
+    def test_related_article_and_webpage_dates_do_not_establish_publication(self):
+        dates = runtime.ArticleDates('https://publisher.example/story')
+        dates.feed('<script type="application/ld+json">' + json.dumps({'@graph': [
+            {'@type': 'NewsArticle', 'url': 'https://publisher.example/other', 'datePublished': '2026-10-21'},
+            {'@type': 'WebPage', 'datePublished': '2026-10-21'}
+        ]}) + '</script>')
+        self.assertIsNone(dates.result()['publishedAt'])
 
     def test_google_feed_cannot_be_used_as_an_arbitrary_url_proxy(self):
         for url in ['https://127.0.0.1/rss/search', 'https://news.google.com/other', 'https://user@news.google.com/rss/search', 'http://news.google.com/rss/search']:
@@ -269,7 +307,7 @@ class RuntimeTests(unittest.TestCase):
         opener.return_value.open.assert_not_called()
 
     def test_google_publisher_redirect_is_returned_without_following_it(self):
-        error = runtime.urllib.error.HTTPError('https://news.google.com/rss/articles/id', 302, 'redirect', {'Location': 'https://publisher.example/article'}, None)
+        error = runtime.urllib.error.HTTPError('https://news.google.com/rss/articles/id', 302, 'redirect', {'Location': 'https://publisher.example/article'}, io.BytesIO())
         opener = types.SimpleNamespace(open=lambda *args, **kwargs: (_ for _ in ()).throw(error))
         with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=opener):
             result = runtime.resolve_google_article({'url': 'https://news.google.com/rss/articles/id'})

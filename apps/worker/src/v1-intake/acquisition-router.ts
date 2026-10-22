@@ -7,8 +7,8 @@ import { AcquisitionFailure, type AcquisitionClaim } from './acquisition';
 import { acquiredSchema } from './evidence';
 import type { AcceptedAcquiredContent } from './types';
 import type {LanguageResolution} from '../v1-intelligence/language';
-import {resolvePublicationDate} from './publication-date';
-import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,SourceProviderError} from '@distilled/connectors';
+import {resolvePublicationDate,helperArticleDates,type PublicationDate} from './publication-date';
+import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
 
 export interface SuppliedPayload {title?:string;body:string;language?:string;languageResolution?:LanguageResolution;publishedAt?:string}
 export interface CandidateAcquisitionOptions {
@@ -32,6 +32,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
   if(o.suppliedPayloadRef && options.readPayload && !(options.preferFullArticle&&o.canonicalUrl&&['ARTICLE_EXCERPT','LISTING_RESULT','LINK_ONLY'].includes(o.representation))) {
    const payload=await options.readPayload(claim);
    if(payload) {
+    if(o.representation==='FULL_ARTICLE')requireReadableArticle(payload.body);
     const {languageResolution,...content}=payload;
     if(languageResolution && languageResolution.language!==payload.language)throw new AcquisitionFailure('INVALID_RESULT',false);
     const parsed=acquiredSchema.safeParse({...base,...content,canonicalUrl:o.canonicalUrl,representation:o.representation,contentCompleteness:o.contentCompleteness,acquisitionMethod:'supplied_payload',quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:o.contentCompleteness==='COMPLETE'},provenance:{routerVersion:'v1-existing-orchestrator',stages:['SUPPLIED'],rawPayloadRef:o.suppliedPayloadRef,languageResolution}});
@@ -59,8 +60,9 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    // A different canonical identity needs a newly observed candidate; it cannot
    // silently replace this exact item's evidence during fallback acquisition.
    if(r.canonicalUrl&&r.canonicalUrl!==o.canonicalUrl)return undefined;
-   const date=resolvePublicationDate(r.publishedAt,o.publishedAtHint);
-   return {sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:o.canonicalUrl!,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism:'private_public_http',...date}};
+   requireReadableArticle(r.body);
+   const date=resolvePublicationDate(undefined,o.publishedAtHint,helperArticleDates(r.dateMetadata),r.extractedDate??r.publishedAt);
+   return {sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:o.canonicalUrl!,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism:'private_public_http',publicationDate:date,contentCompleteness:'UNKNOWN'}};
   };
   const http=async():Promise<AcquisitionStageOutcome>=>{
    const document=options.publicGet?await options.publicGet(o.canonicalUrl!):await fetchPort.get(o.canonicalUrl!);
@@ -80,18 +82,24 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(document.status>=400) throw new AcquisitionFailure('UNSUPPORTED',false,{detail:document.status===404||document.status===410?'HTTP_NOT_FOUND':'UPSTREAM_HTTP_ERROR',httpStatus:document.status});
    if(discoverWebsiteArticles(document.body,document.url))throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'});
    // Existing extractor requires an article body and publication metadata, rather than treating 200 as extraction success.
+   const metadata=readArticleDateMetadata(document.body,document.url);
    let item=parseStructuredHtmlArticle(document.body,document.url,o.canonicalUrl!)??extractWordpressArticle(document.body,document.url,o.canonicalUrl!);
+   if(item){
+    const date=resolvePublicationDate(item.publishedAt,o.publishedAtHint,metadata);
+    item={...item,publishedAt:date.publishedAt,acquisitionEvidence:{...item.acquisitionEvidence,publicationDate:date,contentCompleteness:'COMPLETE'}};
+   }
    if(!item&&options.extractHtml){
     const extracted=await options.extractHtml(document.url,document.body);
     if(extracted&&typeof extracted==='object'&&!Array.isArray(extracted)){
-     const r=extracted as Record<string,unknown>,date=resolvePublicationDate(r.publishedAt,o.publishedAtHint);
+     const r=extracted as Record<string,unknown>,date=resolvePublicationDate(undefined,o.publishedAtHint,metadata,r.extractedDate??r.publishedAt);
      if(typeof r.body==='string'&&r.body.length>=200&&r.body.length<=500_000&&r.pageKind!=='listing')
-      item={sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:document.url,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism:'private_html_extraction',...date}};
+      item={sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:document.url,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism:'private_html_extraction',publicationDate:date,contentCompleteness:'UNKNOWN'}};
     }
    }
    let privateHttp=false;
    if(!item){item=await privateArticle();privateHttp=!!item;}
    if(!item) return {stage:'HTTP',status:'INSUFFICIENT'};
+   requireReadableArticle(item.text??'');
    return {stage:'HTTP',status:'SUCCESS',result:{items:[item],requestedWindow:request.window,effectiveWindow:request.window,acquisitionAsOf:options.now(),coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'},...(privateHttp?{provenance:{mechanism:'private_public_http'}}:{})}};
   };
   try {
@@ -103,12 +111,14 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    }
    if(items.length!==1) throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'EXPECTED_SINGLE_ARTICLE'});
    const item=items[0];
-   const publicationDate=resolvePublicationDate(item.acquisitionEvidence?.articlePublishedAt??item.publishedAt,o.publishedAtHint);
+   requireReadableArticle(item.text??'');
+   const publicationDate=(item.acquisitionEvidence?.publicationDate as PublicationDate|undefined)??resolvePublicationDate(item.publishedAt,o.publishedAtHint);
    const normalizedUrl=(value:string)=>{const u=new URL(value);u.hash='';for(const key of [...u.searchParams.keys()])if(/^utm_|^(?:fbclid|gclid)$/i.test(key))u.searchParams.delete(key);return u.href};
    if(!item.canonicalItemUrl || normalizedUrl(item.canonicalItemUrl)!==normalizedUrl(o.canonicalUrl)) throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'CANONICAL_IDENTITY_MISMATCH'});
    const stage=outcome.stages.at(-1)?.stage;
    const browserEvidence=stage==='BROWSER_WORKFLOW' || stage==='WEB_OPERATOR'?Object.fromEntries(['acceptanceId','observationId','rawArtifactRef'].filter(key=>typeof item.acquisitionEvidence?.[key]==='string').map(key=>[key,item.acquisitionEvidence[key]])):undefined;
-   const parsed=acquiredSchema.safeParse({...base,title:item.title,body:item.text,language:o.languageHint,publishedAt:publicationDate.publishedAt,canonicalUrl:item.canonicalItemUrl,resolvedUrl:item.originalSourceReference??item.canonicalItemUrl,representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',acquisitionMethod:stage==='STRUCTURED'?'platform_api':stage==='HTTP'?'direct_http':'browser',acquisitionProvider:outcome.result?.provenance?.mechanism,quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:true},provenance:{routerVersion:'v1-existing-orchestrator',stages:outcome.stages.map(s=>s.stage),publicationDate,...(browserEvidence?{browserEvidence}:{})}});
+   const completeness=item.acquisitionEvidence?.contentCompleteness==='UNKNOWN'?'UNKNOWN':'COMPLETE';
+   const parsed=acquiredSchema.safeParse({...base,title:item.title,body:item.text,language:o.languageHint,publishedAt:publicationDate.publishedAt,canonicalUrl:item.canonicalItemUrl,resolvedUrl:item.originalSourceReference??item.canonicalItemUrl,representation:'FULL_ARTICLE',contentCompleteness:completeness,acquisitionMethod:stage==='STRUCTURED'?'platform_api':stage==='HTTP'?'direct_http':'browser',acquisitionProvider:outcome.result?.provenance?.mechanism,quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:completeness==='COMPLETE'},provenance:{routerVersion:'v1-existing-orchestrator',stages:outcome.stages.map(s=>s.stage),publicationDate,...(browserEvidence?{browserEvidence}:{})}});
    if(!parsed.success) throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'ACQUIRED_CONTENT_SCHEMA'});
    return parsed.data;
   } catch(error) {
@@ -122,4 +132,8 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    throw new HandoffError('TEMPORARY_UNAVAILABLE');
   }
  };
+}
+function requireReadableArticle(body:string):void {
+ const reason=unreadableArticleReason(body);
+ if(reason)throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:reason});
 }

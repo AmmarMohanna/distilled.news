@@ -151,7 +151,7 @@ it('an anonymous private HTTP fallback retrieves an exact RSS article after a pu
  let privateCalls=0;
  const claim=(await claimAcquisition(store,jobId,now))!,url=claim.input.observation.canonicalUrl!;
  const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,fetcher:async()=>new Response('Forbidden',{status:403}),
-  publicArticle:async exact=>{privateCalls++;expect(exact).toBe(url);return {status:200,url:exact,pageKind:'article',body:'Publisher article text. '.repeat(25),title:'Decision',publishedAt:'2026-10-03T10:00:00Z'}}});
+  publicArticle:async exact=>{privateCalls++;expect(exact).toBe(url);return {status:200,url:exact,pageKind:'article',body:'Publisher article text. '.repeat(25),title:'Decision',publishedAt:'2026-10-03T10:00:00Z',dateMetadata:{publishedAt:'2026-10-03T10:00:00Z',publicationConflict:false,candidates:[{value:'2026-10-03T10:00:00Z',source:'html:article:published_time'}]}}}});
  const acquired=await router(claim);expect(privateCalls).toBe(1);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',canonicalUrl:url,publishedAt:'2026-10-03T10:00:00.000Z',acquisitionProvider:'private_public_http'});
 });
 it.each([401,429,451])('status %s never invokes the anonymous fallback',async status=>{
