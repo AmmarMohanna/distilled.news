@@ -22,6 +22,9 @@ SOURCE_SHARED_PUBLIC_FETCH_ENABLED = "true"
 SOURCE_FULL_ARTICLES_ENABLED = "true"
 SOURCE_LEGACY_POLLING_ENABLED = "false"
 PRODUCT_FEEDS_ENABLED = "true"
+BRIEFING_ENGINE = "v3"
+BRIEFING_EDITOR_MODEL = "openai/gpt-4.1"
+BRIEFING_VERIFIER_MODEL = "openai/gpt-4.1-mini"
 SOURCE_RECOMMENDATIONS_ENABLED = "false"
 # Preserve the deployed staging source/provider authorization exactly. Google
 # Apify and Zyte remain disabled; D1 grants and uncertain holds are unchanged.
@@ -32,7 +35,7 @@ SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
 V1_DOWNSTREAM_ENABLED = "true"
 V1_DOWNSTREAM_FEED_SOURCE_IDS = "staging-rss-source,staging-twitter-source"
 V1_EDITORIAL_PLAN_ENABLED = "true"
-# Default V2 for new staging publication work; retained paid contracts remain fenced.
+# Retained V2 publication work keeps its original validation contract.
 V1_PUBLICATION_VALIDATION_CONTRACT = "EVIDENCE_GROUNDED_V2"
 V1_EDITORIAL_MODEL_POLICY = "SEMANTIC"
 V1_EDITORIAL_RANKING_POLICY = "SEMANTIC"
