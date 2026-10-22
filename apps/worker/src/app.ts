@@ -577,7 +577,6 @@ export function createApp(options: AppOptions = {}) {
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : "could not create account" }, 409);
     }
-    await repo.ensureDefaultBriefing(account);
     setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, account));
     return c.json({ account: publicAccount(account) });
   });
@@ -620,7 +619,6 @@ export function createApp(options: AppOptions = {}) {
       ? result.account
       : await repo.updateAccount({ id: result.account.id, emailVerifiedAt: new Date().toISOString() });
     if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
-    await repo.ensureDefaultBriefing(verified);
     if (result.newlyConsumed) setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, verified));
     return c.json({ account: publicAccount(verified) });
   });
@@ -1478,7 +1476,8 @@ async function getOwnedBriefing(
   account: AccountRecord,
   briefingId?: string
 ): Promise<BriefingConfig | null> {
-  if (!briefingId) return repo.ensureDefaultBriefing(account);
+  // Older callers may omit the ID, but a lookup must never create a feed.
+  if (!briefingId) return repo.getBriefingBySlug(account.id, 'personal');
   const briefing = await repo.getBriefingById(briefingId);
   if (!briefing || briefing.ownerAccountId !== account.id) return null;
   return briefing;

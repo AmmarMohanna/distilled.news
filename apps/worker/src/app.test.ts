@@ -109,6 +109,7 @@ describe("worker app accounts", () => {
       }
     });
     expect(await repo.countAdmins()).toBe(1);
+    expect(await repo.listBriefings()).toEqual([]);
   });
 
   it("prevents multiple accounts for the same email and reserves usernames", async () => {
@@ -238,6 +239,13 @@ describe("worker app accounts", () => {
       env(email)
     );
     expect(verifyResponse.status).toBe(200);
+    const verifiedAccount=(await repo.getAccountByEmail('user@test.com'))!;
+    expect(await repo.listBriefings(verifiedAccount.id)).toEqual([]);
+    const sessionHeaders={cookie:verifyResponse.headers.get('set-cookie')!.split(';')[0]};
+    expect(await (await app.request('/api/me/briefings',{headers:sessionHeaders},env(email))).json()).toEqual({briefings:[]});
+    // Legacy source/health reads cannot create the old default feed either.
+    for(const path of ['/api/me/sources','/api/me/health'])expect((await app.request(path,{headers:sessionHeaders},env(email))).status).toBe(404);
+    expect(await repo.listBriefings(verifiedAccount.id)).toEqual([]);
 
     const repeatedVerifyResponse = await app.request(
       "/api/auth/verify-email",
@@ -249,6 +257,7 @@ describe("worker app accounts", () => {
       env(email)
     );
     expect(repeatedVerifyResponse.status).toBe(200);
+    expect(await repo.listBriefings(verifiedAccount.id)).toEqual([]);
     expect(await repeatedVerifyResponse.json()).toMatchObject({
       account: {
         email: "user@test.com",
@@ -319,6 +328,8 @@ describe("worker app accounts", () => {
     expect(deleted.status).toBe(200);
     const remaining = await app.request("/api/me/briefings", { headers }, env());
     expect(await remaining.json()).toEqual({ briefings: [] });
+    for(const path of ['/api/me/sources','/api/me/health'])expect((await app.request(path,{headers},env())).status).toBe(404);
+    expect(await repo.listBriefings(user.account.id)).toEqual([]);
   });
 
   it("scopes user feed management to the logged-in account", async () => {
