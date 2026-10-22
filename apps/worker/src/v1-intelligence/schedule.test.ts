@@ -69,3 +69,51 @@ it('rejects weekly and fixed offsets in new live scheduling while historical UTC
  expect(liveScheduleSchema.safeParse({durationMinutes:60,timezone:'invalid/timezone'}).success).toBe(false);
  expect(publicationWindow('WEEKLY',new Date('2026-10-04T12:00:00Z'))).toEqual({start:'2026-09-21T00:00:00.000Z',end:'2026-09-28T00:00:00.000Z',kind:'WEEKLY'});
 });
+
+it.each([30,60,120,360,720] as const)('creation-relative %i-minute windows keep the exact origin and consecutive coverage',durationMinutes=>{
+ const originAt='2026-10-22T16:05:40.123Z',schedule={durationMinutes,timezone:'Asia/Beirut',originAt};
+ let end=nextLiveBriefingAt(schedule,new Date(originAt)),previous=originAt;
+ for(let i=1;i<=6;i++){
+  expect(Date.parse(end)).toBe(Date.parse(originAt)+i*durationMinutes*60000);
+  const window=livePublicationWindow(schedule,new Date(end));
+  expect(window.start).toBe(previous);expect(window.end).toBe(end);
+  expect(publicationWindowSchema.safeParse(window).success).toBe(true);expect(isAutomaticReportingWindow(window)).toBe(true);
+  expect(publicationWindowSchema.safeParse({...window,start:new Date(Date.parse(window.start)+1).toISOString()}).success).toBe(false);
+  previous=end;end=nextLiveBriefingAt(schedule,new Date(end));
+ }
+});
+it('a 19:05 feed closes at 19:35, 20:05 and 20:35 rather than clock half-hours',()=>{
+ const schedule={durationMinutes:30 as const,timezone:'Asia/Beirut',originAt:'2026-10-22T16:05:00.000Z'};
+ let at=new Date(schedule.originAt);
+ for(const local of ['19:35','20:05','20:35']){
+  const end=nextLiveBriefingAt(schedule,at);expect(end).toBe(new Date(`2026-10-22T${local}:00+03:00`).toISOString());at=new Date(end);
+ }
+});
+it.each(['2026-03-08T06:45:40.123Z','2026-11-01T05:45:40.123Z','2026-10-22T23:45:40.123Z'])('relative elapsed intervals cross midnight and DST without resetting at %s',originAt=>{
+ const schedule={durationMinutes:30 as const,timezone:'America/New_York',originAt};
+ const first=nextLiveBriefingAt(schedule,new Date(originAt)),second=nextLiveBriefingAt(schedule,new Date(first));
+ expect(Date.parse(first)-Date.parse(originAt)).toBe(1800000);expect(Date.parse(second)-Date.parse(first)).toBe(1800000);
+ expect(livePublicationWindow(schedule,new Date(second)).start).toBe(first);
+});
+it('relative windows require their original policy and cannot predate creation',()=>{
+ const schedule={durationMinutes:30 as const,timezone:'UTC',originAt:'2026-10-22T19:05:40.000Z'};
+ const window=livePublicationWindow(schedule,new Date('2026-10-22T19:35:40Z'));
+ expect(publicationWindowSchema.safeParse({...window,originAt:undefined}).success).toBe(false);
+ expect(publicationWindowSchema.safeParse({...window,schedulePolicy:'local-calendar-anchors-v1'}).success).toBe(false);
+ expect(publicationWindowSchema.safeParse(livePublicationWindow(schedule,new Date(schedule.originAt))).success).toBe(false);
+});
+it('an origin marker does not change daily local delivery or its DST behavior',()=>{
+ const schedule={durationMinutes:1440 as const,timezone:'America/New_York',deliveryAnchor:'08:00'};
+ const now=new Date('2026-03-08T12:00:00Z');
+ const withOrigin={...schedule,originAt:'2026-03-01T19:05:40Z'};
+ expect(nextLiveBriefingAt(withOrigin,now)).toBe(nextLiveBriefingAt(schedule,now));
+ expect(livePublicationWindow(withOrigin,now)).toMatchObject(livePublicationWindow(schedule,now));
+ expect(publicationWindowSchema.safeParse(livePublicationWindow(withOrigin,now)).success).toBe(true);
+});
+
+it('the existing collection-window helper starts the new feed scan at its precise origin',async()=>{
+ const {initialCollectionStart}=await import('../connector-collection-window');
+ const {feedFixture}=await import('./test-utils');
+ const originAt='2026-10-22T16:05:40.123Z';
+ expect(initialCollectionStart({...feedFixture,createdAt:originAt,briefingSchedule:{durationMinutes:30,timezone:'Asia/Beirut',originAt}},'2026-10-22T16:06:00Z')).toBe(originAt);
+});

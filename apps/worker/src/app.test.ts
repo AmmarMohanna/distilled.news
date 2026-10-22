@@ -2306,3 +2306,31 @@ function tokenFromMessage(text: string | undefined): string {
   if (!token) throw new Error("token not found in email");
   return decodeURIComponent(token);
 }
+
+it('creates precise relative schedules and preserves their phase on title/timezone edits and interval changes',async()=>{
+ let at=new Date('2026-10-22T16:05:40.123Z');
+ const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>at});
+ const user=await createVerifiedUser(app,repo,'relative-owner@test.com','Relative Owner');
+ const original=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+ const save=async(input:Record<string,unknown>)=>{
+  const r=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify(input)},env());
+  expect(r.status).toBe(200);return (await r.json() as {briefing:import('@distilled/core').BriefingConfig}).briefing;
+ };
+ const feed=await save({...original,id:'relative-feed',slug:'relative',updateIntervalMinutes:30});
+ expect(feed.briefingScheduleOriginAt).toBe('2026-10-22T16:05:40.123Z');expect(feed.nextBriefingAt).toBe('2026-10-22T16:35:40.123Z');
+ at=new Date('2026-10-22T16:45:00Z');
+ const title=await save({...feed,title:'Renamed'});expect(title.nextBriefingAt).toBe(feed.nextBriefingAt);expect(title.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);
+ const zone=await save({...title,briefingTimezone:'America/New_York'});expect(zone.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(zone.nextBriefingAt).toBe('2026-10-22T17:05:40.123Z');
+ const hourly=await save({...zone,updateIntervalMinutes:60});
+ expect(hourly.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(hourly.nextBriefingAt).toBe('2026-10-22T17:05:40.123Z');
+ const again=await save({...hourly,title:'Renamed again'});expect(again.briefingScheduleOriginAt).toBe(hourly.briefingScheduleOriginAt);expect(again.nextBriefingAt).toBe(hourly.nextBriefingAt);
+});
+it('editing an existing clock-aligned feed does not opt it into relative scheduling',async()=>{
+ const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>new Date('2026-10-22T16:05:40Z')});
+ const user=await createVerifiedUser(app,repo,'legacy-owner@test.com','Legacy Owner');
+ const original=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+ const legacy=await repo.upsertBriefing({...original,updateIntervalMinutes:30,nextBriefingAt:'2026-10-22T17:00:00.000Z'});
+ const r=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...legacy,title:'Still legacy'})},env());
+ expect(r.status).toBe(200);expect((await r.json() as any).briefing).toMatchObject({nextBriefingAt:legacy.nextBriefingAt});
+ expect((await repo.getBriefingById(original.id))?.briefingScheduleOriginAt).toBeUndefined();
+});

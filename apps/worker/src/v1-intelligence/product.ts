@@ -4,15 +4,29 @@ import type {IntakeScope} from '../v1-intake/types';
 import {productConnectorSource} from '../connector-source';
 import {V1FeedStore} from './store';
 import type {FeedRecord} from './types';
-import {liveScheduleSchema,type LiveSchedule} from './schedule';
+import {liveScheduleSchema,livePublicationWindow,nextLiveBriefingAt,type LiveSchedule} from './schedule';
 
-const PRODUCT_SQL=`SELECT json_object('sourceId',s.id,'feedId',b.id,'ownerId',b.owner_account_id,'sourceTitle',s.title,'sourceKind',s.kind,'provider',s.provider,'sourceUrl',s.source_url,'input',s.input,'actorId',s.actor_id,'enabled',s.enabled,'feedTitle',b.title,'interests',b.interest_profile,'language',b.language,'paused',b.paused,'cadence',b.briefing_cadence,'liveInterval',b.v1_briefing_interval_minutes,'timezone',b.briefing_timezone,'deliveryAnchor',b.briefing_time_of_day,'createdAt',b.created_at,'accountDisabled',a.disabled_at) AS json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=?`;
-interface ProductRow {sourceId:string;feedId:string;ownerId:string;sourceTitle:string;sourceKind:string;provider:string;sourceUrl:string|null;input:string|null;actorId:string|null;enabled:number;feedTitle:string;interests:string;language:string;paused:number;cadence:string;liveInterval:number|null;timezone:string;deliveryAnchor:string|null;createdAt:string;accountDisabled:string|null}
+const PRODUCT_SQL=`SELECT json_patch(json_object('sourceId',s.id,'feedId',b.id,'ownerId',b.owner_account_id,'sourceTitle',s.title,'sourceKind',s.kind,'provider',s.provider,'sourceUrl',s.source_url,'input',s.input,'actorId',s.actor_id,'enabled',s.enabled,'feedTitle',b.title,'interests',b.interest_profile,'language',b.language,'paused',b.paused,'cadence',b.briefing_cadence,'liveInterval',b.v1_briefing_interval_minutes,'timezone',b.briefing_timezone,'deliveryAnchor',b.briefing_time_of_day,'createdAt',b.created_at,'accountDisabled',a.disabled_at),CASE WHEN b.briefing_schedule_origin_at IS NULL THEN '{}' ELSE json_object('originAt',b.briefing_schedule_origin_at) END) AS json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=?`;
+interface ProductRow {sourceId:string;feedId:string;ownerId:string;sourceTitle:string;sourceKind:string;provider:string;sourceUrl:string|null;input:string|null;actorId:string|null;enabled:number;feedTitle:string;interests:string;language:string;paused:number;cadence:string;liveInterval:number|null;timezone:string;deliveryAnchor:string|null;createdAt:string;originAt?:string;accountDisabled:string|null}
 export interface CanonicalSource {id:string;type:'rss'|'google_news'|'telegram'|'x_profile'|'x_search'|'linkedin_company'|'linkedin_profile';displayName:string;canonicalUrl:string;connectorType:'rss'|'google_news'|'telegram'|'x_profile'|'x_search'|'linkedin_company'|'linkedin_profile';verificationStatus:'VERIFIED';createdAt:string}
+/** An edit must not skip closes Cron never recorded. Retained requests own the
+ * old coverage; the edited cadence takes over immediately after that coverage. */
+export async function editedRelativeOrigin(db:D1Database|undefined,feedId:string,originAt:string,previous:LiveSchedule,now:Date):Promise<string>{
+ if(!db)return originAt;
+ const closed=livePublicationWindow(previous,now).end;
+ const row=await db.prepare(`SELECT json_extract(json,'$.window.end') AS end FROM v1_feed_documents
+ WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.window.durationMinutes')=?
+ AND json_extract(json,'$.window.originAt') IS ? AND julianday(json_extract(json,'$.window.end'))<=julianday(?)
+ ORDER BY julianday(json_extract(json,'$.window.end')) DESC LIMIT 1`)
+ .bind(feedId,previous.durationMinutes,previous.originAt??null,closed).first<{end:string}>();
+ return new Date(Math.max(Date.parse(originAt),Date.parse(row?.end??originAt))).toISOString();
+}
 /** Trusted bridge from an already user-approved product source. No source discovery or approval bypass. */
 export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:string,requestedSchedule?:LiveSchedule):Promise<{feed:FeedRecord;scope:IntakeScope;source:CanonicalSource}> {
  if(!Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
  if(requestedSchedule && !liveScheduleSchema.safeParse(requestedSchedule).success) throw new HandoffError('INVALID_REQUEST');
+ // Re-enrollment cannot supply a new phase; feed creation/edits own it.
+ if(requestedSchedule?.originAt!==undefined)throw new HandoffError('INVALID_REQUEST');
  for(let attempt=0;attempt<8;attempt++) {
   const row=await db.prepare(PRODUCT_SQL).bind(id).first<{json:string}>();if(!row) throw new HandoffError('SCOPE_DENIED');
   const p=JSON.parse(row.json) as ProductRow;
@@ -35,11 +49,16 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
   if(existingFeed?.deletedAt || existingScope?.deletedAt) throw new HandoffError('SCOPE_DENIED');
   if(existingFeed && existingFeed.ownerId!==ownerId || existingScope && (existingScope.sourceId!==sourceId || existingScope.feedId!==p.feedId) || binding && binding.source_id!==sourceId) throw new HandoffError('IDEMPOTENCY_CONFLICT');
   if(requestedSchedule && (p.liveInterval!==requestedSchedule.durationMinutes || p.timezone!==requestedSchedule.timezone || p.deliveryAnchor!==(requestedSchedule.deliveryAnchor??'00:00'))) {
-   await db.prepare(`UPDATE briefings SET v1_briefing_interval_minutes=?,briefing_timezone=?,briefing_time_of_day=?,briefing_cadence=?,updated_at=? WHERE id=? AND owner_account_id=? AND (${PRODUCT_SQL})=?`).bind(requestedSchedule.durationMinutes,requestedSchedule.timezone,requestedSchedule.deliveryAnchor??'00:00',requestedSchedule.durationMinutes===1440?'daily':'hourly',now,p.feedId,ownerId,id,row.json).run();
+   let originAt=p.originAt;
+   if(originAt&&p.liveInterval&&p.liveInterval!==requestedSchedule.durationMinutes){
+    originAt=await editedRelativeOrigin(db,p.feedId,originAt,{durationMinutes:p.liveInterval as LiveSchedule['durationMinutes'],timezone:p.timezone,deliveryAnchor:p.deliveryAnchor??'00:00',...(p.liveInterval<1440?{originAt}:{})},new Date(now));
+   }
+   const next=originAt&&requestedSchedule.durationMinutes<1440?nextLiveBriefingAt({...requestedSchedule,originAt},new Date(now)):null;
+   await db.prepare(`UPDATE briefings SET v1_briefing_interval_minutes=?,briefing_timezone=?,briefing_time_of_day=?,briefing_cadence=?,updated_at=?,briefing_schedule_origin_at=?,next_briefing_at=COALESCE(?,next_briefing_at) WHERE id=? AND owner_account_id=? AND (${PRODUCT_SQL})=?`).bind(requestedSchedule.durationMinutes,requestedSchedule.timezone,requestedSchedule.deliveryAnchor??'00:00',requestedSchedule.durationMinutes===1440?'daily':'hourly',now,originAt??null,next,p.feedId,ownerId,id,row.json).run();
    continue; // re-read the guarded product configuration and trigger fences
   }
   const duration=p.liveInterval??(p.cadence==='hourly'?60:p.cadence==='daily'?1440:undefined);
-  const parsedSchedule=duration===undefined?undefined:liveScheduleSchema.safeParse({durationMinutes:duration,timezone:p.timezone,deliveryAnchor:p.deliveryAnchor??'00:00'});
+  const parsedSchedule=duration===undefined?undefined:liveScheduleSchema.safeParse({durationMinutes:duration,timezone:p.timezone,deliveryAnchor:p.deliveryAnchor??'00:00',...(duration<1440&&p.originAt?{originAt:p.originAt}:{})});
   if(parsedSchedule && !parsedSchedule.success) throw new HandoffError('INVALID_REQUEST');
   const definition={title:p.feedTitle,interests:[p.interests],geography:[],outputLanguage:p.language,briefingFrequency:p.cadence.toUpperCase() as FeedRecord['briefingFrequency'],briefingSchedule:parsedSchedule?.success?parsedSchedule.data:undefined,paused:false};
   const unchanged=existingFeed && canonicalJson(Object.fromEntries(Object.keys(definition).map(k=>[k,existingFeed[k as keyof FeedRecord]])))===canonicalJson(definition);

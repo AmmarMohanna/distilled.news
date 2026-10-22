@@ -79,3 +79,36 @@ it('approved source identity changes cannot silently rebind an existing FeedSour
  await expect(enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now())).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
  await expect(new V1IntakeStore(ctx.db).snapshot('feed-source-1')).rejects.toMatchObject({code:'SCOPE_DENIED'});
 });
+
+it('persists and synchronizes a creation-relative origin without changing legacy enrollment identities',async()=>{
+ const {D1Repository}=await import('../repository');
+ const repo=new D1Repository(ctx.db),legacy=(await repo.getBriefingById('feed-1'))!;
+ const before=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());
+ const binding=await ctx.db.prepare("SELECT configuration FROM v1_product_bindings WHERE feed_source_id='feed-source-1'").first<{configuration:string}>();
+ expect(JSON.parse(binding!.configuration)).not.toHaveProperty('originAt');
+ await synchronizeV1ProductSource(ctx.db,'feed-source-1','2026-10-03T12:05:00Z');
+ expect(await new V1FeedStore(ctx.db).getFeed('feed-1')).toEqual(before.feed);
+ const originAt='2026-10-03T12:05:40.123Z';
+ await repo.upsertBriefing({...legacy,updateIntervalMinutes:30,briefingScheduleOriginAt:originAt},new Date(originAt));
+ const saved=(await new D1Repository(ctx.db).getBriefingById('feed-1'))!;expect(saved.briefingScheduleOriginAt).toBe(originAt);
+ const enrolled=await enrollV1Source(ctx.db,'feed-source-1','owner-1',originAt);
+ expect(enrolled.feed.briefingSchedule).toMatchObject({durationMinutes:30,originAt});
+ await expect(enrollV1Source(ctx.db,'feed-source-1','owner-1',originAt,{durationMinutes:30,timezone:legacy.briefingTimezone,originAt:'2026-10-03T12:06:00Z'})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ await synchronizeV1ProductSource(ctx.db,'feed-source-1','2026-10-03T12:35:40.123Z');
+ expect(await new V1FeedStore(ctx.db).getFeed('feed-1')).toEqual(enrolled.feed);
+ const {livePublicationWindow}=await import('./schedule');
+ const closed=livePublicationWindow(enrolled.feed.briefingSchedule!,new Date('2026-10-03T12:35:40.123Z'));
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','retained-close','feed-1',?)").bind(JSON.stringify({id:'retained-close',window:closed,state:'PENDING',attempts:1})).run();
+ const changed=await enrollV1Source(ctx.db,'feed-source-1','owner-1','2026-10-03T12:45:00Z',{durationMinutes:60,timezone:legacy.briefingTimezone});
+ expect(changed.feed.briefingSchedule).toMatchObject({durationMinutes:60,originAt:'2026-10-03T12:35:40.123Z'});
+});
+
+it('an interval edit before any recorded close retains unprocessed coverage from creation',async()=>{
+ const originAt='2026-10-03T12:05:40.123Z';
+ await ctx.db.prepare("UPDATE briefings SET v1_briefing_interval_minutes=120,briefing_schedule_origin_at=? WHERE id='feed-1'").bind(originAt).run();
+ await enrollV1Source(ctx.db,'feed-source-1','owner-1',originAt);
+ const changed=await enrollV1Source(ctx.db,'feed-source-1','owner-1','2026-10-03T15:00:00Z',{durationMinutes:30,timezone:'UTC'});
+ expect(changed.feed.briefingSchedule).toMatchObject({durationMinutes:30,originAt});
+ const {D1Repository}=await import('../repository');
+ expect((await new D1Repository(ctx.db).getBriefingById('feed-1'))?.nextBriefingAt).toBe('2026-10-03T15:05:40.123Z');
+});
