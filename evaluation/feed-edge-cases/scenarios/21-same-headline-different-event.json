@@ -1,0 +1,33 @@
+{
+  "id": "21-same-headline-different-event",
+  "title": "Two different matches with the same headline in consecutive windows",
+  "cases": ["A8"],
+  "feed": "football",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 2,
+  "notes": "United beat Rovers 2-1 twice: a league match on Saturday (W1) and a cup quarter-final on Wednesday (W2). The headline is word for word the same. They are different events, so W2 must publish its own story.",
+  "sources": [
+    {"key": "selin-sports", "type": "rss", "publisher": "selin-sports"}
+  ],
+  "items": [
+    {
+      "id": "league-match",
+      "source": "selin-sports",
+      "appearsAt": "W1+8m",
+      "title": "Port Selin United beat Harbour Rovers 2-1",
+      "body": "Port Selin United beat Harbour Rovers 2-1 in the league on Saturday at the Selin Arena. Teodor Vasque scored both United goals, the second a penalty in the 78th minute, after Rovers had led through Amin Dall.\n\nThe win lifts United to second in the table, three points behind Ardena City. Coach Jonas Riel said his team \"showed patience\"."
+    },
+    {
+      "id": "cup-match",
+      "source": "selin-sports",
+      "appearsAt": "W2+8m",
+      "title": "Port Selin United beat Harbour Rovers 2-1",
+      "body": "Port Selin United beat Harbour Rovers 2-1 on Wednesday to reach the semi-finals of the Calvera Cup. Defender Luka Morr headed the winner in extra time after Kiro Abend had equalised for Rovers late in normal time; Ivo Stahl had put United ahead.\n\nUnited will face Orlan FC in the semi-final next month. It was the second meeting between the clubs in five days."
+    }
+  ],
+  "checks": [
+    {"type": "notDuplicate", "item": "cup-match", "of": "league-match", "cases": ["A8"]},
+    {"type": "separateStories", "items": ["league-match", "cup-match"], "cases": ["A8"]},
+    {"type": "edition", "window": 2, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["semi-final"], "cases": ["A8"]}
+  ]
+}

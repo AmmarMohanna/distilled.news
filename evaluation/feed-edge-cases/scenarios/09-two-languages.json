@@ -1,0 +1,36 @@
+{
+  "id": "09-two-languages",
+  "title": "The same news in English (RSS) and Arabic (Telegram), each with one fact the other lacks",
+  "cases": ["B7"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 1,
+  "notes": "Only the English article has the 2.5-hour crossing time. Only the Arabic post has the 15-calver ticket price. One story should carry both.",
+  "sources": [
+    {"key": "herald", "type": "rss", "publisher": "herald"},
+    {"key": "tg-wasat", "type": "telegram", "publisher": "wasat", "handle": "wasat_calvera_test"}
+  ],
+  "items": [
+    {
+      "id": "ferry-en",
+      "source": "herald",
+      "appearsAt": "W1+6m",
+      "title": "Ferry link between Port Selin and Isla Mar to start Monday",
+      "body": "A new ferry service between Port Selin and the island of Isla Mar will start on Monday, the transport ministry said.\n\nTwo ships will make four return crossings a day, taking about 2.5 hours each way. Until now, islanders have relied on a weekly cargo boat and a small airport that closes in bad weather.\n\nThe ministry said the service would be reviewed after six months."
+    },
+    {
+      "id": "ferry-ar",
+      "source": "tg-wasat",
+      "appearsAt": "W1+13m",
+      "lang": "ar",
+      "guid": "wasat_calvera_test/4412",
+      "url": "https://t.me/wasat_calvera_test/4412",
+      "title": "",
+      "body": "عاجل | وزارة النقل: انطلاق خط العبّارات بين بورت سيلين وجزيرة إيسلا مار يوم الاثنين المقبل.\n\nسفينتان ستقومان بأربع رحلات ذهاب وإياب يومياً، وسعر التذكرة 15 كالفر للبالغين ومجانية للأطفال دون السادسة.\n\nكان سكان الجزيرة يعتمدون حتى الآن على سفينة شحن أسبوعية ومطار صغير يُغلق عند سوء الأحوال الجوية."
+    }
+  ],
+  "checks": [
+    {"type": "sameStory", "items": ["ferry-en", "ferry-ar"], "cases": ["B7"]},
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["2.5", "15"], "cases": ["B7"]}
+  ]
+}

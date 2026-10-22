@@ -1,0 +1,45 @@
+{
+  "id": "04-storyline-three-windows",
+  "title": "Fuel subsidy bill moves from proposal to vote to signature over three windows",
+  "cases": ["A7", "B4"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 3,
+  "notes": "All three articles carry the same long background paragraph word for word (B4). Only the first paragraph changes the development phase: proposed, approved by parliament, signed. Each window should report its own step once (A7).",
+  "sources": [
+    {"key": "herald", "type": "rss", "publisher": "herald"},
+    {"key": "cpa", "type": "rss", "publisher": "cpa"}
+  ],
+  "items": [
+    {
+      "id": "subsidy-proposed",
+      "source": "herald",
+      "appearsAt": "W1+7m",
+      "title": "Cabinet proposes phasing out fuel subsidies by 2028",
+      "body": "The cabinet on Monday approved a draft law that would phase out fuel subsidies over three years, starting with a 20 percent cut in January. The bill now goes to parliament.\n\nFuel subsidies cost the state about 1.9 billion calvers last year, roughly 6 percent of public spending. They keep the pump price of diesel at 1.10 calvers a litre, well below neighbouring countries, and have been blamed for smuggling across the Kesh border. The International Monetary Fund has urged Calvera to replace them with cash transfers to poorer households, and two earlier attempts at reform, in 2019 and 2022, were withdrawn after protests by farmers and taxi drivers.\n\nFinance Minister Daria Kovan said a monthly payment of 40 calvers would go to 600,000 low-income families to soften the impact."
+    },
+    {
+      "id": "subsidy-approved",
+      "source": "cpa",
+      "appearsAt": "W2+10m",
+      "title": "Parliament approves fuel subsidy phase-out, 81 votes to 64",
+      "body": "Parliament on Tuesday approved the government's bill to phase out fuel subsidies by 2028, by 81 votes to 64. The law now needs President Aurel Vance's signature.\n\nFuel subsidies cost the state about 1.9 billion calvers last year, roughly 6 percent of public spending. They keep the pump price of diesel at 1.10 calvers a litre, well below neighbouring countries, and have been blamed for smuggling across the Kesh border. The International Monetary Fund has urged Calvera to replace them with cash transfers to poorer households, and two earlier attempts at reform, in 2019 and 2022, were withdrawn after protests by farmers and taxi drivers.\n\nDeputies added an amendment exempting fishing boats from the first year of cuts."
+    },
+    {
+      "id": "subsidy-signed",
+      "source": "herald",
+      "appearsAt": "W3+6m",
+      "title": "President Vance signs fuel subsidy law",
+      "body": "President Aurel Vance signed the fuel subsidy law on Wednesday, so the first 20 percent cut will take effect on 1 January as planned.\n\nFuel subsidies cost the state about 1.9 billion calvers last year, roughly 6 percent of public spending. They keep the pump price of diesel at 1.10 calvers a litre, well below neighbouring countries, and have been blamed for smuggling across the Kesh border. The International Monetary Fund has urged Calvera to replace them with cash transfers to poorer households, and two earlier attempts at reform, in 2019 and 2022, were withdrawn after protests by farmers and taxi drivers.\n\nThe taxi drivers' association said it would hold a protest in Port Selin on Saturday."
+    }
+  ],
+  "checks": [
+    {"type": "notDuplicate", "item": "subsidy-approved", "of": "subsidy-proposed", "cases": ["B4"]},
+    {"type": "notDuplicate", "item": "subsidy-signed", "of": "subsidy-approved", "cases": ["B4"]},
+    {"type": "sameStory", "items": ["subsidy-proposed", "subsidy-approved", "subsidy-signed"], "level": "storyline", "cases": ["A7"]},
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["20 percent"], "cases": ["A7"]},
+    {"type": "edition", "window": 2, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["81"], "cases": ["A7"]},
+    {"type": "edition", "window": 3, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["signed"], "mustNotMention": ["81 votes"], "cases": ["A7"]},
+    {"type": "notRetold", "item": "subsidy-signed", "window": 3, "except": ["signed", "1 January", "protest"], "cases": ["A7"]}
+  ]
+}

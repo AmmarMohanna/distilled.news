@@ -1,0 +1,51 @@
+{
+  "note": "Everything here is fictional. Calvera, its people, outlets and companies do not exist, so a test feed that publishes on QA can never be mistaken for real news.",
+  "setting": {
+    "country": "Republic of Calvera",
+    "capital": "Port Selin",
+    "otherPlaces": ["Ardena", "the Vell river", "Kesh province", "Harbour district"],
+    "people": {
+      "Aurel Vance": "President of Calvera",
+      "Daria Kovan": "Finance Minister",
+      "Teo Marsh": "Labour Minister",
+      "Ilse Brandt": "leader of the Port Workers Union",
+      "Piet Lund": "Governor of the Central Bank of Calvera",
+      "Mara Okafor": "chief executive of Lumen Grid",
+      "Jonas Riel": "head coach of Port Selin United"
+    },
+    "organisations": {
+      "Lumen Grid": "Calveran cloud and AI infrastructure company",
+      "Port Selin United": "football club",
+      "Harbour Rovers": "rival football club",
+      "Port Workers Union": "dockworkers' union"
+    }
+  },
+  "publishers": {
+    "herald": {"name": "Calvera Herald", "home": "https://herald.calvera.example"},
+    "selin-daily": {"name": "Selin Daily", "home": "https://selindaily.calvera.example"},
+    "ardena-post": {"name": "Ardena Post", "home": "https://ardenapost.calvera.example"},
+    "cpa": {"name": "Calvera Press Agency", "home": "https://cpa.calvera.example"},
+    "tech-review": {"name": "Northshore Tech Review", "home": "https://northshore.example"},
+    "wasat": {"name": "Al-Wasat Calvera", "home": "https://t.me/s/wasat_calvera_test"},
+    "selin-now": {"name": "Selin Now", "home": "https://t.me/s/selin_now_test"},
+    "calvera-alerts": {"name": "Calvera Alerts", "home": "https://t.me/s/calvera_alerts_test"},
+    "lumen-grid": {"name": "Lumen Grid", "home": "https://lumengrid.example"},
+    "selin-reporter": {"name": "Nadia Holm (@selin_reporter)", "home": "https://x.com/selin_reporter_test"},
+    "selin-sports": {"name": "Selin Sports", "home": "https://sports.calvera.example"},
+    "google-news": {"name": "Google News", "home": "https://news.google.com"}
+  },
+  "feeds": {
+    "politics": {
+      "title": "[TEST] Calvera politics and economy",
+      "description": "TEST FEED with fictional sources. Politics, labour, economy and public safety in the Republic of Calvera."
+    },
+    "tech": {
+      "title": "[TEST] Calvera tech",
+      "description": "TEST FEED with fictional sources. Calveran technology companies, AI infrastructure and the tech job market."
+    },
+    "football": {
+      "title": "[TEST] Port Selin football",
+      "description": "TEST FEED with fictional sources. Port Selin United and the Calveran football league."
+    }
+  }
+}

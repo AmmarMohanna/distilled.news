@@ -1,0 +1,34 @@
+{
+  "id": "05-sources-disagree",
+  "title": "Ministry and union give very different turnout figures for the same strike",
+  "cases": ["B5"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 1,
+  "notes": "Each outlet leads with one side's figure. The story must keep both figures, each attributed, and must not present either as the true number.",
+  "sources": [
+    {"key": "herald", "type": "rss", "publisher": "herald"},
+    {"key": "ardena-post", "type": "rss", "publisher": "ardena-post"}
+  ],
+  "items": [
+    {
+      "id": "teachers-ministry",
+      "source": "herald",
+      "appearsAt": "W1+6m",
+      "title": "Ministry says 2,000 teachers joined strike, most schools open",
+      "body": "About 2,000 teachers took part in Tuesday's national strike, the Education Ministry said, and more than 90 percent of state schools opened as normal.\n\nA ministry spokesperson said the strike had \"limited impact\" outside Port Selin and Ardena. The ministry did not say how it counted strikers.\n\nThe teachers' union is demanding that a promised 6 percent pay rise be paid from September rather than next April."
+    },
+    {
+      "id": "teachers-union",
+      "source": "ardena-post",
+      "appearsAt": "W1+14m",
+      "title": "Union: 9,000 teachers strike, hundreds of schools shut",
+      "body": "More than 9,000 teachers stayed away from classrooms on Tuesday, the National Teachers' Union said, forcing about 300 schools to close or send pupils home.\n\nUnion secretary Lena Roos said the turnout showed \"how angry teachers are\" about the delay to a promised 6 percent pay rise, which the government plans to pay from next April instead of September.\n\nThe union said it would decide next week whether to call a second strike day. The Education Ministry gave a much lower figure for participation."
+    }
+  ],
+  "checks": [
+    {"type": "sameStory", "items": ["teachers-ministry", "teachers-union"], "cases": ["B5"]},
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "stories": 1, "mustMention": ["2,000", "9,000"], "cases": ["B5"]},
+    {"type": "attributed", "window": 1, "figures": {"2,000": "ministry", "9,000": "union"}, "cases": ["B5"]}
+  ]
+}

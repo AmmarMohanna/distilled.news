@@ -1,0 +1,34 @@
+{
+  "id": "13-only-story-rejected",
+  "title": "The window's only story has a headline its body does not support",
+  "cases": ["C7"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 2,
+  "run": {"tier1": {"forceVerifierReject": ["tax-headline-overreach"]}},
+  "notes": "The headline claims a confirmed 40 percent tax cut, but the body only says the ministry is studying options. On QA the verifier should reject a story built on the headline; in the local replay the stub verifier rejects it on purpose. W1 must settle DEFERRED (not FAILED). W2 brings a supported follow-up so the carried-forward window can publish.",
+  "sources": [
+    {"key": "herald", "type": "rss", "publisher": "herald"}
+  ],
+  "items": [
+    {
+      "id": "tax-headline-overreach",
+      "source": "herald",
+      "appearsAt": "W1+8m",
+      "title": "Ministry confirms 40 percent cut in small business tax",
+      "body": "The Finance Ministry is studying options to lower the tax paid by small businesses, a ministry official said on Monday.\n\nThe official did not give figures and said no decision would be made before the budget debate. Business groups have asked for the rate, now 22 percent, to be reduced.\n\n\"Everything is on the table,\" the official said."
+    },
+    {
+      "id": "tax-follow-up",
+      "source": "herald",
+      "appearsAt": "W2+9m",
+      "title": "Finance minister rules out small business tax cut this year",
+      "body": "Finance Minister Daria Kovan said on Tuesday there would be no cut in the small business tax rate in next year's budget, which stays at 22 percent.\n\nKovan said the ministry would instead simplify filing for firms with fewer than ten employees. Business groups said they were disappointed."
+    }
+  ],
+  "checks": [
+    {"type": "deferred", "window": 1, "result": "DEFERRED", "notFailed": true, "cases": ["C7"]},
+    {"type": "edition", "window": 1, "outcome": "QUIET", "cases": ["C7"]},
+    {"type": "edition", "window": 2, "outcome": "PUBLISHED", "mustMention": ["22 percent"], "mustNotMention": ["40 percent cut"], "cases": ["C7"]}
+  ]
+}

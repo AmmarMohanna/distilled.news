@@ -1,0 +1,44 @@
+{
+  "id": "12-old-and-undated",
+  "title": "A three-day-old article shows up now, and an article has no date at all",
+  "cases": ["C3", "C4"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 1,
+  "notes": "old-article is dated 3 days before W1 but first listed in W1 (C3): it must not hold the window and, if used, needs time framing. undated has no pubDate (C4): treat as current, not old. fresh-anchor is a normal current item so W1 has something ordinary to publish.",
+  "sources": [
+    {"key": "ardena-post", "type": "rss", "publisher": "ardena-post"}
+  ],
+  "items": [
+    {
+      "id": "old-article",
+      "source": "ardena-post",
+      "publishedAt": "W1-3d",
+      "appearsAt": "W1+4m",
+      "title": "Ardena mayor announces plan for river park",
+      "body": "Ardena's mayor, Sofi Lind, on Saturday announced a plan to turn four kilometres of disused riverbank into a public park by 2029. The first section, near the old tannery, would open in 2027. The plan still needs approval from the regional council."
+    },
+    {
+      "id": "undated",
+      "source": "ardena-post",
+      "publishedAt": null,
+      "appearsAt": "W1+9m",
+      "title": "Ardena water supply restored after main burst",
+      "body": "Water supply has been restored to about 12,000 homes in eastern Ardena after a main burst under Station Road, the city water company said. Residents were told to run taps for two minutes before drinking the water."
+    },
+    {
+      "id": "fresh-anchor",
+      "source": "ardena-post",
+      "appearsAt": "W1+14m",
+      "title": "Ardena airport adds winter flights to two capitals",
+      "body": "Ardena airport will add weekly flights to two foreign capitals from December, the airport operator said on Tuesday. The routes will run until the end of March."
+    }
+  ],
+  "checks": [
+    {"type": "windowNotHeld", "window": 1, "by": ["old-article"], "cases": ["C3"]},
+    {"type": "freshness", "item": "old-article", "state": "STALE", "cases": ["C3"]},
+    {"type": "timeFramed", "item": "old-article", "window": 1, "ifUsed": true, "cases": ["C3"]},
+    {"type": "freshness", "item": "undated", "state": "UNKNOWN", "cases": ["C4"]},
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "mustMention": ["12,000"], "cases": ["C4"]}
+  ]
+}

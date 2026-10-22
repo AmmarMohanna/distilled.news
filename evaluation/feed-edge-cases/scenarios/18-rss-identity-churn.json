@@ -1,0 +1,54 @@
+{
+  "id": "18-rss-identity-churn",
+  "title": "A feed that mints new guids on every fetch, and a guid-less item whose link gains tracking parameters",
+  "cases": ["D1", "D2"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 2,
+  "notes": "broken-feed uses guidPolicy per-fetch: each poll returns the same items under fresh guids (D1). In W2 nothing is new there, so dedupe must happen at feed level. The Ardena Post item has no guid, so its key is the link; in W2 the feed starts adding utm parameters to that link (D2).",
+  "sources": [
+    {"key": "broken-feed", "type": "rss", "publisher": "selin-daily", "name": "Selin Daily (broken feed)", "guidPolicy": "per-fetch"},
+    {"key": "ardena-post", "type": "rss", "publisher": "ardena-post"}
+  ],
+  "items": [
+    {
+      "id": "churn-1",
+      "source": "broken-feed",
+      "appearsAt": "W1+5m",
+      "title": "Port Selin to ban cars from old town on Sundays",
+      "body": "Cars will be banned from Port Selin's old town on Sundays from next spring, the city council decided on Monday. Residents and delivery vans will get permits. Shops in the area have asked for more parking at the edge of the zone."
+    },
+    {
+      "id": "churn-2",
+      "source": "broken-feed",
+      "appearsAt": "W1+9m",
+      "title": "Selin Daily poll: 58 percent back new metro line",
+      "body": "A Selin Daily poll of 1,000 residents found 58 percent support for a second metro line to the airport, and 31 percent against. The city will decide on the route next year."
+    },
+    {
+      "id": "utm-plain",
+      "source": "ardena-post",
+      "appearsAt": "W1+7m",
+      "guid": null,
+      "url": "{base}/scenarios/18-rss-identity-churn/articles/utm-plain",
+      "title": "Ardena opens first public EV charging hub",
+      "body": "Ardena's first public charging hub for electric cars opened on Monday with 16 fast chargers at the central car park. The city plans four more hubs by 2027."
+    },
+    {
+      "id": "utm-tracked",
+      "source": "ardena-post",
+      "appearsAt": "W2+2m",
+      "editOf": "utm-plain",
+      "variantOf": "utm-plain",
+      "guid": null,
+      "url": "{base}/scenarios/18-rss-identity-churn/articles/utm-plain?utm_source=rss&utm_medium=feed&utm_campaign=ardena",
+      "change": "Same article; the feed now adds tracking parameters to the link."
+    }
+  ],
+  "checks": [
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "stories": 3, "cases": ["D1", "D2"]},
+    {"type": "duplicateOf", "item": "churn-1", "of": "churn-1", "atFetch": 2, "cases": ["D1"]},
+    {"type": "duplicateOf", "item": "utm-tracked", "of": "utm-plain", "cases": ["D2"]},
+    {"type": "edition", "window": 2, "outcome": "QUIET", "cases": ["D1", "D2"]}
+  ]
+}

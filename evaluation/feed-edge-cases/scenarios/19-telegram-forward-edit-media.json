@@ -1,0 +1,87 @@
+{
+  "id": "19-telegram-forward-edit-media",
+  "title": "Telegram forward across channels, an edited message and a photo-only post",
+  "cases": ["D4", "D5", "D6"],
+  "feed": "politics",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 2,
+  "notes": "Calvera Alerts forwards Selin Now's message word for word (D4). Selin Now edits its power-cut post in W2 from 3,000 to 30,000 homes, and separately fixes an emoji in another post (D5). A photo post with one line and no fact should not become a story (D6).",
+  "sources": [
+    {"key": "tg-selin-now", "type": "telegram", "publisher": "selin-now", "handle": "selin_now_test"},
+    {"key": "tg-alerts", "type": "telegram", "publisher": "calvera-alerts", "handle": "calvera_alerts_test"}
+  ],
+  "items": [
+    {
+      "id": "tg-original",
+      "source": "tg-selin-now",
+      "appearsAt": "W1+5m",
+      "guid": "selin_now_test/812",
+      "url": "https://t.me/selin_now_test/812",
+      "title": "",
+      "body": "Port authority: container terminal B reopens tomorrow 6am after the crane collapse. Terminal A stays limited to one berth until Friday."
+    },
+    {
+      "id": "tg-forward",
+      "source": "tg-alerts",
+      "appearsAt": "W1+8m",
+      "variantOf": "tg-original",
+      "guid": "calvera_alerts_test/9050",
+      "url": "https://t.me/calvera_alerts_test/9050",
+      "forwardedFrom": "selin_now_test/812",
+      "change": "Forwarded copy in a second channel."
+    },
+    {
+      "id": "power-cut",
+      "source": "tg-selin-now",
+      "appearsAt": "W1+12m",
+      "guid": "selin_now_test/815",
+      "url": "https://t.me/selin_now_test/815",
+      "title": "",
+      "body": "⚡ Power cut in the Harbour district, about 3,000 homes without electricity. Grid operator says a substation fault, repair crews on site."
+    },
+    {
+      "id": "power-cut-edited",
+      "source": "tg-selin-now",
+      "appearsAt": "W2+4m",
+      "editOf": "power-cut",
+      "variantOf": "power-cut",
+      "change": "Material edit: 3,000 becomes 30,000 homes.",
+      "edits": [{"find": "about 3,000 homes", "replace": "about 30,000 homes"}]
+    },
+    {
+      "id": "metro-notice",
+      "source": "tg-selin-now",
+      "appearsAt": "W1+15m",
+      "guid": "selin_now_test/816",
+      "url": "https://t.me/selin_now_test/816",
+      "title": "",
+      "body": "🚇 Metro line 1 suspended between Central and University until 8pm for signal repairs. Replacement buses running."
+    },
+    {
+      "id": "metro-notice-emoji-fix",
+      "source": "tg-selin-now",
+      "appearsAt": "W2+6m",
+      "editOf": "metro-notice",
+      "variantOf": "metro-notice",
+      "change": "Cosmetic edit: emoji changed, text identical.",
+      "edits": [{"find": "🚇", "replace": "🚆"}]
+    },
+    {
+      "id": "photo-only",
+      "source": "tg-selin-now",
+      "appearsAt": "W1+18m",
+      "guid": "selin_now_test/817",
+      "url": "https://t.me/selin_now_test/817",
+      "media": [{"type": "photo", "alt": "Harbour at sunrise"}],
+      "title": "",
+      "body": "📸 Good morning from the harbour"
+    }
+  ],
+  "checks": [
+    {"type": "duplicateOf", "item": "tg-forward", "of": "tg-original", "cases": ["D4"]},
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "mustMention": ["3,000"], "cases": ["D4", "D5"]},
+    {"type": "correction", "item": "power-cut-edited", "window": 2, "mustMention": ["30,000"], "cases": ["D5"]},
+    {"type": "noStory", "item": "metro-notice-emoji-fix", "window": 2, "cases": ["D5"]},
+    {"type": "noStory", "item": "photo-only", "window": 1, "cases": ["D6"]}
+  ]
+}

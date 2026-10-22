@@ -1,0 +1,73 @@
+{
+  "id": "10-rumour-confirm-deny",
+  "title": "One rumour is confirmed in the next window, another is denied and its post deleted",
+  "cases": ["B8", "B9"],
+  "feed": "tech",
+  "schedule": {"durationMinutes": 30, "timezone": "Asia/Beirut"},
+  "windows": 2,
+  "notes": "B8: W1 has a single hedged report that the Lumen Grid CEO may step down; W2 has the company and the outlet confirming it. B9: W1 has a Telegram claim of 1,200 job cuts at Corvex Telecom; in W2 the company denies it and the channel deletes the post.",
+  "sources": [
+    {"key": "tech-review", "type": "rss", "publisher": "tech-review"},
+    {"key": "linkedin-lumen", "type": "linkedin", "publisher": "lumen-grid", "handle": "lumen-grid-test"},
+    {"key": "tg-alerts", "type": "telegram", "publisher": "calvera-alerts", "handle": "calvera_alerts_test"}
+  ],
+  "items": [
+    {
+      "id": "ceo-rumour",
+      "source": "tech-review",
+      "appearsAt": "W1+7m",
+      "title": "Lumen Grid chief Okafor may step down, people familiar say",
+      "body": "Mara Okafor, chief executive of Lumen Grid, may step down before the end of the year, according to two people familiar with the board's discussions who asked not to be named.\n\nThe board has not made a decision, one of the people said, and Okafor could stay on as executive chair. Lumen Grid declined to comment.\n\nOkafor founded the company in 2015 and led it through its listing on the Port Selin exchange in 2023."
+    },
+    {
+      "id": "ceo-confirmed",
+      "source": "tech-review",
+      "appearsAt": "W2+5m",
+      "title": "Okafor to step down as Lumen Grid CEO, CFO Ruben Haas to succeed her",
+      "body": "Lumen Grid said on Wednesday that Mara Okafor will step down as chief executive on 31 December and become executive chair. Chief financial officer Ruben Haas will take over as CEO.\n\nThe company said the change had been planned for over a year. Its shares rose 3 percent in Port Selin trading.\n\nOkafor founded Lumen Grid in 2015."
+    },
+    {
+      "id": "ceo-linkedin",
+      "source": "linkedin-lumen",
+      "appearsAt": "W2+8m",
+      "guid": "urn:li:activity:7250000000000000002",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7250000000000000002",
+      "title": "",
+      "body": "Leadership update: after ten years leading Lumen Grid, Mara Okafor will hand over the CEO role to Ruben Haas on 31 December and continue as Executive Chair. Thank you Mara, and welcome Ruben! #Leadership"
+    },
+    {
+      "id": "cuts-claim",
+      "source": "tg-alerts",
+      "appearsAt": "W1+12m",
+      "guid": "calvera_alerts_test/9031",
+      "url": "https://t.me/calvera_alerts_test/9031",
+      "title": "",
+      "body": "🚨 Corvex Telecom to cut 1,200 jobs, about a third of its staff, by March. Announcement expected this week. #Calvera #Telecom"
+    },
+    {
+      "id": "cuts-denied",
+      "source": "tech-review",
+      "appearsAt": "W2+12m",
+      "title": "Corvex Telecom denies report of 1,200 job cuts",
+      "body": "Corvex Telecom on Wednesday denied a report circulating on social media that it plans to cut 1,200 jobs.\n\n\"There is no such plan. We are hiring engineers for our fibre roll-out,\" a spokesperson said. The company employs about 3,600 people.\n\nThe claim was first posted on a Telegram channel, which later removed it."
+    },
+    {
+      "id": "cuts-claim-deleted",
+      "source": "tg-alerts",
+      "appearsAt": "W2+10m",
+      "editOf": "cuts-claim",
+      "op": "delete",
+      "title": "",
+      "body": "",
+      "change": "The channel deletes the original post."
+    }
+  ],
+  "checks": [
+    {"type": "edition", "window": 1, "outcome": "PUBLISHED", "cases": ["B8", "B9"]},
+    {"type": "hedged", "window": 1, "item": "ceo-rumour", "mustMention": ["may"], "cases": ["B8"]},
+    {"type": "sameStory", "items": ["ceo-rumour", "ceo-confirmed", "ceo-linkedin"], "level": "storyline", "cases": ["B8"]},
+    {"type": "edition", "window": 2, "outcome": "PUBLISHED", "mustMention": ["Ruben Haas"], "cases": ["B8"]},
+    {"type": "deleted", "item": "cuts-claim-deleted", "of": "cuts-claim", "cases": ["B9"]},
+    {"type": "edition", "window": 2, "mustNotMention": ["will cut 1,200", "to cut 1,200 jobs"], "cases": ["B9"]}
+  ]
+}
