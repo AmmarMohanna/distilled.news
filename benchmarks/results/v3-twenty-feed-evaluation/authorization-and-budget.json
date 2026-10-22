@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-22T08:03:48.043Z",
+  "authorizationId": "v3-overnight-20261022",
+  "validFrom": "2026-10-21T21:38:06.950800+00:00",
+  "validUntil": "2026-10-22T09:47:21.603Z",
+  "originalAdditionalTaskCeilingUsd": 20,
+  "existingActualInferenceUsd": 0.38602999999999993,
+  "existingOutstandingUsd": 0,
+  "maximumAdditionalExposureUsd": 0.75,
+  "cumulativeInferenceAdmissionCeilingUsd": 1.1360299999999999,
+  "cloudflareConservativeReservationUsd": 1,
+  "applicability": "Current user request continues the authorized V3 real-collected-corpus evaluation, using the same approved models and isolated storage within original expiry. No grant renewed or amended.",
+  "workload": "One frozen 20-article batch, only existing editor/verifier and native bounded targeted repair. No manual rerun, model comparison or additional validation stage."
+}

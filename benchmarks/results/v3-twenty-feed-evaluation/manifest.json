@@ -1,0 +1,733 @@
+{
+  "sourceBranch": "codex/twenty-feed-dataset",
+  "sourceRevision": "5b2dd90",
+  "v3Revision": "f6bacb5353e4e651ca7501127b74ea7eda600369",
+  "sourceFeedId": "qads_20261021_08",
+  "title": "Space and Astronomy",
+  "interest": "Track mission milestones, launch outcomes, spacecraft operations and significant astronomy findings. Distinguish a planned launch from a completed launch and a scientific hypothesis from an observation. Keep uncertainties and mission dates. Skip image-of-the-day posts, anniversaries and celebrity space coverage without a substantive development.",
+  "language": "en",
+  "windowStart": "2026-10-17T00:00:00.000Z",
+  "windowEnd": "2026-10-22T00:00:00.000Z",
+  "prior": [],
+  "excluded": [
+    {
+      "revisionId": "df157dd3-adce-4f44-9a47-30a5ccbec829",
+      "title": "How Jackdaw gas field ignites row over climate change and costs",
+      "reason": "Video-page summary rather than full text article"
+    },
+    {
+      "revisionId": "e5fc3ed0-77e7-4eeb-82a9-5e921c5764cb",
+      "title": "Jackdaw: Will it cut energy bills and how much gas will it provide?",
+      "reason": "Duplicate retained acquisition of the same canonical article/body"
+    },
+    {
+      "revisionId": "bf4765ca-905a-49fc-be16-5202fed67097",
+      "title": "Webb Captures Stellar Jets - NASA",
+      "reason": "Image-only caption rather than full text article"
+    },
+    {
+      "revisionId": "5f341e6c-4576-42c0-b87e-a56674418c81",
+      "title": "NASA Launches Nancy Grace Roman Space Telescope As 300-Megapixel Mission Begins Million-Mile Journey",
+      "reason": "Older than selected recent collected batch"
+    },
+    {
+      "revisionId": "3273fe98-4ac0-4f7a-9e1f-e3085a430155",
+      "title": "NASA is about to launch a space telescope that could change how we see the universe",
+      "reason": "Older than selected recent collected batch"
+    },
+    {
+      "revisionId": "6c89cbf0-990f-4125-a435-156ed4942962",
+      "title": "NASA is gearing up to launch its next flagship space telescope – combining spy technology with sophisticated infrared detectors",
+      "reason": "Older than selected recent collected batch"
+    },
+    {
+      "revisionId": "9d32d9b7-6010-44e3-b836-cba5ccd4a037",
+      "title": "Top 10 space stories of 2025",
+      "reason": "Older than selected recent collected batch"
+    }
+  ],
+  "articles": [
+    {
+      "id": "22230b5f-de57-42fb-9340-d92521921977",
+      "title": "NASA’s CASALS Instrument Bridges Gaps in 3D Maps of Earth’s Surface",
+      "url": "https://science.nasa.gov/science-research/science-enabling-technology/technology-highlights/nasas-casals-instrument-bridges-gaps-in-3d-maps-of-earths-surface/",
+      "source": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "publishedAt": "2026-10-21T12:17:58.000Z",
+      "observedAt": "2026-10-21T13:27:25.435Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:22230b5f-de57-42fb-9340-d92521921977",
+      "original": {
+        "revisionId": "22230b5f-de57-42fb-9340-d92521921977",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "sourceItemKey": "id:https://science.nasa.gov/science-research/science-enabling-technology/technology-highlights/nasas-casals-instrument-bridges-gaps-in-3d-maps-of-earths-surface/",
+        "acquiredContentId": "[\"acquired\",\"4a0f529cba4773791164f41d759f088731b0e55af0b04da5f620b9d01957d790\"]",
+        "sourceObservationId": "4a0f529cba4773791164f41d759f088731b0e55af0b04da5f620b9d01957d790",
+        "acquiredAt": "2026-10-21T13:27:25.435Z",
+        "acceptedAt": "2026-10-21T13:27:29.476Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T12:17:58.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-21T12:17:58.000Z",
+          "connectorPublishedAt": "2026-10-21T12:17:58.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "0523053e77d14fb9549a92b4c09809cd41fc4a889c435eba5ad5b833dbef4d8d"
+      },
+      "chars": 6405
+    },
+    {
+      "id": "c828d471-23bb-4810-8c88-fbd6324a5997",
+      "title": "Jackdaw: Will it cut energy bills and how much gas will it provide?",
+      "url": "https://www.bbc.co.uk/news/articles/cq4g13pplyzzo?at_medium=RSS&at_campaign=rss",
+      "source": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "publishedAt": "2026-10-21T11:57:49.000Z",
+      "observedAt": "2026-10-21T13:27:38.118Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:c828d471-23bb-4810-8c88-fbd6324a5997",
+      "original": {
+        "revisionId": "c828d471-23bb-4810-8c88-fbd6324a5997",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+        "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+        "sourceItemKey": "id:https://www.bbc.co.uk/news/articles/cq4g13pplyzzo#1",
+        "acquiredContentId": "[\"acquired\",\"197a2e1b8ec38f333c7f36aaf4752123a43bcf71a99d83927e8334375a4b5ecb\"]",
+        "sourceObservationId": "197a2e1b8ec38f333c7f36aaf4752123a43bcf71a99d83927e8334375a4b5ecb",
+        "acquiredAt": "2026-10-21T13:27:38.118Z",
+        "acceptedAt": "2026-10-21T13:30:47.029Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T11:57:49.000Z",
+          "timestampSource": "connector_precision_same_article_date",
+          "articlePublishedAt": "2026-10-21T00:00:00.000Z",
+          "connectorPublishedAt": "2026-10-21T11:57:49.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "9c60d5fc5676088d845a7c67bac7a2fb859f9cb1db6d1b49a2eb2ea1d444cb47"
+      },
+      "chars": 7954
+    },
+    {
+      "id": "279b9bd1-5d72-4e3b-b922-d10ca0ce040b",
+      "title": "Astronaut Tim Peake's video leaves Plymouth pupils starstruck",
+      "url": "https://www.bbc.co.uk/news/articles/cmvg9vlgxkv8o?at_medium=RSS&at_campaign=rss",
+      "source": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "publishedAt": "2026-10-21T11:55:19.000Z",
+      "observedAt": "2026-10-21T13:33:03.689Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:279b9bd1-5d72-4e3b-b922-d10ca0ce040b",
+      "original": {
+        "revisionId": "279b9bd1-5d72-4e3b-b922-d10ca0ce040b",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+        "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+        "sourceItemKey": "id:https://www.bbc.co.uk/news/articles/cmvg9vlgxkv8o#2",
+        "acquiredContentId": "[\"acquired\",\"a080c6cd937901378c772a6a021b2681546d7d0f43fe0e0aac6bf8ed5da1bba2\"]",
+        "sourceObservationId": "a080c6cd937901378c772a6a021b2681546d7d0f43fe0e0aac6bf8ed5da1bba2",
+        "acquiredAt": "2026-10-21T13:33:03.689Z",
+        "acceptedAt": "2026-10-21T14:14:43.281Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T11:55:19.000Z",
+          "timestampSource": "connector_precision_same_article_date",
+          "articlePublishedAt": "2026-10-21T00:00:00.000Z",
+          "connectorPublishedAt": "2026-10-21T11:55:19.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "cb3515abab06044c6fd9ce2ad3c40ecd89cf1a92ae634888fd0e8f1389e23b2b"
+      },
+      "chars": 1985
+    },
+    {
+      "id": "70a64a4a-eefe-49b1-ad74-ce39d871fd83",
+      "title": "Weather: Irish weather warning ahead of Storm Austen",
+      "url": "https://www.bbc.co.uk/news/articles/ck98z6e4l725o?at_medium=RSS&at_campaign=rss",
+      "source": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "publishedAt": "2026-10-21T11:48:46.000Z",
+      "observedAt": "2026-10-21T13:29:16.719Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:70a64a4a-eefe-49b1-ad74-ce39d871fd83",
+      "original": {
+        "revisionId": "70a64a4a-eefe-49b1-ad74-ce39d871fd83",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+        "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+        "sourceItemKey": "id:https://www.bbc.co.uk/news/articles/ck98z6e4l725o#0",
+        "acquiredContentId": "[\"acquired\",\"4e8005a5c8c99ffcba9b0b14974003efe77c5ea44a10a9b2e9fc33b72ef5ce17\"]",
+        "sourceObservationId": "4e8005a5c8c99ffcba9b0b14974003efe77c5ea44a10a9b2e9fc33b72ef5ce17",
+        "acquiredAt": "2026-10-21T13:29:16.719Z",
+        "acceptedAt": "2026-10-21T13:31:22.204Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T11:48:46.000Z",
+          "timestampSource": "connector_precision_same_article_date",
+          "articlePublishedAt": "2026-10-21T00:00:00.000Z",
+          "connectorPublishedAt": "2026-10-21T11:48:46.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "c9cbe6f30dec5e9741d44b644aecdd7466713927fcf1550bb4d4061859007b3b"
+      },
+      "chars": 2382
+    },
+    {
+      "id": "1710a6bb-c480-4634-9e79-45e574584acf",
+      "title": "UK weather: Amber warning issued by Met Office ahead of Storm Austen",
+      "url": "https://www.bbc.co.uk/weather/articles/c6m24ln2j43go?at_medium=RSS&at_campaign=rss",
+      "source": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "publishedAt": "2026-10-21T10:55:32.000Z",
+      "observedAt": "2026-10-21T14:16:10.275Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:1710a6bb-c480-4634-9e79-45e574584acf",
+      "original": {
+        "revisionId": "1710a6bb-c480-4634-9e79-45e574584acf",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+        "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+        "sourceItemKey": "id:https://www.bbc.co.uk/weather/articles/c6m24ln2j43go#0",
+        "acquiredContentId": "[\"acquired\",\"eba45727be301641424ccbb3233d9da86c81663b8689ad98ace10691a86b9ceb\"]",
+        "sourceObservationId": "eba45727be301641424ccbb3233d9da86c81663b8689ad98ace10691a86b9ceb",
+        "acquiredAt": "2026-10-21T14:16:10.275Z",
+        "acceptedAt": "2026-10-21T14:28:24.192Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T10:55:32.000Z",
+          "timestampSource": "connector_precision_same_article_date",
+          "articlePublishedAt": "2026-10-21T00:00:00.000Z",
+          "connectorPublishedAt": "2026-10-21T10:55:32.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "99dcfc3e6c931c1e255be69d97ae3085a522e9e23642069df67752875f51b9ea"
+      },
+      "chars": 4101
+    },
+    {
+      "id": "203304e4-87e6-4303-ab13-70257b1b5614",
+      "title": "Storm Austen: Strong 70mph winds could hit south Wales on Friday",
+      "url": "https://www.bbc.co.uk/news/articles/cm3wv9pdj33zo?at_medium=RSS&at_campaign=rss",
+      "source": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "publishedAt": "2026-10-21T10:10:40.000Z",
+      "observedAt": "2026-10-21T13:29:21.893Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:203304e4-87e6-4303-ab13-70257b1b5614",
+      "original": {
+        "revisionId": "203304e4-87e6-4303-ab13-70257b1b5614",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+        "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+        "sourceItemKey": "id:https://www.bbc.co.uk/news/articles/cm3wv9pdj33zo#0",
+        "acquiredContentId": "[\"acquired\",\"c33946e9ae1cbedb4fa2b15f6f7cb60890b76f601ba32e6132569d0d5d0244e1\"]",
+        "sourceObservationId": "c33946e9ae1cbedb4fa2b15f6f7cb60890b76f601ba32e6132569d0d5d0244e1",
+        "acquiredAt": "2026-10-21T13:29:21.893Z",
+        "acceptedAt": "2026-10-21T13:30:25.298Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T10:10:40.000Z",
+          "timestampSource": "connector_precision_same_article_date",
+          "articlePublishedAt": "2026-10-21T00:00:00.000Z",
+          "connectorPublishedAt": "2026-10-21T10:10:40.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "4ece963986b964cc8db25b21e104b0ebe6bb324ea8e0bff98bd40c0aba50d9c3"
+      },
+      "chars": 2104
+    },
+    {
+      "id": "4353a6b0-f30e-4ae4-9f13-e06301025b55",
+      "title": "Nuneaton farmer lost out by minutes in race for wildlife funding",
+      "url": "https://www.bbc.co.uk/news/articles/cm9qznp3gdvdo?at_medium=RSS&at_campaign=rss",
+      "source": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "publishedAt": "2026-10-21T09:49:32.000Z",
+      "observedAt": "2026-10-21T13:27:33.692Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:4353a6b0-f30e-4ae4-9f13-e06301025b55",
+      "original": {
+        "revisionId": "4353a6b0-f30e-4ae4-9f13-e06301025b55",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+        "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+        "sourceItemKey": "id:https://www.bbc.co.uk/news/articles/cm9qznp3gdvdo#1",
+        "acquiredContentId": "[\"acquired\",\"01e278ecf183a77556a97c41a393bfe59290fa326487584212c4be7919754784\"]",
+        "sourceObservationId": "01e278ecf183a77556a97c41a393bfe59290fa326487584212c4be7919754784",
+        "acquiredAt": "2026-10-21T13:27:33.692Z",
+        "acceptedAt": "2026-10-21T13:27:38.770Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T09:49:32.000Z",
+          "timestampSource": "connector_precision_same_article_date",
+          "articlePublishedAt": "2026-10-21T00:00:00.000Z",
+          "connectorPublishedAt": "2026-10-21T09:49:32.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "6f42b4b190e31c517548d74ac737a806f1ca4bad3fe06e4730f877db12f50e85"
+      },
+      "chars": 3854
+    },
+    {
+      "id": "b5be2d5d-1f80-479e-9887-99a4bb908074",
+      "title": "Tesla and SpaceX: Why does Elon Musk want to merge the companies?",
+      "url": "https://www.bbc.co.uk/news/articles/cr93z1e87e0do?at_medium=RSS&at_campaign=rss",
+      "source": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "publishedAt": "2026-10-21T06:36:39.000Z",
+      "observedAt": "2026-10-21T14:16:09.875Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:b5be2d5d-1f80-479e-9887-99a4bb908074",
+      "original": {
+        "revisionId": "b5be2d5d-1f80-479e-9887-99a4bb908074",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+        "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+        "sourceItemKey": "id:https://www.bbc.co.uk/news/articles/cr93z1e87e0do#2",
+        "acquiredContentId": "[\"acquired\",\"c4e0baa2bdbd58194cda187bd267f228d911b3b3e79004b031a87b26a01227ba\"]",
+        "sourceObservationId": "c4e0baa2bdbd58194cda187bd267f228d911b3b3e79004b031a87b26a01227ba",
+        "acquiredAt": "2026-10-21T14:16:09.875Z",
+        "acceptedAt": "2026-10-21T14:28:49.617Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T06:36:39.000Z",
+          "timestampSource": "connector_precision_same_article_date",
+          "articlePublishedAt": "2026-10-21T00:00:00.000Z",
+          "connectorPublishedAt": "2026-10-21T06:36:39.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "c78326fd6027ebb2885d8a32a7f5ef3a709be9148b654b8dd8b4e1e7d9d25b34"
+      },
+      "chars": 5106
+    },
+    {
+      "id": "3bb439ea-9048-4bdf-b3af-0ae789c89d2c",
+      "title": "Massive wasps' nest in nature reserve office dismantled",
+      "url": "https://www.bbc.co.uk/news/articles/cwx28pkn8p8yo?at_medium=RSS&at_campaign=rss",
+      "source": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "publishedAt": "2026-10-21T05:35:38.000Z",
+      "observedAt": "2026-10-21T13:31:46.904Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:3bb439ea-9048-4bdf-b3af-0ae789c89d2c",
+      "original": {
+        "revisionId": "3bb439ea-9048-4bdf-b3af-0ae789c89d2c",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+        "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+        "sourceItemKey": "id:https://www.bbc.co.uk/news/articles/cwx28pkn8p8yo#1",
+        "acquiredContentId": "[\"acquired\",\"3bd9720602236c523876a8275bb81e06655d8e37d3590184520b0e0d4e58563e\"]",
+        "sourceObservationId": "3bd9720602236c523876a8275bb81e06655d8e37d3590184520b0e0d4e58563e",
+        "acquiredAt": "2026-10-21T13:31:46.904Z",
+        "acceptedAt": "2026-10-21T13:32:54.512Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T05:35:38.000Z",
+          "timestampSource": "connector_precision_same_article_date",
+          "articlePublishedAt": "2026-10-21T00:00:00.000Z",
+          "connectorPublishedAt": "2026-10-21T05:35:38.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "086b7f7b7b43b80046d51f243eba83294db4eebf9631578429a14dc1886ea882"
+      },
+      "chars": 2184
+    },
+    {
+      "id": "eb22ece6-571e-43b4-965c-5898f71fbe72",
+      "title": "New Ghosts Revealed in Cassiopeia",
+      "url": "https://science.nasa.gov/image-article/apod-2026-october-21-new-ghosts-revealed-in-cassiopeia/",
+      "source": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "publishedAt": "2026-10-21T04:05:00.000Z",
+      "observedAt": "2026-10-21T13:27:22.531Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:eb22ece6-571e-43b4-965c-5898f71fbe72",
+      "original": {
+        "revisionId": "eb22ece6-571e-43b4-965c-5898f71fbe72",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "sourceItemKey": "id:https://science.nasa.gov/image-article/apod-2026-october-21-new-ghosts-revealed-in-cassiopeia/",
+        "acquiredContentId": "[\"acquired\",\"28d4be72a83c9ca6f3e5aecf381b59533fcde39435f60a3bd3202fbf70f26024\"]",
+        "sourceObservationId": "28d4be72a83c9ca6f3e5aecf381b59533fcde39435f60a3bd3202fbf70f26024",
+        "acquiredAt": "2026-10-21T13:27:22.531Z",
+        "acceptedAt": "2026-10-21T13:30:13.407Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T04:05:00.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-21T04:05:00.000Z",
+          "connectorPublishedAt": "2026-10-21T04:05:00.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "fd9251dff5d9861dad749b72cf909c497c03842da0fd0fe60fa7cb619c10beaa"
+      },
+      "chars": 1849
+    },
+    {
+      "id": "96d5bf23-f17c-48db-83a5-cdc4597868dd",
+      "title": "Extratropical Cyclone Whips Past Iceland",
+      "url": "https://science.nasa.gov/earth/earth-observatory/extratropical-cyclone-whips-past-iceland/",
+      "source": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "publishedAt": "2026-10-21T04:01:00.000Z",
+      "observedAt": "2026-10-21T13:30:38.479Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:96d5bf23-f17c-48db-83a5-cdc4597868dd",
+      "original": {
+        "revisionId": "96d5bf23-f17c-48db-83a5-cdc4597868dd",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "sourceItemKey": "id:https://science.nasa.gov/earth/earth-observatory/extratropical-cyclone-whips-past-iceland/",
+        "acquiredContentId": "[\"acquired\",\"90c2ce55428764d2c849df93f75f40bd1fead311ae546f0f7a669160c715e6de\"]",
+        "sourceObservationId": "90c2ce55428764d2c849df93f75f40bd1fead311ae546f0f7a669160c715e6de",
+        "acquiredAt": "2026-10-21T13:30:38.479Z",
+        "acceptedAt": "2026-10-21T13:31:33.413Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T04:01:00.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-21T04:01:00.000Z",
+          "connectorPublishedAt": "2026-10-21T04:01:00.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "60b50a0a6a3397c30796c1d43583452db41312a4578e2eeafed8b66f185df3b0"
+      },
+      "chars": 4682
+    },
+    {
+      "id": "10255c9f-5663-4f23-be61-73c717cba800",
+      "title": "NASA’s Roman Space Telescope launches to reveal the Universe’s darkest secrets",
+      "url": "https://www.sciencedaily.com/releases/2026/08/260831035213.htm",
+      "source": "bc0543c4ba562dce776076e5ea357e66687189d7d4b38ced08580c1aa91f426a",
+      "publishedAt": "2026-10-21T00:00:00.000Z",
+      "observedAt": "2026-10-21T14:14:46.376Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:10255c9f-5663-4f23-be61-73c717cba800",
+      "original": {
+        "revisionId": "10255c9f-5663-4f23-be61-73c717cba800",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_google_news_1rh7vce",
+        "sourceId": "bc0543c4ba562dce776076e5ea357e66687189d7d4b38ced08580c1aa91f426a",
+        "sourceItemKey": "id:CBMib0FVX3lxTE1zaGFkdHlTTUpaTXBqOXhlZ2lJSnpCY0hSQWpyVS1jTUlPOXhOS3g2WTdrMEx5cTVGTk93Y1RYeHNEMGhNLXN0bk8tSFJEQnNpU1FZV2NPQUhib0ZFZjZwRzFuV3VLUy1hcGRpNThvSQ",
+        "acquiredContentId": "[\"acquired\",\"0c9de533f1b0d067a9a562308bd0f7622ebbf7dc631b238791ed3ed77d1271b5\"]",
+        "sourceObservationId": "0c9de533f1b0d067a9a562308bd0f7622ebbf7dc631b238791ed3ed77d1271b5",
+        "acquiredAt": "2026-10-21T14:14:46.376Z",
+        "acceptedAt": "2026-10-21T14:14:53.404Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-21T00:00:00.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-21T00:00:00.000Z",
+          "connectorPublishedAt": "2026-08-31T07:00:00.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "3ba95c7a763a0e65be2f5a34d84fe9c751f22f2cadbd56756d8e1f2131f57108"
+      },
+      "chars": 7745
+    },
+    {
+      "id": "3cc5f30b-c316-400e-bc02-578e3ef24dbf",
+      "title": "NASA to Conduct Low-Altitude Flights Over Texas Farmland",
+      "url": "https://www.nasa.gov/general/nasa-to-conduct-low-altitude-flights-over-texas-farmland/",
+      "source": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "publishedAt": "2026-10-20T20:21:36.000Z",
+      "observedAt": "2026-10-21T13:27:24.219Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:3cc5f30b-c316-400e-bc02-578e3ef24dbf",
+      "original": {
+        "revisionId": "3cc5f30b-c316-400e-bc02-578e3ef24dbf",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "sourceItemKey": "id:https://www.nasa.gov/?p=1056679",
+        "acquiredContentId": "[\"acquired\",\"2d2529ec54e1bbe42ba6e37852c6014bac87c37b4c25188eef9489affbb764e8\"]",
+        "sourceObservationId": "2d2529ec54e1bbe42ba6e37852c6014bac87c37b4c25188eef9489affbb764e8",
+        "acquiredAt": "2026-10-21T13:27:24.219Z",
+        "acceptedAt": "2026-10-21T13:27:34.063Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-20T20:21:36.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-20T20:21:36.000Z",
+          "connectorPublishedAt": "2026-10-20T20:21:36.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "aee5951e1bc5a41c1d49f85d64a8d272a59d39eca785cbdadf935c807f986050"
+      },
+      "chars": 1550
+    },
+    {
+      "id": "752ac255-0c0b-4d73-a827-d30b5d8a5753",
+      "title": "NASA’s SR-1 Freedom Advances with Progress on Nuclear Power Module",
+      "url": "https://www.nasa.gov/centers-and-facilities/glenn/sr-1-freedom-advances-with-progress-on-nuclear-power-module/",
+      "source": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "publishedAt": "2026-10-20T18:11:33.000Z",
+      "observedAt": "2026-10-21T13:27:22.140Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:752ac255-0c0b-4d73-a827-d30b5d8a5753",
+      "original": {
+        "revisionId": "752ac255-0c0b-4d73-a827-d30b5d8a5753",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "sourceItemKey": "id:https://www.nasa.gov/?p=1057550",
+        "acquiredContentId": "[\"acquired\",\"28a6e5825be09074eab01f1330d22819c3f479658403dd726d3f8c9f2ab7ce0d\"]",
+        "sourceObservationId": "28a6e5825be09074eab01f1330d22819c3f479658403dd726d3f8c9f2ab7ce0d",
+        "acquiredAt": "2026-10-21T13:27:22.140Z",
+        "acceptedAt": "2026-10-21T13:27:26.042Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-20T18:11:33.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-20T18:11:33.000Z",
+          "connectorPublishedAt": "2026-10-20T18:11:33.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "db04643ffee99ae5f85d785799e8f5f8025f8951c9d1fa25feb958023fd9efee"
+      },
+      "chars": 3320
+    },
+    {
+      "id": "4e798d2c-226e-4478-9041-d0431eec2207",
+      "title": "NASA Experimental Mars Helicopter Blade Designs Target Longer Flights",
+      "url": "https://www.nasa.gov/science-research/aeronautics-research/nasa-experimental-mars-helicopter-blade-designs-target-longer-flights/",
+      "source": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "publishedAt": "2026-10-20T16:02:35.000Z",
+      "observedAt": "2026-10-21T13:27:44.936Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:4e798d2c-226e-4478-9041-d0431eec2207",
+      "original": {
+        "revisionId": "4e798d2c-226e-4478-9041-d0431eec2207",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "sourceItemKey": "id:https://www.nasa.gov/?p=1057581",
+        "acquiredContentId": "[\"acquired\",\"602e25cceee711c68d72da6c727d7d7f43cde6d79e348c45c3f982e99c552306\"]",
+        "sourceObservationId": "602e25cceee711c68d72da6c727d7d7f43cde6d79e348c45c3f982e99c552306",
+        "acquiredAt": "2026-10-21T13:27:44.936Z",
+        "acceptedAt": "2026-10-21T13:33:36.748Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-20T16:02:35.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-20T16:02:35.000Z",
+          "connectorPublishedAt": "2026-10-20T16:02:35.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "5909b1bb8401086d6dae1576adb9cf2e516236189d88855190c44f26158dbdda"
+      },
+      "chars": 4073
+    },
+    {
+      "id": "2480d6dc-9516-43da-a1fc-1985ebdeaa40",
+      "title": "NASA Provides Progress Update on Moon Base Rovers",
+      "url": "https://www.nasa.gov/missions/moon-base/nasa-provides-progress-update-on-moon-base-rovers/",
+      "source": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "publishedAt": "2026-10-20T15:00:10.000Z",
+      "observedAt": "2026-10-21T13:32:20.778Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:2480d6dc-9516-43da-a1fc-1985ebdeaa40",
+      "original": {
+        "revisionId": "2480d6dc-9516-43da-a1fc-1985ebdeaa40",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "sourceItemKey": "id:https://www.nasa.gov/?p=1055949",
+        "acquiredContentId": "[\"acquired\",\"ea8782b6c81be82064fe48892f15e0c147e0c946222317344931bb13d602d6dd\"]",
+        "sourceObservationId": "ea8782b6c81be82064fe48892f15e0c147e0c946222317344931bb13d602d6dd",
+        "acquiredAt": "2026-10-21T13:32:20.778Z",
+        "acceptedAt": "2026-10-21T14:16:20.164Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-20T15:00:10.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-20T15:00:10.000Z",
+          "connectorPublishedAt": "2026-10-20T15:00:10.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "bf6cf5364cca364ef77b78bde4ca0318d37e46a4ea9d6380ac08077b66c82e8a"
+      },
+      "chars": 7974
+    },
+    {
+      "id": "dffb9da5-c1ae-4743-aa87-65bbafd3f3c9",
+      "title": "NASA Welcomes Uzbekistan as Newest Artemis Accords Signatory",
+      "url": "https://www.nasa.gov/organizations/oiir/artemis-accords/nasa-welcomes-uzbekistan-as-newest-artemis-accords-signatory/",
+      "source": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "publishedAt": "2026-10-20T14:21:42.000Z",
+      "observedAt": "2026-10-21T13:27:47.145Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:dffb9da5-c1ae-4743-aa87-65bbafd3f3c9",
+      "original": {
+        "revisionId": "dffb9da5-c1ae-4743-aa87-65bbafd3f3c9",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "sourceItemKey": "id:https://www.nasa.gov/?p=1057634",
+        "acquiredContentId": "[\"acquired\",\"918f44061a968b4c31c630283d8217f61a238b3cbb8208041fd38fd8e8c19876\"]",
+        "sourceObservationId": "918f44061a968b4c31c630283d8217f61a238b3cbb8208041fd38fd8e8c19876",
+        "acquiredAt": "2026-10-21T13:27:47.145Z",
+        "acceptedAt": "2026-10-21T13:32:43.346Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-20T14:21:42.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-20T14:21:42.000Z",
+          "connectorPublishedAt": "2026-10-20T14:21:42.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "f4dce1d98b3d8ae8dc99bbe80403917666babcefc5348e972200263e20f30b36"
+      },
+      "chars": 2994
+    },
+    {
+      "id": "94983f4f-b127-45d3-aeaf-64372d9ad917",
+      "title": "An Anticrepuscular Rainbow Fan",
+      "url": "https://science.nasa.gov/image-article/apod-2026-october-20-an-anticrepuscular-rainbow-fan/",
+      "source": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "publishedAt": "2026-10-20T04:05:00.000Z",
+      "observedAt": "2026-10-21T13:32:17.194Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:94983f4f-b127-45d3-aeaf-64372d9ad917",
+      "original": {
+        "revisionId": "94983f4f-b127-45d3-aeaf-64372d9ad917",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "sourceItemKey": "id:https://science.nasa.gov/image-article/apod-2026-october-20-an-anticrepuscular-rainbow-fan/",
+        "acquiredContentId": "[\"acquired\",\"d6811dfcf84126766267c37533819770163482a4a6a7506fa7cc2874ddbcc74d\"]",
+        "sourceObservationId": "d6811dfcf84126766267c37533819770163482a4a6a7506fa7cc2874ddbcc74d",
+        "acquiredAt": "2026-10-21T13:32:17.194Z",
+        "acceptedAt": "2026-10-21T13:33:02.070Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-20T04:05:00.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-20T04:05:00.000Z",
+          "connectorPublishedAt": "2026-10-20T04:05:00.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "d579772b3d6d5352f7014459f2a4405d2cb067e1d7f9b55f280a6f52495899a7"
+      },
+      "chars": 1606
+    },
+    {
+      "id": "ed6feaaf-8dde-40bd-83b1-bb91d1d4867b",
+      "title": "Elon Musk confirms he is considering merging Tesla and SpaceX",
+      "url": "https://www.bbc.co.uk/news/articles/cmlyl09xjke4o?at_medium=RSS&at_campaign=rss",
+      "source": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "publishedAt": "2026-10-20T00:00:00.000Z",
+      "observedAt": "2026-10-21T13:27:43.385Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:ed6feaaf-8dde-40bd-83b1-bb91d1d4867b",
+      "original": {
+        "revisionId": "ed6feaaf-8dde-40bd-83b1-bb91d1d4867b",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+        "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+        "sourceItemKey": "id:https://www.bbc.co.uk/news/articles/cmlyl09xjke4o#2",
+        "acquiredContentId": "[\"acquired\",\"364d00d04c3591f8bb3fa519adbdbd27a381b5aa00a1e5a3206ddcc3e729e611\"]",
+        "sourceObservationId": "364d00d04c3591f8bb3fa519adbdbd27a381b5aa00a1e5a3206ddcc3e729e611",
+        "acquiredAt": "2026-10-21T13:27:43.385Z",
+        "acceptedAt": "2026-10-21T13:29:45.152Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-20T00:00:00.000Z",
+          "timestampSource": "article_metadata",
+          "articlePublishedAt": "2026-10-20T00:00:00.000Z",
+          "connectorPublishedAt": "2026-10-21T08:42:49.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "5dbc35fbef4e498d36a990ee668c0a092e2a3efa184f0218e6b308e3f760c083"
+      },
+      "chars": 3897
+    },
+    {
+      "id": "d8728d2b-4369-4cc5-a5a3-87a30fc70b26",
+      "title": "Japan to launch spacecraft on mission to get samples from Mars moon",
+      "url": "https://www.tribdem.com/news/japan-to-launch-spacecraft-on-mission-to-get-samples-from-mars-moon/article_66979f1b-a384-57c8-95e4-85a55afd8745.html",
+      "source": "bc0543c4ba562dce776076e5ea357e66687189d7d4b38ced08580c1aa91f426a",
+      "publishedAt": "2026-10-18T14:00:00.000Z",
+      "observedAt": "2026-10-21T14:15:08.962Z",
+      "contentCompleteness": "COMPLETE",
+      "rawRef": "dataset-d1:f34f4399-1e3b-4d4f-ba17-564e54e9f941:revision:d8728d2b-4369-4cc5-a5a3-87a30fc70b26",
+      "original": {
+        "revisionId": "d8728d2b-4369-4cc5-a5a3-87a30fc70b26",
+        "feedId": "qads_20261021_08",
+        "feedSourceId": "qads_20261021_08::rss_google_news_1rh7vce",
+        "sourceId": "bc0543c4ba562dce776076e5ea357e66687189d7d4b38ced08580c1aa91f426a",
+        "sourceItemKey": "id:CBMi3wFBVV95cUxQSV9qcjhDc3JXVDVNX21ub0ZYTjNPdGs0aE96OGRvTWZfdVJhVjU3UFBwMzNZaGVpMnV5Z2IxTlJ1bGxVc3ZEZ2FSMjRJd0MzNlpRWHdhdDY0S2xOV2U0YUlVNUJTUzdXNGFzUk9VTW9GdWNPUXRUdk5vU1JQM1FEYUZXOEJCRUs5NTg2eGVMRnlfTkt5STJpbDlfWlc5WVZrLWg3NHdDSFFMdm1maGFLTmJOMXF1NXoyQUl2WFFpUWo4YncyY1gzOWlTZ0sxalVpUWJydXc4bXZ3QWJwRjRr",
+        "acquiredContentId": "[\"acquired\",\"302ebcd4d83e627b78fdafc08e0e35973fd872cfc1db59424de77dec0314f89a\"]",
+        "sourceObservationId": "302ebcd4d83e627b78fdafc08e0e35973fd872cfc1db59424de77dec0314f89a",
+        "acquiredAt": "2026-10-21T14:15:08.962Z",
+        "acceptedAt": "2026-10-21T14:15:55.741Z",
+        "publicationProvenance": {
+          "publishedAt": "2026-10-18T14:00:00.000Z",
+          "timestampSource": "connector_precision_same_article_date",
+          "articlePublishedAt": "2026-10-18T00:00:00.000Z",
+          "connectorPublishedAt": "2026-10-18T14:00:00.000Z"
+        },
+        "quality": {
+          "transportSuccess": true,
+          "extractionSuccess": true,
+          "extractionComplete": true
+        },
+        "bodySha256": "0293e9e7ad5b11504a3c0e3cd8d25485df7c873b5f1b0b7319b13a8da5041d41"
+      },
+      "chars": 5936
+    }
+  ],
+  "totalChars": 81701,
+  "corpusSha256": "0cb93cb93a0aa4bc5eaa3f5d50ea953f5723f1ea175b6a56f89551c500cbdeaa"
+}
