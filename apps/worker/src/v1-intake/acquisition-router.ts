@@ -49,10 +49,17 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
   const request:SourceAcquisitionRequest={source:{canonicalSourceUrl:o.canonicalUrl,resourceLocator:o.canonicalUrl},window:{startTime:'1970-01-01T00:00:00Z',endTime:options.now()},authentication:'PUBLIC',limits:{maxItems:1,maxPages:1,maxScrolls:0,maxPhysicalAttempts:2,maxExecutionMs:60_000}};
   const privateArticle=async()=>{
    if(!options.publicArticle)return undefined;
-   const value=await options.publicArticle(o.canonicalUrl!);
+   let value:unknown;
+   try {value=await options.publicArticle(o.canonicalUrl!);}
+   catch(error){
+    // This adapter performs anonymous HTTP only; no paid outcome is being retried.
+    if(error instanceof Error&&(['SOURCE_EXECUTION_TIMEOUT','SOURCE_EXECUTION_UNAVAILABLE'].includes(error.message)||['AbortError','TimeoutError'].includes(error.name)||error instanceof TypeError))
+     throw new AcquisitionFailure('NETWORK',true,{detail:'HELPER_TRANSPORT_FAILURE'});
+    throw error;
+   }
    if(!value||typeof value!=='object'||Array.isArray(value))return undefined;
    const r=value as Record<string,unknown>;
-   if(r.error==='TRANSIENT')throw new AcquisitionFailure('NETWORK',true);
+   if(r.error==='TRANSIENT'||(typeof r.status==='number'&&(r.status>=500||r.status===408||r.status===425)))throw new AcquisitionFailure('NETWORK',true,{detail:'HELPER_TRANSIENT_FAILURE',httpStatus:typeof r.status==='number'?r.status:undefined});
    if(r.status===429)throw new AcquisitionFailure('RATE_LIMIT',true);
    if(r.status===451)throw new AcquisitionFailure('POLICY_DENIED',false);
    if(r.status===401)throw new AcquisitionFailure('AUTH_REQUIRED',false);
@@ -64,8 +71,16 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    const date=resolvePublicationDate(undefined,o.publishedAtHint,helperArticleDates(r.dateMetadata),r.extractedDate??r.publishedAt);
    return {sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:o.canonicalUrl!,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism:'private_public_http',publicationDate:date,contentCompleteness:'UNKNOWN'}};
   };
+  const fallbackSuccess=(item:NonNullable<Awaited<ReturnType<typeof privateArticle>>>):AcquisitionStageOutcome=>({stage:'HTTP',status:'SUCCESS',result:{items:[item],requestedWindow:request.window,effectiveWindow:request.window,acquisitionAsOf:options.now(),coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'},provenance:{mechanism:'private_public_http'}}});
   const http=async():Promise<AcquisitionStageOutcome>=>{
-   const document=options.publicGet?await options.publicGet(o.canonicalUrl!):await fetchPort.get(o.canonicalUrl!);
+   let document;
+   try {document=options.publicGet?await options.publicGet(o.canonicalUrl!):await fetchPort.get(o.canonicalUrl!);}
+   catch(error){
+    if(!(error instanceof PublicSourceFetchFailure)||error.category==='BODY_BUDGET_EXCEEDED')throw error;
+    const item=await privateArticle();
+    if(item)return fallbackSuccess(item);
+    throw error;
+   }
    if(document.status===401 || document.authenticationRequired) return {stage:'HTTP',status:'AUTH_REQUIRED'};
    if(document.status===451)return {stage:'HTTP',status:'POLICY_DENIED'};
    if(document.status===403||document.status===406){
@@ -84,7 +99,11 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
     const retryAt=value===undefined?undefined:Number.isFinite(seconds)?new Date(Date.parse(options.now())+Math.max(0,seconds)*1000).toISOString():Number.isFinite(Date.parse(value))?new Date(value).toISOString():undefined;
     throw new AcquisitionFailure('RATE_LIMIT',true,{detail:'UPSTREAM_RATE_LIMIT',httpStatus:429,retryNotBefore:retryAt});
    }
-   if(document.status>=500) throw new AcquisitionFailure('NETWORK',true,{detail:'UPSTREAM_SERVER_ERROR',httpStatus:document.status});
+   if(document.status>=500||document.status===408||document.status===425){
+    const item=await privateArticle();
+    if(item)return fallbackSuccess(item);
+    throw new AcquisitionFailure('NETWORK',true,{detail:document.status>=500?'UPSTREAM_SERVER_ERROR':'UPSTREAM_TEMPORARY_FAILURE',httpStatus:document.status});
+   }
    if(document.status>=400) throw new AcquisitionFailure('UNSUPPORTED',false,{detail:document.status===404||document.status===410?'HTTP_NOT_FOUND':'UPSTREAM_HTTP_ERROR',httpStatus:document.status});
    if(discoverWebsiteArticles(document.body,document.url))throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'});
    // Existing extractor requires an article body and publication metadata, rather than treating 200 as extraction success.

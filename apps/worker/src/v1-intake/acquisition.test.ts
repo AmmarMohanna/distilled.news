@@ -163,12 +163,32 @@ it('retains RSS time precision and both date observations after full article ext
  const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,fetcher:async()=>new Response('<meta property="article:published_time" content="2026-10-03"><h1>Development</h1><article>'+ 'Full reporting. '.repeat(30)+'</article>')});
  expect(await router(claim)).toMatchObject({publishedAt:'2026-10-03T10:52:44.000Z',provenance:{publicationDate:{timestampSource:'connector_precision_same_article_date',articlePublishedAt:'2026-10-03T00:00:00.000Z',connectorPublishedAt:'2026-10-03T10:52:44.000Z'}}});
 });
-it.each([403,406])('an anonymous private HTTP fallback retrieves an exact RSS article after a public %s',async status=>{
+it.each([403,406,408,425,500,502,503,504])('an anonymous private HTTP fallback retrieves an exact RSS article after a public %s',async status=>{
  let privateCalls=0;
  const claim=(await claimAcquisition(store,jobId,now))!,url=claim.input.observation.canonicalUrl!;
  const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,fetcher:async()=>new Response('Rejected',{status}),
   publicArticle:async exact=>{privateCalls++;expect(exact).toBe(url);return {status:200,url:exact,pageKind:'article',body:'Publisher article text. '.repeat(25),title:'Decision',publishedAt:'2026-10-03T10:00:00Z',dateMetadata:{publishedAt:'2026-10-03T10:00:00Z',publicationConflict:false,candidates:[{value:'2026-10-03T10:00:00Z',source:'html:article:published_time'}]}}}});
  const acquired=await router(claim);expect(privateCalls).toBe(1);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',canonicalUrl:url,publishedAt:'2026-10-03T10:00:00.000Z',acquisitionProvider:'private_public_http'});
+});
+it('a public transport failure can recover through the anonymous exact-URL fallback',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,url=claim.input.observation.canonicalUrl!;
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>{throw new TypeError('fetch failed')},publicArticle:async()=>({status:200,url,pageKind:'article',body:'Publisher reporting. '.repeat(30)})});
+ expect(await router(claim)).toMatchObject({canonicalUrl:url,acquisitionProvider:'private_public_http',contentCompleteness:'UNKNOWN'});
+});
+it.each([408,425,503])('public %s without a usable fallback remains retryable',async status=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('',{status})});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('RETRY');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',failureCode:'NETWORK',httpStatus:status});
+});
+it('a temporary helper server failure is recorded as retryable instead of a permanent challenge',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('',{status:403}),publicArticle:async()=>({status:502,error:'UNAVAILABLE'})});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('RETRY');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',failureCode:'NETWORK',failureDetail:'HELPER_TRANSIENT_FAILURE'});
+});
+it.each(['SOURCE_EXECUTION_TIMEOUT','SOURCE_EXECUTION_UNAVAILABLE'])('helper %s schedules a durable retry instead of leaving its lease running',async message=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('',{status:406}),publicArticle:async()=>{throw new Error(message)}});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('RETRY');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',failureCode:'NETWORK',failureDetail:'HELPER_TRANSPORT_FAILURE'});
 });
 it.each([401,429,451])('status %s never invokes the anonymous fallback',async status=>{
  let calls=0;const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('',{status}),publicArticle:async()=>{calls++;throw Error('must not call')}});
