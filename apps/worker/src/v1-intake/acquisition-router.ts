@@ -68,9 +68,15 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    const document=options.publicGet?await options.publicGet(o.canonicalUrl!):await fetchPort.get(o.canonicalUrl!);
    if(document.status===401 || document.authenticationRequired) return {stage:'HTTP',status:'AUTH_REQUIRED'};
    if(document.status===451)return {stage:'HTTP',status:'POLICY_DENIED'};
-   if(document.status===403){
+   if(document.status===403||document.status===406){
     const item=await privateArticle();
-    if(!item)return {stage:'HTTP',status:'CHALLENGE_REQUIRED'};
+    if(!item){
+     // A negotiation/edge rejection does not prove this article unsupported.
+     // Use only the already-authorized anonymous exact-URL fallback; otherwise
+     // retain bounded job retries, without escalating to paid/browser routes.
+     if(document.status===406)throw new AcquisitionFailure('NETWORK',true,{detail:'UPSTREAM_NOT_ACCEPTABLE',httpStatus:406});
+     return {stage:'HTTP',status:'CHALLENGE_REQUIRED'};
+    }
     return {stage:'HTTP',status:'SUCCESS',result:{items:[item],requestedWindow:request.window,effectiveWindow:request.window,acquisitionAsOf:options.now(),coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'},provenance:{mechanism:'private_public_http'}}};
    }
    if(document.status===429){
