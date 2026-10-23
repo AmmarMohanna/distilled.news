@@ -26,3 +26,10 @@ ceilings to positive values, and both scalar caps to 15. The QA build passed.
 Deployment verification must compare the live settings against the expected
 budget changes while preserving all other bindings, variables and secrets.
 Production and Joud's dedicated deployment are outside this change.
+
+Deployed QA version: `5803216a-9a63-42db-b157-0f6f14757e6e`, serving 100%.
+Post-deployment verification matched the expected budget changes and preserved
+all unrelated settings/resource bindings/secrets. Frontend assets matched the
+existing build; session and explore APIs returned HTTP 200 JSON.
+The final audit found no zero/null active acquisition budget or request ceiling,
+and every persisted provider allowance matched the configured USD 15.
