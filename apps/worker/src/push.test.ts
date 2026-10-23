@@ -32,3 +32,20 @@ for (const status of [201, 410, 503]) it(`handles push delivery status ${status}
   expect(executed.some(sql => sql.startsWith("DELETE"))).toBe(status === 410);
   expect(executed.includes("release accepted lease")).toBe(status === 201);
 });
+for (const failure of ['subscription','payload','send'] as const) it(`reports ${failure} failures without leaking secrets or recording acceptance`, async () => {
+  const keys = await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
+  const browser = await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},true,['deriveBits']);
+  const subscription={endpoint:'https://fcm.googleapis.com/fcm/send/private-token',expirationTime:null,keys:{p256dh:Buffer.from(await crypto.subtle.exportKey('raw',browser.publicKey)).toString('base64url'),auth:Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString('base64url')}};
+  const batch=vi.fn();
+  const prepare=(sql:string)=>({bind:()=>({all:async()=>({results:sql.includes('MAX(json_extract')?[{endpoint:subscription.endpoint,account_id:'owner',subscription_json:failure==='subscription'?'bad JSON':JSON.stringify(subscription),notification_version:'v1',last_notified_at:'2026-09-01T00:00:00Z',language:'en',newest:'2026-10-23T00:00:00Z'}]:[]}),run:async()=>({meta:{changes:1}})})});
+  const send=vi.fn().mockRejectedValue(new TypeError('network failure https://fcm.googleapis.com/private-token secret-key'));
+  vi.stubGlobal('fetch',send);
+  const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+  try {
+    await sendBriefingNotifications({DB:{prepare,batch},VAPID_PUBLIC_KEY:Buffer.from(await crypto.subtle.exportKey('raw',keys.publicKey)).toString('base64url'),VAPID_PRIVATE_KEY:failure==='payload'?'invalid-private-key':(await crypto.subtle.exportKey('jwk',keys.privateKey)).d!,VAPID_SUBJECT:'https://distilled.news'} as unknown as Env);
+    expect(warn).toHaveBeenCalledWith('Push delivery failed; will retry after lease expires',{phase:failure,errorType:expect.any(String)});
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/private-token|secret-key|invalid-private-key/);
+    expect(batch).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledTimes(failure==='send'?1:0);
+  } finally {warn.mockRestore();}
+});

@@ -42,19 +42,29 @@ export async function sendBriefingNotifications(env: Env) {
     const lease = new Date(Date.now() + 120_000).toISOString(), token = crypto.randomUUID();
     const claim = await env.DB.prepare("UPDATE push_subscriptions SET lease_until = ?, lease_token = ? WHERE endpoint = ? AND account_id = ? AND subscription_json = ? AND last_notified_at = ? AND notification_version = ? AND (lease_until IS NULL OR lease_until < ?)").bind(lease, token, row.endpoint, row.account_id, row.subscription_json, row.last_notified_at, row.notification_version, now).run();
     if (!claim.meta.changes) continue;
+    let phase = "subscription";
     try {
       const subscription = subscriptionSchema.parse(JSON.parse(row.subscription_json));
       const body = row.language === "ar" ? "ملخص جديد جاهز في خلاصاتك." : row.language === "fr" ? "Un nouveau résumé est disponible dans vos fils." : "A new briefing is ready in your feeds.";
+      phase = "payload";
       const payload = await buildPushPayload({ data: JSON.stringify({ title: "Distilled.news", body, url: "/", tag: "new-briefings" }), options: { ttl: 3600 } }, subscription,
         { publicKey: env.VAPID_PUBLIC_KEY!, privateKey: env.VAPID_PRIVATE_KEY!, subject: env.VAPID_SUBJECT! });
+      phase = "send";
       const response = await fetch(subscription.endpoint, { ...payload, redirect: "error", signal: AbortSignal.timeout(10_000) });
+      phase = "receipt";
       if (response.status === 404 || response.status === 410) {
         await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND lease_token = ?").bind(row.endpoint, token).run();
       } else if (response.ok) {
         await recordPushAcceptance(env.DB, row, token, new Date().toISOString());
       } else console.warn("Push delivery rejected", { status: response.status });
       await response.body?.cancel();
-    } catch { console.warn("Push delivery failed; will retry after lease expires"); }
+    } catch (error) {
+      // Error messages may contain endpoint tokens or keys. Log only fixed stages
+      // and known exception names; never include the subscription or raw error.
+      const name = error instanceof Error ? error.name : "UnknownError";
+      const errorType = ["Error", "TypeError", "SyntaxError", "ZodError", "DataError", "OperationError", "InvalidAccessError", "NotSupportedError", "AbortError", "TimeoutError"].includes(name) ? name : "UnknownError";
+      console.warn("Push delivery failed; will retry after lease expires", { phase, errorType });
+    }
   }
   await settlePushOutbox(env.DB, new Date().toISOString());
 }
