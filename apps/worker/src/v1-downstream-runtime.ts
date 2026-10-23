@@ -18,6 +18,8 @@ import {verifyConnectorAuthority} from './connector-authority';
 import {sharedPublicHttp} from './connector-public-cache';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
 import {readPublicArticle} from './v1-intake/public-article-http';
+import {runtimeArticleFallback} from './v1-intake/article-fallback';
+import {productConnectorSource} from './connector-source';
 
 function enabledSources(env:Env):string[] {
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
@@ -87,8 +89,14 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
  publicGet:articleHttp?url=>readPublicArticle(articleHttp,url):undefined,
  publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:25000});await authorizeArticle(url);return result;}:undefined,
+ articleFallback:env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async claim=>{
+  const source=await env.DB.prepare('SELECT source_url,provider,kind,input,actor_id FROM sources WHERE id=?').bind(job.feedSourceId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null}>();
+  const approved=source&&productConnectorSource(source);
+  if(!approved||!['rss','google_news','website'].includes(approved.source.family))return undefined;
+  return runtimeArticleFallback(env,execution,authorizeArticle,fetcher)(claim);
+ }:undefined,
  extractHtml:execution?async(url,html)=>{
-  await authorizeArticle(url);const result=await execution!.execute('extract',{url,html});await authorizeArticle(url);return result;
+  await authorizeArticle(url);const result=await execution!.execute('extract',{url,html},{timeoutMs:15000});await authorizeArticle(url);return result;
  }:undefined,stagesForClaim:claim=>createV1BrowserStages(env,claim),readPayload:async claim=>{
   const ref=claim.input.observation.suppliedPayloadRef;
   const connectorPayload=await readConnectorPayload(env.RAW_ARCHIVE,claim.input.observation);
@@ -105,7 +113,7 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  return runAcquisitionJob(store,id,policy,router,{
   run:complete=>withFeedWriteTurn(env,job.value.feedId,complete,JSON.stringify({type:'v1_acquisition',jobId:id})),
   isBusy:error=>error instanceof IntelligenceTurnBusy
- });
+ },env.SOURCE_FULL_ARTICLES_ENABLED==='true'?180_000:90_000);
 }
 /** Existing queue transport; bounded relay recovers crashes, lost sends and delayed transient retries. */
 export async function dispatchV1Acquisitions(env:Env,now=new Date()):Promise<number> {

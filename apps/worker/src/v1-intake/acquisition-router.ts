@@ -20,6 +20,8 @@ export interface CandidateAcquisitionOptions {
  publicGet?(url:string):Promise<{url:string;body:string;contentType:string;status:number;authenticationRequired?:boolean;retryAfter?:string}>;
  /** Anonymous exact-URL private HTTP, never a login or challenge-solving path. */
  publicArticle?(url:string):Promise<unknown>;
+ /** Authorized Playwright -> durable Zyte exact-article chain. */
+ articleFallback?(claim:AcquisitionClaim):Promise<unknown>;
  /** Trusted runtime adapters; the caller cannot supply browser/model authority. */
  stages?:Omit<SourceAcquisitionOrchestratorOptions,'http'>;
  stagesForClaim?(claim:AcquisitionClaim):Omit<SourceAcquisitionOrchestratorOptions,'http'>;
@@ -57,6 +59,9 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
      throw new AcquisitionFailure('NETWORK',true,{detail:'HELPER_TRANSPORT_FAILURE'});
     throw error;
    }
+   return helperArticle(value,'private_public_http');
+  };
+  const helperArticle=(value:unknown,mechanism:string)=>{
    if(!value||typeof value!=='object'||Array.isArray(value))return undefined;
    const r=value as Record<string,unknown>;
    if(r.error==='TRANSIENT'||(typeof r.status==='number'&&(r.status>=500||r.status===408||r.status===425)))throw new AcquisitionFailure('NETWORK',true,{detail:'HELPER_TRANSIENT_FAILURE',httpStatus:typeof r.status==='number'?r.status:undefined});
@@ -69,9 +74,9 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(r.canonicalUrl&&r.canonicalUrl!==o.canonicalUrl)return undefined;
    requireReadableArticle(r.body);
    const date=resolvePublicationDate(undefined,o.publishedAtHint,helperArticleDates(r.dateMetadata),r.extractedDate??r.publishedAt);
-   return {sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:o.canonicalUrl!,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism:'private_public_http',publicationDate:date,contentCompleteness:'UNKNOWN'}};
+   return {sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:o.canonicalUrl!,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism,publicationDate:date,contentCompleteness:'UNKNOWN'}};
   };
-  const fallbackSuccess=(item:NonNullable<Awaited<ReturnType<typeof privateArticle>>>):AcquisitionStageOutcome=>({stage:'HTTP',status:'SUCCESS',result:{items:[item],requestedWindow:request.window,effectiveWindow:request.window,acquisitionAsOf:options.now(),coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'},provenance:{mechanism:'private_public_http'}}});
+  const fallbackSuccess=(item:NonNullable<Awaited<ReturnType<typeof privateArticle>>>):AcquisitionStageOutcome=>({stage:'HTTP',status:'SUCCESS',result:{items:[item],requestedWindow:request.window,effectiveWindow:request.window,acquisitionAsOf:options.now(),coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'},provenance:{mechanism:item.acquisitionEvidence.mechanism}}});
   const http=async():Promise<AcquisitionStageOutcome>=>{
    let document;
    try {document=options.publicGet?await options.publicGet(o.canonicalUrl!):await fetchPort.get(o.canonicalUrl!);}
@@ -127,8 +132,26 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    requireReadableArticle(item.text??'');
    return {stage:'HTTP',status:'SUCCESS',result:{items:[item],requestedWindow:request.window,effectiveWindow:request.window,acquisitionAsOf:options.now(),coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'},...(privateHttp?{provenance:{mechanism:'private_public_http'}}:{})}};
   };
+  const httpWithFallback=async():Promise<AcquisitionStageOutcome>=>{
+   let outcome:AcquisitionStageOutcome|undefined,failure:unknown;
+   try {outcome=await http();}
+   catch(error){
+    const recoverable=error instanceof AcquisitionFailure&&['NETWORK','EXTRACTION_FAILED'].includes(error.code)||
+     error instanceof SourceProviderError&&['TRANSIENT','UNAVAILABLE'].includes(error.code)||
+     error instanceof Error&&['SOURCE_EXECUTION_TIMEOUT','SOURCE_EXECUTION_UNAVAILABLE'].includes(error.message);
+    if(!recoverable||!options.articleFallback)throw error;
+    failure=error;
+   }
+   if(!options.articleFallback||outcome&&!['INSUFFICIENT','STRUCTURAL_FAILURE','CHALLENGE_REQUIRED'].includes(outcome.status))return outcome!;
+   const value=await options.articleFallback(claim),provider=value&&typeof value==='object'?(value as Record<string,unknown>).provider:undefined;
+   if(value&&provider!=='website_playwright'&&provider!=='website_zyte')throw new AcquisitionFailure('INVALID_RESULT',false);
+   const item=helperArticle(value,String(provider));
+   if(item)return fallbackSuccess(item);
+   if(failure)throw failure;
+   return outcome!;
+  };
   try {
-   const outcome=await new SourceAcquisitionOrchestrator({...options.stages,...options.stagesForClaim?.(claim),http}).acquire(request);
+   const outcome=await new SourceAcquisitionOrchestrator({...options.stages,...options.stagesForClaim?.(claim),http:httpWithFallback}).acquire(request);
    const items=outcome.result?.items;
    if(outcome.status!=='SUCCESS' || !items?.length) {
     const reason=outcome.stopReason;
@@ -143,7 +166,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    const stage=outcome.stages.at(-1)?.stage;
    const browserEvidence=stage==='BROWSER_WORKFLOW' || stage==='WEB_OPERATOR'?Object.fromEntries(['acceptanceId','observationId','rawArtifactRef'].filter(key=>typeof item.acquisitionEvidence?.[key]==='string').map(key=>[key,item.acquisitionEvidence[key]])):undefined;
    const completeness=item.acquisitionEvidence?.contentCompleteness==='UNKNOWN'?'UNKNOWN':'COMPLETE';
-   const parsed=acquiredSchema.safeParse({...base,title:item.title,body:item.text,language:o.languageHint,publishedAt:publicationDate.publishedAt,canonicalUrl:item.canonicalItemUrl,resolvedUrl:item.originalSourceReference??item.canonicalItemUrl,representation:'FULL_ARTICLE',contentCompleteness:completeness,acquisitionMethod:stage==='STRUCTURED'?'platform_api':stage==='HTTP'?'direct_http':'browser',acquisitionProvider:outcome.result?.provenance?.mechanism,quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:completeness==='COMPLETE'},provenance:{routerVersion:'v1-existing-orchestrator',stages:outcome.stages.map(s=>s.stage),publicationDate,...(browserEvidence?{browserEvidence}:{})}});
+   const parsed=acquiredSchema.safeParse({...base,title:item.title,body:item.text,language:o.languageHint,publishedAt:publicationDate.publishedAt,canonicalUrl:item.canonicalItemUrl,resolvedUrl:item.originalSourceReference??item.canonicalItemUrl,representation:'FULL_ARTICLE',contentCompleteness:completeness,acquisitionMethod:outcome.result?.provenance?.mechanism==='website_playwright'?'browser':stage==='STRUCTURED'?'platform_api':stage==='HTTP'?'direct_http':'browser',acquisitionProvider:outcome.result?.provenance?.mechanism,quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:completeness==='COMPLETE'},provenance:{routerVersion:'v1-existing-orchestrator',stages:outcome.stages.map(s=>s.stage),publicationDate,...(browserEvidence?{browserEvidence}:{})}});
    if(!parsed.success) throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'ACQUIRED_CONTENT_SCHEMA'});
    return parsed.data;
   } catch(error) {
@@ -151,6 +174,10 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(error instanceof SourceProviderError){
     if(error.code==='BACKPRESSURE')throw new AcquisitionFailure('BACKPRESSURE',true,{detail:'HELPER_CAPACITY_WAIT',retryNotBefore:error.retryNotBefore});
     if(error.code==='RATE_LIMIT')throw new AcquisitionFailure('RATE_LIMIT',true,{detail:'HELPER_RATE_LIMIT',retryNotBefore:error.retryNotBefore});
+    if(error.code==='BUDGET_EXCEEDED')throw new AcquisitionFailure('BUDGET_EXHAUSTED',true,{detail:'ARTICLE_PROVIDER_BUDGET'});
+    if(error.code==='UNCERTAIN_PAID_SUBMISSION')throw new AcquisitionFailure('UNCERTAIN_PAID_SUBMISSION',false,{detail:'ARTICLE_PROVIDER_OUTCOME_UNCERTAIN'});
+    if(error.code==='AUTH_REQUIRED'||error.code==='POLICY_REFUSAL')throw new AcquisitionFailure(error.code==='AUTH_REQUIRED'?'AUTH_REQUIRED':'POLICY_DENIED',false);
+    if(error.code==='TRANSIENT'||error.code==='UNAVAILABLE')throw new AcquisitionFailure('NETWORK',true,{detail:'ARTICLE_PROVIDER_UNAVAILABLE'});
    }
    if(error instanceof PublicSourcePolicyError) throw new AcquisitionFailure('POLICY_DENIED',false);
    if(error instanceof PublicSourceFetchFailure) throw new AcquisitionFailure(error.category==='BODY_BUDGET_EXCEEDED'?'BODY_BUDGET_EXCEEDED':'NETWORK',error.category!=='BODY_BUDGET_EXCEEDED');

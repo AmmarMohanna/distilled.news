@@ -14,6 +14,27 @@ const jobId=JSON.stringify(['ACQUIRE','observation-1','']);
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())});
 afterEach(async()=>ctx.dispose());
 const now='2026-10-03T12:00:00Z',later='2026-10-03T12:02:00Z';
+it('the bounded fallback lease prevents a second owner during a long article chain',async()=>{
+ const claimed=await claimAcquisition(store,jobId,now,180000);expect(claimed?.job.leaseUntil).toBe('2026-10-03T12:03:00.000Z');
+ expect(await claimAcquisition(store,jobId,later)).toBeUndefined();
+});
+it('RSS article helper failure reaches the rendering chain and persists the original date and identity',async()=>{
+ let calls=0;
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('',{status:406}),publicArticle:async()=>{throw Error('SOURCE_EXECUTION_TIMEOUT')},
+  articleFallback:async claim=>{calls++;return {status:200,url:claim.input.observation.canonicalUrl,pageKind:'article',body:'The publisher reports a decision. '.repeat(30),provider:'website_zyte',dateMetadata:{publishedAt:'2026-08-31T10:00:00Z',candidates:[],publicationConflict:false}}}});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('DONE');expect(calls).toBe(1);
+ expect((await store.list<AcceptedAcquiredContent>('acquired','feed-source-1'))[0]).toMatchObject({acquisitionProvider:'website_zyte',publishedAt:'2026-08-31T10:00:00.000Z',contentCompleteness:'UNKNOWN'});
+});
+it.each([401,429,451,404])('public article status %s does not invoke rendering or paid fallback',async status=>{
+ let calls=0;const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('',{status}),articleFallback:async()=>{calls++;return undefined}});
+ await runAcquisitionJob(store,jobId,testPolicy,router);expect(calls).toBe(0);
+});
+it('an uncertain Zyte submission is terminal and cannot be retried by another acquisition delivery',async()=>{
+ let calls=0;const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('',{status:406}),articleFallback:async()=>{calls++;throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION')}});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('FAILED');
+ expect(await runAcquisitionJob(store,jobId,{...testPolicy,now:()=>later},router)).toBe('SKIPPED');expect(calls).toBe(1);
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value.failureCode).toBe('UNCERTAIN_PAID_SUBMISSION');
+});
 it('helper capacity waits preserve retry allowance and respect the provider deadline',async()=>{
  await runAcquisitionJob(store,jobId,testPolicy,async()=>{throw new AcquisitionFailure('BACKPRESSURE',true,{detail:'HELPER_CAPACITY_WAIT',retryNotBefore:'2026-10-03T12:05:00Z'})});
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:0,resourceWaits:1,failureDetail:'HELPER_CAPACITY_WAIT',nextAttemptAt:'2026-10-03T12:05:00.000Z'});

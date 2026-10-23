@@ -640,6 +640,8 @@ async def browser(data):
         requests = 0
         async def route(request):
             nonlocal requests
+            if data.get('exactCandidateOnly') and request.request.is_navigation_request() and request.request.frame == page.main_frame and request.request.url != data['url']:
+                return await request.abort()
             if request.request.resource_type in ('image', 'media', 'font'):
                 return await request.abort()
             try:
@@ -655,7 +657,9 @@ async def browser(data):
             html = await page.content()
             if len(html.encode()) > 4000000:
                 raise ValueError('HTML_TOO_LARGE')
-            return {'status': response.status if response else 0, 'html': html, 'requests': requests}
+            return {'status': response.status if response else 0, 'html': html, 'requests': requests,
+                    'url': page.url,
+                    'authenticationRequired': bool(response and response.headers.get('www-authenticate'))}
         finally:
             await context.close()
             await browser.close()

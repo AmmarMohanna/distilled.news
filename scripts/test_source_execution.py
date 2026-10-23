@@ -16,6 +16,36 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_exact_article_browser_blocks_other_navigation_and_reports_final_url(self):
+        url = 'https://publisher.example/news/one'
+        routes = []
+        frame = object()
+        page = types.SimpleNamespace(url=url, main_frame=frame)
+        async def goto(*args, **kwargs):
+            for target in [url, url + '/other']:
+                request = types.SimpleNamespace(request=types.SimpleNamespace(
+                    resource_type='document', is_navigation_request=lambda: True,
+                    frame=frame, url=target), abort=AsyncMock(), continue_=AsyncMock())
+                await routes[0](request)
+                self.assertEqual(request.abort.await_count, int(target != url))
+                self.assertEqual(request.continue_.await_count, int(target == url))
+            return types.SimpleNamespace(status=200, headers={})
+        page.goto = goto
+        page.content = AsyncMock(return_value='<article>Original article</article>')
+        async def route(_pattern, handler): routes.append(handler)
+        context = types.SimpleNamespace(route=route, new_page=AsyncMock(return_value=page), close=AsyncMock())
+        browser = types.SimpleNamespace(new_context=AsyncMock(return_value=context), close=AsyncMock())
+        engine = types.SimpleNamespace(chromium=types.SimpleNamespace(launch=AsyncMock(return_value=browser)))
+        manager = AsyncMock()
+        manager.__aenter__.return_value = engine
+        module = types.SimpleNamespace(async_playwright=lambda: manager)
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.dict('sys.modules', {'playwright.async_api':module}):
+            result = asyncio.run(runtime.browser({'url':url, 'exactCandidateOnly':True}))
+        self.assertEqual(result['url'], url)
+        self.assertFalse(result['authenticationRequired'])
+        context.close.assert_awaited_once()
+        browser.close.assert_awaited_once()
+
     def test_public_article_fetch_is_anonymous_bounded_and_exact(self):
         class Response:
             status = 200

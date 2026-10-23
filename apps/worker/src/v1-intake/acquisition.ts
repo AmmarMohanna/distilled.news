@@ -8,11 +8,12 @@ import type { AcceptedAcquiredContent, AcceptedInput, CandidateRecord, Downstrea
 
 const MAX_ATTEMPTS=5, LEASE_MS=90_000;
 export interface AcquisitionClaim {job:DownstreamJob;input:AcceptedInput;candidate:CandidateRecord;token:string}
-export type AcquisitionFailureCode='NETWORK'|'BACKPRESSURE'|'RATE_LIMIT'|'AUTH_REQUIRED'|'CHALLENGE_REQUIRED'|'POLICY_DENIED'|'UNSUPPORTED'|'EXTRACTION_FAILED'|'INVALID_RESULT'|'BUDGET_EXHAUSTED'|'BODY_BUDGET_EXCEEDED'|'APPROVAL_REVOKED'|'IDEMPOTENCY_CONFLICT';
+export type AcquisitionFailureCode='NETWORK'|'BACKPRESSURE'|'RATE_LIMIT'|'AUTH_REQUIRED'|'CHALLENGE_REQUIRED'|'POLICY_DENIED'|'UNSUPPORTED'|'EXTRACTION_FAILED'|'INVALID_RESULT'|'BUDGET_EXHAUSTED'|'BODY_BUDGET_EXCEEDED'|'APPROVAL_REVOKED'|'IDEMPOTENCY_CONFLICT'|'UNCERTAIN_PAID_SUBMISSION';
 export class AcquisitionFailure extends Error {
  constructor(readonly code:AcquisitionFailureCode,readonly transient:boolean,readonly diagnostic?:{detail:string;httpStatus?:number;retryNotBefore?:string}) {super(code)}
 }
-export async function claimAcquisition(store:V1IntakeStore,id:string,rawNow:string):Promise<AcquisitionClaim|undefined> {
+export async function claimAcquisition(store:V1IntakeStore,id:string,rawNow:string,leaseMs=LEASE_MS):Promise<AcquisitionClaim|undefined> {
+ if(!Number.isInteger(leaseMs)||leaseMs<LEASE_MS||leaseMs>180_000)throw new HandoffError('INVALID_REQUEST');
  const now=timestampSchema.parse(rawNow),row=await store.read<DownstreamJob>('jobs',id);
  if(!row || row.value.kind!=='ACQUIRE') return undefined;
  return transact(store,row.feedSourceId,async tx=>{
@@ -28,7 +29,7 @@ export async function claimAcquisition(store:V1IntakeStore,id:string,rawNow:stri
   // A fetched result survives repeated worker crashes without spending another provider attempt.
   const result=await tx.read<AcceptedAcquiredContent>('acquisition_results',id);
   if((job.attempts>=MAX_ATTEMPTS && !result) || (result && (job.resumeAttempts??0)>=MAX_ATTEMPTS)) {tx.write('jobs',id,{...job,state:'FAILED',exhausted:true,failureCode:'RECOVERY_EXHAUSTED',leaseToken:undefined,leaseUntil:undefined},input.observation.sourceItemKey);return undefined}
-  const token=crypto.randomUUID(),claimed:DownstreamJob={...job,state:'RUNNING',attempts:job.attempts+(result?0:1),resumeAttempts:(job.resumeAttempts??0)+(result?1:0),leaseToken:token,leaseUntil:new Date(Date.parse(now)+LEASE_MS).toISOString(),nextAttemptAt:undefined};
+  const token=crypto.randomUUID(),claimed:DownstreamJob={...job,state:'RUNNING',attempts:job.attempts+(result?0:1),resumeAttempts:(job.resumeAttempts??0)+(result?1:0),leaseToken:token,leaseUntil:new Date(Date.parse(now)+leaseMs).toISOString(),nextAttemptAt:undefined};
   tx.write('jobs',id,claimed,input.observation.sourceItemKey);
   return {job:claimed,input,candidate,token};
  });
@@ -54,10 +55,10 @@ export interface AcquisitionCompletionAdmission {
  run<T>(complete:()=>Promise<T>):Promise<T>;
  isBusy(error:unknown):boolean;
 }
-export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:IntakePolicy,execute:(claim:AcquisitionClaim)=>Promise<AcceptedAcquiredContent>,admission?:AcquisitionCompletionAdmission):Promise<'DONE'|'SKIPPED'|'RETRY'|'FAILED'> {
+export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:IntakePolicy,execute:(claim:AcquisitionClaim)=>Promise<AcceptedAcquiredContent>,admission?:AcquisitionCompletionAdmission,leaseMs=LEASE_MS):Promise<'DONE'|'SKIPPED'|'RETRY'|'FAILED'> {
  // The observation lease/CAS owns acquisition claims. They need no Feed-wide
  // admission; evidence promotion below is the shared canonical boundary.
- const claim=await claimAcquisition(store,id,policy.now());if(!claim) return 'SKIPPED';
+ const claim=await claimAcquisition(store,id,policy.now(),leaseMs);if(!claim) return 'SKIPPED';
  const retained=!!await store.read('acquisition_results',id);
  try {
   if(!retained) await persistAcquisitionResult(store,claim,await execute(claim),policy.now());
