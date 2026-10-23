@@ -1,0 +1,289 @@
+{
+  "description": "Retained real 19:47/19:48 editions. Source bytes unchanged. Inclusion labels are manual editorial judgments, not independent verification of Telegram allegations. Recorded responses predate the candidate guidance.",
+  "cases": [
+    {
+      "language": "en",
+      "input": {
+        "feed": {
+          "interest": "Track important news and developments affecting Lebanon, including politics, government decisions, security, the economy, banking, public services, electricity, infrastructure, and major social developments.",
+          "language": "en",
+          "windowMinutes": 30,
+          "style": "Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time."
+        },
+        "articles": [
+          {
+            "id": "69c9f685-3339-4057-ba7e-07678a33816e",
+            "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+            "url": "https://t.me/lebanonnews2/107634",
+            "publishedAt": "2026-10-23T16:32:29.000Z",
+            "text": "🔴هجوم يمني يستهدف مطار الدمام بالمنطقة الشرقية في السعودية.\n\n\n\nhttps://telegram.me/lebanonnews2"
+          },
+          {
+            "id": "7951d27e-8979-4bfa-b3fe-9b20d87855db",
+            "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+            "url": "https://t.me/lebanonnews2/107636",
+            "publishedAt": "2026-10-23T16:34:45.000Z",
+            "text": "🔴 مجلس إدارة مؤسسة كهرباء لبنان قرّر قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني\n\n\nhttps://telegram.me/lebanonnews2"
+          },
+          {
+            "id": "d54d92e1-3175-4465-8f47-09031a4de464",
+            "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+            "url": "https://t.me/lebanonnews2/107635",
+            "publishedAt": "2026-10-23T16:33:23.000Z",
+            "text": "🔴المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.\n\n\n\nhttps://telegram.me/lebanonnews2"
+          },
+          {
+            "id": "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+            "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+            "url": "https://t.me/lebanonnews2/107633",
+            "publishedAt": "2026-10-23T16:31:41.000Z",
+            "text": "🚨 المبعوث الأميركي توم براك :\n\n* *ترامب قد يهاجم إيران نهاية الأسبوع*\n\n*ترامب أفسح المجال مراراً للتوصّل إلى اتفاق، لكن طهران اتخذت مضيق هرمز ورقة للمساومة\n\n\nhttps://telegram.me/lebanonnews2"
+          }
+        ],
+        "prior": [
+          {
+            "id": "2cf724e9c2ab161f62e3186fed42a934ecdcdc40c3ca203e6478f67d7d7af17d:2cf724e9c2ab161f62e3186fed42a934ecdcdc40c3ca203e6478f67d7d7af17d:0",
+            "at": "2026-10-23T14:17:01.456Z",
+            "headline": "Israeli military announces multi-front defense drills in northern and central regions next week\nThe Israeli army stated it will conduct exercises next week in northern and central Israel simulating multi-front defensive scenarios. No direct mention of Lebanon, but such drills may have regional security implications.",
+            "body": "Israeli military announces multi-front defense drills in northern and central regions next week\nThe Israeli army stated it will conduct exercises next week in northern and central Israel simulating multi-front defensive scenarios. No direct mention of Lebanon, but such drills may have regional security implications."
+          },
+          {
+            "id": "fcb025769354756396772305619fe3d4ee049943ea125de5e65278eb9e01a788:fcb025769354756396772305619fe3d4ee049943ea125de5e65278eb9e01a788:0",
+            "at": "2026-10-23T14:46:23.250Z",
+            "headline": "Brent crude oil price jumps to $116 per barrel\nBrent crude oil jumped to $116 per barrel, according to a report published on 2026-10-23.",
+            "body": "Brent crude oil price jumps to $116 per barrel\nBrent crude oil jumped to $116 per barrel, according to a report published on 2026-10-23."
+          },
+          {
+            "id": "74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:0",
+            "at": "2026-10-23T15:16:09.091Z",
+            "headline": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23.",
+            "body": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23."
+          },
+          {
+            "id": "c7633dcec6f3a231f91b5ea11d82d271f1c36b075ad36d219e72039d3c807c89:c7633dcec6f3a231f91b5ea11d82d271f1c36b075ad36d219e72039d3c807c89:0",
+            "at": "2026-10-23T15:50:04.431Z",
+            "headline": "Large explosion reported in Qantara, southern Lebanon\nA Telegram channel reported a large explosion in the town of Qantara, southern Lebanon, which it attributed to an Israeli operation. No details on casualties or damage were provided as of the sources' publication on 2026-10-23.",
+            "body": "Large explosion reported in Qantara, southern Lebanon\nA Telegram channel reported a large explosion in the town of Qantara, southern Lebanon, which it attributed to an Israeli operation. No details on casualties or damage were provided as of the sources' publication on 2026-10-23."
+          },
+          {
+            "id": "03ea8210a7a4256a4ff9d129b6a9da60ecd8bbb16f788c78caceec74f115f117:03ea8210a7a4256a4ff9d129b6a9da60ecd8bbb16f788c78caceec74f115f117:0",
+            "at": "2026-10-23T16:17:11.408Z",
+            "headline": "Israeli airstrike reported near Barashit, southern Lebanon\nA Telegram channel reported that an Israeli warplane carried out an airstrike targeting the outskirts of Barashit, near Kounine, in southern Lebanon. The report did not provide details on casualties or damage as of its publication on 2026-10-23.",
+            "body": "Israeli airstrike reported near Barashit, southern Lebanon\nA Telegram channel reported that an Israeli warplane carried out an airstrike targeting the outskirts of Barashit, near Kounine, in southern Lebanon. The report did not provide details on casualties or damage as of its publication on 2026-10-23."
+          }
+        ],
+        "windowStart": "2026-10-23T16:14:53.352Z",
+        "windowEnd": "2026-10-23T16:44:53.352Z"
+      },
+      "recordedResult": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "Electricité du Liban to cut power to public entities with unpaid bills from November 2",
+            "body": "The board of Electricité du Liban decided to cut electricity supply to government administrations, public institutions, and independent agencies that have not paid their dues, starting November 2.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "7951d27e-8979-4bfa-b3fe-9b20d87855db"
+            ]
+          },
+          {
+            "headline": "Israeli regional council announces imminent airstrikes on Lebanese front",
+            "body": "The Upper Galilee Regional Council stated it will launch airstrikes on the Lebanese front in the coming hours, warning that explosions and aircraft noise will be heard in the area.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "d54d92e1-3175-4465-8f47-09031a4de464"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "off-topic: speculative statement about US-Iran, no direct Lebanon link",
+            "sourceIds": [
+              "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "off-topic: attack in Saudi Arabia, no Lebanon connection",
+            "sourceIds": [
+              "69c9f685-3339-4057-ba7e-07678a33816e"
+            ]
+          }
+        ],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 5162,
+          "outputTokens": 224,
+          "costUsd": 0.0084728
+        },
+        "timings": {
+          "totalMs": 14087,
+          "stages": {
+            "edit": 6874,
+            "verify": 7213
+          }
+        }
+      },
+      "expectedIncludedUrls": [
+        "https://t.me/lebanonnews2/107636",
+        "https://t.me/lebanonnews2/107635"
+      ],
+      "expectedOmittedUrls": [
+        "https://t.me/lebanonnews2/107633",
+        "https://t.me/lebanonnews2/107634"
+      ],
+      "sourceSha256": {
+        "https://t.me/lebanonnews2/107634": "56eb547687eb93cabd588397a61de36adf0590ed0e3bb011d4f5be0f4369bb63",
+        "https://t.me/lebanonnews2/107636": "470a34fe710866871e0459dffb9ecd1b458f793e53ca2cd23b70608273463506",
+        "https://t.me/lebanonnews2/107635": "89b3880e4061b7bb80d8e3c52281e3b562992f99a9d5a8179a669ae8244455c4",
+        "https://t.me/lebanonnews2/107633": "f664a2c9591bd77db69c7bd2653bd2aaebadfb915ba5295fb7e8460a31c0bcab"
+      }
+    },
+    {
+      "language": "ar",
+      "input": {
+        "feed": {
+          "interest": "Track important news and developments affecting Lebanon, including politics, government decisions, security, the economy, banking, public services, electricity, infrastructure, and major social developments.",
+          "language": "ar",
+          "windowMinutes": 30,
+          "style": "Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time."
+        },
+        "articles": [
+          {
+            "id": "65b4acf2-6cd6-4ea1-8661-2f706e7500fc",
+            "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+            "url": "https://t.me/lebanonnews2/107636",
+            "publishedAt": "2026-10-23T16:34:45.000Z",
+            "text": "🔴 مجلس إدارة مؤسسة كهرباء لبنان قرّر قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني\n\n\nhttps://telegram.me/lebanonnews2"
+          },
+          {
+            "id": "7e888347-7932-47d4-8a26-c6a743a4d083",
+            "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+            "url": "https://t.me/lebanonnews2/107635",
+            "publishedAt": "2026-10-23T16:33:23.000Z",
+            "text": "🔴المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.\n\n\n\nhttps://telegram.me/lebanonnews2"
+          },
+          {
+            "id": "8d16b260-3dbe-4ab2-ba9e-dbef278649f2",
+            "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+            "url": "https://t.me/lebanonnews2/107633",
+            "publishedAt": "2026-10-23T16:31:41.000Z",
+            "text": "🚨 المبعوث الأميركي توم براك :\n\n* *ترامب قد يهاجم إيران نهاية الأسبوع*\n\n*ترامب أفسح المجال مراراً للتوصّل إلى اتفاق، لكن طهران اتخذت مضيق هرمز ورقة للمساومة\n\n\nhttps://telegram.me/lebanonnews2"
+          },
+          {
+            "id": "c3bf972c-3f83-46f8-9257-66228021689c",
+            "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+            "url": "https://t.me/lebanonnews2/107634",
+            "publishedAt": "2026-10-23T16:32:29.000Z",
+            "text": "🔴هجوم يمني يستهدف مطار الدمام بالمنطقة الشرقية في السعودية.\n\n\n\nhttps://telegram.me/lebanonnews2"
+          }
+        ],
+        "prior": [
+          {
+            "id": "3a3654fa25445cfe4d691c42ee30d17f40b9299dee79c227422d6000032b880e:3a3654fa25445cfe4d691c42ee30d17f40b9299dee79c227422d6000032b880e:0",
+            "at": "2026-10-23T14:19:19.413Z",
+            "headline": "الجيش الإسرائيلي يعلن عن مناورات دفاعية متعددة الجبهات في الشمال والوسط الأسبوع المقبل\nأعلن الجيش الإسرائيلي أنه سيجري الأسبوع المقبل مناورات في الشمال والوسط تحاكي سيناريوهات دفاعية متعددة الجبهات، دون ذكر تفاصيل إضافية عن المناطق أو التواريخ المحددة. لم يرد ذكر مباشر لتأثير ذلك على لبنان، لكن التطورات العسكرية الإسرائيلية في الشمال تهم المتابعين للوضع اللبناني.",
+            "body": "الجيش الإسرائيلي يعلن عن مناورات دفاعية متعددة الجبهات في الشمال والوسط الأسبوع المقبل\nأعلن الجيش الإسرائيلي أنه سيجري الأسبوع المقبل مناورات في الشمال والوسط تحاكي سيناريوهات دفاعية متعددة الجبهات، دون ذكر تفاصيل إضافية عن المناطق أو التواريخ المحددة. لم يرد ذكر مباشر لتأثير ذلك على لبنان، لكن التطورات العسكرية الإسرائيلية في الشمال تهم المتابعين للوضع اللبناني."
+          },
+          {
+            "id": "af7aaf22985cd2a5991531f6e26f437d65762eb8df167e6fe32b278d71d92ae6:af7aaf22985cd2a5991531f6e26f437d65762eb8df167e6fe32b278d71d92ae6:0",
+            "at": "2026-10-23T14:46:33.731Z",
+            "headline": "ارتفاع سعر خام برنت إلى 116 دولارًا للبرميل\nذكر المصدر أن خام برنت قفز إلى 116 دولارًا للبرميل الواحد.",
+            "body": "ارتفاع سعر خام برنت إلى 116 دولارًا للبرميل\nذكر المصدر أن خام برنت قفز إلى 116 دولارًا للبرميل الواحد."
+          },
+          {
+            "id": "868fa2a5de00781919cb6068ba7122649e18762d4d429d732982acce9d2c2010:868fa2a5de00781919cb6068ba7122649e18762d4d429d732982acce9d2c2010:0",
+            "at": "2026-10-23T15:15:55.423Z",
+            "headline": "هجوم على كنيسة في الكرك\nوردت تقارير عن وقوع هجوم على كنيسة في منطقة الكرك. لم ترد تفاصيل إضافية حول هوية المهاجمين أو عدد الضحايا حتى الآن.",
+            "body": "هجوم على كنيسة في الكرك\nوردت تقارير عن وقوع هجوم على كنيسة في منطقة الكرك. لم ترد تفاصيل إضافية حول هوية المهاجمين أو عدد الضحايا حتى الآن."
+          },
+          {
+            "id": "3a2666f1bb5df794a6cbcbaaca67572f5efa57cba2356f70499e11c673181af8:3a2666f1bb5df794a6cbcbaaca67572f5efa57cba2356f70499e11c673181af8:0",
+            "at": "2026-10-23T15:49:04.203Z",
+            "headline": "تفجير كبير جنوب لبنان في بلدة القنطرة\nأفادت مصادر بوقوع تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة جنوب لبنان. لم ترد تفاصيل إضافية حول حجم الأضرار أو الإصابات حتى وقت نشر الخبر.",
+            "body": "تفجير كبير جنوب لبنان في بلدة القنطرة\nأفادت مصادر بوقوع تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة جنوب لبنان. لم ترد تفاصيل إضافية حول حجم الأضرار أو الإصابات حتى وقت نشر الخبر."
+          },
+          {
+            "id": "26c3f7946652cde26864dc7074b665ebe4f1933837135728635e5191ebed2aed:26c3f7946652cde26864dc7074b665ebe4f1933837135728635e5191ebed2aed:0",
+            "at": "2026-10-23T16:17:37.027Z",
+            "headline": "غارة جوية إسرائيلية تستهدف أطراف بلدة برعشيت جنوب لبنان\nأفادت مصادر بوقوع غارة حربية إسرائيلية استهدفت أطراف بلدة برعشيت باتجاه كونين جنوب لبنان. لم ترد تفاصيل عن حجم الأضرار أو الإصابات حتى وقت نشر الخبر.",
+            "body": "غارة جوية إسرائيلية تستهدف أطراف بلدة برعشيت جنوب لبنان\nأفادت مصادر بوقوع غارة حربية إسرائيلية استهدفت أطراف بلدة برعشيت باتجاه كونين جنوب لبنان. لم ترد تفاصيل عن حجم الأضرار أو الإصابات حتى وقت نشر الخبر."
+          }
+        ],
+        "windowStart": "2026-10-23T16:14:53.352Z",
+        "windowEnd": "2026-10-23T16:44:53.352Z"
+      },
+      "recordedResult": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "مؤسسة كهرباء لبنان تقرر قطع التيار عن الإدارات المتخلفة عن السداد",
+            "body": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي لم تسدد مستحقاتها، وذلك اعتباراً من 2 تشرين الثاني.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "65b4acf2-6cd6-4ea1-8661-2f706e7500fc"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "لا يوجد تطور مباشر أو قرار جديد يخص لبنان",
+            "sourceIds": [
+              "8d16b260-3dbe-4ab2-ba9e-dbef278649f2"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "خارج نطاق لبنان",
+            "sourceIds": [
+              "c3bf972c-3f83-46f8-9257-66228021689c"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "تصريح عن نية شن غارات وليس تنفيذ أو قرار جديد",
+            "sourceIds": [
+              "7e888347-7932-47d4-8a26-c6a743a4d083"
+            ]
+          }
+        ],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 5065,
+          "outputTokens": 222,
+          "costUsd": 0.008546
+        },
+        "timings": {
+          "totalMs": 13550,
+          "stages": {
+            "edit": 7740,
+            "verify": 5810
+          }
+        }
+      },
+      "expectedIncludedUrls": [
+        "https://t.me/lebanonnews2/107636",
+        "https://t.me/lebanonnews2/107635"
+      ],
+      "expectedOmittedUrls": [
+        "https://t.me/lebanonnews2/107633",
+        "https://t.me/lebanonnews2/107634"
+      ],
+      "sourceSha256": {
+        "https://t.me/lebanonnews2/107636": "470a34fe710866871e0459dffb9ecd1b458f793e53ca2cd23b70608273463506",
+        "https://t.me/lebanonnews2/107635": "89b3880e4061b7bb80d8e3c52281e3b562992f99a9d5a8179a669ae8244455c4",
+        "https://t.me/lebanonnews2/107633": "f664a2c9591bd77db69c7bd2653bd2aaebadfb915ba5295fb7e8460a31c0bcab",
+        "https://t.me/lebanonnews2/107634": "56eb547687eb93cabd588397a61de36adf0590ed0e3bb011d4f5be0f4369bb63"
+      }
+    }
+  ]
+}

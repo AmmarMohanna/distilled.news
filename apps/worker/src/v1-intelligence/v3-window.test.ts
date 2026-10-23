@@ -108,3 +108,52 @@ it('includes a pre-deadline observation acquired after close and excludes observ
  await article(2,'2026-10-03T12:27:00Z','2026-10-03T12:33:00Z','2026-10-03T12:31:00Z');
  const prepared=await prepareV3Window(store,'feed-1',window,'2026-10-03T12:34:00Z');expect(prepared.input.articles).toHaveLength(1);expect(prepared.input.articles[0].publishedAt).toBe('2026-10-03T12:28:00Z');
 },30000);
+
+async function relativeFeed(originAt='2026-10-03T12:05:40.123Z'){
+ await store.registerFeed({...feedFixture,revision:2,createdAt:originAt,briefingFrequency:'30M',briefingSchedule:{durationMinutes:30,timezone:'UTC',originAt}});
+ const intake=new V1IntakeStore(ctx.db),scope=(await intake.getScope('feed-source-1'))!;
+ await intake.registerScope({...scope,feedRevision:2});
+}
+it('automatically dispatches the precise first relative close and persists it with settled-call crash recovery',async()=>{
+ await relativeFeed();await article(1,'2026-10-03T12:06:00Z');
+ const sent:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{sent.push(body)}}} as unknown as Env;
+ await dispatchV1Intelligence(env,new Date('2026-10-03T12:30:40.123Z'));
+ await dispatchV1Intelligence(env,new Date('2026-10-03T12:35:40.122Z'));
+ expect(sent).toHaveLength(0);expect(await store.list('feed-1','briefing_requests')).toHaveLength(0);
+ await dispatchV1Intelligence(env,new Date('2026-10-03T12:35:40.123Z'));
+ expect(sent).toHaveLength(1);expect(sent[0].window).toMatchObject({start:'2026-10-03T12:05:40.123Z',end:'2026-10-03T12:35:40.123Z',originAt:'2026-10-03T12:05:40.123Z',schedulePolicy:'creation-relative-v1'});
+ const seen:string[]=[],original=FeedTransaction.prototype.write;let crash=true;
+ vi.spyOn(FeedTransaction.prototype,'write').mockImplementation(async function(this:FeedTransaction,kind,id,value){if(kind==='v3_window_results'&&crash){crash=false;throw Error('retained-call crash')}return original.call(this,kind,id,value)});
+ await expect(processV1Briefing(env,sent[0],()=>sent[0].window.end,undefined,fetcher(seen) as typeof fetch,{scheduledDelivery:true})).rejects.toThrow();
+ expect(seen).toHaveLength(2);
+ const edition=await processV1Briefing(env,sent[0],()=> '2026-10-03T12:36:40.123Z',undefined,fetcher(seen) as typeof fetch,{scheduledDelivery:true});
+ expect(edition).toMatchObject({engine:'v3',windowStart:sent[0].window.start,windowEnd:sent[0].window.end});expect(seen).toHaveLength(2);
+ await processV1Briefing(env,sent[0],()=> '2026-10-03T12:37:40.123Z',undefined,fetcher(seen) as typeof fetch,{scheduledDelivery:true});
+ expect(seen).toHaveLength(2);expect(await store.list('feed-1','editions')).toHaveLength(1);
+ await dispatchV1Intelligence(env,new Date('2026-10-03T13:05:40.123Z'));
+ expect(sent.at(-1).window.start).toBe(sent[0].window.end);expect(sent.at(-1).window.end).toBe('2026-10-03T13:05:40.123Z');
+},60000);
+it('recovers missed relative closes consecutively without duplicate requests or inference',async()=>{
+ await relativeFeed();env={...env,OPENROUTER_API_KEY:undefined};
+ for(let i=0;i<4;i++)await dispatchV1Intelligence(env,new Date('2026-10-03T13:36:00Z'));
+ const requests=(await store.list<any>('feed-1','briefing_requests')).sort((a,b)=>a.window.end.localeCompare(b.window.end));
+ expect(requests.map(r=>r.window.end)).toEqual(['2026-10-03T12:35:40.123Z','2026-10-03T13:05:40.123Z','2026-10-03T13:35:40.123Z']);
+ expect(requests[0].window.start).toBe('2026-10-03T12:05:40.123Z');
+ for(let i=1;i<requests.length;i++)expect(requests[i].window.start).toBe(requests[i-1].window.end);
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+},60000);
+it('an interval edit preserves the original pending request and retries its frozen relative window first',async()=>{
+ await relativeFeed();const sent:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{sent.push(body)}}} as unknown as Env;
+ await dispatchV1Intelligence(env,new Date('2026-10-03T12:35:40.123Z'));
+ const oldMessage=sent[0],id=await windowIdentity('feed-1',oldMessage.window);
+ await feedTransact(store,'feed-1',async tx=>{const old=await tx.read<any>('briefing_requests',id);await tx.write('briefing_requests',id,{...old,attempts:1,nextAttemptAt:'2026-10-03T13:30:00Z'})});
+ const before=await store.read('feed-1','briefing_requests',id);
+ await store.registerFeed({...feedFixture,revision:3,createdAt:'2026-10-03T12:05:40.123Z',briefingFrequency:'HOURLY',briefingSchedule:{durationMinutes:60,timezone:'UTC',originAt:oldMessage.window.end}});
+ // Simulate expiration of the old transport's dispatch lease, as in a recovered delivery.
+ await ctx.db.prepare("UPDATE v1_queue_dispatches SET lease_until=0 WHERE kind='v1_briefing' AND id=?").bind(id).run();
+ await dispatchV1Intelligence(env,new Date('2026-10-03T13:35:40.123Z'));
+ expect(await store.read('feed-1','briefing_requests',id)).toEqual(before);
+ expect(sent.at(-1).window).toEqual(oldMessage.window);
+ const next=(await store.list<any>('feed-1','briefing_requests')).find(r=>r.id!==id)!;
+ expect(next.window.start).toBe(oldMessage.window.end);expect(next.window.end).toBe('2026-10-03T13:35:40.123Z');
+},60000);

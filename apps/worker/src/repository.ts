@@ -82,6 +82,7 @@ interface BriefingRow {
   public_feed_enabled: number;
   explore_featured?: number;
   v1_briefing_interval_minutes?: BriefingConfig["updateIntervalMinutes"];
+  briefing_schedule_origin_at?: string | null;
   paused?: number;
   language?: "en" | "ar" | "fr" | null;
   intensity?: "low" | "medium" | "high" | null;
@@ -548,8 +549,8 @@ export class D1Repository implements Repository {
         `INSERT INTO briefings (
           id, owner_account_id, slug, title, stars, interest_profile, style_instruction,
           public_feed_enabled, paused, language, intensity, briefing_cadence, briefing_time_of_day,
-          briefing_timezone, next_briefing_at, retention_days, created_at, updated_at, v1_briefing_interval_minutes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          briefing_timezone, next_briefing_at, retention_days, created_at, updated_at, v1_briefing_interval_minutes, briefing_schedule_origin_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           slug = excluded.slug,
           title = excluded.title,
@@ -566,6 +567,7 @@ export class D1Repository implements Repository {
           next_briefing_at = excluded.next_briefing_at,
           retention_days = excluded.retention_days,
           v1_briefing_interval_minutes = excluded.v1_briefing_interval_minutes,
+          briefing_schedule_origin_at = COALESCE(excluded.briefing_schedule_origin_at, briefings.briefing_schedule_origin_at),
           updated_at = excluded.updated_at`
       )
       .bind(
@@ -587,7 +589,8 @@ export class D1Repository implements Repository {
         FIXED_RETENTION_DAYS,
         timestamp,
         timestamp,
-        input.updateIntervalMinutes ?? null
+        input.updateIntervalMinutes ?? null,
+        input.briefingScheduleOriginAt ?? null
       )
       .run();
     const saved = await this.getBriefingById(input.id);
@@ -2511,6 +2514,7 @@ function rowToBriefing(row: BriefingRow): BriefingConfig {
     publicFeedEnabled: row.public_feed_enabled === 1,
     exploreFeatured: row.explore_featured === 1,
     updateIntervalMinutes: row.v1_briefing_interval_minutes,
+    briefingScheduleOriginAt: row.briefing_schedule_origin_at ?? undefined,
     paused: row.paused === 1,
     language: row.language === "ar" || row.language === "fr" ? row.language : "en",
     intensity: row.intensity === "low" || row.intensity === "high" ? row.intensity : "medium",

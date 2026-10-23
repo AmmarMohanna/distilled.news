@@ -291,9 +291,11 @@ async function verify(
           const out = new Map<number, Verdict>();
           for (const entry of list) {
             const row = entry as Record<string, unknown>;
-            const i = Number(row?.i);
+            const i = row?.i;
             const verdict = text(row?.verdict).toLowerCase();
-            if (!Number.isInteger(i) || i < 0 || i >= batch.length || !["ok", "fix", "drop", "redundant"].includes(verdict)) continue;
+            if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= batch.length) throw new Error('invalid verifier item index');
+            if (out.has(batch[i])) throw new Error('duplicate verifier item index');
+            if (!["ok", "fix", "drop", "redundant"].includes(verdict)) continue;
             const issues = (Array.isArray(row.issues) ? row.issues : []).map(text).filter(Boolean);
             out.set(batch[i], { verdict: verdict as Verdict["verdict"], issues });
           }

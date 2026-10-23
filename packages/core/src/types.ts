@@ -16,6 +16,8 @@ export type SourceKind =
   | "apify_actor";
 
 export interface BriefingConfig {
+  /** Absent on legacy clock-aligned feeds; retained across edits. */
+  briefingScheduleOriginAt?: string;
   updateIntervalMinutes?: 30 | 60 | 120 | 360 | 720 | 1440;
   id: string;
   ownerAccountId: string;

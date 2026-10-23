@@ -282,7 +282,6 @@ export async function jobsHoldingWindow(db:Env['DB'],feedId:string,windowEnd:str
  const row=await db.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0 AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?))").bind(feedId,windowEnd).first<{n:number}>();
  return row?.n??0;
 }
-const windowEndOf=(feed:{briefingSchedule?:unknown;briefingFrequency:string},now:Date)=>(feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule as never,now):publicationWindow(feed.briefingFrequency as never,now)).end;
 /** Relay uses durable pending jobs and edition/window identities on the existing queue. */
 export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<number> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') return 0;
@@ -316,11 +315,19 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
     if(eligible.length)console.info(JSON.stringify({type:'V1_REMATCH_DISPATCH',feedId:id,eligible:eligible.length,considered,enqueued:accepted}));
   });
   // Reassessment must finish first; the next bounded relay publishes its result.
-  const pending={n:await jobsHoldingWindow(env.DB,id,windowEndOf(feed,now))};
   // Historical weekly windows remain callable/reproducible, but are not a new
   // live scheduling option. Existing UTC schedules remain unchanged otherwise.
   if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
-  const window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now),editionId=await windowIdentity(id,window);
+  let window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);
+  if(feed.briefingSchedule?.originAt&&feed.briefingSchedule.durationMinutes<1440){
+   // Materialize one consecutive close per tick, including after an outage or
+   // a shorter interval edit. Retained requests keep their original windows.
+   const schedule=feed.briefingSchedule,requests=await store.list<BriefingRequest>(id,'briefing_requests');
+   const through=requests.reduce((end,r)=>r.window.originAt===schedule.originAt&&r.window.durationMinutes===schedule.durationMinutes?Math.max(end,Date.parse(r.window.end)):end,Date.parse(schedule.originAt!));
+   const next=through+schedule.durationMinutes*60000;
+   if(next<=Date.parse(window.end))window=livePublicationWindow(schedule,new Date(next));
+  }
+  const editionId=await windowIdentity(id,window),pending={n:await jobsHoldingWindow(env.DB,id,window.end)};
   // Preparation is a read-through mechanical shortlist, not an early edition
   // or a frozen paid editorial decision. Final arrivals are reloaded at close.
   const preparing=feed.briefingSchedule?preparingLiveWindow(feed.briefingSchedule,now):undefined;

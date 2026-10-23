@@ -14,7 +14,7 @@ import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
-import {enrollV1Source} from './v1-intelligence/product';
+import {enrollV1Source,editedRelativeOrigin} from './v1-intelligence/product';
 import {liveScheduleSchema,publicationWindowSchema,nextLiveBriefingAt,firstFullLiveBriefingAt} from './v1-intelligence/schedule';
 import {processV1Briefing} from './v1-intelligence/runtime';
 import {publicV1Edition,publicV1Evidence,withdrawV1Edition} from './v1-intelligence/public-read';
@@ -577,7 +577,6 @@ export function createApp(options: AppOptions = {}) {
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : "could not create account" }, 409);
     }
-    await repo.ensureDefaultBriefing(account);
     setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, account));
     return c.json({ account: publicAccount(account) });
   });
@@ -620,7 +619,6 @@ export function createApp(options: AppOptions = {}) {
       ? result.account
       : await repo.updateAccount({ id: result.account.id, emailVerifiedAt: new Date().toISOString() });
     if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
-    await repo.ensureDefaultBriefing(verified);
     if (result.newlyConsumed) setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, verified));
     return c.json({ account: publicAccount(verified) });
   });
@@ -789,8 +787,15 @@ export function createApp(options: AppOptions = {}) {
       existing.briefingCadence !== briefingCadence ||
       existing.briefingTimeOfDay !== briefingTimeOfDay ||
       existing.briefingTimezone !== input.briefingTimezone;
+    const savedAt=nowFor();
+    let briefingScheduleOriginAt=existing?.briefingScheduleOriginAt;
+    if(!existing&&input.updateIntervalMinutes&&input.updateIntervalMinutes<1440)briefingScheduleOriginAt=savedAt.toISOString();
+    else if(briefingScheduleOriginAt&&existing?.updateIntervalMinutes&&existing.updateIntervalMinutes!==input.updateIntervalMinutes){
+      briefingScheduleOriginAt=await editedRelativeOrigin(c.env.DB,input.id,briefingScheduleOriginAt,{durationMinutes:existing.updateIntervalMinutes,timezone:existing.briefingTimezone,deliveryAnchor:existing.briefingTimeOfDay,...(existing.updateIntervalMinutes<1440?{originAt:briefingScheduleOriginAt}:{})},savedAt);
+    }
+    const schedule=input.updateIntervalMinutes?{durationMinutes:input.updateIntervalMinutes,timezone:input.briefingTimezone,deliveryAnchor:briefingTimeOfDay,...(input.updateIntervalMinutes<1440&&briefingScheduleOriginAt?{originAt:briefingScheduleOriginAt}:{})}:undefined;
     const nextBriefingAt = scheduleChanged
-      ? input.updateIntervalMinutes ? firstFullLiveBriefingAt({durationMinutes: input.updateIntervalMinutes, timezone: input.briefingTimezone, deliveryAnchor: briefingTimeOfDay}, nowFor()) : defaultNextBriefingAt({
+      ? schedule ? (schedule.originAt?nextLiveBriefingAt(schedule,savedAt):firstFullLiveBriefingAt(schedule,savedAt)) : defaultNextBriefingAt({
           cadence: briefingCadence,
           timeOfDay: briefingTimeOfDay,
           timezone: input.briefingTimezone
@@ -807,8 +812,9 @@ export function createApp(options: AppOptions = {}) {
       briefingCadence,
       briefingTimeOfDay,
       nextBriefingAt,
+      briefingScheduleOriginAt,
       retentionDays: FIXED_RETENTION_DAYS
-    });
+    },savedAt);
     try { await queueInitialFeedSketch(c.env, briefing); }
     catch { console.warn("Feed illustration enqueue needs recovery",{feedId:briefing.id}); }
     return c.json({ briefing });
@@ -1470,7 +1476,8 @@ async function getOwnedBriefing(
   account: AccountRecord,
   briefingId?: string
 ): Promise<BriefingConfig | null> {
-  if (!briefingId) return repo.ensureDefaultBriefing(account);
+  // Older callers may omit the ID, but a lookup must never create a feed.
+  if (!briefingId) return repo.getBriefingBySlug(account.id, 'personal');
   const briefing = await repo.getBriefingById(briefingId);
   if (!briefing || briefing.ownerAccountId !== account.id) return null;
   return briefing;
@@ -1770,7 +1777,7 @@ function errorProperty(error: unknown, key: string): string | undefined {
 function readNextBriefingAt(feed:BriefingConfig):string|undefined {
   if(feed.paused)return undefined;
   if(!feed.updateIntervalMinutes)return feed.nextBriefingAt;
-  const schedule={durationMinutes:feed.updateIntervalMinutes,timezone:feed.briefingTimezone,deliveryAnchor:feed.updateIntervalMinutes===1440?feed.briefingTimeOfDay:'00:00'},next=nextLiveBriefingAt(schedule,new Date());
+  const schedule={durationMinutes:feed.updateIntervalMinutes,timezone:feed.briefingTimezone,deliveryAnchor:feed.updateIntervalMinutes===1440?feed.briefingTimeOfDay:'00:00',...(feed.updateIntervalMinutes<1440&&feed.briefingScheduleOriginAt?{originAt:feed.briefingScheduleOriginAt}:{})},next=nextLiveBriefingAt(schedule,new Date());
   return feed.nextBriefingAt&&Date.parse(feed.nextBriefingAt)>Date.parse(next)?feed.nextBriefingAt:next;
 }
 
