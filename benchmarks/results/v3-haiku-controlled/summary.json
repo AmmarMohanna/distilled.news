@@ -1,0 +1,684 @@
+{
+  "evaluatedAt": "2026-10-23T14:06:23.443Z",
+  "model": "anthropic/claude-haiku-5.5",
+  "parameters": {
+    "reasoning": {
+      "effort": "low"
+    },
+    "temperature": "omitted (not supported by catalog)",
+    "max_tokens": 2000
+  },
+  "calls": 5,
+  "actualCostUsd": 0.005707200000000001,
+  "authorizedMaximumUsd": 0.02,
+  "allSettled": true,
+  "outstandingHolds": 0,
+  "inputTokens": 28732,
+  "outputTokens": 5668,
+  "reasoningTokens": 3677,
+  "wallMs": 58889,
+  "catalogPricing": {
+    "prompt": "0.0000001",
+    "completion": "0.0000005",
+    "web_search": "0.01",
+    "input_cache_read": "0.00000001",
+    "input_cache_write": "0.000000125",
+    "input_cache_write_1h": "0.0000002",
+    "overrides": [
+      {
+        "min_prompt_tokens": 100000,
+        "prompt": "0.0000005",
+        "completion": "0.0000025",
+        "input_cache_read": "0.00000005",
+        "input_cache_write": "0.000000625",
+        "input_cache_write_1h": "0.000001"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "name": "development-bad:anthropic/claude-haiku-5.5",
+      "model": "anthropic/claude-haiku-5.5",
+      "requestSha256": "43cf7d9591c78cb9d9cbbaffd421b636866210dadaa61d343f176040743a40cf",
+      "wallMs": 21940,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"fix\",\"issues\":[\"\\\"Google and Microsoft have issued new security guidance and raised bug bounty rewards for memory-safety bugs\\\" -> S3 says Google raised Chrome bug bounty rewards for memory-safety bugs; Microsoft issued post-quantum readiness guidance and says nothing about raising bounty rewards. The shared predicate wrongly gives Microsoft the bounty increase.\",\"\\\"reducing distillation attacks by up to 99%\\\" -> S3 says the measures reduced data harvesting through distillation attacks \\\"by about 90% to 99%\\\"; \\\"up to 99%\\\" is a different, overstated figure.\"]},{\"i\":3,\"verdict\":\"fix\",\"issues\":[\"\\\"Google and Microsoft have issued new security guidance and raised bug bounty rewards for memory-safety bugs\\\" -> S3 says only Google raised bug bounty rewards for memory-safety flaws (base rate quadrupled to $2,000); Microsoft's item is post-quantum readiness guidance, not a bounty increase.\"]}]}"
+      },
+      "usage": {
+        "prompt_tokens": 10150,
+        "completion_tokens": 1959,
+        "total_tokens": 12109,
+        "cost": 0.0019945,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0019945,
+          "upstream_inference_prompt_cost": 0.001015,
+          "upstream_inference_completions_cost": 0.0009795
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1549,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "anthropic-retained-today",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": false,
+          "falseApproval": true,
+          "falseRejection": false
+        },
+        {
+          "id": "replit-retained-timing",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": false,
+          "falseApproval": true,
+          "falseRejection": false
+        },
+        {
+          "id": "security-retained-scope",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "\"Google and Microsoft have issued new security guidance and raised bug bounty rewards for memory-safety bugs\" -> S3 says Google raised Chrome bug bounty rewards for memory-safety bugs; Microsoft issued post-quantum readiness guidance and says nothing about raising bounty rewards. The shared predicate wrongly gives Microsoft the bounty increase.",
+            "\"reducing distillation attacks by up to 99%\" -> S3 says the measures reduced data harvesting through distillation attacks \"by about 90% to 99%\"; \"up to 99%\" is a different, overstated figure."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "security-retained-joint-attribution",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "\"Google and Microsoft have issued new security guidance and raised bug bounty rewards for memory-safety bugs\" -> S3 says only Google raised bug bounty rewards for memory-safety flaws (base rate quadrupled to $2,000); Microsoft's item is post-quantum readiness guidance, not a bounty increase."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "development-good:anthropic/claude-haiku-5.5",
+      "model": "anthropic/claude-haiku-5.5",
+      "requestSha256": "6560d53054e0fb5bafb4a32628f484fddeaf787a71e9314317895b133b28c0e9",
+      "wallMs": 10027,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]},{\"i\":3,\"verdict\":\"ok\",\"issues\":[]},{\"i\":4,\"verdict\":\"fix\",\"issues\":[\"reducing distillation attacks by up to 99% -> S3 says defenses reduced data harvesting through distillation attacks by about 90% to 99%; \\\"up to 99%\\\" presents the top of the range as a maximum and drops the 90% lower bound\"]},{\"i\":5,\"verdict\":\"ok\",\"issues\":[]},{\"i\":6,\"verdict\":\"ok\",\"issues\":[]}]}"
+      },
+      "usage": {
+        "prompt_tokens": 10454,
+        "completion_tokens": 993,
+        "total_tokens": 11447,
+        "cost": 0.0015419,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0015419,
+          "upstream_inference_prompt_cost": 0.0010454,
+          "upstream_inference_completions_cost": 0.0004965
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 755,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "anthropic-anchored",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "anthropic-concise",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "replit-corrected-sequence",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "replit-concise-paraphrase",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "security-corrected-full",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "reducing distillation attacks by up to 99% -> S3 says defenses reduced data harvesting through distillation attacks by about 90% to 99%; \"up to 99%\" presents the top of the range as a maximum and drops the 90% lower bound"
+          ],
+          "pass": false,
+          "falseApproval": false,
+          "falseRejection": true
+        },
+        {
+          "id": "security-concise-states",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "security-corrected-joint-attribution",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "heldout-bad:anthropic/claude-haiku-5.5",
+      "model": "anthropic/claude-haiku-5.5",
+      "requestSha256": "6fc644a5b5c0f3d72c222dc10be0d9b0f35fe754098b9b3f3b8cad8cedcc52e0",
+      "wallMs": 15480,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"fix\",\"issues\":[\"The Health Ministry announced a port safety inspection -> H1 says the Interior Ministry announced the port inspection; the Health Ministry denied the hospital closure reports.\"]},{\"i\":1,\"verdict\":\"fix\",\"issues\":[\"Both ministries announced a port inspection -> H1 says only the Interior Ministry announced it.\",\"denied a hospital closure -> H1 says only the Health Ministry denied the hospital closure reports, and the two announcements concern separate decisions.\"]},{\"i\":2,\"verdict\":\"fix\",\"issues\":[\"The utility guarantees six hours of daily electricity -> H2 says the utility plans to restore up to six hours daily, subject to receiving fuel, and its director said the schedule is not guaranteed.\"]},{\"i\":3,\"verdict\":\"fix\",\"issues\":[\"Cedar Bank confirmed freezing withdrawals -> H3 says Cedar Bank denied freezing customer withdrawals.\"]},{\"i\":4,\"verdict\":\"fix\",\"issues\":[\"Regulators concluded Cedar Bank is insolvent -> H3 says regulators are reviewing the bank but have not concluded that it is insolvent.\"]},{\"i\":5,\"verdict\":\"fix\",\"issues\":[\"reopened to all traffic -> H4 says the road reopened after repairs but heavy trucks remain prohibited.\"]},{\"i\":6,\"verdict\":\"fix\",\"issues\":[\"Food prices have risen 8% this year -> H5 is a forecast that food prices could increase by up to 8% next year, explicitly not an observed increase.\"]},{\"i\":7,\"verdict\":\"fix\",\"issues\":[\"The council approved the bridge permit on October 23 -> H6 says the council approved it on October 19; October 23 is the article update date.\"]},{\"i\":8,\"verdict\":\"drop\",\"issues\":[\"The bridge opens on November 1 -> H6 says no opening date has been announced and construction has not begun.\"]},{\"i\":9,\"verdict\":\"redundant\",\"issues\":[\"The mountain road closed on October 22 -> H7 confirms the closure on October 22, but the reader was already told this and H7 adds no new information.\"]},{\"i\":10,\"verdict\":\"fix\",\"issues\":[\"The agency inspected 13 more buildings -> H8 says the agency corrected its earlier total of 30 to 13, a transcription error, and not a new inspection campaign.\"]}]}"
+      },
+      "usage": {
+        "prompt_tokens": 2714,
+        "completion_tokens": 1340,
+        "total_tokens": 4054,
+        "cost": 0.0009414,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0009414,
+          "upstream_inference_prompt_cost": 0.0002714,
+          "upstream_inference_completions_cost": 0.00067
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 544,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "actor-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The Health Ministry announced a port safety inspection -> H1 says the Interior Ministry announced the port inspection; the Health Ministry denied the hospital closure reports."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "scope-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Both ministries announced a port inspection -> H1 says only the Interior Ministry announced it.",
+            "denied a hospital closure -> H1 says only the Health Ministry denied the hospital closure reports, and the two announcements concern separate decisions."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "condition-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The utility guarantees six hours of daily electricity -> H2 says the utility plans to restore up to six hours daily, subject to receiving fuel, and its director said the schedule is not guaranteed."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "negation-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Cedar Bank confirmed freezing withdrawals -> H3 says Cedar Bank denied freezing customer withdrawals."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "conclusion-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Regulators concluded Cedar Bank is insolvent -> H3 says regulators are reviewing the bank but have not concluded that it is insolvent."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "restriction-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "reopened to all traffic -> H4 says the road reopened after repairs but heavy trucks remain prohibited."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "forecast-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Food prices have risen 8% this year -> H5 is a forecast that food prices could increase by up to 8% next year, explicitly not an observed increase."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "date-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The council approved the bridge permit on October 23 -> H6 says the council approved it on October 19; October 23 is the article update date."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "opening-bad",
+          "expected": [
+            "drop",
+            "fix"
+          ],
+          "verdict": "drop",
+          "issues": [
+            "The bridge opens on November 1 -> H6 says no opening date has been announced and construction has not begun."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "repeat",
+          "expected": [
+            "redundant"
+          ],
+          "verdict": "redundant",
+          "issues": [
+            "The mountain road closed on October 22 -> H7 confirms the closure on October 22, but the reader was already told this and H7 adds no new information."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "correction-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The agency inspected 13 more buildings -> H8 says the agency corrected its earlier total of 30 to 13, a transcription error, and not a new inspection campaign."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "heldout-good:anthropic/claude-haiku-5.5",
+      "model": "anthropic/claude-haiku-5.5",
+      "requestSha256": "968da3137ccb0b6fd96a1a8a4feea6da25dfe55763f6e13e34e31a800b5903bf",
+      "wallMs": 8352,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]},{\"i\":3,\"verdict\":\"ok\",\"issues\":[]},{\"i\":4,\"verdict\":\"ok\",\"issues\":[]},{\"i\":5,\"verdict\":\"ok\",\"issues\":[]},{\"i\":6,\"verdict\":\"ok\",\"issues\":[]},{\"i\":7,\"verdict\":\"ok\",\"issues\":[]},{\"i\":8,\"verdict\":\"ok\",\"issues\":[]},{\"i\":9,\"verdict\":\"ok\",\"issues\":[]}]}"
+      },
+      "usage": {
+        "prompt_tokens": 2788,
+        "completion_tokens": 1048,
+        "total_tokens": 3836,
+        "cost": 0.0008028,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0008028,
+          "upstream_inference_prompt_cost": 0.0002788,
+          "upstream_inference_completions_cost": 0.000524
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 829,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "actor-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "scope-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "condition-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "negation-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "update-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "forecast-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "date-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "no-date-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "correction-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "hospital-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "heldout-ordinary:anthropic/claude-haiku-5.5",
+      "model": "anthropic/claude-haiku-5.5",
+      "requestSha256": "ddf1436204952266f0202c4bc517031b81bb0bfa732ec606c737533ef390968a",
+      "wallMs": 3090,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"fix\",\"issues\":[\"confirmed freezing withdrawals -> source says Cedar Bank denied freezing customer withdrawals; the freeze claim is denied, not confirmed\"]},{\"i\":3,\"verdict\":\"fix\",\"issues\":[\"plans up to six hours of daily supply -> 'up to' qualifier is kept but the schedule is conditional and the director said it is not guaranteed; the item omits that the schedule is not guaranteed (drops qualifier)\"]},{\"i\":4,\"verdict\":\"ok\",\"issues\":[]},{\"i\":5,\"verdict\":\"fix\",\"issues\":[\"Food prices have risen 8% this year -> source is a forecast that food prices could increase by up to 8% next year; not an observed increase and not this year\"]},{\"i\":6,\"verdict\":\"ok\",\"issues\":[]}]}"
+      },
+      "usage": {
+        "prompt_tokens": 2626,
+        "completion_tokens": 328,
+        "total_tokens": 2954,
+        "cost": 0.0004266,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0004266,
+          "upstream_inference_prompt_cost": 0.0002626,
+          "upstream_inference_completions_cost": 0.000164
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "actor-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "hospital-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "negation-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "confirmed freezing withdrawals -> source says Cedar Bank denied freezing customer withdrawals; the freeze claim is denied, not confirmed"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "condition-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "plans up to six hours of daily supply -> 'up to' qualifier is kept but the schedule is conditional and the director said it is not guaranteed; the item omits that the schedule is not guaranteed (drops qualifier)"
+          ],
+          "pass": false,
+          "falseApproval": false,
+          "falseRejection": true
+        },
+        {
+          "id": "update-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "forecast-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Food prices have risen 8% this year -> source is a forecast that food prices could increase by up to 8% next year; not an observed increase and not this year"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "correction-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    }
+  ],
+  "decision": "Not selected: ordinary-batch false rejection, real temporal errors remain, no full-pipeline cost/quality win demonstrated.",
+  "deployment": false,
+  "promptsChanged": false,
+  "routingChanged": false
+}

@@ -30,3 +30,12 @@ export function controlledVerifierRequests(){
     }
   })));
 }
+
+/** Same frozen cases for the separately authorized Haiku low-reasoning trial. */
+export function controlledHaikuVerifierRequests(){
+  return controlledVerifierRequests().filter(job=>job.request.model==='openai/gpt-4.1-mini').map(job=>{
+    const {temperature:_,...request}=job.request;
+    return {name:job.name.replace('openai/gpt-4.1-mini','anthropic/claude-haiku-5.5'),
+      request:{...request,model:'anthropic/claude-haiku-5.5',reasoning:{effort:'low'}}};
+  });
+}

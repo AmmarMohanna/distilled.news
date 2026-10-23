@@ -240,3 +240,64 @@ harder, independently reviewed real held-out corpus, with finalists tested throu
 repair and publication. It is not justified merely because this budget has money
 left. Fresh autonomous delivery observation and human review of relevance can
 proceed separately without introducing new product stages.
+
+## Separately authorized Haiku 5.5 follow-up
+
+The user subsequently approved **five calls, at most $0.02**, explicitly for
+`anthropic/claude-haiku-5.5` on these frozen verifier inputs. This did not reuse
+the preceding approval. Two development calls were followed by the three held-out
+groups after an encouraging actor/action finding. No new editor, repair or
+full-pipeline calls, retries or deployments were performed.
+
+Haiku used `reasoning: {effort: "low"}`, JSON mode and the same 2,000-token total
+output cap. The OpenRouter catalog did not list temperature support, so temperature
+was omitted; the baseline used 0.1. This is a **configuration comparison**, not
+an experiment isolating only model identity. Sources, drafts, system prompt and
+reader history are unchanged. The model reported 3,677 reasoning tokens across
+the five calls, included in actual billed usage. All replies finished normally.
+
+| Frozen group | GPT-4.1 mini | Haiku 5.5 low |
+|---|---|---|
+| Anthropic source-relative “today” error | Falsely approved | Falsely approved |
+| Replit timing error | Falsely approved | Falsely approved |
+| Google/Microsoft wrong shared attribution | Not diagnosed | Correctly flagged |
+| Seven supported development alternatives | Two unnecessary fixes; one redundancy judgment | Six accepted; one disputed metric objection |
+| 21 distinct held-out cases | 21/21 expected decisions | 21/21 expected decisions |
+| Ordinary seven-item batch, reusing held-out cases | 7/7 | 6/7; one false rejection |
+
+The ordinary-batch rejection is concrete: “The utility plans up to six hours of
+daily supply from November 2 if fuel arrives” was flagged for omitting that the
+schedule was not guaranteed. It already preserves the plan, upper bound and fuel
+condition; the missing redundant disclaimer does not make it false. Haiku accepted
+this exact item in the supported-only batch. Thus the held-out result is sensitive
+to batching; do not report this model as flawless on the held-out set overall.
+Its issue was attached to the correct item number. No wrong-item association was
+observed in this ordinary batch.
+
+The disputed development objection concerns “reducing distillation attacks by
+up to 99%.” The source measures data harvesting through those attacks, about
+90–99%. The fixture's label was already documented as questionable because it
+changes the measured quantity. Haiku's specific objection about dropping the 90%
+lower bound is not automatically a sound factual criticism, but this control is
+not independent gold and must not be counted as a certain false rejection.
+The ordinary conditional-electricity false rejection alone prevents selection.
+
+Actual matched five-call cost: **$0.0057072**, versus mini **$0.0072156** and
+Gemini **$0.0094200**. Haiku was about 21% cheaper than mini in this evaluation,
+not the 75% savings one might infer from input-token list prices alone. Its mean
+provider-plus-settlement time was **11.778s**, versus mini **3.193s** and Gemini
+**3.243s**. Individual Haiku times: 21.940, 10.027, 15.480, 8.352 and 3.090s.
+These are single observations on fixed groups, not full-briefing delivery times
+or model latency percentiles. Reasoning/output lengths, tokenization and cache
+effects differ.
+
+All five reservations settled; zero new outstanding experiment holds. No old
+financial records or live feed data changed. All five allowed calls are used;
+unused dollars do not authorize another trial. Exact sanitized results are in
+`benchmarks/results/v3-haiku-controlled/summary.json`; raw requests, provider
+payloads, the approval manifest and ledger read-back are local in
+`.local-reports/v3-haiku-controlled/`. Offline reconstruction checks every request
+hash. The tested configuration is **not selected**: its cost advantage does not
+yet establish sustainable whole-pipeline savings, particularly when a false
+rejection can trigger a much more expensive GPT-4.1 repair and recheck. No routing
+or prompt change is retained and no full-pipeline improvement is claimed.
