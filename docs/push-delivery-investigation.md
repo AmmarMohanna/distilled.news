@@ -16,10 +16,17 @@ Use `redirect: "manual"`. Redirects are not followed. Existing response handling
 ## Tests
 - Regression first fails on the old sender's redirect option.
 - Nine focused sender tests pass after correction, including actual local workerd request validation, accepted 201, rejected 302/503, expired 410, and safe parse/payload/network diagnostics.
-- The broader push.integration.test.ts suite fails all 14 cases in its beforeEach publication fixture (`edition` undefined), before sender delivery is invoked. Its fixed October 3 source/publication setup no longer yields an edition under the current clock. This is a separate test-fixture limitation, not a passing delivery regression.
+- The broader push.integration.test.ts suite fails all 14 cases in its beforeEach publication fixture (`edition` undefined), before sender delivery is invoked. Its fixed October 3 source/publication setup yields no edition. An external Date-only fixed-clock rerun also fails at that same setup, so the fixture cause is not established as clock drift. This is a separate fixture/precondition failure, not a passing delivery regression.
 - Local Node tests alone were insufficient for this bug; the new runtime check exercises workerd as well.
 
 ## Artifacts
 Private raw diagnostics remain in ignored .local-reports: push-diagnosis.json, push-worker-redirect.ts/cjs, push-worker-dry.ts/cjs, push-dry-build.mjs, push-tail logs and staging-deploy-4728c9f/. No subscription keys or tokens are committed.
 
 Staging diagnostic version: 12b61c21-b61e-46e7-b862-0d04ab2e8e36. All existing bindings and feed reads were verified after deployment. Real push-service acceptance after the redirect fix must be checked separately; it does not prove device display or receipt by the user.
+
+## Verified staging result
+Fix commit 16fabac is pushed and active as staging version 0d38b35a-35bc-49a2-af30-9e3d4716c0a0. Active-version, unchanged-binding and both feed/API checks passed. Worker TypeScript passed.
+
+The existing automatic cron retry after deployment produced 22 durable browser_push_receipts (previously zero). The subscription lease is now released and the newest delivery jobs read DONE. This establishes push-service acceptance after the runtime correction, not desktop display or user receipt. No manual notification or paid inference was initiated. Keys and historical financial records were not changed.
+
+Exact read-back: ignored .local-reports/push-diagnosis.json and push-diagnosis-after-fix.log; deployment checks: .local-reports/staging-deploy-16fabac/verification.json.
