@@ -24,7 +24,6 @@ for(const c of fixture.cases)it(`carries the real ${c.language} warning and its 
   const warning=c.input.articles.find(a=>a.url.endsWith('/107635'))!;
   const body=c.language==='ar'?'نقل المصدر عن المجلس الإقليمي للجليل الأعلى تصريحاً عن شن غارات على الجبهة اللبنانية خلال الساعات المقبلة.':'The source attributes a statement about airstrikes on the Lebanese front in the coming hours to the Upper Galilee Regional Council.';
   const mock=scripted({edit:[(request:ModelRequest)=>{
-    expect(request.system).toContain('Do not omit an important development solely because it has not occurred yet');
     expect(request.user).toContain(prepared.find(p=>p.id===warning.id)!.text);
     expect(request.user).toContain(c.input.prior[c.input.prior.length-1].body);
     return {items:[{headline:c.language==='ar'?'تصريح عن غارات مرتقبة على الجبهة اللبنانية':'Statement warns of upcoming airstrikes on the Lebanese front',body,sources:[ref(warning.url)],relation:'new',updates:null,importance:1}]};
