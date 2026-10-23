@@ -30,3 +30,16 @@ it('records why the date-checking candidate was rejected despite catching more i
     .toBe('Cobalt has obtained a construction permit, with work expected to begin in December.');
   expect(candidate.rows.find(r=>r.id==='R3-good')?.falseRejection).toBe(true);
 });
+
+it('records the separate evidence-layout comparison without attributing it to a system-prompt change',()=>{
+  for(const group of ['good','bad']){
+    const baseline=record(`baseline-heldout-${group}`),presentation=record(`presentation-heldout-${group}`);
+    expect(presentation.request.system).toBe(baseline.request.system);
+    expect(presentation.request.user).not.toBe(baseline.request.user);
+    expect(presentation.request.user).toContain('ARTICLE METADATA (publication timing, not event timing):');
+    expect(presentation.request.user).toContain('ARTICLE TEXT:');
+    expect(presentation.cases).toEqual(baseline.cases);
+    const score=scoreVerifierCases(presentation.response,presentation.cases);
+    expect(score).toMatchObject({invalidOrMissing:0,falseApprovals:0,falseRejections:group==='good'?1:0});
+  }
+});

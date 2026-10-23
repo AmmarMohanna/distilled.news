@@ -78,3 +78,38 @@ proven fix. Avoid adding more date instructions without comparative evidence.
 - Focused factual/recorded/repair-numbering regressions: **12/12 passed**.
 
 No staging deployment or reader notifications occurred.
+
+## Follow-up: separate metadata from source text
+
+The requested evidence-presentation alternative was also tested, without editing
+the product. Each source's existing combined header became separate labelled
+`ARTICLE METADATA (publication timing, not event timing)` and `ARTICLE TEXT`
+blocks. No source text, timestamp, system prompt, model or decoding parameter
+changed. Missing publisher-local timezone information was not invented.
+
+This follow-up used the **actual published briefing headlines** and exact body
+paragraphs for both real cases, correcting the earlier test-headline limitation.
+Both bad/good variants were tested separately with baseline and presentation
+formats: eight calls. Two additional calls tested the presentation on the same
+synthetic bad/good batches, reusing their saved identical baseline results.
+
+| Result | Baseline | Separate metadata/text |
+|---|---|---|
+| Two incorrect real paragraphs | Both falsely approved | Both falsely approved |
+| Two supported real alternatives | Both accepted | Both accepted |
+| Four incorrect synthetic examples | Three caught | All four caught |
+| Four supported synthetic examples | One falsely rejected | One falsely rejected |
+
+The layout helped one synthetic judgment but did not resolve either real failure.
+It was **not retained as a product fix**. Single responses do not establish a
+general improvement or statistical significance. Do not continue accumulating
+prompt instructions or layout changes on the strength of synthetic results alone.
+The existing verifier's semantic false approvals remain an acknowledged limitation.
+
+Ten additional calls cost **$0.0046496**, all settled and read back; zero new
+outstanding evaluation holds. Combined charges for the initial baseline, rejected
+instruction and layout tests: **$0.0146068**. No new editor or repair calls were
+made, and this is not an end-to-end publication evaluation. Exact local requests,
+results, source relationships and ledger read-back are retained in
+`.local-reports/v3-date-presentation/`. Safe synthetic responses are appended to
+the committed comparison fixture. No production or staging deployment occurred.
