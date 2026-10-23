@@ -4,8 +4,17 @@ import {assessSources} from './source-assessment';
 import type {Env} from './types';
 vi.mock('./source-assessment',()=>({assessSources:vi.fn()}));
 const rss='<rss><channel><title>News</title><item><guid>one</guid><title>Coconut farming</title><link>https://publisher.example/story</link></item></channel></rss>';
+it('offers twenty verified choices while preserving different available channels',async()=>{
+ const candidates=[...Array.from({length:25},(_,i)=>`https://publisher${i}.example/feed.xml`),'https://t.me/science_updates','https://x.com/science_updates','https://www.linkedin.com/company/science-updates','news: science','https://science.example/'];
+ vi.mocked(assessSources).mockReset().mockImplementation(async(_env,_input,inputs)=>inputs.map(input=>({input,status:'accepted',reason:'Fetched evidence matches',checkedAt:new Date().toISOString()})));
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:candidates})}}]}):new Response(rss));
+ const configured={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true',OPENROUTER_API_KEY:'test',SOURCE_EXECUTION_URL:'https://execution.example',SOURCE_EXECUTION_TOKEN:'test',SOURCE_EXECUTION_SERVICE:{},APIFY_API_TOKEN:'test',SOURCE_PROVIDER_BUDGETS_JSON:'{"x_apify":1,"linkedin_apify":1}',SOURCE_OPERATION_CEILINGS_JSON:'{"apify":0.1}'} as Env;
+ const result=await verifiedSourceRecommendations(configured,{title:'Science',description:'Scientific research'},fetcher);
+ expect(result.sources).toHaveLength(20);for(const source of candidates.slice(25))expect(result.sources).toContain(source);
+ vi.mocked(assessSources).mockReset();
+});
 
-it('replaces failed recommendations once and only returns independently accepted replacements',async()=>{
+it('uses bounded replacement discovery and never rechecks duplicate candidates',async()=>{
  const rejected={input:'https://publisher.example/dead.xml',status:'unverified' as const,reason:'HTTP 404',checkedAt:new Date().toISOString()};
  const accepted={...rejected,input:'https://publisher.example/current.xml',status:'accepted' as const,reason:'Relevant'};
  vi.mocked(assessSources).mockResolvedValueOnce([rejected]).mockResolvedValueOnce([accepted]);
@@ -14,7 +23,7 @@ it('replaces failed recommendations once and only returns independently accepted
  const result=await verifiedSourceRecommendations(env,{title:'Pizza',description:'Pizza news'},fetcher);
  expect(result.sources).toEqual([accepted.input]);
  expect(result.checks).toHaveLength(2);
- expect(fetcher.mock.calls.filter(([url])=>String(url).includes('openrouter.ai'))).toHaveLength(2);
+ expect(fetcher.mock.calls.filter(([url])=>String(url).includes('openrouter.ai'))).toHaveLength(3);
  expect(assessSources).toHaveBeenLastCalledWith(env,{title:'Pizza',description:'Pizza news'},[accepted.input],expect.any(Function));
 });
 
@@ -49,4 +58,19 @@ it('recovers a dead RSS path from the publisher homepage and verifies the advert
  expect(result.sources).toEqual([accepted.input]);
  expect(assessSources).toHaveBeenLastCalledWith(env,context,[accepted.input],expect.any(Function));
  expect(fetcher.mock.calls.filter(([url])=>String(url).includes('openrouter.ai'))).toHaveLength(2);
+});
+
+it.each(['A named athlete','A historical researcher','Regional food production','A local public policy topic'])('continues discovery beyond a sparse first set for %s',async title=>{
+ vi.mocked(assessSources).mockReset().mockImplementation(async(_env,context,inputs)=>{
+  expect(context.title).toBe(title);
+  return inputs.map(input=>({input,status:'accepted',reason:'Fetched article evidence matches the original subject',checkedAt:new Date().toISOString()}));
+ });
+ let proposals=0;
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url).includes('openrouter.ai')
+  ?Response.json({choices:[{message:{content:JSON.stringify({sources:Array.from({length:proposals++===0?2:18},(_,i)=>`https://pass${proposals}-publisher${i}.example/feed.xml`)})}}]})
+  :new Response(rss));
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env;
+ const result=await verifiedSourceRecommendations(env,{title,description:'Ongoing relevant developments'},fetcher);
+ expect(result.sources).toHaveLength(20);expect(proposals).toBe(2);
+ expect(new Set(result.sources.map(url=>new URL(url).hostname)).size).toBe(20);
 });

@@ -8,6 +8,7 @@ import {V1FeedStore,feedTransact,FeedTransaction} from './store';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,windowIdentity} from './runtime';
 import {publicV1Edition} from './public-read';
 import {prepareV3Window} from './v3-window';
+import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
@@ -108,3 +109,14 @@ it('includes a pre-deadline observation acquired after close and excludes observ
  await article(2,'2026-10-03T12:27:00Z','2026-10-03T12:33:00Z','2026-10-03T12:31:00Z');
  const prepared=await prepareV3Window(store,'feed-1',window,'2026-10-03T12:34:00Z');expect(prepared.input.articles).toHaveLength(1);expect(prepared.input.articles[0].publishedAt).toBe('2026-10-03T12:28:00Z');
 },30000);
+
+it('keeps V3 briefing attempts intact while another feed operation owns the semantic lease',async()=>{
+ await article();const lease=await acquireSemanticWorkLease(store,'feed-1');const seen:string[]=[];
+ try{
+  for(let i=0;i<6;i++)await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch)).rejects.toBeInstanceOf(SemanticLeaseError);
+  expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'PENDING',attempts:0,engine:'v3'});
+  expect(seen).toHaveLength(0);
+ }finally{await releaseSemanticWorkLease(store,lease)}
+ expect((await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch))?.engine).toBe('v3');
+ expect(seen).toHaveLength(2);
+},60000);

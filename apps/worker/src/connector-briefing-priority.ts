@@ -4,7 +4,7 @@ import {jobsHoldingWindow,isAutomaticReportingWindow} from './v1-intelligence/ru
 import {publicationWindowSchema} from './v1-intelligence/schedule';
 import {createStoredEvidenceModel} from './v1-intelligence/model';
 import {pendingWindowCollections} from './connector-publication-coverage';
-/** Give an already-ready closed window one initial transport turn before new
+/** Give ready closed windows a transport turn before new
  * reviews refill the single intelligence lane. Canonical publication still
  * rechecks all evidence, approvals, model accounting, grounding and leases. */
 export async function dispatchReadyConnectorBriefing(env:Env,feedId:string,now=new Date()):Promise<boolean>{
@@ -15,8 +15,8 @@ export async function dispatchReadyConnectorBriefing(env:Env,feedId:string,now=n
  AND julianday(json_extract(r.json,'$.window.end'))<=julianday(?) AND julianday(b.created_at)<julianday(json_extract(r.json,'$.window.end'))
  AND (json_extract(r.json,'$.nextAttemptAt') IS NULL OR julianday(json_extract(r.json,'$.nextAttemptAt'))<=julianday(?))
  AND NOT EXISTS(SELECT 1 FROM v1_feed_documents j WHERE j.feed_id=r.feed_id AND j.kind='synthesis_jobs' AND j.id=r.id)
- AND NOT EXISTS(SELECT 1 FROM v1_queue_dispatches d WHERE d.kind='v1_briefing' AND d.id=r.id AND d.send_count>0)
- ORDER BY json_extract(r.json,'$.window.end'),r.id LIMIT 1`).bind(feedId,now.toISOString(),now.toISOString()).first<{id:string;json:string}>();
+ AND NOT EXISTS(SELECT 1 FROM v1_queue_dispatches d WHERE d.kind='v1_briefing' AND d.id=r.id AND (d.lease_until>? OR d.not_before>?))
+ ORDER BY json_extract(r.json,'$.window.end'),r.id LIMIT 1`).bind(feedId,now.toISOString(),now.toISOString(),now.getTime(),now.getTime()).first<{id:string;json:string}>();
  if(!row)return false;
  const request=JSON.parse(row.json),window=publicationWindowSchema.safeParse(request.window);if(!window.success)return false;
  if(!isAutomaticReportingWindow(window.data))return false;

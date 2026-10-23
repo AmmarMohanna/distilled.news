@@ -1,3 +1,4 @@
+import {readTopicPublishers} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
 import {collectorBudgetStatus} from './collector-budget';
 import {readBriefingOutcome} from './v1-intelligence/briefing-outcome';
@@ -43,6 +44,7 @@ import {
   type BriefingEdition
 } from "@distilled/core";
 import { Context, Hono } from "hono";
+import {stream} from 'hono/streaming';
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
 import { sketchKey } from "./sketches";
@@ -888,6 +890,19 @@ export function createApp(options: AppOptions = {}) {
       c.header("Retry-After", "18000");
       return c.json({ error: "You can request AI source recommendations three times every five hours. Please try again later, or add a source URL directly." }, 429);
     }
+    if(c.req.header('accept')?.includes('application/x-ndjson')&&c.env.SOURCE_ASSESSMENT_ENABLED==='true'){
+      c.header('Content-Type','application/x-ndjson; charset=utf-8');
+      c.header('Cache-Control','no-store');
+      c.header('X-Content-Type-Options','nosniff');
+      return stream(c,async output=>{
+        try{
+          const result=await verifiedSourceRecommendations(c.env,input,fetcher,{ownerAccountId:c.get('account')!.id},async progress=>{
+            await output.writeln(JSON.stringify({type:'progress',...progress}));
+          });
+          await output.writeln(JSON.stringify({type:'complete',...result}));
+        }catch(error){await output.writeln(JSON.stringify({type:'error',error:error instanceof Error?error.message:'Source recommendations unavailable'}));}
+      });
+    }
     try {
       if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({sources:await sourceRecommendations(c.env,input,fetcher)});
       return c.json(await verifiedSourceRecommendations(c.env,input,fetcher,{ownerAccountId:c.get('account')!.id}));
@@ -1230,6 +1245,12 @@ export function createApp(options: AppOptions = {}) {
     if(!await internalMaintenanceAuthorized(c))return c.json({error:'unauthorized'},401);
     c.header('Cache-Control','private, no-store');
     if(c.req.param('action')==='status'&&c.req.method==='GET')return c.json({budget:await collectorBudgetStatus(c.env)});
+    if(c.req.param('action')==='topic-publishers'&&c.req.method==='POST'){
+      const input=z.object({title:z.string().trim().min(1).max(120)}).strict().parse(await c.req.json());
+      const plan=prepareProductSourceInput('news: '+input.title),transport:{route:'worker'|'runtime';status:number}[]=[];
+      try{const evidence=await readTopicPublishers(c.env,plan.sourceUrl??plan.canonicalUrl,fetcher,result=>transport.push(result));return c.json({publishers:[...new Set(evidence.map(item=>item.publisherOrigin))],evidenceCount:evidence.length,transport});}
+      catch{return c.json({publishers:[],evidenceCount:0,transport,error:'TOPIC_PUBLISHER_DISCOVERY_UNAVAILABLE'});}
+    }
     if(c.req.param('action')==='transport'&&c.req.method==='GET'){
       const legacy={dispatch:fetcher};let legacyResult='UNKNOWN',detachedStatus=0;
       try{const response=await legacy.dispatch('https://example.com',{signal:AbortSignal.timeout(5000)});legacyResult=`HTTP_${response.status}`;await response.body?.cancel();}

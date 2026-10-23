@@ -1,6 +1,6 @@
 import { PublicSourceFetchFailure, PublicSourcePolicyError, type PublicSourceFetchPort } from "@distilled/agent-runtime";
 
-const MAX_BODY_BYTES = 512_000;
+const MAX_BODY_BYTES = 2_000_000;
 
 /** Conservative one-origin HTTP capability. Redirects require explicit opt-in
  * and remain bounded and confined to the original public HTTPS origin. */

@@ -1,6 +1,8 @@
 import type {FeedHttpPort} from '@distilled/connectors';
 import {WorkerPublicSourceFetch} from '../public-source-fetch';
 import {AcquisitionFailure} from './acquisition';
+// Publisher HTML includes scripts and layout beyond the retained article text.
+export const PUBLIC_ARTICLE_MAX_BYTES = 2_000_000;
 /** Publisher-local redirects are transport resolution, not discovery. Never
  * forward credentials, change origin, follow a loop or guess another article.
  * The candidate router retains the observed canonical identity independently. */
@@ -10,7 +12,10 @@ export async function readPublicArticle(http:FeedHttpPort,initial:string){
   new WorkerPublicSourceFetch(url);
   if(new URL(url).origin!==origin||seen.has(url))throw new AcquisitionFailure('POLICY_DENIED',false);
   seen.add(url);
-  const r=await http.get(url,{accept:'text/html'});
+  const r=await http.get(url,{accept:'text/html'}).catch(error=>{
+   if(error instanceof Error&&error.message==='FEED_TOO_LARGE')throw new AcquisitionFailure('BODY_BUDGET_EXCEEDED',false,{detail:'ARTICLE_HTML_TOO_LARGE'});
+   throw error;
+  });
   if(r.status===0)throw new AcquisitionFailure('NETWORK',true);
   if(r.status>=300&&r.status<400){
    if(hop===3||!r.headers.location)throw new AcquisitionFailure('POLICY_DENIED',false);

@@ -1873,6 +1873,21 @@ describe("worker app accounts", () => {
     expect(payload.feeds.some((feed) => feed.title === "Disabled Feed")).toBe(false);
   });
 
+  it("streams verified recommendations while preserving the JSON endpoint for other clients", async () => {
+    const repo=new InMemoryRepository();
+    const app=createApp({repository:repo,fetcher:async(url,init)=>{
+      if(!String(url).includes('openrouter.ai'))return new Response('<rss><channel><title>Solar news</title><item><guid>one</guid><title>Solar energy policy and new technology</title><description>Substantive reporting on solar installation policy and technology developments.</description><link>https://publisher.example/story</link></item></channel></rss>',{headers:{'content-type':'application/rss+xml'}});
+      const request=JSON.parse(init!.body as string);
+      return Response.json({choices:[{message:{content:JSON.stringify(request.messages[0].content.startsWith('Suggest')?{sources:['https://publisher.example/feed.xml']}:{realWorldInterest:'YES',exactTopic:'YES',concern:'NO',reason:'Solar reporting matches the requested interest.',evidenceId:'E1'})}}]});
+    }});
+    const owner=await createVerifiedUser(app,repo,'stream-sources@test.com','Stream Sources');
+    const response=await app.request('/api/me/sources/recommend',{method:'POST',headers:{cookie:owner.cookie,'content-type':'application/json',accept:'application/x-ndjson'},body:JSON.stringify({title:'Solar',description:'Solar technology and policy'})},{...env(),SOURCE_RECOMMENDATIONS_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_ASSESSMENT_ENABLED:'true',SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'test'});
+    expect(response.headers.get('content-type')).toContain('application/x-ndjson');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    const events=(await response.text()).trim().split('\n').map(line=>JSON.parse(line));
+    expect(events[0]).toMatchObject({type:'progress',sources:['https://publisher.example/feed.xml']});
+    expect(events.at(-1)).toMatchObject({type:'complete',sources:['https://publisher.example/feed.xml']});
+  });
   it("allows three source recommendations per user in a rolling five-hour window", async () => {
     const repo = new InMemoryRepository();
     let calls = 0;

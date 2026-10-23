@@ -154,3 +154,79 @@ pigment grain, subtle pressure variation, and thin-to-medium lines. The model
 chooses a recognizable subject from the interest. Existing saved JPEGs remain
 unchanged, including illustrations created before this model change; this does
 not automatically regenerate earlier blank images.
+
+
+## Briefing starter configuration ? October 22, 2026
+
+Owner requested configuration consistent with the merged friends? implementation.
+Joud now selects V3, GPT-4.1 editing/repair and GPT-4.1 mini verification.
+A guarded, nonrenewing model authorization allows $1 total exposure and one
+concurrent model operation from 2026-10-22T17:41:25.909Z through
+2026-10-23T17:41:25.909Z (20:41 Beirut on both dates). Both model IDs are allowed.
+No tracking-only exception was enabled. Existing reservations and grants remain intact.
+The separate legacy V3 runtime has a $1 rolling-24-hour ceiling and $0.50 per-run
+ceiling; canonical product V3 uses the account authorization ledger. These guards
+are independent, not one combined cap across every possible path. Source collection
+retains its separate $5/day budget. Started V2 requests retain their frozen engine.
+Allowance activation does not guarantee publication: source coverage, due windows,
+provider availability and recoverable existing work still apply.
+
+## Joud source/briefing queue integration (October 23, 2026)
+
+The Joud manifest now enables full-article acquisition preference and the indexed
+source scheduling pipeline, with isolated collection, acquisition and intelligence
+queues. Existing Joud resources, native runtime, artwork queue, V3 models and the
+$5/day collector cap are preserved. Queue activation does not renew account model
+authorizations or guarantee publication.
+
+Before deploying, authenticate Wrangler and provision these dedicated queues
+(skip creation for queues already present). Run from `apps/worker`:
+
+```powershell
+node node_modules/wrangler/bin/wrangler.js login
+node node_modules/wrangler/bin/wrangler.js queues create distilled-news-joud-collection
+node node_modules/wrangler/bin/wrangler.js queues create distilled-news-joud-collection-dlq
+node node_modules/wrangler/bin/wrangler.js queues create distilled-news-joud-acquisition
+node node_modules/wrangler/bin/wrangler.js queues create distilled-news-joud-acquisition-dlq
+node node_modules/wrangler/bin/wrangler.js queues create distilled-news-joud-v1
+node node_modules/wrangler/bin/wrangler.js queues create distilled-news-joud-v1-dlq
+node node_modules/wrangler/bin/wrangler.js d1 migrations list DB --remote --config wrangler.joud.jsonc
+node node_modules/wrangler/bin/wrangler.js d1 migrations apply DB --remote --config wrangler.joud.jsonc
+node node_modules/wrangler/bin/wrangler.js deploy --config wrangler.joud.jsonc
+```
+
+Build the frontend with the repository build workflow before deployment if its
+source changed. The source scheduling control producer uses the existing Joud
+processing queue; expensive collection runs on its dedicated queue. All new queues
+have consumers in the same manifest. Do not bind QA queues or databases to Joud.
+
+Local Worker dry-run validates packaging and configuration only. Remote queue
+existence, migration state, account model authorization and successful live
+publication must be checked separately. On October 23 the local Wrangler login
+was expired, preventing remote inspection and rollout.
+
+Rollout completed October 23, 2026: all six dedicated queues were created,
+remote D1 reported no pending migrations, and Worker version
+`310e86cc-348a-4b74-ba83-94510cf14fee` deployed with its minute Cron and all five
+queue consumers. Read-only verification found nine scheduled feeds. The latest
+model authorization expires at 2026-10-23T17:41:25.909Z (20:41 Beirut); it was
+not renewed. Successful deployment does not establish successful publication.
+
+October 23 live user-flow validation completed: the approved four-publisher test
+feed published its first complete 30-minute window at 16:00:52 Beirut. Its public
+reader and source dialog were verified in Chromium, and the test feed was paused
+at 16:01:40 as authorized. The existing AI Industry Watch feed also published a
+12-section V3 briefing. See `docs/joud-briefing-user-flow.md` for fixes, tests,
+retained acquisition failures and financial authority details.
+The user explicitly approved two model slots and a $5 total exposure ceiling for
+the current authorization period. Both amendments preserve the original expiry:
+October 23, 20:41 Beirut. These are not recurring daily authorizations. The separate
+$5/day collector limit remains unchanged.
+
+
+October 23 follow-up: the user explicitly approved SOURCE_DAILY_BUDGET_USD=10
+for collector operations. Prior reservations and unknown-call fences remain.
+This does not renew the separate briefing-model authority. Recommendations enable
+SOURCE_RECOMMENDATIONS_FAST_CATALOG=true and stream checked choices. The two
+CNET/ZDNET acquisition jobs were repaired from real evidence; the paused test feed
+now reports zero failed acquisitions on all four sources. See docs/joud-briefing-user-flow.md.

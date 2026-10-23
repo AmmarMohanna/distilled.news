@@ -8,6 +8,33 @@ import { personalNewsBriefing } from '@distilled/core';
 vi.mock('./Dialog', () => ({Dialog:({children,className}:{children:React.ReactNode;className:string})=><div className={className}>{children}</div>}));
 
 vi.mock('./api', () => ({getSources:vi.fn(async()=>[{enabled:true,sourceUrl:'https://example.com/feed.xml'}]),recommendSourceCandidates:vi.fn(async()=>({sources:['https://example.com/feed.xml']})),assessSourceInput:vi.fn(async(_title:string,_description:string,input:string)=>({input,status:'accepted',reason:'Relevant',checkedAt:new Date().toISOString()}))}));
+it('can save already checked choices while slower suggestions are still arriving',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ const source='rss: https://ready.example/feed.xml',result={sources:[source],checks:[{input:source,status:'accepted' as const,reason:'Relevant',checkedAt:new Date().toISOString()}]};
+ let finish!:(value:typeof result)=>void;
+ vi.mocked(recommendSourceCandidates).mockImplementationOnce(async(_title,_description,progress)=>{progress?.(result);return new Promise(resolve=>finish=resolve);});
+ const host=document.createElement('div'),root=createRoot(host),onSave=vi.fn(async()=>{});
+ await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Tech',interestProfile:'AI news'}} onClose={()=>{}} onSave={onSave}/>));
+ await act(async()=>host.querySelector<HTMLButtonElement>('.source-recommend-button')!.click());
+ await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-results button')!.click());
+ expect(host.querySelector<HTMLButtonElement>('.primary-button')!.disabled).toBe(false);
+ await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(onSave).toHaveBeenCalledWith(expect.objectContaining({sourceInputs:expect.arrayContaining([source])}));
+ await act(async()=>finish(result));await act(async()=>root.unmount());vi.unstubAllGlobals();
+});
+it('lets users select a freshly verified recommendation without repeating the relevance call',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ const source='rss: https://fresh.example/feed.xml';
+ vi.mocked(recommendSourceCandidates).mockResolvedValueOnce({sources:[source],checks:[{input:source,status:'accepted',reason:'Article evidence matches',checkedAt:new Date().toISOString()}]});
+ const host=document.createElement('div'),root=createRoot(host);
+ await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Tech',interestProfile:'AI news'}} onClose={()=>{}} onSave={async()=>{}}/>));
+ await act(async()=>host.querySelector<HTMLButtonElement>('.source-recommend-button')!.click());
+ const before=vi.mocked(assessSourceInput).mock.calls.length;
+ await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-results button')!.click());
+ expect(vi.mocked(assessSourceInput).mock.calls.length).toBe(before);
+ expect(host.querySelector('.selected-sources')?.textContent).toContain('fresh.example');
+ await act(async()=>root.unmount());vi.unstubAllGlobals();
+});
 
 it('shows publisher identity and fetched article evidence for topic RSS suggestions',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
@@ -76,7 +103,8 @@ it('shows unavailable suggestions without offering them as selectable sources', 
   await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'World',interestProfile:'World news'}} onClose={()=>{}} onSave={async()=>{}}/>));
   await act(async()=>{(host.querySelector('.source-recommend-button') as HTMLButtonElement).click();});
   expect(host.querySelector('.source-search-results')).toBeNull();
-  expect(host.querySelector('.source-assessment-results')?.textContent).toContain('Setup required');
+  expect(host.querySelector('.source-assessment-results')).toBeNull();
+  expect(host.textContent).not.toContain('Collection provider is not configured.');
   expect(host.querySelectorAll('.selected-source-row')).toHaveLength(1);
   await act(async()=>root.unmount());host.remove();vi.unstubAllGlobals();
 });

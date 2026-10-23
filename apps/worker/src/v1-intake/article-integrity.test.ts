@@ -6,6 +6,7 @@ import {claimAcquisition,runAcquisitionJob,persistAcquisitionResult,completeAcqu
 import {createCandidateAcquisitionRouter} from './acquisition-router';
 import type {AcceptedAcquiredContent,DownstreamJob} from './types';
 import {readArticleDateMetadata} from '@distilled/connectors';
+import {extractPublicHtml} from '@distilled/connectors';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1IntakeStore;
 const now='2026-10-22T12:00:00Z',policy={...testPolicy,now:()=>now},jobId=JSON.stringify(['ACQUIRE','observation-1','']);
@@ -13,6 +14,12 @@ const body='The spacecraft will study the moons of Mars using several instrument
 const corrupt=body+'QWxwaGEvYmV0YTEyMzQ1Njc4OTA='.repeat(100);
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);await createCandidateIntakePort(store,policy).acceptBatch(batchFixture());});
 afterEach(async()=>ctx.dispose());
+it('extracts the primary body instead of a nested related-story card in long publisher HTML',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,url=claim.input.observation.canonicalUrl!;
+ const html='<meta property="og:type" content="article"><meta property="article:published_time" content="2026-10-21"><article><div class="entry-content"><p>'+body+'</p></div><script>'+ ' '.repeat(210_000)+'</script><aside><article>Unrelated laptop accessory recommendation</article></aside></article>';
+ const result=await createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(html),extractHtml:async(url,html)=>extractPublicHtml(html,url)})(claim);
+ expect(result.body).toBe(body.trim());expect(result.body).not.toContain('Unrelated laptop');expect(result.quality?.extractionComplete).toBe(false);
+});
 
 it('persists the original article date separately from its update, feed hint, extraction date and acquisition',async()=>{
  const claim=(await claimAcquisition(store,jobId,now))!;

@@ -15,6 +15,12 @@ it.each([404,410,402,403,429,503])('reports the actual publisher HTTP %s without
 const rss = '<rss version="2.0"><channel><title>Lebanon News</title><item><guid>one</guid><title>Lebanon parliament discusses economic reforms and infrastructure investment</title><description>Reporting on the latest public policy and economic developments in Beirut and across Lebanon.</description><link>https://publisher.example/story</link></item></channel></rss>';
 const answer = (choice = 'YES', confidence = 0.95) => ({ type: 'choice', choice, confidence, probabilities: { YES: choice === 'YES' ? 0.96 : 0.02, NO: choice === 'NO' ? 0.96 : 0.02, UNKNOWN: choice === 'UNKNOWN' ? 0.96 : 0.02 } });
 const decision = (alignment = answer(), concern = answer('NO')) => ({ answers: { news: answer(), alignment, concern } });
+it('checks Google News through native RSS even when paid verification is enabled',async()=>{
+ const dispatch=vi.fn<typeof fetch>(async url=>String(url).includes('openrouter.ai')?Response.json(decision()):new Response(rss,{headers:{'content-type':'application/rss+xml'}}));
+ const result=await assessSource({...env,SOURCE_PAID_VERIFICATION_ENABLED:'true'},context,'news: Lebanon',dispatch);
+ expect(result.status).toBe('accepted');expect(dispatch).toHaveBeenCalledTimes(2);
+ expect(String(dispatch.mock.calls[0][0])).toContain('news.google.com/rss/search');
+});
 it.each([
  {historicalInterest:'YES',exactTopic:'YES',status:'accepted'},
  {historicalInterest:'NO',exactTopic:'YES',status:'unverified'},
@@ -68,7 +74,7 @@ it('does not follow redirects or run Jev without usable evidence', async () => {
 });
 
 it('distinguishes oversized evidence from connection failures without exposing raw errors', async () => {
-  const oversized = vi.fn<typeof globalThis.fetch>(async () => new Response('x'.repeat(512_001)));
+  const oversized = vi.fn<typeof globalThis.fetch>(async () => new Response('x'.repeat(2_000_001)));
   expect(await assessSource(env, context, 'https://publisher.example/rss.xml', oversized)).toMatchObject({ status: 'unverified', reason: expect.stringContaining('size limit') });
   const failed = vi.fn<typeof globalThis.fetch>(async () => { throw new Error('private upstream diagnostic'); });
   const assessment = await assessSource(env, context, 'https://publisher.example/rss.xml', failed);
@@ -163,4 +169,19 @@ it('accepts a readable non-RSS news website when website collection is configure
   const fetch = vi.fn<typeof globalThis.fetch>(async input => String(input).includes('/api/alpha/decisions') ? Response.json(decision()) : new Response('<html><title>Lebanon economy</title><h1>Lebanon parliament discusses economic reforms and infrastructure investment in Beirut</h1><article>Reporting on the latest public policy and economic developments across Lebanon.</article></html>', { headers: { 'content-type': 'text/html' } }));
   const configured = { ...env, SOURCE_EXECUTION_URL: 'https://execution.example', SOURCE_EXECUTION_TOKEN: 'test', SOURCE_EXECUTION_SERVICE: {} } as Env;
   expect(await assessSource(configured, context, 'https://publisher.example/news/today', fetch)).toMatchObject({ status: 'accepted', kind: 'web_page' });
+});
+
+it('uses actual indexed topic articles only for their own readable publisher',async()=>{
+ const hints=[{publisherOrigin:'https://publisher.example',title:'Named researcher announces a major discovery',url:'https://news.google.com/rss/articles/topic',excerpt:'A substantive report about the named researcher and their new discovery.'}];
+ const dispatch=vi.fn<typeof fetch>(async(url,init)=>{
+  if(!String(url).includes('openrouter.ai'))return new Response(rss,{headers:{'content-type':'application/rss+xml'}});
+  const request=JSON.parse(init!.body as string);const evidence=JSON.parse(request.messages[1].content).source.evidence;
+  expect(evidence).toContain('[E1] Search-indexed article from https://publisher.example');
+  expect(evidence).toContain(hints[0].title);
+  return Response.json({choices:[{message:{content:JSON.stringify({realWorldInterest:'YES',exactTopic:'YES',historicalInterest:'NO',concern:'NO',evidenceId:'E1',reason:'The publisher has a readable feed and an indexed article about the subject.'})}}]});
+ });
+ expect(await assessSource({...env,SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini'},{title:'Named researcher',description:'Current discoveries'},'rss: https://publisher.example/feed',dispatch,undefined,hints)).toMatchObject({status:'accepted',evidenceQuote:expect.stringContaining(hints[0].title)});
+ const unavailable=vi.fn<typeof fetch>(async()=>new Response('Missing',{status:404}));
+ expect(await assessSource(env,context,'rss: https://publisher.example/feed',unavailable,undefined,hints)).toMatchObject({status:'unverified'});
+ expect(unavailable).toHaveBeenCalledTimes(1);
 });

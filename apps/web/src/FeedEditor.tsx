@@ -1,6 +1,6 @@
 const rhythmLabels = { 30: "Every 30 min", 60: "Every hour", 120: "Every 2 hours", 360: "Every 6 hours", 720: "Every 12 hours", 1440: "Daily" } as const;
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, Clock, Globe, Plus, Search, Settings, SquarePlus, Users, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Clock, Copy, Globe, Pause, Play, Plus, Search, Settings, SquarePlus, Trash2, Users, X } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import { preferredLanguage, useLanguage } from "./LanguageControl";
 import { Dialog } from "./Dialog";
@@ -34,6 +34,7 @@ export function FeedEditor(props: {
   const [sourceChecks, setSourceChecks] = useState<SourceAssessment[]>([]);
   const [checkingSource, setCheckingSource] = useState(false);
   const sourceContext = useRef("");
+  const recommendationContext = useRef("");
   sourceContext.current = JSON.stringify([title, prompt]);
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [recommendationQuery, setRecommendationQuery] = useState("");
@@ -47,11 +48,16 @@ export function FeedEditor(props: {
   async function findSources() {
     setRecommending(true); setMessage("");
     const context=sourceContext.current;
-    try {
-      const result=await recommendSourceCandidates(title.trim(), [prompt.trim(), sourceQuery.trim()].filter(Boolean).join("\n"));
+    const showRecommendations=(result:Awaited<ReturnType<typeof recommendSourceCandidates>>)=>{
       if(sourceContext.current!==context)return;
-      setRecommendations(result.sources); setSourceChecks((result.checks??[]).filter(check=>!result.sources.length||result.sources.includes(check.input))); setRecommendationQuery(sourceQuery.trim());
-      if(!result.sources.length)setMessage(t("No sources passed verification. Review the results below or try another source."));
+      recommendationContext.current=context;
+      setRecommendations(result.sources);setSourceChecks((result.checks??[]).filter(check=>result.sources.includes(check.input)));setRecommendationQuery(sourceQuery.trim());
+    };
+    try {
+      const result=await recommendSourceCandidates(title.trim(), [prompt.trim(), sourceQuery.trim()].filter(Boolean).join("\n"),showRecommendations);
+      if(sourceContext.current!==context)return;
+      showRecommendations(result);
+      if(!result.sources.length)setMessage(t("No matching sources found. Try a broader topic or add a source link."));
     }
     catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); }
     finally { setRecommending(false); }
@@ -60,6 +66,11 @@ export function FeedEditor(props: {
     if(checkingSource||!title.trim()||!prompt.trim()) { setMessage(t("Enter a feed name and interests before checking a source.")); return false; }
     if(sources.includes(source))return true;
     const context=sourceContext.current;
+    const checked=sourceChecks.find(check=>check.input===source&&check.status==='accepted');
+    const age=checked?Date.now()-Date.parse(checked.checkedAt):Infinity;
+    if(recommendationContext.current===context&&recommendations.includes(source)&&age>=0&&age<5*60_000){
+      setSources(current=>current.includes(source)?current:[...current,source]);return true;
+    }
     setCheckingSource(true); setMessage("");
     try {
       const check=await assessSourceInput(title.trim(),prompt.trim(),source);
@@ -77,7 +88,7 @@ export function FeedEditor(props: {
       event.preventDefault();
       try { new Intl.DateTimeFormat("en", { timeZone: timezone.trim() }).format(); }
       catch { setMessage(t("Enter a valid time zone, such as Asia/Beirut or UTC.")); return; }
-      if (checkingSource || recommending) return;
+      if (checkingSource) return;
       if (!sourcesReady || sources.length === 0) { setMessage(t("Add at least one source.")); return; }
       void run(() => props.onSave({ id, title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled, briefingTimezone: timezone.trim(), sourceInputs: sources }));
     }}>
@@ -94,8 +105,6 @@ export function FeedEditor(props: {
           {sourceQuery.trim() && !sources.includes(sourceQuery.trim()) && <button className="add-source-button" type="button" disabled={checkingSource} onClick={() => { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery(""); sourceSearchRef.current?.focus();}); }}><Plus size={24}/>{t("Add source")}</button>}
           <button className="source-recommend-button" type="button" disabled={recommending || checkingSource || !title.trim() || !prompt.trim()} onClick={() => void findSources()}>{t(recommending ? "Finding sources..." : "Recommend sources with AI")}</button>
         </div>
-        {checkingSource && <p role="status">{t("Checking source safety, availability and relevance...")}</p>}
-        {sourceChecks.some(check=>check.status!=="accepted"&&!sources.includes(check.input)) && <div className="source-assessment-results" aria-label={t("Source verification results")}>{sourceChecks.filter(check=>check.status!=="accepted"&&!sources.includes(check.input)).map(check=><div key={check.input} className="source-assessment-result"><SourceIdentity source={check.input}/><small>{t(check.status==="unavailable"?"Setup required":check.status==="rejected"?"Not accepted":"Unverified")}: {check.reason}</small></div>)}</div>}
         {sources.length > 0 && <div className="selected-sources"><span className="selected-sources-label">{t("Selected sources")}</span>{sources.map(source => <div className="selected-source-row" key={source}><SourceIdentity source={source}/><button type="button" aria-label={`${t("Remove source")}: ${source}`} onClick={() => setSources(current => current.filter(value => value !== source))}><X size={20}/></button></div>)}
         </div>}
       </div>
@@ -109,11 +118,11 @@ export function FeedEditor(props: {
       <label><span className="feed-preference-label"><Globe aria-hidden="true"/>{t("Briefing language")}</span><select value={feedLanguage} onChange={event=>setFeedLanguage(event.target.value as BriefingConfig["language"])}>{(["en", "fr", "ar"] as const).map(option=><option key={option} value={option}>{t(({en:"English",fr:"French",ar:"Arabic"} as const)[option])}</option>)}</select></label>
       </div>
       {message && <p className="error" role="alert">{message}</p>}
-      <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || checkingSource || recommending || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>
+      <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || checkingSource || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>
       {advanced && props.feed && <div className="feed-editor-actions">
-        <button type="button" disabled={busy} onClick={() => void run(async () => { await props.onPause?.(); props.onClose(); })}>{t(props.feed?.paused ? "Resume feed" : "Pause feed")}</button>
-        <button type="button" disabled={busy} onClick={() => void run(async () => { await props.onCopy?.(); setMessage(t("URL copied")); })}>{t("Copy URL")}</button>
-        <button type="button" className="danger-button" disabled={busy} onClick={async () => { if (await confirm(`Delete "${props.feed?.title}" and its published content?`)) void run(async () => { await props.onDelete?.(); }); }}>{t("Delete feed")}</button>
+        <button type="button" aria-label={t(props.feed.paused ? "Resume feed" : "Pause feed")} title={t(props.feed.paused ? "Resume feed" : "Pause feed")} disabled={busy} onClick={() => void run(async () => { await props.onPause?.(); props.onClose(); })}>{props.feed.paused ? <Play size={21} aria-hidden="true"/> : <Pause size={21} aria-hidden="true"/>}</button>
+        <button type="button" aria-label={t("Copy URL")} title={t("Copy URL")} disabled={busy} onClick={() => void run(async () => { await props.onCopy?.(); setMessage(t("URL copied")); })}><Copy size={21} aria-hidden="true"/></button>
+        <button type="button" className="danger-button" aria-label={t("Delete feed")} title={t("Delete feed")} disabled={busy} onClick={async () => { if (await confirm(`Delete "${props.feed?.title}" and its published content?`)) void run(async () => { await props.onDelete?.(); }); }}><Trash2 size={21} aria-hidden="true"/></button>
       </div>}
     </form>
     {confirmation}

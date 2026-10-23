@@ -83,7 +83,10 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(discoverWebsiteArticles(document.body,document.url))throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'});
    // Existing extractor requires an article body and publication metadata, rather than treating 200 as extraction success.
    const metadata=readArticleDateMetadata(document.body,document.url);
-   let item=parseStructuredHtmlArticle(document.body,document.url,o.canonicalUrl!)??extractWordpressArticle(document.body,document.url,o.canonicalUrl!);
+   // A regex ending at the first </article> can select a related-story card
+   // nested inside a long primary article. Let the DOM extractor handle it.
+   const multipleArticles=/<article\b[\s\S]*?<article\b/i.test(document.body);
+   let item=(!multipleArticles?parseStructuredHtmlArticle(document.body,document.url,o.canonicalUrl!):undefined)??extractWordpressArticle(document.body,document.url,o.canonicalUrl!);
    if(item){
     const date=resolvePublicationDate(item.publishedAt,o.publishedAtHint,metadata);
     item={...item,publishedAt:date.publishedAt,acquisitionEvidence:{...item.acquisitionEvidence,publicationDate:date,contentCompleteness:'COMPLETE'}};

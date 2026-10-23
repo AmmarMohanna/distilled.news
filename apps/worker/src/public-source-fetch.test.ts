@@ -35,7 +35,7 @@ describe("public source HTTP admission", () => {
     expect(() => new WorkerPublicSourceFetch("http://news.example.com/")).toThrow();
     const redirect = new WorkerPublicSourceFetch("https://news.example.com/", (async () => new Response(null, { status: 302, headers: { location: "https://foreign.example.com/" } })) as typeof fetch);
     await expect(redirect.get("https://news.example.com/")).rejects.toThrow("public source policy denied");
-    const oversized = new WorkerPublicSourceFetch("https://news.example.com/", (async () => new Response("x".repeat(512_001))) as typeof fetch);
+    const oversized = new WorkerPublicSourceFetch("https://news.example.com/", (async () => new Response("x".repeat(2_000_001))) as typeof fetch);
     await expect(oversized.get("https://news.example.com/")).rejects.toMatchObject({ category: "BODY_BUDGET_EXCEEDED" });
     const rejected = new WorkerPublicSourceFetch("https://news.example.com/", (async () => { throw new TypeError("unsafe provider details must not escape"); }) as typeof fetch);
     await expect(rejected.get("https://news.example.com/")).rejects.toMatchObject({ category: "FETCH_REJECTED", message: "FETCH_REJECTED" });

@@ -39,7 +39,12 @@ export function extractPublicHtml(html:string,url:string){
  }
  const listing=discoverWebsiteArticles(html,url);
  const article=all.find(n=>n.tagName==='article'),main=all.find(n=>n.tagName==='main'||attr(n,'role')==='main');
- const body=structuredBody??(article||main?text(article??main!):'');
+ // Some publishers use an explicit article-body div instead of <article>.
+ // Require article metadata and one unambiguous content container; never read
+ // the entire page or mistake a listing's generic content div for reporting.
+ const articleBodies=articleMetadata?all.filter(n=>attr(n,'itemprop').split(/\s+/).includes('articleBody')||n.tagName==='div'&&(attr(n,'class').split(/\s+/).includes('entry-content')||attr(n,'id')==='article-start'&&attr(n,'class').split(/\s+/).includes('content-box'))):[];
+ const content=articleBodies.length===1?articleBodies[0]:undefined;
+ const body=structuredBody??(content||article||main?text(content??article??main!):'');
  const canonical=all.find(n=>n.tagName==='link'&&attr(n,'rel').split(/\s+/).includes('canonical'));
  let canonicalUrl=url;try{const candidate=new URL(canonical?attr(canonical,'href'):url,url);if(candidate.origin===new URL(url).origin&&candidate.pathname!=='/')canonicalUrl=candidate.href}catch{}
  return {title,body,publishedAt:publishedAt&&Number.isFinite(Date.parse(publishedAt))?new Date(publishedAt).toISOString():undefined,canonicalUrl,

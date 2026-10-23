@@ -38,3 +38,13 @@ it('keeps an uncertain actor submission fenced across retries',async()=>{
  for(let i=0;i<2;i++)await expect(collectVerificationEvidence(env,'news: space exploration',{ownerAccountId:'owner',providerFetcher:fetcher})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
  expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+it('keeps publisher discovery separate from retained verification and reuses both immutable executions',async()=>{
+ const fetcher=provider(),scope={ownerAccountId:'owner',providerFetcher:fetcher};
+ await collectVerificationEvidence(env,'news: space exploration',scope);
+ await collectVerificationEvidence(env,'news: space exploration',scope,{purpose:'topic_publishers'});
+ await collectVerificationEvidence(env,'news: space exploration',scope,{purpose:'topic_publishers'});
+ const starts=fetcher.mock.calls.filter(([url,init])=>String(url).includes('/actors/')&&init?.method==='POST');
+ expect(starts).toHaveLength(2);
+ expect(starts.map(([,init])=>JSON.parse(init!.body as string).maxItemsPerQuery)).toEqual([10,60]);
+},15000);

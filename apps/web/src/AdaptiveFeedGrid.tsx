@@ -31,7 +31,8 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       };
       if (roomy && fitRows(208, 160) > 240) roomy = false;
       const rowHeight = roomy ? fitRows(208, 160) : fitRows(84, 64);
-      grid.dataset.layout = roomy ? 'large' : 'compact';
+      grid.dataset.layout = 'list';
+      grid.dataset.size = roomy ? 'large' : 'compact';
       grid.style.setProperty('--feed-columns', String(columns));
       grid.style.setProperty('--feed-row-height', `${rowHeight}px`);
       grid.style.setProperty('--feed-grid-gap', `${gap}px`);
