@@ -35,7 +35,8 @@ ordinary claim callers retain their existing 90-second default.
 - 30 Python helper tests passed, including the new exact-candidate navigation test.
 - Worker TypeScript passed. Preservation checks passed for 56 frontend and 33
   protected backend/configuration files.
-- No live paid evaluation was run and no exhausted QA article jobs were reset.
+- No live paid evaluation was run during implementation. The bounded QA recovery
+  performed after rollout is recorded below.
 
 ## Rollout dependency
 
@@ -45,7 +46,36 @@ evidence and blocks another top-level URL when `exactCandidateOnly` is requested
 The Worker refuses to promote older helper browser responses without final URL
 evidence. Preserve the host's existing secrets, sandbox and public-egress firewall.
 
-The changes are implemented locally. QA deployment is pending the private helper
-host/deployment access; no SSH host configuration is present in this workspace's
-execution environment. This is not a claim that the remaining Guardian articles
-have now been fetched through Playwright or Zyte.
+## QA rollout, October 23, 2026
+
+The VPS helper was still running an older protocol that rejected `public_article`
+in both JavaScript operation allowlists. Its rejection was collapsed by the Worker
+adapter into `HELPER_TRANSPORT_FAILURE`. This establishes a concrete cause of the
+observed helper failures; it was not proof of Guardian blocking access.
+
+Updated the three QA helper code files after saving a backup and passing 30 Python
+and 5 Node server tests on the VPS. An authenticated extraction smoke check passed.
+The environment file, Python environment, Telegram sessions and Joud's separate
+collector were retained; Joud's helper code hashes were verified unchanged.
+
+All three remaining Guardian URLs returned HTTP 200 and readable extracted text
+through `public_article` (2,839 / 2,254 / 4,199 characters). A real Playwright fetch
+also returned HTTP 200, HTML and the exact requested Guardian URL. These helper
+checks made no Zyte requests.
+
+QA Worker version `7b69dac4-fa51-4de2-afcb-72673a5c2a45` serves 100%. Deployment
+verification confirmed matching frontend assets, unchanged live bindings/variables,
+and HTTP 200 session/explore API responses. Production was not changed.
+
+The three prior `HELPER_TRANSPORT_FAILURE` jobs were each admitted for one extra
+acquisition attempt, with pre-change records saved and prior probe metadata
+preserved. All three completed through `private_public_http`, retaining the exact
+article URLs and 2,839 / 2,254 / 4,199 characters with completeness UNKNOWN.
+All 16 jobs in the original Guardian recovery batch are now DONE. The successful
+queue probes did not need Playwright or Zyte; live Playwright was checked separately
+and Zyte behavior was verified with local mocked requests and durable-ledger tests.
+No reporting windows, original publication dates or briefing schedules were changed.
+
+The user explicitly authorized a temporary root SSH key for this rollout. Its exact
+entry was removed from the VPS after verification, preserving other authorized
+keys, and both temporary key files were deleted from the local machine.
