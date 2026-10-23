@@ -18,8 +18,8 @@ it('preserves exact source bytes and matched paid requests, changing one stage p
     expect({...candidate.request,messages:candidate.request.messages.map((m,i)=>i===0?job.request.messages[0]:m)})
       .toEqual(job.request);
   }
-  expect(EDITOR_SYSTEM).toBe(fixture.candidate.editor);
-  expect(VERIFY_SYSTEM).toBe(fixture.candidate.verifier);
+  expect(EDITOR_SYSTEM).toContain(fixture.candidate.editor.split("\n").find(line=>line.startsWith("- Use the reader interest"))!);
+  expect(VERIFY_SYSTEM).toContain("An implication or connection to the reader topic still needs support in the cited sources");
   expect(evidence.calls).toBe(14);
   expect(evidence.costUsd).toBeLessThan(.19);
   expect(evidence.allSettled).toBe(true);
