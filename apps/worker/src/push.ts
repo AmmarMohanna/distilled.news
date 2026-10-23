@@ -1,6 +1,7 @@
 import { buildPushPayload } from "@block65/webcrypto-web-push";
 import { recordPushAcceptance, settlePushOutbox, ELIGIBLE_PUSH_SQL } from "./push-outbox";
 import { z } from "zod";
+import {genericPushPreview,readBriefingPushPreview} from "./push-preview";
 import type { Env } from "./types";
 
 // Subscription endpoints are browser push services, never arbitrary user URLs.
@@ -45,7 +46,10 @@ export async function sendBriefingNotifications(env: Env) {
     let phase = "subscription";
     try {
       const subscription = subscriptionSchema.parse(JSON.parse(row.subscription_json));
-      const body = row.language === "ar" ? "ملخص جديد جاهز في خلاصاتك." : row.language === "fr" ? "Un nouveau résumé est disponible dans vos fils." : "A new briefing is ready in your feeds.";
+      let body = genericPushPreview(row.language);
+      // An optional preview must never prevent the existing generic push path.
+      try {body = await readBriefingPushPreview(env.DB,row);}
+      catch {console.warn("Push preview unavailable; using generic notification");}
       phase = "payload";
       const payload = await buildPushPayload({ data: JSON.stringify({ title: "Distilled.news", body, url: "/", tag: "new-briefings" }), options: { ttl: 3600 } }, subscription,
         { publicKey: env.VAPID_PUBLIC_KEY!, privateKey: env.VAPID_PRIVATE_KEY!, subject: env.VAPID_SUBJECT! });

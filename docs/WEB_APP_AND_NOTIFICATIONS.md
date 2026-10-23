@@ -33,3 +33,7 @@ Production has NOT been changed. Before deploying the new Worker:
 If keys are absent, the settings screen reports that server setup is needed. Subscription routes require an authenticated account, rate-limit registration, validate key formats, and restrict delivery URLs to supported browser push providers. Payloads are encrypted using Web Crypto via `@block65/webcrypto-web-push`.
 
 References: [Browser installation](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/How_to/Trigger_install_prompt), [Notifications](https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerRegistration/showNotification), [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/).
+
+## V3 headline previews
+
+V3 notifications reuse the first published story headline and, when space permits, show the number of other updates in that edition. This adds no inference call. Long, legacy or unavailable previews use the generic message. Coalesced catch-up delivery previews one eligible edition; it is not a summary of all pending feeds. The existing publication, ownership and public-feed eligibility checks still apply. Preview lookup failures do not block generic delivery. See docs/v3-reader-notification-evaluation.md for the rejected AI-message experiment and local validation; live deployment/device display must be verified separately.
