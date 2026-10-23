@@ -1,5 +1,6 @@
 ﻿import { afterEach, expect, it, vi } from "vitest";
 import { sendBriefingNotifications, validPushEndpoint } from "./push";
+import { Miniflare } from "miniflare";
 import type { Env } from "./types";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -10,7 +11,7 @@ it("rejects arbitrary and disguised push endpoints", () => {
 it("does no database or delivery work until configured", async () => {
   await expect(sendBriefingNotifications({} as Env)).resolves.toBeUndefined();
 });
-for (const status of [201, 410, 503]) it(`handles push delivery status ${status} without exposing endpoints`, async () => {
+for (const status of [201, 302, 410, 503]) it(`handles push delivery status ${status} without exposing endpoints`, async () => {
   const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
   const browser = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
   const publicKey = Buffer.from(await crypto.subtle.exportKey("raw", keys.publicKey)).toString("base64url");
@@ -28,7 +29,17 @@ for (const status of [201, 410, 503]) it(`handles push delivery status ${status}
   vi.stubGlobal("fetch", fetcher);
   await sendBriefingNotifications({ DB: { prepare, batch: async () => { executed.push("release accepted lease"); return []; } }, VAPID_PUBLIC_KEY: publicKey, VAPID_PRIVATE_KEY: privateKey, VAPID_SUBJECT: "https://distilled.news" } as unknown as Env);
   expect(fetcher).toHaveBeenCalledOnce();
-  expect(fetcher.mock.calls[0][1]).toMatchObject({ method: "post", redirect: "error" });
+  expect(fetcher.mock.calls[0][1]).toMatchObject({ method: "post", redirect: "manual" });
+  if (status === 201) {
+    // Node accepts redirect:error, but the deployed Workers runtime rejects it
+    // before any network request. Validate the actual sender option in workerd.
+    const mf = new Miniflare({modules:true,script:`export default {fetch(request) { try { new Request("https://fcm.googleapis.com/fcm/send/synthetic", {method:"POST",body:new Uint8Array(4),redirect:request.headers.get("x-mode")}); return new Response("supported"); } catch {return new Response("unsupported",{status:400});} }}`});
+    try {
+      const mode = fetcher.mock.calls[0][1].redirect;
+      expect((await mf.dispatchFetch("https://local.test", {headers:{"x-mode":mode}})).status).toBe(200);
+      expect((await mf.dispatchFetch("https://local.test", {headers:{"x-mode":"error"}})).status).toBe(400);
+    } finally {await mf.dispose();}
+  }
   expect(executed.some(sql => sql.startsWith("DELETE"))).toBe(status === 410);
   expect(executed.includes("release accepted lease")).toBe(status === 201);
 });

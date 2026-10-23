@@ -50,7 +50,7 @@ export async function sendBriefingNotifications(env: Env) {
       const payload = await buildPushPayload({ data: JSON.stringify({ title: "Distilled.news", body, url: "/", tag: "new-briefings" }), options: { ttl: 3600 } }, subscription,
         { publicKey: env.VAPID_PUBLIC_KEY!, privateKey: env.VAPID_PRIVATE_KEY!, subject: env.VAPID_SUBJECT! });
       phase = "send";
-      const response = await fetch(subscription.endpoint, { ...payload, redirect: "error", signal: AbortSignal.timeout(10_000) });
+      const response = await fetch(subscription.endpoint, { ...payload, redirect: "manual", signal: AbortSignal.timeout(10_000) });
       phase = "receipt";
       if (response.status === 404 || response.status === 410) {
         await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND lease_token = ?").bind(row.endpoint, token).run();
