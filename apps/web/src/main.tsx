@@ -1,4 +1,5 @@
-import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
+import { highestReferenceNumber, referenceTextParts } from "./summary-format";
+import { BriefingText } from "./BriefingText";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { FeedNotice, FeedPublicationNotice, FeedProcessingProgress } from "./FeedNotice";
 import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
@@ -1725,6 +1726,7 @@ function FeedPage(props: { username: string; slug: string }) {
                   edition={edition}
                   detailEdition={editionDetails.get(edition.id)}
                   language={language}
+                  contentLanguage={payload?.briefing.language ?? language}
                   isLoading={editionBusyIds.has(edition.id)}
                   isRead={readIds.has(edition.id)}
                   onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
@@ -1817,35 +1819,41 @@ function FeedEditionRow(props: {
   edition: BriefingEdition;
   detailEdition?: BriefingEdition;
   language: "en" | "ar" | "fr";
+  contentLanguage: "en" | "ar" | "fr";
   isLoading: boolean;
   isRead: boolean;
   onToggleRead: () => void;
   onOpenReport: (sectionIndex: number) => void;
 }) {
   const { edition, language } = props;
-  const textDir = textDirection(language);
-  const summary = normalizeSummary(edition.summary);
+  const textDir = textDirection(props.contentLanguage);
   const referenceCount = Math.max(props.detailEdition?.sections.length ?? 0, edition.sections.length, highestReferenceNumber(edition.summary));
   const stamp = `${formatDayHeading(edition.publishedAt, language)}, ${formatClock(edition.publishedAt, language)}`;
   return (
-    <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={language} dir={textDir}>
+    <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={props.contentLanguage} dir={textDir}>
       <div className="news-head">
         {props.isRead ? null : <span className="news-unread" aria-hidden />}
         <time dateTime={edition.publishedAt}>{formatClock(edition.publishedAt, language)}</time>
       </div>
-      <ReferenceParagraph
-        className="news-summary"
-        text={summary}
-        language={language}
-        referenceCount={referenceCount}
-        onOpenReference={props.onOpenReport}
+      <BriefingText
+        summary={edition.summary}
+        sections={edition.sections}
+        direction={textDir}
+        renderBody={text=><ReferenceParagraph
+          className="news-summary"
+          text={text}
+          language={language}
+          direction={textDir}
+          referenceCount={referenceCount}
+          onOpenReference={props.onOpenReport}
+        />}
       />
       <div className="news-foot">
         {referenceCount > 0 ? (
           <button type="button" className="news-sources" aria-busy={props.isLoading} onClick={() => props.onOpenReport(0)}>
             <span>{sourcesLabel(language)}</span>
             <span className="news-sources-count">{referenceCount}</span>
-            {textDir === "rtl" ? <ChevronLeft size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
+            {textDirection(language) === "rtl" ? <ChevronLeft size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
           </button>
         ) : <span />}
         <button
@@ -1867,11 +1875,12 @@ const trailingPunctuation = /^[.,;:!?)\]…،؛؟]+/u;
 function ReferenceParagraph(props: {
   text: string;
   language: "en" | "ar" | "fr";
+  direction: "ltr" | "rtl";
   referenceCount: number;
   className: string;
   onOpenReference: (sectionIndex: number) => void;
 }) {
-  const textDir = textDirection(props.language);
+  const textDir = props.direction;
   const parts = referenceTextParts(props.text);
   if (parts.length === 0) {
     return <p className={props.className} dir={textDir}><bdi dir={textDir}>{props.text}</bdi></p>;

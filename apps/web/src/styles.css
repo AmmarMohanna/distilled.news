@@ -1059,6 +1059,11 @@ summary {
   text-align: left;
 }
 
+.news-stories { display: grid; gap: 1.25rem; }
+.news-story { min-width: 0; }
+.news-story-heading { margin: 0 0 0.4rem; font-size: 1.125rem; font-weight: 650; line-height: 1.4; text-align: start; overflow-wrap: anywhere; }
+.news-item.is-read .news-story-heading { color: var(--muted); }
+
 .news-summary[dir="rtl"] {
   text-align: right;
 }
