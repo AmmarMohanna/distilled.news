@@ -1,7 +1,11 @@
 /** Offline request reconstruction only. This module never invokes a provider. */
 import development from '../test/fixtures/v3-factual-reliability.json';
 import heldout from '../test/fixtures/v3-controlled-baseline.json';
-import {VERIFY_SYSTEM,verifyUser} from '../src/prompts';
+import recordedDateComparison from '../test/fixtures/v3-date-prompt-comparison.json';
+import {verifyUser} from '../src/prompts';
+
+// Historical experiments must reconstruct their tested prompt, not today's default.
+const VERIFY_SYSTEM=recordedDateComparison.records.find(r=>r.name==='baseline-heldout-bad')!.request.system;
 
 interface Case {
   id:string; headline:string; body:string; sources:string[];

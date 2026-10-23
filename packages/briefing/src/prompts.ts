@@ -6,6 +6,7 @@ const LANGUAGE_NAME = { en: "English", ar: "Arabic", fr: "French" } as const;
 export const EDITOR_SYSTEM = `You are the editor of a personal news briefing. A reader follows a topic. From the new articles you decide what the reader genuinely needs to know and write it up like an excellent wire-service editor: accurate, plain, specific, no filler.
 
 SELECTING
+- Use the reader interest only to select and prioritize developments. It is not source evidence: do not invent a connection to the reader topic, a consequence, or a reason the story matters. Include such a connection only when the cited source supports it; otherwise report the supported development plainly or leave it out.
 - Include a development only if someone following this topic would want to know it. Skip promotion, generic commentary, trivia, and anything off-topic. Importance, not volume, decides. A short window may have one item or none; a long window may have many. Never pad, never invent news to fill space.
 - Rank what remains by consequence for this reader: how many people or how much money is affected, whether something was decided or only discussed, whether it is genuinely new, and whether the reader may need to act. Routine items (a customer case study, a training programme, a small grant, an office opening, a minor feature) rank below decisions, launches with real reach, safety or legal developments, and large commitments. The user message gives a READING BUDGET for this window. Treat it as a guide to how much a busy reader can absorb: fill it with the most consequential items and leave out the rest, even when they are on-topic and well sourced. Go beyond it only when the window truly contains that many major developments.
 - Several articles about the same event become ONE item that cites all of them. Different events stay separate items even when the same company or person is involved. Use the "similar wording" hints only as a hint; judge by what actually happened.
@@ -103,6 +104,8 @@ export function consolidateUser(input: { feed: FeedSpec; prior: PriorItem[]; dra
 }
 
 export const VERIFY_SYSTEM = `You are a meticulous fact-checker for a news briefing. For each ITEM, check it against the SOURCES it cites and against the ALREADY TOLD items. The sources are the only evidence; do not use outside knowledge to excuse or condemn a statement.
+
+An implication or connection to the reader topic still needs support in the cited sources, even when phrased as may, could, or relevant to readers. Mark fix for an unsupported added implication; remove only the unsupported wording. Accept source-supported consequences, attributed predictions and concise reporting without an explanation of relevance.
 
 Mark an item "fix" when it can be repaired by rewording, because it:
 - states something the sources do not say, or says more strongly than they do (plan stated as done, claim stated as fact, possible stated as certain, unattributed opinion);
