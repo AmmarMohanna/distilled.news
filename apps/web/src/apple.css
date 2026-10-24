@@ -2272,3 +2272,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (max-width: 760px) {
   :root.apple-ui.apple-ui .sources-pagination { right: 20px; bottom: 20px; }
 }
+
+/* Guests need mobile preferences; signed-in users have them in Settings. */
+@media (max-width: 899px) {
+  :root.apple-ui.apple-ui .experience-header.is-guest :is(.language-cycle, .theme-toggle),
+  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest :is(.language-cycle, .theme-toggle) { display: inline-flex; }
+  :root.apple-ui.apple-ui .experience-header.has-account :is(.language-cycle, .theme-toggle),
+  :root.apple-ui.apple-ui .feed-shell .experience-header.has-account :is(.language-cycle, .theme-toggle) { display: none; }
+  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions { gap: 4px; }
+  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .language-cycle { padding-inline: 4px; }
+}

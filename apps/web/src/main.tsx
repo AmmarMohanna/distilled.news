@@ -1626,12 +1626,7 @@ function FeedPage(props: { username: string; slug: string }) {
         <span className="action-count">{payload?.briefing.stars ?? 0}</span>
       </button>
       <button type="button" title={t("Share")} aria-label={t("Share")} disabled={!payload?.briefing.publicFeedEnabled} onClick={() => void shareFeed()}><Share size={20} aria-hidden /></button>
-      {ownedFeed ? <FeedMoreMenu label={t("More options")}>
-        {close => <>
-          {ownedFeed ? <button type="button" onClick={() => { close(); setEditorOpen(true); }}><Settings size={16} aria-hidden />{t("Edit feed settings")}</button> : null}
-
-        </>}
-      </FeedMoreMenu> : null}
+      {ownedFeed ? <button type="button" title={t("Edit feed settings")} aria-label={t("Edit feed settings")} onClick={() => setEditorOpen(true)}><Settings size={20} aria-hidden /></button> : null}
     </div>
   );
 
