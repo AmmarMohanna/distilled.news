@@ -186,6 +186,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   const briefingsRef = useRef<BriefingConfig[]>([]);
   const autosaveTimerRef = useRef<number | null>(null);
   const autosaveRunRef = useRef(0);
+  const briefingsLoadingRef = useRef(false);
 
   const account = session?.account ?? null;
   const briefing = briefings.find((item) => item.id === selectedBriefingId) ?? null;
@@ -223,6 +224,36 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   }, []);
 
   useEffect(() => {
+    if (!account || creationOpen || feedSettingsOpen || accountDialogOpen || busyAction || autosaveState === "saving" || autosaveState === "error") return;
+    let active = true;
+    const update = async () => {
+      if (document.visibilityState !== "visible" || briefingsLoadingRef.current) return;
+      briefingsLoadingRef.current = true;
+      try {
+        const next = await getBriefings();
+        if (!active) return;
+        setBriefings(next);
+        setSelectedBriefingId(current => current && next.some(feed => feed.id === current) ? current : next[0]?.id ?? null);
+      } catch {
+        // A background failure must not clear the working list or interrupt a draft.
+      } finally {
+        briefingsLoadingRef.current = false;
+      }
+    };
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("focus", update);
+    window.addEventListener("online", update);
+    window.addEventListener("pageshow", update);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("focus", update);
+      window.removeEventListener("online", update);
+      window.removeEventListener("pageshow", update);
+    };
+  }, [account?.id, creationOpen, feedSettingsOpen, accountDialogOpen, busyAction, autosaveState]);
+
+  useEffect(() => {
     if (!selectedBriefingId || !session?.authenticated) return;
     setScopedDataReady(false);
     loadScopedData(selectedBriefingId).catch((cause) =>
@@ -237,13 +268,18 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   }
 
   async function loadBriefings(preferredId?: string) {
-    const nextBriefings = await getBriefings();
-    setBriefings(nextBriefings);
-    const activeId =
-      preferredId && nextBriefings.some((item) => item.id === preferredId)
-        ? preferredId
-        : nextBriefings[0]?.id ?? null;
-    setSelectedBriefingId(activeId);
+    briefingsLoadingRef.current = true;
+    try {
+      const nextBriefings = await getBriefings();
+      setBriefings(nextBriefings);
+      const activeId =
+        preferredId && nextBriefings.some((item) => item.id === preferredId)
+          ? preferredId
+          : nextBriefings[0]?.id ?? null;
+      setSelectedBriefingId(activeId);
+    } finally {
+      briefingsLoadingRef.current = false;
+    }
   }
 
   async function loadScopedData(briefingId: string) {
