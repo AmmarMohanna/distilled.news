@@ -1,5 +1,7 @@
 ﻿# V3 event-separation experiment: offline preflight
 
+**Later status:** the six calls were separately authorized and completed for $0.050346. The candidate was rejected. See [matched comparison and dataset recovery](v3-event-separation-results.md). The plan below is the original pre-authorization snapshot.
+
 ## Scope
 
 Test the user's explicit one-development-per-item paragraph as a **single replacement** of the existing grouping paragraph. Editor and consolidation are tested separately. No broad rewrite, history-style experiment, model switch, verifier change, reading-budget change, compression change, JSON-example change, source-processing change, deployment or live-feed mutation is included. The repaired re-verification context, history prose deduplication and corrected date semantics remain untouched.

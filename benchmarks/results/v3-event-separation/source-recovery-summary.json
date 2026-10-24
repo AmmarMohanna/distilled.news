@@ -1,0 +1,45 @@
+{
+  "status": "UNDERLYING_QA_ACCESS_RESTORED_ORIGINAL_95_EXPORT_STILL_MISSING",
+  "original95ArchiveRecovered": false,
+  "historicalSnapshot": {
+    "acquiredRecords": 891,
+    "feeds": 25,
+    "characters": 4186718,
+    "acquisitionCutoff": "2026-10-23T14:53:15.891Z",
+    "recoveredAt": "2026-10-24T21:25:04.071Z",
+    "snapshotSha256": "5fd047c760b9bee453e8b3a8bceedb7d867cf52e3b43f72b11ec0303b8e7c6f1",
+    "matchingKnownSourceHashes": 20,
+    "knownSourcesChecked": 20,
+    "missingObservationInputs": 0,
+    "missingAcceptanceReceipts": 0
+  },
+  "readOnlyChecks": {
+    "queries": 11,
+    "rowsRead": 4850,
+    "rowsWritten": 0,
+    "modelCalls": 0
+  },
+  "reconstructedWorldTrack": {
+    "windows": 46,
+    "articleOccurrences": 159,
+    "emptyWindows": 5,
+    "recurrenceIndicators": {
+      "laterOccurrences": 50,
+      "changedTextSameUrl": 40,
+      "notSemanticLabels": true
+    },
+    "oldReportIndicators": {
+      "laterOccurrences": 47,
+      "changedTextSameUrl": 38
+    },
+    "fetchHealth": "unknown",
+    "notOriginalChecksums": true
+  },
+  "privateLocation": ".local-reports/v3-source-recovery-20261024",
+  "privateArchive": {
+    "path": ".local-reports/v3-source-recovery-20261024.zip",
+    "bytes": 3587238,
+    "sha256": "7f837f5a4630242bcfa5bcd1a009d2089b74b7fe8e866ac94c2068e443d17760"
+  },
+  "remainingBlocker": "Original private 95-window export/ZIP or its original snapshot and interval plan/checksums are required for exact restoration."
+}

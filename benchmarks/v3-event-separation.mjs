@@ -1,6 +1,7 @@
 ﻿import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
+import {isDeepStrictEqual} from 'node:util';
 export const EVENT_SEPARATION = 'One briefing item must describe one distinct real-world development. Multiple sources reporting the SAME occurrence, decision or announcement belong together. Different occurrences, decisions or announcements remain separate, even if they concern the same country, company, conflict or topic. In particular, an event that already happened and a separate announcement about possible future events are not one development. Never combine different developments merely to shorten the briefing; prioritize or omit them independently.';
 const EDITOR_RULE = '- Several articles about the same event become ONE item that cites all of them. Different events stay separate items even when the same company or person is involved. Use the "similar wording" hints only as a hint; judge by what actually happened.';
 const CONSOLIDATE_RULE = '- Merge drafts only when they describe the very same event. Related announcements, follow-ups from the same company, or items that merely reference each other are DIFFERENT events: keep them as separate items (even if one of them is then cut). Never fold one event into another to save space. Write the merged body only from the drafts\' own text; add no fact that is not in them. Keep every distinct, material fact, attribution and hedge.';
@@ -9,6 +10,15 @@ export function candidate(system, stage) {
  if(!rule||system.split(rule).length!==2)throw Error('BASELINE_RULE_DRIFT');
  const replacement='- '+EVENT_SEPARATION+(stage==='consolidate'?" Write the merged body only from the drafts' own text; add no fact that is not in them. Keep every distinct, material fact, attribution and hedge.":' Use the "similar wording" hints only as a hint; judge by what actually happened.');
  return system.replace(rule,replacement);
+}
+/** Offline request audit; never modifies or admits a product operation. */
+export function auditPair(baseline, changed, stage) {
+ const config=request=>{const {messages,...rest}=request;return rest;};
+ if(!isDeepStrictEqual(config(baseline),config(changed)))throw Error('MODEL_CONFIGURATION_DRIFT');
+ if(baseline.messages.length!==2||changed.messages.length!==2||baseline.messages[0].role!=='system'||changed.messages[0].role!=='system'||baseline.messages[1].role!=='user'||changed.messages[1].role!=='user')throw Error('MESSAGE_STRUCTURE_DRIFT');
+ if(baseline.messages[1].content!==changed.messages[1].content)throw Error('INPUT_DRIFT');
+ if(candidate(baseline.messages[0].content,stage)!==changed.messages[0].content)throw Error('SYSTEM_SCOPE_DRIFT');
+ return {exactSameUserInput:true,exactSameModelConfiguration:true,onlyGroupingInstructionChanged:true};
 }
 /** Review aid for narrowly labelled single-development posts, never a semantic verdict. */
 export function referenceReviewFlags(items, groups) {
